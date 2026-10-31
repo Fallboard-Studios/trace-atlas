@@ -30,7 +30,6 @@ import {
 } from '../constants';
 import {
   EXCLUSIVE_SEND_FIELDS,
-  ROBOT_SEND_LOADING_RANGES,
   SEND_FIELD_ROOM,
   type ExclusiveSendField,
 } from '../data/robotSendLoadingRanges';
@@ -451,12 +450,14 @@ function quantizeSend(raw: number): number {
   return quantizeToStep(raw * 100, 0, SEND_STEP_PERCENT) / 100;
 }
 
-/** Turn the three raw draws into the two stored sends: a delay roll under 1 - the Delay row's `lit` (0.25) leaves
- *  the robot with no delay at all. Shared by the noise-map draw and spawnRobot's alea fallback. */
-function composeSends(reverbRaw: number, delayRaw: number, quietRoll: number): { reverbSend: number; delaySend: number } {
+/** Turn the four raw draws into the two stored sends: a quiet roll under 1 - the row's `lit` leaves the robot without
+ *  that send at all - the Delay row's 0.25 under Classic; the Reverb row's lit of 1 is never quiet, so its roll, added at
+ *  band-table T22 so a theme's Reverb share is honoured like every other row's, moves no Classic robot. The bands are the
+ *  loaded world's (getBand). Shared by the noise-map draw and spawnRobot's alea fallback. */
+function composeSends(reverbRaw: number, delayRaw: number, reverbQuietRoll: number, delayQuietRoll: number): { reverbSend: number; delaySend: number } {
   return {
-    reverbSend: quantizeSend(reverbRaw),
-    delaySend: quietRoll < 1 - ROBOT_SEND_LOADING_RANGES.delaySend.lit ? 0 : quantizeSend(delayRaw),
+    reverbSend: reverbQuietRoll < 1 - getBand('reverbSend').lit ? 0 : quantizeSend(reverbRaw),
+    delaySend: delayQuietRoll < 1 - getBand('delaySend').lit ? 0 : quantizeSend(delayRaw),
   };
 }
 
@@ -470,7 +471,7 @@ function composeExclusiveSends(draw: Record<ExclusiveSendField, { roll: number; 
   const sends = { gritSend: 0, shimmerSend: 0, doubleSend: 0 };
   let taken = false;
   for (const field of EXCLUSIVE_SEND_FIELDS) {
-    const band = ROBOT_SEND_LOADING_RANGES[field];
+    const band = getBand(field);
     if (draw[field].roll < band.lit && !taken) {
       sends[field] = quantizeSend(band.min + draw[field].t * (band.max - band.min));
       taken = true;
@@ -480,20 +481,23 @@ function composeExclusiveSends(draw: Record<ExclusiveSendField, { roll: number; 
 }
 
 /**
- * A robot's five seeded sends (docs/specs/ROBOT_SENDS.md §1.2, docs/specs/ROBOT_EFFECT_SENDS.md §1.2), from
- * ROBOT_SEND_LOADING_RANGES at `offset` = spawn count. Reverb and Delay keep the bell draws and the three dataIds Robot
- * Sends shipped (the old global Reverb / Delay `wet` loading rows, moved to the send table by Robot Effect Sends T1
- * without moving a value); about a quarter of the fleet draws no delay. The Grit, Shimmer and Double sends are uniform
+ * A robot's five seeded sends (docs/specs/ROBOT_SENDS.md §1.2, docs/specs/ROBOT_EFFECT_SENDS.md §1.2), from the loaded
+ * world's send bands (getBand, band-table T22; Classic's rows are ROBOT_SEND_LOADING_RANGES) at `offset` = spawn count.
+ * Reverb and Delay keep the bell draws and the three dataIds Robot Sends shipped (the old global Reverb / Delay `wet`
+ * loading rows, moved to the send table by Robot Effect Sends T1 without moving a value), plus the Reverb row's own quiet
+ * roll, `robot.send.reverb.quiet`, so a theme's Reverb `lit` is honoured like every other row's (Classic's lit of 1
+ * never goes quiet); about a quarter of the fleet draws no delay. The Grit, Shimmer and Double sends are uniform
  * per-robot rolls, `robot.send.<room>.lit` and `robot.send.<room>`, every one read on every robot, at most one landing
  * (composeExclusiveSends). One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in
  * both, so a copied robot shares its sibling's voice but not its depths, and the two cannot drift.
  */
 export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): Record<RobotSendField, number> {
-  const reverb = ROBOT_SEND_LOADING_RANGES.reverbSend;
-  const delay = ROBOT_SEND_LOADING_RANGES.delaySend;
+  const reverb = getBand('reverbSend');
+  const delay = getBand('delaySend');
   const firstTwo = composeSends(
     getSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
     getSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
+    getSeededVal(noiseMap, 'robot.send.reverb.quiet', offset, 0, 1),
     getSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
   );
   const draw = (field: ExclusiveSendField) => {
@@ -507,14 +511,15 @@ export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): R
 }
 
 /** spawnRobot's no-noise-map path (a locale that does not exist yet): the same bands, drawn from alea as
- *  Volume's fallback is. Three draws for Reverb and Delay, since the quiet roll needs its own, then a roll and a value
+ *  Volume's fallback is. Four draws for Reverb and Delay, since each quiet roll needs its own, then a roll and a value
  *  for each effect room send (`sendGritLit`, `sendGrit`, ...). */
 function generateRobotSendsFallback(localeId: string, spawnCount: number): Record<RobotSendField, number> {
-  const reverb = ROBOT_SEND_LOADING_RANGES.reverbSend;
-  const delay = ROBOT_SEND_LOADING_RANGES.delaySend;
+  const reverb = getBand('reverbSend');
+  const delay = getBand('delaySend');
   const firstTwo = composeSends(
     reverb.min + alea(`${localeId}:${spawnCount}:sendReverb`)() * (reverb.max - reverb.min),
     delay.min + alea(`${localeId}:${spawnCount}:sendDelay`)() * (delay.max - delay.min),
+    alea(`${localeId}:${spawnCount}:sendReverbQuiet`)(),
     alea(`${localeId}:${spawnCount}:sendQuiet`)(),
   );
   const draw = (name: string) => ({

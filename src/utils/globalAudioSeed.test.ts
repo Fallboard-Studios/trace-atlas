@@ -24,6 +24,25 @@ vi.mock('./tempoSync', async (importOriginal) => {
   return { ...actual, pickSeedNoteValue: vi.fn(actual.pickSeedNoteValue) };
 });
 
+// band-table T22: the global bands are read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption
+// 15). The real Calm column is {} until the listen (plan Task 34), so one moving three keys is injected over the spread
+// originals: the LPF cutoff (a plain sampled field), the Delay time (the band the Delay Sync pick is handed) and the
+// Phaser rate (a pedal rate band the Sync pick is handed).
+vi.mock('@/data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/data/bands/themes')>();
+  return {
+    ...actual,
+    THEMES: {
+      ...actual.THEMES,
+      calm: {
+        'filterLPF.frequency': { min: 500, max: 600 },
+        'delay.delayTime': { min: 0.2, max: 0.25 },
+        'phaser.rate': { min: 1, max: 1.5 },
+      },
+    },
+  };
+});
+
 import {
   generateGlobalAudioSettings,
   generateLfoBankSettings,
@@ -54,6 +73,7 @@ import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
 import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
 import { ROBOT_SEND_LOADING_RANGES } from '@/data/robotSendLoadingRanges';
+import { withLoading } from '@/data/bands/loadingContext';
 import { type GlobalAudioSeedFieldKey, type LoadingRangeKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES, type GlobalLfoTargetId } from '@/types/lfo';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
@@ -2291,5 +2311,67 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     const first = generateLfoBankSettings('oracle-alpha', 'oracle-alpha');
     evictAttenuationStyleNoiseMap('oracle-alpha');
     expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual(first);
+  });
+});
+
+// ========================================
+// THE BAND TABLE (band-table T22)
+// ========================================
+
+describe('generateGlobalAudioSettings reads the band table (band-table T22, spec assumption 15)', () => {
+  const CALM = { theme: 'calm', aspects: {} } as const;
+  const names = Array.from({ length: 40 }, (_, i) => `band-table-t22-${i}`);
+  const idOf = (name: string) => `band-table-t22-id-${name}`;
+
+  afterEach(() => {
+    for (const name of names) evictAttenuationStyleNoiseMap(idOf(name));
+  });
+
+  it('under a theme moving filterLPF.frequency to 500-600 Hz every style seeds its cutoff in it; the same styles under Classic sit at 2000 Hz or above', () => {
+    for (const name of names.slice(0, 12)) {
+      const classic = generateGlobalAudioSettings(idOf(name), name).filterLPF.frequency;
+      expect(classic, name).toBeGreaterThanOrEqual(2000);
+      const calm = withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name)).filterLPF.frequency;
+      expect(calm, name).toBeGreaterThanOrEqual(500);
+      expect(calm, name).toBeLessThanOrEqual(600);
+    }
+  });
+
+  it('moves only the bands the column names: with the LPF cutoff, the Delay and the Phaser blocks set aside, the themed style equals the Classic one', () => {
+    const name = names[0];
+    const classic = generateGlobalAudioSettings(idOf(name), name);
+    const calm = withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name));
+    expect({
+      ...calm,
+      filterLPF: { ...calm.filterLPF, frequency: classic.filterLPF.frequency },
+      delay: classic.delay,
+      phaser: classic.phaser,
+    }).toStrictEqual(classic);
+  });
+
+  it('reads the band at the draw, never caching it: after withLoading the same style seeds its Classic cutoff again', () => {
+    const name = names[1];
+    const before = generateGlobalAudioSettings(idOf(name), name);
+    withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name));
+    expect(generateGlobalAudioSettings(idOf(name), name)).toStrictEqual(before);
+  });
+
+  it('hands the Delay Sync pick the table\'s delay.delayTime band and the pedal Sync picks the table\'s rate bands', () => {
+    vi.mocked(pickSeedNoteValue).mockClear();
+    withLoading(CALM, () => {
+      for (const name of names) generateGlobalAudioSettings(idOf(name), name);
+    });
+    const calls = vi.mocked(pickSeedNoteValue).mock.calls;
+    const seconds = calls.filter((call) => call[3] === 'seconds');
+    const hz = calls.filter((call) => call[3] === 'hz');
+    expect(seconds.length).toBeGreaterThan(0);
+    for (const call of seconds) expect(call[2]).toEqual([{ min: 0.2, max: 0.25 }]);
+    expect(hz.length).toBeGreaterThan(0);
+    expect(hz.some((call) => call[2][0].min === 1 && call[2][0].max === 1.5)).toBe(true);
+    // The chorus, tremolo and vibrato rate bands are untouched: every other hz band is Classic's.
+    for (const call of hz) {
+      if (call[2][0].min === 1 && call[2][0].max === 1.5) continue;
+      expect([GLOBAL_AUDIO_LOADING_RANGES['chorus.rate'], GLOBAL_AUDIO_LOADING_RANGES['tremolo.rate'], GLOBAL_AUDIO_LOADING_RANGES['vibrato.rate']]).toContainEqual(call[2][0]);
+    }
   });
 });

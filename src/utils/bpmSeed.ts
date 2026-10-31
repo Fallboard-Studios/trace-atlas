@@ -3,19 +3,22 @@
 // ========================================
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
+import { getBand } from '@/data/bands/loadingContext';
+import { CLASSIC } from '@/data/bands/classic';
 
 // ========================================
 // FUNCTIONS
 // ========================================
 
 /**
- * BPM's own seeded-default range — [40, 100] as integer BPM, a slower/
- * contemplative band fitting the ambient ocean soundscape. Freely draggable
- * across the wider [20, 200] Audio Rig slider range afterward. Unchanged by
- * the move from locale seeding to Attenuation Style seeding
- * (docs/specs/FREE_SYNC_TOGGLE.md §1.7).
+ * Classic's tempo band — [40, 100] as integer BPM, a slower/contemplative band fitting the ambient ocean soundscape,
+ * freely draggable across the wider [20, 200] Audio Rig slider range afterward; unchanged by the move from locale
+ * seeding to Attenuation Style seeding (docs/specs/FREE_SYNC_TOGGLE.md §1.7). The row lives in the band table
+ * (src/data/bands/classic.ts, `bpm`) and the generator reads the loaded world's band through getBand('bpm')
+ * (band-table T22, docs/specs/OFF_SCREEN.md assumption 15), so a theme may move it. This name is the Classic row, for
+ * the tests and the Audio Rig's slider note.
  */
-export const BPM_SEED_RANGE = { min: 40, max: 100 };
+export const BPM_SEED_RANGE = CLASSIC.bpm;
 
 /**
  * Generate the deterministic audio BPM for an Attenuation Style, sampled from
@@ -36,6 +39,7 @@ export const BPM_SEED_RANGE = { min: 40, max: 100 };
  */
 export function generateAttenuationStyleBpm(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(noiseMap, 'globalAudio.bpm', 0, BPM_SEED_RANGE.min, BPM_SEED_RANGE.max);
+  const band = getBand('bpm');
+  const raw = getSeededVal(noiseMap, 'globalAudio.bpm', 0, band.min, band.max);
   return Math.round(raw);
 }

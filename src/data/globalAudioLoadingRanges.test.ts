@@ -10,10 +10,20 @@ import {
   type LoadingRangeKey,
 } from './globalAudioSeedRanges';
 import { ROBOT_SEND_LOADING_RANGES } from './robotSendLoadingRanges';
+import { CLASSIC } from './bands/classic';
 
 // ========================================
 // TESTS
 // ========================================
+
+// band-table T22 (docs/specs/OFF_SCREEN.md assumption 15): the rows live in the band table; this file projects Classic's.
+describe('GLOBAL_AUDIO_LOADING_RANGES is a projection of the Classic band table', () => {
+  it('holds, for every loading key, the very row CLASSIC holds', () => {
+    for (const key of Object.keys(GLOBAL_AUDIO_LOADING_RANGES) as LoadingRangeKey[]) {
+      expect(GLOBAL_AUDIO_LOADING_RANGES[key], key).toBe(CLASSIC[key]);
+    }
+  });
+});
 
 // Direct transcription of docs/reference/GLOBAL_CHAIN_GRID.md's "Loading
 // Range" column — confirmed with the user effect-by-effect. The grid is the

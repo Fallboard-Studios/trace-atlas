@@ -6,10 +6,20 @@ import { describe, it, expect } from 'vitest';
 import { EXCLUSIVE_SEND_FIELDS, ROBOT_SEND_LOADING_RANGES, SEND_FIELD_ROOM } from './robotSendLoadingRanges';
 import { ROBOT_SEND_FIELDS, type RobotSendField } from './robotSends';
 import { SEND_MAX, SEND_MIN } from '../constants';
+import { CLASSIC } from './bands/classic';
 
 // ========================================
 // TESTS
 // ========================================
+
+// band-table T22 (docs/specs/OFF_SCREEN.md assumption 15): the rows live in the band table; this file projects Classic's.
+describe('ROBOT_SEND_LOADING_RANGES is a projection of the Classic band table', () => {
+  it('holds, for each of the five sends, the very row CLASSIC holds', () => {
+    for (const field of ROBOT_SEND_FIELDS) {
+      expect(ROBOT_SEND_LOADING_RANGES[field], field).toBe(CLASSIC[field]);
+    }
+  });
+});
 
 // Robot Effect Sends T1 (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1): the one per-robot send band table.
 describe('ROBOT_SEND_LOADING_RANGES', () => {

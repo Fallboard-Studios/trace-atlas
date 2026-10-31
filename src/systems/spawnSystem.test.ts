@@ -81,9 +81,22 @@ const everyRobotBandMoved = vi.hoisted(() => ({
   'robot.accents': { min: 0, max: 5 },
 }) satisfies Partial<BandTable>);
 
+// band-table T22: the sends read the band table too. Under Adventurous no robot carries a reverb (lit 0), every robot a
+// delay of exactly 0.3 (a point band, lit 1) and every Grit roll lands at 0.5 (so Shimmer and Double never do); Bold
+// gives the Reverb row a lit share of 0.5, to prove the roll against 1 - lit on a row Classic never rolls.
+const everySendMoved = vi.hoisted(() => ({
+  reverbSend: { min: 0.1, max: 0.6, lit: 0 },
+  delaySend: { min: 0.3, max: 0.3, lit: 1 },
+  gritSend: { min: 0.5, max: 0.5, lit: 1 },
+}) satisfies Partial<BandTable>);
+const halfLitReverb = vi.hoisted(() => ({ reverbSend: { min: 0.1, max: 0.6, lit: 0.5 } }) satisfies Partial<BandTable>);
+
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, perilous: everyRobotBandMoved } };
+  return {
+    ...actual,
+    THEMES: { ...actual.THEMES, perilous: everyRobotBandMoved, adventurous: everySendMoved, bold: halfLitReverb },
+  };
 });
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
@@ -855,9 +868,11 @@ describe('spawnSystem', () => {
       const calls = vi.mocked(getSeededVal).mock.calls.map((c) => [c[1], c[2], c[3], c[4]]);
       const { reverbSend, delaySend } = ROBOT_SEND_LOADING_RANGES;
       expect(calls).toContainEqual(['robot.send.reverb', 3, reverbSend.min, reverbSend.max]);
+      // band-table T22: the Reverb row's lit share is rolled too (never quiet under Classic's lit of 1).
+      expect(calls).toContainEqual(['robot.send.reverb.quiet', 3, 0, 1]);
       expect(calls).toContainEqual(['robot.send.delay', 3, delaySend.min, delaySend.max]);
       expect(calls).toContainEqual(['robot.send.delay.quiet', 3, 0, 1]);
-      expect(calls).toHaveLength(3);
+      expect(calls).toHaveLength(4);
     });
 
     it('takes the quiet threshold from the Delay row: a roll under 1 - lit is quiet', async () => {
@@ -1021,7 +1036,7 @@ describe('spawnSystem', () => {
     it('keeps the Reverb and Delay draws exactly as they were (the T1 parity test pins their values)', () => {
       vi.mocked(getSeededVal).mockClear();
       generateRobotSends(realNoise, 5);
-      expect(vi.mocked(getSeededVal).mock.calls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb']);
+      expect(vi.mocked(getSeededVal).mock.calls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb', 'robot.send.reverb.quiet']);
     });
 
     // Calibration (spec §5, plan T7): 150 worlds x 12 robots. The nominal shares, with the one-of-three cap taking
@@ -1420,7 +1435,7 @@ describe('spawnSystem', () => {
         spawnRobot('sends-keys-locale');
 
         const sendCalls = vi.mocked(getSeededVal).mock.calls.filter((c) => /send/i.test(String(c[1])));
-        expect(sendCalls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb']);
+        expect(sendCalls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb', 'robot.send.reverb.quiet']);
         expect(sendCalls.every((c) => c[2] === 0)).toBe(true);
       });
 
@@ -3478,6 +3493,88 @@ describe('spawnSystem', () => {
         ['robot-1-a9g7kk48', 0.78, 50, 0],
         ['robot-2-mrmqcepa', 0.74, 77, 0],
       ]);
+    });
+  });
+
+  describe('the sends read the band table (band-table T22, spec assumption 15)', () => {
+    const ADVENTUROUS = { theme: 'adventurous', aspects: {} } as const;
+    const BOLD = { theme: 'bold', aspects: {} } as const;
+    const noiseMap = createNoise2D(alea('band-table-t22'));
+
+    afterEach(async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+    });
+
+    it('generateRobotSends under the installed table: no reverb, a delay of 0.3 and a grit of 0.5 on every robot, where Classic varies', () => {
+      const themed = withLoading(ADVENTUROUS, () => Array.from({ length: 20 }, (_, i) => generateRobotSends(noiseMap, i)));
+      const classic = Array.from({ length: 20 }, (_, i) => generateRobotSends(noiseMap, i));
+      for (const sends of themed) {
+        expect(reverbAndDelay(sends)).toEqual({ reverbSend: 0, delaySend: 0.3 });
+        expect(effectSends(sends)).toEqual({ gritSend: 0.5, shimmerSend: 0, doubleSend: 0 });
+      }
+      expect(classic.every((sends) => sends.reverbSend > 0)).toBe(true);
+      expect(classic.some((sends) => sends.delaySend !== 0.3)).toBe(true);
+      expect(classic.some((sends) => sends.gritSend === 0)).toBe(true);
+    });
+
+    it('honours the Reverb row\'s lit share as the Delay row\'s: a quiet roll under 1 - lit seeds 0, at it the band value; Classic\'s lit of 1 is never quiet', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      const force = (quiet: number) =>
+        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
+          dataId === 'robot.send.reverb.quiet' ? quiet : real(nm, dataId, offset, min, max),
+        );
+      force(0.49);
+      expect(withLoading(BOLD, () => generateRobotSends(noiseMap, 0)).reverbSend).toBe(0);
+      expect(generateRobotSends(noiseMap, 0).reverbSend).toBeGreaterThan(0);
+      force(0.5);
+      expect(withLoading(BOLD, () => generateRobotSends(noiseMap, 0)).reverbSend).toBeGreaterThan(0);
+      force(0);
+      expect(generateRobotSends(noiseMap, 0).reverbSend).toBeGreaterThan(0);
+    });
+
+    it('rolls the reverb quiet draw on every robot at its own dataId, so the draw set never depends on the band', () => {
+      vi.mocked(getSeededVal).mockClear();
+      generateRobotSends(noiseMap, 4);
+      const classicIds = vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1])).sort();
+      expect(classicIds).toContain('robot.send.reverb.quiet');
+      vi.mocked(getSeededVal).mockClear();
+      withLoading(ADVENTUROUS, () => generateRobotSends(noiseMap, 4));
+      expect(vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1])).sort()).toEqual(classicIds);
+    });
+
+    it('spawnRobot stores the themed sends', () => {
+      const localeId = 'band-table-t22-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x: 5, y: 9 }, robots: [] } },
+      }));
+      withLoading(ADVENTUROUS, () => {
+        for (let i = 0; i < 4; i++) spawnRobot(localeId);
+      });
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots).toHaveLength(4);
+      for (const robot of robots) {
+        expect(reverbAndDelay(robot)).toEqual({ reverbSend: 0, delaySend: 0.3 });
+        expect(effectSends(robot)).toEqual({ gritSend: 0.5, shimmerSend: 0, doubleSend: 0 });
+      }
+    });
+
+    it('spawnRobot with no locale (no noise map) draws its alea fallbacks inside the installed send bands', () => {
+      const added: Robot[] = [];
+      const realAddRobot = useLocaleStore.getState().addRobot;
+      useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
+      try {
+        withLoading(ADVENTUROUS, () => {
+          for (let i = 0; i < 10; i++) spawnRobot(`band-table-t22-no-locale-${i}`);
+        });
+      } finally {
+        useLocaleStore.setState({ addRobot: realAddRobot });
+      }
+      expect(added).toHaveLength(10);
+      for (const robot of added) {
+        expect(reverbAndDelay(robot)).toEqual({ reverbSend: 0, delaySend: 0.3 });
+        expect(effectSends(robot)).toEqual({ gritSend: 0.5, shimmerSend: 0, doubleSend: 0 });
+      }
     });
   });
 });

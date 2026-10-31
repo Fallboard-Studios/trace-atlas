@@ -19,8 +19,8 @@ import type { BandTable } from './bandKeys';
  * direct transcription of docs/reference/GLOBAL_CHAIN_GRID.md's "Loading Range" column - that doc is the source of
  * truth; if a value here and the grid disagree, the grid is right and this file has drifted. `bpm` is BPM_SEED_RANGE
  * (src/utils/bpmSeed.ts). The robot bands are spawnSystem.ts's module constants, each threshold riding its range as a
- * lit share. The sends are ROBOT_SEND_LOADING_RANGES (src/data/robotSendLoadingRanges.ts). The readers move to
- * getBand() in Tasks 21-22, when those files become re-exports of these rows.
+ * lit share. The sends are ROBOT_SEND_LOADING_RANGES (src/data/robotSendLoadingRanges.ts). The readers moved to
+ * getBand() at Tasks 21-22; those two files are now projections of these rows, by name, for the grid mirror and the tests.
  */
 export const CLASSIC: BandTable = {
   // ---- Tempo -------------------------------------------------------------------------------------------------------
