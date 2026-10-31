@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { SessionPayload } from '../types/session';
-import { buildShareUrl, copySessionLink, searchOf } from './sessionShareUtils';
+import { buildShareUrl, copySessionLink, mirrorWorldToUrl, searchOf } from './sessionShareUtils';
 import { decodeWorldLink, encodeBlob } from './worldLink';
 import { FIXTURE_COORDINATES, FIXTURE_NAME, untouchedWorld } from '../testUtils/worldLinkFixtures';
 
@@ -163,6 +163,74 @@ describe('searchOf', () => {
     const query = `?seed=${FIXTURE_NAME}&x=${FIXTURE_COORDINATES.x}&y=${FIXTURE_COORDINATES.y}`;
     expect(decodeWorldLink(searchOf(`https://host/trace-atlas/${query}`))).toEqual(untouchedWorld());
     expect(decodeWorldLink(searchOf(query))).toEqual(untouchedWorld());
+  });
+});
+
+// docs/tasks/OFF_SCREEN.md Task 15 (spec assumption 12): the address bar follows the loaded world — identity only,
+// through replaceState, every other param kept, the tweak blob dropped (Keep and Share are for that).
+describe('mirrorWorldToUrl', () => {
+  const identity = { attenuationStyleName: 'Pelagos 7!', coordinates: { x: 29, y: -14 } };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('writes seed, x and y — nothing else — by replaceState, so no history entry is made and the path stands', () => {
+    window.history.replaceState({}, '', '/trace-atlas/');
+    const replace = vi.spyOn(window.history, 'replaceState');
+    const push = vi.spyOn(window.history, 'pushState');
+    mirrorWorldToUrl(identity);
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(push).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/trace-atlas/');
+    const params = new URLSearchParams(window.location.search);
+    expect([...params.keys()]).toEqual(['seed', 'x', 'y']);
+    expect(params.get('seed')).toBe('Pelagos 7!');
+    expect(params.get('x')).toBe('29');
+    expect(params.get('y')).toBe('-14');
+  });
+
+  it('what it writes decodes back to the same world through decodeWorldLink', () => {
+    mirrorWorldToUrl({ attenuationStyleName: FIXTURE_NAME, coordinates: FIXTURE_COORDINATES });
+    expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld());
+    mirrorWorldToUrl(identity);
+    expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }));
+  });
+
+  it('replaces an earlier triple in place and removes the s blob: the tweak blob is never mirrored live', () => {
+    window.history.replaceState({}, '', `/?seed=old&x=1&y=2&s=${encodeBlob({ robotOverrides: ROBOT_OVERRIDE })}`);
+    mirrorWorldToUrl(identity);
+    expect(window.location.search).toBe('?seed=Pelagos%207!&x=29&y=-14');
+  });
+
+  it('preserves every unrelated param byte-for-byte, where it stood: a bare ?debug stays bare, ?load= and ?fxLoad= keep their place', () => {
+    window.history.replaceState({}, '', '/?debug&load=light&seed=old&x=1&y=2&s=zzz&fxLoad=50#top');
+    mirrorWorldToUrl(identity);
+    expect(window.location.search).toBe('?debug&load=light&seed=Pelagos%207!&x=29&y=-14&fxLoad=50');
+    expect(window.location.hash).toBe('#top');
+  });
+
+  it('does not write when the address bar already names the world and carries no blob — however the link encoded it', () => {
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&debug'); // URLSearchParams' own encoding, as a share link arrives
+    const replace = vi.spyOn(window.history, 'replaceState');
+    mirrorWorldToUrl(identity);
+    expect(replace).not.toHaveBeenCalled();
+    expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&debug');
+  });
+
+  it('does write when only the blob differs: the same world, arrived tweaked, is mirrored untweaked once it is the pick', () => {
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&s=zzz');
+    mirrorWorldToUrl(identity);
+    expect(new URLSearchParams(window.location.search).has('s')).toBe(false);
+    expect(new URLSearchParams(window.location.search).get('seed')).toBe('Pelagos 7!');
+  });
+
+  it('never throws when replaceState does (a sandboxed frame): the world still loads, it is just not mirrored', () => {
+    vi.spyOn(window.history, 'replaceState').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    expect(() => mirrorWorldToUrl(identity)).not.toThrow();
   });
 });
 

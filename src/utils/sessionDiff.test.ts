@@ -789,6 +789,41 @@ describe('applySessionPayload', () => {
     spy.mockRestore();
   });
 
+  // docs/tasks/OFF_SCREEN.md Task 15 (spec assumption 12): a pick or a Load mirrors the world into the address bar
+  // through retransmitWorld (every apply rebuilds, so every apply mirrors); the boot-time link apply skips the
+  // rebuild and so leaves the arrival URL — blob included — exactly as it came.
+  describe('the address bar', () => {
+    afterEach(() => {
+      window.history.replaceState({}, '', '/');
+    });
+
+    it('an apply mirrors the payload\'s identity and drops the blob, even when the identity is the one already loaded', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      window.history.replaceState({}, '', `/?seed=${encodeURIComponent(payload.attenuationStyleName)}&x=${payload.coordinates.x}&y=${payload.coordinates.y}&s=friend`);
+
+      applySessionPayload(payload);
+
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get('seed')).toBe(payload.attenuationStyleName);
+      expect(params.get('x')).toBe(String(payload.coordinates.x));
+      expect(params.get('y')).toBe(String(payload.coordinates.y));
+      expect(params.has('s')).toBe(false);
+    });
+
+    it('a boot-time link apply (skipLocaleRebuild: true) leaves the arrival URL untouched, blob included', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      window.history.replaceState({}, '', '/?seed=friend&x=1&y=2&s=friendblob');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(window.location.search).toBe('?seed=friend&x=1&y=2&s=friendblob');
+    });
+  });
+
   it('skipLocaleRebuild: true never calls retransmitWorld', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);

@@ -11,12 +11,9 @@ import { useStageFit } from './useStageFit';
 
 import { Robot } from '@/components/robot/Robot'
 import { useLocaleStore } from '@/stores/localeStore';
-import { useUIStore } from '@/stores/uiStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { stopRobotLifecycle } from '@/systems/robotSystems';
-import { initializeLocale } from '@/systems/worldTransition';
-import { consumeSessionSharePayload } from '@/utils/sessionShareUtils';
-import { applySessionPayload } from '@/utils/sessionDiff';
+import { bootWorld } from '@/systems/worldBoot';
 import { Factory } from '@/components/actors/Factory';
 import { Scenery } from '@/components/actors/scenery/Scenery';
 import { PipeBridges } from '@/components/actors/scenery/pipeBridges';
@@ -237,40 +234,17 @@ export function OceanScene({
     [factories, sceneryActors],
   );
 
-  // Bring the active locale online on mount — guarded factory placement + the
-  // fixed 12-robot roster, via the same initializeLocale helper Sector
-  // Settings' retransmit action uses, so this setup logic exists in exactly
-  // one place (src/systems/worldTransition.ts). WorldView mounts in both power
-  // states now (docs/specs/LAYOUT_REWORK.md §1.9), so this runs once per page
-  // load, usually while the tablet is off: the world builds as a still frame
-  // and its systems (lifecycle tick, work loop, swells) start only if the
-  // tablet is already on. Otherwise powerController.powerOnSequence() starts
-  // them on the rocker. It's idempotent on factories/robots (skips if the
-  // locale is already populated), so calling it again here is safe.
-  //
-  // Immediately after, if the address bar holds a world link (?seed=&x=&y=,
-  // plus s= for a tweaked world: docs/specs/SHORT_WORLD_LINK.md, roadmap 56),
-  // apply its payload's robotOverrides/companyDiffs/globalAudio on top via
-  // applySessionPayload — with skipLocaleRebuild: true, since the locale this
-  // initializeLocale call just built is already correct (its
-  // attenuationStyleName/coordinates were pinned before the default locale
-  // was even constructed, docs/specs/SECTOR_SETTINGS_SHARABLE_LINK.md §4.3) —
-  // calling applySessionPayload's normal retransmitWorld path here would
-  // tear that locale down and rebuild it a second time in the same boot.
-  //
-  // consumeSessionSharePayload, NOT getSessionSharePayload — getSessionSharePayload
-  // would keep returning the same payload forever, so any remount of this scene
-  // would re-apply it (re-registering every robot's melody, reapplying company
-  // membership) for as long as the link stays in the URL. (The scene no longer
-  // remounts on a power cycle, but it is still a mount effect.)
-  // consumeSessionSharePayload returns it once per page load, then null.
+  // Bring the active locale online on mount — the boot path in src/systems/worldBoot.ts: build the
+  // world (guarded factory placement + the fixed 12-robot roster, via the same initializeLocale
+  // helper Sector Settings' retransmit action uses, its systems started only if the tablet is already
+  // on — otherwise powerController.powerOnSequence() starts them on the rocker), then either apply the
+  // address bar's world link over it (docs/specs/SHORT_WORLD_LINK.md, roadmap 56; the arrival URL
+  // stands) or, on a bare boot, mirror the random identity the stores rolled into the address bar
+  // (docs/specs/OFF_SCREEN.md assumption 12). WorldView mounts in both power states
+  // (docs/specs/LAYOUT_REWORK.md §1.9), so this runs once per page load, usually while the tablet is
+  // off. The helper's own doc comment has the full story, and worldBoot.test.ts pins it without the scene.
   useEffect(() => {
-    initializeLocale(localeId, { startSystems: useUIStore.getState().isPoweredOn });
-
-    const sharePayload = consumeSessionSharePayload();
-    if (sharePayload) {
-      applySessionPayload(sharePayload, { skipLocaleRebuild: true });
-    }
+    bootWorld(localeId);
 
     return () => {
       stopRobotLifecycle();

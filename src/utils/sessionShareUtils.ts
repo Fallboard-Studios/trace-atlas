@@ -2,7 +2,9 @@
 // IMPORTS
 // ========================================
 import type { SessionPayload } from '../types/session';
-import { decodeWorldLink, encodeWorldLinkParams } from './worldLink';
+import type { WorldIdentity } from './seedBaseline';
+import { decodeWorldLink, encodeWorldLinkParams, WORLD_LINK_PARAMS } from './worldLink';
+import { withParam } from './audioBudget';
 import { devWarn } from './helpers';
 
 // ========================================
@@ -50,6 +52,42 @@ export function searchOf(link: string): string {
     return new URL(link, 'http://localhost').search;
   } catch {
     return '';
+  }
+}
+
+/**
+ * The address bar follows the loaded world (docs/specs/OFF_SCREEN.md assumption 12): rewrite `seed`, `x` and `y` to
+ * this identity and drop `s` — the tweak blob is never mirrored live; Keep and Share are for that — through
+ * `withParam`, so every other param (`debug`, `load`, `fxLoad`, …) stays where it stood, and `history.replaceState`,
+ * so no history entry is made. Called after a bare boot (worldBoot.ts) and after every retransmit that changes the
+ * world (worldTransition.ts); never on a link arrival, whose URL stands until the world changes. A no-op outside a
+ * browser, when the bar already names this world with no blob (however the link encoded it), or when replaceState
+ * throws (a sandboxed frame). The theme and family params join in the band-table module (Task 24).
+ */
+export function mirrorWorldToUrl(identity: Pick<WorldIdentity, 'attenuationStyleName' | 'coordinates'>): void {
+  if (typeof window === 'undefined') return;
+  const { attenuationStyleName, coordinates } = identity;
+  const x = String(coordinates.x);
+  const y = String(coordinates.y);
+
+  const current = new URLSearchParams(window.location.search);
+  if (
+    current.get(WORLD_LINK_PARAMS.seed) === attenuationStyleName &&
+    current.get(WORLD_LINK_PARAMS.x) === x &&
+    current.get(WORLD_LINK_PARAMS.y) === y &&
+    !current.has(WORLD_LINK_PARAMS.blob)
+  ) {
+    return;
+  }
+
+  let search = withParam(window.location.search, WORLD_LINK_PARAMS.seed, encodeURIComponent(attenuationStyleName));
+  search = withParam(search, WORLD_LINK_PARAMS.x, x);
+  search = withParam(search, WORLD_LINK_PARAMS.y, y);
+  search = withParam(search, WORLD_LINK_PARAMS.blob, null);
+  try {
+    window.history.replaceState(window.history.state, '', `${window.location.pathname}${search}${window.location.hash}`);
+  } catch {
+    // Not fatal: the world is loaded, it is just not mirrored.
   }
 }
 

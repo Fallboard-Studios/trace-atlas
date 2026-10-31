@@ -34,6 +34,8 @@ const { consumeSessionSharePayloadMock } = vi.hoisted(() => ({ consumeSessionSha
 vi.mock('@/utils/sessionShareUtils', () => ({
   getSessionSharePayload: () => null,
   consumeSessionSharePayload: () => consumeSessionSharePayloadMock(),
+  // The bare boot mirrors the world into the address bar (worldBoot.ts); nothing here reads it.
+  mirrorWorldToUrl: () => {},
 }));
 vi.mock('@/utils/sessionDiff', () => ({ applySessionPayload: vi.fn() }));
 

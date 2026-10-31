@@ -18,6 +18,8 @@ import { setWorldState } from './worldState';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '../utils/seedUtils';
+import { mirrorWorldToUrl } from '../utils/sessionShareUtils';
+import { currentWorldIdentity } from '../utils/worldIdentity';
 import { DAY_DURATION_MS } from '../constants/time';
 import type { AttenuationStyle } from '../types/attenuationStyle';
 import type { Locale } from '../types/locale';
@@ -308,6 +310,12 @@ function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: stri
  * docs/specs/archive/SECTOR_SETTINGS.md §1's preservation rules. `input`'s two
  * fields are each present only if the user actually edited that panel;
  * absence means "preserve as-is," not "reset to default."
+ *
+ * Every branch that changes the world ends by mirroring the new identity into
+ * the address bar (docs/specs/OFF_SCREEN.md assumption 12) — a pick on the off
+ * screen, a Load in Comms, Roll and Foundry's Retransmit all come through here,
+ * so a reload brings back the world that was loaded, untweaked. The no-op
+ * branch touches nothing, so a link arrival's URL stands until the world moves.
  */
 export function retransmitWorld(input: RetransmitInput): void {
   const action = resolveRetransmitAction(input);
@@ -331,6 +339,9 @@ export function retransmitWorld(input: RetransmitInput): void {
       retransmitBoth(oldAttenuationStyle, oldLocaleId, action.attenuationStyleName, action.coordinates);
       break;
   }
+
+  const identity = currentWorldIdentity();
+  if (identity) mirrorWorldToUrl(identity);
 }
 
 /**

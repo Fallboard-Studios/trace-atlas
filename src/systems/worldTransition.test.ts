@@ -761,6 +761,61 @@ describe('worldTransition', () => {
     });
   });
 
+  // The address bar follows the loaded world (docs/tasks/OFF_SCREEN.md Task 15, spec assumption 12): every retransmit
+  // that changes the world mirrors its identity — seed, x, y — and drops the tweak blob; a no-op touches nothing.
+  describe('retransmitWorld mirrors the loaded world into the address bar', () => {
+    const params = () => new URLSearchParams(window.location.search);
+
+    afterEach(() => {
+      window.history.replaceState({}, '', '/');
+    });
+
+    it('a coordinates-only retransmit writes the preserved name with the new coordinates and drops the blob', () => {
+      window.history.replaceState({}, '', '/?seed=stale&x=1&y=1&s=friend');
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      retransmitWorld({ coordinates: { x: 500, y: 500 } });
+      expect(params().get('seed')).toBe(DEFAULT_PELAGOS.name);
+      expect(params().get('x')).toBe('500');
+      expect(params().get('y')).toBe('500');
+      expect(params().has('s')).toBe(false);
+    });
+
+    it('an Attenuation-Style-only retransmit writes the new name with the preserved coordinates', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const { coordinates } = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
+      retransmitWorld({ attenuationStyleName: 'Saltwhistle' });
+      expect(params().get('seed')).toBe('Saltwhistle');
+      expect(params().get('x')).toBe(String(coordinates.x));
+      expect(params().get('y')).toBe(String(coordinates.y));
+    });
+
+    it('a both-changed retransmit, and a roll, write the whole new identity', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      retransmitWorld({ attenuationStyleName: 'Brinemouth', coordinates: { x: -7, y: 300 } });
+      expect(window.location.search).toBe('?seed=Brinemouth&x=-7&y=300');
+      rollWorld();
+      const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      const locale = useLocaleStore.getState().getLocaleById(style.currentLocaleId!)!;
+      expect(params().get('seed')).toBe(style.name);
+      expect(params().get('x')).toBe(String(locale.coordinates.x));
+      expect(params().get('y')).toBe(String(locale.coordinates.y));
+    });
+
+    it('keeps every unrelated param where it stood', () => {
+      window.history.replaceState({}, '', '/?debug&load=light');
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      retransmitWorld({ coordinates: { x: 500, y: 500 } });
+      expect(window.location.search).toBe(`?debug&load=light&seed=${encodeURIComponent(DEFAULT_PELAGOS.name)}&x=500&y=500`);
+    });
+
+    it('a no-op retransmit leaves the address bar alone', () => {
+      window.history.replaceState({}, '', '/?debug');
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      retransmitWorld({});
+      expect(window.location.search).toBe('?debug');
+    });
+  });
+
   // Roll (docs/tasks/OFF_SCREEN.md Task 13, spec assumption 14): a fresh random Attenuation Style and coordinates,
   // through retransmitWorld's full-reset branch. Once the loading store exists it rides along untouched (Task 31).
   describe('rollWorld', () => {

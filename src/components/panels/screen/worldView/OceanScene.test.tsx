@@ -76,14 +76,16 @@ vi.mock('@/systems/robotSystems', () => ({
 // getSessionSharePayload is called at attenuationStyleStore.ts's/localeStore.ts's own MODULE-LOAD
 // time (Tasks 4/5) -- which happens while this file's import graph is still resolving, before a
 // plain `const x = vi.fn()` below it would have run yet.
-const { getSessionSharePayloadMock, consumeSessionSharePayloadMock, applySessionPayloadMock } = vi.hoisted(() => ({
+const { getSessionSharePayloadMock, consumeSessionSharePayloadMock, applySessionPayloadMock, mirrorWorldToUrlMock } = vi.hoisted(() => ({
   getSessionSharePayloadMock: vi.fn(),
   consumeSessionSharePayloadMock: vi.fn(),
   applySessionPayloadMock: vi.fn(),
+  mirrorWorldToUrlMock: vi.fn(),
 }));
 vi.mock('@/utils/sessionShareUtils', () => ({
   getSessionSharePayload: () => getSessionSharePayloadMock(),
   consumeSessionSharePayload: () => consumeSessionSharePayloadMock(),
+  mirrorWorldToUrl: (identity: unknown) => mirrorWorldToUrlMock(identity),
 }));
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: (payload: unknown, options: unknown) => applySessionPayloadMock(payload, options),
@@ -160,6 +162,32 @@ describe('OceanScene', () => {
     getSessionSharePayloadMock.mockReset().mockReturnValue(null);
     consumeSessionSharePayloadMock.mockReset().mockReturnValue(null);
     applySessionPayloadMock.mockClear();
+    mirrorWorldToUrlMock.mockClear();
+  });
+
+  // docs/tasks/OFF_SCREEN.md Task 15 (spec assumption 12): a bare boot mirrors the random identity the stores rolled;
+  // a link arrival leaves its URL — blob included — standing. The mount effect's one job beyond the build (worldBoot.ts).
+  describe('the address bar at boot', () => {
+    it('a bare boot mirrors the identity the stores hold, after the build', () => {
+      const callOrder: string[] = [];
+      initializeLocaleMock.mockImplementation(() => callOrder.push('initializeLocale'));
+      mirrorWorldToUrlMock.mockImplementation(() => callOrder.push('mirrorWorldToUrl'));
+      render(<OceanScene />);
+      expect(mirrorWorldToUrlMock).toHaveBeenCalledTimes(1);
+      expect(mirrorWorldToUrlMock).toHaveBeenCalledWith({ attenuationStyleName: DEFAULT_PELAGOS.name, coordinates: DEFAULT_LOCALE.coordinates });
+      expect(callOrder).toEqual(['initializeLocale', 'mirrorWorldToUrl']);
+      cleanup();
+    });
+
+    it('a link arrival is applied and never mirrored: the arrival URL stands until the world changes', () => {
+      const payload = blobLinkPayload();
+      getSessionSharePayloadMock.mockReturnValue(payload);
+      consumeSessionSharePayloadMock.mockReturnValueOnce(payload);
+      render(<OceanScene />);
+      expect(applySessionPayloadMock).toHaveBeenCalledTimes(1);
+      expect(mirrorWorldToUrlMock).not.toHaveBeenCalled();
+      cleanup();
+    });
   });
 
   describe('boot-time world-link apply (roadmap Phase 21, docs/specs/SHORT_WORLD_LINK.md)', () => {
@@ -198,14 +226,17 @@ describe('OceanScene', () => {
       cleanup();
     });
 
-    it('uses consumeSessionSharePayload, not getSessionSharePayload -- a power cycle (unmount, then remount, e.g. the power switch) must not re-apply the share payload', () => {
+    it('applies through consumeSessionSharePayload -- a power cycle (unmount, then remount, e.g. the power switch) must not re-apply the share payload, nor rewrite its URL', () => {
       // Real consumeSessionSharePayload returns the payload once, then null forever -- simulate
       // that one-time-consumption contract directly in the mock, rather than re-testing the real
       // implementation here (that's sessionShareUtils.test.ts's job). This is a regression guard
-      // for the OceanScene call site specifically: it must call consumeSessionSharePayload (whose
-      // contract handles the power-cycle case), not the plain getSessionSharePayload getter
-      // (which would keep returning the same payload forever, re-applying on every power-on).
+      // for the boot path specifically: the apply must go through consumeSessionSharePayload (whose
+      // contract handles the power-cycle case), never the plain getSessionSharePayload getter
+      // (which would keep returning the same payload forever, re-applying on every power-on). The
+      // getter is read for one thing only: whether this page load arrived by a link at all, so a
+      // remount does not mirror the live identity over the friend's blob (docs/tasks/OFF_SCREEN.md Task 15).
       const payload = blobLinkPayload();
+      getSessionSharePayloadMock.mockReturnValue(payload);
       consumeSessionSharePayloadMock.mockReturnValueOnce(payload).mockReturnValue(null);
 
       const { unmount } = render(<OceanScene />);
@@ -213,7 +244,7 @@ describe('OceanScene', () => {
       render(<OceanScene />);
 
       expect(applySessionPayloadMock).toHaveBeenCalledTimes(1);
-      expect(getSessionSharePayloadMock).not.toHaveBeenCalled();
+      expect(mirrorWorldToUrlMock).not.toHaveBeenCalled();
       cleanup();
     });
   });
