@@ -288,7 +288,8 @@ describe('WorldView — the scene wash (revisions Task 13)', () => {
     expect(useUIStore.getState().sceneWash).toBe('covering');
     expect(change).not.toHaveBeenCalled();
     await vi.waitFor(() => expect(change).toHaveBeenCalledTimes(1));
-    await vi.waitFor(() => expect(useUIStore.getState().sceneWash).toBe('clear'));
+    // The fade-out waits for a frame of GSAP's ticker, which the shared stub never runs: the wash stays uncovering here.
+    expect(useUIStore.getState().sceneWash).toBe('uncovering');
     unmount();
     const later = vi.fn();
     requestWorldChange(later);

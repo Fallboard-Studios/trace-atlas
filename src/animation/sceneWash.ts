@@ -49,20 +49,42 @@ function fade(wash: Element, opacity: number, then: Extract<SceneWash, 'covered'
  * on once, however the store's listeners nest. The timelines only set semantic state (CLAUDE.md, Strict Separation):
  * nothing here touches the audio. Returns the stop - unsubscribe, kill the fade, detach - which WorldView calls on
  * unmount; with no element registered there is nothing to start and the stop does nothing.
+ *
+ * The fade-out starts on the first tick after the one the change ran in. The change - a whole world rebuilt - runs
+ * synchronously inside the cover's completion, which GSAP calls from its root timeline mid-tick, and can hold the main
+ * thread for a few hundred milliseconds; a tween made then is stamped at that tick's start, and the next tick, after the
+ * rebuild, would find most of its 0.5 s gone (measured headless on a Roll: about 75 ms of the fade-out showed). A
+ * listener on GSAP's own ticker that skips the frame it was added in starts the fade once the root has caught up - the
+ * root updates first on every tick - so all of it is seen.
  */
 export function startSceneWash(): () => void {
   const wash = getRef(WORLD_WASH_REF_KEY);
   if (!wash) return () => undefined;
   const detach = attachSceneWash();
   let shown: SceneWash = useUIStore.getState().sceneWash;
+  let waiting: gsap.TickerCallback | null = null;
+  const stopWaiting = () => {
+    if (waiting) gsap.ticker.remove(waiting);
+    waiting = null;
+  };
+  const afterThisFrame = (run: () => void) => {
+    const addedIn = gsap.ticker.frame;
+    waiting = (_time, _delta, frame) => {
+      if (frame <= addedIn) return;
+      stopWaiting();
+      run();
+    };
+    gsap.ticker.add(waiting);
+  };
   const unsubscribe = useUIStore.subscribe(({ sceneWash }) => {
     if (sceneWash === shown) return;
     shown = sceneWash;
+    stopWaiting();
     if (sceneWash === 'covering') {
       gsap.set(wash, { backgroundImage: seaGradient() });
       fade(wash, 1, 'covered');
     } else if (sceneWash === 'uncovering') {
-      fade(wash, 0, 'clear');
+      afterThisFrame(() => fade(wash, 0, 'clear'));
     } else if (sceneWash === 'clear') {
       killTimeline(SCENE_WASH_TIMELINE);
       gsap.set(wash, { opacity: 0 });
@@ -70,6 +92,7 @@ export function startSceneWash(): () => void {
   });
   return () => {
     unsubscribe();
+    stopWaiting();
     killTimeline(SCENE_WASH_TIMELINE);
     detach();
   };

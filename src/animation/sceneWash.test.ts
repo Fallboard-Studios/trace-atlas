@@ -18,10 +18,13 @@ interface RecordedTimeline {
   tweens: { target: unknown; vars: Record<string, unknown> }[];
   kill: ReturnType<typeof vi.fn>;
 }
+type Listener = (time: number, delta: number, frame: number) => void;
 const recorded = vi.hoisted(() => ({
   timelines: [] as RecordedTimeline[],
   sets: [] as { target: unknown; vars: Record<string, unknown> }[],
   audio: [] as string[],
+  // GSAP's ticker as a frame counter and its listeners: the test steps it (tick) where real frames would come.
+  ticker: { frame: 0, listeners: [] as Listener[] },
 }));
 
 vi.mock('gsap', () => {
@@ -41,8 +44,21 @@ vi.mock('gsap', () => {
     };
     return tl;
   };
+  const ticker = {
+    get frame() {
+      return recorded.ticker.frame;
+    },
+    add: (fn: Listener) => {
+      recorded.ticker.listeners.push(fn);
+      return fn;
+    },
+    remove: (fn: Listener) => {
+      recorded.ticker.listeners = recorded.ticker.listeners.filter((l) => l !== fn);
+    },
+  };
   const mocked = {
     timeline,
+    ticker,
     set: (target: unknown, vars: Record<string, unknown>) => {
       recorded.sets.push({ target, vars });
     },
@@ -75,7 +91,23 @@ import { waterColumnColors } from '../utils/waterColumnColors';
 
 const wash = () => useUIStore.getState().sceneWash;
 const last = () => recorded.timelines[recorded.timelines.length - 1];
-const finish = (timeline: RecordedTimeline) => timeline.onComplete?.();
+/** One frame of GSAP's ticker: the frame count steps, then every listener runs with it, as real GSAP does. */
+const tick = () => {
+  recorded.ticker.frame += 1;
+  for (const listener of [...recorded.ticker.listeners]) listener(0, 16, recorded.ticker.frame);
+};
+/** A timeline lands where real GSAP calls it: inside a tick (its root timeline updates first on every tick). */
+const finish = (timeline: RecordedTimeline) => {
+  recorded.ticker.frame += 1;
+  timeline.onComplete?.();
+  for (const listener of [...recorded.ticker.listeners]) listener(0, 16, recorded.ticker.frame);
+};
+/** The cover lands, the change runs, and the next frame starts the fade-out: the uncover timeline. */
+const coverAndStartUncover = () => {
+  finish(last());
+  tick();
+  return last();
+};
 let el: HTMLDivElement;
 let stop: () => void;
 
@@ -83,6 +115,7 @@ beforeEach(() => {
   recorded.timelines.length = 0;
   recorded.sets.length = 0;
   recorded.audio.length = 0;
+  recorded.ticker.listeners = [];
   useUIStore.setState({ sceneWash: 'clear', activeLocaleLocalTime: 12 });
   vi.stubGlobal('matchMedia', () => ({ matches: false }));
   el = document.createElement('div');
@@ -116,21 +149,49 @@ describe('startSceneWash (revisions Task 13)', () => {
     expect(change).toHaveBeenCalledTimes(1);
   });
 
-  it("uncovers after the change: a second timeline takes the wash to transparent over 0.5 s, and its completion sets 'clear'", () => {
+  it("uncovers after the change: on the next frame a second timeline takes the wash to transparent over 0.5 s, and its completion sets 'clear'", () => {
     requestWorldChange(vi.fn());
     finish(last());
     expect(wash()).toBe('uncovering');
+    // Not in the frame the change ran in: a tween made then would be stamped before the rebuild and jump ahead after it.
+    expect(recorded.timelines).toHaveLength(1);
+    tick();
+    expect(recorded.timelines).toHaveLength(2);
     const uncover = last();
     expect(uncover.tweens).toEqual([{ target: el, vars: expect.objectContaining({ opacity: 0, duration: SCENE_WASH_SECONDS }) }]);
     finish(uncover);
     expect(wash()).toBe('clear');
+    expect(recorded.ticker.listeners).toHaveLength(0);
   });
 
   it('one request is one cover and one uncover: two timelines, not more', () => {
     requestWorldChange(vi.fn());
-    finish(last());
-    finish(last());
+    finish(coverAndStartUncover());
+    tick();
     expect(recorded.timelines).toHaveLength(2);
+  });
+
+  it('a request before the fade-out has started cancels it: the cover holds for the new change, no uncover on the next frame', () => {
+    requestWorldChange(vi.fn());
+    finish(last());
+    const second = vi.fn();
+    requestWorldChange(second);
+    expect(wash()).toBe('covering');
+    tick();
+    expect(recorded.timelines).toHaveLength(2);
+    expect(last().tweens[0].vars).toEqual(expect.objectContaining({ opacity: 1 }));
+    finish(last());
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  it('the stop removes a fade-out still waiting for its frame', () => {
+    requestWorldChange(vi.fn());
+    finish(last());
+    stop();
+    tick();
+    expect(recorded.timelines).toHaveLength(1);
+    expect(recorded.ticker.listeners).toHaveLength(0);
+    stop = () => undefined;
   });
 
   it("paints the cover in the sea's own colours at the hour it starts, the water column's two stops", () => {
@@ -138,8 +199,7 @@ describe('startSceneWash (revisions Task 13)', () => {
     requestWorldChange(vi.fn());
     const night = waterColumnColors(0);
     expect(recorded.sets.at(-1)).toEqual({ target: el, vars: { backgroundImage: `linear-gradient(${night.top}, ${night.bottom})` } });
-    finish(last());
-    finish(last());
+    finish(coverAndStartUncover());
     useUIStore.setState({ activeLocaleLocalTime: 12 });
     requestWorldChange(vi.fn());
     const noon = waterColumnColors(12);
@@ -149,8 +209,7 @@ describe('startSceneWash (revisions Task 13)', () => {
 
   it('a new state kills the running tween first: a request while uncovering kills the fade-out and covers again', () => {
     requestWorldChange(vi.fn());
-    finish(last());
-    const uncover = last();
+    const uncover = coverAndStartUncover();
     const second = vi.fn();
     requestWorldChange(second);
     expect(uncover.kill).toHaveBeenCalled();
@@ -174,8 +233,8 @@ describe('startSceneWash (revisions Task 13)', () => {
 
   it('touches no audio through a whole cycle: the callbacks only set the store', () => {
     requestWorldChange(vi.fn());
-    finish(last());
-    finish(last());
+    finish(coverAndStartUncover());
+    expect(wash()).toBe('clear');
     expect(recorded.audio).toEqual([]);
   });
 
