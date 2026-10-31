@@ -27,7 +27,7 @@ vi.mock('@/utils/sessionShareUtils', async (importOriginal) => ({
 import { SectorSettingsDrawer } from './SectorSettingsDrawer';
 import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '@/stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
-import { ATTENUATION_STYLE_PRESETS, COORDINATE_PRESETS } from '@/data/sectorSettingsConfig';
+import * as sectorSettingsConfig from '@/data/sectorSettingsConfig';
 import { buildSessionPayload } from '@/utils/sessionDiff';
 import { copySessionLink } from '@/utils/sessionShareUtils';
 import { CONTENT, labels } from '@/content';
@@ -81,25 +81,40 @@ describe('SectorSettingsDrawer', () => {
     expect(screen.getByText(/Pelagos/)).toBeTruthy();
   });
 
-  it('clicking a promoted Attenuation Style preset populates only the name field and calls retransmitWorld zero times', () => {
-    render(<SectorSettingsDrawer />);
-    const preset = ATTENUATION_STYLE_PRESETS[0];
-    fireEvent.click(screen.getByText(preset.name));
+  // docs/tasks/OFF_SCREEN.md Task 12 (spec assumption 13): the shortcut rows are gone — the off screen's presets are
+  // where a curated world lives now. The AS input, the coordinates, their Random buttons and Retransmit stay.
+  describe('no shortcut buttons (docs/specs/OFF_SCREEN.md assumption 13)', () => {
+    it('renders exactly the two Random buttons, Retransmit and Copy link — no button named after a preset', () => {
+      const { container } = render(<SectorSettingsDrawer />);
+      // The Button controls only — the labels' help "?" buttons are not actions.
+      const names = Array.from(container.querySelectorAll('.sc-button')).map((b) => b.getAttribute('aria-label')).sort();
+      expect(names).toEqual(
+        [
+          labels('sector.copyLink').humanLabel,
+          labels('sector.random.attenuationStyle').humanLabel,
+          labels('sector.random.coords').humanLabel,
+          labels('sector.retransmit').humanLabel,
+        ].sort(),
+      );
+    });
 
-    const textInputs = screen.getAllByRole('textbox') as HTMLInputElement[];
-    const attenuationStyleInput = textInputs.find((el) => el.value === preset.value);
-    expect(attenuationStyleInput).toBeTruthy();
-    expect(retransmitWorldMock).not.toHaveBeenCalled();
-  });
+    it('the config exports no preset arrays any more', () => {
+      expect('ATTENUATION_STYLE_PRESETS' in sectorSettingsConfig).toBe(false);
+      expect('COORDINATE_PRESETS' in sectorSettingsConfig).toBe(false);
+    });
 
-  it('clicking a promoted coordinate preset populates only the coordinate fields and calls retransmitWorld zero times', () => {
-    render(<SectorSettingsDrawer />);
-    const preset = COORDINATE_PRESETS[0];
-    fireEvent.click(screen.getByText(preset.name));
-
-    const spinbuttons = screen.getAllByRole('spinbutton') as HTMLInputElement[];
-    expect(spinbuttons.map((el) => Number(el.value))).toEqual([preset.value.x, preset.value.y]);
-    expect(retransmitWorldMock).not.toHaveBeenCalled();
+    it('the Random buttons still fill their own field and never retransmit', () => {
+      render(<SectorSettingsDrawer />);
+      // Both Random buttons share the human label; the first sits in the Attenuation Style section, the second in Location.
+      const [randomStyle, randomCoords] = screen.getAllByRole('button', { name: labels('sector.random.attenuationStyle').humanLabel });
+      fireEvent.click(randomStyle);
+      const textInputs = screen.getAllByRole('textbox') as HTMLInputElement[];
+      expect(textInputs.some((el) => el.value !== 'Pelagos' && el.value.length > 0)).toBe(true);
+      fireEvent.click(randomCoords);
+      const spinbuttons = screen.getAllByRole('spinbutton') as HTMLInputElement[];
+      expect(spinbuttons.every((el) => Number.isInteger(Number(el.value)))).toBe(true);
+      expect(retransmitWorldMock).not.toHaveBeenCalled();
+    });
   });
 
   it('clicking Retransmit with only the Attenuation Style name edited passes just attenuationStyleName', () => {

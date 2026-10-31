@@ -8,8 +8,6 @@ import {
   COORDS_SCHEMA,
   RETRANSMIT_SCHEMA,
   STATUS_HEADER_SCHEMA,
-  ATTENUATION_STYLE_PRESETS,
-  COORDINATE_PRESETS,
 } from './sectorSettingsConfig';
 import * as sectorSettingsConfigModule from './sectorSettingsConfig';
 import { CONTENT } from '@/content';
@@ -63,39 +61,11 @@ describe('sectorSettingsConfig', () => {
     it('no longer exports AUDIO_SWELLS_ENABLED_SCHEMA — replaced by audioRigConfig.ts\'s PING_VARIANCE_AUTOMATION_SCHEMA (docs/tasks/archive/PING-VARIANCE-AUTOMATION.md Task 7)', () => {
       expect('AUDIO_SWELLS_ENABLED_SCHEMA' in sectorSettingsConfigModule).toBe(false);
     });
-  });
 
-  describe('ATTENUATION_STYLE_PRESETS', () => {
-    it('has exactly 4 entries', () => {
-      expect(ATTENUATION_STYLE_PRESETS).toHaveLength(4);
-    });
-
-    it('every entry has a non-empty label and a non-empty string value', () => {
-      for (const preset of ATTENUATION_STYLE_PRESETS) {
-        expect(preset.name).toBeTruthy();
-        expect(typeof preset.value).toBe('string');
-        expect(preset.value.length).toBeGreaterThan(0);
-      }
-    });
-  });
-
-  describe('COORDINATE_PRESETS', () => {
-    it('has exactly 4 entries', () => {
-      expect(COORDINATE_PRESETS).toHaveLength(4);
-    });
-
-    it('every entry has a non-empty label and integer x/y values', () => {
-      for (const preset of COORDINATE_PRESETS) {
-        expect(preset.name).toBeTruthy();
-        expect(Number.isInteger(preset.value.x)).toBe(true);
-        expect(Number.isInteger(preset.value.y)).toBe(true);
-      }
-    });
-
-    it('includes the (0, 0) "Null Basin" preset — the pre-decoupling dead-zone worst case, now safe', () => {
-      const nullBasin = COORDINATE_PRESETS.find((p) => p.value.x === 0 && p.value.y === 0);
-      expect(nullBasin).toBeDefined();
-      expect(nullBasin?.name).toBe('Null Basin');
+    // docs/tasks/OFF_SCREEN.md Task 12 (spec assumption 13): the curated shortcut rows went with presets-as-links.
+    it('no longer exports ATTENUATION_STYLE_PRESETS or COORDINATE_PRESETS — a curated world is a Transmission preset now', () => {
+      expect('ATTENUATION_STYLE_PRESETS' in sectorSettingsConfigModule).toBe(false);
+      expect('COORDINATE_PRESETS' in sectorSettingsConfigModule).toBe(false);
     });
   });
 });

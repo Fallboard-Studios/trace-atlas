@@ -14,29 +14,24 @@ import {
   RETRANSMIT_SCHEMA,
   COPY_LINK_SCHEMA,
   STATUS_HEADER_SCHEMA,
-  ATTENUATION_STYLE_PRESETS,
-  COORDINATE_PRESETS,
 } from '@/data/sectorSettingsConfig';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { buildSessionPayload } from '@/utils/sessionDiff';
 import type { ButtonSchema } from '@/types/controls';
-import { CONTENT, labels, fill, type ContentKey } from '@/content';
+import { CONTENT, labels } from '@/content';
 import './SectorSettingsDrawer.css';
 
 const RANDOM_ATTENUATION_STYLE_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomPlanet', type: 'button', ...labels('sector.random.attenuationStyle') };
 const RANDOM_COORDS_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomCoords', type: 'button', ...labels('sector.random.coords') };
 
-/** A preset button: its lore caption is content, its visible label is the preset's own name (data). */
-function presetSchema(idSuffix: string, name: string, content: ContentKey): ButtonSchema {
-  return { id: `sectorSettings.preset.${idSuffix}`, type: 'button', ...labels(content), humanLabel: fill(content, { name }) };
-}
-
 /**
  * Sector Settings console panel — Attenuation Style (reseed the Attenuation
  * Style) and Plot Tuning (jump to new locale coordinates), sharing one
- * Retransmit action. Preset buttons only populate their own field(s); they
+ * Retransmit action. The Random buttons only populate their own field; they
  * never submit on their own — the user still presses Retransmit separately,
- * per docs/specs/archive/SECTOR_SETTINGS.md §5.
+ * per docs/specs/archive/SECTOR_SETTINGS.md §5. The curated shortcut rows that
+ * sat beside them are gone (docs/specs/OFF_SCREEN.md assumption 13): a curated
+ * world is a Transmission preset on the off screen now.
  */
 export function SectorSettingsDrawer() {
   const currentAttenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);
@@ -110,13 +105,6 @@ export function SectorSettingsDrawer() {
       <div className="sector-settings-drawer__section">
         <TextInput schema={ATTENUATION_STYLE_SCHEMA} value={attenuationStyleNameDraft} onChange={setAttenuationStyleNameDraft} />
         <div className="sector-settings-drawer__presets">
-          {ATTENUATION_STYLE_PRESETS.map((preset) => (
-            <Button
-              key={preset.name}
-              schema={presetSchema(`planet.${preset.name}`, preset.name, 'sector.preset.attenuationStyle')}
-              onClick={() => setAttenuationStyleNameDraft(preset.value)}
-            />
-          ))}
           <Button schema={RANDOM_ATTENUATION_STYLE_SCHEMA} onClick={() => setAttenuationStyleNameDraft(generateRandomAttenuationStyleName())} />
         </div>
       </div>
@@ -124,13 +112,6 @@ export function SectorSettingsDrawer() {
       <div className="sector-settings-drawer__section">
         <CoordsInput schema={COORDS_SCHEMA} value={coordsDraft} onChange={setCoordsDraft} />
         <div className="sector-settings-drawer__presets">
-          {COORDINATE_PRESETS.map((preset) => (
-            <Button
-              key={preset.name}
-              schema={presetSchema(`coords.${preset.name}`, preset.name, 'sector.preset.coords')}
-              onClick={() => setCoordsDraft(preset.value)}
-            />
-          ))}
           <Button
             schema={RANDOM_COORDS_SCHEMA}
             onClick={() => setCoordsDraft({ x: randomCoordinate(), y: randomCoordinate() })}
