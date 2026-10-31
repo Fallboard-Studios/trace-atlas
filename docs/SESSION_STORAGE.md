@@ -82,7 +82,7 @@ A share link is a **world link** ([specs/SHORT_WORLD_LINK.md](specs/SHORT_WORLD_
 |---|---|---|---|---|---|
 | none of `seed` / `x` / `y` / `s` | `getSessionSharePayload()` is `null`; the stores' own randoms | | | | |
 | `seed` only | exact | random | random | seed's | none |
-| `x` only (`y` absent or not an integer) | random | as given | random | seed's | none |
+| `x` only (`y` absent, not an integer, or past the safe integers: R23) | random | as given | random | seed's | none |
 | triple | exact | as given | as given | seed's | none |
 | triple + blob v1 | exact | as given | as given | blob's where present, else seed's | blob's |
 | triple + blob of another version, or malformed | exact | as given | as given | seed's | none |

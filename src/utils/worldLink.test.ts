@@ -467,6 +467,27 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
       expect(randoms.coordinate).toHaveBeenCalledTimes(1);
     });
 
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R23: a coordinate is a safe integer or nothing. Number('9'.repeat(400))
+    // is Infinity, which made a NaN dayStartTimestamp, and the mirror wrote it back into the bar. Out of range reads as
+    // absent, as a malformed part does: that axis random, the rest as given.
+    it.each([
+      ['a 400-digit x', `?x=${'9'.repeat(400)}&y=4`, { x: -3, y: 4 }],
+      ['an x one past the safe integers', `?x=${2 ** 53}&y=4`, { x: -3, y: 4 }],
+      ['a 400-digit negative y', `?x=4&y=-${'9'.repeat(400)}`, { x: 4, y: -3 }],
+    ])('%s reads as absent: that axis random, the other as given', (_label, search, coordinates) => {
+      const randoms = spyRandoms();
+      randoms.coordinate.mockReset().mockReturnValueOnce(-3);
+      expect(decodeWorldLink(search)!.coordinates).toEqual(coordinates);
+      expect(randoms.coordinate).toHaveBeenCalledTimes(1);
+    });
+
+    it('the safe integers at either end still read as given, so every coordinate the app writes decodes', () => {
+      const randoms = spyRandoms();
+      const decoded = decodeWorldLink(`?seed=a&x=${Number.MAX_SAFE_INTEGER}&y=-${Number.MAX_SAFE_INTEGER}`)!;
+      expect(decoded.coordinates).toEqual({ x: Number.MAX_SAFE_INTEGER, y: -Number.MAX_SAFE_INTEGER });
+      expect(randoms.coordinate).not.toHaveBeenCalled();
+    });
+
     it('x=-0 reads as 0, and a leading zero is still an integer', () => {
       const decoded = decodeWorldLink('?seed=a&x=-0&y=007')!;
       expect(Object.is(decoded.coordinates.x, 0)).toBe(true);
