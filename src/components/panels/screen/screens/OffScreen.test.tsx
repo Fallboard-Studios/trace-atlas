@@ -47,7 +47,8 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/store
 import { useLocaleStore } from '@/stores/localeStore';
 import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
-import { CONTENT } from '@/content';
+import { formatSessionTimestamp } from '@/utils/helpers';
+import { CONTENT, fill } from '@/content';
 import type { AspectPick } from '@/data/bands/aspects';
 import type { SessionPayload } from '@/types/session';
 
@@ -812,6 +813,92 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
   });
 });
 
+// docs/tasks/OFF_SCREEN_REVISIONS.md Task 4 (Crawford's notes 1 and 2, 2026-10-31): the Transmission row is a list —
+// Current, the saves with when they were saved, a rule, the presets — and Roll rides on the Current row, beside its
+// radio, so what Roll does is plain. Keep stays under the list, alone, as "Save the last session".
+describe('OffScreen — the Transmission list and Roll on Current', () => {
+  beforeEach(() => markHeardWorld());
+  const roll = () => screen.getByRole('button', { name: human('home.off.roll') });
+  const rowOf = (el: Element) => el.closest('.sc-radio-button__row');
+  const savedMeta = (name: string) => {
+    const entry = listSessions().find((s) => s.name === name)!;
+    return fill('home.off.savedAt', { time: formatSessionTimestamp(entry.savedAt) });
+  };
+
+  it('draws the Transmission row in the list appearance, every option a row', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    const { container } = render(<OffScreen />);
+    const root = picker().closest('.sc-radio-button')!;
+    expect(root.classList.contains('sc-radio-button--list')).toBe(true);
+    expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
+    expect(root.querySelectorAll('.sc-radio-button__row')).toHaveLength(5);
+    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+  });
+
+  it('puts Roll in the Current row, beside its radio and outside it', () => {
+    render(<OffScreen />);
+    const current = screen.getByRole('radio', { name: currentLabel() });
+    expect(rowOf(roll())).toBe(rowOf(current));
+    expect(current.contains(roll())).toBe(false);
+    expect(within(picker()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([human('home.off.roll')]);
+  });
+
+  it('gives no other row a trailing action', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    const { container } = render(<OffScreen />);
+    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(1);
+    expect(rowOf(screen.getByRole('radio', { name: 'Dusk Run' }))!.querySelector('button:not([role])')).toBeNull();
+  });
+
+  it('a click on Roll rolls once and is not a pick: nothing is applied and Current stays selected', () => {
+    render(<OffScreen />);
+    fireEvent.click(roll());
+    expect(rollWorld).toHaveBeenCalledTimes(1);
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('shows each save with when it was saved, newest first; Current and the presets carry no meta', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValueOnce(Date.UTC(2026, 9, 28, 14, 14)).mockReturnValueOnce(Date.UTC(2026, 9, 30, 9, 5));
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    saveNamedSession('Night Run', savedPayload('night'));
+    now.mockRestore();
+    const { container } = render(<OffScreen />);
+    const metas = Array.from(container.querySelectorAll('.sc-radio-button__meta')).map((m) => m.textContent);
+    expect(metas).toEqual([savedMeta('Night Run'), savedMeta('Dusk Run')]);
+    expect(within(screen.getByRole('radio', { name: 'Night Run' })).getByText(savedMeta('Night Run'))).toBeTruthy();
+    expect(screen.getByRole('radio', { name: currentLabel() }).querySelector('.sc-radio-button__meta')).toBeNull();
+    for (const i of [0, 1, 2]) expect(screen.getByRole('radio', { name: presetName(i) }).querySelector('.sc-radio-button__meta')).toBeNull();
+  });
+
+  it("the meta reads 'saved' and the time the Sessions list shows for the same save", () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    const entry = listSessions()[0];
+    const meta = screen.getByRole('radio', { name: 'Dusk Run' }).querySelector('.sc-radio-button__meta')!;
+    expect(meta.textContent).toBe(fill('home.off.savedAt', { time: formatSessionTimestamp(entry.savedAt) }));
+    expect(meta.textContent).toContain(formatSessionTimestamp(entry.savedAt));
+  });
+
+  it('a save kept from this screen appears with its meta at once', () => {
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('button', { name: human('home.off.keep') }));
+    const kept = useSessionStore.getState().currentLoadedSessionName!;
+    expect(screen.getByRole('radio', { name: kept }).querySelector('.sc-radio-button__meta')?.textContent).toBe(savedMeta(kept));
+  });
+
+  it('keeps Keep alone in the actions row under the list, as Save the last session', () => {
+    const { container } = render(<OffScreen />);
+    const actions = container.querySelector('.off-screen__actions')!;
+    expect(within(actions as HTMLElement).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      human('home.off.keep'),
+    ]);
+    expect(human('home.off.keep')).toBe('Save the last session');
+    expect(picker().closest('.sc-radio-button')!.nextElementSibling).toBe(actions);
+  });
+});
+
 describe('OffScreen — the Transmission row', () => {
   beforeEach(() => markHeardWorld());
 
@@ -834,7 +921,8 @@ describe('OffScreen — the Transmission row', () => {
     expect(names.slice(3)).toEqual([presetName(0), presetName(1), presetName(2)]);
     const dividers = container.querySelectorAll('.sc-radio-button__divider');
     expect(dividers).toHaveLength(1);
-    expect(dividers[0].nextElementSibling).toBe(screen.getByRole('radio', { name: presetName(0) }));
+    // The list (revisions Task 4) draws each option in a row, so the rule sits ahead of the first preset's row.
+    expect(dividers[0].nextElementSibling).toBe(screen.getByRole('radio', { name: presetName(0) }).closest('.sc-radio-button__row'));
   });
 
   it('has Current selected before a pick, and nothing else in the world row', () => {
@@ -1016,7 +1104,8 @@ describe('OffScreen — on the phone shell (Task 28)', () => {
     const radio = screen.getByRole('radio', { name: longName });
     const label = radio.querySelector('.sc-radio-button__label');
     expect(label?.textContent).toBe(longName);
-    expect(radio.querySelector('.sc-radio-button__flat')).not.toBeNull();
+    // A list row since revisions Task 4 (the flat face was the muted appearance's).
+    expect(radio.classList.contains('sc-radio-button__list-item')).toBe(true);
   });
 
   it('names a long pick in the readout whole, so the wrapping readout can take a second line', () => {

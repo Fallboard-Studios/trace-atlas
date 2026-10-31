@@ -21,12 +21,15 @@ export const home = {
   // The Loading axis's group heading (the theme row and the Melody row), read from docs/tasks/OFF_SCREEN.md
   // Task 30 on; listed in content.test.ts's AWAITING_CONSUMER until then.
   'home.off.loading': { human: 'Loading' },
-  // Roll (spec assumption 14): the action beside Current — a fresh random Attenuation Style and plot under the chosen
-  // Loading. An action, not a radio. Stand-in copy until Crawford's pass.
+  // Roll (spec assumption 14): the action on the Current row (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4) — a fresh
+  // random Attenuation Style and plot under the chosen Loading. An action, not a radio. Stand-in copy until Crawford's pass.
   'home.off.roll': { human: 'Roll' },
   // Keep (spec assumption 14): the one save action on the off screen — the loaded world, under the name Comms would
-  // suggest, no name field. Dims once the world is kept. Stand-in copy until Crawford's pass.
-  'home.off.keep': { human: 'Keep' },
+  // suggest, no name field. Dims once the world is kept. Crawford's words, 2026-10-31 (revisions Task 4).
+  'home.off.keep': { human: 'Save the last session' },
+  // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
+  // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
+  'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
   // The one warning worth having, shown under the chooser only while the loaded world is unkept.
   'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's

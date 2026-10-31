@@ -14,12 +14,13 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
+import { formatSessionTimestamp } from '@/utils/helpers';
 import { describeWorld } from '@/utils/describeWorld';
 import { aspectDescription, aspectName, asThemeLabel, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
 import { setRef, deleteRef } from '@/utils/refs';
 import { killTimeline } from '@/animation/timelineMap';
 import { OFF_SCREEN_FADE_TIMELINE, OFF_SCREEN_REF_KEY, skipOffScreenBoot, startOffScreenBoot } from '@/animation/offScreenTheatre';
-import { labels } from '@/content';
+import { fill, labels } from '@/content';
 import type { ButtonSchema, RadioButtonSchema } from '@/types/controls';
 import type { SessionPayload } from '@/types/session';
 import type { WorldIdentity } from '@/utils/seedBaseline';
@@ -41,8 +42,8 @@ const TRANSMISSION = labels('home.off.transmission');
 const CURRENT = labels('home.off.current');
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
 
-/** Roll and Keep (spec assumption 14): the actions beside Current, muted like the options — nothing pops while the
- *  power is off. */
+/** Roll and Keep (spec assumption 14), muted — nothing pops while the power is off. Roll rides on the Current row
+ *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4); Keep sits under the list. */
 const ROLL_SCHEMA: ButtonSchema = { id: 'offRoll', type: 'button', ...labels('home.off.roll'), appearance: 'muted' };
 const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
 const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
@@ -94,8 +95,9 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * the etched label and the power hint over the dimmed, still world (WorldView stays mounted behind it —
  * ScreenViewport), and — once this device has heard a world — the Transmission row: Current on top (the loaded
  * world, named by describeWorld, or the loaded save's name in front of it), then the user's saves newest first,
- * a divider, then the three presets, as a muted RadioButton (nothing comes off the plate while the power is
- * off), with a well naming the pick through the same helper.
+ * each with when it was saved, a divider, then the three presets, as a RadioButton in the `list` appearance — rows,
+ * nothing coming off the plate while the power is off (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4, Crawford's note 1)
+ * — with a well naming the pick through the same helper.
  *
  * The gate (assumption 7) is read once on mount, as the saves are: a device that has never heard a world sees
  * the label and the hint only — the first flip writes the flag, so the chooser waits behind the first power-off.
@@ -104,8 +106,10 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * and never starts audio: only the power switch does (powerController). Current is the loaded world, so picking
  * it applies nothing. A save pick also names the session after the save, as loading it from the Sessions list
  * does, so a later Save overwrites it. A save that has since vanished from storage applies nothing and is not
- * claimed as the pick. Roll (assumption 14) is the action beside Current: a fresh random world through rollWorld —
- * a retransmit, so the pick returns to Current and the row renames from the stores. Keep (assumption 14) saves the
+ * claimed as the pick. Roll (assumption 14) is the action on the Current row — the list's trailing slot, beside the
+ * radio and never inside it (revisions Task 4, Crawford's note 2): a fresh random world through rollWorld —
+ * a retransmit, so the pick returns to Current and the row renames from the stores. Keep (assumption 14), labelled
+ * "Save the last session" under the list, saves the
  * loaded world through sessionStore.keepCurrentWorld — no name field — and the new row appears at once; it dims
  * (the dim-controls rule) whenever the loaded world equals its save, and a muted warning line sits under the
  * chooser only while it does not. Dirty is read on mount, after a pick, after a Roll and after a Keep — never per
@@ -180,12 +184,14 @@ export function OffScreen() {
       id: 'offTransmission',
       type: 'radio',
       ...TRANSMISSION,
-      appearance: 'muted',
+      // The list (revisions Task 4, Crawford's note 1): rows, the saves carrying when they were saved.
+      appearance: 'list',
       options: [
         { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: CURRENT.humanLabel },
         ...saves.map((save) => ({
           value: SAVE_PREFIX + save.name,
           humanLabel: save.name,
+          meta: fill('home.off.savedAt', { time: formatSessionTimestamp(save.savedAt) }),
         })),
         ...TRANSMISSION_PRESETS.map((preset, i) => ({
           value: PRESET_PREFIX + preset.id,
@@ -273,6 +279,13 @@ export function OffScreen() {
     setDirty(isWorldDirty());
   }, []);
 
+  // Roll on the Current row (revisions Task 4, Crawford's note 2): the list's trailing slot, beside Current's radio and
+  // never inside it, so a Roll is never a pick. Held in a callback so the memoized list keeps its props.
+  const rollOnCurrent = useCallback(
+    (value: string) => (value === CURRENT_VALUE ? <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} /> : null),
+    [onRoll],
+  );
+
   const onKeep = useCallback(() => {
     useSessionStore.getState().keepCurrentWorld();
     setSaves(sortedSaves());
@@ -326,9 +339,8 @@ export function OffScreen() {
             {/* The two axes (Task 30): Transmission — which world — then Loading — how it loads. */}
             <div className="off-screen__axes">
               <div className="off-screen__axis">
-                <RadioButton schema={schema} value={pick.value} onChange={onChange} />
+                <RadioButton schema={schema} value={pick.value} onChange={onChange} trailing={rollOnCurrent} />
                 <div className="off-screen__actions">
-                  <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} />
                   <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty} />
                 </div>
               </div>
