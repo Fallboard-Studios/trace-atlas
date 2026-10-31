@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
-import { THEME_PICK, canonicalPicks, pickOrderOf, type AspectId, type AspectPick } from '@/data/bands/aspects';
+import { canonicalPicks, pickOrderOf, type AspectId } from '@/data/bands/aspects';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { retransmitWorld, rollWorld } from '@/systems/worldTransition';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
@@ -16,7 +16,7 @@ import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { describeWorld } from '@/utils/describeWorld';
-import { aspectDescription, aspectName, asThemeLabel, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
+import { aspectDescription, aspectName, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
 import { setRef, deleteRef } from '@/utils/refs';
 import { killTimeline } from '@/animation/timelineMap';
 import { OFF_SCREEN_FADE_TIMELINE, OFF_SCREEN_REF_KEY, skipOffScreenBoot, startOffScreenBoot } from '@/animation/offScreenTheatre';
@@ -60,22 +60,20 @@ const THEME_SCHEMA: RadioButtonSchema = {
   options: THEME_IDS.map((id) => ({ value: id, humanLabel: themeName(id) })),
 };
 
-/** The Melody row (Task 31; spec assumptions 17 and 21): a muted multiple RadioButton labelled by the family — the
- *  as-theme member first, then the three options in canonical order (pickOrderOf), each on or off on its own. */
+/** The Melody row (Task 31; spec assumptions 17 and 21): a muted multiple RadioButton labelled by the family — the three
+ *  options in canonical order (pickOrderOf), each on or off on its own. No "As theme" option
+ *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6, Crawford's note 4): the row cleared is every robot as theme. */
 const MELODY_SCHEMA: RadioButtonSchema = {
   id: 'offMelody',
   type: 'radio',
   ...familyLabels('melody'),
   appearance: 'muted',
   multiple: true,
-  options: pickOrderOf('melody').map((pick) => ({
-    value: pick,
-    humanLabel: pick === THEME_PICK ? asThemeLabel() : aspectName('melody', pick),
-  })),
+  options: pickOrderOf('melody').map((id) => ({ value: id, humanLabel: aspectName('melody', id) })),
 };
 
 /** The Melody row's value for a world with no picks: one array, so the memoized row sees the same props each render. */
-const NO_PICKS: readonly AspectPick[] = [];
+const NO_PICKS: readonly AspectId[] = [];
 
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
@@ -138,14 +136,15 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * tail, so the three readers of the helper agree. Desktop: the two axes side by side, the readout spanning under
  * both; the phone shell stacks them (OffScreen.css).
  *
- * The Melody row (Task 31; assumptions 17 and 21) sits under the theme row's line: a muted multiple RadioButton — As
- * theme, then the three options in canonical order — showing the loaded world's picks for Current and the picked
- * payload's after a save or preset pick, as the theme row does. A change sends the whole set, canonical, as
- * `retransmitWorld({ aspects: { melody } })` (an empty list when the row is cleared — the deal re-runs over the same
- * seed and plot), with the same drop to Current, the same attached save and the same dirty read as a theme pick. Its
- * own description line names the aspect toggled on last while it is still on, else the last of the set in canonical
- * order, else — the as-theme member alone, or nothing — the as-theme sentence; a world pick resets the toggle memory, so
- * a save reads as its own set. Roll touches neither row: rollWorld leaves the loading store alone (assumption 14).
+ * The Melody row (Task 31; assumptions 17 and 21) sits under the theme row's line: a muted multiple RadioButton — the
+ * three options in canonical order, no "As theme" (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6) — showing the loaded
+ * world's picks for Current and the picked payload's after a save or preset pick, as the theme row does. A change sends
+ * the whole set, canonical, as `retransmitWorld({ aspects: { melody } })` (an empty list when the row is cleared — every
+ * robot as theme; the deal re-runs over the same seed and plot), with the same drop to Current, the same attached save
+ * and the same dirty read as a theme pick. Its own description line names the aspect toggled on last while it is still
+ * on, else the last of the set in canonical order, else the family's own `none` sentence; a world pick resets the toggle
+ * memory, so a save reads as its own set. Roll touches neither row: rollWorld leaves the loading store alone
+ * (assumption 14).
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -296,23 +295,20 @@ export function OffScreen() {
   // The theme the Loading row shows: the pick's own after a save or preset pick, the loaded world's for Current.
   const shownTheme: ThemeId = 'identity' in pick ? pick.identity.theme : loadedTheme;
   // The Melody row's set (Task 31), by the same rule.
-  const shownMelody: readonly AspectPick[] =
+  const shownMelody: readonly AspectId[] =
     ('identity' in pick ? pick.identity.aspects.melody : loadedAspects.melody) ?? NO_PICKS;
   // The described aspect: the one toggled on last while it is still on, else the last of the set in canonical order,
-  // else (the as-theme member alone, or nothing) the as-theme member itself, whose sentence says so.
-  const shownMelodyAspects = shownMelody.filter((p): p is AspectId => p !== THEME_PICK);
-  const describedMelody: AspectPick =
-    (lastMelodyOn && shownMelodyAspects.includes(lastMelodyOn)
-      ? lastMelodyOn
-      : shownMelodyAspects[shownMelodyAspects.length - 1]) ?? THEME_PICK;
+  // else none — the row cleared, whose own sentence says every probe takes its melody from the theme.
+  const describedMelody: AspectId | null =
+    (lastMelodyOn && shownMelody.includes(lastMelodyOn) ? lastMelodyOn : shownMelody[shownMelody.length - 1]) ?? null;
 
   // A Melody change (Task 31): the set, canonical, through retransmitWorld — the deal re-runs over the same seed and
   // plot — so the world row drops back to Current; the loaded save stays attached and dirty is read again, as for a
   // theme pick. The aspect toggled on, if one was, becomes the described one.
   const onMelodyChange = useCallback(
     (picks: string[]) => {
-      const next = canonicalPicks('melody', picks as AspectPick[]);
-      const turnedOn = next.find((p): p is AspectId => p !== THEME_PICK && !shownMelody.includes(p));
+      const next = canonicalPicks('melody', picks as AspectId[]);
+      const turnedOn = next.find((p) => !shownMelody.includes(p));
       if (turnedOn) setLastMelodyOn(turnedOn);
       retransmitWorld({ aspects: { melody: next } });
       setPick(CURRENT_PICK);

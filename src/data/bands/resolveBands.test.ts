@@ -8,7 +8,7 @@ import { overlayBands, resolveBands } from './resolveBands';
 import { CLASSIC } from './classic';
 import { ROBOT_LIT_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
 import { THEME_IDS, THEMES, type ThemeColumn, type ThemeId } from './themes';
-import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS, type AspectPick } from './aspects';
+import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS, type AspectId } from './aspects';
 
 // ========================================
 // MOCKS
@@ -322,7 +322,8 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     // @ts-expect-error - an unknown theme id
     const unknownTheme: ThemeId = 'moody';
     expect(unknownTheme).toBe('moody');
-    const asTheme: AspectPick = 'theme';
+    // @ts-expect-error - there is no as-theme pick (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6, Crawford's note 4)
+    const asTheme: AspectId = 'theme';
     expect(asTheme).toBe('theme');
   });
 });

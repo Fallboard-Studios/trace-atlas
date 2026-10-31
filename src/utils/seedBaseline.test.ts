@@ -379,7 +379,7 @@ describe('generateWorldSeedBaseline under the identity\'s theme (band-table T23,
   });
 
   it('aspects never enter the world baseline: a Calm world with Melody picks has the Calm baseline', () => {
-    expect(generateWorldSeedBaseline({ ...CALM, aspects: { melody: ['hypnotic', 'theme'] } })).toEqual(generateWorldSeedBaseline(CALM));
+    expect(generateWorldSeedBaseline({ ...CALM, aspects: { melody: ['hypnotic', 'wandering'] } })).toEqual(generateWorldSeedBaseline(CALM));
   });
 
   it('restores the loaded world\'s bands afterwards: with Bold loaded, generating a Calm baseline leaves the context on Bold', () => {
@@ -399,10 +399,10 @@ describe('generateWorldSeedBaseline under the identity\'s theme (band-table T23,
   });
 
   it('fillWorldFromSeed writes the identity\'s theme and aspects, so a payload names its loading; Classic writes classic and {}', () => {
-    const calm = fillWorldFromSeed({ ...CALM, aspects: { melody: ['theme', 'wandering'] } }, {}, generateWorldSeedBaseline(CALM));
+    const calm = fillWorldFromSeed({ ...CALM, aspects: { melody: ['hypnotic', 'wandering'] } }, {}, generateWorldSeedBaseline(CALM));
     expect(calm.version).toBe(3);
     expect(calm.theme).toBe('calm');
-    expect(calm.aspects).toStrictEqual({ melody: ['theme', 'wandering'] });
+    expect(calm.aspects).toStrictEqual({ melody: ['hypnotic', 'wandering'] });
     const classic = fillWorldFromSeed(CLASSIC_WORLD, {}, generateWorldSeedBaseline(CLASSIC_WORLD));
     expect(classic.theme).toBe('classic');
     expect(classic.aspects).toStrictEqual({});

@@ -854,9 +854,9 @@ describe('applySessionPayload', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       const payload = buildSessionPayload();
-      applySessionPayload({ ...payload, theme: 'bold', aspects: { melody: ['mechanical', 'theme'] } });
+      applySessionPayload({ ...payload, theme: 'bold', aspects: { melody: ['mechanical', 'hypnotic'] } });
       expect(useLoadingStore.getState().theme).toBe('bold');
-      expect(useLoadingStore.getState().aspects).toStrictEqual({ melody: ['theme', 'mechanical'] });
+      expect(useLoadingStore.getState().aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
     });
 
     it('an unknown theme id or a malformed aspects field reads as Classic with no aspects (a payload is untrusted)', () => {

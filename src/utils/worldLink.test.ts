@@ -312,10 +312,10 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     });
 
     it('a tweaked themed world puts the blob last, after the loading params', () => {
-      const params = encodeWorldLinkParams({ ...fullyEditedWorld(), theme: 'bold', aspects: { melody: ['theme'] } });
+      const params = encodeWorldLinkParams({ ...fullyEditedWorld(), theme: 'bold', aspects: { melody: ['wandering'] } });
       expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 's']);
       expect(params.get('theme')).toBe('bold');
-      expect(params.get('melody')).toBe('theme');
+      expect(params.get('melody')).toBe('wandering');
     });
 
     it('decodes theme and melody, sorting the set into canonical order, and the same set encodes to the same string whatever its order', () => {
@@ -333,13 +333,21 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
       expect(throughLink(payload)).toEqual(payload);
     });
 
-    it('the as-theme member sorts first: melody=wandering,theme reads and writes as theme,wandering, under Classic', () => {
-      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=wandering,theme')!;
+    // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): the as-theme pick is gone, so a link still carrying
+    // one reads it as any unknown id - dropped, the rest kept.
+    it('a stale theme pick is dropped as any unknown id: melody=theme,hypnotic decodes to hypnotic, under Classic', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=theme,hypnotic')!;
       expect(decoded.theme).toBe('classic');
-      expect(decoded.aspects).toEqual({ melody: ['theme', 'wandering'] });
+      expect(decoded.aspects).toEqual({ melody: ['hypnotic'] });
       const params = encodeWorldLinkParams(decoded);
       expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'melody']);
-      expect(params.get('melody')).toBe('theme,wandering');
+      expect(params.get('melody')).toBe('hypnotic');
+    });
+
+    it('melody=theme alone is no family at all: no picks, and no melody param written back', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=theme')!;
+      expect(decoded.aspects).toEqual({});
+      expect([...encodeWorldLinkParams(decoded).keys()]).toEqual(['seed', 'x', 'y']);
     });
 
     it('a percent-encoded comma reads the same as a bare one', () => {

@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, type AspectFamilyId, type AspectId, type AspectPick } from '../data/bands/aspects';
+import { ASPECT_FAMILY_IDS, type AspectFamilyId, type AspectId } from '../data/bands/aspects';
 import type { ThemeId } from '../data/bands/themes';
 import { labels, type ContentKey, type SchemaLabels } from '@/content';
 
@@ -44,15 +44,13 @@ export const ASPECT_FAMILY_LABEL_KEY: Record<AspectFamilyId, ContentKey> = {
   melody: 'home.off.melody',
 };
 
-/** The as-theme member's label (assumption 21): the same words at the head of every family's row. */
-export const AS_THEME_LABEL_KEY: ContentKey = 'home.off.asTheme';
-
-/** One sentence per pick, per family, the as-theme member's included — the line under a family's row shows the
- *  described aspect's, or the as-theme sentence when no aspect is on (Task 31); the Guide's page reads the same
- *  entries (§1.6). */
-export const ASPECT_DESCRIPTION_KEY: Record<AspectFamilyId, Record<AspectPick, ContentKey>> = {
+/** One sentence per option, per family, and the family's own for a row with nothing on (`none`) — the line under a
+ *  family's row shows the described aspect's, or the `none` sentence when no aspect is on (Task 31; the as-theme member
+ *  and its sentence are gone, docs/tasks/OFF_SCREEN_REVISIONS.md Task 6); the Guide's page reads the same entries
+ *  (§1.6). */
+export const ASPECT_DESCRIPTION_KEY: Record<AspectFamilyId, Record<AspectId | 'none', ContentKey>> = {
   melody: {
-    theme: 'home.off.melodyDescription.theme',
+    none: 'home.off.melodyDescription.none',
     hypnotic: 'home.off.melodyDescription.hypnotic',
     mechanical: 'home.off.melodyDescription.mechanical',
     wandering: 'home.off.melodyDescription.wandering',
@@ -68,14 +66,10 @@ export function familyLabels(family: AspectFamilyId): SchemaLabels {
   return labels(ASPECT_FAMILY_LABEL_KEY[family]);
 }
 
-/** The as-theme member's name, from content. */
-export function asThemeLabel(): string {
-  return labels(AS_THEME_LABEL_KEY).humanLabel;
-}
-
-/** A pick's one-line description, from content — the as-theme sentence for the as-theme member. */
-export function aspectDescription(family: AspectFamilyId, pick: AspectPick): string {
-  return labels(ASPECT_DESCRIPTION_KEY[family][pick]).humanLabel;
+/** An aspect's one-line description, from content — or, for null (nothing on in the family's row), the family's own
+ *  sentence: every robot takes this family from the theme. */
+export function aspectDescription(family: AspectFamilyId, id: AspectId | null): string {
+  return labels(ASPECT_DESCRIPTION_KEY[family][id ?? 'none']).humanLabel;
 }
 
 /** What a robot was loaded under (Robot.loadedUnder, written by the deal pass — docs/specs/OFF_SCREEN.md assumption

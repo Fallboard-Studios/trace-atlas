@@ -57,15 +57,14 @@ describe('describeWorld', () => {
       expect(describeWorld({ ...plot, theme: 'calm', aspects: {} })).toBe('tr3nch-2 · (-30, -30) · Calm');
     });
 
-    it('the picks append their names joined with " + ", in the list\'s order, the as-theme member omitted', () => {
-      expect(describeWorld({ ...plot, theme: 'calm', aspects: { melody: ['theme', 'hypnotic', 'mechanical'] } })).toBe(
+    it('the picks append their names joined with " + ", in the list\'s order', () => {
+      expect(describeWorld({ ...plot, theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } })).toBe(
         'tr3nch-2 · (-30, -30) · Calm · Hypnotic + Mechanical',
       );
     });
 
-    it('picks under Classic append without a theme segment; a list of only the as-theme member appends nothing', () => {
+    it('picks under Classic append without a theme segment', () => {
       expect(describeWorld({ ...plot, theme: 'classic', aspects: { melody: ['wandering'] } })).toBe('tr3nch-2 · (-30, -30) · Wandering');
-      expect(describeWorld({ ...plot, theme: 'classic', aspects: { melody: ['theme'] } })).toBe('tr3nch-2 · (-30, -30)');
     });
 
     it('a labelled world carries the tail after the plot', () => {

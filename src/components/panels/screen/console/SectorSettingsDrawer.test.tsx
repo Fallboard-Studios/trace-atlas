@@ -109,7 +109,7 @@ describe('SectorSettingsDrawer', () => {
 
     it('follows the loading store and the plot live', () => {
       const { container } = render(<SectorSettingsDrawer />);
-      act(() => useLoadingStore.setState({ theme: 'perilous', aspects: { melody: ['theme', 'wandering'] } }));
+      act(() => useLoadingStore.setState({ theme: 'perilous', aspects: { melody: ['wandering'] } }));
       expect(line(container)).toBe('Pelagos · (5, 9) · Perilous · Wandering');
       act(() =>
         useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, coordinates: { x: -3, y: 12 } } } }),
@@ -117,8 +117,8 @@ describe('SectorSettingsDrawer', () => {
       expect(line(container)).toBe('Pelagos · (-3, 12) · Perilous · Wandering');
     });
 
-    it('the as-theme member alone adds no tail', () => {
-      useLoadingStore.setState({ theme: 'classic', aspects: { melody: ['theme'] } });
+    it('an empty Melody list adds no tail (every robot as theme; docs/tasks/OFF_SCREEN_REVISIONS.md Task 6)', () => {
+      useLoadingStore.setState({ theme: 'classic', aspects: { melody: [] } });
       const { container } = render(<SectorSettingsDrawer />);
       expect(line(container)).toBe('Pelagos · (5, 9)');
     });

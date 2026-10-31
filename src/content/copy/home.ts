@@ -60,12 +60,12 @@ export const home = {
   'home.off.themeDescription.bold': { human: 'Up front: denser rhythms, sharper attacks, a drier and brighter room.' },
   'home.off.themeDescription.adventurous': { human: 'Wider roaming: tempo, density and tone swing further from the middle.' },
   'home.off.themeDescription.perilous': { human: 'The densest loading: fast, crowded and bright, with hardly a rest.' },
-  // The Melody row (Task 31; assumption 17): the family's label, the as-theme member's label, and one sentence per
-  // option plus one for a row with no aspect on (the Guide's part too). STAND-INS for Crawford's pass - each names what
-  // the option moves across the family's keys (assumption 16: density, note variance, motif length, pitch repeat).
+  // The Melody row (Task 31; assumption 17): the family's label, and one sentence per option plus one for a row with no
+  // aspect on - `none`, every probe as the theme (the as-theme option is gone, docs/tasks/OFF_SCREEN_REVISIONS.md Task 6)
+  // - the Guide's part too. STAND-INS for Crawford's pass - each names what the option moves across the family's keys
+  // (assumption 16: density, note variance, motif length, pitch repeat).
   'home.off.melody': { human: 'Melody' },
-  'home.off.asTheme': { human: 'As theme' },
-  'home.off.melodyDescription.theme': { human: 'Every probe takes its melody from the theme alone.' },
+  'home.off.melodyDescription.none': { human: 'Every probe takes its melody from the theme alone.' },
   'home.off.melodyDescription.hypnotic': { human: 'Hypnotic probes circle a note or two at a steady, middling pace.' },
   'home.off.melodyDescription.mechanical': { human: 'Mechanical probes drive one long, fixed motif at high density.' },
   'home.off.melodyDescription.wandering': { human: 'Wandering probes roam wide and sparse, rarely repeating a phrase.' },

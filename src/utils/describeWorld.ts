@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, THEME_PICK, type AspectId } from '../data/bands/aspects';
+import { ASPECT_FAMILY_IDS, type AspectId } from '../data/bands/aspects';
 import { ASPECT_NAME_KEY, THEME_NAME_KEY, aspectName, themeName } from './loadingNames';
 import type { WorldIdentity } from './seedBaseline';
 
@@ -22,8 +22,8 @@ export type DescribedWorld = Pick<WorldIdentity, 'attenuationStyleName' | 'coord
 /**
  * One name for a world (docs/specs/OFF_SCREEN.md assumption 8): `AS · (x, y)` for a world that is nothing but its
  * seed, or `<label> · AS (x, y)` when a save or preset name fronts it; then the loading tail (assumption 17, band-table
- * T28) - ` · <Theme>` when the theme is not Classic, and ` · A + B` for each family's picks in the list's order with
- * the as-theme member omitted - as in `tr3nch-2 · (-30, -30) · Calm · Hypnotic + Mechanical`. The off screen's Current
+ * T28) - ` · <Theme>` when the theme is not Classic, and ` · A + B` for each family's picks in the list's order - as in
+ * `tr3nch-2 · (-30, -30) · Calm · Hypnotic + Mechanical`. The off screen's Current
  * row, its readout and Foundry's status line all read this, so the three agree byte-for-byte. Pure - names and numbers
  * are data, the theme and aspect names come from content (labels), the punctuation is the only text here. An id the
  * content does not know (a stale payload) is left out rather than thrown on.
@@ -37,7 +37,7 @@ export function describeWorld(identity: DescribedWorld, label?: string): string 
   if (theme !== 'classic' && theme in THEME_NAME_KEY) tail.push(themeName(theme));
   for (const family of ASPECT_FAMILY_IDS) {
     const names = (aspects[family] ?? [])
-      .filter((pick): pick is AspectId => pick !== THEME_PICK && pick in ASPECT_NAME_KEY[family])
+      .filter((pick): pick is AspectId => pick in ASPECT_NAME_KEY[family])
       .map((pick) => aspectName(family, pick));
     if (names.length > 0) tail.push(names.join(' + '));
   }

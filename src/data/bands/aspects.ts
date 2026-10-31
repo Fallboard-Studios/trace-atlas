@@ -15,15 +15,11 @@ export type AspectFamilyId = (typeof ASPECT_FAMILY_IDS)[number];
 
 /** The aspect option ids in canonical option order (assumption 17): the Melody row lists them so, and every pick list
  *  and link param is sorted so (canonicalPicks). The ids are code; names and descriptions are content
- *  (`home.off.aspect.melody.<id>`, `home.off.aspectDescription.melody.<id>`). */
+ *  (`home.off.melody.<id>`, `home.off.melodyDescription.<id>`). A pick list holds these and nothing else: the "as theme"
+ *  member is gone (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6, Crawford's note 4) — an empty list is every robot as theme,
+ *  and a stale `theme` in a payload or a link is dropped as any unknown id is. */
 export const ASPECT_IDS = ['hypnotic', 'mechanical', 'wandering'] as const;
 export type AspectId = (typeof ASPECT_IDS)[number];
-
-/** The selectable "as theme" member of a deal (assumption 21): a pick that leaves its groups plain, which is how a mixed
- *  fleet keeps robots loaded under the theme alone. Sorted first in a family's list (`melody=theme,wandering`). */
-export const THEME_PICK = 'theme' as const;
-/** What the Melody row's set holds: an aspect, or the as-theme member. */
-export type AspectPick = AspectId | typeof THEME_PICK;
 
 // ========================================
 // FAMILIES
@@ -83,27 +79,26 @@ export const ASPECT_FAMILIES: { readonly melody: AspectFamily<MelodyBandKey> } =
 // FUNCTIONS
 // ========================================
 
-/** A family's picks in canonical order: the as-theme member first, then its options in ASPECT_IDS order
- *  (assumption 9). */
-export function pickOrderOf(family: AspectFamilyId): AspectPick[] {
+/** A family's picks in canonical order: its options in ASPECT_IDS order (assumption 9). */
+export function pickOrderOf(family: AspectFamilyId): AspectId[] {
   const options = ASPECT_FAMILIES[family].options;
-  return [THEME_PICK, ...ASPECT_IDS.filter((id) => id in options)];
+  return ASPECT_IDS.filter((id) => id in options);
 }
 
 /** A pick list as the store, the payload and the link carry it (assumptions 9, 11): sorted into the family's canonical
  *  option order, deduped, unknown ids dropped - so the same set always reads and encodes one way. A new array. */
-export function canonicalPicks(family: AspectFamilyId, picks: readonly AspectPick[]): AspectPick[] {
-  const wanted = new Set<AspectPick>(picks);
+export function canonicalPicks(family: AspectFamilyId, picks: readonly AspectId[]): AspectId[] {
+  const wanted = new Set<AspectId>(picks);
   return pickOrderOf(family).filter((pick) => wanted.has(pick));
 }
 
 /** Every family's list canonical, with empty and unknown families dropped: one JSON shape for one set of picks, so a
- *  payload built from the store compares equal for equal worlds (Keep's dirty check, assumption 14) and an all-as-theme
- *  world is always `{}`. */
+ *  payload built from the store compares equal for equal worlds (Keep's dirty check, assumption 14) and a world with
+ *  nothing picked — every robot as theme — is always `{}`. */
 export function canonicalAspects(
-  aspects: Partial<Record<AspectFamilyId, readonly AspectPick[]>>,
-): Partial<Record<AspectFamilyId, AspectPick[]>> {
-  const out: Partial<Record<AspectFamilyId, AspectPick[]>> = {};
+  aspects: Partial<Record<AspectFamilyId, readonly AspectId[]>>,
+): Partial<Record<AspectFamilyId, AspectId[]>> {
+  const out: Partial<Record<AspectFamilyId, AspectId[]>> = {};
   for (const family of ASPECT_FAMILY_IDS) {
     const picks = aspects[family];
     if (!picks) continue;

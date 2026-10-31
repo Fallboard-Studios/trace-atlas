@@ -218,9 +218,9 @@ describe('mirrorWorldToUrl', () => {
   // band-table T24 (docs/specs/OFF_SCREEN.md assumptions 11 and 12): the theme and family params follow the world too,
   // written only when not the default, as a bare comma list in canonical order.
   it('writes theme and melody after y for a themed world with picks, and what it writes decodes back', () => {
-    const loading: LoadingIdentity = { theme: 'calm', aspects: { melody: ['theme', 'wandering'] } };
+    const loading: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'wandering'] } };
     mirrorWorldToUrl({ ...identity, ...loading });
-    expect(window.location.search).toBe('?seed=Pelagos%207!&x=29&y=-14&theme=calm&melody=theme,wandering');
+    expect(window.location.search).toBe('?seed=Pelagos%207!&x=29&y=-14&theme=calm&melody=hypnotic,wandering');
     // The link names an untouched Calm world: what decodes is the seed drawn under Calm (themes-and-aspects T34).
     expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }, loading));
   });

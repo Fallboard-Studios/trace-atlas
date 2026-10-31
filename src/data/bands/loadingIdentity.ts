@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type AspectPick } from './aspects';
+import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type AspectId } from './aspects';
 import { isThemeId, type ThemeId } from './themes';
 
 // ========================================
@@ -18,7 +18,7 @@ import { isThemeId, type ThemeId } from './themes';
  */
 export interface LoadingIdentity {
   theme: ThemeId;
-  aspects: Partial<Record<AspectFamilyId, AspectPick[]>>;
+  aspects: Partial<Record<AspectFamilyId, AspectId[]>>;
 }
 
 // ========================================
@@ -41,12 +41,13 @@ export const DEFAULT_LOADING: LoadingIdentity = { theme: 'classic', aspects: {} 
  */
 export function loadingOf(payload: { theme?: unknown; aspects?: unknown }): LoadingIdentity {
   const theme = isThemeId(payload.theme) ? payload.theme : DEFAULT_LOADING.theme;
-  const lists: Partial<Record<AspectFamilyId, AspectPick[]>> = {};
+  const lists: Partial<Record<AspectFamilyId, AspectId[]>> = {};
   const raw = payload.aspects;
   if (raw !== null && typeof raw === 'object') {
     for (const family of ASPECT_FAMILY_IDS) {
       const picks = (raw as Record<string, unknown>)[family];
-      if (Array.isArray(picks)) lists[family] = picks.filter((pick): pick is AspectPick => typeof pick === 'string');
+      // Any string passes here; canonicalAspects below keeps only the family's ids (a stale `theme` included).
+      if (Array.isArray(picks)) lists[family] = picks.filter((pick): pick is AspectId => typeof pick === 'string');
     }
   }
   return { theme, aspects: canonicalAspects(lists) };

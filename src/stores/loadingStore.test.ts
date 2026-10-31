@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from './loadingStore';
-import { canonicalPicks, type AspectPick } from '@/data/bands/aspects';
+import { canonicalPicks, type AspectId } from '@/data/bands/aspects';
 import { getBand } from '@/data/bands/loadingContext';
 import { CLASSIC } from '@/data/bands/classic';
 
@@ -50,14 +50,20 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   it('keeps each list in canonical option order, deduped, unknown ids dropped', () => {
     state().setLoading({
       theme: 'bold',
-      aspects: { melody: ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as AspectPick[] },
+      aspects: { melody: ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as AspectId[] },
     });
     expect(state().aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
   });
 
-  it('sorts the as-theme pick first, so the list reads as the link does: theme,wandering', () => {
-    state().setLoading({ theme: 'classic', aspects: { melody: ['wandering', 'theme'] } });
-    expect(state().aspects).toStrictEqual({ melody: ['theme', 'wandering'] });
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): the as-theme pick is gone; a stale one is an unknown id.
+  it('drops a stale theme pick as any unknown id: wandering,theme is wandering alone', () => {
+    state().setLoading({ theme: 'classic', aspects: { melody: ['wandering', 'theme' as AspectId] } });
+    expect(state().aspects).toStrictEqual({ melody: ['wandering'] });
+  });
+
+  it('a list of only a stale theme pick is no family at all', () => {
+    state().setLoading({ theme: 'classic', aspects: { melody: ['theme' as AspectId] } });
+    expect(state().aspects).toStrictEqual({});
   });
 
   it('drops an empty family and an unknown family, so an all-as-theme world is always the one shape {}', () => {
@@ -71,7 +77,7 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('a list that is only unknown ids is dropped too', () => {
-    state().setLoading({ theme: 'calm', aspects: { melody: ['zzz', 'yyy'] as unknown as AspectPick[] } });
+    state().setLoading({ theme: 'calm', aspects: { melody: ['zzz', 'yyy'] as unknown as AspectId[] } });
     expect(state().aspects).toStrictEqual({});
   });
 
@@ -83,14 +89,14 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('never mutates the caller\'s list', () => {
-    const picks: AspectPick[] = ['wandering', 'theme', 'theme'];
+    const picks: AspectId[] = ['wandering', 'hypnotic', 'hypnotic'];
     state().setLoading({ theme: 'classic', aspects: { melody: picks } });
-    expect(picks).toEqual(['wandering', 'theme', 'theme']);
+    expect(picks).toEqual(['wandering', 'hypnotic', 'hypnotic']);
     expect(state().aspects.melody).not.toBe(picks);
   });
 
   it('holds only JSON: the loading round-trips through JSON.stringify unchanged', () => {
-    state().setLoading({ theme: 'adventurous', aspects: { melody: ['theme', 'mechanical'] } });
+    state().setLoading({ theme: 'adventurous', aspects: { melody: ['hypnotic', 'mechanical'] } });
     const { theme, aspects } = state();
     expect(JSON.parse(JSON.stringify({ theme, aspects }))).toStrictEqual({ theme, aspects });
   });
@@ -118,19 +124,18 @@ describe('the loading context follows the store (band-table T23, spec assumption
 
 describe('canonicalPicks (spec assumption 9: lists in the family\'s canonical option order)', () => {
   it('sorts into option order and dedupes, dropping unknown ids: the plan\'s own case', () => {
-    expect(canonicalPicks('melody', ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as AspectPick[])).toEqual([
+    expect(canonicalPicks('melody', ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as AspectId[])).toEqual([
       'hypnotic',
       'mechanical',
     ]);
   });
 
-  it('puts the as-theme member first, then the options in their listed order', () => {
-    expect(canonicalPicks('melody', ['wandering', 'mechanical', 'theme', 'hypnotic'])).toEqual([
-      'theme',
-      'hypnotic',
-      'mechanical',
-      'wandering',
-    ]);
+  it('puts the options in their listed order', () => {
+    expect(canonicalPicks('melody', ['wandering', 'mechanical', 'hypnotic'])).toEqual(['hypnotic', 'mechanical', 'wandering']);
+  });
+
+  it('drops a stale theme pick as any unknown id (revisions Task 6): theme,hypnotic is hypnotic', () => {
+    expect(canonicalPicks('melody', ['theme' as AspectId, 'hypnotic'])).toEqual(['hypnotic']);
   });
 
   it('an empty list is an empty list', () => {
@@ -138,7 +143,7 @@ describe('canonicalPicks (spec assumption 9: lists in the family\'s canonical op
   });
 
   it('is idempotent: canonical in, the same list out, as a new array', () => {
-    const once = canonicalPicks('melody', ['theme', 'wandering']);
+    const once = canonicalPicks('melody', ['wandering', 'hypnotic']);
     const twice = canonicalPicks('melody', once);
     expect(twice).toEqual(once);
     expect(twice).not.toBe(once);

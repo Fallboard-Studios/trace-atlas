@@ -49,7 +49,7 @@ import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/tim
 import { getRef } from '@/utils/refs';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { CONTENT, fill } from '@/content';
-import type { AspectPick } from '@/data/bands/aspects';
+import type { AspectId } from '@/data/bands/aspects';
 import type { SessionPayload } from '@/types/session';
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
@@ -427,13 +427,13 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
   const option = (name: string) => within(melodyRow()).getByRole('button', { name });
   const pressed = (name: string) => option(name).getAttribute('aria-pressed');
   const NAME = {
-    theme: human('home.off.asTheme'),
     hypnotic: human('home.off.melody.hypnotic'),
     mechanical: human('home.off.melody.mechanical'),
     wandering: human('home.off.melody.wandering'),
   } as const;
   const melodyDescription = () => document.querySelector('.off-screen__description--melody');
-  const sentence = (id: AspectPick) => human(`home.off.melodyDescription.${id}`);
+  // An aspect's sentence, or the family's own for a row with nothing on (revisions Task 6: no as-theme member).
+  const sentence = (id: AspectId | 'none') => human(`home.off.melodyDescription.${id}`);
   const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
   /** The real retransmitWorld writes the loading store before it rebuilds (band-table T25); this double does that half,
    *  so a second toggle sees the first on the row as it does in the app. */
@@ -442,12 +442,14 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
       const { theme, aspects, setLoading } = useLoadingStore.getState();
       setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
     });
-  const setMelody = (picks: AspectPick[]) =>
+  const setMelody = (picks: AspectId[]) =>
     act(() => useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: picks } }));
 
-  it('lists As theme, then the three options in canonical order, under the Melody label, nothing pressed for a plain world', () => {
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): no "As theme" option — the theme's own version may be
+  // heard anyway, so an empty row is every robot as theme.
+  it('lists the three options in canonical order under the Melody label, no As theme, nothing pressed for a plain world', () => {
     render(<OffScreen />);
-    expect(melodyNames()).toEqual([NAME.theme, NAME.hypnotic, NAME.mechanical, NAME.wandering]);
+    expect(melodyNames()).toEqual([NAME.hypnotic, NAME.mechanical, NAME.wandering]);
     for (const name of melodyNames()) expect(pressed(name!)).toBe('false');
     expect(within(melodyRow()).queryAllByRole('radio')).toHaveLength(0);
   });
@@ -482,14 +484,6 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
-  it('As theme alongside one aspect sends both, the as-theme member first', () => {
-    setMelody(['hypnotic']);
-    render(<OffScreen />);
-    fireEvent.click(option(NAME.theme));
-    expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: ['theme', 'hypnotic'] } });
-  });
-
   it('clearing the row sends an empty list', () => {
     setMelody(['hypnotic']);
     render(<OffScreen />);
@@ -520,17 +514,25 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
   });
 
-  it('a save with a set selects it: the as-theme member and the picks pressed, the rest not, and the readout tails them', () => {
-    const save: SessionPayload = { ...savedPayload('dusk'), aspects: { melody: ['theme', 'wandering'] } };
+  it('a save with a set selects it: the picks pressed, the rest not, and the readout tails them', () => {
+    const save: SessionPayload = { ...savedPayload('dusk'), aspects: { melody: ['mechanical', 'wandering'] } };
     saveNamedSession('Dusk Run', save);
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
-    expect(pressed(NAME.theme)).toBe('true');
+    expect(pressed(NAME.mechanical)).toBe('true');
     expect(pressed(NAME.wandering)).toBe('true');
     expect(pressed(NAME.hypnotic)).toBe('false');
-    expect(pressed(NAME.mechanical)).toBe('false');
     expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
+    expect(readout().textContent!.endsWith(' · ' + NAME.mechanical + ' + ' + NAME.wandering)).toBe(true);
+  });
+
+  it('a save carrying a stale theme pick shows only its aspects, the stale id dropped as loadingOf drops any unknown one', () => {
+    saveNamedSession('Dusk Run', { ...savedPayload('dusk'), aspects: { melody: ['theme', 'wandering'] } } as unknown as SessionPayload);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(melodyNames().filter((n) => pressed(n!) === 'true')).toEqual([NAME.wandering]);
     expect(readout().textContent!.endsWith(' · ' + NAME.wandering)).toBe(true);
+    expect(melodyDescription()?.textContent).toBe(sentence('wandering'));
   });
 
   it('a save with a pick the app does not know keeps the known ones, as loadingOf reads it', () => {
@@ -545,7 +547,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     setMelody(['hypnotic', 'wandering']);
     expect(pressed(NAME.hypnotic)).toBe('true');
     expect(pressed(NAME.wandering)).toBe('true');
-    expect(pressed(NAME.theme)).toBe('false');
+    expect(pressed(NAME.mechanical)).toBe('false');
     const expected = describeWorld({ ...liveIdentity(), theme: 'classic', aspects: { melody: ['hypnotic', 'wandering'] } });
     expect(expected.endsWith(' · ' + NAME.hypnotic + ' + ' + NAME.wandering)).toBe(true);
     expect(readout().textContent).toBe(expected);
@@ -562,20 +564,19 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(useLoadingStore.getState().aspects).toEqual({ melody: ['hypnotic'] });
   });
 
-  it('describes the last aspect toggled on under the row; with none on, the as-theme sentence', () => {
+  it("describes the last aspect toggled on under the row; with none on, the family's own sentence", () => {
     retransmitSetsStore();
     render(<OffScreen />);
-    expect(melodyDescription()?.textContent).toBe(sentence('theme'));
+    expect(melodyDescription()?.textContent).toBe(sentence('none'));
     fireEvent.click(option(NAME.wandering));
     expect(melodyDescription()?.textContent).toBe(sentence('wandering'));
     fireEvent.click(option(NAME.hypnotic));
     expect(melodyDescription()?.textContent).toBe(sentence('hypnotic')); // the last toggled on, not the last in order
     fireEvent.click(option(NAME.hypnotic)); // off again: the one still on
     expect(melodyDescription()?.textContent).toBe(sentence('wandering'));
-    fireEvent.click(option(NAME.theme)); // the as-theme member is not an aspect: the line stays
-    expect(melodyDescription()?.textContent).toBe(sentence('wandering'));
-    fireEvent.click(option(NAME.wandering)); // only As theme left
-    expect(melodyDescription()?.textContent).toBe(sentence('theme'));
+    fireEvent.click(option(NAME.wandering)); // the row cleared: every robot as theme
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: [] } });
+    expect(melodyDescription()?.textContent).toBe(sentence('none'));
   });
 
   it('a save pick describes the last of its picks in canonical order, whatever was toggled before; Current again returns to the loaded world', () => {
@@ -592,7 +593,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(melodyDescription()?.textContent).toBe(sentence('hypnotic'));
   });
 
-  it('the two description lines are text, one under each row, and the four Melody sentences are distinct', () => {
+  it("the two description lines are text, one under each row, and the three aspect sentences and the row's own are distinct", () => {
     const { container } = render(<OffScreen />);
     const lines = container.querySelectorAll('.off-screen__description');
     expect(lines).toHaveLength(2);
@@ -600,7 +601,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(lines[1].classList.contains('off-screen__description--melody')).toBe(true);
     expect(lines[1].tagName).toBe('P');
     expect(melodyRow().closest('.sc-radio-button')!.nextElementSibling).toBe(lines[1]);
-    const sentences = (['theme', 'hypnotic', 'mechanical', 'wandering'] as const).map(sentence);
+    const sentences = (['none', 'hypnotic', 'mechanical', 'wandering'] as const).map(sentence);
     expect(new Set(sentences).size).toBe(4);
     expect(sentences.every((s) => s.trim().length > 0)).toBe(true);
   });

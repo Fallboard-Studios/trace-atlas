@@ -3660,23 +3660,13 @@ describe('spawnSystem', () => {
       });
     });
 
-    it('the as-theme member leaves its groups untouched: those baselines are the very undealt objects, with no loadedUnder', () => {
-      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
-      const companies = generateCompanyRosterBaseline(noiseMap, ids);
-      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['theme', 'hypnotic'] } }, noiseMap);
-      const plain = dealt.filter((b, i) => b === undealt[i]);
-      const hypnotic = dealt.filter((b) => b.loadedUnder?.melody === 'hypnotic');
-      expect(plain.length).toBeGreaterThan(0);
-      expect(hypnotic.length).toBeGreaterThan(0);
-      expect(plain.length + hypnotic.length).toBe(ROSTER);
-      for (const baseline of plain) expect(baseline.loadedUnder).toBeUndefined();
-    });
-
+    // The as-theme member and its "plain groups" case are gone (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6): every group is
+    // dealt one of the picks, and only an empty list leaves the roster plain.
     it('with no picks the pass is a no-op: the same array comes back', () => {
       const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
       const companies = generateCompanyRosterBaseline(noiseMap, ids);
       expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: {} }, noiseMap)).toBe(undealt);
-      expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['theme'] } }, noiseMap)).toBe(undealt);
+      expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: [] } }, noiseMap)).toBe(undealt);
     });
 
     it('a copied-baseline robot re-derives from its own index, not its source\'s', async () => {
