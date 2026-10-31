@@ -1282,22 +1282,44 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
   });
 
-  it("a family toggle retransmits once covered, and its row's line follows the world", () => {
-    vi.mocked(retransmitWorld).mockImplementation((input) => {
-      const { theme, aspects, setLoading } = useLoadingStore.getState();
-      setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect change is no longer a world change (the deal moves in place),
+  // so a family toggle applies at the click, with no cover, and two quick toggles both land.
+  describe('a family toggle is no world change (review R33)', () => {
+    beforeEach(() => {
+      vi.mocked(retransmitWorld).mockImplementation((input) => {
+        const { theme, aspects, setLoading } = useLoadingStore.getState();
+        setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
+      });
     });
-    render(<OffScreen />);
-    fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
-    expect(retransmitWorld).not.toHaveBeenCalled();
-    expect(document.querySelector('.off-screen__description--envelope')?.textContent).toBe(
-      human('home.off.envelopeDescription.none'),
-    );
-    land();
-    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { envelope: ['held'] } });
-    expect(document.querySelector('.off-screen__description--envelope')?.textContent).toBe(
-      human('home.off.envelopeDescription.held'),
-    );
+
+    it("applies at once with no cover: the wash stays clear, and the row's line follows at the click", () => {
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
+      expect(wash()).toBe('clear');
+      expect(retransmitWorld).toHaveBeenCalledTimes(1);
+      expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { envelope: ['held'] } });
+      expect(document.querySelector('.off-screen__description--envelope')?.textContent).toBe(
+        human('home.off.envelopeDescription.held'),
+      );
+    });
+
+    it('two toggles in one family both land, where the second used to replace the first under the cover', () => {
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('button', { name: human('home.off.melody.hypnotic') }));
+      fireEvent.click(screen.getByRole('button', { name: human('home.off.melody.wandering') }));
+      expect(wash()).toBe('clear');
+      expect(useLoadingStore.getState().aspects).toEqual({ melody: ['hypnotic', 'wandering'] });
+      expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['hypnotic', 'wandering'] } });
+    });
+
+    it('toggles in two families both land: Melody then Envelope keeps the Melody pick', () => {
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('button', { name: human('home.off.melody.hypnotic') }));
+      fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.plucked') }));
+      expect(wash()).toBe('clear');
+      expect(useLoadingStore.getState().aspects).toEqual({ melody: ['hypnotic'], envelope: ['plucked'] });
+      expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['hypnotic'], envelope: ['plucked'] } });
+    });
   });
 
   it('dirty is read after the change: Keep lights only once the cover has landed', () => {

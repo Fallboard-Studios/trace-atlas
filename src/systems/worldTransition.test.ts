@@ -75,7 +75,7 @@ import * as workLoopModule from './workLoop';
 import * as robotSystemsModule from './robotSystems';
 import { MAX_ROBOTS } from '../constants';
 import { computeLocaleHour } from '../constants/time';
-import { DockingState } from '../types/Robot';
+import { DockingState, JobType } from '../types/Robot';
 import type { Robot } from '../types/Robot';
 
 // ========================================
@@ -942,18 +942,86 @@ describe('worldTransition', () => {
       expect(params().get('seed')).toBe(before.style.name);
     });
 
-    it('aspects alone do the same: the store holds the canonical picks, the global half and the roster regenerate, and the bar carries melody', () => {
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: aspects are robot-side, so picks alone re-deal the live roster in
+    // place - no rebuild, no global regeneration - where they used to rebuild the plot.
+    it('aspects alone re-deal the live roster in place: the locale and every robot\'s place, battery, activity and job stand, nothing global regenerates, and the store and the bar carry the picks', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const before = currentWorld();
+      // The robots moved off their spawn state, so "stand" cannot pass by a rebuild drawing the same values again.
+      const moved = before.locale.robots.map((robot, i) => ({
+        ...robot,
+        position: { x: 100 + i, y: 200 + i },
+        batteryLevel: 37 + i,
+        activity: 'working' as const,
+        job: JobType.Salvage,
+      }));
+      useLocaleStore.getState().setLocaleData(before.locale.id, { robots: moved });
       const spies = spyRegenerators();
       retransmitWorld({ aspects: { melody: ['mechanical', 'hypnotic'] } });
       const after = currentWorld();
       expect(after.style.id).toBe(before.style.id);
-      expect(after.locale.id).not.toBe(before.locale.id);
+      expect(after.locale.id).toBe(before.locale.id);
+      expect(after.locale.robots.map((r) => r.id)).toEqual(moved.map((r) => r.id));
+      after.locale.robots.forEach((robot, i) => {
+        expect(robot.position, robot.id).toEqual(moved[i].position);
+        expect(robot.batteryLevel, robot.id).toBe(moved[i].batteryLevel);
+        expect(robot.activity, robot.id).toBe('working');
+        expect(robot.job, robot.id).toBe(JobType.Salvage);
+        expect(['hypnotic', 'mechanical'], robot.id).toContain(robot.loadedUnder?.melody);
+      });
       expect(useLoadingStore.getState()).toMatchObject({ theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } });
-      for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1);
+      for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
       expect(params().get('melody')).toBe('hypnotic,mechanical');
       expect(params().has('theme')).toBe(false);
+    });
+
+    it('aspects alone drop the swells riding the fields they re-derive, through the swell system\'s own cancel', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const cancel = vi.spyOn(audioSwellsModule, 'cancelSwellForRobotAttribute');
+      retransmitWorld({ aspects: { distance: ['far'] } });
+      const robots = currentWorld().locale.robots;
+      expect(cancel).toHaveBeenCalledTimes(robots.length * 5);
+      for (const robot of robots) expect(cancel).toHaveBeenCalledWith(robot.id, 'delaySend');
+    });
+
+    it('aspects alone keep the selected robot and company: nothing they name is rebuilt', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const { locale } = currentWorld();
+      useUIStore.getState().selectRobot(locale.robots[2].id);
+      useUIStore.getState().selectCompany(locale.companies[0].id);
+      retransmitWorld({ aspects: { envelope: ['held'] } });
+      expect(useUIStore.getState().selectedRobotId).toBe(locale.robots[2].id);
+      expect(useUIStore.getState().selectedCompanyId).toBe(locale.companies[0].id);
+      // A rebuild still lets go of both: the companies come back under fresh ids.
+      retransmitWorld({ theme: 'calm' });
+      expect(useUIStore.getState().selectedRobotId).toBeNull();
+      expect(useUIStore.getState().selectedCompanyId).toBeNull();
+    });
+
+    it('a theme with aspects still rebuilds: the theme moves the global half and every robot\'s theme bands', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const before = currentWorld();
+      const spies = spyRegenerators();
+      retransmitWorld({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      const after = currentWorld();
+      expect(after.locale.id).not.toBe(before.locale.id);
+      for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1);
+      expect(useLoadingStore.getState()).toMatchObject({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      for (const robot of after.locale.robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
+    });
+
+    it('aspects alone while paused tear nothing down and leave the world paused: the next flip resumes it', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      setWorldState('paused');
+      const killAll = vi.spyOn(AudioEngine, 'killAll');
+      const stopWork = vi.spyOn(workLoopModule, 'stopWorkLoop');
+      const stopLifecycle = vi.spyOn(robotSystemsModule, 'stopRobotLifecycle');
+      retransmitWorld({ aspects: { distance: ['far'] } });
+      expect(killAll).not.toHaveBeenCalled();
+      expect(stopWork).not.toHaveBeenCalled();
+      expect(stopLifecycle).not.toHaveBeenCalled();
+      expect(getWorldState()).toBe('paused');
+      for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toEqual({ distance: 'far' });
     });
 
     it('no change is a no-op: the loaded theme again, an empty pick list, or both, touch nothing', () => {
@@ -1043,7 +1111,7 @@ describe('worldTransition', () => {
       for (const robot of robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
     });
 
-    it('a retransmit that picks an aspect deals it to the rebuilt roster, and one that clears the picks leaves no loadedUnder', () => {
+    it('a retransmit that picks an aspect deals it to the roster, and one that clears the picks leaves no loadedUnder', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       retransmitWorld({ aspects: { melody: ['mechanical'] } });
       for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toEqual({ melody: 'mechanical' });

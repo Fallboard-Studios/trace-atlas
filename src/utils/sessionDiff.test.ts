@@ -50,7 +50,7 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGO
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
-import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal } from '../systems/spawnSystem';
+import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal, redealAspects } from '../systems/spawnSystem';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
@@ -953,6 +953,56 @@ describe('applySessionPayload', () => {
       applySessionPayload(payload);
       expect(buildSessionPayload().robotOverrides).toEqual({});
       for (const robot of currentLocale()!.robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect change re-deals the live roster in place, and the baseline
+    // (a rebuild's deal) must agree with it, or Keep would read every re-dealt robot as edited.
+    it('an untweaked world re-dealt in place still has no robot overrides, where the new picks over the old deal read as edited', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], voice: ['glassy'] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['held'], distance: ['remote'] } });
+      expect(Object.keys(buildSessionPayload().robotOverrides).length).toBeGreaterThan(0); // the control: not re-dealt yet
+
+      redealAspects(localeId, audioSwells.cancelSwellForRobotAttribute);
+
+      expect(buildSessionPayload().robotOverrides).toEqual({});
+    });
+
+    // A swell riding a field the re-deal re-derives would return it to the old base and feed that base to Keep (the diff
+    // saves a swelling field's base); the re-deal drops it, as a hand edit of the field does.
+    it('a re-deal drops the swell riding a send it re-derives: the swell is gone and the payload diffs empty', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const { swellFrequency, swellDuration, pingVarianceAutomation } = useAudioStore.getState();
+      useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
+      const byX = new Map<number, number>([
+        [precomputeDataX('audioSwell.trigger.robot'), -1], // the robot pool fires
+        [precomputeDataX('audioSwell.company.chance'), 1], // a single-robot swell
+        [precomputeDataX('audioSwell.target.robot'), 1], // the last eligible pair: a send
+        [precomputeDataX('audioSwell.trigger.global'), 1], // the global pool stays quiet
+      ]);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      try {
+        tickAudioSwells(localeId, 0);
+        const swell = getActiveSwellSnapshot('robot').find((s) => (SEND_FIELDS as readonly string[]).includes(s.robotAttribute!))!;
+        expect(swell, 'the forced start landed on a send').toBeDefined();
+        const { robotId } = swell.members![0];
+        tickAudioSwells(localeId, 2); // mid-ramp: the store holds the swell's value now
+
+        useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
+        redealAspects(localeId, audioSwells.cancelSwellForRobotAttribute);
+
+        const riding = getActiveSwellSnapshot('robot').filter((s) => s.members!.some((m) => m.robotId === robotId));
+        expect(riding.map((s) => s.robotAttribute)).not.toContain(swell.robotAttribute);
+        expect(buildSessionPayload().robotOverrides).toEqual({});
+      } finally {
+        noise.mockRestore();
+        useAudioStore.setState({ swellFrequency, swellDuration, pingVarianceAutomation });
+      }
     });
   });
 

@@ -171,9 +171,10 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * the list, Roll and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
  * loaded world's picks for Current and the picked payload's after a save or preset pick, as the theme row does. A change
  * sends the whole loading, `retransmitWorld({ aspects })`, with the changed family's set canonical (an empty list when
- * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the deal
- * re-runs over the same seed and plot, with the same drop to Current, the same attached save and the same dirty read as
- * a theme pick. Each row's description line names the aspect toggled on last in that family while it is still on, else
+ * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the live roster
+ * is re-dealt in place, at the click and under no wash (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect is no
+ * world change), with the same drop to Current, the same attached save and the same dirty read as a theme pick. Each
+ * row's description line names the aspect toggled on last in that family while it is still on, else
  * the last of its set in canonical order, else the family's own `none` sentence; a world pick resets every family's
  * toggle memory, so a save reads as its own sets. Roll touches no row: rollWorld leaves the loading store alone
  * (assumption 14).
@@ -353,20 +354,19 @@ export function OffScreen() {
 
   // A family change (Task 31; per family since revisions Task 9): the whole loading through retransmitWorld, this family's
   // set replaced, canonical, and every other family's carried as shown — retransmitWorld replaces the aspects whole — so
-  // the deal re-runs over the same seed and plot; the world row drops back to Current, the loaded save stays attached and
-  // dirty is read again, as for a theme pick. The aspect toggled on, if one was, becomes the family's described one. Under
-  // the scene wash, the row and its line moving with the world (revisions Task 13).
+  // the deal moves over the live roster; the world row drops back to Current, the loaded save stays attached and dirty is
+  // read again, as for a theme pick. The aspect toggled on, if one was, becomes the family's described one. Not under
+  // the scene wash: picks alone rebuild nothing, so the change applies at the click and a quick second toggle builds on
+  // the first (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33).
   const onFamilyChange = useCallback(
     (family: AspectFamilyId, picks: string[]) => {
       const next = canonicalPicks(family, picks as AspectId[]);
       const shown = shownAspects[family] ?? NO_PICKS;
       const turnedOn = next.find((p) => !shown.includes(p));
-      requestWorldChange(() => {
-        retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
-        if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
-        setPick(CURRENT_PICK);
-        setDirty(isWorldDirty());
-      });
+      retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
+      if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
+      setPick(CURRENT_PICK);
+      setDirty(isWorldDirty());
     },
     [shownAspects],
   );

@@ -33,7 +33,7 @@ import {
   SEND_FIELD_ROOM,
   type ExclusiveSendField,
 } from '../data/robotSendLoadingRanges';
-import { robotSendLevels, type RobotSendField } from '../data/robotSends';
+import { ROBOT_SEND_FIELDS, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
 import { resolveBands } from '../data/bands/resolveBands';
 import { dealAspects, type RobotAspects } from '../data/bands/dealAspects';
@@ -45,6 +45,7 @@ import { useLoadingStore } from '../stores/loadingStore';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
+import type { SwellRobotAttributeId } from '../types/audioSwell';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
@@ -984,6 +985,81 @@ export function applyAspectDeal(localeId: string): void {
     for (const family of ASPECT_FAMILY_IDS) {
       if (robotAspects[family] !== undefined) pushFamilyToEngine(family, updated, localeId);
     }
+  });
+}
+
+/** One family's fields as `source` holds them, over `robot`'s own audio attributes: the counterpart of
+ *  deriveFamilyFields, key for key, reading a robot already drawn instead of drawing one. A switch, so a new family is
+ *  a compile error until it has its case. */
+function familyFieldsOf(
+  family: AspectFamilyId,
+  source: RobotAudioBaseline,
+  robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
+): DealtFields {
+  switch (family) {
+    case 'melody': {
+      const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = source;
+      return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat };
+    }
+    case 'envelope':
+      return { audioAttributes: { ...robot.audioAttributes, adsr: source.audioAttributes.adsr } };
+    case 'distance': {
+      const { reverbSend, delaySend, gritSend, shimmerSend, doubleSend } = source;
+      return { reverbSend, delaySend, gritSend, shimmerSend, doubleSend };
+    }
+    case 'voice': {
+      const { filterFreq, filterQ, filterType, waveform, layers } = source.audioAttributes;
+      return { audioAttributes: { ...robot.audioAttributes, filterFreq, filterQ, filterType, waveform, layers } };
+    }
+  }
+}
+
+/** The swellable attributes inside each family's fields (SWELL_ROBOT_ATTRIBUTE_IDS): the swells an in-place re-deal
+ *  drops, as a hand edit of a field drops the swell riding it (RobotScreen.tsx), so none returns a re-derived field to
+ *  its old base or hands that base to Keep (sessionDiff.ts saves a swelling field's base). Melody's fields never
+ *  swell. A Record, so a new family is a compile error until it has its list. */
+const FAMILY_SWELL_ATTRIBUTES: Record<AspectFamilyId, readonly SwellRobotAttributeId[]> = {
+  melody: [],
+  envelope: ['adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release'],
+  distance: ROBOT_SEND_FIELDS,
+  voice: ['layer0.gain', 'layer0.detune', 'layer1.gain', 'layer1.detune', 'layer2.gain', 'layer2.detune'],
+};
+
+/**
+ * An aspect change on the live roster, in place (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33; Crawford: refresh the
+ * world only when necessary). Aspects are robot-side (spec §3), so the world stands - positions, batteries, jobs, the
+ * companies, the global half - and only the deal moves. The loading store's picks are dealt over the locale's own
+ * companies and robots, as applyAspectDeal deals them, onto the roster a rebuild would spawn (the theme's own draws,
+ * generateRobotRosterBaseline); then each robot takes, for just the families whose dealt aspect moved from its
+ * `loadedUnder`, what that rebuild gives it: the aspect's re-derivation from its own index for a family still dealt,
+ * the theme's own draw for one no longer dealt (a copied robot's being its source's, as at spawn). A tweak on any other
+ * field stays; a tweak on a re-derived one goes, as any re-derivation takes it. The swells riding the re-derived fields
+ * are dropped first (FAMILY_SWELL_ATTRIBUTES, through `dropSwell`), the fields and the new `loadedUnder` go through
+ * updateRobot, and each moved family reaches the engine through pushFamilyToEngine. A robot nothing moved for is not
+ * written. `dropSwell` is audioSwells' cancelSwellForRobotAttribute, handed in by the caller (retransmitWorld) so this
+ * module stays out of the swell system's imports: they load the audio store, whose module-load style-sync every test
+ * that imports spawnSystem would then run.
+ */
+export function redealAspects(localeId: string, dropSwell: (robotId: string, attribute: SwellRobotAttributeId) => void): void {
+  const locale = useLocaleStore.getState().getLocaleById(localeId);
+  if (!locale) return;
+  const { theme, aspects } = useLoadingStore.getState();
+  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+  const ids = locale.robots.map((robot) => robot.id);
+  const rebuilt = applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ids.length), ids, locale.companies, { theme, aspects }, noiseMap);
+  locale.robots.forEach((robot, i) => {
+    const loadedUnder = rebuilt[i].loadedUnder;
+    const moved = ASPECT_FAMILY_IDS.filter((family) => loadedUnder?.[family] !== robot.loadedUnder?.[family]);
+    if (moved.length === 0) return;
+    let fields: DealtFields = {};
+    for (const family of moved) {
+      for (const attribute of FAMILY_SWELL_ATTRIBUTES[family]) dropSwell(robot.id, attribute);
+      fields = { ...fields, ...familyFieldsOf(family, rebuilt[i], { ...robot, ...fields }) };
+    }
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...fields, loadedUnder });
+    const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
+    if (!updated) return;
+    for (const family of moved) pushFamilyToEngine(family, updated, localeId);
   });
 }
 

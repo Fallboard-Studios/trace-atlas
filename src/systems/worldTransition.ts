@@ -12,10 +12,10 @@ import { useAudioStore, pushLfoBankAndLinksToEngine } from '../stores/audioStore
 import { useLoadingStore } from '../stores/loadingStore';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
-import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal } from './spawnSystem';
+import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal, redealAspects } from './spawnSystem';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
-import { startAudioSwells, stopAudioSwells } from './audioSwells';
+import { startAudioSwells, stopAudioSwells, cancelSwellForRobotAttribute } from './audioSwells';
 import { getWorldState, setWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getCurrentMeasure } from '../engine/beatClock';
@@ -136,8 +136,8 @@ export function initializeLocale(localeId: string, { startSystems = true }: { st
 
   // The world's run state follows this call (docs/specs/OFF_SCREEN.md assumption 5, docs/tasks/OFF_SCREEN.md Task 8):
   // systems held — a fresh page's still frame, or a world rebuilt by a pick while the tablet is off — is a cold world
-  // the next flip starts; systems started (below) is a running one. The Attenuation-Style-only retransmit never
-  // reaches here, rebuilds nothing, and leaves the state as it was.
+  // the next flip starts; systems started (below) is a running one. The Attenuation-Style-only and the aspects-only
+  // retransmits never reach here, rebuild nothing, and leave the state as they found it.
   if (startSystems) startLocaleSystems(localeId);
   else setWorldState('cold');
 }
@@ -183,16 +183,18 @@ function tearDownPausedWorld(): void {
 }
 
 /**
- * The five things a retransmit can mean, resolved once up front rather than
+ * The six things a retransmit can mean, resolved once up front rather than
  * re-derived via scattered `if`s through the function body. Each variant
  * carries exactly the fields its branch needs — no non-null assertions
  * needed at the dispatch site, only inside this one resolution function
  * where the exhaustiveness is actually being established. `loading` is the
  * canonical loading to install when the input changes it (band-table T25,
- * docs/specs/OFF_SCREEN.md assumption 10); on its own it is the loadingOnly mode.
+ * docs/specs/OFF_SCREEN.md assumption 10); on its own it is the loadingOnly mode, or the aspectsOnly one when the
+ * theme stays (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33).
  */
 type RetransmitAction =
   | { mode: 'noop' }
+  | { mode: 'aspectsOnly'; loading: LoadingIdentity }
   | { mode: 'loadingOnly'; loading: LoadingIdentity }
   | { mode: 'coordsOnly'; coordinates: { x: number; y: number }; loading?: LoadingIdentity }
   | { mode: 'attenuationStyleOnly'; attenuationStyleName: string; loading?: LoadingIdentity }
@@ -213,15 +215,21 @@ function resolveLoadingChange(input: RetransmitInput): LoadingIdentity | undefin
 function resolveRetransmitAction(input: RetransmitInput): RetransmitAction {
   const { attenuationStyleName, coordinates } = input;
   const loading = resolveLoadingChange(input);
-  if (!attenuationStyleName && !coordinates) return loading ? { mode: 'loadingOnly', loading } : { mode: 'noop' };
+  if (!attenuationStyleName && !coordinates) {
+    if (!loading) return { mode: 'noop' };
+    // Picks alone are robot-side (spec §3) and re-deal in place; a theme moves the global half and every robot's theme
+    // bands, so it rebuilds, picks riding on it or not.
+    return loading.theme === useLoadingStore.getState().theme ? { mode: 'aspectsOnly', loading } : { mode: 'loadingOnly', loading };
+  }
   if (coordinates && !attenuationStyleName) return { mode: 'coordsOnly', coordinates, loading };
   if (attenuationStyleName && !coordinates) return { mode: 'attenuationStyleOnly', attenuationStyleName, loading };
   return { mode: 'both', attenuationStyleName: attenuationStyleName!, coordinates: coordinates!, loading };
 }
 
-/** Whether an action rebuilds the loaded locale: every mode but the Attenuation-Style-only one, which re-parents the
- *  locale untouched unless a loading change rides on it. */
+/** Whether an action rebuilds the loaded locale: every mode but two. The aspects-only one re-deals the live roster in
+ *  place; the Attenuation-Style-only one re-parents the locale untouched unless a loading change rides on it. */
 function rebuildsLocale(action: Exclude<RetransmitAction, { mode: 'noop' }>): boolean {
+  if (action.mode === 'aspectsOnly') return false;
   return action.mode !== 'attenuationStyleOnly' || action.loading !== undefined;
 }
 
@@ -394,13 +402,16 @@ function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: stri
 
 /**
  * The Sector Settings retransmit action — four branches, per
- * docs/specs/archive/SECTOR_SETTINGS.md §1's preservation rules, and a fifth
+ * docs/specs/archive/SECTOR_SETTINGS.md §1's preservation rules, and two
  * for the loading (band-table T25). `input`'s fields are each present only if
  * the user actually edited that panel; absence means "preserve as-is," not
  * "reset to default." A loading change (docs/specs/OFF_SCREEN.md assumption
- * 10) sets the loading store before anything regenerates, reseeds the global
- * half under the new bands where no style switch would, and always rebuilds
- * the roster: a theme or a pick is a world change, whatever else moved.
+ * 10) sets the loading store before anything regenerates. A theme reseeds the
+ * global half under the new bands where no style switch would and rebuilds the
+ * roster: it is a world change, whatever else moved. Picks alone are not
+ * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33): the live roster is re-dealt
+ * in place, with nothing rebuilt, so the selection, the power state and every
+ * system running or paused stand.
  *
  * Every branch that changes the world ends by mirroring the new identity into
  * the address bar (docs/specs/OFF_SCREEN.md assumption 12) — a pick on the off
@@ -412,16 +423,20 @@ export function retransmitWorld(input: RetransmitInput): void {
   const action = resolveRetransmitAction(input);
   if (action.mode === 'noop') return;
 
-  useUIStore.getState().selectRobot(null);
-  // Companies are regenerated with fresh ids on a reseed — a selected company's id would dangle.
-  useUIStore.getState().selectAllRobots();
+  // A re-deal in place keeps every robot and company id, so it keeps the selection too.
+  if (action.mode !== 'aspectsOnly') {
+    useUIStore.getState().selectRobot(null);
+    // Companies are regenerated with fresh ids on a reseed — a selected company's id would dangle.
+    useUIStore.getState().selectAllRobots();
+  }
   const oldAttenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!oldAttenuationStyle) return;
   const oldLocaleId = oldAttenuationStyle.currentLocaleId;
 
   // A paused world that the change replaces is torn down first (docs/specs/OFF_SCREEN.md §1.2): left standing, its
   // frozen swells would feed Keep and the dirty read and its work loop would run under the new robots. A live change
-  // stays running, a cold world has nothing to stop, and an Attenuation-Style-only change replaces no world.
+  // stays running, a cold world has nothing to stop, and an Attenuation-Style-only or aspects-only change replaces no
+  // world.
   if (getWorldState() === 'paused' && rebuildsLocale(action)) tearDownPausedWorld();
 
   // The loading first (docs/specs/OFF_SCREEN.md assumption 10): the store, and through it the loading context, carry
@@ -429,6 +444,11 @@ export function retransmitWorld(input: RetransmitInput): void {
   if (action.loading) useLoadingStore.getState().setLoading(action.loading);
 
   switch (action.mode) {
+    case 'aspectsOnly':
+      // The picks alone: the deal moves over the live roster, only the families whose aspect moved; the global half,
+      // the companies and every robot's place stand (R33).
+      if (oldLocaleId) redealAspects(oldLocaleId, cancelSwellForRobotAttribute);
+      break;
     case 'loadingOnly':
       // The same style, the same plot: the global half from seed under the new bands (the style-sync does not fire
       // for an unchanged id), then the roster, the companies and the deal at the same identity.
