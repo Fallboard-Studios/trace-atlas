@@ -15,16 +15,23 @@ The robots' motion is driven by the work loop, [src/systems/workLoop.ts](../src/
 ## Core Architecture
 
 ### Timeline registry
-The timeline registry is a simple string-keyed map:
+The timeline registry is a string-keyed map, and every entry carries a **scope**:
 
 ```typescript
-export function setTimeline(id: string, timeline: Timeline): void {
+export type TimelineScope = 'world' | 'ui';
+
+export function setTimeline(id: string, timeline: Timeline, scope: TimelineScope = 'ui'): void {
   const existing = timelineMap.get(id);
   if (existing) {
     existing.kill();
   }
 
   timelineMap.set(id, timeline);
+  scopes.set(id, scope);
+  if (scope === 'world' && worldPaused && !timeline.paused()) {
+    timeline.pause();           // registered while the world is paused: paused on arrival
+    pausedByWorld.add(id);
+  }
 }
 
 export function killTimeline(id: string): void {
@@ -33,10 +40,16 @@ export function killTimeline(id: string): void {
     timeline.kill();
     timelineMap.delete(id);
   }
+  scopes.delete(id);
+  pausedByWorld.delete(id);
 }
 ```
 
-Two more exports exist alongside these: `getTimeline(id): Timeline | undefined` (plain lookup, no side effect) and `killAllTimelines(): void` (kills and clears every entry — used for full teardown/reset).
+Further exports: `getTimeline(id): Timeline | undefined` (plain lookup, no side effect), `getTimelineScope(id): TimelineScope | undefined` (the scope an id was registered under, `undefined` for an unknown id — the way a test proves a registration's scope by code), `pauseWorldTimelines()` / `resumeWorldTimelines()` (below) and `killAllTimelines(): void` (kills and clears every entry, the scopes and the world pause — used for full teardown/reset).
+
+**The two scopes (`docs/specs/OFF_SCREEN.md` assumption 3).** `'world'` is everything that moves in the world — swims, job moves, station arcs and ripples, halo waves, orbiters, bubbles, strip flicker, the deck camera's float — and pauses as one set when the power rocker pauses the world. `'ui'`, the default, is the tablet's own chrome — the rocker, the nav, cabinet pops, the roster glide, the section tabs, the off screen's own theatre — which keeps running while the world is paused. **The rule: every world mover passes `'world'`; nothing else does.** The default is `'ui'` on purpose: a mover that forgets its scope keeps moving through a pause, which is visible, rather than a UI timeline freezing, which would look broken (spec §7 Q7). Each registration's scope is pinned in its module's test through `getTimelineScope`.
+
+`pauseWorldTimelines()` pauses every `'world'` entry that is playing and remembers which (a module-level set), then raises a flag; while the flag is up a `'world'` timeline registered by a re-rendering component is paused on registration, so a robot that re-renders while the tablet is off does not start swimming. `resumeWorldTimelines()` plays exactly the entries it paused — one a module had paused on purpose stays paused across a power cycle — and lowers the flag. Both are idempotent and touch no `'ui'` entry. `powerController.pause()` / `resume()` (`src/systems/powerController.ts`) are their only callers, in the order [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause) gives.
 
 This is the supported pattern for keeping timelines out of React state and cleaning them up reliably.
 
@@ -389,8 +402,16 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
 | `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
 
+Every key in this table is registered as `'world'` (the registry's scope, above): the work loop's six
+`setTimeline` calls, `swimAnimation.ts`, `buildJobTimeline.ts`, `stationRipple.ts`, `useHaloMotion`,
+`useOrbiterMotion`'s motion tween, `useStripFlicker`, `BubbleStream.tsx` and `deckCamera.ts`'s float all
+pass it, so a power-off freezes them in place and a power-on plays them again from where they stopped. The one
+exception is `useOrbiterMotion`'s master key (`` `orbiters-${context}-${robotId}` ``), a kill-only token with
+no motion in it, which keeps the `'ui'` default on purpose and is pinned so in its test.
+
 `stopWorkLoop` kills every `work-`, `swim-`, `bob-wait-`, `station-` and `dissolve-` key
-(`LOOP_KEY_PREFIXES`; power-off, and before every `startWorkLoop` in `initializeLocale`), removes
+(`LOOP_KEY_PREFIXES`; a world change, and before every `startWorkLoop` in `initializeLocale` — a power-off
+no longer reaches it, since power is a pause), removes
 every dissolve copy; no robot is ever re-mounted for a row switch, so there is nothing else to clear. Per robot there is at most one live job and one swim,
 and no standing per-robot or per-building GSAP object (spec §1.12). A robot with no mounted body
 gets a target-less timeline of the same length under the same key, because `createSwimTimeline`'s
@@ -480,8 +501,9 @@ The module is runtime-only, in the pattern of `timelineMap` and the ref registry
 ### UI and system animations
 Other systems follow the same model:
 
-- [src/components/ui/physical/PowerRockerSwitch.tsx](../src/components/ui/physical/PowerRockerSwitch.tsx) for SVG button/transport animations
-- [src/components/actors/BubbleStream.tsx](../src/components/actors/BubbleStream.tsx) for looping particle effects
+- [src/components/ui/physical/PowerRockerSwitch.tsx](../src/components/ui/physical/PowerRockerSwitch.tsx) for the rocker's press (`power-rocker`), return (`power-rocker-return`) and the one click sequence (`power-rocker-sequence`: a 0.18 s hold, then the act, 0.5 s later the return). Since power became a pause (`docs/specs/OFF_SCREEN.md` assumption 6) the same sequence serves both directions — the act is `powerController.pause()` while powered and `powerController.powerOnSequence()` otherwise — and there is no confirm dialog and no `power-rocker-confirm-delay`. All three stay `'ui'`, so the rocker returns while the world it just paused does not move.
+- [src/animation/offScreenTheatre.ts](../src/animation/offScreenTheatre.ts) for the off screen's two `'ui'` timelines: `off-screen-boot` (`startOffScreenBoot(dark)`: 0.5 s dark, a 1 s flicker of the screen's `off-screen__dark` layer, then ready; `skipOffScreenBoot()` jumps to the end on a tap; `gsap.matchMedia` jumps to ready under `prefers-reduced-motion: reduce`; the returned stop kills it on unmount) and `off-screen-fade` (`fadeOffScreen()`: the screen and its veil tween to transparent over 0.4 s and a promise resolves, which `powerController.powerOnSequence()` awaits **before** waking anything, so the veil is gone before the power flag unmounts the screen; it resolves at once with no screen mounted). The screen registers its root under `OFF_SCREEN_REF_KEY` (`'off-screen'`) in the ref registry for the fade to find. Semantic only: the fade resolves a promise and the controller does the rest — nothing here touches the audio.
+- [src/components/actors/BubbleStream.tsx](../src/components/actors/BubbleStream.tsx) for looping particle effects (`'world'`)
 
 These modules register timelines in the shared map and clean them up during teardown.
 
@@ -492,6 +514,7 @@ These modules register timelines in the shared map and clean them up during tear
 - Use transforms such as `x`, `y`, `rotation`, and `scale` rather than layout properties.
 - Keep semantic state changes in handlers; do not schedule audio directly inside GSAP timeline callbacks.
 - Kill timelines on unmount or teardown when the owning entity is removed.
+- Register every world mover with `setTimeline(id, tl, 'world')` and pin the scope in its test with `getTimelineScope`; leave the tablet's own chrome on the `'ui'` default.
 
 ## What to Avoid
 
@@ -500,10 +523,12 @@ These modules register timelines in the shared map and clean them up during tear
 - Animating `width`, `height`, or other layout-affecting properties
 - Triggering audio directly from timeline callbacks
 - Leaving timelines running after cleanup
+- Registering a world mover without `'world'` (it keeps moving while the tablet is off), or pausing a timeline by hand where the scope would do it
 
 ## Audit Checklist
 
 - [ ] Timeline references live in the shared registry
+- [ ] Every world mover is registered as `'world'`, and its test asserts the scope
 - [ ] SVG refs are registered through `setRef` / `getRef`
 - [ ] Cleanup uses `killTimeline` when the entity is removed
 - [ ] Motion uses GSAP transforms instead of layout changes

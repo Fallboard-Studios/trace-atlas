@@ -67,9 +67,9 @@ export const AudioEngine = {
   // Lifecycle
   start: async (): Promise<void>,       // idempotent — no-ops if already initialized
   stop: () => void,                     // stops transport, clears playback tick; does NOT reset position or beat clock
-  killAll: () => void,                  // full reset: cancels transport, resets position/counters, calls resetBeatClock()
-  pause: () => void,
-  resume: () => void,
+  killAll: () => void,                  // full reset: cancels transport, resets position/counters, calls resetBeatClock(); kept in the API, but no app path calls it since power became a pause
+  pause: () => void,                    // Tone.getContext().rawContext.suspend() — the whole graph freezes in place; the transport is never touched; no-op before start(); a rejected suspend is logged — see "Power is a pause" below
+  resume: () => void,                   // rawContext.resume() — everything continues from where it stopped, mid-note, mid-ramp; no-op before start(); a rejected resume is logged
   setBPM: (bpm: number) => void,        // no-op if not initialized; instant transport.bpm.value assignment, deliberately not ramped — see "BPM / Tempo" below
   now: () => number,
 
@@ -128,7 +128,23 @@ Note: `note` is resolved to a validated pitch string (`/^[A-Ga-g][b#]{0,2}\d+$/`
 - **Polyphony Control**: The engine caps active voices at `MAX_POLYPHONY = 16` and skips additional notes when the cap is reached.
 - **Lookahead**: Scheduling uses the shared `MIN_LEAD` constant (default `0.1s`) so notes are prepared ahead of playback time.
 - **Idempotence**: `AudioEngine.start()` exits early once initialization has completed, so repeated calls do not duplicate setup.
-- **Cleanup**: `AudioEngine.stop()` stops the transport and clears the playback tick; `AudioEngine.killAll()` performs the full reset by cancelling transport events, releasing voices, and resetting beat-clock state.
+- **Cleanup**: `AudioEngine.stop()` stops the transport and clears the playback tick; `AudioEngine.killAll()` performs the full reset by cancelling transport events, releasing voices, and resetting beat-clock state. Neither is on the power path any more (below): a world change tears down through `removeLocale` (which releases each robot's voice) and `initializeLocale`'s stop/start pairs, and nothing in the app calls `killAll` today.
+- **Pause**: `AudioEngine.pause()` / `resume()` suspend and resume the raw `AudioContext` and nothing else — see the next section.
+
+### Power is a pause
+
+Flipping the rocker off does not tear the world down; it pauses it (`docs/specs/OFF_SCREEN.md` §1.2, assumptions 2 and 5). `AudioEngine.pause()` is `Tone.getContext().rawContext.suspend()`: the transport, the BeatClock's `16n` tick (and with it measures, battery drain and recharge, the harmony and the swells), every Tone LFO, every sounding voice and every reverb tail freeze together, and a suspended context renders nothing, so the off state costs no audio CPU. `resume()` is the context's `resume()`: all of it continues from where it stopped, mid-note, mid-ramp — the measure count carries on from the measure it was in (Checkpoint 0 watched 20 s of suspension land on the next measure at the tempo's rate, no jump, no double tick). The transport is never told anything; `killAll` is not called. Both are no-ops before `start()` and log a rejected promise (a context already closed; a browser refusing to resume after a long suspend) rather than throw. The in-world **day is not paused**: it is wall clock (`DAY_DURATION_MS` from the locale's `dayStartTimestamp`), so the light moves on while the music waits — the time-model guardrail, applied.
+
+`powerController` (`src/systems/powerController.ts`) owns the order. Its world state is a three-way module value in `src/systems/worldState.ts` — `'cold' | 'running' | 'paused'`, read by `getWorldState()`; runtime, never Zustand, since it mirrors the audio graph — written by the controller and by `worldTransition.ts`'s `initializeLocale` (the one place that knows whether a rebuilt world's systems started or were held).
+
+| | what happens, in order | leaves |
+|---|---|---|
+| `pause()` (from `'running'`) | `pauseWorkLoop()` — the loop's clock freezes, so no site cooldown runs out → `pauseWorldTimelines()` — every `'world'` GSAP timeline stops in place → `AudioEngine.pause()` → `setPowerOff()` | `'paused'`; the lifecycle subscription stands, no voice is released, no robot moves |
+| `resume()` (from `'paused'`) | the reverse: `AudioEngine.resume()` → `resumeWorldTimelines()` → `resumeWorkLoop()` → `setPowerOn()` | `'running'` |
+| `powerOnSequence()` | `await fadeOffScreen()` first, on either path (the off screen's veil is gone before the power flag unmounts it; while the fade runs the world is still paused or cold, so a second flip in that window cannot cross the states); then from `'paused'` → `resume()`; otherwise `start()` (idempotent — `Tone.start()`, BPM, harmony reset, every robot's voice re-registered), `AudioEngine.resume()` (a cold start after a pause-and-replace finds the context still suspended, and `start()` returned early), `startLocaleSystems(localeId)` (lifecycle tick, work loop, swells), `markHeardWorld()` on the device's very first start (the off screen's gate), `setPowerOn()` | `'running'` |
+| `noteWorldReplaced()` | the controller's own write for a caller that tears a world down without `initializeLocale` | `'cold'` |
+
+A world change while paused — a pick on the off screen, Roll, a theme or Melody pick, Foundry's Retransmit, a session Load — removes the old locale and rebuilds through `initializeLocale(..., { startSystems: isPoweredOn })`, which with the tablet off holds the systems and writes `'cold'`: the next flip is a `start`, never a resume. There is no path from `'paused'` to a different world that resumes. `shutdown()` is gone; the rocker's off-click calls `pause()` after its 0.18 s hold, with no confirm dialog (assumption 6). `?debug`'s HUD logs `context running → suspended` and back; `playbackStats` flips `expectSound` off while suspended, so a pause is never counted as a stall or an underrun. Measured on desktop: main-thread busy 34 % running → 12 % paused → 37 % resumed (`docs/tasks/OFF_SCREEN.md`, Checkpoint A).
 
 ### Musical Time Authority
 
@@ -491,7 +507,7 @@ tickAudioSwells(localeId: string, measure: number, time?: number): void  // pure
 
 Ticked at **16n resolution** (`scheduleRepeat('16n', ...)`, `getCurrentMeasurePrecise()`), not once per measure — a swell's ramp updates up to 16 times per measure, not in single steps at each measure boundary. `measure` inside `tickAudioSwells` may be fractional (sub-measure precision); `advanceActiveSwells` interpolates from it directly, so `elapsed / totalPhaseMeasures` is a smooth, continuously-advancing fraction rather than a coarse per-measure step. Trigger/selection now rolls on **every tick**, not once per whole measure (docs/specs/AUTOMATION_FREQUENCY_DURATION_SPLIT.md §1.3, superseding this section's earlier once-per-measure gate) — see "Three master controls" below for how the Frequency slider's own rate replaces the old fixed per-measure chance.
 
-Wired into `worldTransition.ts`'s `initializeLocale`, alongside the existing `stopRobotLifecycle()`/`startRobotLifecycle()` pair — `stopAudioSwells(); startAudioSwells(localeId);`, in that order, on every locale (re-)initialization. `stopAudioSwells`'s clear means no swell from a prior locale survives a locale switch or a power cycle (BeatClock silently drops every `scheduleRepeat` registration whenever `AudioEngine.killAll()` runs, same as the robot-lifecycle tick).
+Wired into `worldTransition.ts`'s `startLocaleSystems` (the START half of `initializeLocale`), alongside the existing `stopRobotLifecycle()`/`startRobotLifecycle()` pair — `stopAudioSwells(); startAudioSwells(localeId);`, in that order, whenever a world's systems start. `stopAudioSwells`'s clear means no swell from a prior locale survives a locale switch. A power cycle is not a locale switch any more: the rocker pauses the AudioContext (above, "Power is a pause"), so a swell mid-ramp freezes with the `16n` tick and completes its ramp after the resume — the swell state is neither cleared nor restarted.
 
 Runtime state (`activeSwells`, a plain `Map<string, ActiveSwell>`) lives at module scope in `audioSwells.ts`, never in Zustand — only each tick's resulting field value reaches the store, via the normal `apply*`/`setGlobalAudio` call, same as any other edit (CLAUDE.md: runtime-only state stays out of state). `getActiveSwellSnapshot(pool)` is a small read-only, deduplicated-by-object-identity accessor for tests/future debug UI; nothing else reads `activeSwells` directly.
 
@@ -684,7 +700,7 @@ Each robot follows a compact lifecycle:
 
 ## Quick Troubleshooting
 
-- If audio does not start, verify that `AudioEngine.start()` was triggered by a user gesture and that `Tone.context.state` is `'running'`.
+- If audio does not start, verify that `AudioEngine.start()` was triggered by a user gesture and that `Tone.context.state` is `'running'`. While the tablet is off the state is `'suspended'` by design (power is a pause); the `?debug` HUD logs each change. Tone's own `The AudioContext is "suspended"` console warning on a world rebuilt while off (a pick or Roll on the off screen) is expected: the world comes up on the next flip.
 - If notes drift, use the beat-based scheduler and pass the scheduled time or `AudioEngine.now() + MIN_LEAD` into `AudioEngine.scheduleNote()`.
 - If playback becomes crackly, keep polyphony capped in `AudioEngine`; do not add ad hoc voice counters in components or utilities.
 - If schedules multiply on hot reload, cancel them with `cancelSchedule()` before re-registering.

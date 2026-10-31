@@ -1366,7 +1366,11 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Phase 5: Docs
 
-- [ ] **Task 36: `COMPONENT_LIBRARY.md`, `ANIMATION_SYSTEM.md`, `AUDIO_SYSTEM.md`, `ROBOT_LIFECYCLE.md` — pause and the variant**
+- [x] **Task 36: `COMPONENT_LIBRARY.md`, `ANIMATION_SYSTEM.md`, `AUDIO_SYSTEM.md`, `ROBOT_LIFECYCLE.md` — pause and the variant**
+  (every name spot-checked against the tree at 949e47b8; two stale claims corrected on the way — `killAll` on
+  power-off and the swells' "power cycle" clear — since nothing in the app calls `AudioEngine.killAll()` now;
+  `Button`'s `muted` appearance, owed by Task 13, documented beside the variant; a new "Power is a pause" section
+  in `AUDIO_SYSTEM.md` holds the three states and the two orders, which the other three docs link to)
 
   **Description:** The `multiple` variant (shape, a11y, the two appearances); the timeline scope and the rule that every
   world mover passes `'world'`; `AudioEngine.pause()/resume()` as context suspend/resume and `powerController`'s three
