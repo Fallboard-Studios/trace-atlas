@@ -9,7 +9,7 @@ import type { Company } from './Company';
 import type { GlobalAudioSettings } from './globalAudio';
 import type { RobotLfoTargetId, GlobalLfoTargetId, LfoLaneId, LfoLink, BankLfoSettings } from './lfo';
 import type { ThemeId } from '../data/bands/themes';
-import type { AspectFamilyId, AspectId } from '../data/bands/aspects';
+import type { FamilyPicks } from '../data/bands/aspects';
 
 /**
  * Only the audio-relevant fields a robot's Robot Options can override — never job assignment,
@@ -86,7 +86,7 @@ export interface SessionPayload {
    *  reads as 'classic' and {} (decode leniency, not a compatibility promise), and so does an unknown id or a malformed
    *  list (loadingOf, src/data/bands/loadingIdentity.ts). buildSessionPayload and fillWorldFromSeed always write both. */
   theme?: ThemeId;
-  aspects?: Partial<Record<AspectFamilyId, AspectId[]>>;
+  aspects?: FamilyPicks;
   globalAudio: GlobalAudioSettings;
   /** The LFO Bank's 4 lanes and the 7 global-chain links (docs/tasks/LFO_BANK.md Task 18) —
    *  always whole in a payload, as globalAudio is. The world link carries only the lanes and links

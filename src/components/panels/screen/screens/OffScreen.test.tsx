@@ -52,7 +52,7 @@ import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/tim
 import { getRef } from '@/utils/refs';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { CONTENT, fill } from '@/content';
-import { ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectFamilyId, type AspectId, type AspectIdOf } from '@/data/bands/aspects';
+import { ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectFamilyId, type AspectIdOf } from '@/data/bands/aspects';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import type { SessionPayload } from '@/types/session';
 
@@ -446,7 +446,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
       const { theme, aspects, setLoading } = useLoadingStore.getState();
       setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
     });
-  const setMelody = (picks: AspectId[]) =>
+  const setMelody = (picks: AspectIdOf<'melody'>[]) =>
     act(() => useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: picks } }));
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): no "As theme" option — the theme's own version may be

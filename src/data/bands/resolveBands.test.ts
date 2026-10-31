@@ -9,6 +9,9 @@ import { CLASSIC } from './classic';
 import { ROBOT_LIT_KEYS, ROBOT_PICK_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
 import { THEME_IDS, THEMES, type ThemeColumn, type ThemeId } from './themes';
 import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectId, type AspectIdOf } from './aspects';
+import type { RobotAspects } from './dealAspects';
+import type { LoadingIdentity } from './loadingIdentity';
+import type { Robot } from '../../types/Robot';
 
 // ========================================
 // MOCKS
@@ -319,6 +322,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
   });
 
   it('an id from another family resolves to nothing in this one: melody given plucked is no aspect', () => {
+    // @ts-expect-error the type rejects it since review R15; the run-time check stays for untrusted input (a stale save)
     expect(resolveBands('classic', { melody: 'plucked' })).toStrictEqual(CLASSIC);
   });
 
@@ -648,5 +652,33 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
         }
       }
     }
+  });
+});
+
+// docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R15: a family-keyed record holds only that family's ids in its type, not
+// only at run time, so another family's id is a compile error. Type-checked by `npm run build:types` (vitest itself does
+// not type-check: an unused @ts-expect-error fails the build). The run-time membership checks stay, since a payload or a
+// link is untrusted input. Each record also takes a full set of right ids, so a type made too tight fails here too.
+describe('a pick is typed by its own family (review R15)', () => {
+  it("rejects another family's id for a robot's aspects, a world's pick lists, a robot's loadedUnder and the bands", () => {
+    // @ts-expect-error 'plucked' is an Envelope aspect, not a Melody one
+    const dealt: RobotAspects = { melody: 'plucked' };
+    // @ts-expect-error the same for a world's pick list
+    const lists: LoadingIdentity['aspects'] = { melody: ['plucked'] };
+    // @ts-expect-error and for what a robot was loaded under
+    const loadedUnder: Robot['loadedUnder'] = { voice: 'near' };
+    // @ts-expect-error and for the aspects a robot's bands resolve under
+    const resolve = () => resolveBands('classic', { distance: 'woody' });
+
+    const rightDealt: RobotAspects = { melody: 'hypnotic', envelope: 'plucked', distance: 'near', voice: 'woody' };
+    const rightLists: LoadingIdentity['aspects'] = {
+      melody: ['hypnotic', 'wandering'],
+      envelope: ['plucked'],
+      distance: ['far', 'remote'],
+      voice: ['glassy'],
+    };
+    const rightLoadedUnder: Robot['loadedUnder'] = { voice: 'hollow' };
+    expect(resolveBands('classic', rightDealt)).toBeDefined();
+    expect([dealt, lists, loadedUnder, resolve, rightLists, rightLoadedUnder].every((x) => x !== null)).toBe(true);
   });
 });

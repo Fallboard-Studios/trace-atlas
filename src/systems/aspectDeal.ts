@@ -39,9 +39,6 @@ import { getLocaleNoiseMap } from '../utils/noiseMaps';
 // THE DEAL (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24)
 // ========================================
 
-/** The identity the deal reads: the theme the fleet was built under and the picks to seat. */
-type DealIdentity = Pick<LoadingIdentity, 'theme' | 'aspects'>;
-
 /** What the deal re-derives on a robot: the Melody fields, the audio attributes (Envelope's adsr inside them) and the
  *  five sends. */
 type DealtFields = Partial<MelodyFields & Pick<RobotAudioBaseline, 'audioAttributes' | RobotSendField>>;
@@ -102,7 +99,7 @@ export function applyDealToBaselines(
   baselines: RobotAudioBaseline[],
   robotIds: readonly string[],
   companies: readonly Pick<Company, 'robotIds'>[],
-  identity: DealIdentity,
+  identity: LoadingIdentity,
   noiseMap: NoiseFunction2D,
 ): RobotAudioBaseline[] {
   const dealt = dealAspects(identity, companies, robotIds.map((id) => ({ id })), noiseMap);
@@ -122,7 +119,7 @@ export function applyDealToBaselines(
 export function generateDealtRosterBaseline(
   noiseMap: NoiseFunction2D,
   robotIds: readonly string[],
-  identity: DealIdentity,
+  identity: LoadingIdentity,
 ): { robots: RobotAudioBaseline[]; companies: CompanyRosterBaseline[] } {
   const companies = generateCompanyRosterBaseline(noiseMap, robotIds);
   const robots = applyDealToBaselines(generateRobotRosterBaseline(noiseMap, robotIds.length), robotIds, companies, identity, noiseMap);

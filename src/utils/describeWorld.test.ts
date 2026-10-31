@@ -79,6 +79,7 @@ describe('describeWorld', () => {
     });
 
     it('an id from another family is left out of a family segment, as an unknown id is', () => {
+      // @ts-expect-error the type rejects it since review R15; the run-time check stays for untrusted input (a stale save)
       expect(describeWorld({ ...plot, theme: 'classic', aspects: { envelope: ['hypnotic'] } })).toBe('tr3nch-2 · (-30, -30)');
     });
 

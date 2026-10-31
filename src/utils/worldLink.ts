@@ -15,7 +15,7 @@ import {
 import { generateRandomAttenuationStyleName, randomCoordinate } from './seedUtils';
 import { devWarn } from './helpers';
 import { DEFAULT_LOADING, loadingOf } from '../data/bands/loadingIdentity';
-import { ASPECT_FAMILY_IDS, canonicalPicks, type AspectFamilyId, type AspectId } from '../data/bands/aspects';
+import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type FamilyPicks } from '../data/bands/aspects';
 import { isThemeId, type ThemeId } from '../data/bands/themes';
 import type { SessionPayload } from '../types/session';
 
@@ -151,17 +151,19 @@ function readTheme(raw: string | null): ThemeId {
   return DEFAULT_LOADING.theme;
 }
 
-/** Each family's param as a comma list, sorted into canonical order and deduped (canonicalPicks); an unknown pick is
+/** Each family's param as a comma list, sorted into canonical order and deduped (canonicalAspects); an unknown pick is
  *  dropped with a dev warning; an absent, empty or all-unknown list is no family at all (every robot as theme). */
-function readAspects(params: URLSearchParams): Partial<Record<AspectFamilyId, AspectId[]>> {
-  const aspects: Partial<Record<AspectFamilyId, AspectId[]>> = {};
+function readAspects(params: URLSearchParams): FamilyPicks {
+  const asked: Partial<Record<AspectFamilyId, string[]>> = {};
   for (const family of ASPECT_FAMILY_IDS) {
     const raw = params.get(family);
-    if (raw === null) continue;
-    const parts = raw.split(',').filter((part) => part.length > 0);
-    const picks = canonicalPicks(family, parts as AspectId[]);
-    if (picks.length < new Set(parts).size) devWarn('[worldLink] unknown pick in the link, dropped:', family, raw);
-    if (picks.length > 0) aspects[family] = picks;
+    if (raw !== null) asked[family] = raw.split(',').filter((part) => part.length > 0);
+  }
+  const aspects = canonicalAspects(asked);
+  for (const family of ASPECT_FAMILY_IDS) {
+    if ((aspects[family]?.length ?? 0) < new Set(asked[family]).size) {
+      devWarn('[worldLink] unknown pick in the link, dropped:', family, params.get(family));
+    }
   }
   return aspects;
 }

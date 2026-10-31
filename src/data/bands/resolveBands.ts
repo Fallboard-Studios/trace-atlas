@@ -3,7 +3,7 @@
 // ========================================
 import { CLASSIC } from './classic';
 import { THEMES, type ThemeId } from './themes';
-import { ASPECT_FAMILIES, type AspectFamilyId, type AspectId } from './aspects';
+import { ASPECT_FAMILIES, type AspectFamilyId, type AspectId, type FamilyAspects } from './aspects';
 import type { BandTable } from './bandKeys';
 
 // ========================================
@@ -27,7 +27,7 @@ export function overlayBands(base: BandTable, column: Partial<BandTable>): BandT
  * never enter the context. An id the family does not have (another family's, a stale one) moves nothing (columnOf).
  * Plain data in, plain data out: no store is read here.
  */
-export function resolveBands(theme: ThemeId, aspects: Partial<Record<AspectFamilyId, AspectId>>): BandTable {
+export function resolveBands(theme: ThemeId, aspects: FamilyAspects): BandTable {
   let table = overlayBands(CLASSIC, THEMES[theme]);
   for (const [family, aspect] of Object.entries(aspects) as [AspectFamilyId, AspectId | undefined][]) {
     if (aspect === undefined) continue;

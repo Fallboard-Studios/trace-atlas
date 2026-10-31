@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from './loadingStore';
-import { canonicalAspects, canonicalPicks, type AspectId } from '@/data/bands/aspects';
+import { canonicalAspects, canonicalPicks, type AspectIdOf } from '@/data/bands/aspects';
 import { getBand } from '@/data/bands/loadingContext';
 import { CLASSIC } from '@/data/bands/classic';
 
@@ -24,6 +24,8 @@ vi.mock('@/data/bands/themes', async (importOriginal) => {
 // ========================================
 
 const state = () => useLoadingStore.getState();
+/** The lists below are Melody's; a pick is typed by its family (review R15), so a bad id is cast to Melody's own. */
+type MelodyId = AspectIdOf<'melody'>;
 
 beforeEach(() => {
   // Through the action, so the context is reset with the store.
@@ -50,19 +52,19 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   it('keeps each list in canonical option order, deduped, unknown ids dropped', () => {
     state().setLoading({
       theme: 'bold',
-      aspects: { melody: ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as AspectId[] },
+      aspects: { melody: ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as MelodyId[] },
     });
     expect(state().aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
   });
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): the as-theme pick is gone; a stale one is an unknown id.
   it('drops a stale theme pick as any unknown id: wandering,theme is wandering alone', () => {
-    state().setLoading({ theme: 'classic', aspects: { melody: ['wandering', 'theme' as AspectId] } });
+    state().setLoading({ theme: 'classic', aspects: { melody: ['wandering', 'theme' as MelodyId] } });
     expect(state().aspects).toStrictEqual({ melody: ['wandering'] });
   });
 
   it('a list of only a stale theme pick is no family at all', () => {
-    state().setLoading({ theme: 'classic', aspects: { melody: ['theme' as AspectId] } });
+    state().setLoading({ theme: 'classic', aspects: { melody: ['theme' as MelodyId] } });
     expect(state().aspects).toStrictEqual({});
   });
 
@@ -77,7 +79,7 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('a list that is only unknown ids is dropped too', () => {
-    state().setLoading({ theme: 'calm', aspects: { melody: ['zzz', 'yyy'] as unknown as AspectId[] } });
+    state().setLoading({ theme: 'calm', aspects: { melody: ['zzz', 'yyy'] as unknown as MelodyId[] } });
     expect(state().aspects).toStrictEqual({});
   });
 
@@ -89,7 +91,7 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('never mutates the caller\'s list', () => {
-    const picks: AspectId[] = ['wandering', 'hypnotic', 'hypnotic'];
+    const picks: MelodyId[] = ['wandering', 'hypnotic', 'hypnotic'];
     state().setLoading({ theme: 'classic', aspects: { melody: picks } });
     expect(picks).toEqual(['wandering', 'hypnotic', 'hypnotic']);
     expect(state().aspects.melody).not.toBe(picks);
@@ -124,7 +126,7 @@ describe('the loading context follows the store (band-table T23, spec assumption
 
 describe('canonicalPicks (spec assumption 9: lists in the family\'s canonical option order)', () => {
   it('sorts into option order and dedupes, dropping unknown ids: the plan\'s own case', () => {
-    expect(canonicalPicks('melody', ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as AspectId[])).toEqual([
+    expect(canonicalPicks('melody', ['mechanical', 'hypnotic', 'hypnotic', 'zzz'])).toEqual([
       'hypnotic',
       'mechanical',
     ]);
@@ -135,7 +137,7 @@ describe('canonicalPicks (spec assumption 9: lists in the family\'s canonical op
   });
 
   it('drops a stale theme pick as any unknown id (revisions Task 6): theme,hypnotic is hypnotic', () => {
-    expect(canonicalPicks('melody', ['theme' as AspectId, 'hypnotic'])).toEqual(['hypnotic']);
+    expect(canonicalPicks('melody', ['theme', 'hypnotic'])).toEqual(['hypnotic']);
   });
 
   it('an empty list is an empty list', () => {

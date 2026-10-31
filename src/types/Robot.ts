@@ -310,7 +310,7 @@ export interface Robot {
    * the deal pass (aspectDeal.ts's applyAspectDeal), read by the company and robot readouts; generation-only, so a robot
    * moved between companies afterwards keeps what it rolled. JSON.
    */
-  loadedUnder?: Partial<Record<import('../data/bands/aspects').AspectFamilyId, import('../data/bands/aspects').AspectId>>;
+  loadedUnder?: import('../data/bands/aspects').FamilyAspects;
   /**
    * Testing-only override, toggled from the top of Ping Controls: when true, AudioEngine plays
    * a fixed 4-quarter-note downbeat pattern (see src/engine/clickTrack.ts) instead of this

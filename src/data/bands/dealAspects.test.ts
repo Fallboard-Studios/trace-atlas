@@ -6,7 +6,7 @@ import alea from 'alea';
 import { createNoise2D } from 'simplex-noise';
 
 import { dealAspects, dealGroups } from './dealAspects';
-import type { AspectId } from './aspects';
+import type { AspectIdOf } from './aspects';
 
 // ========================================
 // MOCKS
@@ -35,7 +35,9 @@ const COMPANIES = [
 ];
 const FREELANCERS = ['robot-3', 'robot-5', 'robot-6', 'robot-8', 'robot-10'];
 
-const identity = (melody: AspectId[]) => ({ aspects: { melody } });
+/** Every list here is Melody's, the family these cases deal (a pick is typed by its family, review R15). */
+type MelodyId = AspectIdOf<'melody'>;
+const identity = (melody: MelodyId[]) => ({ aspects: { melody } });
 
 /** The pick each group was dealt, in deal order, 'none' for a group with no entry. */
 function dealtByGroup(dealt: Map<string, { melody?: string }>, groups: string[][]): string[] {
@@ -111,7 +113,7 @@ describe('dealAspects (docs/specs/OFF_SCREEN.md assumption 21, plan Task 26)', (
 
   it('a stale theme pick is dropped as any unknown id is: theme,hypnotic deals Hypnotic to every robot', async () => {
     await pinRotationAtZero();
-    const dealt = dealAspects(identity(['theme' as AspectId, 'hypnotic']), COMPANIES, ROSTER, noise('as-theme'));
+    const dealt = dealAspects(identity(['theme' as MelodyId, 'hypnotic']), COMPANIES, ROSTER, noise('as-theme'));
     expect(dealt.size).toBe(12);
     for (const robot of ROSTER) expect(dealt.get(robot.id)).toEqual({ melody: 'hypnotic' });
   });
@@ -125,7 +127,7 @@ describe('dealAspects (docs/specs/OFF_SCREEN.md assumption 21, plan Task 26)', (
 
   it('the rotation is seeded: one noise map deals the same way twice, and different maps rotate the list differently', () => {
     const groups = dealGroups(COMPANIES, ROSTER);
-    const picks: AspectId[] = ['hypnotic', 'mechanical', 'wandering'];
+    const picks: MelodyId[] = ['hypnotic', 'mechanical', 'wandering'];
     const seeds = ['deal-a', 'deal-b', 'deal-c', 'deal-d', 'deal-e', 'deal-f', 'deal-g', 'deal-h'];
     const sequences = seeds.map((seed) => dealtByGroup(dealAspects(identity(picks), COMPANIES, ROSTER, noise(seed)), groups).join(','));
     expect(new Set(sequences).size).toBeGreaterThan(1);
@@ -137,7 +139,7 @@ describe('dealAspects (docs/specs/OFF_SCREEN.md assumption 21, plan Task 26)', (
     for (const sequence of sequences) {
       const dealtPicks = sequence.split(',');
       for (let i = 1; i < dealtPicks.length; i++) {
-        expect(picks.indexOf(dealtPicks[i] as AspectId)).toBe((picks.indexOf(dealtPicks[i - 1] as AspectId) + 1) % 3);
+        expect(picks.indexOf(dealtPicks[i] as MelodyId)).toBe((picks.indexOf(dealtPicks[i - 1] as MelodyId) + 1) % 3);
       }
     }
   });
@@ -157,12 +159,12 @@ describe('dealAspects (docs/specs/OFF_SCREEN.md assumption 21, plan Task 26)', (
   it('an empty pick list, no family at all, or a list of only a stale theme pick deals nothing: an empty map', () => {
     expect(dealAspects(identity([]), COMPANIES, ROSTER, noise('empty')).size).toBe(0);
     expect(dealAspects({ aspects: {} }, COMPANIES, ROSTER, noise('empty')).size).toBe(0);
-    expect(dealAspects(identity(['theme' as AspectId]), COMPANIES, ROSTER, noise('empty')).size).toBe(0);
+    expect(dealAspects(identity(['theme' as MelodyId]), COMPANIES, ROSTER, noise('empty')).size).toBe(0);
   });
 
   it('an unknown pick is dropped before the deal', async () => {
     await pinRotationAtZero();
-    const dealt = dealAspects(identity(['hypnotic', 'zzz' as AspectId]), COMPANIES, ROSTER, noise('unknown'));
+    const dealt = dealAspects(identity(['hypnotic', 'zzz' as MelodyId]), COMPANIES, ROSTER, noise('unknown'));
     for (const robot of ROSTER) expect(dealt.get(robot.id)).toEqual({ melody: 'hypnotic' });
   });
 

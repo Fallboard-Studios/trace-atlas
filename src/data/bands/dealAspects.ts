@@ -3,7 +3,7 @@
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
 
-import { ASPECT_FAMILY_IDS, canonicalPicks, type AspectFamilyId, type AspectId } from './aspects';
+import { ASPECT_FAMILY_IDS, canonicalPicks, type FamilyAspects } from './aspects';
 import type { LoadingIdentity } from './loadingIdentity';
 import { getUniformSeededVal } from '../../utils/getSeededVal';
 import type { Company } from '../../types/Company';
@@ -13,8 +13,9 @@ import type { Robot } from '../../types/Robot';
 // TYPES
 // ========================================
 
-/** What the deal gave one robot: at most one aspect per family; a family absent means as theme. */
-export type RobotAspects = Partial<Record<AspectFamilyId, AspectId>>;
+/** What the deal gave one robot: at most one aspect per family, each of its own family's ids; a family absent means as
+ *  theme. */
+export type RobotAspects = FamilyAspects;
 
 // ========================================
 // FUNCTIONS

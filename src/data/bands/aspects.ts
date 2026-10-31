@@ -29,9 +29,17 @@ export const ASPECT_IDS_BY_FAMILY = {
 
 /** One family's option ids. */
 export type AspectIdOf<F extends AspectFamilyId> = (typeof ASPECT_IDS_BY_FAMILY)[F][number];
-/** Any family's option id. A record keyed by family (a pick list, Robot.loadedUnder) holds only that family's ids; the
- *  readers below check membership rather than trust the type. */
+/** Any family's option id. A record keyed by family (a pick list, Robot.loadedUnder) holds only that family's ids, in
+ *  its type too (FamilyAspects, FamilyPicks); the readers below still check membership, since a payload or a link is
+ *  untrusted input. */
 export type AspectId = AspectIdOf<AspectFamilyId>;
+/** At most one aspect per family, each one of its own family's ids: what the deal seats on one robot (dealAspects.ts's
+ *  RobotAspects, Robot.loadedUnder) and what that robot's bands resolve under (resolveBands). A family absent means as
+ *  theme for that family (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R15: `{ melody: 'plucked' }` does not compile). */
+export type FamilyAspects = { [F in AspectFamilyId]?: AspectIdOf<F> };
+/** A pick list per family, each list of its own family's ids: a world's loading (LoadingIdentity.aspects) and every copy
+ *  of it - the payload, the link, a retransmit's input, the off screen's intent. */
+export type FamilyPicks = { [F in AspectFamilyId]?: AspectIdOf<F>[] };
 
 // ========================================
 // FAMILIES
@@ -203,35 +211,43 @@ export const ASPECT_FAMILIES: {
 // ========================================
 
 /** A family's picks in canonical order: its own option ids, in ASPECT_IDS_BY_FAMILY order (assumption 9). */
-export function pickOrderOf(family: AspectFamilyId): AspectId[] {
+export function pickOrderOf<F extends AspectFamilyId>(family: F): AspectIdOf<F>[] {
   return [...ASPECT_IDS_BY_FAMILY[family]];
 }
 
-/** Whether `id` is one of `family`'s options - the membership a family-keyed record's readers check, since the union
- *  type would admit another family's id. */
-export function isAspectOf(family: AspectFamilyId, id: string): id is AspectId {
+/** Whether `id` is one of `family`'s options - the membership a family-keyed record's readers check on untrusted input,
+ *  where the type cannot vouch for the id. */
+export function isAspectOf<F extends AspectFamilyId>(family: F, id: string): id is AspectIdOf<F> {
   return (ASPECT_IDS_BY_FAMILY[family] as readonly string[]).includes(id);
 }
 
 /** A pick list as the store, the payload and the link carry it (assumptions 9, 11): sorted into the family's canonical
- *  option order, deduped, unknown ids dropped - so the same set always reads and encodes one way. A new array. */
-export function canonicalPicks(family: AspectFamilyId, picks: readonly AspectId[]): AspectId[] {
-  const wanted = new Set<AspectId>(picks);
+ *  option order, deduped, unknown ids dropped - so the same set always reads and encodes one way. Takes any strings, so
+ *  it is also where an untrusted list becomes the family's ids. A new array. */
+export function canonicalPicks<F extends AspectFamilyId>(family: F, picks: readonly string[]): AspectIdOf<F>[] {
+  const wanted = new Set<string>(picks);
   return pickOrderOf(family).filter((pick) => wanted.has(pick));
 }
 
 /** Every family's list canonical, with empty and unknown families dropped: one JSON shape for one set of picks, so a
  *  payload built from the store compares equal for equal worlds (Keep's dirty check, assumption 14) and a world with
- *  nothing picked — every robot as theme — is always `{}`. */
-export function canonicalAspects(
-  aspects: Partial<Record<AspectFamilyId, readonly AspectId[]>>,
-): Partial<Record<AspectFamilyId, AspectId[]>> {
-  const out: Partial<Record<AspectFamilyId, AspectId[]>> = {};
-  for (const family of ASPECT_FAMILY_IDS) {
-    const picks = aspects[family];
-    if (!picks) continue;
-    const canonical = canonicalPicks(family, picks);
-    if (canonical.length > 0) out[family] = canonical;
-  }
+ *  nothing picked — every robot as theme — is always `{}`. Each family's list is written by canonicalInto, typed by
+ *  that family. */
+export function canonicalAspects(aspects: Partial<Record<AspectFamilyId, readonly string[]>>): FamilyPicks {
+  const out: FamilyPicks = {};
+  for (const family of ASPECT_FAMILY_IDS) canonicalInto(out, family, aspects[family]);
   return out;
+}
+
+/** One family's list into `out`, canonical, when any pick survives. Generic in the family, with `out` mapped over that
+ *  same key, so TypeScript sees the list written is that family's ids: the write a per-family type takes without a cast
+ *  (a plain FamilyPicks would make `out[family]` every family's ids at once). */
+function canonicalInto<F extends AspectFamilyId>(
+  out: { [K in F]?: AspectIdOf<K>[] },
+  family: F,
+  picks: readonly string[] | undefined,
+): void {
+  if (!picks) return;
+  const canonical = canonicalPicks(family, picks);
+  if (canonical.length > 0) out[family] = canonical;
 }

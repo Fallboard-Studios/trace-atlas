@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, isAspectOf, type AspectFamilyId, type AspectId, type AspectIdOf } from '../data/bands/aspects';
+import { ASPECT_FAMILY_IDS, isAspectOf, type AspectFamilyId, type AspectId, type AspectIdOf, type FamilyAspects } from '../data/bands/aspects';
 import type { ThemeId } from '../data/bands/themes';
 import { labels, type ContentKey, type SchemaLabels } from '@/content';
 
@@ -122,7 +122,7 @@ export function aspectDescription(family: AspectFamilyId, id: AspectId | null): 
  *  names in family order, joined with ` + ` as describeWorld joins a family's picks; null for an absent or empty record
  *  (a robot loaded as the theme) and for an id the content does not know (a stale save), so the line is left out
  *  rather than shown blank. */
-export function describeLoadedUnder(loadedUnder: Partial<Record<AspectFamilyId, AspectId>> | undefined): string | null {
+export function describeLoadedUnder(loadedUnder: FamilyAspects | undefined): string | null {
   if (!loadedUnder) return null;
   const names = ASPECT_FAMILY_IDS.flatMap((family) => {
     const id = loadedUnder[family];

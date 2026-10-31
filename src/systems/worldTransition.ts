@@ -26,7 +26,7 @@ import { generateRandomAttenuationStyleName, randomCoordinate } from '../utils/s
 import { mirrorWorldToUrl } from '../utils/sessionShareUtils';
 import { currentWorldIdentity } from '../utils/worldIdentity';
 import { deepEqual } from '../utils/math';
-import { canonicalAspects, type AspectFamilyId, type AspectId } from '../data/bands/aspects';
+import { canonicalAspects, type FamilyPicks } from '../data/bands/aspects';
 import type { ThemeId } from '../data/bands/themes';
 import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import { DAY_DURATION_MS } from '../constants/time';
@@ -48,7 +48,7 @@ export interface RetransmitInput {
    *  an aspect family row picked, or when a payload carries them (applySessionPayload passes both). Read against the
    *  loading store: the loaded theme again, or an equal pick set, is no change at all. */
   theme?: ThemeId;
-  aspects?: Partial<Record<AspectFamilyId, AspectId[]>>;
+  aspects?: FamilyPicks;
 }
 
 // ========================================

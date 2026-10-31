@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type AspectId } from './aspects';
+import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type AspectId, type FamilyPicks } from './aspects';
 import { isThemeId, type ThemeId } from './themes';
 
 // ========================================
@@ -18,7 +18,8 @@ import { isThemeId, type ThemeId } from './themes';
  */
 export interface LoadingIdentity {
   theme: ThemeId;
-  aspects: Partial<Record<AspectFamilyId, AspectId[]>>;
+  /** Each family's picks, typed by that family (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R15). */
+  aspects: FamilyPicks;
 }
 
 // ========================================

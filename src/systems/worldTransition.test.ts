@@ -55,7 +55,7 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGO
 import { useUIStore } from '../stores/uiStore';
 import { useAudioStore } from '../stores/audioStore';
 import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
-import type { AspectId } from '../data/bands/aspects';
+import type { AspectIdOf } from '../data/bands/aspects';
 import { getWorldState, setWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
@@ -1122,7 +1122,7 @@ describe('worldTransition', () => {
 
     it('reads the picks leniently: an unknown pick is dropped and a known one stands', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
-      retransmitWorld({ aspects: { melody: ['hypnotic', 'zzz' as AspectId] } });
+      retransmitWorld({ aspects: { melody: ['hypnotic', 'zzz' as AspectIdOf<'melody'>] } });
       expect(useLoadingStore.getState().aspects).toEqual({ melody: ['hypnotic'] });
     });
 

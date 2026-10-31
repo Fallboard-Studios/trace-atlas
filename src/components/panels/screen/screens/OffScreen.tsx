@@ -5,7 +5,16 @@ import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
-import { ASPECT_FAMILY_IDS, canonicalAspects, canonicalPicks, pickOrderOf, type AspectFamilyId, type AspectId } from '@/data/bands/aspects';
+import {
+  ASPECT_FAMILY_IDS,
+  canonicalAspects,
+  canonicalPicks,
+  pickOrderOf,
+  type AspectFamilyId,
+  type AspectId,
+  type FamilyAspects,
+  type FamilyPicks,
+} from '@/data/bands/aspects';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { deepEqual } from '@/utils/math';
 import { retransmitWorld, rollWorld, type RetransmitInput } from '@/systems/worldTransition';
@@ -130,7 +139,7 @@ interface Intent {
   roll: boolean;
   pick: TransmissionPick;
   theme: ThemeId;
-  aspects: Partial<Record<AspectFamilyId, AspectId[]>>;
+  aspects: FamilyPicks;
   from: LoadingIdentity;
 }
 
@@ -221,7 +230,7 @@ export function OffScreen() {
   }, []);
   // Per family, the aspect toggled on most recently (Task 31, per family since revisions Task 9), for its row's
   // description line; emptied by a world pick.
-  const [lastOn, setLastOn] = useState<Partial<Record<AspectFamilyId, AspectId>>>({});
+  const [lastOn, setLastOn] = useState<FamilyAspects>({});
   // Only the chooser reads it; a first visit (hint only) never builds the payload.
   const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
 
@@ -451,7 +460,7 @@ export function OffScreen() {
   // instead of re-dealing a world about to go (R3).
   const onFamilyChange = useCallback(
     (family: AspectFamilyId, picks: string[]) => {
-      const next = canonicalPicks(family, picks as AspectId[]);
+      const next = canonicalPicks(family, picks);
       const shown = shownAspects[family] ?? NO_PICKS;
       const turnedOn = next.find((p) => !shown.includes(p));
       if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
