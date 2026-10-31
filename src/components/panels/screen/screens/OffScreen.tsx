@@ -3,12 +3,13 @@ import { useGSAP } from '@gsap/react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
-import { loadingOf } from '@/data/bands/loadingIdentity';
+import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
-import { ASPECT_FAMILY_IDS, canonicalPicks, pickOrderOf, type AspectFamilyId, type AspectId } from '@/data/bands/aspects';
+import { ASPECT_FAMILY_IDS, canonicalAspects, canonicalPicks, pickOrderOf, type AspectFamilyId, type AspectId } from '@/data/bands/aspects';
 import { applySessionPayload } from '@/utils/sessionDiff';
-import { retransmitWorld, rollWorld } from '@/systems/worldTransition';
-import { requestWorldChange } from '@/systems/worldChange';
+import { deepEqual } from '@/utils/math';
+import { retransmitWorld, rollWorld, type RetransmitInput } from '@/systems/worldTransition';
+import { cancelWorldChange, requestWorldChange } from '@/systems/worldChange';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -118,6 +119,22 @@ type TransmissionPick =
 const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
 
 /**
+ * A world change waiting under the scene wash, as the clicks since have shaped it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
+ * R3). The world part is at most one of a save or preset to apply and a Roll, the last world click winning; then the
+ * loading the world should end under, and the row the list shows. `from` is the loading shown at the first of these
+ * clicks: what a Roll, or a change with no world part, leaves loaded before the intended loading is laid over it. Runtime
+ * only, like the change itself (worldChange.ts keeps the closure).
+ */
+interface Intent {
+  world: { value: string; name: string; payload: SessionPayload } | null;
+  roll: boolean;
+  pick: TransmissionPick;
+  theme: ThemeId;
+  aspects: Partial<Record<AspectFamilyId, AspectId[]>>;
+  from: LoadingIdentity;
+}
+
+/**
  * The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9; docs/specs/OFF_SCREEN.md §1.1, assumptions 7 and 8):
  * the etched label and the power hint over the dimmed, still world (WorldView stays mounted behind it —
  * ScreenViewport), and — once this device has heard a world — the Transmission row: Current on top (the loaded
@@ -178,6 +195,13 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * the last of its set in canonical order, else the family's own `none` sentence; a world pick resets every family's
  * toggle memory, so a save reads as its own sets. Roll touches no row: rollWorld leaves the loading store alone
  * (assumption 14).
+ *
+ * While a world change waits under the wash, every click joins it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3). The
+ * screen keeps the clicks' intent (Intent, above), and the one request realises all of it at the cover: the world part,
+ * then the loading where it differs from the one the world part leaves. The rows, the description lines and the readout
+ * draw from the intent, so a click shows at once. A family toggle made then joins the intent instead of re-dealing a
+ * world about to go; picking Current cancels the change (worldChange.ts's cancelWorldChange); Keep dims until it has
+ * run, since it would save the world the rows no longer show.
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -186,6 +210,15 @@ export function OffScreen() {
   const [heardWorld] = useState(() => hasHeardWorld());
   const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
+  // The change waiting for the cover, as the clicks since have shaped it (R3). The ref is what realise reads when the
+  // cover lands; the state is what the rows draw from until then. Set together, and cleared once the change has run or
+  // been cancelled.
+  const intentRef = useRef<Intent | null>(null);
+  const [intent, setIntentState] = useState<Intent | null>(null);
+  const setIntent = useCallback((next: Intent | null) => {
+    intentRef.current = next;
+    setIntentState(next);
+  }, []);
   // Per family, the aspect toggled on most recently (Task 31, per family since revisions Task 9), for its row's
   // description line; emptied by a world pick.
   const [lastOn, setLastOn] = useState<Partial<Record<AspectFamilyId, AspectId>>>({});
@@ -202,14 +235,79 @@ export function OffScreen() {
   const loadedTheme = useLoadingStore((s) => s.theme);
   const loadedAspects = useLoadingStore((s) => s.aspects);
   // The stores hold a current world from module load on (their defaults), so the fallback never shows in the app.
-  const currentLabel = describeWorld(
-    {
-      attenuationStyleName: currentAttenuationStyle?.name ?? '',
-      coordinates: coordinates ?? { x: 0, y: 0 },
-      theme: loadedTheme,
-      aspects: loadedAspects,
-    },
-    loadedSessionName ?? undefined,
+  const liveWorld = { attenuationStyleName: currentAttenuationStyle?.name ?? '', coordinates: coordinates ?? { x: 0, y: 0 } };
+  const currentLabel = describeWorld({ ...liveWorld, theme: loadedTheme, aspects: loadedAspects }, loadedSessionName ?? undefined);
+
+  // What the rows show: a waiting change's intent while there is one (R3), so a click shows at once; else the picked
+  // save's or preset's own payload after a pick, and the loaded world's for Current.
+  const shownPick = intent?.pick ?? pick;
+  // The theme the Loading row shows.
+  const shownTheme: ThemeId = intent?.theme ?? ('identity' in pick ? pick.identity.theme : loadedTheme);
+  // The family rows' sets (Task 31; per family since revisions Task 9), by the same rule.
+  const shownAspects = intent?.aspects ?? ('identity' in pick ? pick.identity.aspects : loadedAspects);
+  // The readout names the shown pick. For Current with a change waiting, it names the world that change leaves, as far
+  // as it is known: a pick's world under the intended loading, or the loaded world's (a Roll's is drawn only as it runs).
+  const readout =
+    'identity' in shownPick
+      ? describeWorld(shownPick.identity, shownPick.name)
+      : intent
+        ? describeWorld(
+            {
+              ...(intent.world
+                ? { attenuationStyleName: intent.world.payload.attenuationStyleName, coordinates: intent.world.payload.coordinates }
+                : liveWorld),
+              theme: intent.theme,
+              aspects: intent.aspects,
+            },
+            intent.world
+              ? intent.world.value.startsWith(SAVE_PREFIX) ? intent.world.name : undefined
+              : intent.roll ? undefined : (loadedSessionName ?? undefined),
+          )
+        : currentLabel;
+
+  // The waiting change, realised once the cover has landed, or at once with no wash (R3): the world part - the pick's
+  // payload and names, or the Roll - then the intended loading where it differs from the one the world part leaves, then
+  // the row and the dirty read. It reads the ref, so every click made while it waited is in it. It runs only as the
+  // pending change, and picking Current cancels that change along with its intent, so the intent is always set here.
+  const realise = useCallback(() => {
+    const intended = intentRef.current!;
+    setIntent(null);
+    let left = intended.from;
+    if (intended.world) {
+      const { value, name, payload } = intended.world;
+      applySessionPayload(payload);
+      const { setCurrentSessionName, setCurrentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
+      if (value.startsWith(SAVE_PREFIX)) {
+        setCurrentSessionName(name);
+        setCurrentLoadedSessionName(name);
+      } else {
+        detachLoadedSession();
+      }
+      left = loadingOf(payload);
+    } else if (intended.roll) {
+      rollWorld();
+      useSessionStore.getState().detachLoadedSession();
+    }
+    const loading: RetransmitInput = {};
+    if (intended.theme !== left.theme) loading.theme = intended.theme;
+    if (!deepEqual(canonicalAspects(intended.aspects), canonicalAspects(left.aspects))) loading.aspects = intended.aspects;
+    if (loading.theme !== undefined || loading.aspects !== undefined) retransmitWorld(loading);
+    setPick(intended.pick);
+    setDirty(isWorldDirty());
+  }, [setIntent]);
+
+  /** The intent a click builds on: the waiting one, or a fresh one from what the rows show now. */
+  const nextIntent = useCallback(
+    (): Intent =>
+      intentRef.current ?? {
+        world: null,
+        roll: false,
+        pick,
+        theme: shownTheme,
+        aspects: shownAspects,
+        from: { theme: shownTheme, aspects: shownAspects },
+      },
+    [pick, shownTheme, shownAspects],
   );
 
   const schema = useMemo<RadioButtonSchema>(
@@ -239,8 +337,14 @@ export function OffScreen() {
 
   const onChange = useCallback((value: string) => {
     if (value === CURRENT_VALUE) {
-      // Current is the loaded world already: no world change, so nothing waits. A world pick shows each set as that
-      // world carries it: nothing toggled (Task 31).
+      // Current is the loaded world already: no world change, so nothing waits. Picked while a save or preset waits
+      // under the wash (the row shows the click, so Current can be picked again), it cancels that change: the cover still
+      // lands and lifts, and nothing runs (R3). A world pick shows each set as that world carries it: nothing toggled
+      // (Task 31).
+      if (intentRef.current) {
+        cancelWorldChange();
+        setIntent(null);
+      }
       setLastOn({});
       setPick(CURRENT_PICK);
       return;
@@ -257,39 +361,33 @@ export function OffScreen() {
       payload = loadSession(name);
     }
     if (!payload) return;
-    const picked = payload;
-    // The world change waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13); the pick, the names and
-    // the dirty read move with the world, after the change.
-    requestWorldChange(() => {
-      applySessionPayload(picked);
-      const { setCurrentSessionName, setCurrentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
-      if (value.startsWith(SAVE_PREFIX)) {
-        setCurrentSessionName(name);
-        setCurrentLoadedSessionName(name);
-      } else {
-        detachLoadedSession();
-      }
-      setLastOn({});
-      setPick({
-        value,
-        name,
-        identity: { attenuationStyleName: picked.attenuationStyleName, coordinates: picked.coordinates, ...loadingOf(picked) },
-      });
-      setDirty(isWorldDirty());
+    // The world change waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13), the pick showing at the
+    // click (R3); the payload, the names, the row and the dirty read land with the cover. The pick's own loading
+    // replaces any loading clicked before it, as applying it would.
+    const loading = loadingOf(payload);
+    setIntent({
+      ...nextIntent(),
+      world: { value, name, payload },
+      roll: false,
+      pick: { value, name, identity: { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loading } },
+      theme: loading.theme,
+      aspects: loading.aspects,
     });
-  }, []);
+    setLastOn({});
+    requestWorldChange(realise);
+  }, [nextIntent, realise, setIntent]);
 
   // A theme pick (Task 30): the loading alone moves — the same seed and plot, drawn again under the new bands — so the
   // world row drops back to Current. The loaded save stays attached (see the component note), and dirty is read again.
-  // Under the scene wash, as every world change here (revisions Task 13).
-  const onThemeChange = useCallback((value: string) => {
-    if (!isThemeId(value)) return;
-    requestWorldChange(() => {
-      retransmitWorld({ theme: value });
-      setPick(CURRENT_PICK);
-      setDirty(isWorldDirty());
-    });
-  }, []);
+  // Under the scene wash, as every world change here (revisions Task 13), joining a change already waiting (R3).
+  const onThemeChange = useCallback(
+    (value: string) => {
+      if (!isThemeId(value)) return;
+      setIntent({ ...nextIntent(), theme: value, pick: CURRENT_PICK });
+      requestWorldChange(realise);
+    },
+    [nextIntent, realise, setIntent],
+  );
 
   // The boot theatre, built through useGSAP (CLAUDE.md: animation in components goes through it) and registered in
   // timelineMap by the animation module; the ref the fade reads is set here, where the root exists.
@@ -315,15 +413,12 @@ export function OffScreen() {
   );
 
   // Roll is the retransmit itself: the stores change under the Current row, which renames from them. Under the scene
-  // wash (revisions Task 13).
+  // wash (revisions Task 13). A Roll replaces a waiting pick, the last world click winning, and keeps the waiting loading,
+  // laid over the rolled world once it is drawn (R3).
   const onRoll = useCallback(() => {
-    requestWorldChange(() => {
-      rollWorld();
-      useSessionStore.getState().detachLoadedSession();
-      setPick(CURRENT_PICK);
-      setDirty(isWorldDirty());
-    });
-  }, []);
+    setIntent({ ...nextIntent(), world: null, roll: true, pick: CURRENT_PICK });
+    requestWorldChange(realise);
+  }, [nextIntent, realise, setIntent]);
 
   // Roll on the Current row (revisions Task 4, Crawford's note 2): the list's trailing slot, beside Current's radio and
   // never inside it, so a Roll is never a pick. Held in a callback so the memoized list keeps its props.
@@ -338,11 +433,6 @@ export function OffScreen() {
     setDirty(isWorldDirty());
   }, []);
 
-  const readout = 'identity' in pick ? describeWorld(pick.identity, pick.name) : currentLabel;
-  // The theme the Loading row shows: the pick's own after a save or preset pick, the loaded world's for Current.
-  const shownTheme: ThemeId = 'identity' in pick ? pick.identity.theme : loadedTheme;
-  // The family rows' sets (Task 31; per family since revisions Task 9), by the same rule.
-  const shownAspects = 'identity' in pick ? pick.identity.aspects : loadedAspects;
   const shownOf = (family: AspectFamilyId): readonly AspectId[] => shownAspects[family] ?? NO_PICKS;
   // A family's described aspect: the one toggled on last while it is still on, else the last of its set in canonical
   // order, else none — the row cleared, whose own sentence says every probe takes that family from the theme.
@@ -357,18 +447,24 @@ export function OffScreen() {
   // the deal moves over the live roster; the world row drops back to Current, the loaded save stays attached and dirty is
   // read again, as for a theme pick. The aspect toggled on, if one was, becomes the family's described one. Not under
   // the scene wash: picks alone rebuild nothing, so the change applies at the click and a quick second toggle builds on
-  // the first (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33).
+  // the first (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33). With a world change waiting, the toggle joins its intent
+  // instead of re-dealing a world about to go (R3).
   const onFamilyChange = useCallback(
     (family: AspectFamilyId, picks: string[]) => {
       const next = canonicalPicks(family, picks as AspectId[]);
       const shown = shownAspects[family] ?? NO_PICKS;
       const turnedOn = next.find((p) => !shown.includes(p));
-      retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
       if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
+      const waiting = intentRef.current;
+      if (waiting) {
+        setIntent({ ...waiting, aspects: { ...waiting.aspects, [family]: next }, pick: CURRENT_PICK });
+        return;
+      }
+      retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
       setPick(CURRENT_PICK);
       setDirty(isWorldDirty());
     },
-    [shownAspects],
+    [shownAspects, setIntent],
   );
 
   return (
@@ -389,9 +485,9 @@ export function OffScreen() {
             {/* The two axes (Task 30): Transmission — which world — then Loading — how it loads. */}
             <div className="off-screen__axes">
               <div className="off-screen__axis">
-                <RadioButton schema={schema} value={pick.value} onChange={onChange} trailing={rollOnCurrent} />
+                <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={rollOnCurrent} />
                 <div className="off-screen__actions">
-                  <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty} />
+                  <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty || intent !== null} />
                 </div>
               </div>
               <div className="off-screen__axis">

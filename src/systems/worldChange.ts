@@ -66,6 +66,15 @@ export function requestWorldChange(change: () => void): void {
 }
 
 /**
+ * Drop the change waiting for the cover (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3: the off screen's Current, picked
+ * while a pick waits). The cover is already on its way, so it still lands and lifts, running nothing; with nothing
+ * pending this does nothing.
+ */
+export function cancelWorldChange(): void {
+  pending = null;
+}
+
+/**
  * The wash attaches while its element is mounted (animation/sceneWash.ts's startSceneWash) and the returned detach runs
  * when it unmounts. With no wash left, a change still waiting would never be covered, so detaching runs it at once and
  * clears the state. A second call of the same detach does nothing.

@@ -3,7 +3,7 @@
 // ========================================
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { attachSceneWash, requestWorldChange } from './worldChange';
+import { attachSceneWash, cancelWorldChange, requestWorldChange } from './worldChange';
 import { useUIStore, type SceneWash } from '../stores/uiStore';
 
 /*
@@ -132,6 +132,59 @@ describe('requestWorldChange, with a wash mounted', () => {
     });
     expect(() => setWash('covered')).toThrow('boom');
     expect(wash()).toBe('uncovering');
+  });
+});
+
+// docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3: picking Current while a pick waits cancels it. The cover is already on
+// its way, so it still lands and lifts; it just has nothing to run.
+describe('cancelWorldChange, with a wash mounted', () => {
+  let detach: () => void;
+  beforeEach(() => {
+    detach = attachSceneWash();
+  });
+  afterEach(() => detach());
+
+  it("drops the pending change: the cover still lands and lifts, and nothing runs", () => {
+    const change = vi.fn();
+    requestWorldChange(change);
+    cancelWorldChange();
+    expect(wash()).toBe('covering');
+    setWash('covered');
+    expect(change).not.toHaveBeenCalled();
+    expect(wash()).toBe('uncovering');
+    setWash('clear');
+    expect(wash()).toBe('clear');
+    expect(change).not.toHaveBeenCalled();
+  });
+
+  it('with nothing pending does nothing: the state stands, clear or uncovering', () => {
+    cancelWorldChange();
+    expect(wash()).toBe('clear');
+    requestWorldChange(vi.fn());
+    setWash('covered');
+    expect(wash()).toBe('uncovering');
+    cancelWorldChange();
+    expect(wash()).toBe('uncovering');
+  });
+
+  it('a request after a cancel runs at the next cover, the cancelled one never', () => {
+    const cancelled = vi.fn();
+    const next = vi.fn();
+    requestWorldChange(cancelled);
+    cancelWorldChange();
+    requestWorldChange(next);
+    setWash('covered');
+    expect(cancelled).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves nothing for the wash to run if it unmounts mid-cover', () => {
+    const change = vi.fn();
+    requestWorldChange(change);
+    cancelWorldChange();
+    detach();
+    expect(change).not.toHaveBeenCalled();
+    expect(wash()).toBe('clear');
   });
 });
 
