@@ -34,6 +34,15 @@ row; the `'theme'` pick is gone; three more aspect families (Envelope, Distance,
 waits under a scene wash. Each amended paragraph below says so where it stands. The survey (2026-10-30, against `main`)
 is left as it was read.
 
+**Amended again 2026-10-31** by the code review's follow-ups,
+[docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) (R11), wherever this spec and the
+code disagreed. A paused world that a world change replaces is now torn down as §1.2 says (R1). An aspect change
+re-deals the live roster in place, with no rebuild and no wash (R33, Crawford's answer to the review's Open Question 2).
+Every click made while a world change waits joins it (R3). Keep never overwrites another save (R6), and a theme change
+pushes the LFO bank to a primed engine (R2). The claims the build never matched are corrected: where `worldState` and
+`loadedUnder` live, the deal's baseline function, the readout, the content files and the file map. Each amendment
+names its task where it stands.
+
 Survey basis (2026-10-30, against `main` at `cc9a01f2`, the merge of PR #593; every citation below was read, not
 recalled). Where the survey disagrees with the intent, the survey wins and the difference is named here:
 
@@ -56,7 +65,10 @@ recalled). Where the survey disagrees with the intent, the survey wins and the d
   `NavPanel.tsx:66`, `RosterBoard.tsx:145`, `CabinetBox.tsx:401`, `PowerRockerSwitch.tsx` ×4. `timelineMap.ts` exports
   `setTimeline` / `getTimeline` / `killTimeline` / `killAllTimelines` only (`:26–59`). **No world element carries a CSS
   keyframe animation** (`animation:` appears in no stylesheet under `components/robot`, `components/actors`,
-  `worldView`), so pausing the registered timelines freezes all world motion.
+  `worldView`), so pausing the registered timelines freezes all world motion. *Amended 2026-10-31
+  ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* `useOrbiterMotion.ts:301` is not a
+  world mover. It registers a kill token, `{ kill }` with nothing in it, under the default `'ui'` scope, and the build
+  left it there. Assumption 3's fourteen world sites are this list without it.
 - **The day clock already runs while off.** `computeLocaleHour(dayStartTimestamp)` (`constants/time.ts:15`) ticks on
   `AttenuationStyleView`'s 1 s interval (`:26–70`), which `WorldView.tsx:36` mounts in both power states; it writes
   `uiStore.activeLocaleLocalTime`, and none of its eight consumers (`Factory`, `Scenery`, `LightShafts`, `TerrainLayer`,
@@ -133,7 +145,22 @@ worth a second look):
    `'paused'` and the off screen's pick is still Current (`AudioEngine.resume()` → `resumeWorldTimelines` →
    `resumeWorkLoop` → `setPowerOn`), else today's `start` + `startLocaleSystems`. A world change while paused
    (`retransmitWorld` / `applySessionPayload`) tears down as it does today — `stopWorkLoop`, `killAll` — and leaves
-   `'cold'`, so the next flip starts. `shutdown()` is deleted.
+   `'cold'`, so the next flip starts. `shutdown()` is deleted. *Amended 2026-10-31
+   ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R1, R11 and R33):*
+   - `worldState` lives in its own module, `src/systems/worldState.ts` (`getWorldState` / `setWorldState`), so
+     `powerController` and `worldTransition` both write it without an import cycle (plan Task 8).
+     `powerController.getWorldState()` reads it.
+   - `powerOnSequence()` awaits `fadeOffScreen()` first (assumption 18). It then resumes whenever the state is
+     `'paused'`, with no condition on the pick: a change that replaced the world has already left it `'cold'` (plan
+     Task 10).
+   - The paused half is true since R1. A change that rebuilds the locale while `'paused'` runs `tearDownPausedWorld()`
+     (`worldTransition.ts`) while the old locale still exists: `stopRobotLifecycle`, `stopWorkLoop`, `stopAudioSwells`,
+     `AudioEngine.killAll()` (which resets the BeatClock), then `resumeWorldTimelines()` to end the pause span. The new
+     world builds held, and `initializeLocale` leaves it `'cold'`.
+   - Two changes rebuild nothing and leave the state as they found it: an Attenuation-Style-only retransmit with no
+     loading change, and an aspect change (R33).
+   - A change while `'running'` is a live retransmit (plan Task 8): no `killAll`; `initializeLocale` restarts the
+     systems over the new world, and the state stays `'running'`.
 6. **No confirm dialog.** `PowerRockerSwitch`'s off-branch becomes the mirror of its on-branch: `power-rocker-sequence`
    0.18 s hold → `powerController.pause()`, 0.5 s → `returnRocker`. `showConfirm`, the dialog and `ui.power.confirmTitle`
    / `confirmBody` go (content entries that nothing reads fail `content.test.ts`).
@@ -166,7 +193,13 @@ worth a second look):
     `regenerateBpmFromSeed` — the AS-sync subscription does not fire for an unchanged id), then the locale removed and
     re-initialised at the same identity so the robots, companies and the deal regenerate. *Amended 2026-10-31
     ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 6):* the lists are `AspectId[]`, no longer
-    `AspectPick[]`; a `'theme'` left in an older payload is dropped as any unknown id is.
+    `AspectPick[]`; a `'theme'` left in an older payload is dropped as any unknown id is. *Amended 2026-10-31
+    ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R2 and R33):* `loadingOnly` is now a theme
+    change only, with or without picks riding on it. Picks alone, under the loaded theme, take a new `aspectsOnly` mode:
+    the loading store is written, the live roster is re-dealt in place (`redealAspects`, assumption 22) and the URL is
+    mirrored. Nothing global regenerates and the locale is not rebuilt. A loading riding on a plot or style change
+    rebuilds as before. The global half's regeneration now ends by pushing the new LFO bank and links to the engine
+    whenever the bank is primed (`pushLfoBankAndLinksToEngine`, R2), so a theme picked while paused reaches the lanes.
 11. **Identity on the link, as plain params.** `theme=<id>` (the reserved param, now written and read) and one param
     per family, named by the family, carrying the set as a comma list in canonical option order:
     `melody=hypnotic,mechanical`, `envelope=plucked,held&distance=remote&voice=woody`. Written only when not `classic`
@@ -195,7 +228,12 @@ worth a second look):
     line under the chooser shows only while dirty. *Amended 2026-10-31
     ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4 and 5, notes 1 and 2):* Roll is the Current row's
     own action, a small flat button at the row's end; Keep sits alone under the list, labelled "Save the last session"
-    (Crawford's words). Both stay muted.
+    (Crawford's words). Both stay muted. *Amended 2026-10-31
+    ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R6 and R3):* with no save loaded, Keep names
+    a new save, never an existing one: `currentSessionName` when no save has it, else fresh suggestions until one is
+    free, and after 20 draws the last of them numbered " 2", " 3"… (`unusedSessionName`, `sessionStore.ts`). With a
+    save loaded, Keep still overwrites that save. Detaching a loaded save re-suggests a free name the same way. Keep
+    also dims while a world change waits under the wash (§3).
 15. **One band table, one resolver, one context.** `src/data/bands/`: `bandKeys.ts` (`BandKey` = `'bpm'` |
     `LoadingRangeKey` | `robot.<field>` | `RobotSendField`; four band kinds — `range { min, max }`, `send { min, max,
     lit }`, `toggle { offShare, min, max }` for the 1–8 fields, `pick { weights }` for the waveform), `classic.ts`
@@ -239,7 +277,9 @@ worth a second look):
     *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4, 6, 7 and 10):* the "as
     theme" label and its sentence are gone; three families' labels, names and sentences are added as stand-in copy;
     the key names are the shipped ones (`home.off.melody.<id>`, not the `home.off.aspect.melody.<id>` first written
-    here).
+    here). *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* the readout
+    has no template. It shows `describeWorld`'s string for the shown pick (assumption 8's helper, which carries the theme
+    and family tail), and `home.off.readout` is only the well's accessible name (plan Task 10).
 18. **Boot theatre and veil belong to `OffScreen`.** On mount a `'ui'` timeline `off-screen-boot`: 0–0.5 s dark, 0.5–1.5 s
     a flicker to full, then ready; `prefers-reduced-motion` jumps to ready; any `pointerdown` on the screen jumps to
     ready; the rocker is outside the screen and works throughout. The veil is `OffScreen`'s own backdrop element
@@ -268,7 +308,10 @@ worth a second look):
     Each family turns on its own seeded rotation, so one robot may carry an aspect from every family. *Amended
     2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 6, note 4):* the selectable "as theme"
     member is gone, and with it the way a mixed fleet kept plain robots. A family with picks deals one to every group;
-    a family with none leaves every robot as the theme in it.
+    a family with none leaves every robot as the theme in it. *Amended 2026-10-31
+    ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R33):* adding or removing a pick is no
+    longer a retransmit. The same deal runs over the live roster in place (assumption 22), so a reshuffle re-derives
+    only the robots whose dealt aspect changed.
 22. **Aspects are applied after the deal by re-deriving the dealt fields.** Companies form after every robot has drawn
     its melody fields (survey), so `applyAspectDeal(localeId)` runs right after `spawnInitialCompanies`: for each dealt
     robot it recomputes the family's keys (assumption 16) with the same `noiseMap`, `dataId` and `spawnIndex` offset
@@ -288,7 +331,24 @@ worth a second look):
     `regenerateMelody`, Envelope `AudioEngine.updateVoiceEnvelope`, Distance `AudioEngine.updateRobotSends` with
     `robotSendLevels(robot)`, Voice `AudioEngine.reReserveVoice` then `primeRobotLinks` (the rebuild disposes the nodes
     the LFO links were wired to). Before the engine starts, on the off screen, those calls are the no-ops they are at
-    spawn. A robot is touched only for the families it was dealt.
+    spawn. A robot is touched only for the families it was dealt. *Amended 2026-10-31
+    ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11 and R33):*
+    - The baseline's pass does not run inside `generateRobotRosterBaseline`, which deals nothing. It runs in
+      `generateDealtRosterBaseline` (`spawnSystem.ts:915`): the seed's companies over the live robot ids
+      (`generateCompanyRosterBaseline`), the roster replayed by `generateRobotRosterBaseline`, then the deal applied to
+      it (`applyDealToBaselines`). `buildSessionPayload` diffs against that.
+    - An aspect change re-deals the live roster in place (`redealAspects`, `spawnSystem.ts`), with no rebuild and no
+      wash. It deals the new picks over the locale's live companies onto the roster a rebuild would spawn. Then, per
+      robot, only the families whose dealt aspect differs from its `loadedUnder` take that roster's fields: the
+      aspect's re-derivation for a family still dealt, and the theme's own draw as the roster spawned it for one no
+      longer dealt (a copied robot's being its source's).
+    - The swells riding those fields are dropped first. The fields and the new `loadedUnder` go through
+      `updateRobot`, and each moved family reaches the engine through the same call as above.
+    - Everything else stands: positions, batteries, jobs, the companies, the global half, the selection, the power
+      state, and a tweak on any field not re-derived. A tweak on a re-derived field goes, as any re-derivation takes
+      it.
+    - The re-deal reads the live companies, so a robot moved to another company takes that company's aspect at the
+      next aspect change; until then it keeps what it rolled.
 23. **`RadioButton` gains a `multiple` variant** — a design-system addition, Crawford's call (2026-10-30: "it should use
     the cabinetry effect just like buttons and toggles do already"). `RadioButtonSchema.multiple?: true` makes `value`
     a `string[]` and `onChange(string[])`; each option is independently selectable; in the `cabinet` appearance every
@@ -307,7 +367,10 @@ worth a second look):
     id) and written by the deal pass; a member shows its company's, a freelancer its own, an undealt robot nothing.
     *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 6 and 9):* the line joins every
     dealt family in family order (*Loaded under Hypnotic + Held + Remote + Woody*). With no "as theme" pick, a robot
-    shows nothing only when no family has picks.
+    shows nothing only when no family has picks. *Amended 2026-10-31
+    ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* the record is a field on the robot,
+    `Robot.loadedUnder` (`types/Robot.ts:313`), written through `updateRobot` by the deal and, since R33, by the
+    re-deal. `localeStore.ts` itself is unchanged.
 
 ---
 
@@ -350,7 +413,12 @@ Arrival (a bare URL / a shared link) × device (first visit / returning / return
   (assumption 21), tweaks gone, the world row drops to Current. *Amended 2026-10-31
   ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4, 9 and 13):* Transmission is a list with Roll in
   the Current row; the families are Melody, Envelope, Distance and Voice; a pick, Roll, or a theme or family change
-  fades the old world out under the scene wash and the new one in (§3).
+  fades the old world out under the scene wash and the new one in (§3). *Amended 2026-10-31
+  ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R33 and R3):* a family change is not a world
+  change. It re-deals the live roster in place at the click, under no wash, and resets only the re-dealt families'
+  fields; every other tweak stays. So "tweaks gone", above, now holds for a theme change only (plan Task 31 built it
+  for both). A pick, Roll or a theme change still waits under the wash, and every click made while one waits joins it
+  (§3).
 - **Shared link (stories 4–6).** The link's identity and blob are applied at boot as today; the URL is **not** rewritten.
   First visit: hint only — the friend's world plays on the flip, no choice offered. Returning: Current is the link's
   world, named and selected, the Loading rows at the link's theme and aspects. Picking anything else rewrites the URL
@@ -359,7 +427,10 @@ Arrival (a bare URL / a shared link) × device (first visit / returning / return
 - **Power off, every story.** The rocker pauses (assumption 5): music stops mid-note, robots freeze mid-glide, batteries
   hold, the day keeps turning. The off screen appears over the paused world, Current selected, Keep lit if the world
   differs from its saved form. Flip on with Current → `resume`, mid-phrase. Flip on after a pick → that world, from
-  the top.
+  the top. *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* the
+  world's state decides, not the row (assumption 5). A theme change also leaves Current selected, over a rebuilt,
+  `'cold'` world, which starts from the top. An aspect change leaves the world paused, so the flip resumes it,
+  re-dealt (R33).
 
 ### 1.2 Power as pause — what freezes, what runs, what starts
 
@@ -378,6 +449,15 @@ Arrival (a bare URL / a shared link) × device (first visit / returning / return
 A world change while `'paused'` or `'running'` (a pick, Roll, a theme change, Foundry's Retransmit) goes through today's
 teardown (`stopWorkLoop`, `killAll` → `resetBeatClock`) and leaves `'cold'`; the next flip is a `start`. There is no
 path from `'paused'` to a different world that resumes.
+
+*Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R1, R11 and R33):*
+- **While `'paused'`:** true since R1. `tearDownPausedWorld()` (assumption 5) adds `stopRobotLifecycle`,
+  `stopAudioSwells` and the end of the pause span to the teardown above.
+- **While `'running'`:** never true. The change is a live retransmit: it restarts the systems over the new world, with
+  no `killAll`, and the state stays `'running'` (plan Task 8).
+- **An aspect change is not a world change.** It rebuilds nothing, so a paused world stays paused and the next flip
+  resumes it, re-dealt (Crawford's answer to the review's Open Question 2). There is still no path from `'paused'` to a
+  different world that resumes.
 
 ### 1.3 Data shapes
 
@@ -448,6 +528,8 @@ the shapes above are the shipped ones after the revisions: four families and the
   **`AudioEngine.ts`** — `pause()` / `resume()` rewritten to the context (assumption 2); `killAll` unchanged.
   **`timelineMap.ts`** — the scope, `pauseWorldTimelines`, `resumeWorldTimelines`. **`workLoop.ts`** — `pauseWorkLoop`,
   `resumeWorkLoop`, the shifted `now`. **`PowerRockerSwitch.tsx`** — the dialog and its state go; the off-branch timeline.
+  *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* `worldState` lives
+  in `src/systems/worldState.ts` (assumption 5); `powerController` reads and writes it there.
 - **`OffScreen.tsx` (+ `.css`)** — the gate read, the two axes, Current, Roll, Keep, the readout, the veil, the boot
   timeline, the footer. Its pick model stays a `RadioButton` per axis: the Transmission row in the `list` appearance
   with Roll in its Current row, the theme row `muted`, and one cabinet `multiple` row per aspect family (amended
@@ -465,7 +547,10 @@ the shapes above are the shipped ones after the revisions: four families and the
   removed; `session.clearStorage.confirmBody` reworded. **Docs**: `docs/reference/GLOBAL_CHAIN_GRID.md` and
   `ROBOT_DATA_GRID.md` gain a column per theme and a note per aspect; `docs/UI_SHELL.md`, `docs/ROBOT_LIFECYCLE.md`,
   `docs/AUDIO_SYSTEM.md`, `docs/ANIMATION_SYSTEM.md`, `docs/SESSION_STORAGE.md` and `docs/MELODY_SYSTEM.md` each get the
-  paragraph that describes the new behaviour; the roadmap gets 57; backlog 5 archives.
+  paragraph that describes the new behaviour; the roadmap gets 57; backlog 5 archives. *Amended 2026-10-31
+  ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* the content files are `home.ts`,
+  `ui.ts`, `session.ts`, `sector.ts` (the two `sector.preset.*` entries removed), `company.ts` and `probe.ts`
+  (`company.loadedUnder`, `probe.loadedUnder`); `settings.ts` is untouched.
 - **The scene wash** (amended 2026-10-31, [OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 12 and 13):
   **`uiStore.ts`** — `sceneWash`, `setSceneWash`. **`systems/worldChange.ts`** new — `requestWorldChange`,
   `attachSceneWash`. **`animation/sceneWash.ts`** new — `startSceneWash` and the `scene-wash` timeline.
@@ -563,6 +648,18 @@ Tests are colocated (`*.test.ts(x)` beside the module), as the repo does everywh
 `spawnSystem.ts`, `worldTransition.ts`, `types/Robot.ts`, `types/session.ts`, `worldLink.ts`, `describeWorld.ts`,
 `loadingNames.ts` and `home.ts` for the families.
 
+*Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* the map above
+missed six new files the first plan built:
+- `src/systems/worldState.ts`: the world's `cold / running / paused` (plan Task 8).
+- `src/systems/worldBoot.ts`: `bootWorld`, the page's boot path and the bar's first mirror (Task 15).
+- `src/animation/offScreenTheatre.ts`: the boot theatre and `fadeOffScreen` (Task 16b).
+- `src/utils/worldIdentity.ts`: `currentWorldIdentity`, what the bar mirrors (Task 15).
+- `src/data/bands/loadingIdentity.ts`: `LoadingIdentity` and `loadingOf` (Task 20).
+- `src/utils/loadingNames.ts`: the theme and aspect name and description keys (Task 30).
+
+`stores/localeStore.ts` is unchanged: `loadedUnder` is `Robot.loadedUnder` (`types/Robot.ts`). The content files are
+`home.ts`, `ui.ts`, `session.ts`, `sector.ts`, `company.ts` and `probe.ts`, not `settings.ts` (§1.4).
+
 ---
 
 ## 3. Implementation Boundaries & Constraints
@@ -583,7 +680,16 @@ Tests are colocated (`*.test.ts(x)` beside the module), as the repo does everywh
   sets `'clear'`. The last request before the cover wins, and each cover runs one change. Under
   `prefers-reduced-motion`, or with no wash mounted, the change runs at once and the state stays `'clear'`. The boot,
   the link boot and `applySessionPayload`'s own retransmit never wait, and an unedited Retransmit asks for nothing.
-  The wash's timelines set only that state; nothing in it touches the audio.
+  The wash's timelines set only that state; nothing in it touches the audio. *Amended 2026-10-31
+  ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R33, R3 and R11):*
+  - The family rows no longer wait. A family change re-deals in place at the click (R33); with a change already
+    waiting, the toggle joins it instead.
+  - A cover runs the pending change and then any change that change requests, until none is pending (`runPending`,
+    `worldChange.ts:28-34`), not one change.
+  - While a change waits, the off screen keeps every click's intent (the pick, the theme and the families' sets), and
+    the one request realises all of it at the cover, so no click inside the cover is lost (R3). Picking Current then
+    cancels the change through `cancelWorldChange()`: the cover still lands and lifts, running nothing.
+  - Keep dims while a change waits, since it would save the world the rows no longer show.
 - **Pause is a transport / context / timeline affair.** No `setTimeout`, `setInterval` or `requestAnimationFrame`
   anywhere in the pause or resume paths; the boot theatre and the veil fade are GSAP timelines in `timelineMap`.
 - **GSAP timelines trigger semantic state only.** `fadeOffScreen()` resolves a promise the controller awaits; it does
@@ -591,7 +697,9 @@ Tests are colocated (`*.test.ts(x)` beside the module), as the repo does everywh
 - **State stays JSON-serialisable.** `loadingStore` holds two strings' worth of ids; `worldState` is module state in
   `powerController` because it mirrors the audio graph, which is runtime, and must not persist. *Amended 2026-10-31
   ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 12):* `uiStore.sceneWash` is one string; the change
-  waiting under the wash is a function, kept as module state in `worldChange.ts` and never in a store.
+  waiting under the wash is a function, kept as module state in `worldChange.ts` and never in a store. *Amended
+  2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* `worldState` is module
+  state in `src/systems/worldState.ts`, not `powerController` (assumption 5), and still never persists.
 - **Themes change loading bands only.** `GLOBAL_AUDIO_SEED_RANGES`, every slider's range, every LFO swing range and every
   clamp are untouched; the LFO engine never reads the band table.
 - **The day is wall-clock and never gated** (CLAUDE.md guardrail); this spec adds no code to the day clock and removes
@@ -808,4 +916,6 @@ source, CSS or doc file. Docs-only and copy-only tasks have no test and say so o
     construction; the Task 21 parity fixture passed unmodified.
 12. **Reshuffling on a pick change.** Adding a third pick may move Hypnotic from one company to another (the rotation
     is of the whole list). Accepted — it is a retransmit and tweaks are gone anyway — but worth a line in the Guide's
-    description later.
+    description later. *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)
+    R33):* it is no longer a retransmit. The re-deal moves only the robots whose dealt aspect changed, and resets only
+    their re-dealt fields (assumption 22); the reshuffle itself is still accepted.
