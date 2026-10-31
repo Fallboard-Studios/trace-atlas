@@ -41,6 +41,7 @@ import * as spawnSystemModule from './spawnSystem';
 import * as robotSystemsModule from './robotSystems';
 import * as workLoopModule from './workLoop';
 import * as audioSwellsModule from './audioSwells';
+import * as offScreenTheatreModule from '../animation/offScreenTheatre';
 import { AudioEngine } from '../engine/AudioEngine';
 import { subscribeToMeasure, scheduleRepeat } from '../engine/beatClock';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/localeStore';
@@ -140,21 +141,67 @@ describe('power cycle over a world built while off', () => {
     expect(locale().robots).toHaveLength(MAX_ROBOTS);
   });
 
-  it('a power-on with no shutdown in between (a double press) does not double-start', async () => {
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R18: the rocker stays clickable through its sequence, so a second "on"
+  // press can land after the first has started the world. It finds the world running and does nothing: no voice is
+  // released and rebuilt mid-music, the harmony is not reset, the loop and the lifecycle tick are not restarted.
+  it('a power-on with the world already running (a double press) starts nothing more', async () => {
     const unsubscribes: ReturnType<typeof vi.fn>[] = [];
     vi.mocked(subscribeToMeasure).mockImplementation(() => {
       const unsubscribe = vi.fn();
       unsubscribes.push(unsubscribe);
       return unsubscribe;
     });
+    const reRegister = vi.spyOn(spawnSystemModule, 'reRegisterAllRobotsAudio');
+    const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+    const swellsStart = vi.spyOn(audioSwellsModule, 'startAudioSwells');
     initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
 
     await powerController.powerOnSequence();
     await powerController.powerOnSequence();
 
-    expect(unsubscribes).toHaveLength(2);
-    expect(unsubscribes[0]).toHaveBeenCalledTimes(1);
-    expect(unsubscribes[1]).not.toHaveBeenCalled();
+    expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+    expect(reRegister).toHaveBeenCalledTimes(1);
+    expect(workStart).toHaveBeenCalledTimes(1);
+    expect(swellsStart).toHaveBeenCalledTimes(1);
+    expect(unsubscribes).toHaveLength(1);
+    expect(unsubscribes[0]).not.toHaveBeenCalled();
+    expect(getWorldState()).toBe('running');
+    expect(useUIStore.getState().isPoweredOn).toBe(true);
+  });
+
+  it('the check follows the fade: a press whose fade ends after the first press has started the world finds it running', async () => {
+    initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+    const reRegister = vi.spyOn(spawnSystemModule, 'reRegisterAllRobotsAudio');
+    let endSecondFade!: () => void;
+    vi.spyOn(offScreenTheatreModule, 'fadeOffScreen')
+      .mockImplementationOnce(() => Promise.resolve())
+      .mockImplementationOnce(() => new Promise<void>((resolve) => { endSecondFade = resolve; }));
+
+    const first = powerController.powerOnSequence();
+    const second = powerController.powerOnSequence(); // pressed while the world is still cold
+    await first;
+    expect(getWorldState()).toBe('running');
+    endSecondFade();
+    await second;
+
+    expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+    expect(reRegister).toHaveBeenCalledTimes(1);
+  });
+
+  it('a second power-on after a resume does nothing either: the world is resumed once', async () => {
+    initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+    await powerController.powerOnSequence();
+    powerController.pause();
+    const resume = vi.spyOn(AudioEngine, 'resume');
+    const reRegister = vi.spyOn(spawnSystemModule, 'reRegisterAllRobotsAudio');
+
+    await powerController.powerOnSequence();
+    await powerController.powerOnSequence();
+
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(reRegister).not.toHaveBeenCalled();
+    expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+    expect(getWorldState()).toBe('running');
   });
 });
 

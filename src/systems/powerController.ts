@@ -81,8 +81,14 @@ export const powerController = {
   // a second flip in that window finds the states as they were — resuming first and flipping the flag later would
   // let a pause() land in between and leave the flag on over a paused world. The fade resolves at once when no
   // screen is mounted. A GSAP timeline that resolves a promise, nothing more: the audio is woken here, after it.
+  //
+  // After the fade, a world already running is left alone: the rocker stays clickable through its sequence, so a
+  // second "on" press can land after the first one's start or resume, and running the cold branch again would
+  // release and rebuild every voice mid-music, reset the harmony and restart the loop
+  // (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R18).
   async powerOnSequence() {
     await fadeOffScreen();
+    if (getWorldState() === 'running') return;
     if (getWorldState() === 'paused') {
       this.resume();
       return;
