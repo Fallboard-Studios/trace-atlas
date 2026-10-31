@@ -1120,7 +1120,13 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Phase 4: `themes-and-aspects`
 
-- [ ] **Task 29: `RadioButton.tsx` — the `multiple` variant**
+- [x] **Task 29: `RadioButton.tsx` — the `multiple` variant** (9b20f245; the props are generic over the value's shape —
+  `value: V extends string | readonly string[]`, `onChange(V extends readonly string[] ? string[] : string)` — because a
+  two-shape union left `LfoBankLanePanel`'s inline `(v) =>` arrow implicitly `any`, and `memo` is cast back to the generic;
+  `onChange` emits the picks in schema option order with unknown values dropped, so one set is one list and the value
+  round-trips, and clearing the last option is `onChange([])` with `onDeselect` never called; the stale-hover reset keys on
+  the joined selection, not array identity; no new CSS — Radix sets `data-state` per item in either mode, so the existing
+  tint and muted-fill rules mark every selected option; three hand mutants killed; the Look is Crawford's, pending)
 
   **Description:** `RadioButtonSchema.multiple?: true`; with it, `value: string[]`, `onChange(string[])`, rendered on
   Radix `ToggleGroup type="multiple"` (`@radix-ui/react-toggle-group`, already installed) instead of `RadioGroup`; each
@@ -1147,7 +1153,15 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 30: `OffScreen.tsx` — the Loading axis: theme row, description line, readout tail**
+- [x] **Task 30: `OffScreen.tsx` — the Loading axis: theme row, description line, readout tail** (d76dfa01; the Loading
+  heading is the theme row's own label (`...labels('home.off.loading')`), as Transmission labels the world row; the row
+  shows the loading store's theme while Current is the pick and the picked payload's own after a save or preset pick —
+  the pick identity is the whole `WorldIdentity` through `loadingOf`, so the row and the readout's tail never wait on the
+  retransmit; a theme pick keeps the loaded save attached — the seed is still the save's, under another theme, so Keep
+  overwrites it — and reads dirty again (the sketch's pick rules drop the world row to Current and say nothing about
+  detaching); new `src/utils/loadingNames.ts` holds the content-key maps `describeWorld.ts` had privately, shared with
+  Tasks 31–33; the five sentences are stand-ins marked for Crawford; the existing "Current selected and nothing else" case
+  was scoped to the world row, a second radio group now existing; six hand mutants killed; the Look is Crawford's, pending)
 
   **Description:** Under a `home.off.loading` heading, a muted `RadioButton` of the five themes (`home.off.theme.<id>`),
   one muted line under it with `home.off.themeDescription.<picked>`; the readout uses `describeWorld`'s tail. A theme
@@ -1175,7 +1189,15 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 31: `OffScreen.tsx` — the Melody row (multi-select), the set semantics, Roll keeps the loading**
+- [x] **Task 31: `OffScreen.tsx` — the Melody row (multi-select), the set semantics, Roll keeps the loading** (5c472e84;
+  the row's label key is `home.off.melody` and the sentences `home.off.melodyDescription.<pick>` — the content grammar's
+  four segments, as Task 28 chose for the names — with `home.off.asTheme` for the as-theme member and a `theme` sentence
+  shown when no aspect is on; the described aspect is the one toggled on last while still on, else the last of the set in
+  canonical order, and a world pick resets that memory so a save reads as its own set; `canonicalPicks` is called as
+  planned but is not independently killable — the primitive already emits schema order, which is canonical order here;
+  Roll keeps the loading by `rollWorld` as it stood, the system half being `worldTransition.test.ts`'s "keeps the loading"
+  case from Phase 3 and the screen half new; the test's store-writing double is reset in `afterEach`, since
+  `clearAllMocks` keeps implementations; six hand mutants killed)
 
   **Description:** A muted `multiple` `RadioButton` labelled `home.off.aspect.melody` with "as theme" (`'theme'`) and the
   three options; a change calls `retransmitWorld({ aspects: { melody: canonicalPicks(...) } })` and resets the world pick
@@ -1202,7 +1224,12 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 32: `CompanyScreen.tsx`, `RobotScreen.tsx` — the "loaded under" line**
+- [x] **Task 32: `CompanyScreen.tsx`, `RobotScreen.tsx` — the "loaded under" line** (14e7a992; the robot column reads its
+  own `Robot.loadedUnder`; the company column shows the entry every member carries — the deal seats a company as one
+  group, a robot moved in later keeps what it rolled, so disagreeing members, or none, show no line, and the All form
+  never does; `describeLoadedUnder()` in `loadingNames.ts` joins a record's families with ` + ` and returns null for no
+  entry or an id the content lacks; desk columns only, as the task names them; stand-in copy `Loaded Under` over
+  `Mesh Loading` / `LOADING PROFILE`; four hand mutants killed)
 
   **Description:** One more `robot-screen__well` in the company column (`CompanyScreen.tsx:110–118`) and in the robot
   avatar column's meta (`RobotScreen.tsx:452`): a `DualLabel` (`company.loadedUnder` / `probe.loadedUnder`) over the
@@ -1226,7 +1253,8 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 33: `SectorSettingsDrawer.tsx` — the status line through `describeWorld`**
+- [x] **Task 33: `SectorSettingsDrawer.tsx` — the status line through `describeWorld`** (4752671a; two narrow loading-store
+  reads; the dashes fallback stays for a store with no world, which the app never shows; one hand mutant killed)
 
   **Description:** The status line (`:84`) becomes `describeWorld(identity)`, so it names the theme and picks.
 
@@ -1247,7 +1275,17 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** XS
 
-- [ ] **Task 34: `themes.ts`, `aspects.ts` — placeholder columns on the v1 key list**
+- [x] **Task 34: `themes.ts`, `aspects.ts` — placeholder columns on the v1 key list** (25ff9999; the real columns are read
+  in `resolveBands.test.ts` through `vi.importActual`, since that file's mocks inject columns — its "silent column" cases
+  now use an injected empty Bold and Wandering, `loadingContext.test.ts`'s an injected empty Perilous, and
+  `worldTransition.test.ts`'s Roll case and `worldLinkBoot.test.ts`'s link case inject an empty Wandering / Hypnotic
+  option so the Calm density they assert is not overridden by the real aspect (the deal runs on both paths — checked by
+  removing the mock: density 41 under the real Wandering); `worldLinkFixtures.untouchedWorld` takes an optional loading,
+  so an untouched Calm world is generated under Calm rather than relabelled, which the two `worldLink` encode /
+  round-trip cases and the `sessionShareUtils` mirror case needed; Adventurous names no density or attack / release —
+  equal to Classic's they would be no-ops, which the test forbids; every number is a placeholder for Task 35, each column
+  reading as its stand-in sentence; the test also bounds every band inside its field, the tempo on the clock's 20–200;
+  four data mutants killed)
 
   **Description:** Fill the four non-Classic theme columns and the three Melody options with the spec's assumption 16
   placeholders, touching only the v1 keys (`bpm`, `robot.rhythmicDensity`, `robot.rests`, `robot.attack`,
@@ -1298,12 +1336,31 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
   **Estimated scope:** S (data + docs; the time is listening)
 
 ### Checkpoint D: The listen
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
 - [ ] Browser: the Loading axis on desktop and phone; a theme pick re-rolls the same world audibly differently; two
       Melody picks show up as different companies (the company detail's line says which); a save made under Calm +
       Hypnotic reloads with the rows set; its share link carries `theme=calm&melody=hypnotic`.
 - [ ] `npm run perf:audio` Pixel A/B on a Perilous world (the densest column) against `main`.
 - [ ] Reviewed with human before docs.
+
+**Checkpoint D record (2026-10-31, `feature/off-screen` at `25ff9999`, automated half; Task 35 open):**
+- `npm run build:types` clean. `npm run lint`: 0 errors, the same 4 pre-existing `react-refresh/only-export-components`
+  warnings as Checkpoints A–C. `npm test`: 342 files / 12 884 tests, one run, all green (12 802 at Checkpoint C; Tasks
+  29–34 added 82 net, in existing files). `npm run build`: 24.9 s with the suite running alongside (4.8 s at Checkpoint C),
+  the usual over-500 kB chunk warning.
+- Every task RED first, one commit each (9b20f245, d76dfa01, 5c472e84, 14e7a992, 4752671a, 25ff9999), each new gate
+  mutation-checked by hand — 3, 6, 6, 4, 1 and 4 mutants, all killed; the one call no mutant can reach (Task 31's
+  `canonicalPicks`) is recorded on its tick. Deviations are on each task's tick.
+- The themes are audible in code only so far: a theme pick draws the same seed under its column (Task 34's placeholders),
+  the deal seats the Melody picks over the companies, and the three readers of `describeWorld` agree. Nothing has been
+  listened to — that is Task 35, Crawford's: the eight columns read as their stand-in sentences and the grids are untouched
+  until the numbers are agreed.
+- Pending Crawford: the Looks of Tasks 29 and 30 (two popped options at once in a cabinet story; the two-column layout at
+  1600 × 900 and the one-column scroll at 375 × 812), the browser checks above, the listen (Task 35), the Pixel A/B on a
+  Perilous world, and the review before Phase 5. Copy: the stand-ins marked in `home.ts` (five theme sentences, the Melody
+  label, the as-theme label, four Melody sentences), `company.ts` and `probe.ts` (`Loaded Under` over `Mesh Loading` /
+  `LOADING PROFILE`). Docs owed to Task 36: the `multiple` variant in `COMPONENT_LIBRARY.md`, `loadingNames.ts`, the
+  "loaded under" line, the two-axis off screen, the adjusted band tests' injected-empty-column pattern.
 
 ---
 
