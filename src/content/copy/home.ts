@@ -25,8 +25,13 @@ export const home = {
   // random Attenuation Style and plot under the chosen Loading. An action, not a radio. Stand-in copy until Crawford's pass.
   'home.off.roll': { human: 'Roll' },
   // Keep (spec assumption 14): the one save action on the off screen — the loaded world, under the name Comms would
-  // suggest, no name field. Dims once the world is kept. Crawford's words, 2026-10-31 (revisions Task 4).
-  'home.off.keep': { human: 'Save the last session' },
+  // suggest, no name field. Dims once the world is kept. Crawford's words, 2026-10-31: "Save Last World", his answer to
+  // the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20), after "Save the last session" (revisions
+  // Task 4).
+  'home.off.keep': { human: 'Save Last World' },
+  // Keep's failure line (R20): shown in the unsaved warning's place when the storage refuses the save (a full quota).
+  // Stand-in copy, in the label's voice, until Crawford's words.
+  'home.off.keepFailed': { human: 'Couldn’t save the last world.' },
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },

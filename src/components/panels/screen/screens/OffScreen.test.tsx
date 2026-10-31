@@ -869,6 +869,66 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     expect(warning()).not.toBeNull();
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20: a Keep the storage refuses (a full quota) is a line under the
+  // chooser, not a throw into the click. It takes the unsaved warning's place, so nothing moves; the screen stays up
+  // and Keep stays lit, to try again.
+  describe('a Keep the storage refuses (review R20)', () => {
+    const failed = () => screen.queryByText(human('home.off.keepFailed'));
+    let setItem: ReturnType<typeof vi.spyOn>;
+    let logged: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+    });
+    afterEach(() => {
+      setItem.mockRestore();
+      logged.mockRestore();
+    });
+
+    it("shows the failure line in the warning's place, logs the error, and leaves the screen up with Keep lit", () => {
+      render(<OffScreen />);
+      expect(failed()).toBeNull();
+      fireEvent.click(keep());
+      expect(failed()).not.toBeNull();
+      expect(failed()!.getAttribute('role')).toBe('alert');
+      expect(warning()).toBeNull();
+      expect(logged).toHaveBeenCalled();
+      expect(keep().disabled).toBe(false);
+      expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+      expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('goes when a later Keep succeeds', () => {
+      render(<OffScreen />);
+      fireEvent.click(keep());
+      expect(failed()).not.toBeNull();
+      setItem.mockRestore();
+      fireEvent.click(keep());
+      expect(failed()).toBeNull();
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
+    });
+
+    it('goes when the world changes, since the world it names is no longer shown: a family toggle', () => {
+      render(<OffScreen />);
+      fireEvent.click(keep());
+      expect(failed()).not.toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
+      expect(failed()).toBeNull();
+      expect(warning()).not.toBeNull();
+    });
+
+    it('goes when the world changes: a preset pick, realised at once with no wash mounted', () => {
+      render(<OffScreen />);
+      fireEvent.click(keep());
+      expect(failed()).not.toBeNull();
+      fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
+      expect(applySessionPayload).toHaveBeenCalledTimes(1);
+      expect(failed()).toBeNull();
+    });
+  });
+
   it('clicking Keep saves under the suggested name, lists the new row at once, names Current after it, and dims', () => {
     render(<OffScreen />);
     fireEvent.click(keep());
@@ -965,7 +1025,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
 
 // docs/tasks/OFF_SCREEN_REVISIONS.md Task 4 (Crawford's notes 1 and 2, 2026-10-31): the Transmission row is a list —
 // Current, the saves with when they were saved, a rule, the presets — and Roll rides on the Current row, beside its
-// radio, so what Roll does is plain. Keep stays under the list, alone, as "Save the last session".
+// radio, so what Roll does is plain. Keep stays under the list, alone, as "Save Last World" (review R20).
 describe('OffScreen — the Transmission list and Roll on Current', () => {
   beforeEach(() => markHeardWorld());
   const roll = () => screen.getByRole('button', { name: human('home.off.roll') });
@@ -1042,13 +1102,14 @@ describe('OffScreen — the Transmission list and Roll on Current', () => {
     expect(screen.getByRole('radio', { name: kept }).querySelector('.sc-radio-button__meta')?.textContent).toBe(savedMeta(kept));
   });
 
-  it('keeps Keep alone in the actions row under the list, as Save the last session', () => {
+  it('keeps Keep alone in the actions row under the list, as Save Last World', () => {
     const { container } = render(<OffScreen />);
     const actions = container.querySelector('.off-screen__actions')!;
     expect(within(actions as HTMLElement).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
       human('home.off.keep'),
     ]);
-    expect(human('home.off.keep')).toBe('Save the last session');
+    // Crawford's answer to the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20).
+    expect(human('home.off.keep')).toBe('Save Last World');
     expect(picker().closest('.sc-radio-button')!.nextElementSibling).toBe(actions);
   });
 });

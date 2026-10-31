@@ -58,6 +58,7 @@ const READOUT_LABEL = labels('home.off.readout').humanLabel;
 const ROLL_SCHEMA: ButtonSchema = { id: 'offRoll', type: 'button', ...labels('home.off.roll'), appearance: 'muted' };
 const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
 const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
+const KEEP_FAILED = labels('home.off.keepFailed').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
 
 /** The Loading axis's theme row (docs/tasks/OFF_SCREEN.md Task 30; spec assumption 17): the five ids in THEME_IDS
@@ -162,10 +163,11 @@ interface Intent {
  * claimed as the pick. Roll (assumption 14) is the action on the Current row — the list's trailing slot, beside the
  * radio and never inside it (revisions Task 4, Crawford's note 2): a fresh random world through rollWorld —
  * a retransmit, so the pick returns to Current and the row renames from the stores. Keep (assumption 14), labelled
- * "Save the last session" under the list, saves the
+ * "Save Last World" under the list (review R20), saves the
  * loaded world through sessionStore.keepCurrentWorld — no name field — and the new row appears at once; it dims
  * (the dim-controls rule) whenever the loaded world equals its save, and a muted warning line sits under the
- * chooser only while it does not. Dirty is read on mount, after a pick, after a Roll and after a Keep — never per
+ * chooser only while it does not. A Keep the storage refuses shows its failure line in that warning's place until a
+ * Keep succeeds or the world changes (R20). Dirty is read on mount, after a pick, after a Roll and after a Keep — never per
  * render (it builds the live payload). A preset pick or a Roll detaches the loaded save (sessionStore
  * .detachLoadedSession): that world is no longer the save, so Current is named by its identity alone and Keep
  * writes a new row rather than overwriting the save. The veil (assumption 18) is the screen's own backdrop — the
@@ -233,6 +235,8 @@ export function OffScreen() {
   const [lastOn, setLastOn] = useState<FamilyAspects>({});
   // Only the chooser reads it; a first visit (hint only) never builds the payload.
   const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
+  // The last Keep was refused by the storage (R20): its line shows until a Keep succeeds or the world changes.
+  const [keepFailed, setKeepFailed] = useState(false);
 
   // The loaded world, for the Current row and the readout. Narrow selectors (the name, the coordinates
   // object) as SectorSettingsDrawer reads them, so a robot write elsewhere in the locale never re-renders this.
@@ -303,6 +307,7 @@ export function OffScreen() {
     if (loading.theme !== undefined || loading.aspects !== undefined) retransmitWorld(loading);
     setPick(intended.pick);
     setDirty(isWorldDirty());
+    setKeepFailed(false);
   }, [setIntent]);
 
   /** The intent a click builds on: the waiting one, or a fresh one from what the rows show now. */
@@ -437,7 +442,15 @@ export function OffScreen() {
   );
 
   const onKeep = useCallback(() => {
-    useSessionStore.getState().keepCurrentWorld();
+    // A save the storage refuses (a full quota) is a line in the warning's place, never a throw into the click (R20).
+    try {
+      useSessionStore.getState().keepCurrentWorld();
+    } catch (err) {
+      console.error('[OffScreen] Keep could not save', err);
+      setKeepFailed(true);
+      return;
+    }
+    setKeepFailed(false);
     setSaves(sortedSaves());
     setDirty(isWorldDirty());
   }, []);
@@ -472,6 +485,7 @@ export function OffScreen() {
       retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
       setPick(CURRENT_PICK);
       setDirty(isWorldDirty());
+      setKeepFailed(false);
     },
     [shownAspects, setIntent],
   );
@@ -517,7 +531,13 @@ export function OffScreen() {
             <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
               {readout}
             </p>
-            {dirty && <p className="off-screen__warning">{UNSAVED_WARNING}</p>}
+            {keepFailed ? (
+              <p className="off-screen__warning" role="alert">
+                {KEEP_FAILED}
+              </p>
+            ) : (
+              dirty && <p className="off-screen__warning">{UNSAVED_WARNING}</p>
+            )}
           </div>
         )}
         <p className="off-screen__footer">{FOOTER}</p>
