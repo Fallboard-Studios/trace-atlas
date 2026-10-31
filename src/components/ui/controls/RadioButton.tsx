@@ -40,6 +40,19 @@ interface RadioButtonBaseProps {
 /** A trailing result worth a slot: anything React would draw. */
 const isDrawn = (node: ReactNode) => node !== null && node !== undefined && typeof node !== 'boolean' && node !== '';
 
+/** The list appearance's grid lines (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8): per option the line its row takes,
+ *  a divider before it taking the line above, and how many lines the rows and dividers fill. An option's trailing slot
+ *  takes its row's line. */
+function listLines(options: RadioButtonSchema['options']): { rows: number[]; count: number } {
+  const rows: number[] = [];
+  let line = 0;
+  for (const option of options) {
+    if (option.dividerBefore) line++;
+    rows.push(++line);
+  }
+  return { rows, count: line };
+}
+
 /** One option's value for the single control, or the selected values under `schema.multiple`. */
 type RadioButtonValue = string | readonly string[];
 
@@ -156,7 +169,14 @@ interface RadioButtonProps<V extends RadioButtonValue = string> extends RadioBut
  *  The row mirrors its item's `data-state`, so the selected row's dot and quiet fill key off it (RadioButton.css);
  *  every row renders the same parts selected or not, so a pick never reflows the list. It is muted's family: no
  *  CabinetBox, no pop timeline, no hover pop. Single-value and `multiple` both work; the single-value list is the
- *  consumer. */
+ *  consumer.
+ *
+ *  The trailing slots render after the Radix root, outside it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8): the root
+ *  is a roving-focus group, and a Shift+Tab leaving any descendant that is not one of its items lands on the root,
+ *  which hands focus back to the selected item, so a slot inside it looped Shift+Tab between itself and that row. A
+ *  `.sc-radio-button__list` grid holds both: the root spans it and passes its lines down (subgrid), every row and
+ *  divider takes a line of its own (listLines), and a slot takes its row's line in the second column, over the row's
+ *  own fill, where it always sat. */
 function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>) {
   const { schema, disabled, onDeselect, boxSize, trailing } = props;
   // The conditional parameter type is opaque inside the generic body, so the two call sites below
@@ -178,6 +198,9 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
   // multiple variant. A single-mode value of '' selects nothing, as it always has.
   const selected: readonly string[] = typeof rawValue === 'string' ? [rawValue] : rawValue;
   const isSelected = (optionValue: string) => selected.includes(optionValue);
+  // The list's lines and its trailing results, once per option; the other appearances never call `trailing`.
+  const lines = list ? listLines(schema.options) : null;
+  const trailingNodes = list ? schema.options.map((option) => trailing?.(option.value)) : [];
   const [hoveredValue, setHoveredValue] = useState<string | null>(null);
 
   // See the bugfix note above — clears a stale hover left behind by a
@@ -208,14 +231,15 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
         <span className="sc-radio-button__label">{option.humanLabel}</span>
       </span>
     );
-    if (list) {
+    if (lines) {
       // The index, not the value, names the meta: a value may hold spaces (a save's name), an id may not.
       const metaId = option.meta ? `${instanceId}-meta-${index}` : undefined;
-      const trailingNode = trailing?.(option.value);
+      const line = lines.rows[index];
+      const rowClass = isDrawn(trailingNodes[index]) ? 'sc-radio-button__row sc-radio-button__row--trailing' : 'sc-radio-button__row';
       return (
         <Fragment key={option.value}>
-          {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" />}
-          <div className="sc-radio-button__row" data-state={isSelected(option.value) ? 'on' : 'off'}>
+          {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" style={{ gridRow: line - 1 }} />}
+          <div className={rowClass} data-state={isSelected(option.value) ? 'on' : 'off'} style={{ gridRow: line }}>
             <ToggleGroup.Item
               className="sc-radio-button__item sc-radio-button__list-item"
               value={option.value}
@@ -231,7 +255,6 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
                 </span>
               )}
             </ToggleGroup.Item>
-            {isDrawn(trailingNode) && <span className="sc-radio-button__trailing">{trailingNode}</span>}
           </div>
         </Fragment>
       );
@@ -274,33 +297,49 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
     onChangeMultiple(schema.options.filter((option) => chosen.has(option.value)).map((option) => option.value));
   };
 
+  const rootStyle = lines ? { ...rowTokens, gridRow: `1 / span ${lines.count}` } : rowTokens;
+  const root = multiple ? (
+    <ToggleGroup.Root
+      type="multiple"
+      className="sc-radio-button__root"
+      style={rootStyle}
+      value={selected as string[]}
+      onValueChange={emitMultiple}
+      aria-label={resolveAccessibleName(schema)}
+      disabled={disabled}
+    >
+      {items}
+    </ToggleGroup.Root>
+  ) : (
+    <ToggleGroup.Root
+      type="single"
+      className="sc-radio-button__root"
+      style={rootStyle}
+      value={selected[0]}
+      onValueChange={(next) => { if (next) onChangeSingle(next); else onDeselect?.(); }}
+      aria-label={resolveAccessibleName(schema)}
+      disabled={disabled}
+    >
+      {items}
+    </ToggleGroup.Root>
+  );
+
   return (
     <div className={className}>
       <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
-      {multiple ? (
-        <ToggleGroup.Root
-          type="multiple"
-          className="sc-radio-button__root"
-          style={rowTokens}
-          value={selected as string[]}
-          onValueChange={emitMultiple}
-          aria-label={resolveAccessibleName(schema)}
-          disabled={disabled}
-        >
-          {items}
-        </ToggleGroup.Root>
+      {lines ? (
+        <div className="sc-radio-button__list">
+          {root}
+          {schema.options.map((option, index) =>
+            isDrawn(trailingNodes[index]) ? (
+              <span key={option.value} className="sc-radio-button__trailing" style={{ gridRow: lines.rows[index] }}>
+                {trailingNodes[index]}
+              </span>
+            ) : null,
+          )}
+        </div>
       ) : (
-        <ToggleGroup.Root
-          type="single"
-          className="sc-radio-button__root"
-          style={rowTokens}
-          value={selected[0]}
-          onValueChange={(next) => { if (next) onChangeSingle(next); else onDeselect?.(); }}
-          aria-label={resolveAccessibleName(schema)}
-          disabled={disabled}
-        >
-          {items}
-        </ToggleGroup.Root>
+        root
       )}
     </div>
   );

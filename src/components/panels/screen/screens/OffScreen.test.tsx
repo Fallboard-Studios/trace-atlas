@@ -985,12 +985,16 @@ describe('OffScreen — the Transmission list and Roll on Current', () => {
     expect(root.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
   });
 
-  it('puts Roll in the Current row, beside its radio and outside it', () => {
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8: Roll follows the radio group, outside its roving focus, so Shift+Tab
+  // from Keep never loops between Roll and the selected row; it sits on the Current row's grid line.
+  it('puts Roll on the Current row, after the radio group and outside it', () => {
     render(<OffScreen />);
     const current = screen.getByRole('radio', { name: currentLabel() });
-    expect(rowOf(roll())).toBe(rowOf(current));
+    const slot = roll().closest('.sc-radio-button__trailing') as HTMLElement;
+    expect(slot.style.gridRow).toBe((rowOf(current) as HTMLElement).style.gridRow);
     expect(current.contains(roll())).toBe(false);
-    expect(within(picker()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([human('home.off.roll')]);
+    expect(picker().contains(roll())).toBe(false);
+    expect(within(picker()).queryAllByRole('button')).toEqual([]);
   });
 
   it('gives no other row a trailing action', () => {

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 
 // Mocked the same way Button.test.tsx/Toggle.test.tsx mock CabinetBox — keeps
 // this file's assertions about RadioButton's own event-to-prop wiring
@@ -712,16 +712,43 @@ describe('RadioButton — appearance "list" (docs/tasks/OFF_SCREEN_REVISIONS.md 
     });
   });
 
-  it('renders the trailing node in the row, as a sibling of the radio item, never inside it', () => {
-    render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={rollOnCurrent} />);
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8: Radix's roving root takes the focus of a Shift+Tab that leaves any
+  // descendant that is not one of its items and hands it to the selected item, so a slot inside the root made Shift+Tab
+  // loop between it and the selected row. The slot now follows the root, and shares its row's grid line instead.
+  it('renders the trailing node after the radio group\'s root, outside its roving focus, on its row\'s grid line (review R8)', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={rollOnCurrent} />);
+    const root = container.querySelector('.sc-radio-button__root')!;
     const roll = screen.getByRole('button', { name: 'Roll' });
     const current = radio(NAMES[0]);
-    expect(current.contains(roll)).toBe(false);
-    expect(rowOf(roll)).toBe(rowOf(current));
-    const slot = roll.closest('.sc-radio-button__trailing')!;
+    const slot = roll.closest('.sc-radio-button__trailing') as HTMLElement;
     expect(slot).not.toBeNull();
-    expect(slot.parentElement).toBe(current.parentElement);
-    expect(Array.from(rowOf(current)!.children)).toEqual([current, slot]);
+    expect(current.contains(roll)).toBe(false);
+    expect(root.contains(slot)).toBe(false);
+    expect(root.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(Array.from(rowOf(current)!.children)).toEqual([current]);
+    expect(slot.style.gridRow).not.toBe('');
+    expect(slot.style.gridRow).toBe((rowOf(current) as HTMLElement).style.gridRow);
+  });
+
+  it('gives every row and divider a grid line of its own, and a slot its row\'s line, a divider counting as one (review R8)', () => {
+    const shareOnKryndara = (value: string) => (value === 'preset:kryndara' ? <button type="button">Share</button> : null);
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={shareOnKryndara} />);
+    const line = (el: Element | null) => (el as HTMLElement).style.gridRow;
+    expect(NAMES.map((name) => line(rowOf(radio(name))))).toEqual(['1', '2', '4', '5']);
+    expect(line(container.querySelector('.sc-radio-button__divider'))).toBe('3');
+    expect(line(screen.getByRole('button', { name: 'Share' }).closest('.sc-radio-button__trailing'))).toBe('4');
+    expect(line(container.querySelector('.sc-radio-button__root'))).toBe('1 / span 5');
+  });
+
+  it('keeps the group\'s role and name over its radios, and the arrow keys move between the radios only', async () => {
+    render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={rollOnCurrent} />);
+    const group = screen.getByRole('group', { name: 'Transmission' });
+    expect(within(group).getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual(NAMES);
+    expect(within(group).queryByRole('button', { name: 'Roll' })).toBeNull();
+    radio(NAMES[0]).focus();
+    fireEvent.keyDown(radio(NAMES[0]), { key: 'ArrowDown' });
+    // Radix moves the roving focus in a timeout, out of the keydown.
+    await waitFor(() => expect(document.activeElement).toBe(radio('Dusk Run')));
   });
 
   it('asks the trailing function once per option, with the option value', () => {
