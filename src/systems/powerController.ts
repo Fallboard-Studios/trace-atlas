@@ -71,7 +71,9 @@ export const powerController = {
   // its systems held back), so this is where it comes alive: audio first, every robot's voice registered by start(),
   // then the lifecycle tick, work loop and swells for the active locale. Last, the power flag flips, which reveals
   // the chrome. The first cold start on a device also writes the heard-a-world flag — the off screen's gate
-  // (assumption 7) — so from the next power-off on, the chooser shows.
+  // (assumption 7) — so from the next power-off on, the chooser shows. A world replaced during a pause is cold
+  // too: the change tore the paused one down (worldTransition's killAll), so start() runs in full and its
+  // Tone.start() wakes the suspended context.
   //
   // Before either path, the off screen's fade (assumption 18): the screen and its veil tween to transparent and
   // this awaits them, so the veil is gone before the power flag unmounts the screen and nothing shows unveiled under
@@ -86,9 +88,6 @@ export const powerController = {
       return;
     }
     await this.start();
-    // start() returns early once the engine is initialised, so after a pause-and-replace the context would stay
-    // suspended; resume() wakes it (a no-op on a running context, a no-op before start()).
-    AudioEngine.resume();
     startLocaleSystems(getActiveLocaleId());
     if (!hasHeardWorld()) markHeardWorld();
     useUIStore.getState().setPowerOn();

@@ -1,7 +1,8 @@
 // docs/tasks/LAYOUT_REWORK.md Task 26: the real chain, with only the audio context faked. A world built
 // while the tablet is off (the way WorldView's mount builds it) is a still frame; powerOnSequence()
 // brings it alive exactly once; pause() leaves it standing (docs/specs/OFF_SCREEN.md assumption 5); a
-// power-on after a pause resumes rather than starting again; a double press does not double-start.
+// power-on after a pause resumes rather than starting again; a double press does not double-start; a
+// world change while paused tears the paused world down first (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R1).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 
 vi.mock('../engine/beatClock', () => ({
@@ -25,8 +26,17 @@ vi.mock('../engine/AudioEngine', async (importOriginal) => {
   };
 });
 
+// The real noise map, wrapped so the swell case can force one draw (audioSwells.test.ts's convention): a
+// mockReturnValueOnce is spent by the next call and every other draw stays real.
+vi.mock('../utils/noiseMaps', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../utils/noiseMaps')>();
+  return { ...actual, getAttenuationStyleNoiseMap: vi.fn(actual.getAttenuationStyleNoiseMap) };
+});
+
+import gsap from 'gsap';
 import { powerController, __resetPowerControllerForTest } from './powerController';
-import { initializeLocale } from './worldTransition';
+import { initializeLocale, retransmitWorld } from './worldTransition';
+import { getWorldState } from './worldState';
 import * as spawnSystemModule from './spawnSystem';
 import * as robotSystemsModule from './robotSystems';
 import * as workLoopModule from './workLoop';
@@ -34,8 +44,12 @@ import * as audioSwellsModule from './audioSwells';
 import { AudioEngine } from '../engine/AudioEngine';
 import { subscribeToMeasure, scheduleRepeat } from '../engine/beatClock';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/localeStore';
-import { useAttenuationStyleStore, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
+import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useUIStore } from '../stores/uiStore';
+import { useAudioStore } from '../stores/audioStore';
+import { useLoadingStore, DEFAULT_LOADING } from '../stores/loadingStore';
+import { setTimeline, getTimeline, killAllTimelines } from '../animation/timelineMap';
+import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
 import { MAX_ROBOTS } from '../constants';
 
 function locale() {
@@ -141,5 +155,152 @@ describe('power cycle over a world built while off', () => {
     expect(unsubscribes).toHaveLength(2);
     expect(unsubscribes[0]).toHaveBeenCalledTimes(1);
     expect(unsubscribes[1]).not.toHaveBeenCalled();
+  });
+});
+
+// docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R1 (docs/specs/OFF_SCREEN.md §1.2): a world change that replaces a paused
+// world tears it down first. The lifecycle tick, the work loop and the swells stop, killAll rewinds the transport and
+// resets the BeatClock, and the paused span ends, so the new world is cold the way a fresh page's is and the next
+// power-on is a full start. A live change, a cold world's change and an Attenuation-Style-only change tear nothing down.
+describe('a world change while paused', () => {
+  /** Every input that rebuilds the locale: the four modes the teardown covers. */
+  const REBUILDS = [
+    ['coordinates only', { coordinates: { x: 3, y: 4 } }],
+    ['Attenuation Style and coordinates (Roll)', { attenuationStyleName: 'Brinemouth', coordinates: { x: 3, y: 4 } }],
+    ['the loading only (a theme pick)', { theme: 'calm' }],
+    ['Attenuation Style with a loading', { attenuationStyleName: 'Brinemouth', theme: 'calm' }],
+  ] as const;
+
+  const order = (fn: unknown) => vi.mocked(fn as () => void).mock.invocationCallOrder[0];
+  const currentLocaleId = () => selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!.currentLocaleId!;
+
+  beforeEach(() => {
+    useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
+    useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
+    useUIStore.setState({ isPoweredOn: false });
+    __resetPowerControllerForTest();
+    killAllTimelines(); // the real timelineMap: no paused span or timeline carried in from another case
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    robotSystemsModule.stopRobotLifecycle();
+    audioSwellsModule.stopAudioSwells();
+    workLoopModule.stopWorkLoop();
+    killAllTimelines();
+    useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+    window.history.replaceState({}, '', '/');
+    vi.restoreAllMocks();
+  });
+
+  /** A world built while off, powered on, then paused by the rocker; every mock's calls cleared after. */
+  async function pausedWorld() {
+    initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+    await powerController.powerOnSequence();
+    powerController.pause();
+    vi.clearAllMocks();
+  }
+
+  it.each(REBUILDS)('%s: tears the paused world down once, before the new roster spawns, and leaves it cold', async (_label, input) => {
+    await pausedWorld();
+    const lifecycleStop = vi.spyOn(robotSystemsModule, 'stopRobotLifecycle');
+    const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');
+    const swellsStop = vi.spyOn(audioSwellsModule, 'stopAudioSwells');
+    const rosterSpawn = vi.spyOn(spawnSystemModule, 'spawnInitialRoster');
+
+    retransmitWorld(input);
+
+    expect(AudioEngine.killAll).toHaveBeenCalledTimes(1);
+    // Each stop comes before killAll: its resetBeatClock drops every measure listener, so the lifecycle lets go first.
+    for (const stop of [lifecycleStop, workStop, swellsStop]) {
+      expect(stop).toHaveBeenCalledTimes(1);
+      expect(order(stop)).toBeLessThan(order(AudioEngine.killAll));
+    }
+    expect(order(AudioEngine.killAll)).toBeLessThan(order(rosterSpawn));
+    expect(getWorldState()).toBe('cold');
+  });
+
+  it('ends the paused span: a timeline the pause held plays again, and the new world registers playing', async () => {
+    await pausedWorld();
+    setTimeline('held', gsap.timeline(), 'world');
+    expect(getTimeline('held')!.paused()).toBe(true); // registered inside the span: paused on arrival
+
+    retransmitWorld({ coordinates: { x: 3, y: 4 } });
+
+    expect(getTimeline('held')!.paused()).toBe(false);
+    setTimeline('probe', gsap.timeline(), 'world');
+    expect(getTimeline('probe')!.paused()).toBe(false);
+  });
+
+  it('clears the paused world swells: none survives into the new world', async () => {
+    useAudioStore.setState({ swellFrequency: 4, swellDuration: 15, pingVarianceAutomation: 1 });
+    initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+    await powerController.powerOnSequence();
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(() => -1); // every draw at its minimum: a swell starts
+    audioSwellsModule.tickAudioSwells(DEFAULT_LOCALE_ID, 0);
+    powerController.pause();
+    expect(audioSwellsModule.getActiveSwellSnapshot('global').length).toBeGreaterThan(0); // the pause froze it, no more
+
+    retransmitWorld({ coordinates: { x: 3, y: 4 } });
+
+    expect(audioSwellsModule.getActiveSwellSnapshot('global')).toEqual([]);
+  });
+
+  it('the next power-on is a full start: start() runs after the teardown killAll, then the new world systems', async () => {
+    await pausedWorld();
+    retransmitWorld({ coordinates: { x: 3, y: 4 } });
+    const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+
+    await powerController.powerOnSequence();
+
+    expect(AudioEngine.killAll).toHaveBeenCalledTimes(1);
+    expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+    expect(order(AudioEngine.killAll)).toBeLessThan(order(AudioEngine.start));
+    expect(workStart).toHaveBeenCalledWith(currentLocaleId());
+    expect(getWorldState()).toBe('running');
+  });
+
+  it('a replaced paused world is cold: a second world change before the power-on tears nothing down again', async () => {
+    await pausedWorld();
+
+    retransmitWorld({ coordinates: { x: 3, y: 4 } });
+    retransmitWorld({ coordinates: { x: 5, y: 6 } });
+
+    expect(AudioEngine.killAll).toHaveBeenCalledTimes(1);
+    expect(getWorldState()).toBe('cold');
+  });
+
+  it('a world change while running (Foundry Retransmit) tears nothing down and stays running', async () => {
+    initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+    await powerController.powerOnSequence();
+    vi.clearAllMocks();
+
+    retransmitWorld({ coordinates: { x: 3, y: 4 } });
+
+    expect(AudioEngine.killAll).not.toHaveBeenCalled();
+    expect(getWorldState()).toBe('running');
+  });
+
+  it('an Attenuation-Style-only change while paused rebuilds nothing, tears nothing down and stays paused', async () => {
+    await pausedWorld();
+    const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');
+
+    retransmitWorld({ attenuationStyleName: 'Saltwhistle' });
+
+    expect(AudioEngine.killAll).not.toHaveBeenCalled();
+    expect(workStop).not.toHaveBeenCalled();
+    setTimeline('probe', gsap.timeline(), 'world');
+    expect(getTimeline('probe')!.paused()).toBe(true); // the span stands: the world is still paused
+    expect(getWorldState()).toBe('paused');
+  });
+
+  it('a cold world tears nothing down at its first world change or its second (the check is paused, not held)', () => {
+    initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+
+    retransmitWorld({ coordinates: { x: 3, y: 4 } });
+    retransmitWorld({ coordinates: { x: 5, y: 6 } });
+
+    expect(AudioEngine.killAll).not.toHaveBeenCalled();
+    expect(getWorldState()).toBe('cold');
   });
 });

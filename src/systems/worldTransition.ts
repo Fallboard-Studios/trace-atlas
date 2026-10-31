@@ -15,8 +15,10 @@ import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal } from './sp
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
 import { startAudioSwells, stopAudioSwells } from './audioSwells';
-import { setWorldState } from './worldState';
+import { getWorldState, setWorldState } from './worldState';
+import { AudioEngine } from '../engine/AudioEngine';
 import { getCurrentMeasure } from '../engine/beatClock';
+import { resumeWorldTimelines } from '../animation/timelineMap';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '../utils/seedUtils';
 import { mirrorWorldToUrl } from '../utils/sessionShareUtils';
@@ -162,6 +164,24 @@ export function startLocaleSystems(localeId: string): void {
 }
 
 /**
+ * The STOP half, for a paused world that a world change replaces (docs/specs/OFF_SCREEN.md §1.2,
+ * docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R1): the lifecycle tick, the work loop and the swells stop, killAll
+ * rewinds the transport and resets the BeatClock, and the paused span ends. Runs before the old locale is removed,
+ * while it still exists, as main's power-off shutdown() did; the new world then builds held and initializeLocale
+ * leaves it cold. The lifecycle stops before killAll because killAll's resetBeatClock silently drops every measure
+ * listener (startLocaleSystems' own comment). killAll also clears the engine's `initialized`, so the next power-on is
+ * a full start: the transport and the BeatClock from 0, every voice re-registered, every global link relinked from
+ * the store. Ending the span lets the new world's timelines play behind the veil, as a fresh page's cold world's do.
+ */
+function tearDownPausedWorld(): void {
+  stopRobotLifecycle();
+  stopWorkLoop();
+  stopAudioSwells();
+  AudioEngine.killAll();
+  resumeWorldTimelines();
+}
+
+/**
  * The five things a retransmit can mean, resolved once up front rather than
  * re-derived via scattered `if`s through the function body. Each variant
  * carries exactly the fields its branch needs — no non-null assertions
@@ -196,6 +216,12 @@ function resolveRetransmitAction(input: RetransmitInput): RetransmitAction {
   if (coordinates && !attenuationStyleName) return { mode: 'coordsOnly', coordinates, loading };
   if (attenuationStyleName && !coordinates) return { mode: 'attenuationStyleOnly', attenuationStyleName, loading };
   return { mode: 'both', attenuationStyleName: attenuationStyleName!, coordinates: coordinates!, loading };
+}
+
+/** Whether an action rebuilds the loaded locale: every mode but the Attenuation-Style-only one, which re-parents the
+ *  locale untouched unless a loading change rides on it. */
+function rebuildsLocale(action: Exclude<RetransmitAction, { mode: 'noop' }>): boolean {
+  return action.mode !== 'attenuationStyleOnly' || action.loading !== undefined;
 }
 
 /** Coordinates changed, Attenuation Style preserved: never touch
@@ -387,6 +413,11 @@ export function retransmitWorld(input: RetransmitInput): void {
   const oldAttenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!oldAttenuationStyle) return;
   const oldLocaleId = oldAttenuationStyle.currentLocaleId;
+
+  // A paused world that the change replaces is torn down first (docs/specs/OFF_SCREEN.md §1.2): left standing, its
+  // frozen swells would feed Keep and the dirty read and its work loop would run under the new robots. A live change
+  // stays running, a cold world has nothing to stop, and an Attenuation-Style-only change replaces no world.
+  if (getWorldState() === 'paused' && rebuildsLocale(action)) tearDownPausedWorld();
 
   // The loading first (docs/specs/OFF_SCREEN.md assumption 10): the store, and through it the loading context, carry
   // the new theme before anything regenerates, so a rebuilt roster and a reseeded global half draw under its bands.
