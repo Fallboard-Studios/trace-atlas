@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { rollWorld } from '@/systems/worldTransition';
-import { useSessionStore } from '@/stores/sessionStore';
+import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
@@ -32,8 +32,14 @@ const TRANSMISSION = labels('home.off.transmission');
 const CURRENT = labels('home.off.current');
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
 
-/** Roll (spec assumption 14): an action beside Current, muted like the options — nothing pops while the power is off. */
+/** Roll and Keep (spec assumption 14): the actions beside Current, muted like the options — nothing pops while the
+ *  power is off. */
 const ROLL_SCHEMA: ButtonSchema = { id: 'offRoll', type: 'button', ...labels('home.off.roll'), appearance: 'muted' };
+const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
+const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
+
+/** The saves, newest first, as SessionsPanel lists them. */
+const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
 
 /** What a pick is: Current — the loaded world, described live from the stores — or a save / preset, described
  *  from its own payload under its name, so the well names what was picked even before the world has rebuilt. */
@@ -59,14 +65,21 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * it applies nothing. A save pick also names the session after the save, as loading it from the Sessions list
  * does, so a later Save overwrites it. A save that has since vanished from storage applies nothing and is not
  * claimed as the pick. Roll (assumption 14) is the action beside Current: a fresh random world through rollWorld —
- * a retransmit, so the pick returns to Current and the row renames from the stores. The Loading axis (the theme
- * and Melody rows) is the themes phase's.
+ * a retransmit, so the pick returns to Current and the row renames from the stores. Keep (assumption 14) saves the
+ * loaded world through sessionStore.keepCurrentWorld — no name field — and the new row appears at once; it dims
+ * (the dim-controls rule) whenever the loaded world equals its save, and a muted warning line sits under the
+ * chooser only while it does not. Dirty is read on mount, after a pick, after a Roll and after a Keep — never per
+ * render (it builds the live payload). A preset pick or a Roll detaches the loaded save (sessionStore
+ * .detachLoadedSession): that world is no longer the save, so Current is named by its identity alone and Keep
+ * writes a new row rather than overwriting the save. The Loading axis (the theme and Melody rows) is the themes
+ * phase's.
  */
 export function OffScreen() {
   const [heardWorld] = useState(() => hasHeardWorld());
-  // Newest first, as SessionsPanel lists them.
-  const [saves] = useState(() => listSessions().sort((a, b) => b.savedAt - a.savedAt));
+  const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
+  // Only the chooser reads it; a first visit (hint only) never builds the payload.
+  const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
 
   // The loaded world, for the Current row and the readout. Narrow selectors (the name, the coordinates
   // object) as SectorSettingsDrawer reads them, so a robot write elsewhere in the locale never re-renders this.
@@ -121,18 +134,29 @@ export function OffScreen() {
     }
     if (!payload) return;
     applySessionPayload(payload);
+    const { setCurrentSessionName, setCurrentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
     if (value.startsWith(SAVE_PREFIX)) {
-      const { setCurrentSessionName, setCurrentLoadedSessionName } = useSessionStore.getState();
       setCurrentSessionName(name);
       setCurrentLoadedSessionName(name);
+    } else {
+      detachLoadedSession();
     }
     setPick({ value, name, identity: { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates } });
+    setDirty(isWorldDirty());
   }, []);
 
   // Roll is the retransmit itself: the stores change under the Current row, which renames from them.
   const onRoll = useCallback(() => {
     rollWorld();
+    useSessionStore.getState().detachLoadedSession();
     setPick(CURRENT_PICK);
+    setDirty(isWorldDirty());
+  }, []);
+
+  const onKeep = useCallback(() => {
+    useSessionStore.getState().keepCurrentWorld();
+    setSaves(sortedSaves());
+    setDirty(isWorldDirty());
   }, []);
 
   const readout = 'identity' in pick ? describeWorld(pick.identity, pick.name) : currentLabel;
@@ -149,10 +173,12 @@ export function OffScreen() {
           <RadioButton schema={schema} value={pick.value} onChange={onChange} />
           <div className="off-screen__actions">
             <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} />
+            <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty} />
           </div>
           <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
             {readout}
           </p>
+          {dirty && <p className="off-screen__warning">{UNSAVED_WARNING}</p>}
         </div>
       )}
     </div>

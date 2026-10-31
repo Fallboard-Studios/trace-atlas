@@ -73,6 +73,20 @@
   max-width: 100%;
 }
 
+/* The one warning worth having (docs/tasks/OFF_SCREEN.md Task 14): a muted line under the chooser, only while the
+   loaded world is unkept. Small and quiet — the same etched grey as the hint, not an alert. */
+.off-screen__warning {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label-lore);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: rgba(200, 220, 230, 0.6);
+  overflow-wrap: anywhere;
+}
+
 /* A well (in = read, as the breadcrumb and the meta box): the pick's name and code. Its height is held
    when nothing is picked, so the row above does not shift on the first pick. */
 .off-screen__readout {

@@ -12,8 +12,17 @@ import { render, screen, fireEvent, within, act } from '@testing-library/react';
  * default and named by describeWorld (the loaded world, fronted by the loaded save's name when there is one),
  * then the saves, a divider, then the presets. The readout names the pick through the same helper.
  */
+// The live world Keep saves and the dirty test compares against (docs/tasks/OFF_SCREEN.md Task 14) — a marker
+// payload a test can change to make the world dirty, with the identity every real payload carries so a pick of it
+// can be described. buildSessionPayload hands out a fresh copy every call.
+const live = vi.hoisted(() => {
+  const marker = (m: string) =>
+    ({ version: 2, marker: m, attenuationStyleName: 'live-as', coordinates: { x: 1, y: 2 } }) as unknown as import('@/types/session').SessionPayload;
+  return { marker, payload: marker('live') };
+});
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: vi.fn(),
+  buildSessionPayload: vi.fn(() => structuredClone(live.payload)),
 }));
 vi.mock('@/engine/AudioEngine', () => ({
   AudioEngine: { start: vi.fn() },
@@ -23,11 +32,11 @@ vi.mock('@/systems/worldTransition', () => ({
 }));
 
 import { OffScreen } from './OffScreen';
-import { applySessionPayload } from '@/utils/sessionDiff';
+import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
 import { rollWorld } from '@/systems/worldTransition';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
-import { saveNamedSession } from '@/utils/sessionStorageEngine';
+import { listSessions, loadSession, saveNamedSession } from '@/utils/sessionStorageEngine';
 import { markHeardWorld } from '@/utils/deviceFlags';
 import { describeWorld } from '@/utils/describeWorld';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -56,7 +65,8 @@ const savedPayload = (style: string): SessionPayload => ({ ...presetPayload(TRAN
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
-  useSessionStore.setState({ currentLoadedSessionName: null });
+  live.payload = live.marker('live');
+  useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: 'Quiet Harbour' });
 });
 
 describe('OffScreen — the gate (spec assumption 7)', () => {
@@ -176,6 +186,128 @@ describe('OffScreen — Roll (spec assumption 14)', () => {
   it('never starts the AudioEngine: only the power switch starts sound', () => {
     render(<OffScreen />);
     fireEvent.click(roll());
+    expect(AudioEngine.start).not.toHaveBeenCalled();
+  });
+});
+
+describe('OffScreen — Keep (spec assumption 14)', () => {
+  beforeEach(() => markHeardWorld());
+  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
+  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
+
+  it('is lit, with the warning line under the chooser, when the loaded world is not kept (no save loaded)', () => {
+    const { container } = render(<OffScreen />);
+    expect(keep().disabled).toBe(false);
+    expect(warning()).not.toBeNull();
+    expect(container.querySelector('.sc-button--muted')).not.toBeNull(); // flat, like Roll: nothing pops
+  });
+
+  it('is dim, with no warning, when the loaded save equals the live world', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(keep().disabled).toBe(true);
+    expect(warning()).toBeNull();
+  });
+
+  it('is lit when the loaded save differs from the live world', () => {
+    saveNamedSession('Dusk Run', live.marker('older'));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(keep().disabled).toBe(false);
+    expect(warning()).not.toBeNull();
+  });
+
+  it('clicking Keep saves under the suggested name, lists the new row at once, names Current after it, and dims', () => {
+    render(<OffScreen />);
+    fireEvent.click(keep());
+    expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
+    expect(screen.getByRole('radio', { name: 'Quiet Harbour' })).toBeTruthy();
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
+    expect(radioNames()[0]).toBe(currentLabel('Quiet Harbour'));
+    expect(screen.getByRole('radio', { name: currentLabel('Quiet Harbour') }).getAttribute('aria-checked')).toBe('true');
+    expect(keep().disabled).toBe(true);
+    expect(warning()).toBeNull();
+  });
+
+  it('keeps under the loaded name, overwriting that row rather than adding one', () => {
+    saveNamedSession('Dusk Run', live.marker('older'));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    fireEvent.click(keep());
+    expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+    expect(radioNames().filter((n) => n === 'Dusk Run')).toHaveLength(1);
+    expect(keep().disabled).toBe(true);
+  });
+
+  it('re-lights after a world change that a Roll brings, and dims again after keeping — the rolled world as its own new row', () => {
+    render(<OffScreen />);
+    fireEvent.click(keep());
+    expect(keep().disabled).toBe(true);
+    live.payload = live.marker('rolled');
+    fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
+    expect(keep().disabled).toBe(false);
+    expect(warning()).not.toBeNull();
+    fireEvent.click(keep());
+    expect(keep().disabled).toBe(true);
+    const names = listSessions().map((s) => s.name);
+    expect(names).toHaveLength(2);
+    expect(names).toContain('Quiet Harbour');
+    expect(loadSession(useSessionStore.getState().currentLoadedSessionName!)).toEqual(live.marker('rolled'));
+  });
+
+  it('recomputes dirty after a pick, not on every render', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    saveNamedSession('Other', live.marker('other'));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(keep().disabled).toBe(true);
+    const onMount = vi.mocked(buildSessionPayload).mock.calls.length;
+    expect(onMount).toBeGreaterThan(0);
+    // A re-render from a store change does not rebuild the payload.
+    const { attenuationStyles, currentAttenuationStyleId } = useAttenuationStyleStore.getState();
+    act(() => {
+      useAttenuationStyleStore.setState({
+        attenuationStyles: attenuationStyles.map((s) => (s.id === currentAttenuationStyleId ? { ...s, name: 'renamed-1' } : s)),
+      });
+    });
+    expect(vi.mocked(buildSessionPayload).mock.calls.length).toBe(onMount);
+    // A pick does: the other save is now loaded, and the live world (unchanged under the mock) differs from it.
+    fireEvent.click(screen.getByRole('radio', { name: 'Other' }));
+    expect(vi.mocked(buildSessionPayload).mock.calls.length).toBeGreaterThan(onMount);
+    expect(keep().disabled).toBe(false);
+  });
+
+  // A world that is no longer a save must not keep the save's name: Current would misname it, and Keep would
+  // overwrite the save with a different world.
+  it('a preset pick or a Roll clears the loaded save name, so Current is named by its identity alone and Keep writes a new row', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(radioNames()[0]).toBe(currentLabel('Dusk Run'));
+
+    fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
+    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    expect(radioNames()[0]).toBe(currentLabel());
+
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+    expect(useSessionStore.getState().currentSessionName).toBe('Dusk Run'); // the save pick names the session, as a Load does
+    fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
+    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    expect(radioNames()[0]).toBe(currentLabel());
+    expect(keep().disabled).toBe(false);
+    // Keep after the roll writes a second row under a fresh suggestion — Dusk Run is not overwritten by a different world.
+    const kept = useSessionStore.getState().currentSessionName;
+    expect(kept).not.toBe('Dusk Run');
+    fireEvent.click(keep());
+    expect(listSessions().map((s) => s.name).sort()).toEqual(['Dusk Run', kept].sort());
+    expect(screen.getByRole('radio', { name: kept })).toBeTruthy();
+  });
+
+  it('never starts the AudioEngine', () => {
+    render(<OffScreen />);
+    fireEvent.click(keep());
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 });

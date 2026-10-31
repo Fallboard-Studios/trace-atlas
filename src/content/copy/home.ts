@@ -24,6 +24,11 @@ export const home = {
   // Roll (spec assumption 14): the action beside Current — a fresh random Attenuation Style and plot under the chosen
   // Loading. An action, not a radio. Stand-in copy until Crawford's pass.
   'home.off.roll': { human: 'Roll' },
+  // Keep (spec assumption 14): the one save action on the off screen — the loaded world, under the name Comms would
+  // suggest, no name field. Dims once the world is kept. Stand-in copy until Crawford's pass.
+  'home.off.keep': { human: 'Keep' },
+  // The one warning worth having, shown under the chooser only while the loaded world is unkept.
+  'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
   'home.off.presets.a': { human: 'Kryndara' },
   'home.off.presets.b': { human: 'Vessport Null' },
   'home.off.presets.c': { human: 'Halcyon Drift' },
