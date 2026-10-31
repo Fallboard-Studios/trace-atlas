@@ -746,7 +746,12 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
 ### Phase 3: `band-table`
 
-- [ ] **Task 18: `src/data/bands/` — `bandKeys.ts`, `classic.ts`, `resolveBands.ts`**
+- [x] **Task 18: `src/data/bands/` — `bandKeys.ts`, `classic.ts`, `resolveBands.ts`** (ac731ddd; the thresholds ride the
+  send-band shape as `lit` shares rather than a fourth kind — a minority trait's share is the threshold itself, the LFO
+  and layer quiet thresholds are `1 − threshold` (0.3, 0.3, 0.2, 0.5; exact in doubles, so Classic is byte-for-byte);
+  `robot.layerGain` lifts the inline 0.2–1.2 gain draw the layer quiet threshold pairs with; the gain and detune LFO
+  shares are two rows where there was one constant; `overlayBands()` is exported so the replace-never-widen rule has a
+  test before any column exists; 78 keys)
 
   **Description:** `BandKey`, the three band kinds and `BandTable` (spec §1.3); `CLASSIC: BandTable` holding every
   constant in the spec's survey, byte-for-byte (`GLOBAL_AUDIO_LOADING_RANGES`'s rows, `BPM_SEED_RANGE`,
@@ -773,7 +778,12 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M (one large data file, two small ones, one test)
 
-- [ ] **Task 19: `themes.ts`, `aspects.ts`, `loadingStore.ts` — the ids, the (empty) columns, the store**
+- [x] **Task 19: `themes.ts`, `aspects.ts`, `loadingStore.ts` — the ids, the (empty) columns, the store** (d3a9b4ee;
+  `ThemeColumn` is `Partial<Pick<BandTable, ThemeBandKey>>` over assumption 16's v1 key list, so a column outside it
+  does not compile; `canonicalPicks()` and `canonicalAspects()` live in `aspects.ts`, not the store — `worldLink.ts`
+  needs them and nothing under `seedBaseline.ts` may import a store — with the as-theme member sorted first; the store
+  drops empty and unknown families so one set of picks has one JSON shape; the overlay direction is proved on columns
+  injected with `vi.mock` over the spread originals, the pattern every later band test uses)
 
   **Description:** `ThemeId`, `THEMES` with five ids and `{}` columns; `AspectFamilyId = 'melody'`, `AspectId`,
   `AspectPick`, `ASPECT_FAMILIES.melody` with its key set (`robot.rhythmicDensity`, `robot.noteVariance`,
@@ -800,7 +810,9 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 20: `loadingContext.ts` — `getBand()`, `setLoading()`, `withLoading()`**
+- [x] **Task 20: `loadingContext.ts` — `getBand()`, `setLoading()`, `withLoading()`** (41004e5c; `LoadingIdentity` and
+  `DEFAULT_LOADING` moved into `data/bands/loadingIdentity.ts`, a plain type module the store-free zone can name, the
+  store re-exporting both)
 
   **Description:** Module state holding the current `BandTable` (Classic at load); `setLoading(identity)` installs
   `resolveBands(identity.theme, {})` — the theme's table, aspects never enter the context (spec assumption 15);
@@ -823,7 +835,11 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 21: `spawnSystem.ts` — the robot bands read `getBand(...)`**
+- [x] **Task 21: `spawnSystem.ts` — the robot bands read `getBand(...)`** (0e49ec26; twenty-two constants deleted,
+  the four `ROBOT_LFO_*_SEED_*` exports among them — no importer anywhere, so no re-export was needed;
+  `seedToggleValue(raw, band)` maps the on span onto `band.min..band.max`; proof is a value-for-value parity fixture
+  captured from the pre-lift code — a three-robot roster baseline and three spawned robots; one detune is `-0`, which
+  JSON had flattened — plus an injected column moving every robot band, each value chosen so Classic breaks it)
 
   **Description:** Replace each robot-side constant read (the `*_RANGE`s, thresholds, master volume pair, LFO depth
   ranges, the 0–100 density / pitchRepeat bounds, the two toggle fields' threshold and 1–8 span) with `getBand(key)` at
@@ -849,7 +865,12 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M (one wide file; mechanical)
 
-- [ ] **Task 22: `globalAudioSeed.ts`, `bpmSeed.ts`, the sends — the global and send bands read `getBand(...)`**
+- [x] **Task 22: `globalAudioSeed.ts`, `bpmSeed.ts`, the sends — the global and send bands read `getBand(...)`**
+  (5cf9d5c4; `globalAudioLoadingRanges.ts` and `robotSendLoadingRanges.ts` are projections of Classic's rows by
+  reference; `BPM_SEED_RANGE = CLASSIC.bpm`; one behaviour added so the Proof's "reverbSend.lit to 0" means anything —
+  the Reverb row's `lit` is rolled like the Delay row's, at a new dataId `robot.send.reverb.quiet` (alea
+  `sendReverbQuiet`); never quiet under Classic's lit of 1, so no Classic robot moved; the three draw-set pins gained
+  the dataId)
 
   **Description:** `GLOBAL_AUDIO_LOADING_RANGES` lookups in `globalAudioSeed.ts` become `getBand(key)`;
   `BPM_SEED_RANGE` in `bpmSeed.ts:18` becomes `getBand('bpm')`; `generateRobotSends` reads `getBand(sendField)` for
@@ -875,7 +896,12 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 23: Identity — payload v3, `WorldIdentity`, the world baseline under `withLoading`**
+- [x] **Task 23: Identity — payload v3, `WorldIdentity`, the world baseline under `withLoading`** (21d0849e; the
+  loading context follows the store by a subscription in `loadingStore.ts` — one write, two readers — instead of the
+  plan's two calls at each world-change path; `loadingOf(payload)` in `loadingIdentity.ts` is the one lenient reader
+  (an unknown theme is Classic, `isThemeId` in `themes.ts`); `generateWorldSeedBaseline` takes a `WorldSeedIdentity`
+  (name + loading); `fillWorldFromSeed` stamps version 3 and the loading; pre-v1 consequence, stated: a save from before
+  this commit reads as dirty against Keep's deep-equal once, since a new payload always carries the two fields)
 
   **Description:** `types/session.ts`: `SessionPayloadVersion` adds `3`, `theme?`, `aspects?`;
   `buildSessionPayload` writes both from the loading store, version 3; `applySessionPayload` reads them (absent →
@@ -903,7 +929,13 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 24: `worldLink.ts` — `theme` and `melody` on the link; the mirror writes them**
+- [x] **Task 24: `worldLink.ts` — `theme` and `melody` on the link; the mirror writes them** (1b1fa219; the family
+  param is named by the family id, so a later family brings its own; `buildShareUrl` writes the list's commas plain
+  where `URLSearchParams` would escape them, so a copied link and the mirrored bar agree; `currentWorldIdentity()`
+  carries the loading store's theme and aspects, so every retransmit and the bare boot mirror them; the link boot
+  (assumption 9) is the loading store's initial state — `loadingOf(getSessionSharePayload())` at module load, as the
+  other two stores read the name and plot, installed into the context by hand — so a `?theme=` link's locale is built
+  under its theme before `applySessionPayload` runs; new `worldIdentity.test.ts`)
 
   **Description:** `encodeWorldLinkParams` writes `theme=<id>` when not `classic` and `melody=<pick>,<pick>` in canonical
   order when non-empty; `decodeWorldLink` reads both leniently (unknown ids dropped with `devWarn`); the `theme` comment
@@ -927,7 +959,13 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 25: `worldTransition.ts` — the `loadingOnly` retransmit**
+- [x] **Task 25: `worldTransition.ts` — the `loadingOnly` retransmit** (c200e2ab; `resolveLoadingChange()` reads the
+  input's loading against the store, so the loaded theme again or an equal pick set is no change; the loading rides on
+  every mode — `coordsOnly` with a changed loading regenerates the global half before its rebuild, `attenuationStyleOnly`
+  rebuilds the preserved plot after the switch, since a theme is a world change whatever else moved; `applySessionPayload`
+  passes `loadingOf(payload)` in the input rather than setting the store itself, so `retransmitWorld` owns the write
+  (the boot path, with no retransmit, still sets it); a fixture lesson in the test: robot ids carry a per-locale spawn
+  count kept at module scope)
 
   **Description:** `RetransmitInput` gains `theme?` and `aspects?`; `resolveRetransmitAction` adds `loadingOnly` (and
   the existing modes carry the loading fields when present). `loadingOnly`: `setLoading(identity)` in the store and the
@@ -954,7 +992,9 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 26: `dealAspects.ts` — the round-robin deal**
+- [x] **Task 26: `dealAspects.ts` — the round-robin deal** (010057b3; `dealGroups()` exported; membership read from the
+  companies' `robotIds`, not `robot.companyId`, so the regenerated baseline — whose robots carry no companyId — groups
+  as the live roster does; minimal input shapes, `Pick<Company, 'robotIds'>` and `Pick<Robot, 'id'>`)
 
   **Description:** `dealAspects(identity, companies, roster, noiseMap)` (spec assumption 21): groups = companies in spawn
   order, then each freelancer alone in roster order; per family with a non-empty list, rotate the canonical list by
@@ -978,7 +1018,13 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** S
 
-- [ ] **Task 27: `spawnSystem.ts` — the deal pass, live and in the baseline; `loadedUnder`**
+- [x] **Task 27: `spawnSystem.ts` — the deal pass, live and in the baseline; `loadedUnder`** (4856b901;
+  `deriveMelodyFields()` is the one derivation of the four fields — spawn, baseline and deal; `applyDealToBaselines`
+  takes the robot ids too, since baselines carry none; `generateDealtRosterBaseline(noiseMap, robotIds, identity)` is
+  what `buildSessionPayload` diffs against; `applyAspectDeal(localeId)` is the live pass, after `spawnInitialCompanies`
+  in `initializeLocale`, each dealt robot's melody regenerated and re-registered; `RobotAudioBaseline.loadedUnder` too;
+  a dealt copied-baseline robot re-derives all four fields from its own index, so the one its aspect leaves alone also
+  leaves the source's value behind)
 
   **Description:** `applyDealToBaselines(baselines, companies, identity, noiseMap)`: for each dealt robot, re-derive the
   family's keys from the same `noiseMap` / `dataId` / `spawnIndex` with `resolveBands(identity.theme, { [family]:
@@ -1009,7 +1055,12 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
 
   **Estimated scope:** M
 
-- [ ] **Task 28: `describeWorld.ts` — the theme and aspects tail**
+- [x] **Task 28: `describeWorld.ts` — the theme and aspects tail** (f5a56c38; the content grammar allows four key
+  segments, so the family is one segment — `home.off.melody.<id>`, not the spec's `home.off.aspect.melody.<id>`, and
+  the Task 30 descriptions should follow (`home.off.melodyDescription.<id>`); the names are read through literal key maps
+  typed over every id, so the content guard sees each read; the loading is optional on the identity (`DescribedWorld`),
+  so a pick built from a bare name and plot reads as before until Task 30 passes the whole identity; the plain minus of
+  the Seeds line, not the plan's typographic one)
 
   **Description:** `describeWorld(identity, label?)` appends ` · <Theme name>` when not Classic and ` · A + B` for the
   world's picks (the aspect names from content; `'theme'` omitted), e.g. `tr3nch-2 · (−30, −30) · Calm · Hypnotic +
@@ -1032,11 +1083,38 @@ code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `raw
   **Estimated scope:** XS
 
 ### Checkpoint C: Nothing audible changed
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
 - [ ] Browser: a Classic world sounds and looks as it did at Checkpoint B; a saved session from before Phase 3 loads as
       Classic; a share link from before Phase 3 loads; `?theme=calm` on a URL loads a world (the columns are still empty,
-      so it sounds Classic) and the readout says Calm.
+      so it sounds Classic) and the readout says Calm. (The readout's Calm waits for Task 30 — see the record below; the
+      address bar is the check until then.)
 - [ ] Reviewed with human before Phase 4.
+
+**Checkpoint C record (2026-10-30, `feature/off-screen` at `f5a56c38`, automated half):**
+- `npm run build:types` clean. `npm run lint`: 0 errors, the same 4 pre-existing `react-refresh/only-export-components`
+  warnings as Checkpoints A and B. `npm test`: 342 files / 12 802 tests, one run, all green (12 653 at Checkpoint B;
+  Tasks 18–28 added 149 tests, five of them new files: `resolveBands`, `loadingStore`, `loadingContext`, `dealAspects`,
+  `worldIdentity`). `npm run build`: 4.8 s, the usual over-500 kB chunk warning.
+- "Nothing audible changed", by code rather than by ear: the Classic table is pinned to a literal typed in from the
+  survey (Task 18); the robot generators are pinned to a value-for-value fixture captured from the pre-lift code — a
+  three-robot roster baseline and three spawned robots (Task 21) — and every existing deterministic case passed
+  unmodified through Tasks 21–22; the one behaviour added is the Reverb row's quiet roll (Task 22), inert under Classic's
+  lit of 1. Every real theme and aspect column is still `{}`, so every world sounds Classic; the band tests inject
+  columns with `vi.mock` over the spread originals, the pattern Task 34's real numbers will replace.
+- A note for the browser check: the Current row still hands `describeWorld` a bare name and plot (`OffScreen.tsx:108`),
+  so for a `?theme=calm` link the readout does not yet say Calm — that is Task 30's wiring (the whole identity, from
+  `currentWorldIdentity()` or the loading store). Until then the proof that the link loaded Calm is the address bar: the
+  `theme=calm` param stands on arrival and the mirror rewrites it after a Roll. A pre-Phase-3 save (version 2) loads as
+  Classic by `loadingOf`'s leniency and reads as dirty once against Keep, since its payload lacks the two fields a new
+  one always carries (Task 23's tick).
+- Deviations, each on its task's tick: thresholds as `lit` shares (18); `ThemeColumn` confined to the v1 key list by type
+  (19); the context following the store by subscription (23); the Reverb quiet roll (22); the family param named by the
+  family, the share URL's plain commas, the store booting from the link (24); the loading on every retransmit mode and
+  `applySessionPayload` handing it to `retransmitWorld` (25); `home.off.melody.<id>` for the content grammar, and
+  `home.off.melodyDescription.<id>` to follow at Task 30 (28). The docs — the band table in `docs/AUDIO_SYSTEM.md`, the
+  deal in `docs/COMPANIES.md`, `docs/MELODY_SYSTEM.md`, the theme columns of the two grids — are Tasks 36–37.
+- Pending Crawford: the four browser checks above and the review before Phase 4. The dev server left from Checkpoint B
+  may still be running on `http://localhost:5173/trace-atlas/`; it serves the working tree, so a reload shows this tip.
 
 ---
 
