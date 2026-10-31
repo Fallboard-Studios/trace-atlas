@@ -174,7 +174,13 @@ describe('OceanScene', () => {
       mirrorWorldToUrlMock.mockImplementation(() => callOrder.push('mirrorWorldToUrl'));
       render(<OceanScene />);
       expect(mirrorWorldToUrlMock).toHaveBeenCalledTimes(1);
-      expect(mirrorWorldToUrlMock).toHaveBeenCalledWith({ attenuationStyleName: DEFAULT_PELAGOS.name, coordinates: DEFAULT_LOCALE.coordinates });
+      // band-table T24: the identity carries the loading too (Classic, nothing dealt, for a bare boot).
+      expect(mirrorWorldToUrlMock).toHaveBeenCalledWith({
+        attenuationStyleName: DEFAULT_PELAGOS.name,
+        coordinates: DEFAULT_LOCALE.coordinates,
+        theme: 'classic',
+        aspects: {},
+      });
       expect(callOrder).toEqual(['initializeLocale', 'mirrorWorldToUrl']);
       cleanup();
     });

@@ -287,10 +287,89 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     expect([...encodeWorldLinkParams(fullyEditedWorld()).keys()]).toEqual(['seed', 'x', 'y', 's']);
   });
 
-  it('reads neither theme nor session beside a triple', () => {
+  it('an unknown theme beside a triple reads as Classic, with a dev warning; session is never read', () => {
+    const warn = vi.spyOn(helpers, 'devWarn').mockImplementation(() => {});
     expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=dark&session=eyJ2IjoyfQ')).toEqual(
       untouchedWorld()
     );
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  // band-table T24 (docs/specs/OFF_SCREEN.md assumption 11): the loading identity rides as plain params - `theme` and
+  // one per family, the set as a comma list in canonical order - written only when not the default, never in the blob.
+  describe('the loading params', () => {
+    const CALM_PICKS: Pick<SessionPayload, 'theme' | 'aspects'> = { theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+
+    it('a Calm world with two Melody picks encodes seed, x, y, theme and melody, the set in canonical order, and no blob', () => {
+      const params = encodeWorldLinkParams({ ...untouchedWorld(), ...CALM_PICKS });
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody']);
+      expect(params.get('theme')).toBe('calm');
+      expect(params.get('melody')).toBe('hypnotic,mechanical');
+    });
+
+    it('a tweaked themed world puts the blob last, after the loading params', () => {
+      const params = encodeWorldLinkParams({ ...fullyEditedWorld(), theme: 'bold', aspects: { melody: ['theme'] } });
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 's']);
+      expect(params.get('theme')).toBe('bold');
+      expect(params.get('melody')).toBe('theme');
+    });
+
+    it('decodes theme and melody, sorting the set into canonical order, and the same set encodes to the same string whatever its order', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=calm&melody=mechanical,hypnotic')!;
+      expect(decoded.theme).toBe('calm');
+      expect(decoded.aspects).toEqual({ melody: ['hypnotic', 'mechanical'] });
+      const again = encodeWorldLinkParams(decoded);
+      expect(again.get('melody')).toBe('hypnotic,mechanical');
+      const sorted = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=calm&melody=hypnotic,mechanical')!;
+      expect(again.toString()).toBe(encodeWorldLinkParams(sorted).toString());
+    });
+
+    it('a Calm world with picks round-trips through the link deep-equal', () => {
+      const payload = { ...untouchedWorld(), ...CALM_PICKS };
+      expect(throughLink(payload)).toEqual(payload);
+    });
+
+    it('the as-theme member sorts first: melody=wandering,theme reads and writes as theme,wandering, under Classic', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=wandering,theme')!;
+      expect(decoded.theme).toBe('classic');
+      expect(decoded.aspects).toEqual({ melody: ['theme', 'wandering'] });
+      const params = encodeWorldLinkParams(decoded);
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'melody']);
+      expect(params.get('melody')).toBe('theme,wandering');
+    });
+
+    it('a percent-encoded comma reads the same as a bare one', () => {
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=hypnotic%2Cmechanical')!.aspects).toEqual({
+        melody: ['hypnotic', 'mechanical'],
+      });
+    });
+
+    it('an unknown pick is dropped with a dev warning and the rest stand; a list of only unknown picks, or an empty one, is no family at all', () => {
+      const warn = vi.spyOn(helpers, 'devWarn').mockImplementation(() => {});
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=hypnotic,zzz')!.aspects).toEqual({ melody: ['hypnotic'] });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=zzz')!.aspects).toEqual({});
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=')!.aspects).toEqual({});
+    });
+
+    it('a duplicate pick reads once', () => {
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=hypnotic,hypnotic')!.aspects).toEqual({ melody: ['hypnotic'] });
+    });
+
+    it('a theme or a family param alone names no world: null, as before', () => {
+      expect(decodeWorldLink('?theme=calm')).toBeNull();
+      expect(decodeWorldLink('?melody=hypnotic')).toBeNull();
+    });
+
+    it('Classic with an empty pick list writes neither param: the defaults are never written', () => {
+      const params = encodeWorldLinkParams({ ...untouchedWorld(), theme: 'classic', aspects: { melody: [] } });
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y']);
+    });
+
+    it('an unknown theme or malformed aspects in a payload encode as the defaults: no param', () => {
+      const payload = { ...untouchedWorld(), theme: 'moody', aspects: { melody: 'hypnotic' } } as unknown as SessionPayload;
+      expect([...encodeWorldLinkParams(payload).keys()]).toEqual(['seed', 'x', 'y']);
+    });
   });
 
   describe('lenient loading (spec §1.4): every part falls back on its own', () => {

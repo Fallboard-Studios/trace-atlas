@@ -74,7 +74,13 @@ describe('bootWorld', () => {
     bootWorld(DEFAULT_LOCALE_ID);
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(share.mirror).toHaveBeenCalledTimes(1);
-    expect(share.mirror).toHaveBeenCalledWith({ attenuationStyleName: DEFAULT_PELAGOS.name, coordinates: DEFAULT_LOCALE.coordinates });
+    // band-table T24: the identity carries the loading too (Classic, nothing dealt, for a bare boot).
+    expect(share.mirror).toHaveBeenCalledWith({
+      attenuationStyleName: DEFAULT_PELAGOS.name,
+      coordinates: DEFAULT_LOCALE.coordinates,
+      theme: 'classic',
+      aspects: {},
+    });
     expect(calls.order).toEqual(['initializeLocale', 'mirrorWorldToUrl']);
   });
 

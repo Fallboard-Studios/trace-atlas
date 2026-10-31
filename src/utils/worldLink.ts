@@ -15,13 +15,17 @@ import {
 import { generateRandomAttenuationStyleName, randomCoordinate } from './seedUtils';
 import { devWarn } from './helpers';
 import { DEFAULT_LOADING, loadingOf } from '../data/bands/loadingIdentity';
+import { ASPECT_FAMILY_IDS, canonicalPicks, type AspectFamilyId, type AspectPick } from '../data/bands/aspects';
+import { isThemeId, type ThemeId } from '../data/bands/themes';
 import type { SessionPayload } from '../types/session';
 
 // ========================================
 // CONSTANTS
 // ========================================
 
-/** The world link's params (docs/specs/SHORT_WORLD_LINK.md assumption 1). `theme` is reserved: never written, never read. */
+/** The world link's params (docs/specs/SHORT_WORLD_LINK.md assumption 1; docs/specs/OFF_SCREEN.md assumption 11). `theme`
+ *  carries the loading theme when it is not Classic. Each aspect family has a param of its own name (ASPECT_FAMILY_IDS:
+ *  `melody`), the set as a comma list in canonical option order, present only when non-empty. Neither is ever in the blob. */
 export const WORLD_LINK_PARAMS = {
   seed: 'seed',
   x: 'x',
@@ -111,29 +115,63 @@ function readCoordinate(raw: string | null): number {
 }
 
 /**
- * The params for a payload: always `seed` (the exact Attenuation Style name), `x` and `y`, and `s` only when the world
- * differs from what its seed regenerates. Reads nothing from the address bar, so no other param (debug, load, theme,
- * session) can ride along (spec assumption 1).
+ * The params for a payload: always `seed` (the exact Attenuation Style name), `x` and `y`; then the loading when it is
+ * not the default - `theme` for a theme other than Classic, a param per family holding its picks as a comma list in
+ * canonical order (OFF_SCREEN.md assumption 11) - and `s` last, only when the world differs from what its seed
+ * regenerates. Reads nothing from the address bar, so no other param (debug, load, session) can ride along (spec
+ * assumption 1). URLSearchParams escapes the list's commas; buildShareUrl writes them plain.
  */
 export function encodeWorldLinkParams(payload: SessionPayload): URLSearchParams {
   const params = new URLSearchParams();
   params.set(WORLD_LINK_PARAMS.seed, payload.attenuationStyleName);
   params.set(WORLD_LINK_PARAMS.x, String(payload.coordinates.x));
   params.set(WORLD_LINK_PARAMS.y, String(payload.coordinates.y));
+  // The loading, read leniently from the payload (an unknown id is the default), written only when not the default.
+  const loading = loadingOf(payload);
+  if (loading.theme !== DEFAULT_LOADING.theme) params.set(WORLD_LINK_PARAMS.theme, loading.theme);
+  for (const family of ASPECT_FAMILY_IDS) {
+    const picks = loading.aspects[family];
+    if (picks && picks.length > 0) params.set(family, picks.join(','));
+  }
   // The baseline is the payload's own world's: its name, inside its theme's bands (OFF_SCREEN.md assumption 15).
   const diff = diffWorldAgainstSeed(
     payload,
-    generateWorldSeedBaseline({ attenuationStyleName: payload.attenuationStyleName, ...loadingOf(payload) })
+    generateWorldSeedBaseline({ attenuationStyleName: payload.attenuationStyleName, ...loading })
   );
   if (Object.keys(diff).length > 0) params.set(WORLD_LINK_PARAMS.blob, encodeBlob(diff));
   return params;
+}
+
+/** The link's theme: Classic for none, and for an unknown id too, with a dev warning - a link is untrusted (OFF_SCREEN.md
+ *  assumption 11). */
+function readTheme(raw: string | null): ThemeId {
+  if (raw === null) return DEFAULT_LOADING.theme;
+  if (isThemeId(raw)) return raw;
+  devWarn('[worldLink] unknown theme in the link, loading Classic:', raw);
+  return DEFAULT_LOADING.theme;
+}
+
+/** Each family's param as a comma list, sorted into canonical order and deduped (canonicalPicks); an unknown pick is
+ *  dropped with a dev warning; an absent, empty or all-unknown list is no family at all (every robot as theme). */
+function readAspects(params: URLSearchParams): Partial<Record<AspectFamilyId, AspectPick[]>> {
+  const aspects: Partial<Record<AspectFamilyId, AspectPick[]>> = {};
+  for (const family of ASPECT_FAMILY_IDS) {
+    const raw = params.get(family);
+    if (raw === null) continue;
+    const parts = raw.split(',').filter((part) => part.length > 0);
+    const picks = canonicalPicks(family, parts as AspectPick[]);
+    if (picks.length < new Set(parts).size) devWarn('[worldLink] unknown pick in the link, dropped:', family, raw);
+    if (picks.length > 0) aspects[family] = picks;
+  }
+  return aspects;
 }
 
 /**
  * The payload a page's search string describes, or null when it names no world at all (none of seed / x / y / s; spec
  * assumption 6). Otherwise a whole payload: each identity part as given or, when absent or malformed, the random a fresh
  * world gets for that part alone (spec §1.4); the blob's fields over the seed's for everything else, so
- * applySessionPayload never sees a partial lfoBank. `theme` and `session` are never read.
+ * applySessionPayload never sees a partial lfoBank. `theme` and the family params are read leniently (readTheme,
+ * readAspects); `session` is never read; a theme or family param alone names no world.
  */
 export function decodeWorldLink(search: string): SessionPayload | null {
   const params = new URLSearchParams(search);
@@ -155,8 +193,9 @@ export function decodeWorldLink(search: string): SessionPayload | null {
       x: readCoordinate(params.get(WORLD_LINK_PARAMS.x)),
       y: readCoordinate(params.get(WORLD_LINK_PARAMS.y)),
     },
-    // Classic until the theme and family params are read (band-table T24).
-    ...DEFAULT_LOADING,
+    // The loading (OFF_SCREEN.md assumption 11): plain params, each read leniently on its own.
+    theme: readTheme(params.get(WORLD_LINK_PARAMS.theme)),
+    aspects: readAspects(params),
   };
   // A blob of the wrong version, or one that will not inflate or parse, is no blob (spec assumption 2).
   const diff = blob === null ? {} : (decodeBlob(blob) ?? {});

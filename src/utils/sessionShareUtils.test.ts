@@ -3,6 +3,7 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { SessionPayload } from '../types/session';
+import type { WorldIdentity } from './seedBaseline';
 import { buildShareUrl, copySessionLink, mirrorWorldToUrl, searchOf } from './sessionShareUtils';
 import { decodeWorldLink, encodeBlob } from './worldLink';
 import { FIXTURE_COORDINATES, FIXTURE_NAME, untouchedWorld } from '../testUtils/worldLinkFixtures';
@@ -131,6 +132,21 @@ describe('buildShareUrl', () => {
 
 // docs/tasks/OFF_SCREEN.md Task 11 (spec assumption 13): a preset is a pasted link — a whole share URL or the bare
 // query — and searchOf gives decodeWorldLink the one shape it reads.
+// band-table T24 (docs/specs/OFF_SCREEN.md assumption 11): a share link carries the loading as plain params.
+describe('buildShareUrl - the loading params', () => {
+  it('writes theme and the picks as a bare comma list, never %2C, and the link decodes back to the payload', () => {
+    const payload: SessionPayload = { ...untouchedWorld(), theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const url = buildShareUrl(payload);
+    expect(url).toContain('&theme=calm&melody=hypnotic,mechanical');
+    expect(url).not.toContain('%2C');
+    expect(decodeWorldLink(new URL(url).search)).toEqual(payload);
+  });
+
+  it('a Classic world with no picks is still the bare triple', () => {
+    expect(new URL(buildShareUrl(untouchedWorld())).search).toBe('?seed=n40dh8p8&x=29&y=-14');
+  });
+});
+
 describe('searchOf', () => {
   it('takes the query off a full share URL', () => {
     expect(searchOf('https://host/path?seed=a&x=1&y=2')).toBe('?seed=a&x=1&y=2');
@@ -169,7 +185,7 @@ describe('searchOf', () => {
 // docs/tasks/OFF_SCREEN.md Task 15 (spec assumption 12): the address bar follows the loaded world — identity only,
 // through replaceState, every other param kept, the tweak blob dropped (Keep and Share are for that).
 describe('mirrorWorldToUrl', () => {
-  const identity = { attenuationStyleName: 'Pelagos 7!', coordinates: { x: 29, y: -14 } };
+  const identity: WorldIdentity = { attenuationStyleName: 'Pelagos 7!', coordinates: { x: 29, y: -14 }, theme: 'classic', aspects: {} };
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -192,10 +208,38 @@ describe('mirrorWorldToUrl', () => {
   });
 
   it('what it writes decodes back to the same world through decodeWorldLink', () => {
-    mirrorWorldToUrl({ attenuationStyleName: FIXTURE_NAME, coordinates: FIXTURE_COORDINATES });
+    mirrorWorldToUrl({ attenuationStyleName: FIXTURE_NAME, coordinates: FIXTURE_COORDINATES, theme: 'classic', aspects: {} });
     expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld());
     mirrorWorldToUrl(identity);
     expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }));
+  });
+
+  // band-table T24 (docs/specs/OFF_SCREEN.md assumptions 11 and 12): the theme and family params follow the world too,
+  // written only when not the default, as a bare comma list in canonical order.
+  it('writes theme and melody after y for a themed world with picks, and what it writes decodes back', () => {
+    mirrorWorldToUrl({ ...identity, theme: 'calm', aspects: { melody: ['theme', 'wandering'] } });
+    expect(window.location.search).toBe('?seed=Pelagos%207!&x=29&y=-14&theme=calm&melody=theme,wandering');
+    expect(decodeWorldLink(window.location.search)).toEqual({
+      ...untouchedWorld('Pelagos 7!', { x: 29, y: -14 }),
+      theme: 'calm',
+      aspects: { melody: ['theme', 'wandering'] },
+    });
+  });
+
+  it('removes theme and melody when the world is Classic with no picks, so the bar never carries a stale loading', () => {
+    window.history.replaceState({}, '', '/?seed=old&x=1&y=2&theme=calm&melody=hypnotic&debug');
+    mirrorWorldToUrl(identity);
+    expect(window.location.search).toBe('?seed=Pelagos%207!&x=29&y=-14&debug');
+  });
+
+  it('writes when the bar names the world under a different loading, and not when the loading matches too', () => {
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=calm');
+    mirrorWorldToUrl(identity);
+    expect(new URLSearchParams(window.location.search).has('theme')).toBe(false);
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=calm&melody=hypnotic');
+    const replace = vi.spyOn(window.history, 'replaceState');
+    mirrorWorldToUrl({ ...identity, theme: 'calm', aspects: { melody: ['hypnotic'] } });
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it('replaces an earlier triple in place and removes the s blob: the tweak blob is never mirrored live', () => {

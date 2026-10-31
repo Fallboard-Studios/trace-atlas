@@ -13,6 +13,14 @@ vi.mock('../engine/beatClock', () => ({
   getCurrentMeasurePrecise: vi.fn(() => 0),
 }));
 
+// band-table T24 (docs/specs/OFF_SCREEN.md assumptions 9 and 11): a link's theme must be in the loading store before the
+// locale is built. The real Calm column is {} until the listen (plan Task 34), so one moving the density band is injected
+// over the spread originals: a robot built under it has a density of 90 or more. The mock survives vi.resetModules.
+vi.mock('../data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/themes')>();
+  return { ...actual, THEMES: { ...actual.THEMES, calm: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+});
+
 // ========================================
 // HELPERS
 // ========================================
@@ -37,6 +45,7 @@ async function bootWith(search: string, freshName?: string) {
   await import('../stores/audioStore');
   const { initializeLocale } = await import('../systems/worldTransition');
   const { buildSessionPayload, applySessionPayload } = await import('./sessionDiff');
+  const { useLoadingStore } = await import('../stores/loadingStore');
   const { encodeWorldLinkParams, decodeBlob } = await import('./worldLink');
   const localeId = selectCurrentAttenuationStyle(
     useAttenuationStyleStore.getState()
@@ -44,11 +53,11 @@ async function bootWith(search: string, freshName?: string) {
   initializeLocale(localeId, { startSystems: false });
   const sharePayload = consumeSessionSharePayload();
   if (sharePayload) applySessionPayload(sharePayload, { skipLocaleRebuild: true });
-  const robotIds = useLocaleStore
-    .getState()
-    .getLocaleById(localeId)!
-    .robots.map((r) => r.id);
-  return { live: buildSessionPayload(), encodeWorldLinkParams, decodeBlob, robotIds };
+  const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+  const robotIds = robots.map((r) => r.id);
+  const densities = robots.map((r) => r.rhythmicDensity ?? -1);
+  const { theme, aspects } = useLoadingStore.getState();
+  return { live: buildSessionPayload(), encodeWorldLinkParams, decodeBlob, robotIds, densities, loading: { theme, aspects } };
 }
 
 /** The bare triple a world's own name and coordinates make, in the encoder's param order. */
@@ -115,5 +124,28 @@ describe('the world link through the real boot (docs/specs/SHORT_WORLD_LINK.md: 
     const second = await bootWith(`?${link.toString()}`);
     const again = second.encodeWorldLinkParams(second.live);
     expect(second.decodeBlob(again.get('s')!)).toEqual(second.decodeBlob(link.get('s')!));
+  });
+});
+
+describe('the loading identity through the real boot (band-table T24, docs/specs/OFF_SCREEN.md assumptions 9 and 11)', () => {
+  it('a link with theme and melody has the store set before the locale builds: the robots draw under Calm, the live payload carries both, and the same link copies back untweaked', async () => {
+    const link = new URLSearchParams({ seed: 'n40dh8p8', x: '29', y: '-14', theme: 'calm', melody: 'hypnotic' }).toString();
+    const { live, encodeWorldLinkParams, densities, loading } = await bootWith(`?${link}`);
+    expect(loading).toEqual({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+    expect(live.theme).toBe('calm');
+    expect(live.aspects).toEqual({ melody: ['hypnotic'] });
+    expect(densities.length).toBeGreaterThan(0);
+    for (const density of densities) expect(density).toBeGreaterThanOrEqual(90);
+    const params = encodeWorldLinkParams(live);
+    expect(params.get('s')).toBeNull();
+    expect(params.toString()).toBe(link);
+  });
+
+  it('a bare boot is Classic with no picks, and its robots draw under Classic', async () => {
+    const { live, loading, densities } = await bootWith('', '3jnirdqn');
+    expect(loading).toEqual({ theme: 'classic', aspects: {} });
+    expect(live.theme).toBe('classic');
+    expect(live.aspects).toEqual({});
+    expect(densities.some((density) => density < 90)).toBe(true);
   });
 });
