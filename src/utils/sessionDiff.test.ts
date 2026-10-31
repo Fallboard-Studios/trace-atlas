@@ -11,6 +11,14 @@ vi.mock('../engine/beatClock', () => ({
   getCurrentMeasurePrecise: vi.fn(() => 0),
 }));
 
+// band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): a payload's theme sets the loading store before the world is
+// rebuilt. The real Calm column is {} until the listen (plan Task 34), so one moving the density band is injected over
+// the spread originals: a robot regenerated under it has a density of 90 or more, where Classic's 0-100 draw rarely does.
+vi.mock('../data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/themes')>();
+  return { ...actual, THEMES: { ...actual.THEMES, calm: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+});
+
 import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload, applySessionPayload } from './sessionDiff';
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
@@ -36,10 +44,12 @@ import { noteValueHz } from '../data/noteValues';
 import { resolveLaneRateHz, resolveDelayTimeSeconds, resolveSyncedRateHz } from './tempoSync';
 import { lfoEngine } from '../engine/lfoEngine';
 import { AudioEngine } from '../engine/AudioEngine';
+import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
 
 afterEach(() => {
   stopRobotLifecycle();
   stopAudioSwells();
+  useLoadingStore.getState().setLoading(DEFAULT_LOADING);
 });
 
 /** All 6 targets unlinked -- matches DEFAULT_LFO_LINK, so a live robot with no lfoLinks override
@@ -568,17 +578,28 @@ describe('buildSessionPayload', () => {
     return localeId;
   }
 
-  it('stamps version: 2 and captures the current Attenuation Style name/coordinates/globalAudio', () => {
+  it('stamps version: 3 and captures the current Attenuation Style name/coordinates/globalAudio', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
-    expect(payload.version).toBe(2);
+    expect(payload.version).toBe(3);
     expect(payload.attenuationStyleName).toBe(DEFAULT_PELAGOS.name);
     expect(payload.coordinates).toEqual(DEFAULT_LOCALE.coordinates);
     // globalAudio is normalized/quantized at save time, so it may differ from raw store state
     // Verify structure and key fields are present, not exact equality
     expect(Object.keys(payload.globalAudio)).toContain('compressor');
     expect(Object.keys(payload.globalAudio)).toContain('eq3');
+  });
+
+  // band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): the loading identity rides in the payload, always written.
+  it('carries the loading store\'s theme and aspects: Classic with no aspects when nothing was picked, the picks otherwise', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    expect(buildSessionPayload()).toMatchObject({ version: 3, theme: 'classic', aspects: {} });
+    useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['mechanical', 'hypnotic'] } });
+    const payload = buildSessionPayload();
+    expect(payload.theme).toBe('calm');
+    expect(payload.aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
   });
 
   it('always captures lfoBank (4 lanes) and globalLfoLinks (7 targets) whole, even for an untouched world', () => {
@@ -787,6 +808,74 @@ describe('applySessionPayload', () => {
 
     expect(spy).toHaveBeenCalledWith({ attenuationStyleName: differentNamePayload.attenuationStyleName, coordinates: differentNamePayload.coordinates });
     spy.mockRestore();
+  });
+
+  // band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): a payload's theme and aspects set the loading store before
+  // the world is rebuilt; absent or unknown reads as Classic and no aspects.
+  describe('the loading identity', () => {
+    it('a version-2 payload, with no theme or aspects, applies as Classic: the store returns to Classic from Calm', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const { theme: _theme, aspects: _aspects, ...rest } = buildSessionPayload();
+      useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      applySessionPayload({ ...rest, version: 2 });
+      expect(useLoadingStore.getState().theme).toBe('classic');
+      expect(useLoadingStore.getState().aspects).toStrictEqual({});
+    });
+
+    it('a version-3 payload sets the store, its pick lists canonicalised', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'bold', aspects: { melody: ['mechanical', 'theme'] } });
+      expect(useLoadingStore.getState().theme).toBe('bold');
+      expect(useLoadingStore.getState().aspects).toStrictEqual({ melody: ['theme', 'mechanical'] });
+    });
+
+    it('an unknown theme id or a malformed aspects field reads as Classic with no aspects (a payload is untrusted)', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'moody', aspects: { melody: 'hypnotic', voice: ['warm'] } } as unknown as SessionPayload);
+      expect(useLoadingStore.getState().theme).toBe('classic');
+      expect(useLoadingStore.getState().aspects).toStrictEqual({});
+    });
+
+    it('sets the store before the world is rebuilt, so the regenerated robots draw under the payload\'s theme', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'calm' });
+      const calmRobots = currentLocale()!.robots;
+      expect(calmRobots.length).toBeGreaterThan(0);
+      for (const robot of calmRobots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      applySessionPayload(payload);
+      expect(currentLocale()!.robots.some((robot) => (robot.rhythmicDensity ?? 0) < 90)).toBe(true);
+    });
+
+    it('retransmitWorld runs with the store already set', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      let themeAtRebuild: string | undefined;
+      const spy = vi.spyOn(worldTransition, 'retransmitWorld').mockImplementation(() => {
+        themeAtRebuild = useLoadingStore.getState().theme;
+      });
+      try {
+        applySessionPayload({ ...payload, theme: 'calm' });
+      } finally {
+        spy.mockRestore();
+      }
+      expect(themeAtRebuild).toBe('calm');
+    });
+
+    it('sets the store even when the locale rebuild is skipped (the link boot)', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'bold' }, { skipLocaleRebuild: true });
+      expect(useLoadingStore.getState().theme).toBe('bold');
+    });
   });
 
   // docs/tasks/OFF_SCREEN.md Task 15 (spec assumption 12): a pick or a Load mirrors the world into the address bar

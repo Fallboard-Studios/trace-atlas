@@ -16,11 +16,14 @@ export function untouchedWorld(
   name: string = FIXTURE_NAME,
   coordinates: { x: number; y: number } = FIXTURE_COORDINATES
 ): SessionPayload {
-  const b = structuredClone(generateWorldSeedBaseline(name));
+  const b = structuredClone(generateWorldSeedBaseline({ attenuationStyleName: name, theme: 'classic', aspects: {} }));
   return {
-    version: 2,
+    version: 3,
     attenuationStyleName: name,
     coordinates: { ...coordinates },
+    // band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): a payload built in the app always names its loading.
+    theme: 'classic',
+    aspects: {},
     globalAudio: b.globalAudio,
     lfoBank: b.lfoBank,
     globalLfoLinks: b.globalLfoLinks,

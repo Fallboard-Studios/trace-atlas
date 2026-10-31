@@ -1,10 +1,23 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from './loadingStore';
 import { canonicalPicks, type AspectPick } from '@/data/bands/aspects';
+import { getBand } from '@/data/bands/loadingContext';
+import { CLASSIC } from '@/data/bands/classic';
+
+// ========================================
+// MOCKS
+// ========================================
+
+// band-table T23: the loading context follows the store. The real Calm column is {} until the listen (plan Task 34), so
+// one that moves bpm is injected over the spread originals.
+vi.mock('@/data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/data/bands/themes')>();
+  return { ...actual, THEMES: { ...actual.THEMES, calm: { bpm: { min: 150, max: 160 } } } };
+});
 
 // ========================================
 // SETUP
@@ -13,7 +26,8 @@ import { canonicalPicks, type AspectPick } from '@/data/bands/aspects';
 const state = () => useLoadingStore.getState();
 
 beforeEach(() => {
-  useLoadingStore.setState({ ...DEFAULT_LOADING });
+  // Through the action, so the context is reset with the store.
+  useLoadingStore.getState().setLoading({ ...DEFAULT_LOADING });
 });
 
 // ========================================
@@ -79,6 +93,26 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
     state().setLoading({ theme: 'adventurous', aspects: { melody: ['theme', 'mechanical'] } });
     const { theme, aspects } = state();
     expect(JSON.parse(JSON.stringify({ theme, aspects }))).toStrictEqual({ theme, aspects });
+  });
+});
+
+describe('the loading context follows the store (band-table T23, spec assumptions 9 and 15)', () => {
+  it('setLoading installs the theme\'s table: getBand reads Calm\'s bpm after the store moves to Calm, Classic\'s after it moves back', () => {
+    state().setLoading({ theme: 'calm', aspects: {} });
+    expect(getBand('bpm')).toStrictEqual({ min: 150, max: 160 });
+    state().setLoading({ ...DEFAULT_LOADING });
+    expect(getBand('bpm')).toStrictEqual(CLASSIC.bpm);
+  });
+
+  it('a direct setState is mirrored too: the context follows every write, not only the action', () => {
+    useLoadingStore.setState({ theme: 'calm' });
+    expect(getBand('bpm')).toStrictEqual({ min: 150, max: 160 });
+  });
+
+  it('aspects in the store never enter the context', () => {
+    state().setLoading({ theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
+    expect(getBand('robot.noteVariance')).toStrictEqual(CLASSIC['robot.noteVariance']);
+    expect(getBand('robot.rhythmicDensity')).toStrictEqual(CLASSIC['robot.rhythmicDensity']);
   });
 });
 

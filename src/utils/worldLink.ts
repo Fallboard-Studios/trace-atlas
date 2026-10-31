@@ -14,6 +14,7 @@ import {
 } from './seedBaseline';
 import { generateRandomAttenuationStyleName, randomCoordinate } from './seedUtils';
 import { devWarn } from './helpers';
+import { DEFAULT_LOADING, loadingOf } from '../data/bands/loadingIdentity';
 import type { SessionPayload } from '../types/session';
 
 // ========================================
@@ -119,9 +120,10 @@ export function encodeWorldLinkParams(payload: SessionPayload): URLSearchParams 
   params.set(WORLD_LINK_PARAMS.seed, payload.attenuationStyleName);
   params.set(WORLD_LINK_PARAMS.x, String(payload.coordinates.x));
   params.set(WORLD_LINK_PARAMS.y, String(payload.coordinates.y));
+  // The baseline is the payload's own world's: its name, inside its theme's bands (OFF_SCREEN.md assumption 15).
   const diff = diffWorldAgainstSeed(
     payload,
-    generateWorldSeedBaseline(payload.attenuationStyleName)
+    generateWorldSeedBaseline({ attenuationStyleName: payload.attenuationStyleName, ...loadingOf(payload) })
   );
   if (Object.keys(diff).length > 0) params.set(WORLD_LINK_PARAMS.blob, encodeBlob(diff));
   return params;
@@ -153,12 +155,10 @@ export function decodeWorldLink(search: string): SessionPayload | null {
       x: readCoordinate(params.get(WORLD_LINK_PARAMS.x)),
       y: readCoordinate(params.get(WORLD_LINK_PARAMS.y)),
     },
+    // Classic until the theme and family params are read (band-table T24).
+    ...DEFAULT_LOADING,
   };
   // A blob of the wrong version, or one that will not inflate or parse, is no blob (spec assumption 2).
   const diff = blob === null ? {} : (decodeBlob(blob) ?? {});
-  return fillWorldFromSeed(
-    identity,
-    diff,
-    generateWorldSeedBaseline(identity.attenuationStyleName)
-  );
+  return fillWorldFromSeed(identity, diff, generateWorldSeedBaseline(identity));
 }

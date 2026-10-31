@@ -29,6 +29,8 @@ import { ROBOT_SEND_FIELDS, engineKeyOf } from '../data/robotSends';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
+import { useLoadingStore } from '../stores/loadingStore';
+import { loadingOf } from '../data/bands/loadingIdentity';
 import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { deepEqual, roundToDecimals } from './math';
@@ -348,10 +350,16 @@ export function buildSessionPayload(): SessionPayload {
   const lfoBank = roundLfoBankForCapture(audioState.lfoBank);
   const globalLfoLinks = { ...audioState.globalLfoLinks };
 
+  // The loading identity (docs/specs/OFF_SCREEN.md assumption 10): always written, Classic and {} included, so two
+  // payloads of one world compare equal (Keep's dirty check) and an absent field means an older payload.
+  const { theme, aspects } = useLoadingStore.getState();
+
   return {
-    version: 2,
+    version: 3,
     attenuationStyleName: attenuationStyle.name,
     coordinates: locale.coordinates,
+    theme,
+    aspects,
     globalAudio: applyGlobalSwellBasesToAudio(audioState.globalAudio),
     bpm: audioState.bpm,
     swellFrequency: audioState.swellFrequency,
@@ -467,6 +475,11 @@ function stripLegacyV1LfoFields(payload: SessionPayload): SessionPayload {
  */
 export function applySessionPayload(payload: SessionPayload, options?: { skipLocaleRebuild?: boolean }): void {
   payload = stripLegacyV1LfoFields(payload);
+  // The loading identity first (docs/specs/OFF_SCREEN.md assumption 10): the store, and through it the loading context,
+  // carry the payload's theme before anything regenerates, so the rebuilt robots and any reseeded global half draw
+  // under its bands. Absent (a version 1 or 2 payload) or unknown reads as Classic with no aspects. Set on the boot
+  // path too (skipLocaleRebuild), so the store names the linked world.
+  useLoadingStore.getState().setLoading(loadingOf(payload));
   // worldTransition.ts's createNewAttenuationStyle always tries to CREATE a new Attenuation
   // Style for a given name (never "reuse the existing one with this name") and doesn't check
   // whether that creation actually succeeded — attenuationStyleStore.addAttenuationStyle silently

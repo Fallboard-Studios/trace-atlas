@@ -13,6 +13,11 @@ import type { BandTable } from './bandKeys';
 export const THEME_IDS = ['classic', 'calm', 'bold', 'adventurous', 'perilous'] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
+/** Whether a value from outside the app - a payload, a link param - names a theme. */
+export function isThemeId(value: unknown): value is ThemeId {
+  return typeof value === 'string' && (THEME_IDS as readonly string[]).includes(value);
+}
+
 /** The bands a v1 theme column may move (spec assumption 16): the narrow first cut is this key list, not a rewrite.
  *  Widening it is an "ask first" (spec §3), so the type holds the line: a column naming any other key does not compile. */
 export const THEME_BAND_KEYS = [

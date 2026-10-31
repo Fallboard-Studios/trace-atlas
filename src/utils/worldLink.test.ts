@@ -114,12 +114,12 @@ describe('encodeBlob / decodeBlob', () => {
   });
 
   it('round-trips the fully edited world, diffed against its seed', () => {
-    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(FIXTURE_NAME));
+    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(CLASSIC_SEED));
     expect(decodeBlob(encodeBlob(diff))).toEqual(diff);
   });
 
   it('is compressed: the text is shorter than the same compact JSON as plain base64url', () => {
-    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(FIXTURE_NAME));
+    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(CLASSIC_SEED));
     const uncompressed = toBase64Url(strToU8(JSON.stringify(toCompactWorldDiff(diff))));
     expect(textOf(encodeBlob(diff)).length).toBeLessThan(uncompressed.length);
   });
@@ -167,7 +167,7 @@ describe('encodeBlob / decodeBlob', () => {
     it('is far above a fully edited world, and well below a URL the dev server can serve', () => {
       const diff = diffWorldAgainstSeed(
         fullyEditedWorld(),
-        generateWorldSeedBaseline(FIXTURE_NAME)
+        generateWorldSeedBaseline(CLASSIC_SEED)
       );
       expect(encodeBlob(diff).length * 10).toBeLessThan(WORLD_LINK_BLOB_MAX_LENGTH);
       expect(WORLD_LINK_BLOB_MAX_LENGTH).toBe(32768);
@@ -206,17 +206,17 @@ function throughLink(payload: SessionPayload): SessionPayload | null {
   return decodeWorldLink(`?${encodeWorldLinkParams(payload).toString()}`);
 }
 
+/** The fixture world's seed identity: Classic, nothing dealt (band-table T23; the theme and family params are Task 24). */
+const CLASSIC_SEED = { attenuationStyleName: FIXTURE_NAME, theme: 'classic', aspects: {} } as const;
+
 /** The payload a link with this identity and diff must decode to. */
 function expectedWorld(
   name: string,
   coordinates: { x: number; y: number },
   diff: WorldDiff
 ): SessionPayload {
-  return fillWorldFromSeed(
-    { attenuationStyleName: name, coordinates },
-    diff,
-    generateWorldSeedBaseline(name)
-  );
+  const identity = { attenuationStyleName: name, coordinates, theme: 'classic', aspects: {} } as const;
+  return fillWorldFromSeed(identity, diff, generateWorldSeedBaseline(identity));
 }
 
 describe('encodeWorldLinkParams / decodeWorldLink', () => {
@@ -393,7 +393,7 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
   });
 
   it('a blob with only g.reverb and lb.b fills everything else from the seed', () => {
-    const baseline = generateWorldSeedBaseline(FIXTURE_NAME);
+    const baseline = generateWorldSeedBaseline(CLASSIC_SEED);
     const reverb = { ...baseline.globalAudio.reverb, decay: baseline.globalAudio.reverb.decay + 2 };
     const laneB = { ...baseline.lfoBank.b, rate: 0 };
     const decoded = decodeWorldLink(
