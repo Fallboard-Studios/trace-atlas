@@ -257,8 +257,9 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
   `savedAt` (a relative "saved …" through a content template, `home.off.savedAgo`, with the date-formatting helper the
   Sessions panel already uses — reuse it, don't write one); the Current row's trailing slot renders the Roll `Button`
   (`face="single"`, `muted`, `accessibleName` "Roll" so a screen reader hears it apart from the row). The
-  `.off-screen__actions` row keeps Keep alone (see the question below). Everything else — the pick handlers, Keep's dim,
-  the warning, the readout — is unchanged.
+  `.off-screen__actions` row keeps Keep alone, relabelled **"Save the last session"** (`home.off.keep`'s human label,
+  Crawford's words, 2026-10-31). Everything else — the pick handlers, Keep's dim, the warning, the readout — is
+  unchanged.
 
   **Proof:** RED test — `OffScreen.test.tsx`: the Transmission root carries `sc-radio-button--list`; Roll is inside the
   Current row and outside its radio item; clicking Roll calls `rollWorld` and does not change the pick; a save row shows
@@ -343,21 +344,22 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 
   **Estimated scope:** M (many small edits, one idea)
 
-- [ ] **Task 7: `aspects.ts`, `bandKeys.ts` — the Envelope and Space families: keys and placeholder columns**
+- [ ] **Task 7: `aspects.ts`, `bandKeys.ts` — the Envelope and Distance families: keys and placeholder columns**
 
-  **Description:** `ASPECT_FAMILY_IDS` becomes `['melody', 'envelope', 'space']`; `ASPECT_IDS` is per family now
+  **Description:** `ASPECT_FAMILY_IDS` becomes `['melody', 'envelope', 'distance']`; `ASPECT_IDS` is per family now
   (`ASPECT_IDS_BY_FAMILY`, with `AspectId` the union: `hypnotic | mechanical | wandering | plucked | swelling | held |
-  dry | hall | cavern`); `ENVELOPE_BAND_KEYS` (`robot.attack`, `robot.decay`, `robot.sustain`, `robot.release`,
-  `robot.shapedAttack`, `robot.shapedRelease`) and `SPACE_BAND_KEYS` (`reverbSend`, `delaySend`); `ASPECT_FAMILIES`
+  near | far | remote`); `ENVELOPE_BAND_KEYS` (`robot.attack`, `robot.decay`, `robot.sustain`, `robot.release`,
+  `robot.shapedAttack`, `robot.shapedRelease`) and `DISTANCE_BAND_KEYS` (`reverbSend`, `delaySend`); `ASPECT_FAMILIES`
   gains the two entries with placeholder columns on the Architecture Decisions' sketch (every number for Task 11's
   listen); the foreign-key type still fails to compile for a column outside its family. `resolveBands` needs no change.
-  Content: `home.off.envelope`, `home.off.space` (labels), `home.off.envelope.<id>`, `home.off.space.<id>` (names),
-  `home.off.envelopeDescription.<id|none>`, `home.off.spaceDescription.<id|none>` (sentences) — stand-ins.
+  Content: `home.off.envelope`, `home.off.distance` (labels), `home.off.envelope.<id>`, `home.off.distance.<id>` (names),
+  `home.off.envelopeDescription.<id|none>`, `home.off.distanceDescription.<id|none>` (sentences) — stand-ins; the
+  Distance sentences say "how far off a probe sounds", never "room".
 
-  **Proof:** RED test — `resolveBands.test.ts`: each Envelope and Space option differs from Classic on a subset of its
-  family's keys and nowhere else; Plucked's attack max ≤ 0.05 and sustain max ≤ 0.3, Cavern's reverb min ≥ 0.6 (intent
-  checks, so a wrong-way edit fails); every band inside its field's range; a `// @ts-expect-error` column naming
-  `bpm` in Space. `loadingStore.test.ts`: `canonicalAspects` keeps three families.
+  **Proof:** RED test — `resolveBands.test.ts`: each Envelope and Distance option differs from Classic on a subset of
+  its family's keys and nowhere else; Plucked's attack max ≤ 0.05 and sustain max ≤ 0.3, Remote's reverb min ≥ 0.6
+  (intent checks, so a wrong-way edit fails); every band inside its field's range; a `// @ts-expect-error` column
+  naming `bpm` in Distance. `loadingStore.test.ts`: `canonicalAspects` keeps three families.
 
   **Acceptance criteria:**
   - [ ] Three families, nine options; the key sets as above; the intent checks hold.
@@ -446,7 +448,7 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 
   **Estimated scope:** M
 
-- [ ] **Task 10: Voice — `PickBand`, the waveform draws, the family** *(waits on the open question)*
+- [ ] **Task 10: Voice — `PickBand`, the waveform draws, the family** *(decided 2026-10-31: the `PickBand` path)*
 
   **Description:** If Crawford takes the recommendation: `bandKeys.ts` gains a fourth kind, `PickBand`
   (`{ weights: Record<WaveformType, number> }`), one key `robot.waveform`, Classic's weights equal; the base-waveform
@@ -512,7 +514,7 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 
 ---
 
-### Phase 4: The wash (note 7) *(waits on the open question)*
+### Phase 4: The wash (note 7) *(decided 2026-10-31: the deferral, 0.5 s each way, the world's sea colour)*
 
 - [ ] **Task 12: `uiStore.ts`, `systems/worldChange.ts` — the request and its four states**
 
@@ -547,7 +549,7 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
   **Description:** `div.world-view__wash` as a sibling of the scroller (over it, under `MetaBox`; `pointer-events:
   none`; a deep water blue token, placeholder). `sceneWash.ts` subscribes to `uiStore.sceneWash` once the element is
   registered (`setRef('world-wash')` from `WorldView`'s `useGSAP`): `'covering'` → a `'ui'` timeline `scene-wash` tweens
-  opacity 0 → 1 over 0.3 s, `onComplete: setSceneWash('covered')`; `'uncovering'` → 1 → 0 over 0.6 s,
+  opacity 0 → 1 over 0.5 s, `onComplete: setSceneWash('covered')`; `'uncovering'` → 1 → 0 over 0.5 s (both durations Crawford's, 2026-10-31; the colour is the world's own sea fill, read from the source at build),
   `onComplete: setSceneWash('clear')`; a new state kills the running tween first. Semantic callbacks only. Callers:
   `OffScreen`'s pick, Roll, theme and family handlers, `SectorSettingsDrawer`'s Retransmit and `SessionsPanel`'s Load
   wrap their synchronous bodies in `requestWorldChange(() => { … })` (the UI's own `setPick` / `setDirty` run after the
@@ -640,22 +642,25 @@ Commit subjects: `off-screen-revisions T<n>: <what>`.
 | Removing `'theme'` strands a saved world or link from this branch | Low | None exist off the branch; the lenient readers drop the id as unknown, so even one would load |
 | Nine new aspect sentences and six labels of stand-in copy | Low | Marked in `home.ts` as the parent plan's are; Crawford's pass lands in any later commit |
 
-## Open Questions
 
-1. **Keep's seat (note 2).** Roll goes on the Current row. Does Keep join it there, or stay as the one muted button
-   under the list? Default if unanswered: it stays under the list (least change).
-2. **The saves' meta (note 1).** The wireframe shows "saved 2 days ago" on each save row. Include it (Task 4 as
-   written), or names only? Default: include.
-3. **Voice (note 3) — the waveform.** Recommended: a fourth band kind, `PickBand`, weighting the five waveforms, so
-   Glassy / Woody / Hollow can lean sine / triangle / square; Classic parity is held by construction. Fallback: Voice
-   over the filter and layer bands only, which makes the three options faint. Spec §3 makes a fourth kind ask-first;
-   this is the ask. Task 10 waits on it.
-4. **The wash (note 7) — defer the rebuild?** Recommended: the request seam (Tasks 12–13), so the world fades to
-   blue, rebuilds under the cover and fades back — a change to how a user-gesture retransmit is sequenced (spec §3
-   ask-first). Fallback: an instant cover that fades out (no deferral, no new seam; the cut is hidden, not smoothed).
-   Also: the colour — a deep water blue is the placeholder — and the two durations (0.3 s in, 0.6 s out).
-5. **The theme row (note 5).** The note says the *aspect* cabinetry pops. Does the theme row pop too, or stay
-   muted beside the list? Default: stays muted.
-6. **Space and the room (note 3).** Cavern deepens each robot's sends but cannot lengthen the room (a global band, the
-   theme's). Fine as a robot-side family, or should Space be struck until a room-size theme key exists? Default: build
-   it as robot-side and say so in its sentence.
+## Open Questions - all answered (Crawford, 2026-10-31)
+
+1. **Keep's seat (note 2).** Stays under the list, and its label becomes **"Save the last session"** (`home.off.keep`,
+   his words). Task 4 carries the copy change.
+2. **The saves' meta (note 1).** Yes - "saved ..." on each save row, as Task 4 has it.
+3. **Voice (note 3) - the waveform.** "Go with your gut": the fourth band kind, `PickBand`, weighting the five
+   waveforms (the recommendation). Task 10 is unblocked and builds it; spec s3's three-kinds rule is amended in Task 14.
+4. **The wash (note 7).** The deferral stands (Tasks 12-13). **Both fades 0.5 s.** The colour is **an ocean colour from
+   the existing world** - the sea fill the water column paints with (`WaterColumn.tsx` draws its gradient from the
+   terrain palette; name the token from the source at Task 13, never a new hex).
+5. **The theme row (note 5).** The *aspect* radio buttons pop; the theme row stays muted (the default), as do the
+   list, Roll and Keep.
+6. **Space (note 3) -> Distance.** Not a room: the family is **Distance** (`distance`), how far off a probe sounds -
+   its options **Near**, **Far**, **Remote** (my words for his "distance"; Remote echoes the Reverb slider's lore word
+   REMOTENESS; names are content, one line each to change). Near: both sends low and mostly unlit; Far: deep reverb,
+   little delay; Remote: deep reverb and deep delay. Tasks 8, 9 and 14 read `distance` wherever they say `space`
+   (Task 7 already does), and `ASPECT_FAMILY_IDS` is `['melody', 'envelope', 'distance']` (then `'voice'` at Task 10).
+
+**For the building session:** start at Task 1; every decision above is final, so no task waits on a question. Commit
+subjects `off-screen-revisions T<n>: <what>`; RED first for every behaviour task; the Looks are Crawford's and are
+recorded on the commit as pending.
