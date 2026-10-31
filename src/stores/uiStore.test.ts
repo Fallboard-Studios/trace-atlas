@@ -267,8 +267,9 @@ describe('uiStore — the initial state is spec §1.10\'s table', () => {
     'isPoweredOn', 'isNavPanelOpen',
     'fleetParamsSection', 'fleetParamsSubsection', 'movePanelRobotId',
   ];
-  // Not navigation, so §1.10 does not list them; the layout rework leaves them as they are.
-  const OTHER_FIELDS = ['activeLocaleLocalTime', 'activeLocaleTemperature'];
+  // Not navigation, so §1.10 does not list them; the layout rework leaves them as they are. The scene wash's state
+  // joined at docs/tasks/OFF_SCREEN_REVISIONS.md Task 12.
+  const OTHER_FIELDS = ['activeLocaleLocalTime', 'activeLocaleTemperature', 'sceneWash'];
 
   const initial = useUIStore.getInitialState() as unknown as Record<string, unknown>;
   const fields = Object.keys(initial).filter((key) => typeof initial[key] !== 'function');

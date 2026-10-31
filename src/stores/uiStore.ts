@@ -61,6 +61,11 @@ export type RobotSubsection =
  *  top-level node's own +/- button was a silent no-op and its children could never render, found
  *  live by Crawford after Checkpoint 3. */
 export type TopLevelBranch = 'settings' | 'fleetParams' | 'probes' | 'companies';
+/** The scene wash over the world (docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 12-13; Crawford's note 7): 'clear' at rest;
+ *  'covering' while it fades in over a requested world change (systems/worldChange.ts); 'covered' when opaque, which runs
+ *  the change; 'uncovering' while it fades out over the new world. Semantic state only: the wash's timelines
+ *  (animation/sceneWash.ts) set 'covered' and 'clear' when they finish, and nothing else reads them. */
+export type SceneWash = 'clear' | 'covering' | 'covered' | 'uncovering';
 /** True when the nav tree's "All Probes" leaf is selected — the bulk-edit target covering
  *  every robot in the locale, distinct from bare "Probes" (the browse list), which also has
  *  selectedRobotId === null. Added in Task 19 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md): without this
@@ -118,6 +123,8 @@ export interface UIStore {
   /** Which roster tile's Move popover (desk) / sheet (phone) is open — null when none. One at a time:
    *  opening another tile's replaces it (docs/specs/LAYOUT_REWORK.md §1.5, §1.10). */
   movePanelRobotId: string | null;
+  /** Where the scene wash is in covering a world change — see SceneWash's own doc comment. */
+  sceneWash: SceneWash;
   setActiveLocaleLocalTime: (t: number | null) => void;
   setPowerOn: () => void;
   setPowerOff: () => void;
@@ -138,6 +145,7 @@ export interface UIStore {
   setAllProbesSelected: (v: boolean) => void;
   openMovePanel: (robotId: string) => void;
   closeMovePanel: () => void;
+  setSceneWash: (state: SceneWash) => void;
 }
 
 /** The Fleet Params tab the screen opens on, and every nav pick returns to (docs/tasks/LAYOUT_REWORK.md
@@ -165,6 +173,7 @@ export const useUIStore = create<UIStore>((set) => ({
   expandedTopLevelBranch: null,
   allProbesSelected: false,
   movePanelRobotId: null,
+  sceneWash: 'clear',
 
   setPowerOn: () => set({ isPoweredOn: true }),
   setPowerOff: () => set({ isPoweredOn: false }),
@@ -192,6 +201,7 @@ export const useUIStore = create<UIStore>((set) => ({
   setAllProbesSelected: (v) => set({ allProbesSelected: v }),
   openMovePanel: (robotId) => set({ movePanelRobotId: robotId }),
   closeMovePanel: () => set({ movePanelRobotId: null }),
+  setSceneWash: (state) => set({ sceneWash: state }),
 }));
 
 // ========================================
