@@ -46,6 +46,7 @@ vi.mock('../engine/audioEngine/globalFx', () => ({
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7).
 vi.mock('../engine/lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => false), // before any power-on: the style-sync's bank push stays data-only
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),
     setBankRate: vi.fn(),

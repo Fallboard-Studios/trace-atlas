@@ -7,6 +7,7 @@ import { render, screen, within, fireEvent, act } from '@testing-library/react';
 // node on first call, which throws without a real AudioContext.
 vi.mock('../../../../engine/lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => false), // before any power-on: audioStore's bank pushes stay data-only
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),
     setBankRate: vi.fn(),

@@ -295,6 +295,7 @@ vi.mock('../utils/helpers', async () => {
 // target got which call, in what order).
 vi.mock('./lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => false), // read by audioStore's module-load style-sync, which start() imports
     primeLfoBank: vi.fn(),
     linkTarget: vi.fn(() => true),
     disposeRobotLinks: vi.fn(),
