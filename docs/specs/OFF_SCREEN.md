@@ -27,6 +27,13 @@ Crawford passed every checkpoint and the Task 35 listen on 2026-10-31, keeping T
 Roadmap [51](../todo/roadmap.md) (the Guide) is untouched: its "Not Doing — no manual on the off screen" stands; the only
 thing this phase leaves for it is the description strings (§1.6).
 
+**Amended 2026-10-31** by [docs/tasks/OFF_SCREEN_REVISIONS.md](../tasks/OFF_SCREEN_REVISIONS.md): Crawford's eight
+notes after the listen, built the same day on the same branch. The Transmission axis is a list with Roll in the Current
+row; the `'theme'` pick is gone; three more aspect families (Envelope, Distance, Voice) bring a fourth band kind,
+`PickBand`; the aspect rows pop; the veil stays put while the phone's column scrolls; and a user-gesture world change
+waits under a scene wash. Each amended paragraph below says so where it stands. The survey (2026-10-30, against `main`)
+is left as it was read.
+
 Survey basis (2026-10-30, against `main` at `cc9a01f2`, the merge of PR #593; every citation below was read, not
 recalled). Where the survey disagrees with the intent, the survey wins and the difference is named here:
 
@@ -136,27 +143,38 @@ worth a second look):
 8. **The chooser's pick values keep today's prefixes and add `current`.** `'current' | 'save:<name>' | 'preset:<id>'`,
    default `'current'`. Current's label is `describeWorld(identity)` — `AS · (x, y)`, or the loaded save's /
    preset's name when the world is one — the same helper the readout and Foundry's status line use (§1.4). The
-   Loading axis is two controls: the theme row (one pick) and the Melody row (a **set** of picks, assumptions 21–23).
+   Loading axis is the theme row (one pick) and one row per aspect family (each a **set** of picks, assumptions
+   21–23). *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 3, 4 and 9):* the
+   Transmission axis is `RadioButton`'s `list` appearance, one full-width row per option, a save's row carrying when it
+   was saved and the Current row carrying Roll; the aspect rows are four, Melody, Envelope, Distance and Voice, rendered
+   from `ASPECT_FAMILY_IDS`.
 9. **The world's loading identity lives in one small store.** `src/stores/loadingStore.ts` (Zustand, JSON):
-   `{ theme: ThemeId, aspects: Partial<Record<AspectFamilyId, AspectPick[]>> }` where `AspectPick = AspectId | 'theme'`
-   (`'theme'` is the selectable "as theme" member of a deal, assumption 21) and each list is kept in the family's
-   canonical option order; default `{ theme: 'classic', aspects: {} }`; an absent or empty family = every robot as
-   theme. Written only by the world-change paths (`retransmitWorld`, `applySessionPayload`, the link boot) and read by
-   the loading context (assumption 15), the deal (assumption 21), the readout, the payload builder and the URL mirror.
+   `{ theme: ThemeId, aspects: Partial<Record<AspectFamilyId, AspectId[]>> }`, each list kept in the family's canonical
+   option order; default `{ theme: 'classic', aspects: {} }`; an absent or empty family = every robot as theme.
+   Written only by the world-change paths (`retransmitWorld`, `applySessionPayload`, the link boot) and read by the
+   loading context (assumption 15), the deal (assumption 21), the readout, the payload builder and the URL mirror.
+   *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 6, note 4):* the `'theme'` member
+   and `AspectPick` are gone. A robot voiced by the theme is heard anyway, and "why am I hearing it if I didn't select
+   it?" was the confusion to avoid. `AspectId` is the union of every family's ids; `AspectIdOf<F>` is one family's.
 10. **Identity in the payload.** `SessionPayloadVersion` adds `3`; `SessionPayload` gains `theme?: ThemeId` and
-    `aspects?: Partial<Record<AspectFamilyId, AspectPick[]>>`; absent — every version 1 and 2 payload — reads as
+    `aspects?: Partial<Record<AspectFamilyId, AspectId[]>>`; absent — every version 1 and 2 payload — reads as
     `'classic'` and `{}` (decode leniency, not a compatibility promise). `WorldIdentity` gains the same two fields;
     `generateWorldSeedBaseline(identity)` takes the identity and generates inside its bands (assumption 15);
     `RetransmitInput` gains `theme` and `aspects`, and `resolveRetransmitAction` gains a `loadingOnly` mode (added at
     planning, 2026-10-30): the same Attenuation Style and coordinates, the global half regenerated from seed under the
     new bands (`regenerateGlobalAudioFromSeed`, `regenerateLfoBankFromSeed`, `regenerateGlobalLfoLinksFromSeed`,
     `regenerateBpmFromSeed` — the AS-sync subscription does not fire for an unchanged id), then the locale removed and
-    re-initialised at the same identity so the robots, companies and the deal regenerate.
+    re-initialised at the same identity so the robots, companies and the deal regenerate. *Amended 2026-10-31
+    ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 6):* the lists are `AspectId[]`, no longer
+    `AspectPick[]`; a `'theme'` left in an older payload is dropped as any unknown id is.
 11. **Identity on the link, as plain params.** `theme=<id>` (the reserved param, now written and read) and one param
     per family, named by the family, carrying the set as a comma list in canonical option order:
-    `melody=hypnotic,mechanical`, `melody=theme,wandering`. Written only when not `classic` / when the set is
-    non-empty, so an untweaked Classic world is still the bare triple; an unknown id is dropped (with `devWarn`), and
-    the same set always encodes to the same string. Never in the blob.
+    `melody=hypnotic,mechanical`, `envelope=plucked,held&distance=remote&voice=woody`. Written only when not `classic`
+    / when the set is non-empty, so an untweaked Classic world is still the bare triple; an unknown id is dropped (with
+    `devWarn`), and the same set always encodes to the same string. Never in the blob. *Amended 2026-10-31
+    ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 6, 7 and 10):* the params are `melody`, `envelope`,
+    `distance` and `voice`, one per family; `theme` is no longer a member, so the old `melody=theme,wandering` reads
+    `theme` as an unknown id and drops it.
 12. **The address bar follows the loaded world — identity only, and never on arrival.** `mirrorWorldToUrl(identity)`
     (`sessionShareUtils.ts`) rewrites `seed`, `x`, `y`, `theme`, the family params through `withParam`, removes `s`, and
     `replaceState`s. Called after the bare boot's `initializeLocale`, after every `retransmitWorld`, after every
@@ -174,10 +192,14 @@ worth a second look):
     with `name = currentLoadedSessionName ?? currentSessionName`, then `setCurrentLoadedSessionName(name)` and a re-list
     of the saves. Keep is **dirty** (lit) unless `currentLoadedSessionName` names a save whose stored payload deep-equals
     `buildSessionPayload()` now; dirty is computed on mount and after a pick or a Keep, never per render. The warning
-    line under the chooser shows only while dirty.
+    line under the chooser shows only while dirty. *Amended 2026-10-31
+    ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4 and 5, notes 1 and 2):* Roll is the Current row's
+    own action, a small flat button at the row's end; Keep sits alone under the list, labelled "Save the last session"
+    (Crawford's words). Both stay muted.
 15. **One band table, one resolver, one context.** `src/data/bands/`: `bandKeys.ts` (`BandKey` = `'bpm'` |
-    `LoadingRangeKey` | `robot.<field>` | `RobotSendField`; three band kinds — `range { min, max }`, `send { min, max,
-    lit }`, `toggle { offShare, min, max }` for the 1–8 fields), `classic.ts` (every constant in the survey, lifted
+    `LoadingRangeKey` | `robot.<field>` | `RobotSendField`; four band kinds — `range { min, max }`, `send { min, max,
+    lit }`, `toggle { offShare, min, max }` for the 1–8 fields, `pick { weights }` for the waveform), `classic.ts`
+    (every constant in the survey, lifted
     byte-for-byte), `themes.ts` (five partial columns; Classic's is `{}`), `aspects.ts` (families, each a key set and
     its options' partial columns — the type forbids an aspect naming a key outside its family), `resolveBands(theme,
     robotAspects): BandTable` (classic ← theme ← at most one aspect per family, replace not widen — **per robot**), and
@@ -186,26 +208,48 @@ worth a second look):
     `generateWorldSeedBaseline` uses, since the generators are synchronous. Aspects never enter the context: they reach
     a robot only through the deal pass (assumptions 21–22), which passes its bands explicitly. The generators
     (`spawnSystem.ts`, `globalAudioSeed.ts`, `bpmSeed.ts`, `generateRobotSends`) read `getBand(...)` where they read
-    constants today. The bell-fitted shares stay constants, outside the table, in v1.
+    constants today. The bell-fitted shares stay constants, outside the table, in v1. *Amended 2026-10-31
+    ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 10, Crawford's answer 3):* the fourth kind,
+    `PickBand` (`{ weights: Record<WaveformType, number> }`), has one key, `robot.waveform` (`ROBOT_PICK_KEYS`). The
+    base and layer waveform draws take one `getSeededVal` over [0, total weight] and pick the first waveform whose
+    cumulative weight it falls under (`pickWaveform`, `spawnSystem.ts`). Classic's five unit weights give exactly the
+    old uniform pick, pinned over 400 robots.
 16. **The narrow first cut is a key list, not a rewrite.** v1 theme columns may touch: `bpm`, `robot.rhythmicDensity`,
     `robot.rests`, `robot.attack` / `robot.release` (and the shaped pair), `reverbSend`, `delaySend`,
     `filterLPF.frequency`. Melody's three aspects touch `robot.rhythmicDensity`, `robot.noteVariance`,
     `robot.rhythmicMotifLength`, `robot.pitchRepeat`. Every value in `themes.ts` / `aspects.ts` is a placeholder until
     the listen task (§5.3) sets it; the table shape is fixed here, the numbers are not. Hypnotic = low variance (toggle
     on, value 1–2), medium density (40–60); Mechanical = low variance, high density (70–95), long motif; Wandering =
-    high variance (6–8), low–medium density (20–50), motif mostly off.
+    high variance (6–8), low–medium density (20–50), motif mostly off. *Amended 2026-10-31
+    ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 7 and 10, note 3):* three more families, each a key
+    set in `aspects.ts`. Envelope (`ENVELOPE_BAND_KEYS`): `robot.attack`, `robot.decay`, `robot.sustain`,
+    `robot.release`, `robot.shapedAttack`, `robot.shapedRelease`. Distance (`DISTANCE_BAND_KEYS`): `reverbSend`,
+    `delaySend`; a room's own size stays a theme's. Voice (`VOICE_BAND_KEYS`): `robot.waveform`, `robot.filterFreq`,
+    `robot.accentFilterFreq`, `robot.accentFilterQ`, `robot.layerGain`. Their nine columns are placeholders until the
+    revisions' listen (Task 11, Crawford's ear).
 17. **Names are the sketch's lists; descriptions are content.** Ids `classic | calm | bold | adventurous | perilous`;
-    family `melody` with `hypnotic | mechanical | wandering`. `home.off.theme.<id>` and `home.off.aspect.melody.<id>`
-    (names), `home.off.themeDescription.<id>` / `home.off.aspectDescription.melody.<id>` (one sentence each), the
-    "as theme" member's label, plus the family label, the Loading / Transmission group headings, the Keep button, the
-    warning line, the Roll button, the footer, and the readout template extended to `{name} · {code} · {theme}` with an
-    optional aspects tail (`Hypnotic + Mechanical`). `company.loadedUnder` and `probe.loadedUnder` name the readout
-    line of assumption 24. The Guide later reads the same description keys.
+    families `melody` (`hypnotic | mechanical | wandering`), `envelope` (`plucked | swelling | held`), `distance`
+    (`near | far | remote`) and `voice` (`glassy | woody | hollow`). `home.off.theme.<id>` and `home.off.<family>.<id>`
+    (names), `home.off.themeDescription.<id>` / `home.off.<family>Description.<id>` (one sentence each) and
+    `home.off.<family>Description.none` (an empty row's sentence), plus the family label `home.off.<family>`, the
+    Loading / Transmission group headings, the Keep button, the warning line, the Roll button, a save row's
+    `home.off.savedAt`, the footer, and the readout template extended to `{name} · {code} · {theme}` with an optional
+    tail per family (` · Hypnotic + Mechanical`, then ` · Plucked + Held`, in family order). `company.loadedUnder` and
+    `probe.loadedUnder` name the readout line of assumption 24. The Guide later reads the same description keys.
+    *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4, 6, 7 and 10):* the "as
+    theme" label and its sentence are gone; three families' labels, names and sentences are added as stand-in copy;
+    the key names are the shipped ones (`home.off.melody.<id>`, not the `home.off.aspect.melody.<id>` first written
+    here).
 18. **Boot theatre and veil belong to `OffScreen`.** On mount a `'ui'` timeline `off-screen-boot`: 0–0.5 s dark, 0.5–1.5 s
     a flicker to full, then ready; `prefers-reduced-motion` jumps to ready; any `pointerdown` on the screen jumps to
     ready; the rocker is outside the screen and works throughout. The veil is `OffScreen`'s own backdrop element
     (`backdrop-filter: blur(3px)` over `rgba(8, 12, 16, .55)`), inside `ScreenViewport`; on power-on `powerController`
     awaits `fadeOffScreen()` (a 0.4 s `'ui'` tween) before `setPowerOn`, so the veil fades before the screen unmounts.
+    *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 1, 2 and 9, notes 6 and 8):* the
+    screen's root no longer scrolls. The column scrolls in its own `.off-screen__scroll` child, stacked between the
+    veil and the dark layer, so the veil stays put while the column moves; the fade and the theatre keep their
+    targets. The desk column scrolls too, centred while it fits (`justify-content: safe center`), and the phone's
+    column's top padding is `calc(var(--power-corner-height) + 12px)`, clear of the power corner.
 19. **Foundry's status line and Comms.** `SectorSettingsDrawer`'s line becomes `describeWorld(identity)`; the shortcut
     rows go (assumption 13); nothing else moves. `session.clearStorage.confirmBody` loses "and autosaved".
 20. **Pre-v1: nothing is kept for sound's sake.** Classic is today's bands by definition at the moment of the lift (§5.2
@@ -213,15 +257,18 @@ worth a second look):
     migration for old links beyond assumption 10's leniency.
 21. **A family's picks are dealt round-robin over the fleet's seeded groups** (Crawford, 2026-10-30). The groups are the
     seeded companies in their spawn order (`c = 0, 1, …`), then each Freelance robot on its own in roster order. The
-    picked list for a family — in canonical option order, `'theme'` included when selected — is rotated by a seeded
-    offset (`getUniformSeededVal(noiseMap, 'aspects.<family>.deal', 0)`, the uniform draw, because one plain
-    `getSeededVal` takes only a few values across worlds) and dealt: group 0 gets pick 0, group 1 pick 1, …, wrapping
-    until **every group has one**. So one pick is the whole fleet; two picks alternate across companies, then
-    freelancers; `'theme'` in the list leaves its groups plain, which is how a mixed fleet keeps plain robots. An empty
+    picked list for a family — in canonical option order — is rotated by a seeded offset
+    (`getUniformSeededVal(noiseMap, 'aspects.<family>.deal', 0)`, the uniform draw, because one plain `getSeededVal`
+    takes only a few values across worlds) and dealt: group 0 gets pick 0, group 1 pick 1, …, wrapping until **every
+    group has one**. So one pick is the whole fleet; two picks alternate across companies, then freelancers. An empty
     list means every robot as theme. `dealAspects(identity, companies, roster): Map<robotId, Partial<Record<AspectFamilyId,
     AspectId>>>` is a pure function in `src/data/bands/dealAspects.ts`; a given world identity always deals the same
     way, so a link reproduces it, and adding or removing a pick may reshuffle — it is a retransmit anyway. "No room"
     cannot occur: a family's picks never exceed its options (three) and a world never has fewer than three groups.
+    Each family turns on its own seeded rotation, so one robot may carry an aspect from every family. *Amended
+    2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 6, note 4):* the selectable "as theme"
+    member is gone, and with it the way a mixed fleet kept plain robots. A family with picks deals one to every group;
+    a family with none leaves every robot as the theme in it.
 22. **Aspects are applied after the deal by re-deriving the dealt fields.** Companies form after every robot has drawn
     its melody fields (survey), so `applyAspectDeal(localeId)` runs right after `spawnInitialCompanies`: for each dealt
     robot it recomputes the family's keys (assumption 16) with the same `noiseMap`, `dataId` and `spawnIndex` offset
@@ -233,18 +280,34 @@ worth a second look):
     `generateRobotRosterBaseline` (after `generateCompanyRosterBaseline`, from the same noise map); an untweaked dealt
     world then diffs `{}` by construction, and `generateWorldSeedBaseline` (world-level fields only) needs only
     `withLoading`. A robot moved between companies afterwards keeps what it rolled (bands are generation-only); a
-    user-created company has no aspect.
+    user-created company has no aspect. *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md)
+    Tasks 8 and 10):* the pass is per family, through the derive function spawn itself uses, so the recipe repeats by
+    construction: `deriveMelodyFields`, `deriveEnvelopeFields`, `deriveSendFields` and `deriveVoiceFields`
+    (`spawnSystem.ts`, chosen by `deriveFamilyFields`; a robot dealt several families takes them in family order). On
+    the live roster each dealt family then reaches the engine through the call a hand edit makes: Melody
+    `regenerateMelody`, Envelope `AudioEngine.updateVoiceEnvelope`, Distance `AudioEngine.updateRobotSends` with
+    `robotSendLevels(robot)`, Voice `AudioEngine.reReserveVoice` then `primeRobotLinks` (the rebuild disposes the nodes
+    the LFO links were wired to). Before the engine starts, on the off screen, those calls are the no-ops they are at
+    spawn. A robot is touched only for the families it was dealt.
 23. **`RadioButton` gains a `multiple` variant** — a design-system addition, Crawford's call (2026-10-30: "it should use
     the cabinetry effect just like buttons and toggles do already"). `RadioButtonSchema.multiple?: true` makes `value`
     a `string[]` and `onChange(string[])`; each option is independently selectable; in the `cabinet` appearance every
     selected option is popped (the `Toggle`'s on-state look, `cabinetAnimation.ts`), in `muted` it carries the muted
     selected mark; a11y is a `group` of `aria-pressed` buttons, not a `radiogroup`. `docs/COMPONENT_LIBRARY.md` gains the
-    variant. **The off screen renders its rows `muted`**, as today, under the standing decision that nothing comes off
-    the plate while the power is off — flagged in §7 in case Crawford's "cabinetry" meant the off screen too.
+    variant. **The off screen's aspect rows render in `cabinet`** and pop on hover and select; the theme row, the
+    Transmission list, Roll and Keep stay flat. *Amended 2026-10-31
+    ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 3 and 9, note 5 and Crawford's answer 5):* this
+    was "the off screen renders its rows `muted`", under the standing decision that nothing comes off the plate while
+    the power is off; §7 question 10 is answered the other way. A third appearance, `list`, carries the Transmission
+    axis: one full-width row per option, an optional `meta` line, and a `trailing` slot beside the item for an action
+    such as Roll.
 24. **The deal is readable in the app.** The company detail's column and the robot detail's avatar column each carry one
     readout line — *Loaded under Hypnotic* (`company.loadedUnder` / `probe.loadedUnder`), a `DualLabel` over text, never
     a control — fed from a per-robot `loadedUnder` record kept beside the roster in `localeStore` (JSON: family → aspect
-    id) and written by the deal pass; a member shows its company's, a freelancer its own, "as theme" shows nothing.
+    id) and written by the deal pass; a member shows its company's, a freelancer its own, an undealt robot nothing.
+    *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 6 and 9):* the line joins every
+    dealt family in family order (*Loaded under Hypnotic + Held + Remote + Woody*). With no "as theme" pick, a robot
+    shows nothing only when no family has picks.
 
 ---
 
@@ -261,6 +324,10 @@ Build order: `power-pause` → `off-screen-chooser` → `band-table` → `themes
 on the first two and may be interleaved; nothing in it is user-visible until the fourth module. Each module ends at a
 checkpoint (§5.3) before the next starts.
 
+*Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md)):* the revisions grow
+`themes-and-aspects` by three families and the `list` appearance, and add one more piece, the scene wash
+(`uiStore.sceneWash`, `src/systems/worldChange.ts`, `src/animation/sceneWash.ts`), built in that plan's own order.
+
 ---
 
 ## 1. Overview & Claude Explanation
@@ -276,11 +343,14 @@ Arrival (a bare URL / a shared link) × device (first visit / returning / return
   Current selected (story 2's screen, same visit). Reload tomorrow → story 2.
 - **Returning, bare URL (stories 2 and 3).** The flag is set. The world is the URL's (assumption 12 wrote it last time
   — a bookmark now returns the same world; Roll is how you get another). The chooser: Transmission (Current · saves if
-  any · divider · presets) and Loading (theme row, Melody row), one readout. Flip with Current → `start` (the world is
-  `'cold'` on a fresh load). Pick a save → silent `applySessionPayload`, the Loading rows follow it, the readout names
-  it, the URL follows (assumption 12); flip → `start`. Change the theme, or the Melody set → `retransmitWorld({ theme,
-  aspects })`: same AS + coords, the picks dealt over the companies and freelancers (assumption 21), tweaks gone, the
-  world row drops to Current.
+  any · divider · presets) and Loading (theme row, one row per aspect family), one readout. Flip with Current →
+  `start` (the world is `'cold'` on a fresh load). Pick a save → silent `applySessionPayload`, the Loading rows follow
+  it, the readout names it, the URL follows (assumption 12); flip → `start`. Change the theme, or a family's set →
+  `retransmitWorld({ theme, aspects })`: same AS + coords, the picks dealt over the companies and freelancers
+  (assumption 21), tweaks gone, the world row drops to Current. *Amended 2026-10-31
+  ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4, 9 and 13):* Transmission is a list with Roll in
+  the Current row; the families are Melody, Envelope, Distance and Voice; a pick, Roll, or a theme or family change
+  fades the old world out under the scene wash and the new one in (§3).
 - **Shared link (stories 4–6).** The link's identity and blob are applied at boot as today; the URL is **not** rewritten.
   First visit: hint only — the friend's world plays on the flip, no choice offered. Returning: Current is the link's
   world, named and selected, the Loading rows at the link's theme and aspects. Picking anything else rewrites the URL
@@ -316,16 +386,20 @@ path from `'paused'` to a different world that resumes.
 export type RangeBand  = { min: number; max: number };
 export type SendBand   = { min: number; max: number; lit: number };           // ROBOT_SEND_LOADING_RANGES's shape
 export type ToggleBand = { offShare: number; min: number; max: number };      // seedToggleValue: off below offShare, else a 1–8 value in [min, max]
-export type BandKey    = 'bpm' | LoadingRangeKey | RobotBandKey | RobotSendField;
+export type PickBand   = { weights: Record<WaveformType, number> };          // robot.waveform (revisions Task 10): the first waveform whose cumulative weight the draw falls under
+export type BandKey    = 'bpm' | LoadingRangeKey | RobotBandKey | RobotSendField;   // RobotBandKey includes RobotPickKey
 export type BandTable  = { [K in BandKey]: BandFor<K> };
 
 // src/data/bands/themes.ts · aspects.ts
 export type ThemeId = 'classic' | 'calm' | 'bold' | 'adventurous' | 'perilous';
-export type AspectFamilyId = 'melody';                                        // 'voice' | 'envelope' | 'space' later
-export type AspectId = 'hypnotic' | 'mechanical' | 'wandering';
-export type AspectPick = AspectId | 'theme';                                  // 'theme' = the selectable "as theme" member of a deal
+export const ASPECT_FAMILY_IDS = ['melody', 'envelope', 'distance', 'voice'] as const;   // revisions Tasks 7 and 10
+export type AspectFamilyId = (typeof ASPECT_FAMILY_IDS)[number];
+export const ASPECT_IDS_BY_FAMILY;   // melody: hypnotic, mechanical, wandering · envelope: plucked, swelling, held · distance: near, far, remote · voice: glassy, woody, hollow
+export type AspectIdOf<F extends AspectFamilyId> = (typeof ASPECT_IDS_BY_FAMILY)[F][number];
+export type AspectId = AspectIdOf<AspectFamilyId>;                            // every family's ids; no 'theme' member (revisions Task 6)
 export const THEMES: Record<ThemeId, Partial<BandTable>>;                     // classic: {}
-export const ASPECT_FAMILIES: Record<AspectFamilyId, { keys: readonly BandKey[]; options: Record<AspectId, Partial<BandTable>> }>;
+export const ASPECT_FAMILIES: { [F in AspectFamilyId]: AspectFamily<F, /* F's keys */ BandKey> };
+// AspectFamily<F, K> = { keys: readonly K[]; options: Record<AspectIdOf<F>, Partial<Pick<BandTable, K>>> }
 
 // src/data/bands/resolveBands.ts — PER ROBOT: at most one aspect per family
 export function resolveBands(theme: ThemeId, robotAspects: Partial<Record<AspectFamilyId, AspectId>>): BandTable;
@@ -335,27 +409,38 @@ export function dealAspects(identity: WorldIdentity, companies: readonly Company
   Map<string /* robotId */, Partial<Record<AspectFamilyId, AspectId>>>;
 
 // src/stores/loadingStore.ts (JSON)
-{ theme: ThemeId; aspects: Partial<Record<AspectFamilyId, AspectPick[]>> }   // lists in canonical option order; empty = all as theme
+{ theme: ThemeId; aspects: Partial<Record<AspectFamilyId, AspectId[]>> }     // lists in canonical option order; empty = all as theme
 
 // src/utils/seedBaseline.ts
-export interface WorldIdentity { attenuationStyleName: string; coordinates: { x; y }; theme: ThemeId; aspects: Partial<Record<AspectFamilyId, AspectPick[]>> }
+export interface WorldIdentity { attenuationStyleName: string; coordinates: { x; y }; theme: ThemeId; aspects: Partial<Record<AspectFamilyId, AspectId[]>> }
 
 // src/types/session.ts — version 3
 theme?: ThemeId;                                       // absent = 'classic'
-aspects?: Partial<Record<AspectFamilyId, AspectPick[]>>; // absent = {}
+aspects?: Partial<Record<AspectFamilyId, AspectId[]>>;   // absent = {}
 
 // src/types/controls.ts
 multiple?: true;                                       // RadioButtonSchema: value is string[], onChange(string[]); cabinet pops each selected option
+appearance?: 'cabinet' | 'muted' | 'list';             // 'list' (revisions Task 3); an option gains meta?: string; RadioButton gains trailing?: (value) => ReactNode
 
 // src/data/transmissionPresets.ts
 export interface TransmissionPreset { id: string; nameKey: ContentKey; link: string }  // a share URL or a bare "?seed=…" query
 
 // src/utils/deviceFlags.ts — localStorage 'trace-atlas.device.v1'
 { heardWorld: true }
+
+// src/stores/uiStore.ts — revisions Task 12 (JSON)
+sceneWash: 'clear' | 'covering' | 'covered' | 'uncovering';                  // default 'clear'
+
+// src/systems/worldChange.ts — revisions Task 12; the pending change is module state, never in a store
+export function requestWorldChange(change: () => void): void;
+export function attachSceneWash(): () => void;                               // the mounted wash; with none, a request runs at once
 ```
 
-The link: `?seed=<AS name>&x=<int>&y=<int>[&theme=<ThemeId>][&melody=<pick>,<pick>…][&s=1.<blob>]` — the two new params
-plain, the set as a comma list in canonical order, written only when not the default, never inside the blob.
+The link: `?seed=<AS name>&x=<int>&y=<int>[&theme=<ThemeId>][&melody=<id>,<id>…][&envelope=…][&distance=…][&voice=…][&s=1.<blob>]`
+— the new params plain, each set as a comma list in canonical order, written only when not the default, never inside
+the blob. *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 3, 6, 7, 10 and 12):*
+the shapes above are the shipped ones after the revisions: four families and their params, no `AspectPick`,
+`PickBand`, the `list` appearance, `sceneWash` and the request.
 
 ### 1.4 Where each piece lives, and what moves
 
@@ -364,8 +449,10 @@ plain, the set as a comma list in canonical order, written only when not the def
   **`timelineMap.ts`** — the scope, `pauseWorldTimelines`, `resumeWorldTimelines`. **`workLoop.ts`** — `pauseWorkLoop`,
   `resumeWorkLoop`, the shifted `now`. **`PowerRockerSwitch.tsx`** — the dialog and its state go; the off-branch timeline.
 - **`OffScreen.tsx` (+ `.css`)** — the gate read, the two axes, Current, Roll, Keep, the readout, the veil, the boot
-  timeline, the footer. Its pick model stays a `RadioButton` per axis (the theme row and the Melody row are two more
-  muted `RadioButton`s). **`deviceFlags.ts`** new. **`transmissionPresets.ts`** — three links. **`sessionShareUtils.ts`**
+  timeline, the footer. Its pick model stays a `RadioButton` per axis: the Transmission row in the `list` appearance
+  with Roll in its Current row, the theme row `muted`, and one cabinet `multiple` row per aspect family (amended
+  2026-10-31, [OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4 and 9; every row was muted).
+  **`deviceFlags.ts`** new. **`transmissionPresets.ts`** — three links. **`sessionShareUtils.ts`**
   — `mirrorWorldToUrl`, `searchOf`. **`SectorSettingsDrawer.tsx`** / **`sectorSettingsConfig.ts`** — the shortcut rows
   deleted, the status line through `describeWorld`.
 - **`src/data/bands/*`** new; **`loadingStore.ts`** new; **`seedBaseline.ts`**, **`worldLink.ts`**, **`types/session.ts`**,
@@ -379,6 +466,13 @@ plain, the set as a comma list in canonical order, written only when not the def
   `ROBOT_DATA_GRID.md` gain a column per theme and a note per aspect; `docs/UI_SHELL.md`, `docs/ROBOT_LIFECYCLE.md`,
   `docs/AUDIO_SYSTEM.md`, `docs/ANIMATION_SYSTEM.md`, `docs/SESSION_STORAGE.md` and `docs/MELODY_SYSTEM.md` each get the
   paragraph that describes the new behaviour; the roadmap gets 57; backlog 5 archives.
+- **The scene wash** (amended 2026-10-31, [OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 12 and 13):
+  **`uiStore.ts`** — `sceneWash`, `setSceneWash`. **`systems/worldChange.ts`** new — `requestWorldChange`,
+  `attachSceneWash`. **`animation/sceneWash.ts`** new — `startSceneWash` and the `scene-wash` timeline.
+  **`WorldView.tsx`** / **`.css`** — `div.world-view__wash` over the scene and under `MetaBox`, registered as
+  `'world-wash'`. **`utils/waterColumnColors.ts`** new — the water column's two stops at an hour, shared by
+  `WaterColumn` and the wash. The callers, `OffScreen`, `SectorSettingsDrawer` and `SessionListItem`, wrap their world
+  changes in the request.
 
 ### 1.5 Resolution and generation, spelled out
 
@@ -394,17 +488,21 @@ last two arguments, never the draw.
 **The deal, step by step** (assumptions 21–22). Generation runs as today under the theme's table: roster, then
 companies. Then `applyAspectDeal(localeId)`: for each family with a non-empty pick list, build the group list — the
 companies in spawn order, then every freelancer alone in roster order — rotate the pick list by the family's seeded
-offset, deal pick `i mod n` to group `i`, and for every robot in a group dealt an aspect (not `'theme'`), re-derive that
-family's keys from the same noise with `resolveBands(theme, { [family]: aspect })`'s bands; record `loadedUnder` on the
-robot. One pick → every robot carries it; `['theme', 'hypnotic']` → alternating plain and hypnotic groups; the Melody
-row with nothing picked → the pass is a no-op. The baseline generator runs the identical pass, so an untweaked dealt
-world diffs empty against its own seed.
+offset, deal pick `i mod n` to group `i`, and for every robot in a group, re-derive that family's keys from the same
+noise with `resolveBands(theme, { [family]: aspect })`'s bands; record `loadedUnder` on the robot. One pick → every
+robot carries it; `['hypnotic', 'wandering']` → alternating hypnotic and wandering groups; no family with picks → the
+pass is a no-op. The baseline generator runs the identical pass, so an untweaked dealt world diffs empty against its
+own seed. *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 6 and 8):* with no
+`'theme'` member, every group of a family with picks is dealt; each family re-derives through its own derive function
+and, live, reaches the engine (assumption 22).
 
 ### 1.6 The Guide's part
 
 Nothing on the off screen explains itself except the one-line description under the picked theme and under the picked
-aspect — `home.off.themeDescription.<id>`, `home.off.aspectDescription.melody.<id>` — and those strings are the ones the
-Guide (roadmap 51) will read for its Themes page. No link, no help popover, no manual on this screen.
+aspect — `home.off.themeDescription.<id>`, `home.off.<family>Description.<id>` — and those strings are the ones the
+Guide (roadmap 51) will read for its Themes page. No link, no help popover, no manual on this screen. *Amended
+2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 7 and 9):* every family row has its own
+line under it, naming the aspect toggled on last, else the last of its set, else the family's `none` sentence.
 
 ---
 
@@ -413,10 +511,10 @@ Guide (roadmap 51) will read for its Themes page. No link, no help popover, no m
 ```
 src/
   data/bands/
-    bandKeys.ts              NEW  BandKey, the three band kinds, BandTable
+    bandKeys.ts              NEW  BandKey, the band kinds (four after the revisions: PickBand), BandTable
     classic.ts               NEW  every lifted constant, byte-for-byte (§5.2 parity)
     themes.ts                NEW  ThemeId, THEMES (five partial columns; placeholders until the listen)
-    aspects.ts               NEW  AspectFamilyId, AspectId, ASPECT_FAMILIES (melody only)
+    aspects.ts               NEW  AspectFamilyId, AspectId, ASPECT_FAMILIES (melody; envelope, distance, voice by the revisions)
     resolveBands.ts          NEW  resolveBands() — per robot
     dealAspects.ts           NEW  dealAspects() — round-robin over companies then freelancers, seeded rotation
     loadingContext.ts        NEW  getBand(), setLoading(), withLoading()
@@ -457,18 +555,43 @@ docs/
 
 Tests are colocated (`*.test.ts(x)` beside the module), as the repo does everywhere.
 
+*Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md)):* the revisions add
+`src/systems/worldChange.ts`, `src/animation/sceneWash.ts` and `src/utils/waterColumnColors.ts`. They change
+`uiStore.ts`, `WorldView.tsx` / `.css`, `WaterColumn.tsx`, `RadioButton.tsx` / `.css`, `types/controls.ts`,
+`OffScreen.tsx` / `.css`, `SectorSettingsDrawer.tsx` and `SessionListItem.tsx` for the screen and the wash; and
+`bandKeys.ts`, `classic.ts`, `aspects.ts`, `resolveBands.ts`, `dealAspects.ts`, `loadingIdentity.ts`,
+`spawnSystem.ts`, `worldTransition.ts`, `types/Robot.ts`, `types/session.ts`, `worldLink.ts`, `describeWorld.ts`,
+`loadingNames.ts` and `home.ts` for the families.
+
 ---
 
 ## 3. Implementation Boundaries & Constraints
 
-- **Nothing pops or plays on the off screen.** Every pick is `applySessionPayload` / `retransmitWorld` on the faint
-  world; no `AudioEngine.start()` runs from `OffScreen`; the rocker is the only gesture that makes sound.
+- **Nothing plays on the off screen, and only the aspect rows pop.** Every pick is `applySessionPayload` /
+  `retransmitWorld` on the faint world; no `AudioEngine.start()` runs from `OffScreen`; the rocker is the only gesture
+  that makes sound. *Amended 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 9, note 5):*
+  this was "nothing pops or plays". The aspect family rows now pop on hover and select; the theme row, the
+  Transmission list, Roll and Keep stay flat (Crawford's answer 5).
+- **A user-gesture world change waits under the scene wash.** *Added 2026-10-31
+  ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 12 and 13, note 7); it changes how a retransmit is
+  sequenced, an "ask first" item Crawford answered yes (answer 4).* The off screen's picks, Roll, the theme and family
+  rows, Foundry's Retransmit and a session Load call `requestWorldChange(change)` (`src/systems/worldChange.ts`). The
+  change waits at module scope while `uiStore.sceneWash` is `'covering'`: the wash (`src/animation/sceneWash.ts`, the
+  `'ui'` timeline `scene-wash`) fades `div.world-view__wash` to opaque over 0.5 s, painted in the water column's own
+  colours at the hour, and sets `'covered'`. The request module then runs the change whole and sets `'uncovering'`.
+  The wash fades out over 0.5 s, starting on the frame after the change so the rebuild's long task cannot eat it, and
+  sets `'clear'`. The last request before the cover wins, and each cover runs one change. Under
+  `prefers-reduced-motion`, or with no wash mounted, the change runs at once and the state stays `'clear'`. The boot,
+  the link boot and `applySessionPayload`'s own retransmit never wait, and an unedited Retransmit asks for nothing.
+  The wash's timelines set only that state; nothing in it touches the audio.
 - **Pause is a transport / context / timeline affair.** No `setTimeout`, `setInterval` or `requestAnimationFrame`
   anywhere in the pause or resume paths; the boot theatre and the veil fade are GSAP timelines in `timelineMap`.
 - **GSAP timelines trigger semantic state only.** `fadeOffScreen()` resolves a promise the controller awaits; it does
   not call `AudioEngine` from a callback.
 - **State stays JSON-serialisable.** `loadingStore` holds two strings' worth of ids; `worldState` is module state in
-  `powerController` because it mirrors the audio graph, which is runtime, and must not persist.
+  `powerController` because it mirrors the audio graph, which is runtime, and must not persist. *Amended 2026-10-31
+  ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 12):* `uiStore.sceneWash` is one string; the change
+  waiting under the wash is a function, kept as module state in `worldChange.ts` and never in a store.
 - **Themes change loading bands only.** `GLOBAL_AUDIO_SEED_RANGES`, every slider's range, every LFO swing range and every
   clamp are untouched; the LFO engine never reads the band table.
 - **The day is wall-clock and never gated** (CLAUDE.md guardrail); this spec adds no code to the day clock and removes
@@ -483,8 +606,10 @@ Tests are colocated (`*.test.ts(x)` beside the module), as the repo does everywh
 - **Themes are world-wide, aspects are robot-side — a hard rule now, not a lean:** a band dealt per company cannot
   name `bpm` or a global-chain key; the family type (assumption 15) enforces it.
 - **Ask first:** any new dependency (none is expected); any change to the lifecycle beyond §1.2's table (for instance a
-  resume path from `'paused'` into a different world); widening the v1 key list in assumption 16; a fourth band kind;
-  popping cabinetry on the off screen (the no-pop decision stands until Crawford flips it, §7).
+  resume path from `'paused'` into a different world); widening the v1 key list in assumption 16; a fifth band kind;
+  popping any off-screen control beyond the aspect rows. *Amended 2026-10-31
+  ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md)):* the fourth band kind, the aspect rows' pop and the
+  wash's resequencing of a retransmit were each asked and answered yes that day (Crawford's answers 3, 5 and 4).
 - **Never:** store a timeline, the suspended context or a payload in Zustand; write the tweak blob into the URL; add a
   dialog back; recreate autosave in any form; test a file's text.
 
@@ -562,11 +687,16 @@ source, CSS or doc file. Docs-only and copy-only tasks have no test and say so o
   that generates under a non-Classic table and sees a different band applied — the parity-fixture rule: a distinguishing
   value, so the test cannot pass by coincidence).
 - `dealAspects.test.ts`: one pick reaches every robot; two picks alternate over companies in spawn order, then
-  freelancers in roster order; `'theme'` leaves its groups undealt; the rotation is seeded (two identities differ, one
-  identity repeats); an empty list deals nothing; a world of three companies and no freelancers still seats three picks.
+  freelancers in roster order; the rotation is seeded (two identities differ, one identity repeats); an empty list
+  deals nothing; a world of three companies and no freelancers still seats three picks. *Amended 2026-10-31
+  ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 6):* the case where `'theme'` leaves its groups
+  undealt went with the member.
 - `spawnSystem.test.ts` (deal pass): after `applyAspectDeal`, a dealt robot's four Melody fields equal a direct
   re-derivation from its noise under the aspect's bands, and every other field and every undealt robot are
-  byte-for-byte unchanged; `loadedUnder` is written for dealt robots only.
+  byte-for-byte unchanged; `loadedUnder` is written for dealt robots only. *Amended 2026-10-31
+  ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 8 and 10):* the same holds per family, for
+  Envelope's envelope, Distance's sends and Voice's waveforms, filters and layer gain, and the live pass makes each
+  dealt family's engine call; the Task 21 parity fixture passes unmodified.
 - `seedBaseline.test.ts`: a baseline generated for `{ theme: 'calm' }` differs from Classic's; `diffWorldAgainstSeed` of
   an untweaked Calm world against its own baseline is empty — and so is that of an untweaked world dealt
   `['hypnotic', 'mechanical']` (the baseline runs the deal).
@@ -590,17 +720,27 @@ source, CSS or doc file. Docs-only and copy-only tasks have no test and say so o
 - `RadioButton.test.tsx` (extend): with `multiple`, clicking toggles an option in and out of the `string[]` value,
   several can be on at once, each selected option carries the popped / muted selected state, the group has no
   `radiogroup` role; without `multiple` nothing changes.
-- `OffScreen.test.tsx` (the Melody row): picking two aspects calls `retransmitWorld` with both in canonical order;
-  picking "as theme" alongside one aspect keeps both; clearing the row sends an empty list; the readout tail joins them.
-- `CompanyScreen.test.tsx` / `RobotScreen.test.tsx`: the "loaded under" line shows the dealt aspect for a member's
-  company and a freelancer's own, and nothing when the robot is as theme.
+- `OffScreen.test.tsx` (the family rows; amended 2026-10-31, [OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md)
+  Tasks 6 and 9, was the Melody row with "as theme"): picking two aspects in a family calls `retransmitWorld` with the
+  whole loading, that family's two in canonical order and the others' as they were; clearing a row sends an empty list
+  for it; the readout tail joins every family's picks.
+- `CompanyScreen.test.tsx` / `RobotScreen.test.tsx`: the "loaded under" line shows the dealt aspects for a member's
+  company and a freelancer's own, every family in family order, and nothing for an undealt robot (amended 2026-10-31,
+  [OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 6: was "nothing when the robot is as theme").
+- **Added 2026-10-31 ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md)):** `RadioButton.test.tsx` (the `list`
+  appearance, `meta`, `trailing`); `worldChange.test.ts` (the four states, the last request winning, reduced motion and
+  no mounted wash running at once); `sceneWash.test.ts` (the cover and the uncover, the fade-out a frame after the
+  change, no audio touched); and the callers' cases in `OffScreen.test.tsx`, `SectorSettingsDrawer.test.tsx` and
+  `SessionListItem.test.tsx` (each change waits for the cover; an unedited Retransmit asks for nothing).
 - `SectorSettingsDrawer.test.tsx`: the status line shows the theme; no shortcut buttons.
 - `content.test.ts` passes (every new key read; the deleted keys gone).
 - **Checkpoints (Crawford, in the browser):** A after `power-pause` — flip off mid-phrase, wait, flip on: resumes; robots
   frozen; day light moved. B after `off-screen-chooser` — the six stories by hand, phone and desktop; Keep; the URL.
   C after `band-table` — nothing audible changed (a Classic world sounds as before). D after `themes-and-aspects` — the
   **listen task**: the five themes and three aspects on one seed, bands tuned until each is audibly itself; the numbers
-  then go into `themes.ts` / `aspects.ts` and the grids.
+  then go into `themes.ts` / `aspects.ts` and the grids. *Amended 2026-10-31
+  ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 11):* the nine new columns wait on that plan's own
+  listen, Crawford's; until then they are placeholders in `aspects.ts` and the grids.
 
 ### 5.4 Performance gates
 
@@ -655,11 +795,17 @@ source, CSS or doc file. Docs-only and copy-only tasks have no test and say so o
 10. **Assumption 23's appearance on the off screen.** Crawford asked for the multi-select to "use the cabinetry effect
     just like buttons and toggles do" — read here as the variant's `cabinet` appearance in the app, with the off screen
     still `muted` under the layout rework's no-pop decision. If he meant the off screen's rows should pop, the theme row
-    and the Melody row switch to `cabinet` (one line each) and the sketch's "nothing pops" note is amended.
+    and the Melody row switch to `cabinet` (one line each) and the sketch's "nothing pops" note is amended. **Answered
+    2026-10-31, the other way ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Task 9, note 5 and answer 5):**
+    the aspect rows pop in `cabinet`; the theme row stays `muted`, as do the list, Roll and Keep; the sketch's header
+    says so.
 11. **Assumption 22 re-derives from the same noise.** It relies on every Melody key being drawn by `getSeededVal` from a
     `dataId` + `spawnIndex` the pass can repeat; `rhythmicDensity`, `pitchRepeat`, the two toggles and `rests` are
     (survey). If a later family's key is drawn through `getUniformSeededVal` or a dependent draw, its re-derivation
-    needs the same recipe — the pass should be written per key, not per field type.
+    needs the same recipe — the pass should be written per key, not per field type. **Resolved 2026-10-31
+    ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 8 and 10):** each family's pass is the derive
+    function spawn itself uses, so its recipe, the fitted send draws and the waveform pick included, repeats by
+    construction; the Task 21 parity fixture passed unmodified.
 12. **Reshuffling on a pick change.** Adding a third pick may move Hypnotic from one company to another (the rotation
     is of the whole list). Accepted — it is a retransmit and tweaks are gone anyway — but worth a line in the Guide's
     description later.

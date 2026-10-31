@@ -566,7 +566,39 @@ spec [OFF_SCREEN.md](../specs/OFF_SCREEN.md), plan [OFF_SCREEN.md](../tasks/OFF_
 modules — `power-pause` (T0–8), `off-screen-chooser` (T9–17), `band-table` (T18–28), `themes-and-aspects` (T29–35) —
 and the docs (T36–38), one commit per task, RED first, every new gate mutation-checked by hand. Crawford passed the
 listen and every checkpoint's browser half on 2026-10-31 ("checkpoints passed, everything sounds good"); the automated
-halves are recorded under each checkpoint in the plan (Checkpoint D: 342 files / 12 884 tests).
+halves are recorded under each checkpoint in the plan (Checkpoint D: 342 files / 12 884 tests). Revised after the listen
+the same day: the About, Decisions and Not Doing below record the first build, and the block that follows says what
+changed. It reverses four of them: the no-pop off screen, the as-theme pick, three band kinds and one aspect family.
+
+### Revised after the listen (2026-10-31)
+
+Crawford's eight notes after passing the listen became
+[docs/tasks/OFF_SCREEN_REVISIONS.md](../tasks/OFF_SCREEN_REVISIONS.md), built the same day on the same branch, one
+commit per task, RED first; the spec's amended paragraphs say so where they stand.
+
+1. **The worlds in a list** → `RadioButton`'s third appearance, `list`: full-width rows with a dot, the name and, on a
+   save, "saved …" (the Sessions list's absolute time; a relative "2 days ago" needs a helper, Crawford's call). The
+   cabinetry went from the Transmission axis. Tasks 3–5.
+2. **Roll on the Current row** → Roll is that row's trailing action, a small flat button; Keep stays alone under the
+   list, relabelled "Save the last session" (his words). Task 4.
+3. **The remaining families** → Envelope (Plucked, Swelling, Held), Distance (Near, Far, Remote; the wireframe's Space,
+   renamed) and Voice (Glassy, Woody, Hollow). Each is a key set, three placeholder columns, one derive function shared
+   by spawn and the deal, and the engine call a hand edit makes. Voice brought a fourth band kind, `PickBand`, weighting
+   the five waveforms, so the table holds 79 keys. Tasks 7, 8 and 10; the numbers wait on a listen (Task 11).
+4. **No "as theme"** → the `'theme'` pick is gone from the type, the store, the deal, the link and the screen; a cleared
+   row is every robot as theme in that family. Task 6.
+5. **The aspect cabinetry pops** → the four family rows render in `cabinet` and pop on hover and select; the theme row,
+   the list, Roll and Keep stay flat. The spec's "nothing pops" and its §7 question 10 are amended. Task 9, which also
+   let the desk column scroll once four rows outgrew a 1280 × 720 screen.
+6. **The veil stays put on the phone** → the column scrolls in its own `.off-screen__scroll` child over a still veil.
+   Task 2.
+7. **A smooth change between worlds** → the scene wash: a user-gesture world change waits under a wash in the water
+   column's own colours, 0.5 s in, the rebuild, 0.5 s out (`uiStore.sceneWash`, `requestWorldChange`,
+   `animation/sceneWash.ts`). Reduced motion cuts; a boot or a link arrival never washes. Tasks 12–13, plus two fixes
+   found at the checks: the fade-out starts a frame after the rebuild, and an unedited Retransmit raises no wash.
+   `perf:idle` off the screen shows no rise.
+8. **The phone's top padding** → `calc(var(--power-corner-height) + 12px)`, as given; measured, the label sits 24 px
+   under the corner's bottom. Task 1.
 
 ### About
 
@@ -643,9 +675,12 @@ halves are recorded under each checkpoint in the plan (Checkpoint D: 342 files /
 ### Open
 
 - The PR (Crawford's).
-- Copy, all stand-ins marked in `src/content/`: the five theme sentences, the Melody label, the as-theme label and four
-  Melody sentences (`home.ts`), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body
-  (`session.ts`).
+- Copy, all stand-ins marked in `src/content/`: the five theme sentences, the Melody label and four Melody sentences,
+  the Envelope, Distance and Voice labels, names and sentences, Roll and a save row's "saved …" (`home.ts`), `Loaded
+  Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). The as-theme label went
+  with the pick.
+- From the revisions: Task 11's listen for the nine new columns, the Looks and reviews at its Checkpoints A–D, and
+  Checkpoint C's Pixel `perf:audio` A/B on the densest, wettest world.
 - The three preset links (`src/data/transmissionPresets.ts`), one-line edits.
 - Checkpoint A's and D's Pixel `perf:audio` A/B counts were not handed over; the boxes are ticked on Crawford's word.
 - Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or Roll) — a

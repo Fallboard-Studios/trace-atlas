@@ -118,4 +118,36 @@ Every seeded robot value above is drawn into a **band** from one table, `src/dat
 - **Hypnotic** — a note or two, circled: the variance toggle always on and narrow (1–2 of the 8 indices), medium density, and a high Pitch Repeat so a tiled motif keeps its pitches. Motif Length is the theme's.
 - **Mechanical** — a long motif always on (6–8 steps), narrow variance (1–3), high density: the same long cell, hardly a gap.
 - **Wandering** — wide variance (6–8), the motif off on about 85 % of robots (and 1–8 when on), low-to-medium density and little repeat: free onsets over the measure, few pitches held.
-- **As theme** (`'theme'` in a pick list) is not a column: a group dealt it keeps the theme's bands, which is how a mixed fleet keeps plain robots beside the aspects.
+- **No as-theme pick** (removed 2026-10-31, `docs/tasks/OFF_SCREEN_REVISIONS.md` Task 6): a family with picks deals one to every group, and a family with none leaves every robot on the theme's bands.
+
+**Envelope, Distance and Voice aspects** (`docs/tasks/OFF_SCREEN_REVISIONS.md` Tasks 7 and 10, 2026-10-31). **Placeholders, not yet heard:** the revisions were built unattended, so these columns are the plan's starting guesses, waiting on Crawford's listen (that plan's Task 11). A lit band is `min–max · lit`; a dash leaves the band the theme's.
+
+| Band key | Row above | Classic | Plucked | Swelling | Held |
+|---|---|---|---|---|---|
+| `robot.attack` | Attack, s (a linear-curve robot) | 0–2 | 0–0.03 | 0.3–1.2 | 0.02–0.15 |
+| `robot.decay` | Decay, s | 0–2 | 0.1–0.6 | — | — |
+| `robot.sustain` | Sustain (0–1) | 0–1 | 0–0.25 | 0.7–1 | 0.9–1 |
+| `robot.release` | Release, s (a linear-curve robot) | 0–2 | 0.05–0.4 | — | 0.8–2 |
+| `robot.shapedAttack` | Attack, s, of a shaped robot · the share | 0.03–0.25 · 0.21 | 0.005–0.04 · 0.5 | 0.3–1.2 · 0.4 | — |
+| `robot.shapedRelease` | Release, s, of a shaped robot · the share | 0.15–0.8 · 0.275 | 0.1–0.4 · 0.6 | — | 0.8–2 · 0.275 |
+
+- **Plucked** — struck at once (under 30 ms, the shaped band as short), a fast decay to a low sustain, a quick let-go, more robots shaped.
+- **Swelling** — rises over 0.3–1.2 s, shaped or not, into a high sustain.
+- **Held** — starts promptly, sustains in full and rings 0.8–2 s after, shaped or not.
+
+| Band key | Row above | Classic | Near | Far | Remote |
+|---|---|---|---|---|---|
+| `reverbSend` | Reverb (0–1) · share carrying it | 0.1–0.6 · 1 | 0–0.1 · 0.3 | 0.45–0.8 · 1 | 0.65–0.95 · 1 |
+| `delaySend` | Delay (0–1) · share carrying it | 0–0.3 · 0.75 | 0–0.05 · 0.1 | 0–0.1 · 0.3 | 0.35–0.6 · 1 |
+
+- **Near** keeps both sends low and mostly unlit; **Far** sinks deep into the Reverb with little Delay; **Remote** sinks deep into both. A room's own size (`reverb.decay`, `delay.delayTime`) is a global band and a theme's, so Distance sinks robots into the rooms without lengthening them.
+
+| Band key | Row above | Classic | Glassy | Woody | Hollow |
+|---|---|---|---|---|---|
+| `robot.waveform` | the voice's waveform and Layer 1–3: Type, weighted sine / square / triangle / sawtooth / pulse | 1 / 1 / 1 / 1 / 1 | 4 / 0.5 / 4 / 0.5 / 1 | 1 / 3 / 4 / 1 / 1 | 0.5 / 4 / 0.5 / 1 / 4 |
+| `robot.filterFreq` | Cutoff, Hz, of a common (open) robot | 2000–8000 | 5000–9000 | 1200–3500 | 1500–5000 |
+| `robot.accentFilterFreq` | Cutoff, Hz, of an accent robot · the accent share | 400–2500 · 0.27 | 400–2500 · 0.1 | — | 600–2000 · 0.45 |
+| `robot.accentFilterQ` | Resonance of an accent robot | 3–8 | — | — | 6–12 |
+| `robot.layerGain` | Layer 1–3: Gain · the share of Layers 2 and 3 sounding | 0.2–1.2 · 0.5 | 0.2–0.5 · 0.3 | 0.6–1 · 0.7 | — |
+
+- **Glassy** leans sine and triangle under an open cutoff, with few dark accent robots and quiet partials; **Woody** leans triangle and square under a lower cutoff, with warm layers that mostly sound; **Hollow** leans square and pulse under a lower cutoff, with more robots on the resonant accent filter and a higher Q. The waveform is a `PickBand`: the draw takes the first waveform whose cumulative weight it falls under, so Classic's equal weights are the old uniform pick.
