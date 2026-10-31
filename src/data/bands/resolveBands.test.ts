@@ -3,6 +3,7 @@
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
 
+import { ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
 import { overlayBands, resolveBands } from './resolveBands';
 import { CLASSIC } from './classic';
 import { ROBOT_LIT_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
@@ -13,8 +14,10 @@ import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS, type AspectPick } from 
 // MOCKS
 // ========================================
 
-// Every real column is {} until the listen (plan Task 34), so the overlay direction is proved on injected columns: Calm
-// moves bpm, Hypnotic moves noteVariance. The originals are spread, so every other export is the real one.
+// The overlay direction is proved on injected columns, whatever the real placeholders hold (plan Task 34 fills them,
+// Task 35 tunes them): Calm moves bpm, Hypnotic moves noteVariance, and an injected EMPTY column (Bold, Wandering)
+// proves silence. The originals are spread, so every other export is the real one; the real columns are read below
+// through vi.importActual.
 const injected = vi.hoisted(() => ({
   calm: { bpm: { min: 150, max: 160 } },
   hypnotic: { 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
@@ -22,7 +25,7 @@ const injected = vi.hoisted(() => ({
 
 vi.mock('./themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, calm: injected.calm } };
+  return { ...actual, THEMES: { ...actual.THEMES, calm: injected.calm, bold: {} } };
 });
 
 vi.mock('./aspects', async (importOriginal) => {
@@ -30,9 +33,16 @@ vi.mock('./aspects', async (importOriginal) => {
   const melody = actual.ASPECT_FAMILIES.melody;
   return {
     ...actual,
-    ASPECT_FAMILIES: { ...actual.ASPECT_FAMILIES, melody: { ...melody, options: { ...melody.options, hypnotic: injected.hypnotic } } },
+    ASPECT_FAMILIES: {
+      ...actual.ASPECT_FAMILIES,
+      melody: { ...melody, options: { ...melody.options, hypnotic: injected.hypnotic, wandering: {} } },
+    },
   };
 });
+
+// The real columns, unmocked, for the placeholder checks (plan Task 34) at the end of this file.
+const realThemes = await vi.importActual<typeof import('./themes')>('./themes');
+const realAspects = await vi.importActual<typeof import('./aspects')>('./aspects');
 
 // ========================================
 // FIXTURES
@@ -266,10 +276,8 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(restCalm).toStrictEqual(restClassic);
   });
 
-  it('a theme with an empty column resolves to Classic exactly (the placeholder columns are silent)', () => {
-    for (const theme of ['bold', 'adventurous', 'perilous'] as const) {
-      expect(resolveBands(theme, {}), theme).toStrictEqual(CLASSIC);
-    }
+  it('a theme with an empty column (Bold, injected empty) resolves to Classic exactly', () => {
+    expect(resolveBands('bold', {})).toStrictEqual(CLASSIC);
   });
 
   it('an aspect option replaces only its family keys: Hypnotic differs from Classic at noteVariance and nowhere else', () => {
@@ -287,7 +295,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(Object.keys(both)).toHaveLength(78);
   });
 
-  it('an aspect with an empty option column leaves the theme\'s table as it was', () => {
+  it('an aspect with an empty option column (Wandering, injected empty) leaves the theme\'s table as it was', () => {
     expect(resolveBands('calm', { melody: 'wandering' })).toStrictEqual(resolveBands('calm', {}));
   });
 
@@ -316,5 +324,116 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(unknownTheme).toBe('moody');
     const asTheme: AspectPick = 'theme';
     expect(asTheme).toBe('theme');
+  });
+});
+
+// ========================================
+// THE PLACEHOLDER COLUMNS (plan Task 34)
+// ========================================
+
+describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assumption 16)', () => {
+  // The real modules (the mocks above hide Calm, Bold, Hypnotic and Wandering), overlaid by the real resolver's own pure
+  // step, so each check is on the columns as shipped. Task 35 replaces the numbers; these pin the shape and the intent.
+  const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+  const movedKeys = (table: BandTable) => (Object.keys(table) as (keyof BandTable)[]).filter((key) => !same(table[key], CLASSIC[key]));
+  const themeColumn = (theme: ThemeId) => realThemes.THEMES[theme];
+  const melodyColumn = (option: (typeof ASPECT_IDS)[number]) => realAspects.ASPECT_FAMILIES.melody.options[option];
+
+  it.each(['calm', 'bold', 'adventurous', 'perilous'] as const)(
+    '%s differs from Classic on a non-empty subset of the v1 key list and nowhere else',
+    (theme) => {
+      const column = themeColumn(theme);
+      const moved = movedKeys(overlayBands(CLASSIC, column));
+      expect(moved.length).toBeGreaterThan(0);
+      for (const key of moved) expect(realThemes.THEME_BAND_KEYS as readonly string[]).toContain(key);
+      // Every key the column names moves the band: a column entry equal to Classic's would be a no-op worth deleting.
+      expect([...moved].sort()).toEqual(Object.keys(column).sort());
+    },
+  );
+
+  it('Classic\'s column stays empty: Classic is the lifted table', () => {
+    expect(realThemes.THEMES.classic).toStrictEqual({});
+  });
+
+  it('no two themes share a column: each is its own loading', () => {
+    const columns = (['calm', 'bold', 'adventurous', 'perilous'] as const).map((theme) => JSON.stringify(themeColumn(theme)));
+    expect(new Set(columns).size).toBe(4);
+  });
+
+  it.each(['hypnotic', 'mechanical', 'wandering'] as const)(
+    'Melody %s differs from Classic on a non-empty subset of the four Melody keys and nowhere else',
+    (option) => {
+      const column = melodyColumn(option);
+      const moved = movedKeys(overlayBands(CLASSIC, column));
+      expect(moved.length).toBeGreaterThan(0);
+      for (const key of moved) expect(realAspects.MELODY_BAND_KEYS as readonly string[]).toContain(key);
+      expect([...moved].sort()).toEqual(Object.keys(column).sort());
+    },
+  );
+
+  it('Hypnotic is low variance: its noteVariance toggle is always on, with a value band inside 1-2', () => {
+    const band = melodyColumn('hypnotic')['robot.noteVariance']!;
+    expect(band.offShare).toBe(0);
+    expect(band.min).toBeGreaterThanOrEqual(1);
+    expect(band.max).toBeLessThanOrEqual(2);
+    expect(band.min).toBeLessThanOrEqual(band.max);
+  });
+
+  it('Mechanical is dense: its rhythmicDensity band starts at 70 or above', () => {
+    const band = melodyColumn('mechanical')['robot.rhythmicDensity']!;
+    expect(band.min).toBeGreaterThanOrEqual(70);
+    expect(band.max).toBeLessThanOrEqual(100);
+  });
+
+  it('Wandering roams: high variance (6-8), low to medium density (at most 50), the motif mostly off', () => {
+    const wandering = melodyColumn('wandering');
+    expect(wandering['robot.noteVariance']!.min).toBeGreaterThanOrEqual(6);
+    expect(wandering['robot.noteVariance']!.max).toBeLessThanOrEqual(8);
+    expect(wandering['robot.rhythmicDensity']!.max).toBeLessThanOrEqual(50);
+    expect(wandering['robot.rhythmicMotifLength']!.offShare).toBeGreaterThanOrEqual(0.5);
+  });
+
+  it('every placeholder band is well formed and inside what its field can hold', () => {
+    // The field's own bounds, per key the v1 list and the Melody family allow (spec assumption 16); a key missing here
+    // is a key the list did not have when this was written, so it fails loudly rather than passing unbounded.
+    const BOUNDS: Partial<Record<keyof BandTable, readonly [number, number]>> = {
+      bpm: [20, 200], // the tempo the clock runs (src/constants/index.ts)
+      'filterLPF.frequency': [20, 20000],
+      'robot.attack': [0, ENVELOPE_TIME_MAX_SECONDS],
+      'robot.release': [0, ENVELOPE_TIME_MAX_SECONDS],
+      'robot.shapedAttack': [0, ENVELOPE_TIME_MAX_SECONDS],
+      'robot.shapedRelease': [0, ENVELOPE_TIME_MAX_SECONDS],
+      'robot.rhythmicDensity': [0, 100],
+      'robot.rests': [0, 100],
+      'robot.pitchRepeat': [0, 100],
+      'robot.noteVariance': [1, 8],
+      'robot.rhythmicMotifLength': [1, 8],
+      reverbSend: [0, 1],
+      delaySend: [0, 1],
+    };
+    const columns: Partial<BandTable>[] = [
+      ...Object.values(realThemes.THEMES),
+      ...Object.values(realAspects.ASPECT_FAMILIES.melody.options),
+    ];
+    expect(columns.length).toBe(8);
+    for (const column of columns) {
+      for (const [key, band] of Object.entries(column) as [keyof BandTable, BandTable[keyof BandTable]][]) {
+        const bounds = BOUNDS[key];
+        expect(bounds, `${key} has no bound here`).toBeDefined();
+        expect(band.min, key).toBeLessThanOrEqual(band.max);
+        expect(band.min, key).toBeGreaterThanOrEqual(bounds![0]);
+        expect(band.max, key).toBeLessThanOrEqual(bounds![1]);
+        if ('lit' in band) {
+          expect(band.lit, key).toBeGreaterThan(0);
+          expect(band.lit, key).toBeLessThanOrEqual(1);
+        }
+        if ('offShare' in band) {
+          // A toggle always on (offShare 0) is a legitimate aspect; one never on is not.
+          expect(band.offShare, key).toBeGreaterThanOrEqual(0);
+          expect(band.offShare, key).toBeLessThan(1);
+          expect(Number.isInteger(band.min) && Number.isInteger(band.max), key).toBe(true);
+        }
+      }
+    }
   });
 });

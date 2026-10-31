@@ -5,25 +5,29 @@
 // Both are built by hand from the regenerated baseline, never through fillWorldFromSeed, so they can check it.
 
 import { generateWorldSeedBaseline } from '../utils/seedBaseline';
+import { DEFAULT_LOADING, type LoadingIdentity } from '../data/bands/loadingIdentity';
 import type { SessionPayload } from '../types/session';
 import type { Company } from '../types/Company';
 
 export const FIXTURE_NAME = 'n40dh8p8';
 export const FIXTURE_COORDINATES = { x: 29, y: -14 };
 
-/** What buildSessionPayload produces for a world nobody touched: every world-level field is the seed's. */
+/** What buildSessionPayload produces for a world nobody touched: every world-level field is the seed's — drawn under
+ *  the given loading (Classic by default), since a theme's column moves the seed's values (themes-and-aspects T34), so
+ *  an untouched Calm world is one generated under Calm, not a Classic one relabelled. */
 export function untouchedWorld(
   name: string = FIXTURE_NAME,
-  coordinates: { x: number; y: number } = FIXTURE_COORDINATES
+  coordinates: { x: number; y: number } = FIXTURE_COORDINATES,
+  loading: LoadingIdentity = DEFAULT_LOADING
 ): SessionPayload {
-  const b = structuredClone(generateWorldSeedBaseline({ attenuationStyleName: name, theme: 'classic', aspects: {} }));
+  const b = structuredClone(generateWorldSeedBaseline({ attenuationStyleName: name, theme: loading.theme, aspects: loading.aspects }));
   return {
     version: 3,
     attenuationStyleName: name,
     coordinates: { ...coordinates },
     // band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): a payload built in the app always names its loading.
-    theme: 'classic',
-    aspects: {},
+    theme: loading.theme,
+    aspects: structuredClone(loading.aspects),
     globalAudio: b.globalAudio,
     lfoBank: b.lfoBank,
     globalLfoLinks: b.globalLfoLinks,

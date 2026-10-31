@@ -35,6 +35,7 @@ import {
   untouchedWorld,
 } from '../testUtils/worldLinkFixtures';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
+import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import type { SessionPayload } from '../types/session';
 
 // ========================================
@@ -298,10 +299,13 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
   // band-table T24 (docs/specs/OFF_SCREEN.md assumption 11): the loading identity rides as plain params - `theme` and
   // one per family, the set as a comma list in canonical order - written only when not the default, never in the blob.
   describe('the loading params', () => {
-    const CALM_PICKS: Pick<SessionPayload, 'theme' | 'aspects'> = { theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    // An untouched Calm world is generated under Calm (themes-and-aspects T34 gave the column numbers): the same seed
+    // relabelled would carry a blob of every band Calm moved.
+    const CALM_PICKS: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const untouchedCalmWorld = () => untouchedWorld(undefined, undefined, CALM_PICKS);
 
     it('a Calm world with two Melody picks encodes seed, x, y, theme and melody, the set in canonical order, and no blob', () => {
-      const params = encodeWorldLinkParams({ ...untouchedWorld(), ...CALM_PICKS });
+      const params = encodeWorldLinkParams(untouchedCalmWorld());
       expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody']);
       expect(params.get('theme')).toBe('calm');
       expect(params.get('melody')).toBe('hypnotic,mechanical');
@@ -325,7 +329,7 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     });
 
     it('a Calm world with picks round-trips through the link deep-equal', () => {
-      const payload = { ...untouchedWorld(), ...CALM_PICKS };
+      const payload = untouchedCalmWorld();
       expect(throughLink(payload)).toEqual(payload);
     });
 

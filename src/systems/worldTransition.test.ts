@@ -20,8 +20,10 @@ vi.mock('./factoryPlacementSystem', async (importOriginal) => {
 });
 
 // band-table T25 (docs/specs/OFF_SCREEN.md assumption 10): a theme or aspects change regenerates the global half under
-// the new bands and rebuilds the robots at the same identity. Every real column is {} until the listen (plan Task 34),
-// so Calm moves the tempo, the LPF cutoff and the density band here, over the spread originals.
+// the new bands and rebuilds the robots at the same identity. The direction is proved on injected columns, whatever the
+// real placeholders hold (plan Task 34 filled them, Task 35 tunes them): Calm moves the tempo, the LPF cutoff and the
+// density band here, and Wandering is an EMPTY option, so a Calm world with that pick is drawn under Calm's density
+// alone; the other options keep their real columns. Over the spread originals.
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
   return {
@@ -34,6 +36,14 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
         'robot.rhythmicDensity': { min: 90, max: 100 },
       },
     },
+  };
+});
+vi.mock('../data/bands/aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/aspects')>();
+  const melody = actual.ASPECT_FAMILIES.melody;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: { ...actual.ASPECT_FAMILIES, melody: { ...melody, options: { ...melody.options, wandering: {} } } },
   };
 });
 

@@ -14,11 +14,21 @@ vi.mock('../engine/beatClock', () => ({
 }));
 
 // band-table T24 (docs/specs/OFF_SCREEN.md assumptions 9 and 11): a link's theme must be in the loading store before the
-// locale is built. The real Calm column is {} until the listen (plan Task 34), so one moving the density band is injected
-// over the spread originals: a robot built under it has a density of 90 or more. The mock survives vi.resetModules.
+// locale is built. The direction is proved on injected columns, whatever the real placeholders hold (plan Task 34 filled
+// them, Task 35 tunes them): a Calm column moving the density band, so a robot built under it has a density of 90 or
+// more, and an EMPTY Hypnotic option, so the link's pick rides along without moving that density. Over the spread
+// originals; the mocks survive vi.resetModules.
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
   return { ...actual, THEMES: { ...actual.THEMES, calm: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+});
+vi.mock('../data/bands/aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/aspects')>();
+  const melody = actual.ASPECT_FAMILIES.melody;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: { ...actual.ASPECT_FAMILIES, melody: { ...melody, options: { ...melody.options, hypnotic: {} } } },
+  };
 });
 
 // ========================================

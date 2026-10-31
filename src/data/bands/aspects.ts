@@ -47,15 +47,35 @@ export interface AspectFamily<K extends BandKey> {
 }
 
 /**
- * The families and their options' columns. Every value is a placeholder until the listen (plan Task 34): assumption 16
- * sketches Hypnotic as low variance (toggle on, 1-2) at medium density (40-60), Mechanical as low variance at high
- * density (70-95) with a long motif, Wandering as high variance (6-8) at low-medium density (20-50) with the motif mostly
- * off. Until then every column is empty and a dealt robot sounds as the theme alone would make it.
+ * The families and their options' columns. Every number is a PLACEHOLDER (plan Task 34) until the listen (Task 35) sets
+ * it with Crawford, on assumption 16's sketch: Hypnotic is low variance (the toggle always on, 1-2) at medium density
+ * (40-60), circling a note or two (a high pitch repeat); Mechanical is low variance (1-3) at high density (70-95) with a
+ * long motif always on (6-8); Wandering is high variance (6-8) at low-medium density (20-50) with the motif mostly off
+ * and little repeat. Each column names only keys it moves, inside the family. resolveBands.test.ts pins the key set,
+ * the bounds and the intent.
  */
 export const ASPECT_FAMILIES: { readonly melody: AspectFamily<MelodyBandKey> } = {
   melody: {
     keys: MELODY_BAND_KEYS,
-    options: { hypnotic: {}, mechanical: {}, wandering: {} },
+    options: {
+      hypnotic: {
+        'robot.rhythmicDensity': { min: 40, max: 60 },
+        'robot.noteVariance': { offShare: 0, min: 1, max: 2 },
+        'robot.pitchRepeat': { min: 50, max: 100 },
+      },
+      mechanical: {
+        'robot.rhythmicDensity': { min: 70, max: 95 },
+        'robot.noteVariance': { offShare: 0, min: 1, max: 3 },
+        'robot.rhythmicMotifLength': { offShare: 0, min: 6, max: 8 },
+        'robot.pitchRepeat': { min: 30, max: 70 },
+      },
+      wandering: {
+        'robot.rhythmicDensity': { min: 20, max: 50 },
+        'robot.noteVariance': { offShare: 0, min: 6, max: 8 },
+        'robot.rhythmicMotifLength': { offShare: 0.85, min: 1, max: 8 },
+        'robot.pitchRepeat': { min: 0, max: 30 },
+      },
+    },
   },
 };
 

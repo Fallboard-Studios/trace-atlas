@@ -12,13 +12,18 @@ import type { BandKey } from './bandKeys';
 // MOCKS
 // ========================================
 
-// Every real column is {} until the listen (plan Task 34): Calm and Bold get one key each here, Hypnotic one Melody key,
-// over the spread originals.
+// The context is proved on injected columns, whatever the real placeholders hold (plan Task 34 filled them, Task 35 tunes
+// them): Calm and Bold get one key each here, Perilous an EMPTY column, Hypnotic one Melody key, over the spread originals.
 vi.mock('./themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./themes')>();
   return {
     ...actual,
-    THEMES: { ...actual.THEMES, calm: { bpm: { min: 150, max: 160 } }, bold: { 'robot.rests': { min: 0, max: 10 } } },
+    THEMES: {
+      ...actual.THEMES,
+      calm: { bpm: { min: 150, max: 160 } },
+      bold: { 'robot.rests': { min: 0, max: 10 } },
+      perilous: {},
+    },
   };
 });
 
@@ -83,7 +88,7 @@ describe('loadingContext (docs/specs/OFF_SCREEN.md assumption 15, plan Task 20)'
     expect(snapshot()).toStrictEqual(CLASSIC);
   });
 
-  it('a theme whose column is still empty reads as Classic', () => {
+  it('a theme whose column is empty (Perilous, injected empty) reads as Classic', () => {
     setLoading({ theme: 'perilous', aspects: {} });
     expect(snapshot()).toStrictEqual(CLASSIC);
   });
