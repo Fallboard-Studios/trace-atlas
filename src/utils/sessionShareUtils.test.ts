@@ -3,8 +3,8 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { SessionPayload } from '../types/session';
-import { buildShareUrl, copySessionLink } from './sessionShareUtils';
-import { encodeBlob } from './worldLink';
+import { buildShareUrl, copySessionLink, searchOf } from './sessionShareUtils';
+import { decodeWorldLink, encodeBlob } from './worldLink';
 import { FIXTURE_COORDINATES, FIXTURE_NAME, untouchedWorld } from '../testUtils/worldLinkFixtures';
 
 // ========================================
@@ -126,6 +126,43 @@ describe('buildShareUrl', () => {
     const fresh = await loadFreshWithQuery(url.search);
     expect(fresh.getSessionSharePayload()).toEqual(seamLinkPayload());
     vi.resetModules();
+  });
+});
+
+// docs/tasks/OFF_SCREEN.md Task 11 (spec assumption 13): a preset is a pasted link — a whole share URL or the bare
+// query — and searchOf gives decodeWorldLink the one shape it reads.
+describe('searchOf', () => {
+  it('takes the query off a full share URL', () => {
+    expect(searchOf('https://host/path?seed=a&x=1&y=2')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('passes a bare query through unchanged', () => {
+    expect(searchOf('?seed=a&x=1&y=2')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('gives the same search for the URL and the bare query, with a blob and percent-encoding kept byte-for-byte', () => {
+    const query = `?seed=Pelagos%207%21&x=29&y=-14&s=${encodeBlob({ robotOverrides: ROBOT_OVERRIDE })}`;
+    expect(searchOf(`${window.location.origin}/trace-atlas/${query}`)).toBe(query);
+    expect(searchOf(query)).toBe(query);
+  });
+
+  it('drops a fragment: a hash is not part of the world', () => {
+    expect(searchOf('https://host/trace-atlas/?seed=a&x=1&y=2#top')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('reads a path-relative link too', () => {
+    expect(searchOf('/trace-atlas/?seed=a&x=1&y=2')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('is empty for a link with no query, and for an empty string — never throws', () => {
+    expect(searchOf('https://host/trace-atlas/')).toBe('');
+    expect(searchOf('')).toBe('');
+  });
+
+  it('decodes to the same world either way', () => {
+    const query = `?seed=${FIXTURE_NAME}&x=${FIXTURE_COORDINATES.x}&y=${FIXTURE_COORDINATES.y}`;
+    expect(decodeWorldLink(searchOf(`https://host/trace-atlas/${query}`))).toEqual(untouchedWorld());
+    expect(decodeWorldLink(searchOf(query))).toEqual(untouchedWorld());
   });
 });
 

@@ -22,7 +22,7 @@ vi.mock('@/engine/AudioEngine', () => ({
 import { OffScreen } from './OffScreen';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { AudioEngine } from '@/engine/AudioEngine';
-import { TRANSMISSION_PRESETS } from '@/data/transmissionPresets';
+import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { saveNamedSession } from '@/utils/sessionStorageEngine';
 import { markHeardWorld } from '@/utils/deviceFlags';
 import { describeWorld } from '@/utils/describeWorld';
@@ -47,7 +47,7 @@ function liveIdentity() {
 const currentLabel = (loadedName?: string) => describeWorld(liveIdentity(), loadedName);
 
 // A save is a plain SessionPayload; the off screen only reads its name and hands the payload on.
-const savedPayload = (style: string): SessionPayload => ({ ...TRANSMISSION_PRESETS[0].payload, attenuationStyleName: style });
+const savedPayload = (style: string): SessionPayload => ({ ...presetPayload(TRANSMISSION_PRESETS[0])!, attenuationStyleName: style });
 
 beforeEach(() => {
   localStorage.clear();
@@ -196,11 +196,12 @@ describe('OffScreen — the Transmission row', () => {
 describe('OffScreen — picking', () => {
   beforeEach(() => markHeardWorld());
 
-  it("applies the preset's payload, once, on picking a preset", () => {
+  // docs/tasks/OFF_SCREEN.md Task 11 (spec assumption 13): a preset is a link; the pick applies what it decodes to.
+  it("applies the payload the preset's link decodes to, once, on picking a preset", () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
-    expect(applySessionPayload).toHaveBeenCalledWith(TRANSMISSION_PRESETS[1].payload);
+    expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[1]));
   });
 
   it("applies the saved session's payload on picking a save", () => {
@@ -286,7 +287,7 @@ describe('OffScreen — the well naming the pick', () => {
   it("names a preset by its copy and its world: '<name> · AS (x, y)'", () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
-    expect(readout().textContent).toBe(describeWorld(TRANSMISSION_PRESETS[1].payload, presetName(1)));
+    expect(readout().textContent).toBe(describeWorld(presetPayload(TRANSMISSION_PRESETS[1])!, presetName(1)));
   });
 
   it("names a save by its own name and its world: '<save> · AS (x, y)'", () => {

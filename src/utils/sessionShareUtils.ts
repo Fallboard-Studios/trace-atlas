@@ -39,6 +39,20 @@ export function consumeSessionSharePayload(): SessionPayload | null {
   return SESSION_SHARE_PAYLOAD;
 }
 
+/**
+ * The query a pasted link carries, in the one shape decodeWorldLink reads (docs/specs/OFF_SCREEN.md assumption 13): a
+ * whole share URL (`https://host/trace-atlas/?seed=…`), a path-relative one, or the bare `?…` query all give back
+ * `?seed=…`; a fragment is dropped; a link with no query, or an empty string, gives "" (which decodes to null). Never
+ * throws — the browser's own URL parser does the work, against a throwaway base so a relative link resolves.
+ */
+export function searchOf(link: string): string {
+  try {
+    return new URL(link, 'http://localhost').search;
+  } catch {
+    return '';
+  }
+}
+
 /** Builds a full, absolute shareable URL for a payload -- origin + pathname + the world link's
  *  `seed` / `x` / `y` (and `s` when the world differs from its seed). Deliberately drops any other query params
  *  currently in the address bar (e.g. ?debug) -- a share link is a clean, self-contained artifact, not a snapshot

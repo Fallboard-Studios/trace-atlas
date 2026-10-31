@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useState } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
-import { TRANSMISSION_PRESETS } from '@/data/transmissionPresets';
+import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
@@ -104,9 +104,10 @@ export function OffScreen() {
     let name: string;
     let payload: SessionPayload | undefined;
     if (value.startsWith(PRESET_PREFIX)) {
+      // A preset is a link (spec assumption 13): the pick applies whatever world it decodes to.
       const preset = TRANSMISSION_PRESETS.find((p) => PRESET_PREFIX + p.id === value);
       name = preset ? labels(preset.nameKey).humanLabel : '';
-      payload = preset?.payload;
+      payload = (preset && presetPayload(preset)) ?? undefined;
     } else {
       name = value.slice(SAVE_PREFIX.length);
       payload = loadSession(name);
