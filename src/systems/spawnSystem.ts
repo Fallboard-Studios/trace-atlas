@@ -25,7 +25,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
-  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q, ENVELOPE_TIME_MAX_SECONDS,
+  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, ROBOT_BUS_FILTER_Q,
   SEND_STEP_PERCENT,
 } from '../constants';
 import {
@@ -35,6 +35,8 @@ import {
   type ExclusiveSendField,
 } from '../data/robotSendLoadingRanges';
 import { robotSendLevels, type RobotSendField } from '../data/robotSends';
+import { getBand } from '../data/bands/loadingContext';
+import type { SendBand, ToggleBand } from '../data/bands/bandKeys';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -56,31 +58,14 @@ const WORLD_HEIGHT = 1080;
 /** Distance outside the SVG viewBox where robots spawn before swimming on-screen. */
 const OFFSCREEN_OFFSET = 150;
 
-// ADSR ranges. Roadmap Phase 9 unified attack/decay/release to one flat 0-5s range, kept narrower than the Ping
-// Contour drawer's 0-10s edit range. All three have since been narrowed to their sliders' new 0-2s
-// (ENVELOPE_TIME_MAX_SECONDS), so a seeded value is always one the slider can show.
-const ATTACK_RANGE = { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS };
-const DECAY_RANGE = { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS };
-const SUSTAIN_RANGE = { min: 0.0, max: 1.0 };
-const RELEASE_RANGE = { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS };
-/**
- * A stage that takes a non-linear shape is seeded short, so the shape can be heard: on a note stream the shape only
- * shows while the stage finishes within the note (notes are often 0.15 s). The same noise sample as a plain robot's,
- * just spread over this range instead, so which robot is shaped and which curve it gets are untouched.
- */
-const SHAPED_ATTACK_RANGE = { min: 0.03, max: 0.25 };
-const SHAPED_RELEASE_RANGE = { min: 0.15, max: 0.8 };
+// The robot seeding bands - the ADSR and its shaped stages, the articulation traits and their shares, the Signature
+// Array gain, the master volume, the LFO depth windows, the Melody and performance fields - live in the band table
+// (src/data/bands/classic.ts, docs/specs/OFF_SCREEN.md assumption 15) and are read with getBand(...) at the point of
+// each draw below, never cached at module scope: the table changes per world (band-table T21).
 
 // Signature Array is a fixed 3-slot layer array (Roadmap Phase 9) — Baseline/Coaxial/Harmonic,
 // replacing the old variable 1..MAX_LAYERS count.
 const LAYER_COUNT = 3;
-/** Probability threshold Coaxial's/Harmonic's own "start muted" seed draw ([0, 1]) must clear to
- *  force gain to 0 — a plain 50/50 coin flip. No product requirement pinned a specific bias; this
- *  is the least-presumptuous default for "each independently seeded on or muted." Replaces the
- *  old separate `active` boolean — see `OscillatorLayer`'s own doc comment (types/layeredAudio.ts)
- *  for why gain=0 is now the "muted" state. */
-const LAYER_QUIET_THRESHOLD = 0.5;
-
 /** Mirrors the Signature Array Gain slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const LAYER_GAIN_STEP = 0.01;
 
@@ -98,56 +83,22 @@ const OCTAVE_REGISTERS = [
 ] as const;
 
 // ========================================
-// ROBOT PERFORMANCE (docs/specs/ROBOT_PERFORMANCE.md assumption 13)
-// ========================================
-// Unlike the articulation traits below, these are not minority traits: every robot is seeded, most land
-// moderate (the bell-curved getSeededVal draw is wanted here) and a few sit near the edges. Each band is
-// drawn as a rounded integer 0-100, the sliders' own scale.
-
-/** Seeded Dynamics. 25 plays almost flat (a quarter of today's velocity variance), 75 breathes (one and a half times it). */
-const DYNAMICS_SEED_RANGE = { min: 25, max: 75 };
-/** Seeded Rests. 10 leaves a rare short gap, 60 cuts more than half the notes short, and deeper. */
-const RESTS_SEED_RANGE = { min: 10, max: 60 };
-/** Seeded Accents. 20 marks about one note in five with only the two mildest marks (accent, tenuto); 80 marks four in
- *  five with all five, staccatissimo included. */
-const ACCENTS_SEED_RANGE = { min: 20, max: 80 };
-
-// ========================================
 // ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.2)
 // ========================================
-// Portamento, envelope curves and the bus filter's resonance and shape are minority traits: most
-// robots keep today's plain sound (open lowpass, no glide, linear curves) and a few stand out.
-// Every threshold below is compared against a [0, 1] draw from a smooth simplex sample, not a
-// uniform coin: those draws bunch in roughly [0.04, 0.96] around 0.5, so a nominal 12 % threshold
-// of 0.12 would land near the 3rd percentile. Each value was therefore picked from the measured
-// draw (6,000 robots across 150 worlds, 2026-10-13), the way LFO_QUIET_THRESHOLD was, and its
-// "≈ n in 12" is the measured rate. spawnSystem.test.ts pins the bands over 400 seeded robots.
+// Portamento, envelope curves and the bus filter's resonance and shape are minority traits: most robots keep the plain
+// sound (open lowpass, no glide, linear curves) and a few stand out. Each trait's band carries its share as `lit`
+// (robot.portamento, robot.shapedAttack, robot.shapedRelease, robot.accentFilterFreq in the band table), compared
+// against a [0, 1] draw from a smooth simplex sample, not a uniform coin: those draws bunch in roughly [0.04, 0.96]
+// around 0.5, so a nominal 12 % share of 0.12 would land near the 3rd percentile. Each share was picked from the
+// measured draw (6,000 robots across 150 worlds, 2026-10-13); classic.ts records the rates, and spawnSystem.test.ts
+// pins the bands over 400 seeded robots.
 
-/** Fraction of robots that glide between notes: ≈ 1.5 in 12 (measured 12.5 %; a nominal 0.12 measured 3 %). */
-const GLIDER_THRESHOLD = 0.23;
-/** A glider's portamento time, seconds. Short enough to read as a slur, not a siren: it tops out at 0.2 s, just over a
- *  16th note (0.15 s at 98 BPM), because a much longer glide never lands (measured: 0.3 s reaches 37 % of the way to the
- *  next pitch on 16ths). This is the spec's risk-5 fallback. */
-const PORTAMENTO_SEED_RANGE = { min: 0.05, max: 0.20 };
 /** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const PORTAMENTO_STEP = 0.01;
 
-/** Fraction of robots whose attack takes a non-linear curve: ≈ 1.9 in 12 (measured 15.5 %). */
-const ATTACK_CURVE_SHAPED_THRESHOLD = 0.21;
-/** Fraction of robots whose release takes a non-linear curve: ≈ 1.8 in 12 (measured 15.3 %). Higher than the
- *  attack's because the two dataIds sample different lines through the noise and bunch differently. */
-const RELEASE_CURVE_SHAPED_THRESHOLD = 0.275;
-
-/** Fraction of robots with a resonant "accent" bus filter instead of the open one: ≈ 2.4 in 12 (measured 19.9 %). */
-const FILTER_ACCENT_THRESHOLD = 0.27;
-/** Share of accent robots that are bandpass rather than lowpass (never highpass: it would thin a robot out of the mix). */
+/** Share of accent robots that are bandpass rather than lowpass (never highpass: it would thin a robot out of the mix).
+ *  A plain coin over the accent robots, not a band. */
 const ACCENT_BANDPASS_SHARE = 0.4;
-/** Bus filter cutoff for a common robot: an open lowpass that rounds the top off without being heard as a filter. */
-const OPEN_FILTER_FREQ_RANGE = { min: 2000, max: 8000 };
-/** Bus filter cutoff for an accent robot: dark enough that a Q this high rings. */
-const ACCENT_FILTER_FREQ_RANGE = { min: 400, max: 2500 };
-/** Accent resonance: a clear peak at the low end, a whistle at the high end. */
-const ACCENT_FILTER_Q_RANGE = { min: 3, max: 8 };
 /** Mirrors the Resonance slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const FILTER_Q_STEP = 0.1;
 
@@ -166,38 +117,22 @@ function seedCurve(noiseMap: NoiseFunction2D, dataId: string, offset: number, sh
   return shapes[Math.min(shapes.length - 1, pick)];
 }
 
-// Master volume range: keep robots below full saturation
-const MASTER_VOLUME_MIN = 0.65;
-const MASTER_VOLUME_MAX = 0.85;
 /** Mirrors the Volume slider's own step, in percent-space (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const VOLUME_STEP_PERCENT = 1;
 
 /**
- * Fraction of rhythmicMotifLength's single seed draw ([0, 1)) that lands the field
- * off (value: 0) — 15% chance, preserving the pre-STEPPER_TO_SLIDER two-draw scheme's
- * exact off-rate (docs/specs/archive/STEPPER_TO_SLIDER.md §7.1) now that active/value collapse
- * to one draw. A fresh robot tiles a repeating motif far more often than it scatters
- * freely.
+ * Seed a Motif Length/Note Variance-shaped { active, value } field from one consolidated [0, 1) draw
+ * (docs/specs/archive/STEPPER_TO_SLIDER.md) — replaces the old two-draw (separate active/value) scheme. `raw <
+ * band.offShare` lands the field off (value: 0); the remaining `1 - offShare` span maps uniformly onto the whole
+ * numbers band.min..band.max (1-8 under Classic: robot.rhythmicMotifLength and robot.noteVariance in the band table,
+ * each its own row so the two fields stay independently tunable even though they currently agree). `active` is always
+ * derived from the resulting `value > 0`, never drawn independently. The deal pass (Task 27) hands an aspect's band in.
  */
-const RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD = 0.15;
-/**
- * Same idea as RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD, for noteVariance's own draw.
- * Kept as its own named constant (not merged back into one shared value) so the two
- * fields stay independently tunable even though they currently agree.
- */
-const NOTE_VARIANCE_OFF_THRESHOLD = 0.15;
-
-/**
- * Seed a Motif Length/Note Variance-shaped { active, value } field from one
- * consolidated [0, 1) draw (docs/specs/archive/STEPPER_TO_SLIDER.md) — replaces the old
- * two-draw (separate active/value) scheme. `raw < offThreshold` lands the field off
- * (value: 0); the remaining `1 - offThreshold` span maps uniformly onto value 1-8.
- * `active` is always derived from the resulting `value > 0`, never drawn independently.
- */
-function seedToggleValue(raw: number, offThreshold: number): ToggleValue {
-  if (raw < offThreshold) return { active: false, value: 0 };
-  const fraction = (raw - offThreshold) / (1 - offThreshold); // 0..1 across the "on" span
-  const value = 1 + Math.min(7, Math.floor(fraction * 8)); // 1-8
+function seedToggleValue(raw: number, band: ToggleBand): ToggleValue {
+  if (raw < band.offShare) return { active: false, value: 0 };
+  const fraction = (raw - band.offShare) / (1 - band.offShare); // 0..1 across the "on" span
+  const span = band.max - band.min + 1; // the whole numbers min..max
+  const value = band.min + Math.min(span - 1, Math.floor(fraction * span));
   return { active: true, value };
 }
 
@@ -367,24 +302,31 @@ export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number)
  * Controls both sound synthesis and visual appearance
  */
 export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: number): AudioAttributes {
-  // Seeded ADSR envelope. The curves are drawn first: a shaped stage is seeded short (see SHAPED_ATTACK_RANGE).
-  const attackCurve = seedCurve(noiseMap, 'robot.audio.attackCurve', offset, ATTACK_CURVE_SHAPED_THRESHOLD);
-  const releaseCurve = seedCurve(noiseMap, 'robot.audio.releaseCurve', offset, RELEASE_CURVE_SHAPED_THRESHOLD);
-  const attackRange = attackCurve === 'linear' ? ATTACK_RANGE : SHAPED_ATTACK_RANGE;
-  const releaseRange = releaseCurve === 'linear' ? RELEASE_RANGE : SHAPED_RELEASE_RANGE;
+  // Seeded ADSR envelope, every band from the loading context (band-table T21). The curves are drawn first: a shaped
+  // stage is seeded short, from its own band, whose `lit` is the shaped share (robot.shapedAttack, robot.shapedRelease).
+  const shapedAttack = getBand('robot.shapedAttack');
+  const shapedRelease = getBand('robot.shapedRelease');
+  const attackCurve = seedCurve(noiseMap, 'robot.audio.attackCurve', offset, shapedAttack.lit);
+  const releaseCurve = seedCurve(noiseMap, 'robot.audio.releaseCurve', offset, shapedRelease.lit);
+  const attackRange = attackCurve === 'linear' ? getBand('robot.attack') : shapedAttack;
+  const releaseRange = releaseCurve === 'linear' ? getBand('robot.release') : shapedRelease;
+  const decayRange = getBand('robot.decay');
+  const sustainRange = getBand('robot.sustain');
   const adsr = {
     attack: getSeededVal(noiseMap, 'robot.audio.attack', offset, attackRange.min, attackRange.max),
-    decay: getSeededVal(noiseMap, 'robot.audio.decay', offset, DECAY_RANGE.min, DECAY_RANGE.max),
-    sustain: getSeededVal(noiseMap, 'robot.audio.sustain', offset, SUSTAIN_RANGE.min, SUSTAIN_RANGE.max),
+    decay: getSeededVal(noiseMap, 'robot.audio.decay', offset, decayRange.min, decayRange.max),
+    sustain: getSeededVal(noiseMap, 'robot.audio.sustain', offset, sustainRange.min, sustainRange.max),
     release: getSeededVal(noiseMap, 'robot.audio.release', offset, releaseRange.min, releaseRange.max),
     attackCurve,
     releaseCurve,
   };
 
-  // Seeded portamento — most robots don't glide; a glider slurs each note into the next
-  const glider = getSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < GLIDER_THRESHOLD;
+  // Seeded portamento — most robots don't glide; a glider slurs each note into the next. The band's `lit` is the
+  // gliding share (robot.portamento).
+  const portamentoBand = getBand('robot.portamento');
+  const glider = getSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < portamentoBand.lit;
   const portamento = glider
-    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.portamento', offset, PORTAMENTO_SEED_RANGE.min, PORTAMENTO_SEED_RANGE.max), 0, PORTAMENTO_STEP)
+    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.portamento', offset, portamentoBand.min, portamentoBand.max), 0, PORTAMENTO_STEP)
     : 0;
 
   // Seeded octave register — direct [min, max] tuple, no Hz indirection
@@ -392,11 +334,14 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
 
   // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
   // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
-  const accent = getSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < FILTER_ACCENT_THRESHOLD;
-  const filterRange = accent ? ACCENT_FILTER_FREQ_RANGE : OPEN_FILTER_FREQ_RANGE;
+  // The accent band's `lit` is the accent share (robot.accentFilterFreq); the open cutoff and the accent Q are bands too.
+  const accentFilter = getBand('robot.accentFilterFreq');
+  const accent = getSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < accentFilter.lit;
+  const filterRange = accent ? accentFilter : getBand('robot.filterFreq');
   const filterFreq = getSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
+  const accentQ = getBand('robot.accentFilterQ');
   const filterQ = accent
-    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.filterQ', offset, ACCENT_FILTER_Q_RANGE.min, ACCENT_FILTER_Q_RANGE.max), 0, FILTER_Q_STEP)
+    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.filterQ', offset, accentQ.min, accentQ.max), 0, FILTER_Q_STEP)
     : ROBOT_BUS_FILTER_Q;
   const filterType: RobotFilterType = accent && getSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
     ? 'bandpass'
@@ -408,17 +353,17 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   // Generate the fixed 3-layer Signature Array (Baseline/Coaxial/Harmonic, Roadmap Phase 9).
   // There is no per-layer ADSR anymore — every layer shares the one `adsr` envelope above.
   const layers: OscillatorLayer[] = [];
+  const layerGain = getBand('robot.layerGain');
   for (let i = 0; i < LAYER_COUNT; i++) {
     const layerOffset = offset * 10 + i;
-    // Baseline (layers[0]) always seeds a real, audible gain; Coaxial/Harmonic (layers[1]/[2])
-    // each have a real ~50% chance (LAYER_QUIET_THRESHOLD) of forcing gain to 0 instead of
-    // sampling one — muting doesn't discard the rest of the layer's configuration (see
-    // AudioEngine.ts's filterAudibleLayers), so a muted layer still gets a full,
-    // ready-to-resume config here.
-    const quiet = i !== 0 && getSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < LAYER_QUIET_THRESHOLD;
+    // Baseline (layers[0]) always seeds a real, audible gain from the band; Coaxial/Harmonic (layers[1]/[2]) each go
+    // quiet on a draw under 1 - the band's `lit` (a plain 50/50 under Classic), forcing gain to 0 instead of sampling
+    // one — muting doesn't discard the rest of the layer's configuration (see AudioEngine.ts's filterAudibleLayers),
+    // so a muted layer still gets a full, ready-to-resume config here.
+    const quiet = i !== 0 && getSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < 1 - layerGain.lit;
     const layerWave: OscillatorLayer = {
       type: WAVEFORMS[Math.floor(getSeededVal(noiseMap, 'robot.audio.layer.waveform', layerOffset, 0, WAVEFORMS.length))],
-      gain: quiet ? 0 : quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, 0.2, 1.2), 0, LAYER_GAIN_STEP),
+      gain: quiet ? 0 : quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
       detune: quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
       phase: Math.floor(getSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
     };
@@ -444,25 +389,6 @@ function robotArticulation(robot: Robot): { portamento?: number; filterQ?: numbe
   return { portamento, filterQ, filterType };
 }
 
-/**
- * Probability threshold an LFO target's own "start quiet" seed draw ([0, 1])
- * must clear to force rate to 0. Was 0.5 (a nominal 50/50) until 2026-09-30;
- * raised to 0.7 so roughly a quarter of audio-rate targets seed on
- * (docs/specs/LFO_LOAD_FIX.md assumption 5 / §1.4) — with robot LFOs now
- * actually primed into the engine at spawn, the old odds would have put
- * ≈60 LFOs on a 12-robot roster and saturated the audio thread.
- *
- * Why 0.7 and not 0.75 for "25% on": the draw is a smooth simplex sample
- * mapped to [0, 1], not a uniform coin, so the on-rate is not 1 - threshold.
- * Measured across 8 worlds × 12 offsets before choosing: 0.5 → ≈53% on,
- * 0.75 → ≈20%, 0.7 → ≈27% (≈1.6 audio-rate LFOs per robot, ≈19 per world).
- * A side effect of the same structure: every target of one robot samples the
- * map at the same y (the spawn offset) with x values all inside [0, 1), so a
- * robot's draws are strongly correlated — robots tend to be mostly-on or
- * mostly-off rather than evenly sprinkled. Pre-existing, not changed here.
- */
-const LFO_QUIET_THRESHOLD = 0.7;
-
 /** Rounds Depth to a whole percent (SEEDED_SLIDER_VALUE_QUANTIZATION follow-up) — already
  *  stored in percent units (0-100), so no unit conversion needed. */
 const LFO_DEPTH_STEP = 1;
@@ -471,38 +397,20 @@ const LFO_DEPTH_STEP = 1;
 // LFO BANK (docs/specs/LFO_BANK.md §1.3)
 // ========================================
 
-/** A lit target never seeds 0 on either field — a "lit" link (a real lane assigned) should always
- *  be audible; depth 0 would be indistinguishable from quiet/off except for still consuming a
- *  lane slot in the tally (seed-only floor; a user may still drag depth to 0 by hand). */
-export const ROBOT_LFO_DEPTH_SEED_MIN = 1;
-
-/** Per-field robot link depth seed windows (Crawford's own load-value tuning pass, 2026-10-02) —
- *  gain and detune read very differently at the same depth percentage, so each gets its own
- *  ceiling, both sharing the same never-zero floor above. */
-export const ROBOT_LFO_GAIN_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 60 };
-export const ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 10 };
-
-/** The bus filter's seeded sweep depth, percent of the cutoff's centred swing (Robot Articulation, spec §1.2): a
- *  filter moves the tone far more than a same-sized gain or detune nudge, so it gets a mid-sized window with the
- *  shared never-zero floor. */
-export const ROBOT_LFO_BUS_DEPTH_SEED_RANGE = { min: ROBOT_LFO_DEPTH_SEED_MIN, max: 40 };
-
-function robotLfoDepthSeedRangeForTarget(target: RobotLfoTargetId): { min: number; max: number } {
-  if (target === 'bus.frequency') return ROBOT_LFO_BUS_DEPTH_SEED_RANGE;
-  return target.endsWith('.gain') ? ROBOT_LFO_GAIN_DEPTH_SEED_RANGE : ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE;
-}
-
-/** The bus filter's own start-quiet threshold: a lit filter sweep is rarer than a lit layer link, ≈ 1.6 in 12 robots (measured 13.6 %). */
-const LFO_BUS_QUIET_THRESHOLD = 0.8;
-
-function robotLfoQuietThresholdForTarget(target: RobotLfoTargetId): number {
-  return target === 'bus.frequency' ? LFO_BUS_QUIET_THRESHOLD : LFO_QUIET_THRESHOLD;
+/** The band a robot LFO target seeds from (robot.lfoGainDepth, robot.lfoDetuneDepth, robot.lfoBusDepth in the band
+ *  table, band-table T21): its depth window in percent, with a never-zero floor so a lit link is always audible, and as
+ *  `lit` the lit share — 1 - the old LFO_QUIET_THRESHOLD (0.7, docs/specs/LFO_LOAD_FIX.md assumption 5) for the six
+ *  layer targets and 1 - LFO_BUS_QUIET_THRESHOLD (0.8) for the bus filter's rarer sweep. classic.ts records why 0.7
+ *  and not 0.75 for "25 % on": the draw is a smooth simplex sample, not a coin, so the on-rate is not 1 - threshold. */
+function robotLfoBandForTarget(target: RobotLfoTargetId): SendBand {
+  if (target === 'bus.frequency') return getBand('robot.lfoBusDepth');
+  return getBand(target.endsWith('.gain') ? 'robot.lfoGainDepth' : 'robot.lfoDetuneDepth');
 }
 
 /**
  * Generate seeded LfoLinks for all 6 RobotLfoTargetId modulation targets — replaces
- * generateRobotLfoSettings's per-target shape/rate with a lane pick (spec §1.3). Reuses
- * LFO_QUIET_THRESHOLD (0.7) unchanged. The lane draw is roster-aware: `priorLaneCounts` is the
+ * generateRobotLfoSettings's per-target shape/rate with a lane pick (spec §1.3). The quiet share and the
+ * depth window are the target's band (robotLfoBandForTarget). The lane draw is roster-aware: `priorLaneCounts` is the
  * tally of every already-spawned robot in the locale (computed by spawnRobot before calling this),
  * and this robot's own earlier targets update that same running tally as the loop goes — so even
  * one robot's six targets lean away from each other, not just away from the rest of the roster.
@@ -516,7 +424,8 @@ export function generateRobotLfoLinks(
   const result = {} as Record<RobotLfoTargetId, LfoLink>;
 
   for (const target of ROBOT_LFO_TARGET_IDS) {
-    const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < robotLfoQuietThresholdForTarget(target);
+    const band = robotLfoBandForTarget(target);
+    const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
     if (quiet) {
       result[target] = { lane: null, depth: 0 };
       continue;
@@ -526,9 +435,8 @@ export function generateRobotLfoLinks(
     const lane = pickLane(laneT, counts);
     counts[lane]++;
 
-    const depthRange = robotLfoDepthSeedRangeForTarget(target);
     const depth = quantizeToStep(
-      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, depthRange.min, depthRange.max),
+      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, band.min, band.max),
       LFO_DEPTH_MIN,
       LFO_DEPTH_STEP,
     );
@@ -685,15 +593,20 @@ export function generateRobotAudioBaseline(
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, 0, 100));
+  const density = getBand('robot.rhythmicDensity');
+  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, density.min, density.max));
   const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnCount, 0, 1);
-  const rhythmicMotifLength = seedToggleValue(motifRaw, RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD);
+  const rhythmicMotifLength = seedToggleValue(motifRaw, getBand('robot.rhythmicMotifLength'));
   const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1);
-  const noteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
-  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100));
-  const dynamics = Math.round(getSeededVal(noiseMap, 'robot.dynamics', spawnCount, DYNAMICS_SEED_RANGE.min, DYNAMICS_SEED_RANGE.max));
-  const rests = Math.round(getSeededVal(noiseMap, 'robot.rests', spawnCount, RESTS_SEED_RANGE.min, RESTS_SEED_RANGE.max));
-  const accents = Math.round(getSeededVal(noiseMap, 'robot.accents', spawnCount, ACCENTS_SEED_RANGE.min, ACCENTS_SEED_RANGE.max));
+  const noteVariance = seedToggleValue(noteVarianceRaw, getBand('robot.noteVariance'));
+  const repeat = getBand('robot.pitchRepeat');
+  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, repeat.min, repeat.max));
+  const dynamicsBand = getBand('robot.dynamics');
+  const dynamics = Math.round(getSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max));
+  const restsBand = getBand('robot.rests');
+  const rests = Math.round(getSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max));
+  const accentsBand = getBand('robot.accents');
+  const accents = Math.round(getSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max));
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
@@ -843,49 +756,55 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       ? generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts)
       : generateRobotLfoLinks((_x: number, _y: number) => 0 as number, spawnCount, priorLaneCounts);
 
+    // Every band from the loading context at the draw (band-table T21); the alea fallbacks map into the same bands.
+    const density = getBand('robot.rhythmicDensity');
     spawnRhythmicDensity = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, 0, 100)
-        : alea(`${localeId}:${spawnCount}:density`)() * 100
+        ? getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, density.min, density.max)
+        : density.min + alea(`${localeId}:${spawnCount}:density`)() * (density.max - density.min)
     );
 
     // Reuses the old '.active' dataId verbatim (not a freshly-named consolidated key) —
     // getSeededVal's simplex slice is keyed off the exact dataId string, so a new string
     // would sample a different curve with no guarantee of matching this one's already-
-    // tuned ~85%/15% split against RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD. The old '.value'
+    // tuned ~85%/15% split against the band's offShare. The old '.value'
     // dataId is retired entirely — value is now derived from this same draw.
     const motifRaw = noiseMap
       ? getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnCount, 0, 1)
       : alea(`${localeId}:${spawnCount}:motifActive`)();
-    spawnRhythmicMotifLength = seedToggleValue(motifRaw, RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD);
+    spawnRhythmicMotifLength = seedToggleValue(motifRaw, getBand('robot.rhythmicMotifLength'));
 
     const noteVarianceRaw = noiseMap
       ? getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1)
       : alea(`${localeId}:${spawnCount}:nvActive`)();
-    spawnNoteVariance = seedToggleValue(noteVarianceRaw, NOTE_VARIANCE_OFF_THRESHOLD);
+    spawnNoteVariance = seedToggleValue(noteVarianceRaw, getBand('robot.noteVariance'));
 
+    const repeat = getBand('robot.pitchRepeat');
     spawnPitchRepeat = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, 0, 100)
-        : alea(`${localeId}:${spawnCount}:pitchRepeat`)() * 100
+        ? getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, repeat.min, repeat.max)
+        : repeat.min + alea(`${localeId}:${spawnCount}:pitchRepeat`)() * (repeat.max - repeat.min)
     );
 
     // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): the three performance sliders, each its own dataId
     // at the spawn count, with the same alea no-noise-map fallback the composition fields have.
+    const dynamicsBand = getBand('robot.dynamics');
     spawnDynamics = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.dynamics', spawnCount, DYNAMICS_SEED_RANGE.min, DYNAMICS_SEED_RANGE.max)
-        : DYNAMICS_SEED_RANGE.min + alea(`${localeId}:${spawnCount}:dynamics`)() * (DYNAMICS_SEED_RANGE.max - DYNAMICS_SEED_RANGE.min)
+        ? getSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max)
+        : dynamicsBand.min + alea(`${localeId}:${spawnCount}:dynamics`)() * (dynamicsBand.max - dynamicsBand.min)
     );
+    const restsBand = getBand('robot.rests');
     spawnRests = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.rests', spawnCount, RESTS_SEED_RANGE.min, RESTS_SEED_RANGE.max)
-        : RESTS_SEED_RANGE.min + alea(`${localeId}:${spawnCount}:rests`)() * (RESTS_SEED_RANGE.max - RESTS_SEED_RANGE.min)
+        ? getSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max)
+        : restsBand.min + alea(`${localeId}:${spawnCount}:rests`)() * (restsBand.max - restsBand.min)
     );
+    const accentsBand = getBand('robot.accents');
     spawnAccents = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.accents', spawnCount, ACCENTS_SEED_RANGE.min, ACCENTS_SEED_RANGE.max)
-        : ACCENTS_SEED_RANGE.min + alea(`${localeId}:${spawnCount}:accents`)() * (ACCENTS_SEED_RANGE.max - ACCENTS_SEED_RANGE.min)
+        ? getSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max)
+        : accentsBand.min + alea(`${localeId}:${spawnCount}:accents`)() * (accentsBand.max - accentsBand.min)
     );
   }
 
@@ -946,9 +865,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     accents: spawnAccents,
     lfoLinks: spawnLfoLinks,
     masterVolume: (() => {
+      const volume = getBand('robot.masterVolume');
       const seeded = noiseMap
-        ? getSeededVal(noiseMap, 'robot.masterVolume', spawnCount, MASTER_VOLUME_MIN, MASTER_VOLUME_MAX)
-        : MASTER_VOLUME_MIN + alea(`${localeId}:${spawnCount}:mv`)() * (MASTER_VOLUME_MAX - MASTER_VOLUME_MIN);
+        ? getSeededVal(noiseMap, 'robot.masterVolume', spawnCount, volume.min, volume.max)
+        : volume.min + alea(`${localeId}:${spawnCount}:mv`)() * (volume.max - volume.min);
       // Bass robots are louder, treble robots quieter. Register mid [1..5], neutral ~3.5.
       const registerMid = (octaveRange[0] + octaveRange[1]) / 2;
       const registerBias = (4.5 - registerMid) * 0.05;

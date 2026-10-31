@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
-import type { Robot } from '../types/Robot';
+import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
 import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
@@ -23,6 +23,9 @@ import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentCo
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
 import { robotSendLevels } from '../data/robotSends';
+import { withLoading } from '../data/bands/loadingContext';
+import type { BandTable } from '../data/bands/bandKeys';
+import type { RobotAudioBaseline } from './spawnSystem';
 import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
 import { getStations, type Station } from './stations';
@@ -46,6 +49,41 @@ import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 vi.mock('./stations', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./stations')>();
   return { ...actual, getStations: vi.fn(actual.getStations) };
+});
+
+// band-table T21: every robot band is read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption
+// 15). The real theme columns are {} until the listen (plan Task 34), so a column that moves EVERY robot band is injected
+// under the Perilous id; production's ThemeColumn confines a theme to assumption 16's key list, but the generator reads
+// whatever table is installed (the deal pass hands the same code its Melody bands, Task 27). Each value is chosen so a
+// Classic draw would break it somewhere: a lit share of 1 lands the trait on every robot, 0 on none.
+const everyRobotBandMoved = vi.hoisted(() => ({
+  'robot.attack': { min: 1.5, max: 2 },
+  'robot.decay': { min: 1, max: 1.2 },
+  'robot.sustain': { min: 0.9, max: 1 },
+  'robot.release': { min: 1.5, max: 2 },
+  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0 },
+  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 1 },
+  'robot.portamento': { min: 0.1, max: 0.1, lit: 1 },
+  'robot.filterFreq': { min: 2000, max: 8000 },
+  'robot.accentFilterFreq': { min: 500, max: 600, lit: 1 },
+  'robot.accentFilterQ': { min: 5, max: 5 },
+  'robot.layerGain': { min: 1.1, max: 1.2, lit: 1 },
+  'robot.masterVolume': { min: 0.9, max: 0.9 },
+  'robot.lfoGainDepth': { min: 50, max: 60, lit: 1 },
+  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0 },
+  'robot.lfoBusDepth': { min: 30, max: 40, lit: 1 },
+  'robot.rhythmicDensity': { min: 90, max: 100 },
+  'robot.pitchRepeat': { min: 0, max: 5 },
+  'robot.rhythmicMotifLength': { offShare: 0, min: 3, max: 4 },
+  'robot.noteVariance': { offShare: 0.99, min: 1, max: 8 },
+  'robot.dynamics': { min: 0, max: 5 },
+  'robot.rests': { min: 90, max: 100 },
+  'robot.accents': { min: 0, max: 5 },
+}) satisfies Partial<BandTable>);
+
+vi.mock('../data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/themes')>();
+  return { ...actual, THEMES: { ...actual.THEMES, perilous: everyRobotBandMoved } };
 });
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
@@ -3267,6 +3305,179 @@ describe('spawnSystem', () => {
       const noiseMap = createNoise2D(alea('company-baseline-purity-seed'));
       const robotIds = Array.from({ length: 10 }, (_, i) => `robot-${i}`);
       expect(() => generateCompanyRosterBaseline(noiseMap, robotIds)).not.toThrow();
+    });
+  });
+
+  describe('the robot bands read the loading context (band-table T21, spec assumption 15)', () => {
+    const PERILOUS = { theme: 'perilous', aspects: {} } as const;
+    const noiseMap = createNoise2D(alea('band-table-t21'));
+    const ROSTER = 16;
+
+    const freshLocale = (localeId: string, coordinates: { x: number; y: number }) =>
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates, robots: [] } },
+      }));
+
+    /** The fields every spawn path seeds through the Melody and performance bands, as the injected column moves them. */
+    const expectThemedFields = (robot: {
+      rhythmicDensity?: number;
+      pitchRepeat?: number;
+      rhythmicMotifLength?: { active: boolean; value: number };
+      noteVariance?: { active: boolean; value: number };
+      dynamics?: number;
+      rests?: number;
+      accents?: number;
+    }) => {
+      expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      expect(robot.pitchRepeat).toBeLessThanOrEqual(5);
+      expect(robot.rhythmicMotifLength).toEqual({ active: true, value: expect.any(Number) });
+      expect([3, 4]).toContain(robot.rhythmicMotifLength?.value);
+      expect(robot.noteVariance).toEqual({ active: false, value: 0 });
+      expect(robot.dynamics).toBeLessThanOrEqual(5);
+      expect(robot.rests).toBeGreaterThanOrEqual(90);
+      expect(robot.accents).toBeLessThanOrEqual(5);
+    };
+
+    it('generateRobotRosterBaseline draws every robot band from the installed table, where the same noise under Classic does not', () => {
+      const themed = withLoading(PERILOUS, () => generateRobotRosterBaseline(noiseMap, ROSTER));
+      const classic = generateRobotRosterBaseline(noiseMap, ROSTER);
+      expect(themed).toHaveLength(ROSTER);
+      for (const robot of themed) {
+        expectThemedFields(robot);
+        const { adsr, portamento, filterFreq, filterQ, layers } = robot.audioAttributes;
+        expect(adsr.attack).toBeGreaterThanOrEqual(1.5);
+        expect(adsr.attackCurve).toBe('linear');
+        expect(adsr.decay).toBeGreaterThanOrEqual(1);
+        expect(adsr.decay).toBeLessThanOrEqual(1.2);
+        expect(adsr.sustain).toBeGreaterThanOrEqual(0.9);
+        expect(adsr.releaseCurve).not.toBe('linear');
+        expect(adsr.release).toBeGreaterThanOrEqual(0.15);
+        expect(adsr.release).toBeLessThanOrEqual(0.8);
+        expect(portamento).toBe(0.1);
+        expect(filterFreq).toBeGreaterThanOrEqual(500);
+        expect(filterFreq).toBeLessThanOrEqual(600);
+        expect(filterQ).toBe(5);
+        for (const layer of layers ?? []) expect(layer.gain).toBeGreaterThanOrEqual(1.1);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          const link = robot.lfoLinks[target];
+          if (target === 'bus.frequency') {
+            expect(link.lane, target).not.toBeNull();
+            expect(link.depth, target).toBeGreaterThanOrEqual(30);
+            expect(link.depth, target).toBeLessThanOrEqual(40);
+          } else if (target.endsWith('.gain')) {
+            expect(link.lane, target).not.toBeNull();
+            expect(link.depth, target).toBeGreaterThanOrEqual(50);
+          } else {
+            expect(link, target).toEqual({ lane: null, depth: 0 });
+          }
+        }
+      }
+      // The parity-fixture rule: the same noise under Classic breaks every bound somewhere, so no check passes by coincidence.
+      expect(classic.some((r) => r.rhythmicDensity < 90)).toBe(true);
+      expect(classic.some((r) => r.pitchRepeat > 5)).toBe(true);
+      expect(classic.some((r) => ![3, 4].includes(r.rhythmicMotifLength.value))).toBe(true);
+      expect(classic.some((r) => r.noteVariance.active)).toBe(true);
+      expect(classic.some((r) => r.dynamics > 5 && r.rests < 90 && r.accents > 5)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.adsr.attack < 1.5)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.adsr.decay > 1.2)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.adsr.release > 0.8)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.portamento === 0)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.filterQ === 1)).toBe(true);
+      expect(classic.some((r) => (r.audioAttributes.layers ?? []).some((layer) => layer.gain === 0))).toBe(true);
+      expect(classic.some((r) => ROBOT_LFO_TARGET_IDS.some((t) => t.endsWith('.gain') && r.lfoLinks[t].lane === null))).toBe(true);
+      expect(classic.some((r) => ROBOT_LFO_TARGET_IDS.some((t) => t.endsWith('.detune') && r.lfoLinks[t].lane !== null))).toBe(true);
+    });
+
+    it('spawnRobot draws under the installed table too, the master volume included', () => {
+      const localeId = 'band-table-t21-locale';
+      freshLocale(localeId, { x: 7, y: 11 });
+      withLoading(PERILOUS, () => {
+        for (let i = 0; i < 6; i++) spawnRobot(localeId);
+      });
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots).toHaveLength(6);
+      for (const robot of robots) {
+        expectThemedFields(robot);
+        // 0.9 seeded, then the register bias (at most -0.075) and the clamp: never under 0.825 on the 1 % grid.
+        expect(robot.masterVolume).toBeGreaterThanOrEqual(0.82);
+        expect(robot.audioAttributes.portamento).toBe(0.1);
+        expect(robot.audioAttributes.filterQ).toBe(5);
+      }
+    });
+
+    it('spawnRobot with no locale (no noise map) draws its alea fallbacks inside the installed bands', () => {
+      const added: Robot[] = [];
+      const realAddRobot = useLocaleStore.getState().addRobot;
+      useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
+      try {
+        withLoading(PERILOUS, () => {
+          for (let i = 0; i < 20; i++) spawnRobot(`band-table-t21-no-locale-${i}`);
+        });
+      } finally {
+        useLocaleStore.setState({ addRobot: realAddRobot });
+      }
+      expect(added).toHaveLength(20);
+      for (const robot of added) {
+        expectThemedFields(robot);
+        expect(robot.masterVolume).toBeGreaterThanOrEqual(0.82);
+      }
+    });
+
+    it('reads the table at the draw, never caching it: after withLoading the same noise seeds Classic again', () => {
+      const before = generateRobotRosterBaseline(noiseMap, 3);
+      withLoading(PERILOUS, () => generateRobotRosterBaseline(noiseMap, 3));
+      expect(generateRobotRosterBaseline(noiseMap, 3)).toEqual(before);
+    });
+
+    // Classic parity (spec §5.2): the values the constants seeded on main at cc9a01f2, captured before the lift and typed in.
+    const PARITY_ROSTER: Omit<RobotAudioBaseline, 'name'>[] = [
+      {
+        audioAttributes: {
+          adsr: { attack: 0.3836734762745204, decay: 1.4492530300706201, sustain: 0.31283205320094665, release: 0.4299819840896303, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [3, 5], filterFreq: 3089.045348501909, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 290, detune: 3, pulseWidth: 0.2585042283954076,
+          layers: [{ type: 'sawtooth', gain: 0.66, detune: -1, phase: 106 }, { type: 'triangle', gain: 0, detune: -1, phase: 46 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 147 }],
+        } as AudioAttributes,
+        octaveRange: [3, 5], rhythmicDensity: 28, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 6 }, pitchRepeat: 80, dynamics: 35, rests: 48, accents: 68,
+        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.22, delaySend: 0.23, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+      {
+        audioAttributes: {
+          adsr: { attack: 0.6807536158426921, decay: 0.8582776300717225, sustain: 0.11603452461690617, release: 0.7348645057228916, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [3, 5], filterFreq: 3798.4729769270016, filterQ: 1, filterType: 'lowpass', portamento: 0.12, waveform: 'triangle', phase: 169, detune: -0, pulseWidth: 0.39096490279492446,
+          layers: [{ type: 'sawtooth', gain: 0.55, detune: -1, phase: 76 }, { type: 'square', gain: 0, detune: 1, phase: 263 }, { type: 'sawtooth', gain: 1.04, detune: 1, phase: 280 }],
+        } as AudioAttributes,
+        octaveRange: [3, 5], rhythmicDensity: 14, rhythmicMotifLength: { active: true, value: 4 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 46, dynamics: 37, rests: 32, accents: 54,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.29, delaySend: 0.16, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+      {
+        audioAttributes: {
+          adsr: { attack: 1.3564848254331348, decay: 1.282887045182087, sustain: 0.39040796577840453, release: 1.4244646541679042, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [4, 6], filterFreq: 5761.783388416861, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 214, detune: 1, pulseWidth: 0.7037212573861479,
+          layers: [{ type: 'sawtooth', gain: 0.86, detune: 0, phase: 213 }, { type: 'square', gain: 0, detune: 0, phase: 225 }, { type: 'sawtooth', gain: 0.69, detune: -1, phase: 110 }],
+        } as AudioAttributes,
+        octaveRange: [4, 6], rhythmicDensity: 42, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 60, dynamics: 53, rests: 41, accents: 57,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 6 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'c', depth: 6 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.47, delaySend: 0.19, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+    ];
+
+    it('Classic parity: a fixed roster baseline is value for value what the constants seeded before the lift (a glider, a quiet layer, lit gain and detune links among them)', () => {
+      const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 3).map(({ name: _name, ...rest }) => rest);
+      expect(roster).toEqual(PARITY_ROSTER);
+    });
+
+    it('Classic parity: three spawned robots carry the ids, master volumes, densities and glides the constants seeded before the lift', () => {
+      const localeId = 'band-table-parity-locale';
+      freshLocale(localeId, { x: 7, y: 11 });
+      for (let i = 0; i < 3; i++) spawnRobot(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots.map((r) => [r.id, r.masterVolume, r.rhythmicDensity, r.audioAttributes.portamento])).toEqual([
+        ['robot-0-ckli2vjx', 0.79, 50, 0],
+        ['robot-1-a9g7kk48', 0.78, 50, 0],
+        ['robot-2-mrmqcepa', 0.74, 77, 0],
+      ]);
     });
   });
 });
