@@ -550,7 +550,7 @@ note that four family rows make the 1600 × 900 desk column scroll by 75 px.
 
 ### Phase 4: The wash (note 7) *(decided 2026-10-31: the deferral, 0.5 s each way, the world's sea colour)*
 
-- [ ] **Task 12: `uiStore.ts`, `systems/worldChange.ts` — the request and its four states**
+- [x] **Task 12: `uiStore.ts`, `systems/worldChange.ts` — the request and its four states** (6a10cc3a; **beyond the plan: the wash attaches itself while mounted** (`attachSceneWash`), and with no wash attached a request runs at once, as under reduced motion — otherwise a request made while no wash element exists would wait for a `'covered'` that never comes; detaching mid-cover runs the pending change and clears; the pending change runs in a loop with the uncover in a `finally`, so a throwing change still uncovers and a change that asks for another runs it before the uncover; 8 mutants, all killed)
 
   **Description:** `uiStore.sceneWash: 'clear' | 'covering' | 'covered' | 'uncovering'` (JSON, default `'clear'`) with
   `setSceneWash`. New `src/systems/worldChange.ts`: `requestWorldChange(change: () => void)` keeps the latest pending
@@ -578,7 +578,7 @@ note that four family rows make the 1600 × 900 desk column scroll by 75 px.
 
   **Estimated scope:** S
 
-- [ ] **Task 13: `animation/sceneWash.ts`, `WorldView.tsx` / `.css`, the callers — the wash itself**
+- [x] **Task 13: `animation/sceneWash.ts`, `WorldView.tsx` / `.css`, the callers — the wash itself** (split at the build: 43c992a8 the module and the element, 585f2e82 the callers; then two fixes found at the checks: 36383ed2, **the fade-out starts on the frame after the change** — the rebuild ran inside the cover's completion, mid-tick, and ate all but about 75 ms of the 0.5 s fade-out — and aac3d181, **an unedited Retransmit raises no wash**; the Load handler is `SessionListItem`'s, not `SessionsPanel`'s; the colour is the water column's own two stops at the current hour, moved into `src/utils/waterColumnColors.ts`, not a new token or hex; the element has no `will-change`; mutants 10 + 9 + 4 + 3, one equivalent survivor in 13b — a family's line memory set before the cover rather than after shows nothing different; the fallback was not needed)
 
   **Description:** `div.world-view__wash` as a sibling of the scroller (over it, under `MetaBox`; `pointer-events:
   none`; a deep water blue token, placeholder). `sceneWash.ts` subscribes to `uiStore.sceneWash` once the element is
@@ -620,10 +620,53 @@ note that four family rows make the 1600 × 900 desk column scroll by 75 px.
   if the diff runs past five files of code.
 
 ### Checkpoint D: The wash
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [ ] `npm run build:types`, `npm run lint`, `npm test` clean. (Types and lint clean; the suite had one failure that
+      passes alone, recorded below; the Complete run is its one re-run.)
 - [ ] Browser: Roll, a preset pick, a theme pick, Foundry's Retransmit and a Load each fade through blue; a reload and
-      a link arrival do not; reduced motion cuts; `perf:idle` off-state figure recorded.
-- [ ] Reviewed with human before docs.
+      a link arrival do not; reduced motion cuts; `perf:idle` off-state figure recorded. (Headless half recorded below;
+      the look of the wash is Crawford's.)
+- [ ] Reviewed with human before docs. (Pending, as at A, B and C.)
+
+**Checkpoint D record (2026-10-31, `feature/off-screen` at `aac3d181`, automated half):** `npm run build:types` clean;
+`npm run lint` 0 errors (the 4 pre-existing warnings). `npx vitest run` at `36383ed2`: 344 files, 13 016 tests,
+13 015 passed. The one failure, `audioStore.test.ts`'s "relinks every global target with the new links" (roadmap
+17.2.8), passes alone (122 of 122), and this plan changed none of the audio store, the link generator or the engine:
+a one-off under load by Crawford's flake rule, with the Complete run as its one re-run. The drawer fix after that run
+is covered by its own file (23 of 23).
+
+Headless Chrome, the real app at 1600 × 900, the wash's opacity sampled every frame from the click. "Off" is the
+powered-off screen; "on" is the Settings screen after the rocker.
+
+| Gesture | Opaque at | The change, under the cover | Last visible |
+| --- | --- | --- | --- |
+| Roll (off) | 468 ms | the new world named at 907 ms | 1385 ms |
+| A preset pick (off) | 457 ms | named at 870 ms, opacity 1 | 1341 ms |
+| A theme pick, Perilous (off) | 468 ms | named at 905 ms, opacity 1 | 1371 ms |
+| An Envelope pick, Plucked (off) | 471 ms | named at 743 ms, opacity 1 | 1212 ms |
+| Retransmit after an X edit (on) | 468 ms | the 355 ms rebuild, from 501 ms | 1330 ms |
+| A session Load (on) | 465 ms | the 267 ms rebuild, from 493 ms | 1223 ms |
+
+Each fade-out shows 0.46 to 0.48 s after the change and ends at opacity 0. An unedited Retransmit leaves the wash at 0
+(aac3d181; before it, a full wash over a no-op). Under `prefers-reduced-motion` a Roll raises no cover and the world
+changes at once. A reload, and a link arrival carrying a theme and two families (readout
+`n40dh8p8 · (29, -14) · Calm · Held · Woody`), leave the wash at 0 through their first 2 s. The wash's
+`pointer-events` is `none`; no console errors.
+
+`npm run perf:idle -- --stay-off`, A/B in one session: the parent plan's tip `8694c478` against `36383ed2`, two runs
+each.
+
+| Build | Run | Main busy (ms) | Redrawn screens/frame | Rastered screens/frame |
+| --- | --- | --- | --- | --- |
+| `8694c478`, before this plan | 1 | 5492 | 0.09 | 0.09 |
+| `8694c478` | 2 | 5134 | 0.10 | 0.11 |
+| `36383ed2`, the wash in | 1 | 3949 | 0.07 | 0.08 |
+| `36383ed2` | 2 | 4340 | 0.10 | 0.08 |
+
+No rise. The wash promotes no layer of its own: the layer tree's 1248 × 824 layer that the parent attributes to
+`div.meta-box` is attributed to the wash, its first painter, and the layer count is unchanged. The comparison is the
+parent's tip in the same session, not the parent plan's recorded Checkpoint B figure: an A/B is only fair inside one
+session. Still Crawford's: the look of the wash (a tint through the blur while off, Foundry's Retransmit while on)
+and the review.
 
 ---
 
