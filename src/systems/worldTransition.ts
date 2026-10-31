@@ -4,10 +4,11 @@
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useUIStore } from '../stores/uiStore';
-// Side-effect import: audioStore registers the useAttenuationStyleStore subscription that reseeds
-// bpm/globalAudio/lfoBank/globalLfoLinks on a style change (finalizeAttenuationStyleTransition
-// relies on it), so it must be loaded wherever a retransmit can run.
-import '../stores/audioStore';
+// audioStore registers the useAttenuationStyleStore subscription that reseeds bpm/globalAudio/lfoBank/globalLfoLinks on
+// a style change (finalizeAttenuationStyleTransition relies on it), so it must be loaded wherever a retransmit can run;
+// a loading change under an unchanged style calls the same four regenerators itself (regenerateGlobalHalfFromSeed).
+import { useAudioStore } from '../stores/audioStore';
+import { useLoadingStore } from '../stores/loadingStore';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
 import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
@@ -20,6 +21,10 @@ import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '../utils/seedUtils';
 import { mirrorWorldToUrl } from '../utils/sessionShareUtils';
 import { currentWorldIdentity } from '../utils/worldIdentity';
+import { deepEqual } from '../utils/math';
+import { canonicalAspects, type AspectFamilyId, type AspectPick } from '../data/bands/aspects';
+import type { ThemeId } from '../data/bands/themes';
+import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import { DAY_DURATION_MS } from '../constants/time';
 import type { AttenuationStyle } from '../types/attenuationStyle';
 import type { Locale } from '../types/locale';
@@ -35,6 +40,11 @@ export interface RetransmitInput {
   /** Present only if the user edited the X/Y fields (already rounded to
    *  integers by CoordsInput). */
   coordinates?: { x: number; y: number };
+  /** The loading (docs/specs/OFF_SCREEN.md assumption 10; band-table T25): present when the off screen's theme row or
+   *  Melody row picked, or when a payload carries them (applySessionPayload passes both). Read against the loading
+   *  store: the loaded theme again, or an equal pick set, is no change at all. */
+  theme?: ThemeId;
+  aspects?: Partial<Record<AspectFamilyId, AspectPick[]>>;
 }
 
 // ========================================
@@ -149,24 +159,40 @@ export function startLocaleSystems(localeId: string): void {
 }
 
 /**
- * The four things a retransmit can mean, resolved once up front rather than
+ * The five things a retransmit can mean, resolved once up front rather than
  * re-derived via scattered `if`s through the function body. Each variant
  * carries exactly the fields its branch needs — no non-null assertions
  * needed at the dispatch site, only inside this one resolution function
- * where the exhaustiveness is actually being established.
+ * where the exhaustiveness is actually being established. `loading` is the
+ * canonical loading to install when the input changes it (band-table T25,
+ * docs/specs/OFF_SCREEN.md assumption 10); on its own it is the loadingOnly mode.
  */
 type RetransmitAction =
   | { mode: 'noop' }
-  | { mode: 'coordsOnly'; coordinates: { x: number; y: number } }
-  | { mode: 'attenuationStyleOnly'; attenuationStyleName: string }
-  | { mode: 'both'; attenuationStyleName: string; coordinates: { x: number; y: number } };
+  | { mode: 'loadingOnly'; loading: LoadingIdentity }
+  | { mode: 'coordsOnly'; coordinates: { x: number; y: number }; loading?: LoadingIdentity }
+  | { mode: 'attenuationStyleOnly'; attenuationStyleName: string; loading?: LoadingIdentity }
+  | { mode: 'both'; attenuationStyleName: string; coordinates: { x: number; y: number }; loading?: LoadingIdentity };
+
+/** The loading an input asks for, canonical, when it differs from the loaded world's; undefined when the input names
+ *  none, or names what is already loaded (the loaded theme again and an equal pick set are no change at all). */
+function resolveLoadingChange(input: RetransmitInput): LoadingIdentity | undefined {
+  if (input.theme === undefined && input.aspects === undefined) return undefined;
+  const current = useLoadingStore.getState();
+  const next: LoadingIdentity = {
+    theme: input.theme ?? current.theme,
+    aspects: canonicalAspects(input.aspects ?? current.aspects),
+  };
+  return next.theme === current.theme && deepEqual(next.aspects, current.aspects) ? undefined : next;
+}
 
 function resolveRetransmitAction(input: RetransmitInput): RetransmitAction {
   const { attenuationStyleName, coordinates } = input;
-  if (!attenuationStyleName && !coordinates) return { mode: 'noop' };
-  if (coordinates && !attenuationStyleName) return { mode: 'coordsOnly', coordinates };
-  if (attenuationStyleName && !coordinates) return { mode: 'attenuationStyleOnly', attenuationStyleName };
-  return { mode: 'both', attenuationStyleName: attenuationStyleName!, coordinates: coordinates! };
+  const loading = resolveLoadingChange(input);
+  if (!attenuationStyleName && !coordinates) return loading ? { mode: 'loadingOnly', loading } : { mode: 'noop' };
+  if (coordinates && !attenuationStyleName) return { mode: 'coordsOnly', coordinates, loading };
+  if (attenuationStyleName && !coordinates) return { mode: 'attenuationStyleOnly', attenuationStyleName, loading };
+  return { mode: 'both', attenuationStyleName: attenuationStyleName!, coordinates: coordinates!, loading };
 }
 
 /** Coordinates changed, Attenuation Style preserved: never touch
@@ -192,6 +218,33 @@ function retransmitCoordsOnly(oldAttenuationStyle: AttenuationStyle, oldLocaleId
   useLocaleStore.getState().addLocale(oldAttenuationStyle.id, newLocale);
   initializeLocale(newLocale.id, { startSystems: useUIStore.getState().isPoweredOn });
   useAttenuationStyleStore.getState().setCurrentLocale(oldAttenuationStyle.id, newLocale.id);
+}
+
+/**
+ * The global half from seed under the bands now installed - bpm, the Audio Rig, the LFO Bank, the global links, in the
+ * style-sync subscription's order (audioStore.ts) - for a loading change under an unchanged Attenuation Style, where
+ * that subscription does not fire (docs/specs/OFF_SCREEN.md assumption 10; band-table T25). The seed-once fields (ping
+ * variance, the swells, humanize) carry forward, as on a style switch.
+ */
+function regenerateGlobalHalfFromSeed(attenuationStyle: AttenuationStyle): void {
+  const audio = useAudioStore.getState();
+  audio.regenerateBpmFromSeed(attenuationStyle.id, attenuationStyle.name);
+  audio.regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
+  audio.regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
+  audio.regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
+}
+
+/**
+ * Rebuild the loaded locale at its own plot under the current Attenuation Style - the coordsOnly rebuild - so the
+ * robots, the companies and the deal regenerate under the bands now installed (assumption 10). The robot ids are a
+ * function of the plot alone, so the same robots come back, drawn afresh.
+ */
+function rebuildCurrentLocaleInPlace(): void {
+  const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
+  const localeId = attenuationStyle?.currentLocaleId;
+  const coordinates = localeId ? useLocaleStore.getState().getLocaleById(localeId)?.coordinates : undefined;
+  if (!attenuationStyle || !coordinates) return;
+  retransmitCoordsOnly(attenuationStyle, localeId, coordinates);
 }
 
 /**
@@ -307,9 +360,13 @@ function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: stri
 
 /**
  * The Sector Settings retransmit action — four branches, per
- * docs/specs/archive/SECTOR_SETTINGS.md §1's preservation rules. `input`'s two
- * fields are each present only if the user actually edited that panel;
- * absence means "preserve as-is," not "reset to default."
+ * docs/specs/archive/SECTOR_SETTINGS.md §1's preservation rules, and a fifth
+ * for the loading (band-table T25). `input`'s fields are each present only if
+ * the user actually edited that panel; absence means "preserve as-is," not
+ * "reset to default." A loading change (docs/specs/OFF_SCREEN.md assumption
+ * 10) sets the loading store before anything regenerates, reseeds the global
+ * half under the new bands where no style switch would, and always rebuilds
+ * the roster: a theme or a pick is a world change, whatever else moved.
  *
  * Every branch that changes the world ends by mirroring the new identity into
  * the address bar (docs/specs/OFF_SCREEN.md assumption 12) — a pick on the off
@@ -328,12 +385,27 @@ export function retransmitWorld(input: RetransmitInput): void {
   if (!oldAttenuationStyle) return;
   const oldLocaleId = oldAttenuationStyle.currentLocaleId;
 
+  // The loading first (docs/specs/OFF_SCREEN.md assumption 10): the store, and through it the loading context, carry
+  // the new theme before anything regenerates, so a rebuilt roster and a reseeded global half draw under its bands.
+  if (action.loading) useLoadingStore.getState().setLoading(action.loading);
+
   switch (action.mode) {
+    case 'loadingOnly':
+      // The same style, the same plot: the global half from seed under the new bands (the style-sync does not fire
+      // for an unchanged id), then the roster, the companies and the deal at the same identity.
+      regenerateGlobalHalfFromSeed(oldAttenuationStyle);
+      rebuildCurrentLocaleInPlace();
+      break;
     case 'coordsOnly':
+      // A theme riding on a plot move moved the global bands too; a plain plot move leaves the global half alone.
+      if (action.loading) regenerateGlobalHalfFromSeed(oldAttenuationStyle);
       retransmitCoordsOnly(oldAttenuationStyle, oldLocaleId, action.coordinates);
       break;
     case 'attenuationStyleOnly':
       retransmitAttenuationStyleOnly(oldAttenuationStyle, oldLocaleId, action.attenuationStyleName);
+      // The style-sync reseeded the global half under the new loading; the preserved plot's robots were drawn under
+      // the old bands, and a loading change is a world change, so they are drawn again.
+      if (action.loading) rebuildCurrentLocaleInPlace();
       break;
     case 'both':
       retransmitBoth(oldAttenuationStyle, oldLocaleId, action.attenuationStyleName, action.coordinates);
@@ -347,8 +419,9 @@ export function retransmitWorld(input: RetransmitInput): void {
 /**
  * Roll (docs/specs/OFF_SCREEN.md assumption 14): a fresh random Attenuation Style at a fresh random plot, through
  * retransmitWorld's full reset — the off screen's "another world, please". Nothing else moves: the loading store (the
- * theme and the aspects, once it exists) rides along untouched, the pick returns to Current on the screen, and like
- * every retransmit it follows the power state and leaves a paused world cold (Task 8).
+ * theme and the aspects) rides along untouched, so the new world is drawn under the same bands and the bar keeps the
+ * same loading params; the pick returns to Current on the screen; and like every retransmit it follows the power state
+ * and leaves a paused world cold (Task 8).
  */
 export function rollWorld(): void {
   retransmitWorld({

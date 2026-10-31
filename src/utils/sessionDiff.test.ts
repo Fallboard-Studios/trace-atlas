@@ -793,7 +793,8 @@ describe('applySessionPayload', () => {
 
     applySessionPayload(payload);
 
-    expect(spy).toHaveBeenCalledWith({ coordinates: payload.coordinates });
+    // band-table T25: the payload's loading rides in the input, so retransmitWorld sets the store before the rebuild.
+    expect(spy).toHaveBeenCalledWith({ coordinates: payload.coordinates, theme: 'classic', aspects: {} });
     spy.mockRestore();
   });
 
@@ -806,7 +807,12 @@ describe('applySessionPayload', () => {
 
     applySessionPayload(differentNamePayload);
 
-    expect(spy).toHaveBeenCalledWith({ attenuationStyleName: differentNamePayload.attenuationStyleName, coordinates: differentNamePayload.coordinates });
+    expect(spy).toHaveBeenCalledWith({
+      attenuationStyleName: differentNamePayload.attenuationStyleName,
+      coordinates: differentNamePayload.coordinates,
+      theme: 'classic',
+      aspects: {},
+    });
     spy.mockRestore();
   });
 
@@ -853,20 +859,20 @@ describe('applySessionPayload', () => {
       expect(currentLocale()!.robots.some((robot) => (robot.rhythmicDensity ?? 0) < 90)).toBe(true);
     });
 
-    it('retransmitWorld runs with the store already set', () => {
+    it('hands retransmitWorld the payload\'s loading in its input (band-table T25), canonical, so the rebuild runs under it', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       const payload = buildSessionPayload();
-      let themeAtRebuild: string | undefined;
-      const spy = vi.spyOn(worldTransition, 'retransmitWorld').mockImplementation(() => {
-        themeAtRebuild = useLoadingStore.getState().theme;
-      });
+      const spy = vi.spyOn(worldTransition, 'retransmitWorld').mockImplementation(() => {});
+      let input: unknown;
       try {
-        applySessionPayload({ ...payload, theme: 'calm' });
+        applySessionPayload({ ...payload, theme: 'calm', aspects: { melody: ['mechanical', 'hypnotic'] } });
+        // Read before mockRestore, which clears the call history along with the mock.
+        input = spy.mock.calls[0]?.[0];
       } finally {
         spy.mockRestore();
       }
-      expect(themeAtRebuild).toBe('calm');
+      expect(input).toEqual({ coordinates: payload.coordinates, theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
     });
 
     it('sets the store even when the locale rebuild is skipped (the link boot)', () => {

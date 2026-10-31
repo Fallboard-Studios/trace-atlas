@@ -475,11 +475,11 @@ function stripLegacyV1LfoFields(payload: SessionPayload): SessionPayload {
  */
 export function applySessionPayload(payload: SessionPayload, options?: { skipLocaleRebuild?: boolean }): void {
   payload = stripLegacyV1LfoFields(payload);
-  // The loading identity first (docs/specs/OFF_SCREEN.md assumption 10): the store, and through it the loading context,
-  // carry the payload's theme before anything regenerates, so the rebuilt robots and any reseeded global half draw
-  // under its bands. Absent (a version 1 or 2 payload) or unknown reads as Classic with no aspects. Set on the boot
-  // path too (skipLocaleRebuild), so the store names the linked world.
-  useLoadingStore.getState().setLoading(loadingOf(payload));
+  // The loading identity (docs/specs/OFF_SCREEN.md assumption 10): absent (a version 1 or 2 payload) or unknown reads
+  // as Classic with no aspects (loadingOf). It rides in retransmitWorld's input below, which sets the store - and
+  // through it the loading context - before anything regenerates (band-table T25), so the rebuilt robots and a
+  // reseeded global half draw under its bands; on the boot path the store is set here instead.
+  const loading = loadingOf(payload);
   // worldTransition.ts's createNewAttenuationStyle always tries to CREATE a new Attenuation
   // Style for a given name (never "reuse the existing one with this name") and doesn't check
   // whether that creation actually succeeded — attenuationStyleStore.addAttenuationStyle silently
@@ -507,9 +507,14 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     const attenuationStyleUnchanged = currentAttenuationStyle?.name === payload.attenuationStyleName;
     retransmitWorld(
       attenuationStyleUnchanged
-        ? { coordinates: payload.coordinates }
-        : { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates },
+        ? { coordinates: payload.coordinates, ...loading }
+        : { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loading },
     );
+  } else {
+    // The boot path (worldBoot.ts): the locale is already the link's, built under the loading the store read from the
+    // link at module load (loadingStore.ts); name it in the store all the same, so a payload applied this way is the
+    // world the store describes.
+    useLoadingStore.getState().setLoading(loading);
   }
 
   // A payload saved before a block existed (the colour blocks, docs/specs/GLOBAL_COLOUR.md assumption 11)

@@ -19,6 +19,24 @@ vi.mock('./factoryPlacementSystem', async (importOriginal) => {
   return { ...actual, recolorActorsForAttenuationStyle: vi.fn(actual.recolorActorsForAttenuationStyle) };
 });
 
+// band-table T25 (docs/specs/OFF_SCREEN.md assumption 10): a theme or aspects change regenerates the global half under
+// the new bands and rebuilds the robots at the same identity. Every real column is {} until the listen (plan Task 34),
+// so Calm moves the tempo, the LPF cutoff and the density band here, over the spread originals.
+vi.mock('../data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/themes')>();
+  return {
+    ...actual,
+    THEMES: {
+      ...actual.THEMES,
+      calm: {
+        bpm: { min: 150, max: 160 },
+        'filterLPF.frequency': { min: 500, max: 600 },
+        'robot.rhythmicDensity': { min: 90, max: 100 },
+      },
+    },
+  };
+});
+
 // ========================================
 // IMPORTS
 // ========================================
@@ -26,6 +44,8 @@ import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/loc
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useUIStore } from '../stores/uiStore';
 import { useAudioStore } from '../stores/audioStore';
+import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
+import type { AspectPick } from '../data/bands/aspects';
 import { getWorldState, setWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
@@ -90,6 +110,7 @@ describe('worldTransition', () => {
     stopRobotLifecycle();
     stopAudioSwells();
     workLoopModule.stopWorkLoop();
+    useLoadingStore.getState().setLoading(DEFAULT_LOADING);
   });
 
   describe('initializeLocale', () => {
@@ -816,8 +837,157 @@ describe('worldTransition', () => {
     });
   });
 
+  // band-table T25 (docs/specs/OFF_SCREEN.md assumption 10): the loadingOnly mode, and the loading fields on every mode.
+  describe('retransmitWorld — the loading changed', () => {
+    const params = () => new URLSearchParams(window.location.search);
+    const currentWorld = () => {
+      const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
+      return { style, locale: useLocaleStore.getState().getLocaleById(style.currentLocaleId!)! };
+    };
+    /** The four seed regenerators the style-sync subscription runs, spied with their real behaviour kept. */
+    const spyRegenerators = () => {
+      const audio = useAudioStore.getState();
+      return {
+        bpm: vi.spyOn(audio, 'regenerateBpmFromSeed'),
+        globalAudio: vi.spyOn(audio, 'regenerateGlobalAudioFromSeed'),
+        lfoBank: vi.spyOn(audio, 'regenerateLfoBankFromSeed'),
+        globalLfoLinks: vi.spyOn(audio, 'regenerateGlobalLfoLinksFromSeed'),
+      };
+    };
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+      window.history.replaceState({}, '', '/');
+    });
+
+    it('a theme alone keeps the Attenuation Style and the plot, sets the store, regenerates the global half under the new bands, and rebuilds the roster at the same identity', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      // A fresh locale first, as every retransmit makes: robot ids carry a per-locale spawn count kept at module scope,
+      // and the default locale's count has been advanced by the tests above, so only a fresh plot's ids repeat.
+      retransmitWorld({ coordinates: { x: 500, y: 500 } });
+      const before = currentWorld();
+      const robotIdsBefore = before.locale.robots.map((r) => r.id);
+      expect(robotIdsBefore.length).toBeGreaterThan(0);
+      const spies = spyRegenerators();
+
+      retransmitWorld({ theme: 'calm' });
+
+      const after = currentWorld();
+      expect(after.style.id).toBe(before.style.id);
+      expect(after.style.name).toBe(before.style.name);
+      expect(after.locale.coordinates).toEqual(before.locale.coordinates);
+      expect(after.locale.id).not.toBe(before.locale.id);
+      expect(after.locale.robots.map((r) => r.id)).toEqual(robotIdsBefore);
+      expect(useLoadingStore.getState().theme).toBe('calm');
+      for (const spy of Object.values(spies)) {
+        expect(spy).toHaveBeenCalledTimes(1);
+        expect(spy).toHaveBeenCalledWith(before.style.id, before.style.name);
+      }
+      expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150);
+      expect(useAudioStore.getState().bpm).toBeLessThanOrEqual(160);
+      expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBeGreaterThanOrEqual(500);
+      expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBeLessThanOrEqual(600);
+      for (const robot of after.locale.robots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      expect(getWorldState()).toBe('cold');
+      expect(params().get('theme')).toBe('calm');
+      expect(params().get('seed')).toBe(before.style.name);
+    });
+
+    it('aspects alone do the same: the store holds the canonical picks, the global half and the roster regenerate, and the bar carries melody', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const before = currentWorld();
+      const spies = spyRegenerators();
+      retransmitWorld({ aspects: { melody: ['mechanical', 'hypnotic'] } });
+      const after = currentWorld();
+      expect(after.style.id).toBe(before.style.id);
+      expect(after.locale.id).not.toBe(before.locale.id);
+      expect(useLoadingStore.getState()).toMatchObject({ theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } });
+      for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1);
+      expect(params().get('melody')).toBe('hypnotic,mechanical');
+      expect(params().has('theme')).toBe(false);
+    });
+
+    it('no change is a no-op: the loaded theme again, an empty pick list, or both, touch nothing', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      window.history.replaceState({}, '', '/?debug');
+      const before = currentWorld();
+      const spies = spyRegenerators();
+      const selectRobotSpy = vi.spyOn(useUIStore.getState(), 'selectRobot');
+      retransmitWorld({ theme: 'classic' });
+      retransmitWorld({ aspects: { melody: [] } });
+      retransmitWorld({ theme: 'classic', aspects: {} });
+      expect(currentWorld().locale.id).toBe(before.locale.id);
+      for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
+      expect(selectRobotSpy).not.toHaveBeenCalled();
+      expect(window.location.search).toBe('?debug');
+    });
+
+    it('a theme with new coordinates: the plot moves, the store is set first, and the global half regenerates under the theme too', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const before = currentWorld();
+      const spies = spyRegenerators();
+      retransmitWorld({ coordinates: { x: 500, y: 500 }, theme: 'calm' });
+      const after = currentWorld();
+      expect(after.style.id).toBe(before.style.id);
+      expect(after.locale.coordinates).toEqual({ x: 500, y: 500 });
+      expect(useLoadingStore.getState().theme).toBe('calm');
+      expect(spies.bpm).toHaveBeenCalledTimes(1);
+      expect(spies.globalLfoLinks).toHaveBeenCalledTimes(1);
+      expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150);
+      for (const robot of after.locale.robots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      expect(params().get('theme')).toBe('calm');
+      expect(params().get('x')).toBe('500');
+    });
+
+    it('new coordinates with the loaded theme again regenerate nothing global: a plot move stays a plot move', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const spies = spyRegenerators();
+      retransmitWorld({ coordinates: { x: 500, y: 500 }, theme: 'classic', aspects: {} });
+      expect(currentWorld().locale.coordinates).toEqual({ x: 500, y: 500 });
+      for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('a theme with a new Attenuation Style: the store is set before the switch, the style-sync reseeds under the theme, and the preserved plot is rebuilt under it', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const { coordinates } = currentWorld().locale;
+      retransmitWorld({ attenuationStyleName: 'Saltwhistle', theme: 'calm' });
+      const { style, locale } = currentWorld();
+      expect(style.name).toBe('Saltwhistle');
+      expect(locale.coordinates).toEqual(coordinates);
+      expect(useLoadingStore.getState().theme).toBe('calm');
+      expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150);
+      expect(useAudioStore.getState().bpm).toBeLessThanOrEqual(160);
+      expect(locale.robots.length).toBeGreaterThan(0);
+      for (const robot of locale.robots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      expect(params().get('seed')).toBe('Saltwhistle');
+      expect(params().get('theme')).toBe('calm');
+    });
+
+    it('a paused world is cold after a loading change, so the next flip starts (Task 8)', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      setWorldState('paused');
+      retransmitWorld({ theme: 'calm' });
+      expect(getWorldState()).toBe('cold');
+    });
+
+    it('follows the power state: powered on, the rebuilt world restarts its systems', () => {
+      useUIStore.setState({ isPoweredOn: true });
+      initializeLocale(DEFAULT_LOCALE_ID);
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      retransmitWorld({ theme: 'calm' });
+      expect(workStart).toHaveBeenCalledTimes(1);
+      expect(getWorldState()).toBe('running');
+    });
+
+    it('reads the picks leniently: an unknown pick is dropped and a known one stands', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      retransmitWorld({ aspects: { melody: ['hypnotic', 'zzz' as AspectPick] } });
+      expect(useLoadingStore.getState().aspects).toEqual({ melody: ['hypnotic'] });
+    });
+  });
+
   // Roll (docs/tasks/OFF_SCREEN.md Task 13, spec assumption 14): a fresh random Attenuation Style and coordinates,
-  // through retransmitWorld's full-reset branch. Once the loading store exists it rides along untouched (Task 31).
+  // through retransmitWorld's full-reset branch; the loading store rides along untouched (band-table T25).
   describe('rollWorld', () => {
     function currentWorld() {
       const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
@@ -862,6 +1032,18 @@ describe('worldTransition', () => {
       expect(workStart).toHaveBeenCalledTimes(1);
       expect(workStart).toHaveBeenCalledWith(currentWorld().style.currentLocaleId);
       expect(getWorldState()).toBe('running');
+    });
+
+    it('keeps the loading: a Calm world with a pick rolls to another Calm world with the same pick, drawn under its bands, and the bar says so', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      retransmitWorld({ theme: 'calm', aspects: { melody: ['wandering'] } });
+      rollWorld();
+      expect(useLoadingStore.getState()).toMatchObject({ theme: 'calm', aspects: { melody: ['wandering'] } });
+      const search = new URLSearchParams(window.location.search);
+      expect(search.get('theme')).toBe('calm');
+      expect(search.get('melody')).toBe('wandering');
+      for (const robot of currentWorld().locale.robots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      window.history.replaceState({}, '', '/');
     });
   });
 });
