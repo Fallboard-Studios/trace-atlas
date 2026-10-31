@@ -1,5 +1,5 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import { Fragment, memo, useId, useState, type CSSProperties } from 'react';
+import { Fragment, memo, useId, useState, type CSSProperties, type ReactNode } from 'react';
 
 import { CabinetBox } from './CabinetBox';
 import { DualLabel } from './DualLabel';
@@ -29,7 +29,16 @@ interface RadioButtonBaseProps {
    *  CompanyButtonRow, ...) omits this and is unaffected.
    *  docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4. */
   boxSize?: number;
+  /** The `list` appearance's trailing slot (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3): called once per option with
+   *  its value, and a node it returns is drawn at the end of that option's row — a sibling of the option's radio,
+   *  never inside it, since the radio is a button and a button may not hold one, so a click on the node never
+   *  changes the value. A result of null, undefined, a boolean or '' draws no slot. The other appearances never call
+   *  it. Like any callback prop, an inline arrow defeats the memo below: hold it in a `useCallback`. */
+  trailing?: (value: string) => ReactNode;
 }
+
+/** A trailing result worth a slot: anything React would draw. */
+const isDrawn = (node: ReactNode) => node !== null && node !== undefined && typeof node !== 'boolean' && node !== '';
 
 /** One option's value for the single control, or the selected values under `schema.multiple`. */
 type RadioButtonValue = string | readonly string[];
@@ -137,9 +146,19 @@ interface RadioButtonProps<V extends RadioButtonValue = string> extends RadioBut
  *  deselect-to-empty event to swallow, and `onDeselect` is never called). The stale-hover reset above
  *  compares the selection by content, not array identity, so a parent re-render handing a fresh array
  *  of the same values does not drop a live hover. The off screen's Melody row is the first consumer,
- *  in `muted`. */
+ *  in `muted`.
+ *
+ *  `schema.appearance === 'list'` (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3; Crawford's notes 1 and 2 of
+ *  2026-10-31) is the off screen's Transmission list: every option is a full-width row
+ *  (`.sc-radio-button__row`) holding the option's item (`.sc-radio-button__list-item` — a dot, the face, and the
+ *  option's `meta` in small type, wired as the item's accessible description) and, beside it, whatever
+ *  `trailing(value)` returns (`.sc-radio-button__trailing`). The rows stack; `dividerBefore` is a full-width rule.
+ *  The row mirrors its item's `data-state`, so the selected row's dot and quiet fill key off it (RadioButton.css);
+ *  every row renders the same parts selected or not, so a pick never reflows the list. It is muted's family: no
+ *  CabinetBox, no pop timeline, no hover pop. Single-value and `multiple` both work; the single-value list is the
+ *  consumer. */
 function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>) {
-  const { schema, disabled, onDeselect, boxSize } = props;
+  const { schema, disabled, onDeselect, boxSize, trailing } = props;
   // The conditional parameter type is opaque inside the generic body, so the two call sites below
   // name the shape they hand over; the runtime switch is the schema's own `multiple` flag.
   const onChangeSingle = props.onChange as (value: string) => void;
@@ -153,6 +172,7 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
   const instanceId = useId();
   const tierBoxHeight = useCabinetBoxHeight();
   const muted = schema.appearance === 'muted';
+  const list = schema.appearance === 'list';
   const multiple = schema.multiple === true;
   // The selected values in either mode — one or none for the single control, any number for the
   // multiple variant. A single-mode value of '' selects nothing, as it always has.
@@ -177,16 +197,45 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
   const className = [
     'sc-radio-button',
     muted ? 'sc-radio-button--muted' : null,
+    list ? 'sc-radio-button--list' : null,
     multiple ? 'sc-radio-button--multiple' : null,
   ].filter(Boolean).join(' ');
 
-  const items = schema.options.map((option) => {
+  const items = schema.options.map((option, index) => {
     const face = (
       <span className="sc-radio-button__face">
         {option.loreLabel && <span className="sc-radio-button__lore">{option.loreLabel}</span>}
         <span className="sc-radio-button__label">{option.humanLabel}</span>
       </span>
     );
+    if (list) {
+      // The index, not the value, names the meta: a value may hold spaces (a save's name), an id may not.
+      const metaId = option.meta ? `${instanceId}-meta-${index}` : undefined;
+      const trailingNode = trailing?.(option.value);
+      return (
+        <Fragment key={option.value}>
+          {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" />}
+          <div className="sc-radio-button__row" data-state={isSelected(option.value) ? 'on' : 'off'}>
+            <ToggleGroup.Item
+              className="sc-radio-button__item sc-radio-button__list-item"
+              value={option.value}
+              aria-label={option.humanLabel}
+              aria-describedby={metaId}
+              style={option.color ? getRobotColorStyle(option.color) : undefined}
+            >
+              <span className="sc-radio-button__dot" aria-hidden="true" />
+              {face}
+              {option.meta && (
+                <span className="sc-radio-button__meta" id={metaId}>
+                  {option.meta}
+                </span>
+              )}
+            </ToggleGroup.Item>
+            {isDrawn(trailingNode) && <span className="sc-radio-button__trailing">{trailingNode}</span>}
+          </div>
+        </Fragment>
+      );
+    }
     return (
       <Fragment key={option.value}>
         {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" />}

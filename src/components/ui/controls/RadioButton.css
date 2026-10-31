@@ -176,3 +176,92 @@
 .sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__lore {
   color: #0b0f14;
 }
+
+/* The list appearance (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3; the sketch's .r rows, docs/sketches/off-screen.html):
+   the rows stack full width and never wrap. Muted's family: nothing here pops, glows or animates; the selected row's
+   dot fills and the row takes a quiet fill. Every row draws the same parts and the same 1px border (transparent until
+   selected), so a pick changes colours only and never reflows the list (controls hold their largest size). */
+.sc-radio-button--list .sc-radio-button__root {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+
+.sc-radio-button__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+}
+
+.sc-radio-button__row[data-state='on'] {
+  border-color: rgba(207, 214, 220, 0.4);
+  background: rgba(207, 214, 220, 0.08);
+}
+
+/* The row's radio: the dot, the face and the meta on one line, taking the width the trailing slot leaves. */
+.sc-radio-button__list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 12px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.sc-radio-button__dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(207, 214, 220, 0.7);
+  border-radius: 50%;
+}
+
+.sc-radio-button__row[data-state='on'] .sc-radio-button__dot {
+  background: rgba(207, 214, 220, 0.9);
+  box-shadow: inset 0 0 0 2px #0b0f14;
+}
+
+/* The face takes the room and ellipsises (its label's own rule); the meta and the trailing slot keep theirs. */
+.sc-radio-button--list .sc-radio-button__face {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A selected list row's fill is quiet, not an accent tint, so its label keeps the fixed white the rule above
+   would otherwise swap for the dynamic --color-text-primary. */
+.sc-radio-button--list .sc-radio-button__item[data-state='on'] .sc-radio-button__label {
+  color: var(--color-text-primary-fixed);
+}
+
+.sc-radio-button__meta {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.sc-radio-button__trailing {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+
+/* dividerBefore in a list: a full-width rule between two rows, in place of the vertical tick between boxes. */
+.sc-radio-button--list .sc-radio-button__divider {
+  width: auto;
+  height: 1px;
+  margin: 4px 8px;
+}

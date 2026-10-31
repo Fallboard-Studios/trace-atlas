@@ -131,14 +131,20 @@ export interface RadioButtonSchema extends ControlSchemaBase {
    *  the same lore-caption-over-human-label pairing every other control primitive shows), an
    *  option that omits it renders `humanLabel` alone exactly as before. Not every option set has a
    *  documented lore counterpart (docs/reference/archive/text-content-tables.md's Waveform Names table is
-   *  the only one that does today), so this is per-option, not a schema-wide requirement. */
-  options: { value: string; humanLabel: string; loreLabel?: string; color?: string; dividerBefore?: boolean }[];
+   *  the only one that does today), so this is per-option, not a schema-wide requirement.
+   *  meta is the `list` appearance's quiet second fact on a row — the off screen's "saved 2 days ago" on a save
+   *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3) — drawn in small type and wired as the option's accessible
+   *  description; the other appearances ignore it. */
+  options: { value: string; humanLabel: string; loreLabel?: string; color?: string; dividerBefore?: boolean; meta?: string }[];
   /** 'cabinet' (the default, omitted by every consumer before the off screen) is the popped cabinetry
    *  box. 'muted' (docs/specs/LAYOUT_REWORK.md §1.9) is the powered-off look: each option is the box's own
    *  shape and size with no walls, no pop timeline and no glow, the selected one a monochrome fill.
-   *  `dividerBefore` on an option draws a thin rule ahead of it in either appearance — the off screen's
-   *  line between the three presets and the user's saves. */
-  appearance?: 'cabinet' | 'muted';
+   *  'list' (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3) is the off screen's Transmission list: every option a
+   *  full-width row — a dot, the face, the option's `meta` — stacked, the selected row's dot filled and the row
+   *  a quiet fill, muted like 'muted' (no cabinet, no pop); a row may carry an action beside its radio through
+   *  RadioButton's `trailing` prop. `dividerBefore` on an option draws a thin rule ahead of it in every
+   *  appearance — the off screen's line between the three presets and the user's saves, full width in a list. */
+  appearance?: 'cabinet' | 'muted' | 'list';
   /** The multiple variant (docs/specs/OFF_SCREEN.md assumption 23; docs/tasks/OFF_SCREEN.md Task 29): the
    *  control's `value` is a `string[]` and `onChange` receives the whole list, each option independently
    *  on or off — a Radix ToggleGroup of type "multiple", a `group` of `aria-pressed` buttons rather than
