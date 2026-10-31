@@ -19,6 +19,27 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
   return { ...actual, THEMES: { ...actual.THEMES, calm: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
 });
 
+// band-table T27 (spec assumption 22): the baseline runs the same deal as the live spawn. The real option columns are {}
+// until the listen (plan Task 34), so two options move the density band here, over the spread originals.
+vi.mock('../data/bands/aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/aspects')>();
+  const melody = actual.ASPECT_FAMILIES.melody;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: {
+      ...actual.ASPECT_FAMILIES,
+      melody: {
+        ...melody,
+        options: {
+          ...melody.options,
+          hypnotic: { 'robot.rhythmicDensity': { min: 40, max: 60 } },
+          mechanical: { 'robot.rhythmicDensity': { min: 70, max: 95 } },
+        },
+      },
+    },
+  };
+});
+
 import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload, applySessionPayload } from './sessionDiff';
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
@@ -29,7 +50,7 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGO
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
-import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
+import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal } from '../systems/spawnSystem';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
@@ -881,6 +902,35 @@ describe('applySessionPayload', () => {
       const payload = buildSessionPayload();
       applySessionPayload({ ...payload, theme: 'bold' }, { skipLocaleRebuild: true });
       expect(useLoadingStore.getState().theme).toBe('bold');
+    });
+
+    // band-table T27 (spec assumption 22): the baseline runs the deal, so an untweaked dealt world diffs empty.
+    it('buildSessionPayload of an untweaked world dealt hypnotic and mechanical has no robot overrides, where the same roster without the live pass reads as edited', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const payload = buildSessionPayload();
+      expect(payload.aspects).toEqual({ melody: ['hypnotic', 'mechanical'] });
+      expect(payload.robotOverrides).toEqual({});
+      // The distinguishing control: a roster spawned under the same picks but never dealt differs from the dealt baseline.
+      const control = setupWorld();
+      spawnInitialRoster(control);
+      spawnInitialCompanies(control);
+      expect(Object.keys(buildSessionPayload().robotOverrides).length).toBeGreaterThan(0);
+    });
+
+    it('a dealt world round-trips: its payload applied again rebuilds a roster that diffs empty too', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload(payload);
+      expect(buildSessionPayload().robotOverrides).toEqual({});
+      for (const robot of currentLocale()!.robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
     });
   });
 

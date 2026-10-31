@@ -7,7 +7,8 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
 import { getRobotGem } from '../components/robot/gem/polygon';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
@@ -91,11 +92,41 @@ const everySendMoved = vi.hoisted(() => ({
 }) satisfies Partial<BandTable>);
 const halfLitReverb = vi.hoisted(() => ({ reverbSend: { min: 0.1, max: 0.6, lit: 0.5 } }) satisfies Partial<BandTable>);
 
+// band-table T27: the deal pass re-derives a dealt robot's Melody fields under its aspect's bands. The real option columns
+// are {} until the listen (plan Task 34), so Hypnotic and Mechanical get distinguishing columns here; Calm is given
+// Hypnotic's column too, so a robot generated under Calm from its own index is exactly what the deal must produce.
+const melodyColumns = vi.hoisted(() => ({
+  hypnotic: { 'robot.rhythmicDensity': { min: 40, max: 60 }, 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
+  mechanical: {
+    'robot.rhythmicDensity': { min: 70, max: 95 },
+    'robot.rhythmicMotifLength': { offShare: 0, min: 6, max: 8 },
+    'robot.pitchRepeat': { min: 0, max: 10 },
+  },
+}) satisfies Record<string, Partial<BandTable>>);
+
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
   return {
     ...actual,
-    THEMES: { ...actual.THEMES, perilous: everyRobotBandMoved, adventurous: everySendMoved, bold: halfLitReverb },
+    THEMES: {
+      ...actual.THEMES,
+      perilous: everyRobotBandMoved,
+      adventurous: everySendMoved,
+      bold: halfLitReverb,
+      calm: melodyColumns.hypnotic,
+    },
+  };
+});
+
+vi.mock('../data/bands/aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/aspects')>();
+  const melody = actual.ASPECT_FAMILIES.melody;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: {
+      ...actual.ASPECT_FAMILIES,
+      melody: { ...melody, options: { ...melody.options, hypnotic: melodyColumns.hypnotic, mechanical: melodyColumns.mechanical } },
+    },
   };
 });
 
@@ -3575,6 +3606,147 @@ describe('spawnSystem', () => {
         expect(reverbAndDelay(robot)).toEqual({ reverbSend: 0, delaySend: 0.3 });
         expect(effectSends(robot)).toEqual({ gritSend: 0.5, shimmerSend: 0, doubleSend: 0 });
       }
+    });
+  });
+
+  // band-table T27 (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24): the deal pass, live and in the baseline.
+  describe('the deal pass (band-table T27)', () => {
+    const noiseMap = createNoise2D(alea('band-table-t27'));
+    const ROSTER = 12;
+    const ids = Array.from({ length: ROSTER }, (_, i) => `robot-${i}`);
+    const HYPNOTIC_MECHANICAL: LoadingIdentity = { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const melodyFieldsOf = (robot: Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>) => ({
+      rhythmicDensity: robot.rhythmicDensity,
+      rhythmicMotifLength: robot.rhythmicMotifLength,
+      noteVariance: robot.noteVariance,
+      pitchRepeat: robot.pitchRepeat,
+    });
+    const freshLocale = (localeId: string, coordinates: { x: number; y: number }) =>
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates, robots: [], companies: [] } },
+      }));
+
+    afterEach(async () => {
+      useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+      vi.restoreAllMocks();
+    });
+
+    it('applyDealToBaselines: a dealt robot\'s four Melody fields are re-derived from its own index under the aspect\'s bands, loadedUnder is set, and nothing else moves', () => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      const companies = generateCompanyRosterBaseline(noiseMap, ids);
+      const dealt = applyDealToBaselines(undealt, ids, companies, HYPNOTIC_MECHANICAL, noiseMap);
+      expect(dealt).toHaveLength(ROSTER);
+      expect(dealt.some((b) => b.loadedUnder?.melody === 'hypnotic')).toBe(true);
+      expect(dealt.some((b) => b.loadedUnder?.melody === 'mechanical')).toBe(true);
+      dealt.forEach((baseline, i) => {
+        const { rhythmicDensity: _d, rhythmicMotifLength: _m, noteVariance: _v, pitchRepeat: _p, loadedUnder, ...rest } = baseline;
+        const { rhythmicDensity: _ud, rhythmicMotifLength: _um, noteVariance: _uv, pitchRepeat: _up, ...restUndealt } = undealt[i];
+        expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
+        if (loadedUnder?.melody === 'hypnotic') {
+          // Calm carries Hypnotic's column: a fresh robot at this index under Calm is the exact re-derivation.
+          const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+          expect(melodyFieldsOf(baseline), `robot ${i}`).toEqual(melodyFieldsOf(expected));
+        } else {
+          expect(loadedUnder, `robot ${i}`).toEqual({ melody: 'mechanical' });
+          expect(baseline.rhythmicDensity).toBe(Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', i, 70, 95)));
+          expect(baseline.pitchRepeat).toBe(Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', i, 0, 10)));
+          expect(baseline.rhythmicMotifLength.active).toBe(true);
+          expect([6, 7, 8]).toContain(baseline.rhythmicMotifLength.value);
+          // The band Mechanical leaves alone is still re-derived from the robot's own index, under Classic's band.
+          expect(baseline.noteVariance).toEqual(generateRobotAudioBaseline(noiseMap, i, []).noteVariance);
+        }
+      });
+    });
+
+    it('the as-theme member leaves its groups untouched: those baselines are the very undealt objects, with no loadedUnder', () => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      const companies = generateCompanyRosterBaseline(noiseMap, ids);
+      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['theme', 'hypnotic'] } }, noiseMap);
+      const plain = dealt.filter((b, i) => b === undealt[i]);
+      const hypnotic = dealt.filter((b) => b.loadedUnder?.melody === 'hypnotic');
+      expect(plain.length).toBeGreaterThan(0);
+      expect(hypnotic.length).toBeGreaterThan(0);
+      expect(plain.length + hypnotic.length).toBe(ROSTER);
+      for (const baseline of plain) expect(baseline.loadedUnder).toBeUndefined();
+    });
+
+    it('with no picks the pass is a no-op: the same array comes back', () => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      const companies = generateCompanyRosterBaseline(noiseMap, ids);
+      expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: {} }, noiseMap)).toBe(undealt);
+      expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['theme'] } }, noiseMap)).toBe(undealt);
+    });
+
+    it('a copied-baseline robot re-derives from its own index, not its source\'s', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor).
+      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
+        if (dataId === 'robot.copyChance') return 0;
+        if (dataId === 'robot.copySource') return min ?? 0;
+        return real(nm, dataId, offset, min, max);
+      });
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      expect(undealt[3].rhythmicDensity).toBe(undealt[0].rhythmicDensity); // precondition: robot 3 is a copy of robot 0
+      const ownDraw = Math.round(real(noiseMap, 'robot.rhythmicDensity', 3, 40, 60));
+      const sourceDraw = Math.round(real(noiseMap, 'robot.rhythmicDensity', 0, 40, 60));
+      expect(ownDraw).not.toBe(sourceDraw); // precondition: the two indices draw apart, so the check cannot pass by coincidence
+      const companies = generateCompanyRosterBaseline(noiseMap, ids);
+      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['hypnotic'] } }, noiseMap);
+      expect(dealt[3].loadedUnder).toEqual({ melody: 'hypnotic' });
+      expect(dealt[3].rhythmicDensity).toBe(ownDraw);
+      expect(dealt[0].rhythmicDensity).toBe(sourceDraw);
+    });
+
+    it('generateDealtRosterBaseline is the roster and company baselines with the deal applied', () => {
+      const { robots, companies } = generateDealtRosterBaseline(noiseMap, ids, HYPNOTIC_MECHANICAL);
+      expect(companies).toEqual(generateCompanyRosterBaseline(noiseMap, ids));
+      expect(robots).toEqual(applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ROSTER), ids, companies, HYPNOTIC_MECHANICAL, noiseMap));
+      expect(generateDealtRosterBaseline(noiseMap, ids, { theme: 'classic', aspects: {} }).robots).toEqual(generateRobotRosterBaseline(noiseMap, ROSTER));
+    });
+
+    it('applyAspectDeal, live: writes the dealt fields and loadedUnder through the store, regenerates and re-registers each dealt melody, and agrees with the dealt baseline field for field', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'] } });
+      const localeId = 'band-table-t27-live';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const before = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(before.length).toBeGreaterThan(0);
+      expect(before.every((r) => r.loadedUnder === undefined)).toBe(true);
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      applyAspectDeal(localeId);
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      for (const robot of robots) {
+        expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
+        expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(40);
+        expect(robot.rhythmicDensity).toBeLessThanOrEqual(60);
+        expect(robot.noteVariance).toEqual({ active: true, value: expect.any(Number) });
+        expect([1, 2]).toContain(robot.noteVariance?.value);
+      }
+      expect(register).toHaveBeenCalledTimes(robots.length);
+      expect(robots.some((robot, i) => JSON.stringify(robot.melody) !== JSON.stringify(before[i].melody))).toBe(true);
+      const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+      robots.forEach((robot, i) => {
+        expect({ ...melodyFieldsOf(robot), loadedUnder: robot.loadedUnder }, `robot ${i}`).toEqual({ ...melodyFieldsOf(baselines[i]), loadedUnder: baselines[i].loadedUnder });
+      });
+    });
+
+    it('applyAspectDeal with no picks touches nothing: no robot write, no re-registration, no loadedUnder', () => {
+      const localeId = 'band-table-t27-live-none';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const before = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody');
+      applyAspectDeal(localeId);
+      const after = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(after).toBe(before);
+      expect(register).not.toHaveBeenCalled();
+      for (const robot of after) expect(robot.loadedUnder).toBeUndefined();
     });
   });
 });

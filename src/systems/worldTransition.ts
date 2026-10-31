@@ -11,7 +11,7 @@ import { useAudioStore } from '../stores/audioStore';
 import { useLoadingStore } from '../stores/loadingStore';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
-import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
+import { spawnInitialRoster, spawnInitialCompanies, applyAspectDeal } from './spawnSystem';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
 import { startAudioSwells, stopAudioSwells } from './audioSwells';
@@ -126,6 +126,9 @@ export function initializeLocale(localeId: string, { startSystems = true }: { st
   if (locale.robots.length === 0) {
     spawnInitialRoster(localeId);
     spawnInitialCompanies(localeId); // Roadmap Phase 10 — same guard as the roster it depends on
+    // The deal (docs/specs/OFF_SCREEN.md assumption 22; band-table T27): the loaded picks dealt over the companies just
+    // formed, each dealt robot's Melody fields re-derived under its aspect's bands. A no-op with nothing picked.
+    applyAspectDeal(localeId);
   }
 
   // The world's run state follows this call (docs/specs/OFF_SCREEN.md assumption 5, docs/tasks/OFF_SCREEN.md Task 8):

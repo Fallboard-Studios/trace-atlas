@@ -3,7 +3,7 @@
 // ========================================
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type Robot, type ADSREnvelope, type RobotFilterType } from '../types/Robot';
 import type { Company } from '../types/Company';
-import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
+import { generateDealtRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
 import {
@@ -316,17 +316,20 @@ export function buildSessionPayload(): SessionPayload {
 
   const noiseMap = getLocaleNoiseMap(locale.id, locale.coordinates.x, locale.coordinates.y);
 
-  const robotBaselines = generateRobotRosterBaseline(noiseMap, locale.robots.length);
+  // The loading identity (docs/specs/OFF_SCREEN.md assumption 10): always written, Classic and {} included, so two
+  // payloads of one world compare equal (Keep's dirty check) and an absent field means an older payload. Read first:
+  // the roster baseline below is dealt under it (assumption 22), so an untweaked dealt world diffs to nothing.
+  const { theme, aspects } = useLoadingStore.getState();
+
+  const robotIdsInSpawnOrder = locale.robots.map((r) => r.id);
+  const { robots: robotBaselines, companies: companyBaselines } = generateDealtRosterBaseline(noiseMap, robotIdsInSpawnOrder, { theme, aspects });
   const robotOverrides: Record<string, RobotAudioOverrideDiff> = {};
   locale.robots.forEach((robot, i) => {
     const diff = computeRobotAudioOverrideDiff(robot, robotBaselines[i]);
     if (Object.keys(diff).length > 0) robotOverrides[robot.id] = diff;
   });
 
-  const robotIdsInSpawnOrder = locale.robots.map((r) => r.id);
-  const companyBaselineById = new Map(
-    generateCompanyRosterBaseline(noiseMap, robotIdsInSpawnOrder).map((c) => [c.id, c]),
-  );
+  const companyBaselineById = new Map(companyBaselines.map((c) => [c.id, c]));
 
   const companyDiffs: Record<string, CompanyDiff> = {};
   const userCreatedCompanies: Company[] = [];
@@ -349,10 +352,6 @@ export function buildSessionPayload(): SessionPayload {
   // seed baseline shares, so an untouched lane still equals its seed.
   const lfoBank = roundLfoBankForCapture(audioState.lfoBank);
   const globalLfoLinks = { ...audioState.globalLfoLinks };
-
-  // The loading identity (docs/specs/OFF_SCREEN.md assumption 10): always written, Classic and {} included, so two
-  // payloads of one world compare equal (Keep's dirty check) and an absent field means an older payload.
-  const { theme, aspects } = useLoadingStore.getState();
 
   return {
     version: 3,

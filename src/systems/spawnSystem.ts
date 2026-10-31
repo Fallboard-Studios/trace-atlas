@@ -35,7 +35,14 @@ import {
 } from '../data/robotSendLoadingRanges';
 import { robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
-import type { SendBand, ToggleBand } from '../data/bands/bandKeys';
+import { resolveBands } from '../data/bands/resolveBands';
+import { dealAspects, type RobotAspects } from '../data/bands/dealAspects';
+import type { BandTable, SendBand, ToggleBand } from '../data/bands/bandKeys';
+import type { MelodyBandKey } from '../data/bands/aspects';
+import type { ThemeId } from '../data/bands/themes';
+import type { LoadingIdentity } from '../data/bands/loadingIdentity';
+import { useLoadingStore } from '../stores/loadingStore';
+import { regenerateMelody } from '../engine/regenerateMelody';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -133,6 +140,40 @@ function seedToggleValue(raw: number, band: ToggleBand): ToggleValue {
   const span = band.max - band.min + 1; // the whole numbers min..max
   const value = band.min + Math.min(span - 1, Math.floor(fraction * span));
   return { active: true, value };
+}
+
+/** The four Melody fields a robot draws (docs/specs/MELODY_SYSTEM.md) - the deal's one family in v1. */
+type MelodyFields = Pick<RobotAudioBaseline, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>;
+
+/** The theme's Melody bands as the loading context holds them now (getBand at the draw, band-table T21). */
+function currentMelodyBands(): Pick<BandTable, MelodyBandKey> {
+  return {
+    'robot.rhythmicDensity': getBand('robot.rhythmicDensity'),
+    'robot.noteVariance': getBand('robot.noteVariance'),
+    'robot.rhythmicMotifLength': getBand('robot.rhythmicMotifLength'),
+    'robot.pitchRepeat': getBand('robot.pitchRepeat'),
+  };
+}
+
+/**
+ * The four Melody fields from a robot's own spawn index under `bands` - the theme's at spawn (currentMelodyBands), an
+ * aspect's when the deal re-derives them (applyDealToBaselines: resolveBands(theme, { melody: aspect })). The same
+ * noise, dataIds and formulas either way, so a dealt robot is exactly what it would have been had it spawned under the
+ * aspect (docs/specs/OFF_SCREEN.md assumption 22). The toggle fields reuse the old '.active' dataIds verbatim (not a
+ * freshly-named consolidated key): getSeededVal's simplex slice is keyed off the exact dataId string, so a new string
+ * would sample a different curve with no guarantee of matching the already-tuned ~85%/15% split against the band's
+ * offShare; the old '.value' dataIds are retired, value is derived from this same draw.
+ */
+function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number, bands: Pick<BandTable, MelodyBandKey>): MelodyFields {
+  const density = bands['robot.rhythmicDensity'];
+  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnIndex, density.min, density.max));
+  const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnIndex, 0, 1);
+  const rhythmicMotifLength = seedToggleValue(motifRaw, bands['robot.rhythmicMotifLength']);
+  const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnIndex, 0, 1);
+  const noteVariance = seedToggleValue(noteVarianceRaw, bands['robot.noteVariance']);
+  const repeat = bands['robot.pitchRepeat'];
+  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnIndex, repeat.min, repeat.max));
+  return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat };
 }
 
 // Waveform types — even distribution gives ~20% each (includes pulse)
@@ -559,6 +600,9 @@ export interface RobotAudioBaseline {
   gritSend: number;
   shimmerSend: number;
   doubleSend: number;
+  /** What the deal loaded this robot under (docs/specs/OFF_SCREEN.md assumption 22), as Robot.loadedUnder; set by
+   *  applyDealToBaselines on a dealt robot, absent on the rest. Not a diffed field. */
+  loadedUnder?: RobotAspects;
 }
 
 /**
@@ -598,14 +642,7 @@ export function generateRobotAudioBaseline(
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-  const density = getBand('robot.rhythmicDensity');
-  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, density.min, density.max));
-  const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnCount, 0, 1);
-  const rhythmicMotifLength = seedToggleValue(motifRaw, getBand('robot.rhythmicMotifLength'));
-  const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1);
-  const noteVariance = seedToggleValue(noteVarianceRaw, getBand('robot.noteVariance'));
-  const repeat = getBand('robot.pitchRepeat');
-  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, repeat.min, repeat.max));
+  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands());
   const dynamicsBand = getBand('robot.dynamics');
   const dynamics = Math.round(getSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max));
   const restsBand = getBand('robot.rests');
@@ -670,6 +707,83 @@ export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotId
     companies.push({ id: generateCompanyId(noiseMap, c), name: generateCompanyName(noiseMap, c), robotIds: memberIds });
   }
   return companies;
+}
+
+// ========================================
+// THE DEAL (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24)
+// ========================================
+
+/** The identity the deal reads: the theme the fleet was built under and the picks to seat. */
+type DealIdentity = Pick<LoadingIdentity, 'theme' | 'aspects'>;
+
+/** A dealt robot's re-derived fields: per dealt family, its keys from the robot's own index under
+ *  resolveBands(theme, { [family]: aspect }) - the same draws as at spawn, into the aspect's bands (assumption 22). One
+ *  family in v1; a later family adds its branch here. */
+function dealtFields(noiseMap: NoiseFunction2D, spawnIndex: number, theme: ThemeId, aspects: RobotAspects): Partial<MelodyFields> {
+  if (!aspects.melody) return {};
+  return deriveMelodyFields(noiseMap, spawnIndex, resolveBands(theme, { melody: aspects.melody }));
+}
+
+/**
+ * The deal pass over a regenerated roster baseline, pure (assumption 22 as amended at planning): dealAspects over the
+ * companies and the robot ids (spawn order), then for every robot dealt an aspect its family's fields re-derived from
+ * its own index - a copied-baseline robot included, which so leaves its source's values behind - and `loadedUnder`
+ * set; every other robot is the very same object, and with nothing dealt the input array comes back. Run inside
+ * generateDealtRosterBaseline for buildSessionPayload's diff and mirrored live by applyAspectDeal from the same noise
+ * map, so an untweaked dealt world diffs to nothing against its own seed.
+ */
+export function applyDealToBaselines(
+  baselines: RobotAudioBaseline[],
+  robotIds: readonly string[],
+  companies: readonly Pick<Company, 'robotIds'>[],
+  identity: DealIdentity,
+  noiseMap: NoiseFunction2D,
+): RobotAudioBaseline[] {
+  const dealt = dealAspects(identity, companies, robotIds.map((id) => ({ id })), noiseMap);
+  if (dealt.size === 0) return baselines;
+  return baselines.map((baseline, i) => {
+    const aspects = dealt.get(robotIds[i]);
+    if (!aspects) return baseline;
+    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects), loadedUnder: aspects };
+  });
+}
+
+/**
+ * The roster and company baselines a saved world is diffed against (sessionDiff.ts's buildSessionPayload): the roster
+ * replayed from the noise map, the companies from the live robot ids in spawn order, and the deal applied to the roster
+ * under the loaded identity, so the baseline is what the live spawn produced.
+ */
+export function generateDealtRosterBaseline(
+  noiseMap: NoiseFunction2D,
+  robotIds: readonly string[],
+  identity: DealIdentity,
+): { robots: RobotAudioBaseline[]; companies: CompanyRosterBaseline[] } {
+  const companies = generateCompanyRosterBaseline(noiseMap, robotIds);
+  const robots = applyDealToBaselines(generateRobotRosterBaseline(noiseMap, robotIds.length), robotIds, companies, identity, noiseMap);
+  return { robots, companies };
+}
+
+/**
+ * The deal pass on the live roster (assumption 22): after spawnInitialCompanies, in initializeLocale
+ * (worldTransition.ts). Reads the loading store's theme and picks, deals over the locale's companies and robots, and for
+ * every dealt robot writes its re-derived fields and `loadedUnder` through updateRobot (the roster position is the spawn
+ * index: the initial roster spawns in order from 0) and regenerates its melody from them (regenerateMelody re-registers
+ * it with the engine). With nothing dealt, nothing is written. The baseline runs applyDealToBaselines from the same
+ * noise map, so the two agree field for field.
+ */
+export function applyAspectDeal(localeId: string): void {
+  const locale = useLocaleStore.getState().getLocaleById(localeId);
+  if (!locale) return;
+  const { theme, aspects } = useLoadingStore.getState();
+  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+  const dealt = dealAspects({ aspects }, locale.companies, locale.robots, noiseMap);
+  locale.robots.forEach((robot, i) => {
+    const robotAspects = dealt.get(robot.id);
+    if (!robotAspects) return;
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...dealtFields(noiseMap, i, theme, robotAspects), loadedUnder: robotAspects });
+    const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
+    if (updated) regenerateMelody(updated, localeId);
+  });
 }
 
 /**
@@ -761,35 +875,24 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       ? generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts)
       : generateRobotLfoLinks((_x: number, _y: number) => 0 as number, spawnCount, priorLaneCounts);
 
-    // Every band from the loading context at the draw (band-table T21); the alea fallbacks map into the same bands.
-    const density = getBand('robot.rhythmicDensity');
-    spawnRhythmicDensity = Math.round(
-      noiseMap
-        ? getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnCount, density.min, density.max)
-        : density.min + alea(`${localeId}:${spawnCount}:density`)() * (density.max - density.min)
-    );
-
-    // Reuses the old '.active' dataId verbatim (not a freshly-named consolidated key) —
-    // getSeededVal's simplex slice is keyed off the exact dataId string, so a new string
-    // would sample a different curve with no guarantee of matching this one's already-
-    // tuned ~85%/15% split against the band's offShare. The old '.value'
-    // dataId is retired entirely — value is now derived from this same draw.
-    const motifRaw = noiseMap
-      ? getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnCount, 0, 1)
-      : alea(`${localeId}:${spawnCount}:motifActive`)();
-    spawnRhythmicMotifLength = seedToggleValue(motifRaw, getBand('robot.rhythmicMotifLength'));
-
-    const noteVarianceRaw = noiseMap
-      ? getSeededVal(noiseMap, 'robot.noteVariance.active', spawnCount, 0, 1)
-      : alea(`${localeId}:${spawnCount}:nvActive`)();
-    spawnNoteVariance = seedToggleValue(noteVarianceRaw, getBand('robot.noteVariance'));
-
-    const repeat = getBand('robot.pitchRepeat');
-    spawnPitchRepeat = Math.round(
-      noiseMap
-        ? getSeededVal(noiseMap, 'robot.pitchRepeat', spawnCount, repeat.min, repeat.max)
-        : repeat.min + alea(`${localeId}:${spawnCount}:pitchRepeat`)() * (repeat.max - repeat.min)
-    );
+    // The Melody fields from the loading context's bands (band-table T21) - one derivation shared with the baseline
+    // and the deal pass (deriveMelodyFields, Task 27); the alea fallbacks map into the same bands.
+    const melodyBands = currentMelodyBands();
+    if (noiseMap) {
+      ({
+        rhythmicDensity: spawnRhythmicDensity,
+        rhythmicMotifLength: spawnRhythmicMotifLength,
+        noteVariance: spawnNoteVariance,
+        pitchRepeat: spawnPitchRepeat,
+      } = deriveMelodyFields(noiseMap, spawnCount, melodyBands));
+    } else {
+      const density = melodyBands['robot.rhythmicDensity'];
+      spawnRhythmicDensity = Math.round(density.min + alea(`${localeId}:${spawnCount}:density`)() * (density.max - density.min));
+      spawnRhythmicMotifLength = seedToggleValue(alea(`${localeId}:${spawnCount}:motifActive`)(), melodyBands['robot.rhythmicMotifLength']);
+      spawnNoteVariance = seedToggleValue(alea(`${localeId}:${spawnCount}:nvActive`)(), melodyBands['robot.noteVariance']);
+      const repeat = melodyBands['robot.pitchRepeat'];
+      spawnPitchRepeat = Math.round(repeat.min + alea(`${localeId}:${spawnCount}:pitchRepeat`)() * (repeat.max - repeat.min));
+    }
 
     // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): the three performance sliders, each its own dataId
     // at the spawn count, with the same alea no-noise-map fallback the composition fields have.

@@ -984,6 +984,23 @@ describe('worldTransition', () => {
       retransmitWorld({ aspects: { melody: ['hypnotic', 'zzz' as AspectPick] } });
       expect(useLoadingStore.getState().aspects).toEqual({ melody: ['hypnotic'] });
     });
+
+    // band-table T27 (spec assumption 22): the deal pass runs after the companies spawn, on every build.
+    it('initializeLocale deals the loaded picks after the companies spawn: every robot carries loadedUnder', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'] } });
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+      expect(robots.length).toBeGreaterThan(0);
+      for (const robot of robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
+    });
+
+    it('a retransmit that picks an aspect deals it to the rebuilt roster, and one that clears the picks leaves no loadedUnder', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      retransmitWorld({ aspects: { melody: ['mechanical'] } });
+      for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toEqual({ melody: 'mechanical' });
+      retransmitWorld({ aspects: {} });
+      for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toBeUndefined();
+    });
   });
 
   // Roll (docs/tasks/OFF_SCREEN.md Task 13, spec assumption 14): a fresh random Attenuation Style and coordinates,

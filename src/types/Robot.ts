@@ -304,6 +304,13 @@ export interface Robot {
    */
   companyId?: string;
   /**
+   * What the deal loaded this robot under (docs/specs/OFF_SCREEN.md assumptions 22 and 24): per aspect family, the
+   * aspect whose bands its fields were re-derived from at spawn. Absent means as theme. Written by the deal pass
+   * (spawnSystem.ts's applyAspectDeal), read by the company and robot readouts; generation-only, so a robot moved
+   * between companies afterwards keeps what it rolled. JSON.
+   */
+  loadedUnder?: Partial<Record<import('../data/bands/aspects').AspectFamilyId, import('../data/bands/aspects').AspectId>>;
+  /**
    * Testing-only override, toggled from the top of Ping Controls: when true, AudioEngine plays
    * a fixed 4-quarter-note downbeat pattern (see src/engine/clickTrack.ts) instead of this
    * robot's real melody, to make tempo/BPM changes easy to track by ear. `melody` itself is left
