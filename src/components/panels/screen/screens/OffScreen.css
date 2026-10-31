@@ -199,14 +199,15 @@
 }
 
 /* Phone shell (docs/tasks/LAYOUT_REWORK.md Task 28; the sketch's .phone .splash). ScreenViewport marks
-   the shell from useShell(), so no media query here. The label sits higher: the column starts at the top
-   with room above it, not centred, and a short screen (a phone on its side) scrolls rather than clipping
-   the picker. The label is sized to fit 320 px and a long word breaks before it runs past the glass. The
-   picker takes the screen's width, its options centred and wrapping, a little tighter than the desk's.
-   The readout wraps, centred and balanced, so a long save name takes a second line. */
+   the shell from useShell(), so no media query here. The label sits higher: the column starts at the top,
+   not centred, a fixed 12 px under the sleeve's power corner on every phone height (Crawford, 2026-10-31,
+   docs/tasks/OFF_SCREEN_REVISIONS.md Task 1), and a short screen (a phone on its side) scrolls rather than
+   clipping the picker. The label is sized to fit 320 px and a long word breaks before it runs past the
+   glass. The picker takes the screen's width, its options centred and wrapping, a little tighter than the
+   desk's. The readout wraps, centred and balanced, so a long save name takes a second line. */
 #screen-viewport[data-shell='phone'] .off-screen {
   justify-content: flex-start;
-  padding-top: 12vh;
+  padding-top: calc(var(--power-corner-height) + 12px);
   gap: var(--spacing-lg);
   overflow-y: auto;
   overflow-x: hidden;
