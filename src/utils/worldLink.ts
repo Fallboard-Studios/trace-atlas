@@ -115,24 +115,34 @@ function readCoordinate(raw: string | null): number {
 }
 
 /**
- * The params for a payload: always `seed` (the exact Attenuation Style name), `x` and `y`; then the loading when it is
- * not the default - `theme` for a theme other than Classic, a param per family holding its picks as a comma list in
- * canonical order (OFF_SCREEN.md assumption 11) - and `s` last, only when the world differs from what its seed
- * regenerates. Reads nothing from the address bar, so no other param (debug, load, session) can ride along (spec
- * assumption 1). URLSearchParams escapes the list's commas; buildShareUrl writes them plain.
+ * The params that name a world: always `seed` (the exact Attenuation Style name), `x` and `y`; then the loading when it
+ * is not the default - `theme` for a theme other than Classic, a param per family holding its picks as a comma list in
+ * canonical order (OFF_SCREEN.md assumption 11). The one writer of that part of a link: Share's (encodeWorldLinkParams,
+ * which adds the blob) and the address bar's (mirrorWorldToUrl), so one world is one link in both
+ * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R17). URLSearchParams escapes the list's commas; worldLinkQuery writes them
+ * plain.
  */
-export function encodeWorldLinkParams(payload: SessionPayload): URLSearchParams {
+export function encodeWorldIdentityParams(identity: WorldIdentity): URLSearchParams {
   const params = new URLSearchParams();
-  params.set(WORLD_LINK_PARAMS.seed, payload.attenuationStyleName);
-  params.set(WORLD_LINK_PARAMS.x, String(payload.coordinates.x));
-  params.set(WORLD_LINK_PARAMS.y, String(payload.coordinates.y));
-  // The loading, read leniently from the payload (an unknown id is the default), written only when not the default.
-  const loading = loadingOf(payload);
-  if (loading.theme !== DEFAULT_LOADING.theme) params.set(WORLD_LINK_PARAMS.theme, loading.theme);
+  params.set(WORLD_LINK_PARAMS.seed, identity.attenuationStyleName);
+  params.set(WORLD_LINK_PARAMS.x, String(identity.coordinates.x));
+  params.set(WORLD_LINK_PARAMS.y, String(identity.coordinates.y));
+  if (identity.theme !== DEFAULT_LOADING.theme) params.set(WORLD_LINK_PARAMS.theme, identity.theme);
   for (const family of ASPECT_FAMILY_IDS) {
-    const picks = loading.aspects[family];
+    const picks = identity.aspects[family];
     if (picks && picks.length > 0) params.set(family, picks.join(','));
   }
+  return params;
+}
+
+/**
+ * The params for a payload: its world's (encodeWorldIdentityParams), the loading read leniently from the payload (an
+ * unknown id is the default), then `s` last, only when the world differs from what its seed regenerates. Reads nothing
+ * from the address bar, so no other param (debug, load, session) can ride along (spec assumption 1).
+ */
+export function encodeWorldLinkParams(payload: SessionPayload): URLSearchParams {
+  const loading = loadingOf(payload);
+  const params = encodeWorldIdentityParams({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loading });
   // The baseline is the payload's own world's: its name, inside its theme's bands (OFF_SCREEN.md assumption 15).
   const diff = diffWorldAgainstSeed(
     payload,
@@ -140,6 +150,13 @@ export function encodeWorldLinkParams(payload: SessionPayload): URLSearchParams 
   );
   if (Object.keys(diff).length > 0) params.set(WORLD_LINK_PARAMS.blob, encodeBlob(diff));
   return params;
+}
+
+/** A link's params as query text, with the picks' commas written plain, as the spec and the mirror write them: a comma
+ *  is an ordinary sub-delimiter in a query (URLSearchParams escapes it to %2C, which reads back the same). The text both
+ *  Share and the address bar write (review R17). */
+export function worldLinkQuery(params: URLSearchParams): string {
+  return params.toString().replace(/%2C/g, ',');
 }
 
 /** The link's theme: Classic for none, and for an unknown id too, with a dev warning - a link is untrusted (OFF_SCREEN.md

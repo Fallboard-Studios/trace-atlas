@@ -213,7 +213,12 @@ worth a second look):
     `replaceState`s. Called after the bare boot's `initializeLocale`, after every `retransmitWorld`, after every
     `applySessionPayload` from the off screen, after Roll. **Not** called on a link arrival (the arrival URL, blob
     included, stands until the world changes), not on Keep, not on an edit. `consumeSessionSharePayload` decodes the URL
-    once at module load, so a later rewrite cannot re-fire it.
+    once at module load, so a later rewrite cannot re-fire it. *Amended 2026-10-31
+    ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R17):* the world part is written by the
+    encoder Share uses (`encodeWorldIdentityParams` through `worldLinkQuery`), not param by param through `withParam`,
+    so the bar and a Share link spell one world the same way: `+` for a space, the families in family order. It takes
+    the place of the first world param the bar held, each read by its decoded name (`se%65d` is the seed), or follows
+    the other params when there is none; those keep their own text and order.
 13. **Presets are links.** `TransmissionPreset = { id, nameKey, link }`; `presetPayload(preset)` =
     `decodeWorldLink(searchOf(link))`, where `searchOf` takes a full URL or a bare `?…` query. Until Crawford pastes his
     three, the three entries are the placeholders' bare triples (`kr1nd4ra` 12 68 …), so nothing is lost. The three
