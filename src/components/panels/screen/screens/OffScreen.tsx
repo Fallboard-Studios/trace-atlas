@@ -8,6 +8,7 @@ import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
 import { ASPECT_FAMILY_IDS, canonicalPicks, pickOrderOf, type AspectFamilyId, type AspectId } from '@/data/bands/aspects';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { retransmitWorld, rollWorld } from '@/systems/worldTransition';
+import { requestWorldChange } from '@/systems/worldChange';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -236,9 +237,10 @@ export function OffScreen() {
   );
 
   const onChange = useCallback((value: string) => {
-    // A world pick shows each set as that world carries it: nothing toggled (Task 31).
-    setLastOn({});
     if (value === CURRENT_VALUE) {
+      // Current is the loaded world already: no world change, so nothing waits. A world pick shows each set as that
+      // world carries it: nothing toggled (Task 31).
+      setLastOn({});
       setPick(CURRENT_PICK);
       return;
     }
@@ -254,29 +256,38 @@ export function OffScreen() {
       payload = loadSession(name);
     }
     if (!payload) return;
-    applySessionPayload(payload);
-    const { setCurrentSessionName, setCurrentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
-    if (value.startsWith(SAVE_PREFIX)) {
-      setCurrentSessionName(name);
-      setCurrentLoadedSessionName(name);
-    } else {
-      detachLoadedSession();
-    }
-    setPick({
-      value,
-      name,
-      identity: { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loadingOf(payload) },
+    const picked = payload;
+    // The world change waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13); the pick, the names and
+    // the dirty read move with the world, after the change.
+    requestWorldChange(() => {
+      applySessionPayload(picked);
+      const { setCurrentSessionName, setCurrentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
+      if (value.startsWith(SAVE_PREFIX)) {
+        setCurrentSessionName(name);
+        setCurrentLoadedSessionName(name);
+      } else {
+        detachLoadedSession();
+      }
+      setLastOn({});
+      setPick({
+        value,
+        name,
+        identity: { attenuationStyleName: picked.attenuationStyleName, coordinates: picked.coordinates, ...loadingOf(picked) },
+      });
+      setDirty(isWorldDirty());
     });
-    setDirty(isWorldDirty());
   }, []);
 
   // A theme pick (Task 30): the loading alone moves — the same seed and plot, drawn again under the new bands — so the
   // world row drops back to Current. The loaded save stays attached (see the component note), and dirty is read again.
+  // Under the scene wash, as every world change here (revisions Task 13).
   const onThemeChange = useCallback((value: string) => {
     if (!isThemeId(value)) return;
-    retransmitWorld({ theme: value });
-    setPick(CURRENT_PICK);
-    setDirty(isWorldDirty());
+    requestWorldChange(() => {
+      retransmitWorld({ theme: value });
+      setPick(CURRENT_PICK);
+      setDirty(isWorldDirty());
+    });
   }, []);
 
   // The boot theatre, built through useGSAP (CLAUDE.md: animation in components goes through it) and registered in
@@ -302,12 +313,15 @@ export function OffScreen() {
     [],
   );
 
-  // Roll is the retransmit itself: the stores change under the Current row, which renames from them.
+  // Roll is the retransmit itself: the stores change under the Current row, which renames from them. Under the scene
+  // wash (revisions Task 13).
   const onRoll = useCallback(() => {
-    rollWorld();
-    useSessionStore.getState().detachLoadedSession();
-    setPick(CURRENT_PICK);
-    setDirty(isWorldDirty());
+    requestWorldChange(() => {
+      rollWorld();
+      useSessionStore.getState().detachLoadedSession();
+      setPick(CURRENT_PICK);
+      setDirty(isWorldDirty());
+    });
   }, []);
 
   // Roll on the Current row (revisions Task 4, Crawford's note 2): the list's trailing slot, beside Current's radio and
@@ -340,16 +354,19 @@ export function OffScreen() {
   // A family change (Task 31; per family since revisions Task 9): the whole loading through retransmitWorld, this family's
   // set replaced, canonical, and every other family's carried as shown — retransmitWorld replaces the aspects whole — so
   // the deal re-runs over the same seed and plot; the world row drops back to Current, the loaded save stays attached and
-  // dirty is read again, as for a theme pick. The aspect toggled on, if one was, becomes the family's described one.
+  // dirty is read again, as for a theme pick. The aspect toggled on, if one was, becomes the family's described one. Under
+  // the scene wash, the row and its line moving with the world (revisions Task 13).
   const onFamilyChange = useCallback(
     (family: AspectFamilyId, picks: string[]) => {
       const next = canonicalPicks(family, picks as AspectId[]);
       const shown = shownAspects[family] ?? NO_PICKS;
       const turnedOn = next.find((p) => !shown.includes(p));
-      if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
-      retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
-      setPick(CURRENT_PICK);
-      setDirty(isWorldDirty());
+      requestWorldChange(() => {
+        retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
+        if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
+        setPick(CURRENT_PICK);
+        setDirty(isWorldDirty());
+      });
     },
     [shownAspects],
   );

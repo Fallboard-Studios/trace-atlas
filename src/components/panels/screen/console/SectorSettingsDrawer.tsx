@@ -4,6 +4,7 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/store
 import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
 import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
+import { requestWorldChange } from '@/systems/worldChange';
 import { describeWorld } from '@/utils/describeWorld';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
 import { TextInput } from '@/components/ui/controls/TextInput';
@@ -84,7 +85,8 @@ export function SectorSettingsDrawer() {
     if (coordinates && (coordsDraft.x !== coordinates.x || coordsDraft.y !== coordinates.y)) {
       input.coordinates = coordsDraft;
     }
-    retransmitWorld(input);
+    // A user-gesture world change: it waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13).
+    requestWorldChange(() => retransmitWorld(input));
   }
 
   return (

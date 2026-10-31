@@ -32,6 +32,8 @@ import { buildSessionPayload } from '@/utils/sessionDiff';
 import { copySessionLink } from '@/utils/sessionShareUtils';
 import { describeWorld } from '@/utils/describeWorld';
 import { useLoadingStore } from '@/stores/loadingStore';
+import { useUIStore } from '@/stores/uiStore';
+import { attachSceneWash } from '@/systems/worldChange';
 import { CONTENT, labels } from '@/content';
 
 // ========================================
@@ -185,6 +187,26 @@ describe('SectorSettingsDrawer', () => {
     render(<SectorSettingsDrawer />);
     fireEvent.click(screen.getByText('Retransmit'));
     expect(retransmitWorldMock).toHaveBeenCalledWith({});
+  });
+
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 13 (Crawford's note 7): Retransmit is a user-gesture world change, so it waits
+  // under the scene wash; a wash is attached by hand and the test lands the cover through the store.
+  it('Retransmit goes through the world change request: it waits for the cover, then retransmits once', () => {
+    useUIStore.setState({ sceneWash: 'clear' });
+    const detach = attachSceneWash();
+    try {
+      render(<SectorSettingsDrawer />);
+      const [xInput] = screen.getAllByRole('spinbutton');
+      fireEvent.change(xInput, { target: { value: '42' } });
+      fireEvent.click(screen.getByText('Retransmit'));
+      expect(useUIStore.getState().sceneWash).toBe('covering');
+      expect(retransmitWorldMock).not.toHaveBeenCalled();
+      act(() => useUIStore.getState().setSceneWash('covered'));
+      expect(retransmitWorldMock).toHaveBeenCalledTimes(1);
+      expect(retransmitWorldMock).toHaveBeenCalledWith({ coordinates: { x: 42, y: 9 } });
+    } finally {
+      detach();
+    }
   });
 
   it('no longer renders the old "Enable automatic effects" toggle — relocated and reshaped into the Audio Rig drawer\'s Ping Variance Automation slider (docs/tasks/archive/PING-VARIANCE-AUTOMATION.md Task 7)', () => {
