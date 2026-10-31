@@ -7,6 +7,7 @@ import { useUIStore } from '../stores/uiStore';
 import { startLocaleSystems } from './worldTransition';
 import { getActiveLocaleId } from '../utils/localeHelpers';
 import { pauseWorldTimelines, resumeWorldTimelines } from '../animation/timelineMap';
+import { fadeOffScreen } from '../animation/offScreenTheatre';
 import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
 import { getWorldState, setWorldState, type WorldState } from './worldState';
 
@@ -71,7 +72,15 @@ export const powerController = {
   // then the lifecycle tick, work loop and swells for the active locale. Last, the power flag flips, which reveals
   // the chrome. The first cold start on a device also writes the heard-a-world flag — the off screen's gate
   // (assumption 7) — so from the next power-off on, the chooser shows.
+  //
+  // Before either path, the off screen's fade (assumption 18): the screen and its veil tween to transparent and
+  // this awaits them, so the veil is gone before the power flag unmounts the screen and nothing shows unveiled under
+  // the chrome. First, not between the wake and the flag: while the fade runs the world is still paused or cold, so
+  // a second flip in that window finds the states as they were — resuming first and flipping the flag later would
+  // let a pause() land in between and leave the flag on over a paused world. The fade resolves at once when no
+  // screen is mounted. A GSAP timeline that resolves a promise, nothing more: the audio is woken here, after it.
   async powerOnSequence() {
+    await fadeOffScreen();
     if (getWorldState() === 'paused') {
       this.resume();
       return;

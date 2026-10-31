@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useGSAP } from '@gsap/react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
@@ -10,6 +11,9 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { describeWorld } from '@/utils/describeWorld';
+import { setRef, deleteRef } from '@/utils/refs';
+import { killTimeline } from '@/animation/timelineMap';
+import { OFF_SCREEN_FADE_TIMELINE, OFF_SCREEN_REF_KEY, skipOffScreenBoot, startOffScreenBoot } from '@/animation/offScreenTheatre';
 import { labels } from '@/content';
 import type { ButtonSchema, RadioButtonSchema } from '@/types/controls';
 import type { SessionPayload } from '@/types/session';
@@ -74,9 +78,20 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
  * .detachLoadedSession): that world is no longer the save, so Current is named by its identity alone and Keep
  * writes a new row rather than overwriting the save. The veil (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
- * column in both gate states. The Loading axis (the theme and Melody rows) is the themes phase's.
+ * column in both gate states.
+ *
+ * The boot theatre (assumption 18, animation/offScreenTheatre.ts): on mount the dark layer over the content holds
+ * for half a second, then flickers off — a 'ui' timeline in timelineMap, so it runs over the paused world; a tap
+ * anywhere on the screen skips it, reduced motion skips it outright, and the rocker outside the screen works
+ * throughout. The screen registers its root under the off-screen ref so powerController's power-on can await
+ * fadeOffScreen() — the screen and its veil to transparent — before the power flag flips and ScreenViewport
+ * unmounts it. Both timelines are killed, and the ref dropped, on unmount. The Loading axis (the theme and Melody
+ * rows) is the themes phase's.
  */
 export function OffScreen() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const darkRef = useRef<HTMLDivElement>(null);
+  const stopBootRef = useRef<(() => void) | null>(null);
   const [heardWorld] = useState(() => hasHeardWorld());
   const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
@@ -147,6 +162,29 @@ export function OffScreen() {
     setDirty(isWorldDirty());
   }, []);
 
+  // The boot theatre, built through useGSAP (CLAUDE.md: animation in components goes through it) and registered in
+  // timelineMap by the animation module; the ref the fade reads is set here, where the root exists.
+  useGSAP(
+    () => {
+      if (!rootRef.current || !darkRef.current) return;
+      setRef(OFF_SCREEN_REF_KEY, rootRef.current);
+      stopBootRef.current = startOffScreenBoot(darkRef.current);
+    },
+    { scope: rootRef, dependencies: [] },
+  );
+
+  // useGSAP ignores its callback's return, so the kills live here (PowerRockerSwitch's pattern): the theatre, a
+  // fade still in flight, and the ref — a pending fade's onComplete must never resolve against an unmounted screen.
+  useEffect(
+    () => () => {
+      stopBootRef.current?.();
+      stopBootRef.current = null;
+      killTimeline(OFF_SCREEN_FADE_TIMELINE);
+      deleteRef(OFF_SCREEN_REF_KEY);
+    },
+    [],
+  );
+
   // Roll is the retransmit itself: the stores change under the Current row, which renames from them.
   const onRoll = useCallback(() => {
     rollWorld();
@@ -164,8 +202,10 @@ export function OffScreen() {
   const readout = 'identity' in pick ? describeWorld(pick.identity, pick.name) : currentLabel;
 
   return (
-    <div className="off-screen">
+    <div className="off-screen" ref={rootRef} onPointerDown={skipOffScreenBoot}>
       <div className="off-screen__veil" aria-hidden="true" />
+      {/* The boot theatre's dark layer: opaque over everything at first paint, faded and hidden by the timeline. */}
+      <div className="off-screen__dark" ref={darkRef} aria-hidden="true" />
       <div className="off-screen__etch">
         <h2 className="off-screen__label">{LABEL.humanLabel}</h2>
         {LABEL.loreLabel && <p className="off-screen__lore">{LABEL.loreLabel}</p>}

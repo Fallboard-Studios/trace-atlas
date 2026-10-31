@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 
 /*
@@ -42,6 +42,8 @@ import { describeWorld } from '@/utils/describeWorld';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
+import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/timelineMap';
+import { getRef } from '@/utils/refs';
 import { CONTENT } from '@/content';
 import type { SessionPayload } from '@/types/session';
 
@@ -128,6 +130,59 @@ describe('OffScreen — the veil and the lore footer', () => {
     expect(footer().tagName).toBe('P');
     expect(footer().closest('button')).toBeNull();
     expect(veil(container)!.querySelector('*')).toBeNull();
+  });
+});
+
+// docs/tasks/OFF_SCREEN.md Task 16b (spec assumption 18): the boot theatre — a 'ui' timeline, dark then a flicker to
+// ready — registered on mount, skipped by a tap on the screen, jumped to ready under reduced motion, killed on unmount;
+// the screen registers itself under the ref the controller's fade reads. The look (dark, flicker, the fade on the
+// flip) is Crawford's at Checkpoint B.
+describe('OffScreen — the boot theatre', () => {
+  afterEach(() => {
+    killAllTimelines();
+    vi.unstubAllGlobals();
+  });
+
+  it("registers 'off-screen-boot' in the ui scope on mount, with the dark layer over the content", () => {
+    const { container } = render(<OffScreen />);
+    expect(getTimeline('off-screen-boot')).toBeDefined();
+    expect(getTimelineScope('off-screen-boot')).toBe('ui');
+    const dark = container.querySelector('.off-screen__dark');
+    expect(dark).not.toBeNull();
+    expect(dark!.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('registers the screen under the off-screen ref, for the power-on fade', () => {
+    const { container } = render(<OffScreen />);
+    expect(getRef('off-screen')).toBe(container.querySelector('.off-screen'));
+  });
+
+  it('a pointerdown anywhere on the screen skips to ready', () => {
+    const { container } = render(<OffScreen />);
+    expect(getTimeline('off-screen-boot')!.progress()).toBe(0);
+    fireEvent.pointerDown(screen.getByText(human('home.off.powerHint')));
+    expect(getTimeline('off-screen-boot')!.progress()).toBe(1);
+    expect(container.querySelector('.off-screen__dark')).not.toBeNull();
+  });
+
+  it('is ready at once under prefers-reduced-motion: reduce', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion: reduce') }));
+    render(<OffScreen />);
+    expect(getTimeline('off-screen-boot')!.progress()).toBe(1);
+  });
+
+  it('kills the theatre and drops the ref on unmount', () => {
+    const { unmount } = render(<OffScreen />);
+    unmount();
+    expect(getTimeline('off-screen-boot')).toBeUndefined();
+    expect(getRef('off-screen')).toBeUndefined();
+  });
+
+  it('runs on a returning visit too, over the chooser', () => {
+    markHeardWorld();
+    render(<OffScreen />);
+    expect(getTimelineScope('off-screen-boot')).toBe('ui');
+    expect(screen.getByRole('radio', { name: currentLabel() })).toBeTruthy();
   });
 });
 

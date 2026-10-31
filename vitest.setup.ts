@@ -35,16 +35,21 @@ vi.mock('gsap', () => {
     add(child?: unknown, position?: unknown): TimelineObj;
     pause(time?: number): TimelineObj;
     paused(): boolean;
+    progress(value?: number): number | TimelineObj;
   }
 
   const noop = (startPaused = false): TimelineObj => {
-    // The one piece of state this stub keeps: whether the timeline is paused, as real GSAP's
+    // The two pieces of state this stub keeps: whether the timeline is paused, as real GSAP's
     // paused() getter reports it — set by `{ paused: true }` at creation, pause() and play().
     // timelineMap.ts's pauseWorldTimelines() / resumeWorldTimelines() (docs/specs/OFF_SCREEN.md
     // assumption 3) read it to pause only the world timelines that are playing and to play
     // only those again; missing until 2026-10-30, the same masking pattern as .kill() and
-    // .play() below — no consumer read paused() before the power rocker became a pause.
+    // .play() below — no consumer read paused() before the power rocker became a pause. And its
+    // progress, as a plain 0–1 number: the off screen's boot theatre jumps to ready with
+    // progress(1) on a tap or under reduced motion (docs/tasks/OFF_SCREEN.md Task 16b), and its
+    // tests read the value back. Never advanced by a clock here.
     let paused = startPaused;
+    let progress = 0;
     const obj = {
       // No onComplete on tl.set() (real GSAP's .set() vars don't take one
       // either) — it's an immediate, synchronous step, unlike .to()/.fromTo()
@@ -101,6 +106,11 @@ vi.mock('gsap', () => {
       add: (_child?: unknown, _position?: unknown) => obj as TimelineObj,
       pause: (_time?: number) => { paused = true; return obj as TimelineObj; },
       paused: () => paused,
+      progress: (value?: number) => {
+        if (value === undefined) return progress;
+        progress = value;
+        return obj as TimelineObj;
+      },
     };
     return obj as TimelineObj;
   };
@@ -157,6 +167,21 @@ vi.mock('gsap', () => {
     // that drives the glide mocks 'gsap/dist/Flip' itself (RosterBoard.test.tsx).
     registerPlugin: () => { },
     utils: { selector: () => () => [] },
+    // gsap.matchMedia(), as a shape: `add(query, fn)` runs fn at once when the page's own matchMedia says the
+    // query matches (jsdom has none, so a test stubs `window.matchMedia` to drive it) and never again; `revert()`
+    // is a no-op. The off screen's boot theatre jumps to ready under `(prefers-reduced-motion: reduce)` through
+    // it (docs/tasks/OFF_SCREEN.md Task 16b). Not a real MatchMedia: no listeners, no context revert.
+    matchMedia: () => {
+      const mm = {
+        add: (query: string, fn: () => void) => {
+          const page = (globalThis as unknown as { matchMedia?: (q: string) => { matches: boolean } }).matchMedia;
+          if (page?.(query).matches) fn();
+          return mm;
+        },
+        revert: () => { },
+      };
+      return mm;
+    },
   };
   return { default: mocked, ...mocked };
 });

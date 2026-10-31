@@ -9,6 +9,7 @@ vi.mock('./workLoop', () => ({ stopWorkLoop: vi.fn(), pauseWorkLoop: vi.fn(), re
 vi.mock('./worldTransition', () => ({ startLocaleSystems: vi.fn() }));
 vi.mock('../animation/timelineMap', () => ({ pauseWorldTimelines: vi.fn(), resumeWorldTimelines: vi.fn() }));
 vi.mock('../utils/deviceFlags', () => ({ hasHeardWorld: vi.fn(() => false), markHeardWorld: vi.fn() }));
+vi.mock('../animation/offScreenTheatre', () => ({ fadeOffScreen: vi.fn(() => Promise.resolve()) }));
 const setPowerOnSpy = vi.fn();
 const setPowerOffSpy = vi.fn();
 vi.mock('../stores/uiStore', () => ({ useUIStore: { getState: () => ({ setPowerOn: setPowerOnSpy, setPowerOff: setPowerOffSpy }) } }));
@@ -25,6 +26,7 @@ import { stopWorkLoop, pauseWorkLoop, resumeWorkLoop } from './workLoop';
 import { startLocaleSystems } from './worldTransition';
 import { pauseWorldTimelines, resumeWorldTimelines } from '../animation/timelineMap';
 import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
+import { fadeOffScreen } from '../animation/offScreenTheatre';
 import { useUIStore } from '../stores/uiStore';
 import { useLocaleStore } from '../stores/localeStore';
 
@@ -148,6 +150,48 @@ describe('powerController', () => {
       powerController.pause();
       await powerController.powerOnSequence();
       expect(markHeardWorld).not.toHaveBeenCalled();
+    });
+  });
+
+  // The veil fades before the chrome appears (docs/specs/OFF_SCREEN.md assumption 18, docs/tasks/OFF_SCREEN.md Task 16b):
+  // powerOnSequence awaits the off screen's fade first — before anything wakes, so a flip during the fade finds the
+  // world still paused or cold and the states never cross — and only then flips the power flag that unmounts the screen.
+  describe('the off screen fade', () => {
+    it('is awaited once, before the power flag flips, on the cold path — and before the audio starts', async () => {
+      await powerController.powerOnSequence();
+      expect(fadeOffScreen).toHaveBeenCalledTimes(1);
+      expect(order(fadeOffScreen)).toBeLessThan(order(AudioEngine.start));
+      expect(order(fadeOffScreen)).toBeLessThan(order(useUIStore.getState().setPowerOn));
+    });
+
+    it('is awaited once, before the power flag flips, on the resume path — and before the context wakes', async () => {
+      await powerController.powerOnSequence();
+      powerController.pause();
+      vi.clearAllMocks();
+      await powerController.powerOnSequence();
+      expect(fadeOffScreen).toHaveBeenCalledTimes(1);
+      expect(order(fadeOffScreen)).toBeLessThan(order(AudioEngine.resume));
+      expect(order(fadeOffScreen)).toBeLessThan(order(useUIStore.getState().setPowerOn));
+    });
+
+    it('the power flag does not flip until the fade has resolved', async () => {
+      let finish: () => void = () => {};
+      vi.mocked(fadeOffScreen).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+      const sequence = powerController.powerOnSequence();
+      await Promise.resolve();
+      expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
+      expect(AudioEngine.start).not.toHaveBeenCalled();
+      finish();
+      await sequence;
+      expect(useUIStore.getState().setPowerOn).toHaveBeenCalledTimes(1);
+      expect(powerController.getWorldState()).toBe('running');
+    });
+
+    it('pause() fades nothing: the screen appears over the paused world, it does not disappear', async () => {
+      await powerController.powerOnSequence();
+      vi.clearAllMocks();
+      powerController.pause();
+      expect(fadeOffScreen).not.toHaveBeenCalled();
     });
   });
 
