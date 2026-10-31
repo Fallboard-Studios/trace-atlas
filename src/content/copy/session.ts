@@ -23,7 +23,12 @@ export const session = {
   'session.clearStorage': { human: 'Clear Local Storage', lore: 'Factory Reset' },
   'session.clearStorage.action': { human: 'Reset to Factory Settings' },
   'session.clearStorage.confirmTitle': { human: 'Clear Local Storage?' },
-  'session.clearStorage.confirmBody': { human: 'Every saved and autosaved session is deleted. This can\'t be undone.' },
+  // Autosave is gone (docs/specs/SESSION_STORAGE.md), and the reset also clears the device's heard-a-world flag
+  // (docs/specs/OFF_SCREEN.md assumption 7), so the next visit is a first one. Stand-in until Crawford's words
+  // (docs/tasks/OFF_SCREEN.md Task 17).
+  'session.clearStorage.confirmBody': {
+    human: 'Every saved session is deleted, and this device forgets it has heard a world: the next visit starts as a first one. This can\'t be undone.',
+  },
   'session.delete.confirmTitle': { human: 'Delete?', template: 'Delete {session}?' },
   'session.delete.confirmBody': { human: 'This can\'t be undone.' },
   'session.status.saved': { human: 'Saved', template: 'Saved {name} at {time}' },
