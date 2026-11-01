@@ -767,9 +767,40 @@ and would drop all six layer swells (F16).
   **Dependencies:** F14 recorded. **Files:** `aspectDeal.ts`, `worldTransition.ts`, their tests.
   **Estimated scope:** M
 
-- [ ] **F17: `worldTransition.ts`, `audioStore.ts` — a theme change moves only the global attributes it moves** (the
+- [x] **F17: `worldTransition.ts`, `audioStore.ts` — a theme change moves only the global attributes it moves** (the
   FYI rule's global side; **approved** by Crawford on 2026-11-01: "let's do it with the refresh only what is
   necessary")
+
+  **As shipped:**
+  - **The verify-first dump** (scratch, not committed): 12 seeds × 20 ordered theme pairs = 240 draws. Moved: `bpm`
+    and `globalAudio.filterLPF.frequency` (240 each), and only Sync picks besides. Bank lanes: `b.sync.division` 120,
+    `b.sync.modifier` 100, `a.sync.modifier` 98, `d.sync.division` 70, `d.sync.modifier` 60, `a.sync.division` 58,
+    `c.sync.division` 24, `c.sync.modifier` 22. Audio Rig: `delay.sync.modifier` 102, `delay.sync.division` 94,
+    `chorus.sync.division` 66, `chorus.sync.modifier` 56, `tremolo.sync.modifier` 16, `phaser.sync.modifier` 12,
+    `tremolo.sync.division` 12, `vibrato.sync.modifier` 12, `vibrato.sync.division` 12. Nothing outside the three
+    groups, so the gate passed. No link moved, and no block or lane changed between Free and Sync.
+  - **The shape:** a pure `deriveGlobalHalfMoves(id, name, from, to)` (`audioStore.ts`) returns the moved fields per
+    block, lane and link, a block's `sync` compared whole. `applyGlobalHalfMoves(moves)` writes them: the tempo
+    through `setBPM`, each moved block through `setGlobalAudio` (the hand-edit path), the moved lanes and links pushed
+    only to a primed engine (R2). The `loadingOnly` case calls the two; `regenerateGlobalHalfFromSeed` now serves only
+    a theme riding on a plot move.
+  - **F11's input changed with it:** `cancelGlobalSwellsMovedBy` takes the moved partial and skips a field absent
+    from it. With an unmoved field no longer written, its store value is a riding swell's mid-ramp value, so comparing
+    the whole draw would cancel swells the change leaves alone. F11's three cases pass unmodified.
+  - **Deviation, the synced-rate sanitize:** sessionDiff's `sanitizeSyncedRate` only drops an invalid note value; it
+    never checks a note against a tempo, so it could not do what the plan's "disallowed lane is sanitized" case
+    describes. The rule applied is the one a hand Tempo edit already follows (FREE_SYNC_TOGGLE.md §1.6): a kept Sync
+    pick stays on its note, and `setBPM`'s re-push resolves it at the new tempo, clamped into range. The case became
+    "a hand-set Sync note on a lane whose pick the theme leaves stays, and reaches the engine resolved at the new
+    tempo". **For Crawford:** say if a kept pick outside the new tempo's allowed list should snap instead.
+  - A removed field (a pick gone Free, which no real column reaches) is written as a whole block with the key
+    deleted, and pushed whole; covered by two cases in `audioStore.test.ts`.
+  - The R2 "every lane pushed" case now asserts the moved lanes and links only. Three older cases that spied the four
+    regenerators now assert none runs.
+  - Verification: `src/systems src/stores src/utils/sessionDiff.test.ts`, 36 files / 3,264 tests. Mutants killed: the
+    whole half reseeded again (6 fail), a moved Audio Rig field skipped (8), the moved tempo skipped (5), a moved lane
+    not written (2) or not pushed (1), every field written with no diff (3), F11's cancel for an absent field (1), a
+    removed field kept (2), the removal sent through `setGlobalAudio` (1).
 
   **Description:**
   - **Today:** `regenerateGlobalHalfFromSeed` reseeds bpm, the whole Audio Rig, the LFO Bank and the global links. So a

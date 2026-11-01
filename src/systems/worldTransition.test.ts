@@ -53,7 +53,7 @@ vi.mock('../data/bands/aspects', async (importOriginal) => {
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useUIStore } from '../stores/uiStore';
-import { useAudioStore } from '../stores/audioStore';
+import { useAudioStore, deriveGlobalHalfMoves } from '../stores/audioStore';
 import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
 import type { AspectIdOf } from '../data/bands/aspects';
 import { getWorldState, setWorldState } from './worldState';
@@ -66,7 +66,11 @@ import { initializeLocale, retransmitChangesWorld, retransmitWorld, rollWorld, s
 import { getCurrentMeasure } from '../engine/beatClock';
 import { lfoEngine } from '../engine/lfoEngine';
 import * as lfoShared from '../engine/lfoShared';
-import { resolveLaneForEngine } from '../utils/tempoSync';
+import { resolveLaneForEngine, resolveLaneRateHz } from '../utils/tempoSync';
+import { withLoading } from '../data/bands/loadingContext';
+import { NOTE_VALUES } from '../data/noteValues';
+import { deepEqual } from '../utils/math';
+import { generateGlobalAudioSettings, generateLfoBankSettings, generateGlobalLfoLinks } from '../utils/globalAudioSeed';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { stopRobotLifecycle } from './robotSystems';
@@ -965,7 +969,8 @@ describe('worldTransition', () => {
 
     // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7 (Crawford, answer 2b): nothing about the physical world changes on a theme
     // change, so the locale stands and the live roster is re-derived in place, where it used to be rebuilt at the plot.
-    it('a theme alone keeps the Attenuation Style, the plot and the locale, sets the store, regenerates the global half under the new bands, and re-derives the roster in place', () => {
+    // Since final fixes F17 the global half is not regenerated whole: only the fields the theme moves are written.
+    it('a theme alone keeps the Attenuation Style, the plot and the locale, sets the store, moves the global half into the new bands, and re-derives the roster in place', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       // A fresh locale first, as every retransmit makes: robot ids carry a per-locale spawn count kept at module scope,
       // and the default locale's count has been advanced by the tests above, so only a fresh plot's ids repeat.
@@ -984,10 +989,7 @@ describe('worldTransition', () => {
       expect(after.locale.id).toBe(before.locale.id);
       expect(after.locale.robots.map((r) => r.id)).toEqual(robotIdsBefore);
       expect(useLoadingStore.getState().theme).toBe('calm');
-      for (const spy of Object.values(spies)) {
-        expect(spy).toHaveBeenCalledTimes(1);
-        expect(spy).toHaveBeenCalledWith(before.style.id, before.style.name);
-      }
+      for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
       expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150);
       expect(useAudioStore.getState().bpm).toBeLessThanOrEqual(160);
       expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBeGreaterThanOrEqual(500);
@@ -1186,6 +1188,87 @@ describe('worldTransition', () => {
       });
     });
 
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17 (Crawford's rule, the global side): a theme change writes only the global
+    // attributes whose seeded value it moves - the tempo, the LPF cutoff and the Sync picks the new tempo changes, under
+    // the real columns (the verify-first dump) - and every other attribute keeps what it holds, a tweak included.
+    describe('the global half moves only what the theme moves (final fixes F17)', () => {
+      /** The global half as a fresh draw under `theme` gives it, the store's non-seeded switch carried. */
+      const freshDraw = (theme: 'classic' | 'calm') => {
+        const { style } = currentWorld();
+        return withLoading({ theme, aspects: {} }, () => ({
+          bpm: generateAttenuationStyleBpm(style.id, style.name),
+          globalAudio: {
+            ...generateGlobalAudioSettings(style.id, style.name),
+            compressorBeforeDelay: useAudioStore.getState().globalAudio.compressorBeforeDelay,
+          },
+          lfoBank: generateLfoBankSettings(style.id, style.name),
+          globalLfoLinks: generateGlobalLfoLinks(style.id, style.name),
+        }));
+      };
+      const globalHalf = () => {
+        const { bpm, globalAudio, lfoBank, globalLfoLinks } = useAudioStore.getState();
+        return { bpm, globalAudio, lfoBank, globalLfoLinks };
+      };
+      /** The world as Classic seeds it: an earlier case's theme leaves its own global half in the store. */
+      const classicWorld = () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        useAudioStore.setState(freshDraw('classic'));
+      };
+
+      it('a tweaked Reverb wet survives a theme change, and a tweaked LPF cutoff takes the new seed', () => {
+        classicWorld();
+        useAudioStore.getState().setGlobalAudio('reverb', { wet: 0.777 });
+        useAudioStore.getState().setGlobalAudio('filterLPF', { frequency: 12345 });
+        retransmitWorld({ theme: 'calm' });
+        expect(useAudioStore.getState().globalAudio.reverb.wet).toBe(0.777);
+        expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBe(freshDraw('calm').globalAudio.filterLPF.frequency);
+      });
+
+      it("an untweaked world's global half equals a fresh draw under the new theme, field for field", () => {
+        classicWorld();
+        expect(globalHalf()).not.toEqual(freshDraw('calm')); // precondition: the theme moves it
+        retransmitWorld({ theme: 'calm' });
+        expect(globalHalf()).toEqual(freshDraw('calm'));
+      });
+
+      it('a theme regenerates nothing whole: none of the four seed regenerators runs', () => {
+        classicWorld();
+        const spies = spyRegenerators();
+        retransmitWorld({ theme: 'calm' });
+        for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
+      });
+
+      // The tempo moves under a Sync pick the theme leaves standing: the pick stays, and the engine hears it at the new
+      // tempo, clamped into its range as a hand Tempo edit's re-push clamps it (FREE_SYNC_TOGGLE.md §1.6). A lane whose
+      // `sync` both draws agree on is one the theme does not move, so a hand-set note on it is a tweak that stands.
+      it('a hand-set Sync note on a lane whose pick the theme leaves stays, and reaches the engine resolved at the new tempo', () => {
+        classicWorld();
+        const lane = LFO_LANE_IDS.find((l) => deepEqual(freshDraw('classic').lfoBank[l].sync, freshDraw('calm').lfoBank[l].sync));
+        expect(lane, 'a lane whose Sync pick the theme leaves').toBeDefined();
+        const note = NOTE_VALUES.find((nv) => !deepEqual(nv, useAudioStore.getState().lfoBank[lane!].sync))!;
+        useAudioStore.getState().replaceLfoBankLane(lane!, { ...useAudioStore.getState().lfoBank[lane!], sync: note });
+        const rate = vi.spyOn(lfoEngine, 'setBankRate').mockImplementation(() => {});
+        retransmitWorld({ theme: 'calm' });
+        const after = useAudioStore.getState();
+        expect(after.lfoBank[lane!].sync).toEqual(note);
+        expect(rate.mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, resolveLaneRateHz(after.lfoBank[lane!], after.bpm)]);
+      });
+
+      it('the engine hears the moved fields: the new tempo and the LPF cutoff, and no push to an Audio Rig block that stays', () => {
+        classicWorld();
+        // The Audio Rig's writes go through setGlobalAudio, the hand edit's path to each block's engine setter.
+        const setBPM = vi.spyOn(AudioEngine, 'setBPM');
+        const setGlobalAudio = vi.spyOn(useAudioStore.getState(), 'setGlobalAudio');
+        retransmitWorld({ theme: 'calm' });
+        const { bpm, globalAudio } = useAudioStore.getState();
+        expect(setBPM).toHaveBeenLastCalledWith(bpm);
+        expect(setGlobalAudio).toHaveBeenCalledWith('filterLPF', { frequency: globalAudio.filterLPF.frequency });
+        const blocks = setGlobalAudio.mock.calls.map(([effect]) => effect);
+        expect(blocks).not.toContain('reverb');
+        expect(blocks).not.toContain('eq3');
+      });
+    });
+
     it('aspects alone, and a theme, keep the selected robot and company: nothing they name is rebuilt', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const { locale } = currentWorld();
@@ -1203,14 +1286,14 @@ describe('worldTransition', () => {
       expect(useUIStore.getState().selectedCompanyId).toBeNull();
     });
 
-    it('a theme with aspects re-derives in place too: the global half regenerates, the locale stands, the picks are dealt', () => {
+    it('a theme with aspects re-derives in place too: the global half moves into the new bands, the locale stands, the picks are dealt', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const before = currentWorld();
-      const spies = spyRegenerators();
       retransmitWorld({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
       const after = currentWorld();
       expect(after.locale.id).toBe(before.locale.id);
-      for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1);
+      expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150); // Calm's tempo, as mocked above
+      expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBeLessThanOrEqual(600);
       expect(useLoadingStore.getState()).toMatchObject({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
       for (const robot of after.locale.robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
     });
@@ -1404,28 +1487,45 @@ describe('worldTransition', () => {
       const globalLinkOrders = (link: ReturnType<typeof stubBankEngine>['link']) =>
         link.mock.calls.flatMap((call, i) => (call.length === 2 ? [link.mock.invocationCallOrder[i]] : []));
 
-      it('a theme pick pushes every lane of the new bank and relinks every global target, after they regenerate, with the context suspended', () => {
+      // Since final fixes F17 a theme writes only the lanes and links it moves, so only those are pushed; every lane's
+      // last rate is still its resolved one at the new tempo (the tempo's re-push covers a synced lane that stays).
+      it('a theme pick pushes each lane and global link it moves, with the context suspended, and every lane ends at its resolved rate', () => {
         initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        // The global half as Classic seeds it: an earlier case's theme leaves its own in the store.
+        const { style } = currentWorld();
+        const audio = useAudioStore.getState();
+        audio.regenerateBpmFromSeed(style.id, style.name);
+        audio.regenerateGlobalAudioFromSeed(style.id, style.name);
+        audio.regenerateLfoBankFromSeed(style.id, style.name);
+        audio.regenerateGlobalLfoLinksFromSeed(style.id, style.name);
         vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
         vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
-        const spies = spyRegenerators();
+        const before = structuredClone({ lfoBank: useAudioStore.getState().lfoBank, links: useAudioStore.getState().globalLfoLinks });
         const engine = stubBankEngine();
 
-        retransmitWorld({ theme: 'calm' });
+        // A theme whose tempo moves one of this seed's bank Sync picks, so a push is there to see.
+        const theme = (['calm', 'bold', 'adventurous', 'perilous'] as const).find(
+          (t) => Object.keys(deriveGlobalHalfMoves(style.id, style.name, DEFAULT_LOADING, { theme: t, aspects: {} }).lfoBank).length > 0,
+        )!;
+        retransmitWorld({ theme });
 
         const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
-        for (const lane of LFO_LANE_IDS) {
+        const movedLanes = LFO_LANE_IDS.filter((lane) => !deepEqual(lfoBank[lane], before.lfoBank[lane]));
+        expect(movedLanes.length).toBeGreaterThan(0); // precondition: the theme moves a Sync pick
+        expect(engine.shape.mock.calls.map(([lane]) => lane).sort()).toEqual([...movedLanes].sort());
+        for (const lane of movedLanes) {
           const engineLane = resolveLaneForEngine(lfoBank[lane], bpm);
           expect(engine.shape).toHaveBeenCalledWith(lane, engineLane.shape);
-          // The tempo reseed re-pushes the old bank's synced lanes first: the new bank's rate is each lane's last word.
-          expect(engine.rate.mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, engineLane.rate]);
           expect(engine.rateDrift).toHaveBeenCalledWith(lane, engineLane.rateDrift);
           expect(engine.depthDrift).toHaveBeenCalledWith(lane, engineLane.depthDrift);
         }
-        for (const target of GLOBAL_LFO_TARGET_IDS) expect(engine.link).toHaveBeenCalledWith(target, globalLfoLinks[target]);
-        expect(globalLinkOrders(engine.link)).toHaveLength(GLOBAL_LFO_TARGET_IDS.length);
-        expect(engine.shape.mock.invocationCallOrder[0]).toBeGreaterThan(spies.lfoBank.mock.invocationCallOrder[0]);
-        expect(Math.min(...globalLinkOrders(engine.link))).toBeGreaterThan(spies.globalLfoLinks.mock.invocationCallOrder[0]);
+        for (const lane of LFO_LANE_IDS) {
+          const last = engine.rate.mock.calls.filter(([l]) => l === lane).at(-1);
+          if (last) expect(last).toEqual([lane, resolveLaneForEngine(lfoBank[lane], bpm).rate]);
+        }
+        const movedLinks = GLOBAL_LFO_TARGET_IDS.filter((target) => !deepEqual(globalLfoLinks[target], before.links[target]));
+        expect(globalLinkOrders(engine.link)).toHaveLength(movedLinks.length);
+        for (const target of movedLinks) expect(engine.link).toHaveBeenCalledWith(target, globalLfoLinks[target]);
       });
 
       it('pushes nothing before the bank is primed, even with the context running: the first start primes from the store', () => {

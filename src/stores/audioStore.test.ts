@@ -1534,3 +1534,42 @@ describe('useAudioStore - busFilterLinksHeldOff (Robot Articulation T14b)', () =
     expect(JSON.parse(JSON.stringify(useAudioStore.getState())).busFilterLinksHeldOff).toBe(true);
   });
 });
+
+// docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17: applyGlobalHalfMoves writes only the moved fields. A moved field the new draw
+// lacks (a Sync pick gone Free; no real theme column reaches it) is removed, never left as `sync: undefined` or as the
+// old pick, and the block is pushed again so its setter resolves it Free.
+describe('useAudioStore - applyGlobalHalfMoves (final fixes F17)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('a moved Sync pick the new draw lacks leaves the Delay Free: no sync key, the Free time pushed, every other field standing', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const { NOTE_VALUES } = await import('../data/noteValues');
+    const store = useAudioStore.getState();
+    store.setGlobalAudio('delay', { delayTime: 0.3, feedback: 0.45 });
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, delay: { ...s.globalAudio.delay, sync: NOTE_VALUES[2] } } }));
+    vi.mocked(AudioEngine.setGlobalDelay).mockClear();
+
+    store.applyGlobalHalfMoves({ globalAudio: { delay: { sync: undefined } }, lfoBank: {}, globalLfoLinks: {} });
+
+    const { delay } = useAudioStore.getState().globalAudio;
+    expect('sync' in delay).toBe(false);
+    expect(delay.feedback).toBe(0.45);
+    expect(AudioEngine.setGlobalDelay).toHaveBeenCalledWith(expect.objectContaining({ delayTime: 0.3 }));
+  });
+
+  it('a lane whose moved pick the new draw lacks goes Free, and its other fields stand', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { NOTE_VALUES } = await import('../data/noteValues');
+    const store = useAudioStore.getState();
+    store.replaceLfoBankLane('a', { ...store.lfoBank.a, rate: 0.5, sync: NOTE_VALUES[2] });
+
+    useAudioStore.getState().applyGlobalHalfMoves({ globalAudio: {}, lfoBank: { a: { sync: undefined } }, globalLfoLinks: {} });
+
+    const lane = useAudioStore.getState().lfoBank.a;
+    expect('sync' in lane).toBe(false);
+    expect(lane.rate).toBe(0.5);
+  });
+});

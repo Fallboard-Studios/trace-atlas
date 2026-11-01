@@ -8,7 +8,7 @@ import { useUIStore } from '../stores/uiStore';
 // a style change (finalizeAttenuationStyleTransition relies on it), so it must be loaded wherever a retransmit can run;
 // a loading change under an unchanged style calls the same four regenerators and the same push itself
 // (regenerateGlobalHalfFromSeed).
-import { useAudioStore, pushLfoBankAndLinksToEngine } from '../stores/audioStore';
+import { useAudioStore, pushLfoBankAndLinksToEngine, deriveGlobalHalfMoves } from '../stores/audioStore';
 import { useLoadingStore } from '../stores/loadingStore';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
@@ -17,7 +17,6 @@ import { applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
 import { startAudioSwells, stopAudioSwells, cancelGlobalSwellsMovedBy, cancelSwellForRobotAttribute } from './audioSwells';
-import { generateGlobalAudioSettings } from '../utils/globalAudioSeed';
 import { getWorldState, setWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getCurrentMeasure } from '../engine/beatClock';
@@ -282,8 +281,9 @@ function retransmitCoordsOnly(
 
 /**
  * The global half from seed under the bands now installed - bpm, the Audio Rig, the LFO Bank, the global links, in the
- * style-sync subscription's order (audioStore.ts) - for a loading change under an unchanged Attenuation Style, where
- * that subscription does not fire (docs/specs/OFF_SCREEN.md assumption 10; band-table T25). The seed-once fields (ping
+ * style-sync subscription's order (audioStore.ts) - for a loading change riding on a plot move under an unchanged
+ * Attenuation Style, where that subscription does not fire (docs/specs/OFF_SCREEN.md assumption 10; band-table T25). A
+ * theme on its own no longer comes here: it writes only what it moves (deriveGlobalHalfMoves, final fixes F17). The seed-once fields (ping
  * variance, the swells, humanize) carry forward, as on a style switch. It ends as the subscription does, with the new
  * bank and links pushed to a primed engine (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): a theme picked while the
  * tablet is paused must still reach the lanes, because a primed bank is never primed again (the next start's
@@ -478,16 +478,19 @@ export function retransmitWorld(input: RetransmitInput): void {
       // the companies and every robot's place stand (R33; field by field since final fixes F16).
       if (oldLocaleId) rederiveLoading(oldLocaleId, { theme: previousTheme, aspects: previousAspects }, cancelSwellForRobotAttribute);
       break;
-    case 'loadingOnly':
-      // The same style, the same plot: the global half from seed under the new bands (the style-sync does not fire
-      // for an unchanged id), then the live roster re-derived in place - only the seeded fields the change moves, the
-      // locale, the companies and every robot's place standing (final fixes F7). No stopAudioSwells runs here, so a
-      // global swell on a field the theme moves is dropped before the new value is written, and the write is the last
-      // one (final fixes F11).
-      cancelGlobalSwellsMovedBy(generateGlobalAudioSettings(oldAttenuationStyle.id, oldAttenuationStyle.name));
-      regenerateGlobalHalfFromSeed(oldAttenuationStyle);
-      if (oldLocaleId) rederiveLoading(oldLocaleId, { theme: previousTheme, aspects: previousAspects }, cancelSwellForRobotAttribute);
+    case 'loadingOnly': {
+      // The same style, the same plot (the style-sync does not fire for an unchanged id): the global half and then the
+      // live roster re-derived in place, each writing only the seeded fields the change moves - the locale, the
+      // companies, every robot's place and every other attribute, a tweak included, standing (final fixes F7, F16,
+      // F17). No stopAudioSwells runs here, so a global swell on a field the theme moves is dropped before the new value
+      // is written, and the write is the last one (final fixes F11).
+      const previous: LoadingIdentity = { theme: previousTheme, aspects: previousAspects };
+      const moves = deriveGlobalHalfMoves(oldAttenuationStyle.id, oldAttenuationStyle.name, previous, action.loading);
+      cancelGlobalSwellsMovedBy(moves.globalAudio);
+      useAudioStore.getState().applyGlobalHalfMoves(moves);
+      if (oldLocaleId) rederiveLoading(oldLocaleId, previous, cancelSwellForRobotAttribute);
       break;
+    }
     case 'coordsOnly':
       // A theme riding on a plot move moved the global bands too; a plain plot move leaves the global half alone.
       if (action.loading) regenerateGlobalHalfFromSeed(oldAttenuationStyle);
