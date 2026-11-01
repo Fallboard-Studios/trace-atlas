@@ -7,7 +7,9 @@
 > looks good"; "robots can stay where they are unless a new world/song is started"). His Look at F6 remains, and
 > one finding for him under F8.
 > Phase 4: F10 done at `85010432` (no commit: the probes and the dump are scratch); all six probes pass, the parity
-> dump is byte-identical to `main`. Checkpoint: Complete's automated box is ticked. Next: Crawford's Looks.
+> dump is byte-identical to `main`.
+> Checkpoint: Complete passed. Crawford's Looks passed, and the Pixel A/B passed (4 underruns at 4:00 against
+> `main`'s 9). Next: Crawford's PR.
 
 Written for: Crawford, and a fresh agent session picking this up cold.
 
@@ -539,8 +541,20 @@ watch its test fail.
   - `docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md` and this file are untracked;
   - committed docs (`AUDIO_SYSTEM.md`, `UI_SHELL.md`, `COMPANIES.md`, the spec, roadmap 57) link to the review plan,
     so its links break on the PR without it.
-- [ ] **Last, the phone (answer 4d):** Crawford's Pixel `perf:audio` A/B against `main`, the HUD counts recorded here.
-- [ ] Ready for Crawford's PR.
+- [x] **Last, the phone (answer 4d):** Crawford's Pixel `perf:audio` A/B against `main`, the HUD counts recorded here.
+  - **Setup (2026-11-01):** LAN `vite preview` builds of the tip `fc3f04c0` (port 4180) and of `main` `cc9a01f2` (port
+    4181), with `?debug`, run by hand on the Pixel, `main` first.
+  - **The world:** the busiest, most echoey world the branch can load, against the same plot on `main`, which can only
+    load it as Classic.
+
+  | Run | The link | Underruns at 3:00 | At 4:00 | By ear |
+  |---|---|---|---|---|
+  | `main` | `?seed=kr1nd4ra&x=12&y=68&debug` | 5 | 9 | "sounded great" |
+  | Branch | `?seed=kr1nd4ra&x=12&y=68&theme=perilous&envelope=plucked&distance=remote&debug` | 4 | 4 | "Sounded great." |
+
+  **Reading:** the underruns did not rise; the branch's worst case had fewer than `main`. That is one take each, so the
+  gap is noise, not a gain. Passed.
+- [x] Ready for Crawford's PR.
 
 ## Risks and Mitigations
 

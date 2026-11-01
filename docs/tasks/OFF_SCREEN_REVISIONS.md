@@ -529,8 +529,10 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
       family; a save made under two families reloads with the rows set; its link carries
       `melody=…&envelope=…&space=…`; no "as theme" anywhere. (Headless half recorded below; the two by-ear items are
       Crawford's.)
-- [ ] `npm run perf:audio` Pixel A/B on a Perilous + Plucked + Cavern world against `main` (the densest, wettest case).
-      (Not run: the Pixel is Crawford's.)
+- [x] `npm run perf:audio` Pixel A/B on a Perilous + Plucked + Cavern world against `main` (the densest, wettest case).
+      Run 2026-11-01 as Perilous + Plucked + Remote; Cavern became the Distance family. Crawford ran it by hand on
+      the Pixel: 4 underruns at 4:00 against `main`'s 9, and both sounded great. Recorded in
+      `OFF_SCREEN_FINAL_FIXES.md`, under Checkpoint: Complete.
 - [ ] Reviewed with human before Phase 4. (Pending, as at A and B.)
 
 **Checkpoint C record (2026-10-31, `feature/off-screen` at `96c557d2`, automated half):** `npm run build:types` clean;
