@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { useGSAP } from '@gsap/react';
 
 import { registerDeckScroller } from '@/animation/deckCamera';
@@ -34,25 +34,20 @@ function WorldView() {
   }, []);
 
   // The scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13): its element registered for the animation module, which
-  // follows uiStore.sceneWash from mount and stops on unmount (useGSAP ignores its callback's return, so the stop lives
-  // in the effect below, OffScreen's pattern).
+  // follows uiStore.sceneWash from mount and stops on unmount. The callback's return is that stop: useGSAP's
+  // gsap.context keeps a returned function and runs it on revert, which is the unmount.
   const washRef = useRef<HTMLDivElement>(null);
-  const stopWashRef = useRef<(() => void) | null>(null);
   useGSAP(
     () => {
       if (!washRef.current) return;
       setRef(WORLD_WASH_REF_KEY, washRef.current);
-      stopWashRef.current = startSceneWash();
+      const stopWash = startSceneWash();
+      return () => {
+        stopWash();
+        deleteRef(WORLD_WASH_REF_KEY);
+      };
     },
     { dependencies: [] },
-  );
-  useEffect(
-    () => () => {
-      stopWashRef.current?.();
-      stopWashRef.current = null;
-      deleteRef(WORLD_WASH_REF_KEY);
-    },
-    [],
   );
 
   return (

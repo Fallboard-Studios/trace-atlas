@@ -219,7 +219,6 @@ interface Intent {
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
   const darkRef = useRef<HTMLDivElement>(null);
-  const stopBootRef = useRef<(() => void) | null>(null);
   const [heardWorld] = useState(() => hasHeardWorld());
   const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
@@ -406,26 +405,22 @@ export function OffScreen() {
   );
 
   // The boot theatre, built through useGSAP (CLAUDE.md: animation in components goes through it) and registered in
-  // timelineMap by the animation module; the ref the fade reads is set here, where the root exists.
+  // timelineMap by the animation module; the ref the fade reads is set here, where the root exists. The callback's
+  // return is the unmount's kills (useGSAP's gsap.context keeps a returned function and runs it on revert): the
+  // theatre, a fade still in flight, and the ref — a pending fade's onComplete must never resolve against an unmounted
+  // screen.
   useGSAP(
     () => {
       if (!rootRef.current || !darkRef.current) return;
       setRef(OFF_SCREEN_REF_KEY, rootRef.current);
-      stopBootRef.current = startOffScreenBoot(darkRef.current);
+      const stopBoot = startOffScreenBoot(darkRef.current);
+      return () => {
+        stopBoot();
+        killTimeline(OFF_SCREEN_FADE_TIMELINE);
+        deleteRef(OFF_SCREEN_REF_KEY);
+      };
     },
     { scope: rootRef, dependencies: [] },
-  );
-
-  // useGSAP ignores its callback's return, so the kills live here (PowerRockerSwitch's pattern): the theatre, a
-  // fade still in flight, and the ref — a pending fade's onComplete must never resolve against an unmounted screen.
-  useEffect(
-    () => () => {
-      stopBootRef.current?.();
-      stopBootRef.current = null;
-      killTimeline(OFF_SCREEN_FADE_TIMELINE);
-      deleteRef(OFF_SCREEN_REF_KEY);
-    },
-    [],
   );
 
   // After a power-off the chooser takes the focus, on the Transmission list's selected row, so keyboard and
