@@ -5821,11 +5821,11 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
       expect(computeNoteVelocitySeeded('r', 7)).toBe(first);
     });
 
-    it('the same position gives the same velocity after the engine is stopped and started again (replay from power-on)', async () => {
+    it('the same position gives the same velocity after killAll and a full start again (replay from a cold power-on)', async () => {
       const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
       await AudioEngine.start();
       const before = sweep((p) => computeNoteVelocitySeeded('r', p), 30);
-      AudioEngine.stop();
+      AudioEngine.killAll();
       await AudioEngine.start();
       expect(sweep((p) => computeNoteVelocitySeeded('r', p), 30)).toEqual(before);
     });

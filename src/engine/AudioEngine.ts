@@ -159,9 +159,9 @@ const NOTE_RE = /^[A-Ga-g][b#]{0,2}\d+$/;
 // MODULE STATE
 // ========================================
 let initialized = false;
-// instrumentsLoaded intentionally survives stop()/killAll() — the FX chain
+// instrumentsLoaded intentionally survives killAll() — the FX chain
 // (compressor, reverb, delay, etc.) is expensive to rebuild and remains valid
-// across start/stop cycles. Only a full page reload resets it.
+// across a killAll and the full start after it. Only a full page reload resets it.
 let instrumentsLoaded = false;
 // Reservation state
 let activeVoices = 0;
@@ -734,27 +734,6 @@ export const AudioEngine = {
     scheduleHarmonyCycle();
 
     initialized = true;
-  },
-
-  stop(): void {
-    const transport = _transport ?? Tone.getTransport();
-
-    if (scheduledTickId !== null) {
-      try { transport.clear(scheduledTickId); } catch (err) { devWarn('[AudioEngine] transport.clear failed', err); }
-      scheduledTickId = null;
-    }
-
-    stopHarmonyCycle();
-
-    try {
-      if (transport.state === 'started') {
-        try { transport.stop(); } catch { /* ignore */ }
-      }
-    } catch { /* ignore */ }
-
-    stepCounter = 0;
-    activeVoices = 0;
-    initialized = false;
   },
 
   /**
