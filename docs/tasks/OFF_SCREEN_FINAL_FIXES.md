@@ -692,7 +692,11 @@ and would drop all six layer swells (F16).
 
   **Dependencies:** none. **Files:** both modules and their tests. **Estimated scope:** S
 
-- [ ] **F14: the two surviving mutants get their tests** (Optional, first)
+- [x] **F14: the two surviving mutants get their tests** (Optional, first)
+
+  **As shipped:** R20's describe gains "goes when the world changes: a theme pick, applied at the click". With
+  `setKeepFailed(false)` removed it fails (1 of 1); with the line back the file passes (153). The layer-swell gap stays
+  recorded for F16.
 
   **Description:** Two lines the suite let go at `8f5556d0`:
   - `onThemeChange`'s `setKeepFailed(false)` (`OffScreen.tsx:420`). A theme pick after a refused Keep should clear the

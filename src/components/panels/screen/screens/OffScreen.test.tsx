@@ -992,6 +992,16 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       expect(warning()).not.toBeNull();
     });
 
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F14: the second review's surviving mutant, onThemeChange's setKeepFailed(false).
+    it('goes when the world changes: a theme pick, applied at the click', () => {
+      render(<OffScreen />);
+      fireEvent.click(keep());
+      expect(failed()).not.toBeNull();
+      fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
+      expect(failed()).toBeNull();
+      expect(warning()).not.toBeNull();
+    });
+
     it('goes when the world changes: a preset pick, realised at once with no wash mounted', () => {
       render(<OffScreen />);
       fireEvent.click(keep());
