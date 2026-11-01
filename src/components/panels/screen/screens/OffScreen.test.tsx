@@ -1602,11 +1602,11 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(checked(presetName(1))).toBe('true');
       expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset) }, presetName(1)));
       fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
-      // A theme pick drops the world row to Current, as it always has; the readout names the world to come.
-      expect(checked(currentName())).toBe('true');
+      // A theme pick while the preset waits keeps the preset's row (final fixes F12); the readout names the world to come.
+      expect(checked(presetName(1))).toBe('true');
       expect(checked(human('home.off.theme.calm'))).toBe('true');
       expect(document.querySelector('.off-screen__description--theme')?.textContent).toBe(human('home.off.themeDescription.calm'));
-      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset), theme: 'calm' }));
+      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset), theme: 'calm' }, presetName(1)));
       expect(applySessionPayload).not.toHaveBeenCalled();
     });
 
@@ -1639,6 +1639,88 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).not.toHaveBeenCalled();
+    });
+
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F12 (second review, finding 3): a theme or family click while a pick waits
+    // keeps that pick's row selected, so Current stays unselected and picking it cancels the change.
+    describe('a click while a pick waits keeps the pick shown (final fixes F12)', () => {
+      const dusk = () => savedPayload('dusk');
+      const duskIdentity = () => ({ attenuationStyleName: dusk().attenuationStyleName, coordinates: dusk().coordinates, ...loadingOf(dusk()) });
+
+      it("a theme while a save waits: the save's row stays checked, and the readout names the save under the new theme", () => {
+        saveNamedSession('Dusk Run', dusk());
+        render(<OffScreen />);
+        fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+        fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
+        expect(checked('Dusk Run')).toBe('true');
+        expect(checked(currentName())).toBe('false');
+        expect(readout().textContent).toBe(describeWorld({ ...duskIdentity(), theme: 'calm' }, 'Dusk Run'));
+      });
+
+      it('then Current cancels the change: nothing runs at the cover, and the theme row shows the loaded theme again', async () => {
+        const cancel = vi.spyOn(worldChange, 'cancelWorldChange');
+        saveNamedSession('Dusk Run', dusk());
+        render(<OffScreen />);
+        fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+        fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
+        fireEvent.click(screen.getByRole('radio', { name: currentName() }));
+        expect(cancel).toHaveBeenCalledTimes(1);
+        expect(checked(currentName())).toBe('true');
+        expect(checked(human('home.off.theme.classic'))).toBe('true');
+        await land();
+        expect(applySessionPayload).not.toHaveBeenCalled();
+        expect(retransmitWorld).not.toHaveBeenCalled();
+        expect(checked(currentName())).toBe('true');
+        cancel.mockRestore();
+      });
+
+      it("a family toggle while a save waits: the save's row stays checked, the readout carries the toggle", () => {
+        saveNamedSession('Dusk Run', dusk());
+        render(<OffScreen />);
+        fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+        fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
+        expect(checked('Dusk Run')).toBe('true');
+        expect(checked(currentName())).toBe('false');
+        expect(readout().textContent).toBe(
+          describeWorld({ ...duskIdentity(), aspects: { ...loadingOf(dusk()).aspects, envelope: ['held'] } }, 'Dusk Run'),
+        );
+      });
+
+      it('then Current cancels the toggle with the save: nothing runs at the cover, and the row shows the loaded picks', async () => {
+        saveNamedSession('Dusk Run', dusk());
+        render(<OffScreen />);
+        fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+        fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
+        fireEvent.click(screen.getByRole('radio', { name: currentName() }));
+        expect(screen.getByRole('button', { name: human('home.off.envelope.held') }).getAttribute('aria-pressed')).toBe('false');
+        await land();
+        expect(applySessionPayload).not.toHaveBeenCalled();
+        expect(retransmitWorld).not.toHaveBeenCalled();
+      });
+
+      it('lands the save, then the theme over it; the row then drops to Current, as an applied theme pick drops it', async () => {
+        saveNamedSession('Dusk Run', dusk());
+        render(<OffScreen />);
+        fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+        fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
+        await land();
+        expect(applySessionPayload).toHaveBeenCalledWith(dusk());
+        expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+        expect(checked(currentName('Dusk Run'))).toBe('true'); // Current, named after the save now loaded
+        expect(checked('Dusk Run')).toBe('false');
+      });
+
+      it("a theme clicked away and back to the save's own: nothing is laid over the save, and its row stays picked", async () => {
+        saveNamedSession('Dusk Run', dusk());
+        render(<OffScreen />);
+        fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+        fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
+        fireEvent.click(screen.getByRole('radio', { name: human(`home.off.theme.${loadingOf(dusk()).theme}`) }));
+        await land();
+        expect(applySessionPayload).toHaveBeenCalledTimes(1);
+        expect(retransmitWorld).not.toHaveBeenCalled();
+        expect(checked('Dusk Run')).toBe('true');
+      });
     });
 
     it('two world picks still keep only the last, with the pick shown at each click', async () => {

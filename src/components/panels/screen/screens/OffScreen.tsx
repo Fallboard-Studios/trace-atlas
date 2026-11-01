@@ -222,8 +222,10 @@ interface Intent {
  * screen keeps the clicks' intent (Intent, above), and the one request realises all of it at the cover: the world part,
  * then the loading where it differs from the one the world part leaves. The rows, the description lines and the readout
  * draw from the intent, so a click shows at once. A theme pick or a family toggle made then joins the intent instead of
- * re-deriving a world about to go; picking Current cancels the change (worldChange.ts's cancelWorldChange); Keep dims until it has
- * run, since it would save the world the rows no longer show.
+ * re-deriving a world about to go, and the waiting save's or preset's row stays selected, the readout naming it under the
+ * loading clicked (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F12); once a loading is laid over it at the cover, the row drops
+ * to Current, as an applied theme pick drops it. Picking Current cancels the change (worldChange.ts's
+ * cancelWorldChange); Keep dims until it has run, since it would save the world the rows no longer show.
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -272,7 +274,7 @@ export function OffScreen() {
   // as it is known: a pick's world under the intended loading, or the loaded world's (a Roll's is drawn only as it runs).
   const readout =
     'identity' in shownPick
-      ? describeWorld(shownPick.identity, shownPick.name)
+      ? describeWorld(intent ? { ...shownPick.identity, theme: intent.theme, aspects: intent.aspects } : shownPick.identity, shownPick.name)
       : intent
         ? describeWorld(
             {
@@ -314,8 +316,10 @@ export function OffScreen() {
     const loading: RetransmitInput = {};
     if (intended.theme !== left.theme) loading.theme = intended.theme;
     if (!deepEqual(canonicalAspects(intended.aspects), canonicalAspects(left.aspects))) loading.aspects = intended.aspects;
-    if (loading.theme !== undefined || loading.aspects !== undefined) retransmitWorld(loading);
-    setPick(intended.pick);
+    const relaid = loading.theme !== undefined || loading.aspects !== undefined;
+    if (relaid) retransmitWorld(loading);
+    // A loading laid over the world part drops the row to Current, as an applied theme pick drops it (final fixes F12).
+    setPick(relaid ? CURRENT_PICK : intended.pick);
     setDirty(isWorldDirty());
     setKeepFailed(false);
   }, [setIntent]);
@@ -411,7 +415,7 @@ export function OffScreen() {
       if (!isThemeId(value)) return;
       const waiting = intentRef.current;
       if (waiting) {
-        setIntent({ ...waiting, theme: value, pick: CURRENT_PICK });
+        setIntent({ ...waiting, theme: value });
         return;
       }
       retransmitWorld({ theme: value });
@@ -506,7 +510,7 @@ export function OffScreen() {
       if (turnedOn) setLastOn((prev) => ({ ...prev, [family]: turnedOn }));
       const waiting = intentRef.current;
       if (waiting) {
-        setIntent({ ...waiting, aspects: { ...waiting.aspects, [family]: next }, pick: CURRENT_PICK });
+        setIntent({ ...waiting, aspects: { ...waiting.aspects, [family]: next } });
         return;
       }
       retransmitWorld({ aspects: { ...shownAspects, [family]: next } });

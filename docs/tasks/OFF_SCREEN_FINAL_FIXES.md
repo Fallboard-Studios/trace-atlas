@@ -628,7 +628,13 @@ and would drop all six layer swells (F16).
   **Dependencies:** none. F17 changes which targets move, and this task's comparison follows it unchanged.
   **Files:** `src/systems/worldTransition.ts`, its test. **Estimated scope:** S
 
-- [ ] **F12: `OffScreen.tsx` — a click while a pick waits keeps the pick shown** (finding 3; F8's finding answered)
+- [x] **F12: `OffScreen.tsx` — a click while a pick waits keeps the pick shown** (finding 3; F8's finding answered)
+
+  **As shipped:** six cases in a new `describe` under R3's, plus R3's "shows each click" case moved from Current to
+  the preset's row. Two edge cases beyond the plan: a save, a theme, then the save's own theme again lays nothing over
+  the save and keeps its row; after a laid-over loading lands, Current is named after the save now loaded. Mutants
+  killed: the pick dropped on a theme (4 fail) and on a toggle (2), the readout without the overlay (3), the row kept
+  after a laid-over loading (2), and the row always Current after the cover (23).
 
   **Description:**
   - The waiting branches of `onThemeChange` (`OffScreen.tsx:414`) and `onFamilyChange` (`:509`) stop setting
