@@ -400,6 +400,26 @@ worth a second look):
     functions now live in `systems/robotFieldDerivation.ts`, and the deal (`deriveFamilyFields`,
     `applyDealToBaselines`, `generateDealtRosterBaseline`, `applyAspectDeal`, `redealAspects` and the engine push) in
     `systems/aspectDeal.ts`. Both moved out of `spawnSystem.ts` unchanged.
+
+    *Amended 2026-11-01 ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F16 and F17; Crawford's answer to
+    the second review):* **a theme or aspect change writes only the attributes it moves.**
+    - The rule: a change writes exactly the attributes whose seeded value it moves. Every other attribute keeps what it
+      holds, a tweak included. A tweak on a moved attribute takes the new seeded value. An untweaked world still ends
+      equal to a fresh draw under the new loading, so it diffs to nothing against its own seed.
+    - The robots (F16): `redealAspects` is gone. An aspects-only change runs `rederiveLoading` too, with the loading it
+      replaced. Its old side is each robot's own `loadedUnder` under the old theme; its new side is the deal of the new
+      loading. Per robot, field by field (an `adsr` key, a send, each layer's `type`, `gain`, `detune` and `phase`),
+      only what the two disagree on is written. Only the swells on the written fields are dropped. Where the whole
+      family used to go, a tweak on a key the aspect leaves alone now stands.
+    - The global half (F17): a theme no longer reseeds the Audio Rig, the LFO Bank and the global links whole.
+      `deriveGlobalHalfMoves` draws them under both loadings and `applyGlobalHalfMoves` writes the fields that differ.
+      Under the v1 columns that is the tempo, the Low-Pass cutoff and the Sync picks the new tempo changes. A kept
+      Sync pick is re-pushed resolved at the new tempo, clamped into its range, as a hand Tempo edit's is. A global
+      swell on a written field is dropped first (F11).
+    - **The live companies, on purpose (the second review's finding 2):** the in-place deal runs over the companies as
+      they stand, not the seeded ones a rebuild or the session baseline deals over. A robot moved to another company
+      takes that company's aspect at the next theme or aspect change. Its fields can then differ from the seeded
+      baseline, and `buildSessionPayload` saves them as overrides, which round-trip. Decided; not to be raised again.
 23. **`RadioButton` gains a `multiple` variant** — a design-system addition, Crawford's call (2026-10-30: "it should use
     the cabinetry effect just like buttons and toggles do already"). `RadioButtonSchema.multiple?: true` makes `value`
     a `string[]` and `onChange(string[])`; each option is independently selectable; in the `cabinet` appearance every

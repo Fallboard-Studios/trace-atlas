@@ -837,7 +837,14 @@ and would drop all six layer swells (F16).
   **Dependencies:** F16 (the shared field-diff shape), F11. **Files:** `worldTransition.ts`, possibly `audioStore.ts`
   (a pure diff-and-apply beside the regenerators), their tests. **Estimated scope:** M
 
-- [ ] **F18: the docs for Phase 5**
+- [x] **F18: the docs for Phase 5**
+
+  **As shipped:** one dated amendment in the spec, under assumption 22 (after R13's), tagged F16 and F17: the rule,
+  the robot and global halves, and finding 2's decision. The earlier `redealAspects` lines stay as the spec's history
+  under it. AUDIO_SYSTEM's band-table bullets cover the global half's diff, the swells across it (F11) and the robot
+  side field by field. COMPANIES covers the live companies and the overrides that follow. UI_SHELL covers the fade join
+  (F1, F13) and the waiting pick (F12). Roadmap 57's About is one sentence. Proof: a read, spot-checked against the code
+  of F11–F17.
 
   **Description:**
   - `docs/specs/OFF_SCREEN.md`: one dated amendment, tagged `OFF_SCREEN_FINAL_FIXES F<n>`, stating the FYI rule (a theme

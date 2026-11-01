@@ -628,9 +628,9 @@ commit per task, RED first; the spec's amended paragraphs say so where they stan
   fixture), `resolveBands` replacing never widening, a loading context every generator reads at the draw,
   `loadingStore` the context follows. Payload v3 carries `theme` / `aspects`; the link carries `theme=` and one param
   per family (`melody=`, `envelope=`, `distance=`, `voice=`). Neither a theme change nor an aspect change is a world
-  change. A theme regenerates the global half and re-derives only the robot fields it moves, in place (the
-  `loadingOnly` retransmit, final fixes F7–F8); an aspect change re-deals the live roster in place (`aspectsOnly`,
-  review R33). Neither rebuilds or washes.
+  change, and each writes only the attributes it moves, global and robot, a tweak anywhere else standing (the
+  `loadingOnly` and `aspectsOnly` retransmits; review R33, final fixes F7–F8 and F16–F17). Neither rebuilds or
+  washes.
 - **Themes and aspects** ([reference/ROBOT_DATA_GRID.md](../reference/ROBOT_DATA_GRID.md),
   [GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md)). Five themes on the v1 key list (tempo, Density, Rests,
   the envelope times and shaped stages, the Reverb and Delay sends, the Low-Pass cutoff); four aspect families of three
