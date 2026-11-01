@@ -529,12 +529,12 @@ watch its test fail.
 ### Checkpoint: Complete
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean; F10's six probes and the parity
       dump recorded. (2026-11-01: 346 files, 13,212 tests; types clean; lint 0 errors, the same 4 warnings; build OK.)
-- [ ] **Crawford's Looks** (hard reload first):
+- [x] **Crawford's Looks** (hard reload first):
   - [x] the power-off fade (F6), and the theme change with no swap (F7, F8) — passed (Crawford, 2026-11-01);
   - [x] the footer (F4) and the "DRIVE" heading (F5) — passed (Crawford, 2026-11-01);
-  - **carried from the review, not yet commented:** toggling aspects and making the "unsaved" warning appear moves no
+  - [x] **carried from the review:** toggling aspects and making the "unsaved" warning appear moves no
     row or button, at the desk and at phone width, and the held lines read as spacing (R26 item 3); Keep reads
-    "Save Last World".
+    "Save Last World" — passed (Crawford, 2026-11-01).
 - [x] **The plan files are committed before the PR:**
   - `docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md` and this file are untracked;
   - committed docs (`AUDIO_SYSTEM.md`, `UI_SHELL.md`, `COMPANIES.md`, the spec, roadmap 57) link to the review plan,
