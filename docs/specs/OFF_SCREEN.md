@@ -41,7 +41,10 @@ re-deals the live roster in place, with no rebuild and no wash (R33, Crawford's 
 Every click made while a world change waits joins it (R3). Keep never overwrites another save (R6), and a theme change
 pushes the LFO bank to a primed engine (R2). The claims the build never matched are corrected: where `worldState` and
 `loadedUnder` live, the deal's baseline function, the readout, the content files and the file map. Each amendment
-names its task where it stands.
+names its task where it stands. *Amended 2026-11-01 (R32):* Keep reads "Save Last World" (R20), and the per-family
+records are `FamilyPicks` (a pick list per family) and `FamilyAspects` (at most one aspect per family), each holding
+only its own family's ids (`src/data/bands/aspects.ts`, R15). Assumptions 9, 10 and 21 and §2's interfaces name them
+where they once spelled `Partial<Record<AspectFamilyId, AspectId…>>`.
 
 Survey basis (2026-10-30, against `main` at `cc9a01f2`, the merge of PR #593; every citation below was read, not
 recalled). Where the survey disagrees with the intent, the survey wins and the difference is named here:
@@ -176,7 +179,7 @@ worth a second look):
    was saved and the Current row carrying Roll; the aspect rows are four, Melody, Envelope, Distance and Voice, rendered
    from `ASPECT_FAMILY_IDS`.
 9. **The world's loading identity lives in one small store.** `src/stores/loadingStore.ts` (Zustand, JSON):
-   `{ theme: ThemeId, aspects: Partial<Record<AspectFamilyId, AspectId[]>> }`, each list kept in the family's canonical
+   `{ theme: ThemeId, aspects: FamilyPicks }`, each list kept in the family's canonical
    option order; default `{ theme: 'classic', aspects: {} }`; an absent or empty family = every robot as theme.
    Written only by the world-change paths (`retransmitWorld`, `applySessionPayload`, the link boot) and read by the
    loading context (assumption 15), the deal (assumption 21), the readout, the payload builder and the URL mirror.
@@ -184,7 +187,7 @@ worth a second look):
    and `AspectPick` are gone. A robot voiced by the theme is heard anyway, and "why am I hearing it if I didn't select
    it?" was the confusion to avoid. `AspectId` is the union of every family's ids; `AspectIdOf<F>` is one family's.
 10. **Identity in the payload.** `SessionPayloadVersion` adds `3`; `SessionPayload` gains `theme?: ThemeId` and
-    `aspects?: Partial<Record<AspectFamilyId, AspectId[]>>`; absent — every version 1 and 2 payload — reads as
+    `aspects?: FamilyPicks`; absent — every version 1 and 2 payload — reads as
     `'classic'` and `{}` (decode leniency, not a compatibility promise). `WorldIdentity` gains the same two fields;
     `generateWorldSeedBaseline(identity)` takes the identity and generates inside its bands (assumption 15);
     `RetransmitInput` gains `theme` and `aspects`, and `resolveRetransmitAction` gains a `loadingOnly` mode (added at
@@ -237,7 +240,7 @@ worth a second look):
     line under the chooser shows only while dirty. *Amended 2026-10-31
     ([OFF_SCREEN_REVISIONS](../tasks/OFF_SCREEN_REVISIONS.md) Tasks 4 and 5, notes 1 and 2):* Roll is the Current row's
     own action, a small flat button at the row's end; Keep sits alone under the list, labelled "Save the last session"
-    (Crawford's words). Both stay muted. *Amended 2026-10-31
+    (Crawford's words), then "Save Last World" (his answer to the review's Open Question 6, R20). Both stay muted. *Amended 2026-10-31
     ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R6 and R3):* with no save loaded, Keep names
     a new save, never an existing one: `currentSessionName` when no save has it, else fresh suggestions until one is
     free, and after 20 draws the last of them numbered " 2", " 3"… (`unusedSessionName`, `sessionStore.ts`). With a
@@ -315,8 +318,8 @@ worth a second look):
     (`getUniformSeededVal(noiseMap, 'aspects.<family>.deal', 0)`, the uniform draw, because one plain `getSeededVal`
     takes only a few values across worlds) and dealt: group 0 gets pick 0, group 1 pick 1, …, wrapping until **every
     group has one**. So one pick is the whole fleet; two picks alternate across companies, then freelancers. An empty
-    list means every robot as theme. `dealAspects(identity, companies, roster): Map<robotId, Partial<Record<AspectFamilyId,
-    AspectId>>>` is a pure function in `src/data/bands/dealAspects.ts`; a given world identity always deals the same
+    list means every robot as theme. `dealAspects(identity, companies, roster): Map<robotId,
+    FamilyAspects>` is a pure function in `src/data/bands/dealAspects.ts`; a given world identity always deals the same
     way, so a link reproduces it, and adding or removing a pick may reshuffle — it is a retransmit anyway. "No room"
     cannot occur: a family's picks never exceed its options (three) and a world never has fewer than three groups.
     Each family turns on its own seeded rotation, so one robot may carry an aspect from every family. *Amended
@@ -496,26 +499,28 @@ export type AspectFamilyId = (typeof ASPECT_FAMILY_IDS)[number];
 export const ASPECT_IDS_BY_FAMILY;   // melody: hypnotic, mechanical, wandering · envelope: plucked, swelling, held · distance: near, far, remote · voice: glassy, woody, hollow
 export type AspectIdOf<F extends AspectFamilyId> = (typeof ASPECT_IDS_BY_FAMILY)[F][number];
 export type AspectId = AspectIdOf<AspectFamilyId>;                            // every family's ids; no 'theme' member (revisions Task 6)
+export type FamilyPicks = { [F in AspectFamilyId]?: AspectIdOf<F>[] };       // a pick list per family (review R15)
+export type FamilyAspects = { [F in AspectFamilyId]?: AspectIdOf<F> };       // at most one aspect per family (review R15)
 export const THEMES: Record<ThemeId, Partial<BandTable>>;                     // classic: {}
 export const ASPECT_FAMILIES: { [F in AspectFamilyId]: AspectFamily<F, /* F's keys */ BandKey> };
 // AspectFamily<F, K> = { keys: readonly K[]; options: Record<AspectIdOf<F>, Partial<Pick<BandTable, K>>> }
 
 // src/data/bands/resolveBands.ts — PER ROBOT: at most one aspect per family
-export function resolveBands(theme: ThemeId, robotAspects: Partial<Record<AspectFamilyId, AspectId>>): BandTable;
+export function resolveBands(theme: ThemeId, robotAspects: FamilyAspects): BandTable;
 
 // src/data/bands/dealAspects.ts — the world's picks dealt round-robin over companies (spawn order) then freelancers (roster order)
 export function dealAspects(identity: WorldIdentity, companies: readonly Company[], roster: readonly Robot[], noiseMap: NoiseFunction2D):
-  Map<string /* robotId */, Partial<Record<AspectFamilyId, AspectId>>>;
+  Map<string /* robotId */, FamilyAspects>;
 
 // src/stores/loadingStore.ts (JSON)
-{ theme: ThemeId; aspects: Partial<Record<AspectFamilyId, AspectId[]>> }     // lists in canonical option order; empty = all as theme
+{ theme: ThemeId; aspects: FamilyPicks }     // lists in canonical option order; empty = all as theme
 
 // src/utils/seedBaseline.ts
-export interface WorldIdentity { attenuationStyleName: string; coordinates: { x; y }; theme: ThemeId; aspects: Partial<Record<AspectFamilyId, AspectId[]>> }
+export interface WorldIdentity { attenuationStyleName: string; coordinates: { x; y }; theme: ThemeId; aspects: FamilyPicks }
 
 // src/types/session.ts — version 3
 theme?: ThemeId;                                       // absent = 'classic'
-aspects?: Partial<Record<AspectFamilyId, AspectId[]>>;   // absent = {}
+aspects?: FamilyPicks;   // absent = {}
 
 // src/types/controls.ts
 multiple?: true;                                       // RadioButtonSchema: value is string[], onChange(string[]); cabinet pops each selected option
@@ -757,7 +762,7 @@ of `spawnSystem.ts` with no behaviour changed:
 ```ts
 // src/data/bands/resolveBands.ts
 /** Classic's bands, the theme's over them, each chosen aspect's over those — replace, never widen (spec §1.5). */
-export function resolveBands(theme: ThemeId, aspects: Partial<Record<AspectFamilyId, AspectId>>): BandTable {
+export function resolveBands(theme: ThemeId, aspects: FamilyAspects): BandTable {
   let table: BandTable = { ...CLASSIC, ...THEMES[theme] };
   for (const [family, aspect] of Object.entries(aspects) as [AspectFamilyId, AspectId][]) {
     table = { ...table, ...ASPECT_FAMILIES[family].options[aspect] };

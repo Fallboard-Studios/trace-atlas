@@ -66,10 +66,11 @@ selection UI". Low priority — deprioritized behind launch. Design discussed wi
 pass when picked up, which should start from the "Open" list below.
 
 **Note 2026-10-22 (Crawford):** the user-facing part (the tag filter, the mood choice) is now expected to
-be built with item [5](#5-sector-settings-ascoordsfavorites-reorganization)'s powered-down state rather
-than in the Audio Rig's Pacing section as the "UI home" lean below says. The progression engine, the
-catalogue and the seeded chain stay this item and are a large build in their own right; 5's interview
-decides the surface, this item's interview decides the music.
+be built with item [5](archive/backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization)'s
+powered-down state rather than in the Audio Rig's Pacing section as the "UI home" lean below says. The
+progression engine, the catalogue and the seeded chain stay this item and are a large build in their own
+right. Item 5 closed 2026-10-31 as the off screen (roadmap 57), which settled the surface: the Mood row has
+its slot in the off screen's Loading axis. This item's interview decides the music.
 
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled

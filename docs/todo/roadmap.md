@@ -567,8 +567,10 @@ modules — `power-pause` (T0–8), `off-screen-chooser` (T9–17), `band-table`
 and the docs (T36–38), one commit per task, RED first, every new gate mutation-checked by hand. Crawford passed the
 listen and every checkpoint's browser half on 2026-10-31 ("checkpoints passed, everything sounds good"); the automated
 halves are recorded under each checkpoint in the plan (Checkpoint D: 342 files / 12 884 tests). Revised after the listen
-the same day: the About, Decisions and Not Doing below record the first build, and the block that follows says what
-changed. It reverses four of them: the no-pop off screen, the as-theme pick, three band kinds and one aspect family.
+the same day: the Decisions and Not Doing below record the first build, and the block that follows says what changed.
+It reverses four of them: the no-pop off screen, the as-theme pick, three band kinds and one aspect family. The About
+describes the branch as it stands after the revisions and the review follow-ups
+([docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)).
 
 ### Revised after the listen (2026-10-31)
 
@@ -580,7 +582,8 @@ commit per task, RED first; the spec's amended paragraphs say so where they stan
    save, "saved …" (the Sessions list's absolute time; a relative "2 days ago" needs a helper, Crawford's call). The
    cabinetry went from the Transmission axis. Tasks 3–5.
 2. **Roll on the Current row** → Roll is that row's trailing action, a small flat button; Keep stays alone under the
-   list, relabelled "Save the last session" (his words). Task 4.
+   list, relabelled "Save the last session" (his words), then "Save Last World" (his answer to the review's Open
+   Question 6, R20). Task 4.
 3. **The remaining families** → Envelope (Plucked, Swelling, Held), Distance (Near, Far, Remote; the wireframe's Space,
    renamed) and Voice (Glassy, Woody, Hollow). Each is a key set, three placeholder columns, one derive function shared
    by spawn and the deal, and the engine call a hand edit makes. Voice brought a fourth band kind, `PickBand`, weighting
@@ -610,23 +613,28 @@ commit per task, RED first; the spec's amended paragraphs say so where they stan
   wall clock and keeps running. A world changed while off is rebuilt cold. Desktop: main-thread busy 34 % running →
   12 % paused.
 - **The chooser** (`OffScreen.tsx`; [UI_SHELL.md](../UI_SHELL.md)). Behind a heard-a-world device flag (hint only on a
-  first visit): the Transmission axis — Current (the loaded world, named by `describeWorld`), the saves, a divider, the
-  presets as pasted world links — with Roll and Keep under it; the Loading axis — the theme row and the multi-select
-  Melody row, each with a description line; a readout spanning both. A veil blurs the still world, a boot theatre
-  flickers the screen on, a lore footer ends the column. Every control is `muted`; nothing pops or plays. The address
-  bar follows the loaded world (identity only, never on arrival); a bare boot mirrors its random world, so a reload
-  brings it back and Roll is how you get another.
-- **The band table** (`src/data/bands/`; [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md)). 78 keys, three band kinds, Classic
-  lifted byte for byte (pinned to a literal table and a pre-lift fixture), `resolveBands` replacing never widening, a
-  loading context every generator reads at the draw, `loadingStore` the context follows. Payload v3 carries
-  `theme` / `aspects`; the link carries `theme=` and `melody=`; a theme change is the `loadingOnly` retransmit.
+  first visit): the Transmission axis — a `list` of rows: Current (the loaded world, named by `describeWorld`) with
+  Roll at its end, the saves, a divider, the presets as pasted world links — with Keep ("Save Last World") under it;
+  the Loading axis — the theme row and the four multi-select family rows (Melody, Envelope, Distance, Voice), each with
+  a description line; a readout spanning both. A veil blurs the still world, a boot theatre flickers the screen on, a
+  lore footer ends the column. The theme row, the list, Roll and Keep are flat; the four family rows are cabinetry and
+  pop on hover and select. Nothing plays. A user-gesture world change waits under the scene wash. The address bar
+  follows the loaded world (identity only, never on arrival); a bare boot mirrors its random world, so a reload brings
+  it back and Roll is how you get another.
+- **The band table** (`src/data/bands/`; [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md)). 79 keys, four band kinds (the
+  fourth, `PickBand`, weights the waveforms), Classic lifted byte for byte (pinned to a literal table and a pre-lift
+  fixture), `resolveBands` replacing never widening, a loading context every generator reads at the draw,
+  `loadingStore` the context follows. Payload v3 carries `theme` / `aspects`; the link carries `theme=` and one param
+  per family (`melody=`, `envelope=`, `distance=`, `voice=`). A theme change rebuilds the world under the wash (the
+  `loadingOnly` retransmit); an aspect change re-deals the live roster in place, with no rebuild and no wash
+  (`aspectsOnly`, review R33).
 - **Themes and aspects** ([reference/ROBOT_DATA_GRID.md](../reference/ROBOT_DATA_GRID.md),
   [GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md)). Five themes on the v1 key list (tempo, Density, Rests,
-  the envelope times and shaped stages, the Reverb and Delay sends, the Low-Pass cutoff); three Melody aspects over the
-  four Melody keys, dealt round-robin over the fleet's companies then the freelancers from a seeded rotation and applied
-  by re-deriving the dealt fields from each robot's own index ([COMPANIES.md](../COMPANIES.md)); `Robot.loadedUnder`
-  and a "Loaded Under" line on the company and robot screens. `RadioButton` gained its `multiple` variant
-  ([COMPONENT_LIBRARY.md](../COMPONENT_LIBRARY.md)).
+  the envelope times and shaped stages, the Reverb and Delay sends, the Low-Pass cutoff); four aspect families of three
+  aspects each, every family over its own key set, dealt round-robin over the fleet's companies then the freelancers
+  from a seeded rotation per family and applied by re-deriving the dealt fields from each robot's own index
+  ([COMPANIES.md](../COMPANIES.md)); `Robot.loadedUnder` and a "Loaded Under" line on the company and robot screens.
+  `RadioButton` gained its `multiple` variant and its `list` appearance ([COMPONENT_LIBRARY.md](../COMPONENT_LIBRARY.md)).
 
 ### Decisions
 

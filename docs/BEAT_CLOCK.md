@@ -54,7 +54,7 @@ resetBeatClock(): void
   - **With no time,** it is read live on every call.
   - It is `undefined` with no transport, a transport without `toSeconds`, or a length that is not finite and positive. A bad length is never kept. With no length, a timed write falls back as it did before the glide: `setOrGlide` to a point at `time`, and `rampOrSet` to its own `rampSeconds` from `time` (the headless and test path).
 - There is no public one-shot helper (e.g. no `scheduleAtBeat`) — for one-shot beat-accurate callbacks, use the transport instance directly (`transport.scheduleOnce(...)`), obtained from wherever `AudioEngine` exposes it.
-- `resetBeatClock()` clears the internal `'16n'` tick, clears every tracked schedule (`transport.clear` on each), clears **all** measure listeners, nulls the transport reference, and forgets the kept tick length. Called from `AudioEngine.killAll()`, not from `AudioEngine.stop()`. After a reset, `initBeatClock(transport)` must run again before any scheduling API is used, and every `subscribeToMeasure` caller must re-subscribe.
+- `resetBeatClock()` clears the internal `'16n'` tick, clears every tracked schedule (`transport.clear` on each), clears **all** measure listeners, nulls the transport reference, and forgets the kept tick length. Called from `AudioEngine.killAll()` (its one caller is a replaced paused world's teardown, `tearDownPausedWorld` in `worldTransition.ts`). After a reset, `initBeatClock(transport)` must run again before any scheduling API is used, and every `subscribeToMeasure` caller must re-subscribe.
 - No `pause`/`seek`/`start`/`stop` here — lifecycle is entirely owned by whatever transport was passed in.
 
 ## Usage

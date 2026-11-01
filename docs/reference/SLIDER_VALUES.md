@@ -4,7 +4,7 @@ Every slider-controlled attribute in the Global Audio Rig view (`AudioRigDrawer.
 Robot Detail view (`RobotScreen.tsx` — `AudioSettingSection`, `PingControlsDrawer`,
 `PingContourDrawer`, `SignatureArrayDrawer`). Sources: `src/data/audioRigConfig.ts`,
 `src/data/robotOptionsConfig.ts`, `src/components/ui/controls/LfoLink.tsx` for the schema/UI
-columns; `src/data/globalAudioSeedRanges.ts`, `src/data/globalAudioLoadingRanges.ts`,
+columns; `src/data/globalAudioSeedRanges.ts`, `src/data/bands/classic.ts` (the Classic bands),
 `src/utils/globalAudioSeed.ts`, `src/systems/spawnSystem.ts`, `src/utils/bpmSeed.ts` for the
 Load Min/Max columns (what a fresh seed/spawn can actually generate the attribute at, distinct
 from the Min/Max the slider itself lets you drag to).
@@ -139,7 +139,7 @@ seeded load value is a whole dB now.
 (`getUniformSeededVal`) quantised to 1 ms, so it is step-aligned, then carried forward across Attenuation Style switches like
 the swell fields. `setHumanize` truncates to whole ms and pushes `AudioEngine.setHumanize`.
 
-³ Sourced from the *Attenuation Style's* own seed (`BPM_SEED_RANGE`, `generateAttenuationStyleBpm`,
+³ Sourced from the *Attenuation Style's* own seed (Classic's `bpm` band, `generateAttenuationStyleBpm`,
 `bpmSeed.ts`), not the locale — it moved off the locale with the Free | Sync toggle
 (`docs/specs/FREE_SYNC_TOGGLE.md` §1.7), so it reseeds on an Attenuation Style change and a
 coordinates-only move leaves it alone. Explicitly `Math.round()`-ed before storage, so this one is
@@ -180,7 +180,7 @@ never land on the defaults, so every fresh robot has some of each. None is a swe
 ²³ Reverb, Delay, Grit, Shimmer and Double are the robot's five **sends** into the shared rooms (Robot Sends, roadmap
 50.2; Robot Effect Sends, roadmap 50.7), stored as `0..1` fractions (`Robot.reverbSend` / `delaySend` / `gritSend` /
 `shimmerSend` / `doubleSend`) and displayed ×`SEND_DISPLAY_SCALE`. Seeded by `generateRobotSends` (`spawnSystem.ts`)
-from one table, `ROBOT_SEND_LOADING_RANGES` (`src/data/robotSendLoadingRanges.ts`): a band and a `lit` share per send,
+from the band table's send rows (`reverbSend` to `doubleSend`, `src/data/bands/classic.ts`): a band and a `lit` share per send,
 quantized in percent-space like Volume. Reverb is `0.1`–`0.6` on every robot (widened from `0.1`–`0.4` by the Classic
 Band Retune, 2026-10-21). Delay is `0`–`0.3` and rolls under 1 − its `lit` share (`0.25`), landing exactly `0`, a robot
 with no repeats at all, for about 17–18 % of robots, not a quarter, because the roll's noise sample is bell-curved.

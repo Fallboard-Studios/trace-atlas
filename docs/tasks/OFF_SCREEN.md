@@ -151,7 +151,7 @@ Every task names its **Proof**: **RED test** for behaviour (a test that imports 
 
 ### Checkpoint 0: The spike
 - [x] Record: browser(s), `main` hash, the five observations, the decision (context path / fallback).
-- [ ] Reviewed with human before Task 1 (the Pixel half runs at Checkpoint A; the desktop half decided the path).
+- [x] Reviewed with human before Task 1 (the Pixel half runs at Checkpoint A; the desktop half decided the path). (Crawford, 2026-10-31, "checkpoints passed" — see Checkpoint D; ticked at `docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md` R32.)
 
 **Checkpoint 0 record (2026-10-30, headless Chrome 'new' on Windows via `scripts/perf/powered-world.mjs`, dev server,
 code = `main` at `cc9a01f2`, world `kr1nd4ra` 12 68 at 43 bpm, `?debug`):** `rawContext.suspend()` after a 10 s warm-up,

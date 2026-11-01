@@ -98,6 +98,15 @@ Added to `generateAudioAttributes` and `generateRobotLfoLinks` in `spawnSystem.t
 | `robot.dynamics`, `robot.rests`, `robot.accents` | Robot Performance (roadmap 50.5): the three 0–100 performance fields, plain draws at the spawn `offset`, rounded to whole numbers, over the `robot.dynamics` (25–75), `robot.rests` (10–60) and `robot.accents` (20–80) bands. Fleet-wide traits, not minority ones — every robot gets some of each |
 | `globalAudio.humanize` | The Pacing "Humanize" value, ms, seeded once per session in `HUMANIZE_SEED_RANGE` (2–6, whole ms) by `generateHumanize` and carried forward across style switches like the swell fields. A **uniform** draw (`getUniformSeededVal`): the plain draw gave three distinct values over 300 styles |
 
+### Loading dataIds (roadmap 57, the off screen)
+
+The band table moved the draws above to `getBand(key)` without renaming a `dataId`, so no Classic world moved. Two were added:
+
+| dataId | What it decides |
+|---|---|
+| `aspects.<family>.deal` | Where each aspect family's deal starts (`dealAspects`, `src/data/bands/dealAspects.ts`): one **uniform** draw (`getUniformSeededVal`) per family on the **locale** map at offset `0`, scaled to the family's pick count, rotates the canonical pick list, and group *i* (the companies in spawn order, then each freelancer) takes pick (*i* + rotation) mod *n*. One per family, `aspects.melody.deal` to `aspects.voice.deal`, so the families rotate independently. A plain draw at offset 0 takes only a few values across worlds, hence uniform. See [COMPANIES.md](COMPANIES.md), "The deal" |
+| `robot.send.reverb.quiet` | Whether a robot's Reverb send goes quiet (exactly 0): a draw at the spawn `offset` under 1 − the `reverbSend` band's `lit`, rolled like the Delay's `robot.send.delay.quiet` (`deriveSendFields`, `robotFieldDerivation.ts`). Classic's `lit` is 1, so a Classic robot never goes quiet and none moved; a theme's lower `lit` makes some do |
+
 **Not noise-map draws any more:** the per-note rolls the playback loop makes — the velocity roll and its variance, and the Humanize
 offset — are `performanceRoll(compositionSeed, purpose, position)` in `AudioEngine.ts`, an `alea` hash of the robot's seed, the
 purpose and the tick (Robot Performance T20). They used to sample the noise map at `compositionSeed + position`, but
