@@ -46,6 +46,14 @@ records are `FamilyPicks` (a pick list per family) and `FamilyAspects` (at most 
 only its own family's ids (`src/data/bands/aspects.ts`, R15). Assumptions 9, 10 and 21 and §2's interfaces name them
 where they once spelled `Partial<Record<AspectFamilyId, AspectId…>>`.
 
+**Amended 2026-11-01** by [docs/tasks/OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md), Crawford's answers
+to the review walkthrough. A theme change is no longer a world change (F7–F8, answer 2b: "nothing about the physical
+world is changing"). It re-derives the live world in place, as an aspect change has since R33: the global half from
+seed, then only the robot fields the theme moves. It applies at the click with no wash, and a paused world stays
+paused. A power-off fades the off screen in over the world just paused; only a fresh page plays the boot theatre (F6,
+answer 2a). Keep's failure line reads "storage is already full, cannot save world" (F3), and the Loading heading
+reads "Drive" (F5). Assumptions 5, 10, 14, 17 and 18, the stories, §1.2 and §3 say so where they stand.
+
 Survey basis (2026-10-30, against `main` at `cc9a01f2`, the merge of PR #593; every citation below was read, not
 recalled). Where the survey disagrees with the intent, the survey wins and the difference is named here:
 
@@ -161,7 +169,12 @@ worth a second look):
      `AudioEngine.killAll()` (which resets the BeatClock), then `resumeWorldTimelines()` to end the pause span. The new
      world builds held, and `initializeLocale` leaves it `'cold'`.
    - Two changes rebuild nothing and leave the state as they found it: an Attenuation-Style-only retransmit with no
-     loading change, and an aspect change (R33).
+     loading change, and an aspect change (R33). *Amended 2026-11-01
+     ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F7):* a third, a theme change, re-derived in place
+     (assumption 10). A theme picked while `'paused'` tears nothing down and stays `'paused'`.
+   - *Added 2026-11-01 (F1):* a second power-on press whose fade ends while the first press's cold start is still
+     running joins that start (a module-level `coldStart` promise) rather than starting again; a start that rejects
+     rejects both presses and restores the screen once.
    - A change while `'running'` is a live retransmit (plan Task 8): no `killAll`; `initializeLocale` restarts the
      systems over the new world, and the state stays `'running'`.
 6. **No confirm dialog.** `PowerRockerSwitch`'s off-branch becomes the mirror of its on-branch: `power-rocker-sequence`
@@ -206,7 +219,14 @@ worth a second look):
     *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R22; Crawford, its Open
     Question 4):* the locale re-initialised at the same identity keeps the old one's `dayStartTimestamp`, so a theme
     change keeps the plot's hour rather than snapping the sky back to the plot's arrival hour. A plot move still stamps
-    the new plot's own.
+    the new plot's own. *Amended 2026-11-01 ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F7):*
+    `loadingOnly` no longer removes and re-initialises the locale. After the global half, `rederiveLoading`
+    (`aspectDeal.ts`) draws the roster baseline and the deal over the live robots and companies twice, under the old
+    loading and the new. Per robot it writes only the fields whose seeded value moved: under the v1 columns,
+    `rhythmicDensity`, `rests`, the attack and release with their curves, and the Reverb and Delay sends. Swells on
+    those fields drop first, and each moved family is pushed through `pushFamilyToEngine`. The locale, the ids,
+    positions, batteries, jobs, the companies, the hour and the selection stand. A tweak on a field the theme does not
+    move stays. A theme riding on a plot or style change still rebuilds.
 11. **Identity on the link, as plain params.** `theme=<id>` (the reserved param, now written and read) and one param
     per family, named by the family, carrying the set as a comma list in canonical option order:
     `melody=hypnotic,mechanical`, `envelope=plucked,held&distance=remote&voice=woody`. Written only when not `classic`
@@ -245,7 +265,9 @@ worth a second look):
     a new save, never an existing one: `currentSessionName` when no save has it, else fresh suggestions until one is
     free, and after 20 draws the last of them numbered " 2", " 3"… (`unusedSessionName`, `sessionStore.ts`). With a
     save loaded, Keep still overwrites that save. Detaching a loaded save re-suggests a free name the same way. Keep
-    also dims while a world change waits under the wash (§3).
+    also dims while a world change waits under the wash (§3). *Amended 2026-11-01
+    ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F3):* a Keep the storage refuses shows
+    `home.off.keepFailed` in the warning's place, in Crawford's words: "storage is already full, cannot save world".
 15. **One band table, one resolver, one context.** `src/data/bands/`: `bandKeys.ts` (`BandKey` = `'bpm'` |
     `LoadingRangeKey` | `robot.<field>` | `RobotSendField`; four band kinds — `range { min, max }`, `send { min, max,
     lit }`, `toggle { offShare, min, max }` for the 1–8 fields, `pick { weights }` for the waveform), `classic.ts`
@@ -291,7 +313,9 @@ worth a second look):
     the key names are the shipped ones (`home.off.melody.<id>`, not the `home.off.aspect.melody.<id>` first written
     here). *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* the readout
     has no template. It shows `describeWorld`'s string for the shown pick (assumption 8's helper, which carries the theme
-    and family tail), and `home.off.readout` is only the well's accessible name (plan Task 10).
+    and family tail), and `home.off.readout` is only the well's accessible name (plan Task 10). *Amended 2026-11-01
+    ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F5):* the Loading heading (`home.off.loading`) is
+    shown as "Drive"; the key and the code's name for the axis stay.
 18. **Boot theatre and veil belong to `OffScreen`.** On mount a `'ui'` timeline `off-screen-boot`: 0–0.5 s dark, 0.5–1.5 s
     a flicker to full, then ready; `prefers-reduced-motion` jumps to ready; any `pointerdown` on the screen jumps to
     ready; the rocker is outside the screen and works throughout. The veil is `OffScreen`'s own backdrop element
@@ -306,7 +330,12 @@ worth a second look):
     no tap it cannot show. The dark layer takes the tap while it is up (it was `pointer-events: none`, so a tap in the
     dark phase picked the unseen row under it); the root still skips the theatre on it. `fadeOffScreen` makes the root
     `inert` from the fade's start. A `start()` that rejects calls `restoreOffScreen()`: the screen opaque and taking
-    input again, not invisible and mounted.
+    input again, not invisible and mounted. *Amended 2026-11-01
+    ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F6, answer 2a):* the theatre is a fresh page's only.
+    Mounted over a world just paused (`getWorldState() === 'paused'`), the screen fades in instead: `fadeInOffScreen`,
+    the reverse of `fadeOffScreen`, hides the dark layer at once and tweens the veil and the column from transparent to
+    opaque over the same 0.4 s, as the `'ui'` timeline `off-screen-fade-in`. Reduced motion shows them at once, and a
+    power-on during the fade-in kills it first.
 19. **Foundry's status line and Comms.** `SectorSettingsDrawer`'s line becomes `describeWorld(identity)`; the shortcut
     rows go (assumption 13); nothing else moves. `session.clearStorage.confirmBody` loses "and autosaved".
 20. **Pre-v1: nothing is kept for sound's sake.** Classic is today's bands by definition at the moment of the lift (§5.2
@@ -440,7 +469,9 @@ Arrival (a bare URL / a shared link) × device (first visit / returning / return
   change. It re-deals the live roster in place at the click, under no wash, and resets only the re-dealt families'
   fields; every other tweak stays. So "tweaks gone", above, now holds for a theme change only (plan Task 31 built it
   for both). A pick, Roll or a theme change still waits under the wash, and every click made while one waits joins it
-  (§3).
+  (§3). *Amended 2026-11-01 ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F7–F8):* a theme change
+  is no world change either. It re-derives in place at the click, under no wash, and resets only the fields the theme
+  moves, so "tweaks gone" no longer holds for it. Only a pick and Roll wait under the wash.
 - **Shared link (stories 4–6).** The link's identity and blob are applied at boot as today; the URL is **not** rewritten.
   First visit: hint only — the friend's world plays on the flip, no choice offered. Returning: Current is the link's
   world, named and selected, the Loading rows at the link's theme and aspects. Picking anything else rewrites the URL
@@ -452,7 +483,9 @@ Arrival (a bare URL / a shared link) × device (first visit / returning / return
   the top. *Amended 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R11):* the
   world's state decides, not the row (assumption 5). A theme change also leaves Current selected, over a rebuilt,
   `'cold'` world, which starts from the top. An aspect change leaves the world paused, so the flip resumes it,
-  re-dealt (R33).
+  re-dealt (R33). *Amended 2026-11-01 ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F6 and F7):* a
+  theme change now leaves the world paused too, so the flip resumes it, re-derived. The off screen fades in over the
+  paused world rather than replaying the boot theatre.
 
 ### 1.2 Power as pause — what freezes, what runs, what starts
 
@@ -480,6 +513,9 @@ path from `'paused'` to a different world that resumes.
 - **An aspect change is not a world change.** It rebuilds nothing, so a paused world stays paused and the next flip
   resumes it, re-dealt (Crawford's answer to the review's Open Question 2). There is still no path from `'paused'` to a
   different world that resumes.
+- *Amended 2026-11-01 ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F7):* **nor is a theme change.**
+  It re-derives the live world in place, so it leaves the list above: a paused world stays paused and resumes,
+  re-derived; a running one keeps running with nothing restarted.
 
 ### 1.3 Data shapes
 
@@ -719,6 +755,10 @@ of `spawnSystem.ts` with no behaviour changed:
     the one request realises all of it at the cover, so no click inside the cover is lost (R3). Picking Current then
     cancels the change through `cancelWorldChange()`: the cover still lands and lifts, running nothing.
   - Keep dims while a change waits, since it would save the world the rows no longer show.
+
+  *Amended 2026-11-01 ([OFF_SCREEN_FINAL_FIXES](../tasks/OFF_SCREEN_FINAL_FIXES.md) F8):* the theme row no longer
+  waits either. A theme pick re-derives in place at the click (F7); with a change already waiting, it joins it. So the
+  off screen's waiting changes are a save or preset pick and Roll.
 - **Pause is a transport / context / timeline affair.** No `setTimeout`, `setInterval` or `requestAnimationFrame`
   anywhere in the pause or resume paths; the boot theatre and the veil fade are GSAP timelines in `timelineMap`.
 - **GSAP timelines trigger semantic state only.** `fadeOffScreen()` resolves a promise the controller awaits; it does

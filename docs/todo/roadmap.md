@@ -569,8 +569,9 @@ listen and every checkpoint's browser half on 2026-10-31 ("checkpoints passed, e
 halves are recorded under each checkpoint in the plan (Checkpoint D: 342 files / 12 884 tests). Revised after the listen
 the same day: the Decisions and Not Doing below record the first build, and the block that follows says what changed.
 It reverses four of them: the no-pop off screen, the as-theme pick, three band kinds and one aspect family. The About
-describes the branch as it stands after the revisions and the review follow-ups
-([docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)).
+describes the branch as it stands after the revisions, the review follow-ups
+([docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)) and the final fixes from
+Crawford's answers to the review ([docs/tasks/OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md)).
 
 ### Revised after the listen (2026-10-31)
 
@@ -610,14 +611,15 @@ commit per task, RED first; the spec's amended paragraphs say so where they stan
   continue mid-note; `timelineMap` entries carry a scope and every world mover registers `'world'`, paused as a set;
   the work loop's clock shifts by the paused span; `powerController` is `cold / running / paused` with two power-on
   paths (resume, or a cold start), awaiting the off screen's fade first; the rocker's confirm dialog is gone. The day is
-  wall clock and keeps running. A world changed while off is rebuilt cold. Desktop: main-thread busy 34 % running →
-  12 % paused.
+  wall clock and keeps running. A world changed while off is rebuilt cold; a theme or aspect change rebuilds nothing,
+  so the world stays paused and resumes. Desktop: main-thread busy 34 % running → 12 % paused.
 - **The chooser** (`OffScreen.tsx`; [UI_SHELL.md](../UI_SHELL.md)). Behind a heard-a-world device flag (hint only on a
   first visit): the Transmission axis — a `list` of rows: Current (the loaded world, named by `describeWorld`) with
   Roll at its end, the saves, a divider, the presets as pasted world links — with Keep ("Save Last World") under it;
   the Loading axis — the theme row and the four multi-select family rows (Melody, Envelope, Distance, Voice), each with
-  a description line; a readout spanning both. A veil blurs the still world, a boot theatre flickers the screen on, a
-  lore footer ends the column. The theme row, the list, Roll and Keep are flat; the four family rows are cabinetry and
+  a description line; a readout spanning both. A veil blurs the still world; on a fresh page a boot theatre flickers the
+  screen on, and after a power-off the screen fades in over the paused world (final fixes F6); a lore footer ends the
+  column. The theme row, the list, Roll and Keep are flat; the four family rows are cabinetry and
   pop on hover and select. Nothing plays. A user-gesture world change waits under the scene wash. The address bar
   follows the loaded world (identity only, never on arrival); a bare boot mirrors its random world, so a reload brings
   it back and Roll is how you get another.
@@ -625,9 +627,10 @@ commit per task, RED first; the spec's amended paragraphs say so where they stan
   fourth, `PickBand`, weights the waveforms), Classic lifted byte for byte (pinned to a literal table and a pre-lift
   fixture), `resolveBands` replacing never widening, a loading context every generator reads at the draw,
   `loadingStore` the context follows. Payload v3 carries `theme` / `aspects`; the link carries `theme=` and one param
-  per family (`melody=`, `envelope=`, `distance=`, `voice=`). A theme change rebuilds the world under the wash (the
-  `loadingOnly` retransmit); an aspect change re-deals the live roster in place, with no rebuild and no wash
-  (`aspectsOnly`, review R33).
+  per family (`melody=`, `envelope=`, `distance=`, `voice=`). Neither a theme change nor an aspect change is a world
+  change. A theme regenerates the global half and re-derives only the robot fields it moves, in place (the
+  `loadingOnly` retransmit, final fixes F7–F8); an aspect change re-deals the live roster in place (`aspectsOnly`,
+  review R33). Neither rebuilds or washes.
 - **Themes and aspects** ([reference/ROBOT_DATA_GRID.md](../reference/ROBOT_DATA_GRID.md),
   [GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md)). Five themes on the v1 key list (tempo, Density, Rests,
   the envelope times and shaped stages, the Reverb and Delay sends, the Low-Pass cutoff); four aspect families of three
