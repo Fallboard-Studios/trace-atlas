@@ -39,8 +39,10 @@ function runPending(): void {
 // 'covered' is set by the cover timeline's onComplete, which GSAP calls mid-tick (animation/sceneWash.ts), so the change
 // - a whole world rebuilt, AudioEngine calls included - runs once that call has returned, never on GSAP's call stack
 // (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12). Not musical timing: nothing here is scheduled against the clock.
-useUIStore.subscribe((state, prev) => {
-  if (state.sceneWash === 'covered' && prev.sceneWash !== 'covered') void Promise.resolve().then(runPending);
+// Any UI-store write while covered queues one more run; runPending's own check returns it once the first run has
+// uncovered (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F2).
+useUIStore.subscribe((state) => {
+  if (state.sceneWash === 'covered') void Promise.resolve().then(runPending);
 });
 
 /**
