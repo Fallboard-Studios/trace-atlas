@@ -3540,6 +3540,48 @@ describe('spawnSystem', () => {
       expect(roster).toEqual(PARITY_ROSTER);
     });
 
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the three above are plain, so they miss the tiers. Robots 3, 4 and 28
+    // of a 29-robot roster from the same noise, captured at cc9a01f2 the same way and typed in: a shaped attack (ripple)
+    // with the bandpass accent, an exclusive send (shimmer), and a plain accent robot whose attack roll sits between the
+    // two shaped shares, so the shares cannot trade places unseen.
+    const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
+      3: {
+        audioAttributes: {
+          adsr: { attack: 0.0912376545758914, decay: 0.6645567734515505, sustain: 0.3370363731755628, release: 0.5994839492725145, attackCurve: 'ripple', releaseCurve: 'linear' },
+          octaveRange: [3, 5], filterFreq: 949.5216011247653, filterQ: 5, filterType: 'bandpass', portamento: 0, waveform: 'sine', phase: 74, detune: -3, pulseWidth: 0.3312173299777377,
+          layers: [{ type: 'triangle', gain: 0.92, detune: 1, phase: 247 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 257 }, { type: 'sawtooth', gain: 1.09, detune: 2, phase: 242 }],
+        } as AudioAttributes,
+        octaveRange: [3, 5], rhythmicDensity: 31, rhythmicMotifLength: { active: false, value: 0 }, noteVariance: { active: false, value: 0 }, pitchRepeat: 22, dynamics: 38, rests: 25, accents: 22,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.26, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+      4: {
+        audioAttributes: {
+          adsr: { attack: 1.6180837611580057, decay: 1.513799001363795, sustain: 0.6508510087941983, release: 1.651184897992653, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [4, 6], filterFreq: 6692.565158564469, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 275, detune: 3, pulseWidth: 0.7987047418818843,
+          layers: [{ type: 'square', gain: 0.5, detune: -1, phase: 79 }, { type: 'triangle', gain: 0, detune: -1, phase: 100 }, { type: 'sawtooth', gain: 1.08, detune: 1, phase: 261 }],
+        } as AudioAttributes,
+        octaveRange: [4, 6], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 6 }, pitchRepeat: 76, dynamics: 62, rests: 48, accents: 68,
+        lfoLinks: { 'layer0.gain': { lane: 'd', depth: 45 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'c', depth: 8 }, 'layer2.gain': { lane: 'c', depth: 42 }, 'layer2.detune': { lane: 'c', depth: 8 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.52, delaySend: 0.22, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
+      },
+      28: {
+        audioAttributes: {
+          adsr: { attack: 1.1034769996407638, decay: 0.45511154042455915, sustain: 0.679535826145514, release: 1.0415286282943468, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [2, 4], filterFreq: 1629.7534513514256, filterQ: 4.5, filterType: 'lowpass', portamento: 0, waveform: 'square', phase: 77, detune: -3, pulseWidth: 0.5035310436907365,
+          layers: [{ type: 'triangle', gain: 0.75, detune: 0, phase: 104 }, { type: 'sawtooth', gain: 0.59, detune: -1, phase: 167 }, { type: 'triangle', gain: 0, detune: 0, phase: 216 }],
+        } as AudioAttributes,
+        octaveRange: [2, 4], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 1 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 21, dynamics: 56, rests: 21, accents: 33,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.35, delaySend: 0.07, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+    };
+
+    it('Classic parity, the tiers: a shaped stage, the bandpass accent and an exclusive send are value for value what the constants seeded before the lift', () => {
+      const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 29).map(({ name: _name, ...rest }) => rest);
+      expect({ 3: roster[3], 4: roster[4], 28: roster[28] }).toEqual(PARITY_TIERS);
+    });
+
     it('Classic parity: three spawned robots carry the ids, master volumes, densities and glides the constants seeded before the lift', () => {
       const localeId = 'band-table-parity-locale';
       freshLocale(localeId, { x: 7, y: 11 });

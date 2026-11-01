@@ -334,6 +334,21 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
       expect(get('r1').activity).toBe('working');
     });
 
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the loop may still decide while the tablet is off (a leg that ends
+    // as the pause begins), and that decision reads the clock the pause froze.
+    it('a decision taken during the pause reads the frozen clock: a cooldown does not run out while the tablet is off', () => {
+      const { a } = sitesForSwitch();
+      releaseOnce(a);
+
+      clock = 101;
+      pauseWorkLoop();
+      clock = 1e6; // long past the cooldown in wall time
+      finish('bob-wait-r1');
+
+      expect(get('r1').activity).toBe('waiting');
+      expect(get('r1').siteId).not.toBe(a.id);
+    });
+
     it('two pauses accumulate', () => {
       const { a } = sitesForSwitch();
       const cooldown = releaseOnce(a);

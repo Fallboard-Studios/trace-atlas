@@ -346,6 +346,20 @@ describe('startSceneWash (revisions Task 13)', () => {
     stop = () => undefined;
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: once stopped, the wash no longer follows the store at all.
+  it('after the stop, a state change makes no fade and sets nothing on the element', () => {
+    stop();
+    const timelines = recorded.timelines.length;
+    const sets = recorded.sets.length;
+    useUIStore.getState().setSceneWash('covering');
+    useUIStore.getState().setSceneWash('uncovering');
+    tick();
+    useUIStore.getState().setSceneWash('clear');
+    expect(recorded.timelines).toHaveLength(timelines);
+    expect(recorded.sets).toHaveLength(sets);
+    stop = () => undefined;
+  });
+
   it('without the wash element registered there is nothing to start: a no-op stop, and requests run at once', () => {
     stop();
     clearRefs();

@@ -3,6 +3,7 @@
 // ========================================
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
+import { StrictMode } from 'react';
 
 vi.mock('@/components/robot/Robot', () => ({ Robot: () => null }));
 vi.mock('@/components/actors/Factory', () => ({ Factory: () => null, default: () => null }));
@@ -279,6 +280,28 @@ describe('WorldView — the scene wash (revisions Task 13)', () => {
     expect(getRef(WORLD_WASH_REF_KEY)).toBe(container.querySelector('.world-view__wash'));
     unmount();
     expect(getRef(WORLD_WASH_REF_KEY)).toBeUndefined();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: StrictMode mounts, unmounts and mounts again in dev. The wash ends
+  // attached once, under its ref: a change still waits for the cover, and the unmount still lets go.
+  it('under StrictMode a world change still waits for the cover and runs once it lands; after unmount it runs at once', async () => {
+    const { container, unmount } = render(
+      <StrictMode>
+        <WorldView />
+      </StrictMode>,
+    );
+    expect(getRef(WORLD_WASH_REF_KEY)).toBe(container.querySelector('.world-view__wash'));
+    const change = vi.fn();
+    act(() => requestWorldChange(change));
+    expect(useUIStore.getState().sceneWash).toBe('covering');
+    expect(change).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(change).toHaveBeenCalledTimes(1));
+    expect(useUIStore.getState().sceneWash).toBe('uncovering');
+    unmount();
+    const later = vi.fn();
+    requestWorldChange(later);
+    expect(later).toHaveBeenCalledTimes(1);
+    expect(useUIStore.getState().sceneWash).toBe('clear');
   });
 
   it('while mounted, a world change waits for the cover and runs once it lands; after unmount it runs at once', async () => {

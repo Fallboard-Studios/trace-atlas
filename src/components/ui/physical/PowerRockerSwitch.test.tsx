@@ -83,6 +83,19 @@ describe('PowerRockerSwitch', () => {
     expect(powerController.powerOnSequence).not.toHaveBeenCalled();
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R18 and R27: the rocker stays clickable through its sequence, and a second
+  // press is the controller's to answer: one after the start finds the world running and does nothing.
+  it('a second click during the sequence reaches the controller too: the rocker takes it, the controller decides', async () => {
+    const { container, getByRole } = render(<PowerRockerSwitch />);
+    const button = getByRole('button', { name: /Power on/i });
+    fireEvent.click(button);
+    expect(container.querySelector('.rocker-light')!.getAttribute('data-transitioning')).toBe('true');
+    fireEvent.click(button);
+
+    expect(vi.mocked(setTimeline).mock.calls.filter(([id]) => id === 'power-rocker-sequence')).toHaveLength(2);
+    await vi.waitFor(() => expect(powerController.powerOnSequence).toHaveBeenCalledTimes(2));
+  });
+
   it('colors the light red (via statusLightColors) when powered off', () => {
     const { container } = render(<PowerRockerSwitch />);
     const light = container.querySelector('.rocker-light') as HTMLElement;

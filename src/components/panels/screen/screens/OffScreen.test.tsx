@@ -50,6 +50,7 @@ import * as worldChange from '@/systems/worldChange';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/timelineMap';
+import { OFF_SCREEN_FADE_TIMELINE, fadeOffScreen } from '@/animation/offScreenTheatre';
 import { getRef } from '@/utils/refs';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { CONTENT, fill } from '@/content';
@@ -110,6 +111,16 @@ describe('OffScreen — the gate (spec assumption 7)', () => {
     render(<OffScreen />);
     act(() => markHeardWorld());
     expect(screen.queryByRole('radio')).toBeNull();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the dirty check builds the live payload, and a first visit has no
+  // Keep and no warning to light, so it builds none, even with a save loaded.
+  it('a first visit builds no payload on mount, even with a save loaded', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(buildSessionPayload).not.toHaveBeenCalled();
   });
 });
 
@@ -230,6 +241,16 @@ describe('OffScreen — the boot theatre', () => {
     unmount();
     expect(getTimeline('off-screen-boot')).toBeUndefined();
     expect(getRef('off-screen')).toBeUndefined();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: a power-on fade still running when the screen goes takes the fade
+  // with it, so its completion never resolves against a screen that is gone.
+  it('an unmount mid-fade kills the fade with the screen', () => {
+    const { unmount } = render(<OffScreen />);
+    void fadeOffScreen();
+    expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeDefined();
+    unmount();
+    expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeUndefined();
   });
 
   it('runs on a returning visit too, over the chooser', () => {

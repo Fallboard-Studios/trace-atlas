@@ -103,6 +103,30 @@ describe('fadeOffScreen', () => {
     expect(getTimeline(OFF_SCREEN_BOOT_TIMELINE)).toBeUndefined();
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27 (R18's window): a second power-on press while the first fade runs
+  // replaces that fade, so only the second press goes on. The shared stub completes every timeline by itself, so these
+  // timelines are held: each keeps its onComplete for the test to fire, and a kill spy.
+  it('a second fade supersedes the first: the first is killed before it completes, and the second resolves when it does', async () => {
+    const held: { complete: () => void; kill: ReturnType<typeof vi.fn> }[] = [];
+    const timeline = vi.spyOn(gsap, 'timeline').mockImplementation(((config?: { onComplete?: () => void }) => {
+      const kill = vi.fn();
+      held.push({ complete: () => config?.onComplete?.(), kill });
+      const tl = { to: () => tl, kill, paused: () => false, pause: () => tl, play: () => tl };
+      return tl;
+    }) as unknown as typeof gsap.timeline);
+    setRef(OFF_SCREEN_REF_KEY, document.createElement('div'));
+
+    void fadeOffScreen();
+    const second = fadeOffScreen();
+
+    expect(held).toHaveLength(2);
+    expect(held[0].kill).toHaveBeenCalled();
+    expect(held[1].kill).not.toHaveBeenCalled();
+    held[1].complete();
+    await expect(second).resolves.toBeUndefined();
+    timeline.mockRestore();
+  });
+
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19: a screen fading out, and the transparent one left behind it through
   // a slow first start, takes no input: nothing on it that the eye has lost can still be clicked.
   it('makes the screen inert as the fade starts, before the tween completes', () => {

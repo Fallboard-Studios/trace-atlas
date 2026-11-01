@@ -6401,6 +6401,32 @@ describe('AudioEngine.pause / resume — the AudioContext suspends and resumes',
     expect(rawContextMock.resume).not.toHaveBeenCalled();
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: a context that refuses (closed, or held by an autoplay policy) is
+  // logged in dev builds, never thrown into the rocker's sequence.
+  it('a rejected suspend is logged, not thrown', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const { devWarn } = await import('../utils/helpers');
+    await AudioEngine.start();
+    vi.mocked(devWarn).mockClear();
+    const refused = new Error('the context refused');
+    rawContextMock.suspend.mockImplementationOnce(() => Promise.reject(refused));
+
+    expect(() => AudioEngine.pause()).not.toThrow();
+    await vi.waitFor(() => expect(devWarn).toHaveBeenCalledWith('[AudioEngine] pause failed', refused));
+  });
+
+  it('a rejected resume is logged, not thrown', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const { devWarn } = await import('../utils/helpers');
+    await AudioEngine.start();
+    vi.mocked(devWarn).mockClear();
+    const refused = new Error('the context refused');
+    rawContextMock.resume.mockImplementationOnce(() => Promise.reject(refused));
+
+    expect(() => AudioEngine.resume()).not.toThrow();
+    await vi.waitFor(() => expect(devWarn).toHaveBeenCalledWith('[AudioEngine] resume failed', refused));
+  });
+
   it('never throws when the context exposes no rawContext', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     const Tone = await import('tone');

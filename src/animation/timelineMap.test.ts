@@ -60,6 +60,35 @@ describe('timeline scope', () => {
     expect(held.paused()).toBe(true);
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the paused span's edges.
+  it('the resume ends the paused span: a world timeline registered after resumeWorldTimelines() plays', () => {
+    pauseWorldTimelines();
+    resumeWorldTimelines();
+
+    const after = gsap.timeline();
+    setTimeline('swim-after', after, 'world');
+    expect(after.paused()).toBe(false);
+  });
+
+  it('a world timeline built paused and registered during the pause is its owner to play: it stays paused after the resume', () => {
+    pauseWorldTimelines();
+    const held = gsap.timeline({ paused: true });
+    setTimeline('bob-wait-late', held, 'world');
+
+    resumeWorldTimelines();
+    expect(held.paused()).toBe(true);
+  });
+
+  it('a re-registered id drops the world pause of the timeline it replaced: a replacement built paused is not played on resume', () => {
+    setTimeline('swim-r6', gsap.timeline(), 'world');
+    pauseWorldTimelines();
+    const replacement = gsap.timeline({ paused: true });
+    setTimeline('swim-r6', replacement, 'world');
+
+    resumeWorldTimelines();
+    expect(replacement.paused()).toBe(true);
+  });
+
   it('killTimeline forgets the scope with the timeline', () => {
     setTimeline('swim-r3', gsap.timeline(), 'world');
     killTimeline('swim-r3');

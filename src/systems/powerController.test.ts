@@ -91,6 +91,33 @@ describe('powerController', () => {
     });
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: resume() is the other half of pause(), and only that.
+  describe('resume()', () => {
+    it('is a no-op on a cold world: nothing wakes, the power stays off and the world stays cold', () => {
+      powerController.resume();
+
+      expect(AudioEngine.resume).not.toHaveBeenCalled();
+      expect(resumeWorldTimelines).not.toHaveBeenCalled();
+      expect(resumeWorkLoop).not.toHaveBeenCalled();
+      expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
+      expect(powerController.getWorldState()).toBe('cold');
+    });
+
+    it('is a no-op on a running world: the context is not resumed a second time', async () => {
+      await powerController.powerOnSequence();
+      vi.mocked(AudioEngine.resume).mockClear();
+      vi.mocked(resumeWorkLoop).mockClear();
+      setPowerOnSpy.mockClear();
+
+      powerController.resume();
+
+      expect(AudioEngine.resume).not.toHaveBeenCalled();
+      expect(resumeWorkLoop).not.toHaveBeenCalled();
+      expect(setPowerOnSpy).not.toHaveBeenCalled();
+      expect(powerController.getWorldState()).toBe('running');
+    });
+  });
+
   describe('powerOnSequence() from a pause', () => {
     it('resumes — audio context, world timelines, loop clock, then power on — and starts nothing', async () => {
       await powerController.powerOnSequence();

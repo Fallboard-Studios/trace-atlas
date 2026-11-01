@@ -144,6 +144,43 @@ describe('dealAspects (docs/specs/OFF_SCREEN.md assumption 21, plan Task 26)', (
     }
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: two families at once, and how far the rotation reaches.
+  it('deals two families at once: every robot carries both, a company shares both, and each family turns on its own draw', () => {
+    vi.mocked(getUniformSeededVal).mockClear();
+    const map = noise('two-families');
+    const melody: MelodyId[] = ['hypnotic', 'mechanical'];
+    const envelope: AspectIdOf<'envelope'>[] = ['plucked', 'swelling', 'held'];
+    const dealt = dealAspects({ aspects: { melody, envelope } }, COMPANIES, ROSTER, map);
+    const groups = dealGroups(COMPANIES, ROSTER);
+
+    expect(dealt.size).toBe(12);
+    for (const group of groups) {
+      const first = dealt.get(group[0])!;
+      expect(Object.keys(first).sort()).toEqual(['envelope', 'melody']);
+      for (const id of group) expect(dealt.get(id)).toEqual(first);
+    }
+    // Each family steps through its own canonical list over the groups, from its own rotation.
+    const byGroup = groups.map((group) => dealt.get(group[0])!);
+    for (let i = 1; i < byGroup.length; i++) {
+      expect(melody.indexOf(byGroup[i].melody as MelodyId)).toBe((melody.indexOf(byGroup[i - 1].melody as MelodyId) + 1) % melody.length);
+      expect(envelope.indexOf(byGroup[i].envelope!)).toBe((envelope.indexOf(byGroup[i - 1].envelope!) + 1) % envelope.length);
+    }
+    expect(vi.mocked(getUniformSeededVal).mock.calls).toEqual([
+      [map, 'aspects.melody.deal', 0],
+      [map, 'aspects.envelope.deal', 0],
+    ]);
+  });
+
+  it('over thirty worlds a three-pick list starts on each of its picks: every rotation occurs', () => {
+    const groups = dealGroups(COMPANIES, ROSTER);
+    const picks: MelodyId[] = ['hypnotic', 'mechanical', 'wandering'];
+    const firstPicks = new Set<string | undefined>();
+    for (let i = 0; i < 30; i++) {
+      firstPicks.add(dealAspects(identity(picks), COMPANIES, ROSTER, noise(`spread-${i}`)).get(groups[0][0])?.melody);
+    }
+    expect(firstPicks).toEqual(new Set(picks));
+  });
+
   it('three companies with no freelancers seat all three picks, one per company', () => {
     const threeCompanies = [
       { robotIds: ['robot-0', 'robot-1', 'robot-2', 'robot-3'] },

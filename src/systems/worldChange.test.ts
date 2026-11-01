@@ -154,6 +154,28 @@ describe('requestWorldChange, with a wash mounted', () => {
     expect(second).toHaveBeenCalledTimes(1);
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: a world change writes the UI store as it rebuilds (the hour, for one),
+  // and so may anything between the cover landing and the change running. None of those writes is a cover: the change
+  // runs once, under 'covered' to its end.
+  it("a change that writes the UI store while covered runs once, and the state stays 'covered' until it ends", async () => {
+    const seen: SceneWash[] = [];
+    const change = vi.fn(() => {
+      useUIStore.setState({ activeLocaleLocalTime: 7 });
+      seen.push(wash());
+      useUIStore.setState({ activeLocaleLocalTime: 8 });
+      seen.push(wash());
+    });
+    requestWorldChange(change);
+    setWash('covered');
+    useUIStore.setState({ activeLocaleLocalTime: 6 });
+    await handOff();
+    await handOff();
+    await handOff();
+    expect(change).toHaveBeenCalledTimes(1);
+    expect(seen).toEqual(['covered', 'covered']);
+    expect(wash()).toBe('uncovering');
+  });
+
   it('a request made inside the running change runs before the wash uncovers', async () => {
     const inner = vi.fn();
     requestWorldChange(() => requestWorldChange(inner));
