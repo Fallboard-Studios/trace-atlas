@@ -597,7 +597,14 @@ break this rule:
 F7's `movedFields` also compares a robot's `layers` as one array. So a moved layer gain would reset a tweaked layer type,
 and would drop all six layer swells (F16).
 
-- [ ] **F11: `worldTransition.ts` — the global swells end where the redraw moved their target** (finding 1)
+- [x] **F11: `worldTransition.ts` — the global swells end where the redraw moved their target** (finding 1)
+
+  **As shipped:** the comparison lives in `audioSwells.ts` as `cancelGlobalSwellsMovedBy(next)`, because the
+  target-to-field table is private there; `loadingOnly` passes it a pure `generateGlobalAudioSettings` draw under the
+  new loading, before `regenerateGlobalHalfFromSeed`. The tests drive the real swell tick until the targets ride.
+  Mutants: no cancel, killed (3 cases); every swell cancelled, killed (the eq3.low case). The cancel after the write
+  survives as an **equivalent** mutant: the cancel compares against the pure draw, not the store, and nothing in the
+  synchronous change reads the swell map between the two calls. The order is kept as written.
 
   **Description:**
   - **The gap:** `loadingOnly` (F7) no longer rebuilds, so no `stopAudioSwells` runs. A global swell in flight keeps

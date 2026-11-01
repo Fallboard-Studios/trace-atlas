@@ -1088,6 +1088,70 @@ describe('worldTransition', () => {
       for (const robot of robots) expect(cancel).toHaveBeenCalledWith(robot.id, 'delaySend');
     });
 
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F11 (second review, finding 1): a theme re-derives in place, so no
+    // stopAudioSwells runs. A global swell on a field the theme moves would end by writing its old base over the new
+    // seeded value; it is dropped. A swell on a field the theme leaves standing rides on.
+    describe('the global swells across a theme (final fixes F11)', () => {
+      const swellOn = (target: string) => audioSwellsModule.getActiveSwellSnapshot('global').find((s) => s.globalTarget === target);
+      /** Tick the real swell system, every tick a trigger, until both targets ride a swell; then no new swell starts. */
+      const startSwellsOn = (targets: string[]): number => {
+        // The global half as Classic seeds it: an earlier case's theme leaves its own in the store.
+        const { style } = currentWorld();
+        useAudioStore.getState().regenerateGlobalAudioFromSeed(style.id, style.name);
+        useAudioStore.setState({ swellFrequency: 16, swellDuration: 64 });
+        let measure = 0;
+        while (!targets.every(swellOn) && measure < 400) {
+          audioSwellsModule.tickAudioSwells(currentWorld().style.currentLocaleId!, measure);
+          measure += 1 / 16;
+        }
+        expect(targets.every(swellOn), 'the swells never started').toBe(true);
+        useAudioStore.setState({ swellFrequency: 0 });
+        return measure;
+      };
+      const tickPastEveryEnd = (from: number) => {
+        const localeId = currentWorld().style.currentLocaleId!;
+        for (let m = from; m < from + 200; m += 1) audioSwellsModule.tickAudioSwells(localeId, m);
+        expect(audioSwellsModule.getActiveSwellSnapshot('global')).toEqual([]);
+      };
+
+      it('drops a swell on the LPF cutoff the theme moves: the new seeded value stands past the swell\'s would-be end', () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        const measure = startSwellsOn(['lpf.frequency']);
+        const oldBase = swellOn('lpf.frequency')!.baseValue!;
+        retransmitWorld({ theme: 'calm' });
+        expect(swellOn('lpf.frequency')).toBeUndefined();
+        const seeded = useAudioStore.getState().globalAudio.filterLPF.frequency;
+        expect(seeded).not.toBe(oldBase);
+        expect(seeded).toBeGreaterThanOrEqual(500);
+        expect(seeded).toBeLessThanOrEqual(600);
+        tickPastEveryEnd(measure);
+        expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBe(seeded);
+      });
+
+      it('keeps a swell on a field the theme leaves standing (eq3.low): it rides on and ends on its own base', () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        const measure = startSwellsOn(['eq3.low', 'lpf.frequency']);
+        const before = swellOn('eq3.low')!;
+        retransmitWorld({ theme: 'calm' });
+        expect(swellOn('eq3.low')).toEqual(before);
+        expect(swellOn('lpf.frequency')).toBeUndefined();
+        tickPastEveryEnd(measure);
+        expect(useAudioStore.getState().globalAudio.eq3.low).toBe(before.baseValue);
+      });
+
+      it('paused before the theme, Keep saves the new LPF value, not the dropped swell\'s old base', () => {
+        initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+        startSwellsOn(['lpf.frequency']);
+        const oldBase = swellOn('lpf.frequency')!.baseValue!;
+        setWorldState('paused');
+        retransmitWorld({ theme: 'calm' });
+        // The payload rounds its numbers, so the reads compare to the whole hertz.
+        const saved = buildSessionPayload().globalAudio!.filterLPF!.frequency!;
+        expect(saved).not.toBeCloseTo(oldBase, 0);
+        expect(saved).toBeCloseTo(useAudioStore.getState().globalAudio.filterLPF.frequency, 0);
+      });
+    });
+
     it('aspects alone, and a theme, keep the selected robot and company: nothing they name is rebuilt', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const { locale } = currentWorld();

@@ -16,7 +16,8 @@ import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
 import { applyAspectDeal, redealAspects, rederiveLoading } from './aspectDeal';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
-import { startAudioSwells, stopAudioSwells, cancelSwellForRobotAttribute } from './audioSwells';
+import { startAudioSwells, stopAudioSwells, cancelGlobalSwellsMovedBy, cancelSwellForRobotAttribute } from './audioSwells';
+import { generateGlobalAudioSettings } from '../utils/globalAudioSeed';
 import { getWorldState, setWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getCurrentMeasure } from '../engine/beatClock';
@@ -480,7 +481,10 @@ export function retransmitWorld(input: RetransmitInput): void {
     case 'loadingOnly':
       // The same style, the same plot: the global half from seed under the new bands (the style-sync does not fire
       // for an unchanged id), then the live roster re-derived in place - only the seeded fields the change moves, the
-      // locale, the companies and every robot's place standing (final fixes F7).
+      // locale, the companies and every robot's place standing (final fixes F7). No stopAudioSwells runs here, so a
+      // global swell on a field the theme moves is dropped before the new value is written, and the write is the last
+      // one (final fixes F11).
+      cancelGlobalSwellsMovedBy(generateGlobalAudioSettings(oldAttenuationStyle.id, oldAttenuationStyle.name));
       regenerateGlobalHalfFromSeed(oldAttenuationStyle);
       if (oldLocaleId) rederiveLoading(oldLocaleId, { theme: previousTheme, aspects: previousAspects }, cancelSwellForRobotAttribute);
       break;
