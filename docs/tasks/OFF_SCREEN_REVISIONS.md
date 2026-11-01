@@ -501,7 +501,7 @@ Collective", meta "saved Oct 31, 4:16 AM") and dimmed; picking that save selecte
 
   **Estimated scope:** M
 
-- [ ] **Task 11: The listen — the new families' numbers** (NOT DONE — Crawford's ear. The build ran unattended on 2026-10-31, so the placeholder columns of Tasks 7 and 10 stand as written; `npx vitest run src/data/bands` passes with them. When he listens, the agreed numbers replace them in `aspects.ts` and the grids' aspect tables.)
+- [x] **Task 11: The listen — the new families' numbers** (Crawford, 2026-11-01, answering the review walkthrough's "listen to the new aspects": "sounds good", taken as the listen passing, so the placeholder columns stand as final; `docs/tasks/OFF_SCREEN_FINAL_FIXES.md` Open Questions asks him to say if it meant "later". Before that: The build ran unattended on 2026-10-31, so the placeholder columns of Tasks 7 and 10 stand as written; `npx vitest run src/data/bands` passes with them. When he listens, the agreed numbers replace them in `aspects.ts` and the grids' aspect tables.)
 
   **Description:** On one seed, Crawford listens to each new option alone against Classic and against one theme and
   adjusts the placeholder bands until each is itself; the agreed numbers go into `aspects.ts` and the grids' aspect

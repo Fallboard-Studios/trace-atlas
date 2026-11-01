@@ -662,3 +662,43 @@ and listen.
 not `'running'`, tears the paused world down (`tearDownPausedWorld`, worldTransition.ts) and starts cold. The power-on
 is a user gesture, so `Tone.start()` may unlock the context there; a plain retry of `resume()` inside the gesture is the
 cheaper first try. Done when a 10-minute pause on iOS comes back with sound.
+
+### 43. Animation: The World Pause Misses Timelines Built Paused and Played Later
+
+**Found 2026-10-31** by the off-screen review ([OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)
+R26, item 1); **recorded, not fixed** (Crawford, 2026-11-01). Power is a pause: `pauseWorldTimelines()` pauses every
+`'world'` timeline that is playing, and a `'world'` timeline registered during the pause is paused on arrival
+(`setTimeline`, `src/animation/timelineMap.ts`). The arrival guard only pauses a timeline that is already playing, so a
+timeline built `{ paused: true }` and played after `setTimeline` slips through and runs under the pause. That is how the
+deck camera's float moved behind the off screen, and R26.1 gated the camera's tick on the world state.
+
+**Still open:** the same pattern builds the robots' swims, the work loop's dissolve and work moves, and the station
+ripples. Nothing starts those while the world is paused today, so nothing visible is wrong. A future change that does
+would reopen it. **The general fix, when wanted:** have the registry hold a paused-span timeline paused until the span
+ends, whenever it is played (wrap `play`, or check the world state where those callers play), and drop R26.1's
+camera-only gate. Done when a `'world'` timeline built paused and played during a pause stays still until the resume.
+
+### 44. Sessions: Warn Before the Saves Fill the Browser's Storage
+
+Requested by Crawford, 2026-11-01, with the off screen's Keep failure line. There is no save-count limit in the app.
+The saves live in `localStorage` (`src/utils/sessionStorageEngine.ts`), which browsers cap per origin, at about 5 MB
+in Chrome. A save that does not fit throws. Keep catches it and shows its failure line in the warning's place (off-screen
+review R20; Crawford's words for it, "storage is already full, cannot save world", land at F3 of
+[OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md)). Comms' Save shows "<name> failed to save."
+(`session.status.saveFailed`). Neither warns before the limit.
+
+**To work out:** how big a save is (the payload is a diff against the seed, so an untouched world is small and a
+heavily tweaked one is not); how many fit; and whether the off screen and the Sessions panel should show the space
+left, warn as it runs low, or both. Delete is already in the Sessions list. Needs a short interview: where the warning
+lives and what it says are Crawford's.
+
+### 45. Off Screen: Crawford's Three Preset Links
+
+Moved here from the off-screen review (Crawford, 2026-11-01). The off screen's three presets
+(`src/data/transmissionPresets.ts`) are still placeholders. They are the bare triples of the first build's stand-in
+worlds (`kr1nd4ra` at 12, 68; `qb9mezm3` at -84, 131; `h4lcy0n` at 143, -57), named by stand-in copy
+(`home.off.presets.a`–`c` in `src/content/copy/home.ts`: Kryndara, Vessport Null, Halcyon Drift). A preset is a pasted
+world link ([docs/specs/OFF_SCREEN.md](../specs/OFF_SCREEN.md) assumption 13): paste each share link over its `link`,
+and its name over its content entry. Nothing else changes: `presetPayload` decodes whatever the link carries, the
+theme and the aspect picks included. The review's probes use Vessport Null and the `kr1nd4ra` plot by name, so a later
+probe run picks its worlds again.
