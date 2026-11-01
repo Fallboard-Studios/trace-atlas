@@ -238,6 +238,67 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
     expect(cancel).not.toHaveBeenCalled();
   });
 
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16 (Crawford's rule: a theme or aspect change writes only what it moves): the
+  // layers are compared per layer, per key, so a moved gain leaves a tweaked type alone and drops only its own swell.
+  describe('layers, per layer and per key (final fixes F16)', () => {
+    const LAYER_KEYS = ['type', 'gain', 'detune', 'phase'] as const;
+    /** The first robot and layer whose gain the Voice pick moves while its type stays, from an untweaked pair of worlds. */
+    const findMovedGain = (before: readonly Robot[], fresh: readonly Robot[]) => {
+      for (let r = 0; r < before.length; r++) {
+        const from = before[r].audioAttributes.layers!;
+        const to = fresh[r].audioAttributes.layers!;
+        for (let i = 0; i < from.length; i++) {
+          if (from[i].gain !== to[i].gain && from[i].type === to[i].type) return { r, i };
+        }
+      }
+      throw new Error('no robot with a moved gain under a standing type');
+    };
+
+    it('a Voice pick that moves a layer gain keeps a tweaked type on that layer, and drops only that layer\'s gain swell', () => {
+      const live = buildWorld(CLASSIC_PLAIN);
+      const before = robotsOf(live);
+      const fresh = robotsOf(buildWorld({ theme: 'classic', aspects: { voice: ['woody'] } }));
+      const { r, i } = findMovedGain(before, fresh);
+      const robot = before[r];
+      const otherType = robot.audioAttributes.layers![i].type === 'sine' ? ('square' as const) : ('sine' as const);
+      const tweakedLayers = robot.audioAttributes.layers!.map((layer, j) => (j === i ? { ...layer, type: otherType } : layer));
+      useLocaleStore.getState().updateRobot(live, robot.id, { audioAttributes: { ...robot.audioAttributes, layers: tweakedLayers } });
+      const dropped: string[] = [];
+
+      rederive(live, CLASSIC_PLAIN, { theme: 'classic', aspects: { voice: ['woody'] } }, (id, attribute) => {
+        if (id === robot.id) dropped.push(attribute);
+      });
+
+      const after = robotsOf(live)[r].audioAttributes.layers!;
+      expect(after[i].type).toBe(otherType);
+      expect(after[i].gain).toBe(fresh[r].audioAttributes.layers![i].gain);
+      // Every other layer key is the new draw where it moved and the robot's own where it did not.
+      after.forEach((layer, j) => {
+        for (const key of LAYER_KEYS) {
+          if (j === i && key === 'type') continue;
+          const moved = before[r].audioAttributes.layers![j][key] !== fresh[r].audioAttributes.layers![j][key];
+          expect(layer[key], `layer ${j} ${key}`).toBe(moved ? fresh[r].audioAttributes.layers![j][key] : before[r].audioAttributes.layers![j][key]);
+        }
+      });
+      // The swells: exactly the moved gains and detunes of this robot's layers, so this layer's gain and never its detune.
+      const movedSwells = before[r].audioAttributes.layers!.flatMap((layer, j) =>
+        (['gain', 'detune'] as const)
+          .filter((key) => layer[key] !== fresh[r].audioAttributes.layers![j][key])
+          .map((key) => `layer${j}.${key}`),
+      );
+      expect(dropped.filter((a) => a.startsWith('layer')).sort()).toEqual(movedSwells.sort());
+      expect(dropped).toContain(`layer${i}.gain`);
+      expect(dropped).not.toContain(`layer${i}.detune`);
+    });
+
+    it('an untweaked world after a Voice pick is the fresh build, layer for layer', () => {
+      const live = buildWorld(CLASSIC_PLAIN);
+      const fresh = robotsOf(buildWorld({ theme: 'classic', aspects: { voice: ['hollow'] } }));
+      rederive(live, CLASSIC_PLAIN, { theme: 'classic', aspects: { voice: ['hollow'] } });
+      expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
+    });
+  });
+
   it('does nothing, and does not throw, for an unknown locale', () => {
     expect(() => rederiveLoading('no-such-locale', DEFAULT_LOADING, vi.fn())).not.toThrow();
   });

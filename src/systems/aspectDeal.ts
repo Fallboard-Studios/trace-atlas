@@ -24,7 +24,8 @@ import {
   type CompanyRosterBaseline,
   type RobotAudioBaseline,
 } from './spawnSystem';
-import type { SwellRobotAttributeId } from '../types/audioSwell';
+import { SWELL_ROBOT_ATTRIBUTE_IDS, type SwellRobotAttributeId } from '../types/audioSwell';
+import type { OscillatorLayer } from '../types/layeredAudio';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { withLoading } from '../data/bands/loadingContext';
 import { deepEqual } from '../utils/math';
@@ -32,9 +33,10 @@ import { deepEqual } from '../utils/math';
 /*
  * The deal (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24): the loading's aspect picks seated over a roster - on a
  * baseline (applyDealToBaselines, generateDealtRosterBaseline), on the live roster when a world is built
- * (applyAspectDeal), and in place when only the aspects change (redealAspects) - each family's fields re-derived through
- * robotFieldDerivation.ts and pushed to the engine the way a hand edit is. Moved out of spawnSystem.ts unchanged
- * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R13).
+ * (applyAspectDeal), and in place when the theme or the aspects change (rederiveLoading, field by field since
+ * docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16) - each family's fields re-derived through robotFieldDerivation.ts and pushed
+ * to the engine the way a hand edit is. Moved out of spawnSystem.ts unchanged (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
+ * R13).
  */
 
 // ========================================
@@ -194,81 +196,6 @@ export function applyAspectDeal(localeId: string): void {
   });
 }
 
-/** One family's fields as `source` holds them, over `robot`'s own audio attributes: the counterpart of
- *  deriveFamilyFields, key for key, reading a robot already drawn instead of drawing one. A switch, so a new family is
- *  a compile error until it has its case. */
-function familyFieldsOf(
-  family: AspectFamilyId,
-  source: RobotAudioBaseline,
-  robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
-): DealtFields {
-  switch (family) {
-    case 'melody': {
-      const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = source;
-      return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat };
-    }
-    case 'envelope':
-      return { audioAttributes: { ...robot.audioAttributes, adsr: source.audioAttributes.adsr } };
-    case 'distance': {
-      const { reverbSend, delaySend, gritSend, shimmerSend, doubleSend } = source;
-      return { reverbSend, delaySend, gritSend, shimmerSend, doubleSend };
-    }
-    case 'voice': {
-      const { filterFreq, filterQ, filterType, waveform, layers } = source.audioAttributes;
-      return { audioAttributes: { ...robot.audioAttributes, filterFreq, filterQ, filterType, waveform, layers } };
-    }
-  }
-}
-
-/** The swellable attributes inside each family's fields (SWELL_ROBOT_ATTRIBUTE_IDS): the swells an in-place re-deal
- *  drops, as a hand edit of a field drops the swell riding it (RobotScreen.tsx), so none returns a re-derived field to
- *  its old base or hands that base to Keep (sessionDiff.ts saves a swelling field's base). Melody's fields never
- *  swell. A Record, so a new family is a compile error until it has its list. */
-const FAMILY_SWELL_ATTRIBUTES: Record<AspectFamilyId, readonly SwellRobotAttributeId[]> = {
-  melody: [],
-  envelope: ['adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release'],
-  distance: ROBOT_SEND_FIELDS,
-  voice: ['layer0.gain', 'layer0.detune', 'layer1.gain', 'layer1.detune', 'layer2.gain', 'layer2.detune'],
-};
-
-/**
- * An aspect change on the live roster, in place (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33; Crawford: refresh the
- * world only when necessary). Aspects are robot-side (spec §3), so the world stands - positions, batteries, jobs, the
- * companies, the global half - and only the deal moves. The loading store's picks are dealt over the locale's own
- * companies and robots, as applyAspectDeal deals them, onto the roster a rebuild would spawn (the theme's own draws,
- * generateRobotRosterBaseline); then each robot takes, for just the families whose dealt aspect moved from its
- * `loadedUnder`, what that rebuild gives it: the aspect's re-derivation from its own index for a family still dealt,
- * the theme's own draw for one no longer dealt (a copied robot's being its source's, as at spawn). A tweak on any other
- * field stays; a tweak on a re-derived one goes, as any re-derivation takes it. The swells riding the re-derived fields
- * are dropped first (FAMILY_SWELL_ATTRIBUTES, through `dropSwell`), the fields and the new `loadedUnder` go through
- * updateRobot, and each moved family reaches the engine through pushFamilyToEngine. A robot nothing moved for is not
- * written. `dropSwell` is audioSwells' cancelSwellForRobotAttribute, handed in by the caller (retransmitWorld) so this
- * module stays out of the swell system's imports: they load the audio store, whose module-load style-sync every test
- * that imports this module - through worldTransition or sessionDiff, too - would then run.
- */
-export function redealAspects(localeId: string, dropSwell: (robotId: string, attribute: SwellRobotAttributeId) => void): void {
-  const locale = useLocaleStore.getState().getLocaleById(localeId);
-  if (!locale) return;
-  const { theme, aspects } = useLoadingStore.getState();
-  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
-  const ids = locale.robots.map((robot) => robot.id);
-  const rebuilt = applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ids.length), ids, locale.companies, { theme, aspects }, noiseMap);
-  locale.robots.forEach((robot, i) => {
-    const loadedUnder = rebuilt[i].loadedUnder;
-    const moved = ASPECT_FAMILY_IDS.filter((family) => loadedUnder?.[family] !== robot.loadedUnder?.[family]);
-    if (moved.length === 0) return;
-    let fields: DealtFields = {};
-    for (const family of moved) {
-      for (const attribute of FAMILY_SWELL_ATTRIBUTES[family]) dropSwell(robot.id, attribute);
-      fields = { ...fields, ...familyFieldsOf(family, rebuilt[i], { ...robot, ...fields }) };
-    }
-    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...fields, loadedUnder });
-    const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
-    if (!updated) return;
-    for (const family of moved) pushFamilyToEngine(family, updated, localeId);
-  });
-}
-
 /** The top-level seeded fields compared one by one, each with the family whose push carries it to the engine: Melody's
  *  four and `rests`, which the melody bakes in (regenerateMelody reads it, as a hand edit of Rests regenerates), and
  *  the five sends. */
@@ -281,12 +208,17 @@ const TOP_LEVEL_FIELDS = [
   ...ROBOT_SEND_FIELDS.map((field) => [field, 'distance'] as const),
 ] as const satisfies readonly (readonly [keyof RobotAudioBaseline, AspectFamilyId])[];
 
-/** Voice's fields inside the audio attributes, compared one by one; a moved `layers` drops the layer swells. */
-const VOICE_FIELDS = ['filterFreq', 'filterQ', 'filterType', 'waveform', 'layers'] as const;
+/** Voice's fields inside the audio attributes, compared one by one; the layers are compared apart, per layer and key. */
+const VOICE_FIELDS = ['filterFreq', 'filterQ', 'filterType', 'waveform'] as const;
+
+/** A layer's seeded keys, compared one by one (deriveVoiceFields draws each; `pulseWidth` is never seeded). Only a moved
+ *  key is written into the robot's own layer, and only a moved gain or detune drops its swell (`layer<i>.<key>`). */
+const LAYER_KEYS = ['type', 'gain', 'detune', 'phase'] as const satisfies readonly (keyof OscillatorLayer)[];
 
 /** One robot's fields that moved between the `from` and `to` baselines, as `robot` takes them: each moved field the
- *  new value, inside its own audio attributes and adsr where it lives there, every other field the robot's own. With
- *  the families to push and the swells to drop, the swellable moved fields (FAMILY_SWELL_ATTRIBUTES). */
+ *  new value, inside its own audio attributes, adsr and layer where it lives there, every other field the robot's own
+ *  (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16: a theme or aspect change writes only what it moves). With the families to
+ *  push and the swells to drop, the swellable moved fields (SWELL_ROBOT_ATTRIBUTE_IDS). */
 function movedFields(
   robot: Robot,
   from: RobotAudioBaseline,
@@ -296,7 +228,7 @@ function movedFields(
   const families = new Set<AspectFamilyId>();
   const swells: SwellRobotAttributeId[] = [];
   const isSwellable = (attribute: string): attribute is SwellRobotAttributeId =>
-    ASPECT_FAMILY_IDS.some((family) => (FAMILY_SWELL_ATTRIBUTES[family] as readonly string[]).includes(attribute));
+    (SWELL_ROBOT_ATTRIBUTE_IDS as readonly string[]).includes(attribute);
 
   for (const [field, family] of TOP_LEVEL_FIELDS) {
     if (deepEqual(from[field], to[field])) continue;
@@ -319,8 +251,23 @@ function movedFields(
     if (deepEqual(from.audioAttributes[key], to.audioAttributes[key])) continue;
     audioAttributes = { ...audioAttributes, [key]: to.audioAttributes[key] };
     families.add('voice');
-    if (key === 'layers') swells.push(...FAMILY_SWELL_ATTRIBUTES.voice);
   }
+  const fromLayers = from.audioAttributes.layers ?? [];
+  const toLayers = to.audioAttributes.layers ?? [];
+  let layers: OscillatorLayer[] | undefined = robot.audioAttributes.layers;
+  toLayers.forEach((toLayer, i) => {
+    for (const key of LAYER_KEYS) {
+      if (deepEqual(fromLayers[i]?.[key], toLayer[key])) continue;
+      // A layer the robot lacks takes the new draw whole, its other keys included.
+      const own = layers?.[i] ?? toLayer;
+      const next = [...(layers ?? [])];
+      next[i] = { ...own, [key]: toLayer[key] };
+      layers = next;
+      families.add('voice');
+      if (isSwellable(`layer${i}.${key}`)) swells.push(`layer${i}.${key}` as SwellRobotAttributeId);
+    }
+  });
+  if (layers !== robot.audioAttributes.layers) audioAttributes = { ...audioAttributes, layers };
   if (audioAttributes !== robot.audioAttributes) fields.audioAttributes = audioAttributes;
   if (!deepEqual(robot.loadedUnder, to.loadedUnder)) fields.loadedUnder = to.loadedUnder;
   return { fields, families, swells };
@@ -340,7 +287,14 @@ function movedFields(
  * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
  * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields and
  * `rests`, the robot rows a theme column may name (ThemeBandKey); widening that list is an "ask first" (spec §3), and
- * a widened row needs its field here. `dropSwell` as redealAspects takes it.
+ * a widened row needs its field here.
+ *
+ * An aspects-only change comes here too, with `from` the loading it replaced (final fixes F16, which folded R33's
+ * redealAspects in): its moved fields are what the two dealt baselines disagree on, so a tweak on an attribute the aspect
+ * does not move stays, where the whole family used to go. `dropSwell` is audioSwells' cancelSwellForRobotAttribute,
+ * handed in by the caller (retransmitWorld) so this module stays out of the swell system's imports: they load the audio
+ * store, whose module-load style-sync every test that imports this module - through worldTransition or sessionDiff,
+ * too - would then run.
  */
 export function rederiveLoading(
   localeId: string,
@@ -353,12 +307,21 @@ export function rederiveLoading(
   const to: LoadingIdentity = { theme, aspects };
   const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
   const ids = locale.robots.map((robot) => robot.id);
-  const rebuild = (identity: LoadingIdentity) =>
-    withLoading(identity, () =>
-      applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ids.length), ids, locale.companies, identity, noiseMap),
-    );
-  const before = rebuild(from);
-  const after = rebuild(to);
+  // The deal runs over the companies as they stand, not the seeded ones a rebuild or the session baseline deals over: a
+  // robot moved to another company takes that company's aspect. Intended (Crawford, 2026-11-01, the second review's
+  // finding 2); such a robot can differ from the seeded baseline, and sessionDiff saves the difference as overrides.
+  const after = withLoading(to, () =>
+    applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ids.length), ids, locale.companies, to, noiseMap),
+  );
+  // The old side is what each robot was dealt, its own `loadedUnder` under the old theme, not a deal of `from` over the
+  // companies now: a robot moved to another company since would read as already holding that company's pick, and keep
+  // its old one (final fixes F16). For a world as it was built the two agree.
+  const before = withLoading(from, () =>
+    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => {
+      const dealt = locale.robots[i].loadedUnder;
+      return dealt ? { ...baseline, ...dealtFields(noiseMap, i, from.theme, dealt, baseline), loadedUnder: dealt } : baseline;
+    }),
+  );
   locale.robots.forEach((robot, i) => {
     const { fields, families, swells } = movedFields(robot, before[i], after[i]);
     if (Object.keys(fields).length === 0) return;

@@ -13,7 +13,7 @@ import { useLoadingStore } from '../stores/loadingStore';
 import { recolorActorsForAttenuationStyle } from './factoryPlacementSystem';
 import { placeDistrict } from './districts';
 import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
-import { applyAspectDeal, redealAspects, rederiveLoading } from './aspectDeal';
+import { applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
 import { startAudioSwells, stopAudioSwells, cancelGlobalSwellsMovedBy, cancelSwellForRobotAttribute } from './audioSwells';
@@ -474,9 +474,9 @@ export function retransmitWorld(input: RetransmitInput): void {
 
   switch (action.mode) {
     case 'aspectsOnly':
-      // The picks alone: the deal moves over the live roster, only the families whose aspect moved; the global half,
-      // the companies and every robot's place stand (R33).
-      if (oldLocaleId) redealAspects(oldLocaleId, cancelSwellForRobotAttribute);
+      // The picks alone: the live roster re-derived in place, only the seeded fields the picks move; the global half,
+      // the companies and every robot's place stand (R33; field by field since final fixes F16).
+      if (oldLocaleId) rederiveLoading(oldLocaleId, { theme: previousTheme, aspects: previousAspects }, cancelSwellForRobotAttribute);
       break;
     case 'loadingOnly':
       // The same style, the same plot: the global half from seed under the new bands (the style-sync does not fire

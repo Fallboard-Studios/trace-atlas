@@ -9,7 +9,7 @@ import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
 import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { deriveEnvelopeFields, deriveSendFields, deriveVoiceFields } from './robotFieldDerivation';
-import { generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, redealAspects } from './aspectDeal';
+import { generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { resolveBands } from '../data/bands/resolveBands';
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
 import { getRobotGem } from '../components/robot/gem/polygon';
@@ -4270,15 +4270,20 @@ describe('spawnSystem', () => {
   });
 
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect change re-deals the live roster in place. Per robot, only the
-  // families whose dealt aspect moved take what a rebuild under the new picks gives them; everything else stands.
-  describe('redealAspects: an aspect change re-deals the live roster in place (review R33)', () => {
+  // fields whose seeded value the new picks move take what a rebuild under them gives (field by field since
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16, which folded redealAspects into rederiveLoading); everything else stands.
+  describe('an aspect change re-deals the live roster in place (review R33, through rederiveLoading since F16)', () => {
     const COORDS = { x: 7, y: 11 };
     let worlds = 0;
+    /** Each world's loading as last dealt, the `from` a re-deal compares against (building a comparison world moves the
+     *  store, so the store cannot say). */
+    const dealtUnder = new Map<string, LoadingIdentity['aspects']>();
     /** A live world at COORDS, spawned and dealt under `aspects` as initializeLocale builds one: a new id each call, so its
      *  spawn count starts at 0 and its robots are the plot's own. */
     const buildWorld = (aspects: LoadingIdentity['aspects']) => {
       useLoadingStore.getState().setLoading({ theme: 'classic', aspects });
       const localeId = `review-r33-${worlds++}`;
+      dealtUnder.set(localeId, aspects);
       useLocaleStore.setState((state) => ({
         locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: COORDS, robots: [], companies: [] } },
       }));
@@ -4296,7 +4301,8 @@ describe('spawnSystem', () => {
      *  real cancel unless a test hands its own. */
     const redeal = (localeId: string, aspects: LoadingIdentity['aspects'], dropSwell = cancelSwellForRobotAttribute) => {
       useLoadingStore.getState().setLoading({ theme: 'classic', aspects });
-      redealAspects(localeId, dropSwell);
+      rederiveLoading(localeId, { theme: 'classic', aspects: dealtUnder.get(localeId)! }, dropSwell);
+      dealtUnder.set(localeId, aspects);
     };
     const idsCalled = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((call) => call[0] as string).sort();
     // Envelope narrows to one of its two picks, Distance is picked, Voice is emptied; Melody stays as it was.
@@ -4337,8 +4343,8 @@ describe('spawnSystem', () => {
       useLocaleStore.getState().updateRobot(live, held.id, {
         rhythmicDensity: 77, // Melody stays Hypnotic for everyone
         audioAttributes: { ...held.audioAttributes, adsr: tweakedAdsr }, // this robot's Envelope stays Held
-        reverbSend: 0.123, // Distance moves for everyone
-        gritSend: 0.456, // ...and re-derives the theme's three effect sends with its own two, as a rebuild's deal does
+        reverbSend: 0.123, // Distance moves the Reverb band for everyone
+        gritSend: 0.456, // ...and not Grit's, so this tweak stands (final fixes F16: only what the change moves)
       });
       useLocaleStore.getState().updateRobot(live, plucked.id, {
         audioAttributes: { ...plucked.audioAttributes, adsr: { ...plucked.audioAttributes.adsr, attack: 1.234 } }, // Plucked moves to Held
@@ -4350,10 +4356,10 @@ describe('spawnSystem', () => {
       expect(after(held.id).rhythmicDensity).toBe(77);
       expect(after(held.id).audioAttributes.adsr).toEqual(tweakedAdsr);
       expect(after(held.id).reverbSend).toBe(freshOf(held.id).reverbSend);
-      expect(after(held.id).gritSend).toBe(freshOf(held.id).gritSend);
+      expect(after(held.id).gritSend).toBe(0.456);
       expect(after(plucked.id).audioAttributes.adsr).toEqual(freshOf(plucked.id).audioAttributes.adsr);
-      expect(freshOf(held.id).reverbSend).not.toBe(0.123); // precondition: the resets are visible
-      expect(freshOf(held.id).gritSend).not.toBe(0.456);
+      expect(freshOf(held.id).reverbSend).not.toBe(0.123); // precondition: the reset is visible
+      expect(freshOf(held.id).gritSend).toBe(held.gritSend); // precondition: Grit's seeded value stands
     });
 
     it('pushes each moved family once per robot, with the value written, and nothing for a family that stays', () => {
@@ -4380,10 +4386,12 @@ describe('spawnSystem', () => {
       expect(prime).toHaveBeenCalledTimes(robots.length);
     });
 
+    // Field by field since docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16: on an untweaked world a moved seeded value is a
+    // changed value, so the swells dropped are those on the swellable keys the fresh build under the new picks changes.
     it('drops the swell riding each re-derived field before the write, as a hand edit does, and no other', () => {
       const live = buildWorld(FROM);
       const robots = robotsOf(live);
-      const movedEnvelope = new Set(robots.filter((r) => r.loadedUnder?.envelope === 'plucked').map((r) => r.id));
+      const fresh = robotsOf(buildWorld(TO));
       const dropped: string[] = [];
       const dropSwell = (id: string, attribute: string) => {
         // The new deal gives every robot Distance: a robot already holding it was written before its swells went.
@@ -4393,13 +4401,18 @@ describe('spawnSystem', () => {
 
       redeal(live, TO, dropSwell);
 
-      const LAYER = ['layer0.gain', 'layer0.detune', 'layer1.gain', 'layer1.detune', 'layer2.gain', 'layer2.detune'];
-      const ADSR = ['adsr.attack', 'adsr.decay', 'adsr.sustain', 'adsr.release'];
-      const expected = robots.flatMap((r) =>
-        [...(movedEnvelope.has(r.id) ? ADSR : []), 'reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend', ...LAYER].map(
-          (attribute) => r.id + ':' + attribute,
-        ),
-      );
+      const SENDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
+      const ADSR = ['attack', 'decay', 'sustain', 'release'] as const;
+      const expected = robots.flatMap((r, i) => {
+        const to = fresh[i];
+        const adsr = ADSR.filter((k) => r.audioAttributes.adsr[k] !== to.audioAttributes.adsr[k]).map((k) => `adsr.${k}`);
+        const sends = SENDS.filter((k) => r[k] !== to[k]);
+        const layers = r.audioAttributes.layers!.flatMap((layer, j) =>
+          (['gain', 'detune'] as const).filter((k) => layer[k] !== to.audioAttributes.layers![j][k]).map((k) => `layer${j}.${k}`),
+        );
+        return [...adsr, ...sends, ...layers].map((attribute) => r.id + ':' + attribute);
+      });
+      expect(expected.length).toBeGreaterThan(0); // precondition
       expect(dropped.sort()).toEqual(expected.sort());
     });
 

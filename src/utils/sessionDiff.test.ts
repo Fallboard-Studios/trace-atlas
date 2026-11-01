@@ -51,7 +51,7 @@ import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
-import { applyAspectDeal, redealAspects } from '../systems/aspectDeal';
+import { applyAspectDeal, rederiveLoading } from '../systems/aspectDeal';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
@@ -967,14 +967,21 @@ describe('applySessionPayload', () => {
       useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['held'], distance: ['remote'] } });
       expect(Object.keys(buildSessionPayload().robotOverrides).length).toBeGreaterThan(0); // the control: not re-dealt yet
 
-      redealAspects(localeId, audioSwells.cancelSwellForRobotAttribute);
+      rederiveLoading(
+        localeId,
+        { theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], voice: ['glassy'] } },
+        audioSwells.cancelSwellForRobotAttribute,
+      );
 
       expect(buildSessionPayload().robotOverrides).toEqual({});
     });
 
     // A swell riding a field the re-deal re-derives would return it to the old base and feed that base to Keep (the diff
-    // saves a swelling field's base); the re-deal drops it, as a hand edit of the field does.
-    it('a re-deal drops the swell riding a send it re-derives: the swell is gone and the payload diffs empty', () => {
+    // saves a swelling field's base); the re-deal drops it, as a hand edit of the field does. Since
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16 the re-deal writes only what it moves, so a swell on a send the change
+    // leaves standing rides on, and its base is still the seeded value: Keep diffs empty either way. The forced swell
+    // lands on a Shimmer send, which no Distance pick moves (aspectDeal.test.ts covers the dropped ones).
+    it('a re-deal keeps the swell riding a send it leaves standing, and the payload still diffs empty', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       spawnInitialCompanies(localeId);
@@ -995,10 +1002,11 @@ describe('applySessionPayload', () => {
         tickAudioSwells(localeId, 2); // mid-ramp: the store holds the swell's value now
 
         useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
-        redealAspects(localeId, audioSwells.cancelSwellForRobotAttribute);
+        rederiveLoading(localeId, { theme: 'classic', aspects: {} }, audioSwells.cancelSwellForRobotAttribute);
 
+        expect(swell.robotAttribute).toBe('shimmerSend'); // precondition: a send no Distance pick moves
         const riding = getActiveSwellSnapshot('robot').filter((s) => s.members!.some((m) => m.robotId === robotId));
-        expect(riding.map((s) => s.robotAttribute)).not.toContain(swell.robotAttribute);
+        expect(riding.map((s) => s.robotAttribute)).toContain(swell.robotAttribute);
         expect(buildSessionPayload().robotOverrides).toEqual({});
       } finally {
         noise.mockRestore();

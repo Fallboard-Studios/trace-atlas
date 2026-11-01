@@ -721,8 +721,25 @@ and would drop all six layer swells (F16).
   **Proof:** Read (a refactor with no new behaviour). R3's intent cases and F12's cases pass unmodified.
   **Files:** `OffScreen.tsx`. **Estimated scope:** XS
 
-- [ ] **F16: `aspectDeal.ts` — one in-place re-derive, which writes only what moved** (Optional; the FYI rule's robot
+- [x] **F16: `aspectDeal.ts` — one in-place re-derive, which writes only what moved** (Optional; the FYI rule's robot
   side)
+
+  **As shipped:**
+  - `redealAspects`, `familyFieldsOf` and `FAMILY_SWELL_ATTRIBUTES` are gone; `isSwellable` reads
+    `SWELL_ROBOT_ATTRIBUTE_IDS`. `retransmitWorld`'s `aspectsOnly` calls `rederiveLoading` with the loading it replaced.
+  - **One deviation, found by R33's live-companies case:** `rederiveLoading`'s old side is no longer a deal of `from`
+    over the companies now. It is each robot's own `loadedUnder` under the old theme. Dealing `from` over the live
+    companies made a robot moved to another company read as already holding that company's pick, so it kept its old
+    one, which breaks finding 2's intended behaviour. For a world as built, the two agree, and every parity case
+    passes. The new side still deals over the live companies; the comment is at that call.
+  - Layers per layer and per key (`type`, `gain`, `detune`, `phase`); a layer the robot lacks takes the new draw whole.
+  - R33's cases moved with the behaviour: the Grit tweak now stands (no Distance pick moves Grit's band), the swell list
+    is the changed swellable keys, and sessionDiff's forced Shimmer swell now rides on (no pick moves Shimmer), with the
+    payload still diffing empty. worldTransition's "aspects alone drop the swells" case compares changed sends, on a
+    fresh plot (the spawn count note).
+  - Verification: `src/systems src/data/bands src/utils/sessionDiff.test.ts`, 33 files / 2,833 tests. Mutants killed:
+    a whole adsr written (3 fail), layers compared whole (2), one layer's swell dropping all six (2), the old side dealt
+    over the live companies (1), `aspectsOnly` re-deriving nothing (5).
 
   **Description:**
   - **`redealAspects` folds into `rederiveLoading`'s field diff.** An aspects-only change is a loading change whose

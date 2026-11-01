@@ -1079,13 +1079,47 @@ describe('worldTransition', () => {
       expect(params().has('theme')).toBe(false);
     });
 
+    // Since docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16, field by field: on an untweaked world a moved seeded value is a
+    // changed value, so the swells dropped are exactly those on the sends that changed.
     it('aspects alone drop the swells riding the fields they re-derive, through the swell system\'s own cancel', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      // A fresh plot, so its robots are its own spawn order (the spawn count note above).
+      retransmitWorld({ coordinates: { x: 540, y: 460 } });
+      const before = currentWorld().locale.robots;
       const cancel = vi.spyOn(audioSwellsModule, 'cancelSwellForRobotAttribute');
       retransmitWorld({ aspects: { distance: ['far'] } });
       const robots = currentWorld().locale.robots;
-      expect(cancel).toHaveBeenCalledTimes(robots.length * 5);
-      for (const robot of robots) expect(cancel).toHaveBeenCalledWith(robot.id, 'delaySend');
+      const SENDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
+      const changed = robots.flatMap((robot, i) => SENDS.filter((f) => robot[f] !== before[i][f]).map((f) => `${robot.id}:${f}`));
+      expect(changed.length).toBeGreaterThan(0); // precondition
+      expect(cancel.mock.calls.map(([id, attribute]) => `${id}:${attribute}`).sort()).toEqual(changed.sort());
+    });
+
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16 (Crawford's rule): an aspect resets only the attributes it moves. Swelling
+    // moves the attack and the sustain bands and leaves the decay's, so a tweaked decay stands and a tweaked attack
+    // takes the new draw.
+    it('an Envelope aspect toggled on keeps a tweak on an adsr key its bands leave alone, and resets one it moves', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      // A fresh plot, so a rebuild at it repeats the robot ids (the spawn count note above).
+      retransmitWorld({ coordinates: { x: 530, y: 470 } });
+      const untweaked = currentWorld().locale.robots;
+      retransmitWorld({ aspects: { envelope: ['swelling'] } });
+      const fresh = currentWorld().locale.robots;
+      retransmitWorld({ coordinates: { x: 530, y: 470 }, aspects: {} });
+      const { locale } = currentWorld();
+      const robot = locale.robots[0];
+      expect(fresh[0].audioAttributes.adsr.decay).toBe(untweaked[0].audioAttributes.adsr.decay); // precondition: decay stays
+      expect(fresh[0].audioAttributes.adsr.attack).not.toBe(untweaked[0].audioAttributes.adsr.attack); // ...attack moves
+      useLocaleStore.getState().updateRobot(locale.id, robot.id, {
+        audioAttributes: { ...robot.audioAttributes, adsr: { ...robot.audioAttributes.adsr, attack: 1.987, decay: 1.654 } },
+      });
+
+      retransmitWorld({ aspects: { envelope: ['swelling'] } });
+
+      const after = currentWorld().locale.robots[0];
+      expect(after.audioAttributes.adsr.decay).toBe(1.654);
+      expect(after.audioAttributes.adsr.attack).toBe(fresh[0].audioAttributes.adsr.attack);
+      expect(after.loadedUnder).toEqual({ envelope: 'swelling' });
     });
 
     // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F11 (second review, finding 1): a theme re-derives in place, so no
