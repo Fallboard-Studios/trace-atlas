@@ -19,6 +19,7 @@ import { applySessionPayload } from '@/utils/sessionDiff';
 import { deepEqual } from '@/utils/math';
 import { retransmitWorld, rollWorld, type RetransmitInput } from '@/systems/worldTransition';
 import { cancelWorldChange, requestWorldChange } from '@/systems/worldChange';
+import { getWorldState } from '@/systems/worldState';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
@@ -425,6 +426,16 @@ export function OffScreen() {
     },
     [],
   );
+
+  // After a power-off the chooser takes the focus, on the Transmission list's selected row, so keyboard and
+  // screen-reader users land in it rather than on a readout that mounted already filled
+  // (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25; Crawford, its Open Question 5). The world tells a power-off from a
+  // fresh page: pause() writes 'paused' in the same call that flips the power flag, before this mounts, and a fresh page
+  // is 'cold', which leaves the focus where it is. A first visit renders no rows, so nothing is found to take it.
+  useEffect(() => {
+    if (getWorldState() !== 'paused') return;
+    rootRef.current?.querySelector<HTMLElement>('.sc-radio-button--list [role="radio"][aria-checked="true"]')?.focus();
+  }, []);
 
   // Roll is the retransmit itself: the stores change under the Current row, which renames from them. Under the scene
   // wash (revisions Task 13). A Roll replaces a waiting pick, the last world click winning, and keeps the waiting loading,

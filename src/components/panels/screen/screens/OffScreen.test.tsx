@@ -40,6 +40,7 @@ import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets'
 import { THEME_IDS } from '@/data/bands/themes';
 import { listSessions, loadSession, saveNamedSession } from '@/utils/sessionStorageEngine';
 import { markHeardWorld } from '@/utils/deviceFlags';
+import { setWorldState } from '@/systems/worldState';
 import { describeWorld } from '@/utils/describeWorld';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useLoadingStore } from '@/stores/loadingStore';
@@ -69,6 +70,9 @@ function liveIdentity() {
   return { attenuationStyleName: style.name, coordinates: locale.coordinates };
 }
 const currentLabel = (loadedName?: string) => describeWorld(liveIdentity(), loadedName);
+/** Current's accessible name: its eyebrow, then its label (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25). */
+const asCurrent = (label: string) => `${human('home.off.current')}, ${label}`;
+const currentName = (loadedName?: string) => asCurrent(currentLabel(loadedName));
 
 // A save is a plain SessionPayload; the off screen only reads its name and hands the payload on.
 const savedPayload = (style: string): SessionPayload => ({ ...presetPayload(TRANSMISSION_PRESETS[0])!, attenuationStyleName: style });
@@ -98,7 +102,7 @@ describe('OffScreen — the gate (spec assumption 7)', () => {
     markHeardWorld();
     render(<OffScreen />);
     expect(screen.getByText(human('home.off.powerHint'))).toBeTruthy();
-    const current = screen.getByRole('radio', { name: currentLabel() });
+    const current = screen.getByRole('radio', { name: currentName() });
     expect(current.getAttribute('aria-checked')).toBe('true');
   });
 
@@ -232,7 +236,7 @@ describe('OffScreen — the boot theatre', () => {
     markHeardWorld();
     render(<OffScreen />);
     expect(getTimelineScope('off-screen-boot')).toBe('ui');
-    expect(screen.getByRole('radio', { name: currentLabel() })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: currentName() })).toBeTruthy();
   });
 });
 
@@ -287,7 +291,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
     expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(themeRadio('bold'));
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('false');
     expect(readout().textContent).toBe(currentLabel());
   });
@@ -304,7 +308,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     render(<OffScreen />);
     fireEvent.click(themeRadio('calm'));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
-    expect(radioNames()[0]).toBe(currentLabel('Dusk Run'));
+    expect(radioNames()[0]).toBe(currentName('Dusk Run'));
   });
 
   it('recomputes dirty after a theme pick: Keep lights and the warning shows once the world differs from its save', () => {
@@ -327,7 +331,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     const expected = describeWorld({ ...liveIdentity(), theme: 'bold', aspects: {} });
     expect(expected.endsWith(' · ' + human('home.off.theme.bold'))).toBe(true);
     expect(readout().textContent).toBe(expected);
-    expect(radioNames()[0]).toBe(expected);
+    expect(radioNames()[0]).toBe(asCurrent(expected));
   });
 
   it('a save pick with a theme selects it in the row, and the readout carries the tail', () => {
@@ -372,7 +376,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(checked('calm')).toBe('true');
-    fireEvent.click(screen.getByRole('radio', { name: currentLabel('Dusk Run') }));
+    fireEvent.click(screen.getByRole('radio', { name: currentName('Dusk Run') }));
     expect(checked('classic')).toBe('true');
   });
 
@@ -384,7 +388,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(description()?.textContent).toBe(human('home.off.themeDescription.calm'));
     act(() => useLoadingStore.setState({ theme: 'perilous' }));
     expect(description()?.textContent).toBe(human('home.off.themeDescription.calm'));
-    fireEvent.click(screen.getByRole('radio', { name: describeWorld({ ...liveIdentity(), theme: 'perilous', aspects: {} }, 'Dusk Run') }));
+    fireEvent.click(screen.getByRole('radio', { name: asCurrent(describeWorld({ ...liveIdentity(), theme: 'perilous', aspects: {} }, 'Dusk Run')) }));
     expect(description()?.textContent).toBe(human('home.off.themeDescription.perilous'));
   });
 
@@ -505,7 +509,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
     expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(option(NAME.hypnotic));
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('false');
     expect(readout().textContent).toBe(currentLabel());
   });
@@ -559,7 +563,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     const expected = describeWorld({ ...liveIdentity(), theme: 'classic', aspects: { melody: ['hypnotic', 'wandering'] } });
     expect(expected.endsWith(' · ' + NAME.hypnotic + ' + ' + NAME.wandering)).toBe(true);
     expect(readout().textContent).toBe(expected);
-    expect(radioNames()[0]).toBe(expected);
+    expect(radioNames()[0]).toBe(asCurrent(expected));
   });
 
   it('Roll leaves the loading alone: the row keeps its picks and no loading change is sent', () => {
@@ -597,7 +601,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(melodyDescription()?.textContent).toBe(sentence('mechanical'));
     const current = describeWorld({ ...liveIdentity(), theme: 'classic', aspects: { melody: ['hypnotic'] } }, 'Dusk Run');
-    fireEvent.click(screen.getByRole('radio', { name: current }));
+    fireEvent.click(screen.getByRole('radio', { name: asCurrent(current) }));
     expect(melodyDescription()?.textContent).toBe(sentence('hypnotic'));
   });
 
@@ -690,7 +694,7 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
     live.payload = live.marker('dealt');
     fireEvent.click(option('envelope', name('envelope', 'held')));
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
     expect((screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement).disabled).toBe(false);
   });
 
@@ -768,15 +772,15 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
 
   it('is the first option, named by describeWorld of the loaded world, under the Current eyebrow', () => {
     render(<OffScreen />);
-    const current = screen.getByRole('radio', { name: currentLabel() });
-    expect(radioNames()[0]).toBe(currentLabel());
+    const current = screen.getByRole('radio', { name: currentName() });
+    expect(radioNames()[0]).toBe(currentName());
     expect(within(current).getByText(human('home.off.current'))).toBeTruthy();
   });
 
   it("is named after the loaded save when one is loaded: '<save> · AS (x, y)'", () => {
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    expect(radioNames()[0]).toBe(currentLabel('Dusk Run'));
+    expect(radioNames()[0]).toBe(currentName('Dusk Run'));
     expect(currentLabel('Dusk Run').startsWith('Dusk Run · ')).toBe(true);
   });
 
@@ -791,16 +795,16 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
     });
     expect(currentLabel()).not.toBe(before);
     expect(currentLabel().startsWith('rolled-1 · ')).toBe(true);
-    expect(radioNames()[0]).toBe(currentLabel());
+    expect(radioNames()[0]).toBe(currentName());
     expect(readout().textContent).toBe(currentLabel());
   });
 
   it('picking Current retransmits nothing: it is the loaded world already', () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
-    fireEvent.click(screen.getByRole('radio', { name: currentLabel() }));
+    fireEvent.click(screen.getByRole('radio', { name: currentName() }));
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(0) }).getAttribute('aria-checked')).toBe('false');
     expect(readout().textContent).toBe(currentLabel());
   });
@@ -829,7 +833,7 @@ describe('OffScreen — Roll (spec assumption 14)', () => {
     fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
     expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(roll());
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(1) }).getAttribute('aria-checked')).toBe('false');
     expect(readout().textContent).toBe(currentLabel());
   });
@@ -897,7 +901,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       expect(logged).toHaveBeenCalled();
       expect(keep().disabled).toBe(false);
       expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-      expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+      expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
     });
 
     it('goes when a later Keep succeeds', () => {
@@ -935,8 +939,8 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
     expect(screen.getByRole('radio', { name: 'Quiet Harbour' })).toBeTruthy();
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
-    expect(radioNames()[0]).toBe(currentLabel('Quiet Harbour'));
-    expect(screen.getByRole('radio', { name: currentLabel('Quiet Harbour') }).getAttribute('aria-checked')).toBe('true');
+    expect(radioNames()[0]).toBe(currentName('Quiet Harbour'));
+    expect(screen.getByRole('radio', { name: currentName('Quiet Harbour') }).getAttribute('aria-checked')).toBe('true');
     expect(keep().disabled).toBe(true);
     expect(warning()).toBeNull();
   });
@@ -995,18 +999,18 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    expect(radioNames()[0]).toBe(currentLabel('Dusk Run'));
+    expect(radioNames()[0]).toBe(currentName('Dusk Run'));
 
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(radioNames()[0]).toBe(currentLabel());
+    expect(radioNames()[0]).toBe(currentName());
 
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
     expect(useSessionStore.getState().currentSessionName).toBe('Dusk Run'); // the save pick names the session, as a Load does
     fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(radioNames()[0]).toBe(currentLabel());
+    expect(radioNames()[0]).toBe(currentName());
     expect(keep().disabled).toBe(false);
     // Keep after the roll writes a second row under a fresh suggestion — Dusk Run is not overwritten by a different world.
     const kept = useSessionStore.getState().currentSessionName;
@@ -1049,7 +1053,7 @@ describe('OffScreen — the Transmission list and Roll on Current', () => {
   // from Keep never loops between Roll and the selected row; it sits on the Current row's grid line.
   it('puts Roll on the Current row, after the radio group and outside it', () => {
     render(<OffScreen />);
-    const current = screen.getByRole('radio', { name: currentLabel() });
+    const current = screen.getByRole('radio', { name: currentName() });
     const slot = roll().closest('.sc-radio-button__trailing') as HTMLElement;
     expect(slot.style.gridRow).toBe((rowOf(current) as HTMLElement).style.gridRow);
     expect(current.contains(roll())).toBe(false);
@@ -1070,7 +1074,7 @@ describe('OffScreen — the Transmission list and Roll on Current', () => {
     expect(rollWorld).toHaveBeenCalledTimes(1);
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(retransmitWorld).not.toHaveBeenCalled();
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
   });
 
   it('shows each save with when it was saved, newest first; Current and the presets carry no meta', () => {
@@ -1082,7 +1086,7 @@ describe('OffScreen — the Transmission list and Roll on Current', () => {
     const metas = Array.from(container.querySelectorAll('.sc-radio-button__meta')).map((m) => m.textContent);
     expect(metas).toEqual([savedMeta('Night Run'), savedMeta('Dusk Run')]);
     expect(within(screen.getByRole('radio', { name: 'Night Run' })).getByText(savedMeta('Night Run'))).toBeTruthy();
-    expect(screen.getByRole('radio', { name: currentLabel() }).querySelector('.sc-radio-button__meta')).toBeNull();
+    expect(screen.getByRole('radio', { name: currentName() }).querySelector('.sc-radio-button__meta')).toBeNull();
     for (const i of [0, 1, 2]) expect(screen.getByRole('radio', { name: presetName(i) }).querySelector('.sc-radio-button__meta')).toBeNull();
   });
 
@@ -1119,7 +1123,7 @@ describe('OffScreen — the Transmission row', () => {
 
   it('lists Current, then the three presets in order, under the Transmission label, with no divider when there are no saves', () => {
     const { container } = render(<OffScreen />);
-    expect(radioNames()).toEqual([currentLabel(), presetName(0), presetName(1), presetName(2)]);
+    expect(radioNames()).toEqual([currentName(), presetName(0), presetName(1), presetName(2)]);
     expect(container.querySelector('.sc-radio-button__divider')).toBeNull();
   });
 
@@ -1131,7 +1135,7 @@ describe('OffScreen — the Transmission row', () => {
     now.mockRestore();
     const { container } = render(<OffScreen />);
     const names = radioNames();
-    expect(names[0]).toBe(currentLabel());
+    expect(names[0]).toBe(currentName());
     expect(names.slice(1, 3)).toEqual(['Night, all freelance', 'Dusk Run']);
     expect(names.slice(3)).toEqual([presetName(0), presetName(1), presetName(2)]);
     const dividers = container.querySelectorAll('.sc-radio-button__divider');
@@ -1145,7 +1149,7 @@ describe('OffScreen — the Transmission row', () => {
     render(<OffScreen />);
     // Scoped to the Transmission group: the Loading axis (Task 30) is a second radio group with its own selection.
     for (const radio of within(picker()).getAllByRole('radio')) {
-      expect(radio.getAttribute('aria-checked')).toBe(radio.getAttribute('aria-label') === currentLabel() ? 'true' : 'false');
+      expect(radio.getAttribute('aria-checked')).toBe(radio.getAttribute('aria-label') === currentName() ? 'true' : 'false');
     }
   });
 
@@ -1212,7 +1216,7 @@ describe('OffScreen — picking', () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
-    fireEvent.click(screen.getByRole('radio', { name: currentLabel('Dusk Run') }));
+    fireEvent.click(screen.getByRole('radio', { name: currentName('Dusk Run') }));
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
@@ -1221,7 +1225,7 @@ describe('OffScreen — picking', () => {
     fireEvent.click(screen.getByRole('radio', { name: presetName(2) }));
     expect(screen.getByRole('radio', { name: presetName(2) }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(0) }).getAttribute('aria-checked')).toBe('false');
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('false');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('false');
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     expect(screen.getByRole('radio', { name: presetName(2) }).getAttribute('aria-checked')).toBe('false');
     expect(applySessionPayload).toHaveBeenCalledTimes(2);
@@ -1242,7 +1246,7 @@ describe('OffScreen — picking', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(screen.getByRole('radio', { name: 'Dusk Run' }).getAttribute('aria-checked')).toBe('false');
-    expect(screen.getByRole('radio', { name: currentLabel() }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
   });
 });
 
@@ -1279,6 +1283,53 @@ describe('OffScreen — the well naming the pick', () => {
     render(<OffScreen />);
     expect(readout().getAttribute('role')).toBe('status');
     expect(readout().getAttribute('aria-label')).toBe(human('home.off.readout'));
+  });
+});
+
+// docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25 (Crawford: the selected row, Open Question 5): the readout mounts already
+// filled, so nothing announces the chooser. After a power-off - the world 'paused', written in the same call that flips
+// the power flag, before this screen mounts - focus moves to the Transmission list's selected row, which is named with
+// its eyebrow. A fresh page ('cold') and a first visit (the hint only, no rows) move no focus.
+describe('OffScreen — focus on the selected row after a power-off (review R25)', () => {
+  let outside: HTMLButtonElement;
+  beforeEach(() => {
+    outside = document.createElement('button');
+    document.body.appendChild(outside);
+    outside.focus();
+  });
+  afterEach(() => {
+    outside.remove();
+    setWorldState('cold');
+  });
+
+  it('mounted with the world paused, the selected row has focus: Current, named as Current', () => {
+    markHeardWorld();
+    setWorldState('paused');
+    render(<OffScreen />);
+    const current = screen.getByRole('radio', { name: currentName() });
+    expect(document.activeElement).toBe(current);
+    expect(current.getAttribute('aria-checked')).toBe('true');
+    expect(within(picker()).getAllByRole('radio')).toContain(current);
+  });
+
+  it('mounted with the world cold (a fresh page), focus stays where it was', () => {
+    markHeardWorld();
+    render(<OffScreen />);
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('a first visit moves no focus, even paused: there are no rows to take it', () => {
+    setWorldState('paused');
+    render(<OffScreen />);
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(document.activeElement).toBe(outside);
+  });
+
+  it('the readout keeps its status role for the changes after the mount', () => {
+    markHeardWorld();
+    setWorldState('paused');
+    render(<OffScreen />);
+    expect(readout().getAttribute('role')).toBe('status');
   });
 });
 
@@ -1339,10 +1390,10 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     act(() => useUIStore.getState().setSceneWash('clear'));
     fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
     expect(rollWorld).not.toHaveBeenCalled();
-    expect(checked(currentLabel())).toBe('true');
+    expect(checked(currentName())).toBe('true');
     await land();
     expect(rollWorld).toHaveBeenCalledTimes(1);
-    expect(checked(currentLabel())).toBe('true');
+    expect(checked(currentName())).toBe('true');
   });
 
   it('a theme pick retransmits once covered', async () => {
@@ -1375,14 +1426,14 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       render(<OffScreen />);
       fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
       expect(cancel).not.toHaveBeenCalled();
-      fireEvent.click(screen.getByRole('radio', { name: currentLabel() }));
+      fireEvent.click(screen.getByRole('radio', { name: currentName() }));
       expect(cancel).toHaveBeenCalledTimes(1); // the waiting change is dropped, not left to run as a no-op
-      expect(checked(currentLabel())).toBe('true');
+      expect(checked(currentName())).toBe('true');
       await land();
       expect(applySessionPayload).not.toHaveBeenCalled();
       expect(retransmitWorld).not.toHaveBeenCalled();
       expect(wash()).toBe('uncovering');
-      expect(checked(currentLabel())).toBe('true');
+      expect(checked(currentName())).toBe('true');
       cancel.mockRestore();
     });
 
@@ -1399,7 +1450,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { ...loadingOf(preset).aspects, envelope: ['held'] } });
       expect(order(vi.mocked(applySessionPayload))).toBeLessThan(order(vi.mocked(retransmitWorld)));
-      expect(checked(currentLabel())).toBe('true'); // a toggle drops the world row to Current, as it always has
+      expect(checked(currentName())).toBe('true'); // a toggle drops the world row to Current, as it always has
     });
 
     it("a preset then a theme pick leaves the preset's world under that theme: the apply, then one theme retransmit", async () => {
@@ -1436,7 +1487,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset) }, presetName(1)));
       fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
       // A theme pick drops the world row to Current, as it always has; the readout names the world to come.
-      expect(checked(currentLabel())).toBe('true');
+      expect(checked(currentName())).toBe('true');
       expect(checked(human('home.off.theme.calm'))).toBe('true');
       expect(document.querySelector('.off-screen__description--theme')?.textContent).toBe(human('home.off.themeDescription.calm'));
       expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset), theme: 'calm' }));
@@ -1548,7 +1599,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     fireEvent.click(screen.getByRole('button', { name: human('home.off.keep') }));
     expect(wash()).toBe('clear');
     expect(listSessions()).toHaveLength(1);
-    fireEvent.click(screen.getByRole('radio', { name: currentLabel(listSessions()[0].name) }));
+    fireEvent.click(screen.getByRole('radio', { name: currentName(listSessions()[0].name) }));
     expect(wash()).toBe('clear');
   });
 });
@@ -1599,7 +1650,7 @@ describe('OffScreen — on the phone shell (Task 28)', () => {
 
   it('renders Current and all three presets in the picker', () => {
     renderOnPhone();
-    expect(radioNames()).toEqual([currentLabel(), presetName(0), presetName(1), presetName(2)]);
+    expect(radioNames()).toEqual([currentName(), presetName(0), presetName(1), presetName(2)]);
   });
 
   it('keeps a 128-character save name whole in its accessible name, drawn in the single-line label that ends in an ellipsis', () => {

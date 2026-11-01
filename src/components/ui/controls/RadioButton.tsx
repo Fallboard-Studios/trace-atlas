@@ -141,7 +141,8 @@ interface RadioButtonProps<V extends RadioButtonValue = string> extends RadioBut
  *  `humanLabel` (Task 13 dropped the lore; Crawford brought it back, 2026-10-10). Drawn here, not with
  *  DualLabel: the face is two small spans so each line can stop at the control's width with its own
  *  one-line ellipsis cap (RadioButton.css), which DualLabel's wrapping lines cannot. The accessible name
- *  is the human label alone.
+ *  is the human label alone — except a `list` row with a lore label, named by both ("Current, …"), so a
+ *  screen reader hears the eyebrow that says which row it is (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25).
  *
  *  `schema.appearance === 'muted'` (docs/tasks/LAYOUT_REWORK.md Task 27) swaps each CabinetBox for a
  *  flat `.sc-radio-button__flat` face of the same height: no walls, no pop timeline, no hover pop, no
@@ -243,7 +244,7 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
             <ToggleGroup.Item
               className="sc-radio-button__item sc-radio-button__list-item"
               value={option.value}
-              aria-label={option.humanLabel}
+              aria-label={option.loreLabel ? `${option.loreLabel}, ${option.humanLabel}` : option.humanLabel}
               aria-describedby={metaId}
               style={option.color ? getRobotColorStyle(option.color) : undefined}
             >

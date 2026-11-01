@@ -694,7 +694,8 @@ describe('RadioButton — appearance "list" (docs/tasks/OFF_SCREEN_REVISIONS.md 
       { value: 'preset:vessport', humanLabel: 'Vessport Null' },
     ],
   };
-  const NAMES = ['q7-sh0al · (3, -41)', 'Dusk Run', 'Kryndara', 'Vessport Null'];
+  // A row with a lore label is named by both, the lore first (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25).
+  const NAMES = ['Current, q7-sh0al · (3, -41)', 'Dusk Run', 'Kryndara', 'Vessport Null'];
   const radio = (name: string) => screen.getByRole('radio', { name });
   const rowOf = (el: Element) => el.closest('.sc-radio-button__row');
   const rollOnCurrent = (value: string) => (value === 'current' ? <button type="button">Roll</button> : null);
@@ -710,6 +711,23 @@ describe('RadioButton — appearance "list" (docs/tasks/OFF_SCREEN_REVISIONS.md 
       expect(radios[0].getAttribute('aria-label')).toBe(NAMES[i]);
       expect(radios[0].classList.contains('sc-radio-button__list-item')).toBe(true);
     });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25: the eyebrow is part of the row's name, so a screen reader hears which
+  // row is Current; a row with no eyebrow is named by its label alone, and the face still draws the two lines apart.
+  it('names a row with a lore label by both, the lore first, and a row without by its label alone (review R25)', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    const current = screen.getByRole('radio', { name: 'Current, q7-sh0al · (3, -41)' });
+    expect(current.querySelector('.sc-radio-button__lore')?.textContent).toBe('Current');
+    expect(current.querySelector('.sc-radio-button__label')?.textContent).toBe('q7-sh0al · (3, -41)');
+    expect(screen.getByRole('radio', { name: 'Dusk Run' })).toBeTruthy();
+    expect(container.querySelectorAll('[role="radio"][aria-label="q7-sh0al · (3, -41)"]')).toHaveLength(0);
+  });
+
+  it('names options by their label alone in the other appearances, as before (only the list joins the lore)', () => {
+    const cabinet: RadioButtonSchema = { ...list, appearance: undefined };
+    render(<RadioButton schema={cabinet} value="current" onChange={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'q7-sh0al · (3, -41)' })).toBeTruthy();
   });
 
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8: Radix's roving root takes the focus of a Shift+Tab that leaves any
@@ -813,7 +831,7 @@ describe('RadioButton — appearance "list" (docs/tasks/OFF_SCREEN_REVISIONS.md 
     render(<RadioButton schema={list} value="current" onChange={() => {}} />);
     const current = radio(NAMES[0]);
     expect(current.querySelector('.sc-radio-button__lore')?.textContent).toBe('Current');
-    expect(current.querySelector('.sc-radio-button__label')?.textContent).toBe(NAMES[0]);
+    expect(current.querySelector('.sc-radio-button__label')?.textContent).toBe(list.options[0].humanLabel);
   });
 
   it('draws dividerBefore as a decorative rule between two rows', () => {
