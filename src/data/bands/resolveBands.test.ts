@@ -431,6 +431,21 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
   const envelopeColumn = (option: AspectIdOf<'envelope'>) => realAspects.ASPECT_FAMILIES.envelope.options[option];
   const distanceColumn = (option: AspectIdOf<'distance'>) => realAspects.ASPECT_FAMILIES.distance.options[option];
   const voiceColumn = (option: AspectIdOf<'voice'>) => realAspects.ASPECT_FAMILIES.voice.options[option];
+  /** The v1 theme key list (spec assumption 16), typed in here as EXPECTED is, not read from themes.ts: widening it is
+   *  an "ask first" (spec §3), so a wider list is a change in this file too (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
+   *  R31). */
+  const THEME_KEY_LIST: readonly string[] = [
+    'bpm',
+    'robot.rhythmicDensity',
+    'robot.rests',
+    'robot.attack',
+    'robot.release',
+    'robot.shapedAttack',
+    'robot.shapedRelease',
+    'reverbSend',
+    'delaySend',
+    'filterLPF.frequency',
+  ];
   /** A waveform pick's share for the named waveforms, of the band's whole weight. */
   const shareOf = (band: BandTable['robot.waveform'], waves: (keyof BandTable['robot.waveform']['weights'])[]) => {
     const total = Object.values(band.weights).reduce((a, b) => a + b, 0);
@@ -443,7 +458,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       const column = themeColumn(theme);
       const moved = movedKeys(overlayBands(CLASSIC, column));
       expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realThemes.THEME_BAND_KEYS as readonly string[]).toContain(key);
+      for (const key of moved) expect(THEME_KEY_LIST).toContain(key);
       // Every key the column names moves the band: a column entry equal to Classic's would be a no-op worth deleting.
       expect([...moved].sort()).toEqual(Object.keys(column).sort());
     },

@@ -20,19 +20,17 @@ export function isThemeId(value: unknown): value is ThemeId {
 
 /** The bands a v1 theme column may move (spec assumption 16): the narrow first cut is this key list, not a rewrite.
  *  Widening it is an "ask first" (spec §3), so the type holds the line: a column naming any other key does not compile. */
-export const THEME_BAND_KEYS = [
-  'bpm',
-  'robot.rhythmicDensity',
-  'robot.rests',
-  'robot.attack',
-  'robot.release',
-  'robot.shapedAttack',
-  'robot.shapedRelease',
-  'reverbSend',
-  'delaySend',
-  'filterLPF.frequency',
-] as const;
-export type ThemeBandKey = (typeof THEME_BAND_KEYS)[number];
+export type ThemeBandKey =
+  | 'bpm'
+  | 'robot.rhythmicDensity'
+  | 'robot.rests'
+  | 'robot.attack'
+  | 'robot.release'
+  | 'robot.shapedAttack'
+  | 'robot.shapedRelease'
+  | 'reverbSend'
+  | 'delaySend'
+  | 'filterLPF.frequency';
 
 /** A theme's column: a whole band for each key it moves and nothing for the rest; resolveBands overlays it on Classic,
  *  replacing never widening (spec §1.5). Themes are world-wide (spec §3): a column may name `bpm` and the global rows. */
