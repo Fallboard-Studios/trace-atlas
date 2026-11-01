@@ -103,5 +103,45 @@ describe('describeWorld', () => {
       expect(describeWorld(plot)).toBe('tr3nch-2 · (-30, -30)');
       expect(describeWorld(plot, 'Night')).toBe('Night · tr3nch-2 (-30, -30)');
     });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30: a theme is one of the five ids, not any key an object answers to.
+    it('a theme named like an Object prototype key reads as Classic', () => {
+      for (const theme of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']) {
+        // @ts-expect-error the type rejects it; the run-time check is for untrusted input (a hand-edited save)
+        expect(describeWorld({ ...plot, theme, aspects: { melody: ['hypnotic'] } })).toBe('tr3nch-2 · (-30, -30) · Hypnotic');
+      }
+    });
+
+    it('an unknown theme id reads as Classic', () => {
+      // @ts-expect-error the type rejects it; the run-time check is for untrusted input (a stale save)
+      expect(describeWorld({ ...plot, theme: 'stormy', aspects: {} })).toBe('tr3nch-2 · (-30, -30)');
+    });
+  });
+
+  // R30: a save edited by hand reaches the off screen's readout through loadSession, unchecked. A world it cannot read
+  // the plot of is named without one, never a crash: applying it keeps the loaded plot (retransmitWorld's
+  // attenuationStyleOnly mode), so no plot is the honest name.
+  describe('a world with no readable plot', () => {
+    const unread = (coordinates: unknown) => ({ attenuationStyleName: 'dusk', coordinates }) as unknown as Parameters<typeof describeWorld>[0];
+
+    it('names a payload with no coordinates by its seed alone, bare and labelled', () => {
+      expect(describeWorld(unread(undefined))).toBe('dusk');
+      expect(describeWorld(unread(undefined), 'Dusk Run')).toBe('Dusk Run · dusk');
+    });
+
+    it('treats null, an empty object, a half plot and non-number values as no plot', () => {
+      for (const coordinates of [null, {}, { x: 12 }, { y: 68 }, { x: '12', y: '68' }, { x: null, y: 4 }]) {
+        expect(describeWorld(unread(coordinates)), JSON.stringify(coordinates)).toBe('dusk');
+      }
+    });
+
+    it('still carries the loading tail after the seed', () => {
+      const identity = { ...unread(undefined), theme: 'calm' as const, aspects: { melody: ['hypnotic' as const] } };
+      expect(describeWorld(identity, 'Dusk Run')).toBe('Dusk Run · dusk · Calm · Hypnotic');
+    });
+
+    it('a plot of zeros is a plot', () => {
+      expect(describeWorld({ attenuationStyleName: 'a', coordinates: { x: 0, y: 0 } })).toBe('a · (0, 0)');
+    });
   });
 });

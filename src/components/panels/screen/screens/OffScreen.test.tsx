@@ -1300,6 +1300,19 @@ describe('OffScreen — the well naming the pick', () => {
     expect(readout().textContent!.startsWith('Dusk Run · dusk (')).toBe(true);
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30: a save edited by hand reaches the pick unchecked. One with no plot is
+  // named by its seed alone, and the screen stays up.
+  it('names a save with no coordinates by its name and seed, without a crash', () => {
+    const save: Partial<SessionPayload> = savedPayload('dusk');
+    delete save.coordinates;
+    saveNamedSession('Dusk Run', save as SessionPayload);
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(readout().textContent!.startsWith('Dusk Run · dusk')).toBe(true);
+    expect(readout().textContent).not.toContain('(');
+    expect(screen.getByRole('radio', { name: 'Dusk Run' }).getAttribute('aria-checked')).toBe('true');
+  });
+
   it('is labelled for assistive tech and announced politely', () => {
     render(<OffScreen />);
     expect(readout().getAttribute('role')).toBe('status');
