@@ -116,15 +116,56 @@ describe('fadeOffScreen', () => {
 
 // R19: a power-on that fails after the fade gives the screen back, opaque and taking input, rather than leaving it
 // invisible and mounted over the glass.
+/** The off screen's root as OffScreen renders it: the veil, the theatre's dark layer, then the column. */
+function offScreenRoot(): { root: HTMLDivElement; veil: HTMLDivElement; dark: HTMLDivElement; column: HTMLDivElement } {
+  const root = document.createElement('div');
+  const [veil, dark, column] = ['off-screen__veil', 'off-screen__dark', 'off-screen__scroll'].map((className) => {
+    const el = document.createElement('div');
+    el.className = className;
+    root.appendChild(el);
+    return el;
+  });
+  return { root, veil, dark, column };
+}
+
+// docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26 item 2: an ancestor whose opacity is below 1 is a backdrop root, so
+// fading the root left the veil's backdrop-filter nothing to blur and the world showed sharp on the fade's first frame
+// (measured: the world's sharpness jumped 19-fold at opacity 0.996). The root never fades; its three children do, the
+// veil's own opacity fading its blur with it.
+describe('fadeOffScreen fades the parts, never the root (review R26)', () => {
+  it("tweens the veil, the dark layer and the column to transparent, and nothing tweens the root's own opacity", () => {
+    const { root, veil, dark, column } = offScreenRoot();
+    setRef(OFF_SCREEN_REF_KEY, root);
+    const targets: unknown[] = [];
+    const realTimeline = gsap.timeline;
+    const timeline = vi.spyOn(gsap, 'timeline').mockImplementation(((config?: gsap.TimelineVars) => {
+      const tl = realTimeline(config);
+      const to = tl.to.bind(tl);
+      tl.to = ((target: gsap.TweenTarget, vars: gsap.TweenVars) => {
+        targets.push(target);
+        return to(target, vars);
+      }) as typeof tl.to;
+      return tl;
+    }) as typeof gsap.timeline);
+    void fadeOffScreen();
+    expect(targets).toHaveLength(1);
+    expect(Array.from(targets[0] as ArrayLike<Element>)).toEqual([veil, dark, column]);
+    expect(targets).not.toContain(root);
+    timeline.mockRestore();
+  });
+});
+
 describe('restoreOffScreen (review R19)', () => {
-  it('brings a faded screen back: the fade killed, the screen opaque and taking input again', () => {
-    const root = document.createElement('div');
+  it('brings a faded screen back: the fade killed, the veil and the column opaque, the dark layer hidden, input again', () => {
+    const { root, veil, dark, column } = offScreenRoot();
     setRef(OFF_SCREEN_REF_KEY, root);
     const set = vi.spyOn(gsap, 'set');
     void fadeOffScreen();
     restoreOffScreen();
     expect(root.hasAttribute('inert')).toBe(false);
-    expect(set).toHaveBeenCalledWith(root, { opacity: 1 });
+    expect(set).toHaveBeenCalledWith([veil, column], { opacity: 1 });
+    expect(set).toHaveBeenCalledWith(dark, { opacity: 0, visibility: 'hidden' });
+    expect(set).not.toHaveBeenCalledWith(root, expect.anything());
     expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeUndefined();
     set.mockRestore();
   });

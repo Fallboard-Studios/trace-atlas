@@ -86,20 +86,27 @@ export function fadeOffScreen(): Promise<void> {
   screen.setAttribute('inert', '');
   return new Promise<void>((resolve) => {
     const tl = gsap.timeline({ onComplete: () => resolve() });
-    tl.to(screen, { opacity: 0, duration: FADE_SECONDS, ease: 'power1.out' });
+    // The parts fade - the veil, the theatre's dark layer, the column - never the root: an ancestor below opacity 1 is a
+    // backdrop root, which left the veil's backdrop-filter nothing to blur, so the world showed sharp on the fade's first
+    // frame (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26, item 2). The veil's own opacity fades its blur with it.
+    tl.to(Array.from(screen.children), { opacity: 0, duration: FADE_SECONDS, ease: 'power1.out' });
     setTimeline(OFF_SCREEN_FADE_TIMELINE, tl);
   });
 }
 
 /**
- * The fade undone (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19): the fade killed, the screen opaque and taking input
- * again. powerController calls it when the start after the fade fails, so a failed power-on leaves the off screen as it
- * was rather than invisible and still mounted over the glass. A no-op with no screen mounted.
+ * The fade undone (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19): the fade killed, the screen's parts opaque again and
+ * the screen taking input. The theatre's dark layer is left hidden, as a finished theatre leaves it, since the fade may
+ * have cut the theatre short. powerController calls it when the start after the fade fails, so a failed power-on leaves
+ * the off screen ready rather than invisible and still mounted over the glass. A no-op with no screen mounted.
  */
 export function restoreOffScreen(): void {
   const screen = getRef(OFF_SCREEN_REF_KEY);
   if (!screen) return;
   killTimeline(OFF_SCREEN_FADE_TIMELINE);
-  gsap.set(screen, { opacity: 1 });
+  const parts = Array.from(screen.children);
+  const dark = parts.find((part) => part.classList.contains('off-screen__dark'));
+  gsap.set(parts.filter((part) => part !== dark), { opacity: 1 });
+  if (dark) gsap.set(dark, { opacity: 0, visibility: 'hidden' });
   screen.removeAttribute('inert');
 }
