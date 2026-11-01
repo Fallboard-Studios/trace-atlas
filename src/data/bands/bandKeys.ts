@@ -25,8 +25,8 @@ export interface RangeBand {
 
 /**
  * A band a share of fresh robots carry: `lit` is the nominal share that draw from [min, max]; the rest seed the field's
- * plain value (a send of 0, a linear curve, the open filter, a quiet layer, no link). ROBOT_SEND_LOADING_RANGES's shape,
- * and the shape of every minority trait spawnSystem.ts paired a threshold with a range: a glider's portamento, a shaped
+ * plain value (a send of 0, a linear curve, the open filter, a quiet layer, no link). The send rows' shape, and the
+ * shape of every minority trait spawnSystem.ts paired a threshold with a range: a glider's portamento, a shaped
  * stage's short range, the accent cutoff, the Coaxial/Harmonic gain, the three LFO depth windows. The generator keeps
  * its own comparison - a trait lands on a draw under `lit`, a layer or a link goes quiet on a draw under 1 - `lit` - so
  * the share reads the same way in every row. Nominal, because the robot draws are bell-curved simplex samples, not

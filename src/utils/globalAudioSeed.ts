@@ -56,7 +56,7 @@ export function scaleUnitValue(t: number, range: SeedRange): number {
  */
 function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey, uniform = false): number {
   // Sample within the narrower LOADING band - the loaded world's, from the band table (getBand, band-table T22;
-  // Classic's rows are GLOBAL_AUDIO_LOADING_RANGES) - but honor the full range's log/linear scale: a band carries no
+  // Classic's rows are in src/data/bands/classic.ts) - but honor the full range's log/linear scale: a band carries no
   // `scale`, it is purely a narrower min/max over the same field GLOBAL_AUDIO_SEED_RANGES already describes.
   const range: SeedRange = { ...getBand(key), scale: GLOBAL_AUDIO_SEED_RANGES[key].scale };
   // getSeededVal handles the seeded noise → [0, 1] draw; scaleUnitValue owns
@@ -496,7 +496,7 @@ export function generateHumanize(attenuationStyleId: string, attenuationStyleNam
 /**
  * Loading-range sub-windows for global-chain LFO link depth — narrower than LFO_DEPTH_MIN/MAX
  * (the full/UI-facing range the LfoLink primitive's Depth slider still uses unchanged). Mirrors
- * globalAudioLoadingRanges.ts's pattern for effect params — bounds what a FRESH SEED can roll,
+ * the band table's pattern for effect params (src/data/bands/classic.ts) — bounds what a FRESH SEED can roll,
  * never what the UI exposes or what the app can do. Robot-level LFO-link seeding
  * (spawnSystem.ts) has its own separate ROBOT_LFO_*_DEPTH_SEED_RANGE windows, not these.
  * Per-group rather than one flat window (Crawford's own load-value tuning pass, 2026-10-02):

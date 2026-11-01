@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
-import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
+import { generateAttenuationStyleBpm } from './bpmSeed';
 import { evictAttenuationStyleNoiseMap } from './noiseMaps';
 import { withLoading } from '@/data/bands/loadingContext';
 import { CLASSIC } from '@/data/bands/classic';
@@ -35,14 +35,14 @@ describe('generateAttenuationStyleBpm (docs/specs/FREE_SYNC_TOGGLE.md §1.7 "BPM
   });
 
   it('seeds from the [40, 100] band — unchanged from the locale-seeded range', () => {
-    expect(BPM_SEED_RANGE).toEqual({ min: 40, max: 100 });
+    expect(CLASSIC.bpm).toEqual({ min: 40, max: 100 });
   });
 
   it('always returns an integer in [40, 100], across many Attenuation Styles', () => {
     for (let i = 0; i < SAMPLE_COUNT; i++) {
       const value = generateAttenuationStyleBpm(sampleId(i), sampleName(i));
-      expect(value, `style ${i}`).toBeGreaterThanOrEqual(BPM_SEED_RANGE.min);
-      expect(value, `style ${i}`).toBeLessThanOrEqual(BPM_SEED_RANGE.max);
+      expect(value, `style ${i}`).toBeGreaterThanOrEqual(CLASSIC.bpm.min);
+      expect(value, `style ${i}`).toBeLessThanOrEqual(CLASSIC.bpm.max);
       expect(Number.isInteger(value), `style ${i} is an integer`).toBe(true);
     }
   });
@@ -83,10 +83,6 @@ describe('generateAttenuationStyleBpm reads the band table (band-table T22, spec
   afterEach(() => {
     evictAttenuationStyleNoiseMap('seed-test-as');
     for (let i = 0; i < SAMPLE_COUNT; i++) evictAttenuationStyleNoiseMap(sampleId(i));
-  });
-
-  it('BPM_SEED_RANGE is Classic\'s tempo band', () => {
-    expect(BPM_SEED_RANGE).toEqual(CLASSIC.bpm);
   });
 
   it('under a theme moving bpm to 150-160 the tempo lands in it, still an integer; the same style under Classic is in 40-100', () => {

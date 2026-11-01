@@ -3,8 +3,8 @@ import type { Robot } from '../types/Robot';
 /**
  * The per-robot send wiring table (docs/specs/ROBOT_SEND_TABLE.md §1.1): one row per send, naming the robot field, the
  * key AudioEngine.updateRobotSends takes, the share-link code and the content key of its slider's words. Every consumer
- * that once spelled the five out iterates this. The seeding bands are tuning, not wiring, and stay in
- * robotSendLoadingRanges.ts (spec assumption 1). Nothing Tone-shaped lives here.
+ * that once spelled the five out iterates this. The seeding bands are tuning, not wiring, and live in the band table
+ * (src/data/bands/classic.ts; spec assumption 1). Nothing Tone-shaped lives here.
  */
 
 /** The five per-robot sends in the one order every consumer uses: the prime, the engine write, the screen rows, the share

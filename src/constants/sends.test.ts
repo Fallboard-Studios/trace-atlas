@@ -7,7 +7,7 @@ import {
   SEND_STEP_PERCENT,
 } from './index';
 import * as constants from './index';
-import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
+import { CLASSIC } from '../data/bands/classic';
 
 // Robot Sends T1 (docs/specs/ROBOT_SENDS.md section 1.1).
 describe('Robot Send constants', () => {
@@ -25,7 +25,7 @@ describe('Robot Send constants', () => {
 
   // Robot Effect Sends T1: the quiet-delay threshold moved into the robot send table as the Delay row's 1 - lit.
   it('keeps the quiet-delay chance at the 0.25 the global Delay roll used, now as the Delay row (1 - lit)', () => {
-    expect(1 - ROBOT_SEND_LOADING_RANGES.delaySend.lit).toBe(0.25);
+    expect(1 - CLASSIC.delaySend.lit).toBe(0.25);
     expect('SEND_DELAY_QUIET_THRESHOLD' in constants).toBe(false);
   });
 });

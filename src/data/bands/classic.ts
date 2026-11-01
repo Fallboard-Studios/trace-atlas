@@ -15,12 +15,13 @@ import type { BandTable } from './bandKeys';
  * 2026-10-30 - and later retunes move it; nothing here is kept for an old sound's sake. resolveBands.test.ts pins every
  * value from a literal typed in from the survey, so a value that moves is a deliberate change there too.
  *
- * Sources at the lift. The global rows are GLOBAL_AUDIO_LOADING_RANGES (src/data/globalAudioLoadingRanges.ts), a
- * direct transcription of docs/reference/GLOBAL_CHAIN_GRID.md's "Loading Range" column - that doc is the source of
- * truth; if a value here and the grid disagree, the grid is right and this file has drifted. `bpm` is BPM_SEED_RANGE
- * (src/utils/bpmSeed.ts). The robot bands are spawnSystem.ts's module constants, each threshold riding its range as a
- * lit share. The sends are ROBOT_SEND_LOADING_RANGES (src/data/robotSendLoadingRanges.ts). The readers moved to
- * getBand() at Tasks 21-22; those two files are now projections of these rows, by name, for the grid mirror and the tests.
+ * Sources at the lift. The global rows were GLOBAL_AUDIO_LOADING_RANGES, a direct transcription of
+ * docs/reference/GLOBAL_CHAIN_GRID.md's "Loading Range" column - that doc is the source of truth; if a value here and
+ * the grid disagree, the grid is right and this file has drifted. `bpm` was BPM_SEED_RANGE (src/utils/bpmSeed.ts). The
+ * robot bands were spawnSystem.ts's module constants, each threshold riding its range as a lit share. The sends were
+ * ROBOT_SEND_LOADING_RANGES. The readers moved to getBand() at Tasks 21-22, and the three names went at
+ * docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R31: this table is the grids' code mirror, and classic.test.ts holds the
+ * guards those names' tests held.
  */
 export const CLASSIC: BandTable = {
   // ---- Tempo -------------------------------------------------------------------------------------------------------
@@ -75,7 +76,7 @@ export const CLASSIC: BandTable = {
   // Chebyshev and Bit Crusher "kept lower" at 0.05 to 0.15), retuned at Classic Band Retune T2 (Decision 1 = B,
   // 2026-10-21) to 0.2-0.3 and 0.25-0.35 so no character seeded an effect nobody could hear, and then pulled back after
   // Crawford's listen (Checkpoint B, same day: "much more subtle") to ONE shared band, 0.1 to 0.2: a wet layer of -36 dB
-  // at the floor and -24 dB at the ceiling. It sits inside COLOUR_LOAD_MIX_MAX (globalAudioLoadingRanges.ts, 0.25).
+  // at the floor and -24 dB at the ceiling. It sits inside Crawford's 0.25 colour Mix ceiling (classic.test.ts).
   'distortion.amount': { min: 0.1, max: 0.35 },
   'distortion.wet': { min: 0.1, max: 0.2 },
   'chebyshev.order': { min: 2, max: 5 },
@@ -85,7 +86,7 @@ export const CLASSIC: BandTable = {
 
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 6): the bands a LIT pedal draws from; a dark
   // pedal keeps its shape values from the same bands and a `wet` of 0. Retuned at T16 (Crawford, 2026-10-15) to his
-  // recommended ranges. The Mix bands NO LONGER share COLOUR_LOAD_MIX_MAX (assumption 9): the pedals keep the same taper
+  // recommended ranges. The Mix bands NO LONGER share the colour Mix ceiling (assumption 9): the pedals keep the same taper
   // (colourWetGain), so a seeded Mix of 0.35 to 0.5 (wah) or 0.3 to 0.4 (phaser) is a node gain of 0.12 to 0.25 or 0.09
   // to 0.16 (the ceilings are the T16 listen's; the floors rose at Classic Band Retune T1, 2026-10-21, because the bottom
   // third of a squared slider is near silence). The Phaser's stages reach 12, the ceiling the Pixel gate ran.

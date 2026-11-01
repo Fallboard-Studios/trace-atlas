@@ -25,10 +25,11 @@ import {
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
-import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
+import { CLASSIC } from '../data/bands/classic';
 import { robotSendLevels } from '../data/robotSends';
 import { withLoading } from '../data/bands/loadingContext';
-import type { BandTable } from '../data/bands/bandKeys';
+import * as loadingContextModule from '../data/bands/loadingContext';
+import type { BandKey, BandTable } from '../data/bands/bandKeys';
 import type { RobotAudioBaseline } from './spawnSystem';
 import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
@@ -922,7 +923,7 @@ describe('spawnSystem', () => {
       generateRobotSends(realNoise, 3);
 
       const calls = vi.mocked(getSeededVal).mock.calls.map((c) => [c[1], c[2], c[3], c[4]]);
-      const { reverbSend, delaySend } = ROBOT_SEND_LOADING_RANGES;
+      const { reverbSend, delaySend } = CLASSIC;
       expect(calls).toContainEqual(['robot.send.reverb', 3, reverbSend.min, reverbSend.max]);
       // band-table T22: the Reverb row's lit share is rolled too (never quiet under Classic's lit of 1).
       expect(calls).toContainEqual(['robot.send.reverb.quiet', 3, 0, 1]);
@@ -932,15 +933,19 @@ describe('spawnSystem', () => {
     });
 
     it('takes the quiet threshold from the Delay row: a roll under 1 - lit is quiet', async () => {
-      const original = ROBOT_SEND_LOADING_RANGES.delaySend.lit;
+      // The loaded table with its Delay row lit at 0.4 (quiet below 0.6), read through getBand as the generator reads it.
+      const realGetBand = loadingContextModule.getBand;
+      const getBand = vi
+        .spyOn(loadingContextModule, 'getBand')
+        .mockImplementation(((key: BandKey) =>
+          key === 'delaySend' ? { ...realGetBand('delaySend'), lit: 0.4 } : realGetBand(key)) as typeof realGetBand);
       try {
-        ROBOT_SEND_LOADING_RANGES.delaySend.lit = 0.4; // quiet below 0.6
         await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.59 });
         expect(generateRobotSends(realNoise, 0).delaySend).toBe(0);
         await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.6 });
         expect(generateRobotSends(realNoise, 0).delaySend).toBe(0.2);
       } finally {
-        ROBOT_SEND_LOADING_RANGES.delaySend.lit = original;
+        getBand.mockRestore();
       }
     });
 
@@ -983,7 +988,7 @@ describe('spawnSystem', () => {
   describe('generateRobotSends - the three effect room sends (Robot Effect Sends T7)', () => {
     const realNoise = createNoise2D(alea('effect-sends-test-seed'));
     const onGrid = (x: number) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-9;
-    const BANDS = ROBOT_SEND_LOADING_RANGES;
+    const BANDS = CLASSIC;
     const EXCLUSIVE = ['gritSend', 'shimmerSend', 'doubleSend'] as const;
 
     afterEach(async () => {
@@ -1415,7 +1420,7 @@ describe('spawnSystem', () => {
         for (let i = 0; i < 200; i++) spawnRobot(`effect-sends-no-locale-${i}`);
         const sent = sendsSpy.mock.calls.map((c) => c[1] as Record<'grit' | 'shimmer' | 'double', number>);
         expect(sent).toHaveLength(200);
-        const bands = { grit: ROBOT_SEND_LOADING_RANGES.gritSend, shimmer: ROBOT_SEND_LOADING_RANGES.shimmerSend, double: ROBOT_SEND_LOADING_RANGES.doubleSend };
+        const bands = { grit: CLASSIC.gritSend, shimmer: CLASSIC.shimmerSend, double: CLASSIC.doubleSend };
         for (const s of sent) {
           const carried = (['grit', 'shimmer', 'double'] as const).filter((k) => s[k] > 0);
           expect(carried.length).toBeLessThanOrEqual(1);

@@ -446,7 +446,7 @@ export const SWELL_DURATION_SCHEMA: SliderLinearSchema = {
  * stored in the same BPM units this slider displays (unlike
  * pingVarianceAutomation's fraction-to-percent split). [20, 200] is
  * deliberately wider than the Attenuation Style seed range ([40, 100],
- * BPM_SEED_RANGE) on both ends — freely draggable beyond anything an
+ * Classic's `bpm` row, src/data/bands/classic.ts) on both ends — freely draggable beyond anything an
  * Attenuation Style would ever seed, same "seed narrow, drag wide" convention
  * PING_VARIANCE_AUTOMATION_SCHEMA already established.
  */

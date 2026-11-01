@@ -356,7 +356,8 @@ export function generateRobotLfoLinks(
 
 /**
  * A robot's five seeded sends (docs/specs/ROBOT_SENDS.md §1.2, docs/specs/ROBOT_EFFECT_SENDS.md §1.2), from the loaded
- * world's send bands (getBand, band-table T22; Classic's rows are ROBOT_SEND_LOADING_RANGES) at `offset` = spawn count.
+ * world's send bands (getBand, band-table T22; Classic's rows are in src/data/bands/classic.ts) at `offset` = spawn
+ * count.
  * Reverb and Delay keep the bell draws and the three dataIds Robot Sends shipped (the old global Reverb / Delay `wet`
  * loading rows, moved to the send table by Robot Effect Sends T1 without moving a value), plus the Reverb row's own quiet
  * roll, `robot.send.reverb.quiet`, so a theme's Reverb `lit` is honoured like every other row's (Classic's lit of 1
