@@ -139,9 +139,8 @@ const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
 /**
  * A world change waiting under the scene wash, as the clicks since have shaped it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
  * R3). The world part is at most one of a save or preset to apply and a Roll, the last world click winning; then the
- * loading the world should end under, and the row the list shows. `from` is the loading shown at the first of these
- * clicks: what a Roll, or a change with no world part, leaves loaded before the intended loading is laid over it. Runtime
- * only, like the change itself (worldChange.ts keeps the closure).
+ * loading the world should end under, and the row the list shows. Runtime only, like the change itself (worldChange.ts
+ * keeps the closure).
  */
 interface Intent {
   world: { value: string; name: string; payload: SessionPayload } | null;
@@ -149,7 +148,6 @@ interface Intent {
   pick: TransmissionPick;
   theme: ThemeId;
   aspects: FamilyPicks;
-  from: LoadingIdentity;
 }
 
 /**
@@ -297,7 +295,7 @@ export function OffScreen() {
   const realise = useCallback(() => {
     const intended = intentRef.current!;
     setIntent(null);
-    let left = intended.from;
+    let left: LoadingIdentity;
     if (intended.world) {
       const { value, name, payload } = intended.world;
       applySessionPayload(payload);
@@ -309,9 +307,14 @@ export function OffScreen() {
         detachLoadedSession();
       }
       left = loadingOf(payload);
-    } else if (intended.roll) {
-      rollWorld();
-      useSessionStore.getState().detachLoadedSession();
+    } else {
+      if (intended.roll) {
+        rollWorld();
+        useSessionStore.getState().detachLoadedSession();
+      }
+      // A Roll leaves the loading store alone (rollWorld), so what it holds is what the world part left
+      // (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F15).
+      left = useLoadingStore.getState();
     }
     const loading: RetransmitInput = {};
     if (intended.theme !== left.theme) loading.theme = intended.theme;
@@ -333,7 +336,6 @@ export function OffScreen() {
         pick,
         theme: shownTheme,
         aspects: shownAspects,
-        from: { theme: shownTheme, aspects: shownAspects },
       },
     [pick, shownTheme, shownAspects],
   );

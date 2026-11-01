@@ -708,7 +708,11 @@ and would drop all six layer swells (F16).
   **Proof:** RED by mutation. With the line removed, the new case fails. With the line back, it passes.
   **Files:** `OffScreen.test.tsx`. **Estimated scope:** XS
 
-- [ ] **F15: `OffScreen.tsx` — `Intent.from` goes** (Optional)
+- [x] **F15: `OffScreen.tsx` — `Intent.from` goes** (Optional)
+
+  **As shipped:** a save or preset still compares against `loadingOf(payload)`, as before; a Roll (and the
+  no-world-part case, which no click builds) reads `useLoadingStore.getState()` after `rollWorld`. R3's and F12's
+  cases pass unmodified (153).
 
   **Description:** `realise` compares the intended loading against `intended.from`. Without a world part, `from` only
   matches the loading store by convention, because `rollWorld` leaves the store alone. Read `useLoadingStore.getState()`
