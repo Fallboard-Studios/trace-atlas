@@ -3,8 +3,10 @@ import gsap from 'gsap';
 
 import {
   OFF_SCREEN_BOOT_TIMELINE,
+  OFF_SCREEN_FADE_IN_TIMELINE,
   OFF_SCREEN_FADE_TIMELINE,
   OFF_SCREEN_REF_KEY,
+  fadeInOffScreen,
   fadeOffScreen,
   restoreOffScreen,
   skipOffScreenBoot,
@@ -196,5 +198,97 @@ describe('restoreOffScreen (review R19)', () => {
 
   it('is a no-op when the screen is not mounted', () => {
     expect(() => restoreOffScreen()).not.toThrow();
+  });
+});
+
+// docs/tasks/OFF_SCREEN_FINAL_FIXES.md F6 (Crawford's answer 2a): a power-off fades the screen in over the world just
+// paused, the reverse of the power-on fade, instead of replaying the first-load flicker. The dark layer is hidden at
+// once; the veil and the column tween from transparent to opaque over the fade's 0.4 s, never the root (R26 item 2).
+describe('fadeInOffScreen (final fixes F6)', () => {
+  /** Records the fade-in's one fromTo: its targets and its two vars, on the stub's own timeline. */
+  function recordFromTo() {
+    const calls: { targets: unknown; from: gsap.TweenVars; to: gsap.TweenVars }[] = [];
+    const realTimeline = gsap.timeline;
+    const timeline = vi.spyOn(gsap, 'timeline').mockImplementation(((config?: gsap.TimelineVars) => {
+      const tl = realTimeline(config);
+      const fromTo = tl.fromTo.bind(tl);
+      tl.fromTo = ((targets: gsap.TweenTarget, from: gsap.TweenVars, to: gsap.TweenVars) => {
+        calls.push({ targets, from, to });
+        return fromTo(targets, from, to);
+      }) as typeof tl.fromTo;
+      return tl;
+    }) as typeof gsap.timeline);
+    return { calls, restore: () => timeline.mockRestore() };
+  }
+
+  it("registers the fade-in as 'off-screen-fade-in' in the ui scope, from the start", () => {
+    const { root } = offScreenRoot();
+    fadeInOffScreen(root);
+    expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeDefined();
+    expect(getTimelineScope(OFF_SCREEN_FADE_IN_TIMELINE)).toBe('ui');
+    expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)!.progress()).toBe(0);
+    expect(getTimeline(OFF_SCREEN_BOOT_TIMELINE)).toBeUndefined();
+  });
+
+  it('hides the dark layer at once, never fading it', () => {
+    const { root, dark } = offScreenRoot();
+    const set = vi.spyOn(gsap, 'set');
+    const { calls, restore } = recordFromTo();
+    fadeInOffScreen(root);
+    expect(set).toHaveBeenCalledWith(dark, { opacity: 0, visibility: 'hidden' });
+    expect(calls.flatMap((c) => Array.from(c.targets as ArrayLike<Element>))).not.toContain(dark);
+    restore();
+    set.mockRestore();
+  });
+
+  it('tweens the veil and the column from 0 to 1 over 0.4 s, and nothing tweens the root', () => {
+    const { root, veil, column } = offScreenRoot();
+    const { calls, restore } = recordFromTo();
+    fadeInOffScreen(root);
+    expect(calls).toHaveLength(1);
+    expect(Array.from(calls[0].targets as ArrayLike<Element>)).toEqual([veil, column]);
+    expect(calls[0].from).toMatchObject({ opacity: 0 });
+    expect(calls[0].to).toMatchObject({ opacity: 1, duration: 0.4 });
+    expect(calls.map((c) => c.targets)).not.toContain(root);
+    restore();
+  });
+
+  it('the stop it returns kills the fade-in', () => {
+    const stop = fadeInOffScreen(offScreenRoot().root);
+    stop();
+    expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeUndefined();
+    expect(getTimelineScope(OFF_SCREEN_FADE_IN_TIMELINE)).toBeUndefined();
+  });
+
+  it('is shown at once under prefers-reduced-motion: reduce', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion: reduce') }));
+    fadeInOffScreen(offScreenRoot().root);
+    expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)!.progress()).toBe(1);
+  });
+
+  it('plays from the start when motion is not reduced', () => {
+    vi.stubGlobal('matchMedia', () => ({ matches: false }));
+    fadeInOffScreen(offScreenRoot().root);
+    expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)!.progress()).toBe(0);
+  });
+
+  it('a power-on during the fade-in kills it first, then fades out from where the parts stand', async () => {
+    const { root } = offScreenRoot();
+    setRef(OFF_SCREEN_REF_KEY, root);
+    fadeInOffScreen(root);
+    const done = fadeOffScreen();
+    expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeUndefined();
+    expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeDefined();
+    await expect(done).resolves.toBeUndefined();
+  });
+
+  it('a screen with no dark layer still fades its parts in', () => {
+    const root = document.createElement('div');
+    const part = document.createElement('div');
+    root.appendChild(part);
+    const { calls, restore } = recordFromTo();
+    expect(() => fadeInOffScreen(root)).not.toThrow();
+    expect(Array.from(calls[0].targets as ArrayLike<Element>)).toEqual([part]);
+    restore();
   });
 });

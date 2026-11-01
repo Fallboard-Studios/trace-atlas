@@ -31,7 +31,13 @@ import { describeWorld } from '@/utils/describeWorld';
 import { aspectDescription, aspectName, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
 import { setRef, deleteRef } from '@/utils/refs';
 import { killTimeline } from '@/animation/timelineMap';
-import { OFF_SCREEN_FADE_TIMELINE, OFF_SCREEN_REF_KEY, skipOffScreenBoot, startOffScreenBoot } from '@/animation/offScreenTheatre';
+import {
+  OFF_SCREEN_FADE_TIMELINE,
+  OFF_SCREEN_REF_KEY,
+  fadeInOffScreen,
+  skipOffScreenBoot,
+  startOffScreenBoot,
+} from '@/animation/offScreenTheatre';
 import { fill, labels } from '@/content';
 import type { ButtonSchema, RadioButtonSchema } from '@/types/controls';
 import type { SessionPayload } from '@/types/session';
@@ -180,7 +186,8 @@ interface Intent {
  * The boot theatre (assumption 18, animation/offScreenTheatre.ts): on mount the dark layer over the content holds
  * for half a second, then flickers off — a 'ui' timeline in timelineMap, so it runs over the paused world; a tap
  * anywhere on the screen skips it, reduced motion skips it outright, and the rocker outside the screen works
- * throughout. The screen registers its root under the off-screen ref so powerController's power-on can await
+ * throughout. That is a fresh page's: after a power-off (the world 'paused') the screen fades in over the world just
+ * frozen instead, the reverse of the power-on fade (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F6). The screen registers its root under the off-screen ref so powerController's power-on can await
  * fadeOffScreen() — the screen and its veil to transparent — before the power flag flips and ScreenViewport
  * unmounts it. Both timelines are killed, and the ref dropped, on unmount.
  *
@@ -408,14 +415,16 @@ export function OffScreen() {
   // timelineMap by the animation module; the ref the fade reads is set here, where the root exists. The callback's
   // return is the unmount's kills (useGSAP's gsap.context keeps a returned function and runs it on revert): the
   // theatre, a fade still in flight, and the ref — a pending fade's onComplete must never resolve against an unmounted
-  // screen.
+  // screen. A power-off fades the screen in instead (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F6): the world tells the two
+  // apart as R25's focus does below — 'paused' after a power-off, 'cold' on a fresh page, which keeps the theatre.
   useGSAP(
     () => {
       if (!rootRef.current || !darkRef.current) return;
       setRef(OFF_SCREEN_REF_KEY, rootRef.current);
-      const stopBoot = startOffScreenBoot(darkRef.current);
+      const stopShow =
+        getWorldState() === 'paused' ? fadeInOffScreen(rootRef.current) : startOffScreenBoot(darkRef.current);
       return () => {
-        stopBoot();
+        stopShow();
         killTimeline(OFF_SCREEN_FADE_TIMELINE);
         deleteRef(OFF_SCREEN_REF_KEY);
       };

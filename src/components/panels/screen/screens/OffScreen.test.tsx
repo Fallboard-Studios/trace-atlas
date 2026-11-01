@@ -50,7 +50,7 @@ import * as worldChange from '@/systems/worldChange';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getTimeline, getTimelineScope, killAllTimelines } from '@/animation/timelineMap';
-import { OFF_SCREEN_FADE_TIMELINE, fadeOffScreen } from '@/animation/offScreenTheatre';
+import { OFF_SCREEN_FADE_IN_TIMELINE, OFF_SCREEN_FADE_TIMELINE, fadeOffScreen } from '@/animation/offScreenTheatre';
 import { getRef } from '@/utils/refs';
 import { formatSessionTimestamp } from '@/utils/helpers';
 import { CONTENT, fill } from '@/content';
@@ -251,6 +251,54 @@ describe('OffScreen — the boot theatre', () => {
     expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeDefined();
     unmount();
     expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeUndefined();
+  });
+
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F6 (Crawford's answer 2a): the world tells a power-off from a fresh page, as
+  // R25's focus does. Paused, the screen fades in over the world just frozen; cold, the boot theatre plays.
+  describe('a power-off fades in instead (final fixes F6)', () => {
+    afterEach(() => setWorldState('cold'));
+
+    it("mounted with the world paused, no boot theatre runs and the fade-in does, in the ui scope", () => {
+      setWorldState('paused');
+      render(<OffScreen />);
+      expect(getTimeline('off-screen-boot')).toBeUndefined();
+      expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeDefined();
+      expect(getTimelineScope(OFF_SCREEN_FADE_IN_TIMELINE)).toBe('ui');
+    });
+
+    it('mounted with the world cold (a fresh page), the boot theatre runs and no fade-in', () => {
+      render(<OffScreen />);
+      expect(getTimeline('off-screen-boot')).toBeDefined();
+      expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeUndefined();
+    });
+
+    it('mounted with the world running, the boot theatre runs (only a pause fades in)', () => {
+      setWorldState('running');
+      render(<OffScreen />);
+      expect(getTimeline('off-screen-boot')).toBeDefined();
+      expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeUndefined();
+    });
+
+    it('an unmount mid fade-in kills it and drops the ref', () => {
+      setWorldState('paused');
+      const { unmount } = render(<OffScreen />);
+      unmount();
+      expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeUndefined();
+      expect(getRef('off-screen')).toBeUndefined();
+    });
+
+    it('registers the screen under the off-screen ref, so a power-on can still fade it out', () => {
+      setWorldState('paused');
+      const { container } = render(<OffScreen />);
+      expect(getRef('off-screen')).toBe(container.querySelector('.off-screen'));
+    });
+
+    it("a power-off still lands the focus on the selected row (R25)", () => {
+      markHeardWorld();
+      setWorldState('paused');
+      render(<OffScreen />);
+      expect(document.activeElement).toBe(screen.getByRole('radio', { name: currentName() }));
+    });
   });
 
   it('runs on a returning visit too, over the chooser', () => {
