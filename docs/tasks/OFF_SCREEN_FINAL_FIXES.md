@@ -11,8 +11,10 @@
 > Checkpoint: Complete passed. Crawford's Looks passed, and the Pixel A/B passed (4 underruns at 4:00 against
 > `main`'s 9).
 > Phase 5 (F11–F19) added 2026-11-01. It holds the second review's findings at `8f5556d0` (verdict: request changes)
-> and Crawford's answers to them. Not started; every task is approved, F17 included (Crawford, 2026-11-01). A fresh
-> session builds it in task order, starting at F11. The PR waits on Phase 5.
+> and Crawford's answers to them. **Built 2026-11-01:** F11 `fbd7d797`, F12 `cd3c63bf`, F13 `dde58896`, F14 `939bf899`,
+> F15 `f37dabfc`, F16 `d5f3a304`, F17 `dedf536f` (and the seed-pin fix `017d8655`), F18 `060df477`. F19's probes and
+> dump pass, and Checkpoint 5's automated box is ticked. Left: Crawford's Look (Checkpoint 5), his answer on F17's
+> synced-rate rule, then his PR.
 
 Written for: Crawford, and a fresh agent session picking this up cold.
 
@@ -863,7 +865,7 @@ and would drop all six layer swells (F16).
 
   **Proof:** Read. **Dependencies:** F11–F17. **Estimated scope:** S
 
-- [ ] **F19: the proofs again**
+- [x] **F19: the proofs again**
 
   **Description:** Rerun F10's probes 2, 4 and 6, the parity dump against `main` (`cc9a01f2`), and one new probe:
   - **7, the rule:** tweak a robot's decay and the Reverb wet. Pick Calm, then toggle an Envelope aspect. Both tweaks
@@ -872,8 +874,36 @@ and would drop all six layer swells (F16).
   **Proof:** Probe; record the readings under this task.
   **Dependencies:** F11–F17. **Estimated scope:** M
 
+  - [x] **Readings (2026-11-01, at `017d8655`, dev server on 5196, headless Chrome at 1600 × 900,
+    `?seed=kr1nd4ra&x=12&y=68`; the probe script rewritten from the R-plan's recipe, scratch, not committed):**
+    - **2, the bank equals the store:** on, off, Roll, on. The Roll landed a Free bank at 76 BPM
+      (`?seed=28ba936a&x=107&y=181`). On all four lanes `lfoEngine.getBankSettings` equals
+      `resolveLaneForEngine(store lane, bpm)` (shape, rate, both drifts); sample lane a: sawtooth, 0.35 Hz, 0.59, 0.51.
+      One Roll only; F10's synced-roll case was not repeated.
+    - **4, both toggles land:** Hypnotic then Wandering 150 ms apart. The loading store holds
+      `{ melody: ['hypnotic', 'wandering'] }`, both rows read pressed, the bar reads `…&melody=hypnotic,wandering`, no
+      wash state was ever entered, and the world stayed `'paused'`.
+    - **6, a theme in place:** on 10 s, off, then Calm. The locale is the same (`pelagos-default`). Every robot's store
+      position, activity, battery and job is unchanged, and all 12 movers' on-screen x/y too; sample robot-0 (652,
+      578), working, 88 %, structuralInspection. BPM 43 → 41, inside Calm's 40–70. The wash never left `'clear'`, and
+      the world stayed `'paused'`. 4 s after power-on, 2 of 12 movers had carried on from where they stood (robot-1
+      (1373, 607) → (1373, 612)). Then off, Bold: still `'paused'`, the same locale, BPM 72 (inside Bold's 70–110), no
+      wash.
+    - **7, the rule:** off, robot-0's decay set to 1.654 and the Reverb wet to 0.777, then Calm, then Swelling.
+      - After Calm: decay 1.654 and wet 0.777 stand. BPM 43 → 41, LPF 2391 → 2247.3 Hz and attack 1.593 → 1.624 move.
+      - After Swelling: decay 1.654 and wet 0.777 still stand. The attack moves into Swelling's band (1.017), and
+        `loadedUnder` is `{ envelope: 'swelling' }`.
+      - No wash at any step; the world stayed `'paused'`.
+    - **The parity dump:** a scratch test (`generateRobotRosterBaseline` for 40 robots, `generateCompanyRosterBaseline`,
+      `generateGlobalAudioSettings` and `generateAttenuationStyleBpm` over 12 seeds, plus R27's 400-robot articulation
+      sample) run in a worktree at `main` (`cc9a01f2`) and at the tip. `cmp`: **byte-identical**, 758,954 bytes each.
+      This dump is a rewrite, so its size differs from F10's 1,234,508. It was mutation-checked: Classic's `bpm` max
+      100 → 101 on the tip made `cmp` differ at char 46,029. The mutation was reverted, and the tree was clean after.
+
 ### Checkpoint 5: The second review
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean; F19's readings recorded.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean; F19's readings recorded. At `017d8655`:
+      346 files / 13,237 tests, types clean, lint 0 errors (4 warnings, all in `Scenery.tsx` and `gemShape.tsx`,
+      untouched here), the build clean.
 - [ ] Crawford's Look: a pick waiting under the wash, then a theme click, then Current (F12). Tweaks survive a theme
       and an aspect change (F16, F17).
 - [ ] Ready for Crawford's PR.
