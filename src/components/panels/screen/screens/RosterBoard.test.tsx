@@ -69,7 +69,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
-import { killAllTimelines, timelineMap } from '@/animation/timelineMap';
+import { getTimelineScope, killAllTimelines, timelineMap } from '@/animation/timelineMap';
 import type { Company } from '@/types/Company';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
@@ -390,6 +390,27 @@ describe('RosterBoard — moving a probe (Task 22)', () => {
     pick('Tidal Wisp', 'Iron Crew');
     act(() => flip.from.mock.calls[0][1].onComplete?.());
     expect(timelineMap.has('roster-move-r0')).toBe(false);
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30: the finished glide leaves through the registry, so its scope goes too.
+  it('a finished glide leaves no scope behind in the registry', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    expect(getTimelineScope('roster-move-r0')).toBe('ui');
+    act(() => flip.from.mock.calls[0][1].onComplete?.());
+    expect(getTimelineScope('roster-move-r0')).toBeUndefined();
+  });
+
+  it('a replaced glide finishing late leaves the newer glide of the same robot registered', () => {
+    render(<RosterBoard />);
+    pick('Tidal Wisp', 'Iron Crew');
+    pick('Tidal Wisp', FREELANCE);
+    const [first, second] = flip.from.mock.results.map((result) => result.value);
+    act(() => flip.from.mock.calls[0][1].onComplete?.());
+    expect(timelineMap.get('roster-move-r0')).toBe(second);
+    expect(getTimelineScope('roster-move-r0')).toBe('ui');
+    expect(second.kill).not.toHaveBeenCalled();
+    expect(first).not.toBe(second);
   });
 
   it('under reduced motion there is no glide: no timeline, and the tile still lands', () => {
