@@ -11,6 +11,9 @@ import { fadeOffScreen, restoreOffScreen } from '../animation/offScreenTheatre';
 import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
 import { getWorldState, setWorldState } from './worldState';
 
+/** The cold start under way, which a second power-on press joins (F1); null when none is. */
+let coldStart: Promise<void> | null = null;
+
 /**
  * powerController centralizes power on/off side effects so components stay thin.
  */
@@ -69,7 +72,9 @@ export const powerController = {
   // After the fade, a world already running is left alone: the rocker stays clickable through its sequence, so a
   // second "on" press can land after the first one's start or resume, and running the cold branch again would
   // release and rebuild every voice mid-music, reset the harmony and restart the loop
-  // (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R18).
+  // (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R18). A press whose fade ends while another press's cold start is
+  // still under way (a slow phone) finds the world neither running nor paused, so it joins that start rather than
+  // running a second one, and resolves or rejects with it (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F1).
   async powerOnSequence() {
     await fadeOffScreen();
     if (getWorldState() === 'running') return;
@@ -77,6 +82,14 @@ export const powerController = {
       this.resume();
       return;
     }
+    if (coldStart) return coldStart;
+    coldStart = this.coldStart().finally(() => {
+      coldStart = null;
+    });
+    return coldStart;
+  },
+
+  async coldStart() {
     try {
       await this.start();
     } catch (err) {
@@ -95,6 +108,7 @@ export const powerController = {
 /** Test seam: back to a fresh page's `cold`. Never called by the app. */
 export function __resetPowerControllerForTest(): void {
   setWorldState('cold');
+  coldStart = null;
 }
 
 export default powerController;

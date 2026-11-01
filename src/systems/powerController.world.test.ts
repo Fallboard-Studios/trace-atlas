@@ -43,6 +43,7 @@ import * as workLoopModule from './workLoop';
 import * as audioSwellsModule from './audioSwells';
 import * as offScreenTheatreModule from '../animation/offScreenTheatre';
 import * as timelineMapModule from '../animation/timelineMap';
+import * as worldTransitionModule from './worldTransition';
 import { AudioEngine } from '../engine/AudioEngine';
 import { subscribeToMeasure, scheduleRepeat } from '../engine/beatClock';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/localeStore';
@@ -187,6 +188,82 @@ describe('power cycle over a world built while off', () => {
 
     expect(AudioEngine.start).toHaveBeenCalledTimes(1);
     expect(reRegister).toHaveBeenCalledTimes(1);
+  });
+
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F1: on a slow phone both presses' fades can end while the first press's
+  // start is still under way, so both pass the running check. The second joins the start rather than starting again.
+  describe('a second press whose fade ends during the first press\'s start', () => {
+    /** AudioEngine.start held open until the returned settle function is called. */
+    function holdStart() {
+      let settle!: (err?: Error) => void;
+      vi.mocked(AudioEngine.start).mockImplementationOnce(
+        () => new Promise<void>((resolve, reject) => { settle = (err) => (err ? reject(err) : resolve()); }),
+      );
+      return (err?: Error) => settle(err);
+    }
+
+    it('joins it: one start, one re-registration, one set of systems, and both presses resolve over a running world', async () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const reRegister = vi.spyOn(spawnSystemModule, 'reRegisterAllRobotsAudio');
+      const systemsStart = vi.spyOn(worldTransitionModule, 'startLocaleSystems');
+      const settle = holdStart();
+
+      const first = powerController.powerOnSequence();
+      const second = powerController.powerOnSequence();
+      await vi.waitFor(() => expect(AudioEngine.start).toHaveBeenCalled());
+      await Promise.resolve(); await Promise.resolve(); // the second press's fade ends too, the start still open
+      expect(getWorldState()).toBe('cold');
+      settle();
+      await expect(Promise.all([first, second])).resolves.toEqual([undefined, undefined]);
+
+      expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+      expect(reRegister).toHaveBeenCalledTimes(1);
+      expect(systemsStart).toHaveBeenCalledTimes(1);
+      expect(useUIStore.getState().isPoweredOn).toBe(true);
+      expect(getWorldState()).toBe('running');
+    });
+
+    it('a rejected start rejects both presses, restores the screen once and leaves the world cold, so a third press starts again', async () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const restore = vi.spyOn(offScreenTheatreModule, 'restoreOffScreen');
+      const settle = holdStart();
+      const failure = new Error('no audio');
+
+      const first = powerController.powerOnSequence();
+      const second = powerController.powerOnSequence();
+      await vi.waitFor(() => expect(AudioEngine.start).toHaveBeenCalled());
+      await Promise.resolve(); await Promise.resolve();
+      settle(failure);
+
+      await expect(first).rejects.toBe(failure);
+      await expect(second).rejects.toBe(failure);
+      expect(restore).toHaveBeenCalledTimes(1);
+      expect(getWorldState()).toBe('cold');
+      expect(useUIStore.getState().isPoweredOn).toBe(false);
+
+      await powerController.powerOnSequence();
+
+      expect(AudioEngine.start).toHaveBeenCalledTimes(2);
+      expect(getWorldState()).toBe('running');
+    });
+
+    it('after a joined start, a pause and a power-on resume as before', async () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const settle = holdStart();
+      const first = powerController.powerOnSequence();
+      const second = powerController.powerOnSequence();
+      await vi.waitFor(() => expect(AudioEngine.start).toHaveBeenCalled());
+      settle();
+      await Promise.all([first, second]);
+      const resume = vi.spyOn(AudioEngine, 'resume');
+
+      powerController.pause();
+      await powerController.powerOnSequence();
+
+      expect(resume).toHaveBeenCalledTimes(1);
+      expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+      expect(getWorldState()).toBe('running');
+    });
   });
 
   it('a second power-on after a resume does nothing either: the world is resumed once', async () => {
