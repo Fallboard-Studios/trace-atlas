@@ -114,6 +114,18 @@ vi.mock('gsap', () => {
     };
     return obj as TimelineObj;
   };
+  // A module-level tween (gsap.to / gsap.fromTo): the chainable shape callers use at once, and whether it is paused,
+  // kept as the timeline stub keeps it.
+  const tweenStub = () => {
+    let paused = false;
+    return {
+      progress: () => 0,
+      kill: () => { },
+      pause: () => { paused = true; },
+      play: () => { paused = false; },
+      paused: () => paused,
+    };
+  };
   const mocked = {
     // timeline accepts an optional config; if onComplete provided, call it synchronously
     timeline: (config?: TimelineConfig) => {
@@ -135,8 +147,10 @@ vi.mock('gsap', () => {
     // (`gsap.to(el, {...}).progress(phase)`) at mount, for every real RobotBody render in any
     // test file that doesn't supply its own gsap mock. No onUpdate/onComplete auto-fire, same as
     // every other mock in this file — only a shape safe to chain off, not real tween behavior.
-    to: () => ({ progress: () => 0, kill: () => { }, pause: () => { }, play: () => { } }),
-    fromTo: () => ({ progress: () => 0, kill: () => { }, pause: () => { }, play: () => { } }),
+    // `paused()` too, as the timeline stub has it: timelineMap's setTimeline and pauseWorldTimelines read it from
+    // anything registered (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30).
+    to: () => tweenStub(),
+    fromTo: () => tweenStub(),
     // Minimal delayedCall mock — does NOT auto-fire fn (unlike .timeline's
     // onComplete above): idleSystem.ts uses delayedCall to throttle repeated
     // self-scheduling (handleRobotIdle -> handleRobotArrival -> delayedCall ->

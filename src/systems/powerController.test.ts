@@ -6,7 +6,12 @@ vi.mock('../stores/audioStore', () => ({ useAudioStore: { getState: () => ({ bpm
 vi.mock('./spawnSystem', () => ({ reRegisterAllRobotsAudio: vi.fn() }));
 vi.mock('./robotSystems', () => ({ stopRobotLifecycle: vi.fn() }));
 vi.mock('./workLoop', () => ({ stopWorkLoop: vi.fn(), pauseWorkLoop: vi.fn(), resumeWorkLoop: vi.fn() }));
-vi.mock('./worldTransition', () => ({ startLocaleSystems: vi.fn() }));
+// As the real one does, the systems' start writes 'running' (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30: the
+// controller no longer writes it a second time).
+vi.mock('./worldTransition', async () => {
+  const { setWorldState } = await import('./worldState');
+  return { startLocaleSystems: vi.fn(() => setWorldState('running')) };
+});
 vi.mock('../animation/timelineMap', () => ({ pauseWorldTimelines: vi.fn(), resumeWorldTimelines: vi.fn() }));
 vi.mock('../utils/deviceFlags', () => ({ hasHeardWorld: vi.fn(() => false), markHeardWorld: vi.fn() }));
 vi.mock('../animation/offScreenTheatre', () => ({ fadeOffScreen: vi.fn(() => Promise.resolve()), restoreOffScreen: vi.fn() }));

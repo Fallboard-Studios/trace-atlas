@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type AspectId, type FamilyPicks } from './aspects';
+import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type FamilyPicks } from './aspects';
 import { isThemeId, type ThemeId } from './themes';
 
 // ========================================
@@ -42,13 +42,14 @@ export const DEFAULT_LOADING: LoadingIdentity = { theme: 'classic', aspects: {} 
  */
 export function loadingOf(payload: { theme?: unknown; aspects?: unknown }): LoadingIdentity {
   const theme = isThemeId(payload.theme) ? payload.theme : DEFAULT_LOADING.theme;
-  const lists: Partial<Record<AspectFamilyId, AspectId[]>> = {};
+  const lists: Partial<Record<AspectFamilyId, readonly string[]>> = {};
   const raw = payload.aspects;
   if (raw !== null && typeof raw === 'object') {
     for (const family of ASPECT_FAMILY_IDS) {
       const picks = (raw as Record<string, unknown>)[family];
-      // Any string passes here; canonicalAspects below keeps only the family's ids (a stale `theme` included).
-      if (Array.isArray(picks)) lists[family] = picks.filter((pick): pick is AspectId => typeof pick === 'string');
+      // Any list passes here: canonicalAspects below keeps only the family's ids, all strings, so a non-string, an
+      // unknown id and a stale `theme` all drop there (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30).
+      if (Array.isArray(picks)) lists[family] = picks;
     }
   }
   return { theme, aspects: canonicalAspects(lists) };

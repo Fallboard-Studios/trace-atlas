@@ -101,10 +101,10 @@ export const powerController = {
       restoreOffScreen();
       throw err;
     }
+    // startLocaleSystems writes 'running' itself, as it does for a live rebuild.
     startLocaleSystems(getActiveLocaleId());
     if (!hasHeardWorld()) markHeardWorld();
     useUIStore.getState().setPowerOn();
-    setWorldState('running');
   }
 };
 
