@@ -249,6 +249,19 @@ describe('mirrorWorldToUrl', () => {
     expect(window.location.hash).toBe('');
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30: a name holding a lone surrogate (a hand-edited save) once threw
+  // URIError from encodeURIComponent, outside the replaceState try, and so out of retransmitWorld. The mirror writes
+  // through URLSearchParams since R17, which puts U+FFFD in its place. A guard: it passed from the start.
+  it('a name holding a lone surrogate never throws: the bar carries U+FFFD in its place, and x and y stand', () => {
+    for (const name of ['\uD800', 'a\uDFFFb', 'tail\uD83D', '\uDC00head']) {
+      expect(() => mirrorWorldToUrl({ ...identity, attenuationStyleName: name })).not.toThrow();
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get('seed')).toBe(name.replace(/[\uD800-\uDFFF]/g, '�'));
+      expect(params.getAll('x')).toEqual(['29']);
+      expect(params.get('y')).toBe('-14');
+    }
+  });
+
   it('removes theme and melody when the world is Classic with no picks, so the bar never carries a stale loading', () => {
     window.history.replaceState({}, '', '/?seed=old&x=1&y=2&theme=calm&melody=hypnotic&debug');
     mirrorWorldToUrl(identity);
