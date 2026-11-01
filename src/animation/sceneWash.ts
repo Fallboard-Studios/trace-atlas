@@ -46,7 +46,8 @@ function fade(wash: Element, opacity: number, then: Extract<SceneWash, 'covered'
  * follows uiStore.sceneWash: 'covering' paints the wash in the sea's colours at this hour - from clear only; a re-cover
  * while uncovering keeps the colours it shows - and fades it in over 0.5 s,
  * setting 'covered' when opaque - which runs the change; 'uncovering' fades it out over 0.5 s and sets 'clear'; a 'clear'
- * set from outside (a reduced-motion request, the request module letting go) snaps it transparent. Each state is acted
+ * set from outside (a reduced-motion request, the request module letting go) snaps it transparent. From the cover's start
+ * to 'clear' the wash has a compositor layer of its own (`will-change: opacity`), so neither fade re-rasters it. Each state is acted
  * on once, however the store's listeners nest. The timelines only set semantic state (CLAUDE.md, Strict Separation):
  * nothing here touches the audio. Returns the stop - unsubscribe, kill the fade, detach - which WorldView calls on
  * unmount; with no element registered there is nothing to start and the stop does nothing.
@@ -86,13 +87,15 @@ export function startSceneWash(): () => void {
     if (sceneWash === 'covering') {
       // Painted only from clear: a re-cover while uncovering keeps the colours it already shows, rather than swap the
       // old hour's sea for the new world's under a half-opaque wash (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R21).
-      if (was === 'clear') gsap.set(wash, { backgroundImage: seaGradient() });
+      // From clear it also takes a compositor layer of its own until 'clear', so both fades are the compositor's: without
+      // it the whole wash re-rastered in every frame of each fade (R26, item 5: about 0.9 of a screen a frame on a desk).
+      if (was === 'clear') gsap.set(wash, { backgroundImage: seaGradient(), willChange: 'opacity' });
       fade(wash, 1, 'covered');
     } else if (sceneWash === 'uncovering') {
       afterThisFrame(() => fade(wash, 0, 'clear'));
     } else if (sceneWash === 'clear') {
       killTimeline(SCENE_WASH_TIMELINE);
-      gsap.set(wash, { opacity: 0 });
+      gsap.set(wash, { opacity: 0, willChange: 'auto' });
     }
   });
   return () => {

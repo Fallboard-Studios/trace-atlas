@@ -201,12 +201,12 @@ describe('startSceneWash (revisions Task 13)', () => {
     useUIStore.setState({ activeLocaleLocalTime: 0 });
     requestWorldChange(vi.fn());
     const night = waterColumnColors(0);
-    expect(recorded.sets.at(-1)).toEqual({ target: el, vars: { backgroundImage: `linear-gradient(${night.top}, ${night.bottom})` } });
+    expect(recorded.sets.at(-1)).toEqual({ target: el, vars: expect.objectContaining({ backgroundImage: `linear-gradient(${night.top}, ${night.bottom})` }) });
     await finish(await coverAndStartUncover());
     useUIStore.setState({ activeLocaleLocalTime: 12 });
     requestWorldChange(vi.fn());
     const noon = waterColumnColors(12);
-    expect(recorded.sets.at(-1)).toEqual({ target: el, vars: { backgroundImage: `linear-gradient(${noon.top}, ${noon.bottom})` } });
+    expect(recorded.sets.at(-1)).toEqual({ target: el, vars: expect.objectContaining({ backgroundImage: `linear-gradient(${noon.top}, ${noon.bottom})` }) });
     expect(noon.top).not.toBe(night.top);
   });
 
@@ -225,7 +225,7 @@ describe('startSceneWash (revisions Task 13)', () => {
       requestWorldChange(vi.fn());
       expect(wash()).toBe('covering');
       const night = waterColumnColors(0);
-      expect(paints()).toEqual([{ target: el, vars: { backgroundImage: `linear-gradient(${night.top}, ${night.bottom})` } }]);
+      expect(paints()).toEqual([{ target: el, vars: expect.objectContaining({ backgroundImage: `linear-gradient(${night.top}, ${night.bottom})` }) }]);
     });
 
     it('a re-cover before the fade-out has started paints nothing either', async () => {
@@ -251,6 +251,56 @@ describe('startSceneWash (revisions Task 13)', () => {
     });
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26, item 5: an opacity tween on a wash with no layer of its own for it
+  // re-rasters the whole wash in every frame of both fades (measured on a desk, audio running: about 0.9 of a screen per
+  // frame). From the cover's first frame to 'clear' it asks for its own compositor layer, so both fades are the
+  // compositor's alone.
+  describe('the wash has a layer of its own while it fades (review R26)', () => {
+    /** The wash's will-change as the sets so far leave it: the last one set, else the initial `auto`. */
+    const layer = () => {
+      const hints = recorded.sets.filter((s) => s.target === el && 'willChange' in s.vars);
+      return hints.length ? hints[hints.length - 1].vars.willChange : 'auto';
+    };
+
+    it('asks for it as the cover starts, before the fade has drawn a frame', () => {
+      expect(layer()).toBe('auto');
+      requestWorldChange(vi.fn());
+      expect(wash()).toBe('covering');
+      expect(layer()).toBe('opacity');
+    });
+
+    it("holds it while covered, through the uncover and a re-cover, and lets it go at 'clear'", async () => {
+      requestWorldChange(vi.fn());
+      await finish(last());
+      expect(wash()).toBe('uncovering');
+      expect(layer()).toBe('opacity');
+      tick();
+      expect(layer()).toBe('opacity');
+      requestWorldChange(vi.fn());
+      expect(wash()).toBe('covering');
+      expect(layer()).toBe('opacity');
+      await finish(await coverAndStartUncover());
+      expect(wash()).toBe('clear');
+      expect(layer()).toBe('auto');
+    });
+
+    it("lets it go when 'clear' is set mid-cover (a reduced-motion request)", () => {
+      requestWorldChange(vi.fn());
+      vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('prefers-reduced-motion: reduce') }));
+      requestWorldChange(vi.fn());
+      expect(wash()).toBe('clear');
+      expect(layer()).toBe('auto');
+    });
+
+    it('asks again on the next cover', async () => {
+      requestWorldChange(vi.fn());
+      await finish(await coverAndStartUncover());
+      expect(layer()).toBe('auto');
+      requestWorldChange(vi.fn());
+      expect(layer()).toBe('opacity');
+    });
+  });
+
   it('a new state kills the running tween first: a request while uncovering kills the fade-out and covers again', async () => {
     requestWorldChange(vi.fn());
     const uncover = await coverAndStartUncover();
@@ -271,7 +321,7 @@ describe('startSceneWash (revisions Task 13)', () => {
     requestWorldChange(vi.fn());
     expect(wash()).toBe('clear');
     expect(cover.kill).toHaveBeenCalled();
-    expect(recorded.sets.at(-1)).toEqual({ target: el, vars: { opacity: 0 } });
+    expect(recorded.sets.at(-1)).toEqual({ target: el, vars: expect.objectContaining({ opacity: 0 }) });
     expect(getTimeline(SCENE_WASH_TIMELINE)).toBeUndefined();
   });
 
