@@ -33,6 +33,14 @@ const FLICKER: readonly { opacity: number; duration: number }[] = [
 ];
 const FADE_SECONDS = 0.4;
 
+/** How a power-on fade ends: run to the end, or killed by restoreOffScreen with the screen back (F13). */
+export type OffScreenFadeResult = 'done' | 'cancelled';
+
+/** The power-on fade in flight, which a second press joins (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F13); null when none
+ *  is. Its timeline is kept so a fade killed elsewhere (the screen unmounting) is never joined. */
+let pendingFade: { timeline: gsap.core.Timeline; promise: Promise<OffScreenFadeResult>; settle: (result: OffScreenFadeResult) => void } | null =
+  null;
+
 // ========================================
 // EXPORTS
 // ========================================
@@ -111,35 +119,54 @@ export function skipOffScreenBoot(): void {
  * where they stand. Resolves at once when the screen is not mounted
  * (no ref) — a power-on with nothing to fade. Semantic only: the timeline resolves a promise and the controller does
  * the rest; nothing here touches the audio.
+ *
+ * One fade at a time (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F13): a call while a fade is in flight returns that fade's
+ * promise, so a second press joins the first rather than killing its timeline and leaving its promise unsettled. The
+ * promise resolves `'done'` once the fade has run, or `'cancelled'` when restoreOffScreen kills it.
  */
-export function fadeOffScreen(): Promise<void> {
+export function fadeOffScreen(): Promise<OffScreenFadeResult> {
   const screen = getRef(OFF_SCREEN_REF_KEY);
-  if (!screen) return Promise.resolve();
+  if (!screen) return Promise.resolve('done');
+  if (pendingFade && getTimeline(OFF_SCREEN_FADE_TIMELINE) === pendingFade.timeline) return pendingFade.promise;
   killTimeline(OFF_SCREEN_BOOT_TIMELINE);
   killTimeline(OFF_SCREEN_FADE_IN_TIMELINE);
   // From the fade's first frame the screen takes no input, through the transparent wait of a slow first start too:
   // nothing the eye has lost can still be clicked (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19).
   screen.setAttribute('inert', '');
-  return new Promise<void>((resolve) => {
-    const tl = gsap.timeline({ onComplete: () => resolve() });
-    // The parts fade - the veil, the theatre's dark layer, the column - never the root: an ancestor below opacity 1 is a
-    // backdrop root, which left the veil's backdrop-filter nothing to blur, so the world showed sharp on the fade's first
-    // frame (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26, item 2). The veil's own opacity fades its blur with it.
-    tl.to(Array.from(screen.children), { opacity: 0, duration: FADE_SECONDS, ease: 'power1.out' });
-    setTimeline(OFF_SCREEN_FADE_TIMELINE, tl);
+  let settle!: (result: OffScreenFadeResult) => void;
+  const promise = new Promise<OffScreenFadeResult>((resolve) => {
+    settle = resolve;
   });
+  const tl = gsap.timeline({ onComplete: () => settlePendingFade(tl, 'done') });
+  // The parts fade - the veil, the theatre's dark layer, the column - never the root: an ancestor below opacity 1 is a
+  // backdrop root, which left the veil's backdrop-filter nothing to blur, so the world showed sharp on the fade's first
+  // frame (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26, item 2). The veil's own opacity fades its blur with it.
+  tl.to(Array.from(screen.children), { opacity: 0, duration: FADE_SECONDS, ease: 'power1.out' });
+  pendingFade = { timeline: tl, promise, settle };
+  setTimeline(OFF_SCREEN_FADE_TIMELINE, tl);
+  return promise;
+}
+
+/** Settle the pending fade, if `timeline` is still it (null: whichever is pending), and let it go. */
+function settlePendingFade(timeline: gsap.core.Timeline | null, result: OffScreenFadeResult): void {
+  if (!pendingFade || (timeline && pendingFade.timeline !== timeline)) return;
+  const { settle } = pendingFade;
+  pendingFade = null;
+  settle(result);
 }
 
 /**
  * The fade undone (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19): the fade killed, the screen's parts opaque again and
  * the screen taking input. The theatre's dark layer is left hidden, as a finished theatre leaves it, since the fade may
  * have cut the theatre short. powerController calls it when the start after the fade fails, so a failed power-on leaves
- * the off screen ready rather than invisible and still mounted over the glass. A no-op with no screen mounted.
+ * the off screen ready rather than invisible and still mounted over the glass. A no-op with no screen mounted. A fade
+ * it kills settles as `'cancelled'`, so a press waiting on it returns rather than waiting for good (F13).
  */
 export function restoreOffScreen(): void {
   const screen = getRef(OFF_SCREEN_REF_KEY);
   if (!screen) return;
   killTimeline(OFF_SCREEN_FADE_TIMELINE);
+  settlePendingFade(null, 'cancelled');
   const parts = Array.from(screen.children);
   const dark = parts.find((part) => part.classList.contains('off-screen__dark'));
   gsap.set(parts.filter((part) => part !== dark), { opacity: 1 });

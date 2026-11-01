@@ -14,7 +14,7 @@ vi.mock('./worldTransition', async () => {
 });
 vi.mock('../animation/timelineMap', () => ({ pauseWorldTimelines: vi.fn(), resumeWorldTimelines: vi.fn() }));
 vi.mock('../utils/deviceFlags', () => ({ hasHeardWorld: vi.fn(() => false), markHeardWorld: vi.fn() }));
-vi.mock('../animation/offScreenTheatre', () => ({ fadeOffScreen: vi.fn(() => Promise.resolve()), restoreOffScreen: vi.fn() }));
+vi.mock('../animation/offScreenTheatre', () => ({ fadeOffScreen: vi.fn(() => Promise.resolve('done')), restoreOffScreen: vi.fn() }));
 const setPowerOnSpy = vi.fn();
 const setPowerOffSpy = vi.fn();
 vi.mock('../stores/uiStore', () => ({ useUIStore: { getState: () => ({ setPowerOn: setPowerOnSpy, setPowerOff: setPowerOffSpy }) } }));
@@ -190,7 +190,7 @@ describe('powerController', () => {
 
     it('the power flag does not flip until the fade has resolved', async () => {
       let finish: () => void = () => {};
-      vi.mocked(fadeOffScreen).mockImplementationOnce(() => new Promise<void>((resolve) => { finish = resolve; }));
+      vi.mocked(fadeOffScreen).mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve('done'); }));
       const sequence = powerController.powerOnSequence();
       await Promise.resolve();
       expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();

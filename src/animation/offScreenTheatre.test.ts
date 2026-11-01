@@ -86,7 +86,7 @@ describe('skipOffScreenBoot', () => {
 
 describe('fadeOffScreen', () => {
   it('resolves at once and registers nothing when the off screen is not mounted (no ref)', async () => {
-    await expect(fadeOffScreen()).resolves.toBeUndefined();
+    await expect(fadeOffScreen()).resolves.toBe('done');
     expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeUndefined();
   });
 
@@ -95,7 +95,7 @@ describe('fadeOffScreen', () => {
     const done = fadeOffScreen();
     expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeDefined();
     expect(getTimelineScope(OFF_SCREEN_FADE_TIMELINE)).toBe('ui');
-    await expect(done).resolves.toBeUndefined();
+    await expect(done).resolves.toBe('done');
   });
 
   it('a flip during the theatre just goes: the fade kills a running boot timeline first', async () => {
@@ -105,28 +105,62 @@ describe('fadeOffScreen', () => {
     expect(getTimeline(OFF_SCREEN_BOOT_TIMELINE)).toBeUndefined();
   });
 
-  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27 (R18's window): a second power-on press while the first fade runs
-  // replaces that fade, so only the second press goes on. The shared stub completes every timeline by itself, so these
-  // timelines are held: each keeps its onComplete for the test to fire, and a kill spy.
-  it('a second fade supersedes the first: the first is killed before it completes, and the second resolves when it does', async () => {
-    const held: { complete: () => void; kill: ReturnType<typeof vi.fn> }[] = [];
-    const timeline = vi.spyOn(gsap, 'timeline').mockImplementation(((config?: { onComplete?: () => void }) => {
-      const kill = vi.fn();
-      held.push({ complete: () => config?.onComplete?.(), kill });
-      const tl = { to: () => tl, kill, paused: () => false, pause: () => tl, play: () => tl };
-      return tl;
-    }) as unknown as typeof gsap.timeline);
-    setRef(OFF_SCREEN_REF_KEY, document.createElement('div'));
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F13 (second review, the nit): a second power-on press while the first fade
+  // runs joins that fade, where it used to replace it and leave the first press's promise unsettled for good. A fade
+  // restoreOffScreen kills settles as cancelled. The shared stub completes every timeline by itself, so these timelines
+  // are held: each keeps its onComplete for the test to fire, and a kill spy.
+  describe('one fade at a time (final fixes F13)', () => {
+    let held: { complete: () => void; kill: ReturnType<typeof vi.fn> }[];
+    let timeline: { mockRestore: () => void };
+    beforeEach(() => {
+      held = [];
+      timeline = vi.spyOn(gsap, 'timeline').mockImplementation(((config?: { onComplete?: () => void }) => {
+        const kill = vi.fn();
+        held.push({ complete: () => config?.onComplete?.(), kill });
+        const tl = { to: () => tl, kill, paused: () => false, pause: () => tl, play: () => tl };
+        return tl;
+      }) as unknown as typeof gsap.timeline);
+      setRef(OFF_SCREEN_REF_KEY, document.createElement('div'));
+    });
+    afterEach(() => timeline.mockRestore());
 
-    void fadeOffScreen();
-    const second = fadeOffScreen();
+    it('two calls during one fade return one promise: one timeline, never killed, and it resolves once, done', async () => {
+      const first = fadeOffScreen();
+      const second = fadeOffScreen();
+      expect(second).toBe(first);
+      expect(held).toHaveLength(1);
+      expect(held[0].kill).not.toHaveBeenCalled();
+      const settled = vi.fn();
+      void first.then(settled);
+      held[0].complete();
+      held[0].complete(); // a stray second completion settles nothing more
+      await expect(first).resolves.toBe('done');
+      expect(settled).toHaveBeenCalledTimes(1);
+    });
 
-    expect(held).toHaveLength(2);
-    expect(held[0].kill).toHaveBeenCalled();
-    expect(held[1].kill).not.toHaveBeenCalled();
-    held[1].complete();
-    await expect(second).resolves.toBeUndefined();
-    timeline.mockRestore();
+    it('a call after a fade has finished starts a fade of its own', async () => {
+      const first = fadeOffScreen();
+      held[0].complete();
+      await first;
+      const second = fadeOffScreen();
+      expect(second).not.toBe(first);
+      expect(held).toHaveLength(2);
+    });
+
+    it('restoreOffScreen mid-fade settles the pending fade as cancelled, and the next call fades afresh', async () => {
+      const pending = fadeOffScreen();
+      restoreOffScreen();
+      await expect(pending).resolves.toBe('cancelled');
+      expect(fadeOffScreen()).not.toBe(pending);
+      expect(held).toHaveLength(2);
+    });
+
+    it('a fade killed elsewhere (the screen unmounting) is never joined: the next call fades afresh', () => {
+      const orphan = fadeOffScreen();
+      killAllTimelines();
+      expect(fadeOffScreen()).not.toBe(orphan);
+      expect(held).toHaveLength(2);
+    });
   });
 
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19: a screen fading out, and the transparent one left behind it through
@@ -279,7 +313,7 @@ describe('fadeInOffScreen (final fixes F6)', () => {
     const done = fadeOffScreen();
     expect(getTimeline(OFF_SCREEN_FADE_IN_TIMELINE)).toBeUndefined();
     expect(getTimeline(OFF_SCREEN_FADE_TIMELINE)).toBeDefined();
-    await expect(done).resolves.toBeUndefined();
+    await expect(done).resolves.toBe('done');
   });
 
   it('a screen with no dark layer still fades its parts in', () => {

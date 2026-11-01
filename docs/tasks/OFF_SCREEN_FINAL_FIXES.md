@@ -658,7 +658,14 @@ and would drop all six layer swells (F16).
 
   **Dependencies:** none. **Files:** `OffScreen.tsx`, its test. **Estimated scope:** S
 
-- [ ] **F13: `offScreenTheatre.ts`, `powerController.ts` — no press is left waiting on a killed fade** (the nit)
+- [x] **F13: `offScreenTheatre.ts`, `powerController.ts` — no press is left waiting on a killed fade** (the nit)
+
+  **As shipped:** the promise's shape is `OffScreenFadeResult`, `'done' | 'cancelled'`; no rejection. A module-level
+  `pendingFade` holds the fade in flight with its timeline, and a call joins it only while that timeline is still the
+  one registered, so a fade the unmount killed is never joined. R27's "a second fade supersedes the first" case became
+  the join case. Two extra guards: a call after a fade has finished fades afresh; a fade killed elsewhere is not
+  joined. Mutants killed: no join (2 fail), joining a killed fade (4), restore not cancelling (2), cancelled treated as
+  done (1).
 
   **Description:**
   - **The gap:** `fadeOffScreen` registers its timeline under one id, and `setTimeline` kills the timeline it replaces.

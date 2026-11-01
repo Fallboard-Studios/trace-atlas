@@ -53,6 +53,7 @@ import { useAudioStore } from '../stores/audioStore';
 import { useLoadingStore, DEFAULT_LOADING } from '../stores/loadingStore';
 import { setTimeline, getTimeline, killAllTimelines } from '../animation/timelineMap';
 import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { clearRefs, setRef } from '../utils/refs';
 import { MAX_ROBOTS } from '../constants';
 
 function locale() {
@@ -176,8 +177,8 @@ describe('power cycle over a world built while off', () => {
     const reRegister = vi.spyOn(spawnSystemModule, 'reRegisterAllRobotsAudio');
     let endSecondFade!: () => void;
     vi.spyOn(offScreenTheatreModule, 'fadeOffScreen')
-      .mockImplementationOnce(() => Promise.resolve())
-      .mockImplementationOnce(() => new Promise<void>((resolve) => { endSecondFade = resolve; }));
+      .mockImplementationOnce(() => Promise.resolve('done' as const))
+      .mockImplementationOnce(() => new Promise((resolve) => { endSecondFade = () => resolve('done'); }));
 
     const first = powerController.powerOnSequence();
     const second = powerController.powerOnSequence(); // pressed while the world is still cold
@@ -263,6 +264,63 @@ describe('power cycle over a world built while off', () => {
       expect(resume).toHaveBeenCalledTimes(1);
       expect(AudioEngine.start).toHaveBeenCalledTimes(1);
       expect(getWorldState()).toBe('running');
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F13 (second review, the nit): no press is left waiting on a killed fade. The
+  // screen is mounted (its ref set) and the fades are held: each timeline keeps its onComplete for the test to fire.
+  describe('presses during a fade (final fixes F13)', () => {
+    let held: { complete: () => void }[];
+    beforeEach(() => {
+      held = [];
+      vi.spyOn(gsap, 'timeline').mockImplementation(((config?: { onComplete?: () => void }) => {
+        held.push({ complete: () => config?.onComplete?.() });
+        const tl = { to: () => tl, kill: vi.fn(), paused: () => false, pause: () => tl, play: () => tl };
+        return tl;
+      }) as unknown as typeof gsap.timeline);
+      setRef(offScreenTheatreModule.OFF_SCREEN_REF_KEY, document.createElement('div'));
+    });
+    afterEach(() => {
+      killAllTimelines();
+      clearRefs();
+    });
+    const tracked = (promise: Promise<void>) => {
+      const state = { settled: false, rejected: false };
+      promise.then(() => { state.settled = true; }, () => { state.settled = true; state.rejected = true; });
+      return state;
+    };
+
+    it('two presses during one fade: both settle, and one start runs', async () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const first = tracked(powerController.powerOnSequence());
+      const second = tracked(powerController.powerOnSequence());
+      held.at(-1)!.complete();
+      await vi.waitFor(() => expect(first.settled && second.settled).toBe(true));
+      expect(first.rejected || second.rejected).toBe(false);
+      expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+      expect(getWorldState()).toBe('running');
+    });
+
+    it('a press made during a failing start: it settles without a second start, and the screen is restored once', async () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const restore = vi.spyOn(offScreenTheatreModule, 'restoreOffScreen');
+      let fail!: (err: Error) => void;
+      vi.mocked(AudioEngine.start).mockImplementationOnce(() => new Promise<void>((_, reject) => { fail = reject; }));
+      const failure = new Error('no audio');
+
+      const first = powerController.powerOnSequence();
+      held[0].complete();
+      await vi.waitFor(() => expect(AudioEngine.start).toHaveBeenCalled());
+      const second = tracked(powerController.powerOnSequence()); // its fade starts while the start is open
+      expect(held).toHaveLength(2);
+      fail(failure);
+
+      await expect(first).rejects.toBe(failure);
+      await vi.waitFor(() => expect(second.settled).toBe(true));
+      expect(second.rejected).toBe(false); // its fade was cancelled: the screen is back and taking input
+      expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+      expect(restore).toHaveBeenCalledTimes(1);
+      expect(getWorldState()).toBe('cold');
     });
   });
 

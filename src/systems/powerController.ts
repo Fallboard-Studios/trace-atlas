@@ -74,9 +74,11 @@ export const powerController = {
   // release and rebuild every voice mid-music, reset the harmony and restart the loop
   // (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R18). A press whose fade ends while another press's cold start is
   // still under way (a slow phone) finds the world neither running nor paused, so it joins that start rather than
-  // running a second one, and resolves or rejects with it (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F1).
+  // running a second one, and resolves or rejects with it (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F1). A press during
+  // the fade joins it too, and a fade cancelled by a failed start's restoreOffScreen starts nothing: the screen is back
+  // and taking input (F13).
   async powerOnSequence() {
-    await fadeOffScreen();
+    if ((await fadeOffScreen()) === 'cancelled') return;
     if (getWorldState() === 'running') return;
     if (getWorldState() === 'paused') {
       this.resume();
