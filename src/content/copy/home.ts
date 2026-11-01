@@ -19,8 +19,9 @@ export const home = {
   // (the loaded world, or the loaded save's name in front of it) — data, not copy.
   'home.off.current': { human: 'Current' },
   // The Loading axis's group heading (the theme row and the aspect family rows): the theme row's own label
-  // (docs/tasks/OFF_SCREEN.md Task 30).
-  'home.off.loading': { human: 'Loading' },
+  // (docs/tasks/OFF_SCREEN.md Task 30). Shown as "Drive" (Crawford, 2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md
+  // F5); the key and the axis's internal name stay "loading".
+  'home.off.loading': { human: 'Drive' },
   // Roll (spec assumption 14): the action on the Current row (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4) — a fresh
   // random Attenuation Style and plot under the chosen Loading. An action, not a radio. Stand-in copy until Crawford's pass.
   'home.off.roll': { human: 'Roll' },
