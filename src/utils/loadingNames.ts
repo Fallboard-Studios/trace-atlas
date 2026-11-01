@@ -11,7 +11,7 @@ import { labels, type ContentKey, type SchemaLabels } from '@/content';
 
 /** The one entry per theme id (docs/specs/OFF_SCREEN.md assumption 17), named here as literals so the content guard
  *  (src/content/content.test.ts) sees each read and the type sees every id. The ids are code; the words are content. */
-export const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
+const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
   classic: 'home.off.theme.classic',
   calm: 'home.off.theme.calm',
   bold: 'home.off.theme.bold',
@@ -21,7 +21,7 @@ export const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
 
 /** One sentence per theme (assumption 17; §1.6 the Guide's part): the line under the off screen's theme row
  *  (docs/tasks/OFF_SCREEN.md Task 30), and the entry the Guide's Themes page will read. */
-export const THEME_DESCRIPTION_KEY: Record<ThemeId, ContentKey> = {
+const THEME_DESCRIPTION_KEY: Record<ThemeId, ContentKey> = {
   classic: 'home.off.themeDescription.classic',
   calm: 'home.off.themeDescription.calm',
   bold: 'home.off.themeDescription.bold',
@@ -32,7 +32,7 @@ export const THEME_DESCRIPTION_KEY: Record<ThemeId, ContentKey> = {
 /** The one entry per aspect option, per family, each family's map over its own ids. The family is a key segment (the
  *  content grammar allows four): `home.off.melody.<id>`, not the spec's `home.off.aspect.melody.<id>` (band-table T28).
  *  Envelope and Distance joined at docs/tasks/OFF_SCREEN_REVISIONS.md Task 7. */
-export const ASPECT_NAME_KEY: { readonly [F in AspectFamilyId]: Readonly<Record<AspectIdOf<F>, ContentKey>> } = {
+const ASPECT_NAME_KEY: { readonly [F in AspectFamilyId]: Readonly<Record<AspectIdOf<F>, ContentKey>> } = {
   melody: {
     hypnotic: 'home.off.melody.hypnotic',
     mechanical: 'home.off.melody.mechanical',
@@ -56,7 +56,7 @@ export const ASPECT_NAME_KEY: { readonly [F in AspectFamilyId]: Readonly<Record<
 };
 
 /** A family's label: the heading of its row on the off screen (docs/tasks/OFF_SCREEN.md Task 31). */
-export const ASPECT_FAMILY_LABEL_KEY: Record<AspectFamilyId, ContentKey> = {
+const ASPECT_FAMILY_LABEL_KEY: Record<AspectFamilyId, ContentKey> = {
   melody: 'home.off.melody',
   envelope: 'home.off.envelope',
   distance: 'home.off.distance',
@@ -67,7 +67,7 @@ export const ASPECT_FAMILY_LABEL_KEY: Record<AspectFamilyId, ContentKey> = {
  *  family's row shows the described aspect's, or the `none` sentence when no aspect is on (Task 31; the as-theme member
  *  and its sentence are gone, docs/tasks/OFF_SCREEN_REVISIONS.md Task 6); the Guide's page reads the same entries
  *  (§1.6). */
-export const ASPECT_DESCRIPTION_KEY: {
+const ASPECT_DESCRIPTION_KEY: {
   readonly [F in AspectFamilyId]: Readonly<Record<AspectIdOf<F> | 'none', ContentKey>>;
 } = {
   melody: {

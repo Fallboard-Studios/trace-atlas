@@ -464,7 +464,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       const column = melodyColumn(option);
       const moved = movedKeys(overlayBands(CLASSIC, column));
       expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.MELODY_BAND_KEYS as readonly string[]).toContain(key);
+      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.melody.keys as readonly string[]).toContain(key);
       expect([...moved].sort()).toEqual(Object.keys(column).sort());
     },
   );
@@ -499,7 +499,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       const column = envelopeColumn(option);
       const moved = movedKeys(overlayBands(CLASSIC, column));
       expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.ENVELOPE_BAND_KEYS as readonly string[]).toContain(key);
+      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.envelope.keys as readonly string[]).toContain(key);
       expect([...moved].sort()).toEqual(Object.keys(column).sort());
     },
   );
@@ -510,7 +510,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       const column = distanceColumn(option);
       const moved = movedKeys(overlayBands(CLASSIC, column));
       expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.DISTANCE_BAND_KEYS as readonly string[]).toContain(key);
+      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.distance.keys as readonly string[]).toContain(key);
       expect([...moved].sort()).toEqual(Object.keys(column).sort());
     },
   );
@@ -567,7 +567,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       const column = voiceColumn(option);
       const moved = movedKeys(overlayBands(CLASSIC, column));
       expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.VOICE_BAND_KEYS as readonly string[]).toContain(key);
+      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.voice.keys as readonly string[]).toContain(key);
       expect([...moved].sort()).toEqual(Object.keys(column).sort());
       expect(moved).toContain('robot.waveform');
     },

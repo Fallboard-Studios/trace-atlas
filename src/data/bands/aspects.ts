@@ -46,7 +46,7 @@ export type FamilyPicks = { [F in AspectFamilyId]?: AspectIdOf<F>[] };
 // ========================================
 
 /** The four Melody keys an aspect may move (assumption 16). */
-export const MELODY_BAND_KEYS = [
+const MELODY_BAND_KEYS = [
   'robot.rhythmicDensity',
   'robot.noteVariance',
   'robot.rhythmicMotifLength',
@@ -57,7 +57,7 @@ export type MelodyBandKey = (typeof MELODY_BAND_KEYS)[number];
 /** The six Envelope keys (revisions Task 7): the four stages and the two shaped stages. A shaped stage is drawn from its
  *  own band instead of the plain one (generateAudioAttributes), so an option that moves a stage moves its shaped band
  *  with it, or a curved robot would undo the option; the shaped stages' `lit` rides along. */
-export const ENVELOPE_BAND_KEYS = [
+const ENVELOPE_BAND_KEYS = [
   'robot.attack',
   'robot.decay',
   'robot.sustain',
@@ -70,12 +70,12 @@ export type EnvelopeBandKey = (typeof ENVELOPE_BAND_KEYS)[number];
 /** The two Distance keys (revisions Task 7): a robot's depth into the Reverb and the Delay - how far off it sounds. A
  *  room's own size (`reverb.decay`, `delay.delayTime`) is a global band, a theme's and never an aspect's (spec §3), so
  *  Distance sinks robots into the rooms but cannot lengthen them. Grit, Shimmer and Double stay the theme's. */
-export const DISTANCE_BAND_KEYS = ['reverbSend', 'delaySend'] as const;
+const DISTANCE_BAND_KEYS = ['reverbSend', 'delaySend'] as const;
 export type DistanceBandKey = (typeof DISTANCE_BAND_KEYS)[number];
 
 /** The five Voice keys (revisions Task 10): the waveform pick (the base and the three layers draw it), the open and the
  *  accent bus filter with the accent's resonance, and the Coaxial / Harmonic layer gain. */
-export const VOICE_BAND_KEYS = [
+const VOICE_BAND_KEYS = [
   'robot.waveform',
   'robot.filterFreq',
   'robot.accentFilterFreq',
