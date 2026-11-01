@@ -542,13 +542,11 @@ export function OffScreen() {
             <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
               {readout}
             </p>
-            {keepFailed ? (
-              <p className="off-screen__warning" role="alert">
-                {KEEP_FAILED}
-              </p>
-            ) : (
-              dirty && <p className="off-screen__warning">{UNSAVED_WARNING}</p>
-            )}
+            {/* The warning's line is always there, empty while the world is kept, so its sentence coming and going
+                never moves the column (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). */}
+            <p className="off-screen__warning">
+              {keepFailed ? <span role="alert">{KEEP_FAILED}</span> : dirty && UNSAVED_WARNING}
+            </p>
           </div>
         )}
         <p className="off-screen__footer">{FOOTER}</p>

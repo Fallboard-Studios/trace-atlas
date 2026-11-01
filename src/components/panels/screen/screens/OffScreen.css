@@ -151,11 +151,14 @@
 
 /* The one-line description under the theme row (Task 30; spec §1.6, the Guide's part) and under each family row
    (revisions Task 9): the sketch's .desc — small, italic, the etched grey. Two lines of height are held whatever the
-   sentence takes, so a shorter sentence after a pick does not lift the rows below it. A line belongs to the row above
-   it, so it sits half the column's gap under that row and the full gap above the next one. */
+   sentence takes — 3em at this line height; no sentence takes three at any width from 320 px (measured,
+   docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26) — so a pick whose sentence takes a line more or less does not move the
+   rows below it. A line belongs to the row above it, so it sits half the column's gap under that row and the full gap
+   above the next one. */
 .off-screen__description {
   margin: calc(var(--spacing-md) / -2) 0 0;
-  min-height: 2.6em;
+  line-height: 1.5;
+  min-height: 3em;
   max-width: 100%;
   padding: 0 6px;
   box-sizing: border-box;
@@ -198,9 +201,14 @@
 }
 
 /* The one warning worth having (docs/tasks/OFF_SCREEN.md Task 14): a muted line under the chooser, only while the
-   loaded world is unkept. Small and quiet — the same etched grey as the hint, not an alert. */
+   loaded world is unkept. Small and quiet — the same etched grey as the hint, not an alert. The line is always there and
+   holds its height while it is empty — one line on the desk, two on the phone (below), the most its sentence takes at
+   any width — so the warning coming and going never re-centres the column (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
+   R26). */
 .off-screen__warning {
   margin: 0;
+  line-height: 1.5;
+  min-height: 1.5em;
   max-width: 100%;
   font-family: var(--font-sans);
   font-size: var(--font-size-label-lore);
@@ -271,6 +279,11 @@
   font-size: var(--font-size-label-compact);
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+/* The warning takes two lines on a phone up to 414 px, so its line holds two. */
+#screen-viewport[data-shell='phone'] .off-screen__warning {
+  min-height: 3em;
 }
 
 /* The footer sits at the bottom of the phone's scrolling column, with a little room under it for the thumb. */
