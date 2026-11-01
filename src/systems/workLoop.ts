@@ -37,7 +37,8 @@
 // Every decision reads the robot's `docking`, so the visuals converge on the lifecycle however far
 // the Transport ran ahead (a hidden tab). The lifecycle tick (robotSystems.ts) reaches this module
 // only through onLifecycleChange; React reaches it through onRobotMounted (Robot.tsx), once per real
-// mount; the start and stop pairs are initializeLocale's and the power-off paths'.
+// mount; the start and stop pairs are startLocaleSystems' and tearDownPausedWorld's (worldTransition.ts). A power-off
+// only pauses the loop's clock (pauseWorkLoop / resumeWorkLoop, powerController).
 //
 // Module state is runtime only, never Zustand: an Actor write would re-render every factory layer
 // (spec §1.7). Site ids are actor ids — unique within a world (checked over the 121-seed grid),

@@ -104,10 +104,12 @@ function buildLocale(attenuationStyleId: string, coordinates: { x: number; y: nu
  * tick before starting the new one regardless of whether robots/actors
  * needed regenerating; `stopAudioSwells` also clears any in-flight swells
  * from the prior locale, so none survive into the new one. This is also
- * what makes a power cycle work: BeatClock resets (and silently drops every
- * `subscribeToMeasure` listener) whenever `AudioEngine.killAll()` runs, so
+ * what lets a replaced paused world start again: BeatClock resets (and
+ * silently drops every `subscribeToMeasure` listener) whenever
+ * `AudioEngine.killAll()` runs, which tearDownPausedWorld (below) does, so
  * the unconditional stop+start pairs below are what re-subscribe the ticks,
- * not just what handles a locale swap.
+ * not just what handles a locale swap. A plain power-off is a pause and
+ * runs no killAll.
  *
  * Two halves (docs/specs/LAYOUT_REWORK.md §1.9). The BUILD half (district,
  * roster, companies) always runs. The START half (startLocaleSystems below)

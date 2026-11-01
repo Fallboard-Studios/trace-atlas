@@ -25,7 +25,8 @@ import type { SessionPayload } from '../types/session';
 
 /** The world link's params (docs/specs/SHORT_WORLD_LINK.md assumption 1; docs/specs/OFF_SCREEN.md assumption 11). `theme`
  *  carries the loading theme when it is not Classic. Each aspect family has a param of its own name (ASPECT_FAMILY_IDS:
- *  `melody`), the set as a comma list in canonical option order, present only when non-empty. Neither is ever in the blob. */
+ *  `melody`, `envelope`, `distance`, `voice`), the set as a comma list in canonical option order, present only when
+ *  non-empty. Neither is ever in the blob. */
 export const WORLD_LINK_PARAMS = {
   seed: 'seed',
   x: 'x',

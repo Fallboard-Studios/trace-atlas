@@ -9,8 +9,8 @@ import type { WorldIdentity } from './seedBaseline';
 // TYPES
 // ========================================
 
-/** What describeWorld reads: the seed and the plot, and the loading when the caller has it. A caller with a bare name
- *  and plot (Foundry's status line until Task 33) carries none and reads as Classic with no picks. The key maps the names
+/** What describeWorld reads: the seed and the plot, and the loading when the caller has it. Every caller in the app
+ *  passes the loading; an identity without one reads as Classic with no picks. The key maps the names
  *  come from live in loadingNames.ts, shared with the off screen's rows and the detail screens' "loaded under" line. */
 export type DescribedWorld = Pick<WorldIdentity, 'attenuationStyleName' | 'coordinates'> &
   Partial<Pick<WorldIdentity, 'theme' | 'aspects'>>;

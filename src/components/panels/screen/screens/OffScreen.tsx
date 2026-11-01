@@ -54,8 +54,9 @@ const TRANSMISSION = labels('home.off.transmission');
 const CURRENT = labels('home.off.current');
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
 
-/** Roll and Keep (spec assumption 14), muted — nothing pops while the power is off. Roll rides on the Current row
- *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4); Keep sits under the list. */
+/** Roll and Keep (spec assumption 14), muted — flat, like the theme row and the list; only the aspect rows pop
+ *  (Crawford's note 5). Roll rides on the Current row (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4); Keep sits under the
+ *  list. */
 const ROLL_SCHEMA: ButtonSchema = { id: 'offRoll', type: 'button', ...labels('home.off.roll'), appearance: 'muted' };
 const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
 const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
@@ -195,9 +196,9 @@ interface Intent {
  * both; the phone shell stacks them (OffScreen.css).
  *
  * The family rows (Task 31's Melody row, one per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 9; assumptions
- * 17 and 21) sit under the theme row's line, in ASPECT_FAMILY_IDS order — Melody, Envelope, Distance: each a multiple
- * RadioButton in the cabinet appearance, the only thing on this screen that pops (Crawford's note 5; the theme row,
- * the list, Roll and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
+ * 17 and 21) sit under the theme row's line, in ASPECT_FAMILY_IDS order — Melody, Envelope, Distance, Voice: each a
+ * multiple RadioButton in the cabinet appearance, the only thing on this screen that pops (Crawford's note 5; the theme
+ * row, the list, Roll and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
  * loaded world's picks for Current and the picked payload's after a save or preset pick, as the theme row does. A change
  * sends the whole loading, `retransmitWorld({ aspects })`, with the changed family's set canonical (an empty list when
  * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the live roster

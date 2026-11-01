@@ -39,13 +39,14 @@ export type ThemeBandKey = (typeof THEME_BAND_KEYS)[number];
 export type ThemeColumn = Partial<Pick<BandTable, ThemeBandKey>>;
 
 /**
- * The theme columns. Every number here is a PLACEHOLDER (plan Task 34) until the listen (Task 35) sets it with Crawford:
- * the table's shape is fixed by the spec, the numbers are not (assumption 16). Each column names only keys it moves, on
- * the v1 key list, and reads as the theme's sentence does (home.off.themeDescription.<id>): Calm slower, sparser and
- * softer; Bold denser and sharper in a drier, brighter room; Adventurous wider in every band it touches; Perilous the
- * densest - fast, crowded and bright, hardly a rest. Classic's column is `{}` by definition - Classic IS the lifted table
- * (classic.ts, assumption 20). resolveBands.test.ts pins the key list, the bounds and the intent; the grids
- * (docs/reference/GLOBAL_CHAIN_GRID.md, ROBOT_DATA_GRID.md) gain the agreed numbers at Task 35.
+ * The theme columns. The numbers are the plan's Task 34 first cut, which Crawford's listen (docs/tasks/OFF_SCREEN.md
+ * Task 35, 2026-10-31) kept as built: the table's shape is fixed by the spec, the numbers are tuning (assumption 16).
+ * Each column names only keys it moves, on the v1 key list, and reads as the theme's sentence does
+ * (home.off.themeDescription.<id>): Calm slower, sparser and softer; Bold denser and sharper in a drier, brighter room;
+ * Adventurous wider in every band it touches; Perilous the densest - fast, crowded and bright, hardly a rest. Classic's
+ * column is `{}` by definition - Classic IS the lifted table (classic.ts, assumption 20). resolveBands.test.ts pins the
+ * key list, the bounds and the intent; the grids (docs/reference/GLOBAL_CHAIN_GRID.md, ROBOT_DATA_GRID.md) carry the
+ * same numbers.
  */
 export const THEMES: Record<ThemeId, ThemeColumn> = {
   classic: {},

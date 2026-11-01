@@ -78,7 +78,7 @@ export function seedToggleValue(raw: number, band: ToggleBand): ToggleValue {
   return { active: true, value };
 }
 
-/** The four Melody fields a robot draws (docs/specs/MELODY_SYSTEM.md) - the deal's one family in v1. */
+/** The four Melody fields a robot draws (docs/specs/MELODY_SYSTEM.md) - the Melody family's share of the deal. */
 export type MelodyFields = Pick<RobotAudioBaseline, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>;
 
 /** The theme's Melody bands as the loading context holds them now (getBand at the draw, band-table T21). */

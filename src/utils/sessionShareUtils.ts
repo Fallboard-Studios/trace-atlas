@@ -118,7 +118,8 @@ export function mirrorWorldToUrl(identity: WorldIdentity): void {
 }
 
 /** Builds a full, absolute shareable URL for a payload -- origin + pathname + the world link's
- *  `seed` / `x` / `y`, the loading params when not default (`theme`, `melody=…`; OFF_SCREEN.md assumption 11), and `s`
+ *  `seed` / `x` / `y`, the loading params when not default (`theme`, and one per family, `melody=…` to `voice=…`;
+ *  OFF_SCREEN.md assumption 11), and `s`
  *  when the world differs from its seed. Deliberately drops any other query params currently in the address bar
  *  (e.g. ?debug) -- a share link is a clean, self-contained artifact, not a snapshot of whatever debug flags happened
  *  to be active when it was generated. The text is worldLinkQuery's, the address bar's own (review R17): the picks'

@@ -834,7 +834,7 @@ export const AudioEngine = {
    *   and `filterType` (the bus filter's resonance and shape). Every field absent resolves to the sound
    *   this engine always had: no glide, Q 1, lowpass. docs/specs/ROBOT_ARTICULATION.md §1.3.
    *
-   * Refused (false, nothing built) for a robot standing by — every reservation site (spawn, the power cycle, the
+   * Refused (false, nothing built) for a robot standing by — every reservation site (spawn, a cold power-on, the
    * post-load pass, an edit's rebuild) goes through here, so none can hand it a voice; admission rebuilds it
    * (`setSoundingRobots`). docs/specs/LIGHT_TIER_STANDING_COST.md H2.
    */
@@ -1446,7 +1446,7 @@ export const AudioEngine = {
   /**
    * Audio Load Budget: the robots allowed to sound. Standing-by robots are refused in triggerWithCap (no
    * trigger, no polyphony slot). `null` lifts the restriction; an empty list silences everyone. Copies the
-   * ids, so later mutation of the caller's array changes nothing. Survives killAll() (a power cycle).
+   * ids, so later mutation of the caller's array changes nothing. Survives killAll() (a replaced paused world).
    *
    * A robot the budget released (`setStandingByRobots`) is rebuilt here when it enters the set, and every one of them
    * on `null`, which also stands nobody by; a robot in the set is never standing by, whichever of the two calls came
@@ -1481,7 +1481,8 @@ export const AudioEngine = {
   /**
    * Humanize: how far off the grid, in milliseconds, a note may land (docs/specs/ROBOT_PERFORMANCE.md assumption 9).
    * Clamped to [HUMANIZE_MIN_MS, HUMANIZE_MAX_MS]; NaN reads as 0 (machine-exact). Applies from the next tick.
-   * Survives killAll() (a power cycle): the store is the source of truth and pushes it, like the polyphony cap.
+   * Survives killAll() (a replaced paused world): the store is the source of truth and pushes it, like the polyphony
+   * cap.
    */
   setHumanize(ms: number): void {
     humanizeMs = Number.isNaN(ms) ? HUMANIZE_MIN_MS : Math.min(HUMANIZE_MAX_MS, Math.max(HUMANIZE_MIN_MS, ms));

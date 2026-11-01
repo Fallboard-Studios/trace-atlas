@@ -47,7 +47,7 @@ export interface WorldSeedBaseline {
 }
 
 /** What defines a world before anything is edited: the seed (the exact name), the plot, and its loading - the theme
- *  every band resolved under and the Melody picks the deal seated (docs/specs/OFF_SCREEN.md assumption 10). */
+ *  every band resolved under and each family's picks the deal seated (docs/specs/OFF_SCREEN.md assumption 10). */
 export interface WorldIdentity extends LoadingIdentity {
   attenuationStyleName: string;
   coordinates: { x: number; y: number };

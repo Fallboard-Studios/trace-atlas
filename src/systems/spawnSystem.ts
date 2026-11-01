@@ -256,8 +256,8 @@ export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number)
 }
 
 /**
- * Generate random audio attributes
- * Controls both sound synthesis and visual appearance
+ * A robot's seeded audio attributes: the envelope, glide, register, voice (filter, waveform, layers), phase, detune
+ * and pulse width. Sound, not shape: the body's geometry comes from the gem seed (docs/ROBOT_DESIGN.md).
  */
 export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: number): AudioAttributes {
   // Seeded ADSR envelope, every band from the loading context (band-table T21), through the Envelope family's one
@@ -895,7 +895,9 @@ export function spawnInitialCompanies(localeId: string): void {
 }
 
 /**
- * Re-register every robot's audio with AudioEngine after a power-on.
+ * Re-register every robot's audio with AudioEngine on a cold power-on
+ * (powerController.start: the page's first, or one after a replaced paused
+ * world's killAll; a resume from a pause never runs it).
  * This release-then-reserve pass predates this phase and was already
  * unconditional on `killAll()` for whichever robots it covered — this phase
  * just widened *which* robots that is: every robot now keeps its voice
@@ -906,7 +908,7 @@ export function spawnInitialCompanies(localeId: string): void {
  *
  * Note: `AudioEngine.killAll()` itself does not touch the `compositeVoices`
  * map (confirmed by reading it) — voices are not actually known to be
- * invalidated by a power cycle. This re-registration may be unnecessary
+ * invalidated by it. This re-registration may be unnecessary
  * defensive work carried over from before this phase; left as-is rather than
  * removed, since that's a separate, unverified behavior change this phase
  * didn't set out to make.

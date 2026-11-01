@@ -181,9 +181,6 @@
 /* Power symbol nested SVG — no additional styles needed; all visual
    properties are set inline on the SVG paths */
 
-/* The power-off confirmation modal that lived here retired with docs/specs/OFF_SCREEN.md assumption 6:
-   the rocker pauses the world, which loses nothing, so there is nothing to confirm. */
-
 /* Accessibility: reduce motion */
 @media (prefers-reduced-motion: reduce) {
 

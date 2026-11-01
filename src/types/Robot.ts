@@ -305,9 +305,10 @@ export interface Robot {
   companyId?: string;
   /**
    * What the deal loaded this robot under (docs/specs/OFF_SCREEN.md assumptions 22 and 24): per aspect family, the
-   * aspect whose bands that family's fields were re-derived from at spawn — one key per dealt family (Melody, Envelope,
-   * Distance since docs/tasks/OFF_SCREEN_REVISIONS.md Task 8). A family absent means as theme for that family. Written by
-   * the deal pass (aspectDeal.ts's applyAspectDeal), read by the company and robot readouts; generation-only, so a robot
+   * aspect whose bands that family's fields were re-derived from — one key per dealt family (Melody, Envelope, Distance
+   * and Voice since docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 8 and 10). A family absent means as theme for that family.
+   * Written by the deal (aspectDeal.ts: applyAspectDeal at spawn, applyDealToBaselines for the baseline, redealAspects
+   * when an aspect row changes the live world), read by the company and robot readouts; generation-only, so a robot
    * moved between companies afterwards keeps what it rolled. JSON.
    */
   loadedUnder?: import('../data/bands/aspects').FamilyAspects;
