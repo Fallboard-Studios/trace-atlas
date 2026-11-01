@@ -32,6 +32,7 @@ import { DockingState, type Robot } from '@/types/Robot';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 import { getRef } from '@/utils/refs';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
+import { getWorldState } from '@/systems/worldState';
 
 // ========================================
 // MODULE STATE
@@ -372,9 +373,13 @@ function onUIChange(state: EditReturnState, prev: EditReturnState): void {
 
 /** The one per-frame handler (spec §1.2): tracks the subject, or once the cooldown has passed
  *  picks the next robot. Does nothing while the user holds the scroller, while a float is in
- *  flight, or while there is nothing to scroll. */
+ *  flight, or while there is nothing to scroll — nor while the world is paused (the tablet off):
+ *  gsap's ticker runs on through the pause, and a float built and played here would slip past
+ *  timelineMap's paused-on-arrival guard, which pauses only a timeline already playing when it is
+ *  registered (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26, item 1). A follow's time keeps running on
+ *  the wall clock, so one that ran out during the pause ends on the first tick after it. */
 function tick(): void {
-  if (!scroller || held || scrollRange() === 0) return;
+  if (!scroller || held || scrollRange() === 0 || getWorldState() === 'paused') return;
   const now = performance.now();
   if (subjectId !== null) {
     followSubject(scroller, subjectId, now);
