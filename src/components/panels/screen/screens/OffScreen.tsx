@@ -196,9 +196,11 @@ interface Intent {
  * the shown theme (the Guide's small part: the same content entry the Guide will read). The row shows the loaded
  * world's theme from the loading store while Current is the pick, and the picked save's or preset's own (its payload,
  * through loadingOf) after a pick — the two agree once the retransmit has run, but the row never waits on it. A theme
- * pick is `retransmitWorld({ theme })`: the seed and the plot stay, the tweaks go, the world row drops back to Current
- * (the decided pick rules, docs/sketches/off-screen.html), the loaded save stays attached — the seed is still the
- * save's, under another theme, so Keep overwrites it — and dirty is read again. The readout carries describeWorld's
+ * pick is `retransmitWorld({ theme })`, at the click and under no wash: the seed, the plot and the live world stay, only
+ * the seeded fields the theme moves are re-derived in place (a tweak on one of them goes; docs/tasks/
+ * OFF_SCREEN_FINAL_FIXES.md F7–F8), the world row drops back to Current (the decided pick rules,
+ * docs/sketches/off-screen.html), the loaded save stays attached — the seed is still the save's, under another theme,
+ * so Keep overwrites it — and dirty is read again. The readout carries describeWorld's
  * tail, so the three readers of the helper agree. Desktop: the two axes side by side, the readout spanning under
  * both; the phone shell stacks them (OffScreen.css).
  *
@@ -219,8 +221,8 @@ interface Intent {
  * While a world change waits under the wash, every click joins it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3). The
  * screen keeps the clicks' intent (Intent, above), and the one request realises all of it at the cover: the world part,
  * then the loading where it differs from the one the world part leaves. The rows, the description lines and the readout
- * draw from the intent, so a click shows at once. A family toggle made then joins the intent instead of re-dealing a
- * world about to go; picking Current cancels the change (worldChange.ts's cancelWorldChange); Keep dims until it has
+ * draw from the intent, so a click shows at once. A theme pick or a family toggle made then joins the intent instead of
+ * re-deriving a world about to go; picking Current cancels the change (worldChange.ts's cancelWorldChange); Keep dims until it has
  * run, since it would save the world the rows no longer show.
  */
 export function OffScreen() {
@@ -399,16 +401,25 @@ export function OffScreen() {
     requestWorldChange(realise);
   }, [nextIntent, realise, setIntent]);
 
-  // A theme pick (Task 30): the loading alone moves — the same seed and plot, drawn again under the new bands — so the
-  // world row drops back to Current. The loaded save stays attached (see the component note), and dirty is read again.
-  // Under the scene wash, as every world change here (revisions Task 13), joining a change already waiting (R3).
+  // A theme pick (Task 30): the loading alone moves — the same seed and plot, the live world re-derived in place under
+  // the new bands (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7) — so the world row drops back to Current. The loaded save
+  // stays attached (see the component note), and dirty is read again. Not under the scene wash: nothing physical
+  // changes, so it applies at the click, as a family toggle does (F8; Crawford, answer 2b). With a world change waiting,
+  // the theme joins its intent instead (R3).
   const onThemeChange = useCallback(
     (value: string) => {
       if (!isThemeId(value)) return;
-      setIntent({ ...nextIntent(), theme: value, pick: CURRENT_PICK });
-      requestWorldChange(realise);
+      const waiting = intentRef.current;
+      if (waiting) {
+        setIntent({ ...waiting, theme: value, pick: CURRENT_PICK });
+        return;
+      }
+      retransmitWorld({ theme: value });
+      setPick(CURRENT_PICK);
+      setDirty(isWorldDirty());
+      setKeepFailed(false);
     },
-    [nextIntent, realise, setIntent],
+    [setIntent],
   );
 
   // The boot theatre, built through useGSAP (CLAUDE.md: animation in components goes through it) and registered in
