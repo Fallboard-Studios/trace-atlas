@@ -9,9 +9,7 @@ import { getActiveLocaleId } from '../utils/localeHelpers';
 import { pauseWorldTimelines, resumeWorldTimelines } from '../animation/timelineMap';
 import { fadeOffScreen, restoreOffScreen } from '../animation/offScreenTheatre';
 import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
-import { getWorldState, setWorldState, type WorldState } from './worldState';
-
-export type { WorldState };
+import { getWorldState, setWorldState } from './worldState';
 
 /**
  * powerController centralizes power on/off side effects so components stay thin.
@@ -50,20 +48,6 @@ export const powerController = {
     resumeWorkLoop();
     useUIStore.getState().setPowerOn();
     setWorldState('running');
-  },
-
-  /**
-   * A different world was loaded (a pick on the off screen, Roll, Retransmit, a session Load) while the tablet was off:
-   * whatever was paused has been torn down, so the next flip starts cold. worldTransition's `initializeLocale` writes
-   * this itself through worldState.ts whenever it rebuilds a world with its systems held (docs/tasks/OFF_SCREEN.md
-   * Task 8); this is the same fact for a caller that tears down without it. Never called by the screen.
-   */
-  noteWorldReplaced() {
-    setWorldState('cold');
-  },
-
-  getWorldState(): WorldState {
-    return getWorldState();
   },
 
   // High-level power-on sequence, two ways (spec assumption 5). From a pause: resume, nothing starts. Otherwise

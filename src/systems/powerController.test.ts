@@ -23,6 +23,7 @@ vi.mock('../stores/localeStore', () => ({ useLocaleStore: { getState: () => ({ s
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: () => 'pelagos-default' }));
 
 import { powerController, __resetPowerControllerForTest } from './powerController';
+import { getWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { resetHarmony } from '../engine/harmonySystem';
 import { reRegisterAllRobotsAudio } from './spawnSystem';
@@ -71,7 +72,7 @@ describe('powerController', () => {
       expect(order(pauseWorkLoop)).toBeLessThan(order(pauseWorldTimelines));
       expect(order(pauseWorldTimelines)).toBeLessThan(order(AudioEngine.pause));
       expect(order(AudioEngine.pause)).toBeLessThan(order(useUIStore.getState().setPowerOff));
-      expect(powerController.getWorldState()).toBe('paused');
+      expect(getWorldState()).toBe('paused');
     });
 
     it('tears nothing down: no killAll, no lifecycle stop, no work-loop stop, and the world stays standing', async () => {
@@ -105,7 +106,7 @@ describe('powerController', () => {
       expect(resumeWorldTimelines).not.toHaveBeenCalled();
       expect(resumeWorkLoop).not.toHaveBeenCalled();
       expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
-      expect(powerController.getWorldState()).toBe('cold');
+      expect(getWorldState()).toBe('cold');
     });
 
     it('is a no-op on a running world: the context is not resumed a second time', async () => {
@@ -119,7 +120,7 @@ describe('powerController', () => {
       expect(AudioEngine.resume).not.toHaveBeenCalled();
       expect(resumeWorkLoop).not.toHaveBeenCalled();
       expect(setPowerOnSpy).not.toHaveBeenCalled();
-      expect(powerController.getWorldState()).toBe('running');
+      expect(getWorldState()).toBe('running');
     });
   });
 
@@ -141,26 +142,7 @@ describe('powerController', () => {
       expect(AudioEngine.start).not.toHaveBeenCalled();
       expect(startLocaleSystems).not.toHaveBeenCalled();
       expect(resetHarmony).not.toHaveBeenCalled();
-      expect(powerController.getWorldState()).toBe('running');
-    });
-
-    it('starts cold instead when the world was replaced during the pause (noteWorldReplaced)', async () => {
-      await powerController.powerOnSequence();
-      powerController.pause();
-      powerController.noteWorldReplaced();
-      expect(powerController.getWorldState()).toBe('cold');
-      vi.clearAllMocks();
-
-      await powerController.powerOnSequence();
-
-      expect(AudioEngine.start).toHaveBeenCalledTimes(1);
-      expect(startLocaleSystems).toHaveBeenCalledTimes(1);
-      // The world change tore the paused world down (worldTransition's killAll, docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
-      // R1), so start() runs in full and its Tone.start() wakes the suspended context: the cold path resumes nothing.
-      expect(AudioEngine.resume).not.toHaveBeenCalled();
-      expect(resumeWorldTimelines).not.toHaveBeenCalled();
-      expect(resumeWorkLoop).not.toHaveBeenCalled();
-      expect(powerController.getWorldState()).toBe('running');
+      expect(getWorldState()).toBe('running');
     });
   });
 
@@ -216,7 +198,7 @@ describe('powerController', () => {
       finish();
       await sequence;
       expect(useUIStore.getState().setPowerOn).toHaveBeenCalledTimes(1);
-      expect(powerController.getWorldState()).toBe('running');
+      expect(getWorldState()).toBe('running');
     });
 
     it('pause() fades nothing: the screen appears over the paused world, it does not disappear', async () => {
@@ -233,7 +215,7 @@ describe('powerController', () => {
       await expect(powerController.powerOnSequence()).rejects.toThrow('no audio context');
       expect(restoreOffScreen).toHaveBeenCalledTimes(1);
       expect(order(fadeOffScreen)).toBeLessThan(order(restoreOffScreen));
-      expect(powerController.getWorldState()).toBe('cold');
+      expect(getWorldState()).toBe('cold');
       expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
     });
 
@@ -250,9 +232,9 @@ describe('powerController', () => {
   });
 
   it('getWorldState() is cold on a fresh page, running after a start', async () => {
-    expect(powerController.getWorldState()).toBe('cold');
+    expect(getWorldState()).toBe('cold');
     await powerController.powerOnSequence();
-    expect(powerController.getWorldState()).toBe('running');
+    expect(getWorldState()).toBe('running');
   });
 
   it('powerOnSequence starts audio, registers every robot, then starts the locale\'s systems once, then flips power on', async () => {

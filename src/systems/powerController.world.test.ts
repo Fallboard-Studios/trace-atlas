@@ -42,6 +42,7 @@ import * as robotSystemsModule from './robotSystems';
 import * as workLoopModule from './workLoop';
 import * as audioSwellsModule from './audioSwells';
 import * as offScreenTheatreModule from '../animation/offScreenTheatre';
+import * as timelineMapModule from '../animation/timelineMap';
 import { AudioEngine } from '../engine/AudioEngine';
 import { subscribeToMeasure, scheduleRepeat } from '../engine/beatClock';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/localeStore';
@@ -304,6 +305,24 @@ describe('a world change while paused', () => {
     expect(AudioEngine.start).toHaveBeenCalledTimes(1);
     expect(order(AudioEngine.killAll)).toBeLessThan(order(AudioEngine.start));
     expect(workStart).toHaveBeenCalledWith(currentLocaleId());
+    expect(getWorldState()).toBe('running');
+  });
+
+  // Moved here from powerController.test.ts's noteWorldReplaced case (R31): the teardown left the world cold, so the
+  // power-on takes the cold path and resumes nothing; start() wakes the suspended context through Tone.start().
+  it('the power-on after the teardown resumes nothing: not the context, the world timelines or the loop clock', async () => {
+    await pausedWorld();
+    retransmitWorld({ coordinates: { x: 3, y: 4 } });
+    const contextResume = vi.spyOn(AudioEngine, 'resume');
+    const timelinesResume = vi.spyOn(timelineMapModule, 'resumeWorldTimelines');
+    const clockResume = vi.spyOn(workLoopModule, 'resumeWorkLoop');
+
+    await powerController.powerOnSequence();
+
+    expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+    expect(contextResume).not.toHaveBeenCalled();
+    expect(timelinesResume).not.toHaveBeenCalled();
+    expect(clockResume).not.toHaveBeenCalled();
     expect(getWorldState()).toBe('running');
   });
 
