@@ -53,7 +53,7 @@ vi.mock('../data/bands/aspects', async (importOriginal) => {
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useUIStore } from '../stores/uiStore';
-import { useAudioStore, deriveGlobalHalfMoves } from '../stores/audioStore';
+import { useAudioStore } from '../stores/audioStore';
 import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
 import type { AspectIdOf } from '../data/bands/aspects';
 import { getWorldState, setWorldState } from './worldState';
@@ -952,6 +952,14 @@ describe('worldTransition', () => {
       return { style, locale: useLocaleStore.getState().getLocaleById(style.currentLocaleId!)! };
     };
     /** The four seed regenerators the style-sync subscription runs, spied with their real behaviour kept. */
+    /** A fixed Attenuation Style for a case whose expectation depends on the seed's Sync picks: the default style's name
+     *  is drawn at random per run, and Calm (as mocked above) moves lane a's pick for this one and leaves b to d. Its own
+     *  id, since the style noise map is cached by id. */
+    const pinStyle = () =>
+      useAttenuationStyleStore.setState({
+        attenuationStyles: [{ ...DEFAULT_PELAGOS, id: 'final-f17-pinned', name: 'siw50qfe' }],
+        currentAttenuationStyleId: 'final-f17-pinned',
+      });
     const spyRegenerators = () => {
       const audio = useAudioStore.getState();
       return {
@@ -1242,6 +1250,7 @@ describe('worldTransition', () => {
       // tempo, clamped into its range as a hand Tempo edit's re-push clamps it (FREE_SYNC_TOGGLE.md §1.6). A lane whose
       // `sync` both draws agree on is one the theme does not move, so a hand-set note on it is a tweak that stands.
       it('a hand-set Sync note on a lane whose pick the theme leaves stays, and reaches the engine resolved at the new tempo', () => {
+        pinStyle();
         classicWorld();
         const lane = LFO_LANE_IDS.find((l) => deepEqual(freshDraw('classic').lfoBank[l].sync, freshDraw('calm').lfoBank[l].sync));
         expect(lane, 'a lane whose Sync pick the theme leaves').toBeDefined();
@@ -1490,6 +1499,7 @@ describe('worldTransition', () => {
       // Since final fixes F17 a theme writes only the lanes and links it moves, so only those are pushed; every lane's
       // last rate is still its resolved one at the new tempo (the tempo's re-push covers a synced lane that stays).
       it('a theme pick pushes each lane and global link it moves, with the context suspended, and every lane ends at its resolved rate', () => {
+        pinStyle();
         initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
         // The global half as Classic seeds it: an earlier case's theme leaves its own in the store.
         const { style } = currentWorld();
@@ -1503,15 +1513,11 @@ describe('worldTransition', () => {
         const before = structuredClone({ lfoBank: useAudioStore.getState().lfoBank, links: useAudioStore.getState().globalLfoLinks });
         const engine = stubBankEngine();
 
-        // A theme whose tempo moves one of this seed's bank Sync picks, so a push is there to see.
-        const theme = (['calm', 'bold', 'adventurous', 'perilous'] as const).find(
-          (t) => Object.keys(deriveGlobalHalfMoves(style.id, style.name, DEFAULT_LOADING, { theme: t, aspects: {} }).lfoBank).length > 0,
-        )!;
-        retransmitWorld({ theme });
+        retransmitWorld({ theme: 'calm' });
 
         const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
         const movedLanes = LFO_LANE_IDS.filter((lane) => !deepEqual(lfoBank[lane], before.lfoBank[lane]));
-        expect(movedLanes.length).toBeGreaterThan(0); // precondition: the theme moves a Sync pick
+        expect(movedLanes).toEqual(['a']); // precondition: the pinned seed's lane a, and only it, takes a new Sync pick
         expect(engine.shape.mock.calls.map(([lane]) => lane).sort()).toEqual([...movedLanes].sort());
         for (const lane of movedLanes) {
           const engineLane = resolveLaneForEngine(lfoBank[lane], bpm);

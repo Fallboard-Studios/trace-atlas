@@ -801,6 +801,11 @@ and would drop all six layer swells (F16).
     whole half reseeded again (6 fail), a moved Audio Rig field skipped (8), the moved tempo skipped (5), a moved lane
     not written (2) or not pushed (1), every field written with no diff (3), F11's cancel for an absent field (1), a
     removed field kept (2), the removal sent through `setGlobalAudio` (1).
+  - **Found by Checkpoint 5's full run, fixed after the commit:** the R2 lane-push case failed in 1 of about 3 runs.
+    `worldTransition.test.ts`'s default Attenuation Style name is drawn at random per run, so whether a theme moves a
+    bank Sync pick depended on the run's seed. That case and the hand-set Sync case now pin a style (`siw50qfe`, with
+    its own id, since the style noise map is cached by id), for which Calm moves lane a and only lane a. The whole
+    file then passed 8 runs of 8.
 
   **Description:**
   - **Today:** `regenerateGlobalHalfFromSeed` reseeds bpm, the whole Audio Rig, the LFO Bank and the global links. So a
