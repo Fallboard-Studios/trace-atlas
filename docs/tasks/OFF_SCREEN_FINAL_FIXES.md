@@ -9,7 +9,10 @@
 > Phase 4: F10 done at `85010432` (no commit: the probes and the dump are scratch); all six probes pass, the parity
 > dump is byte-identical to `main`.
 > Checkpoint: Complete passed. Crawford's Looks passed, and the Pixel A/B passed (4 underruns at 4:00 against
-> `main`'s 9). Next: Crawford's PR.
+> `main`'s 9).
+> Phase 5 (F11–F19) added 2026-11-01. It holds the second review's findings at `8f5556d0` (verdict: request changes)
+> and Crawford's answers to them. Not started; every task is approved, F17 included (Crawford, 2026-11-01). A fresh
+> session builds it in task order, starting at F11. The PR waits on Phase 5.
 
 Written for: Crawford, and a fresh agent session picking this up cold.
 
@@ -57,6 +60,11 @@ Four phases:
 - **Phase 4, the proofs (F10):** the five probes, a sixth for Phase 3, and the parity dump against `main`.
 
 Then Crawford's Looks, and the phone A/B last.
+
+Added after the second review:
+- **Phase 5, the second review (F11–F19):** the global swells across a theme change, the Current row while a pick
+  waits, the power-on fade's promise, the test gaps, and one in-place re-derive that resets only what a theme or an
+  aspect moves.
 
 ## Architecture Decisions
 
@@ -554,7 +562,233 @@ watch its test fail.
 
   **Reading:** the underruns did not rise; the branch's worst case had fewer than `main`. That is one take each, so the
   gap is noise, not a gain. Passed.
-- [x] Ready for Crawford's PR.
+- [x] Ready for Crawford's PR. (Superseded: Phase 5 comes first.)
+
+---
+
+### Phase 5: The second review
+
+**Source:** the code review of `8f5556d0` on 2026-11-01. Verification was green: 346 files and 13,212 tests, types
+clean, lint 0 errors. Two mutants survived, and one independent reviewer read the delta since `b148c1e8`.
+**Verdict: request changes.** Crawford's answers, given the same day:
+
+| # | The finding | His answer | Where it went |
+|---|---|---|---|
+| 1 | A theme change leaves the global swells running on their old bases | "definitely fix this" | F11 |
+| 2 | The in-place re-deal and re-derive deal over the live `locale.companies`; spawn and sessionDiff's baseline deal over the seeded ones | "skip this, it's intended behavior" | Decided, below; a comment in F16 |
+| 3 | A theme or aspect click while a pick waits shows Current, and Current can't cancel (F8's finding) | the recommendation: keep the waiting pick shown | F12 |
+| Opt | The two surviving mutants; `redealAspects` folded into the field diff; `Intent.from` dropped | "do all of these" | F14, F16, F15 |
+| Nit | A second power-on press during the fade leaves the first press's promise unsettled | "fix this" | F13 |
+| FYI | A theme change reseeds the whole global half | "when a theme or aspect is chosen it should not reset any attribute that isn't specifically impacted by the theme or aspect" | F16 (the robots), F17 (the global half) |
+
+**Decided, not changed (finding 2):** the in-place paths deal over the companies as they stand, so a robot moved to
+another company takes that company's aspect. This is intended (Crawford, 2026-11-01). The consequence is accepted: such
+a robot's fields can differ from the seeded baseline. sessionDiff then saves them as overrides, and they round-trip.
+Do not raise this again in a later review.
+
+**The rule behind F16 and F17 (Crawford's FYI):** a theme or aspect change writes exactly the attributes whose seeded
+value that change moves. Every other attribute keeps what it holds, a tweak included. A tweak on a moved attribute
+takes the new seeded value. An untweaked world still ends equal to a fresh draw under the new loading. Today two paths
+break this rule:
+- `redealAspects` writes an aspect's whole family (F16).
+- `regenerateGlobalHalfFromSeed` reseeds the whole Audio Rig, the LFO Bank and the global links, though a theme column
+  names only `bpm` and `filterLPF.frequency` globally (F17).
+
+F7's `movedFields` also compares a robot's `layers` as one array. So a moved layer gain would reset a tweaked layer type,
+and would drop all six layer swells (F16).
+
+- [ ] **F11: `worldTransition.ts` — the global swells end where the redraw moved their target** (finding 1)
+
+  **Description:**
+  - **The gap:** `loadingOnly` (F7) no longer rebuilds, so no `stopAudioSwells` runs. A global swell in flight keeps
+    its old `baseValue`. At its end it writes that base back over the new seeded value (`advanceGlobalSwell`). While
+    paused, Keep saves it (`applyGlobalSwellBasesToAudio`).
+  - **The fix:** in `loadingOnly`, around `regenerateGlobalHalfFromSeed`, cancel each running global swell whose
+    target's new value differs from the swell's `baseValue`, through `cancelSwellForGlobalField`. Only those, because
+    a swell whose base the change left standing keeps running (the FYI rule). Cancel before the new values are
+    written, so the redraw's write is the last one.
+  - The robot side already does this (`movedFields`' `swells`).
+
+  **Proof:** RED test in `src/systems/worldTransition.test.ts`:
+  - with an `lpf.frequency` swell running, `retransmitWorld({ theme })` to a theme whose LPF band moves it leaves no
+    swell on that target, and the store holds the new seeded value after the swell's would-be end;
+  - a swell on a target the theme does not move (`eq3.low`) is still running after the change;
+  - paused before the change, `buildSessionPayload().globalAudio` carries the new LPF value, not the old base.
+
+  **Verification:** `npx vitest run src/systems/worldTransition.test.ts src/systems/audioSwells.test.ts`.
+  - Mutants: no cancel at all; every swell cancelled; the cancel after the write.
+
+  **Dependencies:** none. F17 changes which targets move, and this task's comparison follows it unchanged.
+  **Files:** `src/systems/worldTransition.ts`, its test. **Estimated scope:** S
+
+- [ ] **F12: `OffScreen.tsx` — a click while a pick waits keeps the pick shown** (finding 3; F8's finding answered)
+
+  **Description:**
+  - The waiting branches of `onThemeChange` (`OffScreen.tsx:414`) and `onFamilyChange` (`:509`) stop setting
+    `pick: CURRENT_PICK`. The intent keeps the waiting save's or preset's pick, so its row stays selected. Current is
+    then unselected, and picking it cancels the change (R3's `cancelWorldChange`).
+  - The readout lays the intended theme and aspects over the shown pick's identity, so it names what will land: the
+    save under the theme just clicked.
+  - `realise` leaves the pick as the intent holds it. If the loading it lands differs from the save's own, the row drops
+    to Current, as an applied theme pick drops it today.
+  - **Unchanged:** a waiting Roll already shows Current (its pick is Current), so this task does not reach it.
+
+  **Proof:** RED test in `OffScreen.test.tsx`, with the wash attached:
+  - save pick, then a theme while it waits: the save's row stays checked, and the readout names the save under the new
+    theme;
+  - then Current: the change is cancelled, nothing runs at the cover, and the theme row shows the loaded theme again;
+  - save pick, then a family toggle: the same two checks;
+  - R3's moved cases from F8 pass with their row expectation updated from Current to the save.
+
+  **Verification:** `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx`.
+  - Mutants: the pick still dropped to Current; the readout without the overlay.
+
+  **Dependencies:** none. **Files:** `OffScreen.tsx`, its test. **Estimated scope:** S
+
+- [ ] **F13: `offScreenTheatre.ts`, `powerController.ts` — no press is left waiting on a killed fade** (the nit)
+
+  **Description:**
+  - **The gap:** `fadeOffScreen` registers its timeline under one id, and `setTimeline` kills the timeline it replaces.
+    So the first press's `onComplete` never runs, and its `powerOnSequence` never settles. `restoreOffScreen` does the
+    same to a fade started by a press after the first press's start began.
+  - **The fix:**
+    - while a fade is in flight, `fadeOffScreen` returns the same promise, so a second press joins it, as F1's start
+      join does;
+    - a fade killed by `restoreOffScreen` settles as cancelled;
+    - `powerOnSequence` returns on a cancelled fade without starting, since the screen is back and taking input.
+  - The promise's shape (a `'done' | 'cancelled'` result, or a rejection) is the builder's choice. Name it in "As
+    shipped".
+
+  **Proof:** RED tests in `src/animation/offScreenTheatre.test.ts`:
+  - two `fadeOffScreen` calls during one fade return one promise, and it resolves once;
+  - `restoreOffScreen` mid-fade settles the pending fade as cancelled.
+
+  And in `src/systems/powerController.world.test.ts`:
+  - two presses during one fade: both settle, and one start runs;
+  - a press made during a failing start: it settles, no second start runs, and the screen is restored once.
+
+  **Verification:** `npx vitest run src/animation/offScreenTheatre.test.ts src/systems/powerController.world.test.ts src/systems/powerController.test.ts src/components/ui/physical`.
+  - Mutants: no join; a cancelled fade treated as done (a start runs).
+
+  **Dependencies:** none. **Files:** both modules and their tests. **Estimated scope:** S
+
+- [ ] **F14: the two surviving mutants get their tests** (Optional, first)
+
+  **Description:** Two lines the suite let go at `8f5556d0`:
+  - `onThemeChange`'s `setKeepFailed(false)` (`OffScreen.tsx:420`). A theme pick after a refused Keep should clear the
+    failure line. Add a case.
+  - `movedFields`' layer-swell drop (`aspectDeal.ts:322`). This is reachable with a theme and a Voice toggle under one
+    cover. F16 rewrites this line per layer key, so its test is written there. This task records the gap, and F16
+    closes it.
+
+  **Proof:** RED by mutation. With the line removed, the new case fails. With the line back, it passes.
+  **Files:** `OffScreen.test.tsx`. **Estimated scope:** XS
+
+- [ ] **F15: `OffScreen.tsx` — `Intent.from` goes** (Optional)
+
+  **Description:** `realise` compares the intended loading against `intended.from`. Without a world part, `from` only
+  matches the loading store by convention, because `rollWorld` leaves the store alone. Read `useLoadingStore.getState()`
+  in `realise` after the world part instead, and drop `from` from `Intent` and from `nextIntent`.
+
+  **Proof:** Read (a refactor with no new behaviour). R3's intent cases and F12's cases pass unmodified.
+  **Files:** `OffScreen.tsx`. **Estimated scope:** XS
+
+- [ ] **F16: `aspectDeal.ts` — one in-place re-derive, which writes only what moved** (Optional; the FYI rule's robot
+  side)
+
+  **Description:**
+  - **`redealAspects` folds into `rederiveLoading`'s field diff.** An aspects-only change is a loading change whose
+    `from` is the loading it replaced. Its moved fields are what the two dealt baselines disagree on, so a tweak on an
+    attribute the aspect does not move stays. Today the whole family goes.
+    - `retransmitWorld`'s `aspectsOnly` case calls the one function, with no global half.
+    - `familyFieldsOf` and `FAMILY_SWELL_ATTRIBUTES`' family-wide use go if nothing else reads them.
+    - R33's cases that assert a whole-family reset move with the behaviour.
+  - **`layers` per layer, per key.** Compare `type`, `gain`, `detune` and `phase` per layer, and write only the keys
+    that moved into the robot's own layers. Drop only the swells on the moved keys (`layer<i>.gain`,
+    `layer<i>.detune`).
+  - **A comment at the deal's company argument** records finding 2's decision: the live companies, on purpose.
+
+  **Proof:** RED tests in `src/systems/aspectDeal.test.ts` and `src/systems/worldTransition.test.ts`:
+  - an Envelope aspect toggled on keeps a tweak on an `adsr` key that aspect's bands leave alone, and resets one it moves;
+  - a Voice aspect that moves layer gain keeps a tweaked layer `type`, and drops only that layer's gain swell;
+  - an untweaked world after any aspect change still equals the rebuild's dealt baseline field for field (R33's parity
+    case passes), and `robotOverrides` stays `{}`;
+  - F14's layer-swell case.
+
+  **Verification:** `npx vitest run src/systems src/data/bands src/utils/sessionDiff.test.ts`.
+  - Mutants: a whole family written again; `layers` compared whole; one layer's swell dropping all six.
+  - Classic parity: the R27 tiers pass unmodified.
+
+  **Dependencies:** F14 recorded. **Files:** `aspectDeal.ts`, `worldTransition.ts`, their tests.
+  **Estimated scope:** M
+
+- [ ] **F17: `worldTransition.ts`, `audioStore.ts` — a theme change moves only the global attributes it moves** (the
+  FYI rule's global side; **approved** by Crawford on 2026-11-01: "let's do it with the refresh only what is
+  necessary")
+
+  **Description:**
+  - **Today:** `regenerateGlobalHalfFromSeed` reseeds bpm, the whole Audio Rig, the LFO Bank and the global links. So a
+    hand-edited Reverb wet is lost on a theme pick, though no theme column names it. F7 kept this whole for one reason:
+    a fresh seed's Sync picks depend on the tempo (`allowedRateNoteValues`).
+  - **New, the robots' method:** draw the global half under `from` and under the new loading, with the pure
+    generators inside `withLoading`:
+    - `generateAttenuationStyleBpm`;
+    - `generateGlobalAudioSettings`;
+    - `generateLfoBankSettings`;
+    - `generateGlobalLfoLinks`.
+
+    Then write per field only what the two draws disagree on.
+    - Under the real columns that is `bpm` and `filterLPF.frequency`, plus every tempo-dependent Sync pick the new bpm
+      changes.
+    - Everything else stands, tweaks included.
+    - An untweaked world still equals the fresh draw, so the short link and the dirty read are unchanged.
+  - **A kept tweak on a synced rate** may fall outside the new tempo's allowed range. Pass it through the same
+    sanitizing a payload's rates take (sessionDiff's `sanitizeSyncedRate`) and record the rule.
+  - **Verify first** (a scratch dump, not committed): over 12 seeds and every ordered theme pair, list the global
+    fields the two draws disagree on. Stop and report if anything outside `bpm`, `filterLPF.frequency` and the Sync
+    picks moves.
+  - F11's swell comparison then sees only these targets move, with no change to F11.
+
+  **Proof:** RED test in `src/systems/worldTransition.test.ts`:
+  - a tweaked Reverb wet survives a theme change, and a tweaked LPF frequency takes the new seed;
+  - an untweaked world's global half equals a rebuild's under the new theme field for field;
+  - a synced lane the tempo change disallows is sanitized, and one still allowed is kept;
+  - the engine receives the moved fields (the LFO bank push, R2, and the Audio Rig apply for the changed fields).
+
+  **Verification:** `npx vitest run src/systems src/stores/audioStore.test.ts src/utils/sessionDiff.test.ts`.
+  - Mutants: the whole half reseeded again; a moved field skipped; the sanitize skipped.
+
+  **Dependencies:** F16 (the shared field-diff shape), F11. **Files:** `worldTransition.ts`, possibly `audioStore.ts`
+  (a pure diff-and-apply beside the regenerators), their tests. **Estimated scope:** M
+
+- [ ] **F18: the docs for Phase 5**
+
+  **Description:**
+  - `docs/specs/OFF_SCREEN.md`: one dated amendment, tagged `OFF_SCREEN_FINAL_FIXES F<n>`, stating the FYI rule (a theme
+    or aspect resets only what it moves) and finding 2's decision.
+  - `docs/AUDIO_SYSTEM.md`: a theme change and the global half, and the swells across it.
+  - `docs/COMPANIES.md`: an aspect change re-derives field by field, over the live companies.
+  - `docs/UI_SHELL.md`: the waiting pick stays shown, and Current cancels it; the fade join.
+  - Roadmap 57's About.
+
+  Spot-check each against the code.
+
+  **Proof:** Read. **Dependencies:** F11–F17. **Estimated scope:** S
+
+- [ ] **F19: the proofs again**
+
+  **Description:** Rerun F10's probes 2, 4 and 6, the parity dump against `main` (`cc9a01f2`), and one new probe:
+  - **7, the rule:** tweak a robot's decay and the Reverb wet. Pick Calm, then toggle an Envelope aspect. Both tweaks
+    stand wherever the change does not move them.
+
+  **Proof:** Probe; record the readings under this task.
+  **Dependencies:** F11–F17. **Estimated scope:** M
+
+### Checkpoint 5: The second review
+- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean; F19's readings recorded.
+- [ ] Crawford's Look: a pick waiting under the wash, then a theme click, then Current (F12). Tweaks survive a theme
+      and an aspect change (F16, F17).
+- [ ] Ready for Crawford's PR.
 
 ## Risks and Mitigations
 
@@ -570,5 +804,7 @@ watch its test fail.
 - **4a, "sounds good":** taken as the listen passing, so the Envelope, Distance and Voice placeholder columns stand
   as final, and `docs/tasks/OFF_SCREEN_REVISIONS.md` Task 11 is ticked on those words. If it meant "do the listen
   later", untick it there.
+- **F8's finding:** answered 2026-11-01: keep the waiting pick shown (F12).
+- **F17:** answered 2026-11-01: build it ("let's do it with the refresh only what is necessary").
 - **F3's casing:** "storage is already full, cannot save world" is kept verbatim (lowercase, no full stop). The other
   lines on the screen are sentence case with a full stop; say if it should match them.
