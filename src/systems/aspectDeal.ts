@@ -26,6 +26,8 @@ import {
 } from './spawnSystem';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
+import { withLoading } from '../data/bands/loadingContext';
+import { deepEqual } from '../utils/math';
 
 /*
  * The deal (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24): the loading's aspect picks seated over a roster - on a
@@ -264,5 +266,106 @@ export function redealAspects(localeId: string, dropSwell: (robotId: string, att
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
     for (const family of moved) pushFamilyToEngine(family, updated, localeId);
+  });
+}
+
+/** The top-level seeded fields compared one by one, each with the family whose push carries it to the engine: Melody's
+ *  four and `rests`, which the melody bakes in (regenerateMelody reads it, as a hand edit of Rests regenerates), and
+ *  the five sends. */
+const TOP_LEVEL_FIELDS = [
+  ['rhythmicDensity', 'melody'],
+  ['rhythmicMotifLength', 'melody'],
+  ['noteVariance', 'melody'],
+  ['pitchRepeat', 'melody'],
+  ['rests', 'melody'],
+  ...ROBOT_SEND_FIELDS.map((field) => [field, 'distance'] as const),
+] as const satisfies readonly (readonly [keyof RobotAudioBaseline, AspectFamilyId])[];
+
+/** Voice's fields inside the audio attributes, compared one by one; a moved `layers` drops the layer swells. */
+const VOICE_FIELDS = ['filterFreq', 'filterQ', 'filterType', 'waveform', 'layers'] as const;
+
+/** One robot's fields that moved between the `from` and `to` baselines, as `robot` takes them: each moved field the
+ *  new value, inside its own audio attributes and adsr where it lives there, every other field the robot's own. With
+ *  the families to push and the swells to drop, the swellable moved fields (FAMILY_SWELL_ATTRIBUTES). */
+function movedFields(
+  robot: Robot,
+  from: RobotAudioBaseline,
+  to: RobotAudioBaseline,
+): { fields: Partial<Robot>; families: Set<AspectFamilyId>; swells: SwellRobotAttributeId[] } {
+  const fields: Partial<Robot> = {};
+  const families = new Set<AspectFamilyId>();
+  const swells: SwellRobotAttributeId[] = [];
+  const isSwellable = (attribute: string): attribute is SwellRobotAttributeId =>
+    ASPECT_FAMILY_IDS.some((family) => (FAMILY_SWELL_ATTRIBUTES[family] as readonly string[]).includes(attribute));
+
+  for (const [field, family] of TOP_LEVEL_FIELDS) {
+    if (deepEqual(from[field], to[field])) continue;
+    Object.assign(fields, { [field]: to[field] });
+    families.add(family);
+    if (isSwellable(field)) swells.push(field);
+  }
+
+  let audioAttributes = robot.audioAttributes;
+  const fromAdsr = from.audioAttributes.adsr;
+  const toAdsr = to.audioAttributes.adsr;
+  const adsrKeys = new Set([...Object.keys(fromAdsr), ...Object.keys(toAdsr)] as (keyof typeof toAdsr)[]);
+  for (const key of adsrKeys) {
+    if (deepEqual(fromAdsr[key], toAdsr[key])) continue;
+    audioAttributes = { ...audioAttributes, adsr: { ...audioAttributes.adsr, [key]: toAdsr[key] } };
+    families.add('envelope');
+    if (isSwellable(`adsr.${key}`)) swells.push(`adsr.${key}` as SwellRobotAttributeId);
+  }
+  for (const key of VOICE_FIELDS) {
+    if (deepEqual(from.audioAttributes[key], to.audioAttributes[key])) continue;
+    audioAttributes = { ...audioAttributes, [key]: to.audioAttributes[key] };
+    families.add('voice');
+    if (key === 'layers') swells.push(...FAMILY_SWELL_ATTRIBUTES.voice);
+  }
+  if (audioAttributes !== robot.audioAttributes) fields.audioAttributes = audioAttributes;
+  if (!deepEqual(robot.loadedUnder, to.loadedUnder)) fields.loadedUnder = to.loadedUnder;
+  return { fields, families, swells };
+}
+
+/**
+ * A loading change on the live roster, in place (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7; Crawford, answer 2b: nothing
+ * about the physical world changes on a theme change). A theme moves only seeded bands, so the plot, the companies and
+ * every robot's body, place, battery and job stand, and only the seeded fields the change moves are written. The
+ * rebuild a change would make is drawn twice over the locale's own robots and companies - the roster baseline then the
+ * deal, under `from` (the loading the change replaced) and under the loading store's now - and per robot, field by
+ * field (movedFields), every field whose seeded value moved takes the new one. Every other field stands, a tweak
+ * included; a tweak on a moved field goes, as any re-derivation takes it. So an untweaked world ends what a rebuild
+ * under the new loading spawns, and diffs to nothing against its own seed. Under the real theme columns that is
+ * rhythmicDensity, rests, the attack and release (curves too) and the Reverb and Delay sends; an aspect change riding
+ * on the theme moves its families' fields and `loadedUnder` the same way. The swells riding the moved fields are
+ * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
+ * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields and
+ * `rests`, the robot rows a theme column may name (ThemeBandKey); widening that list is an "ask first" (spec §3), and
+ * a widened row needs its field here. `dropSwell` as redealAspects takes it.
+ */
+export function rederiveLoading(
+  localeId: string,
+  from: LoadingIdentity,
+  dropSwell: (robotId: string, attribute: SwellRobotAttributeId) => void,
+): void {
+  const locale = useLocaleStore.getState().getLocaleById(localeId);
+  if (!locale) return;
+  const { theme, aspects } = useLoadingStore.getState();
+  const to: LoadingIdentity = { theme, aspects };
+  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+  const ids = locale.robots.map((robot) => robot.id);
+  const rebuild = (identity: LoadingIdentity) =>
+    withLoading(identity, () =>
+      applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ids.length), ids, locale.companies, identity, noiseMap),
+    );
+  const before = rebuild(from);
+  const after = rebuild(to);
+  locale.robots.forEach((robot, i) => {
+    const { fields, families, swells } = movedFields(robot, before[i], after[i]);
+    if (Object.keys(fields).length === 0) return;
+    for (const attribute of swells) dropSwell(robot.id, attribute);
+    useLocaleStore.getState().updateRobot(localeId, robot.id, fields);
+    const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
+    if (!updated) return;
+    for (const family of ASPECT_FAMILY_IDS) if (families.has(family)) pushFamilyToEngine(family, updated, localeId);
   });
 }

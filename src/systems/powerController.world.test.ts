@@ -286,13 +286,14 @@ describe('power cycle over a world built while off', () => {
 // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R1 (docs/specs/OFF_SCREEN.md §1.2): a world change that replaces a paused
 // world tears it down first. The lifecycle tick, the work loop and the swells stop, killAll rewinds the transport and
 // resets the BeatClock, and the paused span ends, so the new world is cold the way a fresh page's is and the next
-// power-on is a full start. A live change, a cold world's change and an Attenuation-Style-only change tear nothing down.
+// power-on is a full start. A live change, a cold world's change, an Attenuation-Style-only change and a theme alone tear
+// nothing down.
 describe('a world change while paused', () => {
-  /** Every input that rebuilds the locale: the four modes the teardown covers. */
+  /** Every input that rebuilds the locale: the three modes the teardown covers. A theme alone re-derives in place
+   *  (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7), so it is a case below with the Attenuation-Style-only one. */
   const REBUILDS = [
     ['coordinates only', { coordinates: { x: 3, y: 4 } }],
     ['Attenuation Style and coordinates (Roll)', { attenuationStyleName: 'Brinemouth', coordinates: { x: 3, y: 4 } }],
-    ['the loading only (a theme pick)', { theme: 'calm' }],
     ['Attenuation Style with a loading', { attenuationStyleName: 'Brinemouth', theme: 'calm' }],
   ] as const;
 
@@ -424,11 +425,14 @@ describe('a world change while paused', () => {
     expect(getWorldState()).toBe('running');
   });
 
-  it('an Attenuation-Style-only change while paused rebuilds nothing, tears nothing down and stays paused', async () => {
+  it.each([
+    ['an Attenuation-Style-only change', { attenuationStyleName: 'Saltwhistle' }],
+    ['a theme alone (final fixes F7)', { theme: 'calm' }],
+  ] as const)('%s while paused rebuilds nothing, tears nothing down and stays paused', async (_label, input) => {
     await pausedWorld();
     const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');
 
-    retransmitWorld({ attenuationStyleName: 'Saltwhistle' });
+    retransmitWorld(input);
 
     expect(AudioEngine.killAll).not.toHaveBeenCalled();
     expect(workStop).not.toHaveBeenCalled();

@@ -61,6 +61,7 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { getLocaleNoiseMap, tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { getSeededVal } from '../utils/getSeededVal';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
+import { buildSessionPayload } from '../utils/sessionDiff';
 import { initializeLocale, retransmitChangesWorld, retransmitWorld, rollWorld, startLocaleSystems } from './worldTransition';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { lfoEngine } from '../engine/lfoEngine';
@@ -468,7 +469,7 @@ describe('worldTransition', () => {
 
     it.each([
       ['a coordinates retransmit', { coordinates: { x: 500, y: 500 } }],
-      ['a theme change, which rebuilds the plot in place', { theme: 'calm' as const }],
+      ['a name change carrying a theme, which rebuilds the plot in place', { attenuationStyleName: 'Brinemouth', theme: 'calm' as const }],
     ])('%s: reserveVoice runs a second time for each robot, with the dealt layers the store holds', (_label, input) => {
       useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { voice: ['glassy'] } });
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
@@ -962,7 +963,9 @@ describe('worldTransition', () => {
       window.history.replaceState({}, '', '/');
     });
 
-    it('a theme alone keeps the Attenuation Style and the plot, sets the store, regenerates the global half under the new bands, and rebuilds the roster at the same identity', () => {
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7 (Crawford, answer 2b): nothing about the physical world changes on a theme
+    // change, so the locale stands and the live roster is re-derived in place, where it used to be rebuilt at the plot.
+    it('a theme alone keeps the Attenuation Style, the plot and the locale, sets the store, regenerates the global half under the new bands, and re-derives the roster in place', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       // A fresh locale first, as every retransmit makes: robot ids carry a per-locale spawn count kept at module scope,
       // and the default locale's count has been advanced by the tests above, so only a fresh plot's ids repeat.
@@ -978,7 +981,7 @@ describe('worldTransition', () => {
       expect(after.style.id).toBe(before.style.id);
       expect(after.style.name).toBe(before.style.name);
       expect(after.locale.coordinates).toEqual(before.locale.coordinates);
-      expect(after.locale.id).not.toBe(before.locale.id);
+      expect(after.locale.id).toBe(before.locale.id);
       expect(after.locale.robots.map((r) => r.id)).toEqual(robotIdsBefore);
       expect(useLoadingStore.getState().theme).toBe('calm');
       for (const spy of Object.values(spies)) {
@@ -1009,7 +1012,6 @@ describe('worldTransition', () => {
         vi.spyOn(Date, 'now').mockReturnValue(later(before));
         retransmitWorld({ theme: 'calm' });
         const after = currentWorld().locale;
-        expect(after.id).not.toBe(before.id);
         expect(after.dayStartTimestamp).toBe(before.dayStartTimestamp);
       });
 
@@ -1086,7 +1088,7 @@ describe('worldTransition', () => {
       for (const robot of robots) expect(cancel).toHaveBeenCalledWith(robot.id, 'delaySend');
     });
 
-    it('aspects alone keep the selected robot and company: nothing they name is rebuilt', () => {
+    it('aspects alone, and a theme, keep the selected robot and company: nothing they name is rebuilt', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const { locale } = currentWorld();
       useUIStore.getState().selectRobot(locale.robots[2].id);
@@ -1094,22 +1096,73 @@ describe('worldTransition', () => {
       retransmitWorld({ aspects: { envelope: ['held'] } });
       expect(useUIStore.getState().selectedRobotId).toBe(locale.robots[2].id);
       expect(useUIStore.getState().selectedCompanyId).toBe(locale.companies[0].id);
-      // A rebuild still lets go of both: the companies come back under fresh ids.
       retransmitWorld({ theme: 'calm' });
+      expect(useUIStore.getState().selectedRobotId).toBe(locale.robots[2].id);
+      expect(useUIStore.getState().selectedCompanyId).toBe(locale.companies[0].id);
+      // A rebuild still lets go of both: the companies come back under fresh ids.
+      retransmitWorld({ coordinates: { x: 500, y: 500 } });
       expect(useUIStore.getState().selectedRobotId).toBeNull();
       expect(useUIStore.getState().selectedCompanyId).toBeNull();
     });
 
-    it('a theme with aspects still rebuilds: the theme moves the global half and every robot\'s theme bands', () => {
+    it('a theme with aspects re-derives in place too: the global half regenerates, the locale stands, the picks are dealt', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const before = currentWorld();
       const spies = spyRegenerators();
       retransmitWorld({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
       const after = currentWorld();
-      expect(after.locale.id).not.toBe(before.locale.id);
+      expect(after.locale.id).toBe(before.locale.id);
       for (const spy of Object.values(spies)) expect(spy).toHaveBeenCalledTimes(1);
       expect(useLoadingStore.getState()).toMatchObject({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
       for (const robot of after.locale.robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
+    });
+
+    it('a theme keeps every robot where it stands: the ids, places, batteries, activities and jobs, and the companies', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const before = currentWorld();
+      // The robots moved off their spawn state, so "stand" cannot pass by a rebuild drawing the same values again.
+      const moved = before.locale.robots.map((robot, i) => ({
+        ...robot,
+        position: { x: 100 + i, y: 200 + i },
+        batteryLevel: 37 + i,
+        activity: 'working' as const,
+        job: JobType.Salvage,
+      }));
+      useLocaleStore.getState().setLocaleData(before.locale.id, { robots: moved });
+      retransmitWorld({ theme: 'calm' });
+      const after = currentWorld();
+      expect(after.locale.id).toBe(before.locale.id);
+      expect(after.locale.companies).toEqual(before.locale.companies);
+      expect(after.locale.robots.map((r) => r.id)).toEqual(moved.map((r) => r.id));
+      after.locale.robots.forEach((robot, i) => {
+        expect(robot.position, robot.id).toEqual(moved[i].position);
+        expect(robot.batteryLevel, robot.id).toBe(moved[i].batteryLevel);
+        expect(robot.activity, robot.id).toBe('working');
+        expect(robot.job, robot.id).toBe(JobType.Salvage);
+        expect(robot.rhythmicDensity, robot.id).toBeGreaterThanOrEqual(90); // Calm's density, as mocked above
+      });
+    });
+
+    it('an untweaked world re-derived under a theme saves as the same world rebuilt under it: the payloads match, no robot override', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      // A fresh plot, so a rebuild at it repeats the robot ids (the spawn count note above).
+      retransmitWorld({ coordinates: { x: 512, y: 488 } });
+      retransmitWorld({ theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
+      const inPlace = buildSessionPayload();
+      // The same plot rebuilt from nothing under the loading now installed.
+      retransmitWorld({ coordinates: { x: 512, y: 488 } });
+      const rebuilt = buildSessionPayload();
+      expect(inPlace.robotOverrides).toEqual({});
+      expect(inPlace).toEqual(rebuilt);
+    });
+
+    it('a theme changes no voice: no robot is re-reserved', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const reserve = vi.spyOn(AudioEngine, 'reserveVoice');
+      const reReserve = vi.spyOn(AudioEngine, 'reReserveVoice');
+      retransmitWorld({ theme: 'perilous' });
+      expect(reserve).not.toHaveBeenCalled();
+      expect(reReserve).not.toHaveBeenCalled();
     });
 
     it('aspects alone while paused tear nothing down and leave the world paused: the next flip resumes it', () => {
@@ -1182,19 +1235,34 @@ describe('worldTransition', () => {
       expect(params().get('theme')).toBe('calm');
     });
 
-    it('a paused world is cold after a loading change, so the next flip starts (Task 8)', () => {
+    it('a theme while paused tears nothing down and leaves the world paused: the next flip resumes it (final fixes F7)', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       setWorldState('paused');
+      const killAll = vi.spyOn(AudioEngine, 'killAll');
+      const stopWork = vi.spyOn(workLoopModule, 'stopWorkLoop');
+      const stopLifecycle = vi.spyOn(robotSystemsModule, 'stopRobotLifecycle');
       retransmitWorld({ theme: 'calm' });
+      expect(killAll).not.toHaveBeenCalled();
+      expect(stopWork).not.toHaveBeenCalled();
+      expect(stopLifecycle).not.toHaveBeenCalled();
+      expect(getWorldState()).toBe('paused');
+    });
+
+    it('a paused world is cold after a loading change that rebuilds, a theme riding on a plot move, so the next flip starts (Task 8)', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      setWorldState('paused');
+      retransmitWorld({ coordinates: { x: 500, y: 500 }, theme: 'calm' });
       expect(getWorldState()).toBe('cold');
     });
 
-    it('follows the power state: powered on, the rebuilt world restarts its systems', () => {
+    it('powered on, a theme keeps the world running and restarts nothing', () => {
       useUIStore.setState({ isPoweredOn: true });
       initializeLocale(DEFAULT_LOCALE_ID);
       const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');
       retransmitWorld({ theme: 'calm' });
-      expect(workStart).toHaveBeenCalledTimes(1);
+      expect(workStart).not.toHaveBeenCalled();
+      expect(workStop).not.toHaveBeenCalled();
       expect(getWorldState()).toBe('running');
     });
 
