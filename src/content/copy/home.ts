@@ -30,8 +30,8 @@ export const home = {
   // Task 4).
   'home.off.keep': { human: 'Save Last World' },
   // Keep's failure line (R20): shown in the unsaved warning's place when the storage refuses the save (a full quota).
-  // Stand-in copy, in the label's voice, until Crawford's words.
-  'home.off.keepFailed': { human: 'Couldn’t save the last world.' },
+  // Crawford's words, verbatim (2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md F3).
+  'home.off.keepFailed': { human: 'storage is already full, cannot save world' },
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
