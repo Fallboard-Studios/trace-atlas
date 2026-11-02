@@ -165,6 +165,33 @@ const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
 /** Deterministic mock: always returns -1, mapping every getSeededVal call to its min value. */
 const deterministicNoiseMap: NoiseFunction2D = () => -1;
 
+/** A forced draw: the value the draw returns, or a function of the band it was asked for. */
+type ForcedDraw = number | ((min: number, max: number) => number);
+
+/**
+ * Forces the named dataIds to fixed values whichever seeded draw makes them, the plain getSeededVal or the even
+ * getUniformSeededVal (Even Seeded Draws moves draws from one to the other), and passes every other draw to the real
+ * function. Undo with restoreSeededDraws().
+ */
+async function forceSeededDraws(forced: Record<string, ForcedDraw>): Promise<void> {
+  const real = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+  const force = (draw: typeof real.getSeededVal) =>
+    (noiseMap: NoiseFunction2D, dataId: string, offset = 0, min = 0, max = 1) => {
+      const value = forced[dataId];
+      if (value === undefined) return draw(noiseMap, dataId, offset, min, max);
+      return typeof value === 'function' ? value(min, max) : value;
+    };
+  vi.mocked(getSeededVal).mockImplementation(force(real.getSeededVal));
+  vi.mocked(getUniformSeededVal).mockImplementation(force(real.getUniformSeededVal));
+}
+
+/** Puts the real plain draw back and the even draw's steering wrapper (mockReset returns a vi.fn(impl) to impl). */
+async function restoreSeededDraws(): Promise<void> {
+  const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+  vi.mocked(getSeededVal).mockImplementation(real);
+  vi.mocked(getUniformSeededVal).mockReset();
+}
+
 /** The Reverb and Delay pair of a robot's sends (the two Robot Sends shipped; Robot Effect Sends adds three more). */
 const reverbAndDelay = (sends: { reverbSend: number; delaySend: number }) => ({ reverbSend: sends.reverbSend, delaySend: sends.delaySend });
 /** The three effect room sends of a robot or a generateRobotSends result (Robot Effect Sends T7). */
@@ -591,16 +618,12 @@ describe('spawnSystem', () => {
       const localeId = 'articulation-seeding-locale';
       /** Forces a glider (+ accent) and a fresh (non-copy) spawn; everything else stays the real seeded draw. */
       async function forceGliderAccent() {
-        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        const mocked = vi.mocked(getSeededVal);
-        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
-          if (dataId === 'robot.copyChance') return 1;
-          if (dataId === 'robot.audio.portamento.glider') return 0;
-          if (dataId === 'robot.audio.filter.accent') return 0;
-          if (dataId === 'robot.audio.filter.type') return 0; // < 0.4 -> bandpass
-          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        await forceSeededDraws({
+          'robot.copyChance': 1,
+          'robot.audio.portamento.glider': 0,
+          'robot.audio.filter.accent': 0,
+          'robot.audio.filter.type': 0, // < 0.4 -> bandpass
         });
-        return realGetSeededVal;
       }
 
       beforeEach(() => {
@@ -613,7 +636,7 @@ describe('spawnSystem', () => {
       });
 
       it('generateRobotAudioBaseline equals what spawnRobot stored — the distinguishing glider + accent fixture', async () => {
-        const real = await forceGliderAccent();
+        await forceGliderAccent();
         try {
           spawnRobot(localeId);
           const locale = useLocaleStore.getState().getLocaleById(localeId)!;
@@ -627,12 +650,12 @@ describe('spawnSystem', () => {
           const baseline = generateRobotAudioBaseline(noiseMap, 0, []);
           expect(baseline.audioAttributes).toEqual(robot.audioAttributes);
         } finally {
-          vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+          await restoreSeededDraws();
         }
       });
 
       it('spawnRobot hands reserveVoice the robot\'s portamento, filterQ and filterType as the 9th argument', async () => {
-        const real = await forceGliderAccent();
+        await forceGliderAccent();
         const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
         try {
           spawnRobot(localeId);
@@ -646,12 +669,12 @@ describe('spawnSystem', () => {
           expect(reserveSpy.mock.calls[0][8]).toEqual({ portamento: expect.any(Number), filterQ: expect.any(Number), filterType: 'bandpass' });
           expect((reserveSpy.mock.calls[0][8] as { portamento: number }).portamento).toBeGreaterThan(0);
         } finally {
-          vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+          await restoreSeededDraws();
         }
       });
 
       it('reRegisterAllRobotsAudio passes the same articulation object, from the stored (possibly edited) robot', async () => {
-        const real = await forceGliderAccent();
+        await forceGliderAccent();
         const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
         vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => {});
         try {
@@ -676,7 +699,7 @@ describe('spawnSystem', () => {
           expect(reserveSpy.mock.calls[0][0]).toBe(robot.id);
           expect(reserveSpy.mock.calls[0][8]).toEqual({ portamento: 0.5, filterQ: 12, filterType: 'highpass' });
         } finally {
-          vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
+          await restoreSeededDraws();
         }
       });
     });
@@ -3500,8 +3523,8 @@ describe('spawnSystem', () => {
       {
         audioAttributes: {
           adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
-          octaveRange: [3, 5], filterFreq: 3089.045348501909, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 290, detune: 3, pulseWidth: 0.2585042283954076,
-          layers: [{ type: 'sawtooth', gain: 0.66, detune: -1, phase: 106 }, { type: 'triangle', gain: 0, detune: -1, phase: 46 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 147 }],
+          octaveRange: [3, 5], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 290, detune: 3, pulseWidth: 0.2585042283954076,
+          layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
         octaveRange: [3, 5], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 35, rests: 48, accents: 68,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
@@ -3510,8 +3533,8 @@ describe('spawnSystem', () => {
       {
         audioAttributes: {
           adsr: { attack: 0.9715492511168122, decay: 0.5848182141780853, sustain: 0.596685036085546, release: 0.5392221147194505, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [3, 5], filterFreq: 3798.4729769270016, filterQ: 1, filterType: 'lowpass', portamento: 0.12, waveform: 'triangle', phase: 169, detune: -0, pulseWidth: 0.39096490279492446,
-          layers: [{ type: 'sawtooth', gain: 0.55, detune: -1, phase: 76 }, { type: 'square', gain: 0, detune: 1, phase: 263 }, { type: 'sawtooth', gain: 1.04, detune: 1, phase: 280 }],
+          octaveRange: [3, 5], filterFreq: 3606.9838404655457, filterQ: 1, filterType: 'lowpass', portamento: 0.12, waveform: 'sawtooth', phase: 169, detune: -0, pulseWidth: 0.39096490279492446,
+          layers: [{ type: 'sawtooth', gain: 0.71, detune: 0, phase: 342 }, { type: 'sawtooth', gain: 0, detune: 0, phase: 298 }, { type: 'triangle', gain: 0.79, detune: 0, phase: 27 }],
         } as AudioAttributes,
         octaveRange: [3, 5], rhythmicDensity: 82, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, dynamics: 37, rests: 32, accents: 54,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
@@ -3520,8 +3543,8 @@ describe('spawnSystem', () => {
       {
         audioAttributes: {
           adsr: { attack: 0.16692632529884577, decay: 1.240191656164825, sustain: 0.3301627195905894, release: 1.3539673294872046, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [4, 6], filterFreq: 5761.783388416861, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 214, detune: 1, pulseWidth: 0.7037212573861479,
-          layers: [{ type: 'sawtooth', gain: 0.86, detune: 0, phase: 213 }, { type: 'square', gain: 0, detune: 0, phase: 225 }, { type: 'sawtooth', gain: 0.69, detune: -1, phase: 110 }],
+          octaveRange: [4, 6], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 214, detune: 1, pulseWidth: 0.7037212573861479,
+          layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
         octaveRange: [4, 6], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 53, rests: 41, accents: 57,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 6 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'c', depth: 6 }, 'bus.frequency': { lane: null, depth: 0 } },
@@ -3534,46 +3557,47 @@ describe('spawnSystem', () => {
       expect(roster).toEqual(PARITY_ROSTER);
     });
 
-    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the three above are plain, so they miss the tiers. Robots 3, 4 and 28
-    // of a 29-robot roster from the same noise, captured at cc9a01f2 the same way and typed in, and re-captured at each Even
-    // Seeded Draws switch: the bandpass accent (3), a shaped release (bounce) with an exclusive send (shimmer) (4), and a
-    // plain accent robot (28).
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the three above are plain, so they miss the tiers. Three robots of a
+    // 29-robot roster from the same noise, captured at cc9a01f2 the same way and typed in, then re-captured at each Even
+    // Seeded Draws switch, which moves the tiers between robots (T6 re-picked them from 3, 4 and 28): a shaped release
+    // (bounce) with an exclusive send (shimmer) (4), a shaped attack (ripple) on a lowpass accent with grit (11), and the
+    // bandpass accent with double (16).
     const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
-      3: {
-        audioAttributes: {
-          adsr: { attack: 1.0583763890899718, decay: 0.6698287515901029, sustain: 0.19458313984796405, release: 1.8254758408293128, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [3, 5], filterFreq: 949.5216011247653, filterQ: 5, filterType: 'bandpass', portamento: 0, waveform: 'sine', phase: 74, detune: -3, pulseWidth: 0.3312173299777377,
-          layers: [{ type: 'triangle', gain: 0.92, detune: 1, phase: 247 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 257 }, { type: 'sawtooth', gain: 1.09, detune: 2, phase: 242 }],
-        } as AudioAttributes,
-        octaveRange: [3, 5], rhythmicDensity: 41, rhythmicMotifLength: { active: true, value: 8 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 51, dynamics: 38, rests: 25, accents: 22,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.26, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0,
-      },
       4: {
         audioAttributes: {
           adsr: { attack: 1.956432294100523, decay: 1.9473565462976694, sustain: 0.7924570618197322, release: 0.7145893696229906, attackCurve: 'linear', releaseCurve: 'bounce' },
-          octaveRange: [4, 6], filterFreq: 6692.565158564469, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 275, detune: 3, pulseWidth: 0.7987047418818843,
-          layers: [{ type: 'square', gain: 0.5, detune: -1, phase: 79 }, { type: 'triangle', gain: 0, detune: -1, phase: 100 }, { type: 'sawtooth', gain: 1.08, detune: 1, phase: 261 }],
+          octaveRange: [4, 6], filterFreq: 6702.621109783649, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 275, detune: 3, pulseWidth: 0.7987047418818843,
+          layers: [{ type: 'triangle', gain: 0.67, detune: -1, phase: 359 }, { type: 'triangle', gain: 0.77, detune: -1, phase: 215 }, { type: 'pulse', gain: 0, detune: 1, phase: 118 }],
         } as AudioAttributes,
         octaveRange: [4, 6], rhythmicDensity: 93, rhythmicMotifLength: { active: true, value: 8 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 94, dynamics: 62, rests: 48, accents: 68,
         lfoLinks: { 'layer0.gain': { lane: 'd', depth: 45 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'c', depth: 8 }, 'layer2.gain': { lane: 'c', depth: 42 }, 'layer2.detune': { lane: 'c', depth: 8 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.52, delaySend: 0.22, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
       },
-      28: {
+      11: {
         audioAttributes: {
-          adsr: { attack: 0.8385848412290215, decay: 1.9955490841530263, sustain: 0.6613638484850526, release: 0.5530651276931167, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [2, 4], filterFreq: 1629.7534513514256, filterQ: 4.5, filterType: 'lowpass', portamento: 0, waveform: 'square', phase: 77, detune: -3, pulseWidth: 0.5035310436907365,
-          layers: [{ type: 'triangle', gain: 0.75, detune: 0, phase: 104 }, { type: 'sawtooth', gain: 0.59, detune: -1, phase: 167 }, { type: 'triangle', gain: 0, detune: 0, phase: 216 }],
+          adsr: { attack: 0.21824039553757757, decay: 1.1089304112829268, sustain: 0.02038705232553184, release: 1.5850363094359636, attackCurve: 'ripple', releaseCurve: 'linear' },
+          octaveRange: [2, 4], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 65, detune: -3, pulseWidth: 0.722496234387869,
+          layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 5, rhythmicMotifLength: { active: true, value: 1 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 92, dynamics: 56, rests: 21, accents: 33,
+        octaveRange: [2, 4], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 66, rests: 21, accents: 33,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'a', depth: 8 }, 'layer1.gain': { lane: 'a', depth: 34 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'b', depth: 47 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'c', depth: 11 } },
+        reverbSend: 0.47, delaySend: 0.1, gritSend: 0.63, shimmerSend: 0, doubleSend: 0,
+      },
+      16: {
+        audioAttributes: {
+          adsr: { attack: 1.965806975029409, decay: 1.962196541018784, sustain: 0.37567537860013545, release: 0.6935567278414965, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [2, 4], filterFreq: 1528.405042621307, filterQ: 3.3, filterType: 'bandpass', portamento: 0, waveform: 'pulse', phase: 86, detune: -2, pulseWidth: 0.5855139793897564,
+          layers: [{ type: 'sawtooth', gain: 0.75, detune: 0, phase: 95 }, { type: 'triangle', gain: 0.31, detune: -2, phase: 341 }, { type: 'square', gain: 0.42, detune: 1, phase: 275 }],
+        } as AudioAttributes,
+        octaveRange: [2, 4], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, dynamics: 58, rests: 21, accents: 51,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.35, delaySend: 0.07, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.39, delaySend: 0.2, gritSend: 0, shimmerSend: 0, doubleSend: 0.45,
       },
     };
 
     it('Classic parity, the tiers: a shaped stage, the bandpass accent and an exclusive send are value for value what the constants seeded before the lift', () => {
       const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 29).map(({ name: _name, ...rest }) => rest);
-      expect({ 3: roster[3], 4: roster[4], 28: roster[28] }).toEqual(PARITY_TIERS);
+      expect({ 4: roster[4], 11: roster[11], 16: roster[16] }).toEqual(PARITY_TIERS);
     });
 
     it('Classic parity: three spawned robots carry the ids, master volumes, densities and glides the constants seeded before the lift', () => {
@@ -4008,8 +4032,9 @@ describe('spawnSystem', () => {
         layers: a.layers,
       });
 
-      it('Classic parity: over 400 robots the base and the three layer waveforms are what Math.floor of the old draw picked', async () => {
-        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      it('Classic parity: over 400 robots the base and the three layer waveforms are Math.floor of the even draw over [0, 5)', async () => {
+        // The old draw was the plain getSeededVal over [0, 5]; Even Seeded Draws T6 made it the even one.
+        const { getUniformSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
         const map = createNoise2D(alea('revisions-t10-parity'));
         const seen = new Set<string>();
         for (let i = 0; i < 400; i++) {
@@ -4057,15 +4082,17 @@ describe('spawnSystem', () => {
       });
 
       it('a draw at the very top of the weight lands on the last weighted waveform, never on a zero-weight one or off the end', async () => {
-        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
-          dataId === 'robot.audio.waveform' || dataId === 'robot.audio.layer.waveform' ? (max ?? 1) : real(nm, dataId, offset, min, max),
-        );
-        const bands = { ...resolveBands('classic', {}), 'robot.waveform': { weights: { sine: 1, square: 2, triangle: 0, sawtooth: 0, pulse: 0 } } };
-        const voice = deriveVoiceFields(noiseMap, 3, bands);
-        expect(voice.waveform).toBe('square');
-        for (const layer of voice.layers ?? []) expect(layer.type).toBe('square');
-        expect(generateAudioAttributes(noiseMap, 3).waveform).toBe('pulse'); // Classic: the old clamp's last waveform
+        const top = (_min: number, max: number) => max;
+        await forceSeededDraws({ 'robot.audio.waveform': top, 'robot.audio.layer.waveform': top });
+        try {
+          const bands = { ...resolveBands('classic', {}), 'robot.waveform': { weights: { sine: 1, square: 2, triangle: 0, sawtooth: 0, pulse: 0 } } };
+          const voice = deriveVoiceFields(noiseMap, 3, bands);
+          expect(voice.waveform).toBe('square');
+          for (const layer of voice.layers ?? []) expect(layer.type).toBe('square');
+          expect(generateAudioAttributes(noiseMap, 3).waveform).toBe('pulse'); // Classic: the old clamp's last waveform
+        } finally {
+          await restoreSeededDraws();
+        }
       });
 
       it('generateAudioAttributes draws its voice through deriveVoiceFields under the installed bands', () => {
@@ -4452,21 +4479,20 @@ describe('spawnSystem', () => {
     });
 
     it('a Voice move carries the whole bus filter: open lowpass robots dealt Hollow come back resonant bandpass ones', async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      // Every accent roll between Classic's accent share (0.27) and Hollow's (0.45), every type roll under the bandpass share.
-      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
-        if (dataId === 'robot.audio.filter.accent') return 0.35;
-        if (dataId === 'robot.audio.filter.type') return 0;
-        return real(nm, dataId, offset, min, max);
-      });
-      const live = buildWorld({});
-      const fresh = robotsOf(buildWorld({ voice: ['hollow'] }));
-      expect(robotsOf(live).every((r) => r.audioAttributes.filterType === 'lowpass')).toBe(true); // precondition
-      expect(fresh.every((r) => r.audioAttributes.filterType === 'bandpass')).toBe(true); // precondition
+      // Every accent roll between Classic's accent share (0.2) and Hollow's (0.45), every type roll under the bandpass share.
+      await forceSeededDraws({ 'robot.audio.filter.accent': 0.35, 'robot.audio.filter.type': 0 });
+      try {
+        const live = buildWorld({});
+        const fresh = robotsOf(buildWorld({ voice: ['hollow'] }));
+        expect(robotsOf(live).every((r) => r.audioAttributes.filterType === 'lowpass')).toBe(true); // precondition
+        expect(fresh.every((r) => r.audioAttributes.filterType === 'bandpass')).toBe(true); // precondition
 
-      redeal(live, { voice: ['hollow'] });
+        redeal(live, { voice: ['hollow'] });
 
-      expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
+        expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
+      } finally {
+        await restoreSeededDraws();
+      }
     });
 
     // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F20 (Crawford, 2026-11-01): "if a robot changes company nothing about the

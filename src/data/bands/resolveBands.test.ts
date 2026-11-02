@@ -123,7 +123,7 @@ const EXPECTED: BandTable = {
   'robot.portamento': { min: 0.05, max: 0.2, lit: 0.23 },
   // OPEN_FILTER_FREQ_RANGE; ACCENT_FILTER_FREQ_RANGE with FILTER_ACCENT_THRESHOLD; ACCENT_FILTER_Q_RANGE.
   'robot.filterFreq': { min: 2000, max: 8000 },
-  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.27 },
+  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.2 },
   'robot.accentFilterQ': { min: 3, max: 8 },
   // The Coaxial/Harmonic gain draw (0.2-1.2) with LAYER_QUIET_THRESHOLD 0.5: a lit share of 1 - 0.5.
   'robot.layerGain': { min: 0.2, max: 1.2, lit: 0.5 },

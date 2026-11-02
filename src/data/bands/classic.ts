@@ -157,11 +157,11 @@ export const CLASSIC: BandTable = {
   // Bus filter cutoff for a common robot (OPEN_FILTER_FREQ_RANGE): an open lowpass that rounds the top off without
   // being heard as a filter.
   'robot.filterFreq': { min: 2000, max: 8000 },
-  // Bus filter cutoff for an accent robot (ACCENT_FILTER_FREQ_RANGE): dark enough that a Q this high rings. `lit` is
-  // FILTER_ACCENT_THRESHOLD, the share of robots with a resonant "accent" bus filter instead of the open one: about 2.4 in
-  // 12 (measured 19.9 %). Which accent robots are bandpass rather than lowpass is a plain coin (ACCENT_BANDPASS_SHARE), not
-  // a band.
-  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.27 },
+  // Bus filter cutoff for an accent robot (ACCENT_FILTER_FREQ_RANGE): dark enough that a Q this high rings. `lit` is the
+  // share of robots with a resonant "accent" bus filter instead of the open one, drawn even, so the edge is the share:
+  // 20 %, about 2.4 in 12 (Even Seeded Draws T6; the edge was 0.27 when it was fitted to the bunched draw). Which
+  // accent robots are bandpass rather than lowpass is a plain coin (ACCENT_BANDPASS_SHARE), not a band.
+  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.2 },
   // Accent resonance (ACCENT_FILTER_Q_RANGE): a clear peak at the low end, a whistle at the high end.
   'robot.accentFilterQ': { min: 3, max: 8 },
   // The Signature Array's Coaxial and Harmonic gain draw. Baseline (layers[0]) always seeds a real, audible gain from
@@ -205,9 +205,8 @@ export const CLASSIC: BandTable = {
   'robot.rests': { min: 10, max: 60 },
   'robot.accents': { min: 20, max: 80 },
   // The waveform the base and the three Signature Array layers draw (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a pick
-  // (PickBand), five equal unit weights in WAVEFORMS order - the even ~20 % each the draw always gave. Equal unit weights
-  // put the cumulative edges at 1-5, so the pick is exactly Math.floor of the old [0, 5] draw (spawnSystem.test.ts pins it
-  // over 400 robots); the Voice family's options move the weights.
+  // (PickBand), five equal unit weights in WAVEFORMS order: 20 % each on the even draw (the bunched draw gave sine and
+  // pulse about 6.5 % each; Even Seeded Draws T6). The Voice family's options move the weights.
   'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
 
   // ---- The sends (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1) ---------------------------------------------

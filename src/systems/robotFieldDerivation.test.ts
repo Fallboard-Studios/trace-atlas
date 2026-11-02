@@ -6,8 +6,10 @@ import alea from 'alea';
 import { createNoise2D } from 'simplex-noise';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 import { CLASSIC } from '../data/bands/classic';
-import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
-import { deriveEnvelopeFields, deriveMelodyFields, seedToggleValue } from './robotFieldDerivation';
+import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { quantizeToStep } from '../utils/math';
+import { ROBOT_BUS_FILTER_Q } from '../constants';
+import { deriveEnvelopeFields, deriveMelodyFields, deriveVoiceFields, seedToggleValue } from './robotFieldDerivation';
 
 // ========================================
 // THE SAMPLE
@@ -184,6 +186,93 @@ describe('deriveMelodyFields — even draws (Even Seeded Draws T5)', () => {
         seedToggleValue(getUniformSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', offset), CLASSIC['robot.rhythmicMotifLength']),
       );
       expect(m.noteVariance).toEqual(seedToggleValue(getUniformSeededVal(noiseMap, 'robot.noteVariance.active', offset), CLASSIC['robot.noteVariance']));
+    }
+  });
+});
+
+describe('deriveVoiceFields — even draws, the layer detune centred (Even Seeded Draws T6)', () => {
+  // About a fifth of robots carry the accent filter, so the accent cases need more robots than the shared sample: at
+  // 12,000 (1,000 worlds) every tolerance below is at least 3 standard deviations of its share.
+  const VOICE_SLOTS = Array.from({ length: 1000 }, (_, i) => createNoise2D(alea(`voice:${i}`))).flatMap((noiseMap) =>
+    Array.from({ length: ROBOTS_PER_WORLD }, (_, offset) => ({ noiseMap, offset })),
+  );
+  const VOICES = VOICE_SLOTS.map(({ noiseMap, offset }) => deriveVoiceFields(noiseMap, offset, CLASSIC));
+  const isAccent = (v: (typeof VOICES)[number]) => v.filterQ !== ROBOT_BUS_FILTER_Q;
+  const WAVEFORMS = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'] as const;
+
+  it('each waveform is the base waveform of 20 % of robots (+/-2 points) under Classic\'s equal weights', () => {
+    for (const wave of WAVEFORMS) {
+      const share = VOICES.filter((v) => v.waveform === wave).length / VOICES.length;
+      expect(share, wave).toBeGreaterThanOrEqual(0.18);
+      expect(share, wave).toBeLessThanOrEqual(0.22);
+    }
+  });
+
+  it('both cutoffs fill their bands: 8-12 % of common robots, and of accent robots, in each outer tenth of their band', () => {
+    const tiers = {
+      common: { values: VOICES.filter((v) => !isAccent(v)).map((v) => v.filterFreq), band: CLASSIC['robot.filterFreq'] },
+      accent: { values: VOICES.filter(isAccent).map((v) => v.filterFreq), band: CLASSIC['robot.accentFilterFreq'] },
+    };
+    for (const [tier, { values, band }] of Object.entries(tiers)) {
+      const { bottom, top } = outerTenths(values, band);
+      expect(bottom, `${tier} bottom tenth`).toBeGreaterThanOrEqual(0.08);
+      expect(bottom, `${tier} bottom tenth`).toBeLessThanOrEqual(0.12);
+      expect(top, `${tier} top tenth`).toBeGreaterThanOrEqual(0.08);
+      expect(top, `${tier} top tenth`).toBeLessThanOrEqual(0.12);
+    }
+  });
+
+  it('the layer detune is centred on 0 cents: median 0, 1-3.5 % of layers at each end of +/-2, every whole cent from -2 to 2', () => {
+    const detunes = VOICES.flatMap((v) => (v.layers ?? []).map((l) => l.detune)).sort((a, b) => a - b);
+    expect(detunes[Math.floor(detunes.length / 2)]).toBe(0);
+    for (const end of [-2, 2]) {
+      const share = detunes.filter((d) => d === end).length / detunes.length;
+      expect(share, `detune ${end}`).toBeGreaterThanOrEqual(0.01);
+      expect(share, `detune ${end}`).toBeLessThanOrEqual(0.035);
+    }
+    expect(new Set(detunes)).toEqual(new Set([-2, -1, 0, 1, 2]));
+  });
+
+  it('guards: 20 % of robots carry the accent filter (+/-2), 40 % of those are bandpass (+/-3), layers 1 and 2 each quiet for 50 % (+/-3)', () => {
+    const accents = VOICES.filter(isAccent);
+    const accentShare = accents.length / VOICES.length;
+    expect(accentShare).toBeGreaterThanOrEqual(0.18);
+    expect(accentShare).toBeLessThanOrEqual(0.22);
+    const bandpass = accents.filter((v) => v.filterType === 'bandpass').length / accents.length;
+    expect(bandpass).toBeGreaterThanOrEqual(0.37);
+    expect(bandpass).toBeLessThanOrEqual(0.43);
+    for (const layer of [1, 2]) {
+      const quiet = VOICES.filter((v) => v.layers?.[layer].gain === 0).length / VOICES.length;
+      expect(quiet, `layer ${layer}`).toBeGreaterThanOrEqual(0.47);
+      expect(quiet, `layer ${layer}`).toBeLessThanOrEqual(0.53);
+    }
+  });
+
+  it('each voice field is the even draw at its own dataId and offset, and the layer detune the centred draw', () => {
+    const accentBand = CLASSIC['robot.accentFilterFreq'];
+    const layerGain = CLASSIC['robot.layerGain'];
+    const even = (noiseMap: (typeof VOICE_SLOTS)[number]['noiseMap'], dataId: string, offset: number, min = 0, max = 1) =>
+      getUniformSeededVal(noiseMap, dataId, offset, min, max);
+    for (const { noiseMap, offset } of VOICE_SLOTS.slice(0, 120)) {
+      const v = deriveVoiceFields(noiseMap, offset, CLASSIC);
+      const accent = even(noiseMap, 'robot.audio.filter.accent', offset) < accentBand.lit;
+      const range = accent ? accentBand : CLASSIC['robot.filterFreq'];
+      expect(isAccent(v)).toBe(accent);
+      expect(v.filterFreq).toBe(even(noiseMap, 'robot.audio.filterFreq', offset, range.min, range.max));
+      if (accent) {
+        const q = CLASSIC['robot.accentFilterQ'];
+        expect(v.filterQ).toBe(quantizeToStep(even(noiseMap, 'robot.audio.filterQ', offset, q.min, q.max), 0, 0.1));
+        expect(v.filterType === 'bandpass').toBe(even(noiseMap, 'robot.audio.filter.type', offset) < 0.4);
+      }
+      expect(v.waveform).toBe(WAVEFORMS[Math.floor(even(noiseMap, 'robot.audio.waveform', offset, 0, 5))]);
+      (v.layers ?? []).forEach((layer, i) => {
+        const layerOffset = offset * 10 + i;
+        const quiet = i !== 0 && even(noiseMap, 'robot.audio.layer.quiet', layerOffset) < 1 - layerGain.lit;
+        expect(layer.type).toBe(WAVEFORMS[Math.floor(even(noiseMap, 'robot.audio.layer.waveform', layerOffset, 0, 5))]);
+        expect(layer.gain).toBe(quiet ? 0 : quantizeToStep(even(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, 0.01));
+        expect(layer.detune).toBe(quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, 1));
+        expect(layer.phase).toBe(Math.floor(even(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0);
+      });
     }
   });
 });

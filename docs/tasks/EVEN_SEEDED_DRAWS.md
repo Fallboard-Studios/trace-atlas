@@ -314,7 +314,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S
 
-- [ ] **Task 6: robotFieldDerivation.ts — the voice draws even, layer detune centred, the accent share as heard**
+- [x] **Task 6: robotFieldDerivation.ts — the voice draws even, layer detune centred, the accent share as heard**
 
   **Description:** In `deriveVoiceFields`, the accent roll, both cutoffs, Q, filter type, the waveform pick and each
   layer's quiet roll, waveform, gain and phase switch to even. The layer detune switches to `getCentredSeededVal`. In
@@ -327,8 +327,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   40 ± 3 % of accent robots, and each of layers 1 and 2 is quiet for 50 ± 3 % of robots.
 
   **Acceptance criteria:**
-  - [ ] Every voice draw is even except the layer detune, which is centred.
-  - [ ] The accent share stays as heard.
+  - [x] Every voice draw is even except the layer detune, which is centred.
+  - [x] The accent share stays as heard.
 
   **Verification:** As Task 4.
 
@@ -855,3 +855,25 @@ before its commit.
   of the band) through the file's `getUniformSeededVal` spy and restores the steering wrapper with `mockReset()`.
 - Mutation check (T5): each of the four draws put back on `getSeededVal`, and the Motif Length dataId renamed — 5 of
   5 killed.
+- T6: the voice cases draw 1,000 worlds × 12 robots, not 400 × 12. Only about a fifth of robots carry the accent filter,
+  and at 4,800 robots the accent cutoff's ±2-point tenths and the bandpass ±3 points were under 2 standard deviations
+  of their shares. At 12,000, every tolerance is at least 3.
+- T6: the plan's "more than 1,000 distinct values" for the layer detune cannot hold: the field is rounded to a whole
+  cent over ±2, so it takes five values. The case asserts the rest (median 0; −2 and +2 each 1–3.5 % of layers; every
+  whole cent from −2 to 2 occurs), and the pin case proves the centred draw underneath: each layer's detune is the
+  rounded `getCentredSeededVal` at its dataId and offset.
+- T6: the bandpass guard did **not** pass before the switch. 46.8 % of accent robots were bandpass, not T0's 36.7 %:
+  T0's figure is the share of all type rolls under 0.4, while among accent robots the welded draw dragged the type roll
+  low with the accent roll. On the even draw the written 0.4 is the share. The accent and layer-quiet guards passed
+  both ways.
+- T6 repairs, all in `spawnSystem.test.ts`. A new `forceSeededDraws` / `restoreSeededDraws` pair forces a dataId
+  whichever draw makes it, plain or even. The glider + accent fixture, the Hollow bus-filter case and the
+  top-of-weight clamp moved onto it, so they survive T7 and T9 unchanged. The waveform parity case now computes
+  `Math.floor` of the even draw. The parity pins were re-captured. Under the 0.2 accent edge, tier robots 3 and 28 were
+  no longer accent robots, so the tiers were re-picked from the same 29-robot roster: 4 (bounce release, shimmer), 11
+  (ripple attack, lowpass accent, grit) and 16 (bandpass accent, double). `resolveBands.test.ts` took `lit: 0.2`.
+- Mutation check (T6): the seven voice draws and the waveform pick put back on `getSeededVal`; the layer detune made
+  even, and plain; `ACCENT_BANDPASS_SHARE` 0.4 → 0.45; the old accent `lit` 0.27 restored — 12 of 12 killed. The
+  detune-plain mutant dies only on the pin case: a plain draw is also roughly centred.
+- Not in this plan, for Crawford: `deriveSendFields`' reverb and delay draws (`robot.send.reverb`, `.delay` and their
+  `.quiet` rolls) are still plain `getSeededVal`, and spec §1.3 does not list them.

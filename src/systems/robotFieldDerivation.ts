@@ -17,7 +17,7 @@ import { getBand } from '../data/bands/loadingContext';
 import type { BandTable, PickBand, ToggleBand } from '../data/bands/bandKeys';
 import type { EnvelopeBandKey, MelodyBandKey, VoiceBandKey } from '../data/bands/aspects';
 import type { RobotAudioBaseline } from './spawnSystem';
-import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 
 /*
@@ -115,16 +115,14 @@ export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number
 const WAVEFORMS: WaveformType[] = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'];
 
 /**
- * A waveform from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one draw over [0, total weight] at `dataId` /
- * `offset`, landing on the first waveform in WAVEFORMS order whose cumulative weight it falls under. Classic's five unit
- * weights make this the same getSeededVal call the old pick made - [0, 5] - and its integer edges 1-5 the exact index
- * Math.floor gave, so no Classic robot changes waveform. A zero weight is never drawn; a draw at the very top of the
- * range (the simplex sample at its maximum) lands on the last waveform with a weight, as the old base draw's clamp
- * did, where the old layer draw would have indexed past the end.
+ * A waveform from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one even draw over [0, total weight) at
+ * `dataId` / `offset`, landing on the first waveform in WAVEFORMS order whose cumulative weight it falls under, so each
+ * waveform's share is its weight's share of the total (20 % each under Classic's five unit weights). A zero weight is
+ * never drawn; a draw at the very top of the range lands on the last waveform with a weight.
  */
 function pickWaveform(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: PickBand): WaveformType {
   const total = WAVEFORMS.reduce((sum, wave) => sum + band.weights[wave], 0);
-  const draw = getSeededVal(noiseMap, dataId, offset, 0, total);
+  const draw = getUniformSeededVal(noiseMap, dataId, offset, 0, total);
   let edge = 0;
   for (const wave of WAVEFORMS) {
     edge += band.weights[wave];
@@ -195,21 +193,22 @@ type VoiceFields = Pick<AudioAttributes, 'filterFreq' | 'filterQ' | 'filterType'
  * generateAudioAttributes with its dataIds and offsets unchanged: the bus filter (an accent robot a darker, resonant one,
  * lowpass or bandpass; the cutoff keeps its own dataId in both tiers), the base waveform and the three layers (type, gain,
  * detune, phase), the waveforms now picked through the robot.waveform PickBand (pickWaveform). The layers' detune and
- * phase follow no band and re-derive unchanged.
+ * phase follow no band and re-derive unchanged. Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so each `lit` and
+ * ACCENT_BANDPASS_SHARE is the share it names; the layer detune is centred, so most layers sit at or near 0 cents.
  */
 export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, VoiceBandKey>): VoiceFields {
   // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
   // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
   // The accent band's `lit` is the accent share (robot.accentFilterFreq); the open cutoff and the accent Q are bands too.
   const accentFilter = bands['robot.accentFilterFreq'];
-  const accent = getSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < accentFilter.lit;
+  const accent = getUniformSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < accentFilter.lit;
   const filterRange = accent ? accentFilter : bands['robot.filterFreq'];
-  const filterFreq = getSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
+  const filterFreq = getUniformSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
   const accentQ = bands['robot.accentFilterQ'];
   const filterQ = accent
-    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.filterQ', offset, accentQ.min, accentQ.max), 0, FILTER_Q_STEP)
+    ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.filterQ', offset, accentQ.min, accentQ.max), 0, FILTER_Q_STEP)
     : ROBOT_BUS_FILTER_Q;
-  const filterType: RobotFilterType = accent && getSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
+  const filterType: RobotFilterType = accent && getUniformSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
     ? 'bandpass'
     : 'lowpass';
 
@@ -226,12 +225,12 @@ export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, ban
     // quiet on a draw under 1 - the band's `lit` (a plain 50/50 under Classic), forcing gain to 0 instead of sampling
     // one — muting doesn't discard the rest of the layer's configuration (see AudioEngine.ts's filterAudibleLayers),
     // so a muted layer still gets a full, ready-to-resume config here.
-    const quiet = i !== 0 && getSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < 1 - layerGain.lit;
+    const quiet = i !== 0 && getUniformSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < 1 - layerGain.lit;
     const layerWave: OscillatorLayer = {
       type: pickWaveform(noiseMap, 'robot.audio.layer.waveform', layerOffset, bands['robot.waveform']),
-      gain: quiet ? 0 : quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
-      detune: quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
-      phase: Math.floor(getSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
+      gain: quiet ? 0 : quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
+      detune: quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
+      phase: Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
     };
     layers.push(layerWave);
   }
