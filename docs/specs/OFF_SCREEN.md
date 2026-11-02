@@ -417,9 +417,13 @@ worth a second look):
       Sync pick is re-pushed resolved at the new tempo, clamped into its range, as a hand Tempo edit's is. A global
       swell on a written field is dropped first (F11).
     - **The live companies, on purpose (the second review's finding 2):** the in-place deal runs over the companies as
-      they stand, not the seeded ones a rebuild or the session baseline deals over. A robot moved to another company
-      takes that company's aspect at the next theme or aspect change. Its fields can then differ from the seeded
-      baseline, and `buildSessionPayload` saves them as overrides, which round-trip. Decided; not to be raised again.
+      they stand, not the seeded ones a rebuild or the session baseline deals over. Its fields can then differ from the
+      seeded baseline, and `buildSessionPayload` saves them as overrides, which round-trip. Decided; not to be raised
+      again.
+    - *Amended the same day (F20, Crawford: "if a robot changes company nothing about the robot should change unless
+      the robot itself or its new company gets updated"):* a robot's family changes only when the change moves the
+      aspect dealt to it. Other families keep its own `loadedUnder`. So a robot moved to another company keeps its
+      pick until a change moves its new company's pick, and a theme change re-derives its fields under its own pick.
 23. **`RadioButton` gains a `multiple` variant** — a design-system addition, Crawford's call (2026-10-30: "it should use
     the cabinetry effect just like buttons and toggles do already"). `RadioButtonSchema.multiple?: true` makes `value`
     a `string[]` and `onChange(string[])`; each option is independently selectable; in the `cabinet` appearance every

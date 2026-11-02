@@ -4280,8 +4280,8 @@ describe('spawnSystem', () => {
     const dealtUnder = new Map<string, LoadingIdentity['aspects']>();
     /** A live world at COORDS, spawned and dealt under `aspects` as initializeLocale builds one: a new id each call, so its
      *  spawn count starts at 0 and its robots are the plot's own. */
-    const buildWorld = (aspects: LoadingIdentity['aspects']) => {
-      useLoadingStore.getState().setLoading({ theme: 'classic', aspects });
+    const buildWorld = (aspects: LoadingIdentity['aspects'], theme: LoadingIdentity['theme'] = 'classic') => {
+      useLoadingStore.getState().setLoading({ theme, aspects });
       const localeId = `review-r33-${worlds++}`;
       dealtUnder.set(localeId, aspects);
       useLocaleStore.setState((state) => ({
@@ -4474,22 +4474,56 @@ describe('spawnSystem', () => {
       expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
     });
 
-    it('deals over the live companies: a robot moved into another company takes that company\'s pick', () => {
-      const live = buildWorld({ melody: ['hypnotic', 'mechanical'] });
-      const { companies } = useLocaleStore.getState().getLocaleById(live)!;
-      expect(companies.length).toBeGreaterThanOrEqual(2); // precondition: two companies, dealt the two picks in turn
-      const [first, second] = companies;
-      const pickOf = (id: string) => robotsOf(live).find((r) => r.id === id)!.loadedUnder?.melody;
-      expect(pickOf(first.robotIds[0])).not.toBe(pickOf(second.robotIds[0]));
-      const mover = first.robotIds[0];
-      useLocaleStore.getState().assignRobotToCompany(live, mover, second.id);
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F20 (Crawford, 2026-11-01): "if a robot changes company nothing about the
+    // robot should change unless the robot itself or its new company gets updated". The deal still reads the live
+    // companies, but a moved robot's family changes only when the aspect its new company is dealt changes.
+    describe('a robot moved to another company (final fixes F20)', () => {
+      /** A world dealt Hypnotic and Mechanical over two companies, with the first company's first robot moved into the
+       *  second. */
+      const movedWorld = () => {
+        const live = buildWorld({ melody: ['hypnotic', 'mechanical'] });
+        const { companies } = useLocaleStore.getState().getLocaleById(live)!;
+        expect(companies.length).toBeGreaterThanOrEqual(2); // precondition: two companies, dealt the two picks in turn
+        const [first, second] = companies;
+        const mover = first.robotIds[0];
+        const pickOf = (id: string) => robotsOf(live).find((r) => r.id === id)!.loadedUnder?.melody;
+        expect(pickOf(mover)).not.toBe(pickOf(second.robotIds[0])); // precondition
+        useLocaleStore.getState().assignRobotToCompany(live, mover, second.id);
+        const robotOf = () => robotsOf(live).find((r) => r.id === mover)!;
+        return { live, mover, robotOf, pickOf, before: robotOf(), newCompanyMate: second.robotIds[0] };
+      };
+      const melodyFields = (r: Robot) => [r.rhythmicDensity, r.rhythmicMotifLength, r.noteVariance, r.pitchRepeat, r.rests];
 
-      // Another family moves; the mover's Melody follows its new company.
-      redeal(live, { melody: ['hypnotic', 'mechanical'], envelope: ['held'] });
+      it('keeps its pick and its Melody fields through a change to another family', () => {
+        const { live, robotOf, before } = movedWorld();
+        redeal(live, { melody: ['hypnotic', 'mechanical'], envelope: ['held'] });
+        expect(robotOf().loadedUnder?.melody).toBe(before.loadedUnder?.melody);
+        expect(melodyFields(robotOf())).toEqual(melodyFields(before));
+        expect(robotOf().loadedUnder?.envelope).toBe('held'); // the family that did change reached it
+      });
 
-      expect(pickOf(mover)).toBe(pickOf(second.robotIds[0]));
-      const sameSpawn = robotsOf(buildWorld({ melody: [pickOf(mover)!] })).find((r) => r.id === mover)!;
-      expect(robotsOf(live).find((r) => r.id === mover)!.rhythmicDensity).toBe(sameSpawn.rhythmicDensity);
+      it("takes its new company's pick when a change moves that company's pick", () => {
+        const { live, mover, robotOf, pickOf, newCompanyMate } = movedWorld();
+        redeal(live, { melody: ['wandering'] });
+        expect(pickOf(newCompanyMate)).toBe('wandering');
+        expect(robotOf().loadedUnder?.melody).toBe('wandering');
+        const sameSpawn = robotsOf(buildWorld({ melody: ['wandering'] })).find((r) => r.id === mover)!;
+        expect(melodyFields(robotOf())).toEqual(melodyFields(sameSpawn));
+      });
+
+      it('keeps its pick through a theme change, its moved fields drawn under that pick', () => {
+        const { live, mover, robotOf, before } = movedWorld();
+        const own = before.loadedUnder!.melody!;
+        useLoadingStore.getState().setLoading({ theme: 'perilous', aspects: { melody: ['hypnotic', 'mechanical'] } });
+        rederiveLoading(live, { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } }, cancelSwellForRobotAttribute);
+        expect(robotOf().loadedUnder?.melody).toBe(own);
+        // The same plot built under Perilous with the mover's own pick for everyone: its fields as they should be.
+        const fresh = robotsOf(buildWorld({ melody: [own] }, 'perilous')).find((r) => r.id === mover)!;
+        // Every seeded field as the fresh build under its own pick has it; at least one is moved by Perilous.
+        const seeded = (r: Robot) => ({ melody: melodyFields(r), adsr: r.audioAttributes.adsr, sends: robotSendLevels(r) });
+        expect(seeded(fresh)).not.toEqual(seeded(before)); // precondition
+        expect(seeded(robotOf())).toEqual(seeded(fresh));
+      });
     });
   });
 });

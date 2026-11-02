@@ -307,20 +307,34 @@ export function rederiveLoading(
   const to: LoadingIdentity = { theme, aspects };
   const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
   const ids = locale.robots.map((robot) => robot.id);
-  // The deal runs over the companies as they stand, not the seeded ones a rebuild or the session baseline deals over: a
-  // robot moved to another company takes that company's aspect. Intended (Crawford, 2026-11-01, the second review's
-  // finding 2); such a robot can differ from the seeded baseline, and sessionDiff saves the difference as overrides.
-  const after = withLoading(to, () =>
-    applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ids.length), ids, locale.companies, to, noiseMap),
-  );
-  // The old side is what each robot was dealt, its own `loadedUnder` under the old theme, not a deal of `from` over the
-  // companies now: a robot moved to another company since would read as already holding that company's pick, and keep
-  // its old one (final fixes F16). For a world as it was built the two agree.
+  // The deal runs over the companies as they stand, not the seeded ones a rebuild or the session baseline deals over,
+  // under both loadings. A robot's aspects change only in the families whose deal the change moves for it; every other
+  // family keeps the robot's own `loadedUnder`. So a robot moved to another company keeps what it rolled until a change
+  // moves the pick its new company is dealt (final fixes F20; Crawford: "nothing about the robot should change unless
+  // the robot itself or its new company gets updated"). For a world as built, `loadedUnder` is the old deal, so a robot
+  // takes the new deal whole. A moved robot can differ from the seeded baseline; sessionDiff saves it as overrides.
+  const oldDeal = dealAspects(from, locale.companies, locale.robots, noiseMap);
+  const newDeal = dealAspects(to, locale.companies, locale.robots, noiseMap);
+  /** A robot's baselines under `theme` and the given aspects, as a spawn under them would draw it. */
+  const drawn = (theme: ThemeId, i: number, baseline: RobotAudioBaseline, dealt: RobotAspects | undefined): RobotAudioBaseline =>
+    dealt ? { ...baseline, ...dealtFields(noiseMap, i, theme, dealt, baseline), loadedUnder: dealt } : baseline;
+  const aspectsAfter = (robot: Robot): RobotAspects | undefined => {
+    const next: RobotAspects = { ...robot.loadedUnder };
+    for (const family of ASPECT_FAMILY_IDS) {
+      const was = oldDeal.get(robot.id)?.[family];
+      const now = newDeal.get(robot.id)?.[family];
+      if (was === now) continue;
+      if (now === undefined) delete next[family];
+      else Object.assign(next, { [family]: now });
+    }
+    return Object.keys(next).length > 0 ? next : undefined;
+  };
+  // The old side is what each robot was dealt, its own `loadedUnder` under the old theme (final fixes F16).
   const before = withLoading(from, () =>
-    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => {
-      const dealt = locale.robots[i].loadedUnder;
-      return dealt ? { ...baseline, ...dealtFields(noiseMap, i, from.theme, dealt, baseline), loadedUnder: dealt } : baseline;
-    }),
+    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => drawn(from.theme, i, baseline, locale.robots[i].loadedUnder)),
+  );
+  const after = withLoading(to, () =>
+    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => drawn(to.theme, i, baseline, aspectsAfter(locale.robots[i]))),
   );
   locale.robots.forEach((robot, i) => {
     const { fields, families, swells } = movedFields(robot, before[i], after[i]);

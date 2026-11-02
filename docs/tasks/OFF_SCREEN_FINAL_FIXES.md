@@ -908,6 +908,51 @@ and would drop all six layer swells (F16).
       and an aspect change (F16, F17).
 - [ ] Ready for Crawford's PR.
 
+### Phase 5b: Crawford's answers to Phase 5 (2026-11-01)
+
+| # | The question | His answer | Where it went |
+|---|---|---|---|
+| F16 | A robot moved to another company takes that company's aspect at the next theme or aspect change, even one that changes nothing about that company | "if a robot changes company nothing about the robot should change unless the robot itself or its new company gets updated" | F20 |
+| F17 | Should a kept Sync pick the new tempo no longer allows snap to the nearest allowed note? | "yes, a new tempo should impact all notes" | F21 |
+
+**This supersedes finding 2's "takes that company's aspect at the next change".** The in-place deal still reads the
+live companies, but a robot's family changes only when the aspect its company is dealt changes.
+
+- [x] **F20: `aspectDeal.ts` — a moved robot changes only when its new company's pick changes**
+
+  **As shipped:** `rederiveLoading` deals both loadings over the live companies (`dealAspects`). A robot's new aspects
+  are its `loadedUnder`, with only the families whose two deals differ for it replaced (or dropped). R33's "takes that
+  company's pick" case became three F20 cases. The theme case uses Perilous: a dealt Melody aspect replaces the theme's
+  Density band, and Calm's real column moved no other field of that robot. Mutants killed: the live deal taken whole
+  (2 fail), every family taking the new deal (2), a family the deal drops kept (7). The four files pass (766). The
+  spec, AUDIO_SYSTEM, COMPANIES and `Robot.ts`'s comment now say the same.
+
+  **Description:** In `rederiveLoading`, each robot's new aspects are its own `loadedUnder`. The only exception is a
+  family whose live-company deal differs between the old loading and the new: that family takes the new deal. The old
+  side stays the robot's own `loadedUnder` under the old theme. A theme change re-derives a moved robot's fields under
+  its own aspects.
+  - For a world as built, `loadedUnder` equals the old deal, so nothing changes there and the parity cases stand.
+
+  **Proof:** RED test in `src/systems/spawnSystem.test.ts`, replacing R33's live-companies case:
+  - a moved robot keeps its pick and fields through a change to another family;
+  - a change that moves its new company's pick gives it that new pick;
+  - through a theme change, it keeps its pick, with its fields drawn under it.
+
+  **Files:** `aspectDeal.ts`, `spawnSystem.test.ts`. **Estimated scope:** S
+
+- [ ] **F21: `audioStore.ts` — a theme's new tempo snaps every Sync pick it no longer allows**
+
+  **Description:** After `applyGlobalHalfMoves` sets a new tempo, every synced note the tempo no longer allows snaps to
+  the nearest allowed one at that tempo. That covers the four bank lanes (`allowedLaneNoteValues`), the Delay
+  (`allowedDelayNoteValues`) and the four synced-rate blocks (`allowedRateNoteValues` over `PEDAL_RATE_RANGE_HZ`). Each
+  snapped note is pushed as a hand edit is. A note still allowed stays.
+  - Scope: the theme change only. Whether the Tempo slider should snap too is a question for Crawford.
+
+  **Proof:** RED test in `src/stores/audioStore.test.ts`: a lane and the Delay on a note the new tempo disallows snap
+  to the nearest allowed; one still allowed is kept.
+
+  **Files:** `audioStore.ts`, its test. **Estimated scope:** S
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

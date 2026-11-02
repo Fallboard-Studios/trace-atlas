@@ -309,8 +309,8 @@ export interface Robot {
    * and Voice since docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 8 and 10). A family absent means as theme for that family.
    * Written by the deal (aspectDeal.ts: applyAspectDeal at spawn, applyDealToBaselines for the baseline, rederiveLoading
    * when a theme or aspect row changes the live world), read by the company and robot readouts, and the old side of
-   * rederiveLoading's comparison. A robot moved between companies keeps what it rolled until the next theme or aspect
-   * change, which deals over the companies as they stand (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16). JSON.
+   * rederiveLoading's comparison. A robot moved between companies keeps what it rolled until a theme or aspect change
+   * moves the aspect its new company is dealt (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F20). JSON.
    */
   loadedUnder?: import('../data/bands/aspects').FamilyAspects;
   /**
