@@ -41,8 +41,8 @@ names each one, so the diff shows exactly which old promise changed.
   `realise` when any non-Current world part lands, and the snapshot is dropped when a Current restore lands.
 - **`Intent` gets the spec's three world parts (§1.5) in stages.** Task 3 adds `kind: 'current'` next to today's
   payload world and `roll`. Task 5 replaces `roll` with `kind: 'new'`. Each task leaves the screen working.
-- **`rollWorld` is left in `worldTransition.ts`, unused** once Task 5 lands, because the off screen is its only
-  caller. Deleting it is Crawford's call (his rule: propose cuts, never make one unasked). Open question 1 below.
+- **`rollWorld` goes in Task 5.** The off screen is its only caller, and Crawford said on 2026-11-02 to remove it and
+  its tests there. That covers its cases in `worldTransition.test.ts` and in `OffScreen.test.tsx`.
 - **Order:** Task 1 has no dependants until Task 6, so it can be built at any point before that. Tasks 2 → 3 → 4 are
   sequential, because each rewrites cases the previous one touched. Task 5 needs Task 3's `leaveCurrent`. Task 6
   needs Tasks 1 and 3.
@@ -256,7 +256,8 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
     `detachLoadedSession()`.
   - **Scan:** draws again into `newWorld`, then does the same with the new draw.
   - **The readout** for the row names the drawn world with no label.
-  - **What goes:** `onRoll`, `roll` on `Intent`, `ROLL_SCHEMA`, `home.off.roll` and the `rollWorld` import.
+  - **What goes:** `onRoll`, `roll` on `Intent`, `ROLL_SCHEMA` and `home.off.roll`. `rollWorld` itself is deleted
+    from `worldTransition.ts`, along with its cases in `worldTransition.test.ts` (Crawford, 2026-11-02).
 
   **Proof:** RED test — `OffScreen.test.tsx`, with `seedUtils`' two draws mocked to fixed values:
   - The row is first, unselected, labelled "New Transmission", with Scan in its trailing slot. Current has no trailing
@@ -274,16 +275,19 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
         `:1479`, `:1594`, `:638`, `:1834`, and the list-order cases `:1203`, `:1209` and `:1226`. They keep what still
         holds: a flat button, never a pick by itself, never starts audio, and the last click wins.
   - [ ] `src/content` tests pass, and `home.off.roll` is gone.
+  - [ ] `rollWorld` and its cases are gone, and nothing in `src/` names it. The rest of `worldTransition.test.ts`
+        passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx src/content`
+  - [ ] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx src/content src/systems/worldTransition.test.ts`
   - [ ] Mutants: the draw taken at the click instead of on mount (the "same world on return" case fails); Scan not
         selecting the row; the theme not reset to Classic; the save not detached.
   - [ ] `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Task 3. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `src/content/copy/home.ts`
+  **Dependencies:** Task 3. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `src/content/copy/home.ts`,
+  `src/systems/worldTransition.ts`, `src/systems/worldTransition.test.ts`
 
-  **Estimated scope:** M (three files; the most rewritten cases of any task)
+  **Estimated scope:** M (five files; the most rewritten cases of any task, and a deletion)
 
 ### Phase 4: Keep follows Current
 
@@ -375,11 +379,10 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 | An R3 rule nobody restated breaks (Keep dims while waiting, the last click wins, the loading laid over the pick) | Medium | Every task names the cases it rewrites. The rest must pass unmodified. Task 3 adds the last-click-wins case for a waiting restore. |
 | Mocking `seedUtils` in Task 5 leaks into other cases' worlds | Low | Mock only within Task 5's `describe`. `worldTransition.test.ts`'s style-name gotcha shows unpinned seeds flake; pin both draws. |
 | `describeLoading`'s lift changes a string anywhere `describeWorld` is read (the Current row, Foundry's status line) | Low | `describeWorld.test.ts` passes unmodified (Task 4). |
-| `rollWorld` stays as dead code | Low | Open question 1, Crawford's call. |
 
 ## Open Questions
 
-1. **`rollWorld`:** after Task 5, nothing calls it. Delete it, and its test cases, in a follow-up commit? **Open** —
-   Crawford's call (his rule: cut on his say-so).
+1. **`rollWorld`:** after Task 5, nothing calls it. **Resolved** (Crawford, 2026-11-02): Task 5 deletes it and its
+   tests.
 2. The spec's three questions: **Resolved** (Architecture Decisions above): backlog 64; the unsaved line to backlog
    62; the tail names Classic when it differs.
