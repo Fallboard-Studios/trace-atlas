@@ -252,7 +252,7 @@ they share a source file and a test file.
   **Estimated scope:** S
 
 ### Checkpoint 0: The draws
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean. Nothing that sounds has moved yet.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean. Nothing that sounds has moved yet.
 
 ---
 
