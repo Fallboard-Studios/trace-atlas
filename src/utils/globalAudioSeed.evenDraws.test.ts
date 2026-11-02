@@ -2,7 +2,9 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect } from 'vitest';
+import type { NoiseFunction2D } from 'simplex-noise';
 import type { GlobalAudioSettings } from '../types/globalAudio';
+import { LFO_LANE_IDS, LFO_RATE_MIN, type BankLfoSettings, type LfoLaneId, type LfoShape } from '../types/lfo';
 import { getBand } from '../data/bands/loadingContext';
 import { GLOBAL_AUDIO_SEED_RANGES, type LoadingRangeKey } from '../data/globalAudioSeedRanges';
 import { correlation, outerTenths } from '../testUtils/spread';
@@ -11,10 +13,15 @@ import { quantizeToStep } from './math';
 import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { pickSeedNoteValue } from './tempoSync';
+import { LFO_SHAPE_SEED_ORDER, pickShape } from './lfoShapeDraw';
 import {
   COLOUR_CHARACTERS,
   COLOUR_CHARACTER_NODES,
+  LFO_BANK_DRIFT_SEED_RANGE,
+  LFO_BANK_RATE_BANDS,
+  LFO_BANK_SYNC_BAND_ORDER,
   generateGlobalAudioSettings,
+  generateLfoBankSettings,
   pickColourCharacter,
   scaleUnitValue,
   type ColourCharacter,
@@ -259,5 +266,85 @@ describe('generateGlobalAudioSettings — the colour character and the Delay Syn
   it('guard: the Delay seeds Sync in 66 % of styles (+/-3 points)', () => {
     const share = STYLES.filter(({ settings }) => settings.delay.sync !== undefined).length / STYLE_COUNT;
     expect(Math.abs(share - 0.66), `${(share * 100).toFixed(1)} %`).toBeLessThanOrEqual(0.03);
+  });
+});
+
+describe('generateLfoBankSettings — every lane draw even, the Sync shares as targeted (Even Seeded Draws T13)', () => {
+  /** FREE_SYNC_TOGGLE's targets (docs/specs/EVEN_SEEDED_DRAWS.md §1.4): the share of styles each lane seeds Sync in. */
+  const SYNC_TARGET: Record<LfoLaneId, number> = { a: 0.75, b: 0.66, c: 0.33, d: 0.25 };
+  const BANKS = STYLES.map(({ id, name, noiseMap }) => {
+    const bank = generateLfoBankSettings(id, name);
+    const bpm = generateAttenuationStyleBpm(id, name);
+    evictAttenuationStyleNoiseMap(id);
+    return { noiseMap, bank, bpm };
+  });
+
+  /** The bank the even draws give: each lane's draws at their own dataIds, through the bands, grids and pickers. */
+  function expectedBank(noiseMap: NoiseFunction2D, bpm: number): Record<LfoLaneId, BankLfoSettings> {
+    let queue: readonly LfoShape[] = LFO_SHAPE_SEED_ORDER;
+    const bank = {} as Record<LfoLaneId, BankLfoSettings>;
+    for (const lane of LFO_LANE_IDS) {
+      const even = (field: string) => getUniformSeededVal(noiseMap, `lfoBank.${lane}.${field}`);
+      const drift = (field: string) => quantizeToStep(scaleUnitValue(even(field), { ...LFO_BANK_DRIFT_SEED_RANGE, scale: 'linear' }), 0, 0.01);
+      const picked = pickShape(even('shape'), queue);
+      queue = picked.queue;
+      const bands = LFO_BANK_SYNC_BAND_ORDER[lane].map((id) => LFO_BANK_RATE_BANDS[id]);
+      const sync = even('syncMode') < SYNC_TARGET[lane] ? pickSeedNoteValue(even('syncNote'), bpm, bands, 'hz') : undefined;
+      bank[lane] = {
+        shape: picked.shape,
+        rate: quantizeToStep(scaleUnitValue(even('rate'), { ...LFO_BANK_RATE_BANDS[lane], scale: 'log' }), LFO_RATE_MIN, 0.05),
+        rateDrift: drift('rateDrift'),
+        depthDrift: drift('depthDrift'),
+        ...(sync !== undefined && { sync }),
+      };
+    }
+    return bank;
+  }
+
+  it('each lane is the even draws at its own dataIds: shape, rate, both drifts, Sync mode and note', () => {
+    for (const { noiseMap, bank, bpm } of BANKS.slice(0, 300)) expect(bank).toStrictEqual(expectedBank(noiseMap, bpm));
+  });
+
+  // A rate is a log draw over its lane's band on a 0.05 grid (7 to 81 values), so each grid value is held to its even
+  // share: the stretch of the log band that rounds to it. 4 standard deviations, about 140 values at once.
+  it('each lane\'s rate holds every grid value at its even share on the log band (+/-4 standard deviations)', () => {
+    for (const lane of LFO_LANE_IDS) {
+      const { min, max } = LFO_BANK_RATE_BANDS[lane];
+      const position = (v: number) => Math.log(Math.min(max, Math.max(min, v)) / min) / Math.log(max / min);
+      const counts = new Map<number, number>();
+      for (const { bank } of BANKS) counts.set(bank[lane].rate, (counts.get(bank[lane].rate) ?? 0) + 1);
+      for (let g = Math.round(min / 0.05) * 0.05; g <= max + 1e-9; g += 0.05) {
+        const value = quantizeToStep(g, 0, 0.05);
+        const expected = position(value + 0.025) - position(value - 0.025);
+        const sd = Math.sqrt((expected * (1 - expected)) / STYLE_COUNT);
+        const share = (counts.get(value) ?? 0) / STYLE_COUNT;
+        expect(Math.abs(share - expected), `${lane}.rate = ${value}: ${share} against ${expected.toFixed(4)}`).toBeLessThanOrEqual(4 * sd);
+      }
+    }
+  });
+
+  // On the 0.01 grid the bottom tenth of +/-0.7 (-0.70 to -0.57) holds the draws from -0.7 to -0.565, 9.64 % of an even
+  // draw, and the top tenth (0.56 to 0.70) those from 0.555, 10.36 %. Each is held within 3 standard deviations.
+  it('each lane\'s two drifts fill +/-0.7: each outer tenth at its even share', () => {
+    const within = (share: number, expected: number) => Math.abs(share - expected) <= 3 * Math.sqrt((expected * (1 - expected)) / STYLE_COUNT);
+    for (const lane of LFO_LANE_IDS) {
+      for (const field of ['rateDrift', 'depthDrift'] as const) {
+        const { bottom, top } = outerTenths(BANKS.map(({ bank }) => bank[lane][field]), LFO_BANK_DRIFT_SEED_RANGE);
+        expect(within(bottom, 0.135 / 1.4), `${lane}.${field} bottom tenth ${(bottom * 100).toFixed(2)} %`).toBe(true);
+        expect(within(top, 0.145 / 1.4), `${lane}.${field} top tenth ${(top * 100).toFixed(2)} %`).toBe(true);
+      }
+    }
+  });
+
+  it('lane a\'s shape takes sine at its first-pick odds, 53.3 % (+/-3 points)', () => {
+    const share = BANKS.filter(({ bank }) => bank.a.shape === 'sine').length / STYLE_COUNT;
+    expect(Math.abs(share - 1 / 1.875), `${(share * 100).toFixed(1)} %`).toBeLessThanOrEqual(0.03);
+  });
+
+  it('guard: lanes a / b / c / d seed Sync in 75 / 66 / 33 / 25 % of styles (+/-3 points)', () => {
+    for (const lane of LFO_LANE_IDS) {
+      const share = BANKS.filter(({ bank }) => bank[lane].sync !== undefined).length / STYLE_COUNT;
+      expect(Math.abs(share - SYNC_TARGET[lane]), `${lane}: ${(share * 100).toFixed(1)} %`).toBeLessThanOrEqual(0.03);
+    }
   });
 });

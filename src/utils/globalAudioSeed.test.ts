@@ -1903,8 +1903,9 @@ describe('generateLfoBankSettings — Sync draws', () => {
   });
 
   it('queries lfoBank.<lane>.syncMode and .syncNote for every lane', () => {
+    clearSeedDraws();
     generateLfoBankSettings('bank-sync-sample-0', 'BankSync0');
-    const keys = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+    const keys = drawnDataIds();
     for (const lane of LFO_LANE_IDS) {
       expect(keys, `${lane}.syncMode`).toContain(`lfoBank.${lane}.syncMode`);
       expect(keys, `${lane}.syncNote`).toContain(`lfoBank.${lane}.syncNote`);
@@ -2236,8 +2237,8 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // (compressor, EQ, both filters, delay time and feedback, reverb, the colour shapes and lit wets, limiter); the pedal
 // blocks came out identical, which is the check that only the draw changed. T11 moved the colour character (alpha crush
 // -> fold, theta fold -> clean) and the Delay Sync pair (alpha now Sync; theta's note). T12 moved the seed tempo (alpha
-// 74 -> 78 BPM, theta 58 -> 85), so four Sync notes snapped to it moved and no other value did. The rule above stands
-// again once Phase 3 is done.
+// 74 -> 78 BPM, theta 58 -> 85), so four Sync notes snapped to it moved and no other value did. T13 moved every LFO
+// Bank lane (rate, shape, both drifts, Sync). The rule above stands again once Phase 3 is done.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2325,22 +2326,22 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   });
 
   it('generateLfoBankSettings("oracle-alpha")', () => {
+    // Even Seeded Draws T13: every lane re-recorded; no lane lands Sync in this style.
     expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
-      a: { shape: 'sawtooth', rate: 0.35, rateDrift: 0.59, depthDrift: 0.51 },
-      b: { shape: 'square', rate: 1.25, rateDrift: 0.15, depthDrift: 0.57 },
-      c: { shape: 'sawtooth', rate: 3.4, rateDrift: 0.19, depthDrift: 0.04 },
-      d: { shape: 'square', rate: 7.25, rateDrift: 0.48, depthDrift: 0.08 },
+      a: { shape: 'sawtooth', rate: 0.15, rateDrift: 0.08, depthDrift: -0.43 },
+      b: { shape: 'square', rate: 0.7, rateDrift: -0.36, depthDrift: -0.17 },
+      c: { shape: 'sine', rate: 2, rateDrift: 0.56, depthDrift: -0.08 },
+      d: { shape: 'square', rate: 6.5, rateDrift: 0.1, depthDrift: 0.65 },
     });
   });
 
   it('generateLfoBankSettings("oracle-theta")', () => {
-    // Task 13: lanes a and c landed Sync — the added `sync` keys are the only change to this
-    // expectation. b and d landed Free and stay byte-identical, with no `sync` key.
+    // Task 13 (Free | Sync) added the sync keys. Even Seeded Draws T13: every lane re-recorded; only lane a lands Sync now.
     expect(generateLfoBankSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
-      a: { shape: 'triangle', rate: 0.25, rateDrift: 0.23, depthDrift: 0.02, sync: { division: '1', modifier: 'dotted' } },
-      b: { shape: 'sawtooth', rate: 0.6, rateDrift: -0.15, depthDrift: 0.17 },
-      c: { shape: 'square', rate: 1.8, rateDrift: -0.19, depthDrift: -0.3, sync: { division: '1/8', modifier: 'straight' } }, // T12: tempo 58 -> 85
-      d: { shape: 'triangle', rate: 5.2, rateDrift: -0.42, depthDrift: -0.08 },
+      a: { shape: 'triangle', rate: 0.25, rateDrift: 0.37, depthDrift: 0.11, sync: { division: '1', modifier: 'straight' } },
+      b: { shape: 'square', rate: 0.5, rateDrift: -0.54, depthDrift: 0.59 },
+      c: { shape: 'sine', rate: 3.8, rateDrift: -0.36, depthDrift: 0.12 },
+      d: { shape: 'sawtooth', rate: 6.05, rateDrift: -0.06, depthDrift: -0.18 },
     });
   });
 

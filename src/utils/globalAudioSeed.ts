@@ -542,17 +542,12 @@ export const LFO_BANK_RATE_BANDS: Record<LfoLaneId, { min: number; max: number }
 
 /**
  * Probability threshold each lane's own "Sync" seed draw ([0, 1]) must fall under to seed Anchored
- * rather than Float — slower lanes lean Anchored, the fast ones lean Float. The TARGET shares are
- * a 75 / b 66 / c 33 / d 25 % (docs/specs/FREE_SYNC_TOGGLE.md §1.7); the constants below are
- * calibrated, because a simplex draw isn't uniform — it bunches around 0.5, so a threshold equal
- * to its target share over- or under-shoots. Measured over 3000 Attenuation Styles (2026-10-03):
- *   a  0.75 gave 91.8% raw  -> 0.60 gives 74.6%   (calibrated)
- *   b  0.66 gave 72.3% raw  -> 0.62 gives 66.2%   (calibrated at Crawford's request, 2026-10-03)
- *   c  0.33 gives 34.2%                           (left; the c.syncMode draw takes only 3 distinct values)
- *   d  0.25 gave 11.2% raw  -> 0.33 gives 23.8%   (calibrated)
- * Calibrate the constant, never the target. Re-measure if a key or the noise map changes.
+ * rather than Float — slower lanes lean Anchored, the fast ones lean Float. Each is its TARGET
+ * share, a 75 / b 66 / c 33 / d 25 % (docs/specs/FREE_SYNC_TOGGLE.md §1.7): the draw is even
+ * (getUniformSeededVal, Even Seeded Draws T13), so an edge is the share it gives. The bell-curved
+ * plain draw needed calibrated edges (0.6 / 0.62 / 0.33 / 0.33) for the same shares.
  */
-const LFO_BANK_SYNC_ODDS: Record<LfoLaneId, number> = { a: 0.6, b: 0.62, c: 0.33, d: 0.33 };
+const LFO_BANK_SYNC_ODDS: Record<LfoLaneId, number> = { a: 0.75, b: 0.66, c: 0.33, d: 0.25 };
 
 /**
  * Which lanes' rate bands a lane's Sync draw tries, in order — its own, then the next faster, then
@@ -590,16 +585,16 @@ export function generateLfoBankSettings(
   const seedBpm = generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName);
 
   for (const lane of LFO_LANE_IDS) {
-    const rateT = getSeededVal(noiseMap, `lfoBank.${lane}.rate`, 0, 0, 1);
-    const shapeT = getSeededVal(noiseMap, `lfoBank.${lane}.shape`, 0, 0, 1);
-    const rateDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.rateDrift`, 0, 0, 1);
-    const depthDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.depthDrift`, 0, 0, 1);
+    const rateT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.rate`);
+    const shapeT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.shape`);
+    const rateDriftT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.rateDrift`);
+    const depthDriftT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.depthDrift`);
 
     const picked = pickShape(shapeT, shapeQueue);
     shapeQueue = picked.queue;
 
-    const syncModeT = getSeededVal(noiseMap, `lfoBank.${lane}.syncMode`, 0, 0, 1);
-    const syncNoteT = getSeededVal(noiseMap, `lfoBank.${lane}.syncNote`, 0, 0, 1);
+    const syncModeT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.syncMode`);
+    const syncNoteT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.syncNote`);
     const sync =
       syncModeT < LFO_BANK_SYNC_ODDS[lane]
         ? pickSeedNoteValue(

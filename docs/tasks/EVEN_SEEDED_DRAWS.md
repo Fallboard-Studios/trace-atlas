@@ -528,7 +528,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** XS–S
 
-- [ ] **Task 13: globalAudioSeed.ts — the LFO Bank draws even, the Sync shares as targeted**
+- [x] **Task 13: globalAudioSeed.ts — the LFO Bank draws even, the Sync shares as targeted**
 
   **Description:** In `generateLfoBankSettings`, switch each lane's rate, shape, both drifts, Sync mode and Sync note.
   `LFO_BANK_SYNC_ODDS` becomes **{ a: 0.75, b: 0.66, c: 0.33, d: 0.25 }**, the FREE_SYNC_TOGGLE targets, and its
@@ -538,8 +538,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   `b.rateDrift`, `c.rateDrift` and `d.depthDrift` take 3). Guard: Sync is a 75 / b 66 / c 33 / d 25 ± 3 %.
 
   **Acceptance criteria:**
-  - [ ] Every LFO Bank draw is even.
-  - [ ] The Sync shares are on target.
+  - [x] Every LFO Bank draw is even.
+  - [x] The Sync shares are on target.
 
   **Verification:** As Task 4 (expected repairs: `seedBaseline.test.ts`'s fixture that needs a seeded Sync on lane b,
   re-pinned to a seed that has it and asserted as a precondition; possibly `worldTransition.test.ts`'s theme-pick lane
@@ -1062,3 +1062,16 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   Tremolo and Delay (→ triplet 1/4) and theta's bank lane c (triplet 1/8 → 1/8). No other value moved.
 - Mutation check (T12): the plain draw restored; `Math.floor` for `Math.round`; a fixed 40–100 band for the theme's;
   the dataId renamed to the bare `bpm` — 4 of 4 killed. Full suite: 13,330 passed.
+- T13: "more than 2,500 distinct values" cannot hold on the bank's grids: a lane's rate is on a 0.05 step (7 values in
+  lane a, 81 in lane d) and the drifts on 0.01 (141 values). Each lane's rate holds every grid value at its even share
+  on the log band instead (4 standard deviations), each drift's outer tenths their even shares on the grid (9.64 % and
+  10.36 %, 3 standard deviations), and a pin rebuilds the whole bank from the even draws (300 styles). Lane a's first
+  shape pick is held at its sine odds, 53.3 % ± 3 (it was 58.1 % on the plain draw). The Sync guard passed before the
+  switch and after.
+- T13 repairs: the bank's Sync key query case reads every draw; the oracle's two banks were re-recorded (every lane
+  moved; theta's lane c no longer lands Sync). `worldTransition.test.ts`'s theme-pick case pinned "lane a, and only it,
+  moves"; on the even draws lane b alone moves, so its precondition now says what the case needs (some lanes move and
+  some stay) instead of naming a lane. `seedBaseline.test.ts` needed no repair: its fixture still seeds the Sync it
+  needs.
+- Mutation check (T13): each of the six lane draws put back on `getSeededVal`; the old calibrated odds restored; lane
+  d's odds 0.25 → 0.3 — 8 of 8 killed. Full suite: 13,335 passed.
