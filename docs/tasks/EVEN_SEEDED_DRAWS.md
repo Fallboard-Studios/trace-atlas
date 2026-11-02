@@ -214,7 +214,7 @@ they share a source file and a test file.
 
   **Estimated scope:** XS
 
-- [ ] **Task 3: src/testUtils/seededDraws.ts — stub maps that steer every draw**
+- [x] **Task 3: src/testUtils/seededDraws.ts — stub maps that steer every draw**
 
   **Description:** A test-only module (Architecture Decisions, "Tests steer the even draws"):
   - `constantNoiseMap(raw)` and `noiseMapForDataIds(mapping, fallback = 0)` move here from `audioSwells.test.ts`,
@@ -237,12 +237,12 @@ they share a source file and a test file.
   Fails before the change: the module doesn't exist.
 
   **Acceptance criteria:**
-  - [ ] The three cases above hold.
-  - [ ] Nothing outside `src/testUtils/` and its test changes.
+  - [x] The three cases above hold.
+  - [x] Nothing outside `src/testUtils/` and its test changes.
 
   **Verification:**
-  - [ ] `npx vitest run src/testUtils/seededDraws.test.ts` passes; full suite green.
-  - [ ] `npm run build:types`, `npm run lint` clean. If the lint rules for test files reject a non-test module under
+  - [x] `npx vitest run src/testUtils/seededDraws.test.ts` passes; full suite green.
+  - [x] `npm run build:types`, `npm run lint` clean. If the lint rules for test files reject a non-test module under
     `src/testUtils/`, follow `worldLinkFixtures.ts`'s precedent there.
 
   **Dependencies:** Task 2.
@@ -817,3 +817,16 @@ warm-up runs, a different world each run):
 |---|---|
 | `generateRobotRosterBaseline(noiseMap, 12)` | 1.55 ms (1.545–1.552) |
 | `generateWorldSeedBaseline({ theme: 'classic' })` | 0.71 ms (0.707–0.714) |
+
+The harness is not in the tree: it was moved out before T1's commit, because `npm run lint` fails on its `node:fs`
+import and a full `npm test` writes `zz-spread.json` and `zz-time.json` to the repo root. T18 puts it back as
+`src/utils/zzSpread.test.ts` (the T0 version, with the timing case, is kept outside the repo) and deletes it again
+before its commit.
+
+### T1–T3: deviations
+
+- T1, T2: none.
+- T3: the helper is imported inside the `vi.mock` factory (`await import('@/testUtils/seededDraws')`), not at the top
+  of the test file, because `vi.mock` is hoisted above the imports. The module's header gives the factory to copy.
+- T3: `noiseMapForDataIds` keys its x by `alea(dataId)()` itself instead of importing `precomputeDataX`, so the helper
+  never imports the module it mocks. The test checks that `getSeededVal` still finds a named dataId through it.
