@@ -1607,7 +1607,7 @@ describe('generateGlobalLfoLinks', () => {
         const noiseMap = getAttenuationStyleNoiseMap(id, `LaneQuiet${i}`);
         const links = generateGlobalLfoLinks(id, `LaneQuiet${i}`);
         for (const target of GLOBAL_LFO_TARGET_IDS) {
-          const quiet = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1) < 0.34;
+          const quiet = getUniformSeededVal(noiseMap, `globalLfo.${target}.quiet`) < 0.34; // the even draw since Even Seeded Draws T14
           expect(links[target].lane === null, `${target} style ${i}`).toBe(quiet);
           if (quiet) expect(links[target].depth).toBe(0);
         }
@@ -1623,10 +1623,10 @@ describe('generateGlobalLfoLinks', () => {
     });
   });
 
-  it('queries getSeededVal only with .quiet/.lane/.depth dataId suffixes under globalLfo.* — no .rate/.shape draws', () => {
+  it('draws only .quiet/.lane/.depth dataId suffixes under globalLfo.*, through any draw — no .rate/.shape draws', () => {
+    clearSeedDraws();
     generateGlobalLfoLinks('links-test-planet', 'Links');
-    const globalLfoKeys = vi.mocked(getSeededVal).mock.calls
-      .map(([, dataId]) => dataId)
+    const globalLfoKeys = drawnDataIds()
       .filter((dataId) => dataId.startsWith('globalLfo.'));
     expect(globalLfoKeys.length).toBeGreaterThan(0);
     for (const dataId of globalLfoKeys) {

@@ -384,6 +384,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
  * Probability threshold a target's own "start quiet" seed draw ([0, 1]) must
  * clear to force rate to 0 — ~34% chance per target (not a flat 50/50), so a
  * typical Attenuation Style seeds roughly 5 already-oscillating LFOs out of 7.
+ * The quiet draw is even (Even Seeded Draws T14), so 0.34 is each target's
+ * share; on the old plain draw it ranged 0–34 % (hpf.Q was never quiet).
  * Replaces the old separate `active` boolean — see LFO_RATE_MIN's own doc
  * comment (src/types/lfo.ts) for why rate=0 is now the "off" state.
  */
@@ -659,7 +661,7 @@ export function generateGlobalLfoLinks(
   let companionTaken = false;
 
   for (const target of GLOBAL_LFO_TARGET_IDS) {
-    const quietT = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1);
+    const quietT = getUniformSeededVal(noiseMap, `globalLfo.${target}.quiet`);
     if (quietT < LFO_QUIET_THRESHOLD) {
       result[target] = { lane: null, depth: 0 };
       continue;
@@ -670,7 +672,7 @@ export function generateGlobalLfoLinks(
     const lane: LfoLaneId = !companionTaken && laneT < GLOBAL_LFO_COMPANION_EDGE ? 'b' : 'a';
     if (lane === 'b') companionTaken = true;
 
-    const depthT = getSeededVal(noiseMap, `globalLfo.${target}.depth`, 0, 0, 1);
+    const depthT = getUniformSeededVal(noiseMap, `globalLfo.${target}.depth`);
     const depth = quantizeToStep(
       scaleUnitValue(depthT, { ...globalLfoDepthSeedRangeForTarget(target), scale: 'linear' }),
       LFO_DEPTH_MIN,

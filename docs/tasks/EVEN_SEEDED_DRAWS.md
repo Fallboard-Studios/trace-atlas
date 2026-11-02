@@ -552,7 +552,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S–M
 
-- [ ] **Task 14: globalAudioSeed.ts — the global LFO links draw even**
+- [x] **Task 14: globalAudioSeed.ts — the global LFO links draw even**
 
   **Description:** In `generateGlobalLfoLinks`, switch each target's quiet roll and depth. `LFO_QUIET_THRESHOLD` stays
   0.34.
@@ -561,8 +561,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   `eq3.high` is 27 %). Each depth takes more than 2,500 distinct values (today the EQ low and high depths take 3).
 
   **Acceptance criteria:**
-  - [ ] The quiet and depth draws are even.
-  - [ ] Every target is quiet at its written share.
+  - [x] The quiet and depth draws are even.
+  - [x] Every target is quiet at its written share.
 
   **Verification:** As Task 4.
 
@@ -1075,3 +1075,12 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   needs.
 - Mutation check (T13): each of the six lane draws put back on `getSeededVal`; the old calibrated odds restored; lane
   d's odds 0.25 → 0.3 — 8 of 8 killed. Full suite: 13,335 passed.
+- T14: a depth is a whole percent over its group's window (26 to 56 values), so "more than 2,500 distinct values"
+  becomes: each lit target's depth holds every whole percent at its even share (the two ends half), within 4
+  standard deviations. A pin rebuilds every target's link from the even draws (quiet roll, the Companion lane rule,
+  depth; 300 styles). Before the switch `eq3.high` was quiet in 26.5 % of styles, and the EQ low depth never took 5 %.
+- T14 repairs, in `globalAudioSeed.test.ts`: the Companion task's "a target is quiet exactly when its own quiet draw is
+  under 0.34" reads the even draw, and the dataId-suffix case reads every draw (retitled from "queries getSeededVal
+  only…"). The seed oracle has no global links, so nothing there moved.
+- Mutation check (T14): the quiet and depth draws each put back on `getSeededVal`; `LFO_QUIET_THRESHOLD` 0.34 → 0.3;
+  the depth drawn centred — 4 of 4 killed. Full suite: 13,338 passed.

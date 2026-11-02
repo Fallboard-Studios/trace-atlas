@@ -4,7 +4,17 @@
 import { describe, it, expect } from 'vitest';
 import type { NoiseFunction2D } from 'simplex-noise';
 import type { GlobalAudioSettings } from '../types/globalAudio';
-import { LFO_LANE_IDS, LFO_RATE_MIN, type BankLfoSettings, type LfoLaneId, type LfoShape } from '../types/lfo';
+import {
+  GLOBAL_LFO_TARGET_IDS,
+  LFO_DEPTH_MIN,
+  LFO_LANE_IDS,
+  LFO_RATE_MIN,
+  type BankLfoSettings,
+  type GlobalLfoTargetId,
+  type LfoLaneId,
+  type LfoLink,
+  type LfoShape,
+} from '../types/lfo';
 import { getBand } from '../data/bands/loadingContext';
 import { GLOBAL_AUDIO_SEED_RANGES, type LoadingRangeKey } from '../data/globalAudioSeedRanges';
 import { correlation, outerTenths } from '../testUtils/spread';
@@ -17,10 +27,15 @@ import { LFO_SHAPE_SEED_ORDER, pickShape } from './lfoShapeDraw';
 import {
   COLOUR_CHARACTERS,
   COLOUR_CHARACTER_NODES,
+  GLOBAL_LFO_COMPANION_EDGE,
+  GLOBAL_LFO_EQ_DEPTH_SEED_RANGE,
+  GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE,
+  GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE,
   LFO_BANK_DRIFT_SEED_RANGE,
   LFO_BANK_RATE_BANDS,
   LFO_BANK_SYNC_BAND_ORDER,
   generateGlobalAudioSettings,
+  generateGlobalLfoLinks,
   generateLfoBankSettings,
   pickColourCharacter,
   scaleUnitValue,
@@ -346,5 +361,62 @@ describe('generateLfoBankSettings — every lane draw even, the Sync shares as t
       const share = BANKS.filter(({ bank }) => bank[lane].sync !== undefined).length / STYLE_COUNT;
       expect(Math.abs(share - SYNC_TARGET[lane]), `${lane}: ${(share * 100).toFixed(1)} %`).toBeLessThanOrEqual(0.03);
     }
+  });
+});
+
+describe('generateGlobalLfoLinks — the quiet roll and the depth draw even (Even Seeded Draws T14)', () => {
+  const LINKS = STYLES.map(({ id, name, noiseMap }) => {
+    const links = generateGlobalLfoLinks(id, name);
+    evictAttenuationStyleNoiseMap(id);
+    return { noiseMap, links };
+  });
+  const depthRangeOf = (target: GlobalLfoTargetId) =>
+    target.startsWith('eq3.')
+      ? GLOBAL_LFO_EQ_DEPTH_SEED_RANGE
+      : target.endsWith('.Q')
+        ? GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE
+        : GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE;
+
+  /** The links the even draws give: each target's quiet roll, lane and depth at their own dataIds, in target order. */
+  function expectedLinks(noiseMap: NoiseFunction2D): Record<GlobalLfoTargetId, LfoLink> {
+    const links = {} as Record<GlobalLfoTargetId, LfoLink>;
+    let companionTaken = false;
+    for (const target of GLOBAL_LFO_TARGET_IDS) {
+      const even = (field: string) => getUniformSeededVal(noiseMap, `globalLfo.${target}.${field}`);
+      if (even('quiet') < 0.34) {
+        links[target] = { lane: null, depth: 0 };
+        continue;
+      }
+      const lane: LfoLaneId = !companionTaken && even('lane') < GLOBAL_LFO_COMPANION_EDGE ? 'b' : 'a';
+      if (lane === 'b') companionTaken = true;
+      links[target] = { lane, depth: quantizeToStep(scaleUnitValue(even('depth'), { ...depthRangeOf(target), scale: 'linear' }), LFO_DEPTH_MIN, 1) };
+    }
+    return links;
+  }
+
+  it('each target is quiet in 34 % of styles (+/-3 points)', () => {
+    for (const target of GLOBAL_LFO_TARGET_IDS) {
+      const share = LINKS.filter(({ links }) => links[target].lane === null).length / STYLE_COUNT;
+      expect(Math.abs(share - 0.34), `${target}: ${(share * 100).toFixed(1)} % quiet`).toBeLessThanOrEqual(0.03);
+    }
+  });
+
+  // A lit depth is a whole percent over its group's window (26 to 56 values), so each value is held to its even share
+  // among the lit links: 1 / (max - min), the two ends half that. 4 standard deviations, about 270 values at once.
+  it('each lit target\'s depth holds every whole percent of its window at its even share (+/-4 standard deviations)', () => {
+    for (const target of GLOBAL_LFO_TARGET_IDS) {
+      const { min, max } = depthRangeOf(target);
+      const depths = LINKS.map(({ links }) => links[target]).filter((link) => link.lane !== null).map((link) => link.depth);
+      for (let depth = min; depth <= max; depth++) {
+        const expected = (depth === min || depth === max ? 0.5 : 1) / (max - min);
+        const sd = Math.sqrt((expected * (1 - expected)) / depths.length);
+        const share = depths.filter((d) => d === depth).length / depths.length;
+        expect(Math.abs(share - expected), `${target} depth ${depth}: ${share.toFixed(4)} against ${expected.toFixed(4)}`).toBeLessThanOrEqual(4 * sd);
+      }
+    }
+  });
+
+  it('each target is the even draws at its own dataIds: quiet roll, lane and depth', () => {
+    for (const { noiseMap, links } of LINKS.slice(0, 300)) expect(links).toStrictEqual(expectedLinks(noiseMap));
   });
 });
