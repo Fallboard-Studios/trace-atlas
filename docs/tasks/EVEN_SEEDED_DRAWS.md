@@ -338,7 +338,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S–M
 
-- [ ] **Task 7: spawnSystem.ts — `generateAudioAttributes`: glide, register, phase and pulse width even, detune centred**
+- [x] **Task 7: spawnSystem.ts — `generateAudioAttributes`: glide, register, phase and pulse width even, detune centred**
 
   **Description:** Switch the glider roll, portamento time, register, phase and pulse width to even, and the robot
   detune to centred. In `classic.ts`, `robot.portamento.lit` 0.23 → **0.125**. The comments on the glider share and the
@@ -350,9 +350,9 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   constant-zero map still returns in-band values.
 
   **Acceptance criteria:**
-  - [ ] The six draws switch as described.
-  - [ ] The glider share stays as heard.
-  - [ ] The fallback robot is in band.
+  - [x] The six draws switch as described.
+  - [x] The glider share stays as heard.
+  - [x] The fallback robot is in band.
 
   **Verification:** As Task 4.
 
@@ -875,5 +875,20 @@ before its commit.
 - Mutation check (T6): the seven voice draws and the waveform pick put back on `getSeededVal`; the layer detune made
   even, and plain; `ACCENT_BANDPASS_SHARE` 0.4 → 0.45; the old accent `lit` 0.27 restored — 12 of 12 killed. The
   detune-plain mutant dies only on the pin case: a plain draw is also roughly centred.
+- T7: the distribution cases live in a new mock-free `src/systems/spawnSystem.evenDraws.test.ts`, not in
+  `spawnSystem.test.ts`, whose draw spies and forced draws could leak into a distribution. It draws 2,000 worlds × 12
+  robots (about 3,000 gliders); building the sample takes about 9 s.
+- T7: the detune criterion "reaches ±4 or more in 1–5 % of robots" is read per side. The detune is `Math.round` of the
+  centred draw over ±5, so +4 starts at a raw 3.5: 4.5 % of robots per side, 9 % both sides together (the plan's range
+  fits the raw outer tenth, 2 % per side, not the rounded value). The 24,000-robot sample puts 5 % more than 3
+  standard deviations above 4.5 %.
+- T7 repairs: only the three parity pins (the `forceSeededDraws` fixtures held). Robot 2's master volume moved too
+  (0.74 → 0.79): it carries a register bias, and T7 moved its register. The spawned robots' glides went 0 / 0 / 0 →
+  0.18 / 0.18 / 0.14. `resolveBands.test.ts` took `lit: 0.125`.
+- Mutation check (T7): the five even draws put back on `getSeededVal`; the detune made even, and plain; the old glider
+  `lit` 0.23 restored — 8 of 8 killed.
+- For Crawford, not changed: the top-level `pulseWidth` that `generateAudioAttributes` seeds (`robot.audio.pulseWidth`)
+  looks unread. `AudioAttributes` no longer types it (Robot.ts calls it deprecated), and `reserveVoice` takes
+  `layers[0]?.pulseWidth`. T7 switched it as the plan says.
 - Not in this plan, for Crawford: `deriveSendFields`' reverb and delay draws (`robot.send.reverb`, `.delay` and their
   `.quiet` rolls) are still plain `getSeededVal`, and spec §1.3 does not list them.

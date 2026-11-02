@@ -151,9 +151,10 @@ export const CLASSIC: BandTable = {
   'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.15 },
   // A glider's portamento time, seconds (PORTAMENTO_SEED_RANGE): short enough to read as a slur, not a siren - it tops
   // out at 0.2 s, just over a 16th note (0.15 s at 98 BPM), because a much longer glide never lands (measured: 0.3 s
-  // reaches 37 % of the way to the next pitch on 16ths); the spec's risk-5 fallback. `lit` is GLIDER_THRESHOLD, the share
-  // of robots that glide: about 1.5 in 12 (measured 12.5 %; a nominal 0.12 measured 3 %). Every other robot is exactly 0.
-  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.23 },
+  // reaches 37 % of the way to the next pitch on 16ths); the spec's risk-5 fallback. `lit` is the share of robots that
+  // glide, drawn even, so the edge is the share: 12.5 %, about 1.5 in 12 (Even Seeded Draws T7; the edge was 0.23 when it
+  // was fitted to the bunched draw). Every other robot is exactly 0.
+  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.125 },
   // Bus filter cutoff for a common robot (OPEN_FILTER_FREQ_RANGE): an open lowpass that rounds the top off without
   // being heard as a filter.
   'robot.filterFreq': { min: 2000, max: 8000 },

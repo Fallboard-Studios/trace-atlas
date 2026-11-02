@@ -3523,30 +3523,30 @@ describe('spawnSystem', () => {
       {
         audioAttributes: {
           adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
-          octaveRange: [3, 5], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 290, detune: 3, pulseWidth: 0.2585042283954076,
+          octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [3, 5], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 35, rests: 48, accents: 68,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 35, rests: 48, accents: 68,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.22, delaySend: 0.23, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
         audioAttributes: {
           adsr: { attack: 0.9715492511168122, decay: 0.5848182141780853, sustain: 0.596685036085546, release: 0.5392221147194505, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [3, 5], filterFreq: 3606.9838404655457, filterQ: 1, filterType: 'lowpass', portamento: 0.12, waveform: 'sawtooth', phase: 169, detune: -0, pulseWidth: 0.39096490279492446,
+          octaveRange: [2, 4], filterFreq: 3606.9838404655457, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 186, detune: 2, pulseWidth: 0.6713095553684979,
           layers: [{ type: 'sawtooth', gain: 0.71, detune: 0, phase: 342 }, { type: 'sawtooth', gain: 0, detune: 0, phase: 298 }, { type: 'triangle', gain: 0.79, detune: 0, phase: 27 }],
         } as AudioAttributes,
-        octaveRange: [3, 5], rhythmicDensity: 82, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, dynamics: 37, rests: 32, accents: 54,
+        octaveRange: [2, 4], rhythmicDensity: 82, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, dynamics: 37, rests: 32, accents: 54,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.29, delaySend: 0.16, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
         audioAttributes: {
           adsr: { attack: 0.16692632529884577, decay: 1.240191656164825, sustain: 0.3301627195905894, release: 1.3539673294872046, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [4, 6], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 214, detune: 1, pulseWidth: 0.7037212573861479,
+          octaveRange: [2, 4], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 68, detune: -1, pulseWidth: 0.6791183213936165,
           layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
-        octaveRange: [4, 6], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 53, rests: 41, accents: 57,
+        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 53, rests: 41, accents: 57,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 6 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'c', depth: 6 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.47, delaySend: 0.19, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
@@ -3566,7 +3566,7 @@ describe('spawnSystem', () => {
       4: {
         audioAttributes: {
           adsr: { attack: 1.956432294100523, decay: 1.9473565462976694, sustain: 0.7924570618197322, release: 0.7145893696229906, attackCurve: 'linear', releaseCurve: 'bounce' },
-          octaveRange: [4, 6], filterFreq: 6702.621109783649, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 275, detune: 3, pulseWidth: 0.7987047418818843,
+          octaveRange: [4, 6], filterFreq: 6702.621109783649, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 97, detune: 0, pulseWidth: 0.05575906191952527,
           layers: [{ type: 'triangle', gain: 0.67, detune: -1, phase: 359 }, { type: 'triangle', gain: 0.77, detune: -1, phase: 215 }, { type: 'pulse', gain: 0, detune: 1, phase: 118 }],
         } as AudioAttributes,
         octaveRange: [4, 6], rhythmicDensity: 93, rhythmicMotifLength: { active: true, value: 8 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 94, dynamics: 62, rests: 48, accents: 68,
@@ -3576,20 +3576,20 @@ describe('spawnSystem', () => {
       11: {
         audioAttributes: {
           adsr: { attack: 0.21824039553757757, decay: 1.1089304112829268, sustain: 0.02038705232553184, release: 1.5850363094359636, attackCurve: 'ripple', releaseCurve: 'linear' },
-          octaveRange: [2, 4], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 65, detune: -3, pulseWidth: 0.722496234387869,
+          octaveRange: [3, 5], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 80, detune: 1, pulseWidth: 0.3550120924133807,
           layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 66, rests: 21, accents: 33,
+        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 66, rests: 21, accents: 33,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'a', depth: 8 }, 'layer1.gain': { lane: 'a', depth: 34 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'b', depth: 47 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'c', depth: 11 } },
         reverbSend: 0.47, delaySend: 0.1, gritSend: 0.63, shimmerSend: 0, doubleSend: 0,
       },
       16: {
         audioAttributes: {
           adsr: { attack: 1.965806975029409, decay: 1.962196541018784, sustain: 0.37567537860013545, release: 0.6935567278414965, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [2, 4], filterFreq: 1528.405042621307, filterQ: 3.3, filterType: 'bandpass', portamento: 0, waveform: 'pulse', phase: 86, detune: -2, pulseWidth: 0.5855139793897564,
+          octaveRange: [1, 3], filterFreq: 1528.405042621307, filterQ: 3.3, filterType: 'bandpass', portamento: 0, waveform: 'pulse', phase: 220, detune: 1, pulseWidth: 0.4464993801200762,
           layers: [{ type: 'sawtooth', gain: 0.75, detune: 0, phase: 95 }, { type: 'triangle', gain: 0.31, detune: -2, phase: 341 }, { type: 'square', gain: 0.42, detune: 1, phase: 275 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, dynamics: 58, rests: 21, accents: 51,
+        octaveRange: [1, 3], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, dynamics: 58, rests: 21, accents: 51,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.39, delaySend: 0.2, gritSend: 0, shimmerSend: 0, doubleSend: 0.45,
       },
@@ -3606,9 +3606,9 @@ describe('spawnSystem', () => {
       for (let i = 0; i < 3; i++) spawnRobot(localeId);
       const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       expect(robots.map((r) => [r.id, r.masterVolume, r.rhythmicDensity, r.audioAttributes.portamento])).toEqual([
-        ['robot-0-ckli2vjx', 0.79, 82, 0],
-        ['robot-1-a9g7kk48', 0.78, 82, 0],
-        ['robot-2-mrmqcepa', 0.74, 98, 0],
+        ['robot-0-ckli2vjx', 0.79, 82, 0.18],
+        ['robot-1-a9g7kk48', 0.78, 82, 0.18],
+        ['robot-2-mrmqcepa', 0.79, 98, 0.14],
       ]);
     });
   });

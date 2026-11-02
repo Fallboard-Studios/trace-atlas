@@ -47,7 +47,7 @@ import {
   seedToggleValue,
 } from './robotFieldDerivation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
@@ -86,10 +86,10 @@ const OCTAVE_REGISTERS = [
 // Portamento, envelope curves and the bus filter's resonance and shape are minority traits: most robots keep the plain
 // sound (open lowpass, no glide, linear curves) and a few stand out. Each trait's band carries its share as `lit`
 // (robot.portamento, robot.shapedAttack, robot.shapedRelease, robot.accentFilterFreq in the band table), compared
-// against a [0, 1] draw from a smooth simplex sample, not a uniform coin: those draws bunch in roughly [0.04, 0.96]
-// around 0.5, so a nominal 12 % share of 0.12 would land near the 3rd percentile. Each share was picked from the
-// measured draw (6,000 robots across 150 worlds, 2026-10-13); classic.ts records the rates, and spawnSystem.test.ts
-// pins the bands over 400 seeded robots. The curves and the accent filter are drawn in robotFieldDerivation.ts.
+// against an even [0, 1) draw, so the edge is the share (docs/specs/EVEN_SEEDED_DRAWS.md §1.4). The shares are the
+// ones Robot Articulation's listen heard, when the edges were fitted to a bunched simplex draw; classic.ts records them,
+// and robotFieldDerivation.test.ts and spawnSystem.evenDraws.test.ts pin them. The curves and the accent filter are
+// drawn in robotFieldDerivation.ts.
 
 /** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const PORTAMENTO_STEP = 0.01;
@@ -267,24 +267,24 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   // Seeded portamento — most robots don't glide; a glider slurs each note into the next. The band's `lit` is the
   // gliding share (robot.portamento).
   const portamentoBand = getBand('robot.portamento');
-  const glider = getSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < portamentoBand.lit;
+  const glider = getUniformSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < portamentoBand.lit;
   const portamento = glider
-    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.portamento', offset, portamentoBand.min, portamentoBand.max), 0, PORTAMENTO_STEP)
+    ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.portamento', offset, portamentoBand.min, portamentoBand.max), 0, PORTAMENTO_STEP)
     : 0;
 
   // Seeded octave register — direct [min, max] tuple, no Hz indirection
-  const octaveRange = OCTAVE_REGISTERS[Math.min(OCTAVE_REGISTERS.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.audio.register', offset, 0, OCTAVE_REGISTERS.length)))] as [number, number];
+  const octaveRange = OCTAVE_REGISTERS[Math.min(OCTAVE_REGISTERS.length - 1, Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.register', offset, 0, OCTAVE_REGISTERS.length)))] as [number, number];
 
   // The voice - the bus filter, the waveform and the 3-layer Signature Array - through the Voice family's one
   // derivation (revisions Task 10).
   const { filterFreq, filterQ, filterType, waveform, layers } = deriveVoiceFields(noiseMap, offset, currentVoiceBands());
 
   // Phase: 0..360 degrees (used for oscillator phase)
-  const phase = Math.floor(getSeededVal(noiseMap, 'robot.audio.phase', offset, 0, 361));
+  const phase = Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.phase', offset, 0, 361));
   // Detune: default 0 cents (fine pitch adjustment)
-  const detune = Math.round(getSeededVal(noiseMap, 'robot.audio.detune', offset, -5, 5));
+  const detune = Math.round(getCentredSeededVal(noiseMap, 'robot.audio.detune', offset, -5, 5));
   // Pulse width: meaningful for pulse/square waves. Default ~0.5 (50% duty).
-  const rawPulse = getSeededVal(noiseMap, 'robot.audio.pulseWidth', offset, 0.05, 0.95);
+  const rawPulse = getUniformSeededVal(noiseMap, 'robot.audio.pulseWidth', offset, 0.05, 0.95);
   const pulseWidth = Math.max(0.01, Math.min(0.99, rawPulse));
 
   // Include `layers` as the canonical audio description. Flat fields are left for compatibility.

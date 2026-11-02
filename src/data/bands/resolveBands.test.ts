@@ -120,7 +120,7 @@ const EXPECTED: BandTable = {
   'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.155 },
   'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.15 },
   // PORTAMENTO_SEED_RANGE with GLIDER_THRESHOLD as the lit share.
-  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.23 },
+  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.125 },
   // OPEN_FILTER_FREQ_RANGE; ACCENT_FILTER_FREQ_RANGE with FILTER_ACCENT_THRESHOLD; ACCENT_FILTER_Q_RANGE.
   'robot.filterFreq': { min: 2000, max: 8000 },
   'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.2 },
