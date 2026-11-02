@@ -2,6 +2,8 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import alea from 'alea';
+import { createNoise2D } from 'simplex-noise';
 
 import {
   tickRobotLifecycle,
@@ -50,8 +52,10 @@ vi.mock('../engine/beatClock', () => ({
 }));
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getUniformSeededVal } from '../utils/getSeededVal';
 import { reRollMelodyPitches } from '../engine/melodyGenerator';
+import * as melodyGenerator from '../engine/melodyGenerator';
+import { correlation, outerTenths } from '../testUtils/spread';
 
 // ========================================
 // HELPERS
@@ -655,7 +659,7 @@ describe('robotSystems', () => {
      *  independent expected result against -- never calling stepRobotLifecycle to check itself. */
     function expectedDriftedMelody(melody: RobotLifecycleSnapshot['melody'], newDockCycleCount: number, noteVariance?: RobotLifecycleSnapshot['noteVariance']) {
       let callIndex = 0;
-      const rand = () => getSeededVal(TEST_NOISE_MAP, 'robot.pitchDrift', newDockCycleCount * 100 + callIndex++, 0, 1);
+      const rand = () => getUniformSeededVal(TEST_NOISE_MAP, 'robot.pitchDrift', newDockCycleCount * 100 + callIndex++, 0, 1);
       return reRollMelodyPitches(melody, DOCKED_PITCH_DRIFT_RATIO, { noteVariance, rand });
     }
 
@@ -913,6 +917,64 @@ describe('robotSystems', () => {
         expect(identical).toBe(false);
       });
 
+      // Even Seeded Draws T17 (docs/tasks/EVEN_SEEDED_DRAWS.md): the drift's rand is an even draw. A 16-note melody
+      // re-rolls 4 notes per landing, so each landing hands the re-roll about 8 values (4 picks, 4 notes).
+      describe('the drift draws even (Even Seeded Draws T17)', () => {
+        const LONG_MELODY = Array.from({ length: 16 }, (_, i) => ({
+          id: `e${i}`, startStep: i + 1, length: '16n' as const, noteIndex: i % 8, octave: 4,
+        }));
+
+        /** Lands `cycles` dock cycles in each of `worlds` locale maps, returning each landing's rand values in order. */
+        function captureDriftRands(worlds: number, cycles: number): number[][] {
+          const real = melodyGenerator.reRollMelodyPitches;
+          const landings: number[][] = [];
+          const spy = vi.spyOn(melodyGenerator, 'reRollMelodyPitches').mockImplementation((melody, ratio, opts) => {
+            const values: number[] = [];
+            landings.push(values);
+            return real(melody, ratio, { ...opts, rand: () => { const v = opts.rand(); values.push(v); return v; } });
+          });
+          try {
+            for (let w = 0; w < worlds; w++) {
+              const noiseMap = createNoise2D(alea(`${w * 7919}:${w * 104729}`));
+              for (let cycle = 0; cycle < cycles; cycle++) {
+                const snap = makeSnapshot({
+                  docking: DockingState.Recalled, dockingHoldUntilMeasure: 20, batteryLevel: 5, dockCycleCount: cycle, melody: LONG_MELODY,
+                });
+                stepRobotLifecycle([snap], 20, noiseMap);
+              }
+            }
+          } finally {
+            spy.mockRestore();
+          }
+          return landings;
+        }
+
+        it('puts 8-12 % of the rand values in each outer tenth of [0, 1), over 200 worlds × 20 dock cycles', () => {
+          const values = captureDriftRands(200, 20).flat();
+          expect(values.length).toBeGreaterThan(25_000);
+          const { bottom, top } = outerTenths(values, { min: 0, max: 1 });
+          expect(bottom).toBeGreaterThan(0.08);
+          expect(bottom).toBeLessThan(0.12);
+          expect(top).toBeGreaterThan(0.08);
+          expect(top).toBeLessThan(0.12);
+        });
+
+        it('consecutive rand values within a landing correlate under 0.1', () => {
+          const pairs = captureDriftRands(200, 20).flatMap((values) => values.slice(1).map((v, i) => [values[i], v]));
+          expect(Math.abs(correlation(pairs.map((p) => p[0]), pairs.map((p) => p[1])))).toBeLessThan(0.1);
+        });
+
+        it('replays: the same world and dock cycle give the same pitches, another cycle different ones', () => {
+          const land = (cycle: number) => {
+            const snap = makeSnapshot({ docking: DockingState.Recalled, dockingHoldUntilMeasure: 20, batteryLevel: 5, dockCycleCount: cycle, melody: LONG_MELODY });
+            return stepRobotLifecycle([snap], 20, TEST_NOISE_MAP)[0].melody;
+          };
+          expect(land(3)).toEqual(land(3));
+          expect(land(3)).toEqual(expectedDriftedMelody(LONG_MELODY, 4));
+          expect(land(3)).not.toEqual(land(4));
+        });
+      });
+
       it('a landing transition never sets position/audioMode/state/destination/direction -- RobotLifecycleSnapshot has no such fields to set', () => {
         const snap = makeSnapshot({ docking: DockingState.Recalled, dockingHoldUntilMeasure: 20, batteryLevel: 5 });
         const [result] = stepRobotLifecycle([snap], 20, TEST_NOISE_MAP);
@@ -1019,6 +1081,9 @@ describe('robotSystems', () => {
           dockingHoldUntilMeasure: 1,
           batteryLevel: 5,
           job: JobType.AcousticSurvey,
+          // 16 notes, so the drift re-rolls 4: with the default 4-note melody it re-rolls one, and an even draw lands
+          // it back on its own note 1 time in 8 (Even Seeded Draws T17), which would leave the melody looking undrifted.
+          melody: Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, startStep: i + 1, length: '16n' as const, noteIndex: i % 8, octave: 4 })),
         }),
         ...Array.from({ length: MAX_ROBOTS - 2 }, (_, i) =>
           makeRobot({ id: `prove-it-${i + 2}`, docking: DockingState.Docked, batteryLevel: 40 + i, job: undefined }),

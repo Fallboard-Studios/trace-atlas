@@ -637,7 +637,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** M (the busiest test file of the set, but the conversion is the helper swap)
 
-- [ ] **Task 17: robotSystems.ts — the docked pitch drift draws even**
+- [x] **Task 17: robotSystems.ts — the docked pitch drift draws even**
 
   **Description:** The `robot.pitchDrift` rand passed to `reRollMelodyPitches` switches to `getUniformSeededVal` with
   the same offsets (`dockCycleCount × 100 + callIndex`).
@@ -649,7 +649,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   measured the bell).
 
   **Acceptance criteria:**
-  - [ ] The drift draw is even, and a replay repeats.
+  - [x] The drift draw is even, and a replay repeats.
 
   **Verification:** As Task 4.
 
@@ -1106,8 +1106,8 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   `getSeededVal` is never called with an `audioSwell.` dataId, and the even draw is called for every roll family
   (both triggers and target picks, the company chance, pick, attribute and direction, a global and a robot peak, both
   tiebreaks, both splits).
-- T16 before the switch: 3.1 % of ticks started a global swell at Frequency 2 (T0's 4.4 % was measured at offset
-  0..399 whole measures), the company path took 4.4 %, and `eq3.low` was picked 3.7 % of the time (even: 14.3 %).
+- T16 before the switch: 3.1 % of ticks started a global swell at Frequency 2 (T0's harness measured 4.4 % over its
+  own offsets), the company path took 4.4 %, and `eq3.low` was picked 3.7 % of the time (even: 14.3 %).
 - T16 repairs: `audioSwells.test.ts` takes T3's `constantNoiseMap` and `noiseMapForDataIds` and the `steerSeededDraws`
   mock (with `getSeededVal` wrapped too, for the fourth case); all 168 existing cases passed unmodified. The two
   send cases in `sessionDiff.test.ts` failed as predicted; they, the global mid-swell save there and
@@ -1119,6 +1119,18 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   → 0.1 — 16 of 16 killed, after one fix. The 0.2 mutant first **survived**: the company case compared the share to
   the constant itself. It now holds the written 15 % as a literal.
 - T16 full suite: 13,345 passed, 352 files.
+- T17: the rand values are captured through a `vi.spyOn` on `melodyGenerator.reRollMelodyPitches` that wraps each
+  landing's `rand`, over 200 locale maps × 20 dock cycles of a 16-note melody (4 notes re-rolled, about 8 values per
+  landing; 32,000 values). The file's `expectedDriftedMelody` oracle (an independent copy of the seed formula) now
+  computes the even draw, so the two existing pin cases fail on the plain draw: they are the value-level RED. Before
+  the switch the bottom tenth held 3.6 %. The consecutive-value correlation case passed before and after (a guard):
+  steps of 1 on the plain draw's offset were not correlated past 0.1. The existing "re-rolls ~25 %" case checks only
+  a floor of one changed note and needed no update.
+- T17 repair: the replay prove-it case's precondition "robot 1's drift changed its melody" failed. Its 4-note melody
+  re-rolls one note, and on this world's even draw that note came back on its own value (1 time in 8). Robot 1 now
+  carries a 16-note melody, so 4 notes re-roll; the world is unchanged and the precondition still asserts the drift.
+- Mutation check (T17): the plain draw put back; the dataId renamed; the call index not advancing — 3 of 3 killed.
+- T17 full suite: 13,348 passed, 352 files.
 - Mutation check (T15): each of the three draws put back on `getSeededVal`; the duration floored instead of snapped —
   4 of 4 killed (a first run reported two survivors because the harness's line numbers were one off and only the import
   changed; re-run on the right lines). Full suite: 13,341 passed.
