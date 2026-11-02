@@ -369,10 +369,11 @@ export function generateRobotLfoLinks(
  * A robot's five seeded sends (docs/specs/ROBOT_SENDS.md §1.2, docs/specs/ROBOT_EFFECT_SENDS.md §1.2), from the loaded
  * world's send bands (getBand, band-table T22; Classic's rows are in src/data/bands/classic.ts) at `offset` = spawn
  * count.
- * Reverb and Delay keep the bell draws and the three dataIds Robot Sends shipped (the old global Reverb / Delay `wet`
- * loading rows, moved to the send table by Robot Effect Sends T1 without moving a value), plus the Reverb row's own quiet
- * roll, `robot.send.reverb.quiet`, so a theme's Reverb `lit` is honoured like every other row's (Classic's lit of 1
- * never goes quiet); about a quarter of the fleet draws no delay. The Grit, Shimmer and Double sends are uniform
+ * Reverb and Delay keep the three dataIds Robot Sends shipped (the old global Reverb / Delay `wet` loading rows, moved
+ * to the send table by Robot Effect Sends T1 without moving a value), plus the Reverb row's own quiet roll,
+ * `robot.send.reverb.quiet`, so a theme's Reverb `lit` is honoured like every other row's (Classic's lit of 1 never goes
+ * quiet). All four are even draws (docs/specs/EVEN_SEEDED_DRAWS.md, T9a), so a quarter of the fleet draws no delay
+ * under Classic. The Grit, Shimmer and Double sends are uniform
  * per-robot rolls, `robot.send.<room>.lit` and `robot.send.<room>`, every one read on every robot, at most one landing
  * (composeExclusiveSends). One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in
  * both, so a copied robot shares its sibling's voice but not its depths, and the two cannot drift.

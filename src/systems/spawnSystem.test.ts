@@ -854,19 +854,12 @@ describe('spawnSystem', () => {
     const onGrid = (x: number) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-9;
 
     afterEach(async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getSeededVal).mockImplementation(real);
+      await restoreSeededDraws();
     });
 
     /** Force each send draw to a chosen raw value; everything else stays real. */
     async function forceDraws(draws: { reverb: number; delay: number; quiet: number }) {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) => {
-        if (dataId === 'robot.send.reverb') return draws.reverb;
-        if (dataId === 'robot.send.delay') return draws.delay;
-        if (dataId === 'robot.send.delay.quiet') return draws.quiet;
-        return real(noiseMap, dataId, offset, min, max);
-      });
+      await forceSeededDraws({ 'robot.send.reverb': draws.reverb, 'robot.send.delay': draws.delay, 'robot.send.delay.quiet': draws.quiet });
     }
 
     it('stays inside the bands - reverb 0.1 to 0.6, delay 0 to 0.3 - and on the 0.01 grid, over many offsets', () => {
@@ -888,8 +881,8 @@ describe('spawnSystem', () => {
     });
 
     it('hits the band edges exactly: the lowest noise gives reverb 0.1 and a quiet delay, the highest gives reverb 0.6 and delay 0.3', () => {
-      expect(reverbAndDelay(generateRobotSends(() => -1, 0))).toEqual({ reverbSend: 0.1, delaySend: 0 });
-      expect(reverbAndDelay(generateRobotSends(() => 1, 0))).toEqual({ reverbSend: 0.6, delaySend: 0.3 });
+      expect(reverbAndDelay(generateRobotSends(constantNoiseMap(-1), 0))).toEqual({ reverbSend: 0.1, delaySend: 0 });
+      expect(reverbAndDelay(generateRobotSends(constantNoiseMap(1), 0))).toEqual({ reverbSend: 0.6, delaySend: 0.3 });
     });
 
     // Classic Band Retune T5 (row 15): the reverb send band widened from 0.1-0.4 to 0.1-0.6 for more contrast between a dry
@@ -904,7 +897,7 @@ describe('spawnSystem', () => {
     });
 
     it('leaves the delay band alone: the highest noise still gives 0.3, never more', () => {
-      expect(generateRobotSends(() => 1, 0).delaySend).toBe(0.3);
+      expect(generateRobotSends(constantNoiseMap(1), 0).delaySend).toBe(0.3);
       for (let offset = 0; offset < 300; offset++) expect(generateRobotSends(realNoise, offset).delaySend).toBeLessThanOrEqual(0.3);
     });
 
@@ -928,11 +921,14 @@ describe('spawnSystem', () => {
     });
 
     it('reads the robot send table - the reverbSend and delaySend rows - for its bands', () => {
-      vi.mocked(getSeededVal).mockClear();
+      vi.mocked(getUniformSeededVal).mockClear();
 
       generateRobotSends(realNoise, 3);
 
-      const calls = vi.mocked(getSeededVal).mock.calls.map((c) => [c[1], c[2], c[3], c[4]]);
+      // The even draw (Even Seeded Draws T9a); the three effect room sends' six draws are filtered out.
+      const calls = vi.mocked(getUniformSeededVal).mock.calls
+        .filter((c) => /^robot\.send\.(reverb|delay)/.test(String(c[1])))
+        .map((c) => [c[1], c[2], c[3], c[4]]);
       const { reverbSend, delaySend } = CLASSIC;
       expect(calls).toContainEqual(['robot.send.reverb', 3, reverbSend.min, reverbSend.max]);
       // band-table T22: the Reverb row's lit share is rolled too (never quiet under Classic's lit of 1).
@@ -961,16 +957,18 @@ describe('spawnSystem', () => {
 
     // Robot Effect Sends T1 (plan acceptance "Parity"): moving the Reverb and Delay bands into the robot send table must not
     // move a single seeded send. These are the values the branch base (ad1b37c1, Classic Band Retune merged at 2dc5b4a2)
-    // seeds for two twelve-robot rosters, recorded from a run on the base before the change. Never re-record them.
+    // seeds for two twelve-robot rosters, recorded from a run on the base before the change. Never re-record them, with
+    // one exception made: Even Seeded Draws T9a (Crawford, 2026-11-02) moved the four Reverb and Delay draws to the even
+    // draw on purpose, and they were re-recorded once from that code.
     it('seeds, value for value, the Reverb and Delay sends the branch base seeds for two fixed rosters', () => {
       const BASE: Record<string, Array<[number, number]>> = {
         'effect-sends-parity-a': [
-          [0.2, 0], [0.18, 0], [0.24, 0.17], [0.24, 0.2], [0.48, 0.08], [0.29, 0.16],
-          [0.4, 0.2], [0.22, 0.11], [0.17, 0], [0.36, 0.23], [0.57, 0.17], [0.34, 0.26],
+          [0.16, 0.27], [0.41, 0.04], [0.39, 0.2], [0.6, 0.06], [0.28, 0.29], [0.11, 0],
+          [0.56, 0.09], [0.21, 0.23], [0.14, 0], [0.18, 0.09], [0.5, 0.16], [0.32, 0],
         ],
         'effect-sends-parity-b': [
-          [0.32, 0.22], [0.48, 0.02], [0.23, 0.09], [0.49, 0.23], [0.48, 0.08], [0.5, 0.09],
-          [0.4, 0.13], [0.14, 0], [0.34, 0.09], [0.38, 0.28], [0.57, 0.17], [0.47, 0.08],
+          [0.37, 0.16], [0.49, 0.16], [0.38, 0.27], [0.33, 0], [0.2, 0], [0.2, 0.1],
+          [0.36, 0.21], [0.24, 0.29], [0.18, 0], [0.47, 0], [0.3, 0.07], [0.11, 0.2],
         ],
       };
       for (const [seed, expected] of Object.entries(BASE)) {
@@ -980,8 +978,8 @@ describe('spawnSystem', () => {
     });
 
     it('leaves a sizeable share of a large fleet with no delay at all (a loose statistical bound)', () => {
-      // The threshold is 0.25, but one getSeededVal sample is bell-curved around 0.5, so fewer than a quarter of
-      // the rolls fall under it: measured at about 17-18 % over four seeds x 2000 offsets (2026-10-14).
+      // The threshold is 0.25 and the roll is even (Even Seeded Draws T9a), so about a quarter of the fleet; the bunched
+      // draw before it left about 17-18 % (2026-10-14). robotFieldDerivation.test.ts holds the share to 25 +/- 2 %.
       const total = 600;
       let quiet = 0;
       for (let offset = 0; offset < total; offset++) {
@@ -1002,16 +1000,12 @@ describe('spawnSystem', () => {
     const EXCLUSIVE = ['gritSend', 'shimmerSend', 'doubleSend'] as const;
 
     afterEach(async () => {
-      const { getUniformSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getUniformSeededVal).mockImplementation(real);
+      await restoreSeededDraws();
     });
 
-    /** Force each uniform roll / value draw by dataId; any other uniform draw stays real. */
+    /** Force each uniform roll / value draw by dataId; any other draw stays real. */
     async function forceUniform(draws: Record<string, number>) {
-      const { getUniformSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset) =>
-        dataId in draws ? draws[dataId] : real(noiseMap, dataId, offset),
-      );
+      await forceSeededDraws(draws);
     }
 
     it('returns all five sends', () => {
@@ -1042,7 +1036,11 @@ describe('spawnSystem', () => {
     });
 
     it('reads every roll and value key at the offset on every robot, whatever lands', () => {
-      const KEYS = ['robot.send.grit.lit', 'robot.send.grit', 'robot.send.shimmer.lit', 'robot.send.shimmer', 'robot.send.double.lit', 'robot.send.double'];
+      // The four Reverb and Delay draws are even too since Even Seeded Draws T9a.
+      const KEYS = [
+        'robot.send.grit.lit', 'robot.send.grit', 'robot.send.shimmer.lit', 'robot.send.shimmer', 'robot.send.double.lit', 'robot.send.double',
+        'robot.send.reverb', 'robot.send.delay', 'robot.send.reverb.quiet', 'robot.send.delay.quiet',
+      ];
       for (let offset = 0; offset < 60; offset++) {
         vi.mocked(getUniformSeededVal).mockClear();
         generateRobotSends(realNoise, offset);
@@ -1104,10 +1102,10 @@ describe('spawnSystem', () => {
       }
     });
 
-    it('keeps the Reverb and Delay draws exactly as they were (the T1 parity test pins their values)', () => {
+    it('draws no send on the plain draw: the Reverb and Delay are even like the room sends (Even Seeded Draws T9a)', () => {
       vi.mocked(getSeededVal).mockClear();
       generateRobotSends(realNoise, 5);
-      expect(vi.mocked(getSeededVal).mock.calls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb', 'robot.send.reverb.quiet']);
+      expect(vi.mocked(getSeededVal).mock.calls.map((c) => c[1])).toEqual([]);
     });
 
     // Calibration (spec §5, plan T7): 150 worlds x 12 robots. The nominal shares, with the one-of-three cap taking
@@ -1498,11 +1496,12 @@ describe('spawnSystem', () => {
 
       it('adds only the three new dataIds, one draw each, at the spawn count', () => {
         freshLocale('sends-keys-locale');
-        vi.mocked(getSeededVal).mockClear();
+        vi.mocked(getUniformSeededVal).mockClear();
 
         spawnRobot('sends-keys-locale');
 
-        const sendCalls = vi.mocked(getSeededVal).mock.calls.filter((c) => /send/i.test(String(c[1])));
+        // The even draw since Even Seeded Draws T9a; the three effect room sends' keys are filtered out.
+        const sendCalls = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => /^robot\.send\.(reverb|delay)/.test(String(c[1])));
         expect(sendCalls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb', 'robot.send.reverb.quiet']);
         expect(sendCalls.every((c) => c[2] === 0)).toBe(true);
       });
@@ -3513,7 +3512,7 @@ describe('spawnSystem', () => {
         } as AudioAttributes,
         octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.22, delaySend: 0.23, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.37, delaySend: 0.02, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
         audioAttributes: {
@@ -3523,7 +3522,7 @@ describe('spawnSystem', () => {
         } as AudioAttributes,
         octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.29, delaySend: 0.16, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.51, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
         audioAttributes: {
@@ -3533,7 +3532,7 @@ describe('spawnSystem', () => {
         } as AudioAttributes,
         octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 34, rests: 43, accents: 29,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 27 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.47, delaySend: 0.19, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.33, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
     ];
 
@@ -3557,7 +3556,7 @@ describe('spawnSystem', () => {
         } as AudioAttributes,
         octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.52, delaySend: 0.22, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
+        reverbSend: 0.23, delaySend: 0, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
       },
       11: {
         audioAttributes: {
@@ -3567,7 +3566,7 @@ describe('spawnSystem', () => {
         } as AudioAttributes,
         octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 74, rests: 31, accents: 56,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'a', depth: 9 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.47, delaySend: 0.1, gritSend: 0.63, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.56, delaySend: 0.23, gritSend: 0.63, shimmerSend: 0, doubleSend: 0,
       },
       50: {
         audioAttributes: {
@@ -3577,7 +3576,7 @@ describe('spawnSystem', () => {
         } as AudioAttributes,
         octaveRange: [4, 6], rhythmicDensity: 90, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 37, rests: 26, accents: 65,
         lfoLinks: { 'layer0.gain': { lane: 'c', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'c', depth: 7 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.28, delaySend: 0.21, gritSend: 0, shimmerSend: 0.26, doubleSend: 0,
+        reverbSend: 0.1, delaySend: 0.29, gritSend: 0, shimmerSend: 0.26, doubleSend: 0,
       },
     };
 
@@ -3605,8 +3604,7 @@ describe('spawnSystem', () => {
     const noiseMap = createNoise2D(alea('band-table-t22'));
 
     afterEach(async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getSeededVal).mockImplementation(real);
+      await restoreSeededDraws();
     });
 
     it('generateRobotSends under the installed table: no reverb, a delay of 0.3 and a grit of 0.5 on every robot, where Classic varies', () => {
@@ -3622,28 +3620,25 @@ describe('spawnSystem', () => {
     });
 
     it('honours the Reverb row\'s lit share as the Delay row\'s: a quiet roll under 1 - lit seeds 0, at it the band value; Classic\'s lit of 1 is never quiet', async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      const force = (quiet: number) =>
-        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
-          dataId === 'robot.send.reverb.quiet' ? quiet : real(nm, dataId, offset, min, max),
-        );
-      force(0.49);
+      const force = (quiet: number) => forceSeededDraws({ 'robot.send.reverb.quiet': quiet });
+      await force(0.49);
       expect(withLoading(BOLD, () => generateRobotSends(noiseMap, 0)).reverbSend).toBe(0);
       expect(generateRobotSends(noiseMap, 0).reverbSend).toBeGreaterThan(0);
-      force(0.5);
+      await force(0.5);
       expect(withLoading(BOLD, () => generateRobotSends(noiseMap, 0)).reverbSend).toBeGreaterThan(0);
-      force(0);
+      await force(0);
       expect(generateRobotSends(noiseMap, 0).reverbSend).toBeGreaterThan(0);
     });
 
     it('rolls the reverb quiet draw on every robot at its own dataId, so the draw set never depends on the band', () => {
-      vi.mocked(getSeededVal).mockClear();
+      // The even draw since Even Seeded Draws T9a.
+      vi.mocked(getUniformSeededVal).mockClear();
       generateRobotSends(noiseMap, 4);
-      const classicIds = vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1])).sort();
+      const classicIds = vi.mocked(getUniformSeededVal).mock.calls.map((c) => String(c[1])).sort();
       expect(classicIds).toContain('robot.send.reverb.quiet');
-      vi.mocked(getSeededVal).mockClear();
+      vi.mocked(getUniformSeededVal).mockClear();
       withLoading(ADVENTUROUS, () => generateRobotSends(noiseMap, 4));
-      expect(vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1])).sort()).toEqual(classicIds);
+      expect(vi.mocked(getUniformSeededVal).mock.calls.map((c) => String(c[1])).sort()).toEqual(classicIds);
     });
 
     it('spawnRobot stores the themed sends', () => {

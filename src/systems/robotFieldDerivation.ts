@@ -17,7 +17,7 @@ import { getBand } from '../data/bands/loadingContext';
 import type { BandTable, PickBand, ToggleBand } from '../data/bands/bandKeys';
 import type { EnvelopeBandKey, MelodyBandKey, VoiceBandKey } from '../data/bands/aspects';
 import type { RobotAudioBaseline } from './spawnSystem';
-import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { getCentredSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 
 /*
@@ -310,10 +310,10 @@ export function deriveSendFields(
   const reverb = bands.reverbSend;
   const delay = bands.delaySend;
   const firstTwo = composeSends(
-    getSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
-    getSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
-    getSeededVal(noiseMap, 'robot.send.reverb.quiet', offset, 0, 1),
-    getSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
+    getUniformSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
+    getUniformSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
+    getUniformSeededVal(noiseMap, 'robot.send.reverb.quiet', offset, 0, 1),
+    getUniformSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
     bands,
   );
   const draw = (field: ExclusiveSendField) => {

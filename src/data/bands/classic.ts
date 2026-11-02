@@ -217,7 +217,8 @@ export const CLASSIC: BandTable = {
   // Classic Band Retune at 2dc5b4a2); they moved to the send table at Robot Effect Sends T1 without moving a single
   // seeded value. The Reverb band was widened from 0.1-0.4 by the retune (row 15) for more contrast between a dry robot
   // and a wet one. The Delay's `lit` is the old quiet roll: a roll under 1 - lit (0.25, the deleted
-  // SEND_DELAY_QUIET_THRESHOLD) seeds 0. The three room sends are placeholders tuned at that plan's listen (T20); a fresh
+  // SEND_DELAY_QUIET_THRESHOLD) seeds 0. The roll is even (Even Seeded Draws T9a), so a quarter of robots carry no delay
+  // (the bunched draw left about 17 % without). The three room sends are placeholders tuned at that plan's listen (T20); a fresh
   // robot carries at most one of them (EXCLUSIVE_SEND_FIELDS, in roll order).
   reverbSend: { min: 0.1, max: 0.6, lit: 1 },
   delaySend: { min: 0, max: 0.3, lit: 0.75 },

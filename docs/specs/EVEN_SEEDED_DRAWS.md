@@ -110,7 +110,7 @@ In scope, every plain `getSeededVal` call that seeds sound:
 
 | File | Draws |
 |---|---|
-| [robotFieldDerivation.ts](../../src/systems/robotFieldDerivation.ts) | the envelope (four stages, both curves' `.shaped` and `.which`), the melody fields (density, the two toggles' `.active`, pitch repeat), the voice (accent roll, cutoff, Q, filter type, the waveform pick, each layer's quiet roll, gain, detune and phase) |
+| [robotFieldDerivation.ts](../../src/systems/robotFieldDerivation.ts) | the envelope (four stages, both curves' `.shaped` and `.which`), the melody fields (density, the two toggles' `.active`, pitch repeat), the voice (accent roll, cutoff, Q, filter type, the waveform pick, each layer's quiet roll, gain, detune and phase), and the Reverb and Delay sends (`deriveSendFields`: both depths and both quiet rolls; added at T9a, Crawford, 2026-11-02) |
 | [spawnSystem.ts](../../src/systems/spawnSystem.ts) | portamento (glider roll and time), register, phase, detune, pulse width, the robot LFO links (quiet, lane, depth), copy chance and copy source, dynamics, rests, accents, master volume, `robot.compositionSeed`, in **both** paths: `generateRobotAudioBaseline` and `spawnRobot`'s own copy |
 | [globalAudioSeed.ts](../../src/utils/globalAudioSeed.ts) | every `sampleField` still on the plain draw (compressor, EQ, both filters, delay, reverb, limiter, the three colour nodes): `sampleField` loses its `uniform` flag and always draws even. Also delay sync mode and note, the colour character, ping variance, swell frequency and duration, the LFO Bank (rate, shape, both drifts, sync mode and note per lane), and the global LFO links (quiet, depth) |
 | [bpmSeed.ts](../../src/utils/bpmSeed.ts) | the tempo |
@@ -144,6 +144,7 @@ starts to mean what it says.
 | global `LFO_QUIET_THRESHOLD` | 0.34 | 0–34 % (hpf.Q 0 %) | 0.34 | written "~34 %" |
 | motif / variance `offShare` | 0.15 | 4.6 / 5.3 % | 0.15 | written "15 %", **audible**: robots with Motif Length or Note Variance off triple |
 | `robot.copyChance` edge | 0.30 | 19.2 % | 0.30 | written, never fitted, **audible**: more copied robots |
+| `delaySend` lit (quiet under 1 − lit) | 0.75 | 17–18 % quiet | 0.75 | written "about a quarter of the fleet draws no delay", never fitted, **audible**: robots with no delay 17 % → 25 % (T9a) |
 | swell trigger (`frequency / 16`) | 0.125–0.5 | 3–4 % at 0.125, 10–13 % at 0.25, 50 % at 0.5 | unchanged formula | **audible**, Open Question 1 |
 | `SWELL_COMPANY_CHANCE` | 0.15 | 3.9 % | 0.15 | written placeholder |
 
@@ -163,8 +164,8 @@ edits, while its unedited values move with the new baseline. Under Classic:
   world. The three EQ bands, the detunes and a lit detune LFO's depth still sit near neutral (the centred set), each on
   its own draw.
 - The minority traits keep their heard shares, per §1.4.
-- Three written shares start to mean what they say: Motif Length off and Note Variance off (5 % → 15 % of robots
-  each), copied robots (19 % → 30 %) and company swells (4 % → 15 %).
+- Four written shares start to mean what they say: Motif Length off and Note Variance off (5 % → 15 % of robots
+  each), copied robots (19 % → 30 %), robots with no delay send (17 % → 25 %) and company swells (4 % → 15 %).
 - Swells start more often at low Frequency settings (Open Question 1).
 
 ---

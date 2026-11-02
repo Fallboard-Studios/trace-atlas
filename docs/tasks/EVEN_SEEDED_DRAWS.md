@@ -418,8 +418,36 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** M (two paths, parity to hold)
 
+- [x] **Task 9a: robotFieldDerivation.ts — the Reverb and Delay sends draw even** (added 2026-11-02: Crawford put
+  them in scope at Checkpoint A, spec §1.3)
+
+  **Description:** In `deriveSendFields`, switch `robot.send.reverb`, `robot.send.delay` and their two `.quiet` rolls
+  to `getUniformSeededVal`, dataIds and offsets unchanged. `generateRobotSends` (spawn and baseline) and the deal's
+  Distance re-derivation all go through it. The Delay's `lit` stays 0.75 (a written "about a quarter" with no delay)
+  and now realises 25 % quiet, up from about 17 % (spec §1.4). Rewrite `generateRobotSends`' "keep the bell draws"
+  comment.
+
+  **Proof:** RED test — `src/systems/robotFieldDerivation.test.ts`, over 1,000 worlds × 12 robots: the Delay is off
+  for 25 ± 2 % of robots and the Reverb never (Classic's lit 1). Each depth reaches every 1 % step of its band, and its
+  bottom and top fifths each hold 15–25 % of the robots carrying it (the sends sit on a 1 % grid, so a fifth is the
+  even 20 % give or take a grid step: 19 / 21 % for the Reverb, 18.3 / 21.7 % for the Delay). The two depths, the Delay
+  roll and the envelope's decay correlate under 0.1. Each send is `composeSends` of the four even draws at their own
+  dataIds and offset.
+
+  **Acceptance criteria:**
+  - [x] The four Reverb and Delay draws are even; the three effect room sends are unchanged.
+  - [x] A quarter of robots carry no delay.
+
+  **Verification:** As Task 4, plus `robotSendsParity.test.ts` and `sessionDiff.test.ts` green.
+
+  **Dependencies:** Task 9.
+
+  **Files:** `src/systems/robotFieldDerivation.ts`, `src/systems/spawnSystem.ts` (comment), its test, plus repairs.
+
+  **Estimated scope:** S
+
 ### Checkpoint A: The robots
-- [x] `npm run build:types`, `npm run lint`, `npm test` clean (13,311 tests, 351 files, at `1f4a328d`).
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (13,311 tests, 351 files, at `1f4a328d`; 13,315 after T9a).
 - [x] The harness's robot section (re-run on the branch, not committed): zero robot key pairs above 0.3, every robot
   key above 30,000 distinct values over 36,000 draws, and every §1.4 robot edge at its share. Figures in the record,
   "Checkpoint A: the live robot draws".
@@ -929,11 +957,29 @@ before its commit.
   correlation case passes on the plain draw too. The spawn-path pin case now also pins master volume (the even draw
   plus the register bias, clamped, on the 1 % grid) over three locales. The T7 and T8 cases were spot-checked in their
   new files: a T7 and a T8 mutant each still killed.
+- T9a (added at Checkpoint A; Crawford: "yes on the sends", 2026-11-02): spec §1.3 and §1.4 name the sends now. The
+  Delay's written quarter stays, so robots with no delay go from about 17 % to 25 % (spec §1.5). The band case measures
+  fifths, not tenths: on the sends' 1 % grid an even Delay draw puts 8.3 / 11.7 % in its tenths, too near 8–12 % to
+  hold, and 18.3 / 21.7 % in its fifths. The bell draw failed all four cases before the switch: 17.3 % without a delay,
+  the Reverb's 10 % floor never reached, and the Reverb depth welded to the Delay roll (r = 0.63).
+- T9a: two fixtures pinned the old send values and said never to re-record them: `robotSendsParity.test.ts`
+  (roadmap 55's oracle) and `spawnSystem.test.ts`' "seeds, value for value, the Reverb and Delay sends the branch base
+  seeds" (Robot Effect Sends T1). Crawford chose to re-record them once. The oracle was captured by a temporary copy
+  whose final assertions printed instead of compared, every precondition kept: `SEEDED_SENDS` and the spawn,
+  re-register, session-restore, share-restore and swell primes changed, and the hand-set `RE_RESERVE_PRIMES` came out
+  unchanged, as it must. Both headers now name this as the one re-recording.
+- T9a repairs, all in `spawnSystem.test.ts`: the send cases that forced or counted `getSeededVal` moved to
+  `forceSeededDraws` and the even draw's spy, the ±1 cases to `constantNoiseMap`, and the two Classic parity pins were
+  re-captured (the tiers stayed 4, 11 and 50). The effect-sends block's `afterEach` had put the raw even draw back,
+  dropping the steering wrapper for every later test in the file; it now restores through `restoreSeededDraws`.
+- Mutation check (T9a): each of the four draws put back on `getSeededVal`, and the Delay `lit` 0.75 → 0.8 — 5 of 5
+  killed, after one fix. The Reverb quiet roll first **survived**. It is equivalent under Classic, whose Reverb `lit`
+  of 1 never rolls quiet, so the pin case now also derives the sends under a Reverb row lit at 0.5.
 - For Crawford, not changed: the top-level `pulseWidth` that `generateAudioAttributes` seeds (`robot.audio.pulseWidth`)
   looks unread. `AudioAttributes` no longer types it (Robot.ts calls it deprecated), and `reserveVoice` takes
   `layers[0]?.pulseWidth`. T7 switched it as the plan says.
-- Not in this plan, for Crawford: `deriveSendFields`' reverb and delay draws (`robot.send.reverb`, `.delay` and their
-  `.quiet` rolls) are still plain `getSeededVal`, and spec §1.3 does not list them.
+- Answered at Checkpoint A (now T9a): `deriveSendFields`' reverb and delay draws (`robot.send.reverb`, `.delay` and their
+  `.quiet` rolls) were plain `getSeededVal` and not in spec §1.3; Crawford put them in scope, built as T9a.
 
 ### Checkpoint A: the live robot draws (`1f4a328d`, 2026-11-02)
 

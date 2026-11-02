@@ -10,7 +10,7 @@ import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils
 import { quantizeToStep } from '../utils/math';
 import { ROBOT_BUS_FILTER_Q } from '../constants';
 import { correlation, outerTenths } from '../testUtils/spread';
-import { deriveEnvelopeFields, deriveMelodyFields, deriveVoiceFields, seedToggleValue } from './robotFieldDerivation';
+import { composeSends, deriveEnvelopeFields, deriveMelodyFields, deriveSendFields, deriveVoiceFields, seedToggleValue } from './robotFieldDerivation';
 
 // ========================================
 // THE SAMPLE
@@ -249,6 +249,79 @@ describe('deriveVoiceFields — even draws, the layer detune centred (Even Seede
         expect(layer.detune).toBe(quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, 1));
         expect(layer.phase).toBe(Math.floor(even(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0);
       });
+    }
+  });
+});
+
+describe('deriveSendFields — the Reverb and Delay sends draw even (Even Seeded Draws T9a)', () => {
+  // 1,000 worlds x 12 robots: about 9,000 carry a delay, so each share below sits at least 3 standard deviations inside
+  // its bounds.
+  const SEND_SLOTS = Array.from({ length: 1000 }, (_, i) => createNoise2D(alea(`sends:${i}`))).flatMap((noiseMap) =>
+    Array.from({ length: ROBOTS_PER_WORLD }, (_, offset) => ({ noiseMap, offset })),
+  );
+  const SENDS = SEND_SLOTS.map(({ noiseMap, offset }) => deriveSendFields(noiseMap, offset, CLASSIC));
+
+  it('the Delay is off for 25 % of robots (+/-2 points), the written quiet share; the Reverb never is under Classic', () => {
+    const noDelay = SENDS.filter((s) => s.delaySend === 0).length / SENDS.length;
+    expect(noDelay).toBeGreaterThanOrEqual(0.23);
+    expect(noDelay).toBeLessThanOrEqual(0.27);
+    expect(SENDS.every((s) => s.reverbSend > 0)).toBe(true);
+  });
+
+  it('each depth reaches every 1 % step of its band, and its bottom and top fifths each hold 15-25 % of the robots carrying it', () => {
+    // The sends sit on a 1 % grid, so an even draw puts 19 / 21 % of Reverb depths and 18.3 / 21.7 % of Delay depths in
+    // the two fifths, not exactly 20 %.
+    const depths = {
+      reverb: { values: SENDS.map((s) => s.reverbSend), band: CLASSIC.reverbSend },
+      delay: { values: SENDS.map((s) => s.delaySend).filter((d) => d > 0), band: CLASSIC.delaySend },
+    };
+    for (const [send, { values, band }] of Object.entries(depths)) {
+      const steps = Math.round((band.max - band.min) * 100);
+      const seen = new Set(values.map((v) => Math.round(v * 100)));
+      // The Delay's 0 % step is also "no delay"; a quiet robot is not counted as a carrier.
+      for (let k = send === 'delay' ? 1 : 0; k <= steps; k++) expect(seen.has(Math.round(band.min * 100) + k), `${send} ${band.min * 100 + k} %`).toBe(true);
+      const fifth = (band.max - band.min) / 5;
+      const bottom = values.filter((v) => v < band.min + fifth - 1e-9).length / values.length;
+      const top = values.filter((v) => v >= band.max - fifth - 1e-9).length / values.length;
+      for (const [end, share] of [['bottom', bottom], ['top', top]] as const) {
+        expect(share, `${send} ${end} fifth`).toBeGreaterThanOrEqual(0.15);
+        expect(share, `${send} ${end} fifth`).toBeLessThanOrEqual(0.25);
+      }
+    }
+  });
+
+  it('the two depths, the Delay roll and the envelope\'s decay correlate under 0.1', () => {
+    const reverb = SENDS.map((s) => s.reverbSend);
+    const delayOn = SENDS.map((s) => (s.delaySend > 0 ? 1 : 0));
+    const decay = SEND_SLOTS.map(({ noiseMap, offset }) => deriveEnvelopeFields(noiseMap, offset, CLASSIC).decay);
+    const carriers = SENDS.map((s, i) => ({ s, i })).filter(({ s }) => s.delaySend > 0);
+    const pairs: [string, number[], number[]][] = [
+      ['reverb vs delay on', reverb, delayOn],
+      ['reverb vs decay', reverb, decay],
+      ['delay on vs decay', delayOn, decay],
+      ['reverb vs delay depth', carriers.map(({ s }) => s.reverbSend), carriers.map(({ s }) => s.delaySend)],
+      ['delay depth vs decay', carriers.map(({ s }) => s.delaySend), carriers.map(({ i }) => decay[i])],
+    ];
+    for (const [name, a, b] of pairs) expect(Math.abs(correlation(a, b)), name).toBeLessThan(0.1);
+  });
+
+  it('each send is composeSends of the four even draws at their own dataIds and the robot\'s offset', () => {
+    // Classic's Reverb lit of 1 never rolls quiet, so its quiet roll is also checked under a Reverb row lit at 0.5.
+    const halfLitReverb = { ...CLASSIC, reverbSend: { ...CLASSIC.reverbSend, lit: 0.5 } };
+    for (const bands of [CLASSIC, halfLitReverb]) {
+      for (const { noiseMap, offset } of SEND_SLOTS.slice(0, 120)) {
+        const even = (dataId: string, min = 0, max = 1) => getUniformSeededVal(noiseMap, dataId, offset, min, max);
+        const { reverbSend, delaySend } = bands;
+        const expected = composeSends(
+          even('robot.send.reverb', reverbSend.min, reverbSend.max),
+          even('robot.send.delay', delaySend.min, delaySend.max),
+          even('robot.send.reverb.quiet'),
+          even('robot.send.delay.quiet'),
+          bands,
+        );
+        const sends = deriveSendFields(noiseMap, offset, bands);
+        expect({ reverbSend: sends.reverbSend, delaySend: sends.delaySend }).toEqual(expected);
+      }
     }
   });
 });
