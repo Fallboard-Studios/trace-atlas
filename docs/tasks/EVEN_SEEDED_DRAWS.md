@@ -458,7 +458,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
 ### Phase 3: The global half (style map)
 
-- [ ] **Task 10: globalAudioSeed.ts — `sampleField` always even, the EQ centred**
+- [x] **Task 10: globalAudioSeed.ts — `sampleField` always even, the EQ centred**
 
   **Description:** `sampleField` drops its `uniform` parameter and always draws with `getUniformSeededVal`, except the
   three `eq3` keys, which draw with `getCentredSeededVal`. Every call site's `true` argument goes. This moves the
@@ -473,8 +473,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   value is identical to before for 20 fixed styles (they were already even).
 
   **Acceptance criteria:**
-  - [ ] Every global loading key is drawn even, and the EQ bands are centred.
-  - [ ] The pedal values are unchanged.
+  - [x] Every global loading key is drawn even, and the EQ bands are centred.
+  - [x] The pedal values are unchanged.
 
   **Verification:** As Task 4 (expected repairs: the "field with no declared step, byte for byte" case).
 
@@ -1008,3 +1008,35 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
 | `robot.rhythmicMotifLength.active` / `robot.noteVariance.active` | 0.15 | 14.89 / 14.86 % |
 | robot LFO layer targets, quiet | 0.75 | 74.75–75.31 % (lit 24.7–25.3 %) |
 | robot LFO bus, quiet | 0.865 | 86.58 % (lit 13.4 %) |
+
+### Phase 3: deviations
+
+- Started 2026-11-02 at Crawford's word ("implement each task in phase 3"); Checkpoint A's review line is taken as
+  passed by that.
+- The seed oracle (`globalAudioSeed.test.ts`, "seed oracle (pre-Sync output, do not regenerate)") pins every value
+  both seeders give two fixed styles, and its header said never to re-record it. Crawford chose to re-record it once,
+  for Phase 3 (2026-11-02): each task copies the values its switch moved from the seeder's output, in its own commit,
+  and the header names Phase 3 as the one re-recording.
+- T10: the distribution cases live in a new mock-free `src/utils/globalAudioSeed.evenDraws.test.ts`, as T7's did, not
+  in `globalAudioSeed.test.ts`, whose draw spies and forced Sync picks could leak into a distribution. 3,000 styles take
+  about 1 s to build.
+- T10: "more than 2,500 distinct values" holds only for the seven keys with no step, and every one of those is a log
+  field, so their outer tenths are tenths of the draw (the value's position on the log scale), not of the value. The
+  linear keys are all stepped, on grids of 3 to 41 values (the limiter's −3 dB alone is a quarter of its band), so a
+  value-tenth cannot hold 10 %. Each stepped key's grid values are held to their even share instead (the width of the
+  band that rounds to the value, over the band), within 4 standard deviations because about 150 values are tested at
+  once. The delay time, on a 451-value 1 ms grid, takes the tenths as written. A pin case proves the draw underneath:
+  each moved key is the even draw (the EQ the centred draw) at its own dataId, through its band and onto its grid, and
+  a lit colour node's Mix likewise. The pedal guard pins the pedals' value keys to the even draw, which they already
+  were, so it passed before the switch and after.
+- T10: before the switch, the EQ low and mid correlated at r = 1.000 and `compressor.attack` took 192 distinct values
+  over 3,000 styles.
+- T10 repairs, all in `globalAudioSeed.test.ts`: the file's mock spies on `getCentredSeededVal` too, and two draw-set
+  cases ("no longer draws the wet fields…", "reads exactly the new colour and pedal seed keys…") read every draw
+  through `drawnDataIds()` (plain, even and centred), the second setting the pedals' keys aside by prefix. The
+  no-declared-step case now expects the unquantized even draw through the LPF band (and its new value, 3368.34…). The
+  oracle's two global-settings expectations took the moved values; their pedal blocks came out identical.
+- Mutation check (T10): every field back on `getSeededVal`; the EQ drawn even; `eq3.high` alone even; every field
+  centred; every non-pedal field plain; the limiter alone plain; the AutoWah's fields plain — 7 of 7 killed.
+- T10 full suite: 13,322 passed; the one failure was `sceneToOrbiterLocal`'s round-trip timing out at 5 s under the
+  parallel run (known slow; 10 of 10 pass alone).

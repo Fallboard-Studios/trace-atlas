@@ -4,7 +4,7 @@
 import type { NoiseFunction2D } from 'simplex-noise';
 
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
-import { getSeededVal, getUniformSeededVal } from './getSeededVal';
+import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
 import { generateAttenuationStyleBpm } from './bpmSeed';
@@ -48,20 +48,24 @@ export function scaleUnitValue(t: number, range: SeedRange): number {
   return range.min + (range.max - range.min) * clamped;
 }
 
+/** The EQ bands, whose middle (0 dB) is neutral: they draw centred, the rest even (docs/specs/EVEN_SEEDED_DRAWS.md §1.2). */
+const CENTRED_FIELD_KEYS: ReadonlySet<LoadingRangeKey> = new Set(['eq3.low', 'eq3.mid', 'eq3.high']);
+
 /**
- * `uniform` draws the position with getUniformSeededVal instead of one getSeededVal sample. One sample at offset 0 is
- * bell-curved and takes only a few dozen to a few hundred distinct values across all worlds (three, for some keys), so a
- * field that must FILL its band uses the uniform draw (Global Modulation T7: autoWah.gain and autoWah.wet took 3 distinct
- * values over 3 000 styles, phaser.wet 24). Every pre-existing field keeps the plain draw, so no existing value moves.
+ * Every field draws its position evenly (getUniformSeededVal), each key on its own draw, so a world fills the band and no
+ * two fields move together; the EQ bands draw centred (getCentredSeededVal), near 0 dB but still independent. One
+ * getSeededVal sample at offset 0 is bell-curved, takes 3 to a few hundred distinct values across all worlds, and welds
+ * keys together (the EQ low and mid correlated at r = 1.000), so no field uses it (Even Seeded Draws T10).
  */
-function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey, uniform = false): number {
+function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey): number {
   // Sample within the narrower LOADING band - the loaded world's, from the band table (getBand, band-table T22;
   // Classic's rows are in src/data/bands/classic.ts) - but honor the full range's log/linear scale: a band carries no
   // `scale`, it is purely a narrower min/max over the same field GLOBAL_AUDIO_SEED_RANGES already describes.
   const range: SeedRange = { ...getBand(key), scale: GLOBAL_AUDIO_SEED_RANGES[key].scale };
-  // getSeededVal handles the seeded noise → [0, 1] draw; scaleUnitValue owns
-  // range + log/linear mapping, so the two concerns stay separately testable.
-  const t = uniform ? getUniformSeededVal(noiseMap, `globalAudio.${key}`) : getSeededVal(noiseMap, `globalAudio.${key}`, 0, 0, 1);
+  // The draw gives the [0, 1] position; scaleUnitValue owns range + log/linear mapping, so the two concerns stay
+  // separately testable.
+  const draw = CENTRED_FIELD_KEYS.has(key) ? getCentredSeededVal : getUniformSeededVal;
+  const t = draw(noiseMap, `globalAudio.${key}`);
   const value = scaleUnitValue(t, range);
   const { step } = GLOBAL_AUDIO_SEED_RANGES[key];
   // Quantized against the FULL range's own min, never the narrower loading
@@ -238,8 +242,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why).
   const autoWahLit = getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah;
   const phaserLit = getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser;
-  const autoWahWet = sampleField(noiseMap, 'autoWah.wet', true);
-  const phaserWet = sampleField(noiseMap, 'phaser.wet', true);
+  const autoWahWet = sampleField(noiseMap, 'autoWah.wet');
+  const phaserWet = sampleField(noiseMap, 'phaser.wet');
 
   // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.2): the sequential cap. Each motion pedal's roll is read whether or not
   // the cap would allow it, so the draw set is total; the AutoWah and Phaser results above count towards the cap.
@@ -268,7 +272,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // The shift is a magnitude band with its own sign draw, so a seeded shift is never inside ±2 Hz.
   const shiftSign = getUniformSeededVal(noiseMap, 'globalAudio.frequencyShifter.sign') < 0.5 ? -1 : 1;
   const pedalWet = (pedal: MotionPedal): number => {
-    const wet = sampleField(noiseMap, `${pedal}.wet`, true);
+    const wet = sampleField(noiseMap, `${pedal}.wet`);
     return pedalLit[pedal] ? wet : 0;
   };
   const withSync = <T extends object>(block: T, sync: NoteValue | undefined): T =>
@@ -324,31 +328,31 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
     },
     autoWah: {
-      baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency', true),
-      octaves: sampleField(noiseMap, 'autoWah.octaves', true),
-      sensitivity: sampleField(noiseMap, 'autoWah.sensitivity', true),
-      Q: sampleField(noiseMap, 'autoWah.Q', true),
-      gain: sampleField(noiseMap, 'autoWah.gain', true),
-      follower: sampleField(noiseMap, 'autoWah.follower', true),
+      baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency'),
+      octaves: sampleField(noiseMap, 'autoWah.octaves'),
+      sensitivity: sampleField(noiseMap, 'autoWah.sensitivity'),
+      Q: sampleField(noiseMap, 'autoWah.Q'),
+      gain: sampleField(noiseMap, 'autoWah.gain'),
+      follower: sampleField(noiseMap, 'autoWah.follower'),
       wet: autoWahLit ? autoWahWet : 0,
     },
     phaser: {
-      rate: sampleField(noiseMap, 'phaser.rate', true),
-      octaves: sampleField(noiseMap, 'phaser.octaves', true),
-      baseFrequency: sampleField(noiseMap, 'phaser.baseFrequency', true),
-      stages: sampleField(noiseMap, 'phaser.stages', true),
-      Q: sampleField(noiseMap, 'phaser.Q', true),
+      rate: sampleField(noiseMap, 'phaser.rate'),
+      octaves: sampleField(noiseMap, 'phaser.octaves'),
+      baseFrequency: sampleField(noiseMap, 'phaser.baseFrequency'),
+      stages: sampleField(noiseMap, 'phaser.stages'),
+      Q: sampleField(noiseMap, 'phaser.Q'),
       wet: phaserLit ? phaserWet : 0,
       ...(rateSync.phaser !== undefined && { sync: rateSync.phaser }),
     },
     // Global Pedals: every value a uniform draw from its band, lit or dark; a dark pedal has Mix 0 and no sync key.
     chorus: withSync(
       {
-        rate: sampleField(noiseMap, 'chorus.rate', true),
-        delayTime: sampleField(noiseMap, 'chorus.delayTime', true),
-        depth: sampleField(noiseMap, 'chorus.depth', true),
-        spread: sampleField(noiseMap, 'chorus.spread', true),
-        feedback: sampleField(noiseMap, 'chorus.feedback', true),
+        rate: sampleField(noiseMap, 'chorus.rate'),
+        delayTime: sampleField(noiseMap, 'chorus.delayTime'),
+        depth: sampleField(noiseMap, 'chorus.depth'),
+        spread: sampleField(noiseMap, 'chorus.spread'),
+        feedback: sampleField(noiseMap, 'chorus.feedback'),
         // The Double room's Return (Robot Effect Sends T8): never seeded, from the defaults.
         wet: defaults.chorus.wet,
       },
@@ -356,28 +360,28 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     ),
     tremolo: withSync(
       {
-        rate: sampleField(noiseMap, 'tremolo.rate', true),
-        depth: sampleField(noiseMap, 'tremolo.depth', true),
-        spread: sampleField(noiseMap, 'tremolo.spread', true),
+        rate: sampleField(noiseMap, 'tremolo.rate'),
+        depth: sampleField(noiseMap, 'tremolo.depth'),
+        spread: sampleField(noiseMap, 'tremolo.spread'),
         wet: pedalWet('tremolo'),
       },
       rateSync.tremolo,
     ),
     vibrato: withSync(
       {
-        rate: sampleField(noiseMap, 'vibrato.rate', true),
-        depth: sampleField(noiseMap, 'vibrato.depth', true),
+        rate: sampleField(noiseMap, 'vibrato.rate'),
+        depth: sampleField(noiseMap, 'vibrato.depth'),
         wet: pedalWet('vibrato'),
       },
       rateSync.vibrato,
     ),
     frequencyShifter: {
-      shift: shiftSign * sampleField(noiseMap, 'frequencyShifter.shift', true),
+      shift: shiftSign * sampleField(noiseMap, 'frequencyShifter.shift'),
       // The Shimmer room's Return (Robot Effect Sends T8): never seeded, from the defaults.
       wet: defaults.frequencyShifter.wet,
     },
     // Width has no dark state: always a value from its band, never near the mono fold.
-    stereoWidener: { width: sampleField(noiseMap, 'stereoWidener.width', true) },
+    stereoWidener: { width: sampleField(noiseMap, 'stereoWidener.width') },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
     },
