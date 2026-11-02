@@ -362,7 +362,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S–M
 
-- [ ] **Task 8: spawnSystem.ts — the robot LFO links draw even, the detune depths centred, the on-shares as fitted**
+- [x] **Task 8: spawnSystem.ts — the robot LFO links draw even, the detune depths centred, the on-shares as fitted**
 
   **Description:** In `generateRobotLfoLinks`, switch each target's quiet roll and lane to even. Switch each target's
   depth to even too, except the three `layerN.detune` targets. Their depth draws centred and folded to peak at the
@@ -377,9 +377,14 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   targets correlate under 0.1 with each other and with the envelope draws (today decay ↔ the layer-0 gain roll is 1.0).
   Guards: each layer target is on for 25 ± 2 % of robots, and the bus for 13.5 ± 2 %.
 
+  **Amended while building (Crawford, 2026-11-01):** the depth is stored as a whole percent, and rounding the fold
+  gives the 1 % floor half a bucket, so the fold is floored onto the grid instead (spec §1.2, "Amended at T8"). The
+  detune proof became: 1 % is the commonest depth (17–21 % of lit detune links), each percent rarer than the one
+  below, the median is 3 %, at most 2.5 % sit at 10 %, and every whole percent from 1 to 10 occurs.
+
   **Acceptance criteria:**
-  - [ ] Every LFO-link draw is even, except the detune depths, which are centred and folded to the floor.
-  - [ ] The on-shares are as fitted.
+  - [x] Every LFO-link draw is even, except the detune depths, which are centred and folded to the floor.
+  - [x] The on-shares are as fitted.
 
   **Verification:** As Task 4.
 
@@ -887,6 +892,21 @@ before its commit.
   0.18 / 0.18 / 0.14. `resolveBands.test.ts` took `lit: 0.125`.
 - Mutation check (T7): the five even draws put back on `getSeededVal`; the detune made even, and plain; the old glider
   `lit` 0.23 restored — 8 of 8 killed.
+- T8 decision (Crawford, 2026-11-01): the detune depth is floored onto the whole-percent grid, not rounded (spec
+  §1.2, "Amended at T8"). Measured beforehand over 2 million folded draws: rounded, 1 % held 10.8 % and 2 % was the
+  commonest at 19.8 %; floored, 1 % holds about 19 %. The fold lives in `detuneLinkDepth`, wrapped in the existing
+  whole-percent quantize so a theme with a fractional floor would still land on the grid.
+- T8: the cases draw 5,000 worlds × 12 robots, because only 13.5 % carry a lit bus link: its depth tenths (about 9 %
+  each on the grid) then sit at least 3 standard deviations inside 8–12 %. The envelope correlations use the first
+  12,000 robots, built at describe scope. Built inside the test, they outran the 5 s timeout under the full parallel
+  run. The file's sample now takes about 17 s to build.
+- T8: the share guard did **not** pass before the switch for every target (`layer0.gain` was lit for 22.4 %), in line
+  with T0's 19.2–26.7 %. It passes after.
+- T8 repairs: only the two roster parity pins; the tier robots kept their tiers. `resolveBands.test.ts` took the three
+  new `lit` values.
+- Mutation check (T8): the quiet roll, the lane and the gain/bus depth put back on `getSeededVal`; the detune depth
+  rounded instead of floored, drawn even instead of centred, and not folded at all; each old `lit` (0.3, 0.3, 0.2)
+  restored — 9 of 9 killed.
 - For Crawford, not changed: the top-level `pulseWidth` that `generateAudioAttributes` seeds (`robot.audio.pulseWidth`)
   looks unread. `AudioAttributes` no longer types it (Robot.ts calls it deprecated), and `reserveVoice` takes
   `layers[0]?.pulseWidth`. T7 switched it as the plan says.

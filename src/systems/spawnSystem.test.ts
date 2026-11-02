@@ -3527,7 +3527,7 @@ describe('spawnSystem', () => {
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
         octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 35, rests: 48, accents: 68,
-        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.22, delaySend: 0.23, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
@@ -3537,7 +3537,7 @@ describe('spawnSystem', () => {
           layers: [{ type: 'sawtooth', gain: 0.71, detune: 0, phase: 342 }, { type: 'sawtooth', gain: 0, detune: 0, phase: 298 }, { type: 'triangle', gain: 0.79, detune: 0, phase: 27 }],
         } as AudioAttributes,
         octaveRange: [2, 4], rhythmicDensity: 82, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, dynamics: 37, rests: 32, accents: 54,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'a', depth: 52 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.29, delaySend: 0.16, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
@@ -3547,7 +3547,7 @@ describe('spawnSystem', () => {
           layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
         octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 53, rests: 41, accents: 57,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 6 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'c', depth: 6 }, 'bus.frequency': { lane: null, depth: 0 } },
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 27 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.47, delaySend: 0.19, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
     ];
@@ -3570,7 +3570,7 @@ describe('spawnSystem', () => {
           layers: [{ type: 'triangle', gain: 0.67, detune: -1, phase: 359 }, { type: 'triangle', gain: 0.77, detune: -1, phase: 215 }, { type: 'pulse', gain: 0, detune: 1, phase: 118 }],
         } as AudioAttributes,
         octaveRange: [4, 6], rhythmicDensity: 93, rhythmicMotifLength: { active: true, value: 8 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 94, dynamics: 62, rests: 48, accents: 68,
-        lfoLinks: { 'layer0.gain': { lane: 'd', depth: 45 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'c', depth: 8 }, 'layer2.gain': { lane: 'c', depth: 42 }, 'layer2.detune': { lane: 'c', depth: 8 }, 'bus.frequency': { lane: null, depth: 0 } },
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 3 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'd', depth: 4 } },
         reverbSend: 0.52, delaySend: 0.22, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
       },
       11: {
@@ -3580,7 +3580,7 @@ describe('spawnSystem', () => {
           layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
         } as AudioAttributes,
         octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 66, rests: 21, accents: 33,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'a', depth: 8 }, 'layer1.gain': { lane: 'a', depth: 34 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'b', depth: 47 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'c', depth: 11 } },
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'a', depth: 9 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.47, delaySend: 0.1, gritSend: 0.63, shimmerSend: 0, doubleSend: 0,
       },
       16: {
@@ -3590,7 +3590,7 @@ describe('spawnSystem', () => {
           layers: [{ type: 'sawtooth', gain: 0.75, detune: 0, phase: 95 }, { type: 'triangle', gain: 0.31, detune: -2, phase: 341 }, { type: 'square', gain: 0.42, detune: 1, phase: 275 }],
         } as AudioAttributes,
         octaveRange: [1, 3], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, dynamics: 58, rests: 21, accents: 51,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        lfoLinks: { 'layer0.gain': { lane: 'c', depth: 19 }, 'layer0.detune': { lane: 'b', depth: 6 }, 'layer1.gain': { lane: 'a', depth: 23 }, 'layer1.detune': { lane: 'c', depth: 5 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'b', depth: 31 } },
         reverbSend: 0.39, delaySend: 0.2, gritSend: 0, shimmerSend: 0, doubleSend: 0.45,
       },
     };

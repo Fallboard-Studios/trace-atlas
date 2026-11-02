@@ -308,12 +308,24 @@ const LFO_DEPTH_STEP = 1;
 
 /** The band a robot LFO target seeds from (robot.lfoGainDepth, robot.lfoDetuneDepth, robot.lfoBusDepth in the band
  *  table, band-table T21): its depth window in percent, with a never-zero floor so a lit link is always audible, and as
- *  `lit` the lit share — 1 - the old LFO_QUIET_THRESHOLD (0.7, docs/specs/LFO_LOAD_FIX.md assumption 5) for the six
- *  layer targets and 1 - the old LFO_BUS_QUIET_THRESHOLD (0.8) for the bus filter's rarer sweep. classic.ts records why 0.7
- *  and not 0.75 for "25 % on": the draw is a smooth simplex sample, not a coin, so the on-rate is not 1 - threshold. */
+ *  `lit` the lit share. The on-roll is even (docs/specs/EVEN_SEEDED_DRAWS.md), so `lit` is the share of robots with the
+ *  link lit. */
 function robotLfoBandForTarget(target: RobotLfoTargetId): SendBand {
   if (target === 'bus.frequency') return getBand('robot.lfoBusDepth');
   return getBand(target.endsWith('.gain') ? 'robot.lfoGainDepth' : 'robot.lfoDetuneDepth');
+}
+
+/**
+ * A lit detune link's depth, close to no detune (docs/specs/EVEN_SEEDED_DRAWS.md §1.2; Crawford, 2026-11-01): the
+ * centred draw over -1..1, folded so its peak sits at the window's floor, then floored onto the whole-percent grid so
+ * every percent gets a full share. Under Classic's 1-10 % window, 1 % is the commonest depth (about 19 % of lit detune
+ * links), each percent above it rarer, and 10 % the rarest (about 1 %). Rounding instead would give the floor only half
+ * a share and make 2 % the commonest.
+ */
+function detuneLinkDepth(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: SendBand): number {
+  const steps = band.max - band.min;
+  const folded = Math.abs(getCentredSeededVal(noiseMap, dataId, offset, -1, 1));
+  return quantizeToStep(band.min + Math.min(steps, Math.floor(folded * (steps + 1))), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
 }
 
 /**
@@ -334,21 +346,20 @@ export function generateRobotLfoLinks(
 
   for (const target of ROBOT_LFO_TARGET_IDS) {
     const band = robotLfoBandForTarget(target);
-    const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
+    const quiet = getUniformSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
     if (quiet) {
       result[target] = { lane: null, depth: 0 };
       continue;
     }
 
-    const laneT = getSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
+    const laneT = getUniformSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
     const lane = pickLane(laneT, counts);
     counts[lane]++;
 
-    const depth = quantizeToStep(
-      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, band.min, band.max),
-      LFO_DEPTH_MIN,
-      LFO_DEPTH_STEP,
-    );
+    const depthId = `robot.lfo.${target}.depth`;
+    const depth = target.endsWith('.detune')
+      ? detuneLinkDepth(noiseMap, depthId, offset, band)
+      : quantizeToStep(getUniformSeededVal(noiseMap, depthId, offset, band.min, band.max), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
     result[target] = { lane, depth };
   }
   return result;

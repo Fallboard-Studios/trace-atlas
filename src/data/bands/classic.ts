@@ -177,15 +177,15 @@ export const CLASSIC: BandTable = {
   // tuning pass, 2026-10-02): gain and detune read very differently at the same depth percentage, so each gets its own
   // ceiling; the bus filter's sweep (Robot Articulation, spec §1.2) moves the tone far more than a same-sized gain or
   // detune nudge, so it gets a mid-sized window. All share the never-zero floor of 1 (ROBOT_LFO_DEPTH_SEED_MIN): a lit
-  // link should always be audible. `lit` is the lit share, 1 - the quiet threshold: LFO_QUIET_THRESHOLD 0.7 for the six
-  // layer targets (why 0.7 and not 0.75 for "25 % on": the draw is a smooth simplex sample, not a uniform coin, so the
-  // on-rate is not 1 - threshold; measured across 8 worlds x 12 offsets, 0.5 gave about 53 % on, 0.75 about 20 %, 0.7
-  // about 27 %, about 1.6 audio-rate LFOs per robot), and LFO_BUS_QUIET_THRESHOLD 0.8 for the bus filter (a lit filter
-  // sweep is rarer than a lit layer link, about 1.6 in 12 robots, measured 13.6 %). The gain and detune shares were one
-  // constant; they are two rows here so the two fields stay independently tunable, as the two toggle shares below are.
-  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.3 },
-  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.3 },
-  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.2 },
+  // link should always be audible. `lit` is the lit share, drawn even, so the edge is the share (Even Seeded Draws T8):
+  // 25 % on for each of the six layer targets, about 1.5 audio-rate LFOs per robot, and 13.5 % for the bus filter (a lit
+  // filter sweep is rarer than a lit layer link, about 1.6 in 12 robots). Those are the shares the load tuning fitted
+  // its edges to (0.3 and 0.2) on the bunched draw. A lit detune link's depth leans to the 1 % floor (spawnSystem.ts,
+  // detuneLinkDepth). The gain and detune shares were one constant; they are two rows here so the two fields stay
+  // independently tunable, as the two toggle shares below are.
+  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.25 },
+  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.25 },
+  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.135 },
   // The two plain 0-100 draws, the sliders' own scale.
   'robot.rhythmicDensity': { min: 0, max: 100 },
   'robot.pitchRepeat': { min: 0, max: 100 },

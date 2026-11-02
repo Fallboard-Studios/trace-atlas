@@ -131,9 +131,9 @@ const EXPECTED: BandTable = {
   'robot.masterVolume': { min: 0.65, max: 0.85 },
   // ROBOT_LFO_GAIN/DETUNE/BUS_DEPTH_SEED_RANGE with LFO_QUIET_THRESHOLD 0.7 and LFO_BUS_QUIET_THRESHOLD 0.8 as lit shares
   // of 1 - 0.7 and 1 - 0.8.
-  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.3 },
-  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.3 },
-  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.2 },
+  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.25 },
+  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.25 },
+  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.135 },
   // The plain 0-100 draws.
   'robot.rhythmicDensity': { min: 0, max: 100 },
   'robot.pitchRepeat': { min: 0, max: 100 },

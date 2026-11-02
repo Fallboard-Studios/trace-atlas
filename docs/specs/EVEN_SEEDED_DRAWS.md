@@ -93,6 +93,13 @@ never-zero floor). So its draw is the centred draw over −1 to 1, folded:
 detune". Over 1–10 % the mode is 1 %, the median about 3.6 %, about 19 % of lit links land at 1.9 % or less, and about
 1 % land above 9.1 %. No new function: one line at the call site.
 
+**Amended at T8 (Crawford, 2026-11-01): floored onto the whole-percent grid.** A depth is stored as a whole percent,
+and rounding the folded value gives the 1 % floor only half a bucket (raw 1–1.5): 1 % would hold 10.8 % of lit detune
+links and 2 % would be the commonest (19.8 %). So the fold lands on the grid with a floor instead:
+`min + min(max − min, floor(|getCentredSeededVal(map, id, offset, -1, 1)| × (max − min + 1)))`. Over 1–10 %, 1 % is
+the commonest depth (about 19 % of lit detune links), each percent above it rarer (17, 15, 13 … %), 10 % the rarest
+(about 1 %), and the median is 3 %. It lives in spawnSystem.ts as `detuneLinkDepth`.
+
 Panning needs nothing: no pan is seeded, and every robot spawns at centre on Auto (spawnSystem.ts, ROBOT_PAN.md
 §1.1). The per-note velocity draws already use `performanceRoll`, apart from a noise fallback with no note position,
 which is out of scope.
