@@ -910,7 +910,9 @@ and would drop all six layer swells (F16).
       346 files / 13,237 tests, types clean, lint 0 errors (4 warnings, all in `Scenery.tsx` and `gemShape.tsx`,
       untouched here), the build clean.
 - [x] Crawford's Look: a pick waiting under the wash, then a theme click, then Current (F12). Tweaks survive a theme
-      and an aspect change (F16, F17). Passed 2026-11-02: "theme and aspect change survives fine".
+      and an aspect change (F16, F17). Passed 2026-11-02: "theme and aspect change survives fine". F12's half rests on
+      its tests: by hand, the 0.5 s window was too short to hit, and Crawford redesigned Current instead
+      ([off-screen-current-and-new-transmission.md](../intent/off-screen-current-and-new-transmission.md)).
 - [x] Ready for Crawford's PR. Merged as PR #595, 2026-11-01.
 
 ### Phase 5b: Crawford's answers to Phase 5 (2026-11-01)
