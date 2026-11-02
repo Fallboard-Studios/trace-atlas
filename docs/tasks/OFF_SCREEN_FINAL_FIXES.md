@@ -13,8 +13,9 @@
 > Phase 5 (F11–F19) added 2026-11-01. It holds the second review's findings at `8f5556d0` (verdict: request changes)
 > and Crawford's answers to them. **Built 2026-11-01:** F11 `fbd7d797`, F12 `cd3c63bf`, F13 `dde58896`, F14 `939bf899`,
 > F15 `f37dabfc`, F16 `d5f3a304`, F17 `dedf536f` (and the seed-pin fix `017d8655`), F18 `060df477`. F19's probes and
-> dump pass, and Checkpoint 5's automated box is ticked. Left: Crawford's Look (Checkpoint 5), his answer on F17's
-> synced-rate rule, then his PR.
+> dump pass, and Checkpoint 5's automated box is ticked. Crawford answered F16 and F17 the same day; built as F20
+> `840e49cb` and F21 `fb7e7cdd`, plus F11's seed pin `d4cd9dfd`. Full suite 346 / 13,244 and the build clean at
+> `d4cd9dfd`. Left: Crawford's Look (Checkpoint 5), the Tempo-slider question under F21, then his PR.
 
 Written for: Crawford, and a fresh agent session picking this up cold.
 
