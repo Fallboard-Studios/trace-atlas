@@ -14,11 +14,17 @@ import { render, screen, fireEvent, within, act } from '@testing-library/react';
  */
 // The live world Keep saves and the dirty test compares against (docs/tasks/OFF_SCREEN.md Task 14) — a marker
 // payload a test can change to make the world dirty, with the identity every real payload carries so a pick of it
-// can be described. buildSessionPayload hands out a fresh copy every call.
+// can be described. buildSessionPayload hands out a fresh copy every call. The identity is the stores' world, set in the
+// beforeEach, so the off screen's Current snapshot (a built payload) names Current as the live stores do
+// (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 3).
 const live = vi.hoisted(() => {
-  const marker = (m: string) =>
-    ({ version: 2, marker: m, attenuationStyleName: 'live-as', coordinates: { x: 1, y: 2 } }) as unknown as import('@/types/session').SessionPayload;
-  return { marker, payload: marker('live') };
+  const self = {
+    identity: { attenuationStyleName: 'live-as', coordinates: { x: 1, y: 2 } },
+    marker: (m: string) => ({ version: 2, marker: m, ...structuredClone(self.identity) }) as unknown as import('@/types/session').SessionPayload,
+    payload: undefined as unknown as import('@/types/session').SessionPayload,
+  };
+  self.payload = self.marker('live');
+  return self;
 });
 vi.mock('@/utils/sessionDiff', () => ({
   applySessionPayload: vi.fn(),
@@ -83,6 +89,7 @@ const savedPayload = (style: string): SessionPayload => ({ ...presetPayload(TRAN
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
+  live.identity = liveIdentity();
   live.payload = live.marker('live');
   useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: 'Quiet Harbour' });
   // The loaded world's loading (Task 30): Classic, nothing dealt, unless a test moves it.
@@ -459,8 +466,19 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     // Landed, the row follows the live store (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 2).
     act(() => useLoadingStore.setState({ theme: 'perilous' }));
     expect(description()?.textContent).toBe(human('home.off.themeDescription.perilous'));
-    fireEvent.click(screen.getByRole('radio', { name: asCurrent(describeWorld({ ...liveIdentity(), theme: 'perilous', aspects: {} }, 'Dusk Run')) }));
-    expect(description()?.textContent).toBe(human('home.off.themeDescription.perilous'));
+    // Current restores the world left, under its own Classic (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 3).
+    fireEvent.click(currentRadio());
+    expect(description()?.textContent).toBe(human('home.off.themeDescription.classic'));
+  });
+
+  // The ending of Task 2's cut "picking Current again returns the row to the loaded world theme", true since the restore.
+  it('picking Current after a save pick returns the row to the theme of the world left', () => {
+    saveNamedSession('Dusk Run', calmSave());
+    render(<OffScreen />);
+    fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+    expect(checked('calm')).toBe('true');
+    fireEvent.click(screen.getByRole('radio', { name: currentName() }));
+    expect(checked('classic')).toBe('true');
   });
 
   it('the description is one line of text, not a control, and every theme has its own sentence', () => {
@@ -928,7 +946,9 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
     expect(currentLabel('Dusk Run').startsWith('Dusk Run · ')).toBe(true);
   });
 
-  it('follows the loaded world: a change of Attenuation Style renames the row and the readout', () => {
+  // With no snapshot (nothing picked yet), Current is the live world (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md
+  // §1.3).
+  it('with nothing picked, follows the loaded world: a change of Attenuation Style renames the row and the readout', () => {
     render(<OffScreen />);
     const before = currentLabel();
     const { attenuationStyles, currentAttenuationStyleId } = useAttenuationStyleStore.getState();
@@ -943,11 +963,15 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
     expect(readout().textContent).toBe(currentLabel());
   });
 
-  it('picking Current retransmits nothing: it is the loaded world already', () => {
+  // docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1: with no wash mounted the preset lands at the click, so
+  // picking Current after it restores the world left (it used to apply nothing, Current being the preset's world).
+  it('picking Current after a landed pick restores the world left, named as before the pick', () => {
+    const prePick = structuredClone(live.payload);
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     fireEvent.click(screen.getByRole('radio', { name: currentName() }));
-    expect(applySessionPayload).toHaveBeenCalledTimes(1);
+    expect(applySessionPayload).toHaveBeenCalledTimes(2);
+    expect(vi.mocked(applySessionPayload).mock.lastCall?.[0]).toEqual(prePick);
     expect(screen.getByRole('radio', { name: currentName() }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: presetName(0) }).getAttribute('aria-checked')).toBe('false');
     expect(readout().textContent).toBe(currentLabel());
@@ -1149,7 +1173,9 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
 
   // A world that is no longer a save must not keep the save's name: Current would misname it, and Keep would
   // overwrite the save with a different world.
-  it('a preset pick or a Roll clears the loaded save name, so Current is named by its identity alone and Keep writes a new row', () => {
+  // Current keeps the name of the world left (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.3); it used to be
+  // renamed by its identity alone once the save was detached.
+  it('a preset pick or a Roll clears the loaded save name, so Keep writes a new row; Current keeps the name of the world left', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
@@ -1157,14 +1183,14 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
 
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(radioNames()[0]).toBe(currentName());
+    expect(radioNames()[0]).toBe(currentName('Dusk Run'));
 
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
     expect(useSessionStore.getState().currentSessionName).toBe('Dusk Run'); // the save pick names the session, as a Load does
     fireEvent.click(screen.getByRole('button', { name: human('home.off.roll') }));
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(radioNames()[0]).toBe(currentName());
+    expect(radioNames()[0]).toBe(currentName('Dusk Run'));
     expect(keep().disabled).toBe(false);
     // Keep after the roll writes a second row under a fresh suggestion — Dusk Run is not overwritten by a different world.
     const kept = useSessionStore.getState().currentSessionName;
@@ -1370,7 +1396,7 @@ describe('OffScreen — picking', () => {
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
     fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
-    fireEvent.click(screen.getByRole('radio', { name: currentName('Dusk Run') }));
+    fireEvent.click(currentRadio());
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
@@ -1794,7 +1820,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
         expect(applySessionPayload).toHaveBeenCalledWith(dusk());
         expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
         expect(checked('Dusk Run')).toBe('true');
-        expect(checked(currentName('Dusk Run'))).toBe('false');
+        expect(currentRadio().getAttribute('aria-checked')).toBe('false');
       });
 
       it("a theme clicked away and back to the save's own: nothing is laid over the save, and its row stays picked", async () => {
@@ -1891,6 +1917,159 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
     fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.bold') }));
     expect(keep().disabled).toBe(false);
+  });
+
+  // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 3 (spec §1.1, §1.2, §1.5): Current is a snapshot of the
+  // world the listener left, taken on the way out. Picked after another world has landed, it restores that world under
+  // the wash; picked while the departure still waits, it cancels it.
+  describe('Current is the world you left (Current and New Transmission, Task 3)', () => {
+    const clear = () => act(() => useUIStore.getState().setSceneWash('clear'));
+    const calmRun = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'calm', aspects: { melody: ['hypnotic'] } }) as SessionPayload;
+    const lastApplied = () => vi.mocked(applySessionPayload).mock.lastCall?.[0];
+
+    it('keeps its name through a save pick landing, though the live world and its loaded save have moved', async () => {
+      saveNamedSession('Calm Run', calmRun());
+      render(<OffScreen />);
+      const before = radioNames()[0];
+      expect(before).toBe(currentName()); // precondition
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      expect(radioNames()[0]).toBe(before);
+      await land();
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Calm Run'); // the live world moved
+      expect(useLoadingStore.getState().theme).toBe('calm');
+      expect(radioNames()[0]).toBe(before);
+    });
+
+    it('a save lands, then Current: the pre-pick world is applied at the cover, Current checked, the pre-pick save attached again', async () => {
+      saveNamedSession('Old Run', structuredClone(live.payload));
+      useSessionStore.setState({ currentLoadedSessionName: 'Old Run', currentSessionName: 'Old Run' });
+      saveNamedSession('Calm Run', calmRun());
+      const prePick = structuredClone(live.payload);
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      await land();
+      clear();
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Calm Run');
+      fireEvent.click(screen.getByRole('radio', { name: currentName('Old Run') }));
+      expect(wash()).toBe('covering');
+      expect(applySessionPayload).toHaveBeenCalledTimes(1); // only the save so far: the restore waits for the cover
+      expect(checked(currentName('Old Run'))).toBe('true');
+      await land();
+      expect(applySessionPayload).toHaveBeenCalledTimes(2);
+      expect(lastApplied()).toEqual(prePick);
+      expect(useSessionStore.getState()).toMatchObject({ currentLoadedSessionName: 'Old Run', currentSessionName: 'Old Run' });
+      expect(checked(currentName('Old Run'))).toBe('true');
+      // The Loading rows are the restored world's again.
+      expect(checked(human('home.off.theme.classic'))).toBe('true');
+      expect(screen.getByRole('button', { name: human('home.off.melody.hypnotic') }).getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('a restore of a world with no save loaded detaches the save picked since', async () => {
+      saveNamedSession('Calm Run', calmRun());
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      await land();
+      clear();
+      fireEvent.click(screen.getByRole('radio', { name: currentName() }));
+      await land();
+      expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+      expect(useSessionStore.getState().currentSessionName).not.toBe('Calm Run');
+      expect(checked(currentName())).toBe('true');
+    });
+
+    it('a save still waiting, then Current: the change is cancelled, nothing runs at the cover, and the snapshot goes', async () => {
+      const cancel = vi.spyOn(worldChange, 'cancelWorldChange');
+      saveNamedSession('Calm Run', calmRun());
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      fireEvent.click(screen.getByRole('radio', { name: currentName() }));
+      expect(cancel).toHaveBeenCalledTimes(1);
+      await land();
+      expect(applySessionPayload).not.toHaveBeenCalled();
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      expect(checked(currentName())).toBe('true');
+      cancel.mockRestore();
+      // The snapshot went with the cancel: the next departure takes a fresh one of the world as it is then.
+      clear();
+      live.payload = live.marker('moved');
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      await land();
+      clear();
+      fireEvent.click(screen.getByRole('radio', { name: currentName() }));
+      await land();
+      expect(lastApplied()).toEqual(live.marker('moved'));
+    });
+
+    it('a theme on Current, then a save lands, then Current: the restored world carries the theme, as the snapshot followed', async () => {
+      // What the retransmit does to the live world: the payload it builds carries the theme from then on.
+      vi.mocked(retransmitWorld).mockImplementation((input) => {
+        live.payload = { ...live.payload, theme: input.theme } as SessionPayload;
+      });
+      saveNamedSession('Dusk Run', savedPayload('dusk'));
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.calm') }));
+      fireEvent.click(screen.getByRole('radio', { name: 'Dusk Run' }));
+      await land();
+      clear();
+      fireEvent.click(currentRadio());
+      await land();
+      expect(lastApplied()).toMatchObject({ theme: 'calm' });
+    });
+
+    it('a save lands, Current waits, then a preset: only the preset lands, Current still names the snapshot, and Current then restores it', async () => {
+      saveNamedSession('Calm Run', calmRun());
+      const prePick = structuredClone(live.payload);
+      render(<OffScreen />);
+      const name = radioNames()[0];
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      await land();
+      clear();
+      fireEvent.click(currentRadio());
+      fireEvent.click(screen.getByRole('radio', { name: presetName(1) }));
+      await land();
+      expect(applySessionPayload).toHaveBeenCalledTimes(2);
+      expect(lastApplied()).toEqual(presetPayload(TRANSMISSION_PRESETS[1]));
+      expect(checked(presetName(1))).toBe('true');
+      expect(radioNames()[0]).toBe(name);
+      clear();
+      fireEvent.click(currentRadio());
+      await land();
+      expect(lastApplied()).toEqual(prePick);
+    });
+
+    it('a theme clicked while a restore waits is laid over the restored world, and Current stays checked', async () => {
+      saveNamedSession('Calm Run', calmRun());
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      await land();
+      clear();
+      fireEvent.click(currentRadio());
+      fireEvent.click(screen.getByRole('radio', { name: human('home.off.theme.bold') }));
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      await land();
+      expect(retransmitWorld).toHaveBeenCalledTimes(1);
+      expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'bold' });
+      expect(vi.mocked(applySessionPayload).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(retransmitWorld).mock.invocationCallOrder[0]);
+      expect(currentRadio().getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('Current restored is the live world again: a new pick takes a fresh snapshot', async () => {
+      saveNamedSession('Calm Run', calmRun());
+      render(<OffScreen />);
+      fireEvent.click(screen.getByRole('radio', { name: 'Calm Run' }));
+      await land();
+      clear();
+      fireEvent.click(currentRadio());
+      await land();
+      clear();
+      live.payload = live.marker('after-restore');
+      fireEvent.click(screen.getByRole('radio', { name: presetName(0) }));
+      await land();
+      clear();
+      fireEvent.click(currentRadio());
+      await land();
+      expect(lastApplied()).toEqual(live.marker('after-restore'));
+    });
   });
 
   it('Keep and picking Current are not world changes: no cover, at once', () => {
