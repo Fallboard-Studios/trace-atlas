@@ -9,7 +9,16 @@ import { correlation, outerTenths } from '../testUtils/spread';
 import { getCentredSeededVal, getUniformSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
-import { generateGlobalAudioSettings, scaleUnitValue } from './globalAudioSeed';
+import { generateAttenuationStyleBpm } from './bpmSeed';
+import { pickSeedNoteValue } from './tempoSync';
+import {
+  COLOUR_CHARACTERS,
+  COLOUR_CHARACTER_NODES,
+  generateGlobalAudioSettings,
+  pickColourCharacter,
+  scaleUnitValue,
+  type ColourCharacter,
+} from './globalAudioSeed';
 
 // ========================================
 // THE SAMPLE
@@ -24,7 +33,7 @@ const STYLES = Array.from({ length: STYLE_COUNT }, (_, i) => {
   const noiseMap = getAttenuationStyleNoiseMap(id, name);
   const settings = generateGlobalAudioSettings(id, name);
   evictAttenuationStyleNoiseMap(id);
-  return { noiseMap, settings };
+  return { id, name, noiseMap, settings };
 });
 
 /** The value a style seeded for `key` ('block.field'). */
@@ -198,5 +207,57 @@ describe('generateGlobalAudioSettings — every loading key even, the EQ centred
       const shift = expectedField('frequencyShifter.shift', getUniformSeededVal(noiseMap, 'globalAudio.frequencyShifter.shift'));
       expect(Math.abs(settings.frequencyShifter.shift), 'frequencyShifter.shift magnitude').toBe(shift);
     }
+  });
+});
+
+describe('generateGlobalAudioSettings — the colour character and the Delay Sync draw even (Even Seeded Draws T11)', () => {
+  const NODES = ['distortion', 'chebyshev', 'bitCrusher'] as const;
+  const litNodes = (settings: GlobalAudioSettings) => NODES.filter((node) => settings[node].wet > 0);
+  const characterOf = (settings: GlobalAudioSettings): ColourCharacter | undefined => {
+    const lit = litNodes(settings);
+    return COLOUR_CHARACTERS.find((c) => COLOUR_CHARACTER_NODES[c].length === lit.length && COLOUR_CHARACTER_NODES[c].every((n) => lit.includes(n)));
+  };
+  /** The style's seed tempo, read without leaving its map cached. */
+  const tempoOf = (id: string, name: string) => {
+    const bpm = generateAttenuationStyleBpm(id, name);
+    evictAttenuationStyleNoiseMap(id);
+    return bpm;
+  };
+
+  it('the colour character is the even draw at its own dataId', () => {
+    for (const { noiseMap, settings } of STYLES.slice(0, 400)) {
+      expect(characterOf(settings)).toBe(pickColourCharacter(getUniformSeededVal(noiseMap, 'globalAudio.colour.character')));
+    }
+  });
+
+  it('the Delay seeds Sync when its even mode draw is under 0.66, on the note its even note draw picks from the Delay band', () => {
+    let anchored = 0;
+    for (const { id, name, noiseMap, settings } of STYLES.slice(0, 300)) {
+      const wanted = getUniformSeededVal(noiseMap, 'globalAudio.delay.syncMode') < 0.66;
+      const expected = wanted
+        ? pickSeedNoteValue(getUniformSeededVal(noiseMap, 'globalAudio.delay.syncNote'), tempoOf(id, name), [getBand('delay.delayTime')], 'seconds')
+        : undefined;
+      expect(settings.delay.sync, id).toEqual(expected);
+      if (expected !== undefined) anchored += 1;
+    }
+    expect(anchored, 'Anchored styles in the sample').toBeGreaterThan(150);
+  });
+
+  it('guard: each colour character is 25 % of styles (+/-3 points), and no style lights two nodes', () => {
+    const counts = new Map<string, number>();
+    for (const { settings } of STYLES) {
+      expect(litNodes(settings).length).toBeLessThanOrEqual(1);
+      const character = characterOf(settings) ?? 'unrecognised';
+      counts.set(character, (counts.get(character) ?? 0) + 1);
+    }
+    for (const character of COLOUR_CHARACTERS) {
+      const share = (counts.get(character) ?? 0) / STYLE_COUNT;
+      expect(Math.abs(share - 0.25), `${character}: ${(share * 100).toFixed(1)} %`).toBeLessThanOrEqual(0.03);
+    }
+  });
+
+  it('guard: the Delay seeds Sync in 66 % of styles (+/-3 points)', () => {
+    const share = STYLES.filter(({ settings }) => settings.delay.sync !== undefined).length / STYLE_COUNT;
+    expect(Math.abs(share - 0.66), `${(share * 100).toFixed(1)} %`).toBeLessThanOrEqual(0.03);
   });
 });

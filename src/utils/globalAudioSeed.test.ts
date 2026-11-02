@@ -582,10 +582,8 @@ describe('the colour character (Global Colour)', () => {
       expect(none, 'and clean ones').toBeGreaterThan(300);
     }, 30000);
 
-    // The raw draw is bell-curved and discrete (see COLOUR_CHARACTER_BANDS), so the nominal edges
-    // 0.25 / 0.45 / 0.65 / 0.85 / 0.90 / 0.95 gave 10 / 34 / 18 / 30 / 4 / 4 / 0 %. The edges were fitted on styles
-    // named 'ColourCalibration<n>'; this test samples a different set, so it is a hold-out check and not a
-    // restatement of the fit.
+    // The character draw is even since Even Seeded Draws T11, so the nominal quarter edges are the shares. Before it, the
+    // draw was bell-curved and the edges were fitted on styles named 'ColourCalibration<n>'; this set was the hold-out.
     it('realises the target shares over 3000 hold-out styles, within 3 points: clean 25 and each single 25', () => {
       const TARGET: Record<(typeof COLOUR_CHARACTERS)[number], number> = {
         clean: 25,
@@ -2004,8 +2002,9 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
   });
 
   it('queries globalAudio.delay.syncMode and .syncNote', () => {
+    clearSeedDraws();
     generateGlobalAudioSettings('delay-sync-sample-0', 'DelaySync0');
-    const keys = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+    const keys = drawnDataIds();
     expect(keys).toContain('globalAudio.delay.syncMode');
     expect(keys).toContain('globalAudio.delay.syncNote');
   });
@@ -2063,19 +2062,28 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
   it('when no band has a note, the Delay stays Free with its seeded delayTime unchanged — and the pick is asked at the seed BPM', () => {
     const id = 'delay-sync-sample-1';
     const name = 'DelaySync1';
-    const real = generateGlobalAudioSettings(id, name).delay;
-    expect(real.sync, 'precondition: this style seeds a Sync Delay').toBeDefined();
+    // Even Seeded Draws T11: the style's Sync is seeded explicitly (its mode draw forced to 0), not found by luck.
+    const original = vi.mocked(getUniformSeededVal).getMockImplementation()!;
+    vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) =>
+      dataId === 'globalAudio.delay.syncMode' ? 0 : original(noiseMap, dataId, offset, min, max),
+    );
+    try {
+      const real = generateGlobalAudioSettings(id, name).delay;
+      expect(real.sync, 'precondition: this style seeds a Sync Delay').toBeDefined();
 
-    vi.mocked(pickSeedNoteValue).mockClear();
-    vi.mocked(pickSeedNoteValue).mockReturnValue(undefined);
-    const forcedFree = generateGlobalAudioSettings(id, name).delay;
-    const { sync: _sync, ...rest } = real;
-    expect('sync' in forcedFree).toBe(false);
-    expect(forcedFree).toStrictEqual(rest);
-    const [[, calledBpm, bands, unit]] = vi.mocked(pickSeedNoteValue).mock.calls;
-    expect(calledBpm).toBe(generateAttenuationStyleBpm(id, name));
-    expect(bands).toEqual([DELAY_BAND]);
-    expect(unit).toBe('seconds');
+      vi.mocked(pickSeedNoteValue).mockClear();
+      vi.mocked(pickSeedNoteValue).mockReturnValue(undefined);
+      const forcedFree = generateGlobalAudioSettings(id, name).delay;
+      const { sync: _sync, ...rest } = real;
+      expect('sync' in forcedFree).toBe(false);
+      expect(forcedFree).toStrictEqual(rest);
+      const [[, calledBpm, bands, unit]] = vi.mocked(pickSeedNoteValue).mock.calls;
+      expect(calledBpm).toBe(generateAttenuationStyleBpm(id, name));
+      expect(bands).toEqual([DELAY_BAND]);
+      expect(unit).toBe('seconds');
+    } finally {
+      vi.mocked(getUniformSeededVal).mockImplementation(original);
+    }
   });
 });
 
@@ -2226,8 +2234,9 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // to the centred draw) with every dataId and offset unchanged, so each value they feed moved and was copied from the
 // seeder's output, task by task, each in the commit that moved it. T10 moved every sampleField value outside the pedals
 // (compressor, EQ, both filters, delay time and feedback, reverb, the colour shapes and lit wets, limiter); the pedal
-// blocks came out identical, which is the check that only the draw changed. The rule above stands again once Phase 3 is
-// done.
+// blocks came out identical, which is the check that only the draw changed. T11 moved the colour character (alpha crush
+// -> fold, theta fold -> clean) and the Delay Sync pair (alpha now Sync; theta's note). The rule above stands again
+// once Phase 3 is done.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2247,10 +2256,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: -5.5, mid: -2, high: 4 },
       filterLPF: { type: 'lowpass', frequency: 12595.920980259783, Q: 0.23150881587360195 },
       filterHPF: { type: 'highpass', frequency: 20.145403978003156, Q: 0.11602087571860349 },
-      // Global Colour T5, amended T14: this style draws the crush character (BitCrusher lit; the others dry).
+      // Even Seeded Draws T11: this style draws the fold character (Chebyshev lit; the others dry). It drew crush before.
       distortion: { amount: 0.14, wet: 0 },
-      chebyshev: { order: 2, wet: 0 },
-      bitCrusher: { bits: 7, wet: 0.11 },
+      chebyshev: { order: 2, wet: 0.13 },
+      bitCrusher: { bits: 7, wet: 0 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
       autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -10, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
@@ -2270,7 +2279,8 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       vibrato: { rate: 6.85, depth: 0.05, wet: 0 },
       frequencyShifter: { shift: -11, wet: 1 },
       stereoWidener: { width: 0.64 },
-      delay: { delayTime: 0.112, feedback: 0.01, wet: 1 },
+      // Even Seeded Draws T11: the Delay now seeds Sync here.
+      delay: { delayTime: 0.112, feedback: 0.01, wet: 1, sync: { division: '1/8', modifier: 'straight' } },
       reverb: { decay: 2.8605363399208485, preDelay: 0, wet: 1 },
       limiter: { threshold: -2 },
     });
@@ -2289,9 +2299,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       eq3: { low: 1.5, mid: -2.5, high: -1 },
       filterLPF: { type: 'lowpass', frequency: 12675.758877479504, Q: 1.4718619269342987 },
       filterHPF: { type: 'highpass', frequency: 37.14401938535214, Q: 0.20458853428728785 },
-      // Global Colour T5, amended T14: this style draws the fold character (Chebyshev lit; the others dry, their shape still drawn).
+      // Even Seeded Draws T11: this style draws the clean character (every node dry, their shape still drawn). It drew fold
+      // before.
       distortion: { amount: 0.33, wet: 0 },
-      chebyshev: { order: 2, wet: 0.12 },
+      chebyshev: { order: 2, wet: 0 },
       bitCrusher: { bits: 9, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
@@ -2304,8 +2315,9 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
       frequencyShifter: { shift: 14, wet: 1 },
       stereoWidener: { width: 0.51 },
-      // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
-      delay: { delayTime: 0.085, feedback: 0.36, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
+      // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved. Even Seeded Draws
+      // T11: the note moved (it was a straight 1/16).
+      delay: { delayTime: 0.085, feedback: 0.36, wet: 1, sync: { division: '1/16', modifier: 'dotted' } },
       reverb: { decay: 2.101813837515187, preDelay: 0.1, wet: 1 },
       limiter: { threshold: -3 },
     });

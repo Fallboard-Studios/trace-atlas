@@ -79,8 +79,8 @@ function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey): number {
  * Probability threshold Delay's own "Sync" seed draw ([0, 1]) must fall under to seed Anchored
  * rather than Float — 66% target (docs/specs/FREE_SYNC_TOGGLE.md §1.7). A separate pair of
  * keys from the quiet roll above, so the two never correlate and Delay's existing draws are
- * untouched. The note itself is then picked from the Delay loading band only. Measured raw share
- * at 0.66 over 3000 Attenuation Styles (2026-10-03): 66.4% — no calibration needed.
+ * untouched. The note itself is then picked from the Delay loading band only. The mode and note
+ * draws are even (Even Seeded Draws T11), so the edge is the share.
  */
 const DELAY_SYNC_ODDS = 0.66;
 
@@ -105,19 +105,11 @@ export const COLOUR_CHARACTER_NODES: Record<ColourCharacter, readonly ColourNode
 
 /**
  * Cumulative upper edges on the character draw, one per COLOUR_CHARACTERS entry in order; a draw `t` belongs to the
- * first band whose edge is above it. SET BY MEASUREMENT, not by fraction. Two properties of the draw rule out
- * nominal edges: it is bell-curved (the nominal 0.25 / 0.45 / 0.65 / 0.85 / 0.90 / 0.95 realised 10 / 34 / 18 / 30 /
- * 4 / 4 / 0 % over 20 000 styles), and it is DISCRETE - one simplex sample at a fixed (x, 0) takes only ~190
- * distinct values, the largest holding ~1 % of styles - so an edge parked on a quantile can land either side of an
- * atom and move a share by half a point. Each edge is therefore the midpoint of the gap between two atoms whose
- * cumulative share is nearest the target (gaps are at least 0.0004 wide, so four decimals stay inside them).
- * Realised over those 20 000 styles ('ColourCalibration<n>'): clean 25.2, drive 24.9, fold 25.2, crush 24.7 %
- * (targets 25 / 25 / 25 / 25; the cumulative targets 25 / 50 / 75 fall in gaps 0.00056, 0.00673 and 0.00056 wide). The test in
- * globalAudioSeed.test.ts holds them to within 3 points on a different set ('ColourShare<n>', 3 000 styles); that set
- * measured 24.8 / 25.5 / 25.6 / 24.0 % with no world lighting two nodes. If the targets move (Crawford's listen, roadmap 50.3 T14),
- * refit the same way.
+ * first band whose edge is above it. The draw is even (getUniformSeededVal, Even Seeded Draws T11), so each band's
+ * width is its share: a quarter each, the target (docs/specs/EVEN_SEEDED_DRAWS.md §1.4). The bell-curved plain draw
+ * needed fitted edges (0.3065 / 0.5 / 0.6935) to give the same quarters. If the targets move, move the edges.
  */
-export const COLOUR_CHARACTER_BANDS: readonly number[] = [0.3065, 0.5, 0.6935, 1];
+export const COLOUR_CHARACTER_BANDS: readonly number[] = [0.25, 0.5, 0.75, 1];
 
 /** The character a seeded draw `t` in [0, 1] picks. Out-of-range draws clamp to the ends and a non-finite one is clean. */
 export function pickColourCharacter(t: number): ColourCharacter {
@@ -223,8 +215,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // never draws it, exactly as before.
   let styleBpm: number | undefined;
   const bpm = (): number => (styleBpm ??= generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName));
-  const delaySyncModeT = getSeededVal(noiseMap, 'globalAudio.delay.syncMode', 0, 0, 1);
-  const delaySyncNoteT = getSeededVal(noiseMap, 'globalAudio.delay.syncNote', 0, 0, 1);
+  const delaySyncModeT = getUniformSeededVal(noiseMap, 'globalAudio.delay.syncMode');
+  const delaySyncNoteT = getUniformSeededVal(noiseMap, 'globalAudio.delay.syncNote');
   const delaySync =
     delaySyncModeT < DELAY_SYNC_ODDS
       ? pickSeedNoteValue(delaySyncNoteT, bpm(), [getBand('delay.delayTime')], 'seconds')
@@ -233,7 +225,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // Colour: the character draw says which nodes are lit. All seven colour keys are read on every style, lit or not,
   // so the draw set never depends on the character; an unlit node still seeds its shape value (a hand nudge of Mix
   // then hears something at once) and just has its `wet` forced to 0.
-  const lit = COLOUR_CHARACTER_NODES[pickColourCharacter(getSeededVal(noiseMap, 'globalAudio.colour.character', 0, 0, 1))];
+  const lit = COLOUR_CHARACTER_NODES[pickColourCharacter(getUniformSeededVal(noiseMap, 'globalAudio.colour.character'))];
   const distortionWet = sampleField(noiseMap, 'distortion.wet');
   const chebyshevWet = sampleField(noiseMap, 'chebyshev.wet');
   const bitCrusherWet = sampleField(noiseMap, 'bitCrusher.wet');

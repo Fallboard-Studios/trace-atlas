@@ -484,7 +484,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S–M
 
-- [ ] **Task 11: globalAudioSeed.ts — the colour character and the Delay Sync draw even**
+- [x] **Task 11: globalAudioSeed.ts — the colour character and the Delay Sync draw even**
 
   **Description:** Switch `globalAudio.colour.character`, `globalAudio.delay.syncMode` and `globalAudio.delay.syncNote`
   to even. `COLOUR_CHARACTER_BANDS` becomes **[0.25, 0.5, 0.75, 1]**, and its fitting comment is rewritten.
@@ -495,8 +495,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   Mutation: put the fitted bands back with the even draw, and the guard fails (clean about 31 %).
 
   **Acceptance criteria:**
-  - [ ] Three draws are even.
-  - [ ] The colour edges are nominal, and both shares are as targeted.
+  - [x] Three draws are even.
+  - [x] The colour edges are nominal, and both shares are as targeted.
 
   **Verification:** As Task 4 (expected repairs: the colour hold-out share case in globalAudioSeed.test.ts, and
   `worldDiffCodec.test.ts`'s Free Delay over a seeded Sync).
@@ -1040,3 +1040,14 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   centred; every non-pedal field plain; the limiter alone plain; the AutoWah's fields plain — 7 of 7 killed.
 - T10 full suite: 13,322 passed; the one failure was `sceneToOrbiterLocal`'s round-trip timing out at 5 s under the
   parallel run (known slow; 10 of 10 pass alone).
+- T11: the Delay Sync note's draw is not visible in the output (the note takes a handful of values per tempo), so its
+  "more than 2,500 distinct values" is proven by a pin instead: over 300 styles the Delay seeds Sync exactly when the
+  even mode draw is under 0.66, on the note `pickSeedNoteValue` picks from the even note draw at the style's tempo. The
+  colour character is pinned the same way (400 styles). Both share guards passed before the switch and after.
+- T11 repairs, all in `globalAudioSeed.test.ts`: "queries globalAudio.delay.syncMode and .syncNote" reads every draw;
+  "when no band has a note…" had relied on `delay-sync-sample-1` happening to roll Sync, which it no longer does, so it
+  now seeds the Sync explicitly (the mode draw forced to 0) and restores the draw after. The oracle took the moved
+  character (alpha crush → fold, theta fold → clean) and Delay Sync (alpha now Sync on 1/8; theta's note 1/16 →
+  dotted 1/16). `worldDiffCodec.test.ts`'s Free Delay case needed no repair: its style still seeds Sync.
+- Mutation check (T11): each of the three draws put back on `getSeededVal`; the fitted colour edges restored;
+  `DELAY_SYNC_ODDS` 0.66 → 0.7 — 5 of 5 killed. Full suite: 13,327 passed.
