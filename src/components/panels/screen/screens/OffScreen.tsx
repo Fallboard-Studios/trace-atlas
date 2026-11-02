@@ -261,13 +261,14 @@ export function OffScreen() {
   const liveWorld = { attenuationStyleName: currentAttenuationStyle?.name ?? '', coordinates: coordinates ?? { x: 0, y: 0 } };
   const currentLabel = describeWorld({ ...liveWorld, theme: loadedTheme, aspects: loadedAspects }, loadedSessionName ?? undefined);
 
-  // What the rows show: a waiting change's intent while there is one (R3), so a click shows at once; else the picked
-  // save's or preset's own payload after a pick, and the loaded world's for Current.
+  // What the rows show: a waiting change's intent while there is one (R3), so a click shows at once; else the live
+  // world's loading, whichever row is selected — a landed pick's stored identity goes stale at the first theme or aspect
+  // click on it (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.3).
   const shownPick = intent?.pick ?? pick;
   // The theme the Loading row shows.
-  const shownTheme: ThemeId = intent?.theme ?? ('identity' in pick ? pick.identity.theme : loadedTheme);
+  const shownTheme: ThemeId = intent?.theme ?? loadedTheme;
   // The family rows' sets (Task 31; per family since revisions Task 9), by the same rule.
-  const shownAspects = intent?.aspects ?? ('identity' in pick ? pick.identity.aspects : loadedAspects);
+  const shownAspects = intent?.aspects ?? loadedAspects;
   // The readout names the shown pick. For Current with a change waiting, it names the world that change leaves, as far
   // as it is known: a pick's world under the intended loading, or the loaded world's (a Roll's is drawn only as it runs).
   const readout =
@@ -319,10 +320,10 @@ export function OffScreen() {
     const loading: RetransmitInput = {};
     if (intended.theme !== left.theme) loading.theme = intended.theme;
     if (!deepEqual(canonicalAspects(intended.aspects), canonicalAspects(left.aspects))) loading.aspects = intended.aspects;
-    const relaid = loading.theme !== undefined || loading.aspects !== undefined;
-    if (relaid) retransmitWorld(loading);
-    // A loading laid over the world part drops the row to Current, as an applied theme pick drops it (final fixes F12).
-    setPick(relaid ? CURRENT_PICK : intended.pick);
+    if (loading.theme !== undefined || loading.aspects !== undefined) retransmitWorld(loading);
+    // The row is the intended pick, always: a loading laid over it keeps it, as a theme or aspect click on a landed pick
+    // does (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5).
+    setPick(intended.pick);
     setDirty(isWorldDirty());
     setKeepFailed(false);
   }, [setIntent]);
@@ -408,7 +409,8 @@ export function OffScreen() {
   }, [nextIntent, realise, setIntent]);
 
   // A theme pick (Task 30): the loading alone moves — the same seed and plot, the live world re-derived in place under
-  // the new bands (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7) — so the world row drops back to Current. The loaded save
+  // the new bands (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7) — so the world row stays where it is
+  // (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1). The loaded save
   // stays attached (see the component note), and dirty is read again. Not under the scene wash: nothing physical
   // changes, so it applies at the click, as a family toggle does (F8; Crawford, answer 2b). With a world change waiting,
   // the theme joins its intent instead (R3).
@@ -421,7 +423,6 @@ export function OffScreen() {
         return;
       }
       retransmitWorld({ theme: value });
-      setPick(CURRENT_PICK);
       setDirty(isWorldDirty());
       setKeepFailed(false);
     },
@@ -499,7 +500,7 @@ export function OffScreen() {
 
   // A family change (Task 31; per family since revisions Task 9): the whole loading through retransmitWorld, this family's
   // set replaced, canonical, and every other family's carried as shown — retransmitWorld replaces the aspects whole — so
-  // the deal moves over the live roster; the world row drops back to Current, the loaded save stays attached and dirty is
+  // the deal moves over the live roster; the world row stays where it is, the loaded save stays attached and dirty is
   // read again, as for a theme pick. The aspect toggled on, if one was, becomes the family's described one. Not under
   // the scene wash: picks alone rebuild nothing, so the change applies at the click and a quick second toggle builds on
   // the first (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33). With a world change waiting, the toggle joins its intent
@@ -516,7 +517,6 @@ export function OffScreen() {
         return;
       }
       retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
-      setPick(CURRENT_PICK);
       setDirty(isWorldDirty());
       setKeepFailed(false);
     },
