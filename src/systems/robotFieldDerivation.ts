@@ -95,20 +95,19 @@ export function currentMelodyBands(): Pick<BandTable, MelodyBandKey> {
  * The four Melody fields from a robot's own spawn index under `bands` - the theme's at spawn (currentMelodyBands), an
  * aspect's when the deal re-derives them (applyDealToBaselines: resolveBands(theme, { melody: aspect })). The same
  * noise, dataIds and formulas either way, so a dealt robot is exactly what it would have been had it spawned under the
- * aspect (docs/specs/OFF_SCREEN.md assumption 22). The toggle fields reuse the old '.active' dataIds verbatim (not a
- * freshly-named consolidated key): getSeededVal's simplex slice is keyed off the exact dataId string, so a new string
- * would sample a different curve with no guarantee of matching the already-tuned ~85%/15% split against the band's
- * offShare; the old '.value' dataIds are retired, value is derived from this same draw.
+ * aspect (docs/specs/OFF_SCREEN.md assumption 22). The toggle fields keep the old '.active' dataIds (the '.value' ones
+ * are retired: value is derived from this same draw). Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so a
+ * toggle's offShare is the share of robots with it off.
  */
 export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number, bands: Pick<BandTable, MelodyBandKey>): MelodyFields {
   const density = bands['robot.rhythmicDensity'];
-  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnIndex, density.min, density.max));
-  const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnIndex, 0, 1);
+  const rhythmicDensity = Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', spawnIndex, density.min, density.max));
+  const motifRaw = getUniformSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnIndex, 0, 1);
   const rhythmicMotifLength = seedToggleValue(motifRaw, bands['robot.rhythmicMotifLength']);
-  const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnIndex, 0, 1);
+  const noteVarianceRaw = getUniformSeededVal(noiseMap, 'robot.noteVariance.active', spawnIndex, 0, 1);
   const noteVariance = seedToggleValue(noteVarianceRaw, bands['robot.noteVariance']);
   const repeat = bands['robot.pitchRepeat'];
-  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnIndex, repeat.min, repeat.max));
+  const pitchRepeat = Math.round(getUniformSeededVal(noiseMap, 'robot.pitchRepeat', spawnIndex, repeat.min, repeat.max));
   return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat };
 }
 

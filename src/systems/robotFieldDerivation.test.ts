@@ -6,8 +6,8 @@ import alea from 'alea';
 import { createNoise2D } from 'simplex-noise';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 import { CLASSIC } from '../data/bands/classic';
-import { getUniformSeededVal } from '../utils/getSeededVal';
-import { deriveEnvelopeFields } from './robotFieldDerivation';
+import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { deriveEnvelopeFields, deriveMelodyFields, seedToggleValue } from './robotFieldDerivation';
 
 // ========================================
 // THE SAMPLE
@@ -124,6 +124,66 @@ describe('deriveEnvelopeFields — even draws (Even Seeded Draws T4)', () => {
       expect(e.decay).toBe(even('robot.audio.decay', CLASSIC['robot.decay']));
       expect(e.sustain).toBe(even('robot.audio.sustain', CLASSIC['robot.sustain']));
       expect(e.release).toBe(even('robot.audio.release', e.releaseCurve === 'linear' ? CLASSIC['robot.release'] : shapedRelease));
+    }
+  });
+});
+
+describe('deriveMelodyFields — even draws (Even Seeded Draws T5)', () => {
+  const MELODY = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveMelodyFields(noiseMap, offset, CLASSIC));
+  const TOGGLES = ['rhythmicMotifLength', 'noteVariance'] as const;
+
+  it('density and pitch repeat fill their bands: 8-12 % of robots in each outer tenth', () => {
+    const fields = {
+      rhythmicDensity: CLASSIC['robot.rhythmicDensity'],
+      pitchRepeat: CLASSIC['robot.pitchRepeat'],
+    } as const;
+    for (const [field, band] of Object.entries(fields) as [keyof typeof fields, (typeof fields)[keyof typeof fields]][]) {
+      const { bottom, top } = outerTenths(MELODY.map((m) => m[field]), band);
+      expect(bottom, `${field} bottom tenth`).toBeGreaterThanOrEqual(0.08);
+      expect(bottom, `${field} bottom tenth`).toBeLessThanOrEqual(0.12);
+      expect(top, `${field} top tenth`).toBeGreaterThanOrEqual(0.08);
+      expect(top, `${field} top tenth`).toBeLessThanOrEqual(0.12);
+    }
+  });
+
+  it('Motif Length and Note Variance are each off for 15 % of robots (+/-2 points), the written offShare', () => {
+    for (const toggle of TOGGLES) {
+      const off = MELODY.filter((m) => !m[toggle].active).length / MELODY.length;
+      expect(off, toggle).toBeGreaterThanOrEqual(0.13);
+      expect(off, toggle).toBeLessThanOrEqual(0.17);
+    }
+  });
+
+  it('an on toggle spreads across 1-8: each value is 9-16 % of the robots with it on', () => {
+    for (const toggle of TOGGLES) {
+      const on = MELODY.filter((m) => m[toggle].active);
+      for (let value = 1; value <= 8; value++) {
+        const share = on.filter((m) => m[toggle].value === value).length / on.length;
+        expect(share, `${toggle} ${value}`).toBeGreaterThanOrEqual(0.09);
+        expect(share, `${toggle} ${value}`).toBeLessThanOrEqual(0.16);
+      }
+    }
+  });
+
+  it('density correlates under 0.1 with sustain and with the glider roll', () => {
+    const density = MELODY.map((m) => m.rhythmicDensity);
+    const sustain = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveEnvelopeFields(noiseMap, offset, CLASSIC).sustain);
+    const gliderRoll = ROBOT_SLOTS.map(({ noiseMap, offset }) => getSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1));
+    expect(Math.abs(correlation(density, sustain)), 'density vs sustain').toBeLessThan(0.1);
+    expect(Math.abs(correlation(density, gliderRoll)), 'density vs glider roll').toBeLessThan(0.1);
+  });
+
+  it('each melody field is the even draw at its own dataId and the robot\'s offset', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 120)) {
+      const m = deriveMelodyFields(noiseMap, offset, CLASSIC);
+      const density = CLASSIC['robot.rhythmicDensity'];
+      const repeat = CLASSIC['robot.pitchRepeat'];
+      expect(m.rhythmicDensity).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', offset, density.min, density.max)));
+      expect(m.pitchRepeat).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.pitchRepeat', offset, repeat.min, repeat.max)));
+      expect(m.rhythmicMotifLength).toEqual(
+        seedToggleValue(getUniformSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', offset), CLASSIC['robot.rhythmicMotifLength']),
+      );
+      expect(m.noteVariance).toEqual(seedToggleValue(getUniformSeededVal(noiseMap, 'robot.noteVariance.active', offset), CLASSIC['robot.noteVariance']));
     }
   });
 });

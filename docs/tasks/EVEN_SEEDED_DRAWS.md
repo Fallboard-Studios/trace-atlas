@@ -292,7 +292,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** M (two sources, one new test, the first conversion onto T3)
 
-- [ ] **Task 5: robotFieldDerivation.ts — the melody fields draw even**
+- [x] **Task 5: robotFieldDerivation.ts — the melody fields draw even**
 
   **Description:** In `deriveMelodyFields`, switch density, the two toggles' `.active` and pitch repeat. The
   toggles' `offShare` stays 0.15 and now realises 15 % (spec decision 5).
@@ -303,8 +303,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   of spec §1.1).
 
   **Acceptance criteria:**
-  - [ ] Every melody draw is even.
-  - [ ] The off shares are 15 %.
+  - [x] Every melody draw is even.
+  - [x] The off shares are 15 %.
 
   **Verification:** As Task 4.
 
@@ -847,3 +847,11 @@ before its commit.
   accent and an exclusive send. `resolveBands.test.ts`'s Classic literal took the two new `lit` values.
 - Mutation check (T4): each of the six envelope draws put back on `getSeededVal`, the `.which` row moved, and each old
   `lit` (0.21, 0.275) restored — 9 of 9 killed.
+- T5: the density-vs-glider-roll case reads the glider roll as the plain draw `generateAudioAttributes` still makes
+  (it moves at T7). Before the switch, the two were r = 0.998. Repairs: the deal pass's Mechanical case computes its
+  expected density and pitch repeat with the even draw, and the parity pins took the new melody values (the three
+  spawned robots' densities went 50 / 50 / 77 → 82 / 82 / 98). The copied-baseline deal case had searched its world for
+  two indices that draw apart; under the even draw both drew 57. It now steers the density draw by index (index / 12
+  of the band) through the file's `getUniformSeededVal` spy and restores the steering wrapper with `mockReset()`.
+- Mutation check (T5): each of the four draws put back on `getSeededVal`, and the Motif Length dataId renamed — 5 of
+  5 killed.
