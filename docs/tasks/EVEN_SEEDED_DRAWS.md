@@ -687,16 +687,17 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 - [x] The T18 record meets spec §6's measurable criteria.
 
 ### Checkpoint D: Crawford's listen (spec §5.4)
-- [ ] Classic on even draws, across a few worlds (a fresh Roll or two, and a link), with `?debug` open for swells
+- [x] Classic on even draws, across a few worlds (a fresh Roll or two, and a link), with `?debug` open for swells
   and underruns. Things to listen for:
   - the fuller waveform and register mix;
   - copied robots at 30 %;
   - Motif Length and Note Variance off at 15 %;
   - swells at their promised rate;
   - an Audio Rig that varies per world, with the EQ near flat.
-- [ ] Each narrowing he asks for becomes a task (N1, N2, …): a Classic band edit in `classic.ts` with a RED guard on
+- [x] Each narrowing he asks for becomes a task (N1, N2, …): a Classic band edit in `classic.ts` with a RED guard on
   the band's new edges, one commit each. A swell-rate problem goes back to spec §7 Q1's option (b) as its own task.
-- [ ] He passes Classic.
+  None asked.
+- [x] He passes Classic ("i love it", 2026-11-02).
 
 ---
 
