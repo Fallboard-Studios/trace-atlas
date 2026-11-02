@@ -189,7 +189,7 @@ they share a source file and a test file.
 
   **Estimated scope:** XS
 
-- [ ] **Task 2: getSeededVal.ts — `getCentredSeededVal`**
+- [x] **Task 2: getSeededVal.ts — `getCentredSeededVal`**
 
   **Description:** New export: the mean of `getUniformSeededVal(map, dataId, offset)` and
   `getUniformSeededVal(map, \`${dataId}.centre\`, offset)`, mapped onto `[min, max]` (spec §1.2). No caller yet; T6, T7
@@ -201,12 +201,12 @@ they share a source file and a test file.
   before the change, because the function doesn't exist.
 
   **Acceptance criteria:**
-  - [ ] It returns `min + ((a + b) / 2) × (max − min)` for the two named even draws `a` and `b`.
-  - [ ] Its spread over seeded maps is the triangle above.
+  - [x] It returns `min + ((a + b) / 2) × (max − min)` for the two named even draws `a` and `b`.
+  - [x] Its spread over seeded maps is the triangle above.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/getSeededVal.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/getSeededVal.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1.
 

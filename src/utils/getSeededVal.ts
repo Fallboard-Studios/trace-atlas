@@ -76,3 +76,21 @@ export function getUniformSeededVal(
   const samples = UNIFORM_SAMPLE_SHIFTS.map((shift) => getSeededVal(noiseMap, dataId, offset + shift, 0, 1));
   return min + alea(samples.join(':'))() * (max - min);
 }
+
+/**
+ * A centred draw on [min, max): the mean of two independent even draws, `dataId` and
+ * `${dataId}.centre` at the same offset, so a triangle peaking at the band's middle (each outer
+ * tenth gets about 2 % of draws). For the values whose middle is neutral: the EQ bands and the
+ * detunes.
+ */
+export function getCentredSeededVal(
+  noiseMap: NoiseFunction2D,
+  dataId: string,
+  offset = 0,
+  min = 0,
+  max = 1,
+): number {
+  const a = getUniformSeededVal(noiseMap, dataId, offset);
+  const b = getUniformSeededVal(noiseMap, `${dataId}.centre`, offset);
+  return min + ((a + b) / 2) * (max - min);
+}

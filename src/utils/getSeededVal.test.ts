@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { beforeAll, describe, it, expect } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { precomputeDataX, getSeededVal, getUniformSeededVal } from './getSeededVal';
+import { precomputeDataX, getSeededVal, getUniformSeededVal, getCentredSeededVal } from './getSeededVal';
 
 describe('precomputeDataX', () => {
   it('is deterministic — the same dataId produces the same output on repeated calls', () => {
@@ -94,6 +94,71 @@ describe('getUniformSeededVal', () => {
       for (const noiseMap of worldMaps) {
         expect(getUniformSeededVal(noiseMap, 'k', 4, 0, 1)).toBe(getUniformSeededVal(noiseMap, 'k', 4));
       }
+    });
+  });
+});
+
+describe('getCentredSeededVal', () => {
+  const WORLDS = 3000;
+  const seedRng = alea('getCentredSeededVal.test');
+  const worldMaps = Array.from({ length: WORLDS }, () => {
+    const x = Math.floor(seedRng() * 20000) - 10000;
+    const y = Math.floor(seedRng() * 20000) - 10000;
+    return createNoise2D(alea(`${x}:${y}`));
+  });
+
+  it('is the mean of the even draws at the dataId and the dataId + ".centre", same offset, mapped onto the band', () => {
+    for (const noiseMap of worldMaps.slice(0, 200)) {
+      const a = getUniformSeededVal(noiseMap, 'eq3.low', 7);
+      const b = getUniformSeededVal(noiseMap, 'eq3.low.centre', 7);
+      expect(getCentredSeededVal(noiseMap, 'eq3.low', 7, -6, 6)).toBeCloseTo(-6 + ((a + b) / 2) * 12, 12);
+    }
+  });
+
+  it('defaults offset to 0 and the band to [0, 1]', () => {
+    for (const noiseMap of worldMaps.slice(0, 200)) {
+      const a = getUniformSeededVal(noiseMap, 'k', 0);
+      const b = getUniformSeededVal(noiseMap, 'k.centre', 0);
+      expect(getCentredSeededVal(noiseMap, 'k')).toBeCloseTo((a + b) / 2, 12);
+    }
+  });
+
+  it('returns min for a zero-width band', () => {
+    for (const noiseMap of worldMaps.slice(0, 200)) expect(getCentredSeededVal(noiseMap, 'k', 3, 4, 4)).toBe(4);
+  });
+
+  describe('over 3,000 seeded worlds, it is a triangle peaking at the middle of the band', () => {
+    const MIN = -5;
+    const MAX = 5;
+    let values: number[] = [];
+    beforeAll(() => {
+      values = worldMaps.map((m) => getCentredSeededVal(m, 'robot.audio.detune', 0, MIN, MAX));
+    });
+    const fraction = (lo: number, hi: number) => values.filter((v) => v >= lo && v < hi).length / WORLDS;
+
+    it('stays in [min, max)', () => {
+      for (const v of values) {
+        expect(v).toBeGreaterThanOrEqual(MIN);
+        expect(v).toBeLessThan(MAX);
+      }
+    });
+
+    it('has its median within 2 % of the band from the middle', () => {
+      const median = [...values].sort((p, q) => p - q)[WORLDS / 2];
+      expect(Math.abs(median)).toBeLessThan(0.02 * (MAX - MIN));
+    });
+
+    it('puts 1–3.5 % of draws in each outer tenth (a triangle gives 2 %)', () => {
+      for (const share of [fraction(MIN, MIN + 1), fraction(MAX - 1, MAX)]) {
+        expect(share).toBeGreaterThanOrEqual(0.01);
+        expect(share).toBeLessThanOrEqual(0.035);
+      }
+    });
+
+    it('puts 30–42 % of draws in the middle fifth (a triangle gives 36 %)', () => {
+      const share = fraction(-1, 1);
+      expect(share).toBeGreaterThanOrEqual(0.3);
+      expect(share).toBeLessThanOrEqual(0.42);
     });
   });
 });
