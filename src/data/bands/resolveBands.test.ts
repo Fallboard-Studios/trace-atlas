@@ -116,9 +116,9 @@ const EXPECTED: BandTable = {
   'robot.decay': { min: 0, max: 2 },
   'robot.sustain': { min: 0, max: 1 },
   'robot.release': { min: 0, max: 2 },
-  // SHAPED_ATTACK/RELEASE_RANGE with ATTACK/RELEASE_CURVE_SHAPED_THRESHOLD as the lit share.
-  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.21 },
-  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.275 },
+  // SHAPED_ATTACK/RELEASE_RANGE with the shaped share as the lit share (Even Seeded Draws T4: the edge is the share).
+  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.155 },
+  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.15 },
   // PORTAMENTO_SEED_RANGE with GLIDER_THRESHOLD as the lit share.
   'robot.portamento': { min: 0.05, max: 0.2, lit: 0.23 },
   // OPEN_FILTER_FREQ_RANGE; ACCENT_FILTER_FREQ_RANGE with FILTER_ACCENT_THRESHOLD; ACCENT_FILTER_Q_RANGE.

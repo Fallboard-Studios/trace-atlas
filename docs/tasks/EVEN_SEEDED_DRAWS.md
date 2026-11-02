@@ -264,7 +264,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 (`() => -1`) and its +1 sibling become `constantNoiseMap(-1)` / `(1)`, and its existing `getSeededVal` mock adopts
 `steerSeededDraws`.
 
-- [ ] **Task 4: robotFieldDerivation.ts — the envelope draws even, the shaped shares as heard**
+- [x] **Task 4: robotFieldDerivation.ts — the envelope draws even, the shaped shares as heard**
 
   **Description:** In `deriveEnvelopeFields` and `seedCurve`, switch the four stages and each curve's `.shaped` and
   `.which` draws to `getUniformSeededVal`. In `classic.ts`, set `robot.shapedAttack.lit` 0.21 → **0.155** and
@@ -277,13 +277,13 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   are 15.5 ± 2 % and 15 ± 2 %.
 
   **Acceptance criteria:**
-  - [ ] Every envelope draw is even, with dataIds and offsets unchanged.
-  - [ ] The shaped shares stay as heard; the stages fill their bands.
+  - [x] Every envelope draw is even, with dataIds and offsets unchanged.
+  - [x] The shaped shares stay as heard; the stages fill their bands.
 
   **Verification:**
-  - [ ] The new test passes, the full suite is green after repairing what this switch breaks (expected: the
+  - [x] The new test passes, the full suite is green after repairing what this switch breaks (expected: the
     articulation-share and noise ±1 cases in `spawnSystem.test.ts`), and the mutation check passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 3.
 
@@ -830,3 +830,20 @@ before its commit.
   of the test file, because `vi.mock` is hoisted above the imports. The module's header gives the factory to copy.
 - T3: `noiseMapForDataIds` keys its x by `alea(dataId)()` itself instead of importing `precomputeDataX`, so the helper
   never imports the module it mocks. The test checks that `getSeededVal` still finds a named dataId through it.
+
+### Phase 2: deviations
+
+- T4: the new test is `src/systems/robotFieldDerivation.test.ts` (it did not exist): 400 worlds × 12 robots of
+  `deriveEnvelopeFields` under `CLASSIC`, no mocks. Its curve case ("every non-linear curve is drawn by at least 15 % of
+  shaped robots") draws 2,000 worlds × 12 instead. In the 4,800-robot sample, about 730 robots shape each stage, so one
+  curve's share varies by about 1.4 points around its even 16.7 %, and cosine came out at 14.9 %. The threshold stayed;
+  the sample grew to about 3,700 shaped robots (0.6 points). A fifth case pins each stage and curve roll to the even
+  draw at its own dataId and offset.
+- T4: the repairs were the seven failures the switch broke, all in `spawnSystem.test.ts`. The file's `getSeededVal` mock
+  adopted `steerSeededDraws`. The noise ±1 cases now use `constantNoiseMap`. The curve clamp and the two envelope-body
+  cases dropped their `getSeededVal` mock juggling for `noiseMapForDataIds` stubs. The two Classic parity pins
+  (`PARITY_ROSTER`, `PARITY_TIERS`) were re-captured from the generator; only their `adsr` lines moved. Tier robot 3
+  lost its shaped attack, but robot 4 now shapes its release, so the three still cover a shaped stage, the bandpass
+  accent and an exclusive send. `resolveBands.test.ts`'s Classic literal took the two new `lit` values.
+- Mutation check (T4): each of the six envelope draws put back on `getSeededVal`, the `.which` row moved, and each old
+  `lit` (0.21, 0.275) restored — 9 of 9 killed.

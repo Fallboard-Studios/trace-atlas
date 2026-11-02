@@ -143,14 +143,12 @@ export const CLASSIC: BandTable = {
   'robot.release': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
   // A stage that takes a non-linear shape is seeded short, so the shape can be heard: on a note stream the shape only
   // shows while the stage finishes within the note (notes are often 0.15 s). The same noise sample as a plain robot's,
-  // spread over this range instead. `lit` is the shaped share - ATTACK_CURVE_SHAPED_THRESHOLD, about 1.9 in 12 robots
-  // (measured 15.5 %), and RELEASE_CURVE_SHAPED_THRESHOLD, about 1.8 in 12 (measured 15.3 %; higher than the attack's
-  // because the two dataIds sample different lines through the noise and bunch differently). Robot Articulation
-  // (docs/specs/ROBOT_ARTICULATION.md §1.2): the thresholds were picked from the measured draw (6,000 robots across 150
-  // worlds, 2026-10-13), because a [0, 1] simplex sample bunches in roughly [0.04, 0.96] around 0.5 and a nominal 12 %
-  // threshold of 0.12 would land near the 3rd percentile. spawnSystem.test.ts pins the bands over 400 seeded robots.
-  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.21 },
-  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.275 },
+  // spread over this range instead. `lit` is the shaped share, drawn even (docs/specs/EVEN_SEEDED_DRAWS.md §1.4), so the
+  // edge is the share: 15.5 % of robots shape their attack and 15 % their release, about 1.9 and 1.8 in 12 - the shares
+  // Robot Articulation's listen heard (docs/specs/ROBOT_ARTICULATION.md §1.2), when the edges were fitted to a bunched draw
+  // at 0.21 and 0.275. robotFieldDerivation.test.ts pins the shares over 4,800 seeded robots.
+  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.155 },
+  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.15 },
   // A glider's portamento time, seconds (PORTAMENTO_SEED_RANGE): short enough to read as a slur, not a siren - it tops
   // out at 0.2 s, just over a 16th note (0.15 s at 98 BPM), because a much longer glide never lands (measured: 0.3 s
   // reaches 37 % of the way to the next pitch on 16ths); the spec's risk-5 fallback. `lit` is GLIDER_THRESHOLD, the share

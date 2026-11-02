@@ -53,12 +53,12 @@ const FILTER_Q_STEP = 0.1;
  * so the shaped share is set by `shapedThreshold` alone, not by the number of curves.
  */
 function seedCurve(noiseMap: NoiseFunction2D, dataId: string, offset: number, shapedThreshold: number): EnvelopeCurveName {
-  if (getSeededVal(noiseMap, `${dataId}.shaped`, offset, 0, 1) >= shapedThreshold) return 'linear';
+  if (getUniformSeededVal(noiseMap, `${dataId}.shaped`, offset, 0, 1) >= shapedThreshold) return 'linear';
   const shapes = ENVELOPE_CURVE_NAMES.filter((name) => name !== 'linear');
-  // Sampled at its own row (offset * 10 + 1, the layers' trick): a robot only gets here when the shaped
-  // draw above came out low, and a neighbouring sample of the same smooth noise comes out low too, which
-  // left half the curves unreachable (measured: release never drew bounce, ripple or step).
-  const pick = Math.floor(getSeededVal(noiseMap, `${dataId}.which`, offset * 10 + 1, 0, shapes.length));
+  // Its own row (offset * 10 + 1, the layers' trick) dates from the bunched plain draw, whose neighbouring samples
+  // came out low together and left half the curves unreachable. The even draw is independent at any offset; the row
+  // stays because a draw keeps its dataId and offset (docs/specs/EVEN_SEEDED_DRAWS.md §3).
+  const pick = Math.floor(getUniformSeededVal(noiseMap, `${dataId}.which`, offset * 10 + 1, 0, shapes.length));
   return shapes[Math.min(shapes.length - 1, pick)];
 }
 
@@ -167,10 +167,10 @@ export function deriveEnvelopeFields(
   const decayRange = bands['robot.decay'];
   const sustainRange = bands['robot.sustain'];
   return {
-    attack: getSeededVal(noiseMap, 'robot.audio.attack', offset, attackRange.min, attackRange.max),
-    decay: getSeededVal(noiseMap, 'robot.audio.decay', offset, decayRange.min, decayRange.max),
-    sustain: getSeededVal(noiseMap, 'robot.audio.sustain', offset, sustainRange.min, sustainRange.max),
-    release: getSeededVal(noiseMap, 'robot.audio.release', offset, releaseRange.min, releaseRange.max),
+    attack: getUniformSeededVal(noiseMap, 'robot.audio.attack', offset, attackRange.min, attackRange.max),
+    decay: getUniformSeededVal(noiseMap, 'robot.audio.decay', offset, decayRange.min, decayRange.max),
+    sustain: getUniformSeededVal(noiseMap, 'robot.audio.sustain', offset, sustainRange.min, sustainRange.max),
+    release: getUniformSeededVal(noiseMap, 'robot.audio.release', offset, releaseRange.min, releaseRange.max),
     attackCurve,
     releaseCurve,
   };

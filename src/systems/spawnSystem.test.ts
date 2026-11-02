@@ -37,6 +37,7 @@ import { cancelSwellForRobotAttribute } from './audioSwells';
 import { getStations, type Station } from './stations';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { chargingColorsKey, parseColorsKey } from '../components/stations/stationOccupancy';
+import { constantNoiseMap, noiseMapForDataIds } from '../testUtils/seededDraws';
 
 /** Each motif-active robot whose first motif window opens on a plain note (no mark, no rest), with that step: where the
  *  group accent is all the scheduled note's accent multiplier holds (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5). */
@@ -63,10 +64,13 @@ function accentAt(robotId: string, step: number): number | undefined {
 // force spawnRobot's own 'robot.copyChance' seeded roll to a known side without disturbing every
 // other seeded draw the rest of this file's many tests depend on.
 vi.mock('../utils/getSeededVal', async (importOriginal) => {
+  const { steerSeededDraws } = await import('../testUtils/seededDraws');
   const actual = await importOriginal<typeof import('../utils/getSeededVal')>();
   // Robot Effect Sends T7: the uniform draw is wrapped too, so the effect room sends' rolls can be counted and forced.
   // Its own inner getSeededVal samples are the real module's, so they never show up on the getSeededVal spy above.
-  return { ...actual, getSeededVal: vi.fn(actual.getSeededVal), getUniformSeededVal: vi.fn(actual.getUniformSeededVal) };
+  // Even Seeded Draws T4: the even and centred draws are steerSeededDraws' spies, so a constantNoiseMap or
+  // noiseMapForDataIds stub steers them as it steers getSeededVal; any other map gets the real draw.
+  return { ...steerSeededDraws(actual), getSeededVal: vi.fn(actual.getSeededVal) };
 });
 
 import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
@@ -419,7 +423,7 @@ describe('spawnSystem', () => {
 
     describe('at the extremes of the noise range', () => {
       it('noise -1 (every draw at its min) is a glider with the accent bandpass: 0.05 s, 400 Hz, Q 3, first non-linear curves', () => {
-        const a = generateAudioAttributes(() => -1, 0);
+        const a = generateAudioAttributes(constantNoiseMap(-1), 0);
         expect(a.portamento).toBeCloseTo(0.05, 9);
         expect(a.filterFreq).toBe(400);
         expect(a.filterQ).toBeCloseTo(3, 9);
@@ -433,7 +437,7 @@ describe('spawnSystem', () => {
       });
 
       it('noise +1 (every draw at its max) is the plain robot: no glide, linear curves, open lowpass at 8000 Hz, Q 1', () => {
-        const a = generateAudioAttributes(() => 1, 0);
+        const a = generateAudioAttributes(constantNoiseMap(1), 0);
         expect(a.portamento).toBe(0);
         expect(a.adsr.attackCurve).toBe('linear');
         expect(a.adsr.releaseCurve).toBe('linear');
@@ -446,20 +450,10 @@ describe('spawnSystem', () => {
         expect(a.filterType).toBe('lowpass');
       });
 
-      it('a shaped curve whose index draw lands exactly on its max clamps to the last name (never undefined)', async () => {
-        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        const mocked = vi.mocked(getSeededVal);
-        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
-          if (dataId === 'robot.audio.attackCurve.shaped') return 0;
-          if (dataId === 'robot.audio.attackCurve.which') return max ?? 0; // the top of the draw's own range
-          return realGetSeededVal(noiseMap, dataId, offset, min, max);
-        });
-        try {
-          const a = generateAudioAttributes(createNoise2D(alea('articulation-clamp-seed')), 0);
-          expect(a.adsr.attackCurve).toBe(ENVELOPE_CURVE_NAMES[ENVELOPE_CURVE_NAMES.length - 1]);
-        } finally {
-          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => realGetSeededVal(noiseMap, dataId, offset, min, max));
-        }
+      it('a shaped curve whose index draw lands exactly on its max clamps to the last name (never undefined)', () => {
+        // The shaped roll at its min, the index draw at the top of its own range.
+        const a = generateAudioAttributes(noiseMapForDataIds({ 'robot.audio.attackCurve.shaped': -1, 'robot.audio.attackCurve.which': 1 }), 0);
+        expect(a.adsr.attackCurve).toBe(ENVELOPE_CURVE_NAMES[ENVELOPE_CURVE_NAMES.length - 1]);
       });
     });
 
@@ -529,35 +523,28 @@ describe('spawnSystem', () => {
 
       it('a plain robot at a given point in the noise has the same body as before: seeded value / 2 s equals the old value / 5 s', async () => {
         const { bodyShapeFromAdsr } = await import('../components/robot/robotVisualHelpers');
-        const mocked = vi.mocked(getSeededVal);
-        // Every Attack/Release draw lands 30 % of the way through whichever range it was given; the shaped rolls say "not shaped".
-        mocked.mockImplementation((_noiseMap, dataId, _offset, min = 0, max = 1) => (dataId.endsWith('.shaped') ? 1 : min + 0.3 * (max - min)));
-        try {
-          const a = generateAudioAttributes(createNoise2D(alea('envelope-body-seed')), 0);
-          expect(a.adsr.attack).toBeCloseTo(0.6, 9);
-          expect(a.adsr.release).toBeCloseTo(0.6, 9);
-          const body = bodyShapeFromAdsr(a.adsr);
-          expect(body.scale).toBeCloseTo(0.25 + (1 - 0.3) * 0.75, 9); // 30 % of the way along, as 1.5 s of 5 s was
-          expect(body.detail).toBeCloseTo(0.3, 9);
-        } finally {
-          const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
-        }
+        // Every draw lands 30 % of the way through whichever range it was given (raw -0.4); the shaped rolls say "not shaped".
+        const a = generateAudioAttributes(
+          noiseMapForDataIds({ 'robot.audio.attackCurve.shaped': 1, 'robot.audio.releaseCurve.shaped': 1 }, -0.4),
+          0,
+        );
+        expect(a.adsr.attack).toBeCloseTo(0.6, 9);
+        expect(a.adsr.release).toBeCloseTo(0.6, 9);
+        const body = bodyShapeFromAdsr(a.adsr);
+        expect(body.scale).toBeCloseTo(0.25 + (1 - 0.3) * 0.75, 9); // 30 % of the way along, as 1.5 s of 5 s was
+        expect(body.detail).toBeCloseTo(0.3, 9);
       });
 
-      it('a shaped stage lands 50 % of the way through its own short range, not the full one', async () => {
-        const mocked = vi.mocked(getSeededVal);
-        mocked.mockImplementation((_noiseMap, dataId, _offset, min = 0, max = 1) => (dataId.endsWith('.shaped') ? 0 : min + 0.5 * (max - min)));
-        try {
-          const a = generateAudioAttributes(createNoise2D(alea('envelope-shaped-seed')), 0);
-          expect(a.adsr.attackCurve).not.toBe('linear');
-          expect(a.adsr.releaseCurve).not.toBe('linear');
-          expect(a.adsr.attack).toBeCloseTo(0.03 + 0.5 * (0.25 - 0.03), 9);
-          expect(a.adsr.release).toBeCloseTo(0.15 + 0.5 * (0.8 - 0.15), 9);
-        } finally {
-          const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => real(noiseMap, dataId, offset, min, max));
-        }
+      it('a shaped stage lands 50 % of the way through its own short range, not the full one', () => {
+        // Every draw at the middle of its range (raw 0); the shaped rolls at their min say "shaped".
+        const a = generateAudioAttributes(
+          noiseMapForDataIds({ 'robot.audio.attackCurve.shaped': -1, 'robot.audio.releaseCurve.shaped': -1 }, 0),
+          0,
+        );
+        expect(a.adsr.attackCurve).not.toBe('linear');
+        expect(a.adsr.releaseCurve).not.toBe('linear');
+        expect(a.adsr.attack).toBeCloseTo(0.03 + 0.5 * (0.25 - 0.03), 9);
+        expect(a.adsr.release).toBeCloseTo(0.15 + 0.5 * (0.8 - 0.15), 9);
       });
     });
 
@@ -3506,11 +3493,13 @@ describe('spawnSystem', () => {
       expect(generateRobotRosterBaseline(noiseMap, 3)).toEqual(before);
     });
 
-    // Classic parity (spec §5.2): the values the constants seeded on main at cc9a01f2, captured before the lift and typed in.
+    // Classic parity (spec §5.2): the values the constants seeded on main at cc9a01f2, captured before the lift and typed in,
+    // then re-captured from the generator at each Even Seeded Draws switch (docs/tasks/EVEN_SEEDED_DRAWS.md) for the
+    // fields that switch moved.
     const PARITY_ROSTER: Omit<RobotAudioBaseline, 'name'>[] = [
       {
         audioAttributes: {
-          adsr: { attack: 0.3836734762745204, decay: 1.4492530300706201, sustain: 0.31283205320094665, release: 0.4299819840896303, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
           octaveRange: [3, 5], filterFreq: 3089.045348501909, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 290, detune: 3, pulseWidth: 0.2585042283954076,
           layers: [{ type: 'sawtooth', gain: 0.66, detune: -1, phase: 106 }, { type: 'triangle', gain: 0, detune: -1, phase: 46 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 147 }],
         } as AudioAttributes,
@@ -3520,7 +3509,7 @@ describe('spawnSystem', () => {
       },
       {
         audioAttributes: {
-          adsr: { attack: 0.6807536158426921, decay: 0.8582776300717225, sustain: 0.11603452461690617, release: 0.7348645057228916, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 0.9715492511168122, decay: 0.5848182141780853, sustain: 0.596685036085546, release: 0.5392221147194505, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [3, 5], filterFreq: 3798.4729769270016, filterQ: 1, filterType: 'lowpass', portamento: 0.12, waveform: 'triangle', phase: 169, detune: -0, pulseWidth: 0.39096490279492446,
           layers: [{ type: 'sawtooth', gain: 0.55, detune: -1, phase: 76 }, { type: 'square', gain: 0, detune: 1, phase: 263 }, { type: 'sawtooth', gain: 1.04, detune: 1, phase: 280 }],
         } as AudioAttributes,
@@ -3530,7 +3519,7 @@ describe('spawnSystem', () => {
       },
       {
         audioAttributes: {
-          adsr: { attack: 1.3564848254331348, decay: 1.282887045182087, sustain: 0.39040796577840453, release: 1.4244646541679042, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 0.16692632529884577, decay: 1.240191656164825, sustain: 0.3301627195905894, release: 1.3539673294872046, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [4, 6], filterFreq: 5761.783388416861, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 214, detune: 1, pulseWidth: 0.7037212573861479,
           layers: [{ type: 'sawtooth', gain: 0.86, detune: 0, phase: 213 }, { type: 'square', gain: 0, detune: 0, phase: 225 }, { type: 'sawtooth', gain: 0.69, detune: -1, phase: 110 }],
         } as AudioAttributes,
@@ -3546,13 +3535,13 @@ describe('spawnSystem', () => {
     });
 
     // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the three above are plain, so they miss the tiers. Robots 3, 4 and 28
-    // of a 29-robot roster from the same noise, captured at cc9a01f2 the same way and typed in: a shaped attack (ripple)
-    // with the bandpass accent, an exclusive send (shimmer), and a plain accent robot whose attack roll sits between the
-    // two shaped shares, so the shares cannot trade places unseen.
+    // of a 29-robot roster from the same noise, captured at cc9a01f2 the same way and typed in, and re-captured at each Even
+    // Seeded Draws switch: the bandpass accent (3), a shaped release (bounce) with an exclusive send (shimmer) (4), and a
+    // plain accent robot (28).
     const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
       3: {
         audioAttributes: {
-          adsr: { attack: 0.0912376545758914, decay: 0.6645567734515505, sustain: 0.3370363731755628, release: 0.5994839492725145, attackCurve: 'ripple', releaseCurve: 'linear' },
+          adsr: { attack: 1.0583763890899718, decay: 0.6698287515901029, sustain: 0.19458313984796405, release: 1.8254758408293128, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [3, 5], filterFreq: 949.5216011247653, filterQ: 5, filterType: 'bandpass', portamento: 0, waveform: 'sine', phase: 74, detune: -3, pulseWidth: 0.3312173299777377,
           layers: [{ type: 'triangle', gain: 0.92, detune: 1, phase: 247 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 257 }, { type: 'sawtooth', gain: 1.09, detune: 2, phase: 242 }],
         } as AudioAttributes,
@@ -3562,7 +3551,7 @@ describe('spawnSystem', () => {
       },
       4: {
         audioAttributes: {
-          adsr: { attack: 1.6180837611580057, decay: 1.513799001363795, sustain: 0.6508510087941983, release: 1.651184897992653, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 1.956432294100523, decay: 1.9473565462976694, sustain: 0.7924570618197322, release: 0.7145893696229906, attackCurve: 'linear', releaseCurve: 'bounce' },
           octaveRange: [4, 6], filterFreq: 6692.565158564469, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 275, detune: 3, pulseWidth: 0.7987047418818843,
           layers: [{ type: 'square', gain: 0.5, detune: -1, phase: 79 }, { type: 'triangle', gain: 0, detune: -1, phase: 100 }, { type: 'sawtooth', gain: 1.08, detune: 1, phase: 261 }],
         } as AudioAttributes,
@@ -3572,7 +3561,7 @@ describe('spawnSystem', () => {
       },
       28: {
         audioAttributes: {
-          adsr: { attack: 1.1034769996407638, decay: 0.45511154042455915, sustain: 0.679535826145514, release: 1.0415286282943468, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 0.8385848412290215, decay: 1.9955490841530263, sustain: 0.6613638484850526, release: 0.5530651276931167, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [2, 4], filterFreq: 1629.7534513514256, filterQ: 4.5, filterType: 'lowpass', portamento: 0, waveform: 'square', phase: 77, detune: -3, pulseWidth: 0.5035310436907365,
           layers: [{ type: 'triangle', gain: 0.75, detune: 0, phase: 104 }, { type: 'sawtooth', gain: 0.59, detune: -1, phase: 167 }, { type: 'triangle', gain: 0, detune: 0, phase: 216 }],
         } as AudioAttributes,
