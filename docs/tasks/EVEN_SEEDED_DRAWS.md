@@ -1,7 +1,7 @@
 # Implementation Plan: Even Seeded Draws
 
 Spec: [docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md). Backlog slot:
-[47](../todo/backlog.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) (the world and visual draws
+[47](../todo/archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) (the world and visual draws
 are [46](../todo/backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
 on their own branch later). Build branch: `fix/even-seeded-draws` off `main` at `56962ebe`. Step 0 of refining the
 themes and aspects. The bands get tuned only after this ships and Classic has been heard on it.

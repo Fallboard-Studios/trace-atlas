@@ -62,7 +62,7 @@ dynamics.
 
 ## Out of scope
 
-- **Backlog [23](../todo/backlog.md#23-audio-palette-trials-dynamics-processing-and-ducking)** (multiband Compressor,
+- **Backlog [23](../todo/archive/backlog-archive.md#23-audio-palette-trials-dynamics-processing-and-ducking)** (multiband Compressor,
   Gate, Follower ducking) is **not built here**. None of the three fixes clipping: multiband is three compressors with
   three makeup gains, the Gate is about silence between phrases, and ducking is a behaviour to audition in a clean world
   first. It stays in the backlog, re-sequenced after 54 is heard, with a note that multiband is only worth trying if the

@@ -12,7 +12,7 @@
 
 **Status:** spec written 2026-10-26 from [docs/intent/beatclock-transport-time.md](../intent/beatclock-transport-time.md)
 (interview of the same day). Backlog item
-[35](../todo/backlog.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given), first line of plan.md's
+[35](../todo/archive/backlog-archive.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given), first line of plan.md's
 Stage 1; it stays a backlog item. Plan: [docs/tasks/BEATCLOCK_TRANSPORT_TIME.md](../tasks/BEATCLOCK_TRANSPORT_TIME.md).
 One change from the intent: the **global** swell pool also reaches Tone from the tick (§1, "Two sources"), which the
 intent left to this spec; §3 and §7 question 1 decide it.
