@@ -399,14 +399,16 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
         or DualLabel dropping the hint; every save titled; the presets untitled; the theme row or the aspects title
         without its hint.
   - [x] `npx vitest run src/components` (172 files, 5197 tests), `npm run build:types`, `npm run lint` clean.
-  - [ ] The look, at Checkpoint 2: the titles' size and spacing on desktop and phone.
+  - [x] The look, at Checkpoint 2: the titles' size and spacing on desktop and phone.
 
   **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `RadioButton.tsx`/`.css`/`.test.tsx`, `DualLabel.tsx`/`.css`/
   `.test.tsx`, `src/types/controls.ts`, `src/content/copy/home.ts`
 
 ### Checkpoint 2: Built
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. Any pre-existing failure is named.
-- [ ] Crawford's Look (spec §5), after a hard reload:
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. Any pre-existing failure is named.
+  - 2026-11-02: build clean. `npm test`: 13,400 of 13,401 pass. The one failure is the known `sceneToOrbiterLocal`
+    50-gem round-trip timing out under the parallel run, as at Checkpoint 1; it passes alone.
+- [x] Crawford's Look (spec §5), after a hard reload:
   1. Power off on a world.
   2. Scan twice.
   3. Click Calm.
@@ -416,7 +418,7 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   7. Power off: New Transmission shows a fresh draw.
 
   Also check on a phone width: Scan sits in New Transmission's row.
-- [ ] Reviewed with Crawford before docs.
+- [x] Reviewed with Crawford before docs. 2026-11-02: passed ("good to go"), with Tasks 6b and 6c in.
 
 ---
 
