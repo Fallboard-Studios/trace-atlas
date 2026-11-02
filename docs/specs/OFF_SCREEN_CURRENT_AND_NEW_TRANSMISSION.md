@@ -78,13 +78,18 @@ interface CurrentSnapshot {
 
 - **Current:** `describeWorld(snapshot identity, snapshot.loadedName)` while a snapshot exists, else today's
   `currentLabel` (live).
-- **New Transmission:** the content label "New Transmission". The rolled name and coordinates are never on the row.
-- **A save or preset:** its name, as today.
+- **New Transmission:** looks like Current. "New Transmission" is its lore label, where `CURRENT` is Current's, and its
+  label is its drawn world, `describeWorld(drawn)`, from the moment the screen opens. Each Scan replaces it. (Amended
+  by Crawford on 2026-11-02, plan Task 6b. It read "the rolled name and coordinates are never on the row".)
+- **A save or preset:** its name fronting its world, as Current's label reads with a save loaded:
+  `describeWorld(identityOf(payload), name)`, so "Harbour Song · tr3nch-2 (-30, -30) · Calm". (Task 6b. It was the
+  name alone.)
 - **The selected row:** while it isn't Current and the live loading differs from the row's own loading (the
-  payload's, through `loadingOf`, or Classic with no aspects for New Transmission), the row's label gains a tail:
-  ` · ` followed by describeWorld's loading tail of the live loading. For example, "Harbour Song · Calm" or
-  "New Transmission · Hypnotic". The tail goes the moment the row is left; a save or preset reloads as stored when
-  picked again.
+  payload's, through `loadingOf`, or Classic with no aspects for New Transmission), the row reads the live loading in
+  place of its own: its name and its seed and plot, then ` · ` and describeWorld's loading tail of the live loading,
+  naming the theme whenever it differs from the row's own. For example, "Harbour Song · tr3nch-2 (-30, -30) · Classic"
+  or "New Transmission, k2f9 · (101, -37) · Hypnotic". It reads as stored again the moment the row is left, and a
+  save or preset reloads as stored when picked again.
 - **The readout:** names the selected row's actual world. With a change waiting, it uses the intent, as today. Once a
   change has landed, it reads the live world: `describeWorld(live identity, the row's name)`, where Current's name is
   the snapshot's or the live loaded save's, a save's or preset's is its own, and New Transmission's is no label (so

@@ -402,42 +402,66 @@ export function OffScreen() {
     });
   }, [setSnapshot]);
 
-  // The selected save's, preset's or New Transmission's tail (spec §1.3): the shown loading, while it is not the row's
-  // own, named after its own name, the theme included whenever it differs from the row's (Classic too). Current never
-  // carries one: its name already holds its loading. Not stored: the row reads as stored again once it is left.
+  // The selected save's, preset's or New Transmission's live loading (spec §1.3): the shown loading, while it is not the
+  // row's own, the theme named whenever it differs from the row's (Classic too). The row then reads it in place of its
+  // own (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6b). Current never needs one: its label is the live
+  // world already. Not stored: the row reads as stored again once it is left.
   const own = 'identity' in shownPick ? shownPick.identity : null;
   const edited =
     own !== null &&
     (shownTheme !== own.theme || !deepEqual(canonicalAspects(shownAspects), canonicalAspects(own.aspects)));
-  const selectedTail = edited ? describeLoading(shownTheme, shownAspects, { nameTheme: shownTheme !== own.theme }) : '';
+  const selectedLoading = edited ? describeLoading(shownTheme, shownAspects, { nameTheme: shownTheme !== own.theme }) : null;
   const selectedValue = shownPick.value;
 
+  // The presets' worlds, decoded once: a preset is a link (spec assumption 13), so one that cannot be read keeps its
+  // name alone.
+  const presetWorlds = useMemo(
+    () =>
+      TRANSMISSION_PRESETS.map((preset) => {
+        const payload = presetPayload(preset);
+        return payload ? identityOf(payload) : undefined;
+      }),
+    [],
+  );
+
   const schema = useMemo<RadioButtonSchema>(() => {
-    const tailed = (value: string, name: string) => (value === selectedValue ? withTail(name, selectedTail) : name);
+    // Every row names its world, as Current does (Task 6b): the name fronting the seed and plot, then the loading - the
+    // row's own, or on the selected, edited row the live one in its place. New Transmission has no name: its lore label
+    // stands over its world, as Current's does.
+    const named = (value: string, name: string, world: WorldIdentity | undefined) => {
+      if (!world) return name;
+      if (value !== selectedValue || selectedLoading === null) return describeWorld(world, name || undefined);
+      const { attenuationStyleName, coordinates } = world;
+      return withTail(describeWorld({ attenuationStyleName, coordinates }, name || undefined), selectedLoading);
+    };
     return {
       id: 'offTransmission',
       type: 'radio',
       ...TRANSMISSION,
       // The list (revisions Task 4, Crawford's note 1): rows, the saves carrying when they were saved. New Transmission
-      // first, its drawn world never on the row (spec §1.3).
+      // first, then Current.
       appearance: 'list',
       options: [
-        { value: NEW_VALUE, humanLabel: tailed(NEW_VALUE, NEW_TRANSMISSION) },
+        {
+          value: NEW_VALUE,
+          humanLabel: named(NEW_VALUE, '', { ...newWorld, ...NEW_LOADING }),
+          loreLabel: NEW_TRANSMISSION,
+        },
         { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: CURRENT.humanLabel },
         ...saves.map((save) => ({
           value: SAVE_PREFIX + save.name,
-          humanLabel: tailed(SAVE_PREFIX + save.name, save.name),
+          humanLabel: named(SAVE_PREFIX + save.name, save.name, identityOf(save.payload)),
           meta: fill('home.off.savedAt', { time: formatSessionTimestamp(save.savedAt) }),
         })),
         ...TRANSMISSION_PRESETS.map((preset, i) => ({
           value: PRESET_PREFIX + preset.id,
-          humanLabel: tailed(PRESET_PREFIX + preset.id, labels(preset.nameKey).humanLabel),
+          humanLabel: named(PRESET_PREFIX + preset.id, labels(preset.nameKey).humanLabel, presetWorlds[i]),
           // The rule between the saves and the presets — only when there are saves to rule off.
           dividerBefore: i === 0 && saves.length > 0,
         })),
       ],
     };
-  }, [currentLabel, saves, selectedValue, selectedTail]);
+  }, [currentLabel, newWorld, presetWorlds, saves, selectedValue, selectedLoading]);
 
   // New Transmission picked, or a Scan (spec §1.1): its drawn world waits under the wash like any pick, the row showing at
   // the click, under the world's own loading — Classic with no aspects — which replaces any loading clicked before it, as

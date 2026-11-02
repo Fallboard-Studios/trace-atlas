@@ -328,6 +328,44 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
   **Estimated scope:** S
 
+- [x] **Task 6b: `OffScreen.tsx` — every row names its world (Crawford, 2026-11-02, after Task 6)**
+
+  **Description:** Amends spec §1.3:
+  - **New Transmission** looks like Current: "New Transmission" is its lore label, the small eyebrow `CURRENT` is on
+    Current's row, and its label is its drawn world, `describeWorld(drawn)`, from the moment the screen opens. Each
+    Scan replaces it.
+  - **Saves and presets:** the name fronts the world, as Current's label reads with a save loaded:
+    `describeWorld(identityOf(payload), name)`, so "Dusk Run · tr3nch-2 (-30, -30) · Calm". A save keeps its
+    "saved …" meta.
+  - **The selected, edited row** (Task 4's tail) names the live loading in place of its own:
+    `withTail(describeWorld({ style, plot }, name), describeLoading(shown, { nameTheme: theme differs }))`, so
+    "Dusk Run · tr3nch-2 (-30, -30) · Classic", not "… · Calm · Classic". Unedited, it reads exactly as stored.
+
+  **Proof:** RED test — `OffScreen.test.tsx`:
+  - New Transmission's accessible name is "New Transmission, <drawn world>" on open, and changes to the new draw on
+    Scan.
+  - A save and a preset are named `describeWorld(payload, name)`.
+  - An edited, selected save names the live loading in place of its own, Classic included, and reads as stored once
+    left.
+
+  **Acceptance criteria:**
+  - [x] The cases pass. Row look-ups by bare name go through one helper that matches a row by what fronts its label;
+        no assertion is otherwise weakened.
+    - As built: the helper, `row(name)`, matches the whole accessible name, `name · …`, or `name, …`. Swapped in
+      alone, before any label changed, all 190 cases still passed. Exact-label assertions (list order, Task 4's
+      tails, the same-name saves, the phone's long name) now name the full label.
+
+  **Verification:**
+  - [x] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx`
+  - [x] Mutants: New Transmission's label without its world; a save's label without its world; the edited row
+        appending the live tail to the stored one. Also killed: a preset's label without its world; the edited row
+        never showing the live loading.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Tasks 4 and 5. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, the spec's §1.3
+
+  **Estimated scope:** S (labels), with a mechanical test-helper change
+
 ### Checkpoint 2: Built
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. Any pre-existing failure is named.
 - [ ] Crawford's Look (spec §5), after a hard reload:
