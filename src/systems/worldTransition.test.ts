@@ -1540,7 +1540,10 @@ describe('worldTransition', () => {
 
         const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
         const movedLanes = LFO_LANE_IDS.filter((lane) => !deepEqual(lfoBank[lane], before.lfoBank[lane]));
-        expect(movedLanes).toEqual(['a']); // precondition: the pinned seed's lane a, and only it, takes a new Sync pick
+        // Precondition: the theme moves some lanes and leaves others, so the pushes below are proven to follow the move.
+        // (Lane a alone moved on the plain draws; lane b alone since Even Seeded Draws T13.)
+        expect(movedLanes.length).toBeGreaterThan(0);
+        expect(movedLanes.length).toBeLessThan(LFO_LANE_IDS.length);
         expect(engine.shape.mock.calls.map(([lane]) => lane).sort()).toEqual([...movedLanes].sort());
         for (const lane of movedLanes) {
           const engineLane = resolveLaneForEngine(lfoBank[lane], bpm);

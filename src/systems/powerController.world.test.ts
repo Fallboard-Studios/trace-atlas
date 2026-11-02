@@ -33,6 +33,13 @@ vi.mock('../utils/noiseMaps', async (importOriginal) => {
   return { ...actual, getAttenuationStyleNoiseMap: vi.fn(actual.getAttenuationStyleNoiseMap) };
 });
 
+// The swell rolls draw even (docs/tasks/EVEN_SEEDED_DRAWS.md T16): a forced map is one of T3's tagged stubs, which this
+// wrapper steers; a real map passes through to the real draw.
+vi.mock('../utils/getSeededVal', async (importOriginal) => {
+  const { steerSeededDraws } = await import('../testUtils/seededDraws');
+  return steerSeededDraws(await importOriginal<typeof import('../utils/getSeededVal')>());
+});
+
 import gsap from 'gsap';
 import { powerController, __resetPowerControllerForTest } from './powerController';
 import { initializeLocale, retransmitWorld } from './worldTransition';
@@ -53,6 +60,7 @@ import { useAudioStore } from '../stores/audioStore';
 import { useLoadingStore, DEFAULT_LOADING } from '../stores/loadingStore';
 import { setTimeline, getTimeline, killAllTimelines } from '../animation/timelineMap';
 import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { constantNoiseMap } from '../testUtils/seededDraws';
 import { clearRefs, setRef } from '../utils/refs';
 import { MAX_ROBOTS } from '../constants';
 
@@ -420,7 +428,7 @@ describe('a world change while paused', () => {
     useAudioStore.setState({ swellFrequency: 4, swellDuration: 15, pingVarianceAutomation: 1 });
     initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
     await powerController.powerOnSequence();
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(() => -1); // every draw at its minimum: a swell starts
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(constantNoiseMap(-1)); // every draw at its minimum: a swell starts
     audioSwellsModule.tickAudioSwells(DEFAULT_LOCALE_ID, 0);
     powerController.pause();
     expect(audioSwellsModule.getActiveSwellSnapshot('global').length).toBeGreaterThan(0); // the pause froze it, no more

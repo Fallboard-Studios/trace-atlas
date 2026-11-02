@@ -702,3 +702,28 @@ world link ([docs/specs/OFF_SCREEN.md](../specs/OFF_SCREEN.md) assumption 13): p
 and its name over its content entry. Nothing else changes: `presetPayload` decodes whatever the link carries, the
 theme and the aspect picks included. The review's probes use Vessport Null and the `kr1nd4ra` plot by name, so a later
 probe run picks its worlds again.
+
+### 46. World: Seeded Draws Are Welded and Centre-Heavy (Names, Colours, Gems, Companies, Placement)
+
+**Found 2026-11-01** while measuring the audio draws for backlog [47](#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
+**recorded, not fixed** (Crawford: the visuals go on their own branch in case they need different tuning). A plain
+`getSeededVal` draw samples one smooth simplex patch per world, so keys whose hashed x land close together read nearly
+the same value, a key at offset 0 takes only a few values across all worlds, and a band's outer tenths rarely come up
+([docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md) §1.1 has the measurements). 47 moves the audio draws
+to `getUniformSeededVal`. The world and visual draws keep the plain draw: robot and company names, identity colours,
+gem seeds, robot and company ids, company count, size and membership, spawn positions, the roster's active count and
+docked batteries (`lifecycleSim.ts`, `spawnSystem.ts`), factory placement (`factoryPlacementSystem.ts`), districts
+(`districts.ts`), terrain (`terrainProfile.ts`), light shafts (`LightShafts.tsx`), locale temperature.
+
+**To work out:** which of those are picks (they should go even, like 47) and which are smooth walks on purpose (the
+terrain profile and the temperature steps probably are). Then measure, switch the picks, and look: every world's
+names, colours, gems and layout move. Done when no pick is welded to another and each fills its range.
+
+### 47. Audio: Seeded Draws Are Welded and Centre-Heavy — Even Draws First
+
+**Found 2026-11-01**, the first step of refining the themes and aspects (Crawford agreed to fix the spread before any tuning and then
+re-hear Classic). Every audio value a world seeds through plain `getSeededVal` is welded to other keys,
+centre-heavy, and at offset 0 coarse (a few global keys take 3 values in 3,000 worlds), and the share edges compared
+against those draws realise other shares than they say. Crawford's decisions: every audio draw goes even, the world and
+visual draws wait (46), Classic is switched first and then listened to, and the shape is even everywhere. Spec:
+[docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md), on `fix/even-seeded-draws`.

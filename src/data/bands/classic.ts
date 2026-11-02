@@ -143,27 +143,26 @@ export const CLASSIC: BandTable = {
   'robot.release': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
   // A stage that takes a non-linear shape is seeded short, so the shape can be heard: on a note stream the shape only
   // shows while the stage finishes within the note (notes are often 0.15 s). The same noise sample as a plain robot's,
-  // spread over this range instead. `lit` is the shaped share - ATTACK_CURVE_SHAPED_THRESHOLD, about 1.9 in 12 robots
-  // (measured 15.5 %), and RELEASE_CURVE_SHAPED_THRESHOLD, about 1.8 in 12 (measured 15.3 %; higher than the attack's
-  // because the two dataIds sample different lines through the noise and bunch differently). Robot Articulation
-  // (docs/specs/ROBOT_ARTICULATION.md §1.2): the thresholds were picked from the measured draw (6,000 robots across 150
-  // worlds, 2026-10-13), because a [0, 1] simplex sample bunches in roughly [0.04, 0.96] around 0.5 and a nominal 12 %
-  // threshold of 0.12 would land near the 3rd percentile. spawnSystem.test.ts pins the bands over 400 seeded robots.
-  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.21 },
-  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.275 },
+  // spread over this range instead. `lit` is the shaped share, drawn even (docs/specs/EVEN_SEEDED_DRAWS.md §1.4), so the
+  // edge is the share: 15.5 % of robots shape their attack and 15 % their release, about 1.9 and 1.8 in 12 - the shares
+  // Robot Articulation's listen heard (docs/specs/ROBOT_ARTICULATION.md §1.2), when the edges were fitted to a bunched draw
+  // at 0.21 and 0.275. robotFieldDerivation.test.ts pins the shares over 4,800 seeded robots.
+  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.155 },
+  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.15 },
   // A glider's portamento time, seconds (PORTAMENTO_SEED_RANGE): short enough to read as a slur, not a siren - it tops
   // out at 0.2 s, just over a 16th note (0.15 s at 98 BPM), because a much longer glide never lands (measured: 0.3 s
-  // reaches 37 % of the way to the next pitch on 16ths); the spec's risk-5 fallback. `lit` is GLIDER_THRESHOLD, the share
-  // of robots that glide: about 1.5 in 12 (measured 12.5 %; a nominal 0.12 measured 3 %). Every other robot is exactly 0.
-  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.23 },
+  // reaches 37 % of the way to the next pitch on 16ths); the spec's risk-5 fallback. `lit` is the share of robots that
+  // glide, drawn even, so the edge is the share: 12.5 %, about 1.5 in 12 (Even Seeded Draws T7; the edge was 0.23 when it
+  // was fitted to the bunched draw). Every other robot is exactly 0.
+  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.125 },
   // Bus filter cutoff for a common robot (OPEN_FILTER_FREQ_RANGE): an open lowpass that rounds the top off without
   // being heard as a filter.
   'robot.filterFreq': { min: 2000, max: 8000 },
-  // Bus filter cutoff for an accent robot (ACCENT_FILTER_FREQ_RANGE): dark enough that a Q this high rings. `lit` is
-  // FILTER_ACCENT_THRESHOLD, the share of robots with a resonant "accent" bus filter instead of the open one: about 2.4 in
-  // 12 (measured 19.9 %). Which accent robots are bandpass rather than lowpass is a plain coin (ACCENT_BANDPASS_SHARE), not
-  // a band.
-  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.27 },
+  // Bus filter cutoff for an accent robot (ACCENT_FILTER_FREQ_RANGE): dark enough that a Q this high rings. `lit` is the
+  // share of robots with a resonant "accent" bus filter instead of the open one, drawn even, so the edge is the share:
+  // 20 %, about 2.4 in 12 (Even Seeded Draws T6; the edge was 0.27 when it was fitted to the bunched draw). Which
+  // accent robots are bandpass rather than lowpass is a plain coin (ACCENT_BANDPASS_SHARE), not a band.
+  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.2 },
   // Accent resonance (ACCENT_FILTER_Q_RANGE): a clear peak at the low end, a whistle at the high end.
   'robot.accentFilterQ': { min: 3, max: 8 },
   // The Signature Array's Coaxial and Harmonic gain draw. Baseline (layers[0]) always seeds a real, audible gain from
@@ -178,15 +177,15 @@ export const CLASSIC: BandTable = {
   // tuning pass, 2026-10-02): gain and detune read very differently at the same depth percentage, so each gets its own
   // ceiling; the bus filter's sweep (Robot Articulation, spec §1.2) moves the tone far more than a same-sized gain or
   // detune nudge, so it gets a mid-sized window. All share the never-zero floor of 1 (ROBOT_LFO_DEPTH_SEED_MIN): a lit
-  // link should always be audible. `lit` is the lit share, 1 - the quiet threshold: LFO_QUIET_THRESHOLD 0.7 for the six
-  // layer targets (why 0.7 and not 0.75 for "25 % on": the draw is a smooth simplex sample, not a uniform coin, so the
-  // on-rate is not 1 - threshold; measured across 8 worlds x 12 offsets, 0.5 gave about 53 % on, 0.75 about 20 %, 0.7
-  // about 27 %, about 1.6 audio-rate LFOs per robot), and LFO_BUS_QUIET_THRESHOLD 0.8 for the bus filter (a lit filter
-  // sweep is rarer than a lit layer link, about 1.6 in 12 robots, measured 13.6 %). The gain and detune shares were one
-  // constant; they are two rows here so the two fields stay independently tunable, as the two toggle shares below are.
-  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.3 },
-  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.3 },
-  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.2 },
+  // link should always be audible. `lit` is the lit share, drawn even, so the edge is the share (Even Seeded Draws T8):
+  // 25 % on for each of the six layer targets, about 1.5 audio-rate LFOs per robot, and 13.5 % for the bus filter (a lit
+  // filter sweep is rarer than a lit layer link, about 1.6 in 12 robots). Those are the shares the load tuning fitted
+  // its edges to (0.3 and 0.2) on the bunched draw. A lit detune link's depth leans to the 1 % floor (spawnSystem.ts,
+  // detuneLinkDepth). The gain and detune shares were one constant; they are two rows here so the two fields stay
+  // independently tunable, as the two toggle shares below are.
+  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.25 },
+  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.25 },
+  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.135 },
   // The two plain 0-100 draws, the sliders' own scale.
   'robot.rhythmicDensity': { min: 0, max: 100 },
   'robot.pitchRepeat': { min: 0, max: 100 },
@@ -198,8 +197,9 @@ export const CLASSIC: BandTable = {
   'robot.rhythmicMotifLength': { offShare: 0.15, min: 1, max: 8 },
   'robot.noteVariance': { offShare: 0.15, min: 1, max: 8 },
   // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md assumption 13). Unlike the articulation traits, these are not
-  // minority traits: every robot is seeded, most land moderate (the bell-curved getSeededVal draw is wanted here) and a
-  // few sit near the edges; each is drawn as a rounded integer 0-100, the sliders' own scale. Dynamics: 25 plays almost
+  // minority traits: every robot is seeded, each as a rounded integer 0-100, the sliders' own scale. The draw is even, so
+  // a robot is as likely near a band's edge as at its middle (Even Seeded Draws T9 replaced assumption 13's wanted
+  // middle lean, per the spec's decision 3). Dynamics: 25 plays almost
   // flat (a quarter of today's velocity variance), 75 breathes (one and a half times it). Rests: 10 leaves a rare short
   // gap, 60 cuts more than half the notes short, and deeper. Accents: 20 marks about one note in five with only the two
   // mildest marks (accent, tenuto); 80 marks four in five with all five, staccatissimo included.
@@ -207,9 +207,8 @@ export const CLASSIC: BandTable = {
   'robot.rests': { min: 10, max: 60 },
   'robot.accents': { min: 20, max: 80 },
   // The waveform the base and the three Signature Array layers draw (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a pick
-  // (PickBand), five equal unit weights in WAVEFORMS order - the even ~20 % each the draw always gave. Equal unit weights
-  // put the cumulative edges at 1-5, so the pick is exactly Math.floor of the old [0, 5] draw (spawnSystem.test.ts pins it
-  // over 400 robots); the Voice family's options move the weights.
+  // (PickBand), five equal unit weights in WAVEFORMS order: 20 % each on the even draw (the bunched draw gave sine and
+  // pulse about 6.5 % each; Even Seeded Draws T6). The Voice family's options move the weights.
   'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
 
   // ---- The sends (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1) ---------------------------------------------
@@ -218,7 +217,8 @@ export const CLASSIC: BandTable = {
   // Classic Band Retune at 2dc5b4a2); they moved to the send table at Robot Effect Sends T1 without moving a single
   // seeded value. The Reverb band was widened from 0.1-0.4 by the retune (row 15) for more contrast between a dry robot
   // and a wet one. The Delay's `lit` is the old quiet roll: a roll under 1 - lit (0.25, the deleted
-  // SEND_DELAY_QUIET_THRESHOLD) seeds 0. The three room sends are placeholders tuned at that plan's listen (T20); a fresh
+  // SEND_DELAY_QUIET_THRESHOLD) seeds 0. The roll is even (Even Seeded Draws T9a), so a quarter of robots carry no delay
+  // (the bunched draw left about 17 % without). The three room sends are placeholders tuned at that plan's listen (T20); a fresh
   // robot carries at most one of them (EXCLUSIVE_SEND_FIELDS, in roll order).
   reverbSend: { min: 0.1, max: 0.6, lit: 1 },
   delaySend: { min: 0, max: 0.3, lit: 0.75 },

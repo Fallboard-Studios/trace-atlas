@@ -14,6 +14,8 @@ vi.mock('./getSeededVal', async (importOriginal) => {
     getSeededVal: vi.fn(actual.getSeededVal),
     // Global Modulation T7: the pedals' four roll draws are uniform world-level choices, so they go through this.
     getUniformSeededVal: vi.fn(actual.getUniformSeededVal),
+    // Even Seeded Draws T10: the EQ bands draw centred.
+    getCentredSeededVal: vi.fn(actual.getCentredSeededVal),
   };
 });
 
@@ -67,7 +69,7 @@ import {
   GLOBAL_LFO_COMPANION_EDGE,
 } from './globalAudioSeed';
 import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
-import { getSeededVal, getUniformSeededVal } from './getSeededVal';
+import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { allowedRateNoteValues, pickSeedNoteValue } from './tempoSync';
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
@@ -78,6 +80,18 @@ import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES, type GlobalLfoTargetId
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
 import { GLOBAL_AUDIO_SEED_RANGES } from '@/data/globalAudioSeedRanges';
 import { SWELL_FREQUENCY_STEPS, HUMANIZE_SCHEMA } from '@/data/audioRigConfig';
+
+/** Clear the three draw spies, plain, even and centred. */
+function clearSeedDraws(): void {
+  vi.mocked(getSeededVal).mockClear();
+  vi.mocked(getUniformSeededVal).mockClear();
+  vi.mocked(getCentredSeededVal).mockClear();
+}
+
+/** Every dataId the seeders drew since the last clear, whichever draw made it (Even Seeded Draws moves keys between them). */
+function drawnDataIds(): string[] {
+  return [getSeededVal, getUniformSeededVal, getCentredSeededVal].flatMap((draw) => vi.mocked(draw).mock.calls.map(([, dataId]) => dataId));
+}
 
 // ========================================
 // TESTS
@@ -310,11 +324,11 @@ describe('generateGlobalAudioSettings', () => {
     });
 
     it('no longer draws the wet fields or the delay quiet roll from the noise map', () => {
-      vi.mocked(getSeededVal).mockClear();
+      clearSeedDraws();
 
       generateGlobalAudioSettings('seed-test-planet', 'Nova');
 
-      const dataIds = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+      const dataIds = drawnDataIds();
       expect(dataIds).toContain('globalAudio.reverb.decay'); // sanity: the sampled fields are still drawn
       expect(dataIds).toContain('globalAudio.delay.syncMode'); // and so is Delay's Sync roll
       expect(dataIds).not.toContain('globalAudio.delay.quiet');
@@ -356,7 +370,11 @@ describe('generateGlobalAudioSettings', () => {
 
     it('leaves a field with no declared step (filterLPF.frequency) byte-for-byte unaffected — regression, not just "still works"', () => {
       const settings = generateGlobalAudioSettings('regression-probe-seed', 'ProbePlanet');
-      expect(settings.filterLPF.frequency).toBe(4730.514641816347);
+      // Even Seeded Draws T10: was the literal 4730.514641816347 on the plain draw. Now the unquantized even draw
+      // through the band, so any rounding at all would show.
+      const t = getUniformSeededVal(getAttenuationStyleNoiseMap('regression-probe-seed', 'ProbePlanet'), 'globalAudio.filterLPF.frequency');
+      expect(settings.filterLPF.frequency).toBe(scaleUnitValue(t, { ...CLASSIC['filterLPF.frequency'], scale: 'log' }));
+      expect(settings.filterLPF.frequency).toBe(3368.34499329943);
     });
 
     it('quantizes compressor.threshold and compressor.knee to a whole dB, across many seeds', () => {
@@ -564,10 +582,8 @@ describe('the colour character (Global Colour)', () => {
       expect(none, 'and clean ones').toBeGreaterThan(300);
     }, 30000);
 
-    // The raw draw is bell-curved and discrete (see COLOUR_CHARACTER_BANDS), so the nominal edges
-    // 0.25 / 0.45 / 0.65 / 0.85 / 0.90 / 0.95 gave 10 / 34 / 18 / 30 / 4 / 4 / 0 %. The edges were fitted on styles
-    // named 'ColourCalibration<n>'; this test samples a different set, so it is a hold-out check and not a
-    // restatement of the fit.
+    // The character draw is even since Even Seeded Draws T11, so the nominal quarter edges are the shares. Before it, the
+    // draw was bell-curved and the edges were fitted on styles named 'ColourCalibration<n>'; this set was the hold-out.
     it('realises the target shares over 3000 hold-out styles, within 3 points: clean 25 and each single 25', () => {
       const TARGET: Record<(typeof COLOUR_CHARACTERS)[number], number> = {
         clean: 25,
@@ -608,18 +624,17 @@ describe('the colour character (Global Colour)', () => {
         'distortion.amount', 'distortion.wet',
         'chebyshev.order', 'chebyshev.wet',
         'bitCrusher.bits', 'bitCrusher.wet',
-        // The pedals' seventeen draws (four rolls and thirteen values) are uniform draws: they go through
-        // getUniformSeededVal, not this spy, and are pinned by the pedal tests below.
+        // The pedals' draws (rolls, Sync pairs and values) are pinned by the pedal tests below.
       ];
+      const PEDAL_PREFIXES = ['autoWah.', 'phaser.', 'chorus.', 'tremolo.', 'vibrato.', 'frequencyShifter.', 'stereoWidener.'];
       const expected = [...EXISTING, ...NEW].map((k) => `globalAudio.${k}`).sort();
       for (let i = 0; i < 40; i++) {
-        vi.mocked(getSeededVal).mockClear();
+        clearSeedDraws();
         generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`);
-        const keys = vi
-          .mocked(getSeededVal)
-          .mock.calls.map((call) => call[1])
+        const keys = drawnDataIds()
           // 'globalAudio.bpm' is bpmSeed's own draw, made only when the Delay seeds Anchored - not this seeder's.
           .filter((key) => key.startsWith('globalAudio.') && key !== 'globalAudio.bpm')
+          .filter((key) => !PEDAL_PREFIXES.some((prefix) => key.startsWith(`globalAudio.${prefix}`)))
           .sort();
         expect(keys, `style ${i}`).toStrictEqual(expected);
       }
@@ -933,10 +948,10 @@ describe('the modulation pedals (Global Modulation)', () => {
       let bothSynced = 0;
       for (let i = 0; i < 300; i++) {
         const id = `pedal-bpm-${i}`;
-        vi.mocked(getSeededVal).mockClear();
+        clearSeedDraws();
         const s = generateGlobalAudioSettings(id, id);
         evictAttenuationStyleNoiseMap(id);
-        const tempoDraws = vi.mocked(getSeededVal).mock.calls.filter((call) => call[1] === 'globalAudio.bpm').length;
+        const tempoDraws = drawnDataIds().filter((dataId) => dataId === 'globalAudio.bpm').length;
         const synced =
           Number(s.delay.sync !== undefined) +
           Number(s.phaser.sync !== undefined) +
@@ -1592,7 +1607,7 @@ describe('generateGlobalLfoLinks', () => {
         const noiseMap = getAttenuationStyleNoiseMap(id, `LaneQuiet${i}`);
         const links = generateGlobalLfoLinks(id, `LaneQuiet${i}`);
         for (const target of GLOBAL_LFO_TARGET_IDS) {
-          const quiet = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1) < 0.34;
+          const quiet = getUniformSeededVal(noiseMap, `globalLfo.${target}.quiet`) < 0.34; // the even draw since Even Seeded Draws T14
           expect(links[target].lane === null, `${target} style ${i}`).toBe(quiet);
           if (quiet) expect(links[target].depth).toBe(0);
         }
@@ -1608,10 +1623,10 @@ describe('generateGlobalLfoLinks', () => {
     });
   });
 
-  it('queries getSeededVal only with .quiet/.lane/.depth dataId suffixes under globalLfo.* — no .rate/.shape draws', () => {
+  it('draws only .quiet/.lane/.depth dataId suffixes under globalLfo.*, through any draw — no .rate/.shape draws', () => {
+    clearSeedDraws();
     generateGlobalLfoLinks('links-test-planet', 'Links');
-    const globalLfoKeys = vi.mocked(getSeededVal).mock.calls
-      .map(([, dataId]) => dataId)
+    const globalLfoKeys = drawnDataIds()
       .filter((dataId) => dataId.startsWith('globalLfo.'));
     expect(globalLfoKeys.length).toBeGreaterThan(0);
     for (const dataId of globalLfoKeys) {
@@ -1662,7 +1677,10 @@ describe('generatePingVarianceAutomation', () => {
     const SAMPLE_ATTENUATION_STYLES = 30;
     for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
       const value = generatePingVarianceAutomation(`seed-pva-sample-${i}`, `PvaSample${i}`);
-      expect(Number.isInteger(value * 100), `attenuationStyle ${i}: ${value}`).toBe(true);
+      // Even Seeded Draws T15: on the grid to within floating point (0.56 * 100 is 56.00000000000001); the plain draw's
+      // three values happened to multiply cleanly.
+      expect(Math.abs(value * 100 - Math.round(value * 100)), `attenuationStyle ${i}: ${value}`).toBeLessThan(1e-9);
+      expect(value, `attenuationStyle ${i}`).toBe(Math.round(value * 100) / 100);
     }
   });
 });
@@ -1888,8 +1906,9 @@ describe('generateLfoBankSettings — Sync draws', () => {
   });
 
   it('queries lfoBank.<lane>.syncMode and .syncNote for every lane', () => {
+    clearSeedDraws();
     generateLfoBankSettings('bank-sync-sample-0', 'BankSync0');
-    const keys = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+    const keys = drawnDataIds();
     for (const lane of LFO_LANE_IDS) {
       expect(keys, `${lane}.syncMode`).toContain(`lfoBank.${lane}.syncMode`);
       expect(keys, `${lane}.syncNote`).toContain(`lfoBank.${lane}.syncNote`);
@@ -1987,8 +2006,9 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
   });
 
   it('queries globalAudio.delay.syncMode and .syncNote', () => {
+    clearSeedDraws();
     generateGlobalAudioSettings('delay-sync-sample-0', 'DelaySync0');
-    const keys = vi.mocked(getSeededVal).mock.calls.map(([, dataId]) => dataId);
+    const keys = drawnDataIds();
     expect(keys).toContain('globalAudio.delay.syncMode');
     expect(keys).toContain('globalAudio.delay.syncNote');
   });
@@ -2046,19 +2066,28 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
   it('when no band has a note, the Delay stays Free with its seeded delayTime unchanged — and the pick is asked at the seed BPM', () => {
     const id = 'delay-sync-sample-1';
     const name = 'DelaySync1';
-    const real = generateGlobalAudioSettings(id, name).delay;
-    expect(real.sync, 'precondition: this style seeds a Sync Delay').toBeDefined();
+    // Even Seeded Draws T11: the style's Sync is seeded explicitly (its mode draw forced to 0), not found by luck.
+    const original = vi.mocked(getUniformSeededVal).getMockImplementation()!;
+    vi.mocked(getUniformSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) =>
+      dataId === 'globalAudio.delay.syncMode' ? 0 : original(noiseMap, dataId, offset, min, max),
+    );
+    try {
+      const real = generateGlobalAudioSettings(id, name).delay;
+      expect(real.sync, 'precondition: this style seeds a Sync Delay').toBeDefined();
 
-    vi.mocked(pickSeedNoteValue).mockClear();
-    vi.mocked(pickSeedNoteValue).mockReturnValue(undefined);
-    const forcedFree = generateGlobalAudioSettings(id, name).delay;
-    const { sync: _sync, ...rest } = real;
-    expect('sync' in forcedFree).toBe(false);
-    expect(forcedFree).toStrictEqual(rest);
-    const [[, calledBpm, bands, unit]] = vi.mocked(pickSeedNoteValue).mock.calls;
-    expect(calledBpm).toBe(generateAttenuationStyleBpm(id, name));
-    expect(bands).toEqual([DELAY_BAND]);
-    expect(unit).toBe('seconds');
+      vi.mocked(pickSeedNoteValue).mockClear();
+      vi.mocked(pickSeedNoteValue).mockReturnValue(undefined);
+      const forcedFree = generateGlobalAudioSettings(id, name).delay;
+      const { sync: _sync, ...rest } = real;
+      expect('sync' in forcedFree).toBe(false);
+      expect(forcedFree).toStrictEqual(rest);
+      const [[, calledBpm, bands, unit]] = vi.mocked(pickSeedNoteValue).mock.calls;
+      expect(calledBpm).toBe(generateAttenuationStyleBpm(id, name));
+      expect(bands).toEqual([DELAY_BAND]);
+      expect(unit).toBe('seconds');
+    } finally {
+      vi.mocked(getUniformSeededVal).mockImplementation(original);
+    }
   });
 });
 
@@ -2203,6 +2232,16 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // 0.7000000000000001 -> 0.7, 0.35000000000000003 -> 0.35 (three), 6.8500000000000005 -> 6.85, 0.41300000000000003 -> 0.413,
 // 1.7500000000000002 -> 1.75 (two), 1.5000000000000002 -> 1.5, 0.5700000000000001 -> 0.57, 3.4000000000000004 -> 3.4,
 // 0.6000000000000001 -> 0.6. Each difference is under 1e-15; no draw, band or grid moved.
+//
+// RE-RECORDED FROM THE SEEDER, Even Seeded Draws Phase 3 (docs/tasks/EVEN_SEEDED_DRAWS.md T10-T15; Crawford chose this,
+// 2026-11-02): the one re-recording this oracle has had. Phase 3 moves the seeder's plain draws to the even draw (the EQ
+// to the centred draw) with every dataId and offset unchanged, so each value they feed moved and was copied from the
+// seeder's output, task by task, each in the commit that moved it. T10 moved every sampleField value outside the pedals
+// (compressor, EQ, both filters, delay time and feedback, reverb, the colour shapes and lit wets, limiter); the pedal
+// blocks came out identical, which is the check that only the draw changed. T11 moved the colour character (alpha crush
+// -> fold, theta fold -> clean) and the Delay Sync pair (alpha now Sync; theta's note). T12 moved the seed tempo (alpha
+// 74 -> 78 BPM, theta 58 -> 85), so four Sync notes snapped to it moved and no other value did. T13 moved every LFO
+// Bank lane (rate, shape, both drifts, Sync). The rule above stands again once Phase 3 is done.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2213,19 +2252,19 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     expect(generateGlobalAudioSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
-        threshold: -22,
-        ratio: 5,
-        attack: 0.02815783553749843,
-        release: 0.2907865282684584,
-        knee: 10,
+        threshold: -27,
+        ratio: 3,
+        attack: 0.007844107940238682,
+        release: 0.26830222679160376,
+        knee: 12,
       },
-      eq3: { low: 3.5, mid: 3.5, high: 4 },
-      filterLPF: { type: 'lowpass', frequency: 9399.096577662036, Q: 2.2990614853419933 },
-      filterHPF: { type: 'highpass', frequency: 102.8526501063134, Q: 3.033962391581509 },
-      // Global Colour T5, amended T14: this style draws the crush character (BitCrusher lit; the others dry).
-      distortion: { amount: 0.32, wet: 0 },
-      chebyshev: { order: 4, wet: 0 },
-      bitCrusher: { bits: 9, wet: 0.18 },
+      eq3: { low: -5.5, mid: -2, high: 4 },
+      filterLPF: { type: 'lowpass', frequency: 12595.920980259783, Q: 0.23150881587360195 },
+      filterHPF: { type: 'highpass', frequency: 20.145403978003156, Q: 0.11602087571860349 },
+      // Even Seeded Draws T11: this style draws the fold character (Chebyshev lit; the others dry). It drew crush before.
+      distortion: { amount: 0.14, wet: 0 },
+      chebyshev: { order: 2, wet: 0.13 },
+      bitCrusher: { bits: 7, wet: 0 },
       // Global Modulation T7: this style leaves the AutoWah dark (wet 0, shape values still drawn) and lights the Phaser, synced.
       autoWah: { baseFrequency: 143.59378317897256, octaves: 4.5, sensitivity: -10, Q: 2.6466924484208345, gain: 6, follower: 0.3708443868326711, wet: 0 },
       phaser: {
@@ -2235,7 +2274,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
         stages: 10,
         Q: 3.291005415199408,
         wet: 0.33,
-        sync: { division: '1/8', modifier: 'dotted' },
+        sync: { division: '1/4', modifier: 'straight' }, // Even Seeded Draws T12: the tempo moved 74 -> 78 (was a dotted 1/8)
       },
       // Global Pedals T8: the Phaser is lit, the Chorus lit (synced), the shifter capped dark. Robot Effect Sends T8 (amended
       // by hand): the Chorus and shifter wets are their rooms' Returns, 1, and the Chorus keeps the Sync it already drew; the
@@ -2245,9 +2284,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       vibrato: { rate: 6.85, depth: 0.05, wet: 0 },
       frequencyShifter: { shift: -11, wet: 1 },
       stereoWidener: { width: 0.64 },
-      delay: { delayTime: 0.413, feedback: 0.36, wet: 1 },
-      reverb: { decay: 2.938135345442085, preDelay: 0.09, wet: 1 },
-      limiter: { threshold: -1 },
+      // Even Seeded Draws T11: the Delay now seeds Sync here.
+      delay: { delayTime: 0.112, feedback: 0.01, wet: 1, sync: { division: '1/8', modifier: 'straight' } },
+      reverb: { decay: 2.8605363399208485, preDelay: 0, wet: 1 },
+      limiter: { threshold: -2 },
     });
   });
 
@@ -2255,19 +2295,20 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     expect(generateGlobalAudioSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
       compressorBeforeDelay: false,
       compressor: {
-        threshold: -28,
-        ratio: 4,
-        attack: 0.005351539547536516,
-        release: 0.2749320026533538,
-        knee: 6,
+        threshold: -21,
+        ratio: 3,
+        attack: 0.0037631665371978206,
+        release: 0.2745463443253165,
+        knee: 10,
       },
-      eq3: { low: -3.5, mid: -3.5, high: -3.5 },
-      filterLPF: { type: 'lowpass', frequency: 4751.3168173899885, Q: 0.21951212264688055 },
-      filterHPF: { type: 'highpass', frequency: 62.95985983853713, Q: 0.893615040856134 },
-      // Global Colour T5, amended T14: this style draws the fold character (Chebyshev lit; the others dry, their shape still drawn).
-      distortion: { amount: 0.26, wet: 0 },
-      chebyshev: { order: 3, wet: 0.13 },
-      bitCrusher: { bits: 8, wet: 0 },
+      eq3: { low: 1.5, mid: -2.5, high: -1 },
+      filterLPF: { type: 'lowpass', frequency: 12675.758877479504, Q: 1.4718619269342987 },
+      filterHPF: { type: 'highpass', frequency: 37.14401938535214, Q: 0.20458853428728785 },
+      // Even Seeded Draws T11: this style draws the clean character (every node dry, their shape still drawn). It drew fold
+      // before.
+      distortion: { amount: 0.33, wet: 0 },
+      chebyshev: { order: 2, wet: 0 },
+      bitCrusher: { bits: 9, wet: 0 },
       // Global Modulation T7: this style lights the AutoWah and leaves the Phaser dark (wet 0, no sync, shape values still drawn).
       autoWah: { baseFrequency: 122.21333074133409, octaves: 3.5, sensitivity: -17, Q: 4.752278894146856, gain: 4, follower: 0.10429057048537012, wet: 0.5 },
       phaser: { rate: 1.75, octaves: 3, baseFrequency: 461.3838345902475, stages: 8, Q: 2.3776026949624773, wet: 0 },
@@ -2275,34 +2316,35 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // (amended by hand): the Chorus and shifter wets are their rooms' Returns, 1; this style's Chorus Sync roll is over its
       // odds, so it stays Free; nothing else moved.
       chorus: { rate: 1.5, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 1 },
-      tremolo: { rate: 1.75, depth: 0.35, spread: 130, wet: 0.4, sync: { division: '1/16', modifier: 'dotted' } },
+      tremolo: { rate: 1.75, depth: 0.35, spread: 130, wet: 0.4, sync: { division: '1/4', modifier: 'triplet' } }, // T12: tempo 58 -> 85
       vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
       frequencyShifter: { shift: 14, wet: 1 },
       stereoWidener: { width: 0.51 },
-      // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved.
-      delay: { delayTime: 0.139, feedback: 0.27, wet: 1, sync: { division: '1/16', modifier: 'straight' } },
-      reverb: { decay: 0.9388970155030818, preDelay: 0.05, wet: 1 },
-      limiter: { threshold: -2 },
+      // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved. Even Seeded Draws
+      // T11: the note moved (it was a straight 1/16).
+      delay: { delayTime: 0.085, feedback: 0.36, wet: 1, sync: { division: '1/4', modifier: 'triplet' } }, // T12: tempo 58 -> 85
+      reverb: { decay: 2.101813837515187, preDelay: 0.1, wet: 1 },
+      limiter: { threshold: -3 },
     });
   });
 
   it('generateLfoBankSettings("oracle-alpha")', () => {
+    // Even Seeded Draws T13: every lane re-recorded; no lane lands Sync in this style.
     expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual({
-      a: { shape: 'sawtooth', rate: 0.35, rateDrift: 0.59, depthDrift: 0.51 },
-      b: { shape: 'square', rate: 1.25, rateDrift: 0.15, depthDrift: 0.57 },
-      c: { shape: 'sawtooth', rate: 3.4, rateDrift: 0.19, depthDrift: 0.04 },
-      d: { shape: 'square', rate: 7.25, rateDrift: 0.48, depthDrift: 0.08 },
+      a: { shape: 'sawtooth', rate: 0.15, rateDrift: 0.08, depthDrift: -0.43 },
+      b: { shape: 'square', rate: 0.7, rateDrift: -0.36, depthDrift: -0.17 },
+      c: { shape: 'sine', rate: 2, rateDrift: 0.56, depthDrift: -0.08 },
+      d: { shape: 'square', rate: 6.5, rateDrift: 0.1, depthDrift: 0.65 },
     });
   });
 
   it('generateLfoBankSettings("oracle-theta")', () => {
-    // Task 13: lanes a and c landed Sync — the added `sync` keys are the only change to this
-    // expectation. b and d landed Free and stay byte-identical, with no `sync` key.
+    // Task 13 (Free | Sync) added the sync keys. Even Seeded Draws T13: every lane re-recorded; only lane a lands Sync now.
     expect(generateLfoBankSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
-      a: { shape: 'triangle', rate: 0.25, rateDrift: 0.23, depthDrift: 0.02, sync: { division: '1', modifier: 'dotted' } },
-      b: { shape: 'sawtooth', rate: 0.6, rateDrift: -0.15, depthDrift: 0.17 },
-      c: { shape: 'square', rate: 1.8, rateDrift: -0.19, depthDrift: -0.3, sync: { division: '1/8', modifier: 'triplet' } },
-      d: { shape: 'triangle', rate: 5.2, rateDrift: -0.42, depthDrift: -0.08 },
+      a: { shape: 'triangle', rate: 0.25, rateDrift: 0.37, depthDrift: 0.11, sync: { division: '1', modifier: 'straight' } },
+      b: { shape: 'square', rate: 0.5, rateDrift: -0.54, depthDrift: 0.59 },
+      c: { shape: 'sine', rate: 3.8, rateDrift: -0.36, depthDrift: 0.12 },
+      d: { shape: 'sawtooth', rate: 6.05, rateDrift: -0.06, depthDrift: -0.18 },
     });
   });
 

@@ -4,7 +4,7 @@
 import type { NoiseFunction2D } from 'simplex-noise';
 
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
-import { getSeededVal, getUniformSeededVal } from './getSeededVal';
+import { getCentredSeededVal, getUniformSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
 import { generateAttenuationStyleBpm } from './bpmSeed';
@@ -48,20 +48,24 @@ export function scaleUnitValue(t: number, range: SeedRange): number {
   return range.min + (range.max - range.min) * clamped;
 }
 
+/** The EQ bands, whose middle (0 dB) is neutral: they draw centred, the rest even (docs/specs/EVEN_SEEDED_DRAWS.md §1.2). */
+const CENTRED_FIELD_KEYS: ReadonlySet<LoadingRangeKey> = new Set(['eq3.low', 'eq3.mid', 'eq3.high']);
+
 /**
- * `uniform` draws the position with getUniformSeededVal instead of one getSeededVal sample. One sample at offset 0 is
- * bell-curved and takes only a few dozen to a few hundred distinct values across all worlds (three, for some keys), so a
- * field that must FILL its band uses the uniform draw (Global Modulation T7: autoWah.gain and autoWah.wet took 3 distinct
- * values over 3 000 styles, phaser.wet 24). Every pre-existing field keeps the plain draw, so no existing value moves.
+ * Every field draws its position evenly (getUniformSeededVal), each key on its own draw, so a world fills the band and no
+ * two fields move together; the EQ bands draw centred (getCentredSeededVal), near 0 dB but still independent. One
+ * getSeededVal sample at offset 0 is bell-curved, takes 3 to a few hundred distinct values across all worlds, and welds
+ * keys together (the EQ low and mid correlated at r = 1.000), so no field uses it (Even Seeded Draws T10).
  */
-function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey, uniform = false): number {
+function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey): number {
   // Sample within the narrower LOADING band - the loaded world's, from the band table (getBand, band-table T22;
   // Classic's rows are in src/data/bands/classic.ts) - but honor the full range's log/linear scale: a band carries no
   // `scale`, it is purely a narrower min/max over the same field GLOBAL_AUDIO_SEED_RANGES already describes.
   const range: SeedRange = { ...getBand(key), scale: GLOBAL_AUDIO_SEED_RANGES[key].scale };
-  // getSeededVal handles the seeded noise → [0, 1] draw; scaleUnitValue owns
-  // range + log/linear mapping, so the two concerns stay separately testable.
-  const t = uniform ? getUniformSeededVal(noiseMap, `globalAudio.${key}`) : getSeededVal(noiseMap, `globalAudio.${key}`, 0, 0, 1);
+  // The draw gives the [0, 1] position; scaleUnitValue owns range + log/linear mapping, so the two concerns stay
+  // separately testable.
+  const draw = CENTRED_FIELD_KEYS.has(key) ? getCentredSeededVal : getUniformSeededVal;
+  const t = draw(noiseMap, `globalAudio.${key}`);
   const value = scaleUnitValue(t, range);
   const { step } = GLOBAL_AUDIO_SEED_RANGES[key];
   // Quantized against the FULL range's own min, never the narrower loading
@@ -75,8 +79,8 @@ function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey, uniform = 
  * Probability threshold Delay's own "Sync" seed draw ([0, 1]) must fall under to seed Anchored
  * rather than Float — 66% target (docs/specs/FREE_SYNC_TOGGLE.md §1.7). A separate pair of
  * keys from the quiet roll above, so the two never correlate and Delay's existing draws are
- * untouched. The note itself is then picked from the Delay loading band only. Measured raw share
- * at 0.66 over 3000 Attenuation Styles (2026-10-03): 66.4% — no calibration needed.
+ * untouched. The note itself is then picked from the Delay loading band only. The mode and note
+ * draws are even (Even Seeded Draws T11), so the edge is the share.
  */
 const DELAY_SYNC_ODDS = 0.66;
 
@@ -101,19 +105,11 @@ export const COLOUR_CHARACTER_NODES: Record<ColourCharacter, readonly ColourNode
 
 /**
  * Cumulative upper edges on the character draw, one per COLOUR_CHARACTERS entry in order; a draw `t` belongs to the
- * first band whose edge is above it. SET BY MEASUREMENT, not by fraction. Two properties of the draw rule out
- * nominal edges: it is bell-curved (the nominal 0.25 / 0.45 / 0.65 / 0.85 / 0.90 / 0.95 realised 10 / 34 / 18 / 30 /
- * 4 / 4 / 0 % over 20 000 styles), and it is DISCRETE - one simplex sample at a fixed (x, 0) takes only ~190
- * distinct values, the largest holding ~1 % of styles - so an edge parked on a quantile can land either side of an
- * atom and move a share by half a point. Each edge is therefore the midpoint of the gap between two atoms whose
- * cumulative share is nearest the target (gaps are at least 0.0004 wide, so four decimals stay inside them).
- * Realised over those 20 000 styles ('ColourCalibration<n>'): clean 25.2, drive 24.9, fold 25.2, crush 24.7 %
- * (targets 25 / 25 / 25 / 25; the cumulative targets 25 / 50 / 75 fall in gaps 0.00056, 0.00673 and 0.00056 wide). The test in
- * globalAudioSeed.test.ts holds them to within 3 points on a different set ('ColourShare<n>', 3 000 styles); that set
- * measured 24.8 / 25.5 / 25.6 / 24.0 % with no world lighting two nodes. If the targets move (Crawford's listen, roadmap 50.3 T14),
- * refit the same way.
+ * first band whose edge is above it. The draw is even (getUniformSeededVal, Even Seeded Draws T11), so each band's
+ * width is its share: a quarter each, the target (docs/specs/EVEN_SEEDED_DRAWS.md §1.4). The bell-curved plain draw
+ * needed fitted edges (0.3065 / 0.5 / 0.6935) to give the same quarters. If the targets move, move the edges.
  */
-export const COLOUR_CHARACTER_BANDS: readonly number[] = [0.3065, 0.5, 0.6935, 1];
+export const COLOUR_CHARACTER_BANDS: readonly number[] = [0.25, 0.5, 0.75, 1];
 
 /** The character a seeded draw `t` in [0, 1] picks. Out-of-range draws clamp to the ends and a non-finite one is clean. */
 export function pickColourCharacter(t: number): ColourCharacter {
@@ -219,8 +215,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // never draws it, exactly as before.
   let styleBpm: number | undefined;
   const bpm = (): number => (styleBpm ??= generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName));
-  const delaySyncModeT = getSeededVal(noiseMap, 'globalAudio.delay.syncMode', 0, 0, 1);
-  const delaySyncNoteT = getSeededVal(noiseMap, 'globalAudio.delay.syncNote', 0, 0, 1);
+  const delaySyncModeT = getUniformSeededVal(noiseMap, 'globalAudio.delay.syncMode');
+  const delaySyncNoteT = getUniformSeededVal(noiseMap, 'globalAudio.delay.syncNote');
   const delaySync =
     delaySyncModeT < DELAY_SYNC_ODDS
       ? pickSeedNoteValue(delaySyncNoteT, bpm(), [getBand('delay.delayTime')], 'seconds')
@@ -229,7 +225,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // Colour: the character draw says which nodes are lit. All seven colour keys are read on every style, lit or not,
   // so the draw set never depends on the character; an unlit node still seeds its shape value (a hand nudge of Mix
   // then hears something at once) and just has its `wet` forced to 0.
-  const lit = COLOUR_CHARACTER_NODES[pickColourCharacter(getSeededVal(noiseMap, 'globalAudio.colour.character', 0, 0, 1))];
+  const lit = COLOUR_CHARACTER_NODES[pickColourCharacter(getUniformSeededVal(noiseMap, 'globalAudio.colour.character'))];
   const distortionWet = sampleField(noiseMap, 'distortion.wet');
   const chebyshevWet = sampleField(noiseMap, 'chebyshev.wet');
   const bitCrusherWet = sampleField(noiseMap, 'bitCrusher.wet');
@@ -238,8 +234,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why).
   const autoWahLit = getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah;
   const phaserLit = getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser;
-  const autoWahWet = sampleField(noiseMap, 'autoWah.wet', true);
-  const phaserWet = sampleField(noiseMap, 'phaser.wet', true);
+  const autoWahWet = sampleField(noiseMap, 'autoWah.wet');
+  const phaserWet = sampleField(noiseMap, 'phaser.wet');
 
   // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.2): the sequential cap. Each motion pedal's roll is read whether or not
   // the cap would allow it, so the draw set is total; the AutoWah and Phaser results above count towards the cap.
@@ -268,7 +264,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // The shift is a magnitude band with its own sign draw, so a seeded shift is never inside ±2 Hz.
   const shiftSign = getUniformSeededVal(noiseMap, 'globalAudio.frequencyShifter.sign') < 0.5 ? -1 : 1;
   const pedalWet = (pedal: MotionPedal): number => {
-    const wet = sampleField(noiseMap, `${pedal}.wet`, true);
+    const wet = sampleField(noiseMap, `${pedal}.wet`);
     return pedalLit[pedal] ? wet : 0;
   };
   const withSync = <T extends object>(block: T, sync: NoteValue | undefined): T =>
@@ -324,31 +320,31 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
       wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
     },
     autoWah: {
-      baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency', true),
-      octaves: sampleField(noiseMap, 'autoWah.octaves', true),
-      sensitivity: sampleField(noiseMap, 'autoWah.sensitivity', true),
-      Q: sampleField(noiseMap, 'autoWah.Q', true),
-      gain: sampleField(noiseMap, 'autoWah.gain', true),
-      follower: sampleField(noiseMap, 'autoWah.follower', true),
+      baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency'),
+      octaves: sampleField(noiseMap, 'autoWah.octaves'),
+      sensitivity: sampleField(noiseMap, 'autoWah.sensitivity'),
+      Q: sampleField(noiseMap, 'autoWah.Q'),
+      gain: sampleField(noiseMap, 'autoWah.gain'),
+      follower: sampleField(noiseMap, 'autoWah.follower'),
       wet: autoWahLit ? autoWahWet : 0,
     },
     phaser: {
-      rate: sampleField(noiseMap, 'phaser.rate', true),
-      octaves: sampleField(noiseMap, 'phaser.octaves', true),
-      baseFrequency: sampleField(noiseMap, 'phaser.baseFrequency', true),
-      stages: sampleField(noiseMap, 'phaser.stages', true),
-      Q: sampleField(noiseMap, 'phaser.Q', true),
+      rate: sampleField(noiseMap, 'phaser.rate'),
+      octaves: sampleField(noiseMap, 'phaser.octaves'),
+      baseFrequency: sampleField(noiseMap, 'phaser.baseFrequency'),
+      stages: sampleField(noiseMap, 'phaser.stages'),
+      Q: sampleField(noiseMap, 'phaser.Q'),
       wet: phaserLit ? phaserWet : 0,
       ...(rateSync.phaser !== undefined && { sync: rateSync.phaser }),
     },
     // Global Pedals: every value a uniform draw from its band, lit or dark; a dark pedal has Mix 0 and no sync key.
     chorus: withSync(
       {
-        rate: sampleField(noiseMap, 'chorus.rate', true),
-        delayTime: sampleField(noiseMap, 'chorus.delayTime', true),
-        depth: sampleField(noiseMap, 'chorus.depth', true),
-        spread: sampleField(noiseMap, 'chorus.spread', true),
-        feedback: sampleField(noiseMap, 'chorus.feedback', true),
+        rate: sampleField(noiseMap, 'chorus.rate'),
+        delayTime: sampleField(noiseMap, 'chorus.delayTime'),
+        depth: sampleField(noiseMap, 'chorus.depth'),
+        spread: sampleField(noiseMap, 'chorus.spread'),
+        feedback: sampleField(noiseMap, 'chorus.feedback'),
         // The Double room's Return (Robot Effect Sends T8): never seeded, from the defaults.
         wet: defaults.chorus.wet,
       },
@@ -356,28 +352,28 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     ),
     tremolo: withSync(
       {
-        rate: sampleField(noiseMap, 'tremolo.rate', true),
-        depth: sampleField(noiseMap, 'tremolo.depth', true),
-        spread: sampleField(noiseMap, 'tremolo.spread', true),
+        rate: sampleField(noiseMap, 'tremolo.rate'),
+        depth: sampleField(noiseMap, 'tremolo.depth'),
+        spread: sampleField(noiseMap, 'tremolo.spread'),
         wet: pedalWet('tremolo'),
       },
       rateSync.tremolo,
     ),
     vibrato: withSync(
       {
-        rate: sampleField(noiseMap, 'vibrato.rate', true),
-        depth: sampleField(noiseMap, 'vibrato.depth', true),
+        rate: sampleField(noiseMap, 'vibrato.rate'),
+        depth: sampleField(noiseMap, 'vibrato.depth'),
         wet: pedalWet('vibrato'),
       },
       rateSync.vibrato,
     ),
     frequencyShifter: {
-      shift: shiftSign * sampleField(noiseMap, 'frequencyShifter.shift', true),
+      shift: shiftSign * sampleField(noiseMap, 'frequencyShifter.shift'),
       // The Shimmer room's Return (Robot Effect Sends T8): never seeded, from the defaults.
       wet: defaults.frequencyShifter.wet,
     },
     // Width has no dark state: always a value from its band, never near the mono fold.
-    stereoWidener: { width: sampleField(noiseMap, 'stereoWidener.width', true) },
+    stereoWidener: { width: sampleField(noiseMap, 'stereoWidener.width') },
     limiter: {
       threshold: sampleField(noiseMap, 'limiter.threshold'),
     },
@@ -388,6 +384,8 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
  * Probability threshold a target's own "start quiet" seed draw ([0, 1]) must
  * clear to force rate to 0 — ~34% chance per target (not a flat 50/50), so a
  * typical Attenuation Style seeds roughly 5 already-oscillating LFOs out of 7.
+ * The quiet draw is even (Even Seeded Draws T14), so 0.34 is each target's
+ * share; on the old plain draw it ranged 0–34 % (hpf.Q was never quiet).
  * Replaces the old separate `active` boolean — see LFO_RATE_MIN's own doc
  * comment (src/types/lfo.ts) for why rate=0 is now the "off" state.
  */
@@ -408,12 +406,13 @@ const PING_VARIANCE_AUTOMATION_SEED_RANGE = { min: 0.10, max: 0.60 };
  * switch — audioStore.ts's regenerateGlobalAudioFromSeed is responsible for
  * only calling this on the very first seed and carrying the value forward on
  * every later call (docs/specs/archive/PING-VARIANCE-AUTOMATION.md §1.2); this
- * function itself is a plain, stateless seeded draw, same shape as every
+ * function itself is a stateless, even seeded draw (getUniformSeededVal, Even
+ * Seeded Draws T15, like swell frequency and duration below), same shape as every
  * other function in this file.
  */
 export function generatePingVarianceAutomation(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(
+  const raw = getUniformSeededVal(
     noiseMap, 'globalAudio.pingVarianceAutomation', 0,
     PING_VARIANCE_AUTOMATION_SEED_RANGE.min, PING_VARIANCE_AUTOMATION_SEED_RANGE.max
   );
@@ -448,7 +447,7 @@ const SWELL_DURATION_SEED_RANGE = { min: 2, max: 8 };
  */
 export function generateSwellFrequency(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(
+  const raw = getUniformSeededVal(
     noiseMap, 'globalAudio.swellFrequency', 0,
     SWELL_FREQUENCY_SEED_RANGE.min, SWELL_FREQUENCY_SEED_RANGE.max
   );
@@ -465,7 +464,7 @@ export function generateSwellFrequency(attenuationStyleId: string, attenuationSt
  */
 export function generateSwellDuration(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(
+  const raw = getUniformSeededVal(
     noiseMap, 'globalAudio.swellDuration', 0,
     SWELL_DURATION_SEED_RANGE.min, SWELL_DURATION_SEED_RANGE.max
   );
@@ -546,17 +545,12 @@ export const LFO_BANK_RATE_BANDS: Record<LfoLaneId, { min: number; max: number }
 
 /**
  * Probability threshold each lane's own "Sync" seed draw ([0, 1]) must fall under to seed Anchored
- * rather than Float — slower lanes lean Anchored, the fast ones lean Float. The TARGET shares are
- * a 75 / b 66 / c 33 / d 25 % (docs/specs/FREE_SYNC_TOGGLE.md §1.7); the constants below are
- * calibrated, because a simplex draw isn't uniform — it bunches around 0.5, so a threshold equal
- * to its target share over- or under-shoots. Measured over 3000 Attenuation Styles (2026-10-03):
- *   a  0.75 gave 91.8% raw  -> 0.60 gives 74.6%   (calibrated)
- *   b  0.66 gave 72.3% raw  -> 0.62 gives 66.2%   (calibrated at Crawford's request, 2026-10-03)
- *   c  0.33 gives 34.2%                           (left; the c.syncMode draw takes only 3 distinct values)
- *   d  0.25 gave 11.2% raw  -> 0.33 gives 23.8%   (calibrated)
- * Calibrate the constant, never the target. Re-measure if a key or the noise map changes.
+ * rather than Float — slower lanes lean Anchored, the fast ones lean Float. Each is its TARGET
+ * share, a 75 / b 66 / c 33 / d 25 % (docs/specs/FREE_SYNC_TOGGLE.md §1.7): the draw is even
+ * (getUniformSeededVal, Even Seeded Draws T13), so an edge is the share it gives. The bell-curved
+ * plain draw needed calibrated edges (0.6 / 0.62 / 0.33 / 0.33) for the same shares.
  */
-const LFO_BANK_SYNC_ODDS: Record<LfoLaneId, number> = { a: 0.6, b: 0.62, c: 0.33, d: 0.33 };
+const LFO_BANK_SYNC_ODDS: Record<LfoLaneId, number> = { a: 0.75, b: 0.66, c: 0.33, d: 0.25 };
 
 /**
  * Which lanes' rate bands a lane's Sync draw tries, in order — its own, then the next faster, then
@@ -594,16 +588,16 @@ export function generateLfoBankSettings(
   const seedBpm = generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName);
 
   for (const lane of LFO_LANE_IDS) {
-    const rateT = getSeededVal(noiseMap, `lfoBank.${lane}.rate`, 0, 0, 1);
-    const shapeT = getSeededVal(noiseMap, `lfoBank.${lane}.shape`, 0, 0, 1);
-    const rateDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.rateDrift`, 0, 0, 1);
-    const depthDriftT = getSeededVal(noiseMap, `lfoBank.${lane}.depthDrift`, 0, 0, 1);
+    const rateT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.rate`);
+    const shapeT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.shape`);
+    const rateDriftT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.rateDrift`);
+    const depthDriftT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.depthDrift`);
 
     const picked = pickShape(shapeT, shapeQueue);
     shapeQueue = picked.queue;
 
-    const syncModeT = getSeededVal(noiseMap, `lfoBank.${lane}.syncMode`, 0, 0, 1);
-    const syncNoteT = getSeededVal(noiseMap, `lfoBank.${lane}.syncNote`, 0, 0, 1);
+    const syncModeT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.syncMode`);
+    const syncNoteT = getUniformSeededVal(noiseMap, `lfoBank.${lane}.syncNote`);
     const sync =
       syncModeT < LFO_BANK_SYNC_ODDS[lane]
         ? pickSeedNoteValue(
@@ -668,7 +662,7 @@ export function generateGlobalLfoLinks(
   let companionTaken = false;
 
   for (const target of GLOBAL_LFO_TARGET_IDS) {
-    const quietT = getSeededVal(noiseMap, `globalLfo.${target}.quiet`, 0, 0, 1);
+    const quietT = getUniformSeededVal(noiseMap, `globalLfo.${target}.quiet`);
     if (quietT < LFO_QUIET_THRESHOLD) {
       result[target] = { lane: null, depth: 0 };
       continue;
@@ -679,7 +673,7 @@ export function generateGlobalLfoLinks(
     const lane: LfoLaneId = !companionTaken && laneT < GLOBAL_LFO_COMPANION_EDGE ? 'b' : 'a';
     if (lane === 'b') companionTaken = true;
 
-    const depthT = getSeededVal(noiseMap, `globalLfo.${target}.depth`, 0, 0, 1);
+    const depthT = getUniformSeededVal(noiseMap, `globalLfo.${target}.depth`);
     const depth = quantizeToStep(
       scaleUnitValue(depthT, { ...globalLfoDepthSeedRangeForTarget(target), scale: 'linear' }),
       LFO_DEPTH_MIN,

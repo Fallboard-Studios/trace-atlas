@@ -12,7 +12,7 @@ import { reRollMelodyPitches } from '../engine/melodyGenerator';
 import { onLifecycleChange } from './workLoop';
 import { getDockCycleCount, recordDockLanding } from './dockCycles';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getUniformSeededVal } from '../utils/getSeededVal';
 import {
   BATTERY_DRAIN_ACTIVE,
   BATTERY_RECHARGE_RATE,
@@ -88,7 +88,7 @@ export const activeDrain: DrainRule = () => BATTERY_DRAIN_ACTIVE;
  *
  * A Recalled -> Docked landing also drifts `melody` via the same reRollMelodyPitches/
  * DOCKED_PITCH_DRIFT_RATIO rule landOnDocked applies live, seeded identically
- * (getSeededVal(noiseMap, 'robot.pitchDrift', dockCycleCount * 100 + callIndex, 0, 1) using the
+ * (getUniformSeededVal(noiseMap, 'robot.pitchDrift', dockCycleCount * 100 + callIndex, 0, 1) using the
  * POST-increment dockCycleCount, matching landOnDocked's own `(counter ?? 0) + 1` before seeding).
  * `noiseMap` is required, not optional -- no alea(...) fallback is ported from landOnDocked's live
  * defensive branch (spec §7 item 2 -- replay only ever runs against an already-spawned locale).
@@ -127,7 +127,7 @@ export function stepRobotLifecycle(
         robot.dockingHoldUntilMeasure = undefined;
         robot.dockCycleCount += 1;
         let pitchCallIndex = 0;
-        const pitchRand = () => getSeededVal(noiseMap, 'robot.pitchDrift', robot.dockCycleCount * 100 + pitchCallIndex++, 0, 1);
+        const pitchRand = () => getUniformSeededVal(noiseMap, 'robot.pitchDrift', robot.dockCycleCount * 100 + pitchCallIndex++, 0, 1);
         robot.melody = reRollMelodyPitches(robot.melody, DOCKED_PITCH_DRIFT_RATIO, {
           noteVariance: robot.noteVariance,
           rand: pitchRand,

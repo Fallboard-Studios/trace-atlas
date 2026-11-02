@@ -2,7 +2,6 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { NoiseFunction2D } from 'simplex-noise';
 
 vi.mock('@/engine/beatClock', () => ({
   scheduleRepeat: vi.fn(() => 'schedule-id'),
@@ -19,6 +18,14 @@ vi.mock('@/engine/beatClock', () => ({
 vi.mock('@/utils/noiseMaps', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/utils/noiseMaps')>();
   return { ...actual, getAttenuationStyleNoiseMap: vi.fn(actual.getAttenuationStyleNoiseMap) };
+});
+
+// The even and centred draws steer from T3's tagged stub maps (docs/tasks/EVEN_SEEDED_DRAWS.md, "Tests steer the even
+// draws"); the plain draw is a spy too, so a case can check that no swell roll still makes it.
+vi.mock('@/utils/getSeededVal', async (importOriginal) => {
+  const { steerSeededDraws } = await import('@/testUtils/seededDraws');
+  const actual = await importOriginal<typeof import('@/utils/getSeededVal')>();
+  return { ...steerSeededDraws(actual), getSeededVal: vi.fn(actual.getSeededVal) };
 });
 
 import {
@@ -41,8 +48,11 @@ import {
 } from './audioSwells';
 import * as robotOptionsActions from './robotOptionsActions';
 import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
-import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
-import { precomputeDataX } from '@/utils/getSeededVal';
+import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
+import { getSeededVal, getUniformSeededVal } from '@/utils/getSeededVal';
+import { constantNoiseMap, noiseMapForDataIds } from '@/testUtils/seededDraws';
+import { ROBOT_SEND_FIELDS } from '@/data/robotSends';
+import { SWELL_GLOBAL_TARGET_IDS, SWELL_ROBOT_ATTRIBUTE_IDS } from '@/types/audioSwell';
 import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { AudioEngine } from '@/engine/AudioEngine';
@@ -55,34 +65,12 @@ import type { Company } from '@/types/Company';
 // TEST HELPERS
 // ========================================
 
-/** Maps EVERY getSeededVal draw (any dataId/offset) to a fixed fraction of
- *  whatever [min, max] that particular call passes: raw -1 -> min, 0 ->
- *  midpoint, 1 -> max. Matches spawnSystem.test.ts's deterministicNoiseMap
- *  convention, generalized to any fixed raw value. */
-function constantNoiseMap(raw: number): NoiseFunction2D {
-  return () => raw;
-}
+// Every swell draw lands at a fixed fraction of whatever [min, max] its call passes: raw -1 -> min, 0 -> midpoint,
+// 1 -> max. constantNoiseMap and noiseMapForDataIds (per-dataId raw values, for a tick whose several draws must
+// diverge) come from src/testUtils/seededDraws.ts, which steers the even draw through the vi.mock above.
 const ALWAYS_MIN = constantNoiseMap(-1);
 const ALWAYS_MID = constantNoiseMap(0);
 const ALWAYS_MAX = constantNoiseMap(1);
-
-/**
- * Precise per-draw control: maps each named dataId to its own fixed raw
- * value (getSeededVal's `noiseMap(x, offset)` call always resolves `x` from
- * `precomputeDataX(dataId)`, so keying a lookup by that same x lets each
- * dataId in `mapping` get an independent, exact draw regardless of shared
- * offset). Any dataId not listed falls back to `fallback` (default 0, the
- * range's own midpoint fraction) — needed when a single tick's several
- * draws (trigger, company chance/pick/attribute/direction, per-member peak)
- * must diverge from each other, which a single flat constantNoiseMap can't do.
- */
-function noiseMapForDataIds(mapping: Record<string, number>, fallback = 0): NoiseFunction2D {
-  const byX = new Map<number, number>();
-  for (const [dataId, raw] of Object.entries(mapping)) {
-    byX.set(precomputeDataX(dataId), raw);
-  }
-  return (x: number) => byX.get(x) ?? fallback;
-}
 
 const LOCALE_ID = 'pelagos-default';
 
@@ -2001,4 +1989,120 @@ describe('the 16n callback carries the Transport time to every swell write', () 
     expect(eqCall).toBeDefined();
     expect(eqCall![2]).toBeUndefined();
   });
+});
+
+// Even Seeded Draws T16 (docs/tasks/EVEN_SEEDED_DRAWS.md): every per-measure roll is an even draw, so the trigger
+// and the company chance realise their written numbers. The ticks run over real seeded style maps, one map per style
+// id, and every swell is cleared after its tick, so each tick rolls with an empty pool (nothing ever blocks a roll).
+describe('every swell roll draws even (Even Seeded Draws T16)', () => {
+  /** One whole-or-sixteenth measure per index: 400 measures, each at a different 16n position. */
+  const measureAt = (i: number) => i + (i % 16) / 16;
+
+  /** Runs `ticks` ticks on each of `styles` real style maps, calling `afterTick` before the pool is cleared. */
+  function tickOverStyles(prefix: string, styles: number, ticks: number, afterTick: () => void): void {
+    for (let s = 0; s < styles; s++) {
+      const id = `${prefix}-${s}`;
+      const map = getAttenuationStyleNoiseMap(id, id);
+      evictAttenuationStyleNoiseMap(id);
+      for (let i = 0; i < ticks; i++) {
+        vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(map);
+        tickAudioSwells(LOCALE_ID, measureAt(i));
+        afterTick();
+        stopAudioSwells();
+      }
+    }
+  }
+
+  /** A robot every one of the 16 robot attributes is live on: three sounding layers and every send above 0. */
+  function makeFullyLiveRobot(id: string): Robot {
+    const sends = Object.fromEntries(ROBOT_SEND_FIELDS.map((field) => [field, 0.5]));
+    return makeRobot({
+      id,
+      audioAttributes: {
+        adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 },
+        filterFreq: 0,
+        waveform: 'sine',
+        layers: [0, 1, 2].map(() => ({ type: 'sine', gain: 1, detune: 0, phase: 0 })),
+      } as Robot['audioAttributes'],
+      ...sends,
+    });
+  }
+
+  /** Frequency 16 (every trigger passes): one fully live robot in one company, 100 styles × 100 ticks. */
+  function robotPathSample() {
+    useAudioStore.setState({ swellFrequency: 16 });
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeFullyLiveRobot('r1'));
+    useLocaleStore.getState().addCompany(LOCALE_ID, makeCompany({ robotIds: ['r1'] }));
+    const robotSwells: ReturnType<typeof getActiveSwellSnapshot> = [];
+    const globalTargets: string[] = [];
+    tickOverStyles('t16-robot', 100, 100, () => {
+      robotSwells.push(...getActiveSwellSnapshot('robot'));
+      globalTargets.push(...getActiveSwellSnapshot('global').map((swell) => swell.globalTarget!));
+    });
+    return { ticks: 100 * 100, robotSwells, globalTargets };
+  }
+
+  it('starts a global swell on 12.5 ± 1.5 % of ticks at Frequency 2 (300 styles × 400 measures)', () => {
+    useAudioStore.setState({ swellFrequency: 2 });
+    let started = 0;
+    tickOverStyles('t16-global', 300, 400, () => {
+      started += getActiveSwellSnapshot('global').length;
+    });
+    const share = started / (300 * 400);
+    expect(share).toBeGreaterThan(0.11);
+    expect(share).toBeLessThan(0.14);
+  }, 60_000);
+
+  it('takes the company path on 15 ± 2 % of robot-trigger passes, and every pass starts one robot swell', () => {
+    const { ticks, robotSwells } = robotPathSample();
+    expect(robotSwells).toHaveLength(ticks);
+    // The written 15 % (spec §1.4), not the constant: a moved constant must fail here too.
+    const companyShare = robotSwells.filter((swell) => swell.companyId !== undefined).length / ticks;
+    expect(companyShare).toBeGreaterThan(0.13);
+    expect(companyShare).toBeLessThan(0.17);
+  }, 60_000);
+
+  it('picks every global target and every robot attribute at its even share', () => {
+    const { ticks, robotSwells, globalTargets } = robotPathSample();
+    expect(globalTargets).toHaveLength(ticks);
+    for (const target of SWELL_GLOBAL_TARGET_IDS) {
+      const share = globalTargets.filter((picked) => picked === target).length / ticks;
+      expect(share, target).toBeGreaterThan(1 / 7 - 0.02);
+      expect(share, target).toBeLessThan(1 / 7 + 0.02);
+    }
+    // The single-robot pick (about 8,500 swells) and the company attribute pick (about 1,500), each over all 16.
+    const single = robotSwells.filter((swell) => swell.companyId === undefined);
+    const company = robotSwells.filter((swell) => swell.companyId !== undefined);
+    for (const attribute of SWELL_ROBOT_ATTRIBUTE_IDS) {
+      const singleShare = single.filter((swell) => swell.robotAttribute === attribute).length / single.length;
+      expect(singleShare, attribute).toBeGreaterThan(1 / 16 - 0.015);
+      expect(singleShare, attribute).toBeLessThan(1 / 16 + 0.015);
+      expect(company.some((swell) => swell.robotAttribute === attribute), attribute).toBe(true);
+    }
+  }, 60_000);
+
+  it('makes every roll with the even draw: the triggers, picks, tiebreaks, peaks, splits and the company draws', () => {
+    // The robot's layer detunes sit at the middle of their range, and the global EQ at 0 dB, so both tiebreaks roll.
+    vi.mocked(getSeededVal).mockClear();
+    vi.mocked(getUniformSeededVal).mockClear();
+    robotPathSample();
+    const swellIds = (calls: unknown[][]) =>
+      calls.map((call) => call[1] as string).filter((dataId) => dataId.startsWith('audioSwell.'));
+    const plain = swellIds(vi.mocked(getSeededVal).mock.calls);
+    const even = new Set(swellIds(vi.mocked(getUniformSeededVal).mock.calls));
+    expect(plain).toEqual([]);
+    const families = [
+      /^audioSwell\.trigger\.global$/, /^audioSwell\.target\.global$/,
+      /^audioSwell\.trigger\.robot$/, /^audioSwell\.target\.robot$/,
+      /^audioSwell\.company\.chance$/, /^audioSwell\.company\.pick$/,
+      /^audioSwell\.company\.attribute$/, /^audioSwell\.company\.direction$/,
+      /^audioSwell\.peak\.eq3\.\w+$/, /^audioSwell\.peak\.eq3\.\w+\.tiebreak$/,
+      /^audioSwell\.peak\.r1\.layer\d\.detune$/, /^audioSwell\.peak\.r1\.layer\d\.detune\.tiebreak$/,
+      /^audioSwell\.peak\.company\.r1\.[\w.]+$/,
+      /^audioSwell\.duration\.[\w.]+\.split$/, /^audioSwell\.company\.duration\.split$/,
+    ];
+    for (const family of families) {
+      expect([...even].some((dataId) => family.test(dataId)), String(family)).toBe(true);
+    }
+  }, 60_000);
 });

@@ -4,9 +4,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
 import { generateAttenuationStyleBpm } from './bpmSeed';
-import { evictAttenuationStyleNoiseMap } from './noiseMaps';
+import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
+import { getUniformSeededVal } from './getSeededVal';
 import { withLoading } from '@/data/bands/loadingContext';
 import { CLASSIC } from '@/data/bands/classic';
+import { outerTenths } from '@/testUtils/spread';
 
 // band-table T22: the tempo band is read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption 15).
 // The real Calm column is {} until the listen (plan Task 34), so one that moves bpm is injected over the spread originals.
@@ -74,6 +76,40 @@ describe('generateAttenuationStyleBpm (docs/specs/FREE_SYNC_TOGGLE.md §1.7 "BPM
     const seen = new Set<number>();
     for (let i = 0; i < SAMPLE_COUNT; i++) seen.add(generateAttenuationStyleBpm(sampleId(i), sampleName(i)));
     expect(seen.size).toBeGreaterThanOrEqual(10);
+  });
+});
+
+// Even Seeded Draws T12 (docs/specs/EVEN_SEEDED_DRAWS.md §1.3): the tempo is an even draw within the theme's band.
+describe('generateAttenuationStyleBpm — the tempo draws even (Even Seeded Draws T12)', () => {
+  const STYLE_COUNT = 3000;
+  const STYLES = Array.from({ length: STYLE_COUNT }, (_, i) => {
+    const id = `even-bpm-${i}`;
+    const name = `EvenBpm${i}`;
+    const noiseMap = getAttenuationStyleNoiseMap(id, name);
+    const bpm = generateAttenuationStyleBpm(id, name);
+    evictAttenuationStyleNoiseMap(id);
+    return { noiseMap, bpm };
+  });
+  const TEMPOS = STYLES.map(({ bpm }) => bpm);
+
+  it('every whole tempo from 41 to 99 occurs over 3,000 styles', () => {
+    const seen = new Set(TEMPOS);
+    for (let bpm = 41; bpm <= 99; bpm++) expect(seen.has(bpm), `${bpm} BPM`).toBe(true);
+  });
+
+  // A whole tempo rounds a draw, so the bottom tenth of 40-100 (40-45) holds the draws from 40 to 45.5, 9.17 % of an even
+  // draw, and the top tenth (94-100) the draws from 93.5, 10.83 %. Each is held within 3 standard deviations.
+  it('each outer tenth of 40-100 holds its even share: 9.17 % at the bottom, 10.83 % at the top', () => {
+    const { bottom, top } = outerTenths(TEMPOS, CLASSIC.bpm);
+    const within = (share: number, expected: number) => Math.abs(share - expected) <= 3 * Math.sqrt((expected * (1 - expected)) / STYLE_COUNT);
+    expect(within(bottom, 5.5 / 60), `bottom tenth ${(bottom * 100).toFixed(2)} %`).toBe(true);
+    expect(within(top, 6.5 / 60), `top tenth ${(top * 100).toFixed(2)} %`).toBe(true);
+  });
+
+  it('the tempo is the even draw at globalAudio.bpm over the band, rounded', () => {
+    for (const { noiseMap, bpm } of STYLES.slice(0, 300)) {
+      expect(bpm).toBe(Math.round(getUniformSeededVal(noiseMap, 'globalAudio.bpm', 0, CLASSIC.bpm.min, CLASSIC.bpm.max)));
+    }
   });
 });
 

@@ -4,8 +4,12 @@
  * from a run on the branch base, main at 608c5b92 (the Robot Effect Sends merge, PR #569), before any refactor commit.
  *
  * NEVER RE-RECORD. A red case here means the refactor changed what the five sends seed, prime, encode or clamp; fix the
- * code, not the recording (`git log -p` on this file must show one commit). Case (e) was narrowed on purpose when
- * backlog 37 changed the swell pool (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §7 Q2); no recording was touched.
+ * code, not the recording. Case (e) was narrowed on purpose when backlog 37 changed the swell pool
+ * (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §7 Q2); no recording was touched. The one re-recording: Even Seeded Draws
+ * T9a (Crawford, 2026-11-02; docs/tasks/EVEN_SEEDED_DRAWS.md) moved the Reverb and Delay send draws to the even draw on
+ * purpose, so SEEDED_SENDS and the five seeded primes were captured again from that code, every case, fixture and
+ * precondition unchanged. `git log -p` on this file shows the original recording (9600610b) and this one; its other
+ * commits touched no recording.
  *
  * Five groups: (a) seeds, (b) the updateRobotSends call sequence per entry point, (c) the share string, (d) the store
  * clamp, (e) the swell pool. Every hand-set fixture send is a distinct, non-default value, so a path that drops or
@@ -23,6 +27,13 @@ vi.mock('../engine/beatClock', () => ({
   getCurrentMeasurePrecise: vi.fn(() => 0),
 }));
 
+// The swell rolls draw even (docs/tasks/EVEN_SEEDED_DRAWS.md T16): the swell case forces them through T3's tagged stub
+// maps, which this wrapper steers; every real map, the whole oracle's, passes through to the real draw.
+vi.mock('../utils/getSeededVal', async (importOriginal) => {
+  const { steerSeededDraws } = await import('../testUtils/seededDraws');
+  return steerSeededDraws(await importOriginal<typeof import('../utils/getSeededVal')>());
+});
+
 import alea from 'alea';
 import { createNoise2D } from 'simplex-noise';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -38,7 +49,7 @@ import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from './audi
 import { buildSessionPayload, applySessionPayload } from '../utils/sessionDiff';
 import { decodeBlob, decodeWorldLink, encodeBlob, encodeWorldLinkParams } from '../utils/worldLink';
 import { toCompactWorldDiff } from '../utils/worldDiffCodec';
-import { precomputeDataX } from '../utils/getSeededVal';
+import { noiseMapForDataIds } from '../testUtils/seededDraws';
 import * as noiseMaps from '../utils/noiseMaps';
 
 afterEach(() => {
@@ -100,117 +111,117 @@ function recordPrimes(run: () => void): Prime[] {
 }
 
 // ========================================
-// RECORDINGS (608c5b92 — never re-record)
+// RECORDINGS (608c5b92; re-recorded once at Even Seeded Draws T9a — never otherwise)
 // ========================================
 
 const SEEDED_SENDS: Record<string, number[][]> = {
   'send-table-parity-a': [
-    [0.51, 0.08, 0, 0, 0],
-    [0.26, 0.16, 0, 0, 0],
-    [0.46, 0.19, 0, 0.28, 0],
-    [0.46, 0.05, 0.78, 0, 0],
-    [0.24, 0.08, 0.51, 0, 0],
-    [0.41, 0.2, 0, 0, 0],
-    [0.31, 0.13, 0, 0, 0],
-    [0.16, 0, 0, 0.47, 0],
-    [0.46, 0.21, 0, 0, 0],
-    [0.44, 0.22, 0, 0, 0.5],
-    [0.26, 0.15, 0, 0, 0],
-    [0.38, 0.17, 0, 0.42, 0],
+    [0.11, 0.05, 0, 0, 0],
+    [0.31, 0.23, 0, 0, 0],
+    [0.37, 0, 0, 0.28, 0],
+    [0.51, 0, 0.78, 0, 0],
+    [0.5, 0.01, 0.51, 0, 0],
+    [0.46, 0.16, 0, 0, 0],
+    [0.57, 0, 0, 0, 0],
+    [0.53, 0.02, 0, 0.47, 0],
+    [0.47, 0, 0, 0, 0],
+    [0.19, 0.13, 0, 0, 0.5],
+    [0.2, 0.23, 0, 0, 0],
+    [0.18, 0.08, 0, 0.42, 0],
   ],
   'send-table-parity-b': [
-    [0.48, 0.29, 0.49, 0, 0],
-    [0.42, 0.08, 0, 0, 0],
-    [0.47, 0.11, 0, 0.32, 0],
-    [0.44, 0.17, 0, 0, 0],
-    [0.48, 0.2, 0, 0, 0.48],
-    [0.56, 0.21, 0.64, 0, 0],
-    [0.46, 0.2, 0, 0, 0],
-    [0.31, 0.12, 0, 0.27, 0],
-    [0.51, 0.01, 0.58, 0, 0],
-    [0.41, 0.07, 0, 0, 0],
-    [0.43, 0.15, 0, 0, 0],
-    [0.46, 0.22, 0, 0, 0],
+    [0.1, 0, 0.49, 0, 0],
+    [0.38, 0.12, 0, 0, 0],
+    [0.3, 0.08, 0, 0.32, 0],
+    [0.43, 0.27, 0, 0, 0],
+    [0.13, 0.1, 0, 0, 0.48],
+    [0.43, 0.19, 0.64, 0, 0],
+    [0.1, 0, 0, 0, 0],
+    [0.21, 0.03, 0, 0.27, 0],
+    [0.48, 0.29, 0.58, 0, 0],
+    [0.56, 0, 0, 0, 0],
+    [0.45, 0.18, 0, 0, 0],
+    [0.15, 0.23, 0, 0, 0],
   ],
 };
 const SPAWN_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.51,"delay":0.08,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-1-oc8copp5', '{"reverb":0.36,"delay":0.22,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.47,"delay":0.13,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.5,"delay":0.2,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.23,"delay":0.03,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.29,"delay":0.21,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.3,"delay":0.2,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.21,"delay":0,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.33,"delay":0.22,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.45,"delay":0.03,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.57,"delay":0.15,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.51,"delay":0.07,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-1-oc8copp5', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
 ];
 const RE_REGISTER_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.51,"delay":0.08,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
   ['robot-1-oc8copp5', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.47,"delay":0.13,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.5,"delay":0.2,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.23,"delay":0.03,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.29,"delay":0.21,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.3,"delay":0.2,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.21,"delay":0,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.33,"delay":0.22,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.45,"delay":0.03,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.57,"delay":0.15,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.51,"delay":0.07,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
 ];
 const RE_RESERVE_PRIMES: Prime[] = [
   ['robot-4-g9rrd94w', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
 ];
 const SESSION_RESTORE_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.51,"delay":0.08,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-1-oc8copp5', '{"reverb":0.36,"delay":0.22,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.47,"delay":0.13,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.5,"delay":0.2,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.23,"delay":0.03,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.29,"delay":0.21,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.3,"delay":0.2,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.21,"delay":0,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.33,"delay":0.22,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.45,"delay":0.03,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.57,"delay":0.15,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.51,"delay":0.07,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-1-oc8copp5', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
   ['robot-2-nq1zfwlz', '{"delay":0.21,"grit":0.56,"shimmer":0.38}'],
 ];
 const SHARE_RESTORE_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.51,"delay":0.08,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-1-oc8copp5', '{"reverb":0.36,"delay":0.22,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.47,"delay":0.13,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.5,"delay":0.2,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.23,"delay":0.03,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.29,"delay":0.21,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.3,"delay":0.2,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.21,"delay":0,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.33,"delay":0.22,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.45,"delay":0.03,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.57,"delay":0.15,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.51,"delay":0.07,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-1-oc8copp5', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
   ['robot-7-b2f37xro', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
 ];
-// The forced start lands on robot 11's Delay send (seeded 0.07): eight writes up to the peak, seven down, landing exactly.
+// The forced start lands on robot 11's Delay send (seeded 0.25): eight writes up to the peak, seven down, landing exactly.
 const SWELL_PRIMES: Prime[] = [
-  ['robot-11-ri6s5np6', '{"delay":0.15937500000000002}'],
-  ['robot-11-ri6s5np6', '{"delay":0.24875000000000003}'],
-  ['robot-11-ri6s5np6', '{"delay":0.33812500000000006}'],
-  ['robot-11-ri6s5np6', '{"delay":0.42750000000000005}'],
-  ['robot-11-ri6s5np6', '{"delay":0.516875}'],
-  ['robot-11-ri6s5np6', '{"delay":0.6062500000000002}'],
-  ['robot-11-ri6s5np6', '{"delay":0.6956250000000002}'],
-  ['robot-11-ri6s5np6', '{"delay":0.7850000000000001}'],
-  ['robot-11-ri6s5np6', '{"delay":0.682857142857143}'],
-  ['robot-11-ri6s5np6', '{"delay":0.5807142857142857}'],
-  ['robot-11-ri6s5np6', '{"delay":0.4785714285714286}'],
-  ['robot-11-ri6s5np6', '{"delay":0.3764285714285715}'],
-  ['robot-11-ri6s5np6', '{"delay":0.2742857142857143}'],
-  ['robot-11-ri6s5np6', '{"delay":0.1721428571428572}'],
-  ['robot-11-ri6s5np6', '{"delay":0.07}'],
+  ['robot-11-ri6s5np6', '{"delay":0.328125}'],
+  ['robot-11-ri6s5np6', '{"delay":0.40625}'],
+  ['robot-11-ri6s5np6', '{"delay":0.484375}'],
+  ['robot-11-ri6s5np6', '{"delay":0.5625}'],
+  ['robot-11-ri6s5np6', '{"delay":0.640625}'],
+  ['robot-11-ri6s5np6', '{"delay":0.71875}'],
+  ['robot-11-ri6s5np6', '{"delay":0.796875}'],
+  ['robot-11-ri6s5np6', '{"delay":0.875}'],
+  ['robot-11-ri6s5np6', '{"delay":0.7857142857142858}'],
+  ['robot-11-ri6s5np6', '{"delay":0.6964285714285714}'],
+  ['robot-11-ri6s5np6', '{"delay":0.6071428571428571}'],
+  ['robot-11-ri6s5np6', '{"delay":0.5178571428571429}'],
+  ['robot-11-ri6s5np6', '{"delay":0.42857142857142855}'],
+  ['robot-11-ri6s5np6', '{"delay":0.3392857142857143}'],
+  ['robot-11-ri6s5np6', '{"delay":0.25}'],
 ];
 const SHARE_WIRE_JSON =
   '{"v":2,"n":"Send Parity","c":{"x":31,"y":47},"g":{},"r":{"parity-robot":{"rd":37,"p":-0.35,"rs":0.62,"ds":0.18,"gr":0.47,"sm":0.09,"db":0.73,"dy":41}}}';
@@ -292,20 +303,22 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
       const localeId = setupWorld('swell');
       spawnInitialRoster(localeId);
       useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
-      const byX = new Map<number, number>([
-        [precomputeDataX('audioSwell.trigger.robot'), -1], // the robot pool fires
-        [precomputeDataX('audioSwell.company.chance'), 1], // a single-robot swell
-        [precomputeDataX('audioSwell.target.robot'), 1], // the last eligible pair
-        [precomputeDataX('audioSwell.trigger.global'), 1], // the global pool stays quiet
-      ]);
-      vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      // Every draw not named lands mid-band (T3's fallback 0, the old stub's `?? 0`), so the swell is the recorded one.
+      const forced = {
+        'audioSwell.trigger.robot': -1, // the robot pool fires
+        'audioSwell.company.chance': 1, // a single-robot swell
+        'audioSwell.target.robot': 1, // the last eligible pair
+        'audioSwell.trigger.global': 1, // the global pool stays quiet
+      };
+      const styleMap = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(noiseMapForDataIds(forced));
 
       const primes = recordPrimes(() => {
         tickAudioSwells(localeId, 0);
         const swell = getActiveSwellSnapshot('robot')[0];
         expect(SEND_FIELDS as readonly string[]).toContain(swell?.robotAttribute); // precondition: the start is a send
         expect(getActiveSwellSnapshot('robot')).toHaveLength(1);
-        byX.set(precomputeDataX('audioSwell.trigger.robot'), 1); // no further starts: this one swell rides to its landing
+        // No further starts: this one swell rides to its landing.
+        styleMap.mockReturnValue(noiseMapForDataIds({ ...forced, 'audioSwell.trigger.robot': 1 }));
         for (let measure = 1; measure <= 40; measure++) tickAudioSwells(localeId, measure);
         expect(getActiveSwellSnapshot('robot')).toEqual([]); // precondition: it ran to its landing
       });

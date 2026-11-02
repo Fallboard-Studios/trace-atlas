@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
-import { getSeededVal } from './getSeededVal';
+import { getUniformSeededVal } from './getSeededVal';
 import { getBand } from '@/data/bands/loadingContext';
 
 // ========================================
@@ -24,16 +24,16 @@ import { getBand } from '@/data/bands/loadingContext';
  * row (src/data/bands/classic.ts, `bpm`) is [40, 100], freely draggable
  * across the wider [20, 200] Audio Rig slider afterward.
  *
- * The data key is 'globalAudio.bpm', not the bare 'bpm' the spec first named:
- * getSeededVal samples the noise map at (hash(key), offset), and the bare key
- * hashes to a spot where simplex noise is nearly flat — measured over 300
- * styles it produced 9 distinct tempos (50–90), where 'globalAudio.bpm'
- * produced 36 (42–98). Same artifact the spec's risk table anticipated; the
- * distinct-values test in bpmSeed.test.ts guards it.
+ * The data key is 'globalAudio.bpm', not the bare 'bpm' the spec first named
+ * (on the old plain draw the bare key hashed to a spot where simplex noise is
+ * nearly flat: 9 distinct tempos over 300 styles). The draw is even
+ * (getUniformSeededVal, Even Seeded Draws T12), so every whole tempo in the
+ * band is as likely as any other, the two ends half as likely (they round
+ * from half a step).
  */
 export function generateAttenuationStyleBpm(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
   const band = getBand('bpm');
-  const raw = getSeededVal(noiseMap, 'globalAudio.bpm', 0, band.min, band.max);
+  const raw = getUniformSeededVal(noiseMap, 'globalAudio.bpm', 0, band.min, band.max);
   return Math.round(raw);
 }

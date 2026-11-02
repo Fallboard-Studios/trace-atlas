@@ -116,14 +116,14 @@ const EXPECTED: BandTable = {
   'robot.decay': { min: 0, max: 2 },
   'robot.sustain': { min: 0, max: 1 },
   'robot.release': { min: 0, max: 2 },
-  // SHAPED_ATTACK/RELEASE_RANGE with ATTACK/RELEASE_CURVE_SHAPED_THRESHOLD as the lit share.
-  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.21 },
-  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.275 },
+  // SHAPED_ATTACK/RELEASE_RANGE with the shaped share as the lit share (Even Seeded Draws T4: the edge is the share).
+  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.155 },
+  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.15 },
   // PORTAMENTO_SEED_RANGE with GLIDER_THRESHOLD as the lit share.
-  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.23 },
+  'robot.portamento': { min: 0.05, max: 0.2, lit: 0.125 },
   // OPEN_FILTER_FREQ_RANGE; ACCENT_FILTER_FREQ_RANGE with FILTER_ACCENT_THRESHOLD; ACCENT_FILTER_Q_RANGE.
   'robot.filterFreq': { min: 2000, max: 8000 },
-  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.27 },
+  'robot.accentFilterFreq': { min: 400, max: 2500, lit: 0.2 },
   'robot.accentFilterQ': { min: 3, max: 8 },
   // The Coaxial/Harmonic gain draw (0.2-1.2) with LAYER_QUIET_THRESHOLD 0.5: a lit share of 1 - 0.5.
   'robot.layerGain': { min: 0.2, max: 1.2, lit: 0.5 },
@@ -131,9 +131,9 @@ const EXPECTED: BandTable = {
   'robot.masterVolume': { min: 0.65, max: 0.85 },
   // ROBOT_LFO_GAIN/DETUNE/BUS_DEPTH_SEED_RANGE with LFO_QUIET_THRESHOLD 0.7 and LFO_BUS_QUIET_THRESHOLD 0.8 as lit shares
   // of 1 - 0.7 and 1 - 0.8.
-  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.3 },
-  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.3 },
-  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.2 },
+  'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.25 },
+  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.25 },
+  'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.135 },
   // The plain 0-100 draws.
   'robot.rhythmicDensity': { min: 0, max: 100 },
   'robot.pitchRepeat': { min: 0, max: 100 },

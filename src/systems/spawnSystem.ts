@@ -47,7 +47,7 @@ import {
   seedToggleValue,
 } from './robotFieldDerivation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
@@ -86,10 +86,10 @@ const OCTAVE_REGISTERS = [
 // Portamento, envelope curves and the bus filter's resonance and shape are minority traits: most robots keep the plain
 // sound (open lowpass, no glide, linear curves) and a few stand out. Each trait's band carries its share as `lit`
 // (robot.portamento, robot.shapedAttack, robot.shapedRelease, robot.accentFilterFreq in the band table), compared
-// against a [0, 1] draw from a smooth simplex sample, not a uniform coin: those draws bunch in roughly [0.04, 0.96]
-// around 0.5, so a nominal 12 % share of 0.12 would land near the 3rd percentile. Each share was picked from the
-// measured draw (6,000 robots across 150 worlds, 2026-10-13); classic.ts records the rates, and spawnSystem.test.ts
-// pins the bands over 400 seeded robots. The curves and the accent filter are drawn in robotFieldDerivation.ts.
+// against an even [0, 1) draw, so the edge is the share (docs/specs/EVEN_SEEDED_DRAWS.md §1.4). The shares are the
+// ones Robot Articulation's listen heard, when the edges were fitted to a bunched simplex draw; classic.ts records them,
+// and robotFieldDerivation.test.ts and spawnSystem.evenDraws.test.ts pin them. The curves and the accent filter are
+// drawn in robotFieldDerivation.ts.
 
 /** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const PORTAMENTO_STEP = 0.01;
@@ -219,12 +219,12 @@ function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string 
 
 /**
  * Deterministic melody-generation seed (Roadmap Phase 31) — own dataId ('robot.compositionSeed'),
- * mirrors generateRobotId's shape exactly. Always fresh per robot: computed unconditionally in
- * spawnRobot, outside the shouldCopy branch, never inherited from a copy source (same treatment
- * as id/name/melody itself).
+ * an even draw (docs/specs/EVEN_SEEDED_DRAWS.md), so seeds rarely repeat across a fleet. Always fresh
+ * per robot: computed unconditionally in spawnRobot, outside the shouldCopy branch, never inherited
+ * from a copy source (same treatment as id/name/melody itself).
  */
 function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
-  return getSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
+  return getUniformSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
 }
 
 // ========================================
@@ -267,24 +267,24 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   // Seeded portamento — most robots don't glide; a glider slurs each note into the next. The band's `lit` is the
   // gliding share (robot.portamento).
   const portamentoBand = getBand('robot.portamento');
-  const glider = getSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < portamentoBand.lit;
+  const glider = getUniformSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < portamentoBand.lit;
   const portamento = glider
-    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.portamento', offset, portamentoBand.min, portamentoBand.max), 0, PORTAMENTO_STEP)
+    ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.portamento', offset, portamentoBand.min, portamentoBand.max), 0, PORTAMENTO_STEP)
     : 0;
 
   // Seeded octave register — direct [min, max] tuple, no Hz indirection
-  const octaveRange = OCTAVE_REGISTERS[Math.min(OCTAVE_REGISTERS.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.audio.register', offset, 0, OCTAVE_REGISTERS.length)))] as [number, number];
+  const octaveRange = OCTAVE_REGISTERS[Math.min(OCTAVE_REGISTERS.length - 1, Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.register', offset, 0, OCTAVE_REGISTERS.length)))] as [number, number];
 
   // The voice - the bus filter, the waveform and the 3-layer Signature Array - through the Voice family's one
   // derivation (revisions Task 10).
   const { filterFreq, filterQ, filterType, waveform, layers } = deriveVoiceFields(noiseMap, offset, currentVoiceBands());
 
   // Phase: 0..360 degrees (used for oscillator phase)
-  const phase = Math.floor(getSeededVal(noiseMap, 'robot.audio.phase', offset, 0, 361));
+  const phase = Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.phase', offset, 0, 361));
   // Detune: default 0 cents (fine pitch adjustment)
-  const detune = Math.round(getSeededVal(noiseMap, 'robot.audio.detune', offset, -5, 5));
+  const detune = Math.round(getCentredSeededVal(noiseMap, 'robot.audio.detune', offset, -5, 5));
   // Pulse width: meaningful for pulse/square waves. Default ~0.5 (50% duty).
-  const rawPulse = getSeededVal(noiseMap, 'robot.audio.pulseWidth', offset, 0.05, 0.95);
+  const rawPulse = getUniformSeededVal(noiseMap, 'robot.audio.pulseWidth', offset, 0.05, 0.95);
   const pulseWidth = Math.max(0.01, Math.min(0.99, rawPulse));
 
   // Include `layers` as the canonical audio description. Flat fields are left for compatibility.
@@ -308,12 +308,24 @@ const LFO_DEPTH_STEP = 1;
 
 /** The band a robot LFO target seeds from (robot.lfoGainDepth, robot.lfoDetuneDepth, robot.lfoBusDepth in the band
  *  table, band-table T21): its depth window in percent, with a never-zero floor so a lit link is always audible, and as
- *  `lit` the lit share — 1 - the old LFO_QUIET_THRESHOLD (0.7, docs/specs/LFO_LOAD_FIX.md assumption 5) for the six
- *  layer targets and 1 - the old LFO_BUS_QUIET_THRESHOLD (0.8) for the bus filter's rarer sweep. classic.ts records why 0.7
- *  and not 0.75 for "25 % on": the draw is a smooth simplex sample, not a coin, so the on-rate is not 1 - threshold. */
+ *  `lit` the lit share. The on-roll is even (docs/specs/EVEN_SEEDED_DRAWS.md), so `lit` is the share of robots with the
+ *  link lit. */
 function robotLfoBandForTarget(target: RobotLfoTargetId): SendBand {
   if (target === 'bus.frequency') return getBand('robot.lfoBusDepth');
   return getBand(target.endsWith('.gain') ? 'robot.lfoGainDepth' : 'robot.lfoDetuneDepth');
+}
+
+/**
+ * A lit detune link's depth, close to no detune (docs/specs/EVEN_SEEDED_DRAWS.md §1.2; Crawford, 2026-11-01): the
+ * centred draw over -1..1, folded so its peak sits at the window's floor, then floored onto the whole-percent grid so
+ * every percent gets a full share. Under Classic's 1-10 % window, 1 % is the commonest depth (about 19 % of lit detune
+ * links), each percent above it rarer, and 10 % the rarest (about 1 %). Rounding instead would give the floor only half
+ * a share and make 2 % the commonest.
+ */
+function detuneLinkDepth(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: SendBand): number {
+  const steps = band.max - band.min;
+  const folded = Math.abs(getCentredSeededVal(noiseMap, dataId, offset, -1, 1));
+  return quantizeToStep(band.min + Math.min(steps, Math.floor(folded * (steps + 1))), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
 }
 
 /**
@@ -334,21 +346,20 @@ export function generateRobotLfoLinks(
 
   for (const target of ROBOT_LFO_TARGET_IDS) {
     const band = robotLfoBandForTarget(target);
-    const quiet = getSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
+    const quiet = getUniformSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
     if (quiet) {
       result[target] = { lane: null, depth: 0 };
       continue;
     }
 
-    const laneT = getSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
+    const laneT = getUniformSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
     const lane = pickLane(laneT, counts);
     counts[lane]++;
 
-    const depth = quantizeToStep(
-      getSeededVal(noiseMap, `robot.lfo.${target}.depth`, offset, band.min, band.max),
-      LFO_DEPTH_MIN,
-      LFO_DEPTH_STEP,
-    );
+    const depthId = `robot.lfo.${target}.depth`;
+    const depth = target.endsWith('.detune')
+      ? detuneLinkDepth(noiseMap, depthId, offset, band)
+      : quantizeToStep(getUniformSeededVal(noiseMap, depthId, offset, band.min, band.max), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
     result[target] = { lane, depth };
   }
   return result;
@@ -358,10 +369,11 @@ export function generateRobotLfoLinks(
  * A robot's five seeded sends (docs/specs/ROBOT_SENDS.md §1.2, docs/specs/ROBOT_EFFECT_SENDS.md §1.2), from the loaded
  * world's send bands (getBand, band-table T22; Classic's rows are in src/data/bands/classic.ts) at `offset` = spawn
  * count.
- * Reverb and Delay keep the bell draws and the three dataIds Robot Sends shipped (the old global Reverb / Delay `wet`
- * loading rows, moved to the send table by Robot Effect Sends T1 without moving a value), plus the Reverb row's own quiet
- * roll, `robot.send.reverb.quiet`, so a theme's Reverb `lit` is honoured like every other row's (Classic's lit of 1
- * never goes quiet); about a quarter of the fleet draws no delay. The Grit, Shimmer and Double sends are uniform
+ * Reverb and Delay keep the three dataIds Robot Sends shipped (the old global Reverb / Delay `wet` loading rows, moved
+ * to the send table by Robot Effect Sends T1 without moving a value), plus the Reverb row's own quiet roll,
+ * `robot.send.reverb.quiet`, so a theme's Reverb `lit` is honoured like every other row's (Classic's lit of 1 never goes
+ * quiet). All four are even draws (docs/specs/EVEN_SEEDED_DRAWS.md, T9a), so a quarter of the fleet draws no delay
+ * under Classic. The Grit, Shimmer and Double sends are uniform
  * per-robot rolls, `robot.send.<room>.lit` and `robot.send.<room>`, every one read on every robot, at most one landing
  * (composeExclusiveSends). One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in
  * both, so a copied robot shares its sibling's voice but not its depths, and the two cannot drift.
@@ -444,7 +456,7 @@ export function generateRobotAudioBaseline(
   spawnCount: number,
   priorBaselines: readonly RobotAudioBaseline[],
 ): RobotAudioBaseline {
-  const copyRoll = getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
+  const copyRoll = getUniformSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
   const shouldCopy = copyRoll < 0.30 && priorBaselines.length > 0;
 
   const name = generateRobotName(noiseMap, spawnCount);
@@ -454,7 +466,7 @@ export function generateRobotAudioBaseline(
   if (shouldCopy) {
     const srcIdx = Math.min(
       priorBaselines.length - 1,
-      Math.floor(getSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
+      Math.floor(getUniformSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
     );
     // name is NOT inherited from the copy source — spawnRobot generates it unconditionally,
     // outside the shouldCopy branch (see this function's own doc comment).
@@ -465,11 +477,11 @@ export function generateRobotAudioBaseline(
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
   const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands());
   const dynamicsBand = getBand('robot.dynamics');
-  const dynamics = Math.round(getSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max));
+  const dynamics = Math.round(getUniformSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max));
   const restsBand = getBand('robot.rests');
-  const rests = Math.round(getSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max));
+  const rests = Math.round(getUniformSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max));
   const accentsBand = getBand('robot.accents');
-  const accents = Math.round(getSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max));
+  const accents = Math.round(getUniformSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max));
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
@@ -562,7 +574,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   // noteVariance, lfoLinks. Always fresh: id, name, position, melody (regenerated
   // from the copied octaveRange/rhythmicDensity/rhythmicMotifLength/noteVariance).
   const copyRoll = noiseMap
-    ? getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
+    ? getUniformSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
     : alea(`${localeId}:${spawnCount}:copy`)();
   const shouldCopy = copyRoll < 0.30 && robots.length > 0;
 
@@ -594,7 +606,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       robots.length - 1,
       Math.floor(
         noiseMap
-          ? getSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, robots.length)
+          ? getUniformSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, robots.length)
           : alea(`${localeId}:${spawnCount}:src`)() * robots.length
       )
     );
@@ -643,19 +655,19 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     const dynamicsBand = getBand('robot.dynamics');
     spawnDynamics = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max)
+        ? getUniformSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max)
         : dynamicsBand.min + alea(`${localeId}:${spawnCount}:dynamics`)() * (dynamicsBand.max - dynamicsBand.min)
     );
     const restsBand = getBand('robot.rests');
     spawnRests = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max)
+        ? getUniformSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max)
         : restsBand.min + alea(`${localeId}:${spawnCount}:rests`)() * (restsBand.max - restsBand.min)
     );
     const accentsBand = getBand('robot.accents');
     spawnAccents = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max)
+        ? getUniformSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max)
         : accentsBand.min + alea(`${localeId}:${spawnCount}:accents`)() * (accentsBand.max - accentsBand.min)
     );
   }
@@ -719,7 +731,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     masterVolume: (() => {
       const volume = getBand('robot.masterVolume');
       const seeded = noiseMap
-        ? getSeededVal(noiseMap, 'robot.masterVolume', spawnCount, volume.min, volume.max)
+        ? getUniformSeededVal(noiseMap, 'robot.masterVolume', spawnCount, volume.min, volume.max)
         : volume.min + alea(`${localeId}:${spawnCount}:mv`)() * (volume.max - volume.min);
       // Bass robots are louder, treble robots quieter. Register mid [1..5], neutral ~3.5.
       const registerMid = (octaveRange[0] + octaveRange[1]) / 2;

@@ -17,7 +17,7 @@ import { getBand } from '../data/bands/loadingContext';
 import type { BandTable, PickBand, ToggleBand } from '../data/bands/bandKeys';
 import type { EnvelopeBandKey, MelodyBandKey, VoiceBandKey } from '../data/bands/aspects';
 import type { RobotAudioBaseline } from './spawnSystem';
-import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { getCentredSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 
 /*
@@ -53,12 +53,12 @@ const FILTER_Q_STEP = 0.1;
  * so the shaped share is set by `shapedThreshold` alone, not by the number of curves.
  */
 function seedCurve(noiseMap: NoiseFunction2D, dataId: string, offset: number, shapedThreshold: number): EnvelopeCurveName {
-  if (getSeededVal(noiseMap, `${dataId}.shaped`, offset, 0, 1) >= shapedThreshold) return 'linear';
+  if (getUniformSeededVal(noiseMap, `${dataId}.shaped`, offset, 0, 1) >= shapedThreshold) return 'linear';
   const shapes = ENVELOPE_CURVE_NAMES.filter((name) => name !== 'linear');
-  // Sampled at its own row (offset * 10 + 1, the layers' trick): a robot only gets here when the shaped
-  // draw above came out low, and a neighbouring sample of the same smooth noise comes out low too, which
-  // left half the curves unreachable (measured: release never drew bounce, ripple or step).
-  const pick = Math.floor(getSeededVal(noiseMap, `${dataId}.which`, offset * 10 + 1, 0, shapes.length));
+  // Its own row (offset * 10 + 1, the layers' trick) dates from the bunched plain draw, whose neighbouring samples
+  // came out low together and left half the curves unreachable. The even draw is independent at any offset; the row
+  // stays because a draw keeps its dataId and offset (docs/specs/EVEN_SEEDED_DRAWS.md §3).
+  const pick = Math.floor(getUniformSeededVal(noiseMap, `${dataId}.which`, offset * 10 + 1, 0, shapes.length));
   return shapes[Math.min(shapes.length - 1, pick)];
 }
 
@@ -95,20 +95,19 @@ export function currentMelodyBands(): Pick<BandTable, MelodyBandKey> {
  * The four Melody fields from a robot's own spawn index under `bands` - the theme's at spawn (currentMelodyBands), an
  * aspect's when the deal re-derives them (applyDealToBaselines: resolveBands(theme, { melody: aspect })). The same
  * noise, dataIds and formulas either way, so a dealt robot is exactly what it would have been had it spawned under the
- * aspect (docs/specs/OFF_SCREEN.md assumption 22). The toggle fields reuse the old '.active' dataIds verbatim (not a
- * freshly-named consolidated key): getSeededVal's simplex slice is keyed off the exact dataId string, so a new string
- * would sample a different curve with no guarantee of matching the already-tuned ~85%/15% split against the band's
- * offShare; the old '.value' dataIds are retired, value is derived from this same draw.
+ * aspect (docs/specs/OFF_SCREEN.md assumption 22). The toggle fields keep the old '.active' dataIds (the '.value' ones
+ * are retired: value is derived from this same draw). Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so a
+ * toggle's offShare is the share of robots with it off.
  */
 export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number, bands: Pick<BandTable, MelodyBandKey>): MelodyFields {
   const density = bands['robot.rhythmicDensity'];
-  const rhythmicDensity = Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', spawnIndex, density.min, density.max));
-  const motifRaw = getSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnIndex, 0, 1);
+  const rhythmicDensity = Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', spawnIndex, density.min, density.max));
+  const motifRaw = getUniformSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnIndex, 0, 1);
   const rhythmicMotifLength = seedToggleValue(motifRaw, bands['robot.rhythmicMotifLength']);
-  const noteVarianceRaw = getSeededVal(noiseMap, 'robot.noteVariance.active', spawnIndex, 0, 1);
+  const noteVarianceRaw = getUniformSeededVal(noiseMap, 'robot.noteVariance.active', spawnIndex, 0, 1);
   const noteVariance = seedToggleValue(noteVarianceRaw, bands['robot.noteVariance']);
   const repeat = bands['robot.pitchRepeat'];
-  const pitchRepeat = Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', spawnIndex, repeat.min, repeat.max));
+  const pitchRepeat = Math.round(getUniformSeededVal(noiseMap, 'robot.pitchRepeat', spawnIndex, repeat.min, repeat.max));
   return { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat };
 }
 
@@ -116,16 +115,14 @@ export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number
 const WAVEFORMS: WaveformType[] = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'];
 
 /**
- * A waveform from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one draw over [0, total weight] at `dataId` /
- * `offset`, landing on the first waveform in WAVEFORMS order whose cumulative weight it falls under. Classic's five unit
- * weights make this the same getSeededVal call the old pick made - [0, 5] - and its integer edges 1-5 the exact index
- * Math.floor gave, so no Classic robot changes waveform. A zero weight is never drawn; a draw at the very top of the
- * range (the simplex sample at its maximum) lands on the last waveform with a weight, as the old base draw's clamp
- * did, where the old layer draw would have indexed past the end.
+ * A waveform from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one even draw over [0, total weight) at
+ * `dataId` / `offset`, landing on the first waveform in WAVEFORMS order whose cumulative weight it falls under, so each
+ * waveform's share is its weight's share of the total (20 % each under Classic's five unit weights). A zero weight is
+ * never drawn; a draw at the very top of the range lands on the last waveform with a weight.
  */
 function pickWaveform(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: PickBand): WaveformType {
   const total = WAVEFORMS.reduce((sum, wave) => sum + band.weights[wave], 0);
-  const draw = getSeededVal(noiseMap, dataId, offset, 0, total);
+  const draw = getUniformSeededVal(noiseMap, dataId, offset, 0, total);
   let edge = 0;
   for (const wave of WAVEFORMS) {
     edge += band.weights[wave];
@@ -167,10 +164,10 @@ export function deriveEnvelopeFields(
   const decayRange = bands['robot.decay'];
   const sustainRange = bands['robot.sustain'];
   return {
-    attack: getSeededVal(noiseMap, 'robot.audio.attack', offset, attackRange.min, attackRange.max),
-    decay: getSeededVal(noiseMap, 'robot.audio.decay', offset, decayRange.min, decayRange.max),
-    sustain: getSeededVal(noiseMap, 'robot.audio.sustain', offset, sustainRange.min, sustainRange.max),
-    release: getSeededVal(noiseMap, 'robot.audio.release', offset, releaseRange.min, releaseRange.max),
+    attack: getUniformSeededVal(noiseMap, 'robot.audio.attack', offset, attackRange.min, attackRange.max),
+    decay: getUniformSeededVal(noiseMap, 'robot.audio.decay', offset, decayRange.min, decayRange.max),
+    sustain: getUniformSeededVal(noiseMap, 'robot.audio.sustain', offset, sustainRange.min, sustainRange.max),
+    release: getUniformSeededVal(noiseMap, 'robot.audio.release', offset, releaseRange.min, releaseRange.max),
     attackCurve,
     releaseCurve,
   };
@@ -196,21 +193,22 @@ type VoiceFields = Pick<AudioAttributes, 'filterFreq' | 'filterQ' | 'filterType'
  * generateAudioAttributes with its dataIds and offsets unchanged: the bus filter (an accent robot a darker, resonant one,
  * lowpass or bandpass; the cutoff keeps its own dataId in both tiers), the base waveform and the three layers (type, gain,
  * detune, phase), the waveforms now picked through the robot.waveform PickBand (pickWaveform). The layers' detune and
- * phase follow no band and re-derive unchanged.
+ * phase follow no band and re-derive unchanged. Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so each `lit` and
+ * ACCENT_BANDPASS_SHARE is the share it names; the layer detune is centred, so most layers sit at or near 0 cents.
  */
 export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, VoiceBandKey>): VoiceFields {
   // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
   // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
   // The accent band's `lit` is the accent share (robot.accentFilterFreq); the open cutoff and the accent Q are bands too.
   const accentFilter = bands['robot.accentFilterFreq'];
-  const accent = getSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < accentFilter.lit;
+  const accent = getUniformSeededVal(noiseMap, 'robot.audio.filter.accent', offset, 0, 1) < accentFilter.lit;
   const filterRange = accent ? accentFilter : bands['robot.filterFreq'];
-  const filterFreq = getSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
+  const filterFreq = getUniformSeededVal(noiseMap, 'robot.audio.filterFreq', offset, filterRange.min, filterRange.max);
   const accentQ = bands['robot.accentFilterQ'];
   const filterQ = accent
-    ? quantizeToStep(getSeededVal(noiseMap, 'robot.audio.filterQ', offset, accentQ.min, accentQ.max), 0, FILTER_Q_STEP)
+    ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.filterQ', offset, accentQ.min, accentQ.max), 0, FILTER_Q_STEP)
     : ROBOT_BUS_FILTER_Q;
-  const filterType: RobotFilterType = accent && getSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
+  const filterType: RobotFilterType = accent && getUniformSeededVal(noiseMap, 'robot.audio.filter.type', offset, 0, 1) < ACCENT_BANDPASS_SHARE
     ? 'bandpass'
     : 'lowpass';
 
@@ -227,12 +225,12 @@ export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, ban
     // quiet on a draw under 1 - the band's `lit` (a plain 50/50 under Classic), forcing gain to 0 instead of sampling
     // one — muting doesn't discard the rest of the layer's configuration (see AudioEngine.ts's filterAudibleLayers),
     // so a muted layer still gets a full, ready-to-resume config here.
-    const quiet = i !== 0 && getSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < 1 - layerGain.lit;
+    const quiet = i !== 0 && getUniformSeededVal(noiseMap, 'robot.audio.layer.quiet', layerOffset, 0, 1) < 1 - layerGain.lit;
     const layerWave: OscillatorLayer = {
       type: pickWaveform(noiseMap, 'robot.audio.layer.waveform', layerOffset, bands['robot.waveform']),
-      gain: quiet ? 0 : quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
-      detune: quantizeToStep(getSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
-      phase: Math.floor(getSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
+      gain: quiet ? 0 : quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
+      detune: quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
+      phase: Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
     };
     layers.push(layerWave);
   }
@@ -312,10 +310,10 @@ export function deriveSendFields(
   const reverb = bands.reverbSend;
   const delay = bands.delaySend;
   const firstTwo = composeSends(
-    getSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
-    getSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
-    getSeededVal(noiseMap, 'robot.send.reverb.quiet', offset, 0, 1),
-    getSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
+    getUniformSeededVal(noiseMap, 'robot.send.reverb', offset, reverb.min, reverb.max),
+    getUniformSeededVal(noiseMap, 'robot.send.delay', offset, delay.min, delay.max),
+    getUniformSeededVal(noiseMap, 'robot.send.reverb.quiet', offset, 0, 1),
+    getUniformSeededVal(noiseMap, 'robot.send.delay.quiet', offset, 0, 1),
     bands,
   );
   const draw = (field: ExclusiveSendField) => {
