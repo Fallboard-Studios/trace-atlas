@@ -948,10 +948,10 @@ describe('the modulation pedals (Global Modulation)', () => {
       let bothSynced = 0;
       for (let i = 0; i < 300; i++) {
         const id = `pedal-bpm-${i}`;
-        vi.mocked(getSeededVal).mockClear();
+        clearSeedDraws();
         const s = generateGlobalAudioSettings(id, id);
         evictAttenuationStyleNoiseMap(id);
-        const tempoDraws = vi.mocked(getSeededVal).mock.calls.filter((call) => call[1] === 'globalAudio.bpm').length;
+        const tempoDraws = drawnDataIds().filter((dataId) => dataId === 'globalAudio.bpm').length;
         const synced =
           Number(s.delay.sync !== undefined) +
           Number(s.phaser.sync !== undefined) +
@@ -2235,8 +2235,9 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // seeder's output, task by task, each in the commit that moved it. T10 moved every sampleField value outside the pedals
 // (compressor, EQ, both filters, delay time and feedback, reverb, the colour shapes and lit wets, limiter); the pedal
 // blocks came out identical, which is the check that only the draw changed. T11 moved the colour character (alpha crush
-// -> fold, theta fold -> clean) and the Delay Sync pair (alpha now Sync; theta's note). The rule above stands again
-// once Phase 3 is done.
+// -> fold, theta fold -> clean) and the Delay Sync pair (alpha now Sync; theta's note). T12 moved the seed tempo (alpha
+// 74 -> 78 BPM, theta 58 -> 85), so four Sync notes snapped to it moved and no other value did. The rule above stands
+// again once Phase 3 is done.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2269,7 +2270,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
         stages: 10,
         Q: 3.291005415199408,
         wet: 0.33,
-        sync: { division: '1/8', modifier: 'dotted' },
+        sync: { division: '1/4', modifier: 'straight' }, // Even Seeded Draws T12: the tempo moved 74 -> 78 (was a dotted 1/8)
       },
       // Global Pedals T8: the Phaser is lit, the Chorus lit (synced), the shifter capped dark. Robot Effect Sends T8 (amended
       // by hand): the Chorus and shifter wets are their rooms' Returns, 1, and the Chorus keeps the Sync it already drew; the
@@ -2311,13 +2312,13 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // (amended by hand): the Chorus and shifter wets are their rooms' Returns, 1; this style's Chorus Sync roll is over its
       // odds, so it stays Free; nothing else moved.
       chorus: { rate: 1.5, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 1 },
-      tremolo: { rate: 1.75, depth: 0.35, spread: 130, wet: 0.4, sync: { division: '1/16', modifier: 'dotted' } },
+      tremolo: { rate: 1.75, depth: 0.35, spread: 130, wet: 0.4, sync: { division: '1/4', modifier: 'triplet' } }, // T12: tempo 58 -> 85
       vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
       frequencyShifter: { shift: 14, wet: 1 },
       stereoWidener: { width: 0.51 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved. Even Seeded Draws
       // T11: the note moved (it was a straight 1/16).
-      delay: { delayTime: 0.085, feedback: 0.36, wet: 1, sync: { division: '1/16', modifier: 'dotted' } },
+      delay: { delayTime: 0.085, feedback: 0.36, wet: 1, sync: { division: '1/4', modifier: 'triplet' } }, // T12: tempo 58 -> 85
       reverb: { decay: 2.101813837515187, preDelay: 0.1, wet: 1 },
       limiter: { threshold: -3 },
     });
@@ -2338,7 +2339,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     expect(generateLfoBankSettings('oracle-theta', 'oracle-theta')).toStrictEqual({
       a: { shape: 'triangle', rate: 0.25, rateDrift: 0.23, depthDrift: 0.02, sync: { division: '1', modifier: 'dotted' } },
       b: { shape: 'sawtooth', rate: 0.6, rateDrift: -0.15, depthDrift: 0.17 },
-      c: { shape: 'square', rate: 1.8, rateDrift: -0.19, depthDrift: -0.3, sync: { division: '1/8', modifier: 'triplet' } },
+      c: { shape: 'square', rate: 1.8, rateDrift: -0.19, depthDrift: -0.3, sync: { division: '1/8', modifier: 'straight' } }, // T12: tempo 58 -> 85
       d: { shape: 'triangle', rate: 5.2, rateDrift: -0.42, depthDrift: -0.08 },
     });
   });

@@ -507,7 +507,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S
 
-- [ ] **Task 12: bpmSeed.ts — the tempo draws even**
+- [x] **Task 12: bpmSeed.ts — the tempo draws even**
 
   **Description:** `generateAttenuationStyleBpm` switches to `getUniformSeededVal` within the theme's `bpm` band.
 
@@ -516,8 +516,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   new count.
 
   **Acceptance criteria:**
-  - [ ] The tempo is even within the band.
-  - [ ] Every theme's band is still respected.
+  - [x] The tempo is even within the band.
+  - [x] Every theme's band is still respected.
 
   **Verification:** As Task 4. The Sync-note tests that read the seed tempo (Delay, Phaser, the LFO Bank; the probe
   hit "a Phaser note at the style tempo") stay green or are repaired.
@@ -1051,3 +1051,14 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   dotted 1/16). `worldDiffCodec.test.ts`'s Free Delay case needed no repair: its style still seeds Sync.
 - Mutation check (T11): each of the three draws put back on `getSeededVal`; the fitted colour edges restored;
   `DELAY_SYNC_ODDS` 0.66 → 0.7 — 5 of 5 killed. Full suite: 13,327 passed.
+- T12: the outer-tenth case did **not** fail before the switch. A whole tempo rounds the draw, so the bottom tenth of
+  40–100 (40–45) holds the draws from 40 to 45.5, 9.17 % of an even draw, and the top tenth (94–100) 10.83 %; the case
+  holds each to that share within 3 standard deviations, and the bell draw (about 7 % per tenth, T0's 14.5 % outer)
+  landed inside. The RED came from the other two cases: 41 BPM never occurred over 3,000 styles on the plain draw, and
+  the pin (the tempo is the rounded even draw at `globalAudio.bpm` over the band, 300 styles). The existing "at least
+  10 distinct tempos over 30 styles" case was kept as it was: it still holds and still guards a degenerate key.
+- T12 repairs: the tempo-draw count case in `globalAudioSeed.test.ts` reads every draw. The oracle's tempos moved
+  (alpha 74 → 78, theta 58 → 85), so four Sync notes snapped to them moved: alpha's Phaser (dotted 1/8 → 1/4), theta's
+  Tremolo and Delay (→ triplet 1/4) and theta's bank lane c (triplet 1/8 → 1/8). No other value moved.
+- Mutation check (T12): the plain draw restored; `Math.floor` for `Math.round`; a fixed 40–100 band for the theme's;
+  the dataId renamed to the bare `bpm` — 4 of 4 killed. Full suite: 13,330 passed.
