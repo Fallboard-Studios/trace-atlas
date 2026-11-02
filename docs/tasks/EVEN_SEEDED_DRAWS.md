@@ -165,7 +165,7 @@ they share a source file and a test file.
 
   **Estimated scope:** XS (a run and a record)
 
-- [ ] **Task 1: getSeededVal.ts — `getUniformSeededVal` takes a band**
+- [x] **Task 1: getSeededVal.ts — `getUniformSeededVal` takes a band**
 
   **Description:** Add `min = 0, max = 1` to `getUniformSeededVal`, mapping its `[0, 1)` draw linearly onto the band.
   The defaults keep every existing caller identical: stations, sends, the deal, the pedals, humanize and the LFO
@@ -176,12 +176,12 @@ they share a source file and a test file.
   the extra arguments are ignored.
 
   **Acceptance criteria:**
-  - [ ] `getUniformSeededVal(map, id, off, min, max)` returns `min + getUniformSeededVal(map, id, off) × (max − min)`.
-  - [ ] Called without a band, it returns exactly what it returns today. The existing cases pass unmodified.
+  - [x] `getUniformSeededVal(map, id, off, min, max)` returns `min + getUniformSeededVal(map, id, off) × (max − min)`.
+  - [x] Called without a band, it returns exactly what it returns today. The existing cases pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/getSeededVal.test.ts` passes, and the full suite stays green (no caller moved).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/getSeededVal.test.ts` passes, and the full suite stays green (no caller moved).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
