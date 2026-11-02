@@ -604,7 +604,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
 ### Phase 4: Swells and drift
 
-- [ ] **Task 16: audioSwells.ts — every per-measure roll draws even**
+- [x] **Task 16: audioSwells.ts — every per-measure roll draws even**
 
   **Description:** Switch the two triggers, both target picks, the direction tiebreak, the peaks, the rise/fall split,
   the company chance, pick, attribute and direction. `frequencyToPerTickChance` and `SWELL_COMPANY_CHANCE` (0.15) are
@@ -622,9 +622,9 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   Pin any style a case needs with its own id (the worldTransition gotcha: the style noise map is cached by id alone).
 
   **Acceptance criteria:**
-  - [ ] Every swell roll is even.
-  - [ ] The trigger and company shares are their written numbers.
-  - [ ] The stub-driven cases pass through T3 unmodified in intent.
+  - [x] Every swell roll is even.
+  - [x] The trigger and company shares are their written numbers.
+  - [x] The stub-driven cases pass through T3 unmodified in intent.
 
   **Verification:** As Task 4 (expected repairs: `sessionDiff.test.ts`'s four mid-swell saves and
   `powerController.world.test.ts`'s paused-swells case, both onto T3's maps). No documented-flaky swell test is
@@ -1090,6 +1090,35 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   `Number.isInteger(value * 100)`, which fails for a value exactly on the grid (0.56 × 100 is 56.00000000000001); the
   plain draw's three values happened to multiply cleanly. It now checks the grid to 1e-9 and that the value is
   `Math.round(value * 100) / 100`. `globalAudioSeed.ts` no longer imports `getSeededVal`.
+
+### Phase 4: deviations
+
+- Started 2026-11-02 at Crawford's word ("implement each task in phase 4"); Checkpoint B's review line is taken as
+  passed by that. Its harness line (the global section) is run with T18's after-measurements, which re-run the whole
+  harness.
+- T16: the cases clear the pool after every tick (`stopAudioSwells`), so every tick rolls with an empty pool and "of
+  eligible ticks" is every tick. The global case runs 300 styles × 400 ticks at Frequency 2, one tick per measure at a
+  different 16n position (measure `i + (i % 16) / 16`). The company case runs 100 styles × 100 ticks at Frequency 16
+  (every trigger passes) over one robot that every robot attribute is live on, in one company, so the company path
+  always starts a swell. The plan's "the target pick reaches every eligible target" became a share: each of the 7
+  global targets at 1/7 ± 2 points, and each of the 16 attributes at 1/16 ± 1.5 points of the single-robot pick (about
+  8,500 swells); the company attribute pick reaches all 16. A fourth case proves the draw underneath: over that run,
+  `getSeededVal` is never called with an `audioSwell.` dataId, and the even draw is called for every roll family
+  (both triggers and target picks, the company chance, pick, attribute and direction, a global and a robot peak, both
+  tiebreaks, both splits).
+- T16 before the switch: 3.1 % of ticks started a global swell at Frequency 2 (T0's 4.4 % was measured at offset
+  0..399 whole measures), the company path took 4.4 %, and `eq3.low` was picked 3.7 % of the time (even: 14.3 %).
+- T16 repairs: `audioSwells.test.ts` takes T3's `constantNoiseMap` and `noiseMapForDataIds` and the `steerSeededDraws`
+  mock (with `getSeededVal` wrapped too, for the fourth case); all 168 existing cases passed unmodified. The two
+  send cases in `sessionDiff.test.ts` failed as predicted; they, the global mid-swell save there and
+  `powerController.world.test.ts`' paused-swells case (both of which still passed, by luck of where three −1s hash)
+  moved onto T3's maps. `robotSendsParity.test.ts`' swell case (roadmap 55's oracle) failed too, not predicted by the
+  probe; it moved onto `noiseMapForDataIds` with the same forced dataIds. Its unnamed draws land mid-band, as the old
+  stub's `?? 0` did, so the recorded `SWELL_PRIMES` hold unchanged: **no re-recording**.
+- Mutation check (T16): each of the 14 draw lines put back on `getSeededVal`; `SWELL_COMPANY_CHANCE` 0.15 → 0.2 and
+  → 0.1 — 16 of 16 killed, after one fix. The 0.2 mutant first **survived**: the company case compared the share to
+  the constant itself. It now holds the written 15 % as a literal.
+- T16 full suite: 13,345 passed, 352 files.
 - Mutation check (T15): each of the three draws put back on `getSeededVal`; the duration floored instead of snapped —
   4 of 4 killed (a first run reported two survivors because the harness's line numbers were one off and only the import
   changed; re-run on the right lines). Full suite: 13,341 passed.

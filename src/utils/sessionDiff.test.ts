@@ -40,6 +40,13 @@ vi.mock('../data/bands/aspects', async (importOriginal) => {
   };
 });
 
+// The swell rolls draw even (docs/tasks/EVEN_SEEDED_DRAWS.md T16), so the mid-swell cases force them through T3's
+// tagged stub maps, which this wrapper steers; a real map passes through to the real draw.
+vi.mock('./getSeededVal', async (importOriginal) => {
+  const { steerSeededDraws } = await import('../testUtils/seededDraws');
+  return steerSeededDraws(await importOriginal<typeof import('./getSeededVal')>());
+});
+
 import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload, applySessionPayload } from './sessionDiff';
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
@@ -56,7 +63,7 @@ import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
 import * as audioSwells from '../systems/audioSwells';
-import { precomputeDataX } from './getSeededVal';
+import { constantNoiseMap, noiseMapForDataIds } from '../testUtils/seededDraws';
 import * as noiseMaps from './noiseMaps';
 import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
@@ -692,7 +699,7 @@ describe('buildSessionPayload', () => {
     const localeId = setupWorld();
     useAudioStore.setState({ swellFrequency: 16, swellDuration: 15 });
     // Every draw at its minimum: target index 0, eq3.low. Restored below so no other test in this file sees it.
-    const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(() => -1);
+    const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(constantNoiseMap(-1));
     try {
       tickAudioSwells(localeId, 0);
       const swell = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
@@ -987,13 +994,12 @@ describe('applySessionPayload', () => {
       spawnInitialCompanies(localeId);
       const { swellFrequency, swellDuration, pingVarianceAutomation } = useAudioStore.getState();
       useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
-      const byX = new Map<number, number>([
-        [precomputeDataX('audioSwell.trigger.robot'), -1], // the robot pool fires
-        [precomputeDataX('audioSwell.company.chance'), 1], // a single-robot swell
-        [precomputeDataX('audioSwell.target.robot'), 1], // the last eligible pair: a send
-        [precomputeDataX('audioSwell.trigger.global'), 1], // the global pool stays quiet
-      ]);
-      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(noiseMapForDataIds({
+        'audioSwell.trigger.robot': -1, // the robot pool fires
+        'audioSwell.company.chance': 1, // a single-robot swell
+        'audioSwell.target.robot': 1, // the last eligible pair: a send
+        'audioSwell.trigger.global': 1, // the global pool stays quiet
+      }));
       try {
         tickAudioSwells(localeId, 0);
         const swell = getActiveSwellSnapshot('robot').find((s) => (SEND_FIELDS as readonly string[]).includes(s.robotAttribute!))!;
@@ -1664,13 +1670,12 @@ describe('applySessionPayload', () => {
     it('a session saved mid-swell stores the base send, not the interpolated one', () => {
       const { localeId, robots } = seededWorld();
       useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
-      const byX = new Map<number, number>([
-        [precomputeDataX('audioSwell.trigger.robot'), -1], // the robot pool fires
-        [precomputeDataX('audioSwell.company.chance'), 1], // a single-robot swell
-        [precomputeDataX('audioSwell.target.robot'), 1], // the last eligible pair
-        [precomputeDataX('audioSwell.trigger.global'), 1], // the global pool stays quiet
-      ]);
-      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(noiseMapForDataIds({
+        'audioSwell.trigger.robot': -1, // the robot pool fires
+        'audioSwell.company.chance': 1, // a single-robot swell
+        'audioSwell.target.robot': 1, // the last eligible pair
+        'audioSwell.trigger.global': 1, // the global pool stays quiet
+      }));
       try {
         tickAudioSwells(localeId, 0);
         const swell = getActiveSwellSnapshot('robot').find((s) => (SEND_FIELDS as readonly string[]).includes(s.robotAttribute!))!;
@@ -1695,13 +1700,12 @@ describe('applySessionPayload', () => {
     it('a session saved mid-swell on a hand-edited send stores that edited base, not the seed or the ramp', () => {
       const { localeId } = seededWorld();
       useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
-      const byX = new Map<number, number>([
-        [precomputeDataX('audioSwell.trigger.robot'), -1],
-        [precomputeDataX('audioSwell.company.chance'), 1],
-        [precomputeDataX('audioSwell.target.robot'), 1],
-        [precomputeDataX('audioSwell.trigger.global'), 1],
-      ]);
-      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(noiseMapForDataIds({
+        'audioSwell.trigger.robot': -1,
+        'audioSwell.company.chance': 1,
+        'audioSwell.target.robot': 1,
+        'audioSwell.trigger.global': 1,
+      }));
       try {
         // Find the pair the forced start picks, then hand-edit it off its seed and start the swell for real.
         tickAudioSwells(localeId, 0);

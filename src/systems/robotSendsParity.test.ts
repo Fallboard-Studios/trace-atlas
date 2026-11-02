@@ -27,6 +27,13 @@ vi.mock('../engine/beatClock', () => ({
   getCurrentMeasurePrecise: vi.fn(() => 0),
 }));
 
+// The swell rolls draw even (docs/tasks/EVEN_SEEDED_DRAWS.md T16): the swell case forces them through T3's tagged stub
+// maps, which this wrapper steers; every real map, the whole oracle's, passes through to the real draw.
+vi.mock('../utils/getSeededVal', async (importOriginal) => {
+  const { steerSeededDraws } = await import('../testUtils/seededDraws');
+  return steerSeededDraws(await importOriginal<typeof import('../utils/getSeededVal')>());
+});
+
 import alea from 'alea';
 import { createNoise2D } from 'simplex-noise';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -42,7 +49,7 @@ import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from './audi
 import { buildSessionPayload, applySessionPayload } from '../utils/sessionDiff';
 import { decodeBlob, decodeWorldLink, encodeBlob, encodeWorldLinkParams } from '../utils/worldLink';
 import { toCompactWorldDiff } from '../utils/worldDiffCodec';
-import { precomputeDataX } from '../utils/getSeededVal';
+import { noiseMapForDataIds } from '../testUtils/seededDraws';
 import * as noiseMaps from '../utils/noiseMaps';
 
 afterEach(() => {
@@ -296,20 +303,22 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
       const localeId = setupWorld('swell');
       spawnInitialRoster(localeId);
       useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
-      const byX = new Map<number, number>([
-        [precomputeDataX('audioSwell.trigger.robot'), -1], // the robot pool fires
-        [precomputeDataX('audioSwell.company.chance'), 1], // a single-robot swell
-        [precomputeDataX('audioSwell.target.robot'), 1], // the last eligible pair
-        [precomputeDataX('audioSwell.trigger.global'), 1], // the global pool stays quiet
-      ]);
-      vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      // Every draw not named lands mid-band (T3's fallback 0, the old stub's `?? 0`), so the swell is the recorded one.
+      const forced = {
+        'audioSwell.trigger.robot': -1, // the robot pool fires
+        'audioSwell.company.chance': 1, // a single-robot swell
+        'audioSwell.target.robot': 1, // the last eligible pair
+        'audioSwell.trigger.global': 1, // the global pool stays quiet
+      };
+      const styleMap = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(noiseMapForDataIds(forced));
 
       const primes = recordPrimes(() => {
         tickAudioSwells(localeId, 0);
         const swell = getActiveSwellSnapshot('robot')[0];
         expect(SEND_FIELDS as readonly string[]).toContain(swell?.robotAttribute); // precondition: the start is a send
         expect(getActiveSwellSnapshot('robot')).toHaveLength(1);
-        byX.set(precomputeDataX('audioSwell.trigger.robot'), 1); // no further starts: this one swell rides to its landing
+        // No further starts: this one swell rides to its landing.
+        styleMap.mockReturnValue(noiseMapForDataIds({ ...forced, 'audioSwell.trigger.robot': 1 }));
         for (let measure = 1; measure <= 40; measure++) tickAudioSwells(localeId, measure);
         expect(getActiveSwellSnapshot('robot')).toEqual([]); // precondition: it ran to its landing
       });

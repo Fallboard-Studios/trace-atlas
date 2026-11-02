@@ -26,7 +26,7 @@ import type { NoiseFunction2D } from 'simplex-noise';
 
 import { applyVolume, applyLayersContinuous, applyAdsr, applySendValue } from './robotOptionsActions';
 import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
-import { getSeededVal } from '@/utils/getSeededVal';
+import { getUniformSeededVal } from '@/utils/getSeededVal';
 import { timeArg } from '@/utils/timeArg';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
@@ -299,7 +299,7 @@ function pickSwellDirection(
   const midpoint = (min + max) / 2;
   if (currentValue < midpoint) return true;
   if (currentValue > midpoint) return false;
-  return getSeededVal(noiseMap, `${dataId}.tiebreak`, offset, 0, 1) < 0.5;
+  return getUniformSeededVal(noiseMap, `${dataId}.tiebreak`, offset, 0, 1) < 0.5;
 }
 
 /**
@@ -323,11 +323,11 @@ function peakDeltaForDirection(
   const halfSpan = (max - min) * SWELL_MIN_RANGE_FRACTION;
   if (goingUp) {
     const floor = Math.min(currentValue + halfSpan, max);
-    const peak = getSeededVal(noiseMap, dataId, offset, floor, max);
+    const peak = getUniformSeededVal(noiseMap, dataId, offset, floor, max);
     return peak - currentValue;
   } else {
     const floor = Math.max(currentValue - halfSpan, min);
-    const peak = getSeededVal(noiseMap, dataId, offset, min, floor);
+    const peak = getUniformSeededVal(noiseMap, dataId, offset, min, floor);
     return peak - currentValue;
   }
 }
@@ -354,11 +354,11 @@ function peakDeltaCappedByFraction(
   const cap = (max - min) * maxSwingFraction;
   if (goingUp) {
     const cappedEdge = Math.min(currentValue + cap, max);
-    const peak = getSeededVal(noiseMap, dataId, offset, currentValue, cappedEdge);
+    const peak = getUniformSeededVal(noiseMap, dataId, offset, currentValue, cappedEdge);
     return peak - currentValue;
   } else {
     const cappedEdge = Math.max(currentValue - cap, min);
-    const peak = getSeededVal(noiseMap, dataId, offset, cappedEdge, currentValue);
+    const peak = getUniformSeededVal(noiseMap, dataId, offset, cappedEdge, currentValue);
     return peak - currentValue;
   }
 }
@@ -397,7 +397,7 @@ function pickSwellSplit(
   offset: number,
   totalMeasures: number,
 ): [risingMeasures: number, fallingMeasures: number] {
-  const risingFraction = getSeededVal(noiseMap, `${dataId}.split`, offset, SWELL_SPLIT_MIN_FRACTION, SWELL_SPLIT_MAX_FRACTION);
+  const risingFraction = getUniformSeededVal(noiseMap, `${dataId}.split`, offset, SWELL_SPLIT_MIN_FRACTION, SWELL_SPLIT_MAX_FRACTION);
   const rising = Math.max(1, Math.round(totalMeasures * risingFraction));
   const falling = Math.max(1, Math.round(totalMeasures - rising));
   return [rising, falling];
@@ -528,13 +528,13 @@ function clampGlobalPeak(target: SwellGlobalTargetId, currentValue: number, peak
 function maybeStartGlobalSwell(noiseMap: NoiseFunction2D, measure: number, intensity: number, frequency: number, duration: number): void {
   if (activeSwellCount('global') >= MAX_CONCURRENT_SWELLS_PER_POOL) return;
 
-  const triggerRoll = getSeededVal(noiseMap, 'audioSwell.trigger.global', measure, 0, 1);
+  const triggerRoll = getUniformSeededVal(noiseMap, 'audioSwell.trigger.global', measure, 0, 1);
   if (triggerRoll >= frequencyToPerTickChance(frequency)) return;
 
   const eligible = SWELL_GLOBAL_TARGET_IDS.filter(isGlobalTargetEligible);
   if (eligible.length === 0) return;
 
-  const rawIndex = getSeededVal(noiseMap, 'audioSwell.target.global', measure, 0, eligible.length);
+  const rawIndex = getUniformSeededVal(noiseMap, 'audioSwell.target.global', measure, 0, eligible.length);
   const target = eligible[Math.min(eligible.length - 1, Math.floor(rawIndex))];
 
   const meta = GLOBAL_TARGET_META[target];
@@ -583,13 +583,13 @@ function isRobotAttributeEligible(robot: Robot, attribute: SwellRobotAttributeId
 function maybeStartRobotSwell(localeId: string, noiseMap: NoiseFunction2D, measure: number, intensity: number, frequency: number, duration: number): void {
   if (activeSwellCount('robot') >= MAX_CONCURRENT_SWELLS_PER_POOL) return;
 
-  const triggerRoll = getSeededVal(noiseMap, 'audioSwell.trigger.robot', measure, 0, 1);
+  const triggerRoll = getUniformSeededVal(noiseMap, 'audioSwell.trigger.robot', measure, 0, 1);
   if (triggerRoll >= frequencyToPerTickChance(frequency)) return;
 
   const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
   const companies = useLocaleStore.getState().getLocaleById(localeId)?.companies ?? [];
 
-  const companyRoll = getSeededVal(noiseMap, 'audioSwell.company.chance', measure, 0, 1);
+  const companyRoll = getUniformSeededVal(noiseMap, 'audioSwell.company.chance', measure, 0, 1);
   if (companyRoll < SWELL_COMPANY_CHANCE && companies.length > 0) {
     startCompanyWideSwell(companies, robots, noiseMap, measure, intensity, duration);
     return;
@@ -609,7 +609,7 @@ function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measu
   }
   if (eligiblePairs.length === 0) return;
 
-  const rawIndex = getSeededVal(noiseMap, 'audioSwell.target.robot', measure, 0, eligiblePairs.length);
+  const rawIndex = getUniformSeededVal(noiseMap, 'audioSwell.target.robot', measure, 0, eligiblePairs.length);
   const { robot, attribute } = eligiblePairs[Math.min(eligiblePairs.length - 1, Math.floor(rawIndex))];
 
   const range = ROBOT_SWELL_FIELD_RANGE[attribute];
@@ -652,13 +652,13 @@ function startSingleRobotSwell(robots: Robot[], noiseMap: NoiseFunction2D, measu
 function startCompanyWideSwell(companies: Company[], robots: Robot[], noiseMap: NoiseFunction2D, measure: number, intensity: number, duration: number): void {
   const companyIndex = Math.min(
     companies.length - 1,
-    Math.floor(getSeededVal(noiseMap, 'audioSwell.company.pick', measure, 0, companies.length))
+    Math.floor(getUniformSeededVal(noiseMap, 'audioSwell.company.pick', measure, 0, companies.length))
   );
   const company = companies[companyIndex];
 
   const attributeIndex = Math.min(
     SWELL_ROBOT_ATTRIBUTE_IDS.length - 1,
-    Math.floor(getSeededVal(noiseMap, 'audioSwell.company.attribute', measure, 0, SWELL_ROBOT_ATTRIBUTE_IDS.length))
+    Math.floor(getUniformSeededVal(noiseMap, 'audioSwell.company.attribute', measure, 0, SWELL_ROBOT_ATTRIBUTE_IDS.length))
   );
   const attribute = SWELL_ROBOT_ATTRIBUTE_IDS[attributeIndex];
 
@@ -667,7 +667,7 @@ function startCompanyWideSwell(companies: Company[], robots: Robot[], noiseMap: 
     .filter((r): r is Robot => r !== undefined && isRobotAttributeEligible(r, attribute));
   if (memberRobots.length === 0) return; // no swell starts this tick (§1.5)
 
-  const goingUp = getSeededVal(noiseMap, 'audioSwell.company.direction', measure, 0, 1) < 0.5;
+  const goingUp = getUniformSeededVal(noiseMap, 'audioSwell.company.direction', measure, 0, 1) < 0.5;
   const [risingMeasures, fallingMeasures] = pickSwellSplit(noiseMap, 'audioSwell.company.duration', measure, duration);
 
   const range = ROBOT_SWELL_FIELD_RANGE[attribute];
