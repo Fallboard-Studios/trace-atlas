@@ -149,6 +149,9 @@ src/
 ├── stores/
 │   ├── sessionStore.ts        # keepWorld, isPayloadDirty (isWorldDirty delegates)
 │   └── sessionStore.test.ts
+├── utils/
+│   ├── describeWorld.ts       # describeLoading (the loading tail, lifted out) and withTail; describeWorld calls both
+│   └── describeWorld.test.ts  # describeLoading's cases; the describeWorld cases unmodified
 └── content/copy/
     └── home.ts                # home.off.newTransmission, home.off.scan; home.off.roll removed
 docs/
@@ -156,8 +159,11 @@ docs/
 └── todo/                      # the item's number, its plan.md line
 ```
 
-Nothing in `systems/`, `utils/` or `animation/` changes. `retransmitWorld`, `applySessionPayload`, `requestWorldChange`
-and `cancelWorldChange` are used as they are.
+Nothing in `systems/` or `animation/` changes, and in `utils/` only `describeWorld.ts`: the selected row's tail (§1.3)
+reuses its loading tail, and its ` · ` join, rather than repeating them in the component (the plan's deviation,
+[docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md),
+Architecture Decisions). `retransmitWorld`, `applySessionPayload`, `requestWorldChange` and `cancelWorldChange` are
+used as they are.
 
 ---
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { describeWorld } from './describeWorld';
+import { describeLoading, describeWorld } from './describeWorld';
 import { labels } from '@/content';
 
 /*
@@ -115,6 +115,33 @@ describe('describeWorld', () => {
     it('an unknown theme id reads as Classic', () => {
       // @ts-expect-error the type rejects it; the run-time check is for untrusted input (a stale save)
       expect(describeWorld({ ...plot, theme: 'stormy', aspects: {} })).toBe('tr3nch-2 · (-30, -30)');
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 4: the loading tail on its own, for the off screen's
+  // selected row ("Harbour Song · Calm"), which also names Classic when the row's own theme was another.
+  describe('describeLoading', () => {
+    it('is the tail describeWorld carries, without the head: empty for Classic with no picks', () => {
+      expect(describeLoading('classic', {})).toBe('');
+      expect(describeLoading('calm', { melody: ['hypnotic', 'wandering'], distance: ['remote'] })).toBe(
+        `${labels('home.off.theme.calm').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.wandering').humanLabel} · ${labels('home.off.distance.remote').humanLabel}`,
+      );
+      expect(describeLoading('classic', { melody: ['hypnotic'] })).toBe(labels('home.off.melody.hypnotic').humanLabel);
+    });
+
+    it('with nameTheme, names the theme even when it is Classic', () => {
+      const classic = labels('home.off.theme.classic').humanLabel;
+      expect(describeLoading('classic', {}, { nameTheme: true })).toBe(classic);
+      expect(describeLoading('classic', { melody: ['hypnotic'] }, { nameTheme: true })).toBe(
+        `${classic} · ${labels('home.off.melody.hypnotic').humanLabel}`,
+      );
+      expect(describeLoading('calm', {}, { nameTheme: true })).toBe(labels('home.off.theme.calm').humanLabel);
+      expect(describeLoading('classic', {}, { nameTheme: false })).toBe('');
+    });
+
+    it('with nameTheme, an unknown theme id is still left out', () => {
+      // @ts-expect-error the type rejects it; the run-time check is for untrusted input (a stale save)
+      expect(describeLoading('stormy', {}, { nameTheme: true })).toBe('');
     });
   });
 

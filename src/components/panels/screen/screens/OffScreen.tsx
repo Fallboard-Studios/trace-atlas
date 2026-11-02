@@ -27,7 +27,7 @@ import { useLoadingStore } from '@/stores/loadingStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { formatSessionTimestamp } from '@/utils/helpers';
-import { describeWorld } from '@/utils/describeWorld';
+import { describeLoading, describeWorld, withTail } from '@/utils/describeWorld';
 import { aspectDescription, aspectName, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
 import { setRef, deleteRef } from '@/utils/refs';
 import { killTimeline } from '@/animation/timelineMap';
@@ -314,9 +314,11 @@ export function OffScreen() {
     }
     return describeWorld({ ...liveWorld, theme, aspects }, waiting.roll ? undefined : (loadedSessionName ?? undefined));
   };
+  // A save's or preset's world is named under the loading shown: the intent's while a change waits, the live world's once
+  // it has landed, so an edit in place shows (spec §1.3). Its seed and plot are the pick's: only the loading moves in place.
   const readout =
     'identity' in shownPick
-      ? describeWorld(intent ? { ...shownPick.identity, theme: intent.theme, aspects: intent.aspects } : shownPick.identity, shownPick.name)
+      ? describeWorld({ ...shownPick.identity, theme: shownTheme, aspects: shownAspects }, shownPick.name)
       : intent
         ? intendedWorld(intent)
         : liveLabel;
@@ -399,8 +401,19 @@ export function OffScreen() {
     [pick, shownTheme, shownAspects],
   );
 
-  const schema = useMemo<RadioButtonSchema>(
-    () => ({
+  // The selected save's or preset's tail (spec §1.3): the shown loading, while it is not the row's own, named after its
+  // own name, the theme included whenever it differs from the row's (Classic too). Current never carries one: its name
+  // already holds its loading. Not stored: the row reads as stored again once it is left.
+  const own = 'identity' in shownPick ? shownPick.identity : null;
+  const edited =
+    own !== null &&
+    (shownTheme !== own.theme || !deepEqual(canonicalAspects(shownAspects), canonicalAspects(own.aspects)));
+  const selectedTail = edited ? describeLoading(shownTheme, shownAspects, { nameTheme: shownTheme !== own.theme }) : '';
+  const selectedValue = shownPick.value;
+
+  const schema = useMemo<RadioButtonSchema>(() => {
+    const tailed = (value: string, name: string) => (value === selectedValue ? withTail(name, selectedTail) : name);
+    return {
       id: 'offTransmission',
       type: 'radio',
       ...TRANSMISSION,
@@ -410,19 +423,18 @@ export function OffScreen() {
         { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: CURRENT.humanLabel },
         ...saves.map((save) => ({
           value: SAVE_PREFIX + save.name,
-          humanLabel: save.name,
+          humanLabel: tailed(SAVE_PREFIX + save.name, save.name),
           meta: fill('home.off.savedAt', { time: formatSessionTimestamp(save.savedAt) }),
         })),
         ...TRANSMISSION_PRESETS.map((preset, i) => ({
           value: PRESET_PREFIX + preset.id,
-          humanLabel: labels(preset.nameKey).humanLabel,
+          humanLabel: tailed(PRESET_PREFIX + preset.id, labels(preset.nameKey).humanLabel),
           // The rule between the saves and the presets — only when there are saves to rule off.
           dividerBefore: i === 0 && saves.length > 0,
         })),
       ],
-    }),
-    [currentLabel, saves],
-  );
+    };
+  }, [currentLabel, saves, selectedValue, selectedTail]);
 
   const onChange = useCallback((value: string) => {
     if (value === CURRENT_VALUE) {
