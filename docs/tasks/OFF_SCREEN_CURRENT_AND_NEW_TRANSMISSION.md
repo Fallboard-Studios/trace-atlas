@@ -69,7 +69,7 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
 ### Phase 0: Record
 
-- [ ] **Task 0: `docs/todo/` — number the item 64 and put it first in Stage 1**
+- [x] **Task 0: `docs/todo/` — number the item 64 and put it first in Stage 1**
 
   **Description:** Add backlog 64 to `backlog.md`: a short entry pointing at the intent, the spec and this plan. Bump
   the header's next free number to 65. Add a line at the top of plan.md's Stage 1, ahead of roadmap 58. Change the
@@ -78,11 +78,11 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Backlog 64 exists and links the three docs. The next free number reads 65.
-  - [ ] plan.md's Stage 1 opens with 64.
+  - [x] Backlog 64 exists and links the three docs. The next free number reads 65.
+  - [x] plan.md's Stage 1 opens with 64.
 
   **Verification:**
-  - [ ] Every new link resolves (file and anchor).
+  - [x] Every new link resolves (file and anchor).
 
   **Dependencies:** None. **Files:** `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/intent/off-screen-current-and-new-transmission.md`
 
@@ -90,7 +90,7 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
 ### Phase 1: The store's half of Keep
 
-- [ ] **Task 1: `sessionStore.ts` — `keepWorld(payload, loadedName)` and `isPayloadDirty(payload, loadedName)`**
+- [x] **Task 1: `sessionStore.ts` — `keepWorld(payload, loadedName)` and `isPayloadDirty(payload, loadedName)`**
 
   **Description:** Spec §1.4. `keepWorld` saves the given payload under `loadedName`. When that's null or blank, it
   saves under `unusedSessionName('')`. It returns the name and writes no session field. `isPayloadDirty` is today's
@@ -105,13 +105,13 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
     name with no save.
 
   **Acceptance criteria:**
-  - [ ] The four cases pass. The existing `keepCurrentWorld` and `isWorldDirty` cases pass unmodified.
+  - [x] The four cases pass. The existing `keepCurrentWorld` and `isWorldDirty` cases pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/sessionStore.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
-  - [ ] Mutants: `keepWorld` saving `buildSessionPayload()`; `keepWorld` setting `currentLoadedSessionName`;
+  - [x] `npx vitest run src/stores/sessionStore.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
+  - [x] Mutants: `keepWorld` saving `buildSessionPayload()`; `keepWorld` setting `currentLoadedSessionName`;
         `isPayloadDirty` ignoring its payload.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None. **Files:** `src/stores/sessionStore.ts`, `src/stores/sessionStore.test.ts`
 
@@ -119,7 +119,7 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
 ### Phase 2: Current becomes an anchor
 
-- [ ] **Task 2: `OffScreen.tsx` — a theme or aspect click keeps the selected row**
+- [x] **Task 2: `OffScreen.tsx` — a theme or aspect click keeps the selected row**
 
   **Description:** Spec §1.1 row 6 and §1.3's last bullet:
   - `onThemeChange` and `onFamilyChange` stop calling `setPick(CURRENT_PICK)`.
@@ -134,25 +134,25 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   then the cover: the save's row is still checked.
 
   **Acceptance criteria:**
-  - [ ] The new cases pass.
-  - [ ] These cases are rewritten to the new rule, each named in the commit:
+  - [x] The new cases pass.
+  - [x] These cases are rewritten to the new rule, each named in the commit:
     - `a theme pick drops the world row to Current…` (`:358`);
     - `a change drops the world row to Current…` (`:576`);
     - `a family change drops the world row to Current…` (`:759`);
     - F12's `lands the save, then the theme over it; the row then drops to Current…` (`:1711`).
-  - [ ] Every other case passes unmodified.
+  - [x] Every other case passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx`
-  - [ ] Mutants: `setPick(CURRENT_PICK)` restored in either handler; the drop restored in `realise`; the Loading rows
+  - [x] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx`
+  - [x] Mutants: `setPick(CURRENT_PICK)` restored in either handler; the drop restored in `realise`; the Loading rows
         reading the pick's identity after it lands.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`
 
   **Estimated scope:** S (one component, three small changes)
 
-- [ ] **Task 3: `OffScreen.tsx` — the snapshot: Current keeps its name, and picking it restores or cancels**
+- [x] **Task 3: `OffScreen.tsx` — the snapshot: Current keeps its name, and picking it restores or cancels**
 
   **Description:** Spec §1.1 (the Current rows), §1.2 and §1.5:
   - **The snapshot and `leaveCurrent()`:** `snapshotRef` and `snapshot` (`CurrentSnapshot`), plus `leaveCurrent()`,
@@ -179,30 +179,30 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   - A save lands, Current waits, then a preset: only the preset lands, and Current's label still names the snapshot.
 
   **Acceptance criteria:**
-  - [ ] The five cases pass.
-  - [ ] These cases are rewritten to the new rule, each named in the commit:
+  - [x] The five cases pass.
+  - [x] These cases are rewritten to the new rule, each named in the commit:
     - R3's `a save, then Current, then a theme pick: Current cancels the save…` (`:1518`) and `a preset then Current
       applies nothing…` (`:1550`), which stay true as cancels and only change if their setup lands the pick;
     - F12's two `then Current cancels…` cases (`:1670`, `:1699`);
     - `follows the loaded world: a change of Attenuation Style renames the row…` (`:856`), which still holds with no
       snapshot.
-  - [ ] Every other case passes unmodified.
+  - [x] Every other case passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx`
-  - [ ] Mutants:
+  - [x] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx`
+  - [x] Mutants:
     - the snapshot taken on mount (the theme-on-Current case fails);
     - the snapshot never dropped after a restore;
     - the cancel branch always restoring;
     - the restore not re-attaching the name;
     - `landed` never set.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`
 
   **Estimated scope:** M (the heart of the change; one component and its test, about ten cases touched)
 
-- [ ] **Task 4: `describeWorld.ts` + `OffScreen.tsx` — the selected row's tail, and a readout of the live world**
+- [x] **Task 4: `describeWorld.ts` + `OffScreen.tsx` — the selected row's tail, and a readout of the live world**
 
   **Description:** Spec §1.3:
   - Lift the loading tail out of `describeWorld` into an exported `describeLoading(theme, aspects, { nameTheme })`.
@@ -222,23 +222,26 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   `src/utils/describeWorld.test.ts` passes unmodified, with one new case for `nameTheme`.
 
   **Acceptance criteria:**
-  - [ ] The cases pass. `describeWorld`'s output is byte-identical for every existing case.
-  - [ ] Current never shows a tail: its name already carries its loading.
+  - [x] The cases pass. `describeWorld`'s output is byte-identical for every existing case.
+  - [x] Current never shows a tail: its name already carries its loading.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/describeWorld.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
-  - [ ] Mutants: the tail always shown; `nameTheme` ignored (the Classic case fails); the readout reading the pick's
+  - [x] `npx vitest run src/utils/describeWorld.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
+  - [x] Mutants: the tail always shown; `nameTheme` ignored (the Classic case fails); the readout reading the pick's
         stored identity after landing.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 3. **Files:** `src/utils/describeWorld.ts`, `src/utils/describeWorld.test.ts`, `OffScreen.tsx`, `OffScreen.test.tsx`, the spec
 
   **Estimated scope:** M (four source and test files, a small lift)
 
 ### Checkpoint 1: Current is an anchor
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] A save pick, a theme on it and Current back all behave as the spec's table says. Roll is still on Current's row.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] A save pick, a theme on it and Current back all behave as the spec's table says. Roll is still on Current's row.
+- [x] Reviewed with Crawford before Phase 3.
+  - 2026-11-02: passed. `npm test` had one failure, `sceneToOrbiterLocal`'s 50-gem round-trip timing out under the
+    parallel run; it passes alone. Decided: a save whose only edit is clearing its aspects under Classic shows no
+    tail (`describeLoading('classic', {})` is empty), and that is fine.
 
 ---
 
