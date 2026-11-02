@@ -3,7 +3,7 @@
 Confirmed via `interview-me` on 2026-11-02 (7 questions; one redirect: Roll was first moved to its own button above
 Current, then became the New Transmission row with Scan in it). Ahead of a `spec-driven-development` pass. A revision of
 roadmap [57](../todo/archive/roadmap-archive.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table)'s
-Transmission list (`src/components/panels/screen/screens/OffScreen.tsx`). Not yet numbered on the roadmap or backlog.
+Transmission list (`src/components/panels/screen/screens/OffScreen.tsx`). Backlog [64](../todo/backlog.md#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan).
 
 ## Why
 

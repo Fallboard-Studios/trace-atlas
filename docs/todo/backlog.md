@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 64.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 65.
 
 ## Open items
 
@@ -694,6 +694,9 @@ own commit, and the item archives when the list is empty.
   [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrites the theme and aspect sentences; the rest is here.
 - 2026-11-02 — Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or
   Roll): a warning, not an error, to silence or accept.
+- 2026-11-02 — The off screen's unsaved line (`home.off.unsavedWarning`, "Picking another transmission discards this
+  world's unsaved changes."): under backlog [64](#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan)
+  picking no longer discards Current, powering on into another row does. Reword it.
 
 ### 63. Style Fixes (a Bucket)
 
@@ -702,3 +705,14 @@ Opened by Crawford at the 2026-11-02 plan review: visual chrome fixes collected 
 per item, dated; each becomes its own commit when the pass runs, and the item archives when the list is empty.
 
 - (none yet)
+
+### 64. Off Screen: Current Stays the World You Came From, and a New Transmission Row with Scan
+
+Raised by Crawford at Checkpoint 5's Look in [OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md), 2026-11-02:
+Current renamed itself to every pick, and its only power over one (cancelling it, R3/F12) lasted the wash's 0.5 s fade.
+The fix: Current becomes a runtime snapshot of the world you powered off on, restored when picked and saved by Keep; a
+New Transmission row above it holds a fresh draw, with Scan in its row in place of Roll; and a theme or aspect click
+keeps whichever row is selected. Intent: [off-screen-current-and-new-transmission.md](../intent/off-screen-current-and-new-transmission.md).
+Spec: [OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan:
+[OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan.md Stage 1,
+ahead of roadmap 58.
