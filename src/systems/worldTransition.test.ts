@@ -1159,6 +1159,7 @@ describe('worldTransition', () => {
       };
 
       it('drops a swell on the LPF cutoff the theme moves: the new seeded value stands past the swell\'s would-be end', () => {
+        pinStyle();
         initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
         const measure = startSwellsOn(['lpf.frequency']);
         const oldBase = swellOn('lpf.frequency')!.baseValue!;
@@ -1173,6 +1174,7 @@ describe('worldTransition', () => {
       });
 
       it('keeps a swell on a field the theme leaves standing (eq3.low): it rides on and ends on its own base', () => {
+        pinStyle();
         initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
         const measure = startSwellsOn(['eq3.low', 'lpf.frequency']);
         const before = swellOn('eq3.low')!;
@@ -1184,6 +1186,7 @@ describe('worldTransition', () => {
       });
 
       it('paused before the theme, Keep saves the new LPF value, not the dropped swell\'s old base', () => {
+        pinStyle();
         initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
         startSwellsOn(['lpf.frequency']);
         const oldBase = swellOn('lpf.frequency')!.baseValue!;

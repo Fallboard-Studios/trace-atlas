@@ -807,7 +807,9 @@ and would drop all six layer swells (F16).
     `worldTransition.test.ts`'s default Attenuation Style name is drawn at random per run, so whether a theme moves a
     bank Sync pick depended on the run's seed. That case and the hand-set Sync case now pin a style (`siw50qfe`, with
     its own id, since the style noise map is cached by id), for which Calm moves lane a and only lane a. The whole
-    file then passed 8 runs of 8.
+    file then passed 8 runs of 8. The next full run (after F21) caught F11's "eq3.low rides on" case the same way:
+    on some seeds the swell tick never put swells on both targets in its window. F11's three cases now pin the style
+    too, and the file passed 8 runs of 8 again.
 
   **Description:**
   - **Today:** `regenerateGlobalHalfFromSeed` reseeds bpm, the whole Audio Rig, the LFO Bank and the global links. So a
