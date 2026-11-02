@@ -24,6 +24,8 @@ import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './no
 import { generateAttenuationStyleBpm } from './bpmSeed';
 import { pickSeedNoteValue } from './tempoSync';
 import { LFO_SHAPE_SEED_ORDER, pickShape } from './lfoShapeDraw';
+import { stepsTToValue, stepsValueToT } from '../components/ui/controls/sliderLogMath';
+import { SWELL_DURATION_SCHEMA, SWELL_FREQUENCY_STEPS } from '../data/audioRigConfig';
 import {
   COLOUR_CHARACTERS,
   COLOUR_CHARACTER_NODES,
@@ -37,6 +39,9 @@ import {
   generateGlobalAudioSettings,
   generateGlobalLfoLinks,
   generateLfoBankSettings,
+  generatePingVarianceAutomation,
+  generateSwellDuration,
+  generateSwellFrequency,
   pickColourCharacter,
   scaleUnitValue,
   type ColourCharacter,
@@ -418,5 +423,42 @@ describe('generateGlobalLfoLinks — the quiet roll and the depth draw even (Eve
 
   it('each target is the even draws at its own dataIds: quiet roll, lane and depth', () => {
     for (const { noiseMap, links } of LINKS.slice(0, 300)) expect(links).toStrictEqual(expectedLinks(noiseMap));
+  });
+});
+
+describe('the pacing draws — ping variance, swell frequency and swell duration draw even (Even Seeded Draws T15)', () => {
+  const PACING = STYLES.map(({ id, name, noiseMap }) => {
+    const pacing = {
+      pingVariance: generatePingVarianceAutomation(id, name),
+      swellFrequency: generateSwellFrequency(id, name),
+      swellDuration: generateSwellDuration(id, name),
+    };
+    evictAttenuationStyleNoiseMap(id);
+    return { noiseMap, ...pacing };
+  });
+  const shareOf = (values: readonly number[], value: number) => values.filter((v) => v === value).length / values.length;
+
+  it('ping variance reaches every whole percent from 10 % to 60 % over 3,000 styles', () => {
+    const seen = new Set(PACING.map((p) => p.pingVariance));
+    for (let percent = 10; percent <= 60; percent++) expect(seen.has(percent / 100), `${percent} %`).toBe(true);
+    expect(seen.size).toBe(51);
+  });
+
+  it('swell frequency and duration each reach both ends of their 2-8 seed range in at least 5 % of styles', () => {
+    for (const field of ['swellFrequency', 'swellDuration'] as const) {
+      const values = PACING.map((p) => p[field]);
+      expect(shareOf(values, 2), `${field} at 2`).toBeGreaterThanOrEqual(0.05);
+      expect(shareOf(values, 8), `${field} at 8`).toBeGreaterThanOrEqual(0.05);
+    }
+  });
+
+  it('each is the even draw at its own dataId over its seed range, onto its own grid', () => {
+    for (const { noiseMap, pingVariance, swellFrequency, swellDuration } of PACING.slice(0, 300)) {
+      expect(pingVariance).toBe(quantizeToStep(getUniformSeededVal(noiseMap, 'globalAudio.pingVarianceAutomation', 0, 0.1, 0.6) * 100, 0, 1) / 100);
+      const frequency = getUniformSeededVal(noiseMap, 'globalAudio.swellFrequency', 0, 2, 8);
+      expect(swellFrequency).toBe(stepsTToValue(stepsValueToT(frequency, SWELL_FREQUENCY_STEPS), SWELL_FREQUENCY_STEPS));
+      const duration = getUniformSeededVal(noiseMap, 'globalAudio.swellDuration', 0, 2, 8);
+      expect(swellDuration).toBe(quantizeToStep(duration, SWELL_DURATION_SCHEMA.min, SWELL_DURATION_SCHEMA.step ?? 1));
+    }
   });
 });

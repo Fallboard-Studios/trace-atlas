@@ -1677,7 +1677,10 @@ describe('generatePingVarianceAutomation', () => {
     const SAMPLE_ATTENUATION_STYLES = 30;
     for (let i = 0; i < SAMPLE_ATTENUATION_STYLES; i++) {
       const value = generatePingVarianceAutomation(`seed-pva-sample-${i}`, `PvaSample${i}`);
-      expect(Number.isInteger(value * 100), `attenuationStyle ${i}: ${value}`).toBe(true);
+      // Even Seeded Draws T15: on the grid to within floating point (0.56 * 100 is 56.00000000000001); the plain draw's
+      // three values happened to multiply cleanly.
+      expect(Math.abs(value * 100 - Math.round(value * 100)), `attenuationStyle ${i}: ${value}`).toBeLessThan(1e-9);
+      expect(value, `attenuationStyle ${i}`).toBe(Math.round(value * 100) / 100);
     }
   });
 });

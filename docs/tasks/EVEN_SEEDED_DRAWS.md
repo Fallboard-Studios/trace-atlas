@@ -572,7 +572,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S
 
-- [ ] **Task 15: globalAudioSeed.ts — ping variance, swell frequency and swell duration draw even**
+- [x] **Task 15: globalAudioSeed.ts — ping variance, swell frequency and swell duration draw even**
 
   **Description:** Switch `generatePingVarianceAutomation`, `generateSwellFrequency` and `generateSwellDuration`. Each
   keeps its own step grid.
@@ -582,7 +582,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   worlds.
 
   **Acceptance criteria:**
-  - [ ] The three pacing draws are even and still on their grids.
+  - [x] The three pacing draws are even and still on their grids.
 
   **Verification:** As Task 4.
 
@@ -1084,3 +1084,12 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   only…"). The seed oracle has no global links, so nothing there moved.
 - Mutation check (T14): the quiet and depth draws each put back on `getSeededVal`; `LFO_QUIET_THRESHOLD` 0.34 → 0.3;
   the depth drawn centred — 4 of 4 killed. Full suite: 13,338 passed.
+- T15: as planned, plus a pin of each of the three to the even draw at its dataId over its seed range, onto its grid
+  (300 styles). Before the switch ping variance never took 10 %, and swell frequency never took 2.
+- T15 repair: `globalAudioSeed.test.ts`' "always returns a value whose percent (x100) is an integer" checked
+  `Number.isInteger(value * 100)`, which fails for a value exactly on the grid (0.56 × 100 is 56.00000000000001); the
+  plain draw's three values happened to multiply cleanly. It now checks the grid to 1e-9 and that the value is
+  `Math.round(value * 100) / 100`. `globalAudioSeed.ts` no longer imports `getSeededVal`.
+- Mutation check (T15): each of the three draws put back on `getSeededVal`; the duration floored instead of snapped —
+  4 of 4 killed (a first run reported two survivors because the harness's line numbers were one off and only the import
+  changed; re-run on the right lines). Full suite: 13,341 passed.

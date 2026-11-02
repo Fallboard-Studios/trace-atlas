@@ -4,7 +4,7 @@
 import type { NoiseFunction2D } from 'simplex-noise';
 
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
-import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from './getSeededVal';
+import { getCentredSeededVal, getUniformSeededVal } from './getSeededVal';
 import { quantizeToStep } from './math';
 import { pickShape, LFO_SHAPE_SEED_ORDER } from './lfoShapeDraw';
 import { generateAttenuationStyleBpm } from './bpmSeed';
@@ -406,12 +406,13 @@ const PING_VARIANCE_AUTOMATION_SEED_RANGE = { min: 0.10, max: 0.60 };
  * switch — audioStore.ts's regenerateGlobalAudioFromSeed is responsible for
  * only calling this on the very first seed and carrying the value forward on
  * every later call (docs/specs/archive/PING-VARIANCE-AUTOMATION.md §1.2); this
- * function itself is a plain, stateless seeded draw, same shape as every
+ * function itself is a stateless, even seeded draw (getUniformSeededVal, Even
+ * Seeded Draws T15, like swell frequency and duration below), same shape as every
  * other function in this file.
  */
 export function generatePingVarianceAutomation(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(
+  const raw = getUniformSeededVal(
     noiseMap, 'globalAudio.pingVarianceAutomation', 0,
     PING_VARIANCE_AUTOMATION_SEED_RANGE.min, PING_VARIANCE_AUTOMATION_SEED_RANGE.max
   );
@@ -446,7 +447,7 @@ const SWELL_DURATION_SEED_RANGE = { min: 2, max: 8 };
  */
 export function generateSwellFrequency(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(
+  const raw = getUniformSeededVal(
     noiseMap, 'globalAudio.swellFrequency', 0,
     SWELL_FREQUENCY_SEED_RANGE.min, SWELL_FREQUENCY_SEED_RANGE.max
   );
@@ -463,7 +464,7 @@ export function generateSwellFrequency(attenuationStyleId: string, attenuationSt
  */
 export function generateSwellDuration(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(
+  const raw = getUniformSeededVal(
     noiseMap, 'globalAudio.swellDuration', 0,
     SWELL_DURATION_SEED_RANGE.min, SWELL_DURATION_SEED_RANGE.max
   );
