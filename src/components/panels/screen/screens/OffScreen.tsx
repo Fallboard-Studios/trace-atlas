@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGSAP } from '@gsap/react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
+import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
@@ -61,6 +62,11 @@ const POWER_HINT = labels('home.off.powerHint').humanLabel;
 const TRANSMISSION = labels('home.off.transmission');
 const CURRENT = labels('home.off.current');
 const NEW_TRANSMISSION = labels('home.off.newTransmission').humanLabel;
+// The list's section titles, and the title over the aspect family rows with its hint (Task 6c).
+const SAVED_TITLE = labels('home.off.savedTransmissions').humanLabel;
+const PRESET_TITLE = labels('home.off.presetTransmissions').humanLabel;
+const ASPECTS_TITLE = labels('home.off.aspects').humanLabel;
+const ASPECTS_HINT = labels('home.off.aspectsHint').humanLabel;
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
 
 /** Scan and Keep (spec assumption 14), muted — flat, like the theme row and the list; only the aspect rows pop
@@ -79,6 +85,8 @@ const THEME_SCHEMA: RadioButtonSchema = {
   id: 'offTheme',
   type: 'radio',
   ...labels('home.off.loading'),
+  // "select one" under "Trace Type" (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c).
+  hint: labels('home.off.loadingHint').humanLabel,
   appearance: 'muted',
   options: THEME_IDS.map((id) => ({ value: id, humanLabel: themeName(id) })),
 };
@@ -448,16 +456,19 @@ export function OffScreen() {
           loreLabel: NEW_TRANSMISSION,
         },
         { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: CURRENT.humanLabel },
-        ...saves.map((save) => ({
+        ...saves.map((save, i) => ({
           value: SAVE_PREFIX + save.name,
           humanLabel: named(SAVE_PREFIX + save.name, save.name, identityOf(save.payload)),
           meta: fill('home.off.savedAt', { time: formatSessionTimestamp(save.savedAt) }),
+          // Titled while there are saves (Task 6c).
+          headingBefore: i === 0 ? SAVED_TITLE : undefined,
         })),
         ...TRANSMISSION_PRESETS.map((preset, i) => ({
           value: PRESET_PREFIX + preset.id,
           humanLabel: named(PRESET_PREFIX + preset.id, labels(preset.nameKey).humanLabel, presetWorlds[i]),
-          // The rule between the saves and the presets — only when there are saves to rule off.
+          // The rule between the saves and the presets — only when there are saves to rule off — then their title.
           dividerBefore: i === 0 && saves.length > 0,
+          headingBefore: i === 0 ? PRESET_TITLE : undefined,
         })),
       ],
     };
@@ -691,6 +702,10 @@ export function OffScreen() {
               <div className="off-screen__axis">
                 <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />
                 <p className="off-screen__description off-screen__description--theme">{themeDescription(shownTheme)}</p>
+                {/* Their title, "Trace Aspects" over "select many" (Task 6c): the theme row's label, standing alone. */}
+                <div className="off-screen__aspects-title">
+                  <DualLabel humanLabel={ASPECTS_TITLE} hint={ASPECTS_HINT} />
+                </div>
                 {/* The family rows (revisions Task 9): one per family, from the data. */}
                 {ASPECT_FAMILY_IDS.map((family) => (
                   <AspectFamilyRow

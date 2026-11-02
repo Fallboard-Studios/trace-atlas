@@ -301,3 +301,15 @@
   height: 1px;
   margin: 4px 8px;
 }
+
+/* headingBefore in a list (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c): a section title over a run
+   of rows, full width and quiet, in the lore's small uppercase, lined up with the rows' dots. */
+.sc-radio-button__heading {
+  grid-column: 1 / -1;
+  padding: 6px 13px 2px;
+  font-family: var(--font-controls);
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}

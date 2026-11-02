@@ -1712,8 +1712,11 @@ describe('OffScreen — the Transmission row', () => {
     expect(names.slice(4)).toEqual([presetLabel(0), presetLabel(1), presetLabel(2)]);
     const dividers = container.querySelectorAll('.sc-radio-button__divider');
     expect(dividers).toHaveLength(1);
-    // The list (revisions Task 4) draws each option in a row, so the rule sits ahead of the first preset's row.
-    expect(dividers[0].nextElementSibling).toBe(row(presetName(0)).closest('.sc-radio-button__row'));
+    // The list (revisions Task 4) draws each option in a row, so the rule sits ahead of the first preset's row, with the
+    // presets' title between them since Task 6c.
+    const presetTitle = dividers[0].nextElementSibling!;
+    expect(presetTitle.textContent).toBe(human('home.off.presetTransmissions'));
+    expect(presetTitle.nextElementSibling).toBe(row(presetName(0)).closest('.sc-radio-button__row'));
   });
 
   it('has Current selected before a pick, and nothing else in the world row', () => {
@@ -2532,6 +2535,58 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     expect(listSessions()).toHaveLength(1);
     fireEvent.click(row(currentName(listSessions()[0].name)));
     expect(wash()).toBe('clear');
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c (Crawford, 2026-11-02): the list's saves and presets sit
+// under titles, and the Loading column's two parts are titled, each with how many it takes.
+describe('OffScreen — the section titles (Current and New Transmission, Task 6c)', () => {
+  beforeEach(() => markHeardWorld());
+  const titles = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('.sc-radio-button__heading')).map((h) => h.textContent);
+  const rowEl = (name: string) => row(name).closest('.sc-radio-button__row');
+
+  it('with no saves, titles the presets only, directly over the first preset', () => {
+    const { container } = render(<OffScreen />);
+    expect(titles(container)).toEqual([human('home.off.presetTransmissions')]);
+    expect(container.querySelector('.sc-radio-button__heading')!.nextElementSibling).toBe(rowEl(presetName(0)));
+  });
+
+  it('with saves, titles them over the newest, and the presets under the rule', () => {
+    const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(2_000);
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    saveNamedSession('Night Run', savedPayload('night'));
+    now.mockRestore();
+    const { container } = render(<OffScreen />);
+    expect(titles(container)).toEqual([human('home.off.savedTransmissions'), human('home.off.presetTransmissions')]);
+    const [saved, presets] = Array.from(container.querySelectorAll('.sc-radio-button__heading'));
+    expect(saved.nextElementSibling).toBe(rowEl('Night Run'));
+    expect(presets.nextElementSibling).toBe(rowEl(presetName(0)));
+    expect(presets.previousElementSibling!.classList.contains('sc-radio-button__divider')).toBe(true);
+  });
+
+  it('titles a save kept from this screen at once, the first save', () => {
+    const { container } = render(<OffScreen />);
+    fireEvent.click(screen.getByRole('button', { name: human('home.off.keep') }));
+    expect(titles(container)[0]).toBe(human('home.off.savedTransmissions'));
+  });
+
+  it('titles the Loading column: Trace Type with "select one" over the themes, then Trace Aspects with "select many" over the families', () => {
+    const { container } = render(<OffScreen />);
+    const column = container.querySelectorAll('.off-screen__axis')[1] as HTMLElement;
+    const themeGroup = screen.getByRole('group', { name: human('home.off.loading') });
+    expect(human('home.off.loading')).toBe('Trace Type');
+    const themeLabel = themeGroup.closest('.sc-radio-button')!.querySelector('.sc-dual-label')!;
+    expect(Array.from(themeLabel.children).map((c) => c.textContent)).toEqual([human('home.off.loading'), human('home.off.loadingHint')]);
+    const aspects = column.querySelector('.off-screen__aspects-title')!;
+    expect(Array.from(aspects.querySelectorAll('.sc-dual-label > *')).map((c) => c.textContent)).toEqual([
+      human('home.off.aspects'),
+      human('home.off.aspectsHint'),
+    ]);
+    // After the theme row and its line, ahead of every family row.
+    const firstFamily = screen.getByRole('group', { name: human(`home.off.${ASPECT_FAMILY_IDS[0]}`) }).closest('.sc-radio-button')!;
+    expect(aspects.previousElementSibling!.classList.contains('off-screen__description--theme')).toBe(true);
+    expect(aspects.nextElementSibling).toBe(firstFamily);
   });
 });
 

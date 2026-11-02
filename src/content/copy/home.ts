@@ -18,10 +18,18 @@ export const home = {
   // The Current row's eyebrow (docs/specs/OFF_SCREEN.md assumption 8): the row itself is named by describeWorld
   // (the loaded world, or the loaded save's name in front of it) — data, not copy.
   'home.off.current': { human: 'Current' },
-  // The Loading axis's group heading (the theme row and the aspect family rows): the theme row's own label
-  // (docs/tasks/OFF_SCREEN.md Task 30). Shown as "Drive" (Crawford, 2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md
-  // F5); the key and the axis's internal name stay "loading".
-  'home.off.loading': { human: 'Drive' },
+  // The theme row's label (docs/tasks/OFF_SCREEN.md Task 30), with its hint under it. "Drive" (Crawford, 2026-11-01,
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F5), then "Trace Type" with "select one" (Crawford, 2026-11-02,
+  // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c); the key and the axis's internal name stay "loading".
+  'home.off.loading': { human: 'Trace Type' },
+  'home.off.loadingHint': { human: 'select one' },
+  // The title over the aspect family rows, with its hint (Crawford, 2026-11-02, Task 6c).
+  'home.off.aspects': { human: 'Trace Aspects' },
+  'home.off.aspectsHint': { human: 'select many' },
+  // The Transmission list's section titles over the saves and the presets (Crawford, 2026-11-02, Task 6c). The saves'
+  // shows only while there are saves.
+  'home.off.savedTransmissions': { human: 'Saved Transmissions' },
+  'home.off.presetTransmissions': { human: 'Preset Transmissions' },
   // New Transmission: the first row of the list, a world drawn when the off screen opens (a random Attenuation Style and
   // plot, under Classic with no aspects); Scan, the action in its row, draws another and selects it. An action, not a
   // radio. Crawford's words (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.6); Scan replaced Roll.

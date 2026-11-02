@@ -366,6 +366,44 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
   **Estimated scope:** S (labels), with a mechanical test-helper change
 
+- [x] **Task 6c: the section titles (Crawford, 2026-11-02, after Task 6b)**
+
+  **Description:**
+  - **Saves:** the list titles them "Saved Transmissions", over the newest save, while there are any.
+  - **Presets:** titled "Preset Transmissions", after the rule.
+  - **The theme row:** "Drive" becomes "Trace Type", with "select one" under it.
+  - **The aspect family rows:** a "Trace Aspects" title with "select many" over them.
+
+  Two additions to shared primitives:
+  - RadioButton's options gain `headingBefore`, a list-only title on a grid line of its own, after any divider.
+  - RadioButton's schema and DualLabel gain `hint`, a last line under the name; the group is still named by its label
+    alone.
+
+  The "Trace Aspects" title is a standalone DualLabel, so the two Loading titles match.
+
+  **Proof:** RED test:
+  - `RadioButton.test.tsx`: the heading's line and the divider's ahead of it; the heading is no radio; it is drawn in
+    the list only; the hint.
+  - `DualLabel.test.tsx`: the hint is the last line; a hint alone draws nothing.
+  - `OffScreen.test.tsx`: the presets alone are titled with no saves; both are titled with saves; a kept save is titled
+    at once; the Loading column's two titles and hints, in place.
+
+  The copy change itself ("Trace Type") has no test of its own.
+
+  **Acceptance criteria:**
+  - [x] The cases pass. The list-order case `lists the user's saves …` now finds the presets' title between the rule
+        and the first preset.
+
+  **Verification:**
+  - [x] Mutants killed (9): the heading taking no line; the divider ignoring it; the heading never drawn; RadioButton
+        or DualLabel dropping the hint; every save titled; the presets untitled; the theme row or the aspects title
+        without its hint.
+  - [x] `npx vitest run src/components` (172 files, 5197 tests), `npm run build:types`, `npm run lint` clean.
+  - [ ] The look, at Checkpoint 2: the titles' size and spacing on desktop and phone.
+
+  **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `RadioButton.tsx`/`.css`/`.test.tsx`, `DualLabel.tsx`/`.css`/
+  `.test.tsx`, `src/types/controls.ts`, `src/content/copy/home.ts`
+
 ### Checkpoint 2: Built
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. Any pre-existing failure is named.
 - [ ] Crawford's Look (spec §5), after a hard reload:

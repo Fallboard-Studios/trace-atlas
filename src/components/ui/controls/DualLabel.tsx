@@ -9,6 +9,9 @@ interface DualLabelProps {
   /** The control's help (docs/specs/LAYOUT_REWORK.md §1.4): a "?" after the label opens it. Pass it
    *  only from a label row that is not itself inside a button. */
   help?: ContentHelp;
+  /** A subtitle under the name (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c: "select one"), the last
+   *  line. Never drawn without a name to stand under. */
+  hint?: string;
 }
 
 /**
@@ -18,7 +21,7 @@ interface DualLabelProps {
  * With `help`, the last line gains the "?" — beside the name, never inside
  * its span, so the name's own element still reads exactly the name.
  */
-function DualLabelInner({ loreLabel, humanLabel, help }: DualLabelProps) {
+function DualLabelInner({ loreLabel, humanLabel, help, hint }: DualLabelProps) {
   if (!loreLabel && !humanLabel) return null;
   const helpButton = help ? <HelpPopover help={help} humanLabel={humanLabel} loreLabel={loreLabel} /> : null;
   const lore = loreLabel && <span className="sc-dual-label__lore">{loreLabel}</span>;
@@ -27,6 +30,7 @@ function DualLabelInner({ loreLabel, humanLabel, help }: DualLabelProps) {
     <div className="sc-dual-label">
       {helpButton && !humanLabel ? <span className="sc-dual-label__line">{lore}{helpButton}</span> : lore}
       {helpButton && humanLabel ? <span className="sc-dual-label__line">{human}{helpButton}</span> : human}
+      {hint && <span className="sc-dual-label__hint">{hint}</span>}
     </div>
   );
 }

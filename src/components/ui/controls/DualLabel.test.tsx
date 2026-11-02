@@ -64,6 +64,19 @@ describe('DualLabel', () => {
     expect(screen.getByText('Reset Melody')).toBeTruthy();
   });
 
+  // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c: a subtitle under the name ("select one").
+  it('renders a hint as the last line, after the human label, its own element', () => {
+    const { container } = render(<DualLabel loreLabel="LORE" humanLabel="Trace Type" hint="select one" />);
+    const lines = Array.from(container.querySelector('.sc-dual-label')!.children);
+    expect(lines.map((l) => l.textContent)).toEqual(['LORE', 'Trace Type', 'select one']);
+    expect(lines[2].className).toBe('sc-dual-label__hint');
+  });
+
+  it('a hint alone renders nothing, as a label needs a name to stand on', () => {
+    const { container } = render(<DualLabel hint="select one" />);
+    expect(container.firstChild).toBeNull();
+  });
+
   // docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 6 — structural check only, matching
   // BubbleStream.test.tsx's own precedent (docs/specs/archive/OBLIQUE_CABINETRY_MEMOIZATION.md §5): this
   // component has no hook or cross-module utility call in its render body to spy on as a

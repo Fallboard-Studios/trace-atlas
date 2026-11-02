@@ -906,6 +906,57 @@ describe('RadioButton — appearance "list" (docs/tasks/OFF_SCREEN_REVISIONS.md 
     expect(onChange).toHaveBeenCalledWith(['current', 'preset:kryndara', 'preset:vessport']);
   });
 
+  // Task 6c: the group's label carries the schema's hint under its name; the group is still named by its label alone.
+  it('draws the schema hint under the group label, and keeps the group named by the label alone', () => {
+    const { container } = render(<RadioButton schema={{ ...list, hint: 'select one' }} value="current" onChange={() => {}} />);
+    expect(container.querySelector('.sc-dual-label__hint')?.textContent).toBe('select one');
+    expect(screen.getByRole('group', { name: 'Transmission' })).toBeTruthy();
+  });
+
+  // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c (Crawford, 2026-11-02): a section title over a run of
+  // rows, "Saved Transmissions" and "Preset Transmissions" on the off screen. A line of its own, after any divider.
+  describe('headingBefore', () => {
+    const titled: RadioButtonSchema = {
+      ...list,
+      options: [
+        list.options[0],
+        { ...list.options[1], headingBefore: 'Saved' },
+        { ...list.options[2], headingBefore: 'Presets' },
+        list.options[3],
+      ],
+    };
+    const line = (el: Element | null) => (el as HTMLElement).style.gridRow;
+    const headings = (container: HTMLElement) => Array.from(container.querySelectorAll('.sc-radio-button__heading'));
+
+    it('draws the title before its option, on a grid line of its own; a divider before the same option comes first', () => {
+      const shareOnKryndara = (value: string) => (value === 'preset:kryndara' ? <button type="button">Share</button> : null);
+      const { container } = render(<RadioButton schema={titled} value="current" onChange={() => {}} trailing={shareOnKryndara} />);
+      expect(headings(container).map((h) => h.textContent)).toEqual(['Saved', 'Presets']);
+      expect(headings(container).map(line)).toEqual(['2', '5']);
+      expect(line(container.querySelector('.sc-radio-button__divider'))).toBe('4');
+      expect(NAMES.map((name) => line(rowOf(radio(name))))).toEqual(['1', '3', '6', '7']);
+      expect(line(screen.getByRole('button', { name: 'Share' }).closest('.sc-radio-button__trailing'))).toBe('6');
+      expect(line(container.querySelector('.sc-radio-button__root'))).toBe('1 / span 7');
+    });
+
+    it('is no radio and names none: the rows keep their own names, and the title is read as text', () => {
+      const { container } = render(<RadioButton schema={titled} value="current" onChange={() => {}} />);
+      expect(screen.getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual(NAMES);
+      for (const heading of headings(container)) {
+        expect(heading.closest('[role="radio"]')).toBeNull();
+        expect(heading.getAttribute('aria-hidden')).toBeNull();
+      }
+    });
+
+    it('is drawn only in the list appearance', () => {
+      for (const appearance of ['cabinet', 'muted'] as const) {
+        const { container, unmount } = render(<RadioButton schema={{ ...titled, appearance }} value="current" onChange={() => {}} />);
+        expect(headings(container)).toEqual([]);
+        unmount();
+      }
+    });
+  });
+
   it('leaves cabinet and muted as they were: no rows, no trailing slot, no meta, whatever is passed', () => {
     const withMeta = (appearance: 'cabinet' | 'muted'): RadioButtonSchema => ({ ...list, appearance });
     for (const appearance of ['cabinet', 'muted'] as const) {

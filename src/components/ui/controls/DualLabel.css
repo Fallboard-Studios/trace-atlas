@@ -27,6 +27,15 @@
 
 }
 
+/* The hint under the name (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c: "select one"): the lore's
+   small size and muted colour, in sentence case. */
+.sc-dual-label__hint {
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+}
+
 /* Compact fallback for a cramped container (e.g. a narrow slider's own box
    row at its overflow floor) — fires when the nearest sc-control container
    ancestor (set on each of the 11 leaf controls' own root, docs/specs/
