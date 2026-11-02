@@ -23,7 +23,7 @@ vi.mock('@/utils/seedUtils', async (importOriginal) => {
 
 // Minimal GSAP mock for unit tests to avoid DOM queries and timing issues.
 vi.mock('gsap', () => {
-  type TimelineConfig = { onComplete?: () => void } | undefined;
+  type TimelineConfig = { onComplete?: () => void; paused?: boolean } | undefined;
   interface TimelineObj {
     set(target?: unknown, vars?: unknown): TimelineObj;
     to(target?: unknown, config?: TimelineConfig): TimelineObj;
@@ -34,9 +34,22 @@ vi.mock('gsap', () => {
     play(): TimelineObj;
     add(child?: unknown, position?: unknown): TimelineObj;
     pause(time?: number): TimelineObj;
+    paused(): boolean;
+    progress(value?: number): number | TimelineObj;
   }
 
-  const noop = (): TimelineObj => {
+  const noop = (startPaused = false): TimelineObj => {
+    // The two pieces of state this stub keeps: whether the timeline is paused, as real GSAP's
+    // paused() getter reports it — set by `{ paused: true }` at creation, pause() and play().
+    // timelineMap.ts's pauseWorldTimelines() / resumeWorldTimelines() (docs/specs/OFF_SCREEN.md
+    // assumption 3) read it to pause only the world timelines that are playing and to play
+    // only those again; missing until 2026-10-30, the same masking pattern as .kill() and
+    // .play() below — no consumer read paused() before the power rocker became a pause. And its
+    // progress, as a plain 0–1 number: the off screen's boot theatre jumps to ready with
+    // progress(1) on a tap or under reduced motion (docs/tasks/OFF_SCREEN.md Task 16b), and its
+    // tests read the value back. Never advanced by a clock here.
+    let paused = startPaused;
+    let progress = 0;
     const obj = {
       // No onComplete on tl.set() (real GSAP's .set() vars don't take one
       // either) — it's an immediate, synchronous step, unlike .to()/.fromTo()
@@ -85,15 +98,33 @@ vi.mock('gsap', () => {
       // swimAnimation.test.ts (docs/tasks/TEST_COVERAGE_CORE_MODULES.md
       // Task 8) became the first test to invoke createSwimTimeline for real
       // rather than mocking swimAnimation.ts itself.
-      play: () => obj as TimelineObj,
+      play: () => { paused = false; return obj as TimelineObj; },
       // BubbleStream.tsx nests one child timeline per bubble via tl.add() and rewinds with
       // tl.pause(0) when its building is inactive. Its own test file swaps in a recording
       // mock, but any file that renders a real Factory without stubbing BubbleStream (see
       // FactoryBubbleStream.test.tsx for the stub) hits these through this mock.
       add: (_child?: unknown, _position?: unknown) => obj as TimelineObj,
-      pause: (_time?: number) => obj as TimelineObj,
+      pause: (_time?: number) => { paused = true; return obj as TimelineObj; },
+      paused: () => paused,
+      progress: (value?: number) => {
+        if (value === undefined) return progress;
+        progress = value;
+        return obj as TimelineObj;
+      },
     };
     return obj as TimelineObj;
+  };
+  // A module-level tween (gsap.to / gsap.fromTo): the chainable shape callers use at once, and whether it is paused,
+  // kept as the timeline stub keeps it.
+  const tweenStub = () => {
+    let paused = false;
+    return {
+      progress: () => 0,
+      kill: () => { },
+      pause: () => { paused = true; },
+      play: () => { paused = false; },
+      paused: () => paused,
+    };
   };
   const mocked = {
     // timeline accepts an optional config; if onComplete provided, call it synchronously
@@ -102,17 +133,24 @@ vi.mock('gsap', () => {
         // call on next microtask to emulate async completion
         Promise.resolve().then(() => config.onComplete && config.onComplete());
       }
-      return noop();
+      return noop(config?.paused === true);
     },
     set: () => { },
+    // The ticker's clock and its frame listeners, as a shape only: workLoop.ts reads `gsap.ticker.time`
+    // for its default clock (now also at pauseWorkLoop(), docs/specs/OFF_SCREEN.md assumption 4 — the
+    // first read any test reached without injecting `now`, 2026-10-30) and adds/removes a dissolve
+    // copy's follow listener. Time never advances here; tests that care about the clock inject one.
+    ticker: { time: 0, add: () => { }, remove: () => { } },
     // Module-level to()/fromTo() (distinct from a timeline instance's own .to()/.fromTo() above)
     // return a real GSAP Tween whose .progress()/.kill()/.pause()/.play() callers may chain off
     // immediately and synchronously — useOrbiterMotion.ts's drift setup does exactly this
     // (`gsap.to(el, {...}).progress(phase)`) at mount, for every real RobotBody render in any
     // test file that doesn't supply its own gsap mock. No onUpdate/onComplete auto-fire, same as
     // every other mock in this file — only a shape safe to chain off, not real tween behavior.
-    to: () => ({ progress: () => 0, kill: () => { }, pause: () => { }, play: () => { } }),
-    fromTo: () => ({ progress: () => 0, kill: () => { }, pause: () => { }, play: () => { } }),
+    // `paused()` too, as the timeline stub has it: timelineMap's setTimeline and pauseWorldTimelines read it from
+    // anything registered (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30).
+    to: () => tweenStub(),
+    fromTo: () => tweenStub(),
     // Minimal delayedCall mock — does NOT auto-fire fn (unlike .timeline's
     // onComplete above): idleSystem.ts uses delayedCall to throttle repeated
     // self-scheduling (handleRobotIdle -> handleRobotArrival -> delayedCall ->
@@ -143,6 +181,21 @@ vi.mock('gsap', () => {
     // that drives the glide mocks 'gsap/dist/Flip' itself (RosterBoard.test.tsx).
     registerPlugin: () => { },
     utils: { selector: () => () => [] },
+    // gsap.matchMedia(), as a shape: `add(query, fn)` runs fn at once when the page's own matchMedia says the
+    // query matches (jsdom has none, so a test stubs `window.matchMedia` to drive it) and never again; `revert()`
+    // is a no-op. The off screen's boot theatre jumps to ready under `(prefers-reduced-motion: reduce)` through
+    // it (docs/tasks/OFF_SCREEN.md Task 16b). Not a real MatchMedia: no listeners, no context revert.
+    matchMedia: () => {
+      const mm = {
+        add: (query: string, fn: () => void) => {
+          const page = (globalThis as unknown as { matchMedia?: (q: string) => { matches: boolean } }).matchMedia;
+          if (page?.(query).matches) fn();
+          return mm;
+        },
+        revert: () => { },
+      };
+      return mm;
+    },
   };
   return { default: mocked, ...mocked };
 });

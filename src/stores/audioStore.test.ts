@@ -40,9 +40,14 @@ vi.mock('../engine/audioEngine/globalFx', () => ({
   wireGlobalFxChain: vi.fn(),
 }));
 
+// Whether the engine's LFO Bank is primed (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): false by default, as before
+// the first power-on; a test sets it true to stand for a bank AudioEngine.start() has built.
+const bankPrimed = vi.hoisted(() => ({ value: false }));
+
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7).
 vi.mock('../engine/lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => bankPrimed.value),
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),
     setBankRate: vi.fn(),
@@ -58,7 +63,7 @@ vi.mock('../engine/lfoEngine', () => ({
 }));
 
 // Whether the AudioContext is running (roadmap 17.2.8): false by default, as at module load before any
-// user gesture; a test sets it true to stand for a powered-on engine.
+// user gesture; a test sets it true to stand for a powered-on engine, false with the bank primed for a pause.
 const engineRunning = vi.hoisted(() => ({ value: false }));
 vi.mock('../engine/lfoShared', () => ({ isAudioContextRunning: () => engineRunning.value }));
 
@@ -741,25 +746,32 @@ describe('useAudioStore - LFO Bank / global links Attenuation-Style-sync seeding
   });
 });
 
-describe('useAudioStore - an Attenuation Style switch re-primes a running bank and its global links (roadmap 17.2.8)', () => {
+// The push follows the bank, not the context (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): a primed bank takes the
+// new lanes and links while the context runs and while a pause has it suspended; before the first start primes the
+// bank from the store, nothing is pushed, even with the context already running.
+describe('useAudioStore - an Attenuation Style switch re-primes a primed bank and its global links (roadmap 17.2.8)', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
     engineRunning.value = false;
+    bankPrimed.value = false;
   });
   afterEach(() => {
     engineRunning.value = false;
+    bankPrimed.value = false;
   });
 
   /** Loads the store with the engine off (module load comes before any gesture), then switches to a new
-   *  Attenuation Style with the engine `running` or not; mock calls are cleared just before the switch. */
-  async function switchStyle(running: boolean) {
+   *  Attenuation Style with the bank `primed` or not and the context `running` or not; mock calls are cleared just
+   *  before the switch. */
+  async function switchStyle({ primed, running }: { primed: boolean; running: boolean }) {
     const { useAudioStore } = await import('./audioStore');
     const { useAttenuationStyleStore, DEFAULT_PELAGOS } = await import('./attenuationStyleStore');
     const { lfoEngine } = await import('../engine/lfoEngine');
     const { AudioEngine: engine } = await import('../engine/AudioEngine');
     const before = useAudioStore.getState();
     useAttenuationStyleStore.getState().addAttenuationStyle({ ...DEFAULT_PELAGOS, id: 'zenith-reprime', name: 'ZenithReprime' });
+    bankPrimed.value = primed;
     engineRunning.value = running;
     vi.clearAllMocks();
     useAttenuationStyleStore.getState().setCurrentAttenuationStyleId('zenith-reprime');
@@ -767,7 +779,7 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
   }
 
   it('pushes every lane of the new bank to the running engine, resolved for the engine', async () => {
-    const { before, after, lfoEngine } = await switchStyle(true);
+    const { before, after, lfoEngine } = await switchStyle({ primed: true, running: true });
 
     // The switch has to change the bank, or this test would pass on the old lanes by coincidence.
     expect(after.lfoBank).not.toEqual(before.lfoBank);
@@ -790,7 +802,7 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
   });
 
   it('relinks every global target with the new links', async () => {
-    const { before, after, lfoEngine } = await switchStyle(true);
+    const { before, after, lfoEngine } = await switchStyle({ primed: true, running: true });
 
     expect(after.globalLfoLinks).not.toEqual(before.globalLfoLinks);
     for (const target of GLOBAL_LFO_TARGET_IDS) {
@@ -800,7 +812,7 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
   });
 
   it("relinks only after the new globalAudio reached the engine (a link's swing reads the target's current value)", async () => {
-    const { lfoEngine, engine } = await switchStyle(true);
+    const { lfoEngine, engine } = await switchStyle({ primed: true, running: true });
 
     expect(lfoEngine.linkTarget).toHaveBeenCalled(); // or the order below holds vacuously (min of nothing)
     expect(engine.setGlobalEQ).toHaveBeenCalled();
@@ -813,8 +825,33 @@ describe('useAudioStore - an Attenuation Style switch re-primes a running bank a
     expect(firstLink).toBeGreaterThan(lastTargetPush);
   });
 
-  it('pushes nothing to the bank engine when the AudioContext is not running', async () => {
-    const { before, after, lfoEngine } = await switchStyle(false);
+  it('pushes every lane and relinks every global target while a pause has the context suspended, once the bank is primed', async () => {
+    const { before, after, lfoEngine } = await switchStyle({ primed: true, running: false });
+
+    expect(after.lfoBank).not.toEqual(before.lfoBank);
+    for (const lane of LFO_LANE_IDS) {
+      const engineLane = resolveLaneForEngine(after.lfoBank[lane], after.bpm);
+      expect(lfoEngine.setBankShape).toHaveBeenCalledWith(lane, engineLane.shape);
+      expect(vi.mocked(lfoEngine.setBankRate).mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, engineLane.rate]);
+      expect(lfoEngine.setBankRateDrift).toHaveBeenCalledWith(lane, engineLane.rateDrift);
+      expect(lfoEngine.setBankDepthDrift).toHaveBeenCalledWith(lane, engineLane.depthDrift);
+    }
+    for (const target of GLOBAL_LFO_TARGET_IDS) {
+      expect(lfoEngine.linkTarget).toHaveBeenCalledWith(target, after.globalLfoLinks[target]);
+    }
+  });
+
+  it('pushes nothing while the context runs but the bank is not yet primed: the first start primes it from the store', async () => {
+    const { lfoEngine } = await switchStyle({ primed: false, running: true });
+
+    expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankRateDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.setBankDepthDrift).not.toHaveBeenCalled();
+    expect(lfoEngine.linkTarget).not.toHaveBeenCalled();
+  });
+
+  it('pushes nothing to the bank engine before the bank is primed (the context not running either)', async () => {
+    const { before, after, lfoEngine } = await switchStyle({ primed: false, running: false });
 
     expect(after.lfoBank).not.toEqual(before.lfoBank); // the store still reseeds
     expect(lfoEngine.setBankShape).not.toHaveBeenCalled();
@@ -1495,5 +1532,122 @@ describe('useAudioStore - busFilterLinksHeldOff (Robot Articulation T14b)', () =
     const { useAudioStore } = await import('./audioStore');
     useAudioStore.getState().setBusFilterLinksHeldOff(true);
     expect(JSON.parse(JSON.stringify(useAudioStore.getState())).busFilterLinksHeldOff).toBe(true);
+  });
+});
+
+// docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17: applyGlobalHalfMoves writes only the moved fields. A moved field the new draw
+// lacks (a Sync pick gone Free; no real theme column reaches it) is removed, never left as `sync: undefined` or as the
+// old pick, and the block is pushed again so its setter resolves it Free.
+describe('useAudioStore - applyGlobalHalfMoves (final fixes F17)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('a moved Sync pick the new draw lacks leaves the Delay Free: no sync key, the Free time pushed, every other field standing', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { AudioEngine } = await import('../engine/AudioEngine');
+    const { NOTE_VALUES } = await import('../data/noteValues');
+    const store = useAudioStore.getState();
+    store.setGlobalAudio('delay', { delayTime: 0.3, feedback: 0.45 });
+    useAudioStore.setState((s) => ({ globalAudio: { ...s.globalAudio, delay: { ...s.globalAudio.delay, sync: NOTE_VALUES[2] } } }));
+    vi.mocked(AudioEngine.setGlobalDelay).mockClear();
+
+    store.applyGlobalHalfMoves({ globalAudio: { delay: { sync: undefined } }, lfoBank: {}, globalLfoLinks: {} });
+
+    const { delay } = useAudioStore.getState().globalAudio;
+    expect('sync' in delay).toBe(false);
+    expect(delay.feedback).toBe(0.45);
+    expect(AudioEngine.setGlobalDelay).toHaveBeenCalledWith(expect.objectContaining({ delayTime: 0.3 }));
+  });
+
+  it('a lane whose moved pick the new draw lacks goes Free, and its other fields stand', async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const { NOTE_VALUES } = await import('../data/noteValues');
+    const store = useAudioStore.getState();
+    store.replaceLfoBankLane('a', { ...store.lfoBank.a, rate: 0.5, sync: NOTE_VALUES[2] });
+
+    useAudioStore.getState().applyGlobalHalfMoves({ globalAudio: {}, lfoBank: { a: { sync: undefined } }, globalLfoLinks: {} });
+
+    const lane = useAudioStore.getState().lfoBank.a;
+    expect('sync' in lane).toBe(false);
+    expect(lane.rate).toBe(0.5);
+  });
+});
+
+// docs/tasks/OFF_SCREEN_FINAL_FIXES.md F21 (Crawford, 2026-11-01: "a new tempo should impact all notes"): a theme's new
+// tempo snaps every Sync pick it no longer allows to the nearest note it does allow; a pick still allowed stays.
+describe('useAudioStore - applyGlobalHalfMoves snaps the Sync picks a new tempo disallows (final fixes F21)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const setup = async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const notes = await import('../data/noteValues');
+    const tempo = await import('../utils/tempoSync');
+    const NEW_BPM = 200;
+    const has = (list: readonly import('../data/noteValues').NoteValue[], nv: import('../data/noteValues').NoteValue) =>
+      list.some((a) => notes.noteValueEquals(a, nv));
+    return { useAudioStore, notes, tempo, NEW_BPM, has };
+  };
+
+  it('a bank lane on a note the new tempo disallows snaps to the nearest allowed one; one still allowed stays', async () => {
+    const { useAudioStore, notes, tempo, NEW_BPM, has } = await setup();
+    const allowed = tempo.allowedLaneNoteValues(NEW_BPM);
+    const disallowed = notes.NOTE_VALUES.find((nv) => !has(allowed, nv))!;
+    expect(disallowed, 'a note 200 BPM disallows for a lane').toBeDefined();
+    const kept = allowed[0];
+    const store = useAudioStore.getState();
+    store.replaceLfoBankLane('a', { ...store.lfoBank.a, sync: disallowed });
+    store.replaceLfoBankLane('b', { ...store.lfoBank.b, sync: kept });
+
+    useAudioStore.getState().applyGlobalHalfMoves({ bpm: NEW_BPM, globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+
+    const { lfoBank } = useAudioStore.getState();
+    expect(lfoBank.a.sync).toEqual(notes.nearestNoteValue(notes.noteValueHz(disallowed, NEW_BPM), NEW_BPM, allowed, 'hz'));
+    expect(has(allowed, lfoBank.a.sync!)).toBe(true);
+    expect(lfoBank.b.sync).toEqual(kept);
+  });
+
+  /** A tempo and a note that tempo disallows in `allowedAt`'s range, from a spread of tempos. */
+  const offTempo = async (allowedAt: (bpm: number) => import('../data/noteValues').NoteValue[]) => {
+    const notes = await import('../data/noteValues');
+    for (const bpm of [30, 40, 60, 200, 300]) {
+      const allowed = allowedAt(bpm);
+      const note = notes.NOTE_VALUES.find((nv) => !allowed.some((a) => notes.noteValueEquals(a, nv)));
+      if (note && allowed.length > 0) return { bpm, note, allowed };
+    }
+    throw new Error('no tempo disallows a note in this range');
+  };
+
+  it('the Delay on a note the new tempo disallows snaps to the nearest allowed one, in seconds', async () => {
+    const { useAudioStore, notes, tempo } = await setup();
+    const { bpm, note, allowed } = await offTempo(tempo.allowedDelayNoteValues);
+    useAudioStore.setState((st) => ({ globalAudio: { ...st.globalAudio, delay: { ...st.globalAudio.delay, sync: note } } }));
+    useAudioStore.getState().applyGlobalHalfMoves({ bpm, globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+    expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(
+      notes.nearestNoteValue(notes.noteValueSeconds(note, bpm), bpm, allowed, 'seconds'),
+    );
+  });
+
+  it('a synced-rate block on a note the new tempo disallows snaps to the nearest allowed one over the pedal range', async () => {
+    const { useAudioStore, notes, tempo } = await setup();
+    const { PEDAL_RATE_RANGE_HZ } = await import('../types/globalAudio');
+    const { bpm, note, allowed } = await offTempo((b) => tempo.allowedRateNoteValues(b, PEDAL_RATE_RANGE_HZ));
+    useAudioStore.setState((st) => ({ globalAudio: { ...st.globalAudio, chorus: { ...st.globalAudio.chorus, sync: note } } }));
+    useAudioStore.getState().applyGlobalHalfMoves({ bpm, globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+    expect(useAudioStore.getState().globalAudio.chorus.sync).toEqual(
+      notes.nearestNoteValue(notes.noteValueHz(note, bpm), bpm, allowed, 'hz'),
+    );
+  });
+
+  it('moves with no new tempo snap nothing', async () => {
+    const { useAudioStore, notes, tempo, NEW_BPM, has } = await setup();
+    const disallowed = notes.NOTE_VALUES.find((nv) => !has(tempo.allowedLaneNoteValues(NEW_BPM), nv))!;
+    useAudioStore.getState().setBPM(NEW_BPM);
+    const store = useAudioStore.getState();
+    store.replaceLfoBankLane('a', { ...store.lfoBank.a, sync: disallowed });
+    useAudioStore.getState().applyGlobalHalfMoves({ globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+    expect(useAudioStore.getState().lfoBank.a.sync).toEqual(disallowed);
   });
 });

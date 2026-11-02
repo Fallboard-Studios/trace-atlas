@@ -4,10 +4,14 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
-import type { Robot } from '../types/Robot';
+import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
 import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { deriveEnvelopeFields, deriveSendFields, deriveVoiceFields } from './robotFieldDerivation';
+import { generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, rederiveLoading } from './aspectDeal';
+import { resolveBands } from '../data/bands/resolveBands';
+import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
 import { getRobotGem } from '../components/robot/gem/polygon';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
@@ -21,13 +25,38 @@ import {
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
-import { ROBOT_SEND_LOADING_RANGES } from '../data/robotSendLoadingRanges';
+import { CLASSIC } from '../data/bands/classic';
 import { robotSendLevels } from '../data/robotSends';
+import { withLoading } from '../data/bands/loadingContext';
+import * as loadingContextModule from '../data/bands/loadingContext';
+import type { BandKey, BandTable } from '../data/bands/bandKeys';
+import type { RobotAudioBaseline } from './spawnSystem';
 import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
+import { cancelSwellForRobotAttribute } from './audioSwells';
 import { getStations, type Station } from './stations';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { chargingColorsKey, parseColorsKey } from '../components/stations/stationOccupancy';
+
+/** Each motif-active robot whose first motif window opens on a plain note (no mark, no rest), with that step: where the
+ *  group accent is all the scheduled note's accent multiplier holds (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5). */
+function windowOpenings(robots: readonly Robot[]): { robot: Robot; step: number }[] {
+  return robots.flatMap((robot) => {
+    const motif = robot.rhythmicMotifLength;
+    if (!motif?.active || robot.clickTrackActive) return [];
+    const opening = robot.melody.filter((e) => e.startStep <= motif.value).sort((a, b) => a.startStep - b.startStep)[0];
+    return opening && opening.mark === undefined && opening.rest === undefined ? [{ robot, step: opening.startStep }] : [];
+  });
+}
+
+/** The accent multiplier `robotId`'s note at `step` schedules (1 for none), through the engine's own per-step loop. */
+function accentAt(robotId: string, step: number): number | undefined {
+  const schedule = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
+  AudioEngine.processMelodyStep(step, 0);
+  const note = schedule.mock.calls.map(([params]) => params).find((params) => params.robotId === robotId);
+  schedule.mockRestore();
+  return note ? (note.accentMultiplier ?? 1) : undefined;
+}
 
 // Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
 // worldTransition.test.ts importOriginal pattern) — the lfoLinks-at-spawn tests below need to
@@ -46,6 +75,84 @@ import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 vi.mock('./stations', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./stations')>();
   return { ...actual, getStations: vi.fn(actual.getStations) };
+});
+
+// band-table T21: every robot band is read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption
+// 15). The real theme columns are {} until the listen (plan Task 34), so a column that moves EVERY robot band is injected
+// under the Perilous id; production's ThemeColumn confines a theme to assumption 16's key list, but the generator reads
+// whatever table is installed (the deal pass hands the same code its Melody bands, Task 27). Each value is chosen so a
+// Classic draw would break it somewhere: a lit share of 1 lands the trait on every robot, 0 on none.
+const everyRobotBandMoved = vi.hoisted(() => ({
+  'robot.attack': { min: 1.5, max: 2 },
+  'robot.decay': { min: 1, max: 1.2 },
+  'robot.sustain': { min: 0.9, max: 1 },
+  'robot.release': { min: 1.5, max: 2 },
+  'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0 },
+  'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 1 },
+  'robot.portamento': { min: 0.1, max: 0.1, lit: 1 },
+  'robot.filterFreq': { min: 2000, max: 8000 },
+  'robot.accentFilterFreq': { min: 500, max: 600, lit: 1 },
+  'robot.accentFilterQ': { min: 5, max: 5 },
+  'robot.layerGain': { min: 1.1, max: 1.2, lit: 1 },
+  'robot.masterVolume': { min: 0.9, max: 0.9 },
+  'robot.lfoGainDepth': { min: 50, max: 60, lit: 1 },
+  'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0 },
+  'robot.lfoBusDepth': { min: 30, max: 40, lit: 1 },
+  'robot.rhythmicDensity': { min: 90, max: 100 },
+  'robot.pitchRepeat': { min: 0, max: 5 },
+  'robot.rhythmicMotifLength': { offShare: 0, min: 3, max: 4 },
+  'robot.noteVariance': { offShare: 0.99, min: 1, max: 8 },
+  'robot.dynamics': { min: 0, max: 5 },
+  'robot.rests': { min: 90, max: 100 },
+  'robot.accents': { min: 0, max: 5 },
+}) satisfies Partial<BandTable>);
+
+// band-table T22: the sends read the band table too. Under Adventurous no robot carries a reverb (lit 0), every robot a
+// delay of exactly 0.3 (a point band, lit 1) and every Grit roll lands at 0.5 (so Shimmer and Double never do); Bold
+// gives the Reverb row a lit share of 0.5, to prove the roll against 1 - lit on a row Classic never rolls.
+const everySendMoved = vi.hoisted(() => ({
+  reverbSend: { min: 0.1, max: 0.6, lit: 0 },
+  delaySend: { min: 0.3, max: 0.3, lit: 1 },
+  gritSend: { min: 0.5, max: 0.5, lit: 1 },
+}) satisfies Partial<BandTable>);
+const halfLitReverb = vi.hoisted(() => ({ reverbSend: { min: 0.1, max: 0.6, lit: 0.5 } }) satisfies Partial<BandTable>);
+
+// band-table T27: the deal pass re-derives a dealt robot's Melody fields under its aspect's bands. The real option columns
+// are {} until the listen (plan Task 34), so Hypnotic and Mechanical get distinguishing columns here; Calm is given
+// Hypnotic's column too, so a robot generated under Calm from its own index is exactly what the deal must produce.
+const melodyColumns = vi.hoisted(() => ({
+  hypnotic: { 'robot.rhythmicDensity': { min: 40, max: 60 }, 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
+  mechanical: {
+    'robot.rhythmicDensity': { min: 70, max: 95 },
+    'robot.rhythmicMotifLength': { offShare: 0, min: 6, max: 8 },
+    'robot.pitchRepeat': { min: 0, max: 10 },
+  },
+}) satisfies Record<string, Partial<BandTable>>);
+
+vi.mock('../data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/themes')>();
+  return {
+    ...actual,
+    THEMES: {
+      ...actual.THEMES,
+      perilous: everyRobotBandMoved,
+      adventurous: everySendMoved,
+      bold: halfLitReverb,
+      calm: melodyColumns.hypnotic,
+    },
+  };
+});
+
+vi.mock('../data/bands/aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/aspects')>();
+  const melody = actual.ASPECT_FAMILIES.melody;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: {
+      ...actual.ASPECT_FAMILIES,
+      melody: { ...melody, options: { ...melody.options, hypnotic: melodyColumns.hypnotic, mechanical: melodyColumns.mechanical } },
+    },
+  };
 });
 
 /** General-purpose mock: returns a pseudo-random value in [-1, 1]. */
@@ -207,7 +314,8 @@ describe('spawnSystem', () => {
   // and the bus filter's Q / type / two-tier cutoff are seeded minority traits.
   describe('generateAudioAttributes — articulation seeding (Robot Articulation T5)', () => {
     // 10 worlds x 40 offsets = 400 robots. Spread across worlds because one noise map's draws are
-    // strongly correlated per offset (see LFO_QUIET_THRESHOLD's doc comment) and can land on a band edge.
+    // strongly correlated per offset (every dataId samples the map at the same y, the spawn offset, with its x
+    // inside [0, 1)) and can land on a band edge.
     const WORLDS = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`articulation-seed-world-${i}`)));
     const SAMPLE = WORLDS.flatMap((noiseMap) => Array.from({ length: 40 }, (_, offset) => generateAudioAttributes(noiseMap, offset)));
     const share = (count: number) => count / SAMPLE.length;
@@ -815,23 +923,29 @@ describe('spawnSystem', () => {
       generateRobotSends(realNoise, 3);
 
       const calls = vi.mocked(getSeededVal).mock.calls.map((c) => [c[1], c[2], c[3], c[4]]);
-      const { reverbSend, delaySend } = ROBOT_SEND_LOADING_RANGES;
+      const { reverbSend, delaySend } = CLASSIC;
       expect(calls).toContainEqual(['robot.send.reverb', 3, reverbSend.min, reverbSend.max]);
+      // band-table T22: the Reverb row's lit share is rolled too (never quiet under Classic's lit of 1).
+      expect(calls).toContainEqual(['robot.send.reverb.quiet', 3, 0, 1]);
       expect(calls).toContainEqual(['robot.send.delay', 3, delaySend.min, delaySend.max]);
       expect(calls).toContainEqual(['robot.send.delay.quiet', 3, 0, 1]);
-      expect(calls).toHaveLength(3);
+      expect(calls).toHaveLength(4);
     });
 
     it('takes the quiet threshold from the Delay row: a roll under 1 - lit is quiet', async () => {
-      const original = ROBOT_SEND_LOADING_RANGES.delaySend.lit;
+      // The loaded table with its Delay row lit at 0.4 (quiet below 0.6), read through getBand as the generator reads it.
+      const realGetBand = loadingContextModule.getBand;
+      const getBand = vi
+        .spyOn(loadingContextModule, 'getBand')
+        .mockImplementation(((key: BandKey) =>
+          key === 'delaySend' ? { ...realGetBand('delaySend'), lit: 0.4 } : realGetBand(key)) as typeof realGetBand);
       try {
-        ROBOT_SEND_LOADING_RANGES.delaySend.lit = 0.4; // quiet below 0.6
         await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.59 });
         expect(generateRobotSends(realNoise, 0).delaySend).toBe(0);
         await forceDraws({ reverb: 0.3, delay: 0.2, quiet: 0.6 });
         expect(generateRobotSends(realNoise, 0).delaySend).toBe(0.2);
       } finally {
-        ROBOT_SEND_LOADING_RANGES.delaySend.lit = original;
+        getBand.mockRestore();
       }
     });
 
@@ -874,7 +988,7 @@ describe('spawnSystem', () => {
   describe('generateRobotSends - the three effect room sends (Robot Effect Sends T7)', () => {
     const realNoise = createNoise2D(alea('effect-sends-test-seed'));
     const onGrid = (x: number) => Math.abs(x * 100 - Math.round(x * 100)) < 1e-9;
-    const BANDS = ROBOT_SEND_LOADING_RANGES;
+    const BANDS = CLASSIC;
     const EXCLUSIVE = ['gritSend', 'shimmerSend', 'doubleSend'] as const;
 
     afterEach(async () => {
@@ -983,7 +1097,7 @@ describe('spawnSystem', () => {
     it('keeps the Reverb and Delay draws exactly as they were (the T1 parity test pins their values)', () => {
       vi.mocked(getSeededVal).mockClear();
       generateRobotSends(realNoise, 5);
-      expect(vi.mocked(getSeededVal).mock.calls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb']);
+      expect(vi.mocked(getSeededVal).mock.calls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb', 'robot.send.reverb.quiet']);
     });
 
     // Calibration (spec §5, plan T7): 150 worlds x 12 robots. The nominal shares, with the one-of-three cap taking
@@ -1059,7 +1173,8 @@ describe('spawnSystem', () => {
       expect(robot.lfoLinks).toBeDefined();
       expect(Object.keys(robot.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
 
-      expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody);
+      // The robot rides along (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5): a rebuild spawns before its locale is current.
+      expect(registerSpy).toHaveBeenCalledWith(robot.id, robot.melody, robot);
     });
 
     // Roadmap 48: both fields were never read (createdAt was stamped "for removal ordering";
@@ -1305,7 +1420,7 @@ describe('spawnSystem', () => {
         for (let i = 0; i < 200; i++) spawnRobot(`effect-sends-no-locale-${i}`);
         const sent = sendsSpy.mock.calls.map((c) => c[1] as Record<'grit' | 'shimmer' | 'double', number>);
         expect(sent).toHaveLength(200);
-        const bands = { grit: ROBOT_SEND_LOADING_RANGES.gritSend, shimmer: ROBOT_SEND_LOADING_RANGES.shimmerSend, double: ROBOT_SEND_LOADING_RANGES.doubleSend };
+        const bands = { grit: CLASSIC.gritSend, shimmer: CLASSIC.shimmerSend, double: CLASSIC.doubleSend };
         for (const s of sent) {
           const carried = (['grit', 'shimmer', 'double'] as const).filter((k) => s[k] > 0);
           expect(carried.length).toBeLessThanOrEqual(1);
@@ -1382,7 +1497,7 @@ describe('spawnSystem', () => {
         spawnRobot('sends-keys-locale');
 
         const sendCalls = vi.mocked(getSeededVal).mock.calls.filter((c) => /send/i.test(String(c[1])));
-        expect(sendCalls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb']);
+        expect(sendCalls.map((c) => c[1]).sort()).toEqual(['robot.send.delay', 'robot.send.delay.quiet', 'robot.send.reverb', 'robot.send.reverb.quiet']);
         expect(sendCalls.every((c) => c[2] === 0)).toBe(true);
       });
 
@@ -3267,6 +3382,1148 @@ describe('spawnSystem', () => {
       const noiseMap = createNoise2D(alea('company-baseline-purity-seed'));
       const robotIds = Array.from({ length: 10 }, (_, i) => `robot-${i}`);
       expect(() => generateCompanyRosterBaseline(noiseMap, robotIds)).not.toThrow();
+    });
+  });
+
+  describe('the robot bands read the loading context (band-table T21, spec assumption 15)', () => {
+    const PERILOUS = { theme: 'perilous', aspects: {} } as const;
+    const noiseMap = createNoise2D(alea('band-table-t21'));
+    const ROSTER = 16;
+
+    const freshLocale = (localeId: string, coordinates: { x: number; y: number }) =>
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates, robots: [] } },
+      }));
+
+    /** The fields every spawn path seeds through the Melody and performance bands, as the injected column moves them. */
+    const expectThemedFields = (robot: {
+      rhythmicDensity?: number;
+      pitchRepeat?: number;
+      rhythmicMotifLength?: { active: boolean; value: number };
+      noteVariance?: { active: boolean; value: number };
+      dynamics?: number;
+      rests?: number;
+      accents?: number;
+    }) => {
+      expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      expect(robot.pitchRepeat).toBeLessThanOrEqual(5);
+      expect(robot.rhythmicMotifLength).toEqual({ active: true, value: expect.any(Number) });
+      expect([3, 4]).toContain(robot.rhythmicMotifLength?.value);
+      expect(robot.noteVariance).toEqual({ active: false, value: 0 });
+      expect(robot.dynamics).toBeLessThanOrEqual(5);
+      expect(robot.rests).toBeGreaterThanOrEqual(90);
+      expect(robot.accents).toBeLessThanOrEqual(5);
+    };
+
+    it('generateRobotRosterBaseline draws every robot band from the installed table, where the same noise under Classic does not', () => {
+      const themed = withLoading(PERILOUS, () => generateRobotRosterBaseline(noiseMap, ROSTER));
+      const classic = generateRobotRosterBaseline(noiseMap, ROSTER);
+      expect(themed).toHaveLength(ROSTER);
+      for (const robot of themed) {
+        expectThemedFields(robot);
+        const { adsr, portamento, filterFreq, filterQ, layers } = robot.audioAttributes;
+        expect(adsr.attack).toBeGreaterThanOrEqual(1.5);
+        expect(adsr.attackCurve).toBe('linear');
+        expect(adsr.decay).toBeGreaterThanOrEqual(1);
+        expect(adsr.decay).toBeLessThanOrEqual(1.2);
+        expect(adsr.sustain).toBeGreaterThanOrEqual(0.9);
+        expect(adsr.releaseCurve).not.toBe('linear');
+        expect(adsr.release).toBeGreaterThanOrEqual(0.15);
+        expect(adsr.release).toBeLessThanOrEqual(0.8);
+        expect(portamento).toBe(0.1);
+        expect(filterFreq).toBeGreaterThanOrEqual(500);
+        expect(filterFreq).toBeLessThanOrEqual(600);
+        expect(filterQ).toBe(5);
+        for (const layer of layers ?? []) expect(layer.gain).toBeGreaterThanOrEqual(1.1);
+        for (const target of ROBOT_LFO_TARGET_IDS) {
+          const link = robot.lfoLinks[target];
+          if (target === 'bus.frequency') {
+            expect(link.lane, target).not.toBeNull();
+            expect(link.depth, target).toBeGreaterThanOrEqual(30);
+            expect(link.depth, target).toBeLessThanOrEqual(40);
+          } else if (target.endsWith('.gain')) {
+            expect(link.lane, target).not.toBeNull();
+            expect(link.depth, target).toBeGreaterThanOrEqual(50);
+          } else {
+            expect(link, target).toEqual({ lane: null, depth: 0 });
+          }
+        }
+      }
+      // The parity-fixture rule: the same noise under Classic breaks every bound somewhere, so no check passes by coincidence.
+      expect(classic.some((r) => r.rhythmicDensity < 90)).toBe(true);
+      expect(classic.some((r) => r.pitchRepeat > 5)).toBe(true);
+      expect(classic.some((r) => ![3, 4].includes(r.rhythmicMotifLength.value))).toBe(true);
+      expect(classic.some((r) => r.noteVariance.active)).toBe(true);
+      expect(classic.some((r) => r.dynamics > 5 && r.rests < 90 && r.accents > 5)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.adsr.attack < 1.5)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.adsr.decay > 1.2)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.adsr.release > 0.8)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.portamento === 0)).toBe(true);
+      expect(classic.some((r) => r.audioAttributes.filterQ === 1)).toBe(true);
+      expect(classic.some((r) => (r.audioAttributes.layers ?? []).some((layer) => layer.gain === 0))).toBe(true);
+      expect(classic.some((r) => ROBOT_LFO_TARGET_IDS.some((t) => t.endsWith('.gain') && r.lfoLinks[t].lane === null))).toBe(true);
+      expect(classic.some((r) => ROBOT_LFO_TARGET_IDS.some((t) => t.endsWith('.detune') && r.lfoLinks[t].lane !== null))).toBe(true);
+    });
+
+    it('spawnRobot draws under the installed table too, the master volume included', () => {
+      const localeId = 'band-table-t21-locale';
+      freshLocale(localeId, { x: 7, y: 11 });
+      withLoading(PERILOUS, () => {
+        for (let i = 0; i < 6; i++) spawnRobot(localeId);
+      });
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots).toHaveLength(6);
+      for (const robot of robots) {
+        expectThemedFields(robot);
+        // 0.9 seeded, then the register bias (at most -0.075) and the clamp: never under 0.825 on the 1 % grid.
+        expect(robot.masterVolume).toBeGreaterThanOrEqual(0.82);
+        expect(robot.audioAttributes.portamento).toBe(0.1);
+        expect(robot.audioAttributes.filterQ).toBe(5);
+      }
+    });
+
+    it('spawnRobot with no locale (no noise map) draws its alea fallbacks inside the installed bands', () => {
+      const added: Robot[] = [];
+      const realAddRobot = useLocaleStore.getState().addRobot;
+      useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
+      try {
+        withLoading(PERILOUS, () => {
+          for (let i = 0; i < 20; i++) spawnRobot(`band-table-t21-no-locale-${i}`);
+        });
+      } finally {
+        useLocaleStore.setState({ addRobot: realAddRobot });
+      }
+      expect(added).toHaveLength(20);
+      for (const robot of added) {
+        expectThemedFields(robot);
+        expect(robot.masterVolume).toBeGreaterThanOrEqual(0.82);
+      }
+    });
+
+    it('reads the table at the draw, never caching it: after withLoading the same noise seeds Classic again', () => {
+      const before = generateRobotRosterBaseline(noiseMap, 3);
+      withLoading(PERILOUS, () => generateRobotRosterBaseline(noiseMap, 3));
+      expect(generateRobotRosterBaseline(noiseMap, 3)).toEqual(before);
+    });
+
+    // Classic parity (spec §5.2): the values the constants seeded on main at cc9a01f2, captured before the lift and typed in.
+    const PARITY_ROSTER: Omit<RobotAudioBaseline, 'name'>[] = [
+      {
+        audioAttributes: {
+          adsr: { attack: 0.3836734762745204, decay: 1.4492530300706201, sustain: 0.31283205320094665, release: 0.4299819840896303, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [3, 5], filterFreq: 3089.045348501909, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 290, detune: 3, pulseWidth: 0.2585042283954076,
+          layers: [{ type: 'sawtooth', gain: 0.66, detune: -1, phase: 106 }, { type: 'triangle', gain: 0, detune: -1, phase: 46 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 147 }],
+        } as AudioAttributes,
+        octaveRange: [3, 5], rhythmicDensity: 28, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 6 }, pitchRepeat: 80, dynamics: 35, rests: 48, accents: 68,
+        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.22, delaySend: 0.23, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+      {
+        audioAttributes: {
+          adsr: { attack: 0.6807536158426921, decay: 0.8582776300717225, sustain: 0.11603452461690617, release: 0.7348645057228916, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [3, 5], filterFreq: 3798.4729769270016, filterQ: 1, filterType: 'lowpass', portamento: 0.12, waveform: 'triangle', phase: 169, detune: -0, pulseWidth: 0.39096490279492446,
+          layers: [{ type: 'sawtooth', gain: 0.55, detune: -1, phase: 76 }, { type: 'square', gain: 0, detune: 1, phase: 263 }, { type: 'sawtooth', gain: 1.04, detune: 1, phase: 280 }],
+        } as AudioAttributes,
+        octaveRange: [3, 5], rhythmicDensity: 14, rhythmicMotifLength: { active: true, value: 4 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 46, dynamics: 37, rests: 32, accents: 54,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.29, delaySend: 0.16, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+      {
+        audioAttributes: {
+          adsr: { attack: 1.3564848254331348, decay: 1.282887045182087, sustain: 0.39040796577840453, release: 1.4244646541679042, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [4, 6], filterFreq: 5761.783388416861, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 214, detune: 1, pulseWidth: 0.7037212573861479,
+          layers: [{ type: 'sawtooth', gain: 0.86, detune: 0, phase: 213 }, { type: 'square', gain: 0, detune: 0, phase: 225 }, { type: 'sawtooth', gain: 0.69, detune: -1, phase: 110 }],
+        } as AudioAttributes,
+        octaveRange: [4, 6], rhythmicDensity: 42, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 60, dynamics: 53, rests: 41, accents: 57,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 6 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'c', depth: 6 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.47, delaySend: 0.19, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+    ];
+
+    it('Classic parity: a fixed roster baseline is value for value what the constants seeded before the lift (a glider, a quiet layer, lit gain and detune links among them)', () => {
+      const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 3).map(({ name: _name, ...rest }) => rest);
+      expect(roster).toEqual(PARITY_ROSTER);
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the three above are plain, so they miss the tiers. Robots 3, 4 and 28
+    // of a 29-robot roster from the same noise, captured at cc9a01f2 the same way and typed in: a shaped attack (ripple)
+    // with the bandpass accent, an exclusive send (shimmer), and a plain accent robot whose attack roll sits between the
+    // two shaped shares, so the shares cannot trade places unseen.
+    const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
+      3: {
+        audioAttributes: {
+          adsr: { attack: 0.0912376545758914, decay: 0.6645567734515505, sustain: 0.3370363731755628, release: 0.5994839492725145, attackCurve: 'ripple', releaseCurve: 'linear' },
+          octaveRange: [3, 5], filterFreq: 949.5216011247653, filterQ: 5, filterType: 'bandpass', portamento: 0, waveform: 'sine', phase: 74, detune: -3, pulseWidth: 0.3312173299777377,
+          layers: [{ type: 'triangle', gain: 0.92, detune: 1, phase: 247 }, { type: 'sawtooth', gain: 0.95, detune: 1, phase: 257 }, { type: 'sawtooth', gain: 1.09, detune: 2, phase: 242 }],
+        } as AudioAttributes,
+        octaveRange: [3, 5], rhythmicDensity: 31, rhythmicMotifLength: { active: false, value: 0 }, noteVariance: { active: false, value: 0 }, pitchRepeat: 22, dynamics: 38, rests: 25, accents: 22,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.26, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+      4: {
+        audioAttributes: {
+          adsr: { attack: 1.6180837611580057, decay: 1.513799001363795, sustain: 0.6508510087941983, release: 1.651184897992653, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [4, 6], filterFreq: 6692.565158564469, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 275, detune: 3, pulseWidth: 0.7987047418818843,
+          layers: [{ type: 'square', gain: 0.5, detune: -1, phase: 79 }, { type: 'triangle', gain: 0, detune: -1, phase: 100 }, { type: 'sawtooth', gain: 1.08, detune: 1, phase: 261 }],
+        } as AudioAttributes,
+        octaveRange: [4, 6], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 6 }, pitchRepeat: 76, dynamics: 62, rests: 48, accents: 68,
+        lfoLinks: { 'layer0.gain': { lane: 'd', depth: 45 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'c', depth: 8 }, 'layer2.gain': { lane: 'c', depth: 42 }, 'layer2.detune': { lane: 'c', depth: 8 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.52, delaySend: 0.22, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
+      },
+      28: {
+        audioAttributes: {
+          adsr: { attack: 1.1034769996407638, decay: 0.45511154042455915, sustain: 0.679535826145514, release: 1.0415286282943468, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [2, 4], filterFreq: 1629.7534513514256, filterQ: 4.5, filterType: 'lowpass', portamento: 0, waveform: 'square', phase: 77, detune: -3, pulseWidth: 0.5035310436907365,
+          layers: [{ type: 'triangle', gain: 0.75, detune: 0, phase: 104 }, { type: 'sawtooth', gain: 0.59, detune: -1, phase: 167 }, { type: 'triangle', gain: 0, detune: 0, phase: 216 }],
+        } as AudioAttributes,
+        octaveRange: [2, 4], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 1 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 21, dynamics: 56, rests: 21, accents: 33,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.35, delaySend: 0.07, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+      },
+    };
+
+    it('Classic parity, the tiers: a shaped stage, the bandpass accent and an exclusive send are value for value what the constants seeded before the lift', () => {
+      const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 29).map(({ name: _name, ...rest }) => rest);
+      expect({ 3: roster[3], 4: roster[4], 28: roster[28] }).toEqual(PARITY_TIERS);
+    });
+
+    it('Classic parity: three spawned robots carry the ids, master volumes, densities and glides the constants seeded before the lift', () => {
+      const localeId = 'band-table-parity-locale';
+      freshLocale(localeId, { x: 7, y: 11 });
+      for (let i = 0; i < 3; i++) spawnRobot(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots.map((r) => [r.id, r.masterVolume, r.rhythmicDensity, r.audioAttributes.portamento])).toEqual([
+        ['robot-0-ckli2vjx', 0.79, 50, 0],
+        ['robot-1-a9g7kk48', 0.78, 50, 0],
+        ['robot-2-mrmqcepa', 0.74, 77, 0],
+      ]);
+    });
+  });
+
+  describe('the sends read the band table (band-table T22, spec assumption 15)', () => {
+    const ADVENTUROUS = { theme: 'adventurous', aspects: {} } as const;
+    const BOLD = { theme: 'bold', aspects: {} } as const;
+    const noiseMap = createNoise2D(alea('band-table-t22'));
+
+    afterEach(async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+    });
+
+    it('generateRobotSends under the installed table: no reverb, a delay of 0.3 and a grit of 0.5 on every robot, where Classic varies', () => {
+      const themed = withLoading(ADVENTUROUS, () => Array.from({ length: 20 }, (_, i) => generateRobotSends(noiseMap, i)));
+      const classic = Array.from({ length: 20 }, (_, i) => generateRobotSends(noiseMap, i));
+      for (const sends of themed) {
+        expect(reverbAndDelay(sends)).toEqual({ reverbSend: 0, delaySend: 0.3 });
+        expect(effectSends(sends)).toEqual({ gritSend: 0.5, shimmerSend: 0, doubleSend: 0 });
+      }
+      expect(classic.every((sends) => sends.reverbSend > 0)).toBe(true);
+      expect(classic.some((sends) => sends.delaySend !== 0.3)).toBe(true);
+      expect(classic.some((sends) => sends.gritSend === 0)).toBe(true);
+    });
+
+    it('honours the Reverb row\'s lit share as the Delay row\'s: a quiet roll under 1 - lit seeds 0, at it the band value; Classic\'s lit of 1 is never quiet', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      const force = (quiet: number) =>
+        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
+          dataId === 'robot.send.reverb.quiet' ? quiet : real(nm, dataId, offset, min, max),
+        );
+      force(0.49);
+      expect(withLoading(BOLD, () => generateRobotSends(noiseMap, 0)).reverbSend).toBe(0);
+      expect(generateRobotSends(noiseMap, 0).reverbSend).toBeGreaterThan(0);
+      force(0.5);
+      expect(withLoading(BOLD, () => generateRobotSends(noiseMap, 0)).reverbSend).toBeGreaterThan(0);
+      force(0);
+      expect(generateRobotSends(noiseMap, 0).reverbSend).toBeGreaterThan(0);
+    });
+
+    it('rolls the reverb quiet draw on every robot at its own dataId, so the draw set never depends on the band', () => {
+      vi.mocked(getSeededVal).mockClear();
+      generateRobotSends(noiseMap, 4);
+      const classicIds = vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1])).sort();
+      expect(classicIds).toContain('robot.send.reverb.quiet');
+      vi.mocked(getSeededVal).mockClear();
+      withLoading(ADVENTUROUS, () => generateRobotSends(noiseMap, 4));
+      expect(vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1])).sort()).toEqual(classicIds);
+    });
+
+    it('spawnRobot stores the themed sends', () => {
+      const localeId = 'band-table-t22-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x: 5, y: 9 }, robots: [] } },
+      }));
+      withLoading(ADVENTUROUS, () => {
+        for (let i = 0; i < 4; i++) spawnRobot(localeId);
+      });
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots).toHaveLength(4);
+      for (const robot of robots) {
+        expect(reverbAndDelay(robot)).toEqual({ reverbSend: 0, delaySend: 0.3 });
+        expect(effectSends(robot)).toEqual({ gritSend: 0.5, shimmerSend: 0, doubleSend: 0 });
+      }
+    });
+
+    it('spawnRobot with no locale (no noise map) draws its alea fallbacks inside the installed send bands', () => {
+      const added: Robot[] = [];
+      const realAddRobot = useLocaleStore.getState().addRobot;
+      useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
+      try {
+        withLoading(ADVENTUROUS, () => {
+          for (let i = 0; i < 10; i++) spawnRobot(`band-table-t22-no-locale-${i}`);
+        });
+      } finally {
+        useLocaleStore.setState({ addRobot: realAddRobot });
+      }
+      expect(added).toHaveLength(10);
+      for (const robot of added) {
+        expect(reverbAndDelay(robot)).toEqual({ reverbSend: 0, delaySend: 0.3 });
+        expect(effectSends(robot)).toEqual({ gritSend: 0.5, shimmerSend: 0, doubleSend: 0 });
+      }
+    });
+  });
+
+  // band-table T27 (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24): the deal pass, live and in the baseline.
+  describe('the deal pass (band-table T27)', () => {
+    const noiseMap = createNoise2D(alea('band-table-t27'));
+    const ROSTER = 12;
+    const ids = Array.from({ length: ROSTER }, (_, i) => `robot-${i}`);
+    const HYPNOTIC_MECHANICAL: LoadingIdentity = { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const melodyFieldsOf = (robot: Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>) => ({
+      rhythmicDensity: robot.rhythmicDensity,
+      rhythmicMotifLength: robot.rhythmicMotifLength,
+      noteVariance: robot.noteVariance,
+      pitchRepeat: robot.pitchRepeat,
+    });
+    const freshLocale = (localeId: string, coordinates: { x: number; y: number }) =>
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates, robots: [], companies: [] } },
+      }));
+
+    afterEach(async () => {
+      useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+      vi.restoreAllMocks();
+    });
+
+    it('applyDealToBaselines: a dealt robot\'s four Melody fields are re-derived from its own index under the aspect\'s bands, loadedUnder is set, and nothing else moves', () => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      const companies = generateCompanyRosterBaseline(noiseMap, ids);
+      const dealt = applyDealToBaselines(undealt, ids, companies, HYPNOTIC_MECHANICAL, noiseMap);
+      expect(dealt).toHaveLength(ROSTER);
+      expect(dealt.some((b) => b.loadedUnder?.melody === 'hypnotic')).toBe(true);
+      expect(dealt.some((b) => b.loadedUnder?.melody === 'mechanical')).toBe(true);
+      dealt.forEach((baseline, i) => {
+        const { rhythmicDensity: _d, rhythmicMotifLength: _m, noteVariance: _v, pitchRepeat: _p, loadedUnder, ...rest } = baseline;
+        const { rhythmicDensity: _ud, rhythmicMotifLength: _um, noteVariance: _uv, pitchRepeat: _up, ...restUndealt } = undealt[i];
+        expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
+        if (loadedUnder?.melody === 'hypnotic') {
+          // Calm carries Hypnotic's column: a fresh robot at this index under Calm is the exact re-derivation.
+          const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+          expect(melodyFieldsOf(baseline), `robot ${i}`).toEqual(melodyFieldsOf(expected));
+        } else {
+          expect(loadedUnder, `robot ${i}`).toEqual({ melody: 'mechanical' });
+          expect(baseline.rhythmicDensity).toBe(Math.round(getSeededVal(noiseMap, 'robot.rhythmicDensity', i, 70, 95)));
+          expect(baseline.pitchRepeat).toBe(Math.round(getSeededVal(noiseMap, 'robot.pitchRepeat', i, 0, 10)));
+          expect(baseline.rhythmicMotifLength.active).toBe(true);
+          expect([6, 7, 8]).toContain(baseline.rhythmicMotifLength.value);
+          // The band Mechanical leaves alone is still re-derived from the robot's own index, under Classic's band.
+          expect(baseline.noteVariance).toEqual(generateRobotAudioBaseline(noiseMap, i, []).noteVariance);
+        }
+      });
+    });
+
+    // The as-theme member and its "plain groups" case are gone (docs/tasks/OFF_SCREEN_REVISIONS.md Task 6): every group is
+    // dealt one of the picks, and only an empty list leaves the roster plain.
+    it('with no picks the pass is a no-op: the same array comes back', () => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      const companies = generateCompanyRosterBaseline(noiseMap, ids);
+      expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: {} }, noiseMap)).toBe(undealt);
+      expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: [] } }, noiseMap)).toBe(undealt);
+    });
+
+    it('a copied-baseline robot re-derives from its own index, not its source\'s', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor).
+      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
+        if (dataId === 'robot.copyChance') return 0;
+        if (dataId === 'robot.copySource') return min ?? 0;
+        return real(nm, dataId, offset, min, max);
+      });
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      expect(undealt[3].rhythmicDensity).toBe(undealt[0].rhythmicDensity); // precondition: robot 3 is a copy of robot 0
+      const ownDraw = Math.round(real(noiseMap, 'robot.rhythmicDensity', 3, 40, 60));
+      const sourceDraw = Math.round(real(noiseMap, 'robot.rhythmicDensity', 0, 40, 60));
+      expect(ownDraw).not.toBe(sourceDraw); // precondition: the two indices draw apart, so the check cannot pass by coincidence
+      const companies = generateCompanyRosterBaseline(noiseMap, ids);
+      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['hypnotic'] } }, noiseMap);
+      expect(dealt[3].loadedUnder).toEqual({ melody: 'hypnotic' });
+      expect(dealt[3].rhythmicDensity).toBe(ownDraw);
+      expect(dealt[0].rhythmicDensity).toBe(sourceDraw);
+    });
+
+    it('generateDealtRosterBaseline is the roster and company baselines with the deal applied', () => {
+      const { robots, companies } = generateDealtRosterBaseline(noiseMap, ids, HYPNOTIC_MECHANICAL);
+      expect(companies).toEqual(generateCompanyRosterBaseline(noiseMap, ids));
+      expect(robots).toEqual(applyDealToBaselines(generateRobotRosterBaseline(noiseMap, ROSTER), ids, companies, HYPNOTIC_MECHANICAL, noiseMap));
+      expect(generateDealtRosterBaseline(noiseMap, ids, { theme: 'classic', aspects: {} }).robots).toEqual(generateRobotRosterBaseline(noiseMap, ROSTER));
+    });
+
+    it('applyAspectDeal, live: writes the dealt fields and loadedUnder through the store, regenerates and re-registers each dealt melody, and agrees with the dealt baseline field for field', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'] } });
+      const localeId = 'band-table-t27-live';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const before = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(before.length).toBeGreaterThan(0);
+      expect(before.every((r) => r.loadedUnder === undefined)).toBe(true);
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      applyAspectDeal(localeId);
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      for (const robot of robots) {
+        expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
+        expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(40);
+        expect(robot.rhythmicDensity).toBeLessThanOrEqual(60);
+        expect(robot.noteVariance).toEqual({ active: true, value: expect.any(Number) });
+        expect([1, 2]).toContain(robot.noteVariance?.value);
+      }
+      expect(register).toHaveBeenCalledTimes(robots.length);
+      expect(robots.some((robot, i) => JSON.stringify(robot.melody) !== JSON.stringify(before[i].melody))).toBe(true);
+      const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+      robots.forEach((robot, i) => {
+        expect({ ...melodyFieldsOf(robot), loadedUnder: robot.loadedUnder }, `robot ${i}`).toEqual({ ...melodyFieldsOf(baselines[i]), loadedUnder: baselines[i].loadedUnder });
+      });
+    });
+
+    it('applyAspectDeal with no picks touches nothing: no robot write, no re-registration, no loadedUnder', () => {
+      const localeId = 'band-table-t27-live-none';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const before = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody');
+      applyAspectDeal(localeId);
+      const after = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(after).toBe(before);
+      expect(register).not.toHaveBeenCalled();
+      for (const robot of after) expect(robot.loadedUnder).toBeUndefined();
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 8: the deal per family. Envelope re-derives the robot's adsr, Distance its sends,
+  // each through the same draws spawn makes (deriveEnvelopeFields, deriveSendFields), under resolveBands(theme, aspect);
+  // live, each dealt family is pushed to the engine as a hand edit would push it.
+  describe('the deal pass per family (revisions Task 8)', () => {
+    const noiseMap = createNoise2D(alea('revisions-t8'));
+    const ROSTER = 12;
+    const ids = Array.from({ length: ROSTER }, (_, i) => `robot-${i}`);
+    const companies = generateCompanyRosterBaseline(noiseMap, ids);
+    const deal = (aspects: LoadingIdentity['aspects'], theme: LoadingIdentity['theme'] = 'classic') => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      return { undealt, dealt: applyDealToBaselines(undealt, ids, companies, { theme, aspects }, noiseMap) };
+    };
+    const sendsOf = (r: Pick<RobotAudioBaseline, 'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend'>) => ({
+      reverbSend: r.reverbSend,
+      delaySend: r.delaySend,
+      gritSend: r.gritSend,
+      shimmerSend: r.shimmerSend,
+      doubleSend: r.doubleSend,
+    });
+    /** Every field but the adsr, the five sends and loadedUnder: what an Envelope or Distance deal must leave alone. */
+    const restOf = (r: RobotAudioBaseline) => {
+      const { reverbSend: _r, delaySend: _d, gritSend: _g, shimmerSend: _s, doubleSend: _o, loadedUnder: _l, audioAttributes, ...rest } = r;
+      const { adsr: _a, ...attributes } = audioAttributes;
+      return { ...rest, attributes };
+    };
+    const freshLocale = (localeId: string, coordinates: { x: number; y: number }) =>
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates, robots: [], companies: [] } },
+      }));
+
+    afterEach(async () => {
+      useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+      vi.restoreAllMocks();
+    });
+
+    it('generateAudioAttributes draws its adsr through deriveEnvelopeFields under the installed bands, value for value', () => {
+      for (let i = 0; i < 6; i++) {
+        expect(generateAudioAttributes(noiseMap, i).adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', {})));
+      }
+      const perilous = withLoading({ theme: 'perilous', aspects: {} }, () => generateAudioAttributes(noiseMap, 2).adsr);
+      expect(perilous).toEqual(deriveEnvelopeFields(noiseMap, 2, resolveBands('perilous', {})));
+    });
+
+    it('generateRobotSends is deriveSendFields under the installed bands, value for value', () => {
+      for (let i = 0; i < 6; i++) expect(generateRobotSends(noiseMap, i)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', {})));
+      const adventurous = withLoading({ theme: 'adventurous', aspects: {} }, () => generateRobotSends(noiseMap, 3));
+      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('adventurous', {})));
+    });
+
+    it('a robot dealt Plucked has the adsr deriveEnvelopeFields draws at its index under Plucked; its sends and every other field are untouched', () => {
+      const { undealt, dealt } = deal({ envelope: ['plucked'] });
+      const bands = resolveBands('classic', { envelope: 'plucked' });
+      dealt.forEach((baseline, i) => {
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'plucked' });
+        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(deriveEnvelopeFields(noiseMap, i, bands));
+        expect(baseline.audioAttributes.adsr.attack, `robot ${i}`).toBeLessThanOrEqual(0.04);
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(sendsOf(undealt[i]));
+        expect(restOf(baseline), `robot ${i}`).toEqual(restOf(undealt[i]));
+      });
+      // The parity rule: Classic's own draws break the pluck somewhere, so the equality cannot hold by coincidence.
+      expect(undealt.some((b) => b.audioAttributes.adsr.attack > 0.04)).toBe(true);
+    });
+
+    it('a robot dealt Remote has the sends deriveSendFields draws at its index under Remote; its adsr and every other field are untouched', () => {
+      const { undealt, dealt } = deal({ distance: ['remote'] });
+      const bands = resolveBands('classic', { distance: 'remote' });
+      dealt.forEach((baseline, i) => {
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'remote' });
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, bands));
+        expect(baseline.reverbSend, `robot ${i}`).toBeGreaterThanOrEqual(0.65);
+        expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.35);
+        // The three effect room sends are the theme's: re-derived, they come out as they were.
+        const { gritSend, shimmerSend, doubleSend } = undealt[i];
+        expect({ gritSend: baseline.gritSend, shimmerSend: baseline.shimmerSend, doubleSend: baseline.doubleSend }).toEqual({ gritSend, shimmerSend, doubleSend });
+        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(undealt[i].audioAttributes.adsr);
+        expect(restOf(baseline), `robot ${i}`).toEqual(restOf(undealt[i]));
+      });
+      expect(undealt.some((b) => b.reverbSend < 0.65)).toBe(true);
+    });
+
+    it('the deal reads every band from its own theme, never the installed context: Remote under Adventurous carries Adventurous\'s grit while Classic is loaded', () => {
+      expect(useLoadingStore.getState().theme).toBe('classic');
+      const { dealt } = deal({ distance: ['remote'] }, 'adventurous');
+      dealt.forEach((baseline, i) => {
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('adventurous', { distance: 'remote' })));
+        // This file's Adventurous seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
+        expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
+      });
+    });
+
+    it('a robot dealt one of each family carries all three, and loadedUnder has one key per dealt family', () => {
+      const { dealt } = deal({ melody: ['hypnotic'], envelope: ['held'], distance: ['near'] });
+      dealt.forEach((baseline, i) => {
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'near' });
+        expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
+        expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', { distance: 'near' })));
+        // Calm carries Hypnotic's column in this file's mock: a fresh robot at this index under Calm is the Melody re-derivation.
+        const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+        expect(baseline.rhythmicDensity).toBe(expected.rhythmicDensity);
+        expect(baseline.noteVariance).toEqual(expected.noteVariance);
+      });
+      const { dealt: two } = deal({ envelope: ['swelling'], distance: ['far'] });
+      for (const baseline of two) expect(Object.keys(baseline.loadedUnder ?? {}).sort()).toEqual(['distance', 'envelope']);
+    });
+
+    it('an aspect composes over the theme: Perilous plus Swelling takes Swelling\'s attack and sustain and Perilous\'s decay and release', () => {
+      const { dealt } = deal({ envelope: ['swelling'] }, 'perilous');
+      dealt.forEach((baseline, i) => {
+        const { adsr } = baseline.audioAttributes;
+        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('perilous', { envelope: 'swelling' })));
+        // Perilous (this file's mock) seeds attacks of 1.5-2 s; Swelling's 0.3-1.2 wins.
+        expect(adsr.attack, `robot ${i}`).toBeLessThanOrEqual(1.2);
+        expect(adsr.decay, `robot ${i}`).toBeGreaterThanOrEqual(1);
+        expect(adsr.decay, `robot ${i}`).toBeLessThanOrEqual(1.2);
+        expect(adsr.sustain, `robot ${i}`).toBeGreaterThanOrEqual(0.7);
+      });
+    });
+
+    it('a copied-baseline robot re-derives its adsr from its own index, keeping the rest of the copy', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
+        if (dataId === 'robot.copyChance') return 0;
+        if (dataId === 'robot.copySource') return min ?? 0;
+        return real(nm, dataId, offset, min, max);
+      });
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      expect(undealt[3].audioAttributes).toEqual(undealt[0].audioAttributes); // precondition: robot 3 copies robot 0
+      const bands = resolveBands('classic', { envelope: 'held' });
+      const own = deriveEnvelopeFields(noiseMap, 3, bands);
+      expect(own).not.toEqual(deriveEnvelopeFields(noiseMap, 0, bands)); // precondition: the two indices draw apart
+      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { envelope: ['held'] } }, noiseMap);
+      expect(dealt[3].audioAttributes.adsr).toEqual(own);
+      expect(dealt[3].audioAttributes.waveform).toBe(undealt[0].audioAttributes.waveform);
+      expect(dealt[3].audioAttributes.layers).toEqual(undealt[0].audioAttributes.layers);
+    });
+
+    it('applyAspectDeal, live: an Envelope deal writes each adsr and hands it to the engine as a hand edit does, once a robot, and agrees with the baseline', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { envelope: ['plucked', 'held'] } });
+      const localeId = 'revisions-t8-live-envelope';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+
+      applyAspectDeal(localeId);
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(envelope).toHaveBeenCalledTimes(robots.length);
+      for (const robot of robots) expect(envelope).toHaveBeenCalledWith(robot.id, robot.audioAttributes.adsr);
+      expect(sends).not.toHaveBeenCalled();
+      expect(register).not.toHaveBeenCalled();
+      const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+      robots.forEach((robot, i) => {
+        expect(robot.audioAttributes.adsr, `robot ${i}`).toEqual(baselines[i].audioAttributes.adsr);
+        expect(robot.loadedUnder, `robot ${i}`).toEqual(baselines[i].loadedUnder);
+      });
+      expect(new Set(robots.map((r) => r.loadedUnder?.envelope))).toEqual(new Set(['plucked', 'held']));
+    });
+
+    it('applyAspectDeal, live: a Distance deal writes each robot\'s sends and hands all five to the engine, once a robot, and agrees with the baseline', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
+      const localeId = 'revisions-t8-live-distance';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+
+      applyAspectDeal(localeId);
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(sends).toHaveBeenCalledTimes(robots.length);
+      for (const robot of robots) {
+        expect(sends).toHaveBeenCalledWith(robot.id, robotSendLevels(robot));
+        expect(robot.reverbSend).toBeGreaterThanOrEqual(0.65);
+      }
+      expect(envelope).not.toHaveBeenCalled();
+      const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+      robots.forEach((robot, i) => expect(sendsOf(robot), `robot ${i}`).toEqual(sendsOf(baselines[i])));
+    });
+
+    // docs/tasks/OFF_SCREEN_REVISIONS.md Task 10: the Voice family. The waveform draws read a PickBand; Classic's five equal
+    // weights must reproduce Math.floor's index exactly, so every existing world keeps its waveforms.
+    describe('Voice (revisions Task 10)', () => {
+      const WAVEFORMS = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'] as const;
+      const CLASSIC_ACCENT = resolveBands('classic', {})['robot.accentFilterFreq'];
+      const onlyWeight = (wave: (typeof WAVEFORMS)[number]) =>
+        ({ weights: Object.fromEntries(WAVEFORMS.map((w) => [w, w === wave ? 1 : 0])) }) as BandTable['robot.waveform'];
+      const voiceOf = (a: AudioAttributes) => ({
+        waveform: a.waveform,
+        filterFreq: a.filterFreq,
+        filterQ: a.filterQ,
+        filterType: a.filterType,
+        layers: a.layers,
+      });
+
+      it('Classic parity: over 400 robots the base and the three layer waveforms are what Math.floor of the old draw picked', async () => {
+        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        const map = createNoise2D(alea('revisions-t10-parity'));
+        const seen = new Set<string>();
+        for (let i = 0; i < 400; i++) {
+          const attrs = generateAudioAttributes(map, i);
+          const base = WAVEFORMS[Math.min(4, Math.floor(real(map, 'robot.audio.waveform', i, 0, 5)))];
+          expect(attrs.waveform, `robot ${i}`).toBe(base);
+          seen.add(attrs.waveform);
+          (attrs.layers ?? []).forEach((layer, l) => {
+            expect(layer.type, `robot ${i} layer ${l}`).toBe(WAVEFORMS[Math.floor(real(map, 'robot.audio.layer.waveform', i * 10 + l, 0, 5))]);
+          });
+        }
+        expect(seen.size).toBe(5); // every waveform drawn, so the check covers every edge
+      });
+
+      it('a PickBand of one waveform gives every robot and every layer that waveform', () => {
+        for (const wave of WAVEFORMS) {
+          const bands = { ...resolveBands('classic', {}), 'robot.waveform': onlyWeight(wave) };
+          for (let i = 0; i < 40; i++) {
+            const voice = deriveVoiceFields(noiseMap, i, bands);
+            expect(voice.waveform, `${wave} robot ${i}`).toBe(wave);
+            for (const layer of voice.layers ?? []) expect(layer.type, `${wave} robot ${i}`).toBe(wave);
+          }
+        }
+      });
+
+      it('a moved weight is applied: sine and pulse alone share the fleet, a zero-weight waveform never drawn', () => {
+        const bands = {
+          ...resolveBands('classic', {}),
+          'robot.waveform': { weights: { sine: 1, square: 0, triangle: 0, sawtooth: 0, pulse: 1 } },
+        };
+        const drawn = Array.from({ length: 200 }, (_, i) => deriveVoiceFields(noiseMap, i, bands).waveform);
+        expect(new Set(drawn)).toEqual(new Set(['sine', 'pulse']));
+      });
+
+      it('the draw spans the whole weight: two equal weights split 400 robots near half and half', () => {
+        const map = createNoise2D(alea('revisions-t10-shares'));
+        const bands = {
+          ...resolveBands('classic', {}),
+          'robot.waveform': { weights: { sine: 1, square: 1, triangle: 0, sawtooth: 0, pulse: 0 } },
+        };
+        const drawn = Array.from({ length: 400 }, (_, i) => deriveVoiceFields(map, i, bands).waveform);
+        const sineShare = drawn.filter((w) => w === 'sine').length / drawn.length;
+        expect(sineShare).toBeGreaterThan(0.35);
+        expect(sineShare).toBeLessThan(0.65);
+      });
+
+      it('a draw at the very top of the weight lands on the last weighted waveform, never on a zero-weight one or off the end', async () => {
+        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
+          dataId === 'robot.audio.waveform' || dataId === 'robot.audio.layer.waveform' ? (max ?? 1) : real(nm, dataId, offset, min, max),
+        );
+        const bands = { ...resolveBands('classic', {}), 'robot.waveform': { weights: { sine: 1, square: 2, triangle: 0, sawtooth: 0, pulse: 0 } } };
+        const voice = deriveVoiceFields(noiseMap, 3, bands);
+        expect(voice.waveform).toBe('square');
+        for (const layer of voice.layers ?? []) expect(layer.type).toBe('square');
+        expect(generateAudioAttributes(noiseMap, 3).waveform).toBe('pulse'); // Classic: the old clamp's last waveform
+      });
+
+      it('generateAudioAttributes draws its voice through deriveVoiceFields under the installed bands', () => {
+        for (let i = 0; i < 6; i++) {
+          expect(voiceOf(generateAudioAttributes(noiseMap, i))).toEqual(deriveVoiceFields(noiseMap, i, resolveBands('classic', {})));
+        }
+      });
+
+      it('a robot dealt Woody has the waveform, filter and layers deriveVoiceFields draws under Woody; its adsr, sends and the rest untouched', () => {
+        const { undealt, dealt } = deal({ voice: ['woody'] });
+        const bands = resolveBands('classic', { voice: 'woody' });
+        dealt.forEach((baseline, i) => {
+          expect(baseline.loadedUnder, `robot ${i}`).toEqual({ voice: 'woody' });
+          expect(voiceOf(baseline.audioAttributes), `robot ${i}`).toEqual(deriveVoiceFields(noiseMap, i, bands));
+          // Everything outside the voice - the adsr, the register, the glide, the phase, detune and pulse width - as it was.
+          const { filterFreq: _f, filterQ: _q, filterType: _t, waveform: _w, layers: _l, ...outside } = baseline.audioAttributes;
+          const { filterFreq: _uf, filterQ: _uq, filterType: _ut, waveform: _uw, layers: _ul, ...outsideUndealt } = undealt[i].audioAttributes;
+          expect(outside, `robot ${i}`).toEqual(outsideUndealt);
+          expect(sendsOf(baseline)).toEqual(sendsOf(undealt[i]));
+        });
+        // The parity rule: Woody's bands move some robot off its Classic voice, so the equality cannot hold by coincidence.
+        expect(dealt.some((b, i) => JSON.stringify(voiceOf(b.audioAttributes)) !== JSON.stringify(voiceOf(undealt[i].audioAttributes)))).toBe(true);
+        // The bands themselves, not only the derivation: every open (non-accent, Q 1) robot's cutoff is inside Woody's
+        // 1200-3500 Hz, where Classic's open band (2000-8000) put some above it.
+        const open = dealt.filter((b) => b.audioAttributes.filterQ === 1);
+        expect(open.length).toBeGreaterThan(0);
+        for (const b of open) {
+          expect(b.audioAttributes.filterFreq).toBeGreaterThanOrEqual(1200);
+          expect(b.audioAttributes.filterFreq).toBeLessThanOrEqual(3500);
+        }
+        expect(undealt.some((b) => b.audioAttributes.filterQ === 1 && b.audioAttributes.filterFreq > 3500)).toBe(true);
+        // And the layer gain: every sounding layer inside Woody's 0.6-1.0, where Classic's 0.2-1.2 put some outside it.
+        const sounding = (b: RobotAudioBaseline) => (b.audioAttributes.layers ?? []).filter((layer) => layer.gain > 0);
+        for (const b of dealt) {
+          for (const layer of sounding(b)) {
+            expect(layer.gain).toBeGreaterThanOrEqual(0.6);
+            expect(layer.gain).toBeLessThanOrEqual(1);
+          }
+        }
+        expect(undealt.some((b) => sounding(b).some((layer) => layer.gain < 0.6 || layer.gain > 1))).toBe(true);
+      });
+
+      it('a robot dealt Hollow takes Hollow\'s accent filter: every resonant robot inside its 600-2000 Hz cutoff and 6-12 Q', () => {
+        const { dealt } = deal({ voice: ['hollow'] });
+        const accents = dealt.filter((b) => b.audioAttributes.filterQ !== 1);
+        expect(accents.length).toBeGreaterThan(0);
+        for (const b of accents) {
+          expect(b.audioAttributes.filterFreq).toBeGreaterThanOrEqual(600);
+          expect(b.audioAttributes.filterFreq).toBeLessThanOrEqual(2000);
+          expect(b.audioAttributes.filterQ).toBeGreaterThanOrEqual(6);
+          expect(b.audioAttributes.filterQ).toBeLessThanOrEqual(12);
+        }
+        // The parity rule: Classic's accent band (400-2500 Hz, Q 3-8), at Hollow's accent share, lands some robot outside
+        // Hollow's, so the bounds above cannot hold by coincidence.
+        const classicAtHollowShare = { ...resolveBands('classic', {}), 'robot.accentFilterFreq': { ...CLASSIC_ACCENT, lit: 0.45 } };
+        const classicAccents = dealt.map((_, i) => deriveVoiceFields(noiseMap, i, classicAtHollowShare)).filter((v) => v.filterQ !== 1);
+        expect(classicAccents.some((v) => v.filterFreq < 600 || v.filterFreq > 2000 || (v.filterQ ?? 0) < 6)).toBe(true);
+      });
+
+      it('a robot dealt Held and Woody carries both: the Held adsr and the Woody voice in one set of audio attributes', () => {
+        const { dealt } = deal({ envelope: ['held'], voice: ['woody'] });
+        dealt.forEach((baseline, i) => {
+          expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'held', voice: 'woody' });
+          expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
+          expect(voiceOf(baseline.audioAttributes)).toEqual(deriveVoiceFields(noiseMap, i, resolveBands('classic', { voice: 'woody' })));
+        });
+      });
+
+      it('applyAspectDeal, live: a Voice deal rebuilds each voice from the store and re-primes its links, as a structural edit does', () => {
+        useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { voice: ['glassy', 'hollow'] } });
+        const localeId = 'revisions-t10-live-voice';
+        freshLocale(localeId, { x: 7, y: 11 });
+        spawnInitialRoster(localeId);
+        spawnInitialCompanies(localeId);
+        const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+        const prime = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+        const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+
+        applyAspectDeal(localeId);
+
+        const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+        expect(rebuild).toHaveBeenCalledTimes(robots.length);
+        expect(prime).toHaveBeenCalledTimes(robots.length);
+        for (const robot of robots) {
+          // The dealt robot rides along: a rebuild deals before its locale is current (review R4).
+          expect(rebuild).toHaveBeenCalledWith(robot.id, robot);
+          expect(prime).toHaveBeenCalledWith(robot);
+        }
+        // The rebuild reads the store, so it runs after the write: the store already holds the dealt voice.
+        expect(rebuild.mock.invocationCallOrder[0]).toBeLessThan(prime.mock.invocationCallOrder[0]);
+        expect(envelope).not.toHaveBeenCalled();
+        const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
+        robots.forEach((robot, i) => expect(voiceOf(robot.audioAttributes), `robot ${i}`).toEqual(voiceOf(baselines[i].audioAttributes)));
+        expect(new Set(robots.map((r) => r.loadedUnder?.voice))).toEqual(new Set(['glassy', 'hollow']));
+      });
+    });
+
+    it('applyAspectDeal, live: a Melody-only deal pushes no envelope and no sends', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['wandering'] } });
+      const localeId = 'revisions-t8-live-melody';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+      applyAspectDeal(localeId);
+      expect(envelope).not.toHaveBeenCalled();
+      expect(sends).not.toHaveBeenCalled();
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R14: one push per family, each guarded as spawnRobot's reservation is, so
+    // a push that throws leaves the deal running. Every mocked push also checks that the store already holds its robot
+    // dealt, so a push moved above the write fails here.
+    it('applyAspectDeal, live: a push that throws for one robot leaves every robot dealt and every other push made, each after its write', () => {
+      useLoadingStore.getState().setLoading({
+        theme: 'classic',
+        aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['far'], voice: ['woody'] },
+      });
+      const localeId = 'review-r14-throwing-push';
+      freshLocale(localeId, { x: 7, y: 11 });
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const ids = useLocaleStore.getState().getLocaleById(localeId)!.robots.map((r) => r.id);
+      const victim = ids[3];
+      const stored = (id: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots.find((r) => r.id === id)!;
+      /** Per robot, its pushes in call order: the family, or the family marked when the store did not yet hold the robot
+       *  dealt with the very value pushed. */
+      const pushes = new Map<string, string[]>();
+      const note = (id: string, family: string, dealt: boolean) =>
+        pushes.set(id, [...(pushes.get(id) ?? []), dealt ? family : family + ' before the write']);
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation((id) => {
+        note(id, 'melody', stored(id).loadedUnder?.melody === 'hypnotic');
+      });
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation((id, adsr) => {
+        note(id, 'envelope', stored(id).loadedUnder?.envelope === 'plucked' && JSON.stringify(stored(id).audioAttributes.adsr) === JSON.stringify(adsr));
+        if (id === victim) throw new Error('the engine refused this envelope');
+      });
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation((id, levels) => {
+        note(id, 'distance', stored(id).loadedUnder?.distance === 'far' && JSON.stringify(robotSendLevels(stored(id))) === JSON.stringify(levels));
+      });
+      const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation((id) => {
+        note(id, 'voice', stored(id).loadedUnder?.voice === 'woody');
+        return true;
+      });
+      const prime = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+
+      expect(() => applyAspectDeal(localeId)).not.toThrow();
+
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots).toHaveLength(ids.length);
+      for (const robot of robots) {
+        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'plucked', distance: 'far', voice: 'woody' });
+        // Each family once, in family order, after the write: the victim's two families after the throw included.
+        expect(pushes.get(robot.id), robot.id).toEqual(['melody', 'envelope', 'distance', 'voice']);
+      }
+      for (const spy of [register, envelope, sends, rebuild, prime]) expect(spy).toHaveBeenCalledTimes(robots.length);
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5: every rebuild spawns, and deals, into a locale that is not current yet,
+  // so a melody registered then must carry its robot, or it loses its motif accents (and a click track its pattern).
+  describe('melodies registered outside the active locale keep their accents (review R5)', () => {
+    let worlds = 0;
+    const freshWorld = () => {
+      const localeId = `review-r5-${worlds++}`;
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x: 7, y: 11 }, robots: [], companies: [] } },
+      }));
+      return localeId;
+    };
+    const robotsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots;
+
+    afterEach(() => {
+      useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+      vi.restoreAllMocks();
+    });
+
+    it('spawnRobot registers with the robot it spawned: a motif window\'s opening note carries the group accent', () => {
+      const localeId = freshWorld();
+      expect(localeId).not.toBe(DEFAULT_LOCALE_ID); // precondition: the robots are not in the active locale
+      spawnInitialRoster(localeId);
+      const openings = windowOpenings(robotsOf(localeId));
+      expect(openings.length, 'a motif-active robot whose first window opens on a plain note').toBeGreaterThan(0);
+      for (const { robot, step } of openings) expect(accentAt(robot.id, step), robot.id).toBe(1.25);
+    });
+
+    it('the deal\'s Melody push registers with the robot as stored in its own locale: the dealt melodies carry their accents', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['mechanical'] } }); // the motif always on
+      const localeId = freshWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const openings = windowOpenings(robotsOf(localeId));
+      expect(openings.length).toBeGreaterThan(0);
+      for (const { robot, step } of openings) expect(accentAt(robot.id, step), robot.id).toBe(1.25);
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect change re-deals the live roster in place. Per robot, only the
+  // fields whose seeded value the new picks move take what a rebuild under them gives (field by field since
+  // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16, which folded redealAspects into rederiveLoading); everything else stands.
+  describe('an aspect change re-deals the live roster in place (review R33, through rederiveLoading since F16)', () => {
+    const COORDS = { x: 7, y: 11 };
+    let worlds = 0;
+    /** Each world's loading as last dealt, the `from` a re-deal compares against (building a comparison world moves the
+     *  store, so the store cannot say). */
+    const dealtUnder = new Map<string, LoadingIdentity['aspects']>();
+    /** A live world at COORDS, spawned and dealt under `aspects` as initializeLocale builds one: a new id each call, so its
+     *  spawn count starts at 0 and its robots are the plot's own. */
+    const buildWorld = (aspects: LoadingIdentity['aspects'], theme: LoadingIdentity['theme'] = 'classic') => {
+      useLoadingStore.getState().setLoading({ theme, aspects });
+      const localeId = `review-r33-${worlds++}`;
+      dealtUnder.set(localeId, aspects);
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: COORDS, robots: [], companies: [] } },
+      }));
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      return localeId;
+    };
+    const robotsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots;
+    /** Two worlds' robots, comparable whole: a melody event's id is a fresh UUID per generation, never seeded, so it is
+     *  the one thing two builds of one roster never share. The notes themselves are compared. */
+    const comparable = (robots: readonly Robot[]) =>
+      robots.map(({ melody, ...rest }) => ({ ...rest, melody: melody.map(({ id: _id, ...event }) => event) }));
+    /** The aspects-only change as retransmitWorld runs it: the store first, then the re-deal, dropping swells through the
+     *  real cancel unless a test hands its own. */
+    const redeal = (localeId: string, aspects: LoadingIdentity['aspects'], dropSwell = cancelSwellForRobotAttribute) => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects });
+      rederiveLoading(localeId, { theme: 'classic', aspects: dealtUnder.get(localeId)! }, dropSwell);
+      dealtUnder.set(localeId, aspects);
+    };
+    const idsCalled = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((call) => call[0] as string).sort();
+    // Envelope narrows to one of its two picks, Distance is picked, Voice is emptied; Melody stays as it was.
+    const FROM: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['plucked', 'held'], voice: ['glassy'] };
+    const TO: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['held'], distance: ['remote'] };
+
+    afterEach(async () => {
+      useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      vi.mocked(getSeededVal).mockImplementation(real);
+      vi.restoreAllMocks();
+    });
+
+    it('leaves the roster what a fresh build under the new picks deals, robot for robot: moved families re-derived, an emptied one back to the theme\'s draw', () => {
+      const live = buildWorld(FROM);
+      const before = robotsOf(live);
+      const fresh = robotsOf(buildWorld(TO));
+      // Preconditions: the two Envelope picks alternate, and the old deal differs from the new one.
+      expect(new Set(before.map((r) => r.loadedUnder?.envelope))).toEqual(new Set(['plucked', 'held']));
+      expect(comparable(before)).not.toEqual(comparable(fresh));
+
+      redeal(live, TO);
+
+      expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
+      for (const robot of robotsOf(live)) {
+        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'remote' });
+      }
+    });
+
+    it('re-derives only the families whose aspect moved: a tweak on a family that stays survives, one on a re-derived field resets', () => {
+      const live = buildWorld(FROM);
+      const robots = robotsOf(live);
+      const held = robots.find((r) => r.loadedUnder?.envelope === 'held')!;
+      const plucked = robots.find((r) => r.loadedUnder?.envelope === 'plucked')!;
+      const fresh = robotsOf(buildWorld(TO));
+      const freshOf = (id: string) => fresh.find((r) => r.id === id)!;
+      const tweakedAdsr = { ...held.audioAttributes.adsr, attack: 1.234 };
+      useLocaleStore.getState().updateRobot(live, held.id, {
+        rhythmicDensity: 77, // Melody stays Hypnotic for everyone
+        audioAttributes: { ...held.audioAttributes, adsr: tweakedAdsr }, // this robot's Envelope stays Held
+        reverbSend: 0.123, // Distance moves the Reverb band for everyone
+        gritSend: 0.456, // ...and not Grit's, so this tweak stands (final fixes F16: only what the change moves)
+      });
+      useLocaleStore.getState().updateRobot(live, plucked.id, {
+        audioAttributes: { ...plucked.audioAttributes, adsr: { ...plucked.audioAttributes.adsr, attack: 1.234 } }, // Plucked moves to Held
+      });
+
+      redeal(live, TO);
+
+      const after = (id: string) => robotsOf(live).find((r) => r.id === id)!;
+      expect(after(held.id).rhythmicDensity).toBe(77);
+      expect(after(held.id).audioAttributes.adsr).toEqual(tweakedAdsr);
+      expect(after(held.id).reverbSend).toBe(freshOf(held.id).reverbSend);
+      expect(after(held.id).gritSend).toBe(0.456);
+      expect(after(plucked.id).audioAttributes.adsr).toEqual(freshOf(plucked.id).audioAttributes.adsr);
+      expect(freshOf(held.id).reverbSend).not.toBe(0.123); // precondition: the reset is visible
+      expect(freshOf(held.id).gritSend).toBe(held.gritSend); // precondition: Grit's seeded value stands
+    });
+
+    it('pushes each moved family once per robot, with the value written, and nothing for a family that stays', () => {
+      const live = buildWorld(FROM);
+      const movedEnvelope = robotsOf(live).filter((r) => r.loadedUnder?.envelope === 'plucked').map((r) => r.id).sort();
+      const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+      const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+      const prime = vi.spyOn(robotLfoLinks, 'primeRobotLinks').mockImplementation(() => {});
+
+      redeal(live, TO);
+
+      const robots = robotsOf(live);
+      const allIds = robots.map((r) => r.id).sort();
+      const stored = (id: unknown) => robots.find((r) => r.id === id)!;
+      expect(register).not.toHaveBeenCalled();
+      expect(idsCalled(envelope)).toEqual(movedEnvelope);
+      for (const [id, adsr] of envelope.mock.calls) expect(adsr).toEqual(stored(id).audioAttributes.adsr);
+      expect(idsCalled(sends)).toEqual(allIds);
+      for (const [id, levels] of sends.mock.calls) expect(levels).toEqual(robotSendLevels(stored(id)));
+      expect(idsCalled(rebuild)).toEqual(allIds);
+      for (const [id, robot] of rebuild.mock.calls) expect(robot).toEqual(stored(id));
+      expect(prime).toHaveBeenCalledTimes(robots.length);
+    });
+
+    // Field by field since docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16: on an untweaked world a moved seeded value is a
+    // changed value, so the swells dropped are those on the swellable keys the fresh build under the new picks changes.
+    it('drops the swell riding each re-derived field before the write, as a hand edit does, and no other', () => {
+      const live = buildWorld(FROM);
+      const robots = robotsOf(live);
+      const fresh = robotsOf(buildWorld(TO));
+      const dropped: string[] = [];
+      const dropSwell = (id: string, attribute: string) => {
+        // The new deal gives every robot Distance: a robot already holding it was written before its swells went.
+        const written = robotsOf(live).find((r) => r.id === id)?.loadedUnder?.distance !== undefined;
+        dropped.push(id + ':' + attribute + (written ? ' after the write' : ''));
+      };
+
+      redeal(live, TO, dropSwell);
+
+      const SENDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
+      const ADSR = ['attack', 'decay', 'sustain', 'release'] as const;
+      const expected = robots.flatMap((r, i) => {
+        const to = fresh[i];
+        const adsr = ADSR.filter((k) => r.audioAttributes.adsr[k] !== to.audioAttributes.adsr[k]).map((k) => `adsr.${k}`);
+        const sends = SENDS.filter((k) => r[k] !== to[k]);
+        const layers = r.audioAttributes.layers!.flatMap((layer, j) =>
+          (['gain', 'detune'] as const).filter((k) => layer[k] !== to.audioAttributes.layers![j][k]).map((k) => `layer${j}.${k}`),
+        );
+        return [...adsr, ...sends, ...layers].map((attribute) => r.id + ':' + attribute);
+      });
+      expect(expected.length).toBeGreaterThan(0); // precondition
+      expect(dropped.sort()).toEqual(expected.sort());
+    });
+
+    it('a re-deal to the same picks touches nothing: no write, no push, no swell dropped', () => {
+      const live = buildWorld(FROM);
+      const before = robotsOf(live);
+      const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+      const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+      const cancel = vi.fn();
+      redeal(live, FROM, cancel);
+      expect(robotsOf(live)).toBe(before);
+      expect(sends).not.toHaveBeenCalled();
+      expect(envelope).not.toHaveBeenCalled();
+      expect(cancel).not.toHaveBeenCalled();
+    });
+
+    it('emptying every family leaves a plain spawn: no loadedUnder, every field the theme\'s own draw', () => {
+      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], distance: ['far'], voice: ['hollow'] });
+      const plain = robotsOf(buildWorld({}));
+      redeal(live, {});
+      expect(comparable(robotsOf(live))).toEqual(comparable(plain));
+      for (const robot of robotsOf(live)) expect(robot.loadedUnder, robot.id).toBeUndefined();
+    });
+
+    it('a copied robot undealt takes its source\'s values back, as it spawned, not a fresh draw at its own index', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor).
+      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
+        if (dataId === 'robot.copyChance') return 0;
+        if (dataId === 'robot.copySource') return min ?? 0;
+        return real(nm, dataId, offset, min, max);
+      });
+      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], voice: ['woody'] });
+      const dealt = robotsOf(live);
+      const plain = robotsOf(buildWorld({}));
+      expect(plain[3].audioAttributes).toEqual(plain[0].audioAttributes); // precondition: robot 3 spawns as robot 0's copy
+      expect(dealt[3].audioAttributes.adsr).not.toEqual(plain[3].audioAttributes.adsr); // precondition: the deal moved it off
+
+      redeal(live, {});
+
+      expect(comparable(robotsOf(live))).toEqual(comparable(plain));
+    });
+
+    it('a Voice move carries the whole bus filter: open lowpass robots dealt Hollow come back resonant bandpass ones', async () => {
+      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
+      // Every accent roll between Classic's accent share (0.27) and Hollow's (0.45), every type roll under the bandpass share.
+      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
+        if (dataId === 'robot.audio.filter.accent') return 0.35;
+        if (dataId === 'robot.audio.filter.type') return 0;
+        return real(nm, dataId, offset, min, max);
+      });
+      const live = buildWorld({});
+      const fresh = robotsOf(buildWorld({ voice: ['hollow'] }));
+      expect(robotsOf(live).every((r) => r.audioAttributes.filterType === 'lowpass')).toBe(true); // precondition
+      expect(fresh.every((r) => r.audioAttributes.filterType === 'bandpass')).toBe(true); // precondition
+
+      redeal(live, { voice: ['hollow'] });
+
+      expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
+    });
+
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F20 (Crawford, 2026-11-01): "if a robot changes company nothing about the
+    // robot should change unless the robot itself or its new company gets updated". The deal still reads the live
+    // companies, but a moved robot's family changes only when the aspect its new company is dealt changes.
+    describe('a robot moved to another company (final fixes F20)', () => {
+      /** A world dealt Hypnotic and Mechanical over two companies, with the first company's first robot moved into the
+       *  second. */
+      const movedWorld = () => {
+        const live = buildWorld({ melody: ['hypnotic', 'mechanical'] });
+        const { companies } = useLocaleStore.getState().getLocaleById(live)!;
+        expect(companies.length).toBeGreaterThanOrEqual(2); // precondition: two companies, dealt the two picks in turn
+        const [first, second] = companies;
+        const mover = first.robotIds[0];
+        const pickOf = (id: string) => robotsOf(live).find((r) => r.id === id)!.loadedUnder?.melody;
+        expect(pickOf(mover)).not.toBe(pickOf(second.robotIds[0])); // precondition
+        useLocaleStore.getState().assignRobotToCompany(live, mover, second.id);
+        const robotOf = () => robotsOf(live).find((r) => r.id === mover)!;
+        return { live, mover, robotOf, pickOf, before: robotOf(), newCompanyMate: second.robotIds[0] };
+      };
+      const melodyFields = (r: Robot) => [r.rhythmicDensity, r.rhythmicMotifLength, r.noteVariance, r.pitchRepeat, r.rests];
+
+      it('keeps its pick and its Melody fields through a change to another family', () => {
+        const { live, robotOf, before } = movedWorld();
+        redeal(live, { melody: ['hypnotic', 'mechanical'], envelope: ['held'] });
+        expect(robotOf().loadedUnder?.melody).toBe(before.loadedUnder?.melody);
+        expect(melodyFields(robotOf())).toEqual(melodyFields(before));
+        expect(robotOf().loadedUnder?.envelope).toBe('held'); // the family that did change reached it
+      });
+
+      it("takes its new company's pick when a change moves that company's pick", () => {
+        const { live, mover, robotOf, pickOf, newCompanyMate } = movedWorld();
+        redeal(live, { melody: ['wandering'] });
+        expect(pickOf(newCompanyMate)).toBe('wandering');
+        expect(robotOf().loadedUnder?.melody).toBe('wandering');
+        const sameSpawn = robotsOf(buildWorld({ melody: ['wandering'] })).find((r) => r.id === mover)!;
+        expect(melodyFields(robotOf())).toEqual(melodyFields(sameSpawn));
+      });
+
+      it('keeps its pick through a theme change, its moved fields drawn under that pick', () => {
+        const { live, mover, robotOf, before } = movedWorld();
+        const own = before.loadedUnder!.melody!;
+        useLoadingStore.getState().setLoading({ theme: 'perilous', aspects: { melody: ['hypnotic', 'mechanical'] } });
+        rederiveLoading(live, { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } }, cancelSwellForRobotAttribute);
+        expect(robotOf().loadedUnder?.melody).toBe(own);
+        // The same plot built under Perilous with the mover's own pick for everyone: its fields as they should be.
+        const fresh = robotsOf(buildWorld({ melody: [own] }, 'perilous')).find((r) => r.id === mover)!;
+        // Every seeded field as the fresh build under its own pick has it; at least one is moved by Perilous.
+        const seeded = (r: Robot) => ({ melody: melodyFields(r), adsr: r.audioAttributes.adsr, sends: robotSendLevels(r) });
+        expect(seeded(fresh)).not.toEqual(seeded(before)); // precondition
+        expect(seeded(robotOf())).toEqual(seeded(fresh));
+      });
     });
   });
 });

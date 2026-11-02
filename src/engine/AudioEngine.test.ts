@@ -7,6 +7,14 @@ import { MAX_POLYPHONY, MIN_LEAD } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
+// The raw AudioContext under Tone's context, one object shared by every getContext() call, so the pause()/resume()
+// cases below can watch it being suspended and resumed (docs/specs/OFF_SCREEN.md assumption 2).
+const rawContextMock = vi.hoisted(() => ({
+  suspend: vi.fn(() => Promise.resolve()),
+  resume: vi.fn(() => Promise.resolve()),
+  state: 'running' as string,
+}));
+
 // Mock Tone.js to avoid audio context initialization in tests
 vi.mock('tone', () => ({
   start: vi.fn().mockResolvedValue(undefined),
@@ -35,6 +43,7 @@ vi.mock('tone', () => ({
     now: vi.fn(() => 0),
     setTimeout: vi.fn(() => 1),
     clearTimeout: vi.fn(),
+    rawContext: rawContextMock,
   })),
   PolySynth: vi.fn(() => ({
     connect: vi.fn().mockReturnThis(),
@@ -286,6 +295,7 @@ vi.mock('../utils/helpers', async () => {
 // target got which call, in what order).
 vi.mock('./lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => false), // read by audioStore's module-load style-sync, which start() imports
     primeLfoBank: vi.fn(),
     linkTarget: vi.fn(() => true),
     disposeRobotLinks: vi.fn(),
@@ -304,6 +314,7 @@ import { useLocaleStore } from '../stores/localeStore';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
 import { HEADROOM_TRIM_GAIN, robotBusGain } from './audioEngine/headroom';
 import { precomputeDataX } from '../utils/getSeededVal';
+import { robotSendLevels } from '../data/robotSends';
 
 /** Shared placeholder ADSR for tests that don't care about specific envelope values —
  * reserveVoice's adsr parameter is required (Roadmap Phase 9), so every call needs one. */
@@ -369,6 +380,76 @@ describe('AudioEngine.reReserveVoice', () => {
       // The 9th: the articulation object, every field non-default for the same reason (Robot Articulation T3).
       { portamento: 0.2, filterQ: 6, filterType: 'bandpass' },
     );
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4: a rebuild deals its robots before their locale is current, so the deal
+  // hands its robot over. A robot passed in is built from ahead of the lookup in the active locale.
+  it('builds from a robot passed in, ahead of the active locale: one the locale lacks, and one it holds in an older state', () => {
+    const inLocale = {
+      id: 'r1',
+      position: { x: 960, y: 0 },
+      melody: [],
+      octaveRange: [3, 4],
+      masterVolume: 0.8,
+      audioMode: 'none',
+      pan: 0,
+      panAuto: true,
+      audioAttributes: { waveform: 'sine', adsr: TEST_ADSR, filterFreq: 1850, layers: [{ type: 'sine' }] },
+    };
+    vi.spyOn(useLocaleStore, 'getState').mockReturnValue({ locales: { testLocale: { robots: [inLocale] } } } as any);
+    const reserveSpy = vi.spyOn(AudioEngine, 'reserveVoice').mockImplementation(() => true);
+    vi.spyOn(AudioEngine, 'releaseVoice').mockImplementation(() => { });
+    const panSpy = vi.spyOn(AudioEngine, 'updateRobotPan').mockImplementation(() => { });
+    const sendsSpy = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => { });
+
+    // Not in the active locale (a robot dealt in a locale that is not current yet): built from the robot given, its
+    // manual pan and its sends handed back from it as well.
+    const elsewhere = {
+      ...inLocale,
+      id: 'r2',
+      masterVolume: 0.6,
+      panAuto: false,
+      pan: -0.4,
+      reverbSend: 0.3,
+      delaySend: 0.2,
+      gritSend: 0.1,
+      shimmerSend: 0.05,
+      doubleSend: 0.4,
+      audioAttributes: {
+        waveform: 'square',
+        adsr: { attack: 0.2, decay: 0.3, sustain: 0.5, release: 1.1 },
+        filterFreq: 3100,
+        portamento: 0.1,
+        filterQ: 4,
+        filterType: 'bandpass',
+        layers: [{ type: 'square', pulseWidth: 0.3 }],
+        phase: 12,
+        detune: -3,
+      },
+    };
+    expect(AudioEngine.reReserveVoice('r2', elsewhere as any)).toBe(true);
+    expect(reserveSpy).toHaveBeenLastCalledWith(
+      'r2',
+      [{ type: 'square', pulseWidth: 0.3 }],
+      { attack: 0.2, decay: 0.3, sustain: 0.5, release: 1.1 },
+      12,
+      -3,
+      0.3,
+      0.6,
+      3100,
+      { portamento: 0.1, filterQ: 4, filterType: 'bandpass' },
+    );
+    expect(panSpy).toHaveBeenCalledWith('r2', -0.4);
+    expect(sendsSpy).toHaveBeenLastCalledWith('r2', robotSendLevels(elsewhere as any));
+
+    // The same id as the locale's robot, in a newer state: the copy given wins over the lookup.
+    const newer = { ...inLocale, audioAttributes: { ...inLocale.audioAttributes, layers: [{ type: 'triangle' }] } };
+    expect(AudioEngine.reReserveVoice('r1', newer as any)).toBe(true);
+    expect(reserveSpy.mock.calls.at(-1)?.[1]).toEqual([{ type: 'triangle' }]);
+
+    // Nothing given: the lookup in the active locale, as before.
+    expect(AudioEngine.reReserveVoice('r1')).toBe(true);
+    expect(reserveSpy.mock.calls.at(-1)?.[1]).toEqual([{ type: 'sine' }]);
   });
 });
 
@@ -1582,6 +1663,60 @@ describe('AudioEngine - Motif Group Accent', () => {
     spy.mockRestore();
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5: a rebuild registers its robots' melodies before their locale is
+  // current, so the caller hands the robot over, and it is read ahead of the lookup in the active locale.
+  describe('a robot passed in (review R5)', () => {
+    const melody = [
+      { id: 'e1', startStep: 2, length: '8n' as const, noteIndex: 0, octave: 4 },
+      { id: 'e2', startStep: 3, length: '8n' as const, noteIndex: 0, octave: 4 },
+      { id: 'e3', startStep: 6, length: '8n' as const, noteIndex: 0, octave: 4 },
+    ];
+    /** The accent multiplier each of steps 2, 3 and 6 schedules for `robotId`, 1 when none. */
+    const accentsOf = (AudioEngine: typeof import('./AudioEngine').AudioEngine, robotId: string) => {
+      const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
+      for (const step of [2, 3, 6]) AudioEngine.processMelodyStep(step, 0);
+      const out = spy.mock.calls.map((c) => c[0]).filter((p) => p.robotId === robotId).map((p) => p.accentMultiplier ?? 1);
+      spy.mockRestore();
+      return out;
+    };
+    const load = async (robots: unknown[]) => {
+      const { AudioEngine } = await import('./AudioEngine');
+      const storeMod = await import('../stores/localeStore');
+      const attenuationStyleMod = await import('../stores/attenuationStyleStore');
+      const helpers = await import('../utils/localeHelpers');
+      (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(attenuationStyleMod.DEFAULT_LOCALE_ID);
+      storeMod.useLocaleStore.getState().setLocaleData(attenuationStyleMod.DEFAULT_LOCALE_ID, { robots: robots as any });
+      return AudioEngine;
+    };
+
+    it('accents each window\'s first step for a motif-active robot the active locale does not hold', async () => {
+      const AudioEngine = await load([]);
+      AudioEngine.registerRobotMelody('elsewhere-robot', melody, makeRobot('elsewhere-robot', { active: true, value: 4 }) as any);
+      const [step2, step3, step6] = accentsOf(AudioEngine, 'elsewhere-robot');
+      expect(step2).toBeGreaterThan(1);
+      expect(step3).toBe(1);
+      expect(step6).toBeGreaterThan(1);
+    });
+
+    it('registers the click track for a robot passed in with it on, from that robot\'s own register', async () => {
+      const AudioEngine = await load([]);
+      const robot = { ...makeRobot('elsewhere-click', { active: true, value: 4 }), clickTrackActive: true, octaveRange: [2, 5] };
+      AudioEngine.registerRobotMelody('elsewhere-click', melody, robot as any);
+      const registered = AudioEngine.getRegisteredMelody('elsewhere-click');
+      expect(registered.map((e) => e.id).sort()).toEqual(['click-track-0', 'click-track-1', 'click-track-2', 'click-track-3']);
+      expect(registered.every((e) => e.octave === 2)).toBe(true);
+    });
+
+    it('the robot passed in wins over the active locale\'s own copy; with none passed, the lookup as before', async () => {
+      const AudioEngine = await load([makeRobot('shared-robot', { active: false, value: 4 })]);
+      AudioEngine.registerRobotMelody('shared-robot', melody, makeRobot('shared-robot', { active: true, value: 4 }) as any);
+      expect(accentsOf(AudioEngine, 'shared-robot')).toEqual([expect.any(Number), 1, expect.any(Number)]);
+      expect(accentsOf(AudioEngine, 'shared-robot')[0]).toBeGreaterThan(1);
+      AudioEngine.registerRobotMelody('shared-robot', melody);
+      expect(accentsOf(AudioEngine, 'shared-robot')).toEqual([1, 1, 1]);
+    });
+  });
+
   it('accents through the LIVE transport tick, not only the processMelodyStep test helper', async () => {
     // Regression: startMelodyPlayback carried its own copy of the per-step loop that dropped
     // isGroupAccent, so the accent only ever worked through processMelodyStep (which every
@@ -2442,36 +2577,18 @@ describe('AudioEngine - Transport methods & Master Volume (Issue #220)', () => {
     vi.resetModules();
   });
 
-  // ── pause ──────────────────────────────────────────────── //
+  // ── pause / resume ─────────────────────────────────────── //
+  // The transport contract these once pinned ("pause() calls Transport.pause()", "resume() calls Transport.start()")
+  // retired with docs/specs/OFF_SCREEN.md assumption 2: both now suspend / resume the AudioContext and never touch the
+  // transport — see "AudioEngine.pause / resume — the AudioContext suspends and resumes" at the end of this file.
   describe('pause()', () => {
-    it('calls Transport.pause()', async () => {
-      const Tone = await import('tone');
-      const { AudioEngine } = await import('./AudioEngine');
-      await AudioEngine.start();
-      const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
-      AudioEngine.pause();
-      expect(transport.pause).toHaveBeenCalled();
-    });
-
     it('does not throw when called before start', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       expect(() => AudioEngine.pause()).not.toThrow();
     });
   });
 
-  // ── resume ─────────────────────────────────────────────── //
   describe('resume()', () => {
-    it('calls Transport.start()', async () => {
-      const Tone = await import('tone');
-      const { AudioEngine } = await import('./AudioEngine');
-      await AudioEngine.start();
-      const transport = (Tone.getTransport as unknown as AnyMock).mock.results.at(-1)?.value;
-      // Reset call count so only the resume call is counted
-      transport.start.mockClear();
-      AudioEngine.resume();
-      expect(transport.start).toHaveBeenCalled();
-    });
-
     it('does not throw when called before start', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       expect(() => AudioEngine.resume()).not.toThrow();
@@ -5704,11 +5821,11 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
       expect(computeNoteVelocitySeeded('r', 7)).toBe(first);
     });
 
-    it('the same position gives the same velocity after the engine is stopped and started again (replay from power-on)', async () => {
+    it('the same position gives the same velocity after killAll and a full start again (replay from a cold power-on)', async () => {
       const { AudioEngine, computeNoteVelocitySeeded } = await setup([robotFixture('r', { dynamics: 100 })]);
       await AudioEngine.start();
       const before = sweep((p) => computeNoteVelocitySeeded('r', p), 30);
-      AudioEngine.stop();
+      AudioEngine.killAll();
       await AudioEngine.start();
       expect(sweep((p) => computeNoteVelocitySeeded('r', p), 30)).toEqual(before);
     });
@@ -6231,5 +6348,94 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       expect(durations).toEqual(['0.075']);
       expect(getContext).toHaveBeenCalled();
     });
+  });
+});
+
+// Power is a pause (docs/specs/OFF_SCREEN.md assumption 2, docs/tasks/OFF_SCREEN.md Task 1): the rocker suspends the
+// AudioContext itself, so the transport, the BeatClock's tick, every LFO, every sounding voice and every tail freeze
+// together and resume together. The transport is never told anything.
+describe('AudioEngine.pause / resume — the AudioContext suspends and resumes', () => {
+  type TransportMock = { pause: ReturnType<typeof vi.fn>; start: ReturnType<typeof vi.fn> };
+  const transportsOf = (Tone: typeof import('tone')) =>
+    (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results.map((r) => r.value as TransportMock);
+
+  beforeEach(() => {
+    vi.resetModules();
+    rawContextMock.suspend.mockClear();
+    rawContextMock.resume.mockClear();
+  });
+
+  it('pause() after start() suspends the raw context once and never pauses the transport', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const Tone = await import('tone');
+    await AudioEngine.start();
+
+    AudioEngine.pause();
+
+    expect(rawContextMock.suspend).toHaveBeenCalledTimes(1);
+    const transports = transportsOf(Tone);
+    expect(transports.length).toBeGreaterThan(0);
+    for (const transport of transports) expect(transport.pause).not.toHaveBeenCalled();
+  });
+
+  it('resume() after start() resumes the raw context once and does not start the transport a second time', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const Tone = await import('tone');
+    await AudioEngine.start();
+    const startsBefore = transportsOf(Tone).reduce((n, t) => n + t.start.mock.calls.length, 0);
+
+    AudioEngine.resume();
+
+    expect(rawContextMock.resume).toHaveBeenCalledTimes(1);
+    const startsAfter = transportsOf(Tone).reduce((n, t) => n + t.start.mock.calls.length, 0);
+    expect(startsAfter).toBe(startsBefore);
+  });
+
+  it('neither pause() nor resume() touches the context before start()', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+
+    AudioEngine.pause();
+    AudioEngine.resume();
+
+    expect(rawContextMock.suspend).not.toHaveBeenCalled();
+    expect(rawContextMock.resume).not.toHaveBeenCalled();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: a context that refuses (closed, or held by an autoplay policy) is
+  // logged in dev builds, never thrown into the rocker's sequence.
+  it('a rejected suspend is logged, not thrown', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const { devWarn } = await import('../utils/helpers');
+    await AudioEngine.start();
+    vi.mocked(devWarn).mockClear();
+    const refused = new Error('the context refused');
+    rawContextMock.suspend.mockImplementationOnce(() => Promise.reject(refused));
+
+    expect(() => AudioEngine.pause()).not.toThrow();
+    await vi.waitFor(() => expect(devWarn).toHaveBeenCalledWith('[AudioEngine] pause failed', refused));
+  });
+
+  it('a rejected resume is logged, not thrown', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const { devWarn } = await import('../utils/helpers');
+    await AudioEngine.start();
+    vi.mocked(devWarn).mockClear();
+    const refused = new Error('the context refused');
+    rawContextMock.resume.mockImplementationOnce(() => Promise.reject(refused));
+
+    expect(() => AudioEngine.resume()).not.toThrow();
+    await vi.waitFor(() => expect(devWarn).toHaveBeenCalledWith('[AudioEngine] resume failed', refused));
+  });
+
+  it('never throws when the context exposes no rawContext', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const Tone = await import('tone');
+    await AudioEngine.start();
+    const bare = { now: vi.fn(() => 0), setTimeout: vi.fn(() => 1), clearTimeout: vi.fn() };
+    vi.mocked(Tone.getContext).mockReturnValueOnce(bare as never);
+    vi.mocked(Tone.getContext).mockReturnValueOnce(bare as never);
+
+    expect(() => AudioEngine.pause()).not.toThrow();
+    expect(() => AudioEngine.resume()).not.toThrow();
   });
 });

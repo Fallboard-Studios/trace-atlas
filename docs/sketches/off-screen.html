@@ -4,6 +4,18 @@
      aspects, sessions, presets", plan.md Stage 1), BEFORE the interview, so Crawford can see each piece of each view.
      Static HTML + a little JS; nothing here touches the app.
 
+     BUILT 2026-10-30/31 as roadmap 57 on feature/off-screen (docs/intent/off-screen.md, docs/specs/OFF_SCREEN.md,
+     docs/tasks/OFF_SCREEN.md), then REVISED 2026-10-31 after Crawford's listen (docs/tasks/OFF_SCREEN_REVISIONS.md, his
+     eight notes). This page is the record of the look: every "proposed" and "decided" piece shipped as drawn, with
+     these differences — the Transmission options are a plain list (a dot, the name, "saved …" on a save) rather than
+     boxes, with Roll at the end of the Current row and Keep alone under the list as "Save the last session"; the aspect
+     rows are four families, Melody, Envelope, Distance (this page's Space, renamed: Near / Far / Remote) and Voice, with
+     no As theme option, and they POP on hover and select, against the "nothing pops" rule below, while the theme row
+     stays flat; a world change fades through a wash in the sea's own colours, 0.5 s each way; the confirm dialog
+     (piece 20) and the shortcut buttons (piece 22) are gone; the "Open for the interview" box was answered by the
+     intent (power is a pause, one Keep button, hint-only first visit). Theme and aspect names are the decided ids;
+     every description line and the footer are still stand-in copy in src/content/.
+
      DECIDED 2026-10-30 (Crawford, on reading this page: "I love it"): the ROLL button stays; FIVE themes; aspect rows
      FLAT (no disclosure); the TWO-AXIS chooser (Transmission / Loading, two columns on desktop); the VEIL; the LORE
      FOOTER. Presets as pasted share links of worlds he saved was his own ask the same day. The fixed panel's defaults
@@ -238,7 +250,7 @@
 <body>
 
 <h1>The off screen — six stories, every piece</h1>
-<p class="note">Wireframes for backlog 5 (plan.md Stage 1), drawn 2026-10-30 before the interview. Six stories — how you arrived (a bare URL or a shared
+<p class="note"><span class="st built">BUILT</span> 2026-10-30/31 as roadmap 57 on <code>feature/off-screen</code> — this page is the record of the look; the header comment lists what shipped differently. Wireframes for backlog 5 (plan.md Stage 1), drawn 2026-10-30 before the interview. Six stories — how you arrived (a bare URL or a shared
   link) × what the device knows (first visit; returning; returning with saves) — each with the off screen drawn in that story's state. Numbered callouts
   name each piece; the legend under a frame says what the piece is and whether it is <span class="st built">built</span> today,
   <span class="st changed">built → changed</span> by the proposal, <span class="st decided">decided</span> on 2026-10-30, <span class="st proposed">proposed</span>, or <span class="st open">open</span>.
@@ -263,6 +275,7 @@
     <li><b>The veil</b> over the world until the flip (piece 19).</li>
     <li><b>The lore footer</b> (piece 18; the legalese is his copy).</li>
     <li><b>Presets are pasted share links</b> of worlds he saved — his own ask the same day (piece 12; frame D's curation flow).</li>
+    <li><b>Aspect rows are multi-select, dealt round-robin</b> (spec review, same day): the picks of a family go over the seeded companies, then each freelance robot alone, until every group has one; "as theme" is a pickable member. The rows here are drawn single-pick — the spec (docs/specs/OFF_SCREEN.md, assumptions 21–24) is the record.</li>
   </ol></div>
 
 <div class="leans"><b>Leans from the 2026-10-29/30 discussion (drawn here, not decided):</b>

@@ -58,7 +58,7 @@ humanLabel: fill('company.delete', { company: selectedCompany.name })
 <span>{CONTENT['session.status.linkCopied'].human}</span>
 ```
 
-Names are data, not copy: robot names, company names, attenuation-style names and the Sector Settings preset names (`SectorPreset.name`) are never content. A preset button's visible label is its name filled into `sector.preset.*`'s `{name}` template; only its lore caption is copy.
+Names are data, not copy: robot names, company names, attenuation-style names and save names are never content. The Sector Settings preset buttons, with `SectorPreset.name` and the `sector.preset.*` templates, went with the Seeds tab's shortcut rows (`docs/specs/OFF_SCREEN.md` assumption 13). The off screen's presets that replaced them are named by content: each `TransmissionPreset` carries a `nameKey` (`src/data/transmissionPresets.ts`).
 
 ## The guard
 

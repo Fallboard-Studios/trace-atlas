@@ -27,6 +27,7 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
 // first call, which throws without a real AudioContext.
 vi.mock('../../../../engine/lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => false), // before any power-on: audioStore's bank pushes stay data-only
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),
     setBankRate: vi.fn(),

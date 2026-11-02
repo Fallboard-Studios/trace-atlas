@@ -15,7 +15,7 @@ import { traceRoute, traceTimes } from './trace';
 import { RING_SEGMENTS, ringRadius, ringRoute, ringStartAngles, sparkChords } from './ring';
 import { workVariation, turnRanks } from './variation';
 import type { OrbiterCorner } from './sceneToOrbiterLocal';
-import { getTimeline, killTimeline, killAllTimelines } from '../timelineMap';
+import { getTimeline, getTimelineScope, killTimeline, killAllTimelines } from '../timelineMap';
 import { AudioEngine } from '../../engine/AudioEngine';
 import { getRobotGem, gemWidth, GEM_CANVAS_H } from '../../components/robot/gem/polygon';
 import { orbiterPlan, ATTACH_DURATION } from '../../components/robot/gem/orbiterMotion';
@@ -142,6 +142,7 @@ describe('buildJobTimeline (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.9, Task 19
     const i = input(2);
     const tl = buildJobTimeline(i);
     expect(getTimeline('work-r7')).toBe(tl);
+    expect(getTimelineScope('work-r7')).toBe('world'); // a world mover: the power rocker's pause freezes it
     expect(tl.paused()).toBe(true);
     expect(num(i.robotEl, 'y')).toBe(300);
     for (const local of i.orbiters) expect([num(local, 'x'), num(local, 'y')]).toEqual([0, 0]);

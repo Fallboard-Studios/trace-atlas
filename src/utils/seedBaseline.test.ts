@@ -22,6 +22,23 @@ import {
 } from '../testUtils/worldLinkFixtures';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS } from '../types/lfo';
 import type { SessionPayload } from '../types/session';
+import { getBand } from '../data/bands/loadingContext';
+import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
+
+// ========================================
+// MOCKS
+// ========================================
+
+// band-table T23 (docs/specs/OFF_SCREEN.md assumptions 10 and 15): the world baseline regenerates inside the identity's
+// own bands. Every real column is {} until the listen (plan Task 34), so Calm moves the LPF cutoff (a plain field, no
+// ripple) and Bold moves bpm, over the spread originals.
+vi.mock('../data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/themes')>();
+  return {
+    ...actual,
+    THEMES: { ...actual.THEMES, calm: { 'filterLPF.frequency': { min: 500, max: 600 } }, bold: { bpm: { min: 150, max: 160 } } },
+  };
+});
 
 // ========================================
 // FIXTURES
@@ -29,6 +46,11 @@ import type { SessionPayload } from '../types/session';
 
 const NAME = 'n40dh8p8';
 const SCRATCH_ID = '__world-link__';
+
+/** The seed identity of a Classic world: what every world was before the themes. */
+const classicWorld = (name: string) => ({ attenuationStyleName: name, theme: 'classic', aspects: {} }) as const;
+const CALM: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES, theme: 'calm', aspects: {} };
+const BOLD: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES, theme: 'bold', aspects: {} };
 
 /** The eight generators called directly, under an id of the test's own choosing, with the rig and the lanes through
  *  the capture step a save applies (sessionCapture.ts). */
@@ -64,7 +86,7 @@ describe('generateWorldSeedBaseline', () => {
   });
 
   it('equals the eight generators called directly with any id and the same name, as a save captures them, field for field', () => {
-    const baseline = generateWorldSeedBaseline(NAME);
+    const baseline = generateWorldSeedBaseline(classicWorld(NAME));
     expect(baseline).toEqual(directBaseline('any-id', NAME));
     expect(Object.keys(baseline).sort()).toEqual(
       [
@@ -81,20 +103,20 @@ describe('generateWorldSeedBaseline', () => {
   });
 
   it('returns an equal value on a second consecutive call', () => {
-    expect(generateWorldSeedBaseline(NAME)).toEqual(generateWorldSeedBaseline(NAME));
+    expect(generateWorldSeedBaseline(classicWorld(NAME))).toEqual(generateWorldSeedBaseline(classicWorld(NAME)));
   });
 
   it('reads the exact name: a different name gives a different baseline', () => {
-    expect(generateWorldSeedBaseline('Pelagos 7!')).toEqual(directBaseline('any-id', 'Pelagos 7!'));
-    expect(generateWorldSeedBaseline('Pelagos 7!')).not.toEqual(generateWorldSeedBaseline(NAME));
+    expect(generateWorldSeedBaseline(classicWorld('Pelagos 7!'))).toEqual(directBaseline('any-id', 'Pelagos 7!'));
+    expect(generateWorldSeedBaseline(classicWorld('Pelagos 7!'))).not.toEqual(generateWorldSeedBaseline(classicWorld(NAME)));
   });
 
   it('leaves compressorBeforeDelay at whatever the generator returns (false)', () => {
-    expect(generateWorldSeedBaseline(NAME).globalAudio.compressorBeforeDelay).toBe(false);
+    expect(generateWorldSeedBaseline(classicWorld(NAME)).globalAudio.compressorBeforeDelay).toBe(false);
   });
 
   it('evicts its scratch noise map: the scratch id builds a fresh map for another name afterwards', () => {
-    generateWorldSeedBaseline(NAME);
+    generateWorldSeedBaseline(classicWorld(NAME));
     const underScratch = firstSample(SCRATCH_ID, 'OTHER');
     expect(underScratch).not.toBe(firstSample('ref-n40', NAME));
     expect(underScratch).toBe(firstSample('ref-other', 'OTHER'));
@@ -104,14 +126,14 @@ describe('generateWorldSeedBaseline', () => {
     vi.spyOn(globalAudioSeed, 'generateHumanize').mockImplementationOnce(() => {
       throw new Error('generator failed');
     });
-    expect(() => generateWorldSeedBaseline(NAME)).toThrow('generator failed');
+    expect(() => generateWorldSeedBaseline(classicWorld(NAME))).toThrow('generator failed');
     expect(firstSample(SCRATCH_ID, 'OTHER')).toBe(firstSample('ref-other', 'OTHER'));
   });
 });
 
 describe('diffWorldAgainstSeed / fillWorldFromSeed', () => {
-  const identity: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES };
-  const baseline = generateWorldSeedBaseline(NAME);
+  const identity: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES, theme: 'classic', aspects: {} };
+  const baseline = generateWorldSeedBaseline(classicWorld(NAME));
 
   it('fixture precondition: the seed puts a sync on lane b and the Delay, none on lane c', () => {
     expect(baseline.lfoBank.b.sync).toBeDefined();
@@ -126,15 +148,17 @@ describe('diffWorldAgainstSeed / fillWorldFromSeed', () => {
     expect(Object.keys(diffWorldAgainstSeed(filled, baseline))).toEqual([]);
   });
 
-  it('fills the identity exactly and stamps version 2', () => {
+  it('fills the identity exactly and stamps version 3 and the identity\'s theme and aspects', () => {
     const filled = fillWorldFromSeed(
-      { attenuationStyleName: ' Pelagos 7! ', coordinates: { x: -3, y: 0 } },
+      { attenuationStyleName: ' Pelagos 7! ', coordinates: { x: -3, y: 0 }, theme: 'bold', aspects: { melody: ['hypnotic'] } },
       {},
       baseline
     );
-    expect(filled.version).toBe(2);
+    expect(filled.version).toBe(3);
     expect(filled.attenuationStyleName).toBe(' Pelagos 7! ');
     expect(filled.coordinates).toEqual({ x: -3, y: 0 });
+    expect(filled.theme).toBe('bold');
+    expect(filled.aspects).toStrictEqual({ melody: ['hypnotic'] });
   });
 
   it('a delay.feedback change carries the whole delay block and nothing else', () => {
@@ -192,7 +216,7 @@ describe('diffWorldAgainstSeed / fillWorldFromSeed', () => {
   });
 
   it('a swellFrequency carried forward from another style is a diff', () => {
-    const other = generateWorldSeedBaseline('Pelagos 7!');
+    const other = generateWorldSeedBaseline(classicWorld('Pelagos 7!'));
     expect(other.swellFrequency).not.toBe(baseline.swellFrequency);
     const p = untouchedWorld();
     p.swellFrequency = other.swellFrequency;
@@ -325,5 +349,62 @@ describe('diffWorldAgainstSeed / fillWorldFromSeed', () => {
         if (target in diff.globalLfoLinks!) expect(diff.globalLfoLinks![target]).toBeDefined();
       }
     });
+  });
+});
+
+// ========================================
+// THE IDENTITY'S BANDS (band-table T23)
+// ========================================
+
+describe('generateWorldSeedBaseline under the identity\'s theme (band-table T23, spec assumptions 10 and 15)', () => {
+  const CLASSIC_WORLD: WorldIdentity = { ...classicWorld(NAME), coordinates: FIXTURE_COORDINATES };
+
+  afterEach(() => {
+    useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+    evictAttenuationStyleNoiseMap(SCRATCH_ID);
+  });
+
+  it('a Calm baseline differs from Classic\'s exactly at the band Calm moves: the LPF cutoff lands in 500-600 Hz, every other field is equal', () => {
+    const classic = generateWorldSeedBaseline(classicWorld(NAME));
+    const calm = generateWorldSeedBaseline(CALM);
+    expect(calm.globalAudio.filterLPF.frequency).toBeGreaterThanOrEqual(500);
+    expect(calm.globalAudio.filterLPF.frequency).toBeLessThanOrEqual(600);
+    expect(classic.globalAudio.filterLPF.frequency).toBeGreaterThanOrEqual(2000);
+    expect({ ...calm, globalAudio: { ...calm.globalAudio, filterLPF: classic.globalAudio.filterLPF } }).toEqual(classic);
+  });
+
+  it('a Bold baseline draws its tempo from Bold\'s band, where Classic\'s is at most 100', () => {
+    expect(generateWorldSeedBaseline(BOLD).bpm).toBeGreaterThanOrEqual(150);
+    expect(generateWorldSeedBaseline(classicWorld(NAME)).bpm).toBeLessThanOrEqual(100);
+  });
+
+  it('aspects never enter the world baseline: a Calm world with Melody picks has the Calm baseline', () => {
+    expect(generateWorldSeedBaseline({ ...CALM, aspects: { melody: ['hypnotic', 'wandering'] } })).toEqual(generateWorldSeedBaseline(CALM));
+  });
+
+  it('restores the loaded world\'s bands afterwards: with Bold loaded, generating a Calm baseline leaves the context on Bold', () => {
+    useLoadingStore.getState().setLoading({ theme: 'bold', aspects: {} });
+    generateWorldSeedBaseline(CALM);
+    expect(getBand('bpm')).toStrictEqual({ min: 150, max: 160 });
+    expect(getBand('filterLPF.frequency')).toStrictEqual({ min: 2000, max: 20000 });
+  });
+
+  it('an untweaked Calm payload diffs to {} against its own baseline, and against Classic\'s only at the LPF block', () => {
+    const calmBaseline = generateWorldSeedBaseline(CALM);
+    const payload = fillWorldFromSeed(CALM, {}, calmBaseline);
+    expect(diffWorldAgainstSeed(payload, calmBaseline)).toEqual({});
+    const againstClassic = diffWorldAgainstSeed(payload, generateWorldSeedBaseline(classicWorld(NAME)));
+    expect(Object.keys(againstClassic)).toEqual(['globalAudio']);
+    expect(Object.keys(againstClassic.globalAudio!)).toEqual(['filterLPF']);
+  });
+
+  it('fillWorldFromSeed writes the identity\'s theme and aspects, so a payload names its loading; Classic writes classic and {}', () => {
+    const calm = fillWorldFromSeed({ ...CALM, aspects: { melody: ['hypnotic', 'wandering'] } }, {}, generateWorldSeedBaseline(CALM));
+    expect(calm.version).toBe(3);
+    expect(calm.theme).toBe('calm');
+    expect(calm.aspects).toStrictEqual({ melody: ['hypnotic', 'wandering'] });
+    const classic = fillWorldFromSeed(CLASSIC_WORLD, {}, generateWorldSeedBaseline(CLASSIC_WORLD));
+    expect(classic.theme).toBe('classic');
+    expect(classic.aspects).toStrictEqual({});
   });
 });

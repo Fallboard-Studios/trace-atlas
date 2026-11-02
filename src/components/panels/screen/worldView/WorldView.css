@@ -56,6 +56,19 @@
   display: none;
 }
 
+/* The scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13; Crawford's note 7): a layer of sea over the whole scene,
+   transparent at rest. animation/sceneWash.ts paints it in the water column's own colours when a world change asks for
+   it and fades it in and out over 0.5 s each way, so the old world dissolves into open water and the new one surfaces.
+   After the scroller in the document and with no z-index, it paints over the scene and under MetaBox (z-index 1); the
+   off screen's veil sits over both, so a wash under it reads as a blue tint through the blur. Takes no clicks. No
+   will-change and no transform: transparent at rest it promotes no compositor layer (docs/PERFORMANCE.md). */
+.world-view__wash {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
 /* Under the opaque content surface (docs/specs/LAYOUT_REWORK.md §1.3; docs/tasks/LAYOUT_REWORK.md
    Task 7) the world dims: WorldView.tsx sets data-dimmed while a branch is open. The sketch's values,
    on OceanScene's static sheets, which paint once and keep the filtered result. The movers

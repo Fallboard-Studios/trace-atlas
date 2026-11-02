@@ -857,10 +857,10 @@ describe('Delay `sync` travels inside `g` whole', () => {
   });
 
   it('a Free Delay carried over a seeded Sync one fills back Free: the block replaces the seed whole', () => {
-    const baseline = generateWorldSeedBaseline('n40dh8p8');
+    const baseline = generateWorldSeedBaseline({ attenuationStyleName: 'n40dh8p8', theme: 'classic', aspects: {} });
     expect(baseline.globalAudio.delay.sync).toBeDefined();
     const filled = fillWorldFromSeed(
-      { attenuationStyleName: 'n40dh8p8', coordinates: { x: 0, y: 0 } },
+      { attenuationStyleName: 'n40dh8p8', coordinates: { x: 0, y: 0 }, theme: 'classic', aspects: {} },
       roundTrip({ globalAudio: { delay } })!,
       baseline,
     );
@@ -892,11 +892,11 @@ function preColourG(): Record<string, unknown> {
 
 /** A seed whose blocks the fills below fall back to; any name works, this one is the plan's fixture. */
 const SEED_NAME = 'n40dh8p8';
-const SEED = generateWorldSeedBaseline(SEED_NAME);
+const SEED = generateWorldSeedBaseline({ attenuationStyleName: SEED_NAME, theme: 'classic', aspects: {} });
 
 /** A diff filled to a whole payload over SEED. */
 function fill(diff: WorldDiff | null): SessionPayload {
-  return fillWorldFromSeed({ attenuationStyleName: SEED_NAME, coordinates: { x: 0, y: 0 } }, diff ?? {}, SEED);
+  return fillWorldFromSeed({ attenuationStyleName: SEED_NAME, coordinates: { x: 0, y: 0 }, theme: 'classic', aspects: {} }, diff ?? {}, SEED);
 }
 
 describe('colour blocks in g (Global Colour T10, on the world link)', () => {

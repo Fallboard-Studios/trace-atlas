@@ -249,3 +249,54 @@ describe('Button — as a disclosure (expanded / controls)', () => {
     expect(screen.getByRole('button').hasAttribute('aria-controls')).toBe(false);
   });
 });
+
+// docs/tasks/OFF_SCREEN.md Task 13 (docs/specs/OFF_SCREEN.md §3: nothing comes off the plate while the power is off):
+// the muted appearance — RadioButton's muted, for a button. A flat face of the cabinet tier's height, no CabinetBox,
+// no pop on hover, focus or press; a disabled muted button is dimmed, not removed. The off screen's Roll and Keep.
+describe('Button — the muted appearance', () => {
+  const schema: ButtonSchema = { id: 'home.off.roll', type: 'button', humanLabel: 'Roll', loreLabel: 'RESEED', appearance: 'muted' };
+
+  it('renders a flat face and no CabinetBox, and marks its root muted', () => {
+    const { container } = render(<Button schema={schema} onClick={() => {}} />);
+    expect(screen.queryByTestId('cabinet-box')).toBeNull();
+    expect(container.querySelector('.sc-button__flat')).not.toBeNull();
+    expect(container.querySelector('.sc-button--muted')).not.toBeNull();
+  });
+
+  it('draws the dual face by default and the single face on request, as the cabinet appearance does', () => {
+    const { container, rerender } = render(<Button schema={schema} onClick={() => {}} />);
+    expect(container.querySelector('.sc-dual-label')).not.toBeNull();
+    expect(screen.getByText('RESEED')).toBeTruthy();
+    rerender(<Button schema={schema} face="single" onClick={() => {}} />);
+    expect(container.querySelector('.sc-dual-label')).toBeNull();
+    expect(container.querySelector('.sc-button__label')?.textContent).toBe('Roll');
+  });
+
+  it('never pops: hover, focus and press leave no box behind', () => {
+    render(<Button schema={schema} onClick={() => {}} />);
+    const button = screen.getByRole('button');
+    fireEvent.mouseEnter(button);
+    fireEvent.focus(button);
+    fireEvent.pointerDown(button);
+    expect(screen.queryByTestId('cabinet-box')).toBeNull();
+    expect(document.querySelector('[class*="popped"]')).toBeNull();
+  });
+
+  it('still clicks once, is named by its human label, and a disabled one blocks the click', () => {
+    const onClick = vi.fn();
+    const { rerender } = render(<Button schema={schema} onClick={onClick} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Roll' }));
+    expect(onClick).toHaveBeenCalledTimes(1);
+    rerender(<Button schema={schema} onClick={onClick} disabled />);
+    expect((screen.getByRole('button') as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button'));
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('the cabinet appearance stays the default: a schema without one renders the CabinetBox as before', () => {
+    const { container } = render(<Button schema={{ id: 'x', type: 'button', humanLabel: 'Retransmit' }} onClick={() => {}} />);
+    expect(screen.getByTestId('cabinet-box')).toBeTruthy();
+    expect(container.querySelector('.sc-button__flat')).toBeNull();
+    expect(container.querySelector('.sc-button--muted')).toBeNull();
+  });
+});

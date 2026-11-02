@@ -3,6 +3,7 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { useShareStatus } from './useShareStatus';
 import { Button } from '@/components/ui/controls/Button';
 import { applySessionPayload } from '@/utils/sessionDiff';
+import { requestWorldChange } from '@/systems/worldChange';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
 import { useSessionStore } from '@/stores/sessionStore';
 import type { SessionEntry } from '@/types/session';
@@ -36,10 +37,14 @@ export function SessionListItem({ entry, onChange }: SessionListItemProps) {
 
   const label = entry.name;
 
+  // A user-gesture world change: it waits under the scene wash, the session's names moving with the world
+  // (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13).
   const handleLoad = () => {
-    applySessionPayload(entry.payload);
-    setCurrentLoadedSessionName(entry.name);
-    setCurrentSessionName(entry.name);
+    requestWorldChange(() => {
+      applySessionPayload(entry.payload);
+      setCurrentLoadedSessionName(entry.name);
+      setCurrentSessionName(entry.name);
+    });
   };
 
   const handleShare = () => share(entry.payload);

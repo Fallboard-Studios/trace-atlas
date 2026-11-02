@@ -73,5 +73,9 @@ export function regenerateMelody(robot: Robot, localeId: string): void {
   );
 
   useLocaleStore.getState().updateRobot(localeId, robot.id, { melody: newMelody });
-  AudioEngine.registerRobotMelody(robot.id, newMelody);
+  // The engine gets the robot as stored, read back from its own locale: a rebuild regenerates (the deal's Melody push)
+  // before that locale is current, where the engine's own lookup would find nothing, and the stored robot is fresh
+  // where `robot` may be a caller's stale copy with one field spread in (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5).
+  const stored = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
+  AudioEngine.registerRobotMelody(robot.id, newMelody, stored ?? robot);
 }

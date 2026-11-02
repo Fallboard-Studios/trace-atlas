@@ -16,6 +16,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
+import { describeLoadedUnder } from '@/utils/loadingNames';
 import { CONTENT, fill, introProps, labels, optionsRecord } from '@/content';
 import type { Robot } from '@/types/Robot';
 // The column, the band, the wells and the controls column are the robot screen's, unchanged (spec §1.6:
@@ -32,6 +33,18 @@ const SIGNAL_LABELS = labels('company.detail.signal');
 const SIGNAL_VALUES = optionsRecord('company.detail.signal');
 const COMPANY_EYEBROW = CONTENT['company.assign'].lore;
 const ALL_EYEBROW = CONTENT['company.detail.allForm'].human;
+const LOADED_UNDER_LABELS = labels('company.loadedUnder');
+
+/** The aspect a company was loaded under (docs/specs/OFF_SCREEN.md assumption 24; docs/tasks/OFF_SCREEN.md Task 32): the
+ *  one every member carries. The deal seats a company as one group (assumption 21), so an untouched company's members
+ *  agree; a robot moved in afterwards keeps what it rolled (assumption 22), and a company whose members disagree, or
+ *  carry nothing, shows no line rather than one member's. */
+function sharedLoadedUnder(members: readonly Robot[]): string | null {
+  if (members.length === 0) return null;
+  const first = describeLoadedUnder(members[0].loadedUnder);
+  if (first === null) return null;
+  return members.every((member) => describeLoadedUnder(member.loadedUnder) === first) ? first : null;
+}
 
 /** The broadcast, stated once. One member and none read differently from the plural. */
 function broadcastNote(n: number): string {
@@ -95,9 +108,11 @@ interface IdentityProps {
   members: readonly Robot[];
 }
 
-/** Desk: the name box, the two wells, the member tiles, the broadcast note and Rename / Delete. */
+/** Desk: the name box, the wells (share, signal, and "loaded under" when the deal gave the company an aspect — the All
+ *  form is the whole fleet, never one aspect), the member tiles, the broadcast note and Rename / Delete. */
 function CompanyColumn({ all, name, members, total }: IdentityProps & { total: number }) {
   const timelineKey = `cabinet-company-name-${useId()}`;
+  const loadedUnder = all ? null : sharedLoadedUnder(members);
   return (
     <div className="robot-screen__avatar-column company-screen__column">
       <div className="company-screen__title">
@@ -116,6 +131,12 @@ function CompanyColumn({ all, name, members, total }: IdentityProps & { total: n
           <DualLabel {...SIGNAL_LABELS} />
           <span className="robot-screen__meta-value">{SIGNAL_VALUES[all ? 'all' : 'company'].humanLabel}</span>
         </div>
+        {loadedUnder !== null && (
+          <div className="robot-screen__well">
+            <DualLabel {...LOADED_UNDER_LABELS} />
+            <span className="robot-screen__meta-value">{loadedUnder}</span>
+          </div>
+        )}
       </div>
       <MemberTiles members={members} />
       <div className="robot-screen__well company-screen__note">{broadcastNote(members.length)}</div>

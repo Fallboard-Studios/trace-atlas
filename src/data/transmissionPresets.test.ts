@@ -10,17 +10,22 @@ vi.mock('../engine/beatClock', () => ({
   getCurrentMeasurePrecise: vi.fn(() => 0),
 }));
 
-import { TRANSMISSION_PRESETS } from './transmissionPresets';
+import { TRANSMISSION_PRESETS, presetPayload, type TransmissionPreset } from './transmissionPresets';
 import { applySessionPayload } from '../utils/sessionDiff';
-import { encodeWorldLinkParams, decodeWorldLink } from '../utils/worldLink';
+import { decodeWorldLink } from '../utils/worldLink';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells } from '../systems/audioSwells';
-import { CONTENT, fill, labels } from '../content';
+import { CONTENT, labels } from '../content';
 import { LFO_LANE_IDS, GLOBAL_LFO_TARGET_IDS } from '../types/lfo';
-import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
+
+/*
+ * docs/tasks/OFF_SCREEN.md Task 11 (spec assumption 13): a preset is a pasted link — `{ id, nameKey, link }` — and
+ * presetPayload decodes it through the same codec a shared link arrives by. The three entries are the placeholders'
+ * bare triples until Crawford pastes his; the three hand-kept payload constants are gone.
+ */
 
 afterEach(() => {
   stopRobotLifecycle();
@@ -43,6 +48,12 @@ function setupWorld(): string {
 function currentLocale() {
   const style = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   return style?.currentLocaleId ? useLocaleStore.getState().getLocaleById(style.currentLocaleId) : undefined;
+}
+
+/** The identity a link's params name, read back with the browser's own parser. */
+function linkIdentity(link: string) {
+  const params = new URL(link, 'http://localhost').searchParams;
+  return { attenuationStyleName: params.get('seed'), coordinates: { x: Number(params.get('x')), y: Number(params.get('y')) } };
 }
 
 describe('TRANSMISSION_PRESETS', () => {
@@ -70,121 +81,76 @@ describe('TRANSMISSION_PRESETS', () => {
     expect(new Set(names).size).toBe(3);
   });
 
+  it('is a link and a name and nothing else: no payload constant rides along', () => {
+    for (const preset of TRANSMISSION_PRESETS) {
+      expect(Object.keys(preset).sort()).toEqual(['id', 'link', 'nameKey']);
+      expect(typeof preset.link).toBe('string');
+    }
+  });
+
+  it('each link names a whole world — a seed and both coordinates, as integers', () => {
+    for (const preset of TRANSMISSION_PRESETS) {
+      const { attenuationStyleName, coordinates } = linkIdentity(preset.link);
+      expect(attenuationStyleName, preset.id).toBeTruthy();
+      expect(Number.isInteger(coordinates.x), preset.id).toBe(true);
+      expect(Number.isInteger(coordinates.y), preset.id).toBe(true);
+    }
+  });
+
   it('gives each preset its own world, so picking one is visible on the faint backdrop', () => {
-    const worlds = TRANSMISSION_PRESETS.map((p) => `${p.payload.attenuationStyleName}@${p.payload.coordinates.x},${p.payload.coordinates.y}`);
+    const worlds = TRANSMISSION_PRESETS.map((p) => {
+      const { attenuationStyleName, coordinates } = linkIdentity(p.link);
+      return `${attenuationStyleName}@${coordinates.x},${coordinates.y}`;
+    });
     expect(new Set(worlds).size).toBe(3);
   });
 
-  // Code review 2026-10-11: payloads captured from a live session carried floating-point noise
-  // (0.30000000000000004); the session save path strips it, so a hand-kept payload must too.
-  it('holds no floating-point noise: every number survives rounding to 10 decimals unchanged', () => {
-    const noisy: string[] = [];
-    const walk = (value: unknown, path: string) => {
-      if (typeof value === 'number') {
-        if (Number(value.toFixed(10)) !== value) noisy.push(`${path} = ${value}`);
-      } else if (Array.isArray(value)) {
-        value.forEach((item, i) => walk(item, `${path}[${i}]`));
-      } else if (value && typeof value === 'object') {
-        for (const [key, item] of Object.entries(value)) walk(item, `${path}.${key}`);
+  describe.each(TRANSMISSION_PRESETS.map((p) => [p.id, p] as const))('preset %s, decoded', (_id, preset) => {
+    it("decodes to a whole payload whose identity is the link's", () => {
+      const payload = presetPayload(preset)!;
+      expect(payload).not.toBeNull();
+      const expected = linkIdentity(preset.link);
+      expect(payload.attenuationStyleName).toBe(expected.attenuationStyleName);
+      expect(payload.coordinates).toEqual(expected.coordinates);
+    });
+
+    it('is what the same link decodes to at the address bar: one codec behind both', () => {
+      expect(presetPayload(preset)).toEqual(decodeWorldLink(new URL(preset.link, 'http://localhost').search));
+    });
+
+    it('is whole: every Audio Rig block, every LFO lane and every global link, never a partial set', () => {
+      const payload = presetPayload(preset)!;
+      expect(payload.globalAudio).toBeDefined();
+      expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
+      expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+      for (const n of [payload.bpm, payload.swellFrequency, payload.swellDuration, payload.pingVarianceAutomation]) {
+        expect(Number.isFinite(n)).toBe(true);
       }
-    };
-    for (const preset of TRANSMISSION_PRESETS) walk(preset.payload, preset.id);
-    expect(noisy).toEqual([]);
-  });
+    });
 
-  it('shares no object between presets, so a change to one can never leak into another', () => {
-    const [a, b, c] = TRANSMISSION_PRESETS.map((p) => p.payload);
-    expect(a.globalAudio).not.toBe(b.globalAudio);
-    expect(b.globalAudio).not.toBe(c.globalAudio);
-    expect(a.lfoBank).not.toBe(b.lfoBank);
-    expect(a.coordinates).not.toBe(b.coordinates);
-  });
-
-  describe.each(TRANSMISSION_PRESETS.map((p) => [p.id, p] as const))('preset %s payload', (_id, preset) => {
-    const { payload } = preset;
-
-    it('is a plain version-2 payload with no per-robot or per-company edits', () => {
-      expect(payload.version).toBe(2);
+    it('is a plain untweaked world: no per-robot or per-company edits (a bare triple carries no blob)', () => {
+      const payload = presetPayload(preset)!;
       expect(payload.robotOverrides).toEqual({});
       expect(payload.companyDiffs).toEqual({});
       expect(payload.userCreatedCompanies).toEqual([]);
     });
 
-    // Robot Sends T6: the rooms' return level is full in every preset, so the three worlds' echo is set by the
-    // robots' own sends, not by a wet value the preset carried over from the old wet/dry mix.
-    it('sets both room return levels (reverb.wet, delay.wet) to full, 1', () => {
-      expect(payload.globalAudio?.reverb.wet).toBe(1);
-      expect(payload.globalAudio?.delay.wet).toBe(1);
-    });
-
-    // Global Colour T1 (docs/specs/GLOBAL_COLOUR.md assumption 8): a preset is a hand-written world, so it
-    // carries the three colour blocks explicitly, dry, at the shape defaults.
-    it('carries the three colour blocks dry at the defaults', () => {
-      expect(payload.globalAudio?.distortion).toStrictEqual({ amount: 0.3, wet: 0 });
-      expect(payload.globalAudio?.chebyshev).toStrictEqual({ order: 2, wet: 0 });
-      expect(payload.globalAudio?.bitCrusher).toStrictEqual({ bits: 8, wet: 0 });
-    });
-
-    // Global Modulation T1 (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 10): presets stay clean, so both
-    // pedals are carried explicitly at Tone's defaults with wet 0 and no sync key (Free).
-    it('carries both modulation pedals dry at the defaults, the Phaser Free', () => {
-      expect(payload.globalAudio?.autoWah).toStrictEqual({
-        baseFrequency: 100, octaves: 6, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 0,
-      });
-      expect(payload.globalAudio?.phaser).toStrictEqual({
-        rate: 0.5, octaves: 3, baseFrequency: 350, stages: 10, Q: 10, wet: 0,
-      });
-      expect(payload.globalAudio?.phaser && 'sync' in payload.globalAudio.phaser).toBe(false);
-    });
-
-    // Global Pedals T1 (docs/specs/GLOBAL_PEDALS.md assumption 10): presets stay clean, so the five new blocks are
-    // carried explicitly at the defaults - every motion pedal dry and Free, the widener at unity.
-    it('carries the five Global Pedals blocks at the defaults, dry and Free, Width at unity', () => {
-      for (const key of ['chorus', 'tremolo', 'vibrato', 'frequencyShifter', 'stereoWidener'] as const) {
-        expect(payload.globalAudio?.[key], key).toBeDefined();
-        expect(payload.globalAudio?.[key], key).toStrictEqual(DEFAULT_GLOBAL_AUDIO_SETTINGS[key]);
-      }
-    });
-
-    // Spec amendment 2026-10-21 (docs/tasks/ROBOT_EFFECT_SENDS.md T17.2): the Colour room has no master Return block.
-    it('carries no colourRoom block', () => {
-      expect('colourRoom' in (payload.globalAudio ?? {})).toBe(false);
-    });
-
-    // Robot Effect Sends T8: the Chorus and shifter wets are their rooms' Returns, full in every preset too.
-    it('carries the Chorus and shifter Returns at full, 1', () => {
-      expect(payload.globalAudio?.chorus.wet).toBe(1);
-      expect(payload.globalAudio?.frequencyShifter.wet).toBe(1);
-    });
-
-    it('carries every LFO lane and every global LFO link, never a partial set', () => {
-      expect(Object.keys(payload.lfoBank ?? {}).sort()).toEqual([...LFO_LANE_IDS].sort());
-      expect(Object.keys(payload.globalLfoLinks ?? {}).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
-    });
-
-    it('has a non-empty Attenuation Style name and finite coordinates and pacing numbers', () => {
-      expect(payload.attenuationStyleName.trim()).not.toBe('');
-      for (const n of [payload.coordinates.x, payload.coordinates.y, payload.bpm, payload.swellFrequency, payload.swellDuration, payload.pingVarianceAutomation]) {
-        expect(Number.isFinite(n)).toBe(true);
-      }
+    it('is a fresh object on every call, so applying one pick can never leak into the next', () => {
+      const first = presetPayload(preset)!;
+      const second = presetPayload(preset)!;
+      expect(first).not.toBe(second);
+      expect(first.globalAudio).not.toBe(second.globalAudio);
+      expect(first).toEqual(second);
     });
 
     it('is JSON-serialisable and survives a JSON round trip unchanged (no undefined holes)', () => {
+      const payload = presetPayload(preset)!;
       expect(JSON.parse(JSON.stringify(payload))).toEqual(payload);
-    });
-
-    it('passes the same wire validation a shared link passes, and decodes back to the same payload', () => {
-      const decoded = decodeWorldLink(`?${encodeWorldLinkParams(payload).toString()}`);
-      expect(decoded).not.toBeNull();
-      expect(decoded?.attenuationStyleName).toBe(payload.attenuationStyleName);
-      expect(decoded?.coordinates).toEqual(payload.coordinates);
-      expect(decoded?.globalAudio).toEqual(payload.globalAudio);
-      expect(decoded?.lfoBank).toEqual(payload.lfoBank);
-      expect(decoded?.globalLfoLinks).toEqual(payload.globalLfoLinks);
     });
 
     it('is accepted by applySessionPayload, which retransmits the world it names', () => {
       setupWorld();
+      const payload = presetPayload(preset)!;
       expect(() => applySessionPayload(payload)).not.toThrow();
       expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(payload.attenuationStyleName);
       expect(currentLocale()?.coordinates).toEqual(payload.coordinates);
@@ -192,6 +158,7 @@ describe('TRANSMISSION_PRESETS', () => {
 
     it('lands its pacing and LFO settings in the stores', () => {
       setupWorld();
+      const payload = presetPayload(preset)!;
       applySessionPayload(payload);
       const audio = useAudioStore.getState();
       expect(audio.bpm).toBe(payload.bpm);
@@ -202,36 +169,44 @@ describe('TRANSMISSION_PRESETS', () => {
       expect(audio.globalLfoLinks).toEqual(payload.globalLfoLinks);
     });
 
-    it('lands the full room return levels in the audio store', () => {
-      setupWorld();
-      applySessionPayload(payload);
-      const audio = useAudioStore.getState();
-      expect(audio.globalAudio.reverb.wet).toBe(1);
-      expect(audio.globalAudio.delay.wet).toBe(1);
-    });
-
-    it('is left untouched by applying it, so the constant can be picked again', () => {
-      const before = structuredClone(payload);
-      setupWorld();
-      applySessionPayload(payload);
-      expect(payload).toEqual(before);
-    });
-
     it('applies twice in a row (the second pick names the already-current style)', () => {
       setupWorld();
-      applySessionPayload(payload);
-      expect(() => applySessionPayload(payload)).not.toThrow();
-      expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(payload.attenuationStyleName);
+      applySessionPayload(presetPayload(preset)!);
+      expect(() => applySessionPayload(presetPayload(preset)!)).not.toThrow();
+      expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(linkIdentity(preset.link).attenuationStyleName);
     });
   });
 
   it('switches from one preset to another', () => {
     setupWorld();
     const [first, second] = TRANSMISSION_PRESETS;
-    applySessionPayload(first.payload);
-    applySessionPayload(second.payload);
-    expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(second.payload.attenuationStyleName);
-    expect(currentLocale()?.coordinates).toEqual(second.payload.coordinates);
+    applySessionPayload(presetPayload(first)!);
+    applySessionPayload(presetPayload(second)!);
+    const expected = linkIdentity(second.link);
+    expect(selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())?.name).toBe(expected.attenuationStyleName);
+    expect(currentLocale()?.coordinates).toEqual(expected.coordinates);
+  });
+});
+
+describe('presetPayload on a link that is not quite a world', () => {
+  const preset = (link: string): TransmissionPreset => ({ id: 'x', nameKey: 'home.off.presets.a', link });
+
+  it('a full share URL decodes the same as its bare query', () => {
+    const query = TRANSMISSION_PRESETS[0].link;
+    expect(presetPayload(preset(`https://host/trace-atlas/${query}`))).toEqual(presetPayload(preset(query)));
+  });
+
+  it('a malformed part is filled the way a shared link fills it — a random name, a random axis — and never throws', () => {
+    const payload = presetPayload(preset('?seed=&x=foo&y=3'))!;
+    expect(payload).not.toBeNull();
+    expect(payload.attenuationStyleName).not.toBe('');
+    expect(Number.isInteger(payload.coordinates.x)).toBe(true);
+    expect(payload.coordinates.y).toBe(3);
+  });
+
+  it('a link that names no world at all is null, never a throw (the off screen applies nothing for it)', () => {
+    expect(presetPayload(preset(''))).toBeNull();
+    expect(presetPayload(preset('https://host/trace-atlas/?debug'))).toBeNull();
   });
 });
 
@@ -244,13 +219,5 @@ describe('the off-screen content', () => {
 
   it('says pressing power will play sound', () => {
     expect(labels('home.off.powerHint').humanLabel.toLowerCase()).toContain('sound');
-  });
-
-  it('fills the readout well from a preset name and its code', () => {
-    expect(fill('home.off.readout', { name: 'Kryndara', code: 'kr1nd4ra' })).toBe('Kryndara · kr1nd4ra');
-  });
-
-  it('refuses to fill the readout without its slots', () => {
-    expect(() => fill('home.off.readout', { name: 'Kryndara' })).toThrow();
   });
 });

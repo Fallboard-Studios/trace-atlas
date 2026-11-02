@@ -64,6 +64,27 @@ describe('CoordsInput', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R23: a coordinate is a safe integer, the bound the world link reads, so
+  // every plot Foundry can retransmit to is one its link decodes back. A longer entry is ignored, as a non-number is.
+  it('does not call onChange for an entry past the safe integers, on either axis', () => {
+    const onChange = vi.fn();
+    render(<CoordsInput schema={schema} value={{ x: 0, y: 0 }} onChange={onChange} />);
+    const [xInput, yInput] = screen.getAllByRole('spinbutton');
+    fireEvent.change(xInput, { target: { value: '9'.repeat(17) } });
+    fireEvent.change(yInput, { target: { value: `-${2 ** 53}` } });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('passes the safe integers at either end', () => {
+    const onChange = vi.fn();
+    render(<CoordsInput schema={schema} value={{ x: 0, y: 0 }} onChange={onChange} />);
+    const [xInput, yInput] = screen.getAllByRole('spinbutton');
+    fireEvent.change(xInput, { target: { value: String(Number.MAX_SAFE_INTEGER) } });
+    fireEvent.change(yInput, { target: { value: String(-Number.MAX_SAFE_INTEGER) } });
+    expect(onChange).toHaveBeenNthCalledWith(1, { x: Number.MAX_SAFE_INTEGER, y: 0 });
+    expect(onChange).toHaveBeenNthCalledWith(2, { x: 0, y: -Number.MAX_SAFE_INTEGER });
+  });
+
   it('does not call onChange when a field is cleared to empty', () => {
     const onChange = vi.fn();
     render(<CoordsInput schema={schema} value={{ x: 5, y: 5 }} onChange={onChange} />);

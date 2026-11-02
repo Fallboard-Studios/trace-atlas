@@ -76,7 +76,7 @@ vi.mock('gsap', () => {
 import gsap from 'gsap';
 
 import { useHaloMotion } from './useHaloMotion';
-import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
+import { getTimelineScope, timelineMap, killAllTimelines } from '../../../animation/timelineMap';
 import { WAVE_COUNT, WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TOTAL_SECONDS, waveState, wavePath } from './haloWaves';
 
 // ========================================
@@ -174,6 +174,9 @@ describe('useHaloMotion — no mount state and no dial tween (the gradient halo 
     avatar('spawn', 1, gsap.timeline() as unknown as Parameters<typeof avatar>[2]);
     expect(timelineMap.has('halo-waves-world-r1')).toBe(true);
     expect(timelineMap.has('halo-waves-avatar-r1')).toBe(true);
+    // World movers: the power rocker's pause freezes the waves with the robot (OFF_SCREEN assumption 3).
+    expect(getTimelineScope('halo-waves-world-r1')).toBe('world');
+    expect(getTimelineScope('halo-waves-avatar-r1')).toBe('world');
   });
 });
 

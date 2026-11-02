@@ -13,7 +13,7 @@ import { CompanyCreateForm } from '@/components/company/CompanyCrudControls';
 import { Button } from '@/components/ui/controls/Button';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
-import { killTimeline, setTimeline, timelineMap } from '@/animation/timelineMap';
+import { getTimeline, killTimeline, setTimeline } from '@/animation/timelineMap';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
@@ -108,7 +108,7 @@ function useRosterGlide(members: readonly MemberEntry[]) {
     if (key === null) return;
     // To the end, so the tiles drop their in-flight transforms; the next pick has already recorded its
     // rects (onMove calls getState first), so its glide starts from where the tiles visibly were.
-    timelineMap.get(key)?.progress(1);
+    getTimeline(key)?.progress(1);
     killTimeline(key);
     activeKeyRef.current = null;
   }, []);
@@ -139,7 +139,7 @@ function useRosterGlide(members: readonly MemberEntry[]) {
       ease: 'power2.inOut',
       onComplete: () => {
         if (activeKeyRef.current === key) activeKeyRef.current = null;
-        if (timelineMap.get(key) === timeline) timelineMap.delete(key);
+        if (getTimeline(key) === timeline) killTimeline(key);
       },
     });
     setTimeline(key, timeline);

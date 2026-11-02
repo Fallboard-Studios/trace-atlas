@@ -14,6 +14,8 @@ vi.mock('@/utils/sessionShareUtils', () => ({
 
 import { SessionListItem } from './SessionListItem';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useUIStore } from '@/stores/uiStore';
+import { attachSceneWash } from '@/systems/worldChange';
 import { applySessionPayload } from '@/utils/sessionDiff';
 import { deleteNamedSession } from '@/utils/sessionStorageEngine';
 import { copySessionLink } from '@/utils/sessionShareUtils';
@@ -148,6 +150,31 @@ describe('SessionListItem -- named entry', () => {
     fireEvent.click(screen.getByRole('button', { name: /Load Deep Dive/i }));
 
     expect(applySessionPayload).toHaveBeenCalledWith(fakePayload);
+  });
+
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 13 (Crawford's note 7): a Load is a user-gesture world change, so it waits under
+  // the scene wash, the session's names moving with the world; a wash is attached by hand and the store lands the cover.
+  it('clicking Load goes through the world change request: it applies and names the session once the cover lands', async () => {
+    useUIStore.setState({ sceneWash: 'clear' });
+    const detach = attachSceneWash();
+    try {
+      useSessionStore.setState({ currentSessionName: 'Some Unrelated Suggestion' });
+      render(<SessionListItem entry={makeEntry({ name: 'Deep Dive' })} />);
+      fireEvent.click(screen.getByRole('button', { name: /Load Deep Dive/i }));
+      expect(useUIStore.getState().sceneWash).toBe('covering');
+      expect(applySessionPayload).not.toHaveBeenCalled();
+      expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+      // The change runs just after the call that lands the cover (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R12).
+      await act(async () => {
+        useUIStore.getState().setSceneWash('covered');
+      });
+      expect(applySessionPayload).toHaveBeenCalledTimes(1);
+      expect(applySessionPayload).toHaveBeenCalledWith(fakePayload);
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Deep Dive');
+      expect(useSessionStore.getState().currentSessionName).toBe('Deep Dive');
+    } finally {
+      detach();
+    }
   });
 
   it('clicking Load sets currentLoadedSessionName to this entry\'s name', () => {

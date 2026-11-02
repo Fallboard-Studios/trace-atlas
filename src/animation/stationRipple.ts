@@ -88,7 +88,7 @@ export function playStationRipple(stationId: string, kind: RippleKind, color: st
     .set(circle, { opacity: 1 }, 0)
     .to(proxy, { u: 1, duration, ease: 'none', onUpdate: paint }, 0)
     .set(circle, { opacity: 0 }, duration);
-  setTimeline(key, tl);
+  setTimeline(key, tl, 'world');
   tl.play();
   return tl;
 }

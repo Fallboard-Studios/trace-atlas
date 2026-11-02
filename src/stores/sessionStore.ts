@@ -3,6 +3,10 @@
 // ========================================
 import { create } from 'zustand';
 import { generateCompanyName } from '../systems/spawnSystem';
+import { buildSessionPayload } from '../utils/sessionDiff';
+import { listSessions, loadSession, saveNamedSession } from '../utils/sessionStorageEngine';
+import { deepEqual } from '../utils/math';
+import type { SessionPayload } from '../types/session';
 
 // ========================================
 // FUNCTIONS
@@ -16,6 +20,33 @@ import { generateCompanyName } from '../systems/spawnSystem';
  */
 function suggestSessionName(): string {
   return generateCompanyName(() => Math.random() * 2 - 1, 0);
+}
+
+/** How many fresh suggestions a new save's name draws before one is numbered instead: the word lists make 80 names
+ *  (10 adjectives x 8 nouns), so a handful of saves rarely costs a second draw. */
+const FRESH_NAME_DRAWS = 20;
+
+/**
+ * A name for a new save that no save already has (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R6): `preferred` when it is
+ * set and free, else fresh suggestions until one is free, and past FRESH_NAME_DRAWS the last of them numbered " 2",
+ * " 3"... Storage keys a save by its exact name (sessionStorageEngine.ts), so that is what free means.
+ */
+function unusedSessionName(preferred: string): string {
+  const taken = new Set(listSessions().map((save) => save.name));
+  if (preferred && !taken.has(preferred)) return preferred;
+  let name = suggestSessionName();
+  for (let draw = 1; draw < FRESH_NAME_DRAWS && taken.has(name); draw++) name = suggestSessionName();
+  if (!taken.has(name)) return name;
+  let n = 2;
+  while (taken.has(`${name} ${n}`)) n++;
+  return `${name} ${n}`;
+}
+
+/** A payload as storage holds it: through JSON, so an `undefined` field and a missing one compare equal, on top of
+ *  the quantised numbers buildSessionPayload already writes (sessionCapture.ts). Both sides of Keep's dirty test pass
+ *  through this, so an untouched reload reads clean (docs/tasks/OFF_SCREEN.md, risk table). */
+function asStored(payload: SessionPayload): SessionPayload {
+  return JSON.parse(JSON.stringify(payload)) as SessionPayload;
 }
 
 // ========================================
@@ -33,15 +64,70 @@ export interface SessionStore {
   currentLoadedSessionName: string | null;
   setCurrentSessionName: (name: string) => void;
   setCurrentLoadedSessionName: (name: string | null) => void;
+  /**
+   * Keep (docs/specs/OFF_SCREEN.md assumption 14): save the live world with no name field — under the loaded save's
+   * name when one is loaded (overwriting that row, as Comms' Save would), else under the suggestion Comms' Save already
+   * proposes — then name the session after it, as a Load does, so a later Save overwrites the same row. A blank
+   * suggestion (emptied in Comms) falls back to a fresh generated one: Keep never writes an unnamed row. With nothing
+   * loaded Keep writes a new row, never over another save: a suggestion some save already has gives way to a fresh one
+   * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R6). Returns the name the world was kept under.
+   */
+  keepCurrentWorld: () => string;
+  /**
+   * The loaded save is no longer the world (the off screen's Roll, or a preset pick): forget it, and if the name
+   * input still carries that save's name (a Load or a save pick put it there so Save would overwrite the row), suggest
+   * afresh, a name no save has (R6) — so the next Keep or Save writes a new row instead of overwriting a save with a
+   * different world. A name the user typed is left alone. A no-op when nothing is loaded.
+   */
+  detachLoadedSession: () => void;
 }
 
 // ========================================
 // STORE
 // ========================================
-export const useSessionStore = create<SessionStore>((set) => ({
+export const useSessionStore = create<SessionStore>((set, get) => ({
   currentSessionName: suggestSessionName(),
   currentLoadedSessionName: null,
 
   setCurrentSessionName: (name) => set({ currentSessionName: name }),
   setCurrentLoadedSessionName: (name) => set({ currentLoadedSessionName: name }),
+
+  keepCurrentWorld: () => {
+    const { currentLoadedSessionName, currentSessionName } = get();
+    const name =
+      currentLoadedSessionName !== null
+        ? currentLoadedSessionName.trim() || suggestSessionName()
+        : unusedSessionName(currentSessionName.trim());
+    saveNamedSession(name, buildSessionPayload());
+    set({ currentLoadedSessionName: name, currentSessionName: name });
+    return name;
+  },
+
+  detachLoadedSession: () => {
+    const { currentLoadedSessionName, currentSessionName } = get();
+    if (currentLoadedSessionName === null) return;
+    set({
+      currentLoadedSessionName: null,
+      currentSessionName: currentSessionName === currentLoadedSessionName ? unusedSessionName('') : currentSessionName,
+    });
+  },
 }));
+
+// ========================================
+// QUERIES
+// ========================================
+
+/**
+ * Is there something to keep? True unless the loaded save's stored payload equals the live world now — so a world
+ * that came from a seed, a preset or a link (nothing loaded), a loaded save edited since, or a loaded name that is
+ * no longer in storage all read dirty. What dims Keep (docs/specs/OFF_SCREEN.md assumption 14; the dim-controls
+ * rule). Builds the live payload, so callers compute it at the moments that matter — mount, a pick, a Keep — never
+ * per render.
+ */
+export function isWorldDirty(): boolean {
+  const { currentLoadedSessionName } = useSessionStore.getState();
+  if (currentLoadedSessionName === null) return true;
+  const stored = loadSession(currentLoadedSessionName);
+  if (!stored) return true;
+  return !deepEqual(asStored(buildSessionPayload()), stored);
+}

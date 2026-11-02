@@ -35,6 +35,7 @@ import {
   untouchedWorld,
 } from '../testUtils/worldLinkFixtures';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '../types/globalAudio';
+import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import type { SessionPayload } from '../types/session';
 
 // ========================================
@@ -114,12 +115,12 @@ describe('encodeBlob / decodeBlob', () => {
   });
 
   it('round-trips the fully edited world, diffed against its seed', () => {
-    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(FIXTURE_NAME));
+    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(CLASSIC_SEED));
     expect(decodeBlob(encodeBlob(diff))).toEqual(diff);
   });
 
   it('is compressed: the text is shorter than the same compact JSON as plain base64url', () => {
-    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(FIXTURE_NAME));
+    const diff = diffWorldAgainstSeed(fullyEditedWorld(), generateWorldSeedBaseline(CLASSIC_SEED));
     const uncompressed = toBase64Url(strToU8(JSON.stringify(toCompactWorldDiff(diff))));
     expect(textOf(encodeBlob(diff)).length).toBeLessThan(uncompressed.length);
   });
@@ -167,7 +168,7 @@ describe('encodeBlob / decodeBlob', () => {
     it('is far above a fully edited world, and well below a URL the dev server can serve', () => {
       const diff = diffWorldAgainstSeed(
         fullyEditedWorld(),
-        generateWorldSeedBaseline(FIXTURE_NAME)
+        generateWorldSeedBaseline(CLASSIC_SEED)
       );
       expect(encodeBlob(diff).length * 10).toBeLessThan(WORLD_LINK_BLOB_MAX_LENGTH);
       expect(WORLD_LINK_BLOB_MAX_LENGTH).toBe(32768);
@@ -206,17 +207,17 @@ function throughLink(payload: SessionPayload): SessionPayload | null {
   return decodeWorldLink(`?${encodeWorldLinkParams(payload).toString()}`);
 }
 
+/** The fixture world's seed identity: Classic, nothing dealt (band-table T23; the theme and family params are Task 24). */
+const CLASSIC_SEED = { attenuationStyleName: FIXTURE_NAME, theme: 'classic', aspects: {} } as const;
+
 /** The payload a link with this identity and diff must decode to. */
 function expectedWorld(
   name: string,
   coordinates: { x: number; y: number },
   diff: WorldDiff
 ): SessionPayload {
-  return fillWorldFromSeed(
-    { attenuationStyleName: name, coordinates },
-    diff,
-    generateWorldSeedBaseline(name)
-  );
+  const identity = { attenuationStyleName: name, coordinates, theme: 'classic', aspects: {} } as const;
+  return fillWorldFromSeed(identity, diff, generateWorldSeedBaseline(identity));
 }
 
 describe('encodeWorldLinkParams / decodeWorldLink', () => {
@@ -287,10 +288,122 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     expect([...encodeWorldLinkParams(fullyEditedWorld()).keys()]).toEqual(['seed', 'x', 'y', 's']);
   });
 
-  it('reads neither theme nor session beside a triple', () => {
+  it('an unknown theme beside a triple reads as Classic, with a dev warning; session is never read', () => {
+    const warn = vi.spyOn(helpers, 'devWarn').mockImplementation(() => {});
     expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=dark&session=eyJ2IjoyfQ')).toEqual(
       untouchedWorld()
     );
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  // band-table T24 (docs/specs/OFF_SCREEN.md assumption 11): the loading identity rides as plain params - `theme` and
+  // one per family, the set as a comma list in canonical order - written only when not the default, never in the blob.
+  describe('the loading params', () => {
+    // An untouched Calm world is generated under Calm (themes-and-aspects T34 gave the column numbers): the same seed
+    // relabelled would carry a blob of every band Calm moved.
+    const CALM_PICKS: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const untouchedCalmWorld = () => untouchedWorld(undefined, undefined, CALM_PICKS);
+
+    it('a Calm world with two Melody picks encodes seed, x, y, theme and melody, the set in canonical order, and no blob', () => {
+      const params = encodeWorldLinkParams(untouchedCalmWorld());
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody']);
+      expect(params.get('theme')).toBe('calm');
+      expect(params.get('melody')).toBe('hypnotic,mechanical');
+    });
+
+    it('a tweaked themed world puts the blob last, after the loading params', () => {
+      const params = encodeWorldLinkParams({ ...fullyEditedWorld(), theme: 'bold', aspects: { melody: ['wandering'] } });
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 's']);
+      expect(params.get('theme')).toBe('bold');
+      expect(params.get('melody')).toBe('wandering');
+    });
+
+    it('decodes theme and melody, sorting the set into canonical order, and the same set encodes to the same string whatever its order', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=calm&melody=mechanical,hypnotic')!;
+      expect(decoded.theme).toBe('calm');
+      expect(decoded.aspects).toEqual({ melody: ['hypnotic', 'mechanical'] });
+      const again = encodeWorldLinkParams(decoded);
+      expect(again.get('melody')).toBe('hypnotic,mechanical');
+      const sorted = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=calm&melody=hypnotic,mechanical')!;
+      expect(again.toString()).toBe(encodeWorldLinkParams(sorted).toString());
+    });
+
+    it('a Calm world with picks round-trips through the link deep-equal', () => {
+      const payload = untouchedCalmWorld();
+      expect(throughLink(payload)).toEqual(payload);
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R9: every family's param in both directions; the cases above carry Melody
+    // only, so a link that wrote or read Melody alone passed them.
+    it('a world with picks in all four families writes a param per family, and reads every one back', () => {
+      const loading: LoadingIdentity = {
+        theme: 'calm',
+        aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+      };
+      const payload = untouchedWorld(undefined, undefined, loading);
+      const params = encodeWorldLinkParams(payload);
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 'envelope', 'distance', 'voice']);
+      expect(params.get('envelope')).toBe('plucked,held');
+      expect(params.get('distance')).toBe('remote');
+      expect(params.get('voice')).toBe('woody');
+      expect(throughLink(payload)).toEqual(payload);
+      const { coordinates } = payload;
+      const decoded = decodeWorldLink(
+        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&theme=calm&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody`,
+      )!;
+      expect(decoded.theme).toBe('calm');
+      expect(decoded.aspects).toEqual(loading.aspects);
+    });
+
+    // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): the as-theme pick is gone, so a link still carrying
+    // one reads it as any unknown id - dropped, the rest kept.
+    it('a stale theme pick is dropped as any unknown id: melody=theme,hypnotic decodes to hypnotic, under Classic', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=theme,hypnotic')!;
+      expect(decoded.theme).toBe('classic');
+      expect(decoded.aspects).toEqual({ melody: ['hypnotic'] });
+      const params = encodeWorldLinkParams(decoded);
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'melody']);
+      expect(params.get('melody')).toBe('hypnotic');
+    });
+
+    it('melody=theme alone is no family at all: no picks, and no melody param written back', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=theme')!;
+      expect(decoded.aspects).toEqual({});
+      expect([...encodeWorldLinkParams(decoded).keys()]).toEqual(['seed', 'x', 'y']);
+    });
+
+    it('a percent-encoded comma reads the same as a bare one', () => {
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=hypnotic%2Cmechanical')!.aspects).toEqual({
+        melody: ['hypnotic', 'mechanical'],
+      });
+    });
+
+    it('an unknown pick is dropped with a dev warning and the rest stand; a list of only unknown picks, or an empty one, is no family at all', () => {
+      const warn = vi.spyOn(helpers, 'devWarn').mockImplementation(() => {});
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=hypnotic,zzz')!.aspects).toEqual({ melody: ['hypnotic'] });
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=zzz')!.aspects).toEqual({});
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=')!.aspects).toEqual({});
+    });
+
+    it('a duplicate pick reads once', () => {
+      expect(decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&melody=hypnotic,hypnotic')!.aspects).toEqual({ melody: ['hypnotic'] });
+    });
+
+    it('a theme or a family param alone names no world: null, as before', () => {
+      expect(decodeWorldLink('?theme=calm')).toBeNull();
+      expect(decodeWorldLink('?melody=hypnotic')).toBeNull();
+    });
+
+    it('Classic with an empty pick list writes neither param: the defaults are never written', () => {
+      const params = encodeWorldLinkParams({ ...untouchedWorld(), theme: 'classic', aspects: { melody: [] } });
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y']);
+    });
+
+    it('an unknown theme or malformed aspects in a payload encode as the defaults: no param', () => {
+      const payload = { ...untouchedWorld(), theme: 'moody', aspects: { melody: 'hypnotic' } } as unknown as SessionPayload;
+      expect([...encodeWorldLinkParams(payload).keys()]).toEqual(['seed', 'x', 'y']);
+    });
   });
 
   describe('lenient loading (spec §1.4): every part falls back on its own', () => {
@@ -354,6 +467,27 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
       expect(randoms.coordinate).toHaveBeenCalledTimes(1);
     });
 
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R23: a coordinate is a safe integer or nothing. Number('9'.repeat(400))
+    // is Infinity, which made a NaN dayStartTimestamp, and the mirror wrote it back into the bar. Out of range reads as
+    // absent, as a malformed part does: that axis random, the rest as given.
+    it.each([
+      ['a 400-digit x', `?x=${'9'.repeat(400)}&y=4`, { x: -3, y: 4 }],
+      ['an x one past the safe integers', `?x=${2 ** 53}&y=4`, { x: -3, y: 4 }],
+      ['a 400-digit negative y', `?x=4&y=-${'9'.repeat(400)}`, { x: 4, y: -3 }],
+    ])('%s reads as absent: that axis random, the other as given', (_label, search, coordinates) => {
+      const randoms = spyRandoms();
+      randoms.coordinate.mockReset().mockReturnValueOnce(-3);
+      expect(decodeWorldLink(search)!.coordinates).toEqual(coordinates);
+      expect(randoms.coordinate).toHaveBeenCalledTimes(1);
+    });
+
+    it('the safe integers at either end still read as given, so every coordinate the app writes decodes', () => {
+      const randoms = spyRandoms();
+      const decoded = decodeWorldLink(`?seed=a&x=${Number.MAX_SAFE_INTEGER}&y=-${Number.MAX_SAFE_INTEGER}`)!;
+      expect(decoded.coordinates).toEqual({ x: Number.MAX_SAFE_INTEGER, y: -Number.MAX_SAFE_INTEGER });
+      expect(randoms.coordinate).not.toHaveBeenCalled();
+    });
+
     it('x=-0 reads as 0, and a leading zero is still an integer', () => {
       const decoded = decodeWorldLink('?seed=a&x=-0&y=007')!;
       expect(Object.is(decoded.coordinates.x, 0)).toBe(true);
@@ -393,7 +527,7 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
   });
 
   it('a blob with only g.reverb and lb.b fills everything else from the seed', () => {
-    const baseline = generateWorldSeedBaseline(FIXTURE_NAME);
+    const baseline = generateWorldSeedBaseline(CLASSIC_SEED);
     const reverb = { ...baseline.globalAudio.reverb, decay: baseline.globalAudio.reverb.decay + 2 };
     const laneB = { ...baseline.lfoBank.b, rate: 0 };
     const decoded = decodeWorldLink(

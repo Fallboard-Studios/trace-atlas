@@ -65,7 +65,7 @@ export function useHaloMotion({ root, robotId, context, dimOpacity }: UseHaloMot
     (kind, duration) => {
       if (reducedMotion || !root.current) return;
       const waves = playHaloWaves({ group: root.current, kind, duration, dimOpacity: () => dimOpacityRef.current });
-      if (waves) setTimeline(wavesKey, waves);
+      if (waves) setTimeline(wavesKey, waves, 'world');
     },
     [reducedMotion, root, wavesKey],
   );

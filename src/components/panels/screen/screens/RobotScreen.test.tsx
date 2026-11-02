@@ -2228,3 +2228,65 @@ describe('RobotScreen — the breadcrumb names the open tab (Root / Probes / <ro
     expect(crumb()).toBe(path(COMPOSITION));
   });
 });
+
+describe('RobotScreen — the "loaded under" line (docs/tasks/OFF_SCREEN.md Task 32; spec assumption 24)', () => {
+  const wells = (container: HTMLElement) => [...container.querySelectorAll('.robot-screen__meta > .robot-screen__well')];
+  const caption = CONTENT['probe.loadedUnder'];
+
+  it('shows the aspect a freelancer was dealt as a fifth well: its name under the caption', () => {
+    selectRobot(makeRobot('r1', { loadedUnder: { melody: 'wandering' } }));
+    const { container } = render(<RobotScreen />);
+    expect(wells(container)).toHaveLength(5);
+    expect(metaValues(container)[4]).toBe(human('home.off.melody.wandering'));
+    const well = wells(container)[4] as HTMLElement;
+    expect(well.querySelector('.sc-dual-label__lore')?.textContent).toBe(caption.lore);
+    expect(well.textContent).toContain(caption.human);
+  });
+
+  it("shows a member's record, which is its company's: the deal seats a company as one group", () => {
+    useLocaleStore.getState().setLocaleData(localeId, {
+      robots: [],
+      companies: [{ id: 'c1', name: 'Rust Syndicate', color: '#b5502a', robotIds: ['r1'] }],
+    } as unknown as Partial<Locale>);
+    selectRobot(makeRobot('r1', { companyId: 'c1', loadedUnder: { melody: 'hypnotic' } }));
+    const { container } = render(<RobotScreen />);
+    expect(metaValues(container)[4]).toBe(human('home.off.melody.hypnotic'));
+  });
+
+  it('is absent for a robot loaded as the theme: four wells, no caption', () => {
+    selectRobot(makeRobot('r1'));
+    const { container } = render(<RobotScreen />);
+    expect(wells(container)).toHaveLength(4);
+    expect(screen.queryByText(caption.human)).toBeNull();
+  });
+
+  it('is text, not a control', () => {
+    selectRobot(makeRobot('r1', { loadedUnder: { melody: 'mechanical' } }));
+    const { container } = render(<RobotScreen />);
+    const well = wells(container)[4] as HTMLElement;
+    expect(within(well).queryAllByRole('button')).toHaveLength(0);
+    expect(within(well).queryAllByRole('radio')).toHaveLength(0);
+    expect(within(well).queryByRole('textbox')).toBeNull();
+  });
+
+  it('follows the store: a deal written after mount brings the line', () => {
+    selectRobot(makeRobot('r1'));
+    const { container } = render(<RobotScreen />);
+    expect(wells(container)).toHaveLength(4);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { loadedUnder: { melody: 'mechanical' } }));
+    expect(wells(container)).toHaveLength(5);
+    expect(metaValues(container)[4]).toBe(human('home.off.melody.mechanical'));
+  });
+
+  it('a record naming an aspect the app does not know shows nothing', () => {
+    selectRobot(makeRobot('r1', { loadedUnder: { melody: 'frantic' } as unknown as Robot['loadedUnder'] }));
+    const { container } = render(<RobotScreen />);
+    expect(wells(container)).toHaveLength(4);
+  });
+
+  it('an empty record shows nothing', () => {
+    selectRobot(makeRobot('r1', { loadedUnder: {} }));
+    const { container } = render(<RobotScreen />);
+    expect(wells(container)).toHaveLength(4);
+  });
+});

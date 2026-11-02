@@ -122,7 +122,7 @@ import { getRobotGem } from './polygon';
 import { gemPalette } from './gemPalette';
 import { orbiterPlan, ATTACH_DROP, ATTACH_START_SCALE, ATTACH_DURATION } from './orbiterMotion';
 import type { OrbiterDials } from './orbiterDials';
-import { timelineMap, killAllTimelines } from '../../../animation/timelineMap';
+import { getTimelineScope, timelineMap, killAllTimelines } from '../../../animation/timelineMap';
 import { getOrbiterWork, clearRobotMotionRegistry } from '../../../animation/robotMotionRegistry';
 
 // ========================================
@@ -272,6 +272,10 @@ describe('useOrbiterMotion — mount state (spec §1.4, Phase 40 amendment: dock
   it('registers the timeline under orbiters-${context}-${robotId}, and removes it on unmount', () => {
     const { unmount } = render(<Harness robotId="r1" context="world" />);
     expect(timelineMap.has('orbiters-world-r1')).toBe(true);
+    // A registration token ({ kill } only), not motion: it stays in the default 'ui' scope on purpose, because the
+    // world pause calls paused() / pause() / play() on every 'world' entry and a token has none of them
+    // (OFF_SCREEN assumption 3; the hop tweens it owns are short and never registered).
+    expect(getTimelineScope('orbiters-world-r1')).toBe('ui');
     unmount();
     expect(timelineMap.has('orbiters-world-r1')).toBe(false);
   });
@@ -499,6 +503,8 @@ describe('useOrbiterMotion — size tween and live dial refs', () => {
     const { rerender } = render(<Harness robotId="r-size" context="avatar" dials={dials({ size: 1.0 })} />);
     rerender(<Harness robotId="r-size" context="avatar" dials={dials({ size: 0.9 })} />);
     expect(timelineMap.has('orbiter-size-avatar-r-size')).toBe(true);
+    // A real Tween, so a world mover: the power rocker's pause freezes it (OFF_SCREEN assumption 3).
+    expect(getTimelineScope('orbiter-size-avatar-r-size')).toBe('world');
   });
 
   it('a second size change re-targets the same key rather than stacking a second tween', () => {

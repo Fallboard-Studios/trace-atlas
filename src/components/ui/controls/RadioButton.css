@@ -70,7 +70,10 @@
    momentary control, not a multi-way selection) and Toggle (never
    accent-tinted, bare box). Matches today's existing [data-state='on']
    color swap this rule replaces. See
-   docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.4. */
+   docs/specs/archive/OBLIQUE_CABINETRY_RADIO_BUTTON.md §1.4.
+   The multiple variant (.sc-radio-button--multiple, docs/tasks/OFF_SCREEN.md Task 29) needs no rule
+   of its own: Radix sets data-state per item in either mode, so this tint, the label colour below
+   and the muted fill all mark every selected option at once. */
 .sc-radio-button__item[data-state='on'] .sc-cabinet-box__front {
   background: var(--color-accent-gradient);
 }
@@ -172,4 +175,129 @@
 .sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__label,
 .sc-radio-button--muted .sc-radio-button__item[data-state='on'] .sc-radio-button__lore {
   color: #0b0f14;
+}
+
+/* The list appearance (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3; the sketch's .r rows, docs/sketches/off-screen.html):
+   the rows stack full width and never wrap. Muted's family: nothing here pops, glows or animates; the selected row's
+   dot fills and the row takes a quiet fill. Every row draws the same parts and the same 1px border (transparent until
+   selected), so a pick changes colours only and never reflows the list (controls hold their largest size). */
+/* The list's frame (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8): two columns, the rows' and the trailing slots'. The
+   root spans both columns and every line (its grid-row is set inline from listLines) and passes them down as a
+   subgrid, so each row and divider takes a line of its own, and a trailing slot - a sibling after the root, outside its
+   roving focus - sits on its row's line in the second column, over the row's own fill. */
+.sc-radio-button__list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  row-gap: 2px;
+  width: 100%;
+}
+
+.sc-radio-button--list .sc-radio-button__root {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  grid-template-rows: subgrid;
+  gap: normal;
+}
+
+.sc-radio-button__row {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  align-items: center;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid transparent;
+}
+
+/* A row's radio takes both columns, or the first alone when a trailing slot sits on the row's line. */
+.sc-radio-button__row .sc-radio-button__list-item {
+  grid-column: 1 / -1;
+}
+
+.sc-radio-button__row--trailing .sc-radio-button__list-item {
+  grid-column: 1;
+}
+
+.sc-radio-button__row[data-state='on'] {
+  border-color: rgba(207, 214, 220, 0.4);
+  background: rgba(207, 214, 220, 0.08);
+}
+
+/* A hover brightens an unselected row's border, never lifts it: the muted button's engaged state, for a row
+   (docs/tasks/OFF_SCREEN_REVISIONS.md Task 5). A disabled row stays still. */
+.sc-radio-button__row:not([data-state='on']):hover {
+  border-color: rgba(207, 214, 220, 0.22);
+}
+
+.sc-radio-button__row:has(> [data-disabled]):hover {
+  border-color: transparent;
+}
+
+/* The row's radio: the dot, the face and the meta on one line, taking the width the trailing slot leaves. */
+.sc-radio-button__list-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+  min-height: 34px;
+  padding: 4px 12px;
+  box-sizing: border-box;
+  text-align: left;
+}
+
+.sc-radio-button__dot {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 1px solid rgba(207, 214, 220, 0.7);
+  border-radius: 50%;
+}
+
+.sc-radio-button__row[data-state='on'] .sc-radio-button__dot {
+  background: rgba(207, 214, 220, 0.9);
+  box-shadow: inset 0 0 0 2px #0b0f14;
+}
+
+/* The face takes the room and ellipsises (its label's own rule); the meta and the trailing slot keep theirs. */
+.sc-radio-button--list .sc-radio-button__face {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* A selected list row's fill is quiet, not an accent tint, so its label keeps the fixed white the rule above
+   would otherwise swap for the dynamic --color-text-primary. */
+.sc-radio-button--list .sc-radio-button__item[data-state='on'] .sc-radio-button__label {
+  color: var(--color-text-primary-fixed);
+}
+
+.sc-radio-button__meta {
+  flex: none;
+  margin-left: auto;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.sc-radio-button__trailing {
+  grid-column: 2;
+  align-self: center;
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+
+/* dividerBefore in a list: a full-width rule between two rows, in place of the vertical tick between boxes. */
+.sc-radio-button--list .sc-radio-button__divider {
+  grid-column: 1 / -1;
+  width: auto;
+  height: 1px;
+  margin: 4px 8px;
 }

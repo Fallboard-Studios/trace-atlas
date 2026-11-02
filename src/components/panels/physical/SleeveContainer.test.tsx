@@ -5,7 +5,7 @@ import { render } from '@testing-library/react';
 // dependency mocks PowerRockerSwitch.test.tsx already uses to keep it from
 // touching real power/audio/animation systems.
 vi.mock('@/systems/powerController', () => ({
-  powerController: { start: vi.fn(), shutdown: vi.fn().mockResolvedValue(undefined) },
+  powerController: { start: vi.fn() },
 }));
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
 vi.mock('@/stores/uiStore', () => {

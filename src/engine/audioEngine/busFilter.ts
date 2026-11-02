@@ -5,7 +5,8 @@ import { ROBOT_FILTER_TYPES, type RobotFilterType } from '@/types/Robot';
  * Per-robot bus low-pass cutoff used when a caller passes no `filterFreq` — the value every bus
  * filter was hardcoded to from the composite-voice rewrite until the robot's own seeded
  * `audioAttributes.filterFreq` was wired through (it drove body detail/greeble count the whole
- * time, but never the sound). Sits inside spawnSystem's ACCENT_FILTER_FREQ_RANGE (400–2500 Hz).
+ * time, but never the sound). Sits inside Classic's accent cutoff band, `robot.accentFilterFreq`
+ * (400–2500 Hz, src/data/bands/classic.ts).
  */
 const ROBOT_BUS_FILTER_DEFAULT_HZ = 1200;
 /** `filterFreq: 0` means "no filter" (Robot.ts) — open the low-pass to the top of the audible band. */

@@ -8,7 +8,16 @@ import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach, t
 // behaviour has its own suite (deckCamera.test.ts).
 vi.mock('@/animation/deckCamera', () => ({ registerDeckScroller: vi.fn() }));
 
-import { startWorkLoop, stopWorkLoop, next, getSiteState, onLifecycleChange, onRobotMounted } from './workLoop';
+import {
+  startWorkLoop,
+  stopWorkLoop,
+  pauseWorkLoop,
+  resumeWorkLoop,
+  next,
+  getSiteState,
+  onLifecycleChange,
+  onRobotMounted,
+} from './workLoop';
 import { siteCooldown } from './siteChoice';
 import { placeDistrict } from './districts';
 import { isWorkSiteEligible } from './jobHosts';
@@ -16,7 +25,7 @@ import { getWorkSite, type WorkSite } from './workSites';
 import { getStations, type Station } from './stations';
 import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import * as stationsModule from './stations';
-import { getTimeline, killAllTimelines, timelineMap } from '../animation/timelineMap';
+import { getTimeline, getTimelineScope, killAllTimelines, timelineMap } from '../animation/timelineMap';
 import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry } from '../animation/robotMotionRegistry';
 import * as buildJobTimelineModule from '../animation/jobMoves/buildJobTimeline';
 import * as decorTierModule from '../animation/jobMoves/decor/decorTier';
@@ -188,6 +197,7 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
     expect(r.job).toBe(job);
     expect(getSiteState(a.id)?.heldBy).toBe('r1');
     expect(getTimeline('swim-r1')).toBeDefined();
+    expect(getTimelineScope('swim-r1')).toBe('world'); // a world mover: the power rocker's pause freezes it
   });
 
   it("arrival writes the park position and starts 'working' with the orbiters locked", () => {
@@ -207,6 +217,7 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
     expect(control.unlock).not.toHaveBeenCalled();
     expect(Number(gsap.getProperty(el, 'x'))).toBeCloseTo(park.x, 3); // GSAP rounds transforms to 4 places
     expect(getTimeline('work-r1')).toBeDefined();
+    expect(getTimelineScope('work-r1')).toBe('world');
     expect(getTimeline('work-r1')!.duration()).toBeCloseTo(jobDuration(BPM), 6);
   });
 
@@ -250,6 +261,7 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
     expect(get('r1').activity).toBe('waiting');
     expect(get('r1').siteId).toBeUndefined();
     const bob = getTimeline('bob-wait-r1')!;
+    expect(getTimelineScope('bob-wait-r1')).toBe('world');
     expect(bob.duration()).toBeCloseTo(WAIT_RETRY_SECONDS, 6);
     const y0 = get('r1').position.y;
     bob.progress(0.5); // the yoyo's peak
@@ -281,6 +293,108 @@ describe('workLoop — the site cycle (Phase 43 Task 22, spec §1.7)', () => {
     expect(get('r1').siteId).toBe(a.id);
     expect(getSiteState(a.id)!.heldBy).toBe('r1');
     expect(get('r1').activity).toBe('working');
+  });
+
+  // Power is a pause (docs/specs/OFF_SCREEN.md assumption 4, docs/tasks/OFF_SCREEN.md Task 4): the loop's clock is
+  // wall time minus every paused span, so a cooldown stamped before a pause keeps its meaning after it — no robot
+  // finds every site ready the moment the tablet comes back on.
+  describe('pauseWorkLoop / resumeWorkLoop', () => {
+    /** Run r1 through one job on `a` from the park at clock 100, so `a` carries a cooldown; returns it. */
+    function releaseOnce(a: ReturnType<typeof sitesForSwitch>['a']): number {
+      registerLocale([a], [robot('r1', siteOf(a).park)]);
+      startWorkLoop(LOCALE, { now, backHosts: false });
+      mount('r1');
+      next('r1');
+      finish('swim-r1');
+      finish('work-r1');
+      return getSiteState(a.id)!.readyAt - clock;
+    }
+
+    it('a cooldown stamped before a pause is still unexpired after a long gap and a resume, and expires at the shifted time', () => {
+      const { a } = sitesForSwitch();
+      const cooldown = releaseOnce(a); // readyAt = 100 + cooldown
+
+      clock = 101;
+      pauseWorkLoop();
+      clock = 1e6; // wall time flies while the tablet is off
+      resumeWorkLoop();
+
+      // Loop time is 101 again — the site is not ready...
+      finish('bob-wait-r1');
+      expect(get('r1').activity).toBe('waiting');
+
+      // ...until the rest of the cooldown has passed in wall time since the resume.
+      clock = 1e6 + cooldown - 1 - 0.001;
+      finish('bob-wait-r1');
+      expect(get('r1').activity).toBe('waiting');
+
+      clock = 1e6 + cooldown - 1;
+      finish('bob-wait-r1');
+      expect(get('r1').siteId).toBe(a.id);
+      expect(get('r1').activity).toBe('working');
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the loop may still decide while the tablet is off (a leg that ends
+    // as the pause begins), and that decision reads the clock the pause froze.
+    it('a decision taken during the pause reads the frozen clock: a cooldown does not run out while the tablet is off', () => {
+      const { a } = sitesForSwitch();
+      releaseOnce(a);
+
+      clock = 101;
+      pauseWorkLoop();
+      clock = 1e6; // long past the cooldown in wall time
+      finish('bob-wait-r1');
+
+      expect(get('r1').activity).toBe('waiting');
+      expect(get('r1').siteId).not.toBe(a.id);
+    });
+
+    it('two pauses accumulate', () => {
+      const { a } = sitesForSwitch();
+      const cooldown = releaseOnce(a);
+
+      clock = 101; pauseWorkLoop();
+      clock = 200; resumeWorkLoop(); // 99 s paused
+      clock = 210; pauseWorkLoop();
+      clock = 400; resumeWorkLoop(); // 289 s paused in all: loop time at wall 400 is 111
+
+      clock = 389 + cooldown - 0.001;
+      finish('bob-wait-r1');
+      expect(get('r1').activity).toBe('waiting');
+
+      clock = 389 + cooldown;
+      finish('bob-wait-r1');
+      expect(get('r1').siteId).toBe(a.id);
+    });
+
+    it('a second pause while paused, a resume while running, and both without a loop are no-ops', () => {
+      expect(() => { pauseWorkLoop(); resumeWorkLoop(); }).not.toThrow(); // no loop
+
+      const { a } = sitesForSwitch();
+      const cooldown = releaseOnce(a);
+      resumeWorkLoop(); // nothing to resume
+      clock = 101; pauseWorkLoop();
+      clock = 150; pauseWorkLoop(); // ignored: the pause began at 101
+      clock = 300; resumeWorkLoop(); // 199 s paused
+
+      clock = 299 + cooldown - 0.001;
+      finish('bob-wait-r1');
+      expect(get('r1').activity).toBe('waiting');
+      clock = 299 + cooldown;
+      finish('bob-wait-r1');
+      expect(get('r1').siteId).toBe(a.id);
+    });
+
+    it('startWorkLoop starts the shift from zero: a new run stamps readyAt against the unshifted clock', () => {
+      const { a } = sitesForSwitch();
+      const cooldown = releaseOnce(a);
+      clock = 101; pauseWorkLoop();
+      clock = 1e6; resumeWorkLoop();
+      stopWorkLoop();
+
+      clock = 100;
+      expect(releaseOnce(a)).toBe(cooldown); // readyAt - clock, with no paused seconds subtracted
+    });
   });
 
   it('one robot per site: a second robot does not take a held site', () => {

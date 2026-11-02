@@ -29,6 +29,7 @@ either state machine.
 5. **One seam to the visuals**: the tick writes docking, battery, audio mode and melody, then calls `onLifecycleChange(localeId, robotId, to)` for the transitions that have a visual consequence. It never starts a swim, writes a position or picks a job itself.
 6. **Muted by default while Docked, but overridable**: a `Docked` robot is hidden inside its station and has `audioMode: 'mute'` — the *same* field Robot Options' Audio Mode toggle writes to. Its `AudioEngine` voice stays reserved and its melody stays registered the whole time, exactly like an `Active` robot's — mute is enforced only at `scheduleNote()`'s `audioMode === 'mute'` check, so a user can flip a Docked robot's Audio Mode back to `none` in Robot Options and genuinely hear it, without anything in the lifecycle system fighting that override.
 7. **Animation never touches audio**: every work-loop timeline callback calls only work-loop functions or store writes, never `AudioEngine` (the Strict Separation guardrail). Animation speed doesn't follow the music, except that a job's length is read from the tempo when it starts (`jobDuration(bpm)`).
+8. **A pause freezes measures; the day runs**: the power rocker pauses the world rather than tearing it down (`docs/specs/OFF_SCREEN.md` assumption 5; [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause)). The AudioContext is suspended, so the measure tick, and with it battery drain and recharge, the transition hold, pitch drift and the harmony, stop where they are and continue from there on resume — a replay by elapsed measures is unaffected, since no measure elapsed. The work loop's clock is shifted by the paused span and its `'world'` timelines are paused in place, so every robot is where it was and every site cooldown means what it did. The in-world day is wall clock (`DAY_DURATION_MS` from `dayStartTimestamp`) and is never gated: the light moves on while the tablet is off, and a world resumed after ten minutes resumes into a later hour.
 
 ## Data Structures
 
@@ -223,6 +224,16 @@ visual state like `activity`. The mechanics are in
 
 **No body.** A robot with no mounted body gets keyed, target-less timelines of the same length
 (travel time, `jobDuration`, the wait, the arc), so `stopWorkLoop` can still kill them.
+
+**Pause.** `pauseWorkLoop()` / `resumeWorkLoop()` (`docs/specs/OFF_SCREEN.md` assumption 4) freeze and
+release the loop's clock without stopping the loop: `now()` is the base clock (`gsap.ticker.time`, or the
+injected `now`) less every paused span, and while paused it returns the moment the pause began. So a
+`readyAt` stamped before a pause is honoured after it as if no time had passed, two pauses accumulate,
+and `startWorkLoop` / `stopWorkLoop` reset the offset. Only the clock: the loop's own timelines pause
+through their `'world'` scope in `timelineMap`, which `powerController.pause()` drives beside this call
+([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#timeline-registry)). The `gsap.ticker` follow listener keeps
+running through a pause and copies a frozen body's position, a no-op. Both are idempotent and no-ops with
+no loop running.
 
 **Every callback is guarded by run identity**: a leg that ends after a stop or a restart writes
 nothing.
@@ -496,19 +507,27 @@ The robot card shows all three side by side: `{docking} · {activity} · {audibi
 `startRobotLifecycle(localeId)`/`stopRobotLifecycle()` are a module-singleton pair (one active
 `subscribeToMeasure` unsubscribe function at a time), mirroring the retired
 `startSpawnScheduler`/`stopSpawnScheduler`'s exact pattern. `worldTransition.ts`'s
-`initializeLocale` calls `stopRobotLifecycle(); startRobotLifecycle(localeId);` and then
-`stopWorkLoop(); startWorkLoop(localeId);` unconditionally on every call — this is what makes a
-power cycle work, not just a locale swap: `AudioEngine.killAll()` (called on power-off, via
-`powerController.ts`) triggers `resetBeatClock()` internally, which silently clears every
-`subscribeToMeasure` listener. Without `stopRobotLifecycle()` running first to null out the
-module's `lifecycleUnsubscribe` reference, a later `startRobotLifecycle()` would see it as "already
-running" and never resubscribe — permanently killing the tick after the first power cycle.
+`startLocaleSystems` — the START half of `initializeLocale`, run when its `startSystems` option is
+true and by `powerController.powerOnSequence()` for a world built while the tablet was off — calls
+`stopRobotLifecycle(); startRobotLifecycle(localeId);`, then `stopWorkLoop(); startWorkLoop(localeId);`,
+then the swells' pair, unconditionally, and writes the world state `'running'`. The unconditional
+stop first is what lets a repeat start (a second cold start, a retransmit) re-subscribe: without
+`stopRobotLifecycle()` nulling the module's `lifecycleUnsubscribe` reference, a later
+`startRobotLifecycle()` would see it as "already running" and never resubscribe.
 
-Both power-off paths in `powerController.ts` call `stopRobotLifecycle()`, then `stopWorkLoop()`,
-then `AudioEngine.killAll()`. `stopWorkLoop` kills every `work-*`, `swim-*`, `bob-wait-*` and
-`station-*` timeline and clears the site state. A job in progress is first run to its end without
-its callback, so the orbiters are back on their docks and the bob at rest before they're unlocked.
-The robot keeps whatever `activity` it had; the next start decides what follows.
+**Power-off is a pause, not a teardown** (`docs/specs/OFF_SCREEN.md` §1.2; the order and the three
+states are in [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause)). `powerController.pause()` freezes
+the work loop's clock, pauses every `'world'` timeline and suspends the AudioContext; the lifecycle
+subscription stands with its tick frozen, no timeline is killed, no site is released, no voice goes.
+`resume()` undoes it in reverse, and the measure tick continues from the measure it was in.
+`AudioEngine.killAll()` is no longer called by anything in the app. A world **change** is the teardown:
+`removeLocale` releases each robot's voice, `initializeLocale(..., { startSystems: isPoweredOn })`
+rebuilds, and with the tablet off it holds the systems and writes `'cold'`, so the next flip is a
+`start`. `stopWorkLoop` (a world change, `startLocaleSystems`) kills every `work-*`, `swim-*`,
+`bob-wait-*`, `station-*` and `dissolve-*` timeline and clears the site state. A job in progress is
+first run to its end without its callback, so the orbiters are back on their docks and the bob at
+rest before they're unlocked. The robot keeps whatever `activity` it had; the next start decides
+what follows.
 
 **Mounts.** `Robot.tsx`'s mount (a `useGSAP` layout effect) calls `onRobotMounted(localeId, robotId)`:
 
@@ -520,14 +539,15 @@ The robot keeps whatever `activity` it had; the next start decides what follows.
   only hides — Docked and Undocking robots at their port, `'exiting'` and `'charging'` ones in
   place — so nothing shows for a frame. `startWorkLoop` then adopts every robot with a mounted body.
 
-`powerController.ts`'s `start()` calls `spawnSystem.ts`'s `reRegisterAllRobotsAudio(localeId)` on
-power-on, which re-registers **every** robot in the locale (not filtered by docking) — every robot
-keeps its voice/melody reserved regardless of docking state, so this pass covers all of them.
-`AudioEngine.killAll()` itself does not touch the `compositeVoices` map (it only cancels/resets the
-Transport and calls `resetBeatClock()`), so voices are not actually known to be invalidated by a
-power cycle; the re-registration may be unnecessary defensive work carried over as-is rather than a
-verified requirement. `audioMode` (unaffected by the power cycle, since it lives in
-`useLocaleStore`, not `AudioEngine`) is what keeps Docked robots silent afterward.
+`powerController.ts`'s `start()` — the cold path only; a resume starts nothing — calls
+`spawnSystem.ts`'s `reRegisterAllRobotsAudio(localeId)`, which re-registers **every** robot in the
+locale (not filtered by docking) — every robot keeps its voice/melody reserved regardless of docking
+state, so this pass covers all of them. `AudioEngine.killAll()` itself does not touch the
+`compositeVoices` map (it only cancels/resets the Transport and calls `resetBeatClock()`), and
+nothing calls it now, so voices are not invalidated by a power cycle; the re-registration is
+defensive work carried over as-is rather than a verified requirement. `audioMode` (unaffected by the
+power cycle, since it lives in `useLocaleStore`, not `AudioEngine`) is what keeps Docked robots
+silent afterward.
 
 ## Known gaps
 
@@ -561,7 +581,7 @@ cover:
 - the two robot rows (J4; plus `layerSwitch.test.ts` and `midgroundSilhouettes.test.tsx`): front → back and back → front legs, the switch point's clear run, the skip with no switch point, the 0.75 row scale, the dissolve copy in both directions and every interruption of it (stop, recall, a dropped leg's re-mount, an overlapping fade), exits into the back row, and `stations.test.ts`' guards that no station box or exiting robot overlaps a midground silhouette (0 of 284 over the grid). The J1–J3 loop tests run with `backHosts: false`
 - the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case)
 - `spawnInitialRoster`'s active/docked split, seeded battery variation, determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody with `audioMode` matching its docking state
-- `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency, and the power-off order
+- `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency; `pauseWorkLoop`/`resumeWorkLoop` (a cooldown stamped before a pause is unexpired after it, two pauses accumulate, a start resets); `powerController.test.ts`'s pause and resume orders, the cold path, `markHeardWorld` once, and the fade awaited before either path
 - `types/Robot.test.ts`: the deleted files are gone and no file in `src/` names a deleted identifier (below)
 - `lifecycleSim.ts`: the sim roster matching the real spawn path, determinism, no store/BeatClock (and no GSAP for the loop sim), the pinned flat-drain rows, and the loop sim's hand-worked timelines for each work-loop branch
 

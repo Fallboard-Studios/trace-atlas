@@ -206,8 +206,8 @@ export interface Robot {
   /** Delay send, 0…1 — as reverbSend, into the Delay room. */
   delaySend: number;
   /** Grit send, 0…1 — how much of this robot's post-Volume signal enters the Colour room (Distortion, Chebyshev and
-   *  Bit Crusher in parallel). Seeded at spawn (ROBOT_SEND_LOADING_RANGES); the Grit slider edits it. 0 = this probe is
-   *  never coloured. docs/specs/ROBOT_EFFECT_SENDS.md §1.1. */
+   *  Bit Crusher in parallel). Seeded at spawn (the band table's `gritSend` row); the Grit slider edits it. 0 = this
+   *  probe is never coloured. docs/specs/ROBOT_EFFECT_SENDS.md §1.1. */
   gritSend: number;
   /** Shimmer send, 0…1 — as gritSend, into the Shimmer room (the Frequency Shifter). */
   shimmerSend: number;
@@ -303,6 +303,16 @@ export interface Robot {
    * RobotSelectionCard/RobotDisplaySection (localeStore.assignRobotToCompany).
    */
   companyId?: string;
+  /**
+   * What the deal loaded this robot under (docs/specs/OFF_SCREEN.md assumptions 22 and 24): per aspect family, the
+   * aspect whose bands that family's fields were re-derived from — one key per dealt family (Melody, Envelope, Distance
+   * and Voice since docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 8 and 10). A family absent means as theme for that family.
+   * Written by the deal (aspectDeal.ts: applyAspectDeal at spawn, applyDealToBaselines for the baseline, rederiveLoading
+   * when a theme or aspect row changes the live world), read by the company and robot readouts, and the old side of
+   * rederiveLoading's comparison. A robot moved between companies keeps what it rolled until a theme or aspect change
+   * moves the aspect its new company is dealt (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F20). JSON.
+   */
+  loadedUnder?: import('../data/bands/aspects').FamilyAspects;
   /**
    * Testing-only override, toggled from the top of Ping Controls: when true, AudioEngine plays
    * a fixed 4-quarter-note downbeat pattern (see src/engine/clickTrack.ts) instead of this

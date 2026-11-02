@@ -2,7 +2,11 @@ import { useState } from 'react';
 import { useShareStatus } from './useShareStatus';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
-import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
+import { useLoadingStore } from '@/stores/loadingStore';
+import { useSessionStore } from '@/stores/sessionStore';
+import { retransmitChangesWorld, retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
+import { requestWorldChange } from '@/systems/worldChange';
+import { describeWorld } from '@/utils/describeWorld';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { CoordsInput } from '@/components/ui/controls/CoordsInput';
@@ -14,29 +18,28 @@ import {
   RETRANSMIT_SCHEMA,
   COPY_LINK_SCHEMA,
   STATUS_HEADER_SCHEMA,
-  ATTENUATION_STYLE_PRESETS,
-  COORDINATE_PRESETS,
 } from '@/data/sectorSettingsConfig';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { buildSessionPayload } from '@/utils/sessionDiff';
 import type { ButtonSchema } from '@/types/controls';
-import { CONTENT, labels, fill, type ContentKey } from '@/content';
+import { CONTENT, labels } from '@/content';
 import './SectorSettingsDrawer.css';
 
 const RANDOM_ATTENUATION_STYLE_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomPlanet', type: 'button', ...labels('sector.random.attenuationStyle') };
 const RANDOM_COORDS_SCHEMA: ButtonSchema = { id: 'sectorSettings.randomCoords', type: 'button', ...labels('sector.random.coords') };
 
-/** A preset button: its lore caption is content, its visible label is the preset's own name (data). */
-function presetSchema(idSuffix: string, name: string, content: ContentKey): ButtonSchema {
-  return { id: `sectorSettings.preset.${idSuffix}`, type: 'button', ...labels(content), humanLabel: fill(content, { name }) };
-}
-
 /**
  * Sector Settings console panel — Attenuation Style (reseed the Attenuation
  * Style) and Plot Tuning (jump to new locale coordinates), sharing one
- * Retransmit action. Preset buttons only populate their own field(s); they
+ * Retransmit action. The Random buttons only populate their own field; they
  * never submit on their own — the user still presses Retransmit separately,
- * per docs/specs/archive/SECTOR_SETTINGS.md §5.
+ * per docs/specs/archive/SECTOR_SETTINGS.md §5. The curated shortcut rows that
+ * sat beside them are gone (docs/specs/OFF_SCREEN.md assumption 13): a curated
+ * world is a Transmission preset on the off screen now. The status line is
+ * describeWorld(identity) (assumption 19; docs/tasks/OFF_SCREEN.md Task 33) —
+ * the seed and the plot, then the theme and the picks when they are not
+ * Classic — so it reads byte for byte as the off screen's Current row and
+ * readout do.
  */
 export function SectorSettingsDrawer() {
   const currentAttenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);
@@ -50,6 +53,9 @@ export function SectorSettingsDrawer() {
   // it through, untouched), so narrowing to it directly lets this component skip re-rendering for
   // all of that ambient churn and re-render only when coordinates actually change.
   const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
+  // The loaded world's loading, two narrow reads, for the status line (Task 33).
+  const theme = useLoadingStore((s) => s.theme);
+  const aspects = useLoadingStore((s) => s.aspects);
   const { shareStatus, share } = useShareStatus();
 
   const [attenuationStyleNameDraft, setAttenuationStyleNameDraft] = useState(currentAttenuationStyle?.name ?? '');
@@ -80,7 +86,17 @@ export function SectorSettingsDrawer() {
     if (coordinates && (coordsDraft.x !== coordinates.x || coordsDraft.y !== coordinates.y)) {
       input.coordinates = coordsDraft;
     }
-    retransmitWorld(input);
+    // Nothing edited - an emptied name reads as none, as retransmitWorld reads it - is no world change: nothing waits,
+    // and no wash fades over an unchanged world (found at the revisions plan's Checkpoint D). retransmitWorld's own
+    // no-op rule decides (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R16).
+    if (!retransmitChangesWorld(input)) return;
+    // A user-gesture world change: it waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13). It always
+    // moves the name or the plot, so the world is no longer the loaded save's: the save is let go when the change runs,
+    // as the off screen's Roll lets it go (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R7).
+    requestWorldChange(() => {
+      retransmitWorld(input);
+      useSessionStore.getState().detachLoadedSession();
+    });
   }
 
   return (
@@ -88,7 +104,10 @@ export function SectorSettingsDrawer() {
       <div className="sector-settings-drawer__status">
         <DualLabel loreLabel={STATUS_HEADER_SCHEMA.loreLabel} humanLabel={STATUS_HEADER_SCHEMA.humanLabel} />
         <div className="sector-settings-drawer__status-line">
-          {currentAttenuationStyle?.name ?? '—'} · ({coordinates?.x ?? '—'}, {coordinates?.y ?? '—'})
+          {/* The stores hold a current world from module load on, so the dashes never show in the app. */}
+          {currentAttenuationStyle && coordinates
+            ? describeWorld({ attenuationStyleName: currentAttenuationStyle.name, coordinates, theme, aspects })
+            : '— · (—, —)'}
         </div>
         {/* Copy link shares the LIVE world, like the Sessions panel's Share live, which stays
             (docs/specs/SHORT_WORLD_LINK.md assumption 9): one encoder behind both buttons. */}
@@ -110,13 +129,6 @@ export function SectorSettingsDrawer() {
       <div className="sector-settings-drawer__section">
         <TextInput schema={ATTENUATION_STYLE_SCHEMA} value={attenuationStyleNameDraft} onChange={setAttenuationStyleNameDraft} />
         <div className="sector-settings-drawer__presets">
-          {ATTENUATION_STYLE_PRESETS.map((preset) => (
-            <Button
-              key={preset.name}
-              schema={presetSchema(`planet.${preset.name}`, preset.name, 'sector.preset.attenuationStyle')}
-              onClick={() => setAttenuationStyleNameDraft(preset.value)}
-            />
-          ))}
           <Button schema={RANDOM_ATTENUATION_STYLE_SCHEMA} onClick={() => setAttenuationStyleNameDraft(generateRandomAttenuationStyleName())} />
         </div>
       </div>
@@ -124,13 +136,6 @@ export function SectorSettingsDrawer() {
       <div className="sector-settings-drawer__section">
         <CoordsInput schema={COORDS_SCHEMA} value={coordsDraft} onChange={setCoordsDraft} />
         <div className="sector-settings-drawer__presets">
-          {COORDINATE_PRESETS.map((preset) => (
-            <Button
-              key={preset.name}
-              schema={presetSchema(`coords.${preset.name}`, preset.name, 'sector.preset.coords')}
-              onClick={() => setCoordsDraft(preset.value)}
-            />
-          ))}
           <Button
             schema={RANDOM_COORDS_SCHEMA}
             onClick={() => setCoordsDraft({ x: randomCoordinate(), y: randomCoordinate() })}

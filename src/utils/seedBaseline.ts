@@ -16,6 +16,8 @@ import { generateAttenuationStyleBpm } from './bpmSeed';
 import { evictAttenuationStyleNoiseMap } from './noiseMaps';
 import { deepEqual } from './math';
 import { quantizeGlobalAudioForCapture, roundLfoBankForCapture } from './sessionCapture';
+import { withLoading } from '../data/bands/loadingContext';
+import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import type { GlobalAudioSettings } from '../types/globalAudio';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -44,11 +46,15 @@ export interface WorldSeedBaseline {
   pingVarianceAutomation: number;
 }
 
-/** What defines a world before anything is edited: the seed (the exact name) and the plot. */
-export interface WorldIdentity {
+/** What defines a world before anything is edited: the seed (the exact name), the plot, and its loading - the theme
+ *  every band resolved under and each family's picks the deal seated (docs/specs/OFF_SCREEN.md assumption 10). */
+export interface WorldIdentity extends LoadingIdentity {
   attenuationStyleName: string;
   coordinates: { x: number; y: number };
 }
+
+/** What the world baseline needs of an identity: the seed and the loading (the plot seeds nothing world-level). */
+export type WorldSeedIdentity = Pick<WorldIdentity, 'attenuationStyleName' | 'theme' | 'aspects'>;
 
 /** Only what differs from the seed (spec assumption 4): whole Audio Rig blocks, whole lanes, whole links, single pacing
  *  scalars, and the robot and company diffs as buildSessionPayload already wrote them. A key is absent when its value
@@ -91,11 +97,15 @@ const SCRATCH_ATTENUATION_STYLE_ID = '__world-link__';
 /** Regenerate what a name seeds for the world, as a save would capture it untouched: the Audio Rig, the LFO Bank, the
  *  global links and the pacing scalars, through the same pure generators boot uses, then the rig and the lanes through
  *  the capture step buildSessionPayload applies (sessionCapture.ts). Without that step every seeded value off a slider
- *  step would read as an edit, and no untouched world would copy its bare triple. Reads no store. */
-export function generateWorldSeedBaseline(attenuationStyleName: string): WorldSeedBaseline {
+ *  step would read as an edit, and no untouched world would copy its bare triple. Generated inside the identity's own
+ *  theme bands (withLoading, docs/specs/OFF_SCREEN.md assumption 15), so a Calm world is never read against Classic's
+ *  baseline - which would make every seeded value an override - and the loaded world's bands are back in place after;
+ *  the aspects seed nothing world-level. Reads no store. */
+export function generateWorldSeedBaseline(identity: WorldSeedIdentity): WorldSeedBaseline {
   const id = SCRATCH_ATTENUATION_STYLE_ID;
+  const { attenuationStyleName } = identity;
   try {
-    return {
+    return withLoading(identity, () => ({
       globalAudio: quantizeGlobalAudioForCapture(
         generateGlobalAudioSettings(id, attenuationStyleName)
       ),
@@ -106,7 +116,7 @@ export function generateWorldSeedBaseline(attenuationStyleName: string): WorldSe
       swellDuration: generateSwellDuration(id, attenuationStyleName),
       humanize: generateHumanize(id, attenuationStyleName),
       pingVarianceAutomation: generatePingVarianceAutomation(id, attenuationStyleName),
-    };
+    }));
   } finally {
     // Even on a throw: a surviving scratch map would be handed to the next name that borrows the id.
     evictAttenuationStyleNoiseMap(id);
@@ -166,10 +176,11 @@ export function diffWorldAgainstSeed(
 }
 
 /**
- * A whole payload: the identity, then every world-level field from the diff where it carries one, else the seed's
- * (spec assumption 6 — applySessionPayload never sees a partial lfoBank, so it never backfills from DEFAULT_BANK_LFO).
- * Shallow spreads only: a block, a lane or a link in the diff replaces the seed's whole, never deep-merged inside
- * (withGlobalAudioDefaults' "blocks are whole" rule, spec assumption 4), so one that lost its `sync` stays without it.
+ * A whole payload: the identity - the seed, the plot and the loading (version 3, OFF_SCREEN.md assumption 10) - then
+ * every world-level field from the diff where it carries one, else the seed's (spec assumption 6 — applySessionPayload
+ * never sees a partial lfoBank, so it never backfills from DEFAULT_BANK_LFO). Shallow spreads only: a block, a lane or
+ * a link in the diff replaces the seed's whole, never deep-merged inside (withGlobalAudioDefaults' "blocks are whole"
+ * rule, spec assumption 4), so one that lost its `sync` stays without it.
  */
 export function fillWorldFromSeed(
   identity: WorldIdentity,
@@ -177,9 +188,11 @@ export function fillWorldFromSeed(
   baseline: WorldSeedBaseline
 ): SessionPayload {
   return {
-    version: 2,
+    version: 3,
     attenuationStyleName: identity.attenuationStyleName,
     coordinates: { x: identity.coordinates.x, y: identity.coordinates.y },
+    theme: identity.theme,
+    aspects: identity.aspects,
     globalAudio: { ...baseline.globalAudio, ...diff.globalAudio },
     lfoBank: { ...baseline.lfoBank, ...diff.lfoBank },
     globalLfoLinks: { ...baseline.globalLfoLinks, ...diff.globalLfoLinks },

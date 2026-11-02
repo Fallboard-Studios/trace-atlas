@@ -46,44 +46,6 @@ Crawford wants a real image logo, bottom-right — open question whether it repl
 text wordmark or sits alongside it. Blocked only on the logo artwork itself (a favicon
 cube, `public/favicon.svg`, exists but isn't a wordmark-scale logo).
 
-### 5. Sector Settings: AS/Coords/Favorites Reorganization
-
-Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Medium priority. Today's
-`ATTENUATION_STYLE_PRESETS` (`sectorSettingsConfig.ts`) is what Crawford means by
-"favorites" — same concept, different name; not a new feature so much as a reframing
-plus a data refresh. Crawford has been separately keeping his own list of good
-Attenuation Style + coordinate combinations; once roadmap Phase 21 (Sector Settings:
-Shareable Link Import/Export) lands, he wants to update the in-app preset list with
-current, shareable links, alongside reorganizing how AS/coordinates/presets are laid
-out in the Sector Settings panel. Depends on Phase 21 for the "shareable link" half —
-Session Storage (Phase 20) alone only makes a link possible via the address bar, not
-an in-app Export/Import action.
-
-**Reframed 2026-10-22 (Crawford):** this item is now about the **powered-down state**, not the Sector
-Settings panel. The off screen's Transmission row from roadmap 45 (three preset worlds and the user's
-saves; [backlog archive 2](archive/backlog-archive.md#2-onload-power-off-intro-text)) is the partial
-start; Crawford has a plan for how that screen shows the themes ([docs/ideas/themes.md](../ideas/themes.md)),
-the sessions and the presets. Item [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s
-selection UI is expected to live here too (its progression engine stays item 7's own, large, piece of
-work), and item [19](archive/backlog-archive.md#19-short-world-link-bring-back-seed-x-and-y)'s short link is the natural form for
-a preset entry. Still needs its own `/interview-me`.
-
-**Brainstormed 2026-10-29 (Crawford):** the off screen also offers **aspects** — named band sets for a handful of
-robot attributes (Hypnotic, Mechanical, …), applied over the theme's bands, one pick per family; recorded with
-the leans from the discussion in [docs/ideas/themes.md](../ideas/themes.md#aspects-brainstorm-2026-10-29). The
-interview therefore covers four things — presets, sessions, themes and aspects — in two halves: the screen (the
-surface) and the single band table with its resolver (the engine, shared by themes and aspects, built first). It
-may split them into two phases.
-
-**Sketched 2026-10-30:** the off screen drawn as six stories — arrival (bare URL / shared link) × device (first visit /
-returning / returning with saves) — in [docs/sketches/off-screen.html](../sketches/off-screen.html), every piece
-called out and tagged built / changed / proposed / open, with the power-off dialog, Foundry and Comms beside it.
-Crawford decided on it: the Roll button stays, five themes, flat aspect rows, the two-axis chooser (Transmission /
-Loading), the veil and the lore footer; presets are pasted share links of worlds he saved (his ask the same day).
-Clarified: a theme or aspect changes only loading bands — AS + coords stay the identity — and both are chosen before
-sound, on the off screen. The sketch's "Open for the interview" box is the live question list (nine items); the
-decisions are recorded in [docs/ideas/themes.md](../ideas/themes.md#decided-crawford-2026-10-30-on-the-six-story-sketch).
-
 ### 6. Audio: Groove Feature
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11. Low priority — deprioritized
@@ -104,10 +66,11 @@ selection UI". Low priority — deprioritized behind launch. Design discussed wi
 pass when picked up, which should start from the "Open" list below.
 
 **Note 2026-10-22 (Crawford):** the user-facing part (the tag filter, the mood choice) is now expected to
-be built with item [5](#5-sector-settings-ascoordsfavorites-reorganization)'s powered-down state rather
-than in the Audio Rig's Pacing section as the "UI home" lean below says. The progression engine, the
-catalogue and the seeded chain stay this item and are a large build in their own right; 5's interview
-decides the surface, this item's interview decides the music.
+be built with item [5](archive/backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization)'s
+powered-down state rather than in the Audio Rig's Pacing section as the "UI home" lean below says. The
+progression engine, the catalogue and the seeded chain stay this item and are a large build in their own
+right. Item 5 closed 2026-10-31 as the off screen (roadmap 57), which settled the surface: the Mood row has
+its slot in the off screen's Loading axis. This item's interview decides the music.
 
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
@@ -681,3 +644,61 @@ LightShafts and TerrainLayer select only what they draw; the flicker trigger tup
 an edit); the lifecycle tick writes its batteries in one store set; and the Factories subscribe to a quantised hour.
 Done when the same profile window shows the two ticks' React share gone from the long tasks, with the world looking the
 same.
+
+### 42. Audio: Does a Long Pause on iOS Safari Come Back? (Measure First)
+
+**Found 2026-10-31** by the off-screen review ([OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)
+R24). Power is a pause: `AudioEngine.pause()` suspends the AudioContext and `AudioEngine.resume()` resumes it
+(`src/engine/AudioEngine.ts`). A rejected resume is only logged, in dev builds only (`devWarn`), and nothing falls back:
+`powerController.resume()` is unconditional, so the world reads `'running'` over a context that may still be suspended,
+and the tablet comes back silent. The engine's comment used to promise a cold-start fallback that was never built.
+Whether iOS Safari refuses, or quietly drops, a resume after a long suspend is unmeasured.
+
+**To check first:** on an iPhone in Safari, power on and let it play, power off for 10 minutes (once with the screen on,
+once locked), then power on. Read `Tone.getContext().rawContext.state` right after the resume and again a second later,
+and listen.
+
+**If it stays suspended, build the fallback:** `powerOnSequence` reads the context's state after the resume, and if it is
+not `'running'`, tears the paused world down (`tearDownPausedWorld`, worldTransition.ts) and starts cold. The power-on
+is a user gesture, so `Tone.start()` may unlock the context there; a plain retry of `resume()` inside the gesture is the
+cheaper first try. Done when a 10-minute pause on iOS comes back with sound.
+
+### 43. Animation: The World Pause Misses Timelines Built Paused and Played Later
+
+**Found 2026-10-31** by the off-screen review ([OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)
+R26, item 1); **recorded, not fixed** (Crawford, 2026-11-01). Power is a pause: `pauseWorldTimelines()` pauses every
+`'world'` timeline that is playing, and a `'world'` timeline registered during the pause is paused on arrival
+(`setTimeline`, `src/animation/timelineMap.ts`). The arrival guard only pauses a timeline that is already playing, so a
+timeline built `{ paused: true }` and played after `setTimeline` slips through and runs under the pause. That is how the
+deck camera's float moved behind the off screen, and R26.1 gated the camera's tick on the world state.
+
+**Still open:** the same pattern builds the robots' swims, the work loop's dissolve and work moves, and the station
+ripples. Nothing starts those while the world is paused today, so nothing visible is wrong. A future change that does
+would reopen it. **The general fix, when wanted:** have the registry hold a paused-span timeline paused until the span
+ends, whenever it is played (wrap `play`, or check the world state where those callers play), and drop R26.1's
+camera-only gate. Done when a `'world'` timeline built paused and played during a pause stays still until the resume.
+
+### 44. Sessions: Warn Before the Saves Fill the Browser's Storage
+
+Requested by Crawford, 2026-11-01, with the off screen's Keep failure line. There is no save-count limit in the app.
+The saves live in `localStorage` (`src/utils/sessionStorageEngine.ts`), which browsers cap per origin, at about 5 MB
+in Chrome. A save that does not fit throws. Keep catches it and shows its failure line in the warning's place (off-screen
+review R20; Crawford's words for it, "storage is already full, cannot save world", land at F3 of
+[OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md)). Comms' Save shows "<name> failed to save."
+(`session.status.saveFailed`). Neither warns before the limit.
+
+**To work out:** how big a save is (the payload is a diff against the seed, so an untouched world is small and a
+heavily tweaked one is not); how many fit; and whether the off screen and the Sessions panel should show the space
+left, warn as it runs low, or both. Delete is already in the Sessions list. Needs a short interview: where the warning
+lives and what it says are Crawford's.
+
+### 45. Off Screen: Crawford's Three Preset Links
+
+Moved here from the off-screen review (Crawford, 2026-11-01). The off screen's three presets
+(`src/data/transmissionPresets.ts`) are still placeholders. They are the bare triples of the first build's stand-in
+worlds (`kr1nd4ra` at 12, 68; `qb9mezm3` at -84, 131; `h4lcy0n` at 143, -57), named by stand-in copy
+(`home.off.presets.a`–`c` in `src/content/copy/home.ts`: Kryndara, Vessport Null, Halcyon Drift). A preset is a pasted
+world link ([docs/specs/OFF_SCREEN.md](../specs/OFF_SCREEN.md) assumption 13): paste each share link over its `link`,
+and its name over its content entry. Nothing else changes: `presetPayload` decodes whatever the link carries, the
+theme and the aspect picks included. The review's probes use Vessport Null and the `kr1nd4ra` plot by name, so a later
+probe run picks its worlds again.

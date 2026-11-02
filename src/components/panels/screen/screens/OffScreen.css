@@ -1,8 +1,22 @@
-/* The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9). It sits over the still world (WorldView,
-   z-index 0) as a dark scrim — a plain translucent layer rather than a backdrop filter, which would
-   repaint the whole scene behind it (the idle-paint budget, docs/PERFORMANCE.md). The picker is a muted
-   RadioButton: flat boxes, one light fill for the pick. Nothing here lifts off the plate. */
+/* The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9; docs/specs/OFF_SCREEN.md assumption 18). It sits over
+   the still world (WorldView, z-index 0); its backdrop is the veil below — the screen's own child, so it fades with
+   the screen on the flip (Task 16b). The Transmission picker is RadioButton's list and the theme row is muted: flat,
+   one light fill for the pick. Only the aspect family rows lift off the plate (docs/tasks/OFF_SCREEN_REVISIONS.md
+   Task 9). The root never scrolls: it holds the veil, the dark layer and the column, and the column is what scrolls,
+   on the phone (revisions Task 2) and on a desk it outgrows (Task 9), so the veil stays over the glass. */
 .off-screen {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  overflow: hidden;
+}
+
+/* The column: the etch, the chooser and the footer, centred on the desk. Over the veil, under the dark layer. It scrolls
+   on the desk too once the family rows (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9) make it taller than a short screen
+   (1280 x 720 measured 722 px of content in 644): `safe center` centres the column while it fits and starts it at the
+   top once it does not, where plain `center` pushed the label and the footer out of reach at both ends. A browser
+   without `safe` keeps the plain centring of the declaration before it. */
+.off-screen__scroll {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -10,11 +24,62 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
+  justify-content: safe center;
   gap: var(--spacing-xl);
   padding: var(--spacing-lg);
   box-sizing: border-box;
-  overflow: hidden;
-  background: rgba(5, 8, 11, 0.67);
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* The veil (Crawford, 2026-10-30: it stays): a blur and a dim over the faint world until the flip. A backdrop filter
+   re-rasters what is behind it, which the earlier plain scrim avoided (docs/PERFORMANCE.md) — but the world is a
+   still frame while off, so it rasters once; Checkpoint B's perf:idle run is the check. Under every other child
+   (which stack above it, below), inside ScreenViewport: the sleeve is not covered. Decorative, takes no clicks. */
+.off-screen__veil {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: rgba(8, 12, 16, 0.55);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+  pointer-events: none;
+}
+
+/* The boot theatre's dark layer (docs/tasks/OFF_SCREEN.md Task 16b): opaque black over the whole screen at first
+   paint — the tablet is off; the strips and the power corner outside the screen are lit — faded through a flicker
+   and hidden by the 'off-screen-boot' timeline (animation/offScreenTheatre.ts). It takes the tap while it is up, so a
+   tap during the theatre lands on nothing it hides; the tap still reaches the screen's root, which skips the theatre
+   (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19). Hidden at the end, it takes nothing. Under reduced motion the
+   timeline jumps to ready; this rule is the belt to that brace, so the layer never shows even if the timeline is late
+   to the first paint. */
+.off-screen__dark {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #000;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .off-screen__dark {
+    display: none;
+  }
+}
+
+/* The lore footer: a prop in tiny etched type, last in the column (under the hint on a first visit, under the
+   chooser on a returning one). Wraps rather than widens: the column never scrolls sideways at 360 px. */
+.off-screen__footer {
+  margin: 0;
+  max-width: 100%;
+  font-family: var(--font-sans);
+  font-size: 0.5625rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+  /* 0.55 alpha: about 4.5:1 over a typical backdrop (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F4); 0.38 measured 2.2-2.9:1. */
+  color: rgba(200, 220, 230, 0.55);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .off-screen__etch {
@@ -47,12 +112,34 @@
   color: rgba(200, 220, 230, 0.88);
 }
 
+/* The chooser takes the screen's width up to the sketch's chooser cap (docs/sketches/off-screen.html, .chooser.two),
+   so the two axes below have columns to sit in rather than shrinking to their options. */
 .off-screen__picker {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-md);
-  max-width: 100%;
+  width: 100%;
+  max-width: 1240px;
+}
+
+/* The two axes (docs/tasks/OFF_SCREEN.md Task 30; the sketch's two-column chooser, decided 2026-10-30): Transmission
+   left — which world — and Loading right — how it loads — as two equal columns, each its own centred stack; the
+   readout, a sibling after this grid, spans under both. The phone shell stacks the columns (below). */
+.off-screen__axes {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--spacing-md) var(--spacing-xl);
+  align-items: start;
+  width: 100%;
+}
+
+.off-screen__axis {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-md);
+  min-width: 0;
 }
 
 .off-screen__picker .sc-radio-button {
@@ -61,6 +148,76 @@
 
 .off-screen__picker .sc-radio-button__root {
   justify-content: center;
+}
+
+/* The one-line description under the theme row (Task 30; spec §1.6, the Guide's part) and under each family row
+   (revisions Task 9): the sketch's .desc — small, italic, the etched grey. Two lines of height are held whatever the
+   sentence takes — 3em at this line height; no sentence takes three at any width from 320 px (measured,
+   docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26) — so a pick whose sentence takes a line more or less does not move the
+   rows below it. A line belongs to the row above it, so it sits half the column's gap under that row and the full gap
+   above the next one. */
+.off-screen__description {
+  margin: calc(var(--spacing-md) / -2) 0 0;
+  line-height: 1.5;
+  min-height: 3em;
+  max-width: 100%;
+  padding: 0 6px;
+  box-sizing: border-box;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label-lore);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: rgba(200, 220, 230, 0.6);
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+/* The Transmission list (docs/tasks/OFF_SCREEN_REVISIONS.md Task 5; the sketch's .r rows): the list takes the
+   column's full width, rows as RadioButton's list draws them. Roll sits at the Current row's end as the sketch's small
+   flat button — a face shorter than the row and a smaller label, so the row keeps the list's rhythm — a little in
+   from the row's edge. Nothing lifts off the plate. */
+.off-screen .sc-radio-button__trailing {
+  padding-right: 6px;
+}
+
+.off-screen .sc-radio-button__trailing .sc-button__flat {
+  height: 26px;
+  padding: 0 10px;
+}
+
+.off-screen .sc-radio-button__trailing .sc-button__label {
+  font-size: var(--font-size-label-lore);
+  letter-spacing: 0.04em;
+}
+
+/* Keep under the list (Task 14; revisions Task 4): the RadioButton's rows are its own, so it sits in this row right
+   under the Transmission list, centred, flat like it (a muted Button). */
+.off-screen__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  max-width: 100%;
+}
+
+/* The one warning worth having (docs/tasks/OFF_SCREEN.md Task 14): a muted line under the chooser, only while the
+   loaded world is unkept. Small and quiet — the same etched grey as the hint, not an alert. The line is always there and
+   holds its height while it is empty — one line on the desk, two on the phone (below), the most its sentence takes at
+   any width — so the warning coming and going never re-centres the column (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
+   R26). */
+.off-screen__warning {
+  margin: 0;
+  line-height: 1.5;
+  min-height: 1.5em;
+  max-width: 100%;
+  font-family: var(--font-sans);
+  font-size: var(--font-size-label-lore);
+  font-style: italic;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: rgba(200, 220, 230, 0.6);
+  overflow-wrap: anywhere;
 }
 
 /* A well (in = read, as the breadcrumb and the meta box): the pick's name and code. Its height is held
@@ -82,17 +239,17 @@
 }
 
 /* Phone shell (docs/tasks/LAYOUT_REWORK.md Task 28; the sketch's .phone .splash). ScreenViewport marks
-   the shell from useShell(), so no media query here. The label sits higher: the column starts at the top
-   with room above it, not centred, and a short screen (a phone on its side) scrolls rather than clipping
-   the picker. The label is sized to fit 320 px and a long word breaks before it runs past the glass. The
-   picker takes the screen's width, its options centred and wrapping, a little tighter than the desk's.
-   The readout wraps, centred and balanced, so a long save name takes a second line. */
-#screen-viewport[data-shell='phone'] .off-screen {
+   the shell from useShell(), so no media query here. The label sits higher: the column starts at the top,
+   not centred, a fixed 12 px under the sleeve's power corner on every phone height (Crawford, 2026-10-31,
+   docs/tasks/OFF_SCREEN_REVISIONS.md Task 1), and a short screen (a phone on its side) scrolls rather than
+   clipping the picker. The label is sized to fit 320 px and a long word breaks before it runs past the
+   glass. The picker takes the screen's width, its options centred and wrapping, a little tighter than the
+   desk's. The readout wraps, centred and balanced, so a long save name takes a second line. The column scrolls, not
+   the screen, so the veil stays put over the glass (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2). */
+#screen-viewport[data-shell='phone'] .off-screen__scroll {
   justify-content: flex-start;
-  padding-top: 12vh;
+  padding-top: calc(var(--power-corner-height) + 12px);
   gap: var(--spacing-lg);
-  overflow-y: auto;
-  overflow-x: hidden;
 }
 
 #screen-viewport[data-shell='phone'] .off-screen__label {
@@ -104,12 +261,34 @@
   width: 100%;
 }
 
+/* One column on the phone (Task 30): Transmission, then Loading below the fold, then the readout. */
+#screen-viewport[data-shell='phone'] .off-screen__axes {
+  grid-template-columns: 1fr;
+  gap: var(--spacing-lg);
+}
+
 #screen-viewport[data-shell='phone'] .off-screen__picker .sc-radio-button__flat {
   padding: 0 10px;
+}
+
+/* The list's rows on the phone: the same tighter side padding as the boxes. */
+#screen-viewport[data-shell='phone'] .off-screen__picker .sc-radio-button__list-item {
+  padding: 4px 10px;
 }
 
 #screen-viewport[data-shell='phone'] .off-screen__readout {
   font-size: var(--font-size-label-compact);
   overflow-wrap: anywhere;
   text-wrap: balance;
+}
+
+/* The warning takes two lines on a phone up to 414 px, so its line holds two. */
+#screen-viewport[data-shell='phone'] .off-screen__warning {
+  min-height: 3em;
+}
+
+/* The footer sits at the bottom of the phone's scrolling column, with a little room under it for the thumb. */
+#screen-viewport[data-shell='phone'] .off-screen__footer {
+  margin-top: auto;
+  padding-bottom: var(--spacing-md);
 }

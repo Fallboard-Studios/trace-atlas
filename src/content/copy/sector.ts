@@ -28,8 +28,5 @@ export const sector = {
   'sector.copyLink': { human: 'Copy link' },
   'sector.random.attenuationStyle': { human: 'Random', lore: 'STOCHASTIC SEED [c]' },
   'sector.random.coords': { human: 'Random', lore: 'STOCHASTIC VECTOR [c]' },
-  /** A preset button's visible label is the preset's own name (data, filled via `template`);
-   *  only the lore caption is copy. `human` is never rendered. */
-  'sector.preset.attenuationStyle': { human: 'Preset', lore: 'ATTENUATION PRESET [c]', template: '{name}' },
-  'sector.preset.coords': { human: 'Preset', lore: 'PLOT PRESET [c]', template: '{name}' },
+  // The two `sector.preset.*` entries went with the Seeds tab's shortcut rows (docs/specs/OFF_SCREEN.md assumption 13).
 } as const satisfies Record<string, ContentEntry>;

@@ -24,6 +24,25 @@ vi.mock('./tempoSync', async (importOriginal) => {
   return { ...actual, pickSeedNoteValue: vi.fn(actual.pickSeedNoteValue) };
 });
 
+// band-table T22: the global bands are read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption
+// 15). The real Calm column is {} until the listen (plan Task 34), so one moving three keys is injected over the spread
+// originals: the LPF cutoff (a plain sampled field), the Delay time (the band the Delay Sync pick is handed) and the
+// Phaser rate (a pedal rate band the Sync pick is handed).
+vi.mock('@/data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/data/bands/themes')>();
+  return {
+    ...actual,
+    THEMES: {
+      ...actual.THEMES,
+      calm: {
+        'filterLPF.frequency': { min: 500, max: 600 },
+        'delay.delayTime': { min: 0.2, max: 0.25 },
+        'phaser.rate': { min: 1, max: 1.5 },
+      },
+    },
+  };
+});
+
 import {
   generateGlobalAudioSettings,
   generateLfoBankSettings,
@@ -50,10 +69,10 @@ import {
 import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal, getUniformSeededVal } from './getSeededVal';
 import { allowedRateNoteValues, pickSeedNoteValue } from './tempoSync';
-import { generateAttenuationStyleBpm, BPM_SEED_RANGE } from './bpmSeed';
+import { generateAttenuationStyleBpm } from './bpmSeed';
 import { allowedNoteValues, isNoteValue, noteValueHz, noteValueSeconds } from '@/data/noteValues';
-import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
-import { ROBOT_SEND_LOADING_RANGES } from '@/data/robotSendLoadingRanges';
+import { CLASSIC } from '@/data/bands/classic';
+import { withLoading } from '@/data/bands/loadingContext';
 import { type GlobalAudioSeedFieldKey, type LoadingRangeKey } from '@/data/globalAudioSeedRanges';
 import { GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, LFO_SHAPES, type GlobalLfoTargetId } from '@/types/lfo';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS, PEDAL_RATE_RANGE_HZ } from '@/types/globalAudio';
@@ -209,14 +228,14 @@ describe('generateGlobalAudioSettings', () => {
     const MOTION_WET_ROWS = 2;
     const SHIFT_MAGNITUDE_ROW = 1;
     expect(sampledKeys.length).toBe(
-      Object.keys(GLOBAL_AUDIO_LOADING_RANGES).length -
+      Object.keys(CLASSIC).filter((key) => key in GLOBAL_AUDIO_SEED_RANGES).length -
         COLOUR_WET_ROWS -
         PEDAL_WET_ROWS -
         MOTION_WET_ROWS -
         SHIFT_MAGNITUDE_ROW,
     );
     for (const key of sampledKeys) {
-      const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+      const { min, max } = CLASSIC[key];
       expect(valueByKey[key], `${key} should be >= ${min}`).toBeGreaterThanOrEqual(min);
       expect(valueByKey[key], `${key} should be <= ${max}`).toBeLessThanOrEqual(max);
     }
@@ -305,10 +324,10 @@ describe('generateGlobalAudioSettings', () => {
 
     // Robot Effect Sends T1: the per-robot send bands moved to the robot send table; the loading table has no Return row.
     it('keeps the per-robot send bands in the robot send table and no Return row in the loading table', () => {
-      expect(ROBOT_SEND_LOADING_RANGES.reverbSend).toEqual({ min: 0.1, max: 0.6, lit: 1 });
-      expect(ROBOT_SEND_LOADING_RANGES.delaySend).toEqual({ min: 0, max: 0.3, lit: 0.75 });
-      expect(Object.keys(GLOBAL_AUDIO_LOADING_RANGES)).not.toContain('reverb.wet');
-      expect(Object.keys(GLOBAL_AUDIO_LOADING_RANGES)).not.toContain('delay.wet');
+      expect(CLASSIC.reverbSend).toEqual({ min: 0.1, max: 0.6, lit: 1 });
+      expect(CLASSIC.delaySend).toEqual({ min: 0, max: 0.3, lit: 0.75 });
+      expect(Object.keys(CLASSIC)).not.toContain('reverb.wet');
+      expect(Object.keys(CLASSIC)).not.toContain('delay.wet');
     });
   });
 
@@ -465,7 +484,7 @@ describe('the colour character (Global Colour)', () => {
     });
 
     it('keeps every shape value inside its loading band whether the node is lit or not', () => {
-      const bands = GLOBAL_AUDIO_LOADING_RANGES;
+      const bands = CLASSIC;
       for (let i = 0; i < 300; i++) {
         const s = generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`);
         expect(s.distortion.amount, `amount style ${i}`).toBeGreaterThanOrEqual(bands['distortion.amount'].min);
@@ -479,9 +498,9 @@ describe('the colour character (Global Colour)', () => {
 
     it('puts a lit nodes wet inside its loading band and an unlit nodes wet at exactly 0', () => {
       const wetBand = {
-        distortion: GLOBAL_AUDIO_LOADING_RANGES['distortion.wet'],
-        chebyshev: GLOBAL_AUDIO_LOADING_RANGES['chebyshev.wet'],
-        bitCrusher: GLOBAL_AUDIO_LOADING_RANGES['bitCrusher.wet'],
+        distortion: CLASSIC['distortion.wet'],
+        chebyshev: CLASSIC['chebyshev.wet'],
+        bitCrusher: CLASSIC['bitCrusher.wet'],
       };
       for (let i = 0; i < 300; i++) {
         const s = generateGlobalAudioSettings(`colour-sample-${i}`, `ColourSample${i}`);
@@ -734,7 +753,7 @@ describe('the modulation pedals (Global Modulation)', () => {
       ];
       for (const { i, s } of samples) {
         for (const [key, read] of fields) {
-          const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+          const { min, max } = CLASSIC[key];
           expect(read(s), `${key} style ${i}`).toBeGreaterThanOrEqual(min);
           expect(read(s), `${key} style ${i}`).toBeLessThanOrEqual(max);
         }
@@ -781,7 +800,7 @@ describe('the modulation pedals (Global Modulation)', () => {
         ['phaser.wet', lit(phaserLit).map(({ s }) => s.phaser.wet)],
       ];
       for (const [key, values] of rows) {
-        const { min, max } = GLOBAL_AUDIO_LOADING_RANGES[key];
+        const { min, max } = CLASSIC[key];
         const { step } = GLOBAL_AUDIO_SEED_RANGES[key];
         const gridPoints = step === undefined ? Number.POSITIVE_INFINITY : Math.round((max - min) / step) + 1;
         const distinct = new Set(values).size;
@@ -800,13 +819,13 @@ describe('the modulation pedals (Global Modulation)', () => {
       for (const { i, s } of samples) {
         if (wahLit(s)) {
           litWah++;
-          const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['autoWah.wet'];
+          const { min, max } = CLASSIC['autoWah.wet'];
           expect(s.autoWah.wet, `wah ${i}`).toBeGreaterThanOrEqual(min);
           expect(s.autoWah.wet, `wah ${i}`).toBeLessThanOrEqual(max + 1e-9);
         }
         if (phaserLit(s)) {
           litPhaser++;
-          const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['phaser.wet'];
+          const { min, max } = CLASSIC['phaser.wet'];
           expect(s.phaser.wet, `phaser ${i}`).toBeGreaterThanOrEqual(min);
           expect(s.phaser.wet, `phaser ${i}`).toBeLessThanOrEqual(max + 1e-9);
         }
@@ -841,7 +860,7 @@ describe('the modulation pedals (Global Modulation)', () => {
         evictAttenuationStyleNoiseMap(sampleId(i));
         expect(isNoteValue(sync), `style ${i}`).toBe(true);
         const hz = noteValueHz(sync, bpm);
-        const band = GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'];
+        const band = CLASSIC['phaser.rate'];
         expect(hz, `style ${i} at ${bpm} BPM`).toBeGreaterThanOrEqual(band.min);
         expect(hz, `style ${i} at ${bpm} BPM`).toBeLessThanOrEqual(band.max);
         expect(allowedRateNoteValues(bpm, PEDAL_RATE_RANGE_HZ).some((v) => v.division === sync.division && v.modifier === sync.modifier), `style ${i}`).toBe(true);
@@ -852,7 +871,7 @@ describe('the modulation pedals (Global Modulation)', () => {
     it('keeps the Free rate underneath a synced Phaser, inside the same band', () => {
       for (const { i, s } of samples) {
         if (s.phaser.sync === undefined) continue;
-        const { min, max } = GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'];
+        const { min, max } = CLASSIC['phaser.rate'];
         expect(s.phaser.rate, `style ${i}`).toBeGreaterThanOrEqual(min);
         expect(s.phaser.rate, `style ${i}`).toBeLessThanOrEqual(max);
       }
@@ -945,7 +964,7 @@ describe('the modulation pedals (Global Modulation)', () => {
     it('asks for a Phaser note at the style tempo, over the lit rate band in Hz, only for a lit Phaser that rolled Sync', () => {
       // oracle-alpha: Phaser lit and synced. oracle-theta: Phaser dark.
       // Global Pedals T8: a synced LFO pedal asks for an Hz note too, over its own band, so only the Phaser band's calls count.
-      const phaserBand = GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'];
+      const phaserBand = CLASSIC['phaser.rate'];
       const phaserCalls = () =>
         vi.mocked(pickSeedNoteValue).mock.calls.filter((call) => call[3] === 'hz' && call[2][0] === phaserBand);
       vi.mocked(pickSeedNoteValue).mockClear();
@@ -975,8 +994,8 @@ describe('the modulation pedals (Global Modulation)', () => {
 
   describe('the Phaser band covers the seed BPM range', () => {
     it('holds at least one note in 0.1 to 1 Hz at every integer BPM the seeder can draw, so the Free fallback is never reached today', () => {
-      for (let bpm = BPM_SEED_RANGE.min; bpm <= BPM_SEED_RANGE.max; bpm++) {
-        expect(allowedNoteValues(bpm, GLOBAL_AUDIO_LOADING_RANGES['phaser.rate'], 'hz').length, `${bpm} BPM`).toBeGreaterThan(0);
+      for (let bpm = CLASSIC.bpm.min; bpm <= CLASSIC.bpm.max; bpm++) {
+        expect(allowedNoteValues(bpm, CLASSIC['phaser.rate'], 'hz').length, `${bpm} BPM`).toBeGreaterThan(0);
       }
     });
   });
@@ -1001,7 +1020,7 @@ describe('the Global Pedals (Global Pedals T8)', () => {
   });
   const litCount = (s: Seeded) => Object.values(lit(s)).filter(Boolean).length;
   const share = (pick: (s: Seeded) => boolean) => samples.filter(pick).length / samples.length;
-  const band = (key: LoadingRangeKey) => GLOBAL_AUDIO_LOADING_RANGES[key];
+  const band = (key: LoadingRangeKey) => CLASSIC[key];
   const inBand = (value: number, key: LoadingRangeKey) =>
     value >= band(key).min - 1e-9 && value <= band(key).max + 1e-9;
   const onGrid = (value: number, key: GlobalAudioSeedFieldKey): boolean => {
@@ -1823,7 +1842,7 @@ const LANE_SYNC_TARGETS = { a: 0.75, b: 0.66, c: 0.33, d: 0.25 } as const;
 const DELAY_SYNC_TARGET = 0.66;
 const SHARE_TOLERANCE = 0.1;
 const SHARE_SAMPLES = 200;
-const DELAY_BAND = GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime'];
+const DELAY_BAND = CLASSIC['delay.delayTime'];
 // The unmocked pick, so a test that forces `undefined` can put the real behaviour back afterwards.
 const actualTempoSync = await vi.importActual<typeof import('./tempoSync')>('./tempoSync');
 
@@ -1847,7 +1866,7 @@ describe('Sync draws — lane fallback order', () => {
 
 describe('Sync draws — band coverage', () => {
   it('every lane band holds at least one note at every integer BPM in the seed range, so the fallback is never reached today', () => {
-    for (let bpm = BPM_SEED_RANGE.min; bpm <= BPM_SEED_RANGE.max; bpm++) {
+    for (let bpm = CLASSIC.bpm.min; bpm <= CLASSIC.bpm.max; bpm++) {
       for (const lane of LFO_LANE_IDS) {
         expect(allowedNoteValues(bpm, LFO_BANK_RATE_BANDS[lane], 'hz').length, `lane ${lane} @ ${bpm} BPM`).toBeGreaterThan(0);
       }
@@ -1855,7 +1874,7 @@ describe('Sync draws — band coverage', () => {
   });
 
   it('the Delay loading band holds at least one note at every integer BPM in the seed range', () => {
-    for (let bpm = BPM_SEED_RANGE.min; bpm <= BPM_SEED_RANGE.max; bpm++) {
+    for (let bpm = CLASSIC.bpm.min; bpm <= CLASSIC.bpm.max; bpm++) {
       expect(allowedNoteValues(bpm, DELAY_BAND, 'seconds').length, `${bpm} BPM`).toBeGreaterThan(0);
     }
   });
@@ -2291,5 +2310,67 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
     const first = generateLfoBankSettings('oracle-alpha', 'oracle-alpha');
     evictAttenuationStyleNoiseMap('oracle-alpha');
     expect(generateLfoBankSettings('oracle-alpha', 'oracle-alpha')).toStrictEqual(first);
+  });
+});
+
+// ========================================
+// THE BAND TABLE (band-table T22)
+// ========================================
+
+describe('generateGlobalAudioSettings reads the band table (band-table T22, spec assumption 15)', () => {
+  const CALM = { theme: 'calm', aspects: {} } as const;
+  const names = Array.from({ length: 40 }, (_, i) => `band-table-t22-${i}`);
+  const idOf = (name: string) => `band-table-t22-id-${name}`;
+
+  afterEach(() => {
+    for (const name of names) evictAttenuationStyleNoiseMap(idOf(name));
+  });
+
+  it('under a theme moving filterLPF.frequency to 500-600 Hz every style seeds its cutoff in it; the same styles under Classic sit at 2000 Hz or above', () => {
+    for (const name of names.slice(0, 12)) {
+      const classic = generateGlobalAudioSettings(idOf(name), name).filterLPF.frequency;
+      expect(classic, name).toBeGreaterThanOrEqual(2000);
+      const calm = withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name)).filterLPF.frequency;
+      expect(calm, name).toBeGreaterThanOrEqual(500);
+      expect(calm, name).toBeLessThanOrEqual(600);
+    }
+  });
+
+  it('moves only the bands the column names: with the LPF cutoff, the Delay and the Phaser blocks set aside, the themed style equals the Classic one', () => {
+    const name = names[0];
+    const classic = generateGlobalAudioSettings(idOf(name), name);
+    const calm = withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name));
+    expect({
+      ...calm,
+      filterLPF: { ...calm.filterLPF, frequency: classic.filterLPF.frequency },
+      delay: classic.delay,
+      phaser: classic.phaser,
+    }).toStrictEqual(classic);
+  });
+
+  it('reads the band at the draw, never caching it: after withLoading the same style seeds its Classic cutoff again', () => {
+    const name = names[1];
+    const before = generateGlobalAudioSettings(idOf(name), name);
+    withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name));
+    expect(generateGlobalAudioSettings(idOf(name), name)).toStrictEqual(before);
+  });
+
+  it('hands the Delay Sync pick the table\'s delay.delayTime band and the pedal Sync picks the table\'s rate bands', () => {
+    vi.mocked(pickSeedNoteValue).mockClear();
+    withLoading(CALM, () => {
+      for (const name of names) generateGlobalAudioSettings(idOf(name), name);
+    });
+    const calls = vi.mocked(pickSeedNoteValue).mock.calls;
+    const seconds = calls.filter((call) => call[3] === 'seconds');
+    const hz = calls.filter((call) => call[3] === 'hz');
+    expect(seconds.length).toBeGreaterThan(0);
+    for (const call of seconds) expect(call[2]).toEqual([{ min: 0.2, max: 0.25 }]);
+    expect(hz.length).toBeGreaterThan(0);
+    expect(hz.some((call) => call[2][0].min === 1 && call[2][0].max === 1.5)).toBe(true);
+    // The chorus, tremolo and vibrato rate bands are untouched: every other hz band is Classic's.
+    for (const call of hz) {
+      if (call[2][0].min === 1 && call[2][0].max === 1.5) continue;
+      expect([CLASSIC['chorus.rate'], CLASSIC['tremolo.rate'], CLASSIC['vibrato.rate']]).toContainEqual(call[2][0]);
+    }
   });
 });

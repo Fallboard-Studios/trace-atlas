@@ -8,6 +8,8 @@ import type { OscillatorLayer } from './layeredAudio';
 import type { Company } from './Company';
 import type { GlobalAudioSettings } from './globalAudio';
 import type { RobotLfoTargetId, GlobalLfoTargetId, LfoLaneId, LfoLink, BankLfoSettings } from './lfo';
+import type { ThemeId } from '../data/bands/themes';
+import type { FamilyPicks } from '../data/bands/aspects';
 
 /**
  * Only the audio-relevant fields a robot's Robot Options can override — never job assignment,
@@ -67,8 +69,8 @@ export interface CompanyDiff {
  *  marker still present once a payload is exported/imported outside this browser (roadmap Phase
  *  21, which depends on this phase). Unused by this phase's own code; it exists purely so a
  *  future importer can distinguish payload shapes, which isn't retrofittable after sessions
- *  already exist without it. */
-export type SessionPayloadVersion = 1 | 2;
+ *  already exist without it. Version 3 (docs/specs/OFF_SCREEN.md assumption 10) carries the loading identity. */
+export type SessionPayloadVersion = 1 | 2 | 3;
 
 export interface SessionPayload {
   version: SessionPayloadVersion;
@@ -79,6 +81,12 @@ export interface SessionPayload {
    *  retransmitWorld({ attenuationStyleName, coordinates }) entry point. */
   attenuationStyleName: string;
   coordinates: { x: number; y: number };
+  /** The loading identity (docs/specs/OFF_SCREEN.md assumption 10, version 3): the theme every band resolved under, and
+   *  per family the picks the deal seated, each list in canonical option order. Absent - every version 1 and 2 payload -
+   *  reads as 'classic' and {} (decode leniency, not a compatibility promise), and so does an unknown id or a malformed
+   *  list (loadingOf, src/data/bands/loadingIdentity.ts). buildSessionPayload and fillWorldFromSeed always write both. */
+  theme?: ThemeId;
+  aspects?: FamilyPicks;
   globalAudio: GlobalAudioSettings;
   /** The LFO Bank's 4 lanes and the 7 global-chain links (docs/tasks/LFO_BANK.md Task 18) —
    *  always whole in a payload, as globalAudio is. The world link carries only the lanes and links

@@ -11,6 +11,35 @@ vi.mock('../engine/beatClock', () => ({
   getCurrentMeasurePrecise: vi.fn(() => 0),
 }));
 
+// band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): a payload's theme sets the loading store before the world is
+// rebuilt. The real Calm column is {} until the listen (plan Task 34), so one moving the density band is injected over
+// the spread originals: a robot regenerated under it has a density of 90 or more, where Classic's 0-100 draw rarely does.
+vi.mock('../data/bands/themes', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/themes')>();
+  return { ...actual, THEMES: { ...actual.THEMES, calm: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+});
+
+// band-table T27 (spec assumption 22): the baseline runs the same deal as the live spawn. The real option columns are {}
+// until the listen (plan Task 34), so two options move the density band here, over the spread originals.
+vi.mock('../data/bands/aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/aspects')>();
+  const melody = actual.ASPECT_FAMILIES.melody;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: {
+      ...actual.ASPECT_FAMILIES,
+      melody: {
+        ...melody,
+        options: {
+          ...melody.options,
+          hypnotic: { 'robot.rhythmicDensity': { min: 40, max: 60 } },
+          mechanical: { 'robot.rhythmicDensity': { min: 70, max: 95 } },
+        },
+      },
+    },
+  };
+});
+
 import { computeRobotAudioOverrideDiff, computeCompanyDiff, buildSessionPayload, applySessionPayload } from './sessionDiff';
 import type { Robot } from '../types/Robot';
 import type { Company } from '../types/Company';
@@ -22,6 +51,7 @@ import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
+import { applyAspectDeal, rederiveLoading } from '../systems/aspectDeal';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
@@ -36,10 +66,12 @@ import { noteValueHz } from '../data/noteValues';
 import { resolveLaneRateHz, resolveDelayTimeSeconds, resolveSyncedRateHz } from './tempoSync';
 import { lfoEngine } from '../engine/lfoEngine';
 import { AudioEngine } from '../engine/AudioEngine';
+import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
 
 afterEach(() => {
   stopRobotLifecycle();
   stopAudioSwells();
+  useLoadingStore.getState().setLoading(DEFAULT_LOADING);
 });
 
 /** All 6 targets unlinked -- matches DEFAULT_LFO_LINK, so a live robot with no lfoLinks override
@@ -568,17 +600,28 @@ describe('buildSessionPayload', () => {
     return localeId;
   }
 
-  it('stamps version: 2 and captures the current Attenuation Style name/coordinates/globalAudio', () => {
+  it('stamps version: 3 and captures the current Attenuation Style name/coordinates/globalAudio', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
-    expect(payload.version).toBe(2);
+    expect(payload.version).toBe(3);
     expect(payload.attenuationStyleName).toBe(DEFAULT_PELAGOS.name);
     expect(payload.coordinates).toEqual(DEFAULT_LOCALE.coordinates);
     // globalAudio is normalized/quantized at save time, so it may differ from raw store state
     // Verify structure and key fields are present, not exact equality
     expect(Object.keys(payload.globalAudio)).toContain('compressor');
     expect(Object.keys(payload.globalAudio)).toContain('eq3');
+  });
+
+  // band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): the loading identity rides in the payload, always written.
+  it('carries the loading store\'s theme and aspects: Classic with no aspects when nothing was picked, the picks otherwise', () => {
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    expect(buildSessionPayload()).toMatchObject({ version: 3, theme: 'classic', aspects: {} });
+    useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['mechanical', 'hypnotic'] } });
+    const payload = buildSessionPayload();
+    expect(payload.theme).toBe('calm');
+    expect(payload.aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
   });
 
   it('always captures lfoBank (4 lanes) and globalLfoLinks (7 targets) whole, even for an untouched world', () => {
@@ -772,7 +815,8 @@ describe('applySessionPayload', () => {
 
     applySessionPayload(payload);
 
-    expect(spy).toHaveBeenCalledWith({ coordinates: payload.coordinates });
+    // band-table T25: the payload's loading rides in the input, so retransmitWorld sets the store before the rebuild.
+    expect(spy).toHaveBeenCalledWith({ coordinates: payload.coordinates, theme: 'classic', aspects: {} });
     spy.mockRestore();
   });
 
@@ -785,8 +829,225 @@ describe('applySessionPayload', () => {
 
     applySessionPayload(differentNamePayload);
 
-    expect(spy).toHaveBeenCalledWith({ attenuationStyleName: differentNamePayload.attenuationStyleName, coordinates: differentNamePayload.coordinates });
+    expect(spy).toHaveBeenCalledWith({
+      attenuationStyleName: differentNamePayload.attenuationStyleName,
+      coordinates: differentNamePayload.coordinates,
+      theme: 'classic',
+      aspects: {},
+    });
     spy.mockRestore();
+  });
+
+  // band-table T23 (docs/specs/OFF_SCREEN.md assumption 10): a payload's theme and aspects set the loading store before
+  // the world is rebuilt; absent or unknown reads as Classic and no aspects.
+  describe('the loading identity', () => {
+    it('a version-2 payload, with no theme or aspects, applies as Classic: the store returns to Classic from Calm', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const { theme: _theme, aspects: _aspects, ...rest } = buildSessionPayload();
+      useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      applySessionPayload({ ...rest, version: 2 });
+      expect(useLoadingStore.getState().theme).toBe('classic');
+      expect(useLoadingStore.getState().aspects).toStrictEqual({});
+    });
+
+    it('a version-3 payload sets the store, its pick lists canonicalised', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'bold', aspects: { melody: ['mechanical', 'hypnotic'] } });
+      expect(useLoadingStore.getState().theme).toBe('bold');
+      expect(useLoadingStore.getState().aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
+    });
+
+    it('an unknown theme id or a malformed aspects field reads as Classic with no aspects (a payload is untrusted)', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'moody', aspects: { melody: 'hypnotic', voice: ['warm'] } } as unknown as SessionPayload);
+      expect(useLoadingStore.getState().theme).toBe('classic');
+      expect(useLoadingStore.getState().aspects).toStrictEqual({});
+    });
+
+    it('sets the store before the world is rebuilt, so the regenerated robots draw under the payload\'s theme', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'calm' });
+      const calmRobots = currentLocale()!.robots;
+      expect(calmRobots.length).toBeGreaterThan(0);
+      for (const robot of calmRobots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
+      applySessionPayload(payload);
+      expect(currentLocale()!.robots.some((robot) => (robot.rhythmicDensity ?? 0) < 90)).toBe(true);
+    });
+
+    it('hands retransmitWorld the payload\'s loading in its input (band-table T25), canonical, so the rebuild runs under it', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      const spy = vi.spyOn(worldTransition, 'retransmitWorld').mockImplementation(() => {});
+      let input: unknown;
+      try {
+        applySessionPayload({ ...payload, theme: 'calm', aspects: { melody: ['mechanical', 'hypnotic'] } });
+        // Read before mockRestore, which clears the call history along with the mock.
+        input = spy.mock.calls[0]?.[0];
+      } finally {
+        spy.mockRestore();
+      }
+      expect(input).toEqual({ coordinates: payload.coordinates, theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
+    });
+
+    it('sets the store even when the locale rebuild is skipped (the link boot)', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload({ ...payload, theme: 'bold' }, { skipLocaleRebuild: true });
+      expect(useLoadingStore.getState().theme).toBe('bold');
+    });
+
+    // band-table T27 (spec assumption 22): the baseline runs the deal, so an untweaked dealt world diffs empty.
+    it('buildSessionPayload of an untweaked world dealt hypnotic and mechanical has no robot overrides, where the same roster without the live pass reads as edited', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const payload = buildSessionPayload();
+      expect(payload.aspects).toEqual({ melody: ['hypnotic', 'mechanical'] });
+      expect(payload.robotOverrides).toEqual({});
+      // The distinguishing control: a roster spawned under the same picks but never dealt differs from the dealt baseline.
+      const control = setupWorld();
+      spawnInitialRoster(control);
+      spawnInitialCompanies(control);
+      expect(Object.keys(buildSessionPayload().robotOverrides).length).toBeGreaterThan(0);
+    });
+
+    // docs/tasks/OFF_SCREEN_REVISIONS.md Task 8: the baseline re-derives every dealt family, so a world dealt across all three
+    // diffs empty; the control (Envelope and Distance only, never dealt live) shows the adsr and the sends do move.
+    it('an untweaked world dealt across three families has no robot overrides, where the same picks never dealt live read as edited adsr and sends', () => {
+      const aspects = { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] } as const;
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: [...aspects.melody], envelope: [...aspects.envelope], distance: [...aspects.distance] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const payload = buildSessionPayload();
+      expect(payload.aspects).toEqual({ melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] });
+      expect(payload.robotOverrides).toEqual({});
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { envelope: ['plucked'], distance: ['remote'] } });
+      const control = setupWorld();
+      spawnInitialRoster(control);
+      spawnInitialCompanies(control);
+      const overrides = Object.values(buildSessionPayload().robotOverrides);
+      expect(overrides.length).toBeGreaterThan(0);
+      expect(overrides.some((diff) => diff.adsr !== undefined)).toBe(true);
+      expect(overrides.some((diff) => diff.reverbSend !== undefined)).toBe(true);
+    });
+
+    it('a dealt world round-trips: its payload applied again rebuilds a roster that diffs empty too', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      const payload = buildSessionPayload();
+      applySessionPayload(payload);
+      expect(buildSessionPayload().robotOverrides).toEqual({});
+      for (const robot of currentLocale()!.robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect change re-deals the live roster in place, and the baseline
+    // (a rebuild's deal) must agree with it, or Keep would read every re-dealt robot as edited.
+    it('an untweaked world re-dealt in place still has no robot overrides, where the new picks over the old deal read as edited', () => {
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], voice: ['glassy'] } });
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      applyAspectDeal(localeId);
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['held'], distance: ['remote'] } });
+      expect(Object.keys(buildSessionPayload().robotOverrides).length).toBeGreaterThan(0); // the control: not re-dealt yet
+
+      rederiveLoading(
+        localeId,
+        { theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], voice: ['glassy'] } },
+        audioSwells.cancelSwellForRobotAttribute,
+      );
+
+      expect(buildSessionPayload().robotOverrides).toEqual({});
+    });
+
+    // A swell riding a field the re-deal re-derives would return it to the old base and feed that base to Keep (the diff
+    // saves a swelling field's base); the re-deal drops it, as a hand edit of the field does. Since
+    // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16 the re-deal writes only what it moves, so a swell on a send the change
+    // leaves standing rides on, and its base is still the seeded value: Keep diffs empty either way. The forced swell
+    // lands on a Shimmer send, which no Distance pick moves (aspectDeal.test.ts covers the dropped ones).
+    it('a re-deal keeps the swell riding a send it leaves standing, and the payload still diffs empty', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const { swellFrequency, swellDuration, pingVarianceAutomation } = useAudioStore.getState();
+      useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
+      const byX = new Map<number, number>([
+        [precomputeDataX('audioSwell.trigger.robot'), -1], // the robot pool fires
+        [precomputeDataX('audioSwell.company.chance'), 1], // a single-robot swell
+        [precomputeDataX('audioSwell.target.robot'), 1], // the last eligible pair: a send
+        [precomputeDataX('audioSwell.trigger.global'), 1], // the global pool stays quiet
+      ]);
+      const noise = vi.spyOn(noiseMaps, 'getAttenuationStyleNoiseMap').mockReturnValue(((x: number) => byX.get(x) ?? 0) as never);
+      try {
+        tickAudioSwells(localeId, 0);
+        const swell = getActiveSwellSnapshot('robot').find((s) => (SEND_FIELDS as readonly string[]).includes(s.robotAttribute!))!;
+        expect(swell, 'the forced start landed on a send').toBeDefined();
+        const { robotId } = swell.members![0];
+        tickAudioSwells(localeId, 2); // mid-ramp: the store holds the swell's value now
+
+        useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
+        rederiveLoading(localeId, { theme: 'classic', aspects: {} }, audioSwells.cancelSwellForRobotAttribute);
+
+        expect(swell.robotAttribute).toBe('shimmerSend'); // precondition: a send no Distance pick moves
+        const riding = getActiveSwellSnapshot('robot').filter((s) => s.members!.some((m) => m.robotId === robotId));
+        expect(riding.map((s) => s.robotAttribute)).toContain(swell.robotAttribute);
+        expect(buildSessionPayload().robotOverrides).toEqual({});
+      } finally {
+        noise.mockRestore();
+        useAudioStore.setState({ swellFrequency, swellDuration, pingVarianceAutomation });
+      }
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN.md Task 15 (spec assumption 12): a pick or a Load mirrors the world into the address bar
+  // through retransmitWorld (every apply rebuilds, so every apply mirrors); the boot-time link apply skips the
+  // rebuild and so leaves the arrival URL — blob included — exactly as it came.
+  describe('the address bar', () => {
+    afterEach(() => {
+      window.history.replaceState({}, '', '/');
+    });
+
+    it('an apply mirrors the payload\'s identity and drops the blob, even when the identity is the one already loaded', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      window.history.replaceState({}, '', `/?seed=${encodeURIComponent(payload.attenuationStyleName)}&x=${payload.coordinates.x}&y=${payload.coordinates.y}&s=friend`);
+
+      applySessionPayload(payload);
+
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get('seed')).toBe(payload.attenuationStyleName);
+      expect(params.get('x')).toBe(String(payload.coordinates.x));
+      expect(params.get('y')).toBe(String(payload.coordinates.y));
+      expect(params.has('s')).toBe(false);
+    });
+
+    it('a boot-time link apply (skipLocaleRebuild: true) leaves the arrival URL untouched, blob included', () => {
+      const localeId = setupWorld();
+      spawnInitialRoster(localeId);
+      const payload = buildSessionPayload();
+      window.history.replaceState({}, '', '/?seed=friend&x=1&y=2&s=friendblob');
+
+      applySessionPayload(payload, { skipLocaleRebuild: true });
+
+      expect(window.location.search).toBe('?seed=friend&x=1&y=2&s=friendblob');
+    });
   });
 
   it('skipLocaleRebuild: true never calls retransmitWorld', () => {
@@ -1904,12 +2165,11 @@ describe('applySessionPayload', () => {
     });
   });
 
-  it('when the audio context is running, pushes lfoBank/globalLfoLinks through replaceLfoBankLane/setGlobalLfoLink so a loaded session is audible without a power cycle', async () => {
-    const lfoShared = await import('../engine/lfoShared');
+  it('when the LFO bank is primed, pushes lfoBank/globalLfoLinks through replaceLfoBankLane/setGlobalLfoLink so a loaded session is audible without a power cycle', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
-    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
     const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
     const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
     const setGlobalLfoLinkSpy = vi.spyOn(useAudioStore.getState(), 'setGlobalLfoLink');
@@ -1920,9 +2180,54 @@ describe('applySessionPayload', () => {
     // A per-lane setLfoBank merge cannot delete a stale `sync` key, so the restore must not use it.
     expect(setLfoBankSpy).not.toHaveBeenCalled();
     expect(setGlobalLfoLinkSpy).toHaveBeenCalled();
-    runningSpy.mockRestore();
+    primedSpy.mockRestore();
     replaceLaneSpy.mockRestore();
     setLfoBankSpy.mockRestore();
+    setGlobalLfoLinkSpy.mockRestore();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2: the overlay follows the bank, not the context. A session loaded while
+  // the tablet is paused (the context suspended) still reaches a primed bank; before the first start primes the bank
+  // from the store, the overlay stays data-only even with the context running.
+  it('while a pause has the context suspended, a primed bank takes every lane and every global link through the pushing setters', async () => {
+    const lfoShared = await import('../engine/lfoShared');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const suspendedSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+    const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
+    const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
+    const setGlobalLfoLinkSpy = vi.spyOn(useAudioStore.getState(), 'setGlobalLfoLink');
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    expect(replaceLaneSpy.mock.calls.map((call) => call[0]).sort()).toEqual([...LFO_LANE_IDS].sort());
+    expect(setGlobalLfoLinkSpy.mock.calls.map((call) => call[0]).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
+    suspendedSpy.mockRestore();
+    primedSpy.mockRestore();
+    replaceLaneSpy.mockRestore();
+    setGlobalLfoLinkSpy.mockRestore();
+  });
+
+  it('before the bank is primed, the overlay stays data-only even with the context running: the first start primes from the store', async () => {
+    const lfoShared = await import('../engine/lfoShared');
+    const localeId = setupWorld();
+    spawnInitialRoster(localeId);
+    const payload = buildSessionPayload();
+    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(false);
+    const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
+    const setGlobalLfoLinkSpy = vi.spyOn(useAudioStore.getState(), 'setGlobalLfoLink');
+
+    applySessionPayload(payload, { skipLocaleRebuild: true });
+
+    expect(replaceLaneSpy).not.toHaveBeenCalled();
+    expect(setGlobalLfoLinkSpy).not.toHaveBeenCalled();
+    expect(useAudioStore.getState().lfoBank).toEqual(payload.lfoBank);
+    expect(useAudioStore.getState().globalLfoLinks).toEqual(payload.globalLfoLinks);
+    runningSpy.mockRestore();
+    primedSpy.mockRestore();
+    replaceLaneSpy.mockRestore();
     setGlobalLfoLinkSpy.mockRestore();
   });
 
@@ -1942,52 +2247,48 @@ describe('applySessionPayload', () => {
       return { ...payload, lfoBank };
     }
 
-    it('a Free lane in the payload leaves no stale `sync` on a live synced lane, when the audio context is running', async () => {
-      const lfoShared = await import('../engine/lfoShared');
+    it('a Free lane in the payload leaves no stale `sync` on a live synced lane, when the LFO bank is primed', () => {
       const payload = setupStaleSync();
-      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+      const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
 
       applySessionPayload(payload, { skipLocaleRebuild: true });
 
       expect('sync' in useAudioStore.getState().lfoBank.a).toBe(false);
       expect(useAudioStore.getState().lfoBank.a).toEqual(FREE_A);
-      runningSpy.mockRestore();
+      primedSpy.mockRestore();
     });
 
-    it('a Free lane in the payload leaves no stale `sync` when the audio context is not running either (whole setState)', async () => {
-      const lfoShared = await import('../engine/lfoShared');
+    it('a Free lane in the payload leaves no stale `sync` when the LFO bank is not primed either (whole setState)', () => {
       const payload = setupStaleSync();
-      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+      const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(false);
 
       applySessionPayload(payload, { skipLocaleRebuild: true });
 
       expect('sync' in useAudioStore.getState().lfoBank.a).toBe(false);
-      runningSpy.mockRestore();
+      primedSpy.mockRestore();
     });
 
-    it('the engine receives the Free rate, not the stale synced Hz, after the restore', async () => {
-      const lfoShared = await import('../engine/lfoShared');
+    it('the engine receives the Free rate, not the stale synced Hz, after the restore', () => {
       const payload = setupStaleSync();
-      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+      const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
       lfoEngine.setBankRate('a', 8); // the engine's module state outlives each test -- start from a value the restore must overwrite
 
       applySessionPayload(payload, { skipLocaleRebuild: true });
 
       expect(lfoEngine.getBankSettings('a').rate).toBe(1.5);
-      runningSpy.mockRestore();
+      primedSpy.mockRestore();
     });
 
-    it('a synced lane in the payload restores with its note and reaches the engine as that note\'s Hz at the payload\'s own tempo', async () => {
-      const lfoShared = await import('../engine/lfoShared');
+    it('a synced lane in the payload restores with its note and reaches the engine as that note\'s Hz at the payload\'s own tempo', () => {
       const payload = setupStaleSync({ b: { shape: 'triangle', rate: 7, rateDrift: 0.2, depthDrift: 0.1, sync: QUARTER } });
-      const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+      const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
       lfoEngine.setBankRate('b', 3); // start from a value the restore must overwrite
 
       applySessionPayload({ ...payload, bpm: 90 }, { skipLocaleRebuild: true });
 
       expect(useAudioStore.getState().lfoBank.b.sync).toEqual(QUARTER);
       expect(lfoEngine.getBankSettings('b').rate).toBeCloseTo(noteValueHz(QUARTER, 90), 10); // 1.5 Hz, not the stored 7
-      runningSpy.mockRestore();
+      primedSpy.mockRestore();
     });
   });
 
@@ -2102,19 +2403,15 @@ describe('applySessionPayload', () => {
     const freeLanes = () =>
       Object.fromEntries(LFO_LANE_IDS.map((l) => [l, { ...FREE_LANE, rate: STORED_RATES[l] }])) as Record<string, unknown>;
 
-    async function notRunning() {
-      const lfoShared = await import('../engine/lfoShared');
-      return vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
-    }
-    async function running() {
-      const lfoShared = await import('../engine/lfoShared');
-      return vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
-    }
+    /** The overlay's two branches (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): a whole-state write while the LFO bank
+     *  is unprimed, the pushing setters once it is primed. */
+    const unprimed = () => vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(false);
+    const primed = () => vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
 
     describe('a lane', () => {
-      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key left in state (context not running)', async (_label, bad) => {
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key left in state (bank not primed)', async (_label, bad) => {
         const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
-        const spy = await notRunning();
+        const spy = unprimed();
 
         applySessionPayload(payload, { skipLocaleRebuild: true });
 
@@ -2122,9 +2419,9 @@ describe('applySessionPayload', () => {
         spy.mockRestore();
       });
 
-      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine plays the stored rate (context running)', async (_label, bad) => {
+      it.each(INVALID_SYNCS)('with %s applies as Free: no `sync` key in state, engine plays the stored rate (bank primed)', async (_label, bad) => {
         const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
-        const spy = await running();
+        const spy = primed();
         lfoEngine.setBankRate('a', 8); // the engine's state outlives each test -- start from a value the restore must overwrite
 
         applySessionPayload(payload, { skipLocaleRebuild: true });
@@ -2137,7 +2434,7 @@ describe('applySessionPayload', () => {
       it('is sanitised on every lane, not just the first', async () => {
         const bad = { division: '1/3', modifier: 'straight' };
         const payload = buildPayload(allLanes({ ...FREE_LANE, sync: bad }), FREE_DELAY);
-        const spy = await notRunning();
+        const spy = unprimed();
 
         applySessionPayload(payload, { skipLocaleRebuild: true });
 
@@ -2147,7 +2444,7 @@ describe('applySessionPayload', () => {
 
       it('keeps a valid `sync` exactly as it came — the sanitiser drops only what is not a note', async () => {
         const payload = buildPayload({ ...freeLanes(), b: { ...FREE_LANE, rate: 7, sync: QUARTER } }, FREE_DELAY);
-        const spy = await notRunning();
+        const spy = unprimed();
 
         applySessionPayload(payload, { skipLocaleRebuild: true });
 
@@ -2158,7 +2455,7 @@ describe('applySessionPayload', () => {
       it('keeps the rest of an invalid-synced lane intact — shape, rate and both drifts survive', async () => {
         const lane = { shape: 'triangle', rate: 3.25, rateDrift: 0.4, depthDrift: -0.3, sync: 'off' };
         const payload = buildPayload({ ...freeLanes(), c: lane }, FREE_DELAY);
-        const spy = await notRunning();
+        const spy = unprimed();
 
         applySessionPayload(payload, { skipLocaleRebuild: true });
 
@@ -2169,7 +2466,7 @@ describe('applySessionPayload', () => {
       it('does not mutate the payload it was given — a saved session object can be applied again', async () => {
         const bad = { division: '1/3', modifier: 'straight' };
         const payload = buildPayload({ ...freeLanes(), a: { ...FREE_LANE, sync: bad } }, FREE_DELAY);
-        const spy = await notRunning();
+        const spy = unprimed();
 
         applySessionPayload(payload, { skipLocaleRebuild: true });
 
@@ -2418,7 +2715,7 @@ describe('applySessionPayload', () => {
     describe('a version-2 payload with no `sync` anywhere', () => {
       it.each([20, 40, 100, 200])('resolves to its stored numbers at %i BPM — lanes in state and engine, Delay in state and engine', async (bpm) => {
         const payload = buildPayload(freeLanes(), FREE_DELAY, bpm);
-        const spy = await running();
+        const spy = primed();
         const pushSpy = vi.spyOn(AudioEngine, 'setGlobalDelay');
         for (const lane of LFO_LANE_IDS) lfoEngine.setBankRate(lane, 9); // a value the restore must overwrite
 
@@ -2439,24 +2736,22 @@ describe('applySessionPayload', () => {
     });
   });
 
-  it('when the audio context is not running, writes lfoBank/globalLfoLinks data-only -- no engine push', async () => {
-    const lfoShared = await import('../engine/lfoShared');
+  it('when the LFO bank is not primed, writes lfoBank/globalLfoLinks data-only -- no engine push', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
-    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+    const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(false);
     const setLfoBankSpy = vi.spyOn(useAudioStore.getState(), 'setLfoBank');
 
     applySessionPayload(payload, { skipLocaleRebuild: true });
 
     expect(setLfoBankSpy).not.toHaveBeenCalled();
     expect(useAudioStore.getState().lfoBank).toEqual(payload.lfoBank);
-    runningSpy.mockRestore();
+    primedSpy.mockRestore();
     setLfoBankSpy.mockRestore();
   });
 
-  it('backfills a lfoBank missing a lane / globalLfoLinks missing a target instead of installing a hole, when the audio context is not running (a stale/hand-edited saved session, not a share-link -- that boundary already backfills)', async () => {
-    const lfoShared = await import('../engine/lfoShared');
+  it('backfills a lfoBank missing a lane / globalLfoLinks missing a target instead of installing a hole, when the LFO bank is not primed (a stale/hand-edited saved session, not a share-link -- that boundary already backfills)', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
@@ -2467,7 +2762,7 @@ describe('applySessionPayload', () => {
       lfoBank: partialLfoBank as typeof payload.lfoBank,
       globalLfoLinks: partialGlobalLfoLinks as typeof payload.globalLfoLinks,
     };
-    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(false);
+    const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(false);
 
     expect(() => applySessionPayload(holeyPayload, { skipLocaleRebuild: true })).not.toThrow();
 
@@ -2475,24 +2770,23 @@ describe('applySessionPayload', () => {
     expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual(DEFAULT_LFO_LINK['eq3.low']);
     expect(Object.keys(useAudioStore.getState().lfoBank).sort()).toEqual([...LFO_LANE_IDS].sort());
     expect(Object.keys(useAudioStore.getState().globalLfoLinks).sort()).toEqual([...GLOBAL_LFO_TARGET_IDS].sort());
-    runningSpy.mockRestore();
+    primedSpy.mockRestore();
   });
 
-  it('backfills the same hole when the audio context IS running -- replaceLfoBankLane/setGlobalLfoLink never receive undefined', async () => {
-    const lfoShared = await import('../engine/lfoShared');
+  it('backfills the same hole when the LFO bank IS primed -- replaceLfoBankLane/setGlobalLfoLink never receive undefined', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     const payload = buildSessionPayload();
     const { d: _droppedLane, ...partialLfoBank } = payload.lfoBank!;
     const holeyPayload = { ...payload, lfoBank: partialLfoBank as typeof payload.lfoBank };
-    const runningSpy = vi.spyOn(lfoShared, 'isAudioContextRunning').mockReturnValue(true);
+    const primedSpy = vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(true);
     const replaceLaneSpy = vi.spyOn(useAudioStore.getState(), 'replaceLfoBankLane');
 
     applySessionPayload(holeyPayload, { skipLocaleRebuild: true });
 
     const laneDCall = replaceLaneSpy.mock.calls.find((call) => call[0] === 'd');
     expect(laneDCall?.[1]).toEqual(DEFAULT_BANK_LFO);
-    runningSpy.mockRestore();
+    primedSpy.mockRestore();
     replaceLaneSpy.mockRestore();
   });
 

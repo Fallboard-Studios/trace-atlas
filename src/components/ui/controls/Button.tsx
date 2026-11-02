@@ -1,8 +1,9 @@
-import { memo, useId, useState } from 'react';
+import { memo, useId, useState, type CSSProperties } from 'react';
 
 import { CabinetBox } from './CabinetBox';
 import { DualLabel } from './DualLabel';
 import { resolveAccessibleName } from './accessibleName';
+import { useCabinetBoxHeight } from './useCabinetBoxHeight';
 import { CABINET_REST_POP } from '@/utils/cabinetGeometry';
 import type { ButtonSchema } from '@/types/controls';
 import './Button.css';
@@ -46,21 +47,36 @@ interface ButtonProps {
  * that file's own comment). Not yet exercised by any real `Button` consumer,
  * but the vulnerability is identical, so the fix is applied preemptively
  * rather than waiting for a live collision.
+ *
+ * `schema.appearance === 'muted'` (docs/tasks/OFF_SCREEN.md Task 13) swaps the CabinetBox for a flat
+ * `.sc-button__flat` face of the same height — RadioButton's muted, for a button: no walls, no pop timeline,
+ * no hover pop, no glow; the engaged state is a border the stylesheet draws. It is the powered-off screen's
+ * Roll and Keep, which stay flat there while only the aspect rows pop (docs/specs/OFF_SCREEN.md §3, as amended by
+ * docs/tasks/OFF_SCREEN_REVISIONS.md Task 9).
  */
 function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName: nameOverride, expanded, controls }: ButtonProps) {
   const schemaName = resolveAccessibleName(schema);
   const accessibleName = nameOverride ?? schemaName;
   const instanceId = useId();
+  const tierBoxHeight = useCabinetBoxHeight();
+  const muted = schema.appearance === 'muted';
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [pressed, setPressed] = useState(false);
   const engaged = !disabled && (hovered || focused || pressed);
   const popped = engaged ? true : CABINET_REST_POP;
 
+  const faceEl =
+    face === 'single' ? (
+      <span className="sc-button__label">{schema.humanLabel ?? schema.loreLabel}</span>
+    ) : (
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
+    );
+
   return (
     <button
       type="button"
-      className="sc-button"
+      className={muted ? 'sc-button sc-button--muted' : 'sc-button'}
       aria-label={accessibleName}
       aria-expanded={expanded}
       aria-controls={controls}
@@ -75,13 +91,15 @@ function ButtonInner({ schema, onClick, disabled, face = 'dual', accessibleName:
       onPointerCancel={() => setPressed(false)}
       onPointerLeave={() => setPressed(false)}
     >
-      <CabinetBox popped={popped} timelineKey={`cabinet-button-${schema.id}-${instanceId}`}>
-        {face === 'single' ? (
-          <span className="sc-button__label">{schema.humanLabel ?? schema.loreLabel}</span>
-        ) : (
-          <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} />
-        )}
-      </CabinetBox>
+      {muted ? (
+        <span className="sc-button__flat" style={{ '--cabinet-box-height': `${tierBoxHeight}px` } as CSSProperties}>
+          {faceEl}
+        </span>
+      ) : (
+        <CabinetBox popped={popped} timelineKey={`cabinet-button-${schema.id}-${instanceId}`}>
+          {faceEl}
+        </CabinetBox>
+      )}
     </button>
   );
 }

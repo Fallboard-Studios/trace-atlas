@@ -11,7 +11,7 @@ import {
   STATION_RIPPLE_HOLE,
   STATION_RIPPLE_WIDTH,
 } from './stationRipple';
-import { getTimeline, killAllTimelines } from './timelineMap';
+import { getTimeline, getTimelineScope, killAllTimelines } from './timelineMap';
 import { RIPPLE_OPACITY } from '../components/robot/gem/haloRipple';
 import { setRef, clearRefs } from '../utils/refs';
 import { STATION_ARC_SECONDS } from '../constants';
@@ -88,6 +88,7 @@ describe('playStationRipple', () => {
     const tl = playStationRipple(STATION_ID, 'spawn', '#ff8800', STATION_ARC_SECONDS)!;
     expect(tl).toBeTruthy();
     expect(getTimeline(stationRippleKey(STATION_ID))).toBe(tl);
+    expect(getTimelineScope(stationRippleKey(STATION_ID))).toBe('world'); // a world mover: the power rocker's pause freezes it
     expect(tl.duration()).toBeCloseTo(STATION_ARC_SECONDS, 6);
 
     tl.progress(0.5);

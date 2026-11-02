@@ -15,7 +15,7 @@ import {
   __deckCameraStateForTest,
   __resetDeckCameraForTest,
 } from './deckCamera';
-import { getTimeline, timelineMap, killAllTimelines } from './timelineMap';
+import { getTimeline, getTimelineScope, timelineMap, killAllTimelines } from './timelineMap';
 import { setRef, getRef, clearRefs } from '../utils/refs';
 import {
   DECK_CAMERA_COOLDOWN_MS,
@@ -30,6 +30,7 @@ import { goHome, selectEntity } from '../components/panels/screen/nav/navActions
 import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { DockingState, type Robot } from '../types/Robot';
 import * as deckCameraModule from './deckCamera';
+import { setWorldState } from '../systems/worldState';
 
 // ----------------------------------------
 // RECORDING GSAP MOCK
@@ -226,6 +227,7 @@ describe('deckCamera', () => {
       moveCameraTo('alpha');
       const tl = getTimeline(DECK_CAMERA_TIMELINE_ID);
       expect(tl).toBeDefined();
+      expect(getTimelineScope(DECK_CAMERA_TIMELINE_ID)).toBe('world'); // the camera follows the world, so it pauses with it
 
       registerDeckScroller(null);
 
@@ -727,6 +729,43 @@ describe('deckCamera', () => {
       tick();
       (lastToVars(lastCreatedTimeline()).onComplete as () => void)();
     }
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26 item 1: gsap's ticker runs while the world is paused, and a float
+    // is built paused and played after it is registered, so it slipped past timelineMap's paused-on-arrival guard.
+    // Measured headless on the phone shell: behind the off screen a follow timed out, a pick floated, and its 'world'
+    // timeline played from 0 to 1 under the pause. The tick stands still while the world is paused.
+    describe('while the world is paused (review R26)', () => {
+      afterEach(() => setWorldState('cold'));
+
+      it('picks nothing and floats nothing, however long the rest has run', () => {
+        setWorldState('paused');
+        now.mockReturnValue(1000 + COOLDOWN * 10);
+        tick();
+        tick();
+        expect(gsap.timeline).not.toHaveBeenCalled();
+      });
+
+      it('neither follows nor ends a follow, and the follow runs out only once the world runs again', () => {
+        startFollowingBeta();
+        setWorldState('paused');
+        fake.scrollLeft = -1;
+        now.mockReturnValue(1000 + FOLLOW + COOLDOWN);
+        tick();
+        tick();
+        expect(fake.scrollLeft).toBe(-1);
+        expect(getFollowedRobotId()).toBe('beta');
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+        setWorldState('running');
+        tick();
+        expect(getFollowedRobotId()).toBeNull();
+      });
+
+      it('runs as before on a cold world, a fresh page before any power-on', () => {
+        setWorldState('cold');
+        tick();
+        expect(gsap.timeline).toHaveBeenCalledTimes(1);
+      });
+    });
 
     describe('the handler', () => {
       it('is on the ticker once a scroller is registered and off it after unregistering', () => {

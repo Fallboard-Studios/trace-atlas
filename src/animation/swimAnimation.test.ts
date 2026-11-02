@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import gsap from 'gsap';
 import type { Robot } from '../types/Robot';
 import { setRef, clearRefs } from '../utils/refs';
-import { setTimeline, getTimeline } from './timelineMap';
+import { setTimeline, getTimeline, getTimelineScope } from './timelineMap';
 import { createSwimTimeline } from './swimAnimation';
 
 function fakeRobot(overrides: Partial<Robot> = {}): Robot {
@@ -66,8 +66,10 @@ describe('createSwimTimeline — with a registered ref', () => {
     createSwimTimeline(robot, { x: 50, y: 0 });
 
     expect(killSpy).toHaveBeenCalled();
-    // The map now holds a different (new) timeline under the same key.
+    // The map now holds a different (new) timeline under the same key — registered as a world mover, so the power
+    // rocker's pause freezes it (docs/specs/OFF_SCREEN.md assumption 3).
     expect(getTimeline('swim-r1')).not.toBe(priorTimeline);
+    expect(getTimelineScope('swim-r1')).toBe('world');
   });
 
   it('computes duration as distance / SWIM_SPEED for a known (diagonal) from/to pair', () => {

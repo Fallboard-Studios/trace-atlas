@@ -204,7 +204,7 @@ export function buildJobTimeline(input: JobTimelineInput): gsap.core.Timeline {
   if (input.reducedMotion) addReducedPulse(tl, input.robotEl, cycle, cycles);
   else data.events = addWork(tl, input, duration, cycle, cycles);
 
-  setTimeline(`work-${input.robot.id}`, tl);
+  setTimeline(`work-${input.robot.id}`, tl, 'world');
   return tl;
 }
 

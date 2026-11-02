@@ -15,7 +15,7 @@ import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA, HUMANIZE_SCHEMA } from '@
 import type { NoteValue } from '@/data/noteValues';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS, SYNCED_RATE_KEYS, type SyncedRateKey } from '@/types/globalAudio';
-import { GLOBAL_AUDIO_LOADING_RANGES } from '@/data/globalAudioLoadingRanges';
+import { getBand } from '@/data/bands/loadingContext';
 import { GLOBAL_AUDIO_SEED_RANGES, type LoadingRangeKey, type SeedRange } from '@/data/globalAudioSeedRanges';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -55,11 +55,10 @@ export function scaleUnitValue(t: number, range: SeedRange): number {
  * values over 3 000 styles, phaser.wet 24). Every pre-existing field keeps the plain draw, so no existing value moves.
  */
 function sampleField(noiseMap: NoiseFunction2D, key: LoadingRangeKey, uniform = false): number {
-  // Sample within the narrower LOADING range (initial-seed sub-window), but
-  // honor the full range's log/linear scale — GLOBAL_AUDIO_LOADING_RANGES
-  // doesn't carry its own `scale`, it's purely a narrower min/max over the
-  // same field GLOBAL_AUDIO_SEED_RANGES already describes.
-  const range: SeedRange = { ...GLOBAL_AUDIO_LOADING_RANGES[key], scale: GLOBAL_AUDIO_SEED_RANGES[key].scale };
+  // Sample within the narrower LOADING band - the loaded world's, from the band table (getBand, band-table T22;
+  // Classic's rows are in src/data/bands/classic.ts) - but honor the full range's log/linear scale: a band carries no
+  // `scale`, it is purely a narrower min/max over the same field GLOBAL_AUDIO_SEED_RANGES already describes.
+  const range: SeedRange = { ...getBand(key), scale: GLOBAL_AUDIO_SEED_RANGES[key].scale };
   // getSeededVal handles the seeded noise → [0, 1] draw; scaleUnitValue owns
   // range + log/linear mapping, so the two concerns stay separately testable.
   const t = uniform ? getUniformSeededVal(noiseMap, `globalAudio.${key}`) : getSeededVal(noiseMap, `globalAudio.${key}`, 0, 0, 1);
@@ -224,7 +223,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   const delaySyncNoteT = getSeededVal(noiseMap, 'globalAudio.delay.syncNote', 0, 0, 1);
   const delaySync =
     delaySyncModeT < DELAY_SYNC_ODDS
-      ? pickSeedNoteValue(delaySyncNoteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES['delay.delayTime']], 'seconds')
+      ? pickSeedNoteValue(delaySyncNoteT, bpm(), [getBand('delay.delayTime')], 'seconds')
       : undefined;
 
   // Colour: the character draw says which nodes are lit. All seven colour keys are read on every style, lit or not,
@@ -263,7 +262,7 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     const noteT = getUniformSeededVal(noiseMap, `globalAudio.${key}.syncNote`);
     rateSync[key] =
       rateLit[key] && modeT < PEDAL_SYNC_ODDS[key]
-        ? pickSeedNoteValue(noteT, bpm(), [GLOBAL_AUDIO_LOADING_RANGES[`${key}.rate`]], 'hz')
+        ? pickSeedNoteValue(noteT, bpm(), [getBand(`${key}.rate`)], 'hz')
         : undefined;
   }
   // The shift is a magnitude band with its own sign draw, so a seeded shift is never inside ±2 Hz.
@@ -497,7 +496,7 @@ export function generateHumanize(attenuationStyleId: string, attenuationStyleNam
 /**
  * Loading-range sub-windows for global-chain LFO link depth — narrower than LFO_DEPTH_MIN/MAX
  * (the full/UI-facing range the LfoLink primitive's Depth slider still uses unchanged). Mirrors
- * globalAudioLoadingRanges.ts's pattern for effect params — bounds what a FRESH SEED can roll,
+ * the band table's pattern for effect params (src/data/bands/classic.ts) — bounds what a FRESH SEED can roll,
  * never what the UI exposes or what the app can do. Robot-level LFO-link seeding
  * (spawnSystem.ts) has its own separate ROBOT_LFO_*_DEPTH_SEED_RANGE windows, not these.
  * Per-group rather than one flat window (Crawford's own load-value tuning pass, 2026-10-02):

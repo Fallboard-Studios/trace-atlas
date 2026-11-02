@@ -15,11 +15,99 @@ export const home = {
   'home.off.transmission': {
     human: 'Transmission',
   },
+  // The Current row's eyebrow (docs/specs/OFF_SCREEN.md assumption 8): the row itself is named by describeWorld
+  // (the loaded world, or the loaded save's name in front of it) — data, not copy.
+  'home.off.current': { human: 'Current' },
+  // The Loading axis's group heading (the theme row and the aspect family rows): the theme row's own label
+  // (docs/tasks/OFF_SCREEN.md Task 30). Shown as "Drive" (Crawford, 2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md
+  // F5); the key and the axis's internal name stay "loading".
+  'home.off.loading': { human: 'Drive' },
+  // Roll (spec assumption 14): the action on the Current row (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4) — a fresh
+  // random Attenuation Style and plot under the chosen Loading. An action, not a radio. Stand-in copy until Crawford's pass.
+  'home.off.roll': { human: 'Roll' },
+  // Keep (spec assumption 14): the one save action on the off screen — the loaded world, under the name Comms would
+  // suggest, no name field. Dims once the world is kept. Crawford's words, 2026-10-31: "Save Last World", his answer to
+  // the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20), after "Save the last session" (revisions
+  // Task 4).
+  'home.off.keep': { human: 'Save Last World' },
+  // Keep's failure line (R20): shown in the unsaved warning's place when the storage refuses the save (a full quota).
+  // Crawford's words, verbatim (2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md F3).
+  'home.off.keepFailed': { human: 'storage is already full, cannot save world' },
+  // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
+  // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
+  'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
+  // The one warning worth having, shown under the chooser only while the loaded world is unkept.
+  'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
+  // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's
+  // copy; this is the sketch's stand-in (docs/sketches/off-screen.html) until he writes it.
+  'home.off.footer': {
+    human: 'Meridia Telemetry Group · Trace Atlas receiver firmware · unauthorised retransmission of any trace is an offence under the Deep Charter · no warranty is expressed or implied',
+  },
   'home.off.presets.a': { human: 'Kryndara' },
   'home.off.presets.b': { human: 'Vessport Null' },
   'home.off.presets.c': { human: 'Halcyon Drift' },
+  // The Loading axis's names (docs/specs/OFF_SCREEN.md assumption 17), the sketch's lists as stand-ins until Crawford's
+  // pass: one entry per theme id and per Melody option id, read by describeWorld's tail (band-table T28) and by the two
+  // rows (Tasks 30 and 31) through src/utils/loadingNames.ts. The content grammar allows four key segments, so the
+  // family sits as one segment - home.off.melody.<id>, not the spec's home.off.aspect.melody.<id>.
+  'home.off.theme.classic': { human: 'Classic' },
+  'home.off.theme.calm': { human: 'Calm' },
+  'home.off.theme.bold': { human: 'Bold' },
+  'home.off.theme.adventurous': { human: 'Adventurous' },
+  'home.off.theme.perilous': { human: 'Perilous' },
+  'home.off.melody.hypnotic': { human: 'Hypnotic' },
+  'home.off.melody.mechanical': { human: 'Mechanical' },
+  'home.off.melody.wandering': { human: 'Wandering' },
+  // One sentence per theme (assumption 17; spec §1.6, the Guide's part): the muted line under the theme row (Task 30),
+  // and the entry the Guide's Themes page will read. STAND-INS for Crawford's pass - each names what its column moves
+  // across the v1 key list (assumption 16: tempo, density, rests, attack and release, the two sends, the filter).
+  'home.off.themeDescription.classic': { human: 'The receiver as it shipped: every band at its surveyed range.' },
+  'home.off.themeDescription.calm': { human: 'Slower and sparser: longer rests, softer attacks, a longer wash of reverb.' },
+  'home.off.themeDescription.bold': { human: 'Up front: denser rhythms, sharper attacks, a drier and brighter room.' },
+  'home.off.themeDescription.adventurous': { human: 'Wider roaming: tempo, density and tone swing further from the middle.' },
+  'home.off.themeDescription.perilous': { human: 'The densest loading: fast, crowded and bright, with hardly a rest.' },
+  // The Melody row (Task 31; assumption 17): the family's label, and one sentence per option plus one for a row with no
+  // aspect on - `none`, every probe as the theme (the as-theme option is gone, docs/tasks/OFF_SCREEN_REVISIONS.md Task 6)
+  // - the Guide's part too. STAND-INS for Crawford's pass - each names what the option moves across the family's keys
+  // (assumption 16: density, note variance, motif length, pitch repeat).
+  'home.off.melody': { human: 'Melody' },
+  'home.off.melodyDescription.none': { human: 'Every probe takes its melody from the theme alone.' },
+  'home.off.melodyDescription.hypnotic': { human: 'Hypnotic probes circle a note or two at a steady, middling pace.' },
+  'home.off.melodyDescription.mechanical': { human: 'Mechanical probes drive one long, fixed motif at high density.' },
+  'home.off.melodyDescription.wandering': { human: 'Wandering probes roam wide and sparse, rarely repeating a phrase.' },
+  // The Envelope and Distance families (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7; Crawford's note 3, the wireframe's
+  // Space renamed Distance in his answer 6): each family's label, its three names (Near / Far / Remote are Claude's words
+  // for his "distance", one line each to rename), and one sentence per option plus one for a row with nothing on.
+  // STAND-INS for Crawford's pass. Distance is how far off a probe sounds, never a room: a room's size is the theme's.
+  'home.off.envelope': { human: 'Envelope' },
+  'home.off.envelope.plucked': { human: 'Plucked' },
+  'home.off.envelope.swelling': { human: 'Swelling' },
+  'home.off.envelope.held': { human: 'Held' },
+  'home.off.envelopeDescription.none': { human: 'Every probe shapes its notes as the theme does.' },
+  'home.off.envelopeDescription.plucked': { human: 'Plucked probes strike at once and die away, with hardly a sustain.' },
+  'home.off.envelopeDescription.swelling': { human: 'Swelling probes rise slowly into each note and hold it high.' },
+  'home.off.envelopeDescription.held': { human: 'Held probes sound in full and let each note ring on long after.' },
+  'home.off.distance': { human: 'Distance' },
+  'home.off.distance.near': { human: 'Near' },
+  'home.off.distance.far': { human: 'Far' },
+  'home.off.distance.remote': { human: 'Remote' },
+  'home.off.distanceDescription.none': { human: 'Every probe sounds as far off as the theme sets it.' },
+  'home.off.distanceDescription.near': { human: 'Near probes sound close and dry, right at the receiver.' },
+  'home.off.distanceDescription.far': { human: 'Far probes sound well off, deep in the wash, with little echo.' },
+  'home.off.distanceDescription.remote': { human: 'Remote probes sound at the edge of range, washed out and echoing.' },
+  // The Voice family (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10; the wireframe's names): its label, three names and four
+  // sentences, as Envelope's and Distance's. STAND-INS for Crawford's pass.
+  'home.off.voice': { human: 'Voice' },
+  'home.off.voice.glassy': { human: 'Glassy' },
+  'home.off.voice.woody': { human: 'Woody' },
+  'home.off.voice.hollow': { human: 'Hollow' },
+  'home.off.voiceDescription.none': { human: 'Every probe speaks in the voice the theme gives it.' },
+  'home.off.voiceDescription.glassy': { human: 'Glassy probes ring clear and pure, round tones under an open filter.' },
+  'home.off.voiceDescription.woody': { human: 'Woody probes sound warm and soft-edged, their layers full and low.' },
+  'home.off.voiceDescription.hollow': { human: 'Hollow probes sound reedy and resonant, as if through a tube.' },
+  // The readout well's accessible name; what it shows is describeWorld's string for the pick, so it carries no
+  // template of its own (docs/tasks/OFF_SCREEN.md Task 10).
   'home.off.readout': {
     human: 'Selected transmission',
-    template: '{name} · {code}',
   },
 } as const satisfies Record<string, ContentEntry>;

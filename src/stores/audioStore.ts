@@ -7,7 +7,6 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { wireGlobalFxChain } from '../engine/audioEngine/globalFx';
 import { volumePositionToGain } from '../engine/audioEngine/volumeTaper';
 import { lfoEngine } from '../engine/lfoEngine';
-import { isAudioContextRunning } from '../engine/lfoShared';
 import {
   generateGlobalAudioSettings,
   generateLfoBankSettings,
@@ -21,6 +20,9 @@ import { AUDIO_LOAD_PRESETS, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '../constan
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import {
+  allowedDelayNoteValues,
+  allowedLaneNoteValues,
+  allowedRateNoteValues,
   delayToFree,
   delayToSync,
   laneToFree,
@@ -34,7 +36,10 @@ import {
 } from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
-import { isNoteValue } from '../data/noteValues';
+import { isNoteValue, nearestNoteValue, noteValueEquals, noteValueHz, noteValueSeconds, type NoteValue } from '../data/noteValues';
+import { withLoading } from '../data/bands/loadingContext';
+import type { LoadingIdentity } from '../data/bands/loadingIdentity';
+import { deepEqual } from '../utils/math';
 
 import type { DelaySettings, GlobalAudioSettings } from '../types/globalAudio';
 import {
@@ -59,6 +64,19 @@ import {
 
 /** Keys of GlobalAudioSettings that are effect-param objects (excludes the one top-level flag). */
 type EffectKey = Exclude<keyof GlobalAudioSettings, 'compressorBeforeDelay'>;
+
+/**
+ * What a loading change moves in the global half (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17): the tempo when it moves, and
+ * per Audio Rig block, bank lane and global link, only the fields whose seeded value moves, as the new loading draws
+ * them. A block's `sync` is one field, compared whole: the Sync pick. Built by deriveGlobalHalfMoves, written by
+ * applyGlobalHalfMoves.
+ */
+export interface GlobalHalfMoves {
+  bpm?: number;
+  globalAudio: { [K in EffectKey]?: Partial<GlobalAudioSettings[K]> };
+  lfoBank: { [L in LfoLaneId]?: Partial<BankLfoSettings> };
+  globalLfoLinks: { [T in GlobalLfoTargetId]?: Partial<LfoLink> };
+}
 
 /**
  * The engine is seconds-only (docs/specs/FREE_SYNC_TOGGLE.md §1.3): a Delay partial that carries
@@ -474,6 +492,16 @@ export interface AudioStore {
   /** Regenerate `globalLfoLinks` for the given Attenuation Style from the seed
    *  (generateGlobalLfoLinks). Data-only, same reasoning as regenerateLfoBankFromSeed above. */
   regenerateGlobalLfoLinksFromSeed: (attenuationStyleId: string, attenuationStyleName: string) => void;
+  /**
+   * Write what a loading change moves in the global half, and only that (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17;
+   * Crawford: a theme or aspect change resets only the attributes it moves). The tempo first, through setBPM, so every
+   * kept Sync pick is re-pushed resolved at the new tempo (docs/specs/FREE_SYNC_TOGGLE.md §1.6); then each moved Audio Rig block's fields, pushed through its engine setter as
+   * setGlobalAudio pushes a hand edit; then the moved bank lanes and global links, pushed only to a primed engine, as
+   * pushLfoBankAndLinksToEngine pushes (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2). Everything else stands. Last,
+   * with a new tempo, every Sync pick it no longer allows snaps to the nearest allowed note (F21; Crawford: "a new tempo
+   * should impact all notes"): the bank lanes, the Delay and the synced-rate blocks, each in its own unit and range.
+   */
+  applyGlobalHalfMoves: (moves: GlobalHalfMoves) => void;
 }
 
 // ========================================
@@ -721,7 +749,135 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
     const globalLfoLinks = generateGlobalLfoLinks(attenuationStyleId, attenuationStyleName);
     set({ globalLfoLinks });
   },
+
+  applyGlobalHalfMoves: (moves) => {
+    if (moves.bpm !== undefined) get().setBPM(moves.bpm);
+    for (const effect of Object.keys(moves.globalAudio) as EffectKey[]) {
+      const partial = moves.globalAudio[effect]!;
+      if (!Object.values(partial).includes(undefined)) {
+        get().setGlobalAudio(effect, partial);
+        continue;
+      }
+      // A field the new draw lacks (a Sync pick gone Free; none under the real columns) is no edit to setGlobalAudio,
+      // which drops an undefined key: the block is written whole, and pushed whole so its setter resolves it again.
+      const block = withMoves(get().globalAudio[effect], partial);
+      set((state) => ({ globalAudio: { ...state.globalAudio, [effect]: block } }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the same union narrowing setGlobalAudio casts for
+      (GLOBAL_SETTER[effect] as (params: any) => void)(block);
+    }
+    const primed = lfoEngine.isBankPrimed();
+    for (const lane of Object.keys(moves.lfoBank) as LfoLaneId[]) {
+      const settings = withMoves(get().lfoBank[lane], moves.lfoBank[lane]!);
+      set((state) => ({ lfoBank: { ...state.lfoBank, [lane]: settings } }));
+      if (primed) pushLaneToEngine(lane, settings, get().bpm);
+    }
+    for (const target of Object.keys(moves.globalLfoLinks) as GlobalLfoTargetId[]) {
+      const link = withMoves(get().globalLfoLinks[target], moves.globalLfoLinks[target]!);
+      set((state) => ({ globalLfoLinks: { ...state.globalLfoLinks, [target]: link } }));
+      if (primed) lfoEngine.linkTarget(target, link);
+    }
+    if (moves.bpm !== undefined) snapSyncedNotesToTempo(primed);
+  },
 }));
+
+/** `sync`, or the nearest of `allowed` to it at `bpm` when `allowed` lacks it; undefined when nothing needs to move
+ *  (not synced, still allowed, or a tempo that allows no note at all, where the resolver's clamp stands). */
+function snappedNote(sync: NoteValue | undefined, bpm: number, allowed: readonly NoteValue[], unit: 'hz' | 'seconds'): NoteValue | undefined {
+  if (!isNoteValue(sync) || allowed.length === 0 || allowed.some((nv) => noteValueEquals(nv, sync))) return undefined;
+  return nearestNoteValue(unit === 'hz' ? noteValueHz(sync, bpm) : noteValueSeconds(sync, bpm), bpm, allowed, unit);
+}
+
+/**
+ * After a theme's new tempo (applyGlobalHalfMoves; docs/tasks/OFF_SCREEN_FINAL_FIXES.md F21): every Sync pick the tempo
+ * no longer allows takes the nearest note it does allow, measured in the pick's own unit at the new tempo. A lane is
+ * written and, on a primed engine, pushed (R2); the Delay and a synced-rate block go through setGlobalAudio, whose
+ * setter resolves the new note at the tempo. A pick still allowed is left alone.
+ */
+function snapSyncedNotesToTempo(primed: boolean): void {
+  const store = useAudioStore.getState();
+  const { bpm } = store;
+  const laneAllowed = allowedLaneNoteValues(bpm);
+  for (const lane of LFO_LANE_IDS) {
+    const settings = useAudioStore.getState().lfoBank[lane];
+    const sync = snappedNote(settings.sync, bpm, laneAllowed, 'hz');
+    if (!sync) continue;
+    const next = { ...settings, sync };
+    useAudioStore.setState((state) => ({ lfoBank: { ...state.lfoBank, [lane]: next } }));
+    if (primed) pushLaneToEngine(lane, next, bpm);
+  }
+  const delaySync = snappedNote(store.globalAudio.delay.sync, bpm, allowedDelayNoteValues(bpm), 'seconds');
+  if (delaySync) store.setGlobalAudio('delay', { sync: delaySync });
+  const rateAllowed = allowedRateNoteValues(bpm, PEDAL_RATE_RANGE_HZ);
+  for (const key of SYNCED_RATE_KEYS) {
+    const sync = snappedNote(useAudioStore.getState().globalAudio[key].sync, bpm, rateAllowed, 'hz');
+    if (sync) store.setGlobalAudio(key, { sync } as Partial<GlobalAudioSettings[typeof key]>);
+  }
+}
+
+// ========================================
+// A LOADING CHANGE IN PLACE (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17)
+// ========================================
+
+/** `current` with `moves` laid over it; a moved field the new draw lacks (a Sync pick gone Free) is removed, so a Free
+ *  block carries no `sync` key, never `sync: undefined`. */
+function withMoves<B extends object>(current: B, moves: Partial<B>): B {
+  const next = { ...current, ...moves };
+  for (const key of Object.keys(moves) as (keyof B)[]) if (moves[key] === undefined) delete next[key];
+  return next;
+}
+
+/** Per key of two same-shaped records of blocks, the block fields whose two values disagree, as `to` holds them. A
+ *  block nothing moved in is left out. */
+function movedBlocks<K extends string, B extends object>(from: Record<K, B>, to: Record<K, B>): Partial<Record<K, Partial<B>>> {
+  const out: Partial<Record<K, Partial<B>>> = {};
+  for (const key of Object.keys(to) as K[]) {
+    const moved: Partial<B> = {};
+    const fields = new Set([...Object.keys(from[key]), ...Object.keys(to[key])]) as Set<keyof B>;
+    let any = false;
+    for (const field of fields) {
+      if (deepEqual(from[key][field], to[key][field])) continue;
+      moved[field] = to[key][field];
+      any = true;
+    }
+    if (any) out[key] = moved;
+  }
+  return out;
+}
+
+/**
+ * What a loading change from `from` to `to` moves in the global half, pure (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17):
+ * bpm, the Audio Rig, the LFO Bank and the global links drawn from the Attenuation Style's seed under each loading, the
+ * way the style-sync draws them (the seed-once fields and compressorBeforeDelay are never drawn per loading), and per
+ * field what the two draws disagree on. Under the real theme columns that is the tempo, the LPF cutoff and the Sync
+ * picks the new tempo changes (the bank's and the synced blocks' allowed notes follow the tempo); the verify-first dump
+ * over 12 seeds and every ordered theme pair found nothing else. So an untweaked world written with these ends equal to
+ * a fresh draw under `to`, and a tweak on any other field stands.
+ */
+export function deriveGlobalHalfMoves(
+  attenuationStyleId: string,
+  attenuationStyleName: string,
+  from: LoadingIdentity,
+  to: LoadingIdentity,
+): GlobalHalfMoves {
+  const draw = (identity: LoadingIdentity) =>
+    withLoading(identity, () => {
+      const { compressorBeforeDelay: _flag, ...blocks } = generateGlobalAudioSettings(attenuationStyleId, attenuationStyleName);
+      return {
+        bpm: generateAttenuationStyleBpm(attenuationStyleId, attenuationStyleName),
+        blocks,
+        lfoBank: generateLfoBankSettings(attenuationStyleId, attenuationStyleName),
+        globalLfoLinks: generateGlobalLfoLinks(attenuationStyleId, attenuationStyleName),
+      };
+    });
+  const before = draw(from);
+  const after = draw(to);
+  return {
+    ...(before.bpm !== after.bpm ? { bpm: after.bpm } : {}),
+    globalAudio: movedBlocks(before.blocks, after.blocks) as GlobalHalfMoves['globalAudio'],
+    lfoBank: movedBlocks(before.lfoBank, after.lfoBank),
+    globalLfoLinks: movedBlocks(before.globalLfoLinks, after.globalLfoLinks),
+  };
+}
 
 // ========================================
 // ATTENUATION STYLE SYNC
@@ -748,14 +904,22 @@ function syncGlobalAudioToCurrentAttenuationStyle(): void {
   useAudioStore.getState().regenerateGlobalAudioFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateLfoBankFromSeed(attenuationStyle.id, attenuationStyle.name);
   useAudioStore.getState().regenerateGlobalLfoLinksFromSeed(attenuationStyle.id, attenuationStyle.name);
-  // The two regenerates are data-only (they also run at module load, before any gesture), so a switch on a
-  // powered-on engine pushes the new bank and links here (roadmap 17.2.8): every lane, then every global link.
+  // The two regenerates are data-only (they also run at module load, before any gesture), so a switch pushes the
+  // new bank and links here (roadmap 17.2.8) once the engine has a bank: every lane, then every global link.
   // Last on purpose: the bpm reseed above re-pushed the OLD bank's synced lanes, and linkTarget's swing reads
   // each target's current value, which the globalAudio push above has just set.
-  if (isAudioContextRunning()) pushLfoBankAndLinksToEngine();
+  pushLfoBankAndLinksToEngine();
 }
 
-function pushLfoBankAndLinksToEngine(): void {
+/**
+ * The store's whole LFO Bank and every global link to the engine, once the bank is primed
+ * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): with the context running, or suspended by a pause, since a world
+ * changed while the tablet is off must still reach the lanes. Before the first start there is no bank, and
+ * AudioEngine.start() primes it from this same store state. The style-sync above ends with it, and so does
+ * worldTransition's loading change, which keeps the style and so fires no style-sync.
+ */
+export function pushLfoBankAndLinksToEngine(): void {
+  if (!lfoEngine.isBankPrimed()) return;
   const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
   for (const lane of LFO_LANE_IDS) pushLaneToEngine(lane, lfoBank[lane], bpm);
   for (const target of GLOBAL_LFO_TARGET_IDS) lfoEngine.linkTarget(target, globalLfoLinks[target]);

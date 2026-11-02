@@ -23,6 +23,7 @@ import type { Locale } from '@/types/locale';
 // The LFO Bank engine (docs/tasks/LFO_BANK.md) — applyLayerLfoLink routes through this exclusively.
 vi.mock('@/engine/lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => false), // read by audioStore's module-load style-sync (audioSwells imports the store)
     linkTarget: vi.fn(() => true),
   },
 }));

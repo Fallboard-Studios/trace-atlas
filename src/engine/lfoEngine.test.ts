@@ -238,6 +238,31 @@ describe('lfoBank (lfoEngine)', () => {
     });
   });
 
+  // The gate every store-to-engine bank push reads (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2): whether the lanes
+  // exist, not whether the context runs, so a pause (a suspended context) still takes a new world's bank.
+  describe('isBankPrimed', () => {
+    it('is false before any prime, and still false after a prime that found the context suspended', async () => {
+      const { lfoEngine } = await import('./lfoEngine');
+      const { DEFAULT_BANK_LFO } = await import('../data/lfoConfig');
+      const { LFO_LANE_IDS } = await import('../types/lfo');
+      expect(lfoEngine.isBankPrimed()).toBe(false);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      lfoEngine.primeLfoBank(Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, DEFAULT_BANK_LFO])) as any);
+
+      expect(lfoEngine.isBankPrimed()).toBe(false);
+    });
+
+    it('is true once the lanes are built, and stays true while the context is suspended (a pause)', async () => {
+      const { lfoEngine } = await primeBankRunning();
+      expect(lfoEngine.isBankPrimed()).toBe(true);
+
+      mockContextState = 'suspended';
+
+      expect(lfoEngine.isBankPrimed()).toBe(true);
+    });
+  });
+
   describe('linkTarget', () => {
     it('creates exactly one Gain per link, connected trunk -> gain -> signal via connectAdditively', async () => {
       const { lfoEngine } = await primeBankRunning();

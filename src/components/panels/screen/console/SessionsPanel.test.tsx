@@ -14,7 +14,7 @@ vi.mock('@/utils/sessionShareUtils', () => ({
 }));
 
 import { SessionsPanel } from './SessionsPanel';
-import { useSessionStore } from '@/stores/sessionStore';
+import { isWorldDirty, useSessionStore } from '@/stores/sessionStore';
 import { STORAGE_KEY } from '@/utils/sessionStorageEngine';
 import { buildSessionPayload } from '@/utils/sessionDiff';
 import { copySessionLink } from '@/utils/sessionShareUtils';
@@ -81,6 +81,49 @@ describe('SessionsPanel', () => {
 
     setItemSpy.mockRestore();
     consoleErrorSpy.mockRestore();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20: a Save is a keep by another door. The world just saved is the loaded
+  // save, as Keep leaves it, so the off screen's dirty read (and Keep's dim) agrees with what was just written.
+  describe('a Save marks the save as the loaded one (review R20)', () => {
+    // One live world for the save and the dirty read after it (the file's default payload counts up on every build).
+    const stablePayload = { ...fakePayload, seq: 'stable' };
+    beforeEach(() => {
+      vi.mocked(buildSessionPayload).mockReturnValue(stablePayload as never);
+    });
+    afterEach(() => {
+      vi.mocked(buildSessionPayload).mockImplementation(() => ({ ...fakePayload, seq: payloadCounter++ }) as never);
+    });
+
+    it('after a Save the world reads as kept: isWorldDirty() is false', () => {
+      render(<SessionsPanel />);
+      expect(isWorldDirty()).toBe(true); // nothing loaded yet
+      fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Test Session');
+      expect(isWorldDirty()).toBe(false);
+    });
+
+    it('a padded name is loaded trimmed, as it is saved, and the name field follows, as Keep names it', () => {
+      useSessionStore.setState({ currentSessionName: '  Dusk Run ' });
+      render(<SessionsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+      expect(useSessionStore.getState().currentSessionName).toBe('Dusk Run');
+      expect(isWorldDirty()).toBe(false);
+    });
+
+    it('a failed Save leaves the loaded save as it was', () => {
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const setItemSpy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+      useSessionStore.setState({ currentLoadedSessionName: 'Older Save' });
+      render(<SessionsPanel />);
+      fireEvent.click(screen.getByRole('button', { name: /save session/i }));
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Older Save');
+      setItemSpy.mockRestore();
+      consoleErrorSpy.mockRestore();
+    });
   });
 
   it('the save-confirmation banner uses date+time formatting (month/day present, not just a bare time)', () => {

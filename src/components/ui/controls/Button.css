@@ -65,3 +65,35 @@
   color: var(--color-text-primary-fixed);
   white-space: nowrap;
 }
+
+/* The muted appearance (docs/tasks/OFF_SCREEN.md Task 13): RadioButton's flat face, for a button — the cabinet
+   front's own height, side padding and sharp corners with no walls behind it, so a muted button is the same size
+   as a muted option beside it. --cabinet-box-height is set inline from the cabinet tier (Button.tsx). The engaged
+   state is a brighter border, never a pop: the powered-off screen's Roll and Keep, where nothing comes off the
+   plate (docs/specs/OFF_SCREEN.md §3). */
+.sc-button__flat {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--cabinet-box-height);
+  padding: 0 14px;
+  box-sizing: border-box;
+  background: transparent;
+  border: 1px solid rgba(207, 214, 220, 0.55);
+}
+
+.sc-button--muted:hover:not(:disabled) .sc-button__flat,
+.sc-button--muted:focus-visible .sc-button__flat {
+  border-color: rgba(207, 214, 220, 0.9);
+}
+
+/* Dimmed, not removed (the dim-controls rule): a muted button the current state has made inert — Keep once the
+   loaded world is already kept. The face stays in place at its size; only its presence fades. */
+.sc-button--muted:disabled {
+  cursor: default;
+}
+
+.sc-button--muted:disabled .sc-button__flat {
+  opacity: 0.4;
+  border-style: dashed;
+}

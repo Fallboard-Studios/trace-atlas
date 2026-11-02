@@ -55,6 +55,10 @@ export function SessionsPanel() {
     const name = currentSessionName.trim();
     try {
       saveNamedSession(name, buildSessionPayload());
+      // The world just saved is the loaded save, as Keep leaves it, so the off screen's dirty read agrees with what was
+      // just written; the field takes the trimmed name it was saved under (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20).
+      useSessionStore.getState().setCurrentLoadedSessionName(name);
+      setCurrentSessionName(name);
       refresh();
       setSaveStatus({ name, success: true, savedAt: formatSessionTimestamp(Date.now()) });
     } catch (err) {

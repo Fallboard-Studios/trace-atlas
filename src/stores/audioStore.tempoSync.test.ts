@@ -46,6 +46,7 @@ vi.mock('../engine/audioEngine/globalFx', () => ({
 // The LFO Bank engine (docs/tasks/LFO_BANK.md Task 7).
 vi.mock('../engine/lfoEngine', () => ({
   lfoEngine: {
+    isBankPrimed: vi.fn(() => false), // before any power-on: the style-sync's bank push stays data-only
     primeLfoBank: vi.fn(),
     setBankShape: vi.fn(),
     setBankRate: vi.fn(),
@@ -946,13 +947,13 @@ describe('useAudioStore - BPM Attenuation Style sync (docs/specs/FREE_SYNC_TOGGL
     vi.resetModules();
   });
 
-  it('seeds bpm for the Attenuation Style current at boot, within BPM_SEED_RANGE', async () => {
+  it('seeds bpm for the Attenuation Style current at boot, within the Classic tempo band', async () => {
     const { useAudioStore } = await import('./audioStore');
-    const { BPM_SEED_RANGE } = await import('../utils/bpmSeed');
+    const { CLASSIC } = await import('../data/bands/classic');
 
     const { bpm } = useAudioStore.getState();
-    expect(bpm).toBeGreaterThanOrEqual(BPM_SEED_RANGE.min);
-    expect(bpm).toBeLessThanOrEqual(BPM_SEED_RANGE.max);
+    expect(bpm).toBeGreaterThanOrEqual(CLASSIC.bpm.min);
+    expect(bpm).toBeLessThanOrEqual(CLASSIC.bpm.max);
   });
 
   it('matches generateAttenuationStyleBpm for the default Attenuation Style\'s own id/name exactly', async () => {

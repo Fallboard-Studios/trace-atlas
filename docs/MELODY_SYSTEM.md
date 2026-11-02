@@ -175,8 +175,9 @@ themselves), so a re-roll can still touch a base-cell position whose locked copi
 briefly stale until the next full regeneration — a deliberate, low-cost tradeoff (see
 docs/specs/PITCH_REPEAT.md §7.1), not a bug.
 
-**Seeding & lifecycle:** rolled per-robot at spawn (`spawnSystem.ts`, `getSeededVal(noiseMap,
-'robot.pitchRepeat', spawnCount, 0, 100)`), same convention as Density/Motif Length/Note Variance;
+**Seeding & lifecycle:** rolled per-robot at spawn (`robotFieldDerivation.ts`'s `deriveMelodyFields`, `getSeededVal(noiseMap,
+'robot.pitchRepeat', spawnIndex, band.min, band.max)` with the band from `getBand('robot.pitchRepeat')` — Classic's is
+0–100; a Melody aspect moves it, see "Integration at Spawn" below), same convention as Density/Motif Length/Note Variance;
 inherited verbatim on the `shouldCopy` path; rerolls with the rest of the melody on a coordinate
 change (nothing about Pitch Repeat is preserved across one, same as Density); manually edited via
 `applyPitchRepeat` (`robotOptionsActions.ts`), which mirrors `applyDensity` exactly — and, as of
@@ -301,6 +302,8 @@ AudioEngine.registerRobotMelody(robot.id, stamped);
 ```
 
 The generated melody is later consumed by AudioEngine via a step registry keyed by `startStep`.
+
+**Where the four Melody fields come from (roadmap 57, the band table; `docs/specs/OFF_SCREEN.md` assumptions 15, 21, 22).** `robotFieldDerivation.ts`'s `deriveMelodyFields(noiseMap, spawnIndex, bands)` is the one derivation of `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance` and `pitchRepeat` — at spawn, in the regenerated baseline a save is diffed against, and in the aspect deal. Each is a `getSeededVal` draw from the robot's own spawn index at its dataId (`robot.rhythmicDensity`, `robot.rhythmicMotifLength.active`, `robot.noteVariance.active`, `robot.pitchRepeat`), into a **band** read at the point of the draw: Density and Pitch Repeat from a range band, the two toggle fields through `seedToggleValue(raw, band)` from a `ToggleBand` (`{ offShare, min, max }`: a draw under `offShare` lands the field off, 0; the rest maps uniformly onto the whole numbers `min..max`). The bands are the world's theme's — `getBand(key)` from `src/data/bands/loadingContext.ts`, Classic's `{ 0–100 }`, `{ 0.15, 1–8 }`, `{ 0.15, 1–8 }` and `{ 0–100 }` (`classic.ts`) unless the theme's column moves Density — or, for a robot the deal gave a **Melody aspect** (Hypnotic, Mechanical, Wandering; `src/data/bands/aspects.ts`), that aspect's column over `resolveBands(theme, { melody: aspect })`: the same draws re-derived into the aspect's four bands, so a dealt robot is exactly what it would have been had it spawned under the aspect, and `Robot.loadedUnder.melody` records which. The deal itself — which robots, by company — is in [COMPANIES.md](COMPANIES.md)'s "The deal"; the bands per theme and aspect are tabled in [reference/ROBOT_DATA_GRID.md](reference/ROBOT_DATA_GRID.md). `applyAspectDeal` regenerates each dealt robot's melody from its new fields (`regenerateMelody`, re-registered with the engine) in `initializeLocale`, right after `spawnInitialCompanies`. A hand edit still goes through `applyDensity` and its siblings and is saved as an override, exactly as before; the aspect only moves where a fresh robot starts.
 
 ## Playback Integration
 

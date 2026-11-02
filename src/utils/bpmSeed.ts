@@ -3,19 +3,11 @@
 // ========================================
 import { getAttenuationStyleNoiseMap } from './noiseMaps';
 import { getSeededVal } from './getSeededVal';
+import { getBand } from '@/data/bands/loadingContext';
 
 // ========================================
 // FUNCTIONS
 // ========================================
-
-/**
- * BPM's own seeded-default range — [40, 100] as integer BPM, a slower/
- * contemplative band fitting the ambient ocean soundscape. Freely draggable
- * across the wider [20, 200] Audio Rig slider range afterward. Unchanged by
- * the move from locale seeding to Attenuation Style seeding
- * (docs/specs/FREE_SYNC_TOGGLE.md §1.7).
- */
-export const BPM_SEED_RANGE = { min: 40, max: 100 };
 
 /**
  * Generate the deterministic audio BPM for an Attenuation Style, sampled from
@@ -27,6 +19,11 @@ export const BPM_SEED_RANGE = { min: 40, max: 100 };
  * through (docs/specs/FREE_SYNC_TOGGLE.md §1.7). Never stored on the
  * Attenuation Style itself; audioStore reseeds it on each style change.
  *
+ * The band is the loaded world's tempo row, getBand('bpm') (band-table T22,
+ * docs/specs/OFF_SCREEN.md assumption 15), so a theme may move it. Classic's
+ * row (src/data/bands/classic.ts, `bpm`) is [40, 100], freely draggable
+ * across the wider [20, 200] Audio Rig slider afterward.
+ *
  * The data key is 'globalAudio.bpm', not the bare 'bpm' the spec first named:
  * getSeededVal samples the noise map at (hash(key), offset), and the bare key
  * hashes to a spot where simplex noise is nearly flat — measured over 300
@@ -36,6 +33,7 @@ export const BPM_SEED_RANGE = { min: 40, max: 100 };
  */
 export function generateAttenuationStyleBpm(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = getSeededVal(noiseMap, 'globalAudio.bpm', 0, BPM_SEED_RANGE.min, BPM_SEED_RANGE.max);
+  const band = getBand('bpm');
+  const raw = getSeededVal(noiseMap, 'globalAudio.bpm', 0, band.min, band.max);
   return Math.round(raw);
 }

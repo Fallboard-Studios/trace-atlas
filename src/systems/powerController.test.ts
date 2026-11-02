@@ -1,12 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../engine/AudioEngine', () => ({ AudioEngine: { start: vi.fn(), killAll: vi.fn(), setBPM: vi.fn() } }));
+vi.mock('../engine/AudioEngine', () => ({ AudioEngine: { start: vi.fn(), killAll: vi.fn(), setBPM: vi.fn(), pause: vi.fn(), resume: vi.fn() } }));
 vi.mock('../engine/harmonySystem', () => ({ resetHarmony: vi.fn() }));
 vi.mock('../stores/audioStore', () => ({ useAudioStore: { getState: () => ({ bpm: 60 }) } }));
 vi.mock('./spawnSystem', () => ({ reRegisterAllRobotsAudio: vi.fn() }));
 vi.mock('./robotSystems', () => ({ stopRobotLifecycle: vi.fn() }));
-vi.mock('./workLoop', () => ({ stopWorkLoop: vi.fn() }));
-vi.mock('./worldTransition', () => ({ startLocaleSystems: vi.fn() }));
+vi.mock('./workLoop', () => ({ stopWorkLoop: vi.fn(), pauseWorkLoop: vi.fn(), resumeWorkLoop: vi.fn() }));
+// As the real one does, the systems' start writes 'running' (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30: the
+// controller no longer writes it a second time).
+vi.mock('./worldTransition', async () => {
+  const { setWorldState } = await import('./worldState');
+  return { startLocaleSystems: vi.fn(() => setWorldState('running')) };
+});
+vi.mock('../animation/timelineMap', () => ({ pauseWorldTimelines: vi.fn(), resumeWorldTimelines: vi.fn() }));
+vi.mock('../utils/deviceFlags', () => ({ hasHeardWorld: vi.fn(() => false), markHeardWorld: vi.fn() }));
+vi.mock('../animation/offScreenTheatre', () => ({ fadeOffScreen: vi.fn(() => Promise.resolve('done')), restoreOffScreen: vi.fn() }));
 const setPowerOnSpy = vi.fn();
 const setPowerOffSpy = vi.fn();
 vi.mock('../stores/uiStore', () => ({ useUIStore: { getState: () => ({ setPowerOn: setPowerOnSpy, setPowerOff: setPowerOffSpy }) } }));
@@ -14,19 +22,27 @@ const setLocaleDataSpy = vi.fn();
 vi.mock('../stores/localeStore', () => ({ useLocaleStore: { getState: () => ({ setLocaleData: setLocaleDataSpy }) } }));
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: () => 'pelagos-default' }));
 
-import { powerController } from './powerController';
+import { powerController, __resetPowerControllerForTest } from './powerController';
+import { getWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
 import { resetHarmony } from '../engine/harmonySystem';
 import { reRegisterAllRobotsAudio } from './spawnSystem';
 import { stopRobotLifecycle } from './robotSystems';
-import { stopWorkLoop } from './workLoop';
+import { stopWorkLoop, pauseWorkLoop, resumeWorkLoop } from './workLoop';
 import { startLocaleSystems } from './worldTransition';
+import { pauseWorldTimelines, resumeWorldTimelines } from '../animation/timelineMap';
+import { hasHeardWorld, markHeardWorld } from '../utils/deviceFlags';
+import { fadeOffScreen, restoreOffScreen } from '../animation/offScreenTheatre';
 import { useUIStore } from '../stores/uiStore';
 import { useLocaleStore } from '../stores/localeStore';
+
+const order = (fn: unknown) => vi.mocked(fn as () => void).mock.invocationCallOrder[0];
 
 describe('powerController', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(hasHeardWorld).mockReturnValue(false);
+    __resetPowerControllerForTest();
   });
 
   it('start calls audio start, resetHarmony and reRegisterAllRobotsAudio', async () => {
@@ -42,21 +58,183 @@ describe('powerController', () => {
     expect(startLocaleSystems).not.toHaveBeenCalled();
   });
 
-  it('shutdown halts systems and flips power off, leaving the world standing (Task 26: the off screen\'s backdrop)', async () => {
-    await powerController.shutdown();
-    expect(stopRobotLifecycle).toHaveBeenCalled();
-    expect(stopWorkLoop).toHaveBeenCalledTimes(1); // Phase 43 Task 23
-    expect(AudioEngine.killAll).toHaveBeenCalled();
-    // actors are no longer emptied: the world stays as the off screen's still backdrop
-    expect(useLocaleStore.getState().setLocaleData).not.toHaveBeenCalled();
-    expect(useUIStore.getState().setPowerOff).toHaveBeenCalled();
+  // Power is a pause (docs/specs/OFF_SCREEN.md assumption 5, docs/tasks/OFF_SCREEN.md Task 6): the rocker freezes the
+  // world in place and brings it back from where it stopped; nothing is torn down until a different world is loaded.
+  describe('pause()', () => {
+    it('freezes the loop clock, the world timelines and the audio context, then flips power off — in that order', async () => {
+      await powerController.powerOnSequence();
+      powerController.pause();
+
+      expect(pauseWorkLoop).toHaveBeenCalledTimes(1);
+      expect(pauseWorldTimelines).toHaveBeenCalledTimes(1);
+      expect(AudioEngine.pause).toHaveBeenCalledTimes(1);
+      expect(useUIStore.getState().setPowerOff).toHaveBeenCalledTimes(1);
+      expect(order(pauseWorkLoop)).toBeLessThan(order(pauseWorldTimelines));
+      expect(order(pauseWorldTimelines)).toBeLessThan(order(AudioEngine.pause));
+      expect(order(AudioEngine.pause)).toBeLessThan(order(useUIStore.getState().setPowerOff));
+      expect(getWorldState()).toBe('paused');
+    });
+
+    it('tears nothing down: no killAll, no lifecycle stop, no work-loop stop, and the world stays standing', async () => {
+      await powerController.powerOnSequence();
+      powerController.pause();
+
+      expect(AudioEngine.killAll).not.toHaveBeenCalled();
+      expect(stopRobotLifecycle).not.toHaveBeenCalled();
+      expect(stopWorkLoop).not.toHaveBeenCalled();
+      expect(useLocaleStore.getState().setLocaleData).not.toHaveBeenCalled();
+    });
+
+    it('is a no-op unless the world is running (cold, or already paused)', async () => {
+      powerController.pause(); // cold
+      await powerController.powerOnSequence();
+      powerController.pause();
+      powerController.pause(); // already paused
+
+      expect(pauseWorkLoop).toHaveBeenCalledTimes(1);
+      expect(AudioEngine.pause).toHaveBeenCalledTimes(1);
+      expect(useUIStore.getState().setPowerOff).toHaveBeenCalledTimes(1);
+    });
   });
 
-  it('shutdown stops the lifecycle before AudioEngine.killAll clears the beat clock listeners', async () => {
-    await powerController.shutdown();
-    const lifecycleOrder = vi.mocked(stopRobotLifecycle).mock.invocationCallOrder[0];
-    const killAllOrder = vi.mocked(AudioEngine.killAll).mock.invocationCallOrder[0];
-    expect(lifecycleOrder).toBeLessThan(killAllOrder);
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: resume() is the other half of pause(), and only that.
+  describe('resume()', () => {
+    it('is a no-op on a cold world: nothing wakes, the power stays off and the world stays cold', () => {
+      powerController.resume();
+
+      expect(AudioEngine.resume).not.toHaveBeenCalled();
+      expect(resumeWorldTimelines).not.toHaveBeenCalled();
+      expect(resumeWorkLoop).not.toHaveBeenCalled();
+      expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
+      expect(getWorldState()).toBe('cold');
+    });
+
+    it('is a no-op on a running world: the context is not resumed a second time', async () => {
+      await powerController.powerOnSequence();
+      vi.mocked(AudioEngine.resume).mockClear();
+      vi.mocked(resumeWorkLoop).mockClear();
+      setPowerOnSpy.mockClear();
+
+      powerController.resume();
+
+      expect(AudioEngine.resume).not.toHaveBeenCalled();
+      expect(resumeWorkLoop).not.toHaveBeenCalled();
+      expect(setPowerOnSpy).not.toHaveBeenCalled();
+      expect(getWorldState()).toBe('running');
+    });
+  });
+
+  describe('powerOnSequence() from a pause', () => {
+    it('resumes — audio context, world timelines, loop clock, then power on — and starts nothing', async () => {
+      await powerController.powerOnSequence();
+      powerController.pause();
+      vi.clearAllMocks();
+
+      await powerController.powerOnSequence();
+
+      expect(AudioEngine.resume).toHaveBeenCalledTimes(1);
+      expect(resumeWorldTimelines).toHaveBeenCalledTimes(1);
+      expect(resumeWorkLoop).toHaveBeenCalledTimes(1);
+      expect(useUIStore.getState().setPowerOn).toHaveBeenCalledTimes(1);
+      expect(order(AudioEngine.resume)).toBeLessThan(order(resumeWorldTimelines));
+      expect(order(resumeWorldTimelines)).toBeLessThan(order(resumeWorkLoop));
+      expect(order(resumeWorkLoop)).toBeLessThan(order(useUIStore.getState().setPowerOn));
+      expect(AudioEngine.start).not.toHaveBeenCalled();
+      expect(startLocaleSystems).not.toHaveBeenCalled();
+      expect(resetHarmony).not.toHaveBeenCalled();
+      expect(getWorldState()).toBe('running');
+    });
+  });
+
+  it('a fresh page\'s first start wakes nothing itself: start() does, through Tone.start()', async () => {
+    await powerController.powerOnSequence();
+    expect(AudioEngine.start).toHaveBeenCalledTimes(1);
+    expect(AudioEngine.resume).not.toHaveBeenCalled();
+  });
+
+  describe('the heard-a-world flag (the off screen\'s gate)', () => {
+    it('is written by the first cold start, when the device has not heard a world', async () => {
+      await powerController.powerOnSequence();
+      expect(markHeardWorld).toHaveBeenCalledTimes(1);
+    });
+
+    it('is not written again once the device has heard one, nor by a resume', async () => {
+      vi.mocked(hasHeardWorld).mockReturnValue(true);
+      await powerController.powerOnSequence();
+      powerController.pause();
+      await powerController.powerOnSequence();
+      expect(markHeardWorld).not.toHaveBeenCalled();
+    });
+  });
+
+  // The veil fades before the chrome appears (docs/specs/OFF_SCREEN.md assumption 18, docs/tasks/OFF_SCREEN.md Task 16b):
+  // powerOnSequence awaits the off screen's fade first — before anything wakes, so a flip during the fade finds the
+  // world still paused or cold and the states never cross — and only then flips the power flag that unmounts the screen.
+  describe('the off screen fade', () => {
+    it('is awaited once, before the power flag flips, on the cold path — and before the audio starts', async () => {
+      await powerController.powerOnSequence();
+      expect(fadeOffScreen).toHaveBeenCalledTimes(1);
+      expect(order(fadeOffScreen)).toBeLessThan(order(AudioEngine.start));
+      expect(order(fadeOffScreen)).toBeLessThan(order(useUIStore.getState().setPowerOn));
+    });
+
+    it('is awaited once, before the power flag flips, on the resume path — and before the context wakes', async () => {
+      await powerController.powerOnSequence();
+      powerController.pause();
+      vi.clearAllMocks();
+      await powerController.powerOnSequence();
+      expect(fadeOffScreen).toHaveBeenCalledTimes(1);
+      expect(order(fadeOffScreen)).toBeLessThan(order(AudioEngine.resume));
+      expect(order(fadeOffScreen)).toBeLessThan(order(useUIStore.getState().setPowerOn));
+    });
+
+    it('the power flag does not flip until the fade has resolved', async () => {
+      let finish: () => void = () => {};
+      vi.mocked(fadeOffScreen).mockImplementationOnce(() => new Promise((resolve) => { finish = () => resolve('done'); }));
+      const sequence = powerController.powerOnSequence();
+      await Promise.resolve();
+      expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
+      expect(AudioEngine.start).not.toHaveBeenCalled();
+      finish();
+      await sequence;
+      expect(useUIStore.getState().setPowerOn).toHaveBeenCalledTimes(1);
+      expect(getWorldState()).toBe('running');
+    });
+
+    it('pause() fades nothing: the screen appears over the paused world, it does not disappear', async () => {
+      await powerController.powerOnSequence();
+      vi.clearAllMocks();
+      powerController.pause();
+      expect(fadeOffScreen).not.toHaveBeenCalled();
+    });
+
+    // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R19: a start that fails after the fade gives the screen back - opaque,
+    // taking input - instead of leaving it invisible and mounted over the glass. The failure still reaches the caller.
+    it('a rejected start restores the screen after its fade, and the world stays cold with the power off', async () => {
+      vi.mocked(AudioEngine.start).mockRejectedValueOnce(new Error('no audio context'));
+      await expect(powerController.powerOnSequence()).rejects.toThrow('no audio context');
+      expect(restoreOffScreen).toHaveBeenCalledTimes(1);
+      expect(order(fadeOffScreen)).toBeLessThan(order(restoreOffScreen));
+      expect(getWorldState()).toBe('cold');
+      expect(useUIStore.getState().setPowerOn).not.toHaveBeenCalled();
+    });
+
+    it('a start that succeeds, and a resume, never restore the screen: it goes with the power flag', async () => {
+      await powerController.powerOnSequence();
+      powerController.pause();
+      await powerController.powerOnSequence();
+      expect(restoreOffScreen).not.toHaveBeenCalled();
+    });
+  });
+
+  it('has no shutdown() any more — the rocker pauses (docs/tasks/OFF_SCREEN.md Task 7)', () => {
+    expect((powerController as unknown as Record<string, unknown>).shutdown).toBeUndefined();
+  });
+
+  it('getWorldState() is cold on a fresh page, running after a start', async () => {
+    expect(getWorldState()).toBe('cold');
+    await powerController.powerOnSequence();
+    expect(getWorldState()).toBe('running');
   });
 
   it('powerOnSequence starts audio, registers every robot, then starts the locale\'s systems once, then flips power on', async () => {
@@ -73,12 +251,12 @@ describe('powerController', () => {
     expect(order(startLocaleSystems)).toBeLessThan(order(useUIStore.getState().setPowerOn));
   });
 
-  it('powerOnSequence starts the locale systems again on a second power-on (the stop-then-start pairs inside hold the line)', async () => {
+  it('a power-on after a pause does not start the locale systems a second time — it resumes them', async () => {
     await powerController.powerOnSequence();
-    await powerController.shutdown();
+    powerController.pause();
     await powerController.powerOnSequence();
-    expect(startLocaleSystems).toHaveBeenCalledTimes(2);
-    expect(AudioEngine.killAll).toHaveBeenCalledTimes(1);
+    expect(startLocaleSystems).toHaveBeenCalledTimes(1);
+    expect(AudioEngine.killAll).not.toHaveBeenCalled();
   });
 
   it('powerOnSequence does not start the systems if audio fails to start', async () => {

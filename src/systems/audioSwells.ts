@@ -44,6 +44,7 @@ import {
   type SwellMember,
   type SwellPool,
 } from '@/types/audioSwell';
+import type { GlobalHalfMoves } from '@/stores/audioStore';
 import type { Robot } from '@/types/Robot';
 import type { Company } from '@/types/Company';
 
@@ -772,6 +773,22 @@ function findGlobalTargetFor(effect: string, field: string): SwellGlobalTargetId
 export function cancelSwellForGlobalField(effect: string, field: string): void {
   const target = findGlobalTargetFor(effect, field);
   if (target !== undefined) activeSwells.delete(target);
+}
+
+/**
+ * Called by a theme change re-derived in place (worldTransition.ts's loadingOnly mode), before the moved global values
+ * are written. No stopAudioSwells runs there, so a swell riding a field whose new value differs from its baseValue
+ * would end by writing that old base back over the new seeded value, and a paused Keep would save it. Such a swell is
+ * dropped, like a hand edit's; one on a field the change does not write, or writes to its own base, rides on
+ * (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F11). `moved` holds only the fields the change writes (F17).
+ */
+export function cancelGlobalSwellsMovedBy(moved: GlobalHalfMoves['globalAudio']): void {
+  for (const [key, swell] of activeSwells) {
+    if (swell.pool !== 'global') continue;
+    const meta = GLOBAL_TARGET_META[swell.globalTarget!];
+    const block = moved[meta.effect] as Record<string, unknown> | undefined;
+    if (block && meta.field in block && block[meta.field] !== swell.baseValue) activeSwells.delete(key);
+  }
 }
 
 /**

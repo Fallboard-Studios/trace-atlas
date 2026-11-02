@@ -3,9 +3,11 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { SessionPayload } from '../types/session';
-import { buildShareUrl, copySessionLink } from './sessionShareUtils';
-import { encodeBlob } from './worldLink';
+import type { WorldIdentity } from './seedBaseline';
+import { buildShareUrl, copySessionLink, mirrorWorldToUrl, searchOf } from './sessionShareUtils';
+import { decodeWorldLink, encodeBlob } from './worldLink';
 import { FIXTURE_COORDINATES, FIXTURE_NAME, untouchedWorld } from '../testUtils/worldLinkFixtures';
+import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 
 // ========================================
 // HELPERS
@@ -126,6 +128,231 @@ describe('buildShareUrl', () => {
     const fresh = await loadFreshWithQuery(url.search);
     expect(fresh.getSessionSharePayload()).toEqual(seamLinkPayload());
     vi.resetModules();
+  });
+});
+
+// docs/tasks/OFF_SCREEN.md Task 11 (spec assumption 13): a preset is a pasted link — a whole share URL or the bare
+// query — and searchOf gives decodeWorldLink the one shape it reads.
+// band-table T24 (docs/specs/OFF_SCREEN.md assumption 11): a share link carries the loading as plain params.
+describe('buildShareUrl - the loading params', () => {
+  it('writes theme and the picks as a bare comma list, never %2C, and the link decodes back to the payload', () => {
+    const payload: SessionPayload = { ...untouchedWorld(), theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const url = buildShareUrl(payload);
+    expect(url).toContain('&theme=calm&melody=hypnotic,mechanical');
+    expect(url).not.toContain('%2C');
+    expect(decodeWorldLink(new URL(url).search)).toEqual(payload);
+  });
+
+  it('a Classic world with no picks is still the bare triple', () => {
+    expect(new URL(buildShareUrl(untouchedWorld())).search).toBe('?seed=n40dh8p8&x=29&y=-14');
+  });
+});
+
+describe('searchOf', () => {
+  it('takes the query off a full share URL', () => {
+    expect(searchOf('https://host/path?seed=a&x=1&y=2')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('passes a bare query through unchanged', () => {
+    expect(searchOf('?seed=a&x=1&y=2')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('gives the same search for the URL and the bare query, with a blob and percent-encoding kept byte-for-byte', () => {
+    const query = `?seed=Pelagos%207%21&x=29&y=-14&s=${encodeBlob({ robotOverrides: ROBOT_OVERRIDE })}`;
+    expect(searchOf(`${window.location.origin}/trace-atlas/${query}`)).toBe(query);
+    expect(searchOf(query)).toBe(query);
+  });
+
+  it('drops a fragment: a hash is not part of the world', () => {
+    expect(searchOf('https://host/trace-atlas/?seed=a&x=1&y=2#top')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('reads a path-relative link too', () => {
+    expect(searchOf('/trace-atlas/?seed=a&x=1&y=2')).toBe('?seed=a&x=1&y=2');
+  });
+
+  it('is empty for a link with no query, and for an empty string — never throws', () => {
+    expect(searchOf('https://host/trace-atlas/')).toBe('');
+    expect(searchOf('')).toBe('');
+  });
+
+  it('decodes to the same world either way', () => {
+    const query = `?seed=${FIXTURE_NAME}&x=${FIXTURE_COORDINATES.x}&y=${FIXTURE_COORDINATES.y}`;
+    expect(decodeWorldLink(searchOf(`https://host/trace-atlas/${query}`))).toEqual(untouchedWorld());
+    expect(decodeWorldLink(searchOf(query))).toEqual(untouchedWorld());
+  });
+});
+
+// docs/tasks/OFF_SCREEN.md Task 15 (spec assumption 12): the address bar follows the loaded world — identity only,
+// through replaceState, every other param kept, the tweak blob dropped (Keep and Share are for that).
+describe('mirrorWorldToUrl', () => {
+  const identity: WorldIdentity = { attenuationStyleName: 'Pelagos 7!', coordinates: { x: 29, y: -14 }, theme: 'classic', aspects: {} };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    window.history.replaceState({}, '', '/');
+  });
+
+  it('writes seed, x and y — nothing else — by replaceState, so no history entry is made and the path stands', () => {
+    window.history.replaceState({}, '', '/trace-atlas/');
+    const replace = vi.spyOn(window.history, 'replaceState');
+    const push = vi.spyOn(window.history, 'pushState');
+    mirrorWorldToUrl(identity);
+    expect(replace).toHaveBeenCalledTimes(1);
+    expect(push).not.toHaveBeenCalled();
+    expect(window.location.pathname).toBe('/trace-atlas/');
+    const params = new URLSearchParams(window.location.search);
+    expect([...params.keys()]).toEqual(['seed', 'x', 'y']);
+    expect(params.get('seed')).toBe('Pelagos 7!');
+    expect(params.get('x')).toBe('29');
+    expect(params.get('y')).toBe('-14');
+  });
+
+  it('what it writes decodes back to the same world through decodeWorldLink', () => {
+    mirrorWorldToUrl({ attenuationStyleName: FIXTURE_NAME, coordinates: FIXTURE_COORDINATES, theme: 'classic', aspects: {} });
+    expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld());
+    mirrorWorldToUrl(identity);
+    expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }));
+  });
+
+  // band-table T24 (docs/specs/OFF_SCREEN.md assumptions 11 and 12): the theme and family params follow the world too,
+  // written only when not the default, as a bare comma list in canonical order.
+  it('writes theme and melody after y for a themed world with picks, and what it writes decodes back', () => {
+    const loading: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'wandering'] } };
+    mirrorWorldToUrl({ ...identity, ...loading });
+    // Share's own encoding of the name since review R17 (`+` and `%21`, where the bar once wrote `%20` and `!`).
+    expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&theme=calm&melody=hypnotic,wandering');
+    // The link names an untouched Calm world: what decodes is the seed drawn under Calm (themes-and-aspects T34).
+    expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }, loading));
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R9: every family is mirrored (the cases around this one carry Melody only),
+  // and a name that needs escaping reads back as itself, with no param of its own leaking out of it.
+  it('writes every family param after the one before it, each a bare comma list in canonical order', () => {
+    mirrorWorldToUrl({
+      ...identity,
+      theme: 'calm',
+      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+    });
+    expect(window.location.search).toBe(
+      '?seed=Pelagos+7%21&x=29&y=-14&theme=calm&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody',
+    );
+  });
+
+  it('a name that needs escaping reads back from the bar as itself, and x stands', () => {
+    const name = 'a&x=999#b+c%';
+    mirrorWorldToUrl({ ...identity, attenuationStyleName: name });
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get('seed')).toBe(name);
+    expect(params.getAll('x')).toEqual(['29']);
+    expect(params.get('y')).toBe('-14');
+    expect(window.location.hash).toBe('');
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R30: a name holding a lone surrogate (a hand-edited save) once threw
+  // URIError from encodeURIComponent, outside the replaceState try, and so out of retransmitWorld. The mirror writes
+  // through URLSearchParams since R17, which puts U+FFFD in its place. A guard: it passed from the start.
+  it('a name holding a lone surrogate never throws: the bar carries U+FFFD in its place, and x and y stand', () => {
+    for (const name of ['\uD800', 'a\uDFFFb', 'tail\uD83D', '\uDC00head']) {
+      expect(() => mirrorWorldToUrl({ ...identity, attenuationStyleName: name })).not.toThrow();
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get('seed')).toBe(name.replace(/[\uD800-\uDFFF]/g, '�'));
+      expect(params.getAll('x')).toEqual(['29']);
+      expect(params.get('y')).toBe('-14');
+    }
+  });
+
+  it('removes theme and melody when the world is Classic with no picks, so the bar never carries a stale loading', () => {
+    window.history.replaceState({}, '', '/?seed=old&x=1&y=2&theme=calm&melody=hypnotic&debug');
+    mirrorWorldToUrl(identity);
+    expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&debug');
+  });
+
+  it('writes when the bar names the world under a different loading, and not when the loading matches too', () => {
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=calm');
+    mirrorWorldToUrl(identity);
+    expect(new URLSearchParams(window.location.search).has('theme')).toBe(false);
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=calm&melody=hypnotic');
+    const replace = vi.spyOn(window.history, 'replaceState');
+    mirrorWorldToUrl({ ...identity, theme: 'calm', aspects: { melody: ['hypnotic'] } });
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it('replaces an earlier triple in place and removes the s blob: the tweak blob is never mirrored live', () => {
+    window.history.replaceState({}, '', `/?seed=old&x=1&y=2&s=${encodeBlob({ robotOverrides: ROBOT_OVERRIDE })}`);
+    mirrorWorldToUrl(identity);
+    expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14');
+  });
+
+  it('preserves every unrelated param byte-for-byte, where it stood: a bare ?debug stays bare, ?load= and ?fxLoad= keep their place', () => {
+    window.history.replaceState({}, '', '/?debug&load=light&seed=old&x=1&y=2&s=zzz&fxLoad=50#top');
+    mirrorWorldToUrl(identity);
+    expect(window.location.search).toBe('?debug&load=light&seed=Pelagos+7%21&x=29&y=-14&fxLoad=50');
+    expect(window.location.hash).toBe('#top');
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R17: the bar and Share write one world one way. The bar's world part is
+  // Share's, param for param and byte for byte, wherever the world's params stood; the other params keep their own text.
+  describe('one world, one link: the bar writes what Share writes (review R17)', () => {
+    /** A raw search's parts whose names, as the browser reads them, are a world param's. */
+    const worldParts = (search: string) =>
+      search
+        .replace(/^\?/, '')
+        .split('&')
+        .filter((part) => ['seed', 'x', 'y', 's', 'theme', 'melody', 'envelope', 'distance', 'voice'].includes([...new URLSearchParams(part).keys()][0]));
+
+    it("after a mirror, the bar's world params are buildShareUrl's for the same world, in the same order and spelling", () => {
+      const loading: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'wandering'], voice: ['woody'] } };
+      // The bar carries the old world with Voice ahead of Melody, as a toggle made in that order once left it.
+      window.history.replaceState({}, '', '/trace-atlas/?debug&voice=glassy&seed=old&x=1&y=2&load=light');
+      mirrorWorldToUrl({ ...identity, ...loading });
+      const share = new URL(buildShareUrl(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }, loading))).search;
+      expect(worldParts(window.location.search)).toEqual(worldParts(share));
+      expect(worldParts(share)).toEqual(['seed=Pelagos+7%21', 'x=29', 'y=-14', 'theme=calm', 'melody=hypnotic,wandering', 'voice=woody']);
+    });
+
+    it('the world part sits where the first world param stood, the rest keeping their text and their order', () => {
+      window.history.replaceState({}, '', '/?debug&voice=glassy&seed=old&x=1&y=2&load=light#top');
+      mirrorWorldToUrl(identity);
+      expect(window.location.search).toBe('?debug&seed=Pelagos+7%21&x=29&y=-14&load=light');
+      expect(window.location.hash).toBe('#top');
+    });
+
+    it('a world param spelled another way is still that param: ?se%65d=old leaves one seed, not two', () => {
+      window.history.replaceState({}, '', '/?se%65d=old&x=1&y=2&debug');
+      mirrorWorldToUrl(identity);
+      const params = new URLSearchParams(window.location.search);
+      expect(params.getAll('seed')).toEqual(['Pelagos 7!']);
+      expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&debug');
+    });
+
+    it('with no world param in the bar the world part goes after the params already there, as a new param always did', () => {
+      window.history.replaceState({}, '', '/?debug&load=light');
+      mirrorWorldToUrl(identity);
+      expect(window.location.search).toBe('?debug&load=light&seed=Pelagos+7%21&x=29&y=-14');
+    });
+  });
+
+  it('does not write when the address bar already names the world and carries no blob — however the link encoded it', () => {
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&debug'); // URLSearchParams' own encoding, as a share link arrives
+    const replace = vi.spyOn(window.history, 'replaceState');
+    mirrorWorldToUrl(identity);
+    expect(replace).not.toHaveBeenCalled();
+    expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&debug');
+  });
+
+  it('does write when only the blob differs: the same world, arrived tweaked, is mirrored untweaked once it is the pick', () => {
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&s=zzz');
+    mirrorWorldToUrl(identity);
+    expect(new URLSearchParams(window.location.search).has('s')).toBe(false);
+    expect(new URLSearchParams(window.location.search).get('seed')).toBe('Pelagos 7!');
+  });
+
+  it('never throws when replaceState does (a sandboxed frame): the world still loads, it is just not mirrored', () => {
+    vi.spyOn(window.history, 'replaceState').mockImplementation(() => {
+      throw new Error('denied');
+    });
+    expect(() => mirrorWorldToUrl(identity)).not.toThrow();
   });
 });
 

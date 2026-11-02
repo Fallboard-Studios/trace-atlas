@@ -3,7 +3,6 @@
 // ========================================
 import { useState, useEffect, useRef } from 'react';
 import { useGSAP } from '@gsap/react';
-import * as Dialog from '@radix-ui/react-dialog';
 import gsap from 'gsap';
 
 import {
@@ -23,7 +22,6 @@ import { useUIStore } from '@/stores/uiStore';
 import { powerController } from '@/systems/powerController';
 import { setTimeline, killTimeline } from '@/animation/timelineMap';
 
-import { getScreenViewportDomNode } from '@/utils/helpers';
 import { getStatusLightColor } from '@/utils/statusLightColors';
 import { CONTENT } from '@/content';
 import './PowerRockerSwitch.css';
@@ -54,7 +52,6 @@ const LIGHT_TRANSITIONING = getStatusLightColor('amber', 0.5);
 
 export function PowerRockerSwitch() {
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const rockerRef = useRef<SVGSVGElement>(null);
   // The light's pivot layer: tilted forward at rest, rocked flat with the top face on a press (see below).
@@ -64,7 +61,6 @@ export function PowerRockerSwitch() {
   // instead of re-running gsap.utils.selector (and its querySelector call
   // per face) on every press/return cycle.
   const elsRef = useRef<Record<string, Element>>({});
-  const dialogContainer = getScreenViewportDomNode();
 
   // Set initial SVG attribute state via GSAP so it fully owns these attrs —
   // React has no points/y values in JSX to reconcile back on re-renders.
@@ -88,21 +84,20 @@ export function PowerRockerSwitch() {
   }, { scope: rockerRef, dependencies: [] });
 
   // Kill every timeline key this component can create on unmount to prevent leaks — the two
-  // press/return timelines plus the two delay sequences from handleRockerClick below. A pending
-  // sequence's onComplete (setShowConfirm/handlePowerOn/returnRocker) must never fire post-unmount.
+  // press/return timelines plus the hold-then-act sequence from handleRockerClick below. A pending
+  // sequence's onComplete (pause/handlePowerOn/returnRocker) must never fire post-unmount.
   useEffect(() => {
     return () => {
       killTimeline('power-rocker');
       killTimeline('power-rocker-return');
-      killTimeline('power-rocker-confirm-delay');
       killTimeline('power-rocker-sequence');
     };
   }, []);
 
   // ----------------------------------------
   // Rocker rock animation — fires on every
-  // click as physical feedback, independent
-  // of the modal outcome.
+  // click as physical feedback, before the
+  // power action lands.
   // ----------------------------------------
   // contextSafe wraps and returns a new function without invoking it; the ref is only ever read
   // once that wrapper is later called from a real event handler (handleRockerClick), never
@@ -124,7 +119,7 @@ export function PowerRockerSwitch() {
     tl.to(elsRef.current['rocker-power-svg'], { ...POWER_GLYPH_PRESSED, svgOrigin: POWER_GLYPH_SVG_ORIGIN, duration: THUNK, ease: 'power4.in' }, '<')
       // ── The light rocks flat with the top face it lies on, on the same stroke. ──
       .to(lightPivotRef.current, { rotateX: LIGHT_PRESSED_ANGLE, duration: THUNK, ease: 'power4.in' }, '<')
-      // ── Hold (button stays depressed until dialog resolves) ────────────────
+      // ── Hold (button stays depressed through the sequence's own hold below) ──
       .to({}, { duration: HOLD });
     setTimeline('power-rocker', tl);
   });
@@ -167,40 +162,23 @@ export function PowerRockerSwitch() {
   }
 
   // ----------------------------------------
-  // Power Off confirm
-  // ----------------------------------------
-  async function handlePowerOffConfirm() {
-    setShowConfirm(false);
-    // Return rocker immediately for UI feedback
-    returnRocker();
-    // Delegate orchestrated shutdown (plays sleeve drain, stops systems,
-    // and runs the tablet power-off UI animation).
-    await powerController.shutdown();
-  }
-
-  // ----------------------------------------
   // Rocker click — animation fires immediately,
-  // then branch on power state.
+  // then the one sequence: hold, act, return.
   // ----------------------------------------
+  // Power is a pause (docs/specs/OFF_SCREEN.md assumption 6): the off-click mirrors the on-click. No confirm
+  // dialog — pausing loses nothing, so there is nothing to protect; the world waits, frozen, behind the off screen.
+  // The sequence is a timeline so its timings are centralized and cancelable instead of setTimeouts; it stays in
+  // the default 'ui' scope, so it runs while the world it just paused does not.
   const handleRockerClick = contextSafe(() => {
     setIsTransitioning(true);
     animateRockerPress();
-    if (isPoweredOn) {
-      // Show modal once the button is fully depressed (THUNK + HOLD)
-      const confirmTl = gsap.timeline({ onComplete: () => setShowConfirm(true) });
-      // short delay matching the previous timing (≈180ms)
-      confirmTl.to({}, { duration: 0.18 });
-      setTimeline('power-rocker-confirm-delay', confirmTl);
-    } else {
-      // Orchestrate the power-on and return sequence with a timeline so timings
-      // are centralized and cancelable instead of using setTimeout.
-      const seq = gsap.timeline();
-      // hold phase (~180ms)
-      seq.to({}, { duration: 0.18, onComplete: () => { void handlePowerOn(); } });
-      // extra delay before returnRocker (previously 500ms after hold)
-      seq.to({}, { duration: 0.5, onComplete: () => returnRocker() });
-      setTimeline('power-rocker-sequence', seq);
-    }
+    const act = isPoweredOn ? () => powerController.pause() : () => { void handlePowerOn(); };
+    const seq = gsap.timeline();
+    // hold phase (~180ms): the button is fully depressed (THUNK + HOLD) before anything happens
+    seq.to({}, { duration: 0.18, onComplete: act });
+    // extra delay before returnRocker (previously 500ms after hold)
+    seq.to({}, { duration: 0.5, onComplete: () => returnRocker() });
+    setTimeline('power-rocker-sequence', seq);
   });
 
   const powerState = isPoweredOn ? 'on' : 'off';
@@ -335,41 +313,6 @@ export function PowerRockerSwitch() {
           </div>
         </div>
       </div>
-
-      {/* Power-off confirmation modal */}
-      <Dialog.Root
-        open={showConfirm}
-        onOpenChange={(open) => {
-          setShowConfirm(open);
-          // Always return the rocker when the dialog closes, regardless of
-          // how it was dismissed. returnRocker kills any in-flight timeline
-          // first so calling it more than once is safe.
-          if (!open) returnRocker();
-        }}
-      >
-        <Dialog.Portal container={dialogContainer ?? undefined}>
-          <Dialog.Overlay className="power-confirm__overlay" />
-          <Dialog.Content className="power-confirm__content">
-            <Dialog.Title className="power-confirm__title">{CONTENT['ui.power.confirmTitle'].human}</Dialog.Title>
-            <Dialog.Description className="power-confirm__description">
-              {CONTENT['ui.power.confirmBody'].human}
-            </Dialog.Description>
-            <div className="power-confirm__actions">
-              <button
-                className="power-confirm__btn power-confirm__btn--confirm"
-                onClick={handlePowerOffConfirm}
-              >
-                {CONTENT['ui.confirm'].human}
-              </button>
-              <Dialog.Close asChild>
-                <button className="power-confirm__btn">
-                  {CONTENT['ui.cancel'].human}
-                </button>
-              </Dialog.Close>
-            </div>
-          </Dialog.Content>
-        </Dialog.Portal>
-      </Dialog.Root>
     </>
   );
 }

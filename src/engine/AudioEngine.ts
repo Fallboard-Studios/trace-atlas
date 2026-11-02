@@ -159,9 +159,9 @@ const NOTE_RE = /^[A-Ga-g][b#]{0,2}\d+$/;
 // MODULE STATE
 // ========================================
 let initialized = false;
-// instrumentsLoaded intentionally survives stop()/killAll() — the FX chain
+// instrumentsLoaded intentionally survives killAll() — the FX chain
 // (compressor, reverb, delay, etc.) is expensive to rebuild and remains valid
-// across start/stop cycles. Only a full page reload resets it.
+// across a killAll and the full start after it. Only a full page reload resets it.
 let instrumentsLoaded = false;
 // Reservation state
 let activeVoices = 0;
@@ -736,27 +736,6 @@ export const AudioEngine = {
     initialized = true;
   },
 
-  stop(): void {
-    const transport = _transport ?? Tone.getTransport();
-
-    if (scheduledTickId !== null) {
-      try { transport.clear(scheduledTickId); } catch (err) { devWarn('[AudioEngine] transport.clear failed', err); }
-      scheduledTickId = null;
-    }
-
-    stopHarmonyCycle();
-
-    try {
-      if (transport.state === 'started') {
-        try { transport.stop(); } catch { /* ignore */ }
-      }
-    } catch { /* ignore */ }
-
-    stepCounter = 0;
-    activeVoices = 0;
-    initialized = false;
-  },
-
   /**
    * Schedule a note using NoteParams. If `adsr` are not provided
    * the robot's current `audioAttributes` are looked up in the store and
@@ -834,7 +813,7 @@ export const AudioEngine = {
    *   and `filterType` (the bus filter's resonance and shape). Every field absent resolves to the sound
    *   this engine always had: no glide, Q 1, lowpass. docs/specs/ROBOT_ARTICULATION.md §1.3.
    *
-   * Refused (false, nothing built) for a robot standing by — every reservation site (spawn, the power cycle, the
+   * Refused (false, nothing built) for a robot standing by — every reservation site (spawn, a cold power-on, the
    * post-load pass, an edit's rebuild) goes through here, so none can hand it a voice; admission rebuilds it
    * (`setSoundingRobots`). docs/specs/LIGHT_TIER_STANDING_COST.md H2.
    */
@@ -1015,10 +994,14 @@ export const AudioEngine = {
    * freshly-read `phase`, `detune`, and `pulseWidth` values so
    * updates from the store are applied immediately to the reserved voice.
    * Returns true when reservation succeeded.
+   *
+   * `given` is the store robot when the caller already has it, used ahead of the lookup in the active locale: a
+   * rebuild deals its robots before their new locale is current, so the lookup would miss every one of them
+   * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4).
    */
-  reReserveVoice(robotId: string): boolean {
+  reReserveVoice(robotId: string, given?: Robot): boolean {
     try {
-      const robot = findActiveRobot(robotId);
+      const robot = given ?? findActiveRobot(robotId);
       if (!robot) return false;
       const layers = (robot.audioAttributes as unknown as { layers?: OscillatorLayer[] })?.layers;
       if (!Array.isArray(layers) || layers.length === 0) return false;
@@ -1291,8 +1274,12 @@ export const AudioEngine = {
    * @param robotId - Unique robot identifier
    * @param melody - Array of `MelodyEvent` describing start steps and notes; superseded by
    *   the click-track pattern while this robot's `clickTrackActive` is true.
+   * @param given - The store robot when the caller already has it, read ahead of the lookup in the
+   *   active locale for the click-track flag and the motif accent: a rebuild registers its robots'
+   *   melodies before their new locale is current, where the lookup finds none
+   *   (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5).
    */
-  registerRobotMelody(robotId: string, melody: MelodyEvent[]): void {
+  registerRobotMelody(robotId: string, melody: MelodyEvent[], given?: Robot): void {
     // Purge any existing entries for this robot before adding new ones so this
     // method is idempotent regardless of call site — prevents duplicate triggers.
     stepRegistry.forEach((entries, step) => {
@@ -1306,7 +1293,7 @@ export const AudioEngine = {
       }
     });
 
-    const robot = findActiveRobot(robotId);
+    const robot = given ?? findActiveRobot(robotId);
     const effectiveMelody = robot?.clickTrackActive
       ? buildClickTrackMelody(robot.octaveRange[0])
       : melody;
@@ -1438,7 +1425,7 @@ export const AudioEngine = {
   /**
    * Audio Load Budget: the robots allowed to sound. Standing-by robots are refused in triggerWithCap (no
    * trigger, no polyphony slot). `null` lifts the restriction; an empty list silences everyone. Copies the
-   * ids, so later mutation of the caller's array changes nothing. Survives killAll() (a power cycle).
+   * ids, so later mutation of the caller's array changes nothing. Survives killAll() (a replaced paused world).
    *
    * A robot the budget released (`setStandingByRobots`) is rebuilt here when it enters the set, and every one of them
    * on `null`, which also stands nobody by; a robot in the set is never standing by, whichever of the two calls came
@@ -1473,7 +1460,8 @@ export const AudioEngine = {
   /**
    * Humanize: how far off the grid, in milliseconds, a note may land (docs/specs/ROBOT_PERFORMANCE.md assumption 9).
    * Clamped to [HUMANIZE_MIN_MS, HUMANIZE_MAX_MS]; NaN reads as 0 (machine-exact). Applies from the next tick.
-   * Survives killAll() (a power cycle): the store is the source of truth and pushes it, like the polyphony cap.
+   * Survives killAll() (a replaced paused world): the store is the source of truth and pushes it, like the polyphony
+   * cap.
    */
   setHumanize(ms: number): void {
     humanizeMs = Number.isNaN(ms) ? HUMANIZE_MIN_MS : Math.min(HUMANIZE_MAX_MS, Math.max(HUMANIZE_MIN_MS, ms));
@@ -1512,21 +1500,32 @@ export const AudioEngine = {
     } catch (err) { devWarn('[AudioEngine] setBPM failed', err); }
   },
 
-  /** Pause transport without resetting position (soft pause). */
+  /**
+   * Power is a pause (docs/specs/OFF_SCREEN.md assumption 2): suspend the AudioContext itself, so the transport, the
+   * BeatClock's 16n tick (and with it the battery lifecycle, the harmony and the swells), every LFO, every sounding
+   * voice and every tail freeze together — and resume() continues them all from where they stopped, mid-note. The
+   * transport is never told anything. A no-op before start(); a rejected suspend (the context already closed) is logged.
+   */
   pause(): void {
+    if (!initialized) return;
     try {
-      const transport = _transport ?? Tone.getTransport();
-      transport.pause();
+      const raw = Tone.getContext().rawContext as unknown as { suspend?: () => Promise<void> } | undefined;
+      void raw?.suspend?.()?.catch((err: unknown) => devWarn('[AudioEngine] pause failed', err));
     } catch (err) {
       devWarn('[AudioEngine] pause failed', err);
     }
   },
 
-  /** Resume transport from current position. */
+  /** The other half of pause(): resume the suspended AudioContext in place. A no-op before start(); a rejected resume
+   *  (a browser's autoplay policy, a context dropped during a long suspend) is logged, in dev builds only (devWarn),
+   *  and nothing falls back: powerController.resume() is unconditional, so the world reads 'running' over a context
+   *  that may still be suspended. Whether a long pause on iOS Safari refuses the resume is unmeasured
+   *  (docs/todo/backlog.md item 42; docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R24). */
   resume(): void {
+    if (!initialized) return;
     try {
-      const transport = _transport ?? Tone.getTransport();
-      transport.start();
+      const raw = Tone.getContext().rawContext as unknown as { resume?: () => Promise<void> } | undefined;
+      void raw?.resume?.()?.catch((err: unknown) => devWarn('[AudioEngine] resume failed', err));
     } catch (err) {
       devWarn('[AudioEngine] resume failed', err);
     }

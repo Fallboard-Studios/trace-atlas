@@ -119,7 +119,7 @@ export function createSwimTimeline(
     duration * 0.7
   );
 
-  setTimeline(`swim-${robot.id}`, tl);
+  setTimeline(`swim-${robot.id}`, tl, 'world');
 
   // Start the timeline (was paused during creation)
   tl.play();

@@ -14,13 +14,19 @@ import {
 } from './seedBaseline';
 import { generateRandomAttenuationStyleName, randomCoordinate } from './seedUtils';
 import { devWarn } from './helpers';
+import { DEFAULT_LOADING, loadingOf } from '../data/bands/loadingIdentity';
+import { ASPECT_FAMILY_IDS, canonicalAspects, type AspectFamilyId, type FamilyPicks } from '../data/bands/aspects';
+import { isThemeId, type ThemeId } from '../data/bands/themes';
 import type { SessionPayload } from '../types/session';
 
 // ========================================
 // CONSTANTS
 // ========================================
 
-/** The world link's params (docs/specs/SHORT_WORLD_LINK.md assumption 1). `theme` is reserved: never written, never read. */
+/** The world link's params (docs/specs/SHORT_WORLD_LINK.md assumption 1; docs/specs/OFF_SCREEN.md assumption 11). `theme`
+ *  carries the loading theme when it is not Classic. Each aspect family has a param of its own name (ASPECT_FAMILY_IDS:
+ *  `melody`, `envelope`, `distance`, `voice`), the set as a comma list in canonical option order, present only when
+ *  non-empty. Neither is ever in the blob. */
 export const WORLD_LINK_PARAMS = {
   seed: 'seed',
   x: 'x',
@@ -104,34 +110,93 @@ export function decodeBlob(raw: string): WorldDiff | null {
 /** A plain, optionally negative integer: the rule the old `?x=` / `?y=` parser used (spec assumption 10). */
 const INTEGER = /^-?\d+$/;
 
-/** One axis, or the random a fresh world would get for that axis alone (spec assumption 6). `-0` reads as 0. */
+/** One axis, or the random a fresh world would get for that axis alone (spec assumption 6). `-0` reads as 0. A
+ *  coordinate must also be a safe integer: a longer digit string reads as absent, like any malformed part, since
+ *  `Number('9'.repeat(400))` is Infinity and makes a NaN day (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R23). Every
+ *  coordinate the app writes is one; Foundry's input rounds to an integer but sets no bound of its own. */
 function readCoordinate(raw: string | null): number {
-  return raw !== null && INTEGER.test(raw) ? Number(raw) + 0 : randomCoordinate();
+  if (raw === null || !INTEGER.test(raw)) return randomCoordinate();
+  const value = Number(raw) + 0;
+  return Number.isSafeInteger(value) ? value : randomCoordinate();
 }
 
 /**
- * The params for a payload: always `seed` (the exact Attenuation Style name), `x` and `y`, and `s` only when the world
- * differs from what its seed regenerates. Reads nothing from the address bar, so no other param (debug, load, theme,
- * session) can ride along (spec assumption 1).
+ * The params that name a world: always `seed` (the exact Attenuation Style name), `x` and `y`; then the loading when it
+ * is not the default - `theme` for a theme other than Classic, a param per family holding its picks as a comma list in
+ * canonical order (OFF_SCREEN.md assumption 11). The one writer of that part of a link: Share's (encodeWorldLinkParams,
+ * which adds the blob) and the address bar's (mirrorWorldToUrl), so one world is one link in both
+ * (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R17). URLSearchParams escapes the list's commas; worldLinkQuery writes them
+ * plain.
+ */
+export function encodeWorldIdentityParams(identity: WorldIdentity): URLSearchParams {
+  const params = new URLSearchParams();
+  params.set(WORLD_LINK_PARAMS.seed, identity.attenuationStyleName);
+  params.set(WORLD_LINK_PARAMS.x, String(identity.coordinates.x));
+  params.set(WORLD_LINK_PARAMS.y, String(identity.coordinates.y));
+  if (identity.theme !== DEFAULT_LOADING.theme) params.set(WORLD_LINK_PARAMS.theme, identity.theme);
+  for (const family of ASPECT_FAMILY_IDS) {
+    const picks = identity.aspects[family];
+    if (picks && picks.length > 0) params.set(family, picks.join(','));
+  }
+  return params;
+}
+
+/**
+ * The params for a payload: its world's (encodeWorldIdentityParams), the loading read leniently from the payload (an
+ * unknown id is the default), then `s` last, only when the world differs from what its seed regenerates. Reads nothing
+ * from the address bar, so no other param (debug, load, session) can ride along (spec assumption 1).
  */
 export function encodeWorldLinkParams(payload: SessionPayload): URLSearchParams {
-  const params = new URLSearchParams();
-  params.set(WORLD_LINK_PARAMS.seed, payload.attenuationStyleName);
-  params.set(WORLD_LINK_PARAMS.x, String(payload.coordinates.x));
-  params.set(WORLD_LINK_PARAMS.y, String(payload.coordinates.y));
+  const loading = loadingOf(payload);
+  const params = encodeWorldIdentityParams({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loading });
+  // The baseline is the payload's own world's: its name, inside its theme's bands (OFF_SCREEN.md assumption 15).
   const diff = diffWorldAgainstSeed(
     payload,
-    generateWorldSeedBaseline(payload.attenuationStyleName)
+    generateWorldSeedBaseline({ attenuationStyleName: payload.attenuationStyleName, ...loading })
   );
   if (Object.keys(diff).length > 0) params.set(WORLD_LINK_PARAMS.blob, encodeBlob(diff));
   return params;
+}
+
+/** A link's params as query text, with the picks' commas written plain, as the spec and the mirror write them: a comma
+ *  is an ordinary sub-delimiter in a query (URLSearchParams escapes it to %2C, which reads back the same). The text both
+ *  Share and the address bar write (review R17). */
+export function worldLinkQuery(params: URLSearchParams): string {
+  return params.toString().replace(/%2C/g, ',');
+}
+
+/** The link's theme: Classic for none, and for an unknown id too, with a dev warning - a link is untrusted (OFF_SCREEN.md
+ *  assumption 11). */
+function readTheme(raw: string | null): ThemeId {
+  if (raw === null) return DEFAULT_LOADING.theme;
+  if (isThemeId(raw)) return raw;
+  devWarn('[worldLink] unknown theme in the link, loading Classic:', raw);
+  return DEFAULT_LOADING.theme;
+}
+
+/** Each family's param as a comma list, sorted into canonical order and deduped (canonicalAspects); an unknown pick is
+ *  dropped with a dev warning; an absent, empty or all-unknown list is no family at all (every robot as theme). */
+function readAspects(params: URLSearchParams): FamilyPicks {
+  const asked: Partial<Record<AspectFamilyId, string[]>> = {};
+  for (const family of ASPECT_FAMILY_IDS) {
+    const raw = params.get(family);
+    if (raw !== null) asked[family] = raw.split(',').filter((part) => part.length > 0);
+  }
+  const aspects = canonicalAspects(asked);
+  for (const family of ASPECT_FAMILY_IDS) {
+    if ((aspects[family]?.length ?? 0) < new Set(asked[family]).size) {
+      devWarn('[worldLink] unknown pick in the link, dropped:', family, params.get(family));
+    }
+  }
+  return aspects;
 }
 
 /**
  * The payload a page's search string describes, or null when it names no world at all (none of seed / x / y / s; spec
  * assumption 6). Otherwise a whole payload: each identity part as given or, when absent or malformed, the random a fresh
  * world gets for that part alone (spec §1.4); the blob's fields over the seed's for everything else, so
- * applySessionPayload never sees a partial lfoBank. `theme` and `session` are never read.
+ * applySessionPayload never sees a partial lfoBank. `theme` and the family params are read leniently (readTheme,
+ * readAspects); `session` is never read; a theme or family param alone names no world.
  */
 export function decodeWorldLink(search: string): SessionPayload | null {
   const params = new URLSearchParams(search);
@@ -153,12 +218,11 @@ export function decodeWorldLink(search: string): SessionPayload | null {
       x: readCoordinate(params.get(WORLD_LINK_PARAMS.x)),
       y: readCoordinate(params.get(WORLD_LINK_PARAMS.y)),
     },
+    // The loading (OFF_SCREEN.md assumption 11): plain params, each read leniently on its own.
+    theme: readTheme(params.get(WORLD_LINK_PARAMS.theme)),
+    aspects: readAspects(params),
   };
   // A blob of the wrong version, or one that will not inflate or parse, is no blob (spec assumption 2).
   const diff = blob === null ? {} : (decodeBlob(blob) ?? {});
-  return fillWorldFromSeed(
-    identity,
-    diff,
-    generateWorldSeedBaseline(identity.attenuationStyleName)
-  );
+  return fillWorldFromSeed(identity, diff, generateWorldSeedBaseline(identity));
 }

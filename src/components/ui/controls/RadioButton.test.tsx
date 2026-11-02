@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 
 // Mocked the same way Button.test.tsx/Toggle.test.tsx mock CabinetBox — keeps
 // this file's assertions about RadioButton's own event-to-prop wiring
@@ -480,5 +480,445 @@ describe('RadioButton — appearance "muted" (docs/tasks/LAYOUT_REWORK.md Task 2
       <RadioButton schema={{ ...schema, options: [schema.options[0], { ...schema.options[1], dividerBefore: true }] }} value="triangle" onChange={() => {}} />,
     );
     expect(container.querySelectorAll('.sc-radio-button__divider')).toHaveLength(1);
+  });
+});
+
+describe('RadioButton — the multiple variant (docs/specs/OFF_SCREEN.md assumption 23, docs/tasks/OFF_SCREEN.md Task 29)', () => {
+  // The off screen's Melody row: a set of picks, each independently on or off. `schema.multiple` makes the
+  // value a string[] and the group a Radix ToggleGroup of type "multiple" — a `group` of `aria-pressed`
+  // buttons, never a radiogroup of radios.
+  const multi: RadioButtonSchema = {
+    id: 'offMelody',
+    type: 'radio',
+    humanLabel: 'Melody',
+    appearance: 'muted',
+    multiple: true,
+    options: [
+      { value: 'theme', humanLabel: 'As theme' },
+      { value: 'hypnotic', humanLabel: 'Hypnotic', dividerBefore: true },
+      { value: 'mechanical', humanLabel: 'Mechanical' },
+      { value: 'wandering', humanLabel: 'Wandering' },
+    ],
+  };
+  const cabinetMulti: RadioButtonSchema = { ...schema, id: 'lfoShapes', multiple: true };
+
+  const pressed = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-pressed');
+
+  it('renders the options as aria-pressed buttons inside a group — no radio, no radiogroup', () => {
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={() => {}} />);
+    expect(screen.getByRole('group', { name: 'Melody' })).toBeTruthy();
+    expect(screen.queryByRole('radiogroup')).toBeNull();
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    expect(pressed('Hypnotic')).toBe('true');
+    expect(pressed('As theme')).toBe('false');
+    expect(pressed('Mechanical')).toBe('false');
+    expect(pressed('Wandering')).toBe('false');
+  });
+
+  it('holds several options on at once, each carrying the selected state the muted fill keys off', () => {
+    const { container } = render(<RadioButton schema={multi} value={['hypnotic', 'wandering']} onChange={() => {}} />);
+    expect(pressed('Hypnotic')).toBe('true');
+    expect(pressed('Wandering')).toBe('true');
+    expect(pressed('As theme')).toBe('false');
+    expect(screen.getByRole('button', { name: 'Hypnotic' }).getAttribute('data-state')).toBe('on');
+    expect(screen.getByRole('button', { name: 'Mechanical' }).getAttribute('data-state')).toBe('off');
+    expect(container.querySelector('.sc-radio-button--muted')).not.toBeNull();
+    expect(container.querySelector('.sc-radio-button--multiple')).not.toBeNull();
+    expect(container.querySelectorAll('.sc-radio-button__item[data-state="on"] .sc-radio-button__flat')).toHaveLength(2);
+    expect(container.querySelectorAll('.sc-radio-button__flat')).toHaveLength(4);
+  });
+
+  it('shows nothing selected for an empty list', () => {
+    render(<RadioButton schema={multi} value={[]} onChange={() => {}} />);
+    for (const name of ['As theme', 'Hypnotic', 'Mechanical', 'Wandering']) {
+      expect(pressed(name)).toBe('false');
+    }
+  });
+
+  it('clicking an unselected option calls onChange with it added to the list', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Wandering' }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(['hypnotic', 'wandering']);
+  });
+
+  it('clicking a selected option calls onChange with it removed — a re-click is a toggle out, not a swallowed deselect', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic', 'wandering']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Hypnotic' }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    expect(onChange).toHaveBeenCalledWith(['wandering']);
+  });
+
+  it('emits the list in schema option order whatever the toggle order, so the same set is always the same list', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['wandering']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'As theme' }));
+    expect(onChange).toHaveBeenCalledWith(['theme', 'wandering']);
+  });
+
+  it('drops a value no option has from the emitted list', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['ghost', 'hypnotic']} onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Mechanical' }));
+    expect(onChange).toHaveBeenCalledWith(['hypnotic', 'mechanical']);
+  });
+
+  it('clearing the last selected option calls onChange([]) and never onDeselect — an empty set is a value here', () => {
+    const onChange = vi.fn();
+    const onDeselect = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={onChange} onDeselect={onDeselect} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Hypnotic' }));
+    expect(onChange).toHaveBeenCalledWith([]);
+    expect(onDeselect).not.toHaveBeenCalled();
+  });
+
+  it('is controlled: the pressed state follows value, not the click', () => {
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={() => {}} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Wandering' }));
+    expect(pressed('Wandering')).toBe('false');
+    expect(pressed('Hypnotic')).toBe('true');
+  });
+
+  it('a disabled multiple group marks every item and calls no onChange', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={multi} value={['hypnotic']} onChange={onChange} disabled />);
+    expect(screen.getByRole('button', { name: 'Wandering' }).getAttribute('data-disabled')).toBe('');
+    fireEvent.click(screen.getByRole('button', { name: 'Wandering' }));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('draws a divider before the option that asks for one, in the multiple variant too', () => {
+    const { container } = render(<RadioButton schema={multi} value={[]} onChange={() => {}} />);
+    const dividers = container.querySelectorAll('.sc-radio-button__divider');
+    expect(dividers).toHaveLength(1);
+    expect(dividers[0].getAttribute('aria-hidden')).toBe('true');
+    expect(dividers[0].nextElementSibling).toBe(screen.getByRole('button', { name: 'Hypnotic' }));
+  });
+
+  it('keeps each option its own size: the muted face still takes the cabinet tier height', () => {
+    const { container } = render(<RadioButton schema={multi} value={['hypnotic']} onChange={() => {}} boxSize={50} />);
+    for (const flat of container.querySelectorAll<HTMLElement>('.sc-radio-button__flat')) {
+      expect(flat.style.getPropertyValue('--cabinet-box-height')).toBe('50px');
+    }
+  });
+
+  describe('cabinet appearance', () => {
+    const boxFor = (name: string) =>
+      screen.getByRole('button', { name }).querySelector('[data-testid="cabinet-box"]');
+
+    it('pops a CabinetBox for every selected option and rests every other at CABINET_REST_POP', () => {
+      render(<RadioButton schema={cabinetMulti} value={['triangle', 'square']} onChange={() => {}} />);
+      expect(screen.getAllByTestId('cabinet-box')).toHaveLength(4);
+      expect(boxFor('TRIANGLE')?.getAttribute('data-popped')).toBe('true');
+      expect(boxFor('SQUARE')?.getAttribute('data-popped')).toBe('true');
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('0.5');
+      expect(boxFor('SAWTOOTH')?.getAttribute('data-popped')).toBe('0.5');
+      expect(screen.getByRole('button', { name: 'TRIANGLE' }).getAttribute('data-state')).toBe('on');
+    });
+
+    it('hover pops an unselected option and rests it again; the selected ones keep their pop throughout', () => {
+      render(<RadioButton schema={cabinetMulti} value={['triangle', 'square']} onChange={() => {}} />);
+      const sawtooth = screen.getByRole('button', { name: 'SAWTOOTH' });
+      fireEvent.mouseEnter(sawtooth);
+      expect(boxFor('SAWTOOTH')?.getAttribute('data-popped')).toBe('true');
+      expect(boxFor('TRIANGLE')?.getAttribute('data-popped')).toBe('true');
+      fireEvent.mouseLeave(sawtooth);
+      expect(boxFor('SAWTOOTH')?.getAttribute('data-popped')).toBe('0.5');
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SQUARE' }));
+      fireEvent.mouseLeave(screen.getByRole('button', { name: 'SQUARE' }));
+      expect(boxFor('SQUARE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('a change of the selected set clears a stale hover, as a single-value change does', () => {
+      const { rerender } = render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} />);
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SINE' }));
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('true');
+      rerender(<RadioButton schema={cabinetMulti} value={['triangle', 'square']} onChange={() => {}} />);
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('0.5');
+      expect(boxFor('SQUARE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('a re-render with a new array of the same values is not a change: a live hover survives it', () => {
+      const { rerender } = render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} />);
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SINE' }));
+      rerender(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} />);
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('never pops beyond CABINET_REST_POP on hover while disabled', () => {
+      render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={() => {}} disabled />);
+      fireEvent.mouseEnter(screen.getByRole('button', { name: 'SINE' }));
+      expect(boxFor('SINE')?.getAttribute('data-popped')).toBe('0.5');
+      expect(boxFor('TRIANGLE')?.getAttribute('data-popped')).toBe('true');
+    });
+
+    it('toggles in and out through the cabinet path too', () => {
+      const onChange = vi.fn();
+      render(<RadioButton schema={cabinetMulti} value={['triangle']} onChange={onChange} />);
+      fireEvent.click(screen.getByRole('button', { name: 'SAWTOOTH' }));
+      expect(onChange).toHaveBeenCalledWith(['triangle', 'sawtooth']);
+      fireEvent.click(screen.getByRole('button', { name: 'TRIANGLE' }));
+      expect(onChange).toHaveBeenLastCalledWith([]);
+    });
+  });
+
+  it('types the two shapes apart: a string[] value needs a string[] onChange', () => {
+    // @ts-expect-error — the multiple variant's onChange receives the whole list, never one value
+    const element = <RadioButton schema={multi} value={['hypnotic']} onChange={(next: string) => void next} />;
+    expect(element).toBeTruthy();
+  });
+
+  it('leaves the single-value control as it was: without multiple the options are radios and value is one string', () => {
+    render(<RadioButton schema={schema} value="sine" onChange={() => {}} />);
+    expect(screen.getAllByRole('radio')).toHaveLength(4);
+    expect(screen.queryAllByRole('button')).toHaveLength(0);
+    expect(screen.getByRole('radio', { name: 'SINE' }).getAttribute('aria-checked')).toBe('true');
+  });
+});
+
+describe('RadioButton — appearance "list" (docs/tasks/OFF_SCREEN_REVISIONS.md Task 3)', () => {
+  // The off screen's Transmission list (Crawford's notes 1 and 2): every option a full-width row — a dot, the face,
+  // an optional meta — and a trailing slot that lets a row carry an action (Roll on Current) beside its radio,
+  // never inside it, since the radio is a button. Muted family: no cabinet, no pop.
+  const list: RadioButtonSchema = {
+    id: 'offTransmission',
+    type: 'radio',
+    humanLabel: 'Transmission',
+    appearance: 'list',
+    options: [
+      { value: 'current', humanLabel: 'q7-sh0al · (3, -41)', loreLabel: 'Current' },
+      { value: 'save:Dusk Run', humanLabel: 'Dusk Run', meta: 'saved 2 days ago' },
+      { value: 'preset:kryndara', humanLabel: 'Kryndara', dividerBefore: true },
+      { value: 'preset:vessport', humanLabel: 'Vessport Null' },
+    ],
+  };
+  // A row with a lore label is named by both, the lore first (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25).
+  const NAMES = ['Current, q7-sh0al · (3, -41)', 'Dusk Run', 'Kryndara', 'Vessport Null'];
+  const radio = (name: string) => screen.getByRole('radio', { name });
+  const rowOf = (el: Element) => el.closest('.sc-radio-button__row');
+  const rollOnCurrent = (value: string) => (value === 'current' ? <button type="button">Roll</button> : null);
+
+  it('marks the group as a list and renders every option as a row holding its one radio item', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    expect(container.querySelector('.sc-radio-button--list')).not.toBeNull();
+    const rows = Array.from(container.querySelectorAll('.sc-radio-button__row'));
+    expect(rows).toHaveLength(4);
+    rows.forEach((row, i) => {
+      const radios = row.querySelectorAll('[role="radio"]');
+      expect(radios).toHaveLength(1);
+      expect(radios[0].getAttribute('aria-label')).toBe(NAMES[i]);
+      expect(radios[0].classList.contains('sc-radio-button__list-item')).toBe(true);
+    });
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25: the eyebrow is part of the row's name, so a screen reader hears which
+  // row is Current; a row with no eyebrow is named by its label alone, and the face still draws the two lines apart.
+  it('names a row with a lore label by both, the lore first, and a row without by its label alone (review R25)', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    const current = screen.getByRole('radio', { name: 'Current, q7-sh0al · (3, -41)' });
+    expect(current.querySelector('.sc-radio-button__lore')?.textContent).toBe('Current');
+    expect(current.querySelector('.sc-radio-button__label')?.textContent).toBe('q7-sh0al · (3, -41)');
+    expect(screen.getByRole('radio', { name: 'Dusk Run' })).toBeTruthy();
+    expect(container.querySelectorAll('[role="radio"][aria-label="q7-sh0al · (3, -41)"]')).toHaveLength(0);
+  });
+
+  it('names options by their label alone in the other appearances, as before (only the list joins the lore)', () => {
+    const cabinet: RadioButtonSchema = { ...list, appearance: undefined };
+    render(<RadioButton schema={cabinet} value="current" onChange={() => {}} />);
+    expect(screen.getByRole('radio', { name: 'q7-sh0al · (3, -41)' })).toBeTruthy();
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8: Radix's roving root takes the focus of a Shift+Tab that leaves any
+  // descendant that is not one of its items and hands it to the selected item, so a slot inside the root made Shift+Tab
+  // loop between it and the selected row. The slot now follows the root, and shares its row's grid line instead.
+  it('renders the trailing node after the radio group\'s root, outside its roving focus, on its row\'s grid line (review R8)', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={rollOnCurrent} />);
+    const root = container.querySelector('.sc-radio-button__root')!;
+    const roll = screen.getByRole('button', { name: 'Roll' });
+    const current = radio(NAMES[0]);
+    const slot = roll.closest('.sc-radio-button__trailing') as HTMLElement;
+    expect(slot).not.toBeNull();
+    expect(current.contains(roll)).toBe(false);
+    expect(root.contains(slot)).toBe(false);
+    expect(root.compareDocumentPosition(slot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(Array.from(rowOf(current)!.children)).toEqual([current]);
+    expect(slot.style.gridRow).not.toBe('');
+    expect(slot.style.gridRow).toBe((rowOf(current) as HTMLElement).style.gridRow);
+  });
+
+  it('gives every row and divider a grid line of its own, and a slot its row\'s line, a divider counting as one (review R8)', () => {
+    const shareOnKryndara = (value: string) => (value === 'preset:kryndara' ? <button type="button">Share</button> : null);
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={shareOnKryndara} />);
+    const line = (el: Element | null) => (el as HTMLElement).style.gridRow;
+    expect(NAMES.map((name) => line(rowOf(radio(name))))).toEqual(['1', '2', '4', '5']);
+    expect(line(container.querySelector('.sc-radio-button__divider'))).toBe('3');
+    expect(line(screen.getByRole('button', { name: 'Share' }).closest('.sc-radio-button__trailing'))).toBe('4');
+    expect(line(container.querySelector('.sc-radio-button__root'))).toBe('1 / span 5');
+  });
+
+  it('keeps the group\'s role and name over its radios, and the arrow keys move between the radios only', async () => {
+    render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={rollOnCurrent} />);
+    const group = screen.getByRole('group', { name: 'Transmission' });
+    expect(within(group).getAllByRole('radio').map((r) => r.getAttribute('aria-label'))).toEqual(NAMES);
+    expect(within(group).queryByRole('button', { name: 'Roll' })).toBeNull();
+    radio(NAMES[0]).focus();
+    fireEvent.keyDown(radio(NAMES[0]), { key: 'ArrowDown' });
+    // Radix moves the roving focus in a timeout, out of the keydown.
+    await waitFor(() => expect(document.activeElement).toBe(radio('Dusk Run')));
+  });
+
+  it('asks the trailing function once per option, with the option value', () => {
+    const trailing = vi.fn(() => null);
+    render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={trailing} />);
+    expect(trailing.mock.calls.map((call: unknown[]) => call[0])).toEqual(list.options.map((o) => o.value));
+  });
+
+  it('a row with no trailing result renders no empty slot (null, undefined, false and an empty string alike)', () => {
+    const results: Record<string, unknown> = { current: null, 'save:Dusk Run': undefined, 'preset:kryndara': false, 'preset:vessport': '' };
+    const { container } = render(
+      <RadioButton schema={list} value="current" onChange={() => {}} trailing={(v) => results[v] as React.ReactNode} />,
+    );
+    expect(container.querySelector('.sc-radio-button__trailing')).toBeNull();
+    const rows = container.querySelectorAll('.sc-radio-button__row');
+    expect(rows).toHaveLength(4);
+    for (const row of rows) expect(row.children).toHaveLength(1);
+  });
+
+  it('only the rows whose trailing result is a node get a slot', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={rollOnCurrent} />);
+    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(1);
+  });
+
+  it('a click on the trailing node runs its own handler and changes no value, on the selected row or another', () => {
+    const onChange = vi.fn();
+    const onRoll = vi.fn();
+    const onOther = vi.fn();
+    const trailing = (value: string) =>
+      value === 'current' ? (
+        <button type="button" onClick={onRoll}>Roll</button>
+      ) : value === 'preset:kryndara' ? (
+        <button type="button" onClick={onOther}>Share</button>
+      ) : null;
+    render(<RadioButton schema={list} value="current" onChange={onChange} trailing={trailing} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Roll' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Share' }));
+    expect(onRoll).toHaveBeenCalledTimes(1);
+    expect(onOther).toHaveBeenCalledTimes(1);
+    expect(onChange).not.toHaveBeenCalled();
+    expect(radio(NAMES[0]).getAttribute('aria-checked')).toBe('true');
+    expect(radio('Kryndara').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('renders an option meta in its row, inside the radio, describing it while the name stays the label', () => {
+    render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    const meta = screen.getByText('saved 2 days ago');
+    const dusk = radio('Dusk Run');
+    expect(meta.classList.contains('sc-radio-button__meta')).toBe(true);
+    expect(dusk.contains(meta)).toBe(true);
+    expect(meta.id).not.toBe('');
+    expect(dusk.getAttribute('aria-describedby')).toBe(meta.id);
+  });
+
+  it('an option without a meta renders no meta element and no description', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    expect(container.querySelectorAll('.sc-radio-button__meta')).toHaveLength(1);
+    expect(radio('Kryndara').getAttribute('aria-describedby')).toBeNull();
+  });
+
+  it('keeps the face: the lore line above the label, as the other appearances draw it', () => {
+    render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    const current = radio(NAMES[0]);
+    expect(current.querySelector('.sc-radio-button__lore')?.textContent).toBe('Current');
+    expect(current.querySelector('.sc-radio-button__label')?.textContent).toBe(list.options[0].humanLabel);
+  });
+
+  it('draws dividerBefore as a decorative rule between two rows', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    const dividers = container.querySelectorAll('.sc-radio-button__divider');
+    expect(dividers).toHaveLength(1);
+    expect(dividers[0].getAttribute('aria-hidden')).toBe('true');
+    expect(dividers[0].previousElementSibling).toBe(rowOf(radio('Dusk Run')));
+    expect(dividers[0].nextElementSibling).toBe(rowOf(radio('Kryndara')));
+  });
+
+  it('the selected row carries data-state on and every other row off; every row has its dot', () => {
+    const { container } = render(<RadioButton schema={list} value="save:Dusk Run" onChange={() => {}} />);
+    expect(rowOf(radio('Dusk Run'))!.getAttribute('data-state')).toBe('on');
+    expect(radio('Dusk Run').getAttribute('data-state')).toBe('on');
+    for (const name of [NAMES[0], 'Kryndara', 'Vessport Null']) expect(rowOf(radio(name))!.getAttribute('data-state')).toBe('off');
+    const dots = container.querySelectorAll('.sc-radio-button__dot');
+    expect(dots).toHaveLength(4);
+    for (const dot of dots) expect(dot.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('renders no CabinetBox and no flat face, and a hover pops nothing', () => {
+    const { container } = render(<RadioButton schema={list} value="current" onChange={() => {}} />);
+    expect(screen.queryAllByTestId('cabinet-box')).toHaveLength(0);
+    expect(container.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
+    expect(container.querySelector('.sc-radio-button__flat')).toBeNull();
+    fireEvent.mouseEnter(radio('Kryndara'));
+    expect(screen.queryAllByTestId('cabinet-box')).toHaveLength(0);
+  });
+
+  it('calls onChange on a row pick and swallows re-clicking the selected row, as the other appearances do', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={list} value="current" onChange={onChange} />);
+    fireEvent.click(radio('Kryndara'));
+    expect(onChange).toHaveBeenCalledWith('preset:kryndara');
+    onChange.mockClear();
+    fireEvent.click(radio(NAMES[0]));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it('a selection change re-renders every row with the same parts, so the list never reflows', () => {
+    const partsOf = (name: string) =>
+      Array.from(rowOf(radio(name))!.querySelectorAll('*')).map((el) => el.className);
+    const { rerender } = render(<RadioButton schema={list} value="current" onChange={() => {}} trailing={rollOnCurrent} />);
+    const before = NAMES.map(partsOf);
+    rerender(<RadioButton schema={list} value="preset:kryndara" onChange={() => {}} trailing={rollOnCurrent} />);
+    expect(NAMES.map(partsOf)).toEqual(before);
+  });
+
+  it('a disabled list calls no onChange and marks every radio disabled', () => {
+    const onChange = vi.fn();
+    render(<RadioButton schema={list} value="current" onChange={onChange} disabled />);
+    fireEvent.click(radio('Kryndara'));
+    expect(onChange).not.toHaveBeenCalled();
+    for (const name of NAMES) expect(radio(name).getAttribute('data-disabled')).toBe('');
+  });
+
+  it('works for the multiple variant too: pressed buttons in rows, the set in option order', () => {
+    const onChange = vi.fn();
+    const multiList: RadioButtonSchema = { ...list, id: 'offListMulti', multiple: true };
+    const { container } = render(
+      <RadioButton schema={multiList} value={['preset:vessport', 'current']} onChange={onChange} trailing={rollOnCurrent} />,
+    );
+    expect(screen.queryAllByRole('radio')).toHaveLength(0);
+    const pressed = (name: string) => screen.getByRole('button', { name }).getAttribute('aria-pressed');
+    expect(pressed(NAMES[0])).toBe('true');
+    expect(pressed('Vessport Null')).toBe('true');
+    expect(pressed('Kryndara')).toBe('false');
+    expect(container.querySelectorAll('.sc-radio-button__row[data-state="on"]')).toHaveLength(2);
+    expect(screen.getByRole('button', { name: NAMES[0] }).contains(screen.getByRole('button', { name: 'Roll' }))).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: 'Kryndara' }));
+    expect(onChange).toHaveBeenCalledWith(['current', 'preset:kryndara', 'preset:vessport']);
+  });
+
+  it('leaves cabinet and muted as they were: no rows, no trailing slot, no meta, whatever is passed', () => {
+    const withMeta = (appearance: 'cabinet' | 'muted'): RadioButtonSchema => ({ ...list, appearance });
+    for (const appearance of ['cabinet', 'muted'] as const) {
+      const { container, unmount } = render(
+        <RadioButton schema={withMeta(appearance)} value="current" onChange={() => {}} trailing={rollOnCurrent} />,
+      );
+      expect(container.querySelector('.sc-radio-button__row')).toBeNull();
+      expect(container.querySelector('.sc-radio-button__trailing')).toBeNull();
+      expect(container.querySelector('.sc-radio-button__meta')).toBeNull();
+      expect(container.querySelector('.sc-radio-button__dot')).toBeNull();
+      expect(screen.queryByRole('button', { name: 'Roll' })).toBeNull();
+      expect(container.querySelector('.sc-radio-button--list')).toBeNull();
+      unmount();
+    }
   });
 });

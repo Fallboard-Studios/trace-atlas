@@ -16,7 +16,6 @@ import { render, fireEvent } from '@testing-library/react';
 vi.mock('@/systems/powerController', () => ({
   powerController: {
     start: vi.fn(),
-    shutdown: vi.fn().mockResolvedValue(undefined),
     powerOnSequence: vi.fn().mockResolvedValue(undefined),
   },
 }));

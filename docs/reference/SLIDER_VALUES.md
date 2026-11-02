@@ -4,7 +4,7 @@ Every slider-controlled attribute in the Global Audio Rig view (`AudioRigDrawer.
 Robot Detail view (`RobotScreen.tsx` — `AudioSettingSection`, `PingControlsDrawer`,
 `PingContourDrawer`, `SignatureArrayDrawer`). Sources: `src/data/audioRigConfig.ts`,
 `src/data/robotOptionsConfig.ts`, `src/components/ui/controls/LfoLink.tsx` for the schema/UI
-columns; `src/data/globalAudioSeedRanges.ts`, `src/data/globalAudioLoadingRanges.ts`,
+columns; `src/data/globalAudioSeedRanges.ts`, `src/data/bands/classic.ts` (the Classic bands),
 `src/utils/globalAudioSeed.ts`, `src/systems/spawnSystem.ts`, `src/utils/bpmSeed.ts` for the
 Load Min/Max columns (what a fresh seed/spawn can actually generate the attribute at, distinct
 from the Min/Max the slider itself lets you drag to).
@@ -139,7 +139,7 @@ seeded load value is a whole dB now.
 (`getUniformSeededVal`) quantised to 1 ms, so it is step-aligned, then carried forward across Attenuation Style switches like
 the swell fields. `setHumanize` truncates to whole ms and pushes `AudioEngine.setHumanize`.
 
-³ Sourced from the *Attenuation Style's* own seed (`BPM_SEED_RANGE`, `generateAttenuationStyleBpm`,
+³ Sourced from the *Attenuation Style's* own seed (Classic's `bpm` band, `generateAttenuationStyleBpm`,
 `bpmSeed.ts`), not the locale — it moved off the locale with the Free | Sync toggle
 (`docs/specs/FREE_SYNC_TOGGLE.md` §1.7), so it reseeds on an Attenuation Style change and a
 coordinates-only move leaves it alone. Explicitly `Math.round()`-ed before storage, so this one is
@@ -152,6 +152,11 @@ slider's own `step: 1`.
 ---
 
 ## Robot Detail View
+
+Where a robot's Load Min / Load Max come from a band, they are Classic's, `src/data/bands/classic.ts`, which
+`spawnSystem.ts` reads through `getBand(key)` at the draw. A theme or aspect may move a band (`ROBOT_DATA_GRID.md`,
+"Loading ranges by theme and aspect"). The layer detune and phase draws and the octave registers are fixed in
+`spawnSystem.ts`, not bands.
 
 ### Audio Setting
 
@@ -168,14 +173,14 @@ slider's own `step: 1`.
 
 ²⁵ Robot Performance (roadmap 50.5): Dynamics, Rests and Accents are stored as the integer the slider shows
 (`Robot.dynamics` / `rests` / `accents`, `PERFORMANCE_MIN`–`PERFORMANCE_MAX`, no conversion), seeded at spawn by plain draws
-over `DYNAMICS_SEED_RANGE` (25–75), `RESTS_SEED_RANGE` (10–60) and `ACCENTS_SEED_RANGE` (20–80) and `Math.round`-ed, so all
+over the `robot.dynamics` (25–75), `robot.rests` (10–60) and `robot.accents` (20–80) bands and `Math.round`-ed, so all
 three are step-aligned. `DEFAULT_DYNAMICS` is 50 (the pre-50.5 sound), `DEFAULT_RESTS` / `DEFAULT_ACCENTS` are 0; the seeds
 never land on the defaults, so every fresh robot has some of each. None is a swell attribute.
 
 ²³ Reverb, Delay, Grit, Shimmer and Double are the robot's five **sends** into the shared rooms (Robot Sends, roadmap
 50.2; Robot Effect Sends, roadmap 50.7), stored as `0..1` fractions (`Robot.reverbSend` / `delaySend` / `gritSend` /
 `shimmerSend` / `doubleSend`) and displayed ×`SEND_DISPLAY_SCALE`. Seeded by `generateRobotSends` (`spawnSystem.ts`)
-from one table, `ROBOT_SEND_LOADING_RANGES` (`src/data/robotSendLoadingRanges.ts`): a band and a `lit` share per send,
+from the band table's send rows (`reverbSend` to `doubleSend`, `src/data/bands/classic.ts`): a band and a `lit` share per send,
 quantized in percent-space like Volume. Reverb is `0.1`–`0.6` on every robot (widened from `0.1`–`0.4` by the Classic
 Band Retune, 2026-10-21). Delay is `0`–`0.3` and rolls under 1 − its `lit` share (`0.25`), landing exactly `0`, a robot
 with no repeats at all, for about 17–18 % of robots, not a quarter, because the roll's noise sample is bell-curved.
@@ -188,8 +193,8 @@ Pan has no seed range, so no load range: a spawned robot is Auto at `0`. It is s
 own `1`. While Auto is on the slider is a read-only readout of the engine's position-follow pan (`-0.5..0.5`,
 so `-50..50` on screen); only with Auto off does it take the full `-100..100`.
 
-⁵ Stored as a `0..1` fraction (`Robot.masterVolume`), seeded from `MASTER_VOLUME_MIN`/`MAX`
-(`0.65`–`0.85`, `spawnSystem.ts`), then quantized in percent-space
+⁵ Stored as a `0..1` fraction (`Robot.masterVolume`), seeded from the `robot.masterVolume` band
+(`0.65`–`0.85`), then quantized in percent-space
 (`quantizeToStep(raw * 100, 0, VOLUME_STEP_PERCENT) / 100`) before being converted back to a
 fraction — same fix as Automatic Effects above, always lands on a whole percent now.
 
@@ -205,7 +210,7 @@ fraction — same fix as Automatic Effects above, always lands on a whole percen
 
 ⁶ No `step` in the schema — defaults to `1`; both Density and Pitch Repeat seed a continuous float
 across their full displayed range with no rounding.
-⁷ Integer-valued by construction (`seedToggleValue`, `spawnSystem.ts`: `0` for "off," otherwise an
+⁷ Integer-valued by construction (`seedToggleValue`, `robotFieldDerivation.ts`: `0` for "off," otherwise an
 integer `1`–`8`) — correctly step-aligned, unlike Density/Pitch Repeat above.
 
 ### Melody — Frequency
@@ -234,10 +239,10 @@ a continuous draw — correctly step-aligned.
 displayed ×100 with no rounding, same class as Density/Pitch Repeat/Volume above.
 ¹⁸ All three times share `ENVELOPE_TIME_MAX_SECONDS` (2 s) as the slider max and the top of the seed range, so a
 seeded value is always one the slider can show. A stage with a non-linear shape (Attack Shape / Release Shape, below the
-sliders) is seeded short from the same noise sample: `SHAPED_ATTACK_RANGE` 0.03–0.25 s and `SHAPED_RELEASE_RANGE`
-0.15–0.8 s, so the shape finishes inside a 0.15 s note and can be heard. Decay has no shape.
-¹⁹ Most robots load at exactly `0` (no glide). About 1.5 in 12 are gliders (`GLIDER_THRESHOLD`), seeded in
-`PORTAMENTO_SEED_RANGE` 0.05–0.20 s and quantized to `0.01` (`PORTAMENTO_STEP`). The ceiling is 0.2 s because a longer
+sliders) is seeded short from the same noise sample: the `robot.shapedAttack` band, 0.03–0.25 s, and
+`robot.shapedRelease`, 0.15–0.8 s, so the shape finishes inside a 0.15 s note and can be heard. Decay has no shape.
+¹⁹ Most robots load at exactly `0` (no glide). About 1.5 in 12 are gliders (the `robot.portamento` band's `lit`, 0.23),
+seeded in its 0.05–0.20 s and quantized to `0.01` (`PORTAMENTO_STEP`). The ceiling is 0.2 s because a longer
 glide never lands on 16th notes; the slider still goes to 2 s, where it is a smear.
 
 ### Source — Filter (the robot bus filter)
@@ -247,10 +252,10 @@ glide never lands on 16th notes; the slider still goes to 2 s, where it is a sme
 | Cutoff | Log | Hz | 20 | 20000 | — | 400²⁰ | 8000²⁰ |
 | Resonance | Log | Q | 0.1 | 20 | — | 1²¹ | 8²¹ |
 
-²⁰ Seeded in two tiers (`generateAudioAttributes`): a common robot draws `OPEN_FILTER_FREQ_RANGE` 2000–8000 Hz, an
-accent robot (`FILTER_ACCENT_THRESHOLD`, about 2.4 in 12) draws `ACCENT_FILTER_FREQ_RANGE` 400–2500 Hz, so the seeded
+²⁰ Seeded in two tiers (`generateAudioAttributes`): a common robot draws the `robot.filterFreq` band, 2000–8000 Hz, an
+accent robot (the `robot.accentFilterFreq` band's `lit`, 0.27, about 2.4 in 12) draws its 400–2500 Hz, so the seeded
 span is 400–8000 Hz. Not quantized: the slider has no step.
-²¹ A common robot loads at `ROBOT_BUS_FILTER_Q` (1); an accent robot draws `ACCENT_FILTER_Q_RANGE` 3–8 quantized to
+²¹ A common robot loads at `ROBOT_BUS_FILTER_Q` (1); an accent robot draws the `robot.accentFilterQ` band, 3–8, quantized to
 `0.1` (`FILTER_Q_STEP`). The Type radio has no range: lowpass for a common robot, bandpass for 40 % of accent robots
 (`ACCENT_BANDPASS_SHARE`), never highpass.
 
@@ -293,7 +298,7 @@ seeded.
 ¹⁵ No numeric `step` in `SliderCenteredZero`'s *schema*, same as every other Centered Zero field —
 but the *generation* side now rounds anyway: `spawnSystem.ts`'s per-layer `detune` draw is
 quantized to a whole cent (`DETUNE_STEP = 1`), for all 3 layers (Baseline/Coaxial/Harmonic) alike.
-¹¹ Coaxial/Harmonic each have a real ~50% chance (`LAYER_QUIET_THRESHOLD`) of loading at exactly
+¹¹ Coaxial/Harmonic each have a real ~50% chance (a draw under 1 − the `robot.layerGain` band's `lit`, 0.5) of loading at exactly
 `0` (muted) instead of a sampled value in `[0.2, 1.2]` — Baseline (Layer 1) never mutes and always
 samples the full `[0.2, 1.2]` range.
 ¹³ Quantized onto a `0.01` grid at generation time (`LAYER_GAIN_STEP`, `spawnSystem.ts`) — a muted
@@ -326,9 +331,8 @@ the *generation* side now declares its own step independently of the UI schema: 
 `LFO_DEPTH_STEP = 1` local to each of `globalAudioSeed.ts` and `spawnSystem.ts`, quantized against
 `LFO_DEPTH_MIN` — Depth is a whole percent in both the global-chain and robot-level cases.
 ¹² **Robot-link Depth splits by field** — `spawnSystem.ts`'s `generateRobotLfoLinks` draws Gain
-from `ROBOT_LFO_GAIN_DEPTH_SEED_RANGE` (`1`–`60`) and Detune from
-`ROBOT_LFO_DETUNE_DEPTH_SEED_RANGE` (`1`–`10`) and the bus cutoff from `ROBOT_LFO_BUS_DEPTH_SEED_RANGE` (`1`–`40`),
-all sharing the same `ROBOT_LFO_DEPTH_SEED_MIN` floor of `1`. The floor of `1`, not `0`, is deliberate on every field (robot and global alike): a
+from the `robot.lfoGainDepth` band (`1`–`60`), Detune from `robot.lfoDetuneDepth` (`1`–`10`) and the bus cutoff
+from `robot.lfoBusDepth` (`1`–`40`), all in `src/data/bands/classic.ts`, each with the same floor of `1`. The floor of `1`, not `0`, is deliberate on every field (robot and global alike): a
 lit target (one that didn't roll quiet) is never seeded silently inaudible — a user may still drag
 Depth to `0` by hand.
 ¹³ **Global-link Depth splits by group**, not one flat window — `globalAudioSeed.ts`'s

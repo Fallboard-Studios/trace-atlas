@@ -97,6 +97,10 @@ export const probe = {
   'probe.followMarker': { human: 'Followed probe', template: '{name} | {job}' },
   'probe.job.unassigned': { human: 'Unassigned', lore: 'NO PROTOCOL ASSIGNED' },
   'probe.battery': { human: 'Battery Data', lore: 'POWER CELL STATUS', unit: '%' },
+  // The "loaded under" readout (docs/specs/OFF_SCREEN.md assumption 24; docs/tasks/OFF_SCREEN.md Task 32): the aspect the
+  // deal seated this robot under - its company's for a member, its own for a freelancer; nothing for a robot loaded as
+  // the theme. Stand-in copy until Crawford's pass.
+  'probe.loadedUnder': { human: 'Loaded Under', lore: 'LOADING PROFILE' },
   'probe.status.docking': {
     human: 'Docked Status',
     lore: 'DOCKING STATE',

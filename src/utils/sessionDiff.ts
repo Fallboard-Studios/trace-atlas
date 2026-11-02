@@ -3,7 +3,8 @@
 // ========================================
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES, type Robot, type ADSREnvelope, type RobotFilterType } from '../types/Robot';
 import type { Company } from '../types/Company';
-import { generateRobotRosterBaseline, generateCompanyRosterBaseline, type RobotAudioBaseline } from '../systems/spawnSystem';
+import type { RobotAudioBaseline } from '../systems/spawnSystem';
+import { generateDealtRosterBaseline } from '../systems/aspectDeal';
 import type { RobotAudioOverrideDiff, CompanyDiff, SessionPayload } from '../types/session';
 import type { SwellRobotAttributeId } from '../types/audioSwell';
 import {
@@ -29,6 +30,8 @@ import { ROBOT_SEND_FIELDS, engineKeyOf } from '../data/robotSends';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '../stores/attenuationStyleStore';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAudioStore, applyGlobalAudioToEngine } from '../stores/audioStore';
+import { useLoadingStore } from '../stores/loadingStore';
+import { loadingOf } from '../data/bands/loadingIdentity';
 import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { deepEqual, roundToDecimals } from './math';
@@ -39,7 +42,7 @@ import { regenerateMelody } from '../engine/regenerateMelody';
 import { AudioEngine } from '../engine/AudioEngine';
 import { getActiveSwellSnapshot } from '../systems/audioSwells';
 import { primeRobotLinks } from '../systems/robotLfoLinks';
-import { isAudioContextRunning } from '../engine/lfoShared';
+import { lfoEngine } from '../engine/lfoEngine';
 
 // ========================================
 // FUNCTIONS
@@ -314,17 +317,20 @@ export function buildSessionPayload(): SessionPayload {
 
   const noiseMap = getLocaleNoiseMap(locale.id, locale.coordinates.x, locale.coordinates.y);
 
-  const robotBaselines = generateRobotRosterBaseline(noiseMap, locale.robots.length);
+  // The loading identity (docs/specs/OFF_SCREEN.md assumption 10): always written, Classic and {} included, so two
+  // payloads of one world compare equal (Keep's dirty check) and an absent field means an older payload. Read first:
+  // the roster baseline below is dealt under it (assumption 22), so an untweaked dealt world diffs to nothing.
+  const { theme, aspects } = useLoadingStore.getState();
+
+  const robotIdsInSpawnOrder = locale.robots.map((r) => r.id);
+  const { robots: robotBaselines, companies: companyBaselines } = generateDealtRosterBaseline(noiseMap, robotIdsInSpawnOrder, { theme, aspects });
   const robotOverrides: Record<string, RobotAudioOverrideDiff> = {};
   locale.robots.forEach((robot, i) => {
     const diff = computeRobotAudioOverrideDiff(robot, robotBaselines[i]);
     if (Object.keys(diff).length > 0) robotOverrides[robot.id] = diff;
   });
 
-  const robotIdsInSpawnOrder = locale.robots.map((r) => r.id);
-  const companyBaselineById = new Map(
-    generateCompanyRosterBaseline(noiseMap, robotIdsInSpawnOrder).map((c) => [c.id, c]),
-  );
+  const companyBaselineById = new Map(companyBaselines.map((c) => [c.id, c]));
 
   const companyDiffs: Record<string, CompanyDiff> = {};
   const userCreatedCompanies: Company[] = [];
@@ -349,9 +355,11 @@ export function buildSessionPayload(): SessionPayload {
   const globalLfoLinks = { ...audioState.globalLfoLinks };
 
   return {
-    version: 2,
+    version: 3,
     attenuationStyleName: attenuationStyle.name,
     coordinates: locale.coordinates,
+    theme,
+    aspects,
     globalAudio: applyGlobalSwellBasesToAudio(audioState.globalAudio),
     bpm: audioState.bpm,
     swellFrequency: audioState.swellFrequency,
@@ -467,6 +475,11 @@ function stripLegacyV1LfoFields(payload: SessionPayload): SessionPayload {
  */
 export function applySessionPayload(payload: SessionPayload, options?: { skipLocaleRebuild?: boolean }): void {
   payload = stripLegacyV1LfoFields(payload);
+  // The loading identity (docs/specs/OFF_SCREEN.md assumption 10): absent (a version 1 or 2 payload) or unknown reads
+  // as Classic with no aspects (loadingOf). It rides in retransmitWorld's input below, which sets the store - and
+  // through it the loading context - before anything regenerates (band-table T25), so the rebuilt robots and a
+  // reseeded global half draw under its bands; on the boot path the store is set here instead.
+  const loading = loadingOf(payload);
   // worldTransition.ts's createNewAttenuationStyle always tries to CREATE a new Attenuation
   // Style for a given name (never "reuse the existing one with this name") and doesn't check
   // whether that creation actually succeeded — attenuationStyleStore.addAttenuationStyle silently
@@ -494,9 +507,14 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
     const attenuationStyleUnchanged = currentAttenuationStyle?.name === payload.attenuationStyleName;
     retransmitWorld(
       attenuationStyleUnchanged
-        ? { coordinates: payload.coordinates }
-        : { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates },
+        ? { coordinates: payload.coordinates, ...loading }
+        : { attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loading },
     );
+  } else {
+    // The boot path (worldBoot.ts): the locale is already the link's, built under the loading the store read from the
+    // link at module load (loadingStore.ts); name it in the store all the same, so a payload applied this way is the
+    // world the store describes.
+    useLoadingStore.getState().setLoading(loading);
   }
 
   // A payload saved before a block existed (the colour blocks, docs/specs/GLOBAL_COLOUR.md assumption 11)
@@ -522,18 +540,19 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
 
   // LFO Bank (docs/tasks/LFO_BANK.md Task 18): independently optional, same convention as the
   // pacing fields above -- absent (a pre-this-change payload) leaves retransmitWorld's own fresh
-  // reseed untouched. When the audio context is already running (loading a session mid-session,
-  // not at boot), pushed through setLfoBank/setGlobalLfoLink too, so the change is audible without
-  // a power cycle; otherwise a plain data-only write -- AudioEngine.start() primes the bank from
-  // this same store state once the context actually starts. The running branch REPLACES each lane
-  // rather than merging it: a setLfoBank merge cannot delete a key, so a Free lane in the payload
-  // would keep the live lane's stale `sync` (docs/specs/FREE_SYNC_TOGGLE.md assumption 6).
+  // reseed untouched. Once the LFO bank is primed (any load after the first power-on, the context
+  // running or suspended by a pause: docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2), pushed through
+  // replaceLfoBankLane/setGlobalLfoLink too, so the change reaches the engine without a power cycle;
+  // before that a plain data-only write -- AudioEngine.start() primes the bank from this same store
+  // state. The pushing branch REPLACES each lane rather than merging it: a setLfoBank merge cannot
+  // delete a key, so a Free lane in the payload would keep the live lane's stale `sync`
+  // (docs/specs/FREE_SYNC_TOGGLE.md assumption 6).
   const backfilledBank = backfillLfoBank(payload.lfoBank);
   const lfoBank =
     backfilledBank &&
     (Object.fromEntries(LFO_LANE_IDS.map((lane) => [lane, sanitizeLaneSync(backfilledBank[lane])])) as Record<LfoLaneId, BankLfoSettings>);
   if (lfoBank) {
-    if (isAudioContextRunning()) {
+    if (lfoEngine.isBankPrimed()) {
       for (const lane of LFO_LANE_IDS) useAudioStore.getState().replaceLfoBankLane(lane, lfoBank[lane]);
     } else {
       useAudioStore.setState({ lfoBank });
@@ -541,7 +560,7 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   }
   const globalLfoLinks = backfillGlobalLfoLinks(payload.globalLfoLinks);
   if (globalLfoLinks) {
-    if (isAudioContextRunning()) {
+    if (lfoEngine.isBankPrimed()) {
       for (const target of GLOBAL_LFO_TARGET_IDS) useAudioStore.getState().setGlobalLfoLink(target, globalLfoLinks[target]);
     } else {
       useAudioStore.setState({ globalLfoLinks });
