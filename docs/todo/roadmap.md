@@ -1,6 +1,6 @@
 # Roadmap
 
-Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.md](archive/roadmap-archive.md) to keep this file focused on what's still open. Phase numbers are never reused or renumbered when a phase moves — every cross-reference from specs/tasks/intent docs and from this file's own internal links stays valid whichever file a phase currently lives in.
+Completed and cut phases have been moved to [docs/todo/archive/roadmap-archive.md](archive/roadmap-archive.md) to keep this file focused on what's still open. Phase numbers are never reused or renumbered when a phase moves — every cross-reference from specs/tasks/intent docs and from this file's own internal links stays valid whichever file a phase currently lives in. **Since 2026-11-02 the roadmap and [backlog.md](backlog.md) share one counter** (Crawford): a new phase or item takes the next number after the highest in either file, so a number names one item across the three todo files; the earlier overlap below 58 stays as it is. The next free number is recorded in the backlog's header.
 
 The order the open phases and backlog items get done in is [plan.md](plan.md); this file is the record, that one is the sequence.
 
@@ -627,17 +627,101 @@ commit per task, RED first; the spec's amended paragraphs say so where they stan
 - **No manual on the off screen** (roadmap 51's rule stands); the description lines are the Guide's only part here.
 - **No curated preset content yet**: the three presets are bare triples until Crawford pastes his links.
 
+**Merged via PR #595 (`feature/off-screen`), 2026-11-01.** The phase stays live until the Open list below clears, then
+moves to the archive; the refinement of the themes and aspects it shipped as placeholders is roadmap
+[58](#58-themes-and-aspects-refinement).
+
 ### Open
 
-- The PR (Crawford's).
-- Copy, all stand-ins marked in `src/content/`: the five theme sentences, the Melody label and four Melody sentences,
+- **Checkpoint 5's Look** in [OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md) (a pick waiting under the
+  wash, then a theme click, then Current; tweaks surviving a theme and an aspect change) is unticked in the plan, and the
+  branch merged on 2026-11-01. If Crawford did it before merging, tick it; if not, it is a two-minute check on `main`.
+- **F21's question**, left in the same plan: a theme's new tempo snaps every Sync pick it no longer allows to the
+  nearest allowed note. Should the Tempo slider snap too? It still only clamps. Crawford's call.
+- **Copy**, all stand-ins marked in `src/content/`: the five theme sentences, the Melody label and four Melody sentences,
   the Envelope, Distance and Voice labels, names and sentences, Roll and a save row's "saved …" (`home.ts`), `Loaded
   Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). The as-theme label went
-  with the pick.
-- From the revisions: Task 11's listen for the nine new columns, the Looks and reviews at its Checkpoints A–D, and
-  Checkpoint C's Pixel `perf:audio` A/B on the densest, wettest world.
-- The three preset links (`src/data/transmissionPresets.ts`), one-line edits.
-- Checkpoint A's and D's Pixel `perf:audio` A/B counts were not handed over; the boxes are ticked on Crawford's word.
+  with the pick. Roadmap 58's copy step takes the theme and aspect sentences; the rest is backlog
+  [62](backlog.md#62-misc-review-items-a-bucket)'s first entry.
+- **The three preset links** (`src/data/transmissionPresets.ts`) are backlog
+  [45](backlog.md#45-off-screen-crawfords-three-preset-links), sequenced first in plan.md's Launch stage so that no later
+  generation change moves the worlds they show.
 - Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or Roll) — a
-  warning, not an error; a backlog line if it is to be silenced.
+  warning, not an error — is backlog 62's second entry.
+
+Closed by the merge or since: the PR; Task 11's listen (Crawford, 2026-11-01, "sounds good", the placeholder columns
+kept as the starting point roadmap 58 refines); Checkpoint C's Pixel `perf:audio` A/B (4 underruns against `main`'s 9);
+Checkpoint A's and D's Pixel counts were never handed over and those boxes stand on Crawford's word.
+
+## 58. Themes and Aspects Refinement
+
+Raised by Crawford on 2026-11-01, the day the off screen merged (PR #595): refine the five themes and the four aspect
+families roadmap [57](#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table) shipped as
+placeholders, and propose additional options on each axis for him to choose from. Not yet interviewed or specced — run
+`/interview-me` → spec → plan before building. Backlog
+[47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) was its step zero
+(merged 2026-11-02, PR #596): every audio draw is even, so a band is heard as written before anything is tuned. Plan.md
+Stage 1.
+
+### About
+
+**What is there.** Five themes over the v1 key list (tempo, Density, Rests, the envelope times and shaped stages, the
+Reverb and Delay sends, the Low-Pass cutoff) and four families of three aspects (Melody, Envelope, Distance, Voice),
+every number a placeholder from roadmap 57's plan (Task 34; the revisions' Tasks 7 and 10), kept by Crawford's listens
+of 2026-10-31 and 2026-11-01 as a starting point, not a finish. The grids hold them:
+[GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md) and [ROBOT_DATA_GRID.md](../reference/ROBOT_DATA_GRID.md),
+"Loading ranges by theme and aspect". Classic was re-heard on even draws on 2026-11-02 and passed ("i love it").
+
+**Method (agreed 2026-11-01):**
+
+1. Interview to a **character sheet** per theme and per aspect: what each is for and what a listener should notice,
+   with no numbers.
+2. A **measured sketch** in `docs/sketches/`: the spread each band realises (the live-harness recipe in
+   [docs/tasks/EVEN_SEEDED_DRAWS.md](../tasks/EVEN_SEEDED_DRAWS.md), T18) against the written bands, and the theme ×
+   aspect override grid, so every overlap is seen before it is heard.
+3. **Listens one axis at a time** from a fixed sheet: three worlds × five themes; then each family against none; then
+   the risky pairs.
+4. **Copy last**: the theme and aspect sentences, labels and names, replacing the stand-ins in `src/content/copy/home.ts`.
+
+**Decisions carried in:**
+
+- **Overlap rule: aspect wins.** `resolveBands` replaces whole bands, the aspect last, and that stays. Theme copy must
+  not promise what an aspect can override (Calm + Near loses Calm's reverb; Perilous + Wandering loses its density).
+- **Mood is backlog [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s**: only the
+  harmony note options, post-launch. Whether a theme limits the moods is undecided and likely later.
+- **The world and visual draws are not this phase**: backlog
+  [46](backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement) goes even on
+  its own branch, in plan.md's Stage 4.
+
+### Not Doing (and why)
+
+- **No new band kind, no key outside the v1 list, no fifth family without asking** — each is ask-first, roadmap 57's
+  rule.
+- **No tuning before the character sheets.** Numbers with no sentence to check them against are how the placeholders
+  happened.
+
+### Open
+
+- Which additional themes and aspects to propose, and how many per axis the off screen's rows can hold (the desk column
+  already scrolls at four family rows).
+- Whether a theme should preset a Mood once backlog 7 lands.
+
+## 59. Launch
+
+Raised by Crawford at the 2026-11-02 plan review as plan.md's last stage. Not yet interviewed; the checklist is drafted
+when the stage opens (the shipping-and-launch workflow skill), so the About below is the order he gave, not a spec.
+
+### About
+
+1. Paste the three preset links (backlog [45](backlog.md#45-off-screen-crawfords-three-preset-links)) first: the last
+   change that touches generation, so nothing after it moves the worlds the presets show (roadmap 56 accepted that a
+   generator change silently changes what a link plays).
+2. Buy the URL.
+3. Decide hosting; Crawford wants to consider hosting elsewhere.
+4. Launch.
+
+### Open
+
+- The domain name and the host.
+- What "launched" means for a tablet with no accounts and no server: the URL serves `main` and the three presets play.
 

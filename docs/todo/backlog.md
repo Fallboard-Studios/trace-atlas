@@ -26,6 +26,11 @@ Going forward, a fully-closed item moves to [docs/todo/archive/backlog-archive.m
 instead of being pruned outright, keeping the closure's own detail around. Item numbers are
 never reused or renumbered when an item moves.
 
+**Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
+backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
+written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
+into the 50s) stays as it is: nothing is renumbered. The next free number is 64.
+
 ## Open items
 
 ### 1. Onload: Better Power-Off Background
@@ -75,6 +80,13 @@ powered-down state rather than in the Audio Rig's Pacing section as the "UI home
 progression engine, the catalogue and the seeded chain stay this item and are a large build in their own
 right. Item 5 closed 2026-10-31 as the off screen (roadmap 57), which settled the surface: the Mood row has
 its slot in the off screen's Loading axis. This item's interview decides the music.
+
+**Note 2026-11-02 (Crawford's decisions of 2026-11-01, at the start of the themes-and-aspects refinement, roadmap
+[58](roadmap.md#58-themes-and-aspects-refinement)):** Mood, the row the off screen's Loading axis holds for this item,
+means only the note options: which `HARMONY_PALETTES` entries (or, once this item ships, which progressions and tags) a
+world may draw from. Whether a theme limits the moods is undecided and likely later. The overlap rule between a theme
+and an aspect is aspect-wins (`resolveBands` replaces whole bands, the aspect last), so theme copy must not promise what
+an aspect can override. Sequenced post-launch in plan.md.
 
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
@@ -644,3 +656,49 @@ docked batteries (`lifecycleSim.ts`, `spawnSystem.ts`), factory placement (`fact
 **To work out:** which of those are picks (they should go even, like 47) and which are smooth walks on purpose (the
 terrain profile and the temperature steps probably are). Then measure, switch the picks, and look: every world's
 names, colours, gems and layout move. Done when no pick is welded to another and each fills its range.
+
+### 60. Audio: Cover the Silence When Every Active Robot Is Charging
+
+Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
+the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
+[7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (chord progressions) post-launch. The shape he has
+in mind: always keep at least one robot sounding, perhaps "min 1 stays, max 3" by audio quality tier.
+
+**Where it lands.** The docking lifecycle (`src/systems/robotSystems.ts`, [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md):
+the fixed 12-robot roster, flat drain and recharge on the measure tick) decides who docks when, and the Audio Load Budget
+(`src/systems/audioBudgetSystem.ts`, [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) "Audio Load Budget") already caps sounding
+robots per tier, so a floor beside the cap is the natural pair. Needs a short interview before a spec: a floor means
+either a robot stays up past empty (which bends the battery rule) or the drains are staggered so the fleet never empties
+together, and whichever it is must keep the lifecycle a pure function of seed and measures (roadmap 20.5's replay).
+Plan.md Stage 3.
+
+### 61. Accessibility Review
+
+Requested by Crawford at the 2026-11-02 plan review. A fresh pass over the shipped UI before launch: focus order and
+keyboard navigation through the nav panel, the section tabs, the roster and the off screen; the reduced-motion paths
+(the scene wash, the boot theatre, the robots' and camera's motion); contrast of the console palette and the off
+screen's veil and footer; labels and roles on the 13 control primitives and the dialogs. CLAUDE.md asks for basic a11y
+checks on every PR; roadmap 18 (Cabinetry Verification: Accessibility & Performance) was the last planned pass and was
+cut on 2026-10-22 before it ran, and the UI has been rebuilt since (roadmap 45, 57). Not yet scoped: a short interview
+decides the checklist and the tools (an axe run in the browser, a keyboard walk, a screen-reader pass). Plan.md Stage 5.
+
+### 62. Misc Review Items (a Bucket)
+
+Opened by Crawford at the 2026-11-02 plan review: a place to add small review findings as he finds them, text content
+included, to fix in one pass (plan.md Stage 6). One bullet per item, dated; when the pass runs, each bullet becomes its
+own commit, and the item archives when the list is empty.
+
+- 2026-11-02 — Roadmap 57's copy stand-ins, all marked in `src/content/`: the five theme sentences, the Melody label and
+  four Melody sentences, the Envelope, Distance and Voice labels, names and sentences, Roll and a save row's "saved …"
+  (`home.ts`), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). Roadmap
+  [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrites the theme and aspect sentences; the rest is here.
+- 2026-11-02 — Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or
+  Roll): a warning, not an error, to silence or accept.
+
+### 63. Style Fixes (a Bucket)
+
+Opened by Crawford at the 2026-11-02 plan review: visual chrome fixes collected as he finds them, to fix in one pass
+(plan.md Stage 7, beside backlog [1](#1-onload-better-power-off-background) and [3](#3-onload-sleeve-logo)). One bullet
+per item, dated; each becomes its own commit when the pass runs, and the item archives when the list is empty.
+
+- (none yet)
