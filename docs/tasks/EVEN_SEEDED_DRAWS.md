@@ -683,8 +683,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   **Estimated scope:** XS
 
 ### Checkpoint C: Code complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] The T18 record meets spec §6's measurable criteria.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (13,348 tests at `68f8d353`, no code since; lint 0 errors, the same 4 scenery warnings as Checkpoint B).
+- [x] The T18 record meets spec §6's measurable criteria.
 
 ### Checkpoint D: Crawford's listen (spec §5.4)
 - [ ] Classic on even draws, across a few worlds (a fresh Roll or two, and a link), with `?debug` open for swells
