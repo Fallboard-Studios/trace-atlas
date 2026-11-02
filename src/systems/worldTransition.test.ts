@@ -66,7 +66,7 @@ import { initializeLocale, retransmitChangesWorld, retransmitWorld, rollWorld, s
 import { getCurrentMeasure } from '../engine/beatClock';
 import { lfoEngine } from '../engine/lfoEngine';
 import * as lfoShared from '../engine/lfoShared';
-import { resolveLaneForEngine, resolveLaneRateHz } from '../utils/tempoSync';
+import { allowedLaneNoteValues, resolveLaneForEngine, resolveLaneRateHz } from '../utils/tempoSync';
 import { withLoading } from '../data/bands/loadingContext';
 import { NOTE_VALUES } from '../data/noteValues';
 import { deepEqual } from '../utils/math';
@@ -1249,18 +1249,38 @@ describe('worldTransition', () => {
       // The tempo moves under a Sync pick the theme leaves standing: the pick stays, and the engine hears it at the new
       // tempo, clamped into its range as a hand Tempo edit's re-push clamps it (FREE_SYNC_TOGGLE.md §1.6). A lane whose
       // `sync` both draws agree on is one the theme does not move, so a hand-set note on it is a tweak that stands.
-      it('a hand-set Sync note on a lane whose pick the theme leaves stays, and reaches the engine resolved at the new tempo', () => {
-        pinStyle();
-        classicWorld();
+      /** A lane whose Sync pick the theme leaves, set by hand to a note the new tempo allows (`allowed: true`) or
+       *  disallows (`false`). */
+      const handSetLane = (allowed: boolean) => {
         const lane = LFO_LANE_IDS.find((l) => deepEqual(freshDraw('classic').lfoBank[l].sync, freshDraw('calm').lfoBank[l].sync));
         expect(lane, 'a lane whose Sync pick the theme leaves').toBeDefined();
-        const note = NOTE_VALUES.find((nv) => !deepEqual(nv, useAudioStore.getState().lfoBank[lane!].sync))!;
+        const calmAllows = allowedLaneNoteValues(freshDraw('calm').bpm);
+        const note = NOTE_VALUES.find(
+          (nv) => !deepEqual(nv, useAudioStore.getState().lfoBank[lane!].sync) && calmAllows.some((a) => deepEqual(a, nv)) === allowed,
+        )!;
+        expect(note, 'a note for the case').toBeDefined();
         useAudioStore.getState().replaceLfoBankLane(lane!, { ...useAudioStore.getState().lfoBank[lane!], sync: note });
+        return { lane: lane!, note, calmAllows };
+      };
+
+      it('a hand-set Sync note the new tempo still allows stays, and reaches the engine resolved at the new tempo', () => {
+        pinStyle();
+        classicWorld();
+        const { lane, note } = handSetLane(true);
         const rate = vi.spyOn(lfoEngine, 'setBankRate').mockImplementation(() => {});
         retransmitWorld({ theme: 'calm' });
         const after = useAudioStore.getState();
-        expect(after.lfoBank[lane!].sync).toEqual(note);
-        expect(rate.mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, resolveLaneRateHz(after.lfoBank[lane!], after.bpm)]);
+        expect(after.lfoBank[lane].sync).toEqual(note);
+        expect(rate.mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, resolveLaneRateHz(after.lfoBank[lane], after.bpm)]);
+      });
+
+      // final fixes F21 (Crawford: "a new tempo should impact all notes").
+      it('a hand-set Sync note the new tempo disallows snaps to the nearest note it allows', () => {
+        pinStyle();
+        classicWorld();
+        const { lane, calmAllows } = handSetLane(false);
+        retransmitWorld({ theme: 'calm' });
+        expect(calmAllows.some((a) => deepEqual(a, useAudioStore.getState().lfoBank[lane].sync))).toBe(true);
       });
 
       it('the engine hears the moved fields: the new tempo and the LPF cutoff, and no push to an Audio Rig block that stays', () => {

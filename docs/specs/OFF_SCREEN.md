@@ -414,8 +414,8 @@ worth a second look):
     - The global half (F17): a theme no longer reseeds the Audio Rig, the LFO Bank and the global links whole.
       `deriveGlobalHalfMoves` draws them under both loadings and `applyGlobalHalfMoves` writes the fields that differ.
       Under the v1 columns that is the tempo, the Low-Pass cutoff and the Sync picks the new tempo changes. A kept
-      Sync pick is re-pushed resolved at the new tempo, clamped into its range, as a hand Tempo edit's is. A global
-      swell on a written field is dropped first (F11).
+      Sync pick the new tempo still allows stays; one it no longer allows snaps to the nearest note it does allow
+      (F21, Crawford: "a new tempo should impact all notes"). A global swell on a written field is dropped first (F11).
     - **The live companies, on purpose (the second review's finding 2):** the in-place deal runs over the companies as
       they stand, not the seeded ones a rebuild or the session baseline deals over. Its fields can then differ from the
       seeded baseline, and `buildSessionPayload` saves them as overrides, which round-trip. Decided; not to be raised

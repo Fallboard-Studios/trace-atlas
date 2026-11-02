@@ -1573,3 +1573,81 @@ describe('useAudioStore - applyGlobalHalfMoves (final fixes F17)', () => {
     expect(lane.rate).toBe(0.5);
   });
 });
+
+// docs/tasks/OFF_SCREEN_FINAL_FIXES.md F21 (Crawford, 2026-11-01: "a new tempo should impact all notes"): a theme's new
+// tempo snaps every Sync pick it no longer allows to the nearest note it does allow; a pick still allowed stays.
+describe('useAudioStore - applyGlobalHalfMoves snaps the Sync picks a new tempo disallows (final fixes F21)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  const setup = async () => {
+    const { useAudioStore } = await import('./audioStore');
+    const notes = await import('../data/noteValues');
+    const tempo = await import('../utils/tempoSync');
+    const NEW_BPM = 200;
+    const has = (list: readonly import('../data/noteValues').NoteValue[], nv: import('../data/noteValues').NoteValue) =>
+      list.some((a) => notes.noteValueEquals(a, nv));
+    return { useAudioStore, notes, tempo, NEW_BPM, has };
+  };
+
+  it('a bank lane on a note the new tempo disallows snaps to the nearest allowed one; one still allowed stays', async () => {
+    const { useAudioStore, notes, tempo, NEW_BPM, has } = await setup();
+    const allowed = tempo.allowedLaneNoteValues(NEW_BPM);
+    const disallowed = notes.NOTE_VALUES.find((nv) => !has(allowed, nv))!;
+    expect(disallowed, 'a note 200 BPM disallows for a lane').toBeDefined();
+    const kept = allowed[0];
+    const store = useAudioStore.getState();
+    store.replaceLfoBankLane('a', { ...store.lfoBank.a, sync: disallowed });
+    store.replaceLfoBankLane('b', { ...store.lfoBank.b, sync: kept });
+
+    useAudioStore.getState().applyGlobalHalfMoves({ bpm: NEW_BPM, globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+
+    const { lfoBank } = useAudioStore.getState();
+    expect(lfoBank.a.sync).toEqual(notes.nearestNoteValue(notes.noteValueHz(disallowed, NEW_BPM), NEW_BPM, allowed, 'hz'));
+    expect(has(allowed, lfoBank.a.sync!)).toBe(true);
+    expect(lfoBank.b.sync).toEqual(kept);
+  });
+
+  /** A tempo and a note that tempo disallows in `allowedAt`'s range, from a spread of tempos. */
+  const offTempo = async (allowedAt: (bpm: number) => import('../data/noteValues').NoteValue[]) => {
+    const notes = await import('../data/noteValues');
+    for (const bpm of [30, 40, 60, 200, 300]) {
+      const allowed = allowedAt(bpm);
+      const note = notes.NOTE_VALUES.find((nv) => !allowed.some((a) => notes.noteValueEquals(a, nv)));
+      if (note && allowed.length > 0) return { bpm, note, allowed };
+    }
+    throw new Error('no tempo disallows a note in this range');
+  };
+
+  it('the Delay on a note the new tempo disallows snaps to the nearest allowed one, in seconds', async () => {
+    const { useAudioStore, notes, tempo } = await setup();
+    const { bpm, note, allowed } = await offTempo(tempo.allowedDelayNoteValues);
+    useAudioStore.setState((st) => ({ globalAudio: { ...st.globalAudio, delay: { ...st.globalAudio.delay, sync: note } } }));
+    useAudioStore.getState().applyGlobalHalfMoves({ bpm, globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+    expect(useAudioStore.getState().globalAudio.delay.sync).toEqual(
+      notes.nearestNoteValue(notes.noteValueSeconds(note, bpm), bpm, allowed, 'seconds'),
+    );
+  });
+
+  it('a synced-rate block on a note the new tempo disallows snaps to the nearest allowed one over the pedal range', async () => {
+    const { useAudioStore, notes, tempo } = await setup();
+    const { PEDAL_RATE_RANGE_HZ } = await import('../types/globalAudio');
+    const { bpm, note, allowed } = await offTempo((b) => tempo.allowedRateNoteValues(b, PEDAL_RATE_RANGE_HZ));
+    useAudioStore.setState((st) => ({ globalAudio: { ...st.globalAudio, chorus: { ...st.globalAudio.chorus, sync: note } } }));
+    useAudioStore.getState().applyGlobalHalfMoves({ bpm, globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+    expect(useAudioStore.getState().globalAudio.chorus.sync).toEqual(
+      notes.nearestNoteValue(notes.noteValueHz(note, bpm), bpm, allowed, 'hz'),
+    );
+  });
+
+  it('moves with no new tempo snap nothing', async () => {
+    const { useAudioStore, notes, tempo, NEW_BPM, has } = await setup();
+    const disallowed = notes.NOTE_VALUES.find((nv) => !has(tempo.allowedLaneNoteValues(NEW_BPM), nv))!;
+    useAudioStore.getState().setBPM(NEW_BPM);
+    const store = useAudioStore.getState();
+    store.replaceLfoBankLane('a', { ...store.lfoBank.a, sync: disallowed });
+    useAudioStore.getState().applyGlobalHalfMoves({ globalAudio: {}, lfoBank: {}, globalLfoLinks: {} });
+    expect(useAudioStore.getState().lfoBank.a.sync).toEqual(disallowed);
+  });
+});

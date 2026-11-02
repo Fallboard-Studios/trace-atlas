@@ -940,7 +940,17 @@ live companies, but a robot's family changes only when the aspect its company is
 
   **Files:** `aspectDeal.ts`, `spawnSystem.test.ts`. **Estimated scope:** S
 
-- [ ] **F21: `audioStore.ts` — a theme's new tempo snaps every Sync pick it no longer allows**
+- [x] **F21: `audioStore.ts` — a theme's new tempo snaps every Sync pick it no longer allows**
+
+  **As shipped:** `snapSyncedNotesToTempo` runs at the end of `applyGlobalHalfMoves` when the tempo moved. A note is
+  measured in its own unit at the new tempo against its own allowed list, and when no note is allowed at all, nothing
+  snaps (the resolver's clamp stands). Cases: five in `audioStore.test.ts` (a lane snapped and one kept; the Delay; a
+  pedal; no snap without a new tempo). In `worldTransition.test.ts`, F17's hand-set case split into "an allowed note
+  stays" and "a disallowed note snaps". Mutants killed: no snap (4 fail), a snap without a new tempo (1), an allowed
+  note snapped too (1), the Delay not snapped (1), the rate blocks not snapped (1). One survivor is **equivalent**: the
+  Delay measured in Hz rather than seconds. A disallowed note lies outside the allowed range, and the two units are
+  monotonic in each other, so the nearest allowed note is the same boundary note. The Tempo slider is unchanged (it
+  still clamps); whether it should snap too is Crawford's call.
 
   **Description:** After `applyGlobalHalfMoves` sets a new tempo, every synced note the tempo no longer allows snaps to
   the nearest allowed one at that tempo. That covers the four bank lanes (`allowedLaneNoteValues`), the Delay

@@ -20,6 +20,9 @@ import { AUDIO_LOAD_PRESETS, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '../constan
 import { clampAudioLoad, detectCoarsePointer, resolveInitialAudioLoad, resolveInitialEffectsLoad } from '../utils/audioBudget';
 import { generateAttenuationStyleBpm } from '../utils/bpmSeed';
 import {
+  allowedDelayNoteValues,
+  allowedLaneNoteValues,
+  allowedRateNoteValues,
   delayToFree,
   delayToSync,
   laneToFree,
@@ -33,7 +36,7 @@ import {
 } from '../utils/tempoSync';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from './attenuationStyleStore';
 import { DEFAULT_LFO_LINK, DEFAULT_BANK_LFO } from '../data/lfoConfig';
-import { isNoteValue } from '../data/noteValues';
+import { isNoteValue, nearestNoteValue, noteValueEquals, noteValueHz, noteValueSeconds, type NoteValue } from '../data/noteValues';
 import { withLoading } from '../data/bands/loadingContext';
 import type { LoadingIdentity } from '../data/bands/loadingIdentity';
 import { deepEqual } from '../utils/math';
@@ -492,10 +495,11 @@ export interface AudioStore {
   /**
    * Write what a loading change moves in the global half, and only that (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17;
    * Crawford: a theme or aspect change resets only the attributes it moves). The tempo first, through setBPM, so every
-   * kept Sync pick is re-pushed resolved at the new tempo, clamped into its range as a hand Tempo edit's is
-   * (docs/specs/FREE_SYNC_TOGGLE.md §1.6); then each moved Audio Rig block's fields, pushed through its engine setter as
+   * kept Sync pick is re-pushed resolved at the new tempo (docs/specs/FREE_SYNC_TOGGLE.md §1.6); then each moved Audio Rig block's fields, pushed through its engine setter as
    * setGlobalAudio pushes a hand edit; then the moved bank lanes and global links, pushed only to a primed engine, as
-   * pushLfoBankAndLinksToEngine pushes (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2). Everything else stands.
+   * pushLfoBankAndLinksToEngine pushes (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R2). Everything else stands. Last,
+   * with a new tempo, every Sync pick it no longer allows snaps to the nearest allowed note (F21; Crawford: "a new tempo
+   * should impact all notes"): the bank lanes, the Delay and the synced-rate blocks, each in its own unit and range.
    */
   applyGlobalHalfMoves: (moves: GlobalHalfMoves) => void;
 }
@@ -772,8 +776,43 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
       set((state) => ({ globalLfoLinks: { ...state.globalLfoLinks, [target]: link } }));
       if (primed) lfoEngine.linkTarget(target, link);
     }
+    if (moves.bpm !== undefined) snapSyncedNotesToTempo(primed);
   },
 }));
+
+/** `sync`, or the nearest of `allowed` to it at `bpm` when `allowed` lacks it; undefined when nothing needs to move
+ *  (not synced, still allowed, or a tempo that allows no note at all, where the resolver's clamp stands). */
+function snappedNote(sync: NoteValue | undefined, bpm: number, allowed: readonly NoteValue[], unit: 'hz' | 'seconds'): NoteValue | undefined {
+  if (!isNoteValue(sync) || allowed.length === 0 || allowed.some((nv) => noteValueEquals(nv, sync))) return undefined;
+  return nearestNoteValue(unit === 'hz' ? noteValueHz(sync, bpm) : noteValueSeconds(sync, bpm), bpm, allowed, unit);
+}
+
+/**
+ * After a theme's new tempo (applyGlobalHalfMoves; docs/tasks/OFF_SCREEN_FINAL_FIXES.md F21): every Sync pick the tempo
+ * no longer allows takes the nearest note it does allow, measured in the pick's own unit at the new tempo. A lane is
+ * written and, on a primed engine, pushed (R2); the Delay and a synced-rate block go through setGlobalAudio, whose
+ * setter resolves the new note at the tempo. A pick still allowed is left alone.
+ */
+function snapSyncedNotesToTempo(primed: boolean): void {
+  const store = useAudioStore.getState();
+  const { bpm } = store;
+  const laneAllowed = allowedLaneNoteValues(bpm);
+  for (const lane of LFO_LANE_IDS) {
+    const settings = useAudioStore.getState().lfoBank[lane];
+    const sync = snappedNote(settings.sync, bpm, laneAllowed, 'hz');
+    if (!sync) continue;
+    const next = { ...settings, sync };
+    useAudioStore.setState((state) => ({ lfoBank: { ...state.lfoBank, [lane]: next } }));
+    if (primed) pushLaneToEngine(lane, next, bpm);
+  }
+  const delaySync = snappedNote(store.globalAudio.delay.sync, bpm, allowedDelayNoteValues(bpm), 'seconds');
+  if (delaySync) store.setGlobalAudio('delay', { sync: delaySync });
+  const rateAllowed = allowedRateNoteValues(bpm, PEDAL_RATE_RANGE_HZ);
+  for (const key of SYNCED_RATE_KEYS) {
+    const sync = snappedNote(useAudioStore.getState().globalAudio[key].sync, bpm, rateAllowed, 'hz');
+    if (sync) store.setGlobalAudio(key, { sync } as Partial<GlobalAudioSettings[typeof key]>);
+  }
+}
 
 // ========================================
 // A LOADING CHANGE IN PLACE (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17)
