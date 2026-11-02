@@ -593,11 +593,11 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   **Estimated scope:** XS–S
 
 ### Checkpoint B: The global half
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (13,341 tests at `d52efbe1`; lint 0 errors, 4 warnings in scenery files outside this plan).
 - [ ] The harness's global section: zero plain-era pairs above 0.3, every key above 2,500 distinct values over 3,000
   styles, and every §1.4 global edge at its share.
-- [ ] `generateWorldSeedBaseline` still round-trips: an untouched world's link is still the bare triple (the existing
-  seedBaseline and sessionShareUtils tests green).
+- [x] `generateWorldSeedBaseline` still round-trips: an untouched world's link is still the bare triple (the existing
+  seedBaseline and sessionShareUtils tests green, unmodified).
 - [ ] Reviewed with Crawford.
 
 ---
@@ -1018,8 +1018,8 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   for Phase 3 (2026-11-02): each task copies the values its switch moved from the seeder's output, in its own commit,
   and the header names Phase 3 as the one re-recording.
 - T10: the distribution cases live in a new mock-free `src/utils/globalAudioSeed.evenDraws.test.ts`, as T7's did, not
-  in `globalAudioSeed.test.ts`, whose draw spies and forced Sync picks could leak into a distribution. 3,000 styles take
-  about 1 s to build.
+  in `globalAudioSeed.test.ts`, whose draw spies and forced Sync picks could leak into a distribution. T11–T15 add their
+  cases there too. The 3,000-style samples (settings, banks, links, pacing) take about 4 s to build.
 - T10: "more than 2,500 distinct values" holds only for the seven keys with no step, and every one of those is a log
   field, so their outer tenths are tenths of the draw (the value's position on the log scale), not of the value. The
   linear keys are all stepped, on grids of 3 to 41 values (the limiter's −3 dB alone is a quarter of its band), so a
