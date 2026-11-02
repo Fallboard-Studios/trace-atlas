@@ -9,6 +9,7 @@ import { CLASSIC } from '../data/bands/classic';
 import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ROBOT_BUS_FILTER_Q } from '../constants';
+import { correlation, outerTenths } from '../testUtils/spread';
 import { deriveEnvelopeFields, deriveMelodyFields, deriveVoiceFields, seedToggleValue } from './robotFieldDerivation';
 
 // ========================================
@@ -20,31 +21,6 @@ const WORLD_COUNT = 400;
 const ROBOTS_PER_WORLD = 12;
 const WORLDS = Array.from({ length: WORLD_COUNT }, (_, i) => createNoise2D(alea(`${i * 37 - 7000}:${i * 91 - 18000}`)));
 const ROBOT_SLOTS = WORLDS.flatMap((noiseMap) => Array.from({ length: ROBOTS_PER_WORLD }, (_, offset) => ({ noiseMap, offset })));
-
-/** The share of `values` in the bottom tenth and in the top tenth of [min, max]. */
-function outerTenths(values: readonly number[], { min, max }: { min: number; max: number }): { bottom: number; top: number } {
-  const tenth = (max - min) / 10;
-  return {
-    bottom: values.filter((v) => v < min + tenth).length / values.length,
-    top: values.filter((v) => v >= max - tenth).length / values.length,
-  };
-}
-
-/** Pearson's r of two equal-length series. */
-function correlation(a: readonly number[], b: readonly number[]): number {
-  const mean = (xs: readonly number[]) => xs.reduce((sum, x) => sum + x, 0) / xs.length;
-  const ma = mean(a);
-  const mb = mean(b);
-  let cov = 0;
-  let va = 0;
-  let vb = 0;
-  for (let i = 0; i < a.length; i++) {
-    cov += (a[i] - ma) * (b[i] - mb);
-    va += (a[i] - ma) ** 2;
-    vb += (b[i] - mb) ** 2;
-  }
-  return cov / Math.sqrt(va * vb);
-}
 
 // ========================================
 // TESTS

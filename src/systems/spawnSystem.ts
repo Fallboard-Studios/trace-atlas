@@ -219,12 +219,12 @@ function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string 
 
 /**
  * Deterministic melody-generation seed (Roadmap Phase 31) — own dataId ('robot.compositionSeed'),
- * mirrors generateRobotId's shape exactly. Always fresh per robot: computed unconditionally in
- * spawnRobot, outside the shouldCopy branch, never inherited from a copy source (same treatment
- * as id/name/melody itself).
+ * an even draw (docs/specs/EVEN_SEEDED_DRAWS.md), so seeds rarely repeat across a fleet. Always fresh
+ * per robot: computed unconditionally in spawnRobot, outside the shouldCopy branch, never inherited
+ * from a copy source (same treatment as id/name/melody itself).
  */
 function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
-  return getSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
+  return getUniformSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
 }
 
 // ========================================
@@ -455,7 +455,7 @@ export function generateRobotAudioBaseline(
   spawnCount: number,
   priorBaselines: readonly RobotAudioBaseline[],
 ): RobotAudioBaseline {
-  const copyRoll = getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
+  const copyRoll = getUniformSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
   const shouldCopy = copyRoll < 0.30 && priorBaselines.length > 0;
 
   const name = generateRobotName(noiseMap, spawnCount);
@@ -465,7 +465,7 @@ export function generateRobotAudioBaseline(
   if (shouldCopy) {
     const srcIdx = Math.min(
       priorBaselines.length - 1,
-      Math.floor(getSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
+      Math.floor(getUniformSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
     );
     // name is NOT inherited from the copy source — spawnRobot generates it unconditionally,
     // outside the shouldCopy branch (see this function's own doc comment).
@@ -476,11 +476,11 @@ export function generateRobotAudioBaseline(
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
   const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands());
   const dynamicsBand = getBand('robot.dynamics');
-  const dynamics = Math.round(getSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max));
+  const dynamics = Math.round(getUniformSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max));
   const restsBand = getBand('robot.rests');
-  const rests = Math.round(getSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max));
+  const rests = Math.round(getUniformSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max));
   const accentsBand = getBand('robot.accents');
-  const accents = Math.round(getSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max));
+  const accents = Math.round(getUniformSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max));
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
@@ -573,7 +573,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   // noteVariance, lfoLinks. Always fresh: id, name, position, melody (regenerated
   // from the copied octaveRange/rhythmicDensity/rhythmicMotifLength/noteVariance).
   const copyRoll = noiseMap
-    ? getSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
+    ? getUniformSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
     : alea(`${localeId}:${spawnCount}:copy`)();
   const shouldCopy = copyRoll < 0.30 && robots.length > 0;
 
@@ -605,7 +605,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       robots.length - 1,
       Math.floor(
         noiseMap
-          ? getSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, robots.length)
+          ? getUniformSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, robots.length)
           : alea(`${localeId}:${spawnCount}:src`)() * robots.length
       )
     );
@@ -654,19 +654,19 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     const dynamicsBand = getBand('robot.dynamics');
     spawnDynamics = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max)
+        ? getUniformSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max)
         : dynamicsBand.min + alea(`${localeId}:${spawnCount}:dynamics`)() * (dynamicsBand.max - dynamicsBand.min)
     );
     const restsBand = getBand('robot.rests');
     spawnRests = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max)
+        ? getUniformSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max)
         : restsBand.min + alea(`${localeId}:${spawnCount}:rests`)() * (restsBand.max - restsBand.min)
     );
     const accentsBand = getBand('robot.accents');
     spawnAccents = Math.round(
       noiseMap
-        ? getSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max)
+        ? getUniformSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max)
         : accentsBand.min + alea(`${localeId}:${spawnCount}:accents`)() * (accentsBand.max - accentsBand.min)
     );
   }
@@ -730,7 +730,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     masterVolume: (() => {
       const volume = getBand('robot.masterVolume');
       const seeded = noiseMap
-        ? getSeededVal(noiseMap, 'robot.masterVolume', spawnCount, volume.min, volume.max)
+        ? getUniformSeededVal(noiseMap, 'robot.masterVolume', spawnCount, volume.min, volume.max)
         : volume.min + alea(`${localeId}:${spawnCount}:mv`)() * (volume.max - volume.min);
       // Bass robots are louder, treble robots quieter. Register mid [1..5], neutral ~3.5.
       const registerMid = (octaveRange[0] + octaveRange[1]) / 2;

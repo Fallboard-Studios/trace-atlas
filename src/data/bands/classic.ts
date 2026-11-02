@@ -197,8 +197,9 @@ export const CLASSIC: BandTable = {
   'robot.rhythmicMotifLength': { offShare: 0.15, min: 1, max: 8 },
   'robot.noteVariance': { offShare: 0.15, min: 1, max: 8 },
   // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md assumption 13). Unlike the articulation traits, these are not
-  // minority traits: every robot is seeded, most land moderate (the bell-curved getSeededVal draw is wanted here) and a
-  // few sit near the edges; each is drawn as a rounded integer 0-100, the sliders' own scale. Dynamics: 25 plays almost
+  // minority traits: every robot is seeded, each as a rounded integer 0-100, the sliders' own scale. The draw is even, so
+  // a robot is as likely near a band's edge as at its middle (Even Seeded Draws T9 replaced assumption 13's wanted
+  // middle lean, per the spec's decision 3). Dynamics: 25 plays almost
   // flat (a quarter of today's velocity variance), 75 breathes (one and a half times it). Rests: 10 leaves a rare short
   // gap, 60 cuts more than half the notes short, and deeper. Accents: 20 marks about one note in five with only the two
   // mildest marks (accent, tenuto); 80 marks four in five with all five, staccatissimo included.

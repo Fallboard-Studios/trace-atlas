@@ -394,7 +394,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S
 
-- [ ] **Task 9: spawnSystem.ts — copy, performance, volume and the melody seed draw even, in both paths**
+- [x] **Task 9: spawnSystem.ts — copy, performance, volume and the melody seed draw even, in both paths**
 
   **Description:** Switch the copy chance and copy source, dynamics, rests, accents, master volume and
   `robot.compositionSeed` (`generateCompositionSeed`) in both `generateRobotAudioBaseline` and `spawnRobot`. The copy
@@ -406,8 +406,8 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   `spawnRobot` with no noise map still spawns an in-band robot.
 
   **Acceptance criteria:**
-  - [ ] Every listed draw is even in both paths.
-  - [ ] The existing spawn-versus-replay parity tests pass unmodified.
+  - [x] Every listed draw is even in both paths.
+  - [x] The existing spawn-versus-replay parity tests pass unmodified.
 
   **Verification:** As Task 4, plus `npx vitest run src/systems/robotSendsParity.test.ts src/utils/sessionDiff.test.ts`
   green.
@@ -907,6 +907,27 @@ before its commit.
 - Mutation check (T8): the quiet roll, the lane and the gain/bus depth put back on `getSeededVal`; the detune depth
   rounded instead of floored, drawn even instead of centred, and not folded at all; each old `lit` (0.3, 0.3, 0.2)
   restored — 9 of 9 killed.
+- T9: the cases live in `src/systems/spawnSystem.evenCopies.test.ts`. With T7–T9 in one file the samples took 28 s
+  to build, so T9 split it into one file per task, run in parallel: `spawnSystem.evenDraws.test.ts` (T7),
+  `spawnSystem.evenLinks.test.ts` (T8), `spawnSystem.evenCopies.test.ts` (T9). The shared `outerTenths` and
+  `correlation` moved to `src/testUtils/spread.ts`, which `robotFieldDerivation.test.ts` uses too.
+- T9: the band cases read the fresh (non-copy) robots of 1,000 rosters, about 8,700, so each performance field's outer
+  tenth (9–11 % on its integer grid) sits at least 3 standard deviations inside 8–12 %. The melody seed and master
+  volume exist only on the spawn path, so 400 locales × 12 go through `spawnRobot`, with the engine's voice and melody
+  registration stubbed (jsdom has no audio graph); no draw is stubbed.
+- T9 repairs, all in `spawnSystem.test.ts`. Every site that forced the copy roll through a `getSeededVal` mock (nine
+  of them) moved onto `forceSeededDraws`, including the ones that still passed. A forcing the switch had turned into a
+  no-op would otherwise have left them passing on whatever the natural roll gave. `ForcedDraw` now also takes the
+  offset (the copied-baseline deal case steers its density by index). The pan case and the two performance call
+  counts read the even draw's spy. The parity pins were re-captured. No robot of the 29-robot tiers roster was a
+  bandpass accent any more, so the roster grew to 51, which leaves robots 0–28 unchanged (a roster's earlier robots
+  never depend on its length), and the tiers are now 4, 11 and 50. `robotSendsParity.test.ts` and
+  `sessionDiff.test.ts` pass unmodified.
+- Mutation check (T9): each of the twelve switched draws put back on `getSeededVal`, in each path separately; the
+  copy edge moved to 0.25 — 13 of 13 killed, after one fix. The master volume mutant first **survived**: the
+  correlation case passes on the plain draw too. The spawn-path pin case now also pins master volume (the even draw
+  plus the register bias, clamped, on the 1 % grid) over three locales. The T7 and T8 cases were spot-checked in their
+  new files: a T7 and a T8 mutant each still killed.
 - For Crawford, not changed: the top-level `pulseWidth` that `generateAudioAttributes` seeds (`robot.audio.pulseWidth`)
   looks unread. `AudioAttributes` no longer types it (Robot.ts calls it deprecated), and `reserveVoice` takes
   `layers[0]?.pulseWidth`. T7 switched it as the plan says.

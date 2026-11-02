@@ -165,8 +165,8 @@ const mockNoiseMap: NoiseFunction2D = () => Math.random() * 2 - 1;
 /** Deterministic mock: always returns -1, mapping every getSeededVal call to its min value. */
 const deterministicNoiseMap: NoiseFunction2D = () => -1;
 
-/** A forced draw: the value the draw returns, or a function of the band it was asked for. */
-type ForcedDraw = number | ((min: number, max: number) => number);
+/** A forced draw: the value the draw returns, or a function of the band it was asked for and its offset. */
+type ForcedDraw = number | ((min: number, max: number, offset: number) => number);
 
 /**
  * Forces the named dataIds to fixed values whichever seeded draw makes them, the plain getSeededVal or the even
@@ -179,7 +179,7 @@ async function forceSeededDraws(forced: Record<string, ForcedDraw>): Promise<voi
     (noiseMap: NoiseFunction2D, dataId: string, offset = 0, min = 0, max = 1) => {
       const value = forced[dataId];
       if (value === undefined) return draw(noiseMap, dataId, offset, min, max);
-      return typeof value === 'function' ? value(min, max) : value;
+      return typeof value === 'function' ? value(min, max, offset) : value;
     };
   vi.mocked(getSeededVal).mockImplementation(force(real.getSeededVal));
   vi.mocked(getUniformSeededVal).mockImplementation(force(real.getUniformSeededVal));
@@ -1324,10 +1324,12 @@ describe('spawnSystem', () => {
 
     it('draws nothing from the noise map for pan (no new getSeededVal key)', () => {
       vi.mocked(getSeededVal).mockClear();
+      vi.mocked(getUniformSeededVal).mockClear();
 
       spawnRobot(DEFAULT_LOCALE_ID);
 
-      const dataIds = vi.mocked(getSeededVal).mock.calls.map((c) => String(c[1]));
+      // Both seeded draws: the plain one and the even one most audio draws use since Even Seeded Draws.
+      const dataIds = [...vi.mocked(getSeededVal).mock.calls, ...vi.mocked(getUniformSeededVal).mock.calls].map((c) => String(c[1]));
       // Sanity: the spy sees the draws spawnRobot does make, so an empty match below means something.
       expect(dataIds).toContain('robot.masterVolume');
       expect(dataIds.filter((id) => /pan/i.test(id))).toEqual([]);
@@ -1406,14 +1408,11 @@ describe('spawnSystem', () => {
 
       it('draws its own effect room sends on the copy branch, as the baseline does', async () => {
         freshLocale('effect-sends-copy-locale');
-        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        const mocked = vi.mocked(getSeededVal);
-        mocked.mockImplementation((noiseMap, dataId, offset, min, max) =>
-          dataId === 'robot.copyChance' ? 0 : realGetSeededVal(noiseMap, dataId, offset, min, max));
+        await forceSeededDraws({ 'robot.copyChance': 0 });
         try {
           for (let i = 0; i < 30; i++) spawnRobot('effect-sends-copy-locale');
         } finally {
-          mocked.mockImplementation(realGetSeededVal);
+          await restoreSeededDraws();
         }
         const noiseMap = noiseFor('effect-sends-copy-locale');
         const robots = useLocaleStore.getState().getLocaleById('effect-sends-copy-locale')!.robots;
@@ -1478,15 +1477,12 @@ describe('spawnSystem', () => {
 
       it('draws its own sends on the copy branch too - a copied robot shares the voice, not the depth', async () => {
         freshLocale('sends-copy-locale');
-        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        const mocked = vi.mocked(getSeededVal);
         // Spawn 0 is fresh (nobody to copy); every later spawn takes the copy branch (0 is below 0.30).
-        mocked.mockImplementation((noiseMap, dataId, offset, min, max) =>
-          dataId === 'robot.copyChance' ? 0 : realGetSeededVal(noiseMap, dataId, offset, min, max));
+        await forceSeededDraws({ 'robot.copyChance': 0 });
         try {
           for (let i = 0; i < 4; i++) spawnRobot('sends-copy-locale');
         } finally {
-          mocked.mockImplementation(realGetSeededVal);
+          await restoreSeededDraws();
         }
 
         const noiseMap = noiseFor('sends-copy-locale');
@@ -1691,12 +1687,7 @@ describe('spawnSystem', () => {
 
         // Force every spawn below to generate fresh links rather than copy an existing robot's —
         // a copy would inherit a reference instead of exercising the tally this test checks.
-        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        const mocked = vi.mocked(getSeededVal);
-        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
-          if (dataId === 'robot.copyChance') return 1; // 1 is never < 0.30, so shouldCopy is always false
-          return realGetSeededVal(noiseMap, dataId, offset, min, max);
-        });
+        await forceSeededDraws({ 'robot.copyChance': 1 }); // 1 is never < 0.30, so shouldCopy is always false
 
         try {
           spawnRobot(localeId);
@@ -1714,7 +1705,7 @@ describe('spawnSystem', () => {
 
           expect(third.lfoLinks).toEqual(expectedLinks);
         } finally {
-          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => realGetSeededVal(noiseMap, dataId, offset, min, max));
+          await restoreSeededDraws();
         }
       });
 
@@ -1743,12 +1734,9 @@ describe('spawnSystem', () => {
           },
         }));
 
-        const { getSeededVal: realGetSeededVal } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        const mocked = vi.mocked(getSeededVal);
-        mocked.mockImplementation((noiseMap, dataId, offset, min, max) => {
-          if (dataId === 'robot.copyChance') return 0; // 0 is always < 0.30, so shouldCopy is always true
-          if (dataId === 'robot.copySource') return 0; // picks the sole source robot regardless of range
-          return realGetSeededVal(noiseMap, dataId, offset, min, max);
+        await forceSeededDraws({
+          'robot.copyChance': 0, // 0 is always < 0.30, so shouldCopy is always true
+          'robot.copySource': 0, // picks the sole source robot regardless of range
         });
 
         try {
@@ -1760,7 +1748,7 @@ describe('spawnSystem', () => {
           expect(copy.lfoLinks).toBeDefined();
           expect(Object.keys(copy.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
         } finally {
-          mocked.mockImplementation((noiseMap, dataId, offset, min, max) => realGetSeededVal(noiseMap, dataId, offset, min, max));
+          await restoreSeededDraws();
         }
       });
     });
@@ -2914,22 +2902,14 @@ describe('spawnSystem', () => {
     };
     const stripEventIds = (melody: Robot['melody']) => melody.map(({ id: _id, ...rest }) => rest);
     /** Force every spawn after the first onto the copy branch, copying the first robot. */
-    const forceCopyOfFirst = async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
-        if (dataId === 'robot.copyChance') return 0;
-        if (dataId === 'robot.copySource') return min ?? 0;
-        return real(nm, dataId, offset, min, max);
-      });
-    };
+    const forceCopyOfFirst = () => forceSeededDraws({ 'robot.copyChance': 0, 'robot.copySource': (min) => min });
 
     beforeEach(() => {
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
     });
 
     afterEach(async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getSeededVal).mockImplementation(real);
+      await restoreSeededDraws();
     });
 
     describe('the seeded distribution over 400 robots', () => {
@@ -2992,11 +2972,12 @@ describe('spawnSystem', () => {
 
       it('draws each field once, at the spawn count, from its own dataId and band', () => {
         freshLocale('performance-keys-locale');
-        vi.mocked(getSeededVal).mockClear();
+        vi.mocked(getUniformSeededVal).mockClear();
 
         spawnRobot('performance-keys-locale');
 
-        const calls = vi.mocked(getSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
+        // The even draw (Even Seeded Draws T9).
+        const calls = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
         expect(calls.map((c) => [c[1], c[2], c[3], c[4]]).sort()).toEqual([
           ['robot.accents', 0, 20, 80],
           ['robot.dynamics', 0, 25, 75],
@@ -3030,11 +3011,11 @@ describe('spawnSystem', () => {
         freshLocale('performance-copy-locale');
         await forceCopyOfFirst();
         for (let i = 0; i < 4; i++) {
-          if (i === 1) vi.mocked(getSeededVal).mockClear();
+          if (i === 1) vi.mocked(getUniformSeededVal).mockClear();
           spawnRobot('performance-copy-locale');
         }
-        // Captured before the fresh-draw comparison below, which calls getSeededVal itself.
-        const draws = vi.mocked(getSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
+        // Captured before the fresh-draw comparison below, which draws them itself (the even draw, Even Seeded Draws T9).
+        const draws = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
         const robots = useLocaleStore.getState().getLocaleById('performance-copy-locale')!.robots;
         // The copy branch ran: every later robot reuses the first robot's audioAttributes by reference.
         expect(robots.slice(1).every((r) => r.audioAttributes === robots[0].audioAttributes)).toBe(true);
@@ -3297,34 +3278,38 @@ describe('spawnSystem', () => {
 
       it('equals the spawned robots on the copy branch too - the draw sits outside the branch', async () => {
         freshLocale('baseline-sends-copy-locale');
-        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
         // Every robot after the first copies an earlier one, in spawnRobot and in the baseline alike.
-        vi.mocked(getSeededVal).mockImplementation((noiseMap, dataId, offset, min, max) =>
-          dataId === 'robot.copyChance' ? 0 : real(noiseMap, dataId, offset, min, max));
-        for (let i = 0; i < 6; i++) spawnRobot('baseline-sends-copy-locale');
-        const robots = useLocaleStore.getState().getLocaleById('baseline-sends-copy-locale')!.robots;
-        const baselines = generateRobotRosterBaseline(noiseFor('baseline-sends-copy-locale'), robots.length);
+        await forceSeededDraws({ 'robot.copyChance': 0 });
+        try {
+          for (let i = 0; i < 6; i++) spawnRobot('baseline-sends-copy-locale');
+          const robots = useLocaleStore.getState().getLocaleById('baseline-sends-copy-locale')!.robots;
+          const baselines = generateRobotRosterBaseline(noiseFor('baseline-sends-copy-locale'), robots.length);
 
-        // Sanity: the copy branch really ran (a later baseline reuses an earlier one's attributes by reference).
-        expect(baselines.slice(1).every((b) => baselines.some((o) => o !== b && o.audioAttributes === b.audioAttributes))).toBe(true);
-        robots.forEach((robot, i) => {
-          expect(sendsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(sendsOf(robot));
-        });
+          // Sanity: the copy branch really ran (a later baseline reuses an earlier one's attributes by reference).
+          expect(baselines.slice(1).every((b) => baselines.some((o) => o !== b && o.audioAttributes === b.audioAttributes))).toBe(true);
+          robots.forEach((robot, i) => {
+            expect(sendsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(sendsOf(robot));
+          });
+        } finally {
+          await restoreSeededDraws();
+        }
       });
 
       it('a copy baseline carries its own draw, not the source\'s', async () => {
         freshLocale('baseline-sends-own-locale');
         const noiseMap = noiseFor('baseline-sends-own-locale');
-        const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-        vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) =>
-          dataId === 'robot.copyChance' ? 0 : real(nm, dataId, offset, min, max));
-        const source = generateRobotAudioBaseline(noiseMap, 0, []);
+        await forceSeededDraws({ 'robot.copyChance': 0 });
+        try {
+          const source = generateRobotAudioBaseline(noiseMap, 0, []);
 
-        const copy = generateRobotAudioBaseline(noiseMap, 1, [source]);
+          const copy = generateRobotAudioBaseline(noiseMap, 1, [source]);
 
-        expect(copy.audioAttributes).toBe(source.audioAttributes); // it is a copy
-        expect(sendsOf(copy)).toEqual(generateRobotSends(noiseMap, 1));
-        expect(sendsOf(copy)).not.toEqual(sendsOf(source));
+          expect(copy.audioAttributes).toBe(source.audioAttributes); // it is a copy
+          expect(sendsOf(copy)).toEqual(generateRobotSends(noiseMap, 1));
+          expect(sendsOf(copy)).not.toEqual(sendsOf(source));
+        } finally {
+          await restoreSeededDraws();
+        }
       });
     });
 
@@ -3526,18 +3511,18 @@ describe('spawnSystem', () => {
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 35, rests: 48, accents: 68,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.22, delaySend: 0.23, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
         audioAttributes: {
-          adsr: { attack: 0.9715492511168122, decay: 0.5848182141780853, sustain: 0.596685036085546, release: 0.5392221147194505, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [2, 4], filterFreq: 3606.9838404655457, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 186, detune: 2, pulseWidth: 0.6713095553684979,
-          layers: [{ type: 'sawtooth', gain: 0.71, detune: 0, phase: 342 }, { type: 'sawtooth', gain: 0, detune: 0, phase: 298 }, { type: 'triangle', gain: 0.79, detune: 0, phase: 27 }],
+          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
+          layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 82, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, dynamics: 37, rests: 32, accents: 54,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'a', depth: 52 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.29, delaySend: 0.16, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
       {
@@ -3546,7 +3531,7 @@ describe('spawnSystem', () => {
           octaveRange: [2, 4], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 68, detune: -1, pulseWidth: 0.6791183213936165,
           layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 53, rests: 41, accents: 57,
+        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 34, rests: 43, accents: 29,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 27 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.47, delaySend: 0.19, gritSend: 0, shimmerSend: 0, doubleSend: 0,
       },
@@ -3558,19 +3543,20 @@ describe('spawnSystem', () => {
     });
 
     // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the three above are plain, so they miss the tiers. Three robots of a
-    // 29-robot roster from the same noise, captured at cc9a01f2 the same way and typed in, then re-captured at each Even
-    // Seeded Draws switch, which moves the tiers between robots (T6 re-picked them from 3, 4 and 28): a shaped release
-    // (bounce) with an exclusive send (shimmer) (4), a shaped attack (ripple) on a lowpass accent with grit (11), and the
-    // bandpass accent with double (16).
+    // roster from the same noise, captured at cc9a01f2 the same way and typed in (robots 3, 4 and 28 of 29), then
+    // re-captured at each Even Seeded Draws switch, which moves the tiers between robots: a shaped release (sine) with an
+    // exclusive send (shimmer) (4), a shaped attack (ripple) on a lowpass accent with grit (11), and the bandpass accent,
+    // a glider with shimmer (50; at T9 no robot of the first 29 was bandpass, so the roster grew to 51 - a roster's
+    // earlier robots never depend on its length).
     const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
       4: {
         audioAttributes: {
-          adsr: { attack: 1.956432294100523, decay: 1.9473565462976694, sustain: 0.7924570618197322, release: 0.7145893696229906, attackCurve: 'linear', releaseCurve: 'bounce' },
-          octaveRange: [4, 6], filterFreq: 6702.621109783649, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 97, detune: 0, pulseWidth: 0.05575906191952527,
-          layers: [{ type: 'triangle', gain: 0.67, detune: -1, phase: 359 }, { type: 'triangle', gain: 0.77, detune: -1, phase: 215 }, { type: 'pulse', gain: 0, detune: 1, phase: 118 }],
+          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
+          layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [4, 6], rhythmicDensity: 93, rhythmicMotifLength: { active: true, value: 8 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 94, dynamics: 62, rests: 48, accents: 68,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 3 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'd', depth: 4 } },
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.52, delaySend: 0.22, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
       },
       11: {
@@ -3579,25 +3565,25 @@ describe('spawnSystem', () => {
           octaveRange: [3, 5], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 80, detune: 1, pulseWidth: 0.3550120924133807,
           layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
         } as AudioAttributes,
-        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 66, rests: 21, accents: 33,
+        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 74, rests: 31, accents: 56,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'a', depth: 9 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.47, delaySend: 0.1, gritSend: 0.63, shimmerSend: 0, doubleSend: 0,
       },
-      16: {
+      50: {
         audioAttributes: {
-          adsr: { attack: 1.965806975029409, decay: 1.962196541018784, sustain: 0.37567537860013545, release: 0.6935567278414965, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [1, 3], filterFreq: 1528.405042621307, filterQ: 3.3, filterType: 'bandpass', portamento: 0, waveform: 'pulse', phase: 220, detune: 1, pulseWidth: 0.4464993801200762,
-          layers: [{ type: 'sawtooth', gain: 0.75, detune: 0, phase: 95 }, { type: 'triangle', gain: 0.31, detune: -2, phase: 341 }, { type: 'square', gain: 0.42, detune: 1, phase: 275 }],
+          adsr: { attack: 1.8607680136337876, decay: 1.7409854433499277, sustain: 0.36384062259458005, release: 1.6593553409911692, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [4, 6], filterFreq: 981.7550272680819, filterQ: 5.9, filterType: 'bandpass', portamento: 0.08, waveform: 'sawtooth', phase: 16, detune: -2, pulseWidth: 0.15774889986496418,
+          layers: [{ type: 'sawtooth', gain: 0.98, detune: -1, phase: 125 }, { type: 'sine', gain: 0.74, detune: 0, phase: 5 }, { type: 'triangle', gain: 0, detune: 0, phase: 329 }],
         } as AudioAttributes,
-        octaveRange: [1, 3], rhythmicDensity: 67, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, dynamics: 58, rests: 21, accents: 51,
-        lfoLinks: { 'layer0.gain': { lane: 'c', depth: 19 }, 'layer0.detune': { lane: 'b', depth: 6 }, 'layer1.gain': { lane: 'a', depth: 23 }, 'layer1.detune': { lane: 'c', depth: 5 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'b', depth: 31 } },
-        reverbSend: 0.39, delaySend: 0.2, gritSend: 0, shimmerSend: 0, doubleSend: 0.45,
+        octaveRange: [4, 6], rhythmicDensity: 90, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 37, rests: 26, accents: 65,
+        lfoLinks: { 'layer0.gain': { lane: 'c', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'c', depth: 7 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.28, delaySend: 0.21, gritSend: 0, shimmerSend: 0.26, doubleSend: 0,
       },
     };
 
     it('Classic parity, the tiers: a shaped stage, the bandpass accent and an exclusive send are value for value what the constants seeded before the lift', () => {
-      const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 29).map(({ name: _name, ...rest }) => rest);
-      expect({ 4: roster[4], 11: roster[11], 16: roster[16] }).toEqual(PARITY_TIERS);
+      const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 51).map(({ name: _name, ...rest }) => rest);
+      expect({ 4: roster[4], 11: roster[11], 50: roster[50] }).toEqual(PARITY_TIERS);
     });
 
     it('Classic parity: three spawned robots carry the ids, master volumes, densities and glides the constants seeded before the lift', () => {
@@ -3606,9 +3592,9 @@ describe('spawnSystem', () => {
       for (let i = 0; i < 3; i++) spawnRobot(localeId);
       const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       expect(robots.map((r) => [r.id, r.masterVolume, r.rhythmicDensity, r.audioAttributes.portamento])).toEqual([
-        ['robot-0-ckli2vjx', 0.79, 82, 0.18],
-        ['robot-1-a9g7kk48', 0.78, 82, 0.18],
-        ['robot-2-mrmqcepa', 0.79, 98, 0.14],
+        ['robot-0-ckli2vjx', 0.75, 82, 0.18],
+        ['robot-1-a9g7kk48', 0.76, 82, 0.18],
+        ['robot-2-mrmqcepa', 0.73, 82, 0.18],
       ]);
     });
   });
@@ -3756,18 +3742,14 @@ describe('spawnSystem', () => {
     });
 
     it('a copied-baseline robot re-derives from its own index, not its source\'s', async () => {
-      const { getSeededVal: real, getUniformSeededVal: realEven } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor).
-      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
-        if (dataId === 'robot.copyChance') return 0;
-        if (dataId === 'robot.copySource') return min ?? 0;
-        return real(nm, dataId, offset, min, max);
+      // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor). Each index's density
+      // draw lands at its own spot (index / roster of the band), so robot 3 and robot 0 draw apart by construction and the
+      // check cannot pass by coincidence.
+      await forceSeededDraws({
+        'robot.copyChance': 0,
+        'robot.copySource': (min) => min,
+        'robot.rhythmicDensity': (min, max, offset) => min + (offset / ROSTER) * (max - min),
       });
-      // Each index's density draw lands at its own spot (index / roster of the band), so robot 3 and robot 0 draw apart by
-      // construction and the check cannot pass by coincidence. mockReset puts the steering wrapper back.
-      vi.mocked(getUniformSeededVal).mockImplementation((nm, dataId, offset = 0, min = 0, max = 1) =>
-        dataId === 'robot.rhythmicDensity' ? min + (offset / ROSTER) * (max - min) : realEven(nm, dataId, offset, min, max),
-      );
       try {
         const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
         expect(undealt[3].rhythmicDensity).toBe(undealt[0].rhythmicDensity); // precondition: robot 3 is a copy of robot 0
@@ -3777,7 +3759,7 @@ describe('spawnSystem', () => {
         expect(dealt[3].rhythmicDensity).toBe(45); // its own index: 40 + 3/12 of Hypnotic's 40-60
         expect(dealt[0].rhythmicDensity).toBe(40); // the source's index: the band's floor
       } finally {
-        vi.mocked(getUniformSeededVal).mockReset();
+        await restoreSeededDraws();
       }
     });
 
@@ -3953,21 +3935,20 @@ describe('spawnSystem', () => {
     });
 
     it('a copied-baseline robot re-derives its adsr from its own index, keeping the rest of the copy', async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
-      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
-        if (dataId === 'robot.copyChance') return 0;
-        if (dataId === 'robot.copySource') return min ?? 0;
-        return real(nm, dataId, offset, min, max);
-      });
-      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
-      expect(undealt[3].audioAttributes).toEqual(undealt[0].audioAttributes); // precondition: robot 3 copies robot 0
-      const bands = resolveBands('classic', { envelope: 'held' });
-      const own = deriveEnvelopeFields(noiseMap, 3, bands);
-      expect(own).not.toEqual(deriveEnvelopeFields(noiseMap, 0, bands)); // precondition: the two indices draw apart
-      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { envelope: ['held'] } }, noiseMap);
-      expect(dealt[3].audioAttributes.adsr).toEqual(own);
-      expect(dealt[3].audioAttributes.waveform).toBe(undealt[0].audioAttributes.waveform);
-      expect(dealt[3].audioAttributes.layers).toEqual(undealt[0].audioAttributes.layers);
+      await forceSeededDraws({ 'robot.copyChance': 0, 'robot.copySource': (min) => min });
+      try {
+        const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+        expect(undealt[3].audioAttributes).toEqual(undealt[0].audioAttributes); // precondition: robot 3 copies robot 0
+        const bands = resolveBands('classic', { envelope: 'held' });
+        const own = deriveEnvelopeFields(noiseMap, 3, bands);
+        expect(own).not.toEqual(deriveEnvelopeFields(noiseMap, 0, bands)); // precondition: the two indices draw apart
+        const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { envelope: ['held'] } }, noiseMap);
+        expect(dealt[3].audioAttributes.adsr).toEqual(own);
+        expect(dealt[3].audioAttributes.waveform).toBe(undealt[0].audioAttributes.waveform);
+        expect(dealt[3].audioAttributes.layers).toEqual(undealt[0].audioAttributes.layers);
+      } finally {
+        await restoreSeededDraws();
+      }
     });
 
     it('applyAspectDeal, live: an Envelope deal writes each adsr and hands it to the engine as a hand edit does, once a robot, and agrees with the baseline', () => {
@@ -4460,22 +4441,21 @@ describe('spawnSystem', () => {
     });
 
     it('a copied robot undealt takes its source\'s values back, as it spawned, not a fresh draw at its own index', async () => {
-      const { getSeededVal: real } = await vi.importActual<typeof import('../utils/getSeededVal')>('../utils/getSeededVal');
       // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor).
-      vi.mocked(getSeededVal).mockImplementation((nm, dataId, offset, min, max) => {
-        if (dataId === 'robot.copyChance') return 0;
-        if (dataId === 'robot.copySource') return min ?? 0;
-        return real(nm, dataId, offset, min, max);
-      });
-      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], voice: ['woody'] });
-      const dealt = robotsOf(live);
-      const plain = robotsOf(buildWorld({}));
-      expect(plain[3].audioAttributes).toEqual(plain[0].audioAttributes); // precondition: robot 3 spawns as robot 0's copy
-      expect(dealt[3].audioAttributes.adsr).not.toEqual(plain[3].audioAttributes.adsr); // precondition: the deal moved it off
+      await forceSeededDraws({ 'robot.copyChance': 0, 'robot.copySource': (min) => min });
+      try {
+        const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], voice: ['woody'] });
+        const dealt = robotsOf(live);
+        const plain = robotsOf(buildWorld({}));
+        expect(plain[3].audioAttributes).toEqual(plain[0].audioAttributes); // precondition: robot 3 spawns as robot 0's copy
+        expect(dealt[3].audioAttributes.adsr).not.toEqual(plain[3].audioAttributes.adsr); // precondition: the deal moved it off
 
-      redeal(live, {});
+        redeal(live, {});
 
-      expect(comparable(robotsOf(live))).toEqual(comparable(plain));
+        expect(comparable(robotsOf(live))).toEqual(comparable(plain));
+      } finally {
+        await restoreSeededDraws();
+      }
     });
 
     it('a Voice move carries the whole bus filter: open lowpass robots dealt Hollow come back resonant bandpass ones', async () => {
