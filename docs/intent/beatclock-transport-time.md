@@ -3,7 +3,7 @@
 Confirmed via `interview-me` on 2026-10-26 (6 questions; one guess overturned and then reinstated: Crawford first
 folded the pre-scheduled swell curve into this item, then, shown that the saving was unmeasured and the two measured
 problems lay elsewhere, kept it out behind a measurement), ahead of a `spec-driven-development` pass. Backlog item
-[35](../todo/backlog.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given), first line of plan.md's
+[35](../todo/archive/backlog-archive.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given), first line of plan.md's
 Stage 1. Not a roadmap entry; a bug-shaped item that stays in the backlog.
 
 ## Outcome

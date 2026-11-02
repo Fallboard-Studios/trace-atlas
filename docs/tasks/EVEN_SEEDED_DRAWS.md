@@ -1,7 +1,7 @@
 # Implementation Plan: Even Seeded Draws
 
 Spec: [docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md). Backlog slot:
-[47](../todo/backlog.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) (the world and visual draws
+[47](../todo/archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) (the world and visual draws
 are [46](../todo/backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
 on their own branch later). Build branch: `fix/even-seeded-draws` off `main` at `56962ebe`. Step 0 of refining the
 themes and aspects. The bands get tuned only after this ships and Classic has been heard on it.
@@ -703,7 +703,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
 ### Phase 5: Docs
 
-- [ ] **Task 19: PROCEDURAL_GENERATION.md — audio draws are even**
+- [x] **Task 19: PROCEDURAL_GENERATION.md — audio draws are even** (done 2026-11-02 on `docs/plan-2026-11-02`, after the merge: the branch merged as PR #596 with Phase 5 still open)
 
   **Description:**
   - "Sampling Values": `getUniformSeededVal` takes a band; `getCentredSeededVal` and when to use it.
@@ -717,7 +717,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] The doc matches the shipped functions and the dataIds, and no row still calls an audio draw bell-curved.
+  - [x] The doc matches the shipped functions and the dataIds, and no row still calls an audio draw bell-curved.
 
   **Verification:** Manual review against source; `npm run lint` clean.
 
@@ -727,7 +727,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** XS
 
-- [ ] **Task 20: AUDIO_SYSTEM.md and the grids — a band's edges are reached, a lit is its share**
+- [x] **Task 20: AUDIO_SYSTEM.md and the grids — a band's edges are reached, a lit is its share** (done 2026-11-02 on `docs/plan-2026-11-02`, with Task 19)
 
   **Description:** AUDIO_SYSTEM.md "The band table": the draws inside a band are even (the EQ and detunes centred),
   so a band's edges are reached and a `lit` or edge is the realised share. Also update the grids that carry the same
@@ -737,7 +737,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   **Proof:** Read — human review.
 
   **Acceptance criteria:**
-  - [ ] Every number in those docs matches `classic.ts` and `globalAudioSeed.ts` as shipped.
+  - [x] Every number in those docs matches `classic.ts` and `globalAudioSeed.ts` as shipped.
 
   **Verification:** Manual review against source.
 

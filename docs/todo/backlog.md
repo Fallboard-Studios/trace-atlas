@@ -26,6 +26,11 @@ Going forward, a fully-closed item moves to [docs/todo/archive/backlog-archive.m
 instead of being pruned outright, keeping the closure's own detail around. Item numbers are
 never reused or renumbered when an item moves.
 
+**Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
+backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
+written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
+into the 50s) stays as it is: nothing is renumbered. The next free number is 64.
+
 ## Open items
 
 ### 1. Onload: Better Power-Off Background
@@ -58,6 +63,10 @@ per-robot/per-locale value.
 Note (2026-10-06): roadmap Phase 43 puts docked robots inside 2–3 charging stations (capacity 6
 each), so the robots sharing a station are a natural grouping for "who syncs with whom".
 
+Note (2026-11-02): backlog [24](archive/backlog-archive.md#24-audio-palette-trials-transport-groove-and-tempo-walk)
+(a global Transport swing, which plan.md said might satisfy this item outright) was cut at the plan review of that date,
+so this item starts from scratch when it is picked up, post-launch.
+
 ### 7. Audio: Tagged Chord Progressions, Seeded Mood Chain + Tag Filter
 
 Requested by Crawford (`docs/todo/temp.md`), 2026-09-11, as "more chord progressions +
@@ -71,6 +80,13 @@ powered-down state rather than in the Audio Rig's Pacing section as the "UI home
 progression engine, the catalogue and the seeded chain stay this item and are a large build in their own
 right. Item 5 closed 2026-10-31 as the off screen (roadmap 57), which settled the surface: the Mood row has
 its slot in the off screen's Loading axis. This item's interview decides the music.
+
+**Note 2026-11-02 (Crawford's decisions of 2026-11-01, at the start of the themes-and-aspects refinement, roadmap
+[58](roadmap.md#58-themes-and-aspects-refinement)):** Mood, the row the off screen's Loading axis holds for this item,
+means only the note options: which `HARMONY_PALETTES` entries (or, once this item ships, which progressions and tags) a
+world may draw from. Whether a theme limits the moods is undecided and likely later. The overlap rule between a theme
+and an aspect is aspect-wins (`resolveBands` replaces whole bands, the aspect last), so theme copy must not promise what
+an aspect can override. Sequenced post-launch in plan.md.
 
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
@@ -365,38 +381,6 @@ bypass the content-layer guard the same way robot and company names do; built-in
 picker only); whether built-ins are forkable; whether a library is shareable on its own; the voicing
 templates themselves (the bulk of the musical work).
 
-### 23. Audio Palette Trials: Dynamics Processing and Ducking
-
-`Tone.MultibandCompressor` (low / mid / high compressors with two crossovers) as a richer Output stage
-than the single `Compressor`; `Tone.Gate` (`threshold`, `smoothing`) to close the chain between phrases
-on a sparse world; and `Tone.Follower` driving a `Gain` for sidechain-style ducking — the fleet dipping
-under a soloed robot (`audioMode: 'solo'`), or under a swell. Ducking is the interesting one: a
-*behaviour*, not a knob. The follower's output is a signal, so it needs a `Tone.Multiply` / `Scale`
-pair into the dry bus's gain — no other nodes. All three react to the signal and carry no clock, so
-they replay in the follower sense. Output section tab. Phone gate as always; multiband is three
-compressors.
-
-**Interviewed with roadmap 54, 2026-10-23, and deferred, not built** ([docs/specs/OUTPUT_HEADROOM.md](../specs/OUTPUT_HEADROOM.md)
-assumption 9). Multiband is worth trying only if the single Compressor sounds wrong now that it is off safety duty (the
-output ceiling holds the master under full scale). Roadmap 54's Checkpoint A heard one Compressor fault, a 70 ms release
-slammed by every robot at 100 %, and the seeded release floor (0.25 s) answered it, not multiband.
-
-### 24. Audio Palette Trials: Transport Groove and Tempo Walk
-
-`Tone.Transport.swing` (0–1) and `swingSubdivision` (`'8n'` / `'16n'`) exist on the transport the
-melody loop already runs on. A Pacing-section Swing slider is one store field and one transport write,
-and **every** robot swings together. Check first that swing reaches the playback loop's scheduled
-times — the `8n` step scheduler ([AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) §Playback loop) computes its
-own offsets from the tick, and Tone applies swing to the transport's own event times. Ties to backlog
-[6](#6-audio-groove-feature) (Groove: robots syncing while docked) and to item 7 (progressions): a
-global swing is the simplest groove and may be enough.
-
-**Tempo walk:** a slow seeded random walk on BPM (± a few BPM over many measures, `getSeededVal` by
-measure, the swells pattern) as Pacing's equivalent of an LFO — replayable by construction, but BPM
-moves everything that counts measures, so the fleet's lifecycle speeds and slows with it (accepted:
-the 2026-10-09 time decision keeps the lifecycle on measures) and Sync-mode lanes follow. Try swing
-first; the walk only if a world feels too metronomic.
-
 ### 25. Neighbourhood Map, Coherent Districts and the Visited Log
 
 Raised by Crawford, 2026-10-09, in the same brainstorm: "a map of the nearby world, color coded by
@@ -491,8 +475,9 @@ Half a day with a Look; only when a main-thread question needs per-section numbe
 **Raised by Crawford, 2026-10-25,** on `feature/short-world-link`, after its code review: "those values should be
 quantized when they're loaded in initially, then they should stick to the steps of the sliders … why are we rounding
 things on save/share?" Weighed the same day and cut down to the two small pieces below; the larger version (a value
-grid for every log slider) is parked at the end. Not yet specced. Waits for roadmap
-[56](roadmap.md#56-short-world-link) to merge (the finish-the-branch rule); nothing on that branch depends on it.
+grid for every log slider) is parked at the end. Not yet specced. It waited for roadmap
+[56](roadmap.md#56-short-world-link) to merge (the finish-the-branch rule); 56 merged on 2026-10-26 (PR #581), so nothing
+blocks piece 2 now.
 
 **Background (verified 2026-10-25).** A save snaps the Audio Rig to slider steps and rounds the LFO drifts
 (`quantizeGlobalAudioForCapture` / `roundLfoBankForCapture`, `src/utils/sessionCapture.ts`, called by
@@ -562,54 +547,6 @@ patch is safe on a fixed Tone too (its repeated disconnects are swallowed), so t
 full suite, listen, and run the perf runs against the old version. In the same change, delete
 `src/engine/tonePatches.ts`, its test, its call in `src/engine/audioContextSetup.ts` and `oscillatorLeakPatched`, and
 the "Tone patch: the per-note oscillator leak" section of [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md).
-
-### 35. Audio: BeatClock Drops the Transport Time Its Callbacks Are Given
-
-**Found 2026-10-26** (Crawford, dev and production builds alike): Tone prints, once per page load,
-"Events scheduled inside of scheduled callbacks should use the passed in scheduling time"
-([Accurate Timing](https://github.com/Tonejs/Tone.js/wiki/Accurate-Timing)). Tone raises it the first time a call
-inside a Transport callback reaches `toSeconds(undefined)`, that is, a Tone method given no time while the Transport is
-running a scheduled callback (`assertUsedScheduleTime` in Tone's `Debug.js`, called from `ToneWithContext.toSeconds`).
-
-**Cause.** The engine's own note tick passes the Transport's time through (`AudioEngine.ts`, `scheduleRepeat((time) =>`),
-so notes are placed on the beat. BeatClock does not: its `scheduleRepeat(interval, callback)` wrapper
-(`src/engine/beatClock.ts`) takes a `() => void` callback and discards the `time` the Transport hands it. Every consumer
-of the measure tick runs through that wrapper: the harmony tick (`harmonySystem.ts`), the swell tick
-(`audioSwells.ts`, every 16th), and the docking lifecycle's ramps and starts. Each of their Tone calls (ramps, level
-sets, starts) therefore lands at "now", the audio clock's current time, rather than at the callback's time, which runs
-about `lookAhead` (100 ms) ahead of it: early by up to that much, with jitter. Those are ramps and levels, so it has
-not been heard; it is still scheduling off the beat on the path CLAUDE.md says is beat-based.
-
-**Fix (behaviour, so RED first):** BeatClock's wrapper passes the Transport time to its callback; `scheduleRepeat`'s
-callback type becomes `(time: number) => void`; each consumer that reaches Tone from the tick takes the time and uses it
-(the swells' `apply*` writes, the harmony change, the lifecycle's ramps), or states in a comment why "now" is right for
-it. Done when the warning does not fire on a fresh page through a few measures of a playing world (a headless check over
-CDP catches it: a `console.warn` listener on the page) and the measure-tick consumers' tests pass a time through. This
-changes how the scheduling path is called, not what it schedules; Crawford asked for it (2026-10-26), so the CLAUDE.md
-"ask first" is met.
-
-**Status:** intent [docs/intent/beatclock-transport-time.md](../intent/beatclock-transport-time.md), spec
-[docs/specs/BEATCLOCK_TRANSPORT_TIME.md](../specs/BEATCLOCK_TRANSPORT_TIME.md), plan
-[docs/tasks/BEATCLOCK_TRANSPORT_TIME.md](../tasks/BEATCLOCK_TRANSPORT_TIME.md); building on branch
-`fix/beatclock-transport-time`.
-
-**Built** 2026-10-26 on `fix/beatclock-transport-time` (T0–T14; Checkpoints A–C passed, Crawford's listen included).
-BeatClock's `scheduleRepeat` forwards the Transport time, and the swell tick carries it to every write in both pools;
-the harmony tick, the docking lifecycle and `setRoomFeeder` stay on "now" by decision
-([AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#scheduling-patterns)). **The proof run:** with `perf:audio`'s new console tally,
-stock `main` logs Tone's warning once in each of three rounds and the branch logs nothing
-([PERFORMANCE.md](../PERFORMANCE.md#beatclock-passes-the-transport-time--the-console-check-2026-10-26-backlog-35)).
-**The measurement:** the swell tick takes 3.38 % of the idle window with the store half excluded (median, 3.35–5.68 %,
-4× throttle, swell-heavy link; 0.01 % with Swell Frequency 0)
-([PERFORMANCE.md](../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
-
-**Curve: not built** (Crawford, 2026-10-26, Checkpoint C). The pre-scheduled swell curve (the whole swell scheduled on
-the param at its start and rendered on the audio thread, with no per-tick engine write) was left out of this item
-behind a measurement and a threshold: build it only past **2 %**. The tick's 3.38 % clears that, but the param writes a
-curve would take off the main thread are **0.45–0.70 %**. Most of the tick is phase writes rebuilding a periodic wave,
-a setting a curve cannot carry, and that cost is
-[37](archive/backlog-archive.md#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). The design that would have been built is in the
-intent's Out of scope ([docs/intent/beatclock-transport-time.md](../intent/beatclock-transport-time.md#out-of-scope)).
 
 ### 39. Main Thread: Recurring Store Writes Fan Out to the World View (Measure First)
 
@@ -705,12 +642,13 @@ probe run picks its worlds again.
 
 ### 46. World: Seeded Draws Are Welded and Centre-Heavy (Names, Colours, Gems, Companies, Placement)
 
-**Found 2026-11-01** while measuring the audio draws for backlog [47](#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
+**Found 2026-11-01** while measuring the audio draws for backlog [47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
 **recorded, not fixed** (Crawford: the visuals go on their own branch in case they need different tuning). A plain
 `getSeededVal` draw samples one smooth simplex patch per world, so keys whose hashed x land close together read nearly
 the same value, a key at offset 0 takes only a few values across all worlds, and a band's outer tenths rarely come up
-([docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md) §1.1 has the measurements). 47 moves the audio draws
-to `getUniformSeededVal`. The world and visual draws keep the plain draw: robot and company names, identity colours,
+([docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md) §1.1 has the measurements). 47 moved the audio draws
+to `getUniformSeededVal` (merged via PR #596, 2026-11-02; [PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md)
+"Sampling Values" describes the three draws and lists the keys left on the plain one). The world and visual draws keep the plain draw: robot and company names, identity colours,
 gem seeds, robot and company ids, company count, size and membership, spawn positions, the roster's active count and
 docked batteries (`lifecycleSim.ts`, `spawnSystem.ts`), factory placement (`factoryPlacementSystem.ts`), districts
 (`districts.ts`), terrain (`terrainProfile.ts`), light shafts (`LightShafts.tsx`), locale temperature.
@@ -719,11 +657,48 @@ docked batteries (`lifecycleSim.ts`, `spawnSystem.ts`), factory placement (`fact
 terrain profile and the temperature steps probably are). Then measure, switch the picks, and look: every world's
 names, colours, gems and layout move. Done when no pick is welded to another and each fills its range.
 
-### 47. Audio: Seeded Draws Are Welded and Centre-Heavy — Even Draws First
+### 60. Audio: Cover the Silence When Every Active Robot Is Charging
 
-**Found 2026-11-01**, the first step of refining the themes and aspects (Crawford agreed to fix the spread before any tuning and then
-re-hear Classic). Every audio value a world seeds through plain `getSeededVal` is welded to other keys,
-centre-heavy, and at offset 0 coarse (a few global keys take 3 values in 3,000 worlds), and the share edges compared
-against those draws realise other shares than they say. Crawford's decisions: every audio draw goes even, the world and
-visual draws wait (46), Classic is switched first and then listened to, and the shape is even everywhere. Spec:
-[docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md), on `fix/even-seeded-draws`.
+Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
+the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
+[7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (chord progressions) post-launch. The shape he has
+in mind: always keep at least one robot sounding, perhaps "min 1 stays, max 3" by audio quality tier.
+
+**Where it lands.** The docking lifecycle (`src/systems/robotSystems.ts`, [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md):
+the fixed 12-robot roster, flat drain and recharge on the measure tick) decides who docks when, and the Audio Load Budget
+(`src/systems/audioBudgetSystem.ts`, [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) "Audio Load Budget") already caps sounding
+robots per tier, so a floor beside the cap is the natural pair. Needs a short interview before a spec: a floor means
+either a robot stays up past empty (which bends the battery rule) or the drains are staggered so the fleet never empties
+together, and whichever it is must keep the lifecycle a pure function of seed and measures (roadmap 20.5's replay).
+Plan.md Stage 3.
+
+### 61. Accessibility Review
+
+Requested by Crawford at the 2026-11-02 plan review. A fresh pass over the shipped UI before launch: focus order and
+keyboard navigation through the nav panel, the section tabs, the roster and the off screen; the reduced-motion paths
+(the scene wash, the boot theatre, the robots' and camera's motion); contrast of the console palette and the off
+screen's veil and footer; labels and roles on the 13 control primitives and the dialogs. CLAUDE.md asks for basic a11y
+checks on every PR; roadmap 18 (Cabinetry Verification: Accessibility & Performance) was the last planned pass and was
+cut on 2026-10-22 before it ran, and the UI has been rebuilt since (roadmap 45, 57). Not yet scoped: a short interview
+decides the checklist and the tools (an axe run in the browser, a keyboard walk, a screen-reader pass). Plan.md Stage 5.
+
+### 62. Misc Review Items (a Bucket)
+
+Opened by Crawford at the 2026-11-02 plan review: a place to add small review findings as he finds them, text content
+included, to fix in one pass (plan.md Stage 6). One bullet per item, dated; when the pass runs, each bullet becomes its
+own commit, and the item archives when the list is empty.
+
+- 2026-11-02 — Roadmap 57's copy stand-ins, all marked in `src/content/`: the five theme sentences, the Melody label and
+  four Melody sentences, the Envelope, Distance and Voice labels, names and sentences, Roll and a save row's "saved …"
+  (`home.ts`), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). Roadmap
+  [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrites the theme and aspect sentences; the rest is here.
+- 2026-11-02 — Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or
+  Roll): a warning, not an error, to silence or accept.
+
+### 63. Style Fixes (a Bucket)
+
+Opened by Crawford at the 2026-11-02 plan review: visual chrome fixes collected as he finds them, to fix in one pass
+(plan.md Stage 7, beside backlog [1](#1-onload-better-power-off-background) and [3](#3-onload-sleeve-logo)). One bullet
+per item, dated; each becomes its own commit when the pass runs, and the item archives when the list is empty.
+
+- (none yet)

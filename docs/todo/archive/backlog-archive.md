@@ -338,6 +338,42 @@ so nothing moves to "tried, no". Two corrections to the text above, for whoever 
   a phone-gate question first. `PingPongDelay` is plain Web Audio nodes (a cross-feedback stereo delay), with no
   worklet.
 
+## 23. Audio Palette Trials: Dynamics Processing and Ducking
+
+**Cut** 2026-11-02 (Crawford, at the plan review of that date). Deferred at roadmap 54's interview and now cut outright: the single Compressor sounds right off safety duty, and no dynamics work is wanted before launch. Revisit only if a world's Compressor sounds wrong. The original request follows.
+
+`Tone.MultibandCompressor` (low / mid / high compressors with two crossovers) as a richer Output stage
+than the single `Compressor`; `Tone.Gate` (`threshold`, `smoothing`) to close the chain between phrases
+on a sparse world; and `Tone.Follower` driving a `Gain` for sidechain-style ducking — the fleet dipping
+under a soloed robot (`audioMode: 'solo'`), or under a swell. Ducking is the interesting one: a
+*behaviour*, not a knob. The follower's output is a signal, so it needs a `Tone.Multiply` / `Scale`
+pair into the dry bus's gain — no other nodes. All three react to the signal and carry no clock, so
+they replay in the follower sense. Output section tab. Phone gate as always; multiband is three
+compressors.
+
+**Interviewed with roadmap 54, 2026-10-23, and deferred, not built** ([docs/specs/OUTPUT_HEADROOM.md](../../specs/OUTPUT_HEADROOM.md)
+assumption 9). Multiband is worth trying only if the single Compressor sounds wrong now that it is off safety duty (the
+output ceiling holds the master under full scale). Roadmap 54's Checkpoint A heard one Compressor fault, a 70 ms release
+slammed by every robot at 100 %, and the seeded release floor (0.25 s) answered it, not multiband.
+
+## 24. Audio Palette Trials: Transport Groove and Tempo Walk
+
+**Cut** 2026-11-02 (Crawford, at the plan review of that date). Swing and the tempo walk are not wanted before launch. Backlog [6](../backlog.md#6-audio-groove-feature) (Groove) loses the swing lean plan.md said might satisfy it outright, and stays a post-launch item. The original request follows.
+
+`Tone.Transport.swing` (0–1) and `swingSubdivision` (`'8n'` / `'16n'`) exist on the transport the
+melody loop already runs on. A Pacing-section Swing slider is one store field and one transport write,
+and **every** robot swings together. Check first that swing reaches the playback loop's scheduled
+times — the `8n` step scheduler ([AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md) §Playback loop) computes its
+own offsets from the tick, and Tone applies swing to the transport's own event times. Ties to backlog
+[6](../backlog.md#6-audio-groove-feature) (Groove: robots syncing while docked) and to item 7 (progressions): a
+global swing is the simplest groove and may be enough.
+
+**Tempo walk:** a slow seeded random walk on BPM (± a few BPM over many measures, `getSeededVal` by
+measure, the swells pattern) as Pacing's equivalent of an LFO — replayable by construction, but BPM
+moves everything that counts measures, so the fleet's lifecycle speeds and slows with it (accepted:
+the 2026-10-09 time decision keeps the lifecycle on measures) and Sync-mode lanes follow. Try swing
+first; the walk only if a world feels too metronomic.
+
 ## 26. Desktop Paint: Stage-Sized Moving Layers Re-Raster Every Frame
 
 **Closed** 2026-10-22 (Crawford). Both ranked fixes are on `main`: candidate 1 as roadmap [53](../roadmap.md#53-per-mover-compositor-layers) (PR #563) and candidate 2 as the deck camera's idle stand-down (PR #562, `fix/deck-camera-idle-range`). The "document layer" the status below leaves open was the harness, not the app: it counted Chrome's whole-frame `#document` paint as a full-viewport repaint, and with that left out the idle-paint gate passes at 0.08 × `main` ([PERFORMANCE.md](../../PERFORMANCE.md) "the Task 20 gate, re-run with the frame wrappers left out"). Not done: candidate 3 (a lighter desktop audio default) was not taken, and the full-screen underruns on Crawford's laptop were not re-measured after the merge. The item as it stood follows.
@@ -717,6 +753,56 @@ to be the same change.
 full suite, a listen, the perf runs against the old version), and delete `src/engine/tonePatches.ts`, its test, its
 call and `oscillatorLeakPatched` in that change.
 
+## 35. Audio: BeatClock Drops the Transport Time Its Callbacks Are Given
+
+**Closed** 2026-10-26 (merged via PR #585, `fix/beatclock-transport-time`; archived 2026-11-02). BeatClock's `scheduleRepeat` forwards the Transport time and the swell tick carries it to every write in both pools; the harmony tick, the docking lifecycle and `setRoomFeeder` stay on "now" by decision; Tone's warning no longer fires. The pre-scheduled swell curve was left out by Crawford's threshold decision (below). The original request follows.
+
+**Found 2026-10-26** (Crawford, dev and production builds alike): Tone prints, once per page load,
+"Events scheduled inside of scheduled callbacks should use the passed in scheduling time"
+([Accurate Timing](https://github.com/Tonejs/Tone.js/wiki/Accurate-Timing)). Tone raises it the first time a call
+inside a Transport callback reaches `toSeconds(undefined)`, that is, a Tone method given no time while the Transport is
+running a scheduled callback (`assertUsedScheduleTime` in Tone's `Debug.js`, called from `ToneWithContext.toSeconds`).
+
+**Cause.** The engine's own note tick passes the Transport's time through (`AudioEngine.ts`, `scheduleRepeat((time) =>`),
+so notes are placed on the beat. BeatClock does not: its `scheduleRepeat(interval, callback)` wrapper
+(`src/engine/beatClock.ts`) takes a `() => void` callback and discards the `time` the Transport hands it. Every consumer
+of the measure tick runs through that wrapper: the harmony tick (`harmonySystem.ts`), the swell tick
+(`audioSwells.ts`, every 16th), and the docking lifecycle's ramps and starts. Each of their Tone calls (ramps, level
+sets, starts) therefore lands at "now", the audio clock's current time, rather than at the callback's time, which runs
+about `lookAhead` (100 ms) ahead of it: early by up to that much, with jitter. Those are ramps and levels, so it has
+not been heard; it is still scheduling off the beat on the path CLAUDE.md says is beat-based.
+
+**Fix (behaviour, so RED first):** BeatClock's wrapper passes the Transport time to its callback; `scheduleRepeat`'s
+callback type becomes `(time: number) => void`; each consumer that reaches Tone from the tick takes the time and uses it
+(the swells' `apply*` writes, the harmony change, the lifecycle's ramps), or states in a comment why "now" is right for
+it. Done when the warning does not fire on a fresh page through a few measures of a playing world (a headless check over
+CDP catches it: a `console.warn` listener on the page) and the measure-tick consumers' tests pass a time through. This
+changes how the scheduling path is called, not what it schedules; Crawford asked for it (2026-10-26), so the CLAUDE.md
+"ask first" is met.
+
+**Status:** intent [docs/intent/beatclock-transport-time.md](../../intent/beatclock-transport-time.md), spec
+[docs/specs/BEATCLOCK_TRANSPORT_TIME.md](../../specs/BEATCLOCK_TRANSPORT_TIME.md), plan
+[docs/tasks/BEATCLOCK_TRANSPORT_TIME.md](../../tasks/BEATCLOCK_TRANSPORT_TIME.md); building on branch
+`fix/beatclock-transport-time`.
+
+**Built** 2026-10-26 on `fix/beatclock-transport-time` (T0–T14; Checkpoints A–C passed, Crawford's listen included).
+BeatClock's `scheduleRepeat` forwards the Transport time, and the swell tick carries it to every write in both pools;
+the harmony tick, the docking lifecycle and `setRoomFeeder` stay on "now" by decision
+([AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md#scheduling-patterns)). **The proof run:** with `perf:audio`'s new console tally,
+stock `main` logs Tone's warning once in each of three rounds and the branch logs nothing
+([PERFORMANCE.md](../../PERFORMANCE.md#beatclock-passes-the-transport-time--the-console-check-2026-10-26-backlog-35)).
+**The measurement:** the swell tick takes 3.38 % of the idle window with the store half excluded (median, 3.35–5.68 %,
+4× throttle, swell-heavy link; 0.01 % with Swell Frequency 0)
+([PERFORMANCE.md](../../PERFORMANCE.md#the-swell-ticks-main-thread-share-task-12)).
+
+**Curve: not built** (Crawford, 2026-10-26, Checkpoint C). The pre-scheduled swell curve (the whole swell scheduled on
+the param at its start and rendered on the audio thread, with no per-tick engine write) was left out of this item
+behind a measurement and a threshold: build it only past **2 %**. The tick's 3.38 % clears that, but the param writes a
+curve would take off the main thread are **0.45–0.70 %**. Most of the tick is phase writes rebuilding a periodic wave,
+a setting a curve cannot carry, and that cost is
+[37](#37-audio-phase-swells-rebuild-a-periodic-wave-every-tick). The design that would have been built is in the
+intent's Out of scope ([docs/intent/beatclock-transport-time.md](../../intent/beatclock-transport-time.md#out-of-scope)).
+
 ## 36. Audio: Swells on `pulseWidth` Write NaN Into the Voice Every Tick
 
 **Closed** 2026-10-27 (with backlog 37 on `fix/swell-targets`, `d8e3fd9f`). No robot swell can target `layerN.pulseWidth` any more, which removes the flood's only source; the fix designed below was not built. The original request follows.
@@ -967,3 +1053,14 @@ action rebuild the voice and re-prime its links. Mute stays live.
   to 0.00, and the robot param writes from 0.45 % to 0.15 %.
 - **Listen** (Checkpoint D, Crawford): passed, "I think it sounds good." The listen covered the gain-then-ADSR drag,
   the muted layer's unmute, and a swell.
+
+## 47. Audio: Seeded Draws Are Welded and Centre-Heavy — Even Draws First
+
+**Closed** 2026-11-02 (merged via PR #596, `fix/even-seeded-draws`, `e333b033`..`2617fd8d`; Crawford passed Classic at Checkpoint D, "i love it"). Every audio draw is even (`getUniformSeededVal`) or centred (`getCentredSeededVal`: the EQ bands, the detunes, a lit detune link's depth folded to its 1 % floor), at the dataId and offset it always had; no key pair correlates above 0.1; every fitted edge became the share it says (spec §1.4). The record, before-and-after tables included, is [docs/tasks/EVEN_SEEDED_DRAWS.md](../../tasks/EVEN_SEEDED_DRAWS.md); its docs tasks T19–T20 landed after the merge on `docs/plan-2026-11-02`. The refinement this was step zero of is roadmap [58](../roadmap.md#58-themes-and-aspects-refinement); the world and visual draws are backlog [46](../backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement). The original request follows.
+
+**Found 2026-11-01**, the first step of refining the themes and aspects (Crawford agreed to fix the spread before any tuning and then
+re-hear Classic). Every audio value a world seeds through plain `getSeededVal` is welded to other keys,
+centre-heavy, and at offset 0 coarse (a few global keys take 3 values in 3,000 worlds), and the share edges compared
+against those draws realise other shares than they say. Crawford's decisions: every audio draw goes even, the world and
+visual draws wait (46), Classic is switched first and then listened to, and the shape is even everywhere. Spec:
+[docs/specs/EVEN_SEEDED_DRAWS.md](../../specs/EVEN_SEEDED_DRAWS.md), on `fix/even-seeded-draws`.

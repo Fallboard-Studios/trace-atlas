@@ -2,7 +2,7 @@
 
 Spec: [docs/specs/BEATCLOCK_TRANSPORT_TIME.md](../specs/BEATCLOCK_TRANSPORT_TIME.md). Intent:
 [docs/intent/beatclock-transport-time.md](../intent/beatclock-transport-time.md). Backlog slot:
-[35](../todo/backlog.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given), first line of plan.md's
+[35](../todo/archive/backlog-archive.md#35-audio-beatclock-drops-the-transport-time-its-callbacks-are-given), first line of plan.md's
 Stage 1. Build branch `fix/beatclock-transport-time` off `main` (`ff5155ce` or later). Spec §7's four open questions are
 all resolved with the spec's recommendations (Crawford, 2026-10-26); the Architecture Decisions below record each.
 
