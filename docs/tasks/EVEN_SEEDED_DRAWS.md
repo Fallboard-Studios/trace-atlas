@@ -141,7 +141,7 @@ they share a source file and a test file.
 
 ### Phase 1: The draws and the test helper
 
-- [ ] **Task 0: Before-measurements — spreads, shares and timing on `main`**
+- [x] **Task 0: Before-measurements — spreads, shares and timing on `main`**
 
   **Description:** Record the `zzSpread` harness's before-table: distinct counts, outer-tenth shares, the correlated
   pairs and the share of every §1.4 edge. The measurements of 2026-11-01 (spec §1.1, run on `main` at `56962ebe`)
@@ -153,11 +153,11 @@ they share a source file and a test file.
   before the commit).
 
   **Acceptance criteria:**
-  - [ ] The record holds the before-table and the two timings.
-  - [ ] The commit contains only this plan's record.
+  - [x] The record holds the before-table and the two timings.
+  - [x] The commit contains only this plan's record.
 
   **Verification:**
-  - [ ] `git status` shows no `zz*` file staged.
+  - [x] `git status` shows no `zz*` file staged.
 
   **Dependencies:** None.
 
@@ -762,3 +762,58 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 ## Record
 
 (Filled in as the build goes: T0's before-table and timings, each task's deviations, T18's after-table.)
+
+### T0: before-measurements (`main` at `56962ebe`)
+
+The spread run is the 2026-11-01 harness run behind spec §1.1, copied here, not re-run: Classic, 3,000 worlds
+(locale maps from random coordinates) × 12 robots at offsets 0–11, 3,000 style maps at offset 0, and 300 style maps ×
+400 measures for the swell rolls. Every value is the draw as `[0, 1]` before its band is applied. "Outer" is the share
+in the bottom tenth plus the top tenth (20 % if even). The even column is `getUniformSeededVal` at the same dataId and
+offset, for comparison.
+
+**Robots (48 keys, 36,000 draws each).**
+
+| | Plain (today) | Even |
+|---|---|---|
+| Distinct values per key | 3,186–5,627, except `robot.lfo.layer1.gain.depth` 580 and `robot.noteVariance.active` 1,342 | 35,286–35,403 |
+| Outer share per key | 0.3–8.0 % (`attackCurve.shaped` 0.3, `lfo.layer2.gain.quiet` 0.3, `dynamics` 0.6, `filterFreq` 1.5, `lfo.bus.frequency.quiet` 1.5) | 19.6–20.5 % |
+| 5th–95th percentile | 0.12–0.19 to 0.81–0.88 | 0.05–0.95 |
+| Key pairs with \|r\| > 0.3 / > 0.9, of 1,128 | 621 / 217 | 0 / 0 |
+
+**Global (68 keys on the plain draw today, 3,000 draws each).**
+
+| | Plain (today) | Even |
+|---|---|---|
+| Distinct values per key | 3 on 10 keys (`compressor.knee`, `chebyshev.order`, `pingVarianceAutomation`, `lfoBank.b.rateDrift`, `lfoBank.c.rateDrift`, `lfoBank.c.syncMode`, `lfoBank.d.depthDrift`, `globalLfo.eq3.low.depth`, `globalLfo.eq3.high.depth`, `globalLfo.hpf.Q.quiet`); 24–64 on 13; 148–498 on the other 45 | 2,966–2,999 |
+| Outer share per key | 0 % on 47 keys; 1.2–9.5 % on 10; 14.5–17.4 % on 11 (`bpm`, the LPF and HPF frequencies, lane a's shape, rate drift and sync note, lane b's depth drift, lane c's shape and depth drift, the `lpf.Q` and `hpf.frequency` link depths) | 18.4–21.5 % |
+| Key pairs with \|r\| > 0.3 / > 0.9, of 2,278 | 1,294 / 640 | 0 / 0 |
+
+**Edge shares (the share of draws under the edge, today).**
+
+| Edge | Value | Realises |
+|---|---|---|
+| `robot.copyChance` | 0.3 | 19.2 % |
+| `robot.audio.portamento.glider` | 0.23 | 13.1 % |
+| `robot.audio.attackCurve.shaped` | 0.21 | 16.8 % |
+| `robot.audio.releaseCurve.shaped` | 0.275 | 15.5 % |
+| `robot.audio.filter.accent` | 0.27 | 20.2 % |
+| `robot.audio.filter.type` (`ACCENT_BANDPASS_SHARE`) | 0.4 | 36.7 % |
+| `robot.rhythmicMotifLength.active` / `robot.noteVariance.active` | 0.15 | 4.6 / 5.3 % |
+| robot LFO gain and detune quiet (lit = the rest) | 0.7 | 73.3–80.8 % quiet (lit 19.2–26.7 %) |
+| robot LFO bus quiet | 0.8 | 83.9 % quiet (lit 16.1 %) |
+| `DELAY_SYNC_ODDS` | 0.66 | 67.4 % |
+| `LFO_BANK_SYNC_ODDS` a / b / c / d | 0.6 / 0.62 / 0.33 / 0.33 | 74.3 / 64.6 / 33.1 / 23.7 % |
+| global `LFO_QUIET_THRESHOLD` per target | 0.34 | 26.6–33.7 %, `hpf.Q` 0 % |
+| `COLOUR_CHARACTER_BANDS` | 0.3065 / 0.5 / 0.6935 / 1 | 25.4 / 25.0 / 25.5 / 24.1 % |
+| swell trigger, global / robot, at 0.125 | 0.125 | 4.4 / 3.2 % |
+| swell trigger, global / robot, at 0.25 | 0.25 | 9.9 / 13.3 % |
+| swell trigger, global / robot, at 0.5 | 0.5 | 50.0 / 49.8 % |
+| `SWELL_COMPANY_CHANCE` | 0.15 | 3.9 % |
+
+**Timings** (the harness's timing case, run 2026-11-01 on the desktop, three runs; median of 200 runs each after 20
+warm-up runs, a different world each run):
+
+| Generator | Median |
+|---|---|
+| `generateRobotRosterBaseline(noiseMap, 12)` | 1.55 ms (1.545–1.552) |
+| `generateWorldSeedBaseline({ theme: 'classic' })` | 0.71 ms (0.707–0.714) |
