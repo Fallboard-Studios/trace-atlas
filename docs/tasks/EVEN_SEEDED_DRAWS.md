@@ -419,9 +419,10 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   **Estimated scope:** M (two paths, parity to hold)
 
 ### Checkpoint A: The robots
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] The harness's robot section (re-run on the branch, not committed): zero robot key pairs above 0.3, every robot
-  key above 30,000 distinct values over 36,000 draws, and every §1.4 robot edge at its share.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (13,311 tests, 351 files, at `1f4a328d`).
+- [x] The harness's robot section (re-run on the branch, not committed): zero robot key pairs above 0.3, every robot
+  key above 30,000 distinct values over 36,000 draws, and every §1.4 robot edge at its share. Figures in the record,
+  "Checkpoint A: the live robot draws".
 - [ ] Reviewed with Crawford before Phase 3. A quick listen to one world is optional here; the real listen is
   Checkpoint D.
 
@@ -933,3 +934,31 @@ before its commit.
   `layers[0]?.pulseWidth`. T7 switched it as the plan says.
 - Not in this plan, for Crawford: `deriveSendFields`' reverb and delay draws (`robot.send.reverb`, `.delay` and their
   `.quiet` rolls) are still plain `getSeededVal`, and spec §1.3 does not list them.
+
+### Checkpoint A: the live robot draws (`1f4a328d`, 2026-11-02)
+
+The T0 harness samples the draw functions at each dataId, so after Phase 2 its even column would only repeat T0's.
+Checkpoint A ran a different temporary harness instead (deleted; not committed). It wraps `getSeededVal`,
+`getUniformSeededVal` and `getCentredSeededVal`, records each draw the live code makes per robot (which function, and
+the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise, i, [])` over 3,000 worlds × 12
+(locale maps from random coordinates, as T0's). Master volume and the melody seed are drawn only by `spawnRobot`, so
+1,000 locales × 12 spawns recorded those.
+
+| | Live, at `1f4a328d` |
+|---|---|
+| Draw the code makes | even for every robot audio key; centred for `robot.audio.detune`, `robot.audio.layer.detune` and the three `robot.lfo.layerN.detune.depth`; no robot audio key on the plain draw. The sends (`robot.send.*`) are out of this plan and still plain |
+| Distinct values, keys drawn for every robot (36,000 draws) | 35,972–36,000 |
+| Distinct values, conditional keys (`filterQ`, `filter.type`, `.which`, `portamento`, LFO lane and depth) | all but at most 4 of their 4,620–9,089 draws |
+| Outer share (bottom + top tenth) | 18.9–21.6 % on the even keys; 3.6–4.1 % on the centred ones (a triangle gives 4 %) |
+| Key pairs with \|r\| > 0.3 / > 0.1, of 1,363 | 0 / 0 (largest 0.078, over 1,245 robots) |
+
+| Edge | Value | Realises |
+|---|---|---|
+| `robot.copyChance` | 0.3 | 30.31 % |
+| `robot.audio.portamento.glider` | 0.125 | 12.83 % |
+| `robot.audio.attackCurve.shaped` / `releaseCurve.shaped` | 0.155 / 0.15 | 15.26 / 15.18 % |
+| `robot.audio.filter.accent` | 0.2 | 19.64 % |
+| `robot.audio.filter.type` (of accent robots) | 0.4 | 40.71 % |
+| `robot.rhythmicMotifLength.active` / `robot.noteVariance.active` | 0.15 | 14.89 / 14.86 % |
+| robot LFO layer targets, quiet | 0.75 | 74.75–75.31 % (lit 24.7–25.3 %) |
+| robot LFO bus, quiet | 0.865 | 86.58 % (lit 13.4 %) |
