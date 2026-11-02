@@ -594,7 +594,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
 ### Checkpoint B: The global half
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (13,341 tests at `d52efbe1`; lint 0 errors, 4 warnings in scenery files outside this plan).
-- [ ] The harness's global section: zero plain-era pairs above 0.3, every key above 2,500 distinct values over 3,000
+- [x] The harness's global section (run with T18, record "T18: after-measurements"): zero plain-era pairs above 0.3, every key above 2,500 distinct values over 3,000
   styles, and every §1.4 global edge at its share.
 - [x] `generateWorldSeedBaseline` still round-trips: an untouched world's link is still the bare triple (the existing
   seedBaseline and sessionShareUtils tests green, unmodified).
@@ -659,7 +659,7 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
 
   **Estimated scope:** S
 
-- [ ] **Task 18: After-measurements — spreads, shares and timing on the branch**
+- [x] **Task 18: After-measurements — spreads, shares and timing on the branch**
 
   **Description:** Re-run the harness and the timing case on the branch head. Record the after-table beside T0's
   before-table, and the two timings beside T0's. If either timing grows past 16 ms, stop and ask Crawford (spec §5.3:
@@ -668,13 +668,13 @@ breaks moves onto T3's helper in the same commit. For `spawnSystem.test.ts`, tha
   **Proof:** Run — recorded.
 
   **Acceptance criteria:**
-  - [ ] Both tables and both timings are recorded.
-  - [ ] No in-scope call site still uses `getSeededVal`: a grep over spec §1.3's files, recorded here as a check, not
+  - [x] Both tables and both timings are recorded.
+  - [x] No in-scope call site still uses `getSeededVal`: a grep over spec §1.3's files, recorded here as a check, not
     a test.
-  - [ ] The harness is gone.
+  - [x] The harness is gone.
 
   **Verification:**
-  - [ ] `git status` is clean of `zz*` files.
+  - [x] `git status` is clean of `zz*` files.
 
   **Dependencies:** Tasks 9, 15, 17.
 
@@ -1131,6 +1131,74 @@ the value as a fraction of its band), and runs `generateRobotAudioBaseline(noise
   carries a 16-note melody, so 4 notes re-roll; the world is unchanged and the precondition still asserts the drift.
 - Mutation check (T17): the plain draw put back; the dataId renamed; the call index not advancing — 3 of 3 killed.
 - T17 full suite: 13,348 passed, 352 files.
+
+### T18: after-measurements (`68f8d353`, 2026-11-02)
+
+T0's harness samples the draw functions at each dataId, so re-run unchanged it would only repeat its own even column.
+T18 ran a live harness instead, as Checkpoint A did (temporary, deleted; not committed): it wraps `getSeededVal`,
+`getUniformSeededVal` and `getCentredSeededVal` and records each draw the live generators make (which function, and the
+value as a fraction of its band). Robots: `generateRobotAudioBaseline(noise, i, [])` over 3,000 worlds × 12, locale
+maps from random coordinates as T0's. Global: `generateWorldSeedBaseline` under Classic over 3,000 style names. Pairs
+are taken over the robots (or styles) that drew both keys, where at least 1,000 did. The swell rolls are sampled at
+their dataIds with the even draw, 300 style maps × 400 measures as T0's (T16 proved the tick draws them even). The
+timing case is T0's, unchanged, in its own mock-free file.
+
+**Robots (65 keys the live code draws).**
+
+| | Before (T0, plain) | After (live) |
+|---|---|---|
+| Draw the code makes | plain on every key | even on 58 keys; centred on 5 (`robot.audio.detune`, `robot.audio.layer.detune`, the three `robot.lfo.layerN.detune.depth`); plain on 2, `robot.name.adj` and `.noun`, which are names (backlog 46) |
+| Distinct values, keys drawn once per robot (36,000 draws) | 3,186–5,627 (two keys 580 and 1,342) | 35,952–35,999 on the 39 audio keys (the names: 2,759 and 5,646) |
+| Distinct values, per-layer and conditional keys (4,531–108,000 draws) | — | all but at most 60 of their draws (`layer.phase`: 107,940 of 108,000) |
+| Outer share (bottom + top tenth) | 0.3–8.0 % | 19.0–20.7 % on the even keys; 3.9–4.0 % on the centred ones (a triangle gives 4 %) |
+| Key pairs with \|r\| > 0.3 / > 0.1 | 621 of 1,128 / — | 0 / 0 of 2,065 (largest 0.077) |
+
+**Global (116 keys the live code draws, 102 of them in every style).**
+
+| | Before (T0, plain) | After (live) |
+|---|---|---|
+| Draw the code makes | plain on 68 keys | even on 113; centred on the 3 EQ bands; plain on none |
+| Distinct values, keys drawn in every style (3,000 draws) | 3 on 10 keys; 24–64 on 13; 148–498 on the rest | 2,970–3,000 (`bpm`: 2,999 distinct over 8,668 draws, the same tempo re-drawn per style) |
+| Outer share | 0 % on 47 keys | 18.4–22.0 % on the even keys (those drawn in at least 1,000 styles); 3.8–4.1 % on the EQ |
+| Key pairs with \|r\| > 0.3 / > 0.1 | 1,294 of 2,278 / — | 0 / 0 of 6,670 (largest 0.081) |
+
+**Edge shares (the share of draws under the edge).**
+
+| Edge | Value | Before (T0) | After |
+|---|---|---|---|
+| `robot.copyChance` | 0.3 | 19.2 % | 30.47 % |
+| `robot.audio.portamento.glider` | 0.23 → 0.125 | 13.1 % | 12.59 % |
+| `robot.audio.attackCurve.shaped` / `releaseCurve.shaped` | 0.21 / 0.275 → 0.155 / 0.15 | 16.8 / 15.5 % | 15.24 / 14.95 % |
+| `robot.audio.filter.accent` | 0.27 → 0.2 | 20.2 % | 20.16 % |
+| `robot.audio.filter.type` (all type rolls) | 0.4 | 36.7 % | 39.96 % |
+| `robot.rhythmicMotifLength.active` / `robot.noteVariance.active` | 0.15 | 4.6 / 5.3 % | 15.00 / 15.06 % |
+| `DELAY_SYNC_ODDS` | 0.66 | 67.4 % | 66.10 % |
+| `LFO_BANK_SYNC_ODDS` a / b / c / d | 0.6 / 0.62 / 0.33 / 0.33 → 0.75 / 0.66 / 0.33 / 0.25 | 74.3 / 64.6 / 33.1 / 23.7 % | 75.67 / 66.23 / 33.27 / 26.17 % |
+| global `LFO_QUIET_THRESHOLD`, per target | 0.34 | 26.6–33.7 %, `hpf.Q` 0 % | 31.73–34.67 % (`lpf.Q` lowest, 2.6 standard deviations under 34 %; the other six within 0.7 points) |
+| `COLOUR_CHARACTER_BANDS` | 0.3065 / 0.5 / 0.6935 / 1 → 0.25 / 0.5 / 0.75 / 1 | 25.4 / 25.0 / 25.5 / 24.1 % | 24.80 / 26.27 / 24.03 / 24.90 % |
+| swell trigger, global / robot, at 0.125 | 0.125 | 4.4 / 3.2 % | 12.50 / 12.39 % |
+| swell trigger, global / robot, at 0.25 | 0.25 | 9.9 / 13.3 % | 24.93 / 24.89 % |
+| swell trigger, global / robot, at 0.5 | 0.5 | 50.0 / 49.8 % | 50.05 / 49.99 % |
+| `SWELL_COMPANY_CHANCE` | 0.15 | 3.9 % | 14.98 % |
+
+The robot LFO quiet rolls are not in this table: since T8 they are read per target against their own `lit`, and
+Checkpoint A recorded them (74.75–75.31 % quiet on the layer targets, 86.58 % on the bus).
+
+**Timings** (T0's timing case, three runs on the desktop; median of 200 runs each after 20 warm-up runs):
+
+| Generator | Before (T0) | After |
+|---|---|---|
+| `generateRobotRosterBaseline(noiseMap, 12)` | 1.55 ms (1.545–1.552) | 5.60 ms (5.569–5.613) |
+| `generateWorldSeedBaseline({ theme: 'classic' })` | 0.71 ms (0.707–0.714) | 1.25 ms (1.247–1.260) |
+
+Both stay under the 16 ms stop line (spec §5.3), so no cache. The roster is 3.6 times as slow: every even draw is three
+noise samples and a hash, where a plain draw is one sample.
+
+**The grep** (a check, not a test): over spec §1.3's six files, `getSeededVal(` remains only in `spawnSystem.ts`, on
+backlog-46 draws: the robot and company names, the identity colour (both sites), the gem seed, the robot and company
+ids, the spawn position, the company count, size and members (both paths), the roster's active count and the docked
+batteries. `robotFieldDerivation.ts`, `globalAudioSeed.ts`, `bpmSeed.ts`, `audioSwells.ts` and `robotSystems.ts` make no
+plain draw.
 - Mutation check (T15): each of the three draws put back on `getSeededVal`; the duration floored instead of snapped —
   4 of 4 killed (a first run reported two survivors because the harness's line numbers were one off and only the import
   changed; re-run on the right lines). Full suite: 13,341 passed.
