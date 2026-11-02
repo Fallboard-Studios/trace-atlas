@@ -17,7 +17,7 @@ import {
 } from '@/data/bands/aspects';
 import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
 import { deepEqual } from '@/utils/math';
-import { retransmitWorld, rollWorld, type RetransmitInput } from '@/systems/worldTransition';
+import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
 import { cancelWorldChange, requestWorldChange } from '@/systems/worldChange';
 import { getWorldState } from '@/systems/worldState';
 import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
@@ -27,6 +27,7 @@ import { useLoadingStore } from '@/stores/loadingStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { formatSessionTimestamp } from '@/utils/helpers';
+import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
 import { describeLoading, describeWorld, withTail } from '@/utils/describeWorld';
 import { aspectDescription, aspectName, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
 import { setRef, deleteRef } from '@/utils/refs';
@@ -49,7 +50,8 @@ import './OffScreen.css';
 // ========================================
 
 // Option values carry their source, so a save named like a preset's id (or like its name) never
-// collides with the preset — or with Current.
+// collides with the preset — or with Current, or New Transmission.
+const NEW_VALUE = 'new';
 const CURRENT_VALUE = 'current';
 const PRESET_PREFIX = 'preset:';
 const SAVE_PREFIX = 'save:';
@@ -58,12 +60,13 @@ const LABEL = labels('home.off.label');
 const POWER_HINT = labels('home.off.powerHint').humanLabel;
 const TRANSMISSION = labels('home.off.transmission');
 const CURRENT = labels('home.off.current');
+const NEW_TRANSMISSION = labels('home.off.newTransmission').humanLabel;
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
 
-/** Roll and Keep (spec assumption 14), muted — flat, like the theme row and the list; only the aspect rows pop
- *  (Crawford's note 5). Roll rides on the Current row (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4); Keep sits under the
- *  list. */
-const ROLL_SCHEMA: ButtonSchema = { id: 'offRoll', type: 'button', ...labels('home.off.roll'), appearance: 'muted' };
+/** Scan and Keep (spec assumption 14), muted — flat, like the theme row and the list; only the aspect rows pop
+ *  (Crawford's note 5). Scan rides on New Transmission's row (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md
+ *  §1.1, where Roll rode on Current's); Keep sits under the list. */
+const SCAN_SCHEMA: ButtonSchema = { id: 'offScan', type: 'button', ...labels('home.off.scan'), appearance: 'muted' };
 const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
 const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
 const KEEP_FAILED = labels('home.off.keepFailed').humanLabel;
@@ -126,15 +129,29 @@ function AspectFamilyRow({
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
 
-/** What a pick is: Current — the loaded world, described live from the stores — or a save / preset, described
- *  from its own payload under its name, so the well names what was picked even before the world has rebuilt. The
- *  identity is whole (Task 30): the payload's loading, read leniently by loadingOf, sets the Loading rows and the
- *  readout's tail. */
+/** What a pick is: Current — the loaded world, described live from the stores — or a save / preset / New
+ *  Transmission, described from its own world under its name (none for New Transmission), so the well names what was
+ *  picked even before the world has rebuilt. The identity is whole (Task 30): the payload's loading, read leniently by
+ *  loadingOf, or New Transmission's Classic with no aspects, is the row's own, which its tail is read against. */
 type TransmissionPick =
   | { value: typeof CURRENT_VALUE }
   | { value: string; name: string; identity: WorldIdentity };
 
 const CURRENT_PICK: TransmissionPick = { value: CURRENT_VALUE };
+
+/** New Transmission's world: a seed and a plot, drawn on mount and again by each Scan, never stored. */
+interface DrawnWorld {
+  attenuationStyleName: string;
+  coordinates: { x: number; y: number };
+}
+
+const drawWorld = (): DrawnWorld => ({
+  attenuationStyleName: generateRandomAttenuationStyleName(),
+  coordinates: { x: randomCoordinate(), y: randomCoordinate() },
+});
+
+/** The loading New Transmission's world lands under (spec §1.1): Classic, every robot as theme. */
+const NEW_LOADING: LoadingIdentity = { theme: 'classic', aspects: {} };
 
 /** A payload's whole identity: its seed, its plot and its loading, read leniently by loadingOf. */
 const identityOf = (payload: SessionPayload): WorldIdentity => ({
@@ -143,8 +160,8 @@ const identityOf = (payload: SessionPayload): WorldIdentity => ({
   ...loadingOf(payload),
 });
 
-/** The world the listener powered off on, kept from the moment they leave it (a save or preset pick, or a Roll) until
- *  it is live again (Current picked). Runtime only: component state, never a store, a save or the link
+/** The world the listener powered off on, kept from the moment they leave it (a save, preset or New Transmission pick,
+ *  or a Scan) until it is live again (Current picked). Runtime only: component state, never a store, a save or the link
  *  (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.2). */
 interface CurrentSnapshot {
   /** buildSessionPayload() at the moment of leaving. */
@@ -157,16 +174,16 @@ interface CurrentSnapshot {
 
 /**
  * A world change waiting under the scene wash, as the clicks since have shaped it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
- * R3). The world part is at most one of a save or preset to apply, Current's snapshot to restore and a Roll, the last
- * world click winning; then the loading the world should end under, and the row the list shows. Runtime only, like the
- * change itself (worldChange.ts keeps the closure).
+ * R3). The world part is one of a save or preset to apply, New Transmission's drawn world, or Current's snapshot to
+ * restore, the last world click winning (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5); then the loading
+ * the world should end under, and the row the list shows. Runtime only, like the change itself (worldChange.ts keeps the
+ * closure).
  */
 interface Intent {
   world:
     | { kind: 'payload'; value: string; name: string; payload: SessionPayload }
-    | { kind: 'current'; snapshot: CurrentSnapshot }
-    | null;
-  roll: boolean;
+    | ({ kind: 'new' } & DrawnWorld)
+    | { kind: 'current'; snapshot: CurrentSnapshot };
   pick: TransmissionPick;
   theme: ThemeId;
   aspects: FamilyPicks;
@@ -188,15 +205,15 @@ interface Intent {
  * and never starts audio: only the power switch does (powerController). Current is the loaded world, so picking
  * it applies nothing. A save pick also names the session after the save, as loading it from the Sessions list
  * does, so a later Save overwrites it. A save that has since vanished from storage applies nothing and is not
- * claimed as the pick. Roll (assumption 14) is the action on the Current row — the list's trailing slot, beside the
- * radio and never inside it (revisions Task 4, Crawford's note 2): a fresh random world through rollWorld —
- * a retransmit, so the pick returns to Current and the row renames from the stores. Keep (assumption 14), labelled
+ * claimed as the pick. New Transmission, first in the list, holds a world drawn on mount; Scan, the action in its row —
+ * the list's trailing slot, beside the radio and never inside it — draws another and picks it (docs/specs/
+ * OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1; Roll, on Current's row, is gone). Keep (assumption 14), labelled
  * "Save Last World" under the list (review R20), saves the
  * loaded world through sessionStore.keepCurrentWorld — no name field — and the new row appears at once; it dims
  * (the dim-controls rule) whenever the loaded world equals its save, and a muted warning line sits under the
  * chooser only while it does not. A Keep the storage refuses shows its failure line in that warning's place until a
- * Keep succeeds or the world changes (R20). Dirty is read on mount, after a pick, after a Roll and after a Keep — never per
- * render (it builds the live payload). A preset pick or a Roll detaches the loaded save (sessionStore
+ * Keep succeeds or the world changes (R20). Dirty is read on mount, after a pick, after a Scan and after a Keep — never per
+ * render (it builds the live payload). A preset or New Transmission pick or a Scan detaches the loaded save (sessionStore
  * .detachLoadedSession): that world is no longer the save, so Current is named by its identity alone and Keep
  * writes a new row rather than overwriting the save. The veil (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
@@ -227,7 +244,7 @@ interface Intent {
  * The family rows (Task 31's Melody row, one per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 9; assumptions
  * 17 and 21) sit under the theme row's line, in ASPECT_FAMILY_IDS order — Melody, Envelope, Distance, Voice: each a
  * multiple RadioButton in the cabinet appearance, the only thing on this screen that pops (Crawford's note 5; the theme
- * row, the list, Roll and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
+ * row, the list, Scan and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
  * loaded world's picks for Current and the picked payload's after a save or preset pick, as the theme row does. A change
  * sends the whole loading, `retransmitWorld({ aspects })`, with the changed family's set canonical (an empty list when
  * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the live roster
@@ -235,8 +252,8 @@ interface Intent {
  * world change), with the same drop to Current, the same attached save and the same dirty read as a theme pick. Each
  * row's description line names the aspect toggled on last in that family while it is still on, else
  * the last of its set in canonical order, else the family's own `none` sentence; a world pick resets every family's
- * toggle memory, so a save reads as its own sets. Roll touches no row: rollWorld leaves the loading store alone
- * (assumption 14).
+ * toggle memory, so a save reads as its own sets. New Transmission's world lands under Classic with no aspects, so a
+ * Scan clears every row.
  *
  * While a world change waits under the wash, every click joins it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3). The
  * screen keeps the clicks' intent (Intent, above), and the one request realises all of it at the cover: the world part,
@@ -253,6 +270,9 @@ export function OffScreen() {
   const [heardWorld] = useState(() => hasHeardWorld());
   const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
+  // New Transmission's world (spec §1.1): drawn once on mount, so leaving the row and picking it again lands the same
+  // world; only Scan draws another. A fresh off screen (the next power-off) draws afresh.
+  const [newWorld, setNewWorld] = useState(drawWorld);
   // The change waiting for the cover, as the clicks since have shaped it (R3). The ref is what realise reads when the
   // cover lands; the state is what the rows draw from until then. Set together, and cleared once the change has run or
   // been cancelled.
@@ -301,31 +321,22 @@ export function OffScreen() {
   const shownTheme: ThemeId = intent?.theme ?? loadedTheme;
   // The family rows' sets (Task 31; per family since revisions Task 9), by the same rule.
   const shownAspects = intent?.aspects ?? loadedAspects;
-  // The readout names the shown pick. For Current with a change waiting, it names the world that change leaves, as far
-  // as it is known: a pick's world or Current's snapshot under the intended loading, or the loaded world's (a Roll's is
-  // drawn only as it runs).
-  const intendedWorld = (waiting: Intent): string => {
-    const { world, theme, aspects } = waiting;
-    if (world?.kind === 'payload') {
-      return describeWorld({ ...identityOf(world.payload), theme, aspects }, world.value.startsWith(SAVE_PREFIX) ? world.name : undefined);
-    }
-    if (world?.kind === 'current') {
-      return describeWorld({ ...identityOf(world.snapshot.payload), theme, aspects }, world.snapshot.loadedName ?? undefined);
-    }
-    return describeWorld({ ...liveWorld, theme, aspects }, waiting.roll ? undefined : (loadedSessionName ?? undefined));
-  };
-  // A save's or preset's world is named under the loading shown: the intent's while a change waits, the live world's once
-  // it has landed, so an edit in place shows (spec §1.3). Its seed and plot are the pick's: only the loading moves in place.
+  // The readout names the shown pick. A save's, preset's or New Transmission's world is named under the loading shown:
+  // the intent's while a change waits, the live world's once it has landed, so an edit in place shows (spec §1.3). Its
+  // seed and plot are the pick's: only the loading moves in place. New Transmission's name is empty, so its readout is
+  // the drawn style and plot alone. Current with a change waiting is a restore of its snapshot, named under the intended
+  // loading; else it is the live world.
+  const restoring = intent?.world.kind === 'current' ? intent.world.snapshot : null;
   const readout =
     'identity' in shownPick
       ? describeWorld({ ...shownPick.identity, theme: shownTheme, aspects: shownAspects }, shownPick.name)
-      : intent
-        ? intendedWorld(intent)
+      : restoring
+        ? describeWorld({ ...identityOf(restoring.payload), theme: shownTheme, aspects: shownAspects }, restoring.loadedName ?? undefined)
         : liveLabel;
 
   // The waiting change, realised once the cover has landed, or at once with no wash (R3): the world part - the pick's
-  // payload and names, or the Roll - then the intended loading where it differs from the one the world part leaves, then
-  // the row and the dirty read. It reads the ref, so every click made while it waited is in it. It runs only as the
+  // payload and names, or New Transmission's drawn world - then the intended loading where it differs from the one the
+  // world part leaves, then the row and the dirty read. It reads the ref, so every click made while it waited is in it. It runs only as the
   // pending change, and picking Current cancels that change along with its intent, so the intent is always set here.
   // A Current restore lands the snapshot through the Load path and re-attaches the save it was, then drops the snapshot:
   // Current is the live world again. Any other world part marks the snapshot landed (spec §1.2, §1.5).
@@ -334,7 +345,7 @@ export function OffScreen() {
     setIntent(null);
     let left: LoadingIdentity;
     const { setCurrentSessionName, setCurrentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
-    if (intended.world?.kind === 'current') {
+    if (intended.world.kind === 'current') {
       const { payload, loadedName } = intended.world.snapshot;
       applySessionPayload(payload);
       if (loadedName) {
@@ -345,7 +356,7 @@ export function OffScreen() {
       }
       setSnapshot(null);
       left = loadingOf(payload);
-    } else if (intended.world) {
+    } else if (intended.world.kind === 'payload') {
       const { value, name, payload } = intended.world;
       applySessionPayload(payload);
       if (value.startsWith(SAVE_PREFIX)) {
@@ -356,20 +367,18 @@ export function OffScreen() {
       }
       left = loadingOf(payload);
     } else {
-      if (intended.roll) {
-        rollWorld();
-        detachLoadedSession();
-      }
-      // A Roll leaves the loading store alone (rollWorld), so what it holds is what the world part left
-      // (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F15).
-      left = useLoadingStore.getState();
+      // New Transmission's world, whole: its seed and plot under Classic with no aspects, and no save attached (spec §1.1).
+      const { attenuationStyleName, coordinates } = intended.world;
+      retransmitWorld({ attenuationStyleName, coordinates, ...NEW_LOADING });
+      detachLoadedSession();
+      left = NEW_LOADING;
     }
     const loading: RetransmitInput = {};
     if (intended.theme !== left.theme) loading.theme = intended.theme;
     if (!deepEqual(canonicalAspects(intended.aspects), canonicalAspects(left.aspects))) loading.aspects = intended.aspects;
     if (loading.theme !== undefined || loading.aspects !== undefined) retransmitWorld(loading);
     const held = snapshotRef.current;
-    if (intended.world?.kind !== 'current' && held && !held.landed) setSnapshot({ ...held, landed: true });
+    if (intended.world.kind !== 'current' && held && !held.landed) setSnapshot({ ...held, landed: true });
     // The row is the intended pick, always: a loading laid over it keeps it, as a theme or aspect click on a landed pick
     // does (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5).
     setPick(intended.pick);
@@ -388,22 +397,9 @@ export function OffScreen() {
     });
   }, [setSnapshot]);
 
-  /** The intent a click builds on: the waiting one, or a fresh one from what the rows show now. */
-  const nextIntent = useCallback(
-    (): Intent =>
-      intentRef.current ?? {
-        world: null,
-        roll: false,
-        pick,
-        theme: shownTheme,
-        aspects: shownAspects,
-      },
-    [pick, shownTheme, shownAspects],
-  );
-
-  // The selected save's or preset's tail (spec §1.3): the shown loading, while it is not the row's own, named after its
-  // own name, the theme included whenever it differs from the row's (Classic too). Current never carries one: its name
-  // already holds its loading. Not stored: the row reads as stored again once it is left.
+  // The selected save's, preset's or New Transmission's tail (spec §1.3): the shown loading, while it is not the row's
+  // own, named after its own name, the theme included whenever it differs from the row's (Classic too). Current never
+  // carries one: its name already holds its loading. Not stored: the row reads as stored again once it is left.
   const own = 'identity' in shownPick ? shownPick.identity : null;
   const edited =
     own !== null &&
@@ -417,9 +413,11 @@ export function OffScreen() {
       id: 'offTransmission',
       type: 'radio',
       ...TRANSMISSION,
-      // The list (revisions Task 4, Crawford's note 1): rows, the saves carrying when they were saved.
+      // The list (revisions Task 4, Crawford's note 1): rows, the saves carrying when they were saved. New Transmission
+      // first, its drawn world never on the row (spec §1.3).
       appearance: 'list',
       options: [
+        { value: NEW_VALUE, humanLabel: tailed(NEW_VALUE, NEW_TRANSMISSION) },
         { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: CURRENT.humanLabel },
         ...saves.map((save) => ({
           value: SAVE_PREFIX + save.name,
@@ -436,6 +434,23 @@ export function OffScreen() {
     };
   }, [currentLabel, saves, selectedValue, selectedTail]);
 
+  // New Transmission picked, or a Scan (spec §1.1): its drawn world waits under the wash like any pick, the row showing at
+  // the click, under the world's own loading — Classic with no aspects — which replaces any loading clicked before it, as
+  // applying it would. Like a save or preset pick, it leaves Current first.
+  const pickNew = useCallback(
+    (world: DrawnWorld) => {
+      leaveCurrent();
+      setIntent({
+        world: { kind: 'new', ...world },
+        pick: { value: NEW_VALUE, name: '', identity: { ...world, ...NEW_LOADING } },
+        ...NEW_LOADING,
+      });
+      setLastOn({});
+      requestWorldChange(realise);
+    },
+    [leaveCurrent, realise, setIntent],
+  );
+
   const onChange = useCallback((value: string) => {
     if (value === CURRENT_VALUE) {
       // A world pick shows each set as that world carries it: nothing toggled (Task 31).
@@ -447,9 +462,7 @@ export function OffScreen() {
         // snapshot stays.
         const loading = loadingOf(left.payload);
         setIntent({
-          ...nextIntent(),
           world: { kind: 'current', snapshot: left },
-          roll: false,
           pick: CURRENT_PICK,
           theme: loading.theme,
           aspects: loading.aspects,
@@ -465,6 +478,10 @@ export function OffScreen() {
       }
       setSnapshot(null);
       setPick(CURRENT_PICK);
+      return;
+    }
+    if (value === NEW_VALUE) {
+      pickNew(newWorld);
       return;
     }
     let name: string;
@@ -485,16 +502,14 @@ export function OffScreen() {
     leaveCurrent();
     const identity = identityOf(payload);
     setIntent({
-      ...nextIntent(),
       world: { kind: 'payload', value, name, payload },
-      roll: false,
       pick: { value, name, identity },
       theme: identity.theme,
       aspects: identity.aspects,
     });
     setLastOn({});
     requestWorldChange(realise);
-  }, [leaveCurrent, nextIntent, realise, setIntent, setSnapshot]);
+  }, [leaveCurrent, newWorld, pickNew, realise, setIntent, setSnapshot]);
 
   // A theme pick (Task 30): the loading alone moves — the same seed and plot, the live world re-derived in place under
   // the new bands (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F7) — so the world row stays where it is
@@ -548,20 +563,20 @@ export function OffScreen() {
     rootRef.current?.querySelector<HTMLElement>('.sc-radio-button--list [role="radio"][aria-checked="true"]')?.focus();
   }, []);
 
-  // Roll is the retransmit itself: the stores change under the Current row, which renames from them. Under the scene
-  // wash (revisions Task 13). A Roll replaces a waiting pick, the last world click winning, and keeps the waiting loading,
-  // laid over the rolled world once it is drawn (R3).
-  const onRoll = useCallback(() => {
-    leaveCurrent();
-    setIntent({ ...nextIntent(), world: null, roll: true, pick: CURRENT_PICK });
-    requestWorldChange(realise);
-  }, [leaveCurrent, nextIntent, realise, setIntent]);
+  // Scan (spec §1.1): a new draw into New Transmission's row, then exactly a pick of it, from whichever row is selected,
+  // New Transmission included. It replaces a waiting change, the last world click winning (R3).
+  const onScan = useCallback(() => {
+    const world = drawWorld();
+    setNewWorld(world);
+    pickNew(world);
+  }, [pickNew]);
 
-  // Roll on the Current row (revisions Task 4, Crawford's note 2): the list's trailing slot, beside Current's radio and
-  // never inside it, so a Roll is never a pick. Held in a callback so the memoized list keeps its props.
-  const rollOnCurrent = useCallback(
-    (value: string) => (value === CURRENT_VALUE ? <Button schema={ROLL_SCHEMA} face="single" onClick={onRoll} /> : null),
-    [onRoll],
+  // Scan on New Transmission's row (where Roll rode on Current's, revisions Task 4, Crawford's note 2): the list's
+  // trailing slot, beside the radio and never inside it, so the button is never a row. Held in a callback so the memoized
+  // list keeps its props.
+  const scanOnNew = useCallback(
+    (value: string) => (value === NEW_VALUE ? <Button schema={SCAN_SCHEMA} face="single" onClick={onScan} /> : null),
+    [onScan],
   );
 
   const onKeep = useCallback(() => {
@@ -630,7 +645,7 @@ export function OffScreen() {
             {/* The two axes (Task 30): Transmission — which world — then Loading — how it loads. */}
             <div className="off-screen__axes">
               <div className="off-screen__axis">
-                <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={rollOnCurrent} />
+                <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={scanOnNew} />
                 <div className="off-screen__actions">
                   <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty || intent !== null} />
                 </div>

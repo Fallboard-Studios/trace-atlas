@@ -22,9 +22,11 @@ export const home = {
   // (docs/tasks/OFF_SCREEN.md Task 30). Shown as "Drive" (Crawford, 2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md
   // F5); the key and the axis's internal name stay "loading".
   'home.off.loading': { human: 'Drive' },
-  // Roll (spec assumption 14): the action on the Current row (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4) — a fresh
-  // random Attenuation Style and plot under the chosen Loading. An action, not a radio. Stand-in copy until Crawford's pass.
-  'home.off.roll': { human: 'Roll' },
+  // New Transmission: the first row of the list, a world drawn when the off screen opens (a random Attenuation Style and
+  // plot, under Classic with no aspects); Scan, the action in its row, draws another and selects it. An action, not a
+  // radio. Crawford's words (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.6); Scan replaced Roll.
+  'home.off.newTransmission': { human: 'New Transmission' },
+  'home.off.scan': { human: 'Scan' },
   // Keep (spec assumption 14): the one save action on the off screen — the loaded world, under the name Comms would
   // suggest, no name field. Dims once the world is kept. Crawford's words, 2026-10-31: "Save Last World", his answer to
   // the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20), after "Save the last session" (revisions

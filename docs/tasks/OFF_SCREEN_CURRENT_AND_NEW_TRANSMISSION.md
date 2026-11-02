@@ -247,7 +247,7 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
 ### Phase 3: New Transmission and Scan
 
-- [ ] **Task 5: `OffScreen.tsx` + `home.ts` — the New Transmission row with Scan, replacing Roll**
+- [x] **Task 5: `OffScreen.tsx` + `home.ts` — the New Transmission row with Scan, replacing Roll**
 
   **Description:** Spec §1.1 (the New Transmission and Scan rows), §1.3 and §1.6:
   - **The draw:** `newWorld` state (an Attenuation Style name and coordinates), drawn on mount from
@@ -273,19 +273,22 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   - Re-clicking the selected row requests no change.
 
   **Acceptance criteria:**
-  - [ ] The cases pass.
-  - [ ] Roll's cases are rewritten as Scan's, each named in the commit: `:882–:910`, `:1037`, `:1077`, `:1133–:1150`,
+  - [x] The cases pass.
+  - [x] Roll's cases are rewritten as Scan's, each named in the commit: `:882–:910`, `:1037`, `:1077`, `:1133–:1150`,
         `:1479`, `:1594`, `:638`, `:1834`, and the list-order cases `:1203`, `:1209` and `:1226`. They keep what still
         holds: a flat button, never a pick by itself, never starts audio, and the last click wins.
-  - [ ] `src/content` tests pass, and `home.off.roll` is gone.
-  - [ ] `rollWorld` and its cases are gone, and nothing in `src/` names it. The rest of `worldTransition.test.ts`
+  - [x] `src/content` tests pass, and `home.off.roll` is gone.
+  - [x] `rollWorld` and its cases are gone, and nothing in `src/` names it. The rest of `worldTransition.test.ts`
         passes unmodified.
+    - As built: the address-bar case "a both-changed retransmit, and a roll, write the whole new identity" lost its
+      roll half and the words "and a roll"; the rest of the file is unmodified. OffScreen.tsx's header comment lost
+      its rollWorld sentences here, so `src/` names it nowhere; Task 7 still rewrites the header whole.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx src/content src/systems/worldTransition.test.ts`
-  - [ ] Mutants: the draw taken at the click instead of on mount (the "same world on return" case fails); Scan not
+  - [x] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx src/content src/systems/worldTransition.test.ts`
+  - [x] Mutants: the draw taken at the click instead of on mount (the "same world on return" case fails); Scan not
         selecting the row; the theme not reset to Classic; the save not detached.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 3. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `src/content/copy/home.ts`,
   `src/systems/worldTransition.ts`, `src/systems/worldTransition.test.ts`

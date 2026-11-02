@@ -22,7 +22,6 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { getCurrentMeasure } from '../engine/beatClock';
 import { resumeWorldTimelines } from '../animation/timelineMap';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { generateRandomAttenuationStyleName, randomCoordinate } from '../utils/seedUtils';
 import { mirrorWorldToUrl } from '../utils/sessionShareUtils';
 import { currentWorldIdentity } from '../utils/worldIdentity';
 import { deepEqual } from '../utils/math';
@@ -509,18 +508,4 @@ export function retransmitWorld(input: RetransmitInput): void {
 
   const identity = currentWorldIdentity();
   if (identity) mirrorWorldToUrl(identity);
-}
-
-/**
- * Roll (docs/specs/OFF_SCREEN.md assumption 14): a fresh random Attenuation Style at a fresh random plot, through
- * retransmitWorld's full reset — the off screen's "another world, please". Nothing else moves: the loading store (the
- * theme and the aspects) rides along untouched, so the new world is drawn under the same bands and the bar keeps the
- * same loading params; the pick returns to Current on the screen; and like every retransmit it follows the power state
- * and leaves a paused world cold (Task 8).
- */
-export function rollWorld(): void {
-  retransmitWorld({
-    attenuationStyleName: generateRandomAttenuationStyleName(),
-    coordinates: { x: randomCoordinate(), y: randomCoordinate() },
-  });
 }
