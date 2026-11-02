@@ -20,7 +20,7 @@ import { deepEqual } from '@/utils/math';
 import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
 import { cancelWorldChange, requestWorldChange } from '@/systems/worldChange';
 import { getWorldState } from '@/systems/worldState';
-import { useSessionStore, isWorldDirty } from '@/stores/sessionStore';
+import { useSessionStore, isPayloadDirty, isWorldDirty } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
@@ -171,6 +171,11 @@ interface CurrentSnapshot {
   /** Has a world change landed since it was taken? Until one has, picking Current cancels rather than restores. */
   landed: boolean;
 }
+
+/** Is Current unsaved? The dirty read that dims Keep and shows the warning describes Current: its snapshot while there
+ *  is one, else the live world (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4). */
+const isCurrentDirty = (snapshot: CurrentSnapshot | null): boolean =>
+  snapshot ? isPayloadDirty(snapshot.payload, snapshot.loadedName) : isWorldDirty();
 
 /**
  * A world change waiting under the scene wash, as the clicks since have shaped it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
@@ -382,7 +387,7 @@ export function OffScreen() {
     // The row is the intended pick, always: a loading laid over it keeps it, as a theme or aspect click on a landed pick
     // does (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5).
     setPick(intended.pick);
-    setDirty(isWorldDirty());
+    setDirty(isCurrentDirty(snapshotRef.current));
     setKeepFailed(false);
   }, [setIntent, setSnapshot]);
 
@@ -526,7 +531,7 @@ export function OffScreen() {
         return;
       }
       retransmitWorld({ theme: value });
-      setDirty(isWorldDirty());
+      setDirty(isCurrentDirty(snapshotRef.current));
       setKeepFailed(false);
     },
     [setIntent],
@@ -579,10 +584,19 @@ export function OffScreen() {
     [onScan],
   );
 
+  // Keep saves Current (spec §1.4): with a snapshot, the snapshot, under its save name or a fresh one, which it then
+  // carries, so Current is named after it and a restore attaches it; no session field moves, since those describe the
+  // live world. With none, the live world through keepCurrentWorld, as before.
   const onKeep = useCallback(() => {
+    const held = snapshotRef.current;
     // A save the storage refuses (a full quota) is a line in the warning's place, never a throw into the click (R20).
     try {
-      useSessionStore.getState().keepCurrentWorld();
+      if (held) {
+        const name = useSessionStore.getState().keepWorld(held.payload, held.loadedName);
+        setSnapshot({ ...held, loadedName: name });
+      } else {
+        useSessionStore.getState().keepCurrentWorld();
+      }
     } catch (err) {
       console.error('[OffScreen] Keep could not save', err);
       setKeepFailed(true);
@@ -590,8 +604,8 @@ export function OffScreen() {
     }
     setKeepFailed(false);
     setSaves(sortedSaves());
-    setDirty(isWorldDirty());
-  }, []);
+    setDirty(isCurrentDirty(snapshotRef.current));
+  }, [setSnapshot]);
 
   const shownOf = (family: AspectFamilyId): readonly AspectId[] => shownAspects[family] ?? NO_PICKS;
   // A family's described aspect: the one toggled on last while it is still on, else the last of its set in canonical
@@ -621,7 +635,7 @@ export function OffScreen() {
         return;
       }
       retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
-      setDirty(isWorldDirty());
+      setDirty(isCurrentDirty(snapshotRef.current));
       setKeepFailed(false);
     },
     [shownAspects, setIntent],

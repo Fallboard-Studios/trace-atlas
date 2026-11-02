@@ -297,7 +297,7 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
 ### Phase 4: Keep follows Current
 
-- [ ] **Task 6: `OffScreen.tsx` — Keep and the dirty read follow the snapshot**
+- [x] **Task 6: `OffScreen.tsx` — Keep and the dirty read follow the snapshot**
 
   **Description:** Spec §1.4:
   - **Keep:** with a snapshot, `onKeep` calls `keepWorld(snapshot.payload, snapshot.loadedName)` and sets the
@@ -314,13 +314,15 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   - Current, after Keep and a restore: attached to the kept name.
 
   **Acceptance criteria:**
-  - [ ] The cases pass. The Keep cases with no snapshot (`:917–:1102`) pass unmodified.
+  - [x] The cases pass. The Keep cases with no snapshot (`:917–:1102`) pass unmodified.
+    - As built: five older cases had a pick or Scan in their setup, so a snapshot, and asserted the old live-world
+      Keep. They are rewritten to the new rule and named in the commit. The no-snapshot Keep cases pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx src/stores/sessionStore.test.ts`
-  - [ ] Mutants: Keep saving the live payload with a snapshot; the dirty read on the live world with a snapshot; the
+  - [x] `npx vitest run src/components/panels/screen/screens/OffScreen.test.tsx src/stores/sessionStore.test.ts`
+  - [x] Mutants: Keep saving the live payload with a snapshot; the dirty read on the live world with a snapshot; the
         snapshot's `loadedName` not updated after Keep (the restore case fails).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1 and 3. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`
 
