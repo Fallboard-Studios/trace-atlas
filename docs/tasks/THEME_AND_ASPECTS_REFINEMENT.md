@@ -221,12 +221,12 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Estimated scope:** M (one file, about twenty sheets)
 
 ### Checkpoint A: Crawford reads the sheets
-- [ ] Crawford has read every sheet. His notes go into the sheets as status marks and reasons at T4; nothing is
-      built from them before T4 lands.
-- [ ] The spec's open questions 1, 3, 5 and 6 confirmed or overridden in one line each.
-- [ ] Any ask-first a sheet raised (pitch drift, Humanize, a new key) decided: opened as a backlog item, or struck from
-      the sheet.
-- [ ] Session ends here.
+- [x] Crawford has read every sheet. His notes go into the sheets as status marks and reasons at T4; nothing is
+      built from them before T4 lands. (Passed 2026-11-03.)
+- [x] The spec's open questions 1, 3, 5 and 6 confirmed or overridden in one line each. (Defaults confirmed.)
+- [x] Any ask-first a sheet raised (pitch drift, Humanize, a new key) decided: opened as a backlog item, or struck from
+      the sheet. (Four new keys; pitch drift and the fleet's size struck.)
+- [x] Session ends here. (Ran on into T4 in the same session at Crawford's pace.)
 
 - [x] **T4: the sheets file — the cut, the two paper tests, and the survivor table**
 
@@ -255,8 +255,9 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Estimated scope:** S (marks and one table)
 
 ### Checkpoint B: the cut
-- [ ] Crawford confirms the survivor set and the table. The spec's open question 2 (the harness committed) confirmed.
-- [ ] The sheets branch is ready for his PR. Session ends here; Phase 2 starts fresh off `main` after it merges.
+- [x] Crawford confirms the survivor set and the table. The spec's open question 2 (the harness committed) confirmed.
+      (Passed 2026-11-03: "checkpoint A & B are both passing"; the harness takes its default, committed.)
+- [x] The sheets branch is ready for his PR. Session ends here; Phase 2 starts fresh off `main` after it merges.
 
 ---
 
@@ -305,12 +306,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Scope from T4 (2026-11-03):** compare and push `dynamics`, `accents` (performance), `portamento`, `lfoLinks`
   (motion), `masterVolume` (voice's case; check the velocity cache follows `reReserveVoice`, else add the volume edit's
-  cache write), `octaveRange` (melody's case). Add the five new keys to `bandKeys.ts` and `classic.ts` with Classic's band
+  cache write), `octaveRange` (melody's case). Add the four new keys to `bandKeys.ts` and `classic.ts` with Classic's band
   equal to today's draw: `robot.detune` (the layers' detune, read by `deriveVoiceFields`; compared and pushed already),
   `robot.octaveRegister` (a `PickBand`-shaped weighted pick over the register list), `lfoLink.lpf.frequency` (send-band
   shaped: lit share and depth on the master low-pass tie), `humanize` (a range; add it to the half-moves draw and push
-  `setHumanize`), `fleetSize` (cost it first: the roster is `MAX_ROBOTS` and the docking lifecycle is built on it; if the
-  live-world change needs a design of its own, split it out as a task and say so here). Names are fixed in this task.
+  `setHumanize`). The fleet's size is not a key (Crawford, 2026-11-03). Names are fixed in this task.
 
   **Proof:** RED test — `src/systems/aspectDeal.test.ts`: under injected theme columns (`vi.mock('../data/bands/themes')`
   as `resolveBands.test.ts` does) that move each survivor key, a theme change through `rederiveLoading` writes that
@@ -778,10 +778,11 @@ all three colour nodes, Wreck the drive and the crush, Tide the Vibrato, Vent Fi
 theme that wants no drive owns `gritSend` at none (Float). T5/T8 must build the rule: a column naming any row of a pedal
 or node forces its lit roll, and the two-lit pedal cap counts a forced pedal. **Three more keys (Crawford, 2026-11-03,
 "make them keys"):** `lfoLink.lpf.frequency` (the master low-pass cutoff's tie to the global LFO bank, send-band shaped:
-a theme naming it forces the tie live; Tide), `fleetSize` (how many probes a fresh world holds; Open Water fewer; the
-roster is fixed today, so this key reaches the docking lifecycle and `docs/ROBOT_LIFECYCLE.md`, and T6 must size that
-cost before building it) and `humanize` (the per-world timing scatter; Beacon none; whether Performance's options own it
-waits for the family marks). Five new keys in all; nothing the sheets want is an ask-first any more.
+a theme naming it forces the tie live; Tide), `fleetSize` (how many probes a fresh world holds; Open Water fewer) and
+`humanize` (the per-world timing scatter; Beacon none; whether Performance's options own it waits for the family marks).
+**Then struck (Crawford, 2026-11-03, "we're definitely not changing fleet size"):** `fleetSize` is not a key; Open
+Water's sheet dropped it and the roster stays `MAX_ROBOTS`. Four new keys in all; nothing the sheets want is an ask-first
+any more.
 
 **The family marks (Crawford, 2026-11-03, "taking all of your recs; keep Near"):** every family and option proposed is
 kept; Motion and Performance come in as the fifth and sixth families; Distance stays as Near, Echoing and Half-heard, and
@@ -800,8 +801,12 @@ candidate. The paper tests ran over every survivor and pass with no fix needed (
 is on the sheets file, T6–T9 carry "Scope from T4" lines, and nothing is struck: both T6 and T7a–c run, T7a twice. Open
 question 7 is answered by the table (no pseudo-family). Lint clean.
 
-**Next:** Checkpoint B, Crawford's read of the survivor table (and open question 2, the harness committed); then his PR
-for `docs/sheets-58`, and Phase 2 fresh off `main`.
+**Checkpoints A and B passed (Crawford, 2026-11-03).** One correction with the pass: the fleet's size is not a key
+("we're definitely not changing fleet size"); struck from the rules, Open Water's sheet, the survivor table and T6's
+scope. Four new keys remain. Open question 2 takes its default: the harness is committed.
+
+**Next:** Crawford's PR for `docs/sheets-58` (and `docs/intent-themes-aspects-58`); Phase 2 (T5) starts fresh off `main`
+after it merges.
 
 ## Risks and Mitigations
 
@@ -823,7 +828,8 @@ Carried from the spec; each takes its default until Crawford answers at the name
 
 1. **Where the sheets live.** Default `docs/reference/THEME_AND_ASPECT_SHEETS.md`. **Answered** (Crawford,
    2026-11-03): the default is fine.
-2. **The harness committed.** Default yes, as `scripts/sketch/measureBands.harness.ts`. **Open** until Checkpoint B.
+2. **The harness committed.** Default yes, as `scripts/sketch/measureBands.harness.ts`. **Answered** (Crawford,
+   2026-11-03, Checkpoint B passed on the defaults): committed.
 3. **The three listen worlds.** Default the three presets (`transmissionPresets.ts`). **Answered** (Crawford,
    2026-11-03): "the defaults you've been using for pixel testing are fine", read as the three presets, the worlds the
    Pixel underrun A/Bs ran on.

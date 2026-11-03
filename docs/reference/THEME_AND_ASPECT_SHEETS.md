@@ -32,18 +32,17 @@ every candidate. The choice between them is made on this file, before any column
   three effect rooms (Grit, Shimmer, Double) light when a probe's send feeds them, and the sends are bands. A theme that
   wants no drive owns `gritSend` at none rather than the colour rows. A lit pedal counts toward the two-lit cap on the
   Tremolo and the Vibrato.
-- **Five new keys, agreed at the cut (Crawford, 2026-11-03), built at T6 and named there.** Two robot keys:
+- **Four new keys, agreed at the cut (Crawford, 2026-11-03), built at T6 and named there.** Two robot keys:
   `robot.detune`, the fixed offset in cents between a probe's layers (the Core, Companion and Accent sources each have a
   detune slider; the seed draws one small value today outside the table), and `robot.octaveRegister`, a weighted pick
-  over the register list a probe's Octave Min and Max are dealt from, as the waveform pick weights the waveforms. Three
+  over the register list a probe's Octave Min and Max are dealt from, as the waveform pick weights the waveforms. Two
   world keys: `lfoLink.lpf.frequency`, the master low-pass cutoff's tie to the global LFO bank (a lit share and a depth,
-  shaped like a send band; a theme that names it forces the tie live, the coin decides under a theme that does not);
-  `fleetSize`, how many probes a fresh world holds (a fixed roster today, so this key reaches the docking lifecycle and
-  is the costliest of the five); and `humanize`, the small timing scatter on every note (seeded once per world today,
-  outside the table). Until T6 they are written on the sheets as any other key, and the key check knows they are not in
-  `classic.ts` yet.
-- **Not bands:** none remain. Every want the sheets raised is a key or dropped. Pitch drift is the docking lifecycle's
-  and no theme's business (Crawford, 2026-11-03): no sheet asks for it.
+  shaped like a send band; a theme that names it forces the tie live, the coin decides under a theme that does not), and
+  `humanize`, the small timing scatter on every note (seeded once per world today, outside the table). Until T6 they are
+  written on the sheets as any other key, and the key check knows they are not in `classic.ts` yet.
+- **Not bands:** the fleet's size, by decision (Crawford, 2026-11-03: "we're definitely not changing fleet size"), so no
+  sheet asks for it; and pitch drift, the docking lifecycle's and no theme's business. Every other want the sheets raised
+  is a key.
 
 ## The sheet
 
@@ -694,7 +693,7 @@ nearly half the fleet is on the resonant filter with a sharp peak, so many probe
 Ten places. Each is written as the world and the default probe, may own any key in the table (global rows included),
 and names its nearest neighbour among the current five and among the other candidates. A candidate that read as more or
 less of another was not written. A pedal or a colour node a sheet wants in every world is owned by its rows since the
-cut, and the register, the fleet's size, Humanize and the master filter's LFO tie by the new keys. The three effect-room
+cut, and the register, Humanize and the master filter's LFO tie by the new keys. The three effect-room
 sends
 are exclusive (a fresh probe carries at most one), so a sheet that raises one room's share notes that the measured
 sketch will show what share it reaches beside the other two.
@@ -984,8 +983,7 @@ name's root and nothing else: tiny dry droplets.
 
 ### Open Water  ·  theme  ·  status: kept
 
-**Character.** The pelagic: a vast open space with nothing near, and fewer probes in it than any other world holds. The
-reverb is at its longest with its first reflection
+**Character.** The pelagic: a vast open space with nothing near. The reverb is at its longest with its first reflection
 late, the delay long, and every probe is deep in both, so each call comes from far off and its echo later. Probes speak
 seldom and leave long gaps, so the silence between calls is the room; each is quieter than usual, as a far thing is,
 and its notes fade long. Wide across the field. The master filter is partly closed, since distance dulls, and the pulse
@@ -1008,9 +1006,8 @@ is slow to middling.
 - `stereoWidener.width` — wide across the field.
 - `filterLPF.frequency` — partly closed: distance dulls.
 - `bpm` — slow to middling.
-- `fleetSize` — fewer probes than any other world holds: nothing near (new key, see the rules).
 
-**Leaves alone.** The attack, voices, colour, pedals and EQ: Classic's.
+**Leaves alone.** The attack, voices, colour, pedals and EQ: Classic's. The fleet's size: fixed, by decision (the rules).
 
 **Overlaps.** Distance takes both sends (Near pulls the fleet in: "far" is lost, so the sentence must not promise it
 outright); Melody takes `robot.rhythmicDensity`; Envelope takes `robot.release`; Performance would take
@@ -1715,7 +1712,7 @@ lands on, whether a loading change compares it today, and the push that carries 
 means `movedFields` in `aspectDeal.ts` for a robot key or `deriveGlobalHalfMoves` in `audioStore.ts` for a global row.
 The family column is where the key's push is filed for `TOP_LEVEL_FIELDS` and `pushFamilyToEngine`; a key no family's
 option sets is still filed under a family's case for its push (plan open question 7, answered here: no pseudo-family).
-The five new keys are built at T6 and their names fixed there.
+The four new keys are built at T6 and their names fixed there.
 
 **Robot keys.**
 
@@ -1754,11 +1751,12 @@ two-lit pedal cap counts a forced pedal; the diff then carries it for free) and 
 |---|---|---|---|---|
 | `lfoLink.lpf.frequency` | `globalLfoLinks['lpf.frequency']`: the quiet draw forced live, the depth bounded | yes (`globalLfoLinks` is diffed) | the global half write, as today | T6 (the band), T8 (the column) |
 | `humanize` | `audioStore.humanize`, seeded by `regenerateGlobalAudioFromSeed` | **no** (not in the half-moves draw) | `AudioEngine.setHumanize` | T6 (the band and the half-moves entry) |
-| `fleetSize` | the roster size, `MAX_ROBOTS` today, and the docking lifecycle built on it | **no** | a new mechanism: the roster is sized per loading at spawn; a theme change on a live world is the open design | T6 sizes the cost first; may become its own task |
+
+The fleet's size is not a key: Crawford, 2026-11-03, "we're definitely not changing fleet size".
 
 **What T6 builds, exactly:** the comparison and push for `dynamics`, `accents`, `portamento`, the three LFO depths,
-`masterVolume` and `octaveRange`; the five new keys' bands in `bandKeys.ts` and `classic.ts` (Classic's band equal to
-today's draw, so spawn is unchanged); `humanize` in the half-moves draw; and the fleet-size costing. **What T7a–c build:**
+`masterVolume` and `octaveRange`; the four new keys' bands in `bandKeys.ts` and `classic.ts` (Classic's band equal to
+today's draw, so spawn is unchanged); and `humanize` in the half-moves draw. **What T7a–c build:**
 Motion (`deriveMotionFields` lifting the portamento and link draws; the three room sends stay with the theme, so
 `deriveSendFields` does not split) and Performance (`derivePerformanceFields` lifting `dynamics`, `rests`, `accents`),
 each wired through the typed records and the carriers' tests, `rests` refiled from melody to performance. **T8** writes
