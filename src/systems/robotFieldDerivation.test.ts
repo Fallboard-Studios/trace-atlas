@@ -14,6 +14,7 @@ import {
   composeSends,
   deriveEnvelopeFields,
   deriveMelodyFields,
+  deriveMotionFields,
   deriveOctaveRange,
   deriveSendFields,
   deriveVoiceFields,
@@ -390,5 +391,80 @@ describe('the two new robot keys: robot.detune and robot.octaveRegister (themes-
       deriveVoiceFields(noiseMap, offset, { ...CLASSIC, 'robot.detune': { min: -20, max: 20 } }).layers!.map((l) => Math.abs(l.detune)),
     );
     expect(Math.max(...spread)).toBeGreaterThan(10);
+  });
+});
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a (Motion): the glide and the LFO links, lifted out of spawnSystem.ts into
+// the family's one derivation at their dataIds and offsets.
+describe('deriveMotionFields — the Motion family (themes-58 T7a)', () => {
+  // Classic parity: the fresh robots of generateRobotRosterBaseline(createNoise2D(alea('motion-parity-a')), 8) as the
+  // generators drew them before the lift (HEAD b35a8558, captured 2026-11-03 and typed in, not read back), each with the
+  // lane tally of the robots before it. Two gliders, and lit gain, detune and bus links among them.
+  const PARITY = [
+    { offset: 0, prior: { a: 0, b: 0, c: 0, d: 0 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'c', depth: 3 }, 'layer2.gain': { lane: 'a', depth: 26 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } } },
+    { offset: 1, prior: { a: 1, b: 0, c: 1, d: 0 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'b', depth: 1 }, 'layer1.gain': { lane: 'b', depth: 34 }, 'layer1.detune': { lane: 'd', depth: 3 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } } },
+    { offset: 2, prior: { a: 1, b: 2, c: 1, d: 1 }, portamento: 0.14,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 53 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'a', depth: 6 } } },
+    { offset: 3, prior: { a: 2, b: 2, c: 1, d: 2 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'd', depth: 12 } } },
+    { offset: 4, prior: { a: 2, b: 2, c: 1, d: 3 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'c', depth: 47 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'b', depth: 46 }, 'layer2.detune': { lane: 'a', depth: 7 }, 'bus.frequency': { lane: null, depth: 0 } } },
+    { offset: 5, prior: { a: 3, b: 3, c: 2, d: 3 }, portamento: 0.07,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'a', depth: 3 }, 'bus.frequency': { lane: 'c', depth: 10 } } },
+    { offset: 7, prior: { a: 4, b: 3, c: 3, d: 4 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: 'a', depth: 19 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } } },
+  ];
+  const PARITY_MAP = createNoise2D(alea('motion-parity-a'));
+
+  it('under Classic returns, robot for robot, the glide and the links the generators drew before the lift', () => {
+    for (const { offset, prior, portamento, lfoLinks } of PARITY) {
+      expect(deriveMotionFields(PARITY_MAP, offset, CLASSIC, prior), `robot ${offset}`).toEqual({ portamento, lfoLinks });
+    }
+  });
+
+  it('leaves the lane tally it is handed alone', () => {
+    const prior = { a: 1, b: 2, c: 3, d: 4 };
+    deriveMotionFields(PARITY_MAP, 0, CLASSIC, prior);
+    expect(prior).toEqual({ a: 1, b: 2, c: 3, d: 4 });
+  });
+
+  describe('under an injected option column, over 500 robots (spec §1.5: a band is heard as written)', () => {
+    const NONE = { a: 0, b: 0, c: 0, d: 0 };
+    const BANDS = {
+      ...CLASSIC,
+      'robot.portamento': { min: 0.5, max: 0.8, lit: 0.6 },
+      'robot.lfoGainDepth': { min: 20, max: 30, lit: 0.5 },
+      'robot.lfoDetuneDepth': { min: 3, max: 6, lit: 0.4 },
+      'robot.lfoBusDepth': { min: 10, max: 15, lit: 0.3 },
+    };
+    const SLOTS = ROBOT_SLOTS.slice(0, 500);
+    const DRAWN = SLOTS.map(({ noiseMap, offset }) => deriveMotionFields(noiseMap, offset, BANDS, NONE));
+    const share = (hits: number, of: number) => hits / of;
+
+    it('the glide: a glider share within 3 points of the band\'s lit, every glide inside the band, every other robot 0', () => {
+      const gliders = DRAWN.filter((m) => m.portamento > 0);
+      expect(Math.abs(share(gliders.length, DRAWN.length) - 0.6)).toBeLessThan(0.03);
+      for (const { portamento } of gliders) {
+        expect(portamento).toBeGreaterThanOrEqual(0.5);
+        expect(portamento).toBeLessThanOrEqual(0.8);
+      }
+    });
+
+    it.each([
+      ['gain', (t: string) => t.endsWith('.gain'), 0.5, 20, 30],
+      ['detune', (t: string) => t.endsWith('.detune'), 0.4, 3, 6],
+      ['bus', (t: string) => t === 'bus.frequency', 0.3, 10, 15],
+    ] as const)('the %s links: a lit share within 3 points of the band\'s lit, every lit depth inside the band', (_, isTarget, lit, min, max) => {
+      const links = DRAWN.flatMap((m) => Object.entries(m.lfoLinks).filter(([t]) => isTarget(t)).map(([, link]) => link));
+      const lit_ = links.filter((link) => link.lane !== null);
+      expect(Math.abs(share(lit_.length, links.length) - lit)).toBeLessThan(0.03);
+      for (const { depth } of lit_) {
+        expect(depth).toBeGreaterThanOrEqual(min);
+        expect(depth).toBeLessThanOrEqual(max);
+      }
+      for (const link of links.filter((l) => l.lane === null)) expect(link.depth).toBe(0);
+    });
   });
 });

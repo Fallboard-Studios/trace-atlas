@@ -840,6 +840,14 @@ Classic's band). Deviations, all from the order of the plan (T6 runs before T7b 
   cases run unmodified. One case I wrote expected an LFO depth key to move only its own targets; the lane tally moves
   other targets' lanes too, as a fresh build does, so the case now expects every moved target.
 
+**T7a, Motion (2026-11-03).** `deriveMotionFields(noiseMap, offset, bands, priorLaneCounts)` in
+`robotFieldDerivation.ts` composes two lifted pieces, `derivePortamento` and `deriveLfoLinks`, because spawn draws the
+glide inside `generateAudioAttributes` and the links apart (with the roster's lane tally); `generateRobotLfoLinks` stays
+as spawn's wrapper over `deriveLfoLinks` and `currentMotionBands()`. `MotionBandKey` is a plain union in `aspects.ts`
+until T7b makes it the family's key list. The parity fixture (seven fresh robots, two gliders, lit gain, detune and bus
+links) was captured at `b35a8558` before the lift; the spawn fixtures pass unmodified. Five mutants killed (two dataIds
+renamed, either lit ignored, the lane tally mutated in place).
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

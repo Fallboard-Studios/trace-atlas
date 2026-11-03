@@ -30,7 +30,6 @@ import {
 import { robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
 import type { RobotAspects } from '../data/bands/dealAspects';
-import type { SendBand } from '../data/bands/bandKeys';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks, primeRosterLinks } from './robotLfoLinks';
 import {
@@ -38,11 +37,14 @@ import {
   composeSends,
   currentEnvelopeBands,
   currentMelodyBands,
+  currentMotionBands,
   currentSendBands,
   currentVoiceBands,
   deriveEnvelopeFields,
+  deriveLfoLinks,
   deriveMelodyFields,
   deriveOctaveRange,
+  derivePortamento,
   deriveSendFields,
   deriveVoiceFields,
   seedToggleValue,
@@ -52,8 +54,7 @@ import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
-import { ROBOT_LFO_TARGET_IDS, LFO_DEPTH_MIN } from '../types/lfo';
-import { pickLane, tallyLanes } from '../utils/lfoLaneDraw';
+import { tallyLanes } from '../utils/lfoLaneDraw';
 import { assignStationsAtLoad, getStations } from './stations';
 import { positionForCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { getRobotGem } from '../components/robot/gem/polygon';
@@ -81,9 +82,6 @@ const OFFSCREEN_OFFSET = 150;
 // ones Robot Articulation's listen heard, when the edges were fitted to a bunched simplex draw; classic.ts records them,
 // and robotFieldDerivation.test.ts and spawnSystem.evenDraws.test.ts pin them. The curves and the accent filter are
 // drawn in robotFieldDerivation.ts.
-
-/** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
-const PORTAMENTO_STEP = 0.01;
 
 /** Mirrors the Volume slider's own step, in percent-space (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const VOLUME_STEP_PERCENT = 1;
@@ -273,13 +271,9 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
   // derivation (revisions Task 8).
   const adsr = deriveEnvelopeFields(noiseMap, offset, currentEnvelopeBands());
 
-  // Seeded portamento — most robots don't glide; a glider slurs each note into the next. The band's `lit` is the
-  // gliding share (robot.portamento).
-  const portamentoBand = getBand('robot.portamento');
-  const glider = getUniformSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < portamentoBand.lit;
-  const portamento = glider
-    ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.portamento', offset, portamentoBand.min, portamentoBand.max), 0, PORTAMENTO_STEP)
-    : 0;
+  // Seeded portamento — most robots don't glide; a glider slurs each note into the next — through the Motion family's
+  // derivation (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a).
+  const portamento = derivePortamento(noiseMap, offset, currentMotionBands());
 
   // Seeded octave register — a direct [min, max] tuple, no Hz indirection, through the robot.octaveRegister pick
   // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6).
@@ -308,71 +302,22 @@ function robotArticulation(robot: Robot): { portamento?: number; filterQ?: numbe
   return { portamento, filterQ, filterType };
 }
 
-/** Rounds Depth to a whole percent (SEEDED_SLIDER_VALUE_QUANTIZATION follow-up) — already
- *  stored in percent units (0-100), so no unit conversion needed. */
-const LFO_DEPTH_STEP = 1;
-
 // ========================================
 // LFO BANK (docs/specs/LFO_BANK.md §1.3)
 // ========================================
 
-/** The band a robot LFO target seeds from (robot.lfoGainDepth, robot.lfoDetuneDepth, robot.lfoBusDepth in the band
- *  table, band-table T21): its depth window in percent, with a never-zero floor so a lit link is always audible, and as
- *  `lit` the lit share. The on-roll is even (docs/specs/EVEN_SEEDED_DRAWS.md), so `lit` is the share of robots with the
- *  link lit. */
-function robotLfoBandForTarget(target: RobotLfoTargetId): SendBand {
-  if (target === 'bus.frequency') return getBand('robot.lfoBusDepth');
-  return getBand(target.endsWith('.gain') ? 'robot.lfoGainDepth' : 'robot.lfoDetuneDepth');
-}
-
 /**
- * A lit detune link's depth, close to no detune (docs/specs/EVEN_SEEDED_DRAWS.md §1.2; Crawford, 2026-11-01): the
- * centred draw over -1..1, folded so its peak sits at the window's floor, then floored onto the whole-percent grid so
- * every percent gets a full share. Under Classic's 1-10 % window, 1 % is the commonest depth (about 19 % of lit detune
- * links), each percent above it rarer, and 10 % the rarest (about 1 %). Rounding instead would give the floor only half
- * a share and make 2 % the commonest.
- */
-function detuneLinkDepth(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: SendBand): number {
-  const steps = band.max - band.min;
-  const folded = Math.abs(getCentredSeededVal(noiseMap, dataId, offset, -1, 1));
-  return quantizeToStep(band.min + Math.min(steps, Math.floor(folded * (steps + 1))), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
-}
-
-/**
- * Generate seeded LfoLinks for all 6 RobotLfoTargetId modulation targets — replaces
- * generateRobotLfoSettings's per-target shape/rate with a lane pick (spec §1.3). The quiet share and the
- * depth window are the target's band (robotLfoBandForTarget). The lane draw is roster-aware: `priorLaneCounts` is the
- * tally of every already-spawned robot in the locale (computed by spawnRobot before calling this),
- * and this robot's own earlier targets update that same running tally as the loop goes — so even
- * one robot's six targets lean away from each other, not just away from the rest of the roster.
+ * Generate seeded LfoLinks for all 6 RobotLfoTargetId modulation targets under the loaded world's Motion bands,
+ * through the Motion family's derivation (deriveLfoLinks, robotFieldDerivation.ts, since
+ * docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a). `priorLaneCounts` is the tally of every already-spawned robot in
+ * the locale (computed by spawnRobot before calling this).
  */
 export function generateRobotLfoLinks(
   noiseMap: NoiseFunction2D,
   offset: number,
   priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
 ): Record<RobotLfoTargetId, LfoLink> {
-  const counts: Record<LfoLaneId, number> = { ...priorLaneCounts };
-  const result = {} as Record<RobotLfoTargetId, LfoLink>;
-
-  for (const target of ROBOT_LFO_TARGET_IDS) {
-    const band = robotLfoBandForTarget(target);
-    const quiet = getUniformSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
-    if (quiet) {
-      result[target] = { lane: null, depth: 0 };
-      continue;
-    }
-
-    const laneT = getUniformSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
-    const lane = pickLane(laneT, counts);
-    counts[lane]++;
-
-    const depthId = `robot.lfo.${target}.depth`;
-    const depth = target.endsWith('.detune')
-      ? detuneLinkDepth(noiseMap, depthId, offset, band)
-      : quantizeToStep(getUniformSeededVal(noiseMap, depthId, offset, band.min, band.max), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
-    result[target] = { lane, depth };
-  }
-  return result;
+  return deriveLfoLinks(noiseMap, offset, currentMotionBands(), priorLaneCounts);
 }
 
 /**

@@ -15,8 +15,10 @@ import {
 import type { RobotSendField } from '../data/robotSends';
 import { OCTAVE_REGISTER_IDS, OCTAVE_REGISTERS, type OctaveRegisterId } from '../data/octaveRegisters';
 import { getBand } from '../data/bands/loadingContext';
-import type { BandTable, PickBand, ToggleBand } from '../data/bands/bandKeys';
-import type { EnvelopeBandKey, MelodyBandKey, VoiceBandKey } from '../data/bands/aspects';
+import type { BandTable, PickBand, SendBand, ToggleBand } from '../data/bands/bandKeys';
+import type { EnvelopeBandKey, MelodyBandKey, MotionBandKey, VoiceBandKey } from '../data/bands/aspects';
+import { LFO_DEPTH_MIN, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type LfoLink, type RobotLfoTargetId } from '../types/lfo';
+import { pickLane } from '../utils/lfoLaneDraw';
 import type { RobotAudioBaseline } from './spawnSystem';
 import { getCentredSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
@@ -260,6 +262,110 @@ export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, ban
     layers.push(layerWave);
   }
   return { filterFreq, filterQ, filterType, waveform, layers };
+}
+
+/** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
+const PORTAMENTO_STEP = 0.01;
+
+/** Rounds Depth to a whole percent (SEEDED_SLIDER_VALUE_QUANTIZATION follow-up) — already
+ *  stored in percent units (0-100), so no unit conversion needed. */
+const LFO_DEPTH_STEP = 1;
+
+/** The theme's Motion bands as the loading context holds them now (getBand at the draw, band-table T21). */
+export function currentMotionBands(): Pick<BandTable, MotionBandKey> {
+  return {
+    'robot.portamento': getBand('robot.portamento'),
+    'robot.lfoGainDepth': getBand('robot.lfoGainDepth'),
+    'robot.lfoDetuneDepth': getBand('robot.lfoDetuneDepth'),
+    'robot.lfoBusDepth': getBand('robot.lfoBusDepth'),
+  };
+}
+
+/** What a robot draws for Motion: its glide and its seven LFO links. */
+export interface MotionFields {
+  portamento: number;
+  lfoLinks: Record<RobotLfoTargetId, LfoLink>;
+}
+
+/**
+ * A robot's seeded glide at `offset` under `bands`: most robots don't glide, a glider slurs each note into the next.
+ * The band's `lit` is the gliding share, drawn even, so the edge is the share; every other robot is exactly 0. Lifted
+ * from generateAudioAttributes with its dataIds and offset unchanged (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a).
+ */
+export function derivePortamento(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, 'robot.portamento'>): number {
+  const band = bands['robot.portamento'];
+  const glider = getUniformSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < band.lit;
+  return glider ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.portamento', offset, band.min, band.max), 0, PORTAMENTO_STEP) : 0;
+}
+
+/** The band a robot LFO target seeds from (robot.lfoGainDepth, robot.lfoDetuneDepth, robot.lfoBusDepth): its depth
+ *  window in percent, with a never-zero floor so a lit link is always audible, and as `lit` the lit share. The on-roll
+ *  is even (docs/specs/EVEN_SEEDED_DRAWS.md), so `lit` is the share of robots with the link lit. */
+function lfoBandForTarget(target: RobotLfoTargetId, bands: Pick<BandTable, MotionBandKey>): SendBand {
+  if (target === 'bus.frequency') return bands['robot.lfoBusDepth'];
+  return bands[target.endsWith('.gain') ? 'robot.lfoGainDepth' : 'robot.lfoDetuneDepth'];
+}
+
+/**
+ * A lit detune link's depth, close to no detune (docs/specs/EVEN_SEEDED_DRAWS.md §1.2; Crawford, 2026-11-01): the
+ * centred draw over -1..1, folded so its peak sits at the window's floor, then floored onto the whole-percent grid so
+ * every percent gets a full share. Under Classic's 1-10 % window, 1 % is the commonest depth (about 19 % of lit detune
+ * links), each percent above it rarer, and 10 % the rarest (about 1 %). Rounding instead would give the floor only half
+ * a share and make 2 % the commonest.
+ */
+function detuneLinkDepth(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: SendBand): number {
+  const steps = band.max - band.min;
+  const folded = Math.abs(getCentredSeededVal(noiseMap, dataId, offset, -1, 1));
+  return quantizeToStep(band.min + Math.min(steps, Math.floor(folded * (steps + 1))), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
+}
+
+/**
+ * A robot's seeded LfoLinks for every RobotLfoTargetId at `offset` under `bands` — a lane pick per target (docs/specs/
+ * LFO_BANK.md §1.3). The quiet share and the depth window are the target's band (lfoBandForTarget). The lane draw is
+ * roster-aware: `priorLaneCounts` is the tally of every earlier robot in the roster, and this robot's own earlier
+ * targets update a copy of it as the loop goes, so even one robot's targets lean away from each other, not just away
+ * from the rest of the roster. Lifted from spawnSystem.ts's generateRobotLfoLinks with its dataIds and offset unchanged
+ * (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a).
+ */
+export function deriveLfoLinks(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  bands: Pick<BandTable, MotionBandKey>,
+  priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
+): Record<RobotLfoTargetId, LfoLink> {
+  const counts: Record<LfoLaneId, number> = { ...priorLaneCounts };
+  const result = {} as Record<RobotLfoTargetId, LfoLink>;
+  for (const target of ROBOT_LFO_TARGET_IDS) {
+    const band = lfoBandForTarget(target, bands);
+    const quiet = getUniformSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
+    if (quiet) {
+      result[target] = { lane: null, depth: 0 };
+      continue;
+    }
+    const laneT = getUniformSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
+    const lane = pickLane(laneT, counts);
+    counts[lane]++;
+    const depthId = `robot.lfo.${target}.depth`;
+    const depth = target.endsWith('.detune')
+      ? detuneLinkDepth(noiseMap, depthId, offset, band)
+      : quantizeToStep(getUniformSeededVal(noiseMap, depthId, offset, band.min, band.max), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
+    result[target] = { lane, depth };
+  }
+  return result;
+}
+
+/**
+ * The Motion family's one derivation (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5; plan T7a): a robot's glide and
+ * links at `offset` under `bands` - the theme's at spawn (currentMotionBands), a Motion aspect's when the deal
+ * re-derives it - with `priorLaneCounts` the lane tally of the robots before it.
+ */
+export function deriveMotionFields(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  bands: Pick<BandTable, MotionBandKey>,
+  priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
+): MotionFields {
+  return { portamento: derivePortamento(noiseMap, offset, bands), lfoLinks: deriveLfoLinks(noiseMap, offset, bands, priorLaneCounts) };
 }
 
 /** A send fraction quantized in percent space (the Volume shape), so the stored value sits on the slider's
