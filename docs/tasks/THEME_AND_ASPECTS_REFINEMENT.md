@@ -263,7 +263,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 ### Phase 2: The table (`feature/themes-aspects-58`)
 
-- [ ] **T5: `themes.ts` + `resolveBands.test.ts` — `ThemeColumn` is `Partial<BandTable>`**
+- [x] **T5: `themes.ts` + `resolveBands.test.ts` — `ThemeColumn` is `Partial<BandTable>`**
 
   **Description:** Spec §1.5, widening. Delete `ThemeBandKey`; `ThemeColumn = Partial<BandTable>`. Rewrite the
   `themes.ts` header and `ThemeColumn` comments to cite this spec and say the v1 list went with the interview. Update
@@ -806,7 +806,16 @@ question 7 is answered by the table (no pseudo-family). Lint clean.
 scope. Four new keys remain. Open question 2 takes its default: the harness is committed.
 
 **Next:** Crawford's PR for `docs/sheets-58` (and `docs/intent-themes-aspects-58`); Phase 2 (T5) starts fresh off `main`
-after it merges.
+after it merges. (Merged as PR #599; `feature/themes-aspects-58` branched from it, 2026-11-03.)
+
+**T5 (2026-11-03).** `ThemeBandKey` deleted, `ThemeColumn = Partial<BandTable>`. The RED was the type check: the test
+injects Adventurous with `reverb.decay` and `robot.portamento` as `satisfies ThemeColumn`, which failed `build:types`
+until the widening. The ten-key pin is now one kind-and-bounds check (`bandProblems` in `resolveBands.test.ts`) run over
+every theme and aspect band; its full ranges are a complete record over the robot keys, the tempo and the sends (so a
+new key without a bound does not compile) plus `GLOBAL_AUDIO_SEED_RANGES` for the global rows. The check has negative
+cases of its own, which kill both named mutants (the send clause dropped from the kind check; the global bound skipped).
+One deviation: the acceptance's "checked by hand with a throwaway edit" is held for good as `@ts-expect-error` lines (a
+key outside the table, a plain range on a lit key and on a send, a return level), so `build:types` keeps checking it.
 
 ## Risks and Mitigations
 

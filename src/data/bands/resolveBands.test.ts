@@ -3,10 +3,32 @@
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
 
-import { ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
+import {
+  ENVELOPE_TIME_MAX_SECONDS,
+  PERFORMANCE_MAX,
+  PERFORMANCE_MIN,
+  PORTAMENTO_MAX,
+  PORTAMENTO_MIN,
+  SEND_MAX,
+  SEND_MIN,
+} from '../../constants';
+import { GLOBAL_AUDIO_SEED_RANGES, type LoadingRangeKey } from '../globalAudioSeedRanges';
+import { ROBOT_SEND_FIELDS } from '../robotSends';
+import { LFO_DEPTH_MAX, LFO_DEPTH_MIN } from '../../types/lfo';
 import { overlayBands, resolveBands } from './resolveBands';
 import { CLASSIC } from './classic';
-import { ROBOT_LIT_KEYS, ROBOT_PICK_KEYS, ROBOT_RANGE_KEYS, ROBOT_TOGGLE_KEYS, type BandTable } from './bandKeys';
+import {
+  ROBOT_LIT_KEYS,
+  ROBOT_PICK_KEYS,
+  ROBOT_RANGE_KEYS,
+  ROBOT_TOGGLE_KEYS,
+  type BandKey,
+  type BandTable,
+  type RangeBand,
+  type RobotPickKey,
+  type SendBand,
+  type ToggleBand,
+} from './bandKeys';
 import { THEME_IDS, THEMES, type ThemeColumn, type ThemeId } from './themes';
 import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectId, type AspectIdOf } from './aspects';
 import type { RobotAspects } from './dealAspects';
@@ -19,16 +41,22 @@ import type { Robot } from '../../types/Robot';
 
 // The overlay direction is proved on injected columns, whatever the real placeholders hold (plan Task 34 fills them,
 // Task 35 tunes them): Calm moves bpm, Hypnotic moves noteVariance, and an injected EMPTY column (Bold, Wandering)
-// proves silence. The originals are spread, so every other export is the real one; the real columns are read below
-// through vi.importActual.
+// proves silence. Adventurous is injected with a global row and a robot lit key outside the old ten-key list
+// (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T5: a theme column is any part of the band table), typed as a column so
+// a narrower ThemeColumn fails to compile. The originals are spread, so every other export is the real one; the real
+// columns are read below through vi.importActual.
 const injected = vi.hoisted(() => ({
   calm: { bpm: { min: 150, max: 160 } },
+  adventurous: {
+    'reverb.decay': { min: 6, max: 8 },
+    'robot.portamento': { min: 0.3, max: 0.6, lit: 0.8 },
+  } satisfies ThemeColumn,
   hypnotic: { 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
 }));
 
 vi.mock('./themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, calm: injected.calm, bold: {} } };
+  return { ...actual, THEMES: { ...actual.THEMES, calm: injected.calm, bold: {}, adventurous: injected.adventurous } };
 });
 
 vi.mock('./aspects', async (importOriginal) => {
@@ -334,6 +362,21 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(restCalm).toStrictEqual(restClassic);
   });
 
+  it('a widened theme column replaces a global row and a robot lit band alike: Adventurous (injected) differs from Classic at reverb.decay and robot.portamento and nowhere else', () => {
+    const adventurous = resolveBands('adventurous', {});
+    expect(adventurous['reverb.decay']).toStrictEqual({ min: 6, max: 8 });
+    expect(adventurous['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
+    const { 'reverb.decay': _a, 'robot.portamento': _b, ...restAdventurous } = adventurous;
+    const { 'reverb.decay': _c, 'robot.portamento': _d, ...restClassic } = CLASSIC;
+    expect(restAdventurous).toStrictEqual(restClassic);
+  });
+
+  it('a widened theme key under an aspect that does not name it survives the aspect: Adventurous plus Hypnotic keeps the glide band', () => {
+    const both = resolveBands('adventurous', { melody: 'hypnotic' });
+    expect(both['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
+    expect(both['robot.noteVariance']).toStrictEqual({ offShare: 0, min: 1, max: 2 });
+  });
+
   it('a theme with an empty column (Bold, injected empty) resolves to Classic exactly', () => {
     expect(resolveBands('bold', {})).toStrictEqual(CLASSIC);
   });
@@ -365,18 +408,37 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(resolveBands('classic', {})).not.toBe(CLASSIC);
   });
 
-  it('types: an aspect option cannot name a key outside its family, and a theme column cannot leave the v1 key list', () => {
+  it('types: an aspect option cannot name a key outside its family; a theme column names any band of its own kind and nothing outside the table', () => {
     type MelodyOption = (typeof ASPECT_FAMILIES)['melody']['options']['hypnotic'];
     const inFamily: MelodyOption = { 'robot.pitchRepeat': { min: 0, max: 10 } };
     expect(inFamily).toBeDefined();
     // @ts-expect-error - bpm is a world band, not a Melody key (spec §3: themes world-wide, aspects robot-side)
     const foreign: MelodyOption = { bpm: { min: 1, max: 2 } };
     expect(foreign).toBeDefined();
-    const allowed: ThemeColumn = { 'robot.rests': { min: 0, max: 10 }, 'filterLPF.frequency': { min: 500, max: 1000 } };
+    // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T5: the ten-key list went with the interview; every kind is allowed.
+    const allowed: ThemeColumn = {
+      'robot.rests': { min: 0, max: 10 },
+      'filterLPF.frequency': { min: 500, max: 1000 },
+      'robot.dynamics': { min: 0, max: 10 },
+      'reverb.decay': { min: 1, max: 2 },
+      'robot.portamento': { min: 0.1, max: 0.2, lit: 0.5 },
+      gritSend: { min: 0, max: 0.1, lit: 0.1 },
+      'robot.noteVariance': { offShare: 0.5, min: 1, max: 3 },
+      'robot.waveform': { weights: { sine: 1, square: 0, triangle: 0, sawtooth: 0, pulse: 0 } },
+    };
     expect(allowed).toBeDefined();
-    // @ts-expect-error - robot.dynamics is outside the v1 theme key list (spec assumption 16)
-    const outside: ThemeColumn = { 'robot.dynamics': { min: 0, max: 10 } };
+    // @ts-expect-error - a theme column cannot name a key outside the table
+    const outside: ThemeColumn = { 'robot.nope': { min: 0, max: 10 } };
     expect(outside).toBeDefined();
+    // @ts-expect-error - a lit key takes a lit band, never a plain range
+    const litAsRange: ThemeColumn = { 'robot.portamento': { min: 0.1, max: 0.2 } };
+    expect(litAsRange).toBeDefined();
+    // @ts-expect-error - a send takes a lit band, never a plain range
+    const sendAsRange: ThemeColumn = { gritSend: { min: 0, max: 0.1 } };
+    expect(sendAsRange).toBeDefined();
+    // @ts-expect-error - a return level is no band (a room's Mix is never seeded)
+    const returnRow: ThemeColumn = { 'reverb.wet': { min: 0, max: 1 } };
+    expect(returnRow).toBeDefined();
     // @ts-expect-error - an unknown theme id
     const unknownTheme: ThemeId = 'moody';
     expect(unknownTheme).toBe('moody');
@@ -431,21 +493,6 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
   const envelopeColumn = (option: AspectIdOf<'envelope'>) => realAspects.ASPECT_FAMILIES.envelope.options[option];
   const distanceColumn = (option: AspectIdOf<'distance'>) => realAspects.ASPECT_FAMILIES.distance.options[option];
   const voiceColumn = (option: AspectIdOf<'voice'>) => realAspects.ASPECT_FAMILIES.voice.options[option];
-  /** The v1 theme key list (spec assumption 16), typed in here as EXPECTED is, not read from themes.ts: widening it is
-   *  an "ask first" (spec §3), so a wider list is a change in this file too (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
-   *  R31). */
-  const THEME_KEY_LIST: readonly string[] = [
-    'bpm',
-    'robot.rhythmicDensity',
-    'robot.rests',
-    'robot.attack',
-    'robot.release',
-    'robot.shapedAttack',
-    'robot.shapedRelease',
-    'reverbSend',
-    'delaySend',
-    'filterLPF.frequency',
-  ];
   /** A waveform pick's share for the named waveforms, of the band's whole weight. */
   const shareOf = (band: BandTable['robot.waveform'], waves: (keyof BandTable['robot.waveform']['weights'])[]) => {
     const total = Object.values(band.weights).reduce((a, b) => a + b, 0);
@@ -453,14 +500,18 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
   };
 
   it.each(['calm', 'bold', 'adventurous', 'perilous'] as const)(
-    '%s differs from Classic on a non-empty subset of the v1 key list and nowhere else',
+    '%s differs from Classic on a non-empty set of band keys, every key of its kind and inside its field',
     (theme) => {
       const column = themeColumn(theme);
       const moved = movedKeys(overlayBands(CLASSIC, column));
       expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(THEME_KEY_LIST).toContain(key);
       // Every key the column names moves the band: a column entry equal to Classic's would be a no-op worth deleting.
       expect([...moved].sort()).toEqual(Object.keys(column).sort());
+      // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T5: the ten-key pin is now a pin on the whole table.
+      for (const [key, band] of Object.entries(column)) {
+        expect(Object.keys(CLASSIC), `${theme} ${key}`).toContain(key);
+        expect(bandProblems(key as BandKey, band), `${theme} ${key}`).toEqual([]);
+      }
     },
   );
 
@@ -607,32 +658,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(hollow['robot.accentFilterFreq']!.lit).toBeGreaterThan(CLASSIC['robot.accentFilterFreq'].lit);
   });
 
-  it('every placeholder band is well formed and inside what its field can hold', () => {
-    // The field's own bounds, per key the v1 list and the Melody family allow (spec assumption 16); a key missing here
-    // is a key the list did not have when this was written, so it fails loudly rather than passing unbounded.
-    const BOUNDS: Partial<Record<keyof BandTable, readonly [number, number]>> = {
-      bpm: [20, 200], // the tempo the clock runs (src/constants/index.ts)
-      'filterLPF.frequency': [20, 20000],
-      'robot.attack': [0, ENVELOPE_TIME_MAX_SECONDS],
-      'robot.decay': [0, ENVELOPE_TIME_MAX_SECONDS],
-      'robot.sustain': [0, 1],
-      'robot.release': [0, ENVELOPE_TIME_MAX_SECONDS],
-      'robot.shapedAttack': [0, ENVELOPE_TIME_MAX_SECONDS],
-      'robot.shapedRelease': [0, ENVELOPE_TIME_MAX_SECONDS],
-      'robot.rhythmicDensity': [0, 100],
-      'robot.rests': [0, 100],
-      'robot.pitchRepeat': [0, 100],
-      'robot.noteVariance': [1, 8],
-      'robot.rhythmicMotifLength': [1, 8],
-      reverbSend: [0, 1],
-      delaySend: [0, 1],
-      // The Voice keys (revisions Task 10): the bus filter's own slider ranges (ROBOT_BUS_FILTER_FREQ_RANGE,
-      // ROBOT_BUS_FILTER_Q_RANGE) and the Signature Array's Gain slider (0-2).
-      'robot.filterFreq': [20, 20000],
-      'robot.accentFilterFreq': [20, 20000],
-      'robot.accentFilterQ': [0.1, 20],
-      'robot.layerGain': [0, 2],
-    };
+  it('every placeholder band, theme and aspect alike, is of its key\'s kind and inside what its field can hold', () => {
     const columns: Partial<BandTable>[] = [
       ...Object.values(realThemes.THEMES),
       ...Object.values(realAspects.ASPECT_FAMILIES.melody.options),
@@ -642,31 +668,144 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     ];
     expect(columns.length).toBe(17);
     for (const column of columns) {
-      for (const [key, band] of Object.entries(column) as [keyof BandTable, BandTable[keyof BandTable]][]) {
-        if ('weights' in band) {
-          // A pick: every weight a non-negative number, at least one above zero, and only the five waveforms named.
-          expect(Object.keys(band.weights).sort(), key).toEqual(['pulse', 'sawtooth', 'sine', 'square', 'triangle']);
-          expect(Object.values(band.weights).every((w) => Number.isFinite(w) && w >= 0), key).toBe(true);
-          expect(Object.values(band.weights).some((w) => w > 0), key).toBe(true);
-          continue;
-        }
-        const bounds = BOUNDS[key];
-        expect(bounds, `${key} has no bound here`).toBeDefined();
-        expect(band.min, key).toBeLessThanOrEqual(band.max);
-        expect(band.min, key).toBeGreaterThanOrEqual(bounds![0]);
-        expect(band.max, key).toBeLessThanOrEqual(bounds![1]);
-        if ('lit' in band) {
-          expect(band.lit, key).toBeGreaterThan(0);
-          expect(band.lit, key).toBeLessThanOrEqual(1);
-        }
-        if ('offShare' in band) {
-          // A toggle always on (offShare 0) is a legitimate aspect; one never on is not.
-          expect(band.offShare, key).toBeGreaterThanOrEqual(0);
-          expect(band.offShare, key).toBeLessThan(1);
-          expect(Number.isInteger(band.min) && Number.isInteger(band.max), key).toBe(true);
-        }
-      }
+      for (const [key, band] of Object.entries(column)) expect(bandProblems(key as BandKey, band), key).toEqual([]);
     }
+  });
+});
+
+// ========================================
+// THE KIND-AND-BOUNDS CHECK (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T5)
+// ========================================
+
+/**
+ * Each robot band's and the tempo's full field range: the slider or clamp the field already has, never the narrower
+ * loading band. A complete record, so a key added to the table without a bound here fails to compile. The global rows'
+ * full ranges are GLOBAL_AUDIO_SEED_RANGES (the GLOBAL_CHAIN_GRID.md Unit / Range column). The waveform pick has none.
+ */
+const ROBOT_BOUNDS: Record<Exclude<BandKey, LoadingRangeKey | RobotPickKey>, readonly [number, number]> = {
+  bpm: [20, 200], // the tempo the clock runs (src/constants/index.ts)
+  'robot.attack': [0, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.decay': [0, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.sustain': [0, 1],
+  'robot.release': [0, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.shapedAttack': [0, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.shapedRelease': [0, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.portamento': [PORTAMENTO_MIN, PORTAMENTO_MAX],
+  // The bus filter's own slider ranges (ROBOT_BUS_FILTER_FREQ_RANGE, ROBOT_BUS_FILTER_Q_RANGE) and the Signature
+  // Array's Gain slider (0-2).
+  'robot.filterFreq': [20, 20000],
+  'robot.accentFilterFreq': [20, 20000],
+  'robot.accentFilterQ': [0.1, 20],
+  'robot.layerGain': [0, 2],
+  'robot.masterVolume': [0, 1], // Robot.masterVolume, stored 0-1 (VOLUME_SCHEMA displays 0-100)
+  'robot.lfoGainDepth': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
+  'robot.lfoDetuneDepth': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
+  'robot.lfoBusDepth': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
+  'robot.rhythmicDensity': [0, 100],
+  'robot.pitchRepeat': [0, 100],
+  'robot.noteVariance': [1, 8],
+  'robot.rhythmicMotifLength': [1, 8],
+  'robot.dynamics': [PERFORMANCE_MIN, PERFORMANCE_MAX],
+  'robot.rests': [PERFORMANCE_MIN, PERFORMANCE_MAX],
+  'robot.accents': [PERFORMANCE_MIN, PERFORMANCE_MAX],
+  reverbSend: [SEND_MIN, SEND_MAX],
+  delaySend: [SEND_MIN, SEND_MAX],
+  gritSend: [SEND_MIN, SEND_MAX],
+  shimmerSend: [SEND_MIN, SEND_MAX],
+  doubleSend: [SEND_MIN, SEND_MAX],
+};
+
+/** A key's full field range: its robot bound, or its global row's seed range. */
+function boundsOf(key: Exclude<BandKey, RobotPickKey>): readonly [number, number] {
+  if (key in ROBOT_BOUNDS) return ROBOT_BOUNDS[key as keyof typeof ROBOT_BOUNDS];
+  const range = GLOBAL_AUDIO_SEED_RANGES[key as LoadingRangeKey];
+  return [range.min, range.max];
+}
+
+/** The fields a band of this key's kind carries, sorted: a lit share on a lit key or a send, an off share on a toggle,
+ *  weights on the pick, a plain range otherwise. */
+function kindFieldsOf(key: BandKey): string[] {
+  if ((ROBOT_PICK_KEYS as readonly string[]).includes(key)) return ['weights'];
+  if ((ROBOT_TOGGLE_KEYS as readonly string[]).includes(key)) return ['max', 'min', 'offShare'];
+  if ((ROBOT_LIT_KEYS as readonly string[]).includes(key) || (ROBOT_SEND_FIELDS as readonly string[]).includes(key)) {
+    return ['lit', 'max', 'min'];
+  }
+  return ['max', 'min'];
+}
+
+/** Everything wrong with a column's band for this key: empty when the band is of its key's kind and inside its field. */
+function bandProblems(key: BandKey, band: object): string[] {
+  const problems: string[] = [];
+  const fields = Object.keys(band).sort();
+  // A band of the wrong kind has nothing further to check against its field.
+  if (JSON.stringify(fields) !== JSON.stringify(kindFieldsOf(key))) return [`kind: ${fields.join(',')}`];
+  if ('weights' in band) {
+    // A pick: every weight a non-negative number, at least one above zero, and only the five waveforms named.
+    const weights = band.weights as Record<string, number>;
+    if (JSON.stringify(Object.keys(weights).sort()) !== JSON.stringify(['pulse', 'sawtooth', 'sine', 'square', 'triangle'])) {
+      problems.push('weights: not the five waveforms');
+    }
+    if (!Object.values(weights).every((w) => Number.isFinite(w) && w >= 0)) problems.push('weights: a negative weight');
+    if (!Object.values(weights).some((w) => w > 0)) problems.push('weights: nothing to draw');
+    return problems;
+  }
+  const { min, max } = band as RangeBand;
+  const [low, high] = boundsOf(key as Exclude<BandKey, RobotPickKey>);
+  if (!(min <= max)) problems.push(`min ${min} > max ${max}`);
+  if (min < low || max > high) problems.push(`outside the field's ${low}-${high}`);
+  if ('lit' in band && !((band as SendBand).lit > 0 && (band as SendBand).lit <= 1)) problems.push('lit: not in (0, 1]');
+  if ('offShare' in band) {
+    // A toggle always on (offShare 0) is a legitimate aspect; one never on is not.
+    const { offShare } = band as ToggleBand;
+    if (!(offShare >= 0 && offShare < 1)) problems.push('offShare: not in [0, 1)');
+    if (!Number.isInteger(min) || !Number.isInteger(max)) problems.push('toggle: a fractional value');
+  }
+  return problems;
+}
+
+describe('the kind-and-bounds check itself (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T5)', () => {
+  it('passes every Classic band: the lifted table is of its kinds and inside its fields', () => {
+    for (const [key, band] of Object.entries(CLASSIC)) expect(bandProblems(key as BandKey, band), key).toEqual([]);
+  });
+
+  it('fails a plain range on a send key and on a robot lit key, and a lit band on a range key', () => {
+    expect(bandProblems('gritSend', { min: 0, max: 0.5 })).not.toEqual([]);
+    expect(bandProblems('reverbSend', { min: 0, max: 0.5 })).not.toEqual([]);
+    expect(bandProblems('robot.portamento', { min: 0.1, max: 0.2 })).not.toEqual([]);
+    expect(bandProblems('robot.dynamics', { min: 0, max: 50, lit: 0.5 })).not.toEqual([]);
+  });
+
+  it('fails a toggle band without its off share, a pick given a range, and a range given weights', () => {
+    expect(bandProblems('robot.noteVariance', { min: 1, max: 8 })).not.toEqual([]);
+    expect(bandProblems('robot.waveform', { min: 0, max: 4 })).not.toEqual([]);
+    expect(bandProblems('bpm', { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } })).not.toEqual([]);
+  });
+
+  it('fails a band outside its field on a global row, a robot band, a send and the tempo, at either end', () => {
+    expect(bandProblems('reverb.decay', { min: 0.5, max: 12 })).not.toEqual([]);
+    expect(bandProblems('compressor.threshold', { min: -70, max: -20 })).not.toEqual([]);
+    expect(bandProblems('robot.masterVolume', { min: 0.5, max: 1.2 })).not.toEqual([]);
+    expect(bandProblems('doubleSend', { min: -0.1, max: 0.5, lit: 0.5 })).not.toEqual([]);
+    expect(bandProblems('bpm', { min: 10, max: 100 })).not.toEqual([]);
+  });
+
+  it('passes a band that fills its field exactly, edge to edge', () => {
+    expect(bandProblems('reverb.decay', { min: 0.1, max: 10 })).toEqual([]);
+    expect(bandProblems('robot.portamento', { min: PORTAMENTO_MIN, max: PORTAMENTO_MAX, lit: 1 })).toEqual([]);
+  });
+
+  it('fails min above max, a lit share of 0 or past 1, an off share of 1, and a fractional toggle', () => {
+    expect(bandProblems('reverb.decay', { min: 3, max: 2 })).not.toEqual([]);
+    expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: 0 })).not.toEqual([]);
+    expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: 1.1 })).not.toEqual([]);
+    expect(bandProblems('robot.noteVariance', { offShare: 1, min: 1, max: 8 })).not.toEqual([]);
+    expect(bandProblems('robot.noteVariance', { offShare: 0.2, min: 1.5, max: 8 })).not.toEqual([]);
+  });
+
+  it('fails a pick that names a stranger, weighs one below zero, or weighs nothing', () => {
+    expect(bandProblems('robot.waveform', { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, noise: 1 } })).not.toEqual([]);
+    expect(bandProblems('robot.waveform', { weights: { sine: 1, square: -1, triangle: 1, sawtooth: 1, pulse: 1 } })).not.toEqual([]);
+    expect(bandProblems('robot.waveform', { weights: { sine: 0, square: 0, triangle: 0, sawtooth: 0, pulse: 0 } })).not.toEqual([]);
   });
 });
 

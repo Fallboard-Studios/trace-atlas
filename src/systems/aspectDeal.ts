@@ -286,8 +286,9 @@ function movedFields(
  * on the theme moves its families' fields and `loadedUnder` the same way. The swells riding the moved fields are
  * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
  * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields and
- * `rests`, the robot rows a theme column may name (ThemeBandKey); widening that list is an "ask first" (spec §3), and
- * a widened row needs its field here.
+ * `rests`. A theme column may name any key of the band table (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5), but a
+ * column may name a robot key only once its field is compared here and pushed by pushFamilyToEngine
+ * (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6), or a theme change would leave the live robots stale on it.
  *
  * An aspects-only change comes here too, with `from` the loading it replaced (final fixes F16, which folded R33's
  * redealAspects in): its moved fields are what the two dealt baselines disagree on, so a tweak on an attribute the aspect

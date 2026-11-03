@@ -18,33 +18,27 @@ export function isThemeId(value: unknown): value is ThemeId {
   return typeof value === 'string' && (THEME_IDS as readonly string[]).includes(value);
 }
 
-/** The bands a v1 theme column may move (spec assumption 16): the narrow first cut is this key list, not a rewrite.
- *  Widening it is an "ask first" (spec §3), so the type holds the line: a column naming any other key does not compile. */
-export type ThemeBandKey =
-  | 'bpm'
-  | 'robot.rhythmicDensity'
-  | 'robot.rests'
-  | 'robot.attack'
-  | 'robot.release'
-  | 'robot.shapedAttack'
-  | 'robot.shapedRelease'
-  | 'reverbSend'
-  | 'delaySend'
-  | 'filterLPF.frequency';
-
-/** A theme's column: a whole band for each key it moves and nothing for the rest; resolveBands overlays it on Classic,
- *  replacing never widening (spec §1.5). Themes are world-wide (spec §3): a column may name `bpm` and the global rows. */
-export type ThemeColumn = Partial<Pick<BandTable, ThemeBandKey>>;
+/**
+ * A theme's column: a whole band for each key it moves and nothing for the rest; resolveBands overlays it on Classic,
+ * replacing never widening (docs/specs/OFF_SCREEN.md §1.5). Any key of the band table, each of its own kind
+ * (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5, widening): the v1 ten-key list (OFF_SCREEN.md assumption 16) went
+ * with the interview, since a theme is the world and the default probe guardrails alike. The type still holds two
+ * lines - a key outside the table, or a band of the wrong kind, does not compile - and resolveBands.test.ts holds the
+ * third, every band inside its field. A robot key a column names must also be compared and pushed when a theme
+ * changes on a live world (aspectDeal.ts's movedFields, plan T6) before a column may name it.
+ */
+export type ThemeColumn = Partial<BandTable>;
 
 /**
  * The theme columns. The numbers are the plan's Task 34 first cut, which Crawford's listen (docs/tasks/OFF_SCREEN.md
  * Task 35, 2026-10-31) kept as built: the table's shape is fixed by the spec, the numbers are tuning (assumption 16).
- * Each column names only keys it moves, on the v1 key list, and reads as the theme's sentence does
- * (home.off.themeDescription.<id>): Calm slower, sparser and softer; Bold denser and sharper in a drier, brighter room;
- * Adventurous wider in every band it touches; Perilous the densest - fast, crowded and bright, hardly a rest. Classic's
- * column is `{}` by definition - Classic IS the lifted table (classic.ts, assumption 20). resolveBands.test.ts pins the
- * key list, the bounds and the intent; the grids (docs/reference/GLOBAL_CHAIN_GRID.md, ROBOT_DATA_GRID.md) carry the
- * same numbers.
+ * Each column names only keys it moves, still inside the old ten-key list until plan T8
+ * (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md) replaces the five with the survivor columns, and reads as the theme's
+ * sentence does (home.off.themeDescription.<id>): Calm slower, sparser and softer; Bold denser and sharper in a drier,
+ * brighter room; Adventurous wider in every band it touches; Perilous the densest - fast, crowded and bright, hardly a
+ * rest. Classic's column is `{}` by definition - Classic IS the lifted table (classic.ts, assumption 20).
+ * resolveBands.test.ts pins each band's kind and bounds and the intent; the grids (docs/reference/GLOBAL_CHAIN_GRID.md,
+ * ROBOT_DATA_GRID.md) carry the same numbers.
  */
 export const THEMES: Record<ThemeId, ThemeColumn> = {
   classic: {},
