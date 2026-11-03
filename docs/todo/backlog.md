@@ -689,11 +689,11 @@ included, to fix in one pass (plan.md Stage 6). One bullet per item, dated; when
 own commit, and the item archives when the list is empty.
 
 - 2026-11-02 — Roadmap 57's copy stand-ins, all marked in `src/content/`: the five theme sentences, the Melody label and
-  four Melody sentences, the Envelope, Distance and Voice labels, names and sentences, Roll and a save row's "saved …"
-  (`home.ts`), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). Roadmap
+  four Melody sentences, the Envelope, Distance and Voice labels, names and sentences, a save row's "saved …"
+  (`home.ts`; Roll was one too, until backlog 64 replaced it with Crawford's Scan), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). Roadmap
   [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrites the theme and aspect sentences; the rest is here.
 - 2026-11-02 — Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or
-  Roll): a warning, not an error, to silence or accept.
+  Scan): a warning, not an error, to silence or accept.
 - 2026-11-02 — The off screen's unsaved line (`home.off.unsavedWarning`, "Picking another transmission discards this
   world's unsaved changes."): under backlog [64](archive/backlog-archive.md#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan)
   picking no longer discards Current, powering on into another row does. Reword it.
