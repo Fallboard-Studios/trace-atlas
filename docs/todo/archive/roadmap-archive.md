@@ -3291,3 +3291,169 @@ end to end in the browser, at `aad1270e`). Checkpoint A's review box is not tick
 - The re-minted links resolve only on a build that has the world link. The on-hold phone sitting has to carry this
   branch, or `main` after the merge, not today's `main`.
 - The PR.
+
+## 57. The Off Screen: Power as Pause, the Two-Axis Chooser, Keep, and the Band Table
+
+**Merged via PR #595 (`feature/off-screen`), 2026-11-01; archived 2026-11-02.** The text below is the record as it
+stood at the merge. Its Open list closed on 2026-11-02: Crawford passed the Looks at Checkpoints 2 and 5 of
+[OFF_SCREEN_FINAL_FIXES.md](../../tasks/OFF_SCREEN_FINAL_FIXES.md), and answered F21: the Tempo slider keeps its
+clamp. The rest moved to other items: the theme and aspect copy to roadmap 58, the remaining copy and the
+suspended-context warning to backlog 62, and the preset links to backlog 45.
+
+
+Backlog [5](backlog-archive.md#5-sector-settings-ascoordsfavorites-reorganization), reframed by Crawford on
+2026-10-22 from a Sector Settings refresh into the powered-down state, brainstormed (aspects, 2026-10-29), sketched as six
+stories ([docs/sketches/off-screen.html](../../sketches/off-screen.html), 2026-10-30, six decisions taken on it) and
+interviewed the same day (intent [off-screen.md](../../intent/off-screen.md)). The power rocker becomes a **pause**; the
+powered-down screen becomes the place a listener chooses what plays before any sound — their saves, three preset
+worlds, a **theme** and the **Melody aspects** as band sets over the same seed — and the scattered loading bands become
+one table with one resolver, so a theme is a column, not code. Themes and aspects join the Attenuation Style and the
+coordinates as the world's identity, in the payload and on the link. Plan.md's whole Stage 1.
+
+**Status: built 2026-10-30/31 on `feature/off-screen`, off `docs/off-screen-intent`, PR pending** (Crawford opens it;
+spec [OFF_SCREEN.md](../../specs/OFF_SCREEN.md), plan [OFF_SCREEN.md](../../tasks/OFF_SCREEN.md)). Tasks 0–38 done in four
+modules — `power-pause` (T0–8), `off-screen-chooser` (T9–17), `band-table` (T18–28), `themes-and-aspects` (T29–35) —
+and the docs (T36–38), one commit per task, RED first, every new gate mutation-checked by hand. Crawford passed the
+listen and every checkpoint's browser half on 2026-10-31 ("checkpoints passed, everything sounds good"); the automated
+halves are recorded under each checkpoint in the plan (Checkpoint D: 342 files / 12 884 tests). Revised after the listen
+the same day: the Decisions and Not Doing below record the first build, and the block that follows says what changed.
+It reverses four of them: the no-pop off screen, the as-theme pick, three band kinds and one aspect family. The About
+describes the branch as it stands after the revisions, the review follow-ups
+([docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md](../../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)) and the final fixes from
+Crawford's answers to the review ([docs/tasks/OFF_SCREEN_FINAL_FIXES.md](../../tasks/OFF_SCREEN_FINAL_FIXES.md)).
+
+### Revised after the listen (2026-10-31)
+
+Crawford's eight notes after passing the listen became
+[docs/tasks/OFF_SCREEN_REVISIONS.md](../../tasks/OFF_SCREEN_REVISIONS.md), built the same day on the same branch, one
+commit per task, RED first; the spec's amended paragraphs say so where they stand.
+
+1. **The worlds in a list** → `RadioButton`'s third appearance, `list`: full-width rows with a dot, the name and, on a
+   save, "saved …" (the Sessions list's absolute time; a relative "2 days ago" needs a helper, Crawford's call). The
+   cabinetry went from the Transmission axis. Tasks 3–5.
+2. **Roll on the Current row** → Roll is that row's trailing action, a small flat button; Keep stays alone under the
+   list, relabelled "Save the last session" (his words), then "Save Last World" (his answer to the review's Open
+   Question 6, R20). Task 4.
+3. **The remaining families** → Envelope (Plucked, Swelling, Held), Distance (Near, Far, Remote; the wireframe's Space,
+   renamed) and Voice (Glassy, Woody, Hollow). Each is a key set, three placeholder columns, one derive function shared
+   by spawn and the deal, and the engine call a hand edit makes. Voice brought a fourth band kind, `PickBand`, weighting
+   the five waveforms, so the table holds 79 keys. Tasks 7, 8 and 10; the numbers wait on a listen (Task 11).
+4. **No "as theme"** → the `'theme'` pick is gone from the type, the store, the deal, the link and the screen; a cleared
+   row is every robot as theme in that family. Task 6.
+5. **The aspect cabinetry pops** → the four family rows render in `cabinet` and pop on hover and select; the theme row,
+   the list, Roll and Keep stay flat. The spec's "nothing pops" and its §7 question 10 are amended. Task 9, which also
+   let the desk column scroll once four rows outgrew a 1280 × 720 screen.
+6. **The veil stays put on the phone** → the column scrolls in its own `.off-screen__scroll` child over a still veil.
+   Task 2.
+7. **A smooth change between worlds** → the scene wash: a user-gesture world change waits under a wash in the water
+   column's own colours, 0.5 s in, the rebuild, 0.5 s out (`uiStore.sceneWash`, `requestWorldChange`,
+   `animation/sceneWash.ts`). Reduced motion cuts; a boot or a link arrival never washes. Tasks 12–13, plus two fixes
+   found at the checks: the fade-out starts a frame after the rebuild, and an unedited Retransmit raises no wash.
+   `perf:idle` off the screen shows no rise.
+8. **The phone's top padding** → `calc(var(--power-corner-height) + 12px)`, as given; measured, the label sits 24 px
+   under the corner's bottom. Task 1.
+
+### About
+
+- **Power is a pause** (spec §1.2). `AudioEngine.pause()` / `resume()` suspend and resume the raw `AudioContext`, so
+  the transport, the `16n` tick (measures, battery, harmony, swells), every LFO, voice and tail freeze together and
+  continue mid-note; `timelineMap` entries carry a scope and every world mover registers `'world'`, paused as a set;
+  the work loop's clock shifts by the paused span; `powerController` is `cold / running / paused` with two power-on
+  paths (resume, or a cold start), awaiting the off screen's fade first; the rocker's confirm dialog is gone. The day is
+  wall clock and keeps running. A world changed while off is rebuilt cold; a theme or aspect change rebuilds nothing,
+  so the world stays paused and resumes. Desktop: main-thread busy 34 % running → 12 % paused.
+- **The chooser** (`OffScreen.tsx`; [UI_SHELL.md](../../UI_SHELL.md)). Behind a heard-a-world device flag (hint only on a
+  first visit): the Transmission axis — a `list` of rows: Current (the loaded world, named by `describeWorld`) with
+  Roll at its end, the saves, a divider, the presets as pasted world links — with Keep ("Save Last World") under it;
+  the Loading axis — the theme row and the four multi-select family rows (Melody, Envelope, Distance, Voice), each with
+  a description line; a readout spanning both. A veil blurs the still world; on a fresh page a boot theatre flickers the
+  screen on, and after a power-off the screen fades in over the paused world (final fixes F6); a lore footer ends the
+  column. The theme row, the list, Roll and Keep are flat; the four family rows are cabinetry and
+  pop on hover and select. Nothing plays. A user-gesture world change waits under the scene wash. The address bar
+  follows the loaded world (identity only, never on arrival); a bare boot mirrors its random world, so a reload brings
+  it back and Roll is how you get another.
+- **The band table** (`src/data/bands/`; [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md)). 79 keys, four band kinds (the
+  fourth, `PickBand`, weights the waveforms), Classic lifted byte for byte (pinned to a literal table and a pre-lift
+  fixture), `resolveBands` replacing never widening, a loading context every generator reads at the draw,
+  `loadingStore` the context follows. Payload v3 carries `theme` / `aspects`; the link carries `theme=` and one param
+  per family (`melody=`, `envelope=`, `distance=`, `voice=`). Neither a theme change nor an aspect change is a world
+  change, and each writes only the attributes it moves, global and robot, a tweak anywhere else standing (the
+  `loadingOnly` and `aspectsOnly` retransmits; review R33, final fixes F7–F8 and F16–F17). Neither rebuilds or
+  washes.
+- **Themes and aspects** ([reference/ROBOT_DATA_GRID.md](../../reference/ROBOT_DATA_GRID.md),
+  [GLOBAL_CHAIN_GRID.md](../../reference/GLOBAL_CHAIN_GRID.md)). Five themes on the v1 key list (tempo, Density, Rests,
+  the envelope times and shaped stages, the Reverb and Delay sends, the Low-Pass cutoff); four aspect families of three
+  aspects each, every family over its own key set, dealt round-robin over the fleet's companies then the freelancers
+  from a seeded rotation per family and applied by re-deriving the dealt fields from each robot's own index
+  ([COMPANIES.md](../../COMPANIES.md)); `Robot.loadedUnder` and a "Loaded Under" line on the company and robot screens.
+  `RadioButton` gained its `multiple` variant and its `list` appearance ([COMPONENT_LIBRARY.md](../../COMPONENT_LIBRARY.md)).
+
+### Decisions
+
+- Pause suspends the context rather than pausing the transport and releasing voices — the T0 spike watched 20 s of
+  suspension land on the next measure at the tempo's rate with no jump (spec assumption 2; the fallback is written down
+  in §7 and was not needed).
+- The `'ui'` scope is the default and world movers opt in with `'world'`: a forgotten scope keeps moving, which is
+  visible, rather than freezing chrome (§7 Q7). One master key (`useOrbiterMotion`'s kill-only token) stays `'ui'`.
+- `worldState` is written by `initializeLocale` (held systems → cold, started → running), not by the screen; so a pick
+  while paused needs no "pick is Current" test — `'paused'` alone means resume.
+- Presets are world links, not payload constants; a preset pick detaches the loaded save, a theme or Melody pick keeps
+  it attached (the seed is still the save's), Roll detaches.
+- Keep is a store action with a dirty test that deep-equals the stored payload against the live one through the capture
+  normalisation; a pre-v1 save (version 2) reads dirty once. No autosave returns in any form.
+- The address bar mirrors at the end of every `retransmitWorld` and on a bare boot, never on a link arrival, never on
+  Keep or an edit; the blob is never written to the bar.
+- Thresholds ride the `SendBand` shape as `lit` shares (the quiet thresholds are `1 − threshold`, exact in doubles), so
+  there are three band kinds, not four; the Reverb row gained a quiet roll inert under Classic.
+- `ThemeColumn` is confined to the v1 key list by type; widening is ask-first. Themes are world-wide, aspects robot-side,
+  enforced by the family type.
+- The deal lives inside the generator and runs in two places from one noise map — live after `spawnInitialCompanies`,
+  and inside the regenerated baseline — so an untweaked dealt world diffs to `{}` (the spec's assumption 22 was amended
+  at planning: robot baselines are regenerated at diff time, not stored).
+- A copied-baseline robot re-derives from its own index. `'theme'` in a pick list deals nothing, so a mixed fleet keeps
+  plain robots.
+- The loading context follows the store by subscription (one write, two readers); the store boots from the page's
+  link, so a `?theme=` locale is built under its theme before the payload applies.
+- Pick lists are canonical (as-theme first, then option order, deduped) everywhere — store, payload, link, `onChange`.
+- The off screen stays `muted` (§7 Q10): no cabinetry pops on it; one attribute per row to flip.
+- The content grammar's four segments put the aspect names at `home.off.melody.<id>` and the sentences at
+  `home.off.melodyDescription.<id>`, not the spec's five-segment keys.
+- The theme and aspect numbers are the plan's Task 34 placeholders, kept by Crawford's listen as the final bands.
+
+### Not Doing (and why)
+
+- **No resume into a different world.** A pick, Roll, theme change or Retransmit while paused tears down and leaves
+  `'cold'`; the next flip starts. One lifecycle table (§1.2), no third path.
+- **No confirm dialog, no autosave, no save prompt.** Pausing loses nothing; Keep is the one button.
+- **No UI-range, LFO-swing or clamp changes.** Themes move loading bands only; `GLOBAL_AUDIO_SEED_RANGES` and every
+  slider stay as they are; the LFO engine never reads the table.
+- **No fourth band kind, no key outside the v1 list, no second aspect family** in this phase — each is ask-first.
+- **No compatibility code** beyond "absent reads as Classic": a version 2 save loads as Classic and reads dirty once.
+- **No manual on the off screen** (roadmap 51's rule stands); the description lines are the Guide's only part here.
+- **No curated preset content yet**: the three presets are bare triples until Crawford pastes his links.
+
+**Merged via PR #595 (`feature/off-screen`), 2026-11-01.** The phase stays live until the Open list below clears, then
+moves to the archive; the refinement of the themes and aspects it shipped as placeholders is roadmap
+[58](../roadmap.md#58-themes-and-aspects-refinement).
+
+### Open
+
+- **Checkpoint 5's Look** in [OFF_SCREEN_FINAL_FIXES.md](../../tasks/OFF_SCREEN_FINAL_FIXES.md) (a pick waiting under the
+  wash, then a theme click, then Current; tweaks surviving a theme and an aspect change) is unticked in the plan, and the
+  branch merged on 2026-11-01. If Crawford did it before merging, tick it; if not, it is a two-minute check on `main`.
+- **F21's question**, left in the same plan: a theme's new tempo snaps every Sync pick it no longer allows to the
+  nearest allowed note. Should the Tempo slider snap too? It still only clamps. Crawford's call.
+- **Copy**, all stand-ins marked in `src/content/`: the five theme sentences, the Melody label and four Melody sentences,
+  the Envelope, Distance and Voice labels, names and sentences, Roll and a save row's "saved …" (`home.ts`), `Loaded
+  Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). The as-theme label went
+  with the pick. Roadmap 58's copy step takes the theme and aspect sentences; the rest is backlog
+  [62](../backlog.md#62-misc-review-items-a-bucket)'s first entry.
+- **The three preset links** (`src/data/transmissionPresets.ts`) are backlog
+  [45](../backlog.md#45-off-screen-crawfords-three-preset-links), sequenced first in plan.md's Launch stage so that no later
+  generation change moves the worlds they show.
+- Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or Roll) — a
+  warning, not an error — is backlog 62's second entry.
+
+Closed by the merge or since: the PR; Task 11's listen (Crawford, 2026-11-01, "sounds good", the placeholder columns
+kept as the starting point roadmap 58 refines); Checkpoint C's Pixel `perf:audio` A/B (4 underruns against `main`'s 9);
+Checkpoint A's and D's Pixel counts were never handed over and those boxes stand on Crawford's word.

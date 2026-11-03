@@ -44,13 +44,34 @@ export function describeWorld(identity: DescribedWorld, label?: string): string 
   const head = label
     ? `${label} · ${attenuationStyleName}${plot === null ? '' : ` ${plot}`}`
     : `${attenuationStyleName}${plot === null ? '' : ` · ${plot}`}`;
+  return withTail(head, describeLoading(theme, aspects));
+}
+
+/** `<name> · <tail>`, or the name alone for an empty tail: how describeWorld and the off screen's selected row join a
+ *  loading tail on, so the punctuation lives here only. */
+export function withTail(name: string, tail: string): string {
+  return tail ? `${name} · ${tail}` : name;
+}
+
+/**
+ * describeWorld's loading tail on its own: ` · `-joined, the theme's name when it is not Classic (or always, with
+ * `nameTheme`), then each family's picks joined with ` + `, in family order; empty for Classic with no picks. The off
+ * screen's selected row carries it after its own name when the live loading is not the row's, naming the theme whenever
+ * it differs from the row's own, Classic included (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.3). An id
+ * the content does not know is left out, as describeWorld leaves it out.
+ */
+export function describeLoading(
+  theme: NonNullable<DescribedWorld['theme']>,
+  aspects: NonNullable<DescribedWorld['aspects']>,
+  { nameTheme = false }: { nameTheme?: boolean } = {}
+): string {
   const tail: string[] = [];
-  if (theme !== 'classic' && isThemeId(theme)) tail.push(themeName(theme));
+  if ((nameTheme || theme !== 'classic') && isThemeId(theme)) tail.push(themeName(theme));
   for (const family of ASPECT_FAMILY_IDS) {
     const names = (aspects[family] ?? [])
       .filter((pick) => isAspectOf(family, pick))
       .map((pick) => aspectName(family, pick));
     if (names.length > 0) tail.push(names.join(' + '));
   }
-  return [head, ...tail].join(' · ');
+  return tail.join(' · ');
 }

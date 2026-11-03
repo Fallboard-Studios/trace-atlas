@@ -1064,3 +1064,16 @@ centre-heavy, and at offset 0 coarse (a few global keys take 3 values in 3,000 w
 against those draws realise other shares than they say. Crawford's decisions: every audio draw goes even, the world and
 visual draws wait (46), Classic is switched first and then listened to, and the shape is even everywhere. Spec:
 [docs/specs/EVEN_SEEDED_DRAWS.md](../../specs/EVEN_SEEDED_DRAWS.md), on `fix/even-seeded-draws`.
+
+## 64. Off Screen: Current Stays the World You Came From, and a New Transmission Row with Scan
+
+**Closed** 2026-11-02 (built on `docs/archive-roadmap-57`, `8fb0400a`..`5127d72b`; Crawford passed the Look at Checkpoint 2, "good to go"). Current is a runtime snapshot of the world you powered off on: picking it before the change that left it lands cancels that change, and after, restores the snapshot under the wash; Keep saves it (`sessionStore.keepWorld`, `isPayloadDirty`). A New Transmission row above it holds a draw made on mount, with Scan in its row; Roll and `rollWorld` are gone. A theme or aspect click keeps the selected row, which names the live loading in place of its own; every row names its world; the list has "Saved Transmissions" and "Preset Transmissions" titles. The shipped screen is described in [UI_SHELL.md](../../UI_SHELL.md#the-off-screen). The unsaved line's reword is backlog [62](../backlog.md#62-misc-review-items-a-bucket). The original request follows.
+
+Raised by Crawford at Checkpoint 5's Look in [OFF_SCREEN_FINAL_FIXES.md](../../tasks/OFF_SCREEN_FINAL_FIXES.md), 2026-11-02:
+Current renamed itself to every pick, and its only power over one (cancelling it, R3/F12) lasted the wash's 0.5 s fade.
+The fix: Current becomes a runtime snapshot of the world you powered off on, restored when picked and saved by Keep; a
+New Transmission row above it holds a fresh draw, with Scan in its row in place of Roll; and a theme or aspect click
+keeps whichever row is selected. Intent: [off-screen-current-and-new-transmission.md](../../intent/off-screen-current-and-new-transmission.md).
+Spec: [OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../../specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan:
+[OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan.md Stage 1,
+ahead of roadmap 58.

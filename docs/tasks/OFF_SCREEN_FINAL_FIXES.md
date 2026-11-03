@@ -15,7 +15,8 @@
 > F15 `f37dabfc`, F16 `d5f3a304`, F17 `dedf536f` (and the seed-pin fix `017d8655`), F18 `060df477`. F19's probes and
 > dump pass, and Checkpoint 5's automated box is ticked. Crawford answered F16 and F17 the same day; built as F20
 > `840e49cb` and F21 `fb7e7cdd`, plus F11's seed pin `d4cd9dfd`. Full suite 346 / 13,244 and the build clean at
-> `d4cd9dfd`. Left: Crawford's Look (Checkpoint 5), the Tempo-slider question under F21, then his PR.
+> `d4cd9dfd`. Merged as PR #595 on 2026-11-01. **Closed 2026-11-02:** Crawford passed the Looks at Checkpoints 2 and 5
+> and answered F21's Tempo-slider question (the slider keeps its clamp). Nothing in this plan is open.
 
 Written for: Crawford, and a fresh agent session picking this up cold.
 
@@ -328,7 +329,8 @@ watch its test fail.
 
 ### Checkpoint 2: The power-off fade
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (345 files, 13,191 tests; lint 0 errors).
-- [ ] Crawford's Look at F6 (power off, then a fresh page), with the hard reload first.
+- [x] Crawford's Look at F6 (power off, then a fresh page), with the hard reload first. Passed 2026-11-02: "power off
+      does the correct no flicker behavior".
 
 ---
 
@@ -907,9 +909,11 @@ and would drop all six layer swells (F16).
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean; F19's readings recorded. At `017d8655`:
       346 files / 13,237 tests, types clean, lint 0 errors (4 warnings, all in `Scenery.tsx` and `gemShape.tsx`,
       untouched here), the build clean.
-- [ ] Crawford's Look: a pick waiting under the wash, then a theme click, then Current (F12). Tweaks survive a theme
-      and an aspect change (F16, F17).
-- [ ] Ready for Crawford's PR.
+- [x] Crawford's Look: a pick waiting under the wash, then a theme click, then Current (F12). Tweaks survive a theme
+      and an aspect change (F16, F17). Passed 2026-11-02: "theme and aspect change survives fine". F12's half rests on
+      its tests: by hand, the 0.5 s window was too short to hit, and Crawford redesigned Current instead
+      ([off-screen-current-and-new-transmission.md](../intent/off-screen-current-and-new-transmission.md)).
+- [x] Ready for Crawford's PR. Merged as PR #595, 2026-11-01.
 
 ### Phase 5b: Crawford's answers to Phase 5 (2026-11-01)
 
@@ -953,13 +957,15 @@ live companies, but a robot's family changes only when the aspect its company is
   note snapped too (1), the Delay not snapped (1), the rate blocks not snapped (1). One survivor is **equivalent**: the
   Delay measured in Hz rather than seconds. A disallowed note lies outside the allowed range, and the two units are
   monotonic in each other, so the nearest allowed note is the same boundary note. The Tempo slider is unchanged (it
-  still clamps); whether it should snap too is Crawford's call.
+  still clamps). Answered 2026-11-02: it stays that way. A theme's tempo is a single jump, but a slider drag passes
+  through values on the way, so a snap there would permanently overwrite a pick the drag only passed through. The
+  clamp keeps the pick.
 
   **Description:** After `applyGlobalHalfMoves` sets a new tempo, every synced note the tempo no longer allows snaps to
   the nearest allowed one at that tempo. That covers the four bank lanes (`allowedLaneNoteValues`), the Delay
   (`allowedDelayNoteValues`) and the four synced-rate blocks (`allowedRateNoteValues` over `PEDAL_RATE_RANGE_HZ`). Each
   snapped note is pushed as a hand edit is. A note still allowed stays.
-  - Scope: the theme change only. Whether the Tempo slider should snap too is a question for Crawford.
+  - Scope: the theme change only. The Tempo slider keeps its clamp (answered 2026-11-02, under As shipped).
 
   **Proof:** RED test in `src/stores/audioStore.test.ts`: a lane and the Delay on a note the new tempo disallows snap
   to the nearest allowed; one still allowed is kept.
@@ -982,5 +988,7 @@ live companies, but a robot's family changes only when the aspect its company is
   later", untick it there.
 - **F8's finding:** answered 2026-11-01: keep the waiting pick shown (F12).
 - **F17:** answered 2026-11-01: build it ("let's do it with the refresh only what is necessary").
+- **F21's Tempo slider:** answered 2026-11-02: the slider keeps its clamp. "One's over music the other's not, they're
+  different."
 - **F3's casing:** "storage is already full, cannot save world" is kept verbatim (lowercase, no full stop). The other
   lines on the screen are sentence case with a full stop; say if it should match them.

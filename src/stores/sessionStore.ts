@@ -74,7 +74,13 @@ export interface SessionStore {
    */
   keepCurrentWorld: () => string;
   /**
-   * The loaded save is no longer the world (the off screen's Roll, or a preset pick): forget it, and if the name
+   * Keep with a snapshot (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4): save `payload` under
+   * `loadedName`, overwriting that save, or under a name no save has when it is null or blank. Returns the name. Touches
+   * no session field: those describe the live world, and the off screen's Current is a world the listener has left.
+   */
+  keepWorld: (payload: SessionPayload, loadedName: string | null) => string;
+  /**
+   * The loaded save is no longer the world (the off screen's preset or New Transmission pick, or a Scan): forget it, and if the name
    * input still carries that save's name (a Load or a save pick put it there so Save would overwrite the row), suggest
    * afresh, a name no save has (R6) — so the next Keep or Save writes a new row instead of overwriting a save with a
    * different world. A name the user typed is left alone. A no-op when nothing is loaded.
@@ -103,6 +109,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return name;
   },
 
+  keepWorld: (payload, loadedName) => {
+    const name = loadedName?.trim() || unusedSessionName('');
+    saveNamedSession(name, payload);
+    return name;
+  },
+
   detachLoadedSession: () => {
     const { currentLoadedSessionName, currentSessionName } = get();
     if (currentLoadedSessionName === null) return;
@@ -125,9 +137,14 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
  * per render.
  */
 export function isWorldDirty(): boolean {
-  const { currentLoadedSessionName } = useSessionStore.getState();
-  if (currentLoadedSessionName === null) return true;
-  const stored = loadSession(currentLoadedSessionName);
+  return isPayloadDirty(buildSessionPayload(), useSessionStore.getState().currentLoadedSessionName);
+}
+
+/** isWorldDirty for any payload and name: true unless `loadedName` names a stored save equal to `payload`. The off
+ *  screen reads it for its Current snapshot (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4). */
+export function isPayloadDirty(payload: SessionPayload, loadedName: string | null): boolean {
+  if (loadedName === null) return true;
+  const stored = loadSession(loadedName);
   if (!stored) return true;
-  return !deepEqual(asStored(buildSessionPayload()), stored);
+  return !deepEqual(asStored(payload), stored);
 }

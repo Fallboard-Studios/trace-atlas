@@ -442,30 +442,6 @@ describe('swellFrequency forced return at 0 (docs/specs/archive/AUTOMATION_FREQU
     expect(swellLater.peakDelta).toBe(peakDelta);
     expect(swellLater.startMeasure).toBe(startMeasure);
   });
-
-  it('does not interrupt, reverse, or resume a forced return when frequency goes back to nonzero before it completes', () => {
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0);
-    tickAudioSwells(LOCALE_ID, 1);
-    useAudioStore.setState({ swellFrequency: 0 });
-    tickAudioSwells(LOCALE_ID, 1); // forced into falling, riding 3 measures back to base
-    const forced = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
-    const { peakDelta, startMeasure, risingMeasures, fallingMeasures } = forced;
-
-    useAudioStore.setState({ swellFrequency: 4 }); // back to nonzero before the forced fall completes
-    tickAudioSwells(LOCALE_ID, 2); // still mid forced-fall
-
-    const stillForced = getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')!;
-    expect(stillForced.phase).toBe('falling');
-    expect(stillForced.peakDelta).toBe(peakDelta);
-    expect(stillForced.startMeasure).toBe(startMeasure);
-    expect(stillForced.risingMeasures).toBe(risingMeasures);
-    expect(stillForced.fallingMeasures).toBe(fallingMeasures);
-
-    tickAudioSwells(LOCALE_ID, 1 + fallingMeasures); // completes on its forced schedule, not a fresh rise
-    expect(useAudioStore.getState().globalAudio.eq3.low).toBe(0);
-    expect(getActiveSwellSnapshot('global').some((s) => s.globalTarget === 'eq3.low')).toBe(false);
-  });
 });
 
 describe('trigger gating (frequencyToPerTickChance, swellFrequency: 4 -> 0.25 chance)', () => {

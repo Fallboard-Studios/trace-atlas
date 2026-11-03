@@ -41,13 +41,14 @@ interface RadioButtonBaseProps {
 const isDrawn = (node: ReactNode) => node !== null && node !== undefined && typeof node !== 'boolean' && node !== '';
 
 /** The list appearance's grid lines (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8): per option the line its row takes,
- *  a divider before it taking the line above, and how many lines the rows and dividers fill. An option's trailing slot
- *  takes its row's line. */
+ *  a divider and then a heading before it (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c) each taking
+ *  a line above, and how many lines they all fill. An option's trailing slot takes its row's line. */
 function listLines(options: RadioButtonSchema['options']): { rows: number[]; count: number } {
   const rows: number[] = [];
   let line = 0;
   for (const option of options) {
     if (option.dividerBefore) line++;
+    if (option.headingBefore) line++;
     rows.push(++line);
   }
   return { rows, count: line };
@@ -239,7 +240,19 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
       const rowClass = isDrawn(trailingNodes[index]) ? 'sc-radio-button__row sc-radio-button__row--trailing' : 'sc-radio-button__row';
       return (
         <Fragment key={option.value}>
-          {option.dividerBefore && <span className="sc-radio-button__divider" aria-hidden="true" style={{ gridRow: line - 1 }} />}
+          {option.dividerBefore && (
+            <span
+              className="sc-radio-button__divider"
+              aria-hidden="true"
+              style={{ gridRow: option.headingBefore ? line - 2 : line - 1 }}
+            />
+          )}
+          {/* The section title (Task 6c): text a screen reader reads in order, never a radio. */}
+          {option.headingBefore && (
+            <span className="sc-radio-button__heading" style={{ gridRow: line - 1 }}>
+              {option.headingBefore}
+            </span>
+          )}
           <div className={rowClass} data-state={isSelected(option.value) ? 'on' : 'off'} style={{ gridRow: line }}>
             <ToggleGroup.Item
               className="sc-radio-button__item sc-radio-button__list-item"
@@ -327,7 +340,7 @@ function RadioButtonInner<V extends RadioButtonValue>(props: RadioButtonProps<V>
 
   return (
     <div className={className}>
-      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} hint={schema.hint} />
       {lines ? (
         <div className="sc-radio-button__list">
           {root}
