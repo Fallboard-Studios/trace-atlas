@@ -128,7 +128,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 ### Phase 0: Record
 
-- [ ] **T0: `docs/todo/roadmap.md` — roadmap 58 points at the spec and this plan**
+- [x] **T0: `docs/todo/roadmap.md` — roadmap 58 points at the spec and this plan**
 
   **Description:** Roadmap 58's first paragraph ends "Next: spec → plan." Replace with links to the spec and this plan
   and "Next: the sheets (plan T1)". Add the spec and plan to the intent's header line as the off-screen intent did.
@@ -147,7 +147,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 ### Phase 1: Paper (`docs/sheets-58`)
 
-- [ ] **T1: `docs/reference/THEME_AND_ASPECT_SHEETS.md` — the file, the shape, and the current set's sheets**
+- [x] **T1: `docs/reference/THEME_AND_ASPECT_SHEETS.md` — the file, the shape, and the current set's sheets**
 
   **Description:** Create the sheets file: a header stating the rules (spec §1.3: no numbers, a key with no sentence is
   not owned, status marks are Crawford's), the sheet template verbatim from spec §1.3, then one sheet each for the five
@@ -172,7 +172,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (one file, twenty-one sheets)
 
-- [ ] **T2: the sheets file — eight to ten theme candidates**
+- [x] **T2: the sheets file — eight to ten theme candidates**
 
   **Description:** Append eight to ten theme candidates, each a place and not a rung (spec §1.3). Each "Distinct from"
   names its nearest neighbour among the current five and the other candidates. Each "Keys owned" may name any of the
@@ -193,7 +193,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (one file, eight to ten sheets)
 
-- [ ] **T3: the sheets file — the family and option candidates**
+- [x] **T3: the sheets file — the family and option candidates**
 
   **Description:** Append: two or three extra option candidates per current family (Melody, Envelope, Voice, and
   Distance reproposed on the axis test, spec §1.3); a **Motion** family sheet with three options (its key set drawn from
@@ -717,6 +717,21 @@ sheet; the verdict; the R-task if any.)
 
 (Filled in as the build goes: Checkpoint A's and B's one-line answers to the open questions; T4's strike-outs; each
 task's deviations; the final survivor set.)
+
+**Phase 0–1 (2026-11-02).** The spec and this plan were committed as their own commit on `docs/intent-themes-aspects-58`,
+and T0 on that branch too (the roadmap and the intent are its files); `docs/sheets-58` branched from it for T1–T3.
+No deviation from the task text. The sheets file holds fifty sheets: the twenty-one current, ten theme candidates
+(Trench, Tidepool, Floe, Thicket, Wreck, Current, Open Water, Vent Field, Beacon, Squall), three option candidates each
+for Melody, Envelope and Voice, two for Distance with a reproposal paragraph, and the Motion and Performance family
+sheets with three options each. Motion's sheet leaves the three room sends with the theme, so `deriveSendFields` does
+not split unless the cut says otherwise. Bold's and Perilous's shaped stages sit under "Leaves alone" (moved by the
+placeholder for no reason the sheet can give); Adventurous is written so its statistic can be seen.
+
+**Ask-firsts the sheets raised, for Checkpoint A:** a pedal lit in every world (Current: Vibrato; Vent Field: Auto-Wah
+and Phaser; Squall: Tremolo); a colour node lit in every world (Wreck); the octave register (Trench); the fleet's size
+(Open Water); pitch drift (Current, Motion); Humanize (Beacon, Performance). None owns a key for it.
+
+**Next:** Checkpoint A, Crawford's read.
 
 ## Risks and Mitigations
 
