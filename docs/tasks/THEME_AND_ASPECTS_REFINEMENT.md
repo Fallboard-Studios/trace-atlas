@@ -228,7 +228,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
       the sheet.
 - [ ] Session ends here.
 
-- [ ] **T4: the sheets file — the cut, the two paper tests, and the survivor table**
+- [x] **T4: the sheets file — the cut, the two paper tests, and the survivor table**
 
   **Description:** Record Crawford's marks: every sheet `kept`, `renamed → <name>`, or `cut` with his reason; cut
   sheets move under "Cut". Then run spec §1.4's two paper tests over the survivors and write the result into each
@@ -303,6 +303,15 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   Where T4 filed a field under no real family, add the case to `pushFamilyToEngine` under the family whose push
   carries it rather than a pseudo-family; the `families` set stays `AspectFamilyId`.
 
+  **Scope from T4 (2026-11-03):** compare and push `dynamics`, `accents` (performance), `portamento`, `lfoLinks`
+  (motion), `masterVolume` (voice's case; check the velocity cache follows `reReserveVoice`, else add the volume edit's
+  cache write), `octaveRange` (melody's case). Add the five new keys to `bandKeys.ts` and `classic.ts` with Classic's band
+  equal to today's draw: `robot.detune` (the layers' detune, read by `deriveVoiceFields`; compared and pushed already),
+  `robot.octaveRegister` (a `PickBand`-shaped weighted pick over the register list), `lfoLink.lpf.frequency` (send-band
+  shaped: lit share and depth on the master low-pass tie), `humanize` (a range; add it to the half-moves draw and push
+  `setHumanize`), `fleetSize` (cost it first: the roster is `MAX_ROBOTS` and the docking lifecycle is built on it; if the
+  live-world change needs a design of its own, split it out as a task and say so here). Names are fixed in this task.
+
   **Proof:** RED test — `src/systems/aspectDeal.test.ts`: under injected theme columns (`vi.mock('../data/bands/themes')`
   as `resolveBands.test.ts` does) that move each survivor key, a theme change through `rederiveLoading` writes that
   field alone on every robot whose draw moved, drops the swell riding it if any, and makes the push's engine call
@@ -337,6 +346,10 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
     `derivePerformanceFields`.
   `spawnSystem.ts` calls the new function where the draws were, with `current<Family>Bands()` from the context.
 
+  **Scope from T4 (2026-11-03):** both families, so this task runs twice (Motion first, the riskier lift). Motion's keys
+  are `robot.portamento` and the three LFO depths; the room sends stay with the theme, so `deriveSendFields` does not
+  split. Performance's keys are `robot.dynamics`, `robot.rests`, `robot.accents`.
+
   **Proof:** RED test — `src/systems/robotFieldDerivation.test.ts`: under Classic's bands the new function returns, for
   the same noise map and offset, exactly the fields `generateRobotAudioBaseline` produced before the lift (the
   fixture typed in from a run on `main` before the task, not read back); under an injected option column every value
@@ -366,6 +379,10 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   filed under it; the three typed maps in `loadingNames.ts`; the content entries (`home.off.<family>`,
   `home.off.<family>.<id>` ×3, `home.off.<family>Description.none|<id>`) with stand-in words marked as such. If
   Distance is replaced, delete it the same way; its `distance` ids leave the content and the maps.
+
+  **Scope from T4 (2026-11-03):** Motion (`gliding`, `trembling`, `sweeping`) and Performance (`steady`, `dramatic`,
+  `halting`) added, default order last, in that order; Distance stays. `rests` moves from melody to performance in
+  `TOP_LEVEL_FIELDS`; `dynamics` and `accents` join it there; `portamento` and `lfoLinks` are filed under motion.
 
   **Proof:** RED test — `src/data/bands/resolveBands.test.ts` (the family in order with its key set; an option replaces
   only its family keys; no key in two families) and `src/systems/aspectDeal.test.ts` (a robot dealt the new family is
@@ -398,6 +415,8 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   through `RobotScreen.test.tsx` or `CompanyScreen.test.tsx` (a stale `distance` key is ignored). If any of these
   needs a source change, record it here as a deviation and why.
 
+  **Scope from T4 (2026-11-03):** two new families, no family dropped; the `distance=` stale-param cases do not arise.
+
   **Proof:** RED test — the cases above fail before T7b's family exists only where they assert the new family; they
   are written after T7b and go RED by temporarily reverting `ASPECT_FAMILY_IDS` (the mutation check doubles as RED).
 
@@ -421,6 +440,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   sheet owns a key, move that band in `classic.ts` and re-record once: `resolveBands.test.ts`'s `EXPECTED` literal,
   `spawnSystem.test.ts`'s fixture and `robotFieldDerivation.test.ts`'s share pins, each header saying which sheet line
   asked.
+
+  **Scope from T4 (2026-11-03):** fourteen themes, ids following the names: `classic` (empty column), `float`, `anchor`,
+  `shatter`, `tide`, `trench`, `tidepool`, `floe`, `thicket`, `wreck`, `openWater`, `ventField`, `beacon`, `squall`.
+  Classic's sheet owns no key, so `classic.ts` does not move. This task also builds the lit rule: a column naming any row
+  of a pedal or a colour node forces its lit roll in `generateGlobalAudioSettings`, counted against the two-lit cap.
 
   **Proof:** RED test — `src/data/bands/resolveBands.test.ts`: `THEME_IDS` pinned to the survivor ids in row order;
   per theme, the set of keys its column names equals a literal typed from the sheet's "Keys owned" (the importance
@@ -448,6 +472,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Description:** One column per survivor option in every family (renamed ids per T4), each key cited to its sheet
   line, every number marked first cut. Cut options go; new ones come in with their content stand-ins. A family's key
   set is exactly the union its surviving sheets own.
+
+  **Scope from T4 (2026-11-03):** twenty-seven options. Melody: hypnotic, mechanical, wandering, chanting, tumbling,
+  telegraph. Envelope: plucked, swelling, held, bowed, hammered, breathing. Distance: near, echoing, halfHeard (far and
+  remote go). Voice: glassy, woody, hollow, brassy, muted, chiming. Motion: gliding, trembling, sweeping. Performance:
+  steady, dramatic, halting.
 
   **Proof:** RED test — `src/data/bands/resolveBands.test.ts`: `ASPECT_IDS_BY_FAMILY` pinned to the survivors in row
   order; per option, the set of keys it names equals a literal typed from its sheet; no two options in a family are
@@ -764,7 +793,15 @@ stays the theme's, `humanize` stays the theme's. So T7a–c (a family added) and
 names Voice, Envelope and Motion keys) both run; the Architecture Decisions table and the survivor table must carry the
 five new keys. Still open: open questions 1, 3, 5, 6; then T4's two paper tests and the survivor table.
 
-**Next:** the rest of T4 (paper tests, survivor table, the T6–T9 scope lines), then Checkpoint B.
+**T4 done (2026-11-03).** Crawford's last answers: Classic, Trench, Floe, Wreck and Beacon kept; the two defaults
+(`robot.detune` and `humanize` stay the theme's) fine as filed; open questions 1, 3, 5 and 6 answered (defaults stand;
+no cut for count, "I want to hear them before I cut them"). Every sheet has a status: 43 kept, 4 renamed, 3 cut, none
+candidate. The paper tests ran over every survivor and pass with no fix needed (one line per sheet). The survivor table
+is on the sheets file, T6–T9 carry "Scope from T4" lines, and nothing is struck: both T6 and T7a–c run, T7a twice. Open
+question 7 is answered by the table (no pseudo-family). Lint clean.
+
+**Next:** Checkpoint B, Crawford's read of the survivor table (and open question 2, the harness committed); then his PR
+for `docs/sheets-58`, and Phase 2 fresh off `main`.
 
 ## Risks and Mitigations
 
@@ -784,13 +821,21 @@ five new keys. Still open: open questions 1, 3, 5, 6; then T4's two paper tests 
 
 Carried from the spec; each takes its default until Crawford answers at the named checkpoint.
 
-1. **Where the sheets live.** Default `docs/reference/THEME_AND_ASPECT_SHEETS.md`. **Open** until Checkpoint A (T1
-   creates it there; a move is a rename).
+1. **Where the sheets live.** Default `docs/reference/THEME_AND_ASPECT_SHEETS.md`. **Answered** (Crawford,
+   2026-11-03): the default is fine.
 2. **The harness committed.** Default yes, as `scripts/sketch/measureBands.harness.ts`. **Open** until Checkpoint B.
-3. **The three listen worlds.** Default the three presets (`transmissionPresets.ts`). **Open** until Checkpoint D.
+3. **The three listen worlds.** Default the three presets (`transmissionPresets.ts`). **Answered** (Crawford,
+   2026-11-03): "the defaults you've been using for pixel testing are fine", read as the three presets, the worlds the
+   Pixel underrun A/Bs ran on.
 4. **The theme for the family listens.** Default Classic, then the grid's riskiest theme. **Open** until Checkpoint D.
-5. **A renamed character's id.** Default: the id follows the name. **Open** until Checkpoint A.
-6. **Sheet counts.** Default: the intent's. **Open** until Checkpoint A.
-7. **Where a family-less widened key is filed for the push** (`masterVolume`, `dynamics`, `portamento` if no Motion):
-   Architecture Decisions say under the nearest existing family's case rather than a pseudo-family. **Open** until
-   Checkpoint B, when the survivor table shows whether the case arises.
+5. **A renamed character's id.** Default: the id follows the name. **Answered** (Crawford, 2026-11-03): proposed is
+   fine. So `float`, `anchor`, `shatter`, `tide` and the candidates' ids follow their names; an old link's `calm`,
+   `bold`, `perilous` loads Classic with the dev warning.
+6. **Sheet counts.** Default: the intent's. **Answered** (Crawford, 2026-11-03): "for now we're not worrying about max
+   counts; of the remaining items I want to hear them before I cut them." So no survivor is cut for the count; the
+   theme row carries fourteen into the sketch and the listens, and any further cut is made after a listen.
+7. **Where a family-less widened key is filed for the push.** **Answered by the survivor table** (T4): two keys have no
+   family. `robot.masterVolume` is filed under Voice's case (`reReserveVoice` already passes `masterVolume`; T6 checks
+   the engine's velocity cache follows and adds the volume edit's cache write if not). `robot.octaveRegister` is filed
+   under Melody's case (`regenerateMelody` reads `octaveRange`, as the octave edit does). `robot.detune` lands on the
+   layers' `detune`, compared under `LAYER_KEYS` and pushed by Voice's case already. No pseudo-family.

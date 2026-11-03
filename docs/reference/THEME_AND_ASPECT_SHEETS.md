@@ -93,7 +93,7 @@ while a note sounds), and `humanize` stays the theme's (a world key, one scatter
 
 ### Themes
 
-### Classic  ·  theme  ·  status: candidate
+### Classic  ·  theme  ·  status: kept
 
 **Character.** The receiver as it was tuned over the project's life: the whole band table, every row where the long
 listens left it, with nothing narrowed. The world side is a walking tempo, rooms of ordinary size, an open master
@@ -123,6 +123,8 @@ survivor moves the fewest keys, Anchor today: Anchor's probes are all dry and lo
 once. (Adventurous, the one theme wider than Classic, is cut.)
 
 **Promise.** The receiver as it came: the whole range, every kind of probe at once.
+
+**Paper tests (T4).** Covered: pass, the character needs no band moved. Important: pass, no key is moved.
 
 ### Float (was Calm)  ·  theme  ·  status: renamed → Float
 
@@ -172,6 +174,8 @@ late echo and the silence between calls; Float is near and warm, its probes soft
 current set, Anchor: dry weight against warm wash.
 
 **Promise.** Slow, soft and warm: nothing hurries, nothing is pushed, everything is in the room.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Anchor (was Bold)  ·  theme  ·  status: renamed → Anchor
 
@@ -224,6 +228,8 @@ locked and clean; Shatter is the saw and the pulse, buzzing and crushed. Among t
 tiny, thin and high where Anchor is dense and low-mid.
 
 **Promise.** Weight: every note lands dry and solid, and stops.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Shatter (was Perilous)  ·  theme  ·  status: renamed → Shatter
 
@@ -294,6 +300,8 @@ echoing with long tails where Shatter is bright, fast and rattling.
 
 **Promise.** Bright, fast and abrasive: a wall of crunch that never lets up.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Families and their options
 
 ### Melody  ·  family  ·  status: kept
@@ -326,6 +334,8 @@ notes, Performance how hard and how whole they are.
 
 **Promise.** What the probes play.
 
+**Paper tests (T4).** Covered: pass, every band the axis names is in the key set. Important: pass, every key in the set has its sentence, and no key sits in another family’s set.
+
 ### Hypnotic  ·  option of melody  ·  status: kept
 
 **Character.** A probe that circles. It speaks at a middling, steady pace, keeps to a note or two, and comes back to the
@@ -350,6 +360,8 @@ Wreck's and Beacon's long figures stay, since motif length is not Hypnotic's.
 circles at a middling pace with no figure of its own.
 
 **Promise.** Circles a note or two at a steady pace.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Mechanical  ·  option of melody  ·  status: kept
 
@@ -376,6 +388,8 @@ cycling is kept or tightened.
 
 **Promise.** Drives one long figure at high speed.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Wandering  ·  option of melody  ·  status: kept
 
 **Character.** A probe that roams. It speaks less often than most, ranges wide in pitch, almost never tiles a figure, and
@@ -400,6 +414,8 @@ Beacon's whole first line.
 **Distinct from.** Hypnotic, its opposite: Hypnotic returns, Wandering leaves.
 
 **Promise.** Roams wide and sparse, never repeating.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Envelope  ·  family  ·  status: kept
 
@@ -428,6 +444,8 @@ about how its notes strike, land, arrive or fade does not survive an Envelope pi
 
 **Promise.** How the notes are shaped.
 
+**Paper tests (T4).** Covered: pass, every band the axis names is in the key set. Important: pass, every key in the set has its sentence, and no key sits in another family’s set.
+
 ### Plucked  ·  option of envelope  ·  status: kept
 
 **Character.** A struck string. The note strikes at once, falls away quickly to almost nothing, and lets go; a probe that
@@ -455,6 +473,8 @@ kept. Tidepool's droplet is kept.
 
 **Promise.** Strikes at once and dies away.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Swelling  ·  option of envelope  ·  status: kept
 
 **Character.** A note that arrives. Each one rises slowly out of nothing, plain or curved, into a high held level, and
@@ -478,6 +498,8 @@ is lost) and Floe (agrees).
 **Distinct from.** Held. Held starts promptly and rings on; Swelling starts slowly and ends as the theme does.
 
 **Promise.** Rises slowly into each note and holds it high.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Held  ·  option of envelope  ·  status: kept
 
@@ -503,6 +525,8 @@ in Tidepool and Floe.
 **Distinct from.** Plucked and Swelling, as on their sheets.
 
 **Promise.** Sounds in full and rings on.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Distance  ·  family  ·  status: kept
 
@@ -531,6 +555,8 @@ other two points, so its three options are three kinds of distance, not three de
 
 **Promise.** How far off the probes sound.
 
+**Paper tests (T4).** Covered: pass, every band the axis names is in the key set. Important: pass, every key in the set has its sentence, and no key sits in another family’s set.
+
 ### Near  ·  option of distance  ·  status: kept
 
 **Character.** At the receiver. The probe is dry, with next to no wash and almost never an echo; most probes carry no
@@ -553,6 +579,8 @@ promise the wash; Open Water's "far" is lost; Anchor agrees; Shatter's rattle is
 every probe is close.
 
 **Promise.** Close and dry.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Voice  ·  family  ·  status: kept
 
@@ -581,6 +609,8 @@ set. A theme's sentence about its voices does not survive a Voice pick.
 
 **Promise.** What the probes sound like.
 
+**Paper tests (T4).** Covered: pass, every band the axis names is in the key set. Important: pass, every key in the set has its sentence, and no key sits in another family’s set.
+
 ### Glassy  ·  option of voice  ·  status: kept
 
 **Character.** Clear and pure. The probe leans to the round waveforms under a filter left wide open, is almost never one
@@ -606,6 +636,8 @@ blend is lost; so are Trench's, Tidepool's, Floe's, Thicket's, Wreck's and Vent 
 
 **Promise.** Clear and pure.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Woody  ·  option of voice  ·  status: kept
 
 **Character.** Warm and soft-edged. The probe leans to the mellow and the square waveforms under a filter brought well
@@ -627,6 +659,8 @@ down, and its partner layers sound full and are nearly always on, so each probe 
 **Distinct from.** Hollow: both are closed; Hollow is reedy and resonant where Woody is round and full.
 
 **Promise.** Warm and full.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Hollow  ·  option of voice  ·  status: kept
 
@@ -651,6 +685,8 @@ nearly half the fleet is on the resonant filter with a sharp peak, so many probe
 
 **Promise.** Reedy and resonant.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ---
 
 ## Theme candidates
@@ -663,7 +699,7 @@ sends
 are exclusive (a fresh probe carries at most one), so a sheet that raises one room's share notes that the measured
 sketch will show what share it reaches beside the other two.
 
-### Trench  ·  theme  ·  status: candidate
+### Trench  ·  theme  ·  status: kept
 
 **Character.** The deep. The top of the sound is gone: the master filter is shut well down and the high band cut, the
 low band lifted, so everything is felt as much as heard. The pulse is a crawl. The room is a cavern, its walls far: a
@@ -701,6 +737,8 @@ softened; Trench is dark, in a cavern, and its probes slide. Among the candidate
 Tide slides too, but bright and wet, not deep.
 
 **Promise.** Dark and deep: the top is gone, the room is a cavern, the probes slide like sonar.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Tidepool  ·  theme  ·  status: kept
 
@@ -747,7 +785,9 @@ has no sheen and ticks. Tide shares the name's root only: Tide slides and is wet
 
 **Promise.** Small, bright and close: every note a dry droplet.
 
-### Floe  ·  theme  ·  status: candidate
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
+### Floe  ·  theme  ·  status: kept
 
 **Character.** Pack ice. Slow and still, glassy and cold. Most probes are sent to the Shimmer room, so a sheen that is
 not quite in tune rides on nearly every note; the shift is small, so it beats rather than clashes. The voices are pure;
@@ -788,6 +828,8 @@ bright with a sheen and nothing underneath. Among the candidates, Tidepool (brig
 (far, no sheen).
 
 **Promise.** Cold, slow and glassy, with a sheen on every note.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Thicket  ·  theme  ·  status: kept
 
@@ -833,7 +875,9 @@ voice lives in, plus the doubling.
 
 **Promise.** Thick, warm and swaying: every probe doubled.
 
-### Wreck  ·  theme  ·  status: candidate
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
+### Wreck  ·  theme  ·  status: kept
 
 **Character.** A rusted hulk. Most probes are sent to the Grit room, so a grain sits on the notes: the drive is high and
 the bit depth low, and both nodes are lit in every Wreck world since the column names them. The echo is long and will
@@ -875,6 +919,8 @@ rattling, a wall; Wreck is dark, slow and echoing with long tails, a hulk. Among
 round, sliding and silent where Wreck is grainy, cycling and echoing; Beacon repeats a figure too, but clean and flat.
 
 **Promise.** Dark, rusted and echoing: machines still cycling in the hulk.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Tide (was Current)  ·  theme  ·  status: renamed → Tide
 
@@ -934,6 +980,8 @@ name's root and nothing else: tiny dry droplets.
 
 **Promise.** Fluid: everything slides, and water moves over the whole sound.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Open Water  ·  theme  ·  status: kept
 
 **Character.** The pelagic: a vast open space with nothing near, and fewer probes in it than any other world holds. The
@@ -974,6 +1022,8 @@ is far, quiet, with long gaps and a late echo, space rather than softness. Among
 and sliding where Open Water is not dark; Floe has its sheen.
 
 **Promise.** Vast and far: each call from a distance, its echo late.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Vent Field  ·  theme  ·  status: kept
 
@@ -1020,7 +1070,9 @@ option: Vent Field is the world Hollow's voice lives in, plus the sweep and the 
 
 **Promise.** Hot and bubbling: resonant probes squelching and whistling.
 
-### Beacon  ·  theme  ·  status: candidate
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
+### Beacon  ·  theme  ·  status: kept
 
 **Character.** The lighthouse. The same short phrase comes round again and again, with its echo. Every probe runs a long
 figure that is always on, keeps its pitch close and returns to the same notes; it plays flat, with no marks and few
@@ -1060,6 +1112,8 @@ repeat one long figure. Among the candidates, Wreck also cycles, but dark and di
 is the world, sparser, flat and echoing; Mechanical is one family's point at high density.
 
 **Promise.** One phrase, round and round, with its echo.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Squall  ·  theme  ·  status: kept
 
@@ -1106,6 +1160,8 @@ steadily and resonates where Squall gusts and tears.
 
 **Promise.** Stormy: surging, gusting, tearing, nothing steady.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ---
 
 ## Family and option candidates
@@ -1143,6 +1199,8 @@ high rate. Chanting is the short figure between them.
 
 **Promise.** Chants a short figure over and over.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Tumbling  ·  option of melody  ·  status: kept
 
 **Character.** A probe that tumbles. It speaks nearly all the time, ranges wide in pitch, never tiles a figure and rarely
@@ -1168,6 +1226,8 @@ loose.
 
 **Promise.** Fast, wide and loose: a cascade.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Telegraph  ·  option of melody  ·  status: kept
 
 **Character.** A probe that signals. It speaks rarely, in clipped bursts of a long fixed figure on one or two notes,
@@ -1192,6 +1252,8 @@ Wreck and Beacon.
 corner of the family.
 
 **Promise.** A rare, clipped signal.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Envelope candidates
 
@@ -1221,6 +1283,8 @@ is slow at both ends.
 
 **Promise.** Slow in, slow out, like a bow.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Hammered  ·  option of envelope  ·  status: kept
 
 **Character.** A key struck and cut off. Each note switches on at once, sounds in full for as long as it lasts, and stops
@@ -1246,6 +1310,8 @@ stays and its stop goes dead; Shatter agrees. Overrides the shaped stages in Tid
 away nor rings: it stops.
 
 **Promise.** On and off: a hard start, a dead stop.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Breathing  ·  option of envelope  ·  status: kept
 
@@ -1273,6 +1339,8 @@ Overrides the shaped stages in Tidepool and Floe.
 middle and lingers at the end.
 
 **Promise.** Comes in, gives way, lingers.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Distance, reproposed
 
@@ -1307,6 +1375,8 @@ one.
 
 **Promise.** Echoing, not washed.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Half-heard  ·  option of distance  ·  status: kept
 
 **Character.** A field with depth in it. Half the probes are dry and present and half are far off in the reverb, with an
@@ -1329,6 +1399,8 @@ wash" are both half lost.
 that is not a single depth.
 
 **Promise.** Near and far at once.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Voice candidates
 
@@ -1355,6 +1427,8 @@ always on, and it is almost never one of the resonant ones: a brass section, lou
 
 **Promise.** Bright, edged and full.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Muted  ·  option of voice  ·  status: kept
 
 **Character.** Muffled and quiet. The probe leans to the round waveforms under a filter brought right down, its partner
@@ -1377,6 +1451,8 @@ layers quiet and rarely on, and none is resonant: a voice behind a wall.
 **Distinct from.** Woody, which is closed but full and warm; Glassy, which is round but open. Muted is closed and thin.
 
 **Promise.** Muffled, behind a wall.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Chiming  ·  option of voice  ·  status: kept
 
@@ -1402,6 +1478,8 @@ loud, which is the whole difference and the thing the listen must hear. Brassy i
 
 **Promise.** Bell-like, partials ringing.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Motion
 
 ### Motion  ·  family  ·  status: kept
@@ -1425,8 +1503,8 @@ different depth of one: the slide, the waver, the sweep, each with the other two
 it moves; they stay the theme's, which also leaves Distance's two sends untouched and the send derive function whole.
 Pitch drift stays the docking lifecycle's: no theme's or family's business (Crawford, 2026-11-03). The fixed detune
 between a probe's layers (`robot.detune`, new at the cut) stays the theme's: a fixed offset does not change while a note
-sounds, so it is not motion, and it is what keeps Anchor's stack locked under a Motion pick (the default taken at the
-family marks; Crawford may move it). Which shared lane a link rides is a draw, not a band.
+sounds, so it is not motion, and it is what keeps Anchor's stack locked under a Motion pick (filed at the family
+marks; Crawford, 2026-11-03: fine as filed). Which shared lane a link rides is a draw, not a band.
 
 **Overlaps.** Takes `robot.portamento` from Anchor (none), Trench (the sonar slur) and Tide (the slide);
 `robot.lfoDetuneDepth` from Anchor (locked); `robot.lfoBusDepth` from Tide (the wobble), Vent Field (the sweep) and
@@ -1437,6 +1515,8 @@ pick; Anchor's "nothing slides and nothing wavers" is the sentence most at risk.
 Motion is what changes while the note sounds.
 
 **Promise.** How the probes move while they sound.
+
+**Paper tests (T4).** Covered: pass, every band the axis names is in the key set. Important: pass, every key in the set has its sentence, and no key sits in another family’s set.
 
 ### Gliding  ·  option of motion  ·  status: kept
 
@@ -1463,6 +1543,8 @@ the tone.
 
 **Promise.** Slides into every note.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Trembling  ·  option of motion  ·  status: kept
 
 **Character.** A probe that trembles. Every one's layers waver in pitch and in loudness while a note holds, deep enough to
@@ -1486,6 +1568,8 @@ hear as a tremor; no probe slides, and no filter sweeps, so the tremor is heard 
 **Distinct from.** Gliding, as above; Sweeping, which moves the filter and holds the layers.
 
 **Promise.** Trembles while it holds.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
 ### Sweeping  ·  option of motion  ·  status: kept
 
@@ -1511,6 +1595,8 @@ closing the tone; no probe slides and the layers hold still, so the sweep is the
 
 **Promise.** A sweep through every probe.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Performance
 
 ### Performance  ·  family  ·  status: kept
@@ -1530,8 +1616,8 @@ three: Steady flattens all three, Dramatic raises the swell and the marks, Halti
 - `robot.rests` — how often it breaks a note off short and leaves a gap.
 
 **Leaves alone.** Humanize, the small timing scatter, is a key since the cut (`humanize`) and stays the theme's: it is a
-world key, one scatter for the whole fleet, and a family's options set probe bands (the default taken at the family
-marks; Crawford may move it, and then Beacon's "exactly, every time" must not be promised outright). The notes themselves
+world key, one scatter for the whole fleet, and a family's options set probe bands (filed at the family marks; Crawford,
+2026-11-03: fine as filed). The notes themselves
 (Melody) and their shape (Envelope).
 
 **Overlaps.** Takes `robot.rests` from Float (long rests), Shatter ("hardly a rest") and Tide ("no rests"), so none of
@@ -1542,6 +1628,8 @@ line). Anchor names no Performance key.
 **Distinct from.** Melody, which decides the notes; Performance decides how hard and how whole they are played.
 
 **Promise.** How the probes play their lines.
+
+**Paper tests (T4).** Covered: pass, every band the axis names is in the key set. Important: pass, every key in the set has its sentence, and no key sits in another family’s set.
 
 ### Steady  ·  option of performance  ·  status: kept
 
@@ -1566,6 +1654,8 @@ way to "almost none". Agrees with Beacon and with Float's "no push"; undoes Squa
 
 **Promise.** Played straight.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Dramatic  ·  option of performance  ·  status: kept
 
 **Character.** Acted. Every line is played loud and soft, nearly every note carries a mark and the hardest marks are
@@ -1589,6 +1679,8 @@ Float's "no push".
 
 **Promise.** Acted: loud and soft, marked.
 
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
 ### Halting  ·  option of performance  ·  status: kept
 
 **Character.** Broken off. Most notes are cut short and the gaps are deep, so the line stutters; the weight varies a
@@ -1611,6 +1703,66 @@ and Shatter's wall turns to gusts; Float's rests deepen.
 **Distinct from.** Steady, which has no gaps; Dramatic, which is loud where Halting is hesitant.
 
 **Promise.** Halting: broken off, hesitant.
+
+**Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
+
+---
+
+## Survivor table
+
+Every key any survivor column names (plan T4; spec §1.5 "what a widened key costs"), the robot field or global row it
+lands on, whether a loading change compares it today, and the push that carries it to a live world. "Compared today"
+means `movedFields` in `aspectDeal.ts` for a robot key or `deriveGlobalHalfMoves` in `audioStore.ts` for a global row.
+The family column is where the key's push is filed for `TOP_LEVEL_FIELDS` and `pushFamilyToEngine`; a key no family's
+option sets is still filed under a family's case for its push (plan open question 7, answered here: no pseudo-family).
+The five new keys are built at T6 and their names fixed there.
+
+**Robot keys.**
+
+| Key | Robot field | Compared today | Push | Filed under |
+|---|---|---|---|---|
+| `robot.attack`, `robot.decay`, `robot.sustain`, `robot.release` | `audioAttributes.adsr.*` | yes (the adsr keys) | `updateVoiceEnvelope` | envelope |
+| `robot.shapedAttack`, `robot.shapedRelease` | the adsr's curve keys | yes (the adsr keys) | `updateVoiceEnvelope` | envelope |
+| `robot.rhythmicDensity`, `robot.rhythmicMotifLength`, `robot.noteVariance`, `robot.pitchRepeat` | the four top-level fields | yes (`TOP_LEVEL_FIELDS`) | `regenerateMelody` | melody |
+| `robot.rests` | `rests` | yes, filed under melody today | `regenerateMelody` | **performance** (T7b refiles it) |
+| `robot.dynamics` | `dynamics` | **no** | the store write alone; read at play | **performance** (T6, T7b) |
+| `robot.accents` | `accents` | **no** | `regenerateMelody` (as the accents edit) | **performance** (T6, T7b) |
+| `robot.waveform` | `audioAttributes.waveform` and the layers' `type` | yes (`VOICE_FIELDS`, `LAYER_KEYS`) | `reReserveVoice` | voice |
+| `robot.filterFreq` | `audioAttributes.filterFreq` | yes (`VOICE_FIELDS`) | `reReserveVoice` | voice |
+| `robot.accentFilterFreq`, `robot.accentFilterQ` | the accent bandpass: `filterFreq`, `filterQ`, `filterType` | yes (`VOICE_FIELDS`) | `reReserveVoice` | voice |
+| `robot.layerGain` | the layers' `gain` | yes (`LAYER_KEYS`) | `reReserveVoice` | voice |
+| `robot.portamento` | `audioAttributes.portamento` | **no** | the live glide write (the portamento edit, `robotOptionsActions.ts`) | **motion** (T6, T7b) |
+| `robot.lfoGainDepth`, `robot.lfoDetuneDepth`, `robot.lfoBusDepth` | `lfoLinks` (per target: lane, depth) | **no** | `primeRobotLinks` | **motion** (T6, T7b) |
+| `robot.masterVolume` | `masterVolume` | **no** | the store write plus the engine's volume cache (the volume edit) | voice (no family sets it; `reReserveVoice` passes `masterVolume`; T6 checks the velocity cache follows) |
+| `robot.detune` (new) | the layers' `detune` (drawn by `deriveVoiceFields` from a fixed centred range today, `robot.audio.layer.detune`) | yes (`LAYER_KEYS`) | `reReserveVoice` | voice (no family sets it; the draw reads the band, Classic's band equal to today's range) |
+| `robot.octaveRegister` (new) | `octaveRange` (a weighted pick over the register list in `spawnSystem.ts`) | **no** | `regenerateMelody` (as the octave edits) | melody (no family sets it) |
+| `reverbSend`, `delaySend` | the two sends | yes (`TOP_LEVEL_FIELDS`) | `updateRobotSends` | distance |
+| `gritSend`, `shimmerSend`, `doubleSend` | the three room sends | yes (`TOP_LEVEL_FIELDS`) | `updateRobotSends` | distance (the push only; no family sets them) |
+
+**Global rows and `bpm`.** Every one is compared today: `deriveGlobalHalfMoves` diffs `bpm`, every seeded global block,
+the LFO bank and the global links under the old and the new loading, and the global half write carries the moved fields.
+The survivors name: `bpm`; `filterLPF.frequency`, `filterHPF.frequency`; `eq3.low`, `eq3.mid`, `eq3.high`;
+`reverb.decay`, `reverb.preDelay`; `delay.delayTime`, `delay.feedback`; `compressor.threshold`, `compressor.ratio`;
+`limiter.threshold`; `stereoWidener.width`; `frequencyShifter.shift`; `chorus.depth`, `chorus.rate`, `chorus.delayTime`;
+`distortion.amount`, `distortion.wet`, `chebyshev.order`, `chebyshev.wet`, `bitCrusher.bits`, `bitCrusher.wet`;
+`vibrato.wet`, `vibrato.depth`, `vibrato.rate`; `tremolo.wet`, `tremolo.depth`, `tremolo.rate`; `autoWah.wet`,
+`autoWah.baseFrequency`, `autoWah.Q`. Two mechanisms are new and belong to T8 with the columns: **the lit rule** (a column
+naming any row of a pedal or a colour node forces that pedal's or node's lit roll in `generateGlobalAudioSettings`; the
+two-lit pedal cap counts a forced pedal; the diff then carries it for free) and the three new world keys below.
+
+| New world key | Lands on | Compared today | Push | Built at |
+|---|---|---|---|---|
+| `lfoLink.lpf.frequency` | `globalLfoLinks['lpf.frequency']`: the quiet draw forced live, the depth bounded | yes (`globalLfoLinks` is diffed) | the global half write, as today | T6 (the band), T8 (the column) |
+| `humanize` | `audioStore.humanize`, seeded by `regenerateGlobalAudioFromSeed` | **no** (not in the half-moves draw) | `AudioEngine.setHumanize` | T6 (the band and the half-moves entry) |
+| `fleetSize` | the roster size, `MAX_ROBOTS` today, and the docking lifecycle built on it | **no** | a new mechanism: the roster is sized per loading at spawn; a theme change on a live world is the open design | T6 sizes the cost first; may become its own task |
+
+**What T6 builds, exactly:** the comparison and push for `dynamics`, `accents`, `portamento`, the three LFO depths,
+`masterVolume` and `octaveRange`; the five new keys' bands in `bandKeys.ts` and `classic.ts` (Classic's band equal to
+today's draw, so spawn is unchanged); `humanize` in the half-moves draw; and the fleet-size costing. **What T7a–c build:**
+Motion (`deriveMotionFields` lifting the portamento and link draws; the three room sends stay with the theme, so
+`deriveSendFields` does not split) and Performance (`derivePerformanceFields` lifting `dynamics`, `rests`, `accents`),
+each wired through the typed records and the carriers' tests, `rests` refiled from melody to performance. **T8** writes
+fourteen theme columns (Classic empty); **T9** writes twenty-seven option columns in six families (6, 6, 3, 6, 3, 3).
 
 ---
 
