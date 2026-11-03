@@ -502,8 +502,13 @@ frame wrappers left out", "the Pixel A/B: not separable on the phone" and the tw
 
 Raised by Crawford on 2026-11-01, the day the off screen merged (PR #595): refine the five themes and the four aspect
 families roadmap [57](#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table) shipped as
-placeholders, and propose additional options on each axis for him to choose from. Not yet interviewed or specced — run
-`/interview-me` → spec → plan before building. Backlog
+placeholders, and propose additional options on each axis for him to choose from. Interviewed 2026-11-02
+([themes-and-aspects-refinement.md](../intent/themes-and-aspects-refinement.md)): a theme is a place, not a rung, and
+is both the world and every robot's guardrails when no aspect is picked; the listener is a first-time visitor; the
+whole set is open, Distance included, and a fifth family (Motion or Performance) may be proposed; a theme may move any
+key in the table; the choice is made on paper from character sheets before anything is built. Spec
+[THEME_AND_ASPECTS_REFINEMENT.md](../specs/THEME_AND_ASPECTS_REFINEMENT.md), plan
+[THEME_AND_ASPECTS_REFINEMENT.md](../tasks/THEME_AND_ASPECTS_REFINEMENT.md). Next: the sheets (plan T1). Backlog
 [47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) was its step zero
 (merged 2026-11-02, PR #596): every audio draw is even, so a band is heard as written before anything is tuned. Plan.md
 Stage 1.
@@ -540,15 +545,15 @@ of 2026-10-31 and 2026-11-01 as a starting point, not a finish. The grids hold t
 
 ### Not Doing (and why)
 
-- **No new band kind, no key outside the v1 list, no fifth family without asking** — each is ask-first, roadmap 57's
-  rule.
+- **No new band kind, no key the table does not have** — each is ask-first, roadmap 57's rule. The interview widened
+  the theme key list to the whole table and opened a fifth family; neither is ask-first any longer.
 - **No tuning before the character sheets.** Numbers with no sentence to check them against are how the placeholders
   happened.
 
 ### Open
 
-- Which additional themes and aspects to propose, and how many per axis the off screen's rows can hold (the desk column
-  already scrolls at four family rows).
+- Which additional themes and aspects to propose: the character sheets answer it, on paper. The off screen's rows do
+  not steer the count (the interview's rule); Crawford expects no axis to pass eight.
 - Whether a theme should preset a Mood once backlog 7 lands.
 
 ## 59. Launch
