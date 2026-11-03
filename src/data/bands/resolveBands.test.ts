@@ -33,7 +33,7 @@ import {
   type SendBand,
   type ToggleBand,
 } from './bandKeys';
-import { THEME_IDS, THEMES, type ThemeColumn, type ThemeId } from './themes';
+import { THEME_IDS, THEMES, isThemeId, themeLights, type ThemeColumn, type ThemeId } from './themes';
 import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectId, type AspectIdOf } from './aspects';
 import type { RobotAspects } from './dealAspects';
 import type { LoadingIdentity } from './loadingIdentity';
@@ -43,15 +43,15 @@ import type { Robot } from '../../types/Robot';
 // MOCKS
 // ========================================
 
-// The overlay direction is proved on injected columns, whatever the real placeholders hold (plan Task 34 fills them,
-// Task 35 tunes them): Calm moves bpm, Hypnotic moves noteVariance, and an injected EMPTY column (Bold, Wandering)
-// proves silence. Adventurous is injected with a global row and a robot lit key outside the old ten-key list
-// (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T5: a theme column is any part of the band table), typed as a column so
-// a narrower ThemeColumn fails to compile. The originals are spread, so every other export is the real one; the real
-// columns are read below through vi.importActual.
+// The overlay direction is proved on injected columns, whatever the real columns hold (docs/tasks/
+// THEME_AND_ASPECTS_REFINEMENT.md T8 writes them, the listens tune them): Float moves bpm, Hypnotic moves noteVariance,
+// and an injected EMPTY column (Anchor, Wandering) proves silence. Tide is injected with a global row and a robot lit
+// key (T5: a theme column is any part of the band table), typed as a column so a narrower ThemeColumn fails to compile.
+// The originals are spread, so every other export is the real one; the real columns are read below through
+// vi.importActual.
 const injected = vi.hoisted(() => ({
-  calm: { bpm: { min: 150, max: 160 } },
-  adventurous: {
+  float: { bpm: { min: 150, max: 160 } },
+  tide: {
     'reverb.decay': { min: 6, max: 8 },
     'robot.portamento': { min: 0.3, max: 0.6, lit: 0.8 },
   } satisfies ThemeColumn,
@@ -62,7 +62,7 @@ const injected = vi.hoisted(() => ({
 
 vi.mock('./themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, calm: injected.calm, bold: {}, adventurous: injected.adventurous } };
+  return { ...actual, THEMES: { ...actual.THEMES, float: injected.float, anchor: {}, tide: injected.tide } };
 });
 
 vi.mock('./aspects', async (importOriginal) => {
@@ -320,10 +320,59 @@ describe('overlayBands - replace, never widen (spec §1.5)', () => {
 });
 
 describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 19)', () => {
-  it('names five themes, Classic first, and every theme has a column; Classic\'s is empty', () => {
-    expect(THEME_IDS).toEqual(['classic', 'calm', 'bold', 'adventurous', 'perilous']);
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8: the cut's fourteen, ids following the names (open question 5), in
+  // the sheets' row order - Classic, the four renamed, then the nine candidates kept.
+  it('names the fourteen survivor themes, Classic first, and every theme has a column; Classic\'s is empty', () => {
+    expect(THEME_IDS).toEqual([
+      'classic',
+      'float',
+      'anchor',
+      'shatter',
+      'tide',
+      'trench',
+      'tidepool',
+      'floe',
+      'thicket',
+      'wreck',
+      'openWater',
+      'ventField',
+      'beacon',
+      'squall',
+    ]);
     expect(Object.keys(THEMES).sort()).toEqual([...THEME_IDS].sort());
     expect(THEMES.classic).toStrictEqual({});
+  });
+
+  it('themeLights: any row of a pedal or a colour node lights it, whichever row; the rooms, the master chain and the sends light nothing', () => {
+    expect([...themeLights({})]).toEqual([]);
+    expect([...themeLights({ 'distortion.amount': { min: 0.5, max: 0.6 } })]).toEqual(['distortion']);
+    expect([...themeLights({ 'chebyshev.wet': { min: 0.3, max: 0.4 } })]).toEqual(['chebyshev']);
+    expect([...themeLights({ 'bitCrusher.bits': { min: 3, max: 4 } })]).toEqual(['bitCrusher']);
+    expect([...themeLights({ 'autoWah.Q': { min: 5, max: 6 } })]).toEqual(['autoWah']);
+    expect([...themeLights({ 'phaser.rate': { min: 1, max: 2 } })]).toEqual(['phaser']);
+    expect([...themeLights({ 'tremolo.rate': { min: 1, max: 2 }, 'vibrato.wet': { min: 0.9, max: 1 } })].sort()).toEqual([
+      'tremolo',
+      'vibrato',
+    ]);
+    // Two rows of one unit light it once.
+    expect([...themeLights({ 'autoWah.Q': { min: 5, max: 6 }, 'autoWah.wet': { min: 0.4, max: 0.5 } })]).toEqual(['autoWah']);
+    expect([
+      ...themeLights({
+        'chorus.depth': { min: 0.1, max: 0.2 },
+        'frequencyShifter.shift': { min: 2, max: 4 },
+        'reverb.decay': { min: 1, max: 2 },
+        'delay.feedback': { min: 0.5, max: 0.6 },
+        'stereoWidener.width': { min: 0.7, max: 0.8 },
+        gritSend: { min: 0.5, max: 0.8, lit: 0.9 },
+        'robot.attack': { min: 0, max: 0.1 },
+        'lfoLink.lpf.frequency': { min: 10, max: 20, lit: 1 },
+      }),
+    ]).toEqual([]);
+  });
+
+  it('a cut or renamed theme id is no theme: calm, bold, adventurous and perilous fail isThemeId', () => {
+    for (const id of ['calm', 'bold', 'adventurous', 'perilous', 'current', 'Float', '']) expect(isThemeId(id), id).toBe(false);
+    for (const id of THEME_IDS) expect(isThemeId(id), id).toBe(true);
   });
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 7 and 10 (Crawford's note 3; Space renamed Distance, his answer 6; Voice
@@ -379,31 +428,31 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(resolveBands('classic', { melody: 'plucked' })).toStrictEqual(CLASSIC);
   });
 
-  it('a theme column with one key replaces only it: Calm differs from Classic at bpm and nowhere else', () => {
-    const calm = resolveBands('calm', {});
-    expect(calm.bpm).toStrictEqual({ min: 150, max: 160 });
-    const { bpm: _calmBpm, ...restCalm } = calm;
+  it('a theme column with one key replaces only it: Float (injected) differs from Classic at bpm and nowhere else', () => {
+    const float = resolveBands('float', {});
+    expect(float.bpm).toStrictEqual({ min: 150, max: 160 });
+    const { bpm: _floatBpm, ...restFloat } = float;
     const { bpm: _classicBpm, ...restClassic } = CLASSIC;
-    expect(restCalm).toStrictEqual(restClassic);
+    expect(restFloat).toStrictEqual(restClassic);
   });
 
-  it('a widened theme column replaces a global row and a robot lit band alike: Adventurous (injected) differs from Classic at reverb.decay and robot.portamento and nowhere else', () => {
-    const adventurous = resolveBands('adventurous', {});
-    expect(adventurous['reverb.decay']).toStrictEqual({ min: 6, max: 8 });
-    expect(adventurous['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
-    const { 'reverb.decay': _a, 'robot.portamento': _b, ...restAdventurous } = adventurous;
+  it('a widened theme column replaces a global row and a robot lit band alike: Tide (injected) differs from Classic at reverb.decay and robot.portamento and nowhere else', () => {
+    const tide = resolveBands('tide', {});
+    expect(tide['reverb.decay']).toStrictEqual({ min: 6, max: 8 });
+    expect(tide['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
+    const { 'reverb.decay': _a, 'robot.portamento': _b, ...restTide } = tide;
     const { 'reverb.decay': _c, 'robot.portamento': _d, ...restClassic } = CLASSIC;
-    expect(restAdventurous).toStrictEqual(restClassic);
+    expect(restTide).toStrictEqual(restClassic);
   });
 
-  it('a widened theme key under an aspect that does not name it survives the aspect: Adventurous plus Hypnotic keeps the glide band', () => {
-    const both = resolveBands('adventurous', { melody: 'hypnotic' });
+  it('a widened theme key under an aspect that does not name it survives the aspect: Tide plus Hypnotic keeps the glide band', () => {
+    const both = resolveBands('tide', { melody: 'hypnotic' });
     expect(both['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
     expect(both['robot.noteVariance']).toStrictEqual({ offShare: 0, min: 1, max: 2 });
   });
 
-  it('a theme with an empty column (Bold, injected empty) resolves to Classic exactly', () => {
-    expect(resolveBands('bold', {})).toStrictEqual(CLASSIC);
+  it('a theme with an empty column (Anchor, injected empty) resolves to Classic exactly', () => {
+    expect(resolveBands('anchor', {})).toStrictEqual(CLASSIC);
   });
 
   it('an aspect option replaces only its family keys: Hypnotic differs from Classic at noteVariance and nowhere else', () => {
@@ -414,8 +463,8 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(restHypnotic).toStrictEqual(restClassic);
   });
 
-  it('a theme and an aspect compose: Calm plus Hypnotic carries both moves, the aspect over the theme', () => {
-    const both = resolveBands('calm', { melody: 'hypnotic' });
+  it('a theme and an aspect compose: Float plus Hypnotic carries both moves, the aspect over the theme', () => {
+    const both = resolveBands('float', { melody: 'hypnotic' });
     expect(both.bpm).toStrictEqual({ min: 150, max: 160 });
     expect(both['robot.noteVariance']).toStrictEqual({ offShare: 0, min: 1, max: 2 });
     expect(Object.keys(both)).toHaveLength(Object.keys(CLASSIC).length);
@@ -429,8 +478,8 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(rest).toStrictEqual(restClassic);
   });
 
-  it('a Performance option replaces only its family keys, and wins over the theme on its own keys: Dramatic (injected) under Calm', () => {
-    const dramatic = resolveBands('calm', { performance: 'dramatic' });
+  it('a Performance option replaces only its family keys, and wins over the theme on its own keys: Dramatic (injected) under Float', () => {
+    const dramatic = resolveBands('float', { performance: 'dramatic' });
     expect(dramatic['robot.dynamics']).toStrictEqual({ min: 85, max: 100 });
     expect(dramatic['robot.accents']).toStrictEqual({ min: 70, max: 90 });
     expect(dramatic['robot.rests']).toStrictEqual(CLASSIC['robot.rests']);
@@ -445,7 +494,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
   });
 
   it('an aspect with an empty option column (Wandering, injected empty) leaves the theme\'s table as it was', () => {
-    expect(resolveBands('calm', { melody: 'wandering' })).toStrictEqual(resolveBands('calm', {}));
+    expect(resolveBands('float', { melody: 'wandering' })).toStrictEqual(resolveBands('float', {}));
   });
 
   it('a family given undefined is no aspect at all', () => {
@@ -562,29 +611,278 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     return waves.reduce((sum, wave) => sum + band.weights[wave], 0) / total;
   };
 
-  it.each(['calm', 'bold', 'adventurous', 'perilous'] as const)(
-    '%s differs from Classic on a non-empty set of band keys, every key of its kind and inside its field',
-    (theme) => {
-      const column = themeColumn(theme);
-      const moved = movedKeys(overlayBands(CLASSIC, column));
-      expect(moved.length).toBeGreaterThan(0);
-      // Every key the column names moves the band: a column entry equal to Classic's would be a no-op worth deleting.
-      expect([...moved].sort()).toEqual(Object.keys(column).sort());
-      // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T5: the ten-key pin is now a pin on the whole table.
-      for (const [key, band] of Object.entries(column)) {
-        expect(Object.keys(CLASSIC), `${theme} ${key}`).toContain(key);
-        expect(bandProblems(key as BandKey, band), `${theme} ${key}`).toEqual([]);
-      }
-    },
-  );
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8: the importance test as code. Each theme's "Keys owned" list, typed in
+  // here from docs/reference/THEME_AND_ASPECT_SHEETS.md (not read from the column under test): a column naming a key its
+  // sheet does not own, or leaving out one it does, fails.
+  const SHEET_KEYS: Record<Exclude<ThemeId, 'classic'>, readonly BandKey[]> = {
+    float: [
+      'bpm',
+      'robot.rhythmicDensity',
+      'robot.rests',
+      'robot.rhythmicMotifLength',
+      'robot.accents',
+      'robot.waveform',
+      'robot.attack',
+      'robot.release',
+      'robot.filterFreq',
+      'filterLPF.frequency',
+      'gritSend',
+      'reverb.decay',
+      'reverb.preDelay',
+      'reverbSend',
+    ],
+    anchor: [
+      'robot.attack',
+      'robot.decay',
+      'robot.portamento',
+      'robot.lfoDetuneDepth',
+      'robot.detune',
+      'robot.waveform',
+      'robot.layerGain',
+      'reverbSend',
+      'delaySend',
+      'eq3.low',
+      'eq3.high',
+      'eq3.mid',
+      'limiter.threshold',
+    ],
+    shatter: [
+      'gritSend',
+      'distortion.amount',
+      'chebyshev.order',
+      'bitCrusher.bits',
+      'distortion.wet',
+      'chebyshev.wet',
+      'bitCrusher.wet',
+      'eq3.high',
+      'filterLPF.frequency',
+      'robot.waveform',
+      'robot.octaveRegister',
+      'robot.detune',
+      'robot.attack',
+      'robot.decay',
+      'robot.sustain',
+      'robot.release',
+      'robot.rhythmicDensity',
+      'robot.rests',
+      'bpm',
+      'robot.accentFilterFreq',
+      'robot.lfoBusDepth',
+      'delay.delayTime',
+      'delay.feedback',
+      'delaySend',
+      'reverbSend',
+    ],
+    tide: [
+      'robot.portamento',
+      'robot.lfoBusDepth',
+      'robot.attack',
+      'robot.rests',
+      'robot.release',
+      'robot.waveform',
+      'doubleSend',
+      'chorus.depth',
+      'chorus.rate',
+      'chorus.delayTime',
+      'vibrato.wet',
+      'vibrato.depth',
+      'vibrato.rate',
+      'lfoLink.lpf.frequency',
+      'delay.feedback',
+      'delaySend',
+    ],
+    trench: [
+      'filterLPF.frequency',
+      'eq3.high',
+      'eq3.low',
+      'bpm',
+      'reverb.decay',
+      'reverb.preDelay',
+      'reverbSend',
+      'robot.rhythmicDensity',
+      'robot.rests',
+      'robot.portamento',
+      'robot.release',
+      'robot.waveform',
+      'robot.octaveRegister',
+    ],
+    tidepool: [
+      'reverb.decay',
+      'reverb.preDelay',
+      'reverbSend',
+      'delaySend',
+      'filterLPF.frequency',
+      'eq3.high',
+      'bpm',
+      'robot.attack',
+      'robot.decay',
+      'robot.sustain',
+      'robot.release',
+      'robot.shapedAttack',
+      'robot.shapedRelease',
+      'robot.waveform',
+      'robot.layerGain',
+      'robot.accentFilterFreq',
+      'robot.rhythmicDensity',
+    ],
+    floe: [
+      'shimmerSend',
+      'frequencyShifter.shift',
+      'robot.waveform',
+      'robot.attack',
+      'robot.sustain',
+      'robot.release',
+      'robot.shapedAttack',
+      'robot.shapedRelease',
+      'bpm',
+      'robot.rhythmicDensity',
+      'eq3.high',
+      'filterHPF.frequency',
+      'reverb.decay',
+      'reverbSend',
+    ],
+    thicket: [
+      'doubleSend',
+      'chorus.depth',
+      'chorus.rate',
+      'chorus.delayTime',
+      'robot.layerGain',
+      'robot.waveform',
+      'robot.filterFreq',
+      'eq3.mid',
+      'filterLPF.frequency',
+      'bpm',
+      'robot.rhythmicDensity',
+      'robot.sustain',
+      'robot.release',
+      'reverbSend',
+    ],
+    wreck: [
+      'gritSend',
+      'distortion.amount',
+      'bitCrusher.bits',
+      'delay.delayTime',
+      'delay.feedback',
+      'delaySend',
+      'eq3.high',
+      'filterLPF.frequency',
+      'bpm',
+      'robot.rhythmicMotifLength',
+      'robot.pitchRepeat',
+      'robot.waveform',
+      'robot.accentFilterFreq',
+    ],
+    openWater: [
+      'reverb.decay',
+      'reverb.preDelay',
+      'delay.delayTime',
+      'reverbSend',
+      'delaySend',
+      'robot.rhythmicDensity',
+      'robot.rests',
+      'robot.masterVolume',
+      'robot.release',
+      'stereoWidener.width',
+      'filterLPF.frequency',
+      'bpm',
+    ],
+    ventField: [
+      'robot.accentFilterFreq',
+      'robot.accentFilterQ',
+      'robot.lfoBusDepth',
+      'robot.waveform',
+      'robot.rhythmicDensity',
+      'robot.attack',
+      'robot.decay',
+      'robot.sustain',
+      'robot.noteVariance',
+      'eq3.low',
+      'eq3.mid',
+      'filterLPF.frequency',
+      'bpm',
+      'autoWah.wet',
+      'autoWah.baseFrequency',
+      'autoWah.Q',
+    ],
+    beacon: [
+      'robot.rhythmicMotifLength',
+      'robot.noteVariance',
+      'robot.pitchRepeat',
+      'robot.dynamics',
+      'robot.accents',
+      'robot.rests',
+      'delaySend',
+      'delay.feedback',
+      'delay.delayTime',
+      'reverbSend',
+      'bpm',
+      'robot.rhythmicDensity',
+      'humanize',
+    ],
+    squall: [
+      'robot.dynamics',
+      'robot.accents',
+      'robot.rests',
+      'compressor.threshold',
+      'compressor.ratio',
+      'bpm',
+      'robot.rhythmicDensity',
+      'robot.noteVariance',
+      'robot.attack',
+      'robot.release',
+      'gritSend',
+      'robot.masterVolume',
+      'eq3.low',
+      'stereoWidener.width',
+      'tremolo.wet',
+      'tremolo.depth',
+      'tremolo.rate',
+    ],
+  };
+  const SURVIVORS = Object.keys(SHEET_KEYS) as (keyof typeof SHEET_KEYS)[];
+
+  it('the sheet literal covers every theme but Classic, and no sheet lists a key twice', () => {
+    expect([...SURVIVORS].sort()).toEqual(THEME_IDS.filter((id) => id !== 'classic').sort());
+    for (const theme of SURVIVORS) expect(new Set(SHEET_KEYS[theme]).size, theme).toBe(SHEET_KEYS[theme].length);
+  });
+
+  it.each(SURVIVORS)('%s names exactly the keys its sheet owns, each band of its kind and inside its field', (theme) => {
+    const column = themeColumn(theme);
+    expect(Object.keys(column).sort()).toEqual([...SHEET_KEYS[theme]].sort());
+    for (const [key, band] of Object.entries(column)) {
+      expect(Object.keys(CLASSIC), `${theme} ${key}`).toContain(key);
+      expect(bandProblems(key as BandKey, band), `${theme} ${key}`).toEqual([]);
+    }
+  });
+
+  it.each(SURVIVORS)('%s moves every band it names: no band equal to Classic\'s (a key moved for nothing)', (theme) => {
+    const column = themeColumn(theme);
+    const moved = movedKeys(overlayBands(CLASSIC, column));
+    expect([...moved].sort()).toEqual(Object.keys(column).sort());
+  });
+
+  // The lit rule (Crawford, 2026-11-03; the sheets' rules): a theme naming a pedal's or a colour node's rows lights it
+  // in every world. Under the real columns: Shatter all three nodes, Wreck the drive and the crush, Tide the Vibrato,
+  // Vent Field the Auto-Wah, Squall the Tremolo, and no other theme any.
+  it('the real columns light what their sheets say and nothing else', () => {
+    const lights = (theme: ThemeId) => [...realThemes.themeLights(realThemes.THEMES[theme])].sort();
+    const expected: Partial<Record<ThemeId, string[]>> = {
+      shatter: ['bitCrusher', 'chebyshev', 'distortion'],
+      wreck: ['bitCrusher', 'distortion'],
+      tide: ['vibrato'],
+      ventField: ['autoWah'],
+      squall: ['tremolo'],
+    };
+    for (const theme of THEME_IDS) expect(lights(theme), theme).toEqual(expected[theme] ?? []);
+  });
 
   it('Classic\'s column stays empty: Classic is the lifted table', () => {
     expect(realThemes.THEMES.classic).toStrictEqual({});
   });
 
   it('no two themes share a column: each is its own loading', () => {
-    const columns = (['calm', 'bold', 'adventurous', 'perilous'] as const).map((theme) => JSON.stringify(themeColumn(theme)));
-    expect(new Set(columns).size).toBe(4);
+    const columns = SURVIVORS.map((theme) => JSON.stringify(themeColumn(theme)));
+    expect(new Set(columns).size).toBe(SURVIVORS.length);
   });
 
   it.each(['hypnotic', 'mechanical', 'wandering'] as const)(
@@ -729,7 +1027,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       ...Object.values(realAspects.ASPECT_FAMILIES.distance.options),
       ...Object.values(realAspects.ASPECT_FAMILIES.voice.options),
     ];
-    expect(columns.length).toBe(17);
+    expect(columns.length).toBe(26);
     for (const column of columns) {
       for (const [key, band] of Object.entries(column)) expect(bandProblems(key as BandKey, band), key).toEqual([]);
     }
@@ -824,7 +1122,9 @@ function bandProblems(key: BandKey, band: object): string[] {
   const [low, high] = boundsOf(key as Exclude<BandKey, RobotPickKey>);
   if (!(min <= max)) problems.push(`min ${min} > max ${max}`);
   if (min < low || max > high) problems.push(`outside the field's ${low}-${high}`);
-  if ('lit' in band && !((band as SendBand).lit > 0 && (band as SendBand).lit <= 1)) problems.push('lit: not in (0, 1]');
+  // A lit share of 0 is a column's "none" (T8: Float's Grit send, Anchor's glide and rooms): no robot carries the trait.
+  // Classic's own shares stay in (0, 1] (the parity block above).
+  if ('lit' in band && !((band as SendBand).lit >= 0 && (band as SendBand).lit <= 1)) problems.push('lit: not in [0, 1]');
   if ('offShare' in band) {
     // A toggle always on (offShare 0) is a legitimate aspect; one never on is not.
     const { offShare } = band as ToggleBand;
@@ -860,14 +1160,19 @@ describe('the kind-and-bounds check itself (docs/tasks/THEME_AND_ASPECTS_REFINEM
     expect(bandProblems('bpm', { min: 10, max: 100 })).not.toEqual([]);
   });
 
+  it('passes a lit share of 0, a column\'s none (T8), on a send and a robot lit key', () => {
+    expect(bandProblems('gritSend', { min: 0.4, max: 0.8, lit: 0 })).toEqual([]);
+    expect(bandProblems('robot.portamento', { min: 0.05, max: 0.2, lit: 0 })).toEqual([]);
+  });
+
   it('passes a band that fills its field exactly, edge to edge', () => {
     expect(bandProblems('reverb.decay', { min: 0.1, max: 10 })).toEqual([]);
     expect(bandProblems('robot.portamento', { min: PORTAMENTO_MIN, max: PORTAMENTO_MAX, lit: 1 })).toEqual([]);
   });
 
-  it('fails min above max, a lit share of 0 or past 1, an off share of 1, and a fractional toggle', () => {
+  it('fails min above max, a lit share below 0 or past 1, an off share of 1, and a fractional toggle', () => {
     expect(bandProblems('reverb.decay', { min: 3, max: 2 })).not.toEqual([]);
-    expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: 0 })).not.toEqual([]);
+    expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: -0.1 })).not.toEqual([]);
     expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: 1.1 })).not.toEqual([]);
     expect(bandProblems('robot.noteVariance', { offShare: 1, min: 1, max: 8 })).not.toEqual([]);
     expect(bandProblems('robot.noteVariance', { offShare: 0.2, min: 1.5, max: 8 })).not.toEqual([]);

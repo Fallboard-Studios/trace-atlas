@@ -25,11 +25,11 @@ describe('currentWorldIdentity (docs/specs/OFF_SCREEN.md assumption 12; the load
   });
 
   it('is the current style\'s name, its locale\'s coordinates, and the loading store\'s theme and aspects', () => {
-    useLoadingStore.getState().setLoading({ theme: 'bold', aspects: { melody: ['wandering', 'hypnotic'] } });
+    useLoadingStore.getState().setLoading({ theme: 'anchor', aspects: { melody: ['wandering', 'hypnotic'] } });
     expect(currentWorldIdentity()).toEqual({
       attenuationStyleName: DEFAULT_PELAGOS.name,
       coordinates: { x: 3, y: -4 },
-      theme: 'bold',
+      theme: 'anchor',
       aspects: { melody: ['hypnotic', 'wandering'] },
     });
   });

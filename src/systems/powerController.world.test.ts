@@ -360,7 +360,7 @@ describe('a world change while paused', () => {
   const REBUILDS = [
     ['coordinates only', { coordinates: { x: 3, y: 4 } }],
     ['Attenuation Style and coordinates (Roll)', { attenuationStyleName: 'Brinemouth', coordinates: { x: 3, y: 4 } }],
-    ['Attenuation Style with a loading', { attenuationStyleName: 'Brinemouth', theme: 'calm' }],
+    ['Attenuation Style with a loading', { attenuationStyleName: 'Brinemouth', theme: 'float' }],
   ] as const;
 
   const order = (fn: unknown) => vi.mocked(fn as () => void).mock.invocationCallOrder[0];
@@ -493,7 +493,7 @@ describe('a world change while paused', () => {
 
   it.each([
     ['an Attenuation-Style-only change', { attenuationStyleName: 'Saltwhistle' }],
-    ['a theme alone (final fixes F7)', { theme: 'calm' }],
+    ['a theme alone (final fixes F7)', { theme: 'float' }],
   ] as const)('%s while paused rebuilds nothing, tears nothing down and stays paused', async (_label, input) => {
     await pausedWorld();
     const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');

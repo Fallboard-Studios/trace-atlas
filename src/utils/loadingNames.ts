@@ -13,20 +13,38 @@ import { labels, type ContentKey, type SchemaLabels } from '@/content';
  *  (src/content/content.test.ts) sees each read and the type sees every id. The ids are code; the words are content. */
 const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
   classic: 'home.off.theme.classic',
-  calm: 'home.off.theme.calm',
-  bold: 'home.off.theme.bold',
-  adventurous: 'home.off.theme.adventurous',
-  perilous: 'home.off.theme.perilous',
+  float: 'home.off.theme.float',
+  anchor: 'home.off.theme.anchor',
+  shatter: 'home.off.theme.shatter',
+  tide: 'home.off.theme.tide',
+  trench: 'home.off.theme.trench',
+  tidepool: 'home.off.theme.tidepool',
+  floe: 'home.off.theme.floe',
+  thicket: 'home.off.theme.thicket',
+  wreck: 'home.off.theme.wreck',
+  openWater: 'home.off.theme.openWater',
+  ventField: 'home.off.theme.ventField',
+  beacon: 'home.off.theme.beacon',
+  squall: 'home.off.theme.squall',
 };
 
 /** One sentence per theme (assumption 17; §1.6 the Guide's part): the line under the off screen's theme row
  *  (docs/tasks/OFF_SCREEN.md Task 30), and the entry the Guide's Themes page will read. */
 const THEME_DESCRIPTION_KEY: Record<ThemeId, ContentKey> = {
   classic: 'home.off.themeDescription.classic',
-  calm: 'home.off.themeDescription.calm',
-  bold: 'home.off.themeDescription.bold',
-  adventurous: 'home.off.themeDescription.adventurous',
-  perilous: 'home.off.themeDescription.perilous',
+  float: 'home.off.themeDescription.float',
+  anchor: 'home.off.themeDescription.anchor',
+  shatter: 'home.off.themeDescription.shatter',
+  tide: 'home.off.themeDescription.tide',
+  trench: 'home.off.themeDescription.trench',
+  tidepool: 'home.off.themeDescription.tidepool',
+  floe: 'home.off.themeDescription.floe',
+  thicket: 'home.off.themeDescription.thicket',
+  wreck: 'home.off.themeDescription.wreck',
+  openWater: 'home.off.themeDescription.openWater',
+  ventField: 'home.off.themeDescription.ventField',
+  beacon: 'home.off.themeDescription.beacon',
+  squall: 'home.off.themeDescription.squall',
 };
 
 /** The one entry per aspect option, per family, each family's map over its own ids. The family is a key segment (the

@@ -139,10 +139,10 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
     ...actual,
     THEMES: {
       ...actual.THEMES,
-      perilous: everyRobotBandMoved,
-      adventurous: everySendMoved,
-      bold: halfLitReverb,
-      calm: melodyColumns.hypnotic,
+      shatter: everyRobotBandMoved,
+      tide: everySendMoved,
+      anchor: halfLitReverb,
+      float: melodyColumns.hypnotic,
     },
   };
 });
@@ -3380,7 +3380,7 @@ describe('spawnSystem', () => {
   });
 
   describe('the robot bands read the loading context (band-table T21, spec assumption 15)', () => {
-    const PERILOUS = { theme: 'perilous', aspects: {} } as const;
+    const PERILOUS = { theme: 'shatter', aspects: {} } as const;
     const noiseMap = createNoise2D(alea('band-table-t21'));
     const ROSTER = 16;
 
@@ -3599,8 +3599,8 @@ describe('spawnSystem', () => {
   });
 
   describe('the sends read the band table (band-table T22, spec assumption 15)', () => {
-    const ADVENTUROUS = { theme: 'adventurous', aspects: {} } as const;
-    const BOLD = { theme: 'bold', aspects: {} } as const;
+    const ADVENTUROUS = { theme: 'tide', aspects: {} } as const;
+    const BOLD = { theme: 'anchor', aspects: {} } as const;
     const noiseMap = createNoise2D(alea('band-table-t22'));
 
     afterEach(async () => {
@@ -3713,7 +3713,7 @@ describe('spawnSystem', () => {
         expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
         if (loadedUnder?.melody === 'hypnotic') {
           // Calm carries Hypnotic's column: a fresh robot at this index under Calm is the exact re-derivation.
-          const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+          const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
           expect(melodyFieldsOf(baseline), `robot ${i}`).toEqual(melodyFieldsOf(expected));
         } else {
           expect(loadedUnder, `robot ${i}`).toEqual({ melody: 'mechanical' });
@@ -3850,14 +3850,14 @@ describe('spawnSystem', () => {
       for (let i = 0; i < 6; i++) {
         expect(generateAudioAttributes(noiseMap, i).adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', {})));
       }
-      const perilous = withLoading({ theme: 'perilous', aspects: {} }, () => generateAudioAttributes(noiseMap, 2).adsr);
-      expect(perilous).toEqual(deriveEnvelopeFields(noiseMap, 2, resolveBands('perilous', {})));
+      const perilous = withLoading({ theme: 'shatter', aspects: {} }, () => generateAudioAttributes(noiseMap, 2).adsr);
+      expect(perilous).toEqual(deriveEnvelopeFields(noiseMap, 2, resolveBands('shatter', {})));
     });
 
     it('generateRobotSends is deriveSendFields under the installed bands, value for value', () => {
       for (let i = 0; i < 6; i++) expect(generateRobotSends(noiseMap, i)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', {})));
-      const adventurous = withLoading({ theme: 'adventurous', aspects: {} }, () => generateRobotSends(noiseMap, 3));
-      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('adventurous', {})));
+      const adventurous = withLoading({ theme: 'tide', aspects: {} }, () => generateRobotSends(noiseMap, 3));
+      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('tide', {})));
     });
 
     it('a robot dealt Plucked has the adsr deriveEnvelopeFields draws at its index under Plucked; its sends and every other field are untouched', () => {
@@ -3893,9 +3893,9 @@ describe('spawnSystem', () => {
 
     it('the deal reads every band from its own theme, never the installed context: Remote under Adventurous carries Adventurous\'s grit while Classic is loaded', () => {
       expect(useLoadingStore.getState().theme).toBe('classic');
-      const { dealt } = deal({ distance: ['remote'] }, 'adventurous');
+      const { dealt } = deal({ distance: ['remote'] }, 'tide');
       dealt.forEach((baseline, i) => {
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('adventurous', { distance: 'remote' })));
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('tide', { distance: 'remote' })));
         // This file's Adventurous seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
         expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
       });
@@ -3908,7 +3908,7 @@ describe('spawnSystem', () => {
         expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
         expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', { distance: 'near' })));
         // Calm carries Hypnotic's column in this file's mock: a fresh robot at this index under Calm is the Melody re-derivation.
-        const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+        const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
         expect(baseline.rhythmicDensity).toBe(expected.rhythmicDensity);
         expect(baseline.noteVariance).toEqual(expected.noteVariance);
       });
@@ -3917,10 +3917,10 @@ describe('spawnSystem', () => {
     });
 
     it('an aspect composes over the theme: Perilous plus Swelling takes Swelling\'s attack and sustain and Perilous\'s decay and release', () => {
-      const { dealt } = deal({ envelope: ['swelling'] }, 'perilous');
+      const { dealt } = deal({ envelope: ['swelling'] }, 'shatter');
       dealt.forEach((baseline, i) => {
         const { adsr } = baseline.audioAttributes;
-        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('perilous', { envelope: 'swelling' })));
+        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('shatter', { envelope: 'swelling' })));
         // Perilous (this file's mock) seeds attacks of 1.5-2 s; Swelling's 0.3-1.2 wins.
         expect(adsr.attack, `robot ${i}`).toBeLessThanOrEqual(1.2);
         expect(adsr.decay, `robot ${i}`).toBeGreaterThanOrEqual(1);
@@ -4510,11 +4510,11 @@ describe('spawnSystem', () => {
       it('keeps its pick through a theme change, its moved fields drawn under that pick', () => {
         const { live, mover, robotOf, before } = movedWorld();
         const own = before.loadedUnder!.melody!;
-        useLoadingStore.getState().setLoading({ theme: 'perilous', aspects: { melody: ['hypnotic', 'mechanical'] } });
+        useLoadingStore.getState().setLoading({ theme: 'shatter', aspects: { melody: ['hypnotic', 'mechanical'] } });
         rederiveLoading(live, { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } }, cancelSwellForRobotAttribute);
         expect(robotOf().loadedUnder?.melody).toBe(own);
         // The same plot built under Perilous with the mover's own pick for everyone: its fields as they should be.
-        const fresh = robotsOf(buildWorld({ melody: [own] }, 'perilous')).find((r) => r.id === mover)!;
+        const fresh = robotsOf(buildWorld({ melody: [own] }, 'shatter')).find((r) => r.id === mover)!;
         // Every seeded field as the fresh build under its own pick has it; at least one is moved by Perilous.
         const seeded = (r: Robot) => ({ melody: melodyFields(r), adsr: r.audioAttributes.adsr, sends: robotSendLevels(r) });
         expect(seeded(fresh)).not.toEqual(seeded(before)); // precondition

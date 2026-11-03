@@ -9,8 +9,8 @@ import { DEFAULT_LOADING, loadingOf } from './loadingIdentity';
  */
 describe('loadingOf', () => {
   it('reads a whole, valid loading as it is', () => {
-    expect(loadingOf({ theme: 'calm', aspects: { melody: ['wandering'], voice: ['woody', 'glassy'] } })).toEqual({
-      theme: 'calm',
+    expect(loadingOf({ theme: 'float', aspects: { melody: ['wandering'], voice: ['woody', 'glassy'] } })).toEqual({
+      theme: 'float',
       aspects: { melody: ['wandering'], voice: ['glassy', 'woody'] },
     });
   });
@@ -23,7 +23,7 @@ describe('loadingOf', () => {
 
   it('drops picks that are not strings, keeping the family ids among them in canonical order', () => {
     const aspects = { melody: [1, null, 'wandering', { id: 'hypnotic' }, true, 'hypnotic', ['mechanical'], undefined] };
-    expect(loadingOf({ theme: 'calm', aspects })).toEqual({ theme: 'calm', aspects: { melody: ['hypnotic', 'wandering'] } });
+    expect(loadingOf({ theme: 'float', aspects })).toEqual({ theme: 'float', aspects: { melody: ['hypnotic', 'wandering'] } });
   });
 
   it('a family list of nothing but non-strings, or not a list, is no family', () => {

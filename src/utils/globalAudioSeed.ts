@@ -15,7 +15,7 @@ import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA, HUMANIZE_SCHEMA } from '@
 import type { NoteValue } from '@/data/noteValues';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS, SYNCED_RATE_KEYS, type SyncedRateKey } from '@/types/globalAudio';
-import { getBand } from '@/data/bands/loadingContext';
+import { getBand, isLitByTheme } from '@/data/bands/loadingContext';
 import { GLOBAL_AUDIO_SEED_RANGES, type LoadingRangeKey, type SeedRange } from '@/data/globalAudioSeedRanges';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -156,10 +156,14 @@ export type MotionPedal = (typeof MOTION_PEDALS)[number];
  * counts four pedals (the Chorus and the shifter became rooms, lit by their robots' sends), giving Tremolo 22.2 % and
  * Vibrato 19.4 %. Measured over 20 000 styles ('PedalsCalibration<n>', 2026-10-21): Tremolo 22.04 %, Vibrato 19.55 %, two
  * pedals lit in 33.20 % of worlds and never more. The test holds a different set ('PedalsShare<n>', 3 000 styles) to
- * within 3 points of those. A theme that wants more lit moves the edges or this cap. By hand any number of pedals can be
+ * within 3 points of those. A theme that names a pedal's rows lights it in every world and the forced pedal counts
+ * against this cap (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8, the lit rule). By hand any number of pedals can be
  * lit.
  */
 export const MAX_LIT_PEDALS = 2;
+
+/** The four dry-chain pedals with a lit roll, in chain order: the order the cap admits them in. */
+const PEDALS_IN_CHAIN_ORDER = ['autoWah', 'phaser', ...MOTION_PEDALS] as const;
 
 /**
  * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free, one entry per pedal:
@@ -225,27 +229,44 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // Colour: the character draw says which nodes are lit. All seven colour keys are read on every style, lit or not,
   // so the draw set never depends on the character; an unlit node still seeds its shape value (a hand nudge of Mix
   // then hears something at once) and just has its `wet` forced to 0.
-  const lit = COLOUR_CHARACTER_NODES[pickColourCharacter(getUniformSeededVal(noiseMap, 'globalAudio.colour.character'))];
+  // The lit rule (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8): a node the loaded theme's column names is lit in every
+  // world on top of the character's pick; a node it does not name is the character's, as under Classic.
+  const character = COLOUR_CHARACTER_NODES[pickColourCharacter(getUniformSeededVal(noiseMap, 'globalAudio.colour.character'))];
+  const nodeLit = (node: ColourNode): boolean => character.includes(node) || isLitByTheme(node);
   const distortionWet = sampleField(noiseMap, 'distortion.wet');
   const chebyshevWet = sampleField(noiseMap, 'chebyshev.wet');
   const bitCrusherWet = sampleField(noiseMap, 'bitCrusher.wet');
 
   // Modulation: four roll draws, then the thirteen value draws, ALL read on every style, lit or dark, so the draw set
-  // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why).
-  const autoWahLit = getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah;
-  const phaserLit = getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser;
+  // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why). The rolls go
+  // in chain order under the two-lit cap (MAX_LIT_PEDALS). A pedal the loaded theme's column names is lit whatever its
+  // roll (the lit rule) and counts against the cap from the start, so a coin pedal lights only while fewer than two are
+  // lit counting the forced ones; a theme forcing more than two lights them all and no coin pedal. With nothing forced
+  // the AutoWah and Phaser can never meet the cap, so Classic is the sequential cap of docs/specs/GLOBAL_PEDALS.md §1.2.
+  const rolls = {
+    autoWah: getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah,
+    phaser: getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser,
+  };
   const autoWahWet = sampleField(noiseMap, 'autoWah.wet');
   const phaserWet = sampleField(noiseMap, 'phaser.wet');
-
-  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.2): the sequential cap. Each motion pedal's roll is read whether or not
-  // the cap would allow it, so the draw set is total; the AutoWah and Phaser results above count towards the cap.
-  let litCount = Number(autoWahLit) + Number(phaserLit);
-  const pedalLit = {} as Record<MotionPedal, boolean>;
+  const motionRolls = {} as Record<MotionPedal, boolean>;
   for (const pedal of MOTION_PEDALS) {
-    const wants = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.lit`) < PEDAL_LIT_EDGE[pedal];
-    pedalLit[pedal] = wants && litCount < MAX_LIT_PEDALS;
-    if (pedalLit[pedal]) litCount += 1;
+    motionRolls[pedal] = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.lit`) < PEDAL_LIT_EDGE[pedal];
   }
+  const chain = { ...rolls, ...motionRolls };
+  let litCount = PEDALS_IN_CHAIN_ORDER.filter((pedal) => isLitByTheme(pedal)).length;
+  const lit = {} as Record<(typeof PEDALS_IN_CHAIN_ORDER)[number], boolean>;
+  for (const pedal of PEDALS_IN_CHAIN_ORDER) {
+    if (isLitByTheme(pedal)) {
+      lit[pedal] = true;
+      continue;
+    }
+    lit[pedal] = chain[pedal] && litCount < MAX_LIT_PEDALS;
+    if (lit[pedal]) litCount += 1;
+  }
+  const autoWahLit = lit.autoWah;
+  const phaserLit = lit.phaser;
+  const pedalLit: Record<MotionPedal, boolean> = { tremolo: lit.tremolo, vibrato: lit.vibrato };
   // A sync pair per synced-rate block (the Phaser and the three LFO pedals), read on every style; Sync only when lit and
   // under the odds, the note from the lit band. A dark one is Free (no `sync` key), like a Free lane; an empty band
   // leaves a lit one Free too.
@@ -309,15 +330,15 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     },
     distortion: {
       amount: sampleField(noiseMap, 'distortion.amount'),
-      wet: lit.includes('distortion') ? distortionWet : 0,
+      wet: nodeLit('distortion') ? distortionWet : 0,
     },
     chebyshev: {
       order: sampleField(noiseMap, 'chebyshev.order'),
-      wet: lit.includes('chebyshev') ? chebyshevWet : 0,
+      wet: nodeLit('chebyshev') ? chebyshevWet : 0,
     },
     bitCrusher: {
       bits: sampleField(noiseMap, 'bitCrusher.bits'),
-      wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
+      wet: nodeLit('bitCrusher') ? bitCrusherWet : 0,
     },
     autoWah: {
       baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency'),

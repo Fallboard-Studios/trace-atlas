@@ -20,9 +20,9 @@ vi.mock('./themes', async (importOriginal) => {
     ...actual,
     THEMES: {
       ...actual.THEMES,
-      calm: { bpm: { min: 150, max: 160 } },
-      bold: { 'robot.rests': { min: 0, max: 10 } },
-      perilous: {},
+      float: { bpm: { min: 150, max: 160 } },
+      anchor: { 'robot.rests': { min: 0, max: 10 } },
+      shatter: {},
     },
   };
 });
@@ -43,9 +43,9 @@ vi.mock('./aspects', async (importOriginal) => {
 // SETUP
 // ========================================
 
-const CALM: LoadingIdentity = { theme: 'calm', aspects: {} };
-const BOLD: LoadingIdentity = { theme: 'bold', aspects: {} };
-const CALM_HYPNOTIC: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic'] } };
+const CALM: LoadingIdentity = { theme: 'float', aspects: {} };
+const BOLD: LoadingIdentity = { theme: 'anchor', aspects: {} };
+const CALM_HYPNOTIC: LoadingIdentity = { theme: 'float', aspects: { melody: ['hypnotic'] } };
 
 /** Every band as the context reads it now. */
 const snapshot = () => Object.fromEntries((Object.keys(CLASSIC) as BandKey[]).map((key) => [key, getBand(key)]));
@@ -89,7 +89,7 @@ describe('loadingContext (docs/specs/OFF_SCREEN.md assumption 15, plan Task 20)'
   });
 
   it('a theme whose column is empty (Perilous, injected empty) reads as Classic', () => {
-    setLoading({ theme: 'perilous', aspects: {} });
+    setLoading({ theme: 'shatter', aspects: {} });
     expect(snapshot()).toStrictEqual(CLASSIC);
   });
 

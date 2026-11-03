@@ -371,8 +371,8 @@ function movedFields(
  * deal, under `from` (the loading the change replaced) and under the loading store's now - and per robot, field by
  * field (movedFields), every field whose seeded value moved takes the new one. Every other field stands, a tweak
  * included; a tweak on a moved field goes, as any re-derivation takes it. So an untweaked world ends what a rebuild
- * under the new loading spawns, and diffs to nothing against its own seed. Under the real theme columns that is
- * rhythmicDensity, rests, the attack and release (curves too) and the Reverb and Delay sends; an aspect change riding
+ * under the new loading spawns, and diffs to nothing against its own seed. Under the real theme columns that is every
+ * robot field the two themes' columns name (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8); an aspect change riding
  * on the theme moves its families' fields and `loadedUnder` the same way. The swells riding the moved fields are
  * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
  * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields,

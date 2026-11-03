@@ -60,22 +60,41 @@ export const home = {
   // pass: one entry per theme id and per Melody option id, read by describeWorld's tail (band-table T28) and by the two
   // rows (Tasks 30 and 31) through src/utils/loadingNames.ts. The content grammar allows four key segments, so the
   // family sits as one segment - home.off.melody.<id>, not the spec's home.off.aspect.melody.<id>.
+  // The fourteen themes since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8, named as the sheets name them.
   'home.off.theme.classic': { human: 'Classic' },
-  'home.off.theme.calm': { human: 'Calm' },
-  'home.off.theme.bold': { human: 'Bold' },
-  'home.off.theme.adventurous': { human: 'Adventurous' },
-  'home.off.theme.perilous': { human: 'Perilous' },
+  'home.off.theme.float': { human: 'Float' },
+  'home.off.theme.anchor': { human: 'Anchor' },
+  'home.off.theme.shatter': { human: 'Shatter' },
+  'home.off.theme.tide': { human: 'Tide' },
+  'home.off.theme.trench': { human: 'Trench' },
+  'home.off.theme.tidepool': { human: 'Tidepool' },
+  'home.off.theme.floe': { human: 'Floe' },
+  'home.off.theme.thicket': { human: 'Thicket' },
+  'home.off.theme.wreck': { human: 'Wreck' },
+  'home.off.theme.openWater': { human: 'Open Water' },
+  'home.off.theme.ventField': { human: 'Vent Field' },
+  'home.off.theme.beacon': { human: 'Beacon' },
+  'home.off.theme.squall': { human: 'Squall' },
   'home.off.melody.hypnotic': { human: 'Hypnotic' },
   'home.off.melody.mechanical': { human: 'Mechanical' },
   'home.off.melody.wandering': { human: 'Wandering' },
   // One sentence per theme (assumption 17; spec §1.6, the Guide's part): the muted line under the theme row (Task 30),
-  // and the entry the Guide's Themes page will read. STAND-INS for Crawford's pass - each names what its column moves
-  // across the v1 key list (assumption 16: tempo, density, rests, attack and release, the two sends, the filter).
-  'home.off.themeDescription.classic': { human: 'The receiver as it shipped: every band at its surveyed range.' },
-  'home.off.themeDescription.calm': { human: 'Slower and sparser: longer rests, softer attacks, a longer wash of reverb.' },
-  'home.off.themeDescription.bold': { human: 'Up front: denser rhythms, sharper attacks, a drier and brighter room.' },
-  'home.off.themeDescription.adventurous': { human: 'Wider roaming: tempo, density and tone swing further from the middle.' },
-  'home.off.themeDescription.perilous': { human: 'The densest loading: fast, crowded and bright, with hardly a rest.' },
+  // and the entry the Guide's Themes page will read. STAND-INS until docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T12
+  // writes the words: each is its sheet's Promise line (docs/reference/THEME_AND_ASPECT_SHEETS.md), T8.
+  'home.off.themeDescription.classic': { human: 'The receiver as it came: the whole range, every kind of probe at once.' },
+  'home.off.themeDescription.float': { human: 'Slow, soft and warm: nothing hurries, nothing is pushed, everything is in the room.' },
+  'home.off.themeDescription.anchor': { human: 'Weight: every note lands dry and solid, and stops.' },
+  'home.off.themeDescription.shatter': { human: 'Bright, fast and abrasive: a wall of crunch that never lets up.' },
+  'home.off.themeDescription.tide': { human: 'Fluid: everything slides, and water moves over the whole sound.' },
+  'home.off.themeDescription.trench': { human: 'Dark and deep: the top is gone, the room is a cavern, the probes slide like sonar.' },
+  'home.off.themeDescription.tidepool': { human: 'Small, bright and close: every note a dry droplet.' },
+  'home.off.themeDescription.floe': { human: 'Cold, slow and glassy, with a sheen on every note.' },
+  'home.off.themeDescription.thicket': { human: 'Thick, warm and swaying: every probe doubled.' },
+  'home.off.themeDescription.wreck': { human: 'Dark, rusted and echoing: machines still cycling in the hulk.' },
+  'home.off.themeDescription.openWater': { human: 'Vast and far: each call from a distance, its echo late.' },
+  'home.off.themeDescription.ventField': { human: 'Hot and bubbling: resonant probes squelching and whistling.' },
+  'home.off.themeDescription.beacon': { human: 'One phrase, round and round, with its echo.' },
+  'home.off.themeDescription.squall': { human: 'Stormy: surging, gusting, tearing, nothing steady.' },
   // The Melody row (Task 31; assumption 17): the family's label, and one sentence per option plus one for a row with no
   // aspect on - `none`, every probe as the theme (the as-theme option is gone, docs/tasks/OFF_SCREEN_REVISIONS.md Task 6)
   // - the Guide's part too. STAND-INS for Crawford's pass - each names what the option moves across the family's keys

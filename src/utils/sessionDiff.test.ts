@@ -16,7 +16,7 @@ vi.mock('../engine/beatClock', () => ({
 // the spread originals: a robot regenerated under it has a density of 90 or more, where Classic's 0-100 draw rarely does.
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, calm: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+  return { ...actual, THEMES: { ...actual.THEMES, float: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
 });
 
 // band-table T27 (spec assumption 22): the baseline runs the same deal as the live spawn. The real option columns are {}
@@ -625,9 +625,9 @@ describe('buildSessionPayload', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
     expect(buildSessionPayload()).toMatchObject({ version: 3, theme: 'classic', aspects: {} });
-    useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['mechanical', 'hypnotic'] } });
+    useLoadingStore.getState().setLoading({ theme: 'float', aspects: { melody: ['mechanical', 'hypnotic'] } });
     const payload = buildSessionPayload();
-    expect(payload.theme).toBe('calm');
+    expect(payload.theme).toBe('float');
     expect(payload.aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
   });
 
@@ -852,7 +852,7 @@ describe('applySessionPayload', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       const { theme: _theme, aspects: _aspects, ...rest } = buildSessionPayload();
-      useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      useLoadingStore.getState().setLoading({ theme: 'float', aspects: { melody: ['hypnotic'] } });
       applySessionPayload({ ...rest, version: 2 });
       expect(useLoadingStore.getState().theme).toBe('classic');
       expect(useLoadingStore.getState().aspects).toStrictEqual({});
@@ -862,8 +862,8 @@ describe('applySessionPayload', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       const payload = buildSessionPayload();
-      applySessionPayload({ ...payload, theme: 'bold', aspects: { melody: ['mechanical', 'hypnotic'] } });
-      expect(useLoadingStore.getState().theme).toBe('bold');
+      applySessionPayload({ ...payload, theme: 'anchor', aspects: { melody: ['mechanical', 'hypnotic'] } });
+      expect(useLoadingStore.getState().theme).toBe('anchor');
       expect(useLoadingStore.getState().aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
     });
 
@@ -880,7 +880,7 @@ describe('applySessionPayload', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       const payload = buildSessionPayload();
-      applySessionPayload({ ...payload, theme: 'calm' });
+      applySessionPayload({ ...payload, theme: 'float' });
       const calmRobots = currentLocale()!.robots;
       expect(calmRobots.length).toBeGreaterThan(0);
       for (const robot of calmRobots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
@@ -895,21 +895,21 @@ describe('applySessionPayload', () => {
       const spy = vi.spyOn(worldTransition, 'retransmitWorld').mockImplementation(() => {});
       let input: unknown;
       try {
-        applySessionPayload({ ...payload, theme: 'calm', aspects: { melody: ['mechanical', 'hypnotic'] } });
+        applySessionPayload({ ...payload, theme: 'float', aspects: { melody: ['mechanical', 'hypnotic'] } });
         // Read before mockRestore, which clears the call history along with the mock.
         input = spy.mock.calls[0]?.[0];
       } finally {
         spy.mockRestore();
       }
-      expect(input).toEqual({ coordinates: payload.coordinates, theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
+      expect(input).toEqual({ coordinates: payload.coordinates, theme: 'float', aspects: { melody: ['hypnotic', 'mechanical'] } });
     });
 
     it('sets the store even when the locale rebuild is skipped (the link boot)', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       const payload = buildSessionPayload();
-      applySessionPayload({ ...payload, theme: 'bold' }, { skipLocaleRebuild: true });
-      expect(useLoadingStore.getState().theme).toBe('bold');
+      applySessionPayload({ ...payload, theme: 'anchor' }, { skipLocaleRebuild: true });
+      expect(useLoadingStore.getState().theme).toBe('anchor');
     });
 
     // band-table T27 (spec assumption 22): the baseline runs the deal, so an untweaked dealt world diffs empty.

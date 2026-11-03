@@ -14,7 +14,7 @@ import { outerTenths } from '@/testUtils/spread';
 // The real Calm column is {} until the listen (plan Task 34), so one that moves bpm is injected over the spread originals.
 vi.mock('@/data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/data/bands/themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, calm: { bpm: { min: 150, max: 160 } } } };
+  return { ...actual, THEMES: { ...actual.THEMES, float: { bpm: { min: 150, max: 160 } } } };
 });
 
 // ========================================
@@ -114,7 +114,7 @@ describe('generateAttenuationStyleBpm — the tempo draws even (Even Seeded Draw
 });
 
 describe('generateAttenuationStyleBpm reads the band table (band-table T22, spec assumption 15)', () => {
-  const CALM = { theme: 'calm', aspects: {} } as const;
+  const CALM = { theme: 'float', aspects: {} } as const;
 
   afterEach(() => {
     evictAttenuationStyleNoiseMap('seed-test-as');

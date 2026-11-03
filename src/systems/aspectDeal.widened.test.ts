@@ -33,7 +33,7 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
     ...actual,
     THEMES: {
       ...actual.THEMES,
-      get calm() {
+      get float() {
         return injected.column;
       },
     },
@@ -74,7 +74,7 @@ import { generateGlobalLfoLinks, generateHumanize } from '../utils/globalAudioSe
 
 const COORDS = { x: 23, y: 41 };
 const CLASSIC_PLAIN: LoadingIdentity = { theme: 'classic', aspects: {} };
-const CALM_PLAIN: LoadingIdentity = { theme: 'calm', aspects: {} };
+const CALM_PLAIN: LoadingIdentity = { theme: 'float', aspects: {} };
 let worlds = 0;
 
 /** A live world at COORDS, spawned and dealt under `loading` as initializeLocale builds one. */
@@ -420,10 +420,10 @@ describe('the Motion and Performance deals (themes-58 T7b)', () => {
     const pick: LoadingIdentity['aspects'] = { motion: ['gliding'], performance: ['dramatic'] };
     const live = buildWorld({ theme: 'classic', aspects: pick });
     injected.column = { 'robot.lfoBusDepth': { min: 30, max: 40, lit: 1 }, 'robot.masterVolume': { min: 0.3, max: 0.35 } };
-    const fresh = robotsOf(buildWorld({ theme: 'calm', aspects: pick }));
+    const fresh = robotsOf(buildWorld({ theme: 'float', aspects: pick }));
     vi.spyOn(lfoEngine, 'linkTarget').mockImplementation(() => true);
     vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
-    useLoadingStore.getState().setLoading({ theme: 'calm', aspects: pick });
+    useLoadingStore.getState().setLoading({ theme: 'float', aspects: pick });
     rederiveLoading(live, { theme: 'classic', aspects: pick }, vi.fn());
     expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
   });

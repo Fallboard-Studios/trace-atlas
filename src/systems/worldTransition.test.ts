@@ -30,7 +30,7 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
     ...actual,
     THEMES: {
       ...actual.THEMES,
-      calm: {
+      float: {
         bpm: { min: 150, max: 160 },
         'filterLPF.frequency': { min: 500, max: 600 },
         'robot.rhythmicDensity': { min: 90, max: 100 },
@@ -293,25 +293,25 @@ describe('worldTransition', () => {
   // than keeping its own copy (the drawer raises no wash over a no-op).
   describe('retransmitChangesWorld — the no-op rule, shared (review R16)', () => {
     it('is false for an input that changes nothing: none at all, an emptied name, the loaded theme again, an equal pick set', () => {
-      useLoadingStore.getState().setLoading({ theme: 'calm', aspects: { melody: ['wandering', 'hypnotic'] } });
+      useLoadingStore.getState().setLoading({ theme: 'float', aspects: { melody: ['wandering', 'hypnotic'] } });
       expect(retransmitChangesWorld({})).toBe(false);
       expect(retransmitChangesWorld({ attenuationStyleName: '' })).toBe(false);
-      expect(retransmitChangesWorld({ theme: 'calm' })).toBe(false);
+      expect(retransmitChangesWorld({ theme: 'float' })).toBe(false);
       expect(retransmitChangesWorld({ aspects: { melody: ['hypnotic', 'wandering', 'hypnotic'] } })).toBe(false);
-      expect(retransmitChangesWorld({ theme: 'calm', aspects: { melody: ['wandering', 'hypnotic'] } })).toBe(false);
+      expect(retransmitChangesWorld({ theme: 'float', aspects: { melody: ['wandering', 'hypnotic'] } })).toBe(false);
     });
 
     it('is true for an input that changes the world: a coordinate, a name, a theme, a pick', () => {
       expect(retransmitChangesWorld({ coordinates: { x: 1, y: 2 } })).toBe(true);
       expect(retransmitChangesWorld({ attenuationStyleName: 'Brinemouth' })).toBe(true);
-      expect(retransmitChangesWorld({ theme: 'bold' })).toBe(true);
+      expect(retransmitChangesWorld({ theme: 'anchor' })).toBe(true);
       expect(retransmitChangesWorld({ aspects: { envelope: ['held'] } })).toBe(true);
     });
 
     it('only asks: it changes no store and rebuilds nothing', () => {
       const localesBefore = useLocaleStore.getState().locales;
       const attenuationStylesBefore = useAttenuationStyleStore.getState().attenuationStyles;
-      expect(retransmitChangesWorld({ coordinates: { x: 1, y: 2 }, theme: 'bold', aspects: { voice: ['woody'] } })).toBe(true);
+      expect(retransmitChangesWorld({ coordinates: { x: 1, y: 2 }, theme: 'anchor', aspects: { voice: ['woody'] } })).toBe(true);
       expect(useLocaleStore.getState().locales).toBe(localesBefore);
       expect(useAttenuationStyleStore.getState().attenuationStyles).toBe(attenuationStylesBefore);
       expect(useLoadingStore.getState()).toMatchObject({ theme: 'classic', aspects: {} });
@@ -473,7 +473,7 @@ describe('worldTransition', () => {
 
     it.each([
       ['a coordinates retransmit', { coordinates: { x: 500, y: 500 } }],
-      ['a name change carrying a theme, which rebuilds the plot in place', { attenuationStyleName: 'Brinemouth', theme: 'calm' as const }],
+      ['a name change carrying a theme, which rebuilds the plot in place', { attenuationStyleName: 'Brinemouth', theme: 'float' as const }],
     ])('%s: reserveVoice runs a second time for each robot, with the dealt layers the store holds', (_label, input) => {
       useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { voice: ['glassy'] } });
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
@@ -982,7 +982,7 @@ describe('worldTransition', () => {
       expect(robotIdsBefore.length).toBeGreaterThan(0);
       const spies = spyRegenerators();
 
-      retransmitWorld({ theme: 'calm' });
+      retransmitWorld({ theme: 'float' });
 
       const after = currentWorld();
       expect(after.style.id).toBe(before.style.id);
@@ -990,7 +990,7 @@ describe('worldTransition', () => {
       expect(after.locale.coordinates).toEqual(before.locale.coordinates);
       expect(after.locale.id).toBe(before.locale.id);
       expect(after.locale.robots.map((r) => r.id)).toEqual(robotIdsBefore);
-      expect(useLoadingStore.getState().theme).toBe('calm');
+      expect(useLoadingStore.getState().theme).toBe('float');
       for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
       expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150);
       expect(useAudioStore.getState().bpm).toBeLessThanOrEqual(160);
@@ -998,7 +998,7 @@ describe('worldTransition', () => {
       expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBeLessThanOrEqual(600);
       for (const robot of after.locale.robots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
       expect(getWorldState()).toBe('cold');
-      expect(params().get('theme')).toBe('calm');
+      expect(params().get('theme')).toBe('float');
       expect(params().get('seed')).toBe(before.style.name);
     });
 
@@ -1014,7 +1014,7 @@ describe('worldTransition', () => {
         retransmitWorld({ coordinates: { x: 500, y: 500 } });
         const before = currentWorld().locale;
         vi.spyOn(Date, 'now').mockReturnValue(later(before));
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         const after = currentWorld().locale;
         expect(after.dayStartTimestamp).toBe(before.dayStartTimestamp);
       });
@@ -1024,7 +1024,7 @@ describe('worldTransition', () => {
         retransmitWorld({ coordinates: { x: 501, y: 500 } });
         const before = currentWorld().locale;
         vi.spyOn(Date, 'now').mockReturnValue(later(before));
-        retransmitWorld({ attenuationStyleName: 'Brinemouth', theme: 'bold' });
+        retransmitWorld({ attenuationStyleName: 'Brinemouth', theme: 'anchor' });
         const after = currentWorld();
         expect(after.style.name).toBe('Brinemouth');
         expect(after.locale.coordinates).toEqual(before.coordinates);
@@ -1045,7 +1045,7 @@ describe('worldTransition', () => {
         const before = currentWorld().locale;
         const now = later(before);
         vi.spyOn(Date, 'now').mockReturnValue(now);
-        retransmitWorld({ coordinates: { x: 9, y: 9 }, theme: 'bold' });
+        retransmitWorld({ coordinates: { x: 9, y: 9 }, theme: 'anchor' });
         expect(currentWorld().locale.dayStartTimestamp).toBe(now - (9 / 24) * DAY_DURATION_MS);
       });
     });
@@ -1157,7 +1157,7 @@ describe('worldTransition', () => {
         initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
         const measure = startSwellsOn(['lpf.frequency']);
         const oldBase = swellOn('lpf.frequency')!.baseValue!;
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         expect(swellOn('lpf.frequency')).toBeUndefined();
         const seeded = useAudioStore.getState().globalAudio.filterLPF.frequency;
         expect(seeded).not.toBe(oldBase);
@@ -1172,7 +1172,7 @@ describe('worldTransition', () => {
         initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
         const measure = startSwellsOn(['eq3.low', 'lpf.frequency']);
         const before = swellOn('eq3.low')!;
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         expect(swellOn('eq3.low')).toEqual(before);
         expect(swellOn('lpf.frequency')).toBeUndefined();
         tickPastEveryEnd(measure);
@@ -1185,7 +1185,7 @@ describe('worldTransition', () => {
         startSwellsOn(['lpf.frequency']);
         const oldBase = swellOn('lpf.frequency')!.baseValue!;
         setWorldState('paused');
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         // The payload rounds its numbers, so the reads compare to the whole hertz.
         const saved = buildSessionPayload().globalAudio!.filterLPF!.frequency!;
         expect(saved).not.toBeCloseTo(oldBase, 0);
@@ -1198,7 +1198,7 @@ describe('worldTransition', () => {
     // the real columns (the verify-first dump) - and every other attribute keeps what it holds, a tweak included.
     describe('the global half moves only what the theme moves (final fixes F17)', () => {
       /** The global half as a fresh draw under `theme` gives it, the store's non-seeded switch carried. */
-      const freshDraw = (theme: 'classic' | 'calm') => {
+      const freshDraw = (theme: 'classic' | 'float') => {
         const { style } = currentWorld();
         return withLoading({ theme, aspects: {} }, () => ({
           bpm: generateAttenuationStyleBpm(style.id, style.name),
@@ -1224,22 +1224,22 @@ describe('worldTransition', () => {
         classicWorld();
         useAudioStore.getState().setGlobalAudio('reverb', { wet: 0.777 });
         useAudioStore.getState().setGlobalAudio('filterLPF', { frequency: 12345 });
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         expect(useAudioStore.getState().globalAudio.reverb.wet).toBe(0.777);
-        expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBe(freshDraw('calm').globalAudio.filterLPF.frequency);
+        expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBe(freshDraw('float').globalAudio.filterLPF.frequency);
       });
 
       it("an untweaked world's global half equals a fresh draw under the new theme, field for field", () => {
         classicWorld();
-        expect(globalHalf()).not.toEqual(freshDraw('calm')); // precondition: the theme moves it
-        retransmitWorld({ theme: 'calm' });
-        expect(globalHalf()).toEqual(freshDraw('calm'));
+        expect(globalHalf()).not.toEqual(freshDraw('float')); // precondition: the theme moves it
+        retransmitWorld({ theme: 'float' });
+        expect(globalHalf()).toEqual(freshDraw('float'));
       });
 
       it('a theme regenerates nothing whole: none of the four seed regenerators runs', () => {
         classicWorld();
         const spies = spyRegenerators();
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         for (const spy of Object.values(spies)) expect(spy).not.toHaveBeenCalled();
       });
 
@@ -1249,9 +1249,9 @@ describe('worldTransition', () => {
       /** A lane whose Sync pick the theme leaves, set by hand to a note the new tempo allows (`allowed: true`) or
        *  disallows (`false`). */
       const handSetLane = (allowed: boolean) => {
-        const lane = LFO_LANE_IDS.find((l) => deepEqual(freshDraw('classic').lfoBank[l].sync, freshDraw('calm').lfoBank[l].sync));
+        const lane = LFO_LANE_IDS.find((l) => deepEqual(freshDraw('classic').lfoBank[l].sync, freshDraw('float').lfoBank[l].sync));
         expect(lane, 'a lane whose Sync pick the theme leaves').toBeDefined();
-        const calmAllows = allowedLaneNoteValues(freshDraw('calm').bpm);
+        const calmAllows = allowedLaneNoteValues(freshDraw('float').bpm);
         const note = NOTE_VALUES.find(
           (nv) => !deepEqual(nv, useAudioStore.getState().lfoBank[lane!].sync) && calmAllows.some((a) => deepEqual(a, nv)) === allowed,
         )!;
@@ -1265,7 +1265,7 @@ describe('worldTransition', () => {
         classicWorld();
         const { lane, note } = handSetLane(true);
         const rate = vi.spyOn(lfoEngine, 'setBankRate').mockImplementation(() => {});
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         const after = useAudioStore.getState();
         expect(after.lfoBank[lane].sync).toEqual(note);
         expect(rate.mock.calls.filter(([l]) => l === lane).at(-1)).toEqual([lane, resolveLaneRateHz(after.lfoBank[lane], after.bpm)]);
@@ -1276,7 +1276,7 @@ describe('worldTransition', () => {
         pinStyle();
         classicWorld();
         const { lane, calmAllows } = handSetLane(false);
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         expect(calmAllows.some((a) => deepEqual(a, useAudioStore.getState().lfoBank[lane].sync))).toBe(true);
       });
 
@@ -1285,7 +1285,7 @@ describe('worldTransition', () => {
         // The Audio Rig's writes go through setGlobalAudio, the hand edit's path to each block's engine setter.
         const setBPM = vi.spyOn(AudioEngine, 'setBPM');
         const setGlobalAudio = vi.spyOn(useAudioStore.getState(), 'setGlobalAudio');
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
         const { bpm, globalAudio } = useAudioStore.getState();
         expect(setBPM).toHaveBeenLastCalledWith(bpm);
         expect(setGlobalAudio).toHaveBeenCalledWith('filterLPF', { frequency: globalAudio.filterLPF.frequency });
@@ -1303,7 +1303,7 @@ describe('worldTransition', () => {
       retransmitWorld({ aspects: { envelope: ['held'] } });
       expect(useUIStore.getState().selectedRobotId).toBe(locale.robots[2].id);
       expect(useUIStore.getState().selectedCompanyId).toBe(locale.companies[0].id);
-      retransmitWorld({ theme: 'calm' });
+      retransmitWorld({ theme: 'float' });
       expect(useUIStore.getState().selectedRobotId).toBe(locale.robots[2].id);
       expect(useUIStore.getState().selectedCompanyId).toBe(locale.companies[0].id);
       // A rebuild still lets go of both: the companies come back under fresh ids.
@@ -1315,12 +1315,12 @@ describe('worldTransition', () => {
     it('a theme with aspects re-derives in place too: the global half moves into the new bands, the locale stands, the picks are dealt', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const before = currentWorld();
-      retransmitWorld({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      retransmitWorld({ theme: 'float', aspects: { melody: ['hypnotic'] } });
       const after = currentWorld();
       expect(after.locale.id).toBe(before.locale.id);
       expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150); // Calm's tempo, as mocked above
       expect(useAudioStore.getState().globalAudio.filterLPF.frequency).toBeLessThanOrEqual(600);
-      expect(useLoadingStore.getState()).toMatchObject({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+      expect(useLoadingStore.getState()).toMatchObject({ theme: 'float', aspects: { melody: ['hypnotic'] } });
       for (const robot of after.locale.robots) expect(robot.loadedUnder).toEqual({ melody: 'hypnotic' });
     });
 
@@ -1336,7 +1336,7 @@ describe('worldTransition', () => {
         job: JobType.Salvage,
       }));
       useLocaleStore.getState().setLocaleData(before.locale.id, { robots: moved });
-      retransmitWorld({ theme: 'calm' });
+      retransmitWorld({ theme: 'float' });
       const after = currentWorld();
       expect(after.locale.id).toBe(before.locale.id);
       expect(after.locale.companies).toEqual(before.locale.companies);
@@ -1354,7 +1354,7 @@ describe('worldTransition', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       // A fresh plot, so a rebuild at it repeats the robot ids (the spawn count note above).
       retransmitWorld({ coordinates: { x: 512, y: 488 } });
-      retransmitWorld({ theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
+      retransmitWorld({ theme: 'float', aspects: { melody: ['hypnotic', 'mechanical'] } });
       const inPlace = buildSessionPayload();
       // The same plot rebuilt from nothing under the loading now installed.
       retransmitWorld({ coordinates: { x: 512, y: 488 } });
@@ -1363,11 +1363,11 @@ describe('worldTransition', () => {
       expect(inPlace).toEqual(rebuilt);
     });
 
-    it('a theme changes no voice: no robot is re-reserved', () => {
+    it('a theme that moves no Voice key (Beacon) changes no voice: no robot is re-reserved', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const reserve = vi.spyOn(AudioEngine, 'reserveVoice');
       const reReserve = vi.spyOn(AudioEngine, 'reReserveVoice');
-      retransmitWorld({ theme: 'perilous' });
+      retransmitWorld({ theme: 'beacon' });
       expect(reserve).not.toHaveBeenCalled();
       expect(reReserve).not.toHaveBeenCalled();
     });
@@ -1405,16 +1405,16 @@ describe('worldTransition', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const before = currentWorld();
       const spies = spyRegenerators();
-      retransmitWorld({ coordinates: { x: 500, y: 500 }, theme: 'calm' });
+      retransmitWorld({ coordinates: { x: 500, y: 500 }, theme: 'float' });
       const after = currentWorld();
       expect(after.style.id).toBe(before.style.id);
       expect(after.locale.coordinates).toEqual({ x: 500, y: 500 });
-      expect(useLoadingStore.getState().theme).toBe('calm');
+      expect(useLoadingStore.getState().theme).toBe('float');
       expect(spies.bpm).toHaveBeenCalledTimes(1);
       expect(spies.globalLfoLinks).toHaveBeenCalledTimes(1);
       expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150);
       for (const robot of after.locale.robots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
-      expect(params().get('theme')).toBe('calm');
+      expect(params().get('theme')).toBe('float');
       expect(params().get('x')).toBe('500');
     });
 
@@ -1429,17 +1429,17 @@ describe('worldTransition', () => {
     it('a theme with a new Attenuation Style: the store is set before the switch, the style-sync reseeds under the theme, and the preserved plot is rebuilt under it', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       const { coordinates } = currentWorld().locale;
-      retransmitWorld({ attenuationStyleName: 'Saltwhistle', theme: 'calm' });
+      retransmitWorld({ attenuationStyleName: 'Saltwhistle', theme: 'float' });
       const { style, locale } = currentWorld();
       expect(style.name).toBe('Saltwhistle');
       expect(locale.coordinates).toEqual(coordinates);
-      expect(useLoadingStore.getState().theme).toBe('calm');
+      expect(useLoadingStore.getState().theme).toBe('float');
       expect(useAudioStore.getState().bpm).toBeGreaterThanOrEqual(150);
       expect(useAudioStore.getState().bpm).toBeLessThanOrEqual(160);
       expect(locale.robots.length).toBeGreaterThan(0);
       for (const robot of locale.robots) expect(robot.rhythmicDensity).toBeGreaterThanOrEqual(90);
       expect(params().get('seed')).toBe('Saltwhistle');
-      expect(params().get('theme')).toBe('calm');
+      expect(params().get('theme')).toBe('float');
     });
 
     it('a theme while paused tears nothing down and leaves the world paused: the next flip resumes it (final fixes F7)', () => {
@@ -1448,7 +1448,7 @@ describe('worldTransition', () => {
       const killAll = vi.spyOn(AudioEngine, 'killAll');
       const stopWork = vi.spyOn(workLoopModule, 'stopWorkLoop');
       const stopLifecycle = vi.spyOn(robotSystemsModule, 'stopRobotLifecycle');
-      retransmitWorld({ theme: 'calm' });
+      retransmitWorld({ theme: 'float' });
       expect(killAll).not.toHaveBeenCalled();
       expect(stopWork).not.toHaveBeenCalled();
       expect(stopLifecycle).not.toHaveBeenCalled();
@@ -1458,7 +1458,7 @@ describe('worldTransition', () => {
     it('a paused world is cold after a loading change that rebuilds, a theme riding on a plot move, so the next flip starts (Task 8)', () => {
       initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
       setWorldState('paused');
-      retransmitWorld({ coordinates: { x: 500, y: 500 }, theme: 'calm' });
+      retransmitWorld({ coordinates: { x: 500, y: 500 }, theme: 'float' });
       expect(getWorldState()).toBe('cold');
     });
 
@@ -1467,7 +1467,7 @@ describe('worldTransition', () => {
       initializeLocale(DEFAULT_LOCALE_ID);
       const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
       const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');
-      retransmitWorld({ theme: 'calm' });
+      retransmitWorld({ theme: 'float' });
       expect(workStart).not.toHaveBeenCalled();
       expect(workStop).not.toHaveBeenCalled();
       expect(getWorldState()).toBe('running');
@@ -1530,7 +1530,7 @@ describe('worldTransition', () => {
         const before = structuredClone({ lfoBank: useAudioStore.getState().lfoBank, links: useAudioStore.getState().globalLfoLinks });
         const engine = stubBankEngine();
 
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
 
         const { lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
         const movedLanes = LFO_LANE_IDS.filter((lane) => !deepEqual(lfoBank[lane], before.lfoBank[lane]));
@@ -1560,7 +1560,7 @@ describe('worldTransition', () => {
         vi.spyOn(lfoEngine, 'isBankPrimed').mockReturnValue(false);
         const engine = stubBankEngine();
 
-        retransmitWorld({ theme: 'calm' });
+        retransmitWorld({ theme: 'float' });
 
         expect(engine.shape).not.toHaveBeenCalled();
         expect(engine.rateDrift).not.toHaveBeenCalled();
@@ -1578,7 +1578,7 @@ describe('worldTransition', () => {
         expect(engine.shape).not.toHaveBeenCalled();
         expect(globalLinkOrders(engine.link)).toEqual([]);
 
-        retransmitWorld({ coordinates: { x: 600, y: 600 }, theme: 'calm' });
+        retransmitWorld({ coordinates: { x: 600, y: 600 }, theme: 'float' });
 
         expect(engine.shape).toHaveBeenCalledTimes(LFO_LANE_IDS.length);
         expect(globalLinkOrders(engine.link)).toHaveLength(GLOBAL_LFO_TARGET_IDS.length);

@@ -432,7 +432,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S (tests only)
 
-- [ ] **T8: `themes.ts` (+ `classic.ts` if a Classic sheet owns a key) — the survivor theme columns, first cut**
+- [x] **T8: `themes.ts` (+ `classic.ts` if a Classic sheet owns a key) — the survivor theme columns, first cut**
 
   **Description:** Spec §1.5, "Columns". Replace the five current columns with one per survivor theme (renamed ids per
   T4), each key with a comment citing the sheet line that needs it, every number marked "first cut, T10 measures, L1
@@ -876,6 +876,40 @@ Performance last, and drops another family's id in either (`worldLink.test.ts`);
 (`loadingIdentity.test.ts`); `canonicalAspects` and `canonicalPicks` over six families (`loadingStore.test.ts`); the
 Loaded Under line names them after the four (`RobotScreen.test.tsx`, `CompanyScreen.test.tsx`). The OffScreen row pins
 moved at T7b. RED by reverting `ASPECT_FAMILY_IDS` to four: 8 failures (the 6 cases, the 2 pins).
+
+**T8 (2026-11-03).** Fourteen columns in `themes.ts`, each key commented with its sheet sentence, every number a first
+cut (the file header says so once, not per line); Crawford's "Sketch starting points" taken where given, Float's
+release clamped to the 2 s slider (his 1.5 to 3 s). `resolveBands.test.ts` types each sheet's "Keys owned" in as
+`SHEET_KEYS` and holds every column to it, to the kind-and-bounds check and to "no band equal to Classic's". The lit
+rule is `themeLights(column)` in `themes.ts` (any row of a colour node or of the four dry-chain pedals; the rooms light
+nothing), installed beside the table by the loading context (`isLitByTheme`, restored by `withLoading`) and read at the
+rolls in `generateGlobalAudioSettings`: a named node is lit on top of the character's pick, a named pedal is lit
+whatever its roll and counts against the cap from the start, so a coin pedal lights only while fewer than two are lit
+counting the forced ones. Classic draws, and lights, exactly as before (with nothing forced the AutoWah and Phaser
+never meet the cap). Content: the fourteen names and each sheet's Promise line as the stand-in description (T12 writes
+the words). Deviations:
+- **A lit share of 0 is a column's "none".** T5's check refused lit 0; the sheets ask for none (Float's Grit send,
+  Anchor's glide, detune links and rooms, Tidepool's and Shatter's rooms, Shatter's sweep), and every generator reads
+  lit 0 as never (a roll under 0 never lands, a quiet roll under 1 always does). The check now takes [0, 1]; Classic's
+  own shares stay in (0, 1].
+- **A theme forcing more than two pedals lights them all and no coin pedal.** No real column does (each forces at most
+  one); the case is held on an injected column so the rule has an answer.
+- **Owning a row to light a pedal moves its band.** Tide's `vibrato.wet` and Vent Field's `autoWah.wet` would equal
+  Classic's as written, a no-op the key-set test fails; each is nudged up (0.95 to 1, 0.45 to 0.6).
+- **The test ripple.** Eighteen test files named the old ids; `calm`, `bold`, `perilous` and `adventurous` became
+  `float`, `anchor`, `shatter` and `tide` (a script over quoted ids, object keys, content keys and link params), plus
+  the display names the describeWorld and status-line cases pin. Four cases had leaned on the old columns' contents and
+  were restated: `aspectDeal.test.ts`'s push case now expects Voice's rebuild for exactly the robots whose voice moved
+  (Shatter moves the waveform and the layers), its swell case counts every swellable field (Shatter's detune drops
+  layer swells), its tweak case runs under Trench, and `worldTransition.test.ts`'s "no voice re-reserved" case runs
+  under Beacon, the one survivor naming no Voice key. `globalAudioSeed.test.ts`'s injected Sync-band column names the
+  Chorus rate instead of the Phaser's, since a Phaser row now lights the Phaser.
+- `DEFAULT_LOADING.theme` stays `classic`; the presets carry no theme, so nothing there moved.
+Fourteen mutants killed: the two the task names (a key off a sheet, a band equal to Classic's), a sheet key dropped, a
+band outside its field, the lit rule's six (nothing lit, a room lit, a node ignoring the theme, a named node replacing
+the character, a forced pedal uncounted, unforced or capped), the context's two (lights not installed, not restored)
+and the lit check refusing lit 0. "Not restored" first survived: its case drew `before` after an earlier case's install
+had leaked under the mutant; `before` is now drawn inside an explicit Classic install.
 
 ## Risks and Mitigations
 
