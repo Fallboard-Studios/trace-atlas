@@ -92,7 +92,7 @@ export function SectorSettingsDrawer() {
     if (!retransmitChangesWorld(input)) return;
     // A user-gesture world change: it waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13). It always
     // moves the name or the plot, so the world is no longer the loaded save's: the save is let go when the change runs,
-    // as the off screen's Roll lets it go (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R7).
+    // as the off screen's Scan lets it go (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R7).
     requestWorldChange(() => {
       retransmitWorld(input);
       useSessionStore.getState().detachLoadedSession();

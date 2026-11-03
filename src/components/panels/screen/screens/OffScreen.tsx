@@ -205,30 +205,41 @@ interface Intent {
 /**
  * The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9; docs/specs/OFF_SCREEN.md §1.1, assumptions 7 and 8):
  * the etched label and the power hint over the dimmed, still world (WorldView stays mounted behind it —
- * ScreenViewport), and — once this device has heard a world — the Transmission row: Current on top (the loaded
- * world, named by describeWorld, or the loaded save's name in front of it), then the user's saves newest first,
- * each with when it was saved, a divider, then the three presets, as a RadioButton in the `list` appearance — rows,
- * nothing coming off the plate while the power is off (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4, Crawford's note 1)
- * — with a well naming the pick through the same helper.
+ * ScreenViewport), and — once this device has heard a world — the Transmission row: New Transmission on top (a world
+ * drawn on mount), then Current (the world the listener powered off on), then the user's saves newest first under
+ * "Saved Transmissions", each with when it was saved, a divider, then the three presets under "Preset Transmissions",
+ * as a RadioButton in the `list` appearance — rows, nothing coming off the plate while the power is off
+ * (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4, Crawford's note 1) — every row naming its world through describeWorld
+ * (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Tasks 6b and 6c), with a well naming the pick through the same
+ * helper.
  *
  * The gate (assumption 7) is read once on mount, as the saves are: a device that has never heard a world sees
  * the label and the hint only — the first flip writes the flag, so the chooser waits behind the first power-off.
  *
  * Picking a save or preset retransmits the faint world through applySessionPayload, the same path a Load does,
- * and never starts audio: only the power switch does (powerController). Current is the loaded world, so picking
- * it applies nothing. A save pick also names the session after the save, as loading it from the Sessions list
- * does, so a later Save overwrites it. A save that has since vanished from storage applies nothing and is not
- * claimed as the pick. New Transmission, first in the list, holds a world drawn on mount; Scan, the action in its row —
- * the list's trailing slot, beside the radio and never inside it — draws another and picks it (docs/specs/
- * OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1; Roll, on Current's row, is gone). Keep (assumption 14), labelled
- * "Save Last World" under the list (review R20), saves the
- * loaded world through sessionStore.keepCurrentWorld — no name field — and the new row appears at once; it dims
- * (the dim-controls rule) whenever the loaded world equals its save, and a muted warning line sits under the
- * chooser only while it does not. A Keep the storage refuses shows its failure line in that warning's place until a
- * Keep succeeds or the world changes (R20). Dirty is read on mount, after a pick, after a Scan and after a Keep — never per
- * render (it builds the live payload). A preset or New Transmission pick or a Scan detaches the loaded save (sessionStore
- * .detachLoadedSession): that world is no longer the save, so Current is named by its identity alone and Keep
- * writes a new row rather than overwriting the save. The veil (assumption 18) is the screen's own backdrop — the
+ * and never starts audio: only the power switch does (powerController). A save pick also names the session after the
+ * save, as loading it from the Sessions list does, so a later Save overwrites it. A save that has since vanished from
+ * storage applies nothing and is not claimed as the pick. New Transmission lands its drawn world under Classic with no
+ * aspects; Scan, the action in its row — the list's trailing slot, beside the radio and never inside it — draws another
+ * and picks it, from any row (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1). A preset or New Transmission
+ * pick or a Scan detaches the loaded save (sessionStore.detachLoadedSession): that world is no longer the save.
+ *
+ * Current is an anchor (spec §1.2): the first pick that leaves it takes a snapshot (CurrentSnapshot, above: the payload
+ * and the loaded save's name, runtime only), and Current is named from the snapshot while there is one, so no pick
+ * renames it; with none, it is the live world. Picking Current before the change that left it has landed cancels that
+ * change (worldChange.ts's cancelWorldChange) and drops the snapshot, so the paused world stands; after another world
+ * has landed, it restores the snapshot under the wash through applySessionPayload, re-attaches its save (or detaches),
+ * and drops it. Re-clicking the selected row does nothing. A theme or aspect click keeps the selected row; on a row
+ * other than Current, the row's label names the live loading in place of its own until the row is left (§1.3).
+ *
+ * Keep (assumption 14), labelled "Save Last World" under the list (review R20), saves Current — no name field — and the
+ * new row appears at once: with a snapshot, sessionStore.keepWorld saves the snapshot under its save's name or a fresh
+ * one, which the snapshot then carries, and no session field moves; with none, sessionStore.keepCurrentWorld saves the
+ * live world (spec §1.4). It dims (the dim-controls rule) whenever Current equals its save (isCurrentDirty, above), and
+ * a muted warning line sits under the chooser only while it does not. A Keep the storage refuses shows its failure line
+ * in that warning's place until a Keep succeeds or the world changes (R20). Dirty is read on mount, after a landed
+ * change, after an in-place edit and after a Keep — never per render (it builds the live payload). The veil
+ * (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
  * column in both gate states. The column is the root's third child, `.off-screen__scroll`, after the veil and the
  * dark layer (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2): it is what scrolls on the phone, so the veil stays put.
@@ -242,27 +253,27 @@ interface Intent {
  * unmounts it. Both timelines are killed, and the ref dropped, on unmount.
  *
  * The Loading axis (docs/tasks/OFF_SCREEN.md Task 30; spec assumptions 9 and 17, §1.6): the second column, under the
- * Loading heading — the theme row, a muted RadioButton of the five themes, and one muted sentence under it describing
- * the shown theme (the Guide's small part: the same content entry the Guide will read). The row shows the loaded
- * world's theme from the loading store while Current is the pick, and the picked save's or preset's own (its payload,
- * through loadingOf) after a pick — the two agree once the retransmit has run, but the row never waits on it. A theme
- * pick is `retransmitWorld({ theme })`, at the click and under no wash: the seed, the plot and the live world stay, only
+ * Loading heading ("Trace Type", hinted "select one") — the theme row, a muted RadioButton of the five themes, and one
+ * muted sentence under it describing the shown theme (the Guide's small part: the same content entry the Guide will
+ * read). The row shows a waiting change's theme while one waits, else the live loading store's, whichever row is
+ * selected (a landed pick's stored loading goes stale at the first edit in place; spec §1.3). A theme pick is
+ * `retransmitWorld({ theme })`, at the click and under no wash: the seed, the plot and the live world stay, only
  * the seeded fields the theme moves are re-derived in place (a tweak on one of them goes; docs/tasks/
- * OFF_SCREEN_FINAL_FIXES.md F7–F8), the world row drops back to Current (the decided pick rules,
- * docs/sketches/off-screen.html), the loaded save stays attached — the seed is still the save's, under another theme,
- * so Keep overwrites it — and dirty is read again. The readout carries describeWorld's
+ * OFF_SCREEN_FINAL_FIXES.md F7–F8), the world row stays where it is (spec §1.1), the loaded save stays attached — the
+ * seed is still the save's, under another theme — and dirty is read again. The readout carries describeWorld's
  * tail, so the three readers of the helper agree. Desktop: the two axes side by side, the readout spanning under
  * both; the phone shell stacks them (OffScreen.css).
  *
  * The family rows (Task 31's Melody row, one per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 9; assumptions
- * 17 and 21) sit under the theme row's line, in ASPECT_FAMILY_IDS order — Melody, Envelope, Distance, Voice: each a
+ * 17 and 21) sit under the theme row's line and a "Trace Aspects" title (hinted "select many"), in ASPECT_FAMILY_IDS
+ * order — Melody, Envelope, Distance, Voice: each a
  * multiple RadioButton in the cabinet appearance, the only thing on this screen that pops (Crawford's note 5; the theme
  * row, the list, Scan and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
- * loaded world's picks for Current and the picked payload's after a save or preset pick, as the theme row does. A change
+ * waiting change's picks or the live world's, as the theme row does. A change
  * sends the whole loading, `retransmitWorld({ aspects })`, with the changed family's set canonical (an empty list when
  * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the live roster
  * is re-dealt in place, at the click and under no wash (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect is no
- * world change), with the same drop to Current, the same attached save and the same dirty read as a theme pick. Each
+ * world change), with the same row kept, the same attached save and the same dirty read as a theme pick. Each
  * row's description line names the aspect toggled on last in that family while it is still on, else
  * the last of its set in canonical order, else the family's own `none` sentence; a world pick resets every family's
  * toggle memory, so a save reads as its own sets. New Transmission's world lands under Classic with no aspects, so a
@@ -272,10 +283,10 @@ interface Intent {
  * screen keeps the clicks' intent (Intent, above), and the one request realises all of it at the cover: the world part,
  * then the loading where it differs from the one the world part leaves. The rows, the description lines and the readout
  * draw from the intent, so a click shows at once. A theme pick or a family toggle made then joins the intent instead of
- * re-deriving a world about to go, and the waiting save's or preset's row stays selected, the readout naming it under the
- * loading clicked (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F12); once a loading is laid over it at the cover, the row drops
- * to Current, as an applied theme pick drops it. Picking Current cancels the change (worldChange.ts's
- * cancelWorldChange); Keep dims until it has run, since it would save the world the rows no longer show.
+ * re-deriving a world about to go, and the waiting row stays selected, the readout naming it under the loading clicked
+ * (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F12); the loading is laid over its world at the cover, and the row stays the
+ * intended pick, always (spec §1.5). The last world click wins, a Current restore included. Picking Current before the
+ * change has landed cancels it instead (above); Keep dims until the change has run.
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);

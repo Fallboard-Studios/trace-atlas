@@ -13,6 +13,10 @@ confirmed with Crawford on 2026-11-02. It revises roadmap
 [57](../todo/archive/roadmap-archive.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table)'s
 Transmission list. One capability: Phase 0's scope check found no split.
 
+**Status: built** on `docs/archive-roadmap-57`, 2026-11-02 (plan [docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md),
+Tasks 0–7; Checkpoint 2 passed with Crawford). The shipped screen is described in
+[UI_SHELL.md](../UI_SHELL.md#the-off-screen). §3's "`rollWorld` stays exported" was overruled: Task 5 deleted it.
+
 Written for: Crawford, and the agent that plans and builds it.
 
 ---

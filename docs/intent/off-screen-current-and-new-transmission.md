@@ -5,6 +5,10 @@ Current, then became the New Transmission row with Scan in it). Ahead of a `spec
 roadmap [57](../todo/archive/roadmap-archive.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table)'s
 Transmission list (`src/components/panels/screen/screens/OffScreen.tsx`). Backlog [64](../todo/backlog.md#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan).
 
+**Status: built** on `docs/archive-roadmap-57`, 2026-11-02 (spec
+[OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md), plan
+[OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md)).
+
 ## Why
 
 It came up at Checkpoint 5's Look in [OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md) (F12): picking

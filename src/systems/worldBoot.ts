@@ -27,7 +27,7 @@ import { currentWorldIdentity } from '../utils/worldIdentity';
  *   §4.3) and applySessionPayload's normal retransmit would tear it down and rebuild it a second time in the same
  *   boot. The URL is left exactly as it came, blob included: it stands until the world changes.
  * - **A bare boot.** No link: the stores rolled a random identity at module load, and it is mirrored into the
- *   address bar so a reload brings this same world back — Roll is how you get another (assumption 12's bookmark
+ *   address bar so a reload brings this same world back — the off screen's New Transmission is how you get another (assumption 12's bookmark
  *   change). Nothing is applied.
  *
  * consumeSessionSharePayload, not getSessionSharePayload, carries the apply: it returns the payload once per page

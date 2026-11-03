@@ -424,7 +424,7 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
 
 ### Phase 5: Docs
 
-- [ ] **Task 7: `docs/UI_SHELL.md` and the component's header comment — the list as shipped**
+- [x] **Task 7: `docs/UI_SHELL.md` and the component's header comment — the list as shipped**
 
   **Description:** Rewrite the off screen's Transmission list paragraph in UI_SHELL.md to cover:
   - New Transmission and Scan;
@@ -440,11 +440,18 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No live doc describes Roll on the Current row, or Current renaming itself to a pick.
+  - [x] No live doc describes Roll on the Current row, or Current renaming itself to a pick.
+    - As built: beyond UI_SHELL.md and the header, the live mentions of Roll were fixed in COMPONENT_LIBRARY.md
+      (which also gained `headingBefore` and `hint`, Task 6c), SESSION_STORAGE.md (plus `keepWorld` and
+      `isPayloadDirty`), AUDIO_SYSTEM.md and ANIMATION_SYSTEM.md, and in comments in `sessionStore.ts`,
+      `worldBoot.ts`, `worldTransition.ts`, `controls.ts`, `Button.tsx` and `SectorSettingsDrawer.tsx`. Left as
+      history: the 2026-10-31 revision note in UI_SHELL.md, ANIMATION_SYSTEM.md's and `sceneWash.ts`'s "measured on
+      a Roll", and Roll as a fixture name in `Button.test.tsx` and `RadioButton.test.tsx`. The spec's status line
+      also records that §3's "`rollWorld` stays exported" was overruled by Task 5.
 
   **Verification:**
-  - [ ] Every named identifier is spot-checked against the source.
-  - [ ] `npm run lint` clean.
+  - [x] Every named identifier is spot-checked against the source.
+  - [x] `npm run lint` clean.
 
   **Dependencies:** Tasks 0–6. **Files:** `docs/UI_SHELL.md`, `OffScreen.tsx` (comment only), the spec, the intent
 

@@ -188,7 +188,7 @@ export interface ButtonSchema extends ControlSchemaBase {
   type: 'button';
   /** 'cabinet' (the default, omitted by every consumer before the off screen's Roll and Keep) is the popped cabinetry
    *  box. 'muted' (docs/tasks/OFF_SCREEN.md Task 13; docs/specs/OFF_SCREEN.md §3) is RadioButton's muted for a button:
-   *  a flat face of the box's own height with no walls, no pop and no glow — the powered-off screen's look for Roll
+   *  a flat face of the box's own height with no walls, no pop and no glow — the powered-off screen's look for Scan
    *  and Keep, flat while its aspect rows pop (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9). A disabled muted button
    *  dims (the held-off look) rather than vanishing. */
   appearance?: 'cabinet' | 'muted';
