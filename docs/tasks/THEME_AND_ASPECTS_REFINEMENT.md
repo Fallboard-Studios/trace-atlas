@@ -752,10 +752,19 @@ or node forces its lit roll, and the two-lit pedal cap counts a forced pedal. **
 a theme naming it forces the tie live; Tide), `fleetSize` (how many probes a fresh world holds; Open Water fewer; the
 roster is fixed today, so this key reaches the docking lifecycle and `docs/ROBOT_LIFECYCLE.md`, and T6 must size that
 cost before building it) and `humanize` (the per-world timing scatter; Beacon none; whether Performance's options own it
-waits for the family marks). Five new keys in all; nothing the sheets want is an ask-first any more. Still open: the
-family and option marks; open questions 1, 3, 5, 6; then T4's paper tests and survivor table.
+waits for the family marks). Five new keys in all; nothing the sheets want is an ask-first any more.
 
-**Next:** the family and option marks, then the rest of T4.
+**The family marks (Crawford, 2026-11-03, "taking all of your recs; keep Near"):** every family and option proposed is
+kept; Motion and Performance come in as the fifth and sixth families; Distance stays as Near, Echoing and Half-heard, and
+Far and Remote are cut as rungs. Of the fourteen theme sheets, Float, Anchor, Shatter and Tide are renamed and Tidepool,
+Thicket, Open Water, Vent Field and Squall kept ("keep those as is"); Classic, Trench, Floe, Wreck and Beacon carry no
+mark yet. If all fourteen stand, the theme row exceeds Crawford's "no axis past eight" expectation, and the off-screen
+layout question goes to Checkpoint E as the intent says. **Six families** of 6 / 6 / 3 / 6 / 3 / 3 options. Two keys filed by default and open to his move: `robot.detune`
+stays the theme's, `humanize` stays the theme's. So T7a–c (a family added) and T6 (widened robot keys: every theme now
+names Voice, Envelope and Motion keys) both run; the Architecture Decisions table and the survivor table must carry the
+five new keys. Still open: open questions 1, 3, 5, 6; then T4's two paper tests and the survivor table.
+
+**Next:** the rest of T4 (paper tests, survivor table, the T6–T9 scope lines), then Checkpoint B.
 
 ## Risks and Mitigations
 
