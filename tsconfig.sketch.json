@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.sketch.tsbuildinfo",
+    "types": ["vite/client", "node"]
+  },
+  "include": ["scripts/sketch", "vitest.sketch.config.ts", "vitest.config.ts"]
+}

@@ -524,7 +524,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 ### Phase 3: The measured sketch and the listens
 
-- [ ] **T10: `scripts/sketch/measureBands.harness.ts` + `vitest.sketch.config.ts` + `package.json` — the harness**
+- [x] **T10: `scripts/sketch/measureBands.harness.ts` + `vitest.sketch.config.ts` + `package.json` — the harness**
 
   **Description:** The committed T18 recipe (Architecture Decisions). For every survivor theme: `withLoading({ theme,
   aspects: {} })`, 300 locales × 12 robots through `generateRobotAudioBaseline`, and 300 style names through
@@ -545,14 +545,14 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   unchanged).
 
   **Acceptance criteria:**
-  - [ ] The JSON has an entry for every survivor theme and option and every key its column moves, with written and
+  - [x] The JSON has an entry for every survivor theme and option and every key its column moves, with written and
         realised values.
-  - [ ] Under Classic the realised robot spread matches T18's after-table within sampling noise (a sanity check by eye).
-  - [ ] `npm run lint` is clean with the harness in place (the file is not a test, so the text-read rule does not
+  - [x] Under Classic the realised robot spread matches T18's after-table within sampling noise (a sanity check by eye).
+  - [x] `npm run lint` is clean with the harness in place (the file is not a test, so the text-read rule does not
         fire; if it does, the file moves, not the rule).
 
   **Verification:**
-  - [ ] `npm run sketch:bands`; `npm test` file count unchanged; `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run sketch:bands`; `npm test` file count unchanged; `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint C. **Files:** `scripts/sketch/measureBands.harness.ts`, `vitest.sketch.config.ts`,
   `package.json`, `docs/sketches/data/theme-and-aspect-sketch.json`
@@ -946,6 +946,38 @@ stand-ins: the new names and each sheet's Promise line as the sentence. Deviatio
 Nine mutants killed: a key off a sheet, a sheet key dropped, two options equal, an option equal to Classic everywhere,
 an option band outside its field, a cut id still listed, a new id out of row order, the toggle guard removed, the off
 share check refusing 1.
+
+**T10 (2026-11-03).** `npm run sketch:bands` runs `scripts/sketch/measureBands.harness.ts` in 183 s on the desktop and
+writes `docs/sketches/data/theme-and-aspect-sketch.json` (900 KB, four significant figures). Per theme: `moves`,
+`lights`, the full written table, every one of the 83 band keys realised over 300 worlds × 12 robots or 300 styles
+(n, low, median, high, and the share or the picks), the override grid, and the per-dataId draw record for the robots
+and the world apart (draw function, n, low / median / high fraction of the band, outer-tenths share, distinct values).
+Per option: its keys, its written bands, and those keys realised under each of the fourteen themes, every robot of the
+same 300 rosters dealt the option. Per theme, the timings. Each band key has a reader over the robot or world fields (a
+record over every robot key, so a new key does not compile until it is read): a shaped stage reads the shaped robots
+and the plain stage the rest; the open cutoff the open robots and the accent rows the accent ones (told apart by the
+bus Q); a Mix row of a node or pedal is a lit share plus the lit worlds' values; the shift its magnitude. Proof (Run):
+the JSON has every survivor theme (14) and option (27) and every key each moves, none missing; `vitest list` finds
+353 files, HEAD's count, none of them the harness; `npm run build:types` and `npm run lint` clean (0 errors, the 4
+standing warnings).
+- **Classic against T18, by eye.** Robots: the even draws' outer tenths 18.2-21.7 % over the 43 dataIds drawn at
+  least 1,000 times (T18: 19.0-20.7 % over ten times the robots), the centred 4.1-4.3 % (T18: 3.9-4.0 %), every draw
+  distinct. The world, 300 styles: 14-26 % even, 4.7-7.0 % on the three EQ bands. Within sampling noise.
+- **Timings** (the harness's own, wrappers installed, 50 runs after 10 warm-ups): the roster 5.2-6.5 ms, the world
+  1.2-1.6 ms across the fourteen themes, as Checkpoint C's re-time.
+- **A finding for Checkpoint D: `robot.masterVolume` never realises its written band.** `masterVolumeFrom`
+  (`spawnSystem.ts`) adds a register bias of up to +0.125 (bass) or -0.075 (treble) after the band draw, then clamps to
+  0.5-0.95: Classic's 0.65-0.85 realises 0.58-0.95, Open Water's 0.45-0.65 realises 0.50-0.77 (its floor cannot be
+  reached), Squall's 0.8-0.95 realises 0.73-0.95. The sketch marks the three cells; nothing here changes it.
+- **Deviations.** (1) The type check is its own `tsconfig.sketch.json` (the app's options, plus Node's types, over
+  `scripts/sketch` and the two vitest configs), and `build:types` runs it after the app's: putting the harness in
+  `tsconfig.app.json` would have brought Node's globals into the app's program. (2) The harness also writes
+  `theme-and-aspect-sketch.data.js`, the same data as `window.THEME_AND_ASPECT_SKETCH`: a page opened from a checkout
+  (file://) cannot fetch a JSON file, and T11's page must open with no server. The JSON stays the record. ESLint
+  ignores `docs/sketches/data/*` (flat config lints a `.js` by default). (3) The run is async and yields to the event
+  loop at each step: a first run that never yielded wrote the data and then failed on vitest's "Timeout calling
+  onTaskUpdate". (4) The output path resolves from the repo root, where the npm script runs: under jsdom
+  `import.meta.url` is not a file URL.
 
 ## Risks and Mitigations
 
