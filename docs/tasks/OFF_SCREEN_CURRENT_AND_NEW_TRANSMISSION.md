@@ -458,11 +458,14 @@ Task 1 (sessionStore: keepWorld, isPayloadDirty)          Task 2 (the selection 
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every task's acceptance criteria are met, and every mutant listed was killed (any survivor is recorded and
-      argued equivalent).
-- [ ] Crawford's Look passed, or flagged here if not done.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+  - 2026-11-02: `npm test` 352 files, 13,401 of 13,401 pass (the `sceneToOrbiterLocal` timeout seen at Checkpoints 1
+    and 2 did not recur). Lint 0 errors, 4 `react-refresh/only-export-components` warnings in files this plan did not
+    touch. Build clean (Vite's usual chunk-size notice).
+- [x] Every task's acceptance criteria are met, and every mutant listed was killed (any survivor is recorded and
+      argued equivalent). No survivors were recorded in Tasks 1–6c.
+- [x] Crawford's Look passed (Checkpoint 2, 2026-11-02). Task 7's docs are his read.
+- [x] Ready for Crawford's PR.
 
 ## Risks and Mitigations
 
