@@ -26,12 +26,20 @@ every candidate. The choice between them is made on this file, before any column
   `renamed → <name>` or `cut`, and writes the reason on a cut; cut sheets move under "Cut" at the end of this file so a
   candidate is never proposed twice. Claude writes the sheets and nothing else on them.
 - **Band keys** are written as `src/data/bands/bandKeys.ts` spells them. A row's words for a visitor are the sheet's;
-  the key is the contract. The pedals and the colour nodes are lit by a seeded coin that is not a band, so a sheet
-  that wants one heard in every world says so under "Leaves alone" as an ask-first rather than owning the pedal's rows:
-  a theme can shape a lit pedal but cannot light it. The three effect rooms (Grit, Shimmer, Double) are different: they
-  light when a probe's send feeds them, and the sends are bands.
-- **Not bands:** the octave register, the fleet's size, pitch drift (the docking lifecycle's) and Humanize (a seeded
-  global setting). A sheet that needs one of these names it under "Leaves alone" as an ask-first.
+  the key is the contract. **A theme that names a pedal's or a colour node's rows lights it in every world** (Crawford,
+  2026-11-03): the pedals and the colour nodes are lit by a seeded coin today, and under a theme whose column names none
+  of a pedal's rows the coin still decides; under a theme whose column names one, that pedal or node is always on. The
+  three effect rooms (Grit, Shimmer, Double) light when a probe's send feeds them, and the sends are bands. A theme that
+  wants no drive owns `gritSend` at none rather than the colour rows. A lit pedal counts toward the two-lit cap on the
+  Tremolo and the Vibrato.
+- **Two new keys, agreed at the cut (Crawford, 2026-11-03), built at T6 and named there:** `robot.detune`, the fixed
+  offset in cents between a probe's layers (the Core, Companion and Accent sources each have a detune slider; the seed
+  draws one small value today outside the table), and `robot.octaveRegister`, a weighted pick over the register list a
+  probe's Octave Min and Max are dealt from, as the waveform pick weights the waveforms. Until T6 they are written on the
+  sheets as any other key, and the key check knows they are not in `classic.ts` yet.
+- **Not bands:** the fleet's size and Humanize (a seeded global setting): a sheet that needs one of these names it under
+  "Leaves alone" as an ask-first. Pitch drift is the docking lifecycle's and no theme's business (Crawford, 2026-11-03):
+  no sheet asks for it.
 
 ## The sheet
 
@@ -116,8 +124,8 @@ room, no drive and no rhythmic push.
 **Character.** Slack water, warm. Nothing hurries: the pulse is slow, each probe speaks seldom, leaves long rests between
 phrases and plays short gentle cells, and no note is pushed harder than another. The voices are soft, the sine and the
 triangle, and every note arrives slowly and trails long. The probe filter sits open and warm, the master filter takes the
-top off the whole fleet, the colour nodes are dry whether or not the coin lit one, and every probe sits in a generous
-room that is near and warm rather than vast.
+top off the whole fleet, no probe is sent to the Grit room so there is no drive whatever the coin lit, and every probe
+sits in a generous room that is near and warm rather than vast.
 
 **Heard first.** Nothing hurries: a slow pulse, long rests, short gentle phrases.
 **Heard second.** Soft round voices that arrive slowly and trail long.
@@ -134,9 +142,7 @@ room that is near and warm rather than vast.
 - `robot.release` — and trails long.
 - `robot.filterFreq` — the probe filter open and warm.
 - `filterLPF.frequency` — the master filter takes the top off the whole fleet.
-- `distortion.wet` — no drive, whatever node the coin lit.
-- `chebyshev.wet` — no fold.
-- `bitCrusher.wet` — no crush.
+- `gritSend` — no probe sent to the Grit room: no drive, whatever node the coin lit.
 - `reverb.decay` — a generous room.
 - `reverb.preDelay` — near: its walls close, warm rather than vast.
 - `reverbSend` — every probe in it.
@@ -165,8 +171,9 @@ clarity, with every notion of speed stripped. Square and triangle layers, locked
 
 **Character.** The hold on the sea floor. Every note lands with weight and stops: an instant attack, a tight decay, and
 nothing after it, since no probe is in the wash or the echo. Nothing slides and nothing wavers: no probe glides between
-notes and no probe's layers drift against each other, so each stack is locked and punches as one. The voices are the
-square and the triangle with the partner layers full, so the stack is dense and the fundamental solid. The EQ is flat but
+notes, no probe's layers drift against each other, and each probe's layers are tuned dead on one another, so each stack
+is locked and punches as one. The voices are the square and the triangle with the partner layers full, so the stack is
+dense and the fundamental solid. The EQ is flat but
 for a slight lift in the mid band, so the weight sits low-mid, and the limiter is held tight so the punch never spikes.
 The pulse, the crowdedness and the gaps are Classic's: Anchor is weight, not speed.
 
@@ -178,7 +185,8 @@ The pulse, the crowdedness and the gaps are Classic's: Anchor is weight, not spe
 - `robot.attack` — an instant attack: the note lands.
 - `robot.decay` — a tight decay.
 - `robot.portamento` — nothing slides: no probe glides.
-- `robot.lfoDetuneDepth` — nothing wavers: no layer drifts against another, so the stack punches as one.
+- `robot.lfoDetuneDepth` — nothing wavers: no layer drifts against another.
+- `robot.detune` — each probe's layers tuned dead on one another: the stack punches as one (new key, see the rules).
 - `robot.waveform` — the square and the triangle.
 - `robot.layerGain` — partner layers full: the stack is dense.
 - `reverbSend` — no probe in the wash.
@@ -191,8 +199,7 @@ The pulse, the crowdedness and the gaps are Classic's: Anchor is weight, not spe
 **Leaves alone.** `bpm`, `robot.rhythmicDensity` and `robot.rests`: Classic's, on purpose; Anchor is weight, not speed.
 The compressor: Classic's; the pumping clamp is Squall's alone, and the mild compression Anchor wants is what Classic
 already draws. The master filter, the rooms' size, the pedals, dynamics, accents, sustain and the shaped stages:
-Classic's. Not bands: the per-probe static detune (the few cents the seed draws between a probe's layers) would want to
-be none, and pitch drift would want to be none: ask-first.
+Classic's. Pitch drift: the docking lifecycle's, not a theme's business.
 
 **Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Attack 0.001 s; portamento none;
 the mid lift slight, around 200 to 500 Hz, which the three-band EQ can only approach; both sends zero; limiter threshold
@@ -217,8 +224,10 @@ sweep (that is Vent Field's); uptempo.
 
 **Character.** Breaking glass. The world is bright, fast and abrasive, and it does not move. Most probes are sent to the
 Grit room, where the drive is high, the fold order high and the bit depth low, so whatever colour node the coin lit bites
-hard; the high band is lifted and the master filter wide open, so the crunch sits on top. The voices are the saw and the
-pulse, and every note is a hard short strike that is gone at once; probes talk nearly all the time with hardly a rest and
+hard, and because the column names all three nodes, all three are lit in every Shatter world; the high band is lifted
+and the master filter wide open, so the crunch sits on top. The voices are the saw and the pulse, set high in the
+register and with each probe's layers tuned wide apart so the buzz beats against itself, and every note is a hard short
+strike that is gone at once; probes talk nearly all the time with hardly a rest and
 the pulse is fast, so the wall is steady and never gusts. Nothing resonates and nothing sweeps: the accent filter is off
 most probes and the probe filter does not move. A short echo with high feedback rides every probe, so each strike rattles
 once behind itself, and the fleet is dry of wash.
@@ -238,6 +247,8 @@ once behind itself, and the fleet is dry of wash.
 - `eq3.high` — the high band lifted: the crunch sits on top.
 - `filterLPF.frequency` — the master filter wide open.
 - `robot.waveform` — the saw and the pulse.
+- `robot.octaveRegister` — set high in the register (new key, see the rules).
+- `robot.detune` — each probe's layers tuned wide apart: the buzz beats against itself (new key, see the rules).
 - `robot.attack` — a hard strike.
 - `robot.decay` — short.
 - `robot.sustain` — holds little.
@@ -254,14 +265,12 @@ once behind itself, and the fleet is dry of wash.
 
 **Leaves alone.** The compressor: Classic's; the pumping clamp is Squall's alone. `robot.accentFilterQ`: Classic's, since
 the filter is off most probes. The shaped stages, dynamics, accents, the probe filter's rest position and the layers:
-Classic's. `shimmerSend` and `doubleSend`: Classic's, with the at-most-one-room note. Not bands: a wide static detune
-between a probe's layers would make the buzz beat, and the seed's own detune is a few cents: ask-first; a noise layer:
-no waveform the table has; a colour node lit in every world: ask-first (Wreck raises it too), and without it the Grit
-room has nothing to bite with.
+Classic's. `shimmerSend` and `doubleSend`: Classic's, with the at-most-one-room note. A noise layer: no waveform the
+table has. The pedals: the coin's.
 
-**Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Detune 20 to 30 cents if it
-becomes a band; the delay a slapback. The fast compressor and the accent Q range from the "Gale" draft were dropped with
-the compressor and the resonance.
+**Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Detune 20 to 30 cents; the delay a
+slapback. The fast compressor and the accent Q range from the "Gale" draft were dropped with the compressor and the
+resonance.
 
 **Overlaps.** Voice takes `robot.waveform` and `robot.accentFilterFreq` (Hollow puts the resonance back); Envelope takes
 the four stages (Held lets the notes ring); Melody takes `robot.rhythmicDensity`; Performance (candidate) would take
@@ -671,8 +680,9 @@ nearly half the fleet is on the resonant filter with a sharp peak, so many probe
 
 Ten places. Each is written as the world and the default probe, may own any key in the table (global rows included),
 and names its nearest neighbour among the current five and among the other candidates. A candidate that read as more or
-less of another was not written. Where a pedal, the octave register, the fleet's size, pitch drift or Humanize would suit
-the place, the sheet says so under "Leaves alone" as an ask-first and owns no key for it. The three effect-room sends
+less of another was not written. Where the fleet's size or Humanize would suit the place, the sheet says so under "Leaves
+alone" as an ask-first and owns no key for it; a pedal or a colour node a sheet wants in every world is owned by its
+rows since the cut, and the register by the new register key. The three effect-room sends
 are exclusive (a fresh probe carries at most one), so a sheet that raises one room's share notes that the measured
 sketch will show what share it reaches beside the other two.
 
@@ -701,9 +711,9 @@ its voice is round, with no edges.
 - `robot.portamento` — most probes slur between notes rather than step, like a sonar sweep.
 - `robot.release` — its notes fade long.
 - `robot.waveform` — its voice is round, with no edges.
+- `robot.octaveRegister` — and set low in the register: the deep (new key, see the rules).
 
-**Leaves alone.** The delay, the colour, the pedals and the attack: Classic's; a dark world need not echo. The octave
-register would suit it low and is not a band: ask-first if the listen wants it.
+**Leaves alone.** The delay, the colour, the pedals and the attack: Classic's; a dark world need not echo.
 
 **Overlaps.** Melody takes `robot.rhythmicDensity`; Envelope takes `robot.release`; Distance takes `reverbSend`; Voice
 takes `robot.waveform`; Motion (candidate) would take `robot.portamento`, the sonar slur. With everything picked, what
@@ -849,7 +859,8 @@ voice lives in, plus the doubling.
 ### Wreck  ·  theme  ·  status: candidate
 
 **Character.** A rusted hulk. Most probes are sent to the Grit room, so a grain sits on the notes: the drive is high and
-the bit depth low, so whatever colour nodes this world lit bite hard. The echo is long and will not die: a long delay
+the bit depth low, and both nodes are lit in every Wreck world since the column names them. The echo is long and will
+not die: a long delay
 with high feedback, every probe sent into it. The world is dark, the high band cut and the master filter down, and
 slow. Probes run a long fixed figure and keep returning to the same notes, like machines still cycling, in hard-edged
 voices; more probes than usual sit on a resonant filter, so some creak.
@@ -873,9 +884,8 @@ voices; more probes than usual sit on a resonant filter, so some creak.
 - `robot.waveform` — hard-edged voices.
 - `robot.accentFilterFreq` — more probes than usual on a resonant filter: some creak.
 
-**Leaves alone.** Which colour nodes are lit is the seed's coin, not a band: a world may light none, and then the Grit
-room has nothing to bite with. A theme that needs a colour node lit in every world is an ask-first; this sheet raises
-it. The three colour `wet` rows and `chebyshev.order`: Classic's (a grain, not a wall). `shimmerSend` and `doubleSend`:
+**Leaves alone.** The fold (`chebyshev.*`): the coin's, since the column does not name it; the drive and the crush are
+always lit here by the rule. The three colour `wet` rows: Classic's (a grain, not a wall). `shimmerSend` and `doubleSend`:
 Classic's, with the at-most-one-room note. The attack and release, rests, dynamics, accents and the reverb: Classic's.
 
 **Overlaps.** Melody takes `robot.rhythmicMotifLength` and `robot.pitchRepeat` (Wandering stops the cycling); Voice
@@ -899,8 +909,8 @@ its chain even when an aspect takes the glide.
 gently while a note lasts; notes arrive slowly, run into each other with no rests and release long, so the fleet is one
 moving surface. The voices are the saw and the triangle blended. The world itself is wet: most probes are sent to the
 Double room, whose chorus is set shallow, quick-ish and short-delayed, so it reads as water moving over the sound rather
-than as extra voices, and the delay's feedback is moderate so each note ripples a few times behind itself, most probes
-sent into it.
+than as extra voices, a slow shallow vibrato rides the whole world so even a held note is never quite still, and the
+delay's feedback is moderate so each note ripples a few times behind itself, most probes sent into it.
 
 **Heard first.** No note is fixed: each slides into the next.
 **Heard second.** Water moves over the whole sound: a wobble on the notes and a ripple behind them.
@@ -917,14 +927,17 @@ sent into it.
 - `chorus.depth` — shallow: a wobble, not voices.
 - `chorus.rate` — quick-ish: water moving.
 - `chorus.delayTime` — short: a smear, not a second voice.
+- `vibrato.wet` — a vibrato rides the whole world: lit in every Tide world by the rule.
+- `vibrato.depth` — shallow: never quite still, never seasick.
+- `vibrato.rate` — slow.
 - `delay.feedback` — moderate: each note ripples a few times.
 - `delaySend` — most probes sent into it.
 
 **Leaves alone.** `bpm`, the density, the rooms' size, the EQ, the master filter, the probe filter's rest position,
 dynamics, accents and the shaped stages: Classic's. `chorus.spread` and `chorus.feedback`: Classic's. `gritSend` and
-`shimmerSend`: Classic's, with the at-most-one-room note. Not bands: the Phaser lit in every world and a slow sweep on
-the master filter would make the world aquatic without any probe's help, and both are lit by a coin: ask-first; the
-Vibrato pedal and pitch drift, the same.
+`shimmerSend`: Classic's, with the at-most-one-room note. The Phaser: the coin's; the vibrato does the pedal's work here.
+Not a band: a slow sweep on the master filter would make the world aquatic without any probe's help, and whether the
+master filter is linked to a global LFO is a coin today: ask-first, still open.
 
 **Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Portamento 0.15 to 0.35 s; the
 chorus shallow and short.
@@ -1007,9 +1020,13 @@ and mid bands are lifted, the master filter part-closed, the pulse middling to f
 - `eq3.mid` — and the mid.
 - `filterLPF.frequency` — the top part-closed.
 - `bpm` — middling to fast.
+- `autoWah.wet` — the whole world's filter chews on the loud notes too: the Auto-Wah lit in every Vent Field world by
+  the rule.
+- `autoWah.baseFrequency` — set low: the squelch starts in the mud.
+- `autoWah.Q` — sharp: it whistles as it opens.
 
-**Leaves alone.** The Auto-Wah and the Phaser would both suit it, but a pedal is lit by a coin, not a band: ask-first;
-their rows stay Classic's. The rooms and sends, rests, dynamics, accents and release: Classic's.
+**Leaves alone.** The Phaser: the coin's; the wah is the squelch, the Phaser would only swirl. The rooms and sends,
+rests, dynamics, accents and release: Classic's.
 
 **Overlaps.** Voice takes `robot.accentFilterFreq`, `robot.accentFilterQ` and `robot.waveform` (Glassy silences the
 whistle: the first line is lost); Motion (candidate) would take `robot.lfoBusDepth`, the sweep; Melody takes
@@ -1090,9 +1107,11 @@ with the low band lifted and the field wide.
 - `robot.masterVolume` — loud.
 - `eq3.low` — the low band lifted.
 - `stereoWidener.width` — the field wide.
+- `tremolo.wet` — the whole world throbs under the gusts: the Tremolo lit in every Squall world by the rule.
+- `tremolo.depth` — deep: a throb, not a shimmer.
+- `tremolo.rate` — slow to middling: weather, not a buzz.
 
-**Leaves alone.** A Tremolo on the whole world would suit it, but the pedal is lit by a coin, not a band: ask-first. The
-compressor's attack, release and knee: Classic's. The rooms, voices and master filter: Classic's. `shimmerSend` and
+**Leaves alone.** The compressor's attack, release and knee: Classic's. The rooms, voices and master filter: Classic's. `shimmerSend` and
 `doubleSend`: Classic's, with the at-most-one-room note.
 
 **Overlaps.** Performance (candidate) would take `robot.dynamics`, `robot.accents` and `robot.rests`: the whole first
@@ -1422,8 +1441,9 @@ different depth of one: the slide, the waver, the sweep, each with the other two
 
 **Leaves alone.** The three effect-room sends (`gritSend`, `shimmerSend`, `doubleSend`): how a probe is coloured, not how
 it moves; they stay the theme's, which also leaves Distance's two sends untouched and the send derive function whole.
-Pitch drift, the docking lifecycle's, would belong here and is not a band: ask-first. Which shared lane a link rides is
-a draw, not a band.
+Pitch drift stays the docking lifecycle's: no theme's or family's business (Crawford, 2026-11-03). The fixed detune
+between a probe's layers (`robot.detune`, new at the cut) could belong here or stay the theme's: open until the family
+marks. Which shared lane a link rides is a draw, not a band.
 
 **Overlaps.** Takes `robot.portamento` from the Trench and Current candidates (the sonar slur, the drift's slide) and the
 three LFO depths from Current and `robot.lfoBusDepth` from Vent Field (the sweep). A theme's sentence about sliding or

@@ -738,8 +738,18 @@ Redundancy fixes he took: the pumping compressor is Squall's alone; Shatter has 
 is square-free (Anchor's); Vent Field is pushed all the way into its sweep. Neighbours kept as they are: Squall, Vent
 Field, Open Water, Thicket, Tidepool. One rule relaxed by him: a sheet may carry a "Sketch starting points" line of his
 numbers, guesses for the sketch and not rules (spec §1.3 and the sheets file's rules say so). The option sheets'
-"Overlaps" lines still name the old themes until the family marks. Still open: the family and option marks, the
-ask-firsts (asked again in plain words), open questions 1, 3, 5, 6, then T4's paper tests and survivor table.
+"Overlaps" lines still name the old themes until the family marks.
+
+**The ask-firsts, answered (Crawford, 2026-11-03), recorded on the sheets' rules and the sheets:** pitch drift is no
+theme's business (dropped everywhere). Two new robot keys are agreed and built at T6: `robot.detune` (the fixed offset
+between a probe's layers; Anchor none, Shatter wide) and `robot.octaveRegister` (a weighted pick over the register list;
+Trench low, Shatter high); their names are fixed at T6, and T6/T8's key-set tests must learn them. **A theme that names a
+pedal's or a colour node's rows lights it in every world; a theme that names none leaves the coin.** So Shatter lights
+all three colour nodes, Wreck the drive and the crush, Tide the Vibrato, Vent Field the Auto-Wah, Squall the Tremolo; a
+theme that wants no drive owns `gritSend` at none (Float). T5/T8 must build the rule: a column naming any row of a pedal
+or node forces its lit roll, and the two-lit pedal cap counts a forced pedal. Still open: a global LFO link forced on the
+master filter (Tide), the fleet's size (Open Water), Humanize (Beacon, Performance); the family and option marks; open
+questions 1, 3, 5, 6; then T4's paper tests and survivor table.
 
 **Next:** the family and option marks, then the rest of T4.
 
