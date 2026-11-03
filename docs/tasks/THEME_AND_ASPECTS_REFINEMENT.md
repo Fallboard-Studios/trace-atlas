@@ -559,7 +559,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (one script, a config, a script entry, the data)
 
-- [ ] **T11: `docs/sketches/theme-and-aspect-sketch.html` — the page**
+- [x] **T11: `docs/sketches/theme-and-aspect-sketch.html` — the page**
 
   **Description:** Spec §1.6. Static HTML and a little JS reading the JSON (relative path), following the sketch page
   rules (each frame `section.frame` with a sticky `div.bar` holding the h2 and its options; page-wide toggles in the
@@ -573,11 +573,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   glance; the page has no numbers the JSON did not supply.
 
   **Acceptance criteria:**
-  - [ ] The three frames render from the committed JSON with no server.
-  - [ ] `SHEET_KEYS` equals the sheets file's "Keys owned" lists (read side by side).
+  - [x] The three frames render from the committed JSON with no server.
+  - [x] `SHEET_KEYS` equals the sheets file's "Keys owned" lists (read side by side).
 
   **Verification:**
-  - [ ] The Look, recorded in the commit. `npm run lint` clean (the page is not linted; nothing else changed).
+  - [x] The Look, recorded in the commit. `npm run lint` clean (the page is not linted; nothing else changed).
 
   **Dependencies:** T10. **Files:** `docs/sketches/theme-and-aspect-sketch.html`
 
@@ -978,6 +978,26 @@ standing warnings).
   loop at each step: a first run that never yielded wrote the data and then failed on vitest's "Timeout calling
   onTaskUpdate". (4) The output path resolves from the repo root, where the npm script runs: under jsdom
   `import.meta.url` is not a file URL.
+
+**T11 (2026-11-03).** `docs/sketches/theme-and-aspect-sketch.html` loads `data/theme-and-aspect-sketch.data.js` with a
+script tag (T10's carrier) and opens from file://. Three frames, each a sticky bar: **Spread** (an Axis row, themes or
+one of the six families; a family's view has an "Under theme" pick, the cell's robots all dealt the option), **Override
+grid** (theme × family, the keys taken, the sheet's Overlaps beside each theme), **Coverage** (moved and owned, moved not
+owned, owned not moved). The fixed panel holds "marked only" and the mark rules. The one hand-typed constant is
+`SHEETS`, each theme sheet's "Keys owned" and "Overlaps" (named `SHEETS`, not `SHEET_KEYS`, since it carries both); its
+thirteen key lists were checked equal, key for key, to `resolveBands.test.ts`'s `SHEET_KEYS`, typed from the same sheets
+at T8. The marks' rules are on the panel: a value more than 2 % of the band's width outside it or filling under 90 % of
+it; a share more than 2 points or 4 standard errors off its expectation (the plain sends after the 1 % grid, the Shimmer
+and Double sends after the earlier rooms' rolls, which is why Floe's, Thicket's and Tide's room sends read under their
+`lit` and are not marked); a Mix row the theme lights that is dark in some world; a grid cell whose sheet's Overlaps
+names neither the family nor a key taken; a coverage difference. The rules are the page's only numbers of its own.
+Proof (Look, headless Chrome from file://, plus the page's own script run over every family × theme view, 84 views):
+every survivor theme and option appears; **three marks**, each visible at a glance:
+- `robot.masterVolume` under Classic, Open Water and Squall, outside the band (T10's finding).
+- **Trench's grid cell for Performance**: Performance takes Trench's `robot.rests`, and Trench's Overlaps names neither
+  the family nor the key. A sheet fix for Checkpoint D.
+- Coverage: no marked row; every column moves exactly its sheet's keys.
+No other cell is marked, in any view.
 
 ## Risks and Mitigations
 
