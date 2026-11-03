@@ -10,7 +10,15 @@ import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils
 import { quantizeToStep } from '../utils/math';
 import { ROBOT_BUS_FILTER_Q } from '../constants';
 import { correlation, outerTenths } from '../testUtils/spread';
-import { composeSends, deriveEnvelopeFields, deriveMelodyFields, deriveSendFields, deriveVoiceFields, seedToggleValue } from './robotFieldDerivation';
+import {
+  composeSends,
+  deriveEnvelopeFields,
+  deriveMelodyFields,
+  deriveOctaveRange,
+  deriveSendFields,
+  deriveVoiceFields,
+  seedToggleValue,
+} from './robotFieldDerivation';
 
 // ========================================
 // THE SAMPLE
@@ -323,5 +331,64 @@ describe('deriveSendFields — the Reverb and Delay sends draw even (Even Seeded
         expect({ reverbSend: sends.reverbSend, delaySend: sends.delaySend }).toEqual(expected);
       }
     }
+  });
+});
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6: two robot keys new at the cut, each Classic's band its draw as it stood.
+describe('the two new robot keys: robot.detune and robot.octaveRegister (themes-58 T6)', () => {
+  /** The old draws, typed in from main at 3c188fec, not read from the code under test. */
+  const OLD_REGISTERS = [[1, 3], [2, 4], [3, 5], [4, 6], [5, 7]] as const;
+  const oldRegister = (noiseMap: (x: number, y: number) => number, offset: number) =>
+    OLD_REGISTERS[Math.min(4, Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.register', offset, 0, 5)))];
+  const oldLayerDetune = (noiseMap: (x: number, y: number) => number, layerOffset: number) =>
+    quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, 1);
+
+  it('under Classic the register is the old even pick, robot for robot', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS) {
+      expect(deriveOctaveRange(noiseMap, offset, CLASSIC['robot.octaveRegister'])).toEqual([...oldRegister(noiseMap, offset)]);
+    }
+  });
+
+  it('under Classic every layer detune is the old centred draw, layer for layer', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS) {
+      const layers = deriveVoiceFields(noiseMap, offset, CLASSIC).layers!;
+      layers.forEach((layer, i) => expect(layer.detune).toBe(oldLayerDetune(noiseMap, offset * 10 + i)));
+    }
+  });
+
+  it('a register pick weighing one register alone lands every robot on it; a zero weight is never drawn', () => {
+    const lowOnly = { weights: { bass: 0, low: 1, mid: 0, high: 0, treble: 0 } };
+    for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 600)) {
+      expect(deriveOctaveRange(noiseMap, offset, lowOnly)).toEqual([2, 4]);
+    }
+    const noTreble = { weights: { bass: 1, low: 1, mid: 1, high: 1, treble: 0 } };
+    const ranges = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveOctaveRange(noiseMap, offset, noTreble));
+    expect(ranges.some((r) => r[0] === 5)).toBe(false);
+    expect(ranges.some((r) => r[0] === 4)).toBe(true);
+  });
+
+  it('a register pick leaning low weights its share: bass 3 of 4 lands near three quarters of the robots in the bass', () => {
+    const lean = { weights: { bass: 3, low: 1, mid: 0, high: 0, treble: 0 } };
+    const ranges = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveOctaveRange(noiseMap, offset, lean));
+    const bass = ranges.filter((r) => r[0] === 1).length / ranges.length;
+    expect(bass).toBeGreaterThan(0.73);
+    expect(bass).toBeLessThan(0.77);
+    expect(ranges.every((r) => r[0] === 1 || r[0] === 2)).toBe(true);
+  });
+
+  it('a detune band moves every layer inside it: none at all, or wide apart', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 600)) {
+      const none = deriveVoiceFields(noiseMap, offset, { ...CLASSIC, 'robot.detune': { min: 0, max: 0 } }).layers!;
+      expect(none.map((layer) => layer.detune)).toEqual([0, 0, 0]);
+      const wide = deriveVoiceFields(noiseMap, offset, { ...CLASSIC, 'robot.detune': { min: -20, max: 20 } }).layers!;
+      for (const layer of wide) {
+        expect(layer.detune).toBeGreaterThanOrEqual(-20);
+        expect(layer.detune).toBeLessThanOrEqual(20);
+      }
+    }
+    const spread = ROBOT_SLOTS.slice(0, 600).flatMap(({ noiseMap, offset }) =>
+      deriveVoiceFields(noiseMap, offset, { ...CLASSIC, 'robot.detune': { min: -20, max: 20 } }).layers!.map((l) => Math.abs(l.detune)),
+    );
+    expect(Math.max(...spread)).toBeGreaterThan(10);
   });
 });

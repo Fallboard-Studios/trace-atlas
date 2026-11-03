@@ -13,6 +13,7 @@ import {
   type ExclusiveSendField,
 } from '../data/robotSendLoadingRanges';
 import type { RobotSendField } from '../data/robotSends';
+import { OCTAVE_REGISTER_IDS, OCTAVE_REGISTERS, type OctaveRegisterId } from '../data/octaveRegisters';
 import { getBand } from '../data/bands/loadingContext';
 import type { BandTable, PickBand, ToggleBand } from '../data/bands/bandKeys';
 import type { EnvelopeBandKey, MelodyBandKey, VoiceBandKey } from '../data/bands/aspects';
@@ -115,20 +116,37 @@ export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number
 const WAVEFORMS: WaveformType[] = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'];
 
 /**
- * A waveform from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one even draw over [0, total weight) at
- * `dataId` / `offset`, landing on the first waveform in WAVEFORMS order whose cumulative weight it falls under, so each
- * waveform's share is its weight's share of the total (20 % each under Classic's five unit weights). A zero weight is
- * never drawn; a draw at the very top of the range lands on the last waveform with a weight.
+ * An option from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one even draw over [0, total weight) at
+ * `dataId` / `offset`, landing on the first option in `order` whose cumulative weight it falls under, so each option's
+ * share is its weight's share of the total (20 % each under five unit weights). A zero weight is never drawn; a draw at
+ * the very top of the range lands on the last option with a weight. The waveform's pick, and the octave register's since
+ * docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6.
  */
-function pickWaveform(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: PickBand): WaveformType {
-  const total = WAVEFORMS.reduce((sum, wave) => sum + band.weights[wave], 0);
+function pickWeighted<O extends string>(noiseMap: NoiseFunction2D, dataId: string, offset: number, order: readonly O[], band: PickBand<O>): O {
+  const total = order.reduce((sum, option) => sum + band.weights[option], 0);
   const draw = getUniformSeededVal(noiseMap, dataId, offset, 0, total);
   let edge = 0;
-  for (const wave of WAVEFORMS) {
-    edge += band.weights[wave];
-    if (draw < edge) return wave;
+  for (const option of order) {
+    edge += band.weights[option];
+    if (draw < edge) return option;
   }
-  return [...WAVEFORMS].reverse().find((wave) => band.weights[wave] > 0) ?? WAVEFORMS[WAVEFORMS.length - 1];
+  return [...order].reverse().find((option) => band.weights[option] > 0) ?? order[order.length - 1];
+}
+
+/** A waveform from the robot.waveform pick. */
+function pickWaveform(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: PickBand): WaveformType {
+  return pickWeighted(noiseMap, dataId, offset, WAVEFORMS, band);
+}
+
+/**
+ * A robot's seeded octave range at `offset` under the robot.octaveRegister pick (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md
+ * T6): one register of OCTAVE_REGISTERS, lowest first, at the dataId the five-way even pick always used. Classic's five
+ * unit weights give exactly that pick's register: the draw spans [0, 5) either way, and the cumulative edges are its
+ * Math.floor.
+ */
+export function deriveOctaveRange(noiseMap: NoiseFunction2D, offset: number, band: PickBand<OctaveRegisterId>): [number, number] {
+  const [min, max] = OCTAVE_REGISTERS[pickWeighted(noiseMap, 'robot.audio.register', offset, OCTAVE_REGISTER_IDS, band)];
+  return [min, max];
 }
 
 /** The theme's Envelope bands as the loading context holds them now (getBand at the draw, band-table T21). */
@@ -173,14 +191,19 @@ export function deriveEnvelopeFields(
   };
 }
 
+/** The bands deriveVoiceFields reads: the Voice family's keys, and the layers' detune, a theme's key no family sets
+ *  (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). */
+type VoiceDrawKey = VoiceBandKey | 'robot.detune';
+
 /** The theme's Voice bands as the loading context holds them now (getBand at the draw, band-table T21). */
-export function currentVoiceBands(): Pick<BandTable, VoiceBandKey> {
+export function currentVoiceBands(): Pick<BandTable, VoiceDrawKey> {
   return {
     'robot.waveform': getBand('robot.waveform'),
     'robot.filterFreq': getBand('robot.filterFreq'),
     'robot.accentFilterFreq': getBand('robot.accentFilterFreq'),
     'robot.accentFilterQ': getBand('robot.accentFilterQ'),
     'robot.layerGain': getBand('robot.layerGain'),
+    'robot.detune': getBand('robot.detune'),
   };
 }
 
@@ -192,11 +215,12 @@ type VoiceFields = Pick<AudioAttributes, 'filterFreq' | 'filterQ' | 'filterType'
  * deal re-derives it (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10: resolveBands(theme, { voice })). Extracted from
  * generateAudioAttributes with its dataIds and offsets unchanged: the bus filter (an accent robot a darker, resonant one,
  * lowpass or bandpass; the cutoff keeps its own dataId in both tiers), the base waveform and the three layers (type, gain,
- * detune, phase), the waveforms now picked through the robot.waveform PickBand (pickWaveform). The layers' detune and
- * phase follow no band and re-derive unchanged. Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so each `lit` and
- * ACCENT_BANDPASS_SHARE is the share it names; the layer detune is centred, so most layers sit at or near 0 cents.
+ * detune, phase), the waveforms now picked through the robot.waveform PickBand (pickWaveform). The layers' detune draws
+ * centred over the robot.detune band (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6), so most layers sit at or near its
+ * middle, 0 cents under Classic; the phase follows no band. Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so
+ * each `lit` and ACCENT_BANDPASS_SHARE is the share it names.
  */
-export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, VoiceBandKey>): VoiceFields {
+export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, VoiceDrawKey>): VoiceFields {
   // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
   // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
   // The accent band's `lit` is the accent share (robot.accentFilterFreq); the open cutoff and the accent Q are bands too.
@@ -219,6 +243,7 @@ export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, ban
   // There is no per-layer ADSR anymore — every layer shares the one `adsr` envelope.
   const layers: OscillatorLayer[] = [];
   const layerGain = bands['robot.layerGain'];
+  const detune = bands['robot.detune'];
   for (let i = 0; i < LAYER_COUNT; i++) {
     const layerOffset = offset * 10 + i;
     // Baseline (layers[0]) always seeds a real, audible gain from the band; Coaxial/Harmonic (layers[1]/[2]) each go
@@ -229,7 +254,7 @@ export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, ban
     const layerWave: OscillatorLayer = {
       type: pickWaveform(noiseMap, 'robot.audio.layer.waveform', layerOffset, bands['robot.waveform']),
       gain: quiet ? 0 : quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
-      detune: quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
+      detune: quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, detune.min, detune.max), 0, DETUNE_STEP),
       phase: Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
     };
     layers.push(layerWave);

@@ -53,7 +53,6 @@ import {
   generateSwellFrequency,
   generateSwellDuration,
   generateHumanize,
-  HUMANIZE_SEED_RANGE,
   scaleUnitValue,
   pickColourCharacter,
   COLOUR_CHARACTERS,
@@ -1792,10 +1791,10 @@ describe('generateHumanize (Robot Performance Task 12)', () => {
     for (let i = 0; i < STYLES; i++) evictAttenuationStyleNoiseMap(`seed-hum-sample-${i}`);
   });
 
-  it('seeds in [2, 6] ms: the constant is the spec range, and sits inside the slider range', () => {
-    expect(HUMANIZE_SEED_RANGE).toEqual({ min: 2, max: 6 });
-    expect(HUMANIZE_SEED_RANGE.min).toBeGreaterThanOrEqual(HUMANIZE_SCHEMA.min);
-    expect(HUMANIZE_SEED_RANGE.max).toBeLessThanOrEqual(HUMANIZE_SCHEMA.max);
+  it('seeds in [2, 6] ms: Classic\'s band is the spec range, and sits inside the slider range', () => {
+    expect(CLASSIC.humanize).toEqual({ min: 2, max: 6 });
+    expect(CLASSIC.humanize.min).toBeGreaterThanOrEqual(HUMANIZE_SCHEMA.min);
+    expect(CLASSIC.humanize.max).toBeLessThanOrEqual(HUMANIZE_SCHEMA.max);
   });
 
   it('always returns a whole number of ms in [2, 6], across many Attenuation Styles', () => {

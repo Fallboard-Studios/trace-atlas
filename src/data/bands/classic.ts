@@ -133,6 +133,16 @@ export const CLASSIC: BandTable = {
   // Never near 0: the mono fold is a hand setting only. The widener has no dark state.
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 
+  // ---- The two world keys (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6) ----------------------------------------
+  // Each the draw as it stood outside the table. Humanize (HUMANIZE_SEED_RANGE, docs/specs/ROBOT_PERFORMANCE.md assumption
+  // 9): a touch off the grid, a third of the slider's 20 ms top; a loading change draws it again (the half-moves), a
+  // style switch carries it forward as it always has. The master low-pass cutoff's tie to the global LFO bank: the
+  // filter-frequency depth window (GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE, 5-60 %), and as `lit` the share of
+  // worlds whose tie is live, 1 - LFO_QUIET_THRESHOLD (0.34) on the even draw. A theme naming it at a lit of 1 forces the
+  // tie live in every world.
+  humanize: { min: 2, max: 6 },
+  'lfoLink.lpf.frequency': { min: 5, max: 60, lit: 0.66 },
+
   // ---- Robots (spawnSystem.ts, robotFieldDerivation.ts) --------------------------------------------------------------
   // ADSR. Roadmap Phase 9 unified attack/decay/release to one flat 0-5 s range, kept narrower than the Ping Contour
   // drawer's 0-10 s edit range; all three have since been narrowed to their sliders' 0-2 s (ENVELOPE_TIME_MAX_SECONDS),
@@ -171,6 +181,9 @@ export const CLASSIC: BandTable = {
   // full, ready-to-resume config. No product requirement pinned a specific bias; the coin is the least-presumptuous
   // default for "each independently seeded on or muted".
   'robot.layerGain': { min: 0.2, max: 1.2, lit: 0.5 },
+  // The fixed offset in cents between a robot's layers, each layer drawn centred over the band, so most sit at or near 0
+  // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6: the -2..2 draw deriveVoiceFields made outside the table).
+  'robot.detune': { min: -2, max: 2 },
   // Master volume (MASTER_VOLUME_MIN/MAX): keep robots below full saturation.
   'robot.masterVolume': { min: 0.65, max: 0.85 },
   // The robot LFO link depth windows, percent (ROBOT_LFO_GAIN/DETUNE/BUS_DEPTH_SEED_RANGE; Crawford's own load-value
@@ -210,6 +223,10 @@ export const CLASSIC: BandTable = {
   // (PickBand), five equal unit weights in WAVEFORMS order: 20 % each on the even draw (the bunched draw gave sine and
   // pulse about 6.5 % each; Even Seeded Draws T6). The Voice family's options move the weights.
   'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
+  // The octave register a robot's Octave Min and Max are dealt from (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6): a
+  // pick over OCTAVE_REGISTERS, five equal unit weights lowest first, which is exactly the even five-way pick
+  // spawnSystem.ts made before the key existed.
+  'robot.octaveRegister': { weights: { bass: 1, low: 1, mid: 1, high: 1, treble: 1 } },
 
   // ---- The sends (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1) ---------------------------------------------
   // What a FRESH robot may seed for each of its five sends, never what the slider exposes (SEND_MIN..SEND_MAX). The

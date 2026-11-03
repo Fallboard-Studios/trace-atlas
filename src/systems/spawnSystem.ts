@@ -42,6 +42,7 @@ import {
   currentVoiceBands,
   deriveEnvelopeFields,
   deriveMelodyFields,
+  deriveOctaveRange,
   deriveSendFields,
   deriveVoiceFields,
   seedToggleValue,
@@ -70,16 +71,6 @@ const OFFSCREEN_OFFSET = 150;
 // (src/data/bands/classic.ts, docs/specs/OFF_SCREEN.md assumption 15) and are read with getBand(...) at the point of
 // each draw below, never cached at module scope: the table changes per world (band-table T21).
 
-// Octave registers — seed directly without Hz indirection
-// [min, max] inclusive; 3 tiers: bass, mid, treble
-const OCTAVE_REGISTERS = [
-  [1, 3],  // Bass (large robots)
-  [2, 4],
-  [3, 5],  // Mid  (normal robots)
-  [4, 6],
-  [5, 7],  // Treble (small robots)
-] as const;
-
 // ========================================
 // ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.2)
 // ========================================
@@ -96,6 +87,24 @@ const PORTAMENTO_STEP = 0.01;
 
 /** Mirrors the Volume slider's own step, in percent-space (SEEDED_SLIDER_VALUE_QUANTIZATION). */
 const VOLUME_STEP_PERCENT = 1;
+
+/** A robot's master volume from a draw in the robot.masterVolume band: bass robots louder, treble robots quieter
+ *  (register mid [1..5], neutral ~3.5), clamped, then quantized in percent-space, not against the stored fraction
+ *  directly - the same "avoid a sub-percent grid" reasoning as Ping Variance Automation (globalAudioSeed.ts). */
+function masterVolumeFrom(seeded: number, octaveRange: readonly [number, number]): number {
+  const registerMid = (octaveRange[0] + octaveRange[1]) / 2;
+  const registerBias = (4.5 - registerMid) * 0.05;
+  const raw = Math.max(0.5, Math.min(0.95, seeded + registerBias));
+  return quantizeToStep(raw * 100, 0, VOLUME_STEP_PERCENT) / 100;
+}
+
+/** A robot's seeded master volume at `spawnCount`: drawn even in the loaded world's band, outside the copy branch (a
+ *  copied robot draws its own, biased by its copied register). spawnRobot and generateRobotAudioBaseline share it, so
+ *  a loading change can compare it (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). */
+function seedMasterVolume(noiseMap: NoiseFunction2D, spawnCount: number, octaveRange: readonly [number, number]): number {
+  const volume = getBand('robot.masterVolume');
+  return masterVolumeFrom(getUniformSeededVal(noiseMap, 'robot.masterVolume', spawnCount, volume.min, volume.max), octaveRange);
+}
 
 // Simple word lists for deterministic-looking robot names. ADJECTIVES is exported — reused by
 // generateCompanyName below (Roadmap Phase 10), the same "sounds like this universe" half, paired
@@ -118,7 +127,7 @@ function generateRobotName(noiseMap: NoiseFunction2D, offset: number): string {
  * keys — black/white/darkGray are deliberately excluded there, not filtered here).
  */
 function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): string {
-  // Clamped (matching OCTAVE_REGISTERS/WAVEFORMS' own indexing below, not generateRobotName's
+  // Clamped (matching the weighted picks' own last-option fallback, not generateRobotName's
   // unclamped one) since the failure mode of an out-of-range index here is a visibly broken
   // undefined CSS custom property, not just a missing name syllable.
   const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.identityColor', offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
@@ -272,8 +281,9 @@ export function generateAudioAttributes(noiseMap: NoiseFunction2D, offset: numbe
     ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.portamento', offset, portamentoBand.min, portamentoBand.max), 0, PORTAMENTO_STEP)
     : 0;
 
-  // Seeded octave register — direct [min, max] tuple, no Hz indirection
-  const octaveRange = OCTAVE_REGISTERS[Math.min(OCTAVE_REGISTERS.length - 1, Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.register', offset, 0, OCTAVE_REGISTERS.length)))] as [number, number];
+  // Seeded octave register — a direct [min, max] tuple, no Hz indirection, through the robot.octaveRegister pick
+  // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6).
+  const octaveRange = deriveOctaveRange(noiseMap, offset, getBand('robot.octaveRegister'));
 
   // The voice - the bus filter, the waveform and the 3-layer Signature Array - through the Voice family's one
   // derivation (revisions Task 10).
@@ -433,6 +443,9 @@ export interface RobotAudioBaseline {
   gritSend: number;
   shimmerSend: number;
   doubleSend: number;
+  /** Unconditional, like `name`, biased by the (possibly copied) register (seedMasterVolume): what a loading change
+   *  compares (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). A listening choice, so the session diff never reads it. */
+  masterVolume: number;
   /** What the deal loaded this robot under (docs/specs/OFF_SCREEN.md assumption 22), as Robot.loadedUnder; set by
    *  applyDealToBaselines on a dealt robot, absent on the rest. Not a diffed field. */
   loadedUnder?: RobotAspects;
@@ -469,8 +482,9 @@ export function generateRobotAudioBaseline(
       Math.floor(getUniformSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
     );
     // name is NOT inherited from the copy source — spawnRobot generates it unconditionally,
-    // outside the shouldCopy branch (see this function's own doc comment).
-    return { ...priorBaselines[srcIdx], name, ...sends };
+    // outside the shouldCopy branch (see this function's own doc comment). Nor is the volume.
+    const source = priorBaselines[srcIdx];
+    return { ...source, name, ...sends, masterVolume: seedMasterVolume(noiseMap, spawnCount, source.octaveRange) };
   }
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
@@ -485,7 +499,9 @@ export function generateRobotAudioBaseline(
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
-  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, dynamics, rests, accents, lfoLinks, ...sends };
+  const masterVolume = seedMasterVolume(noiseMap, spawnCount, octaveRange);
+
+  return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
 }
 
 /**
@@ -730,17 +746,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     lfoLinks: spawnLfoLinks,
     masterVolume: (() => {
       const volume = getBand('robot.masterVolume');
-      const seeded = noiseMap
-        ? getUniformSeededVal(noiseMap, 'robot.masterVolume', spawnCount, volume.min, volume.max)
-        : volume.min + alea(`${localeId}:${spawnCount}:mv`)() * (volume.max - volume.min);
-      // Bass robots are louder, treble robots quieter. Register mid [1..5], neutral ~3.5.
-      const registerMid = (octaveRange[0] + octaveRange[1]) / 2;
-      const registerBias = (4.5 - registerMid) * 0.05;
-      const raw = Math.max(0.5, Math.min(0.95, seeded + registerBias));
-      // Quantized in percent-space, not against the stored fraction directly —
-      // same "avoid a sub-percent grid" reasoning as Ping Variance Automation
-      // (globalAudioSeed.ts).
-      return quantizeToStep(raw * 100, 0, VOLUME_STEP_PERCENT) / 100;
+      return noiseMap
+        ? seedMasterVolume(noiseMap, spawnCount, octaveRange)
+        : masterVolumeFrom(volume.min + alea(`${localeId}:${spawnCount}:mv`)() * (volume.max - volume.min), octaveRange);
     })(),
     // Robot Pan (docs/specs/ROBOT_PAN.md §1.1): every robot starts on Auto at centre — no noise
     // draw, so a world's existing seeded values and its sound are unchanged.

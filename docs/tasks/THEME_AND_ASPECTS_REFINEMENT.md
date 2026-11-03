@@ -291,7 +291,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S
 
-- [ ] **T6: `aspectDeal.ts` — every survivor robot key is compared and pushed on a loading change**
+- [x] **T6: `aspectDeal.ts` — every survivor robot key is compared and pushed on a loading change**
 
   **Description:** Spec §1.5, "what a widened key costs". For each robot key in T4's survivor table that `movedFields`
   does not compare today, add the comparison and the push, per the Architecture Decisions table:
@@ -816,6 +816,29 @@ new key without a bound does not compile) plus `GLOBAL_AUDIO_SEED_RANGES` for th
 cases of its own, which kill both named mutants (the send clause dropped from the kind check; the global bound skipped).
 One deviation: the acceptance's "checked by hand with a throwaway edit" is held for good as `@ts-expect-error` lines (a
 key outside the table, a plain range on a lit key and on a send, a return level), so `build:types` keeps checking it.
+
+**T6 (2026-11-03).** The four new keys are named `robot.detune`, `robot.octaveRegister`, `humanize` and
+`lfoLink.lpf.frequency`; the table holds 83 bands. `robot.octaveRegister` weighs five register ids, `bass`, `low`, `mid`,
+`high`, `treble` (`src/data/octaveRegisters.ts`, the list moved out of `spawnSystem.ts`), through a `PickBand<O>` made
+generic and one `pickWeighted` the waveform shares; `humanize` and the low-pass tie are `WORLD_RANGE_KEYS` and
+`WORLD_LIT_KEYS` in `bandKeys.ts`. Classic's four bands are today's draws, so spawn is unchanged: the parity rosters
+pass with no value moved. `HUMANIZE_SEED_RANGE` went into the table (its guard in `globalAudioSeed.test.ts` now reads
+Classic's band). Deviations, all from the order of the plan (T6 runs before T7b makes Motion and Performance):
+- **Filing until T7b.** `accents` and the register under Melody (the push `regenerateMelody`); `dynamics` under no
+  family (`null`: the Dynamics edit makes no engine call, so the write is all); `masterVolume` and `lfoLinks` under
+  Voice (`reReserveVoice` reserves at the robot's volume, so the velocity cache follows; then `primeRobotLinks`); the
+  glide under Envelope, whose push now also makes the Portamento edit's live write (`updateVoicePortamento`). T7b refiles
+  the Performance fields and the glide and links under their own families.
+- **`masterVolume` joins `RobotAudioBaseline`**, drawn outside the copy branch as `spawnRobot` draws it
+  (`seedMasterVolume`), so a loading change can compare it. The session diff never reads it (a listening choice). The
+  parity fixtures gained one `masterVolume` per robot, computed with `main`'s formula and checked equal.
+- **A moved register writes `audioAttributes.octaveRange` too** (the body scale reads it), so an untweaked world ends
+  what a fresh build gives; the top-level field carries Melody's push.
+- **Humanize** is drawn per loading in `deriveGlobalHalfMoves` and written through `setHumanize`; a style switch still
+  carries it forward.
+- **The cases are their own file**, `src/systems/aspectDeal.widened.test.ts`, so `aspectDeal.test.ts`'s real-column
+  cases run unmodified. One case I wrote expected an LFO depth key to move only its own targets; the lane tally moves
+  other targets' lanes too, as a fresh build does, so the case now expects every moved target.
 
 ## Risks and Mitigations
 

@@ -5,6 +5,8 @@ import { describe, it, expect, vi } from 'vitest';
 
 import {
   ENVELOPE_TIME_MAX_SECONDS,
+  HUMANIZE_MAX_MS,
+  HUMANIZE_MIN_MS,
   PERFORMANCE_MAX,
   PERFORMANCE_MIN,
   PORTAMENTO_MAX,
@@ -22,6 +24,8 @@ import {
   ROBOT_PICK_KEYS,
   ROBOT_RANGE_KEYS,
   ROBOT_TOGGLE_KEYS,
+  WORLD_LIT_KEYS,
+  WORLD_RANGE_KEYS,
   type BandKey,
   type BandTable,
   type RangeBand,
@@ -139,6 +143,12 @@ const EXPECTED: BandTable = {
   'frequencyShifter.shift': { min: 2, max: 20 },
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 
+  // Two world keys new at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, each its draw as it stood (main at 3c188fec):
+  // humanize HUMANIZE_SEED_RANGE; the master low-pass cutoff's global LFO link GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE
+  // with 1 - LFO_QUIET_THRESHOLD (0.34) as its lit share.
+  humanize: { min: 2, max: 6 },
+  'lfoLink.lpf.frequency': { min: 5, max: 60, lit: 0.66 },
+
   // Robots (spawnSystem.ts). ATTACK/DECAY/SUSTAIN/RELEASE_RANGE (0-ENVELOPE_TIME_MAX_SECONDS, 0-1).
   'robot.attack': { min: 0, max: 2 },
   'robot.decay': { min: 0, max: 2 },
@@ -155,6 +165,8 @@ const EXPECTED: BandTable = {
   'robot.accentFilterQ': { min: 3, max: 8 },
   // The Coaxial/Harmonic gain draw (0.2-1.2) with LAYER_QUIET_THRESHOLD 0.5: a lit share of 1 - 0.5.
   'robot.layerGain': { min: 0.2, max: 1.2, lit: 0.5 },
+  // The layers' detune, cents: the centred -2..2 draw robotFieldDerivation.ts made outside the table (T6).
+  'robot.detune': { min: -2, max: 2 },
   // MASTER_VOLUME_MIN/MAX.
   'robot.masterVolume': { min: 0.65, max: 0.85 },
   // ROBOT_LFO_GAIN/DETUNE/BUS_DEPTH_SEED_RANGE with LFO_QUIET_THRESHOLD 0.7 and LFO_BUS_QUIET_THRESHOLD 0.8 as lit shares
@@ -174,6 +186,8 @@ const EXPECTED: BandTable = {
   'robot.accents': { min: 20, max: 80 },
   // The waveform pick (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): WAVEFORMS' even ~20 % each, as five equal weights.
   'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
+  // The octave register (T6): spawnSystem.ts's even pick over its five OCTAVE_REGISTERS, as five equal weights.
+  'robot.octaveRegister': { weights: { bass: 1, low: 1, mid: 1, high: 1, treble: 1 } },
 
   // The sends (ROBOT_SEND_LOADING_RANGES).
   reverbSend: { min: 0.1, max: 0.6, lit: 1 },
@@ -196,9 +210,10 @@ describe('resolveBands - Classic parity (docs/specs/OFF_SCREEN.md §5.2, plan Ta
     expect(CLASSIC).toStrictEqual(EXPECTED);
   });
 
-  it('holds 79 bands: one tempo, fifty global rows, twenty-three robot bands (the waveform pick since revisions Task 10) and five sends', () => {
-    expect(Object.keys(CLASSIC)).toHaveLength(79);
-    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length + ROBOT_PICK_KEYS.length).toBe(23);
+  it('holds 83 bands: one tempo, fifty global rows, two world keys, twenty-five robot bands and five sends', () => {
+    expect(Object.keys(CLASSIC)).toHaveLength(83);
+    expect(ROBOT_RANGE_KEYS.length + ROBOT_LIT_KEYS.length + ROBOT_TOGGLE_KEYS.length + ROBOT_PICK_KEYS.length).toBe(25);
+    expect(WORLD_RANGE_KEYS.length + WORLD_LIT_KEYS.length).toBe(2);
   });
 
   it('keeps every lit share and off share a real share in (0, 1], every band min <= max, and every pick a real weighting', () => {
@@ -697,6 +712,7 @@ const ROBOT_BOUNDS: Record<Exclude<BandKey, LoadingRangeKey | RobotPickKey>, rea
   'robot.accentFilterFreq': [20, 20000],
   'robot.accentFilterQ': [0.1, 20],
   'robot.layerGain': [0, 2],
+  'robot.detune': [-50, 50], // each layer's Detune slider (ROBOT_SWELL_FIELD_RANGE's layer<i>.detune)
   'robot.masterVolume': [0, 1], // Robot.masterVolume, stored 0-1 (VOLUME_SCHEMA displays 0-100)
   'robot.lfoGainDepth': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
   'robot.lfoDetuneDepth': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
@@ -713,6 +729,15 @@ const ROBOT_BOUNDS: Record<Exclude<BandKey, LoadingRangeKey | RobotPickKey>, rea
   gritSend: [SEND_MIN, SEND_MAX],
   shimmerSend: [SEND_MIN, SEND_MAX],
   doubleSend: [SEND_MIN, SEND_MAX],
+  // The world keys (T6): the Humanize slider's [0, 20] ms, and a global link's Depth slider.
+  humanize: [HUMANIZE_MIN_MS, HUMANIZE_MAX_MS],
+  'lfoLink.lpf.frequency': [LFO_DEPTH_MIN, LFO_DEPTH_MAX],
+};
+
+/** The names a pick's weights must carry, per pick key: the waveforms, or the octave registers. */
+const PICK_NAMES: Record<RobotPickKey, readonly string[]> = {
+  'robot.waveform': ['sine', 'square', 'triangle', 'sawtooth', 'pulse'],
+  'robot.octaveRegister': ['bass', 'low', 'mid', 'high', 'treble'],
 };
 
 /** A key's full field range: its robot bound, or its global row's seed range. */
@@ -727,9 +752,8 @@ function boundsOf(key: Exclude<BandKey, RobotPickKey>): readonly [number, number
 function kindFieldsOf(key: BandKey): string[] {
   if ((ROBOT_PICK_KEYS as readonly string[]).includes(key)) return ['weights'];
   if ((ROBOT_TOGGLE_KEYS as readonly string[]).includes(key)) return ['max', 'min', 'offShare'];
-  if ((ROBOT_LIT_KEYS as readonly string[]).includes(key) || (ROBOT_SEND_FIELDS as readonly string[]).includes(key)) {
-    return ['lit', 'max', 'min'];
-  }
+  const litKeys: readonly string[] = [...ROBOT_LIT_KEYS, ...ROBOT_SEND_FIELDS, ...WORLD_LIT_KEYS];
+  if (litKeys.includes(key)) return ['lit', 'max', 'min'];
   return ['max', 'min'];
 }
 
@@ -740,11 +764,10 @@ function bandProblems(key: BandKey, band: object): string[] {
   // A band of the wrong kind has nothing further to check against its field.
   if (JSON.stringify(fields) !== JSON.stringify(kindFieldsOf(key))) return [`kind: ${fields.join(',')}`];
   if ('weights' in band) {
-    // A pick: every weight a non-negative number, at least one above zero, and only the five waveforms named.
+    // A pick: every weight a non-negative number, at least one above zero, and exactly its own names weighed.
     const weights = band.weights as Record<string, number>;
-    if (JSON.stringify(Object.keys(weights).sort()) !== JSON.stringify(['pulse', 'sawtooth', 'sine', 'square', 'triangle'])) {
-      problems.push('weights: not the five waveforms');
-    }
+    const names = [...PICK_NAMES[key as RobotPickKey]].sort();
+    if (JSON.stringify(Object.keys(weights).sort()) !== JSON.stringify(names)) problems.push('weights: not its own names');
     if (!Object.values(weights).every((w) => Number.isFinite(w) && w >= 0)) problems.push('weights: a negative weight');
     if (!Object.values(weights).some((w) => w > 0)) problems.push('weights: nothing to draw');
     return problems;
@@ -800,6 +823,17 @@ describe('the kind-and-bounds check itself (docs/tasks/THEME_AND_ASPECTS_REFINEM
     expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: 1.1 })).not.toEqual([]);
     expect(bandProblems('robot.noteVariance', { offShare: 1, min: 1, max: 8 })).not.toEqual([]);
     expect(bandProblems('robot.noteVariance', { offShare: 0.2, min: 1.5, max: 8 })).not.toEqual([]);
+  });
+
+  it('knows the four keys new at T6: a lit band on the low-pass tie, a range on humanize and detune, the registers on the register pick', () => {
+    expect(bandProblems('lfoLink.lpf.frequency', { min: 5, max: 60 })).not.toEqual([]);
+    expect(bandProblems('lfoLink.lpf.frequency', { min: 5, max: 120, lit: 1 })).not.toEqual([]);
+    expect(bandProblems('humanize', { min: 0, max: 30 })).not.toEqual([]);
+    expect(bandProblems('robot.detune', { min: -60, max: 0 })).not.toEqual([]);
+    expect(bandProblems('robot.detune', { min: -50, max: 50 })).toEqual([]);
+    expect(bandProblems('robot.octaveRegister', { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } })).not.toEqual([]);
+    expect(bandProblems('robot.waveform', { weights: { bass: 1, low: 1, mid: 1, high: 1, treble: 1 } })).not.toEqual([]);
+    expect(bandProblems('robot.octaveRegister', { weights: { bass: 1, low: 0, mid: 0, high: 0, treble: 0 } })).toEqual([]);
   });
 
   it('fails a pick that names a stranger, weighs one below zero, or weighs nothing', () => {

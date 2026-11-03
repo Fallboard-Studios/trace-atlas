@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
-import type { Robot } from '../types/Robot';
+import type { AudioAttributes, Robot } from '../types/Robot';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { Company } from '../types/Company';
 import { DEV_TUNING } from '../constants';
@@ -26,6 +26,7 @@ import {
 } from './spawnSystem';
 import { SWELL_ROBOT_ATTRIBUTE_IDS, type SwellRobotAttributeId } from '../types/audioSwell';
 import type { OscillatorLayer } from '../types/layeredAudio';
+import { ROBOT_LFO_TARGET_IDS } from '../types/lfo';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { withLoading } from '../data/bands/loadingContext';
 import { deepEqual } from '../utils/math';
@@ -134,7 +135,7 @@ export function generateDealtRosterBaseline(
  * One family's fields, already in the store, to the running engine, the way a hand edit of those fields reaches it
  * (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): Melody regenerates the melody (regenerateMelody re-registers it,
  * applyDensity's path), Envelope hands the adsr to updateVoiceEnvelope (applyAdsr's path: a live write, curves included,
- * no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the prime every reservation
+ * no rebuild; and the glide beside it, applyPortamento's live write, since T6), Distance hands all five sends to updateRobotSends (applySendValue's call, the prime every reservation
  * makes), Voice rebuilds the voice from the robot and re-primes its LFO links (the structural edit's rebuildVoice,
  * robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions Task 10). The robot is
  * handed to reReserveVoice because a rebuild deals before its locale is current, where the engine's own lookup finds
@@ -151,6 +152,8 @@ function pushFamilyToEngine(family: AspectFamilyId, robot: Robot, localeId: stri
         break;
       case 'envelope':
         AudioEngine.updateVoiceEnvelope(robot.id, robot.audioAttributes.adsr);
+        // The glide, filed here until Motion takes it (T7b): a live write, as the Portamento edit makes.
+        AudioEngine.updateVoicePortamento(robot.id, robot.audioAttributes.portamento ?? 0);
         break;
       case 'distance':
         AudioEngine.updateRobotSends(robot.id, robotSendLevels(robot));
@@ -196,20 +199,46 @@ export function applyAspectDeal(localeId: string): void {
   });
 }
 
-/** The top-level seeded fields compared one by one, each with the family whose push carries it to the engine: Melody's
- *  four and `rests`, which the melody bakes in (regenerateMelody reads it, as a hand edit of Rests regenerates), and
- *  the five sends. */
+/**
+ * The top-level seeded fields compared one by one, each with the family whose push carries it to the engine, or null
+ * for a field no engine call needs. Melody's four; `rests`, `accents` and the register, which the melody bakes in
+ * (regenerateMelody reads them, as a hand edit of Rests, Accents or the octaves regenerates); `dynamics`, a playback
+ * scale read on every note, so the write is all (the Dynamics edit makes no engine call); `masterVolume`, filed under
+ * Voice, whose rebuild reserves the voice at the robot's volume (reReserveVoice); and the five sends. The four after
+ * `pitchRepeat` and the master volume joined at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, so a theme column may
+ * name them; T7b refiles the Performance fields under their own family.
+ */
 const TOP_LEVEL_FIELDS = [
   ['rhythmicDensity', 'melody'],
   ['rhythmicMotifLength', 'melody'],
   ['noteVariance', 'melody'],
   ['pitchRepeat', 'melody'],
   ['rests', 'melody'],
+  ['accents', 'melody'],
+  ['octaveRange', 'melody'],
+  ['dynamics', null],
+  ['masterVolume', 'voice'],
   ...ROBOT_SEND_FIELDS.map((field) => [field, 'distance'] as const),
-] as const satisfies readonly (readonly [keyof RobotAudioBaseline, AspectFamilyId])[];
+] as const satisfies readonly (readonly [keyof RobotAudioBaseline, AspectFamilyId | null])[];
 
-/** Voice's fields inside the audio attributes, compared one by one; the layers are compared apart, per layer and key. */
-const VOICE_FIELDS = ['filterFreq', 'filterQ', 'filterType', 'waveform'] as const;
+/** The swell riding a field where its attribute id is not the field's own name. */
+const SWELL_ID_OF: Partial<Record<keyof RobotAudioBaseline, SwellRobotAttributeId>> = { masterVolume: 'volume' };
+
+/**
+ * The fields inside the audio attributes compared one by one, each with the family whose push carries it: Voice's four;
+ * the glide, under Envelope, whose push writes it live as the Portamento edit does (updateVoicePortamento, no rebuild;
+ * the Envelope drawer's glide row); and the register the body scale reads, which needs no push of its own: the
+ * top-level `octaveRange` beside it moves with it and carries Melody's (T6). The layers are compared apart, per layer
+ * and key.
+ */
+const ATTRIBUTE_FIELDS = [
+  ['filterFreq', 'voice'],
+  ['filterQ', 'voice'],
+  ['filterType', 'voice'],
+  ['waveform', 'voice'],
+  ['portamento', 'envelope'],
+  ['octaveRange', null],
+] as const satisfies readonly (readonly [keyof AudioAttributes, AspectFamilyId | null])[];
 
 /** A layer's seeded keys, compared one by one (deriveVoiceFields draws each; `pulseWidth` is never seeded). Only a moved
  *  key is written into the robot's own layer, and only a moved gain or detune drops its swell (`layer<i>.<key>`). */
@@ -233,9 +262,20 @@ function movedFields(
   for (const [field, family] of TOP_LEVEL_FIELDS) {
     if (deepEqual(from[field], to[field])) continue;
     Object.assign(fields, { [field]: to[field] });
-    families.add(family);
-    if (isSwellable(field)) swells.push(field);
+    if (family) families.add(family);
+    const swell = SWELL_ID_OF[field] ?? field;
+    if (isSwellable(swell)) swells.push(swell);
   }
+
+  // The links per target (T6), as the layers are compared per key: only a moved target takes the new link, so a hand
+  // edit on another target stands. Voice's push re-primes the links (primeRobotLinks); T7b refiles them under Motion.
+  let lfoLinks = robot.lfoLinks;
+  for (const target of ROBOT_LFO_TARGET_IDS) {
+    if (deepEqual(from.lfoLinks[target], to.lfoLinks[target])) continue;
+    lfoLinks = { ...(lfoLinks ?? to.lfoLinks), [target]: to.lfoLinks[target] };
+    families.add('voice');
+  }
+  if (lfoLinks !== robot.lfoLinks) fields.lfoLinks = lfoLinks;
 
   let audioAttributes = robot.audioAttributes;
   const fromAdsr = from.audioAttributes.adsr;
@@ -247,10 +287,10 @@ function movedFields(
     families.add('envelope');
     if (isSwellable(`adsr.${key}`)) swells.push(`adsr.${key}` as SwellRobotAttributeId);
   }
-  for (const key of VOICE_FIELDS) {
+  for (const [key, family] of ATTRIBUTE_FIELDS) {
     if (deepEqual(from.audioAttributes[key], to.audioAttributes[key])) continue;
     audioAttributes = { ...audioAttributes, [key]: to.audioAttributes[key] };
-    families.add('voice');
+    if (family) families.add(family);
   }
   const fromLayers = from.audioAttributes.layers ?? [];
   const toLayers = to.audioAttributes.layers ?? [];
@@ -285,10 +325,11 @@ function movedFields(
  * rhythmicDensity, rests, the attack and release (curves too) and the Reverb and Delay sends; an aspect change riding
  * on the theme moves its families' fields and `loadedUnder` the same way. The swells riding the moved fields are
  * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
- * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields and
- * `rests`. A theme column may name any key of the band table (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5), but a
- * column may name a robot key only once its field is compared here and pushed by pushFamilyToEngine
- * (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6), or a theme change would leave the live robots stale on it.
+ * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields,
+ * `rests`, and since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6 every robot field a band seeds: `accents`,
+ * `dynamics`, the register, the master volume, the glide and the LFO links per target. A theme column may name any key
+ * of the band table (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5); a robot key's field must be compared here and
+ * pushed by pushFamilyToEngine, or a theme change would leave the live robots stale on it.
  *
  * An aspects-only change comes here too, with `from` the loading it replaced (final fixes F16, which folded R33's
  * redealAspects in): its moved fields are what the two dealt baselines disagree on, so a tweak on an attribute the aspect

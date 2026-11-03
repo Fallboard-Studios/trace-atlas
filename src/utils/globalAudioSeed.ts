@@ -391,6 +391,13 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
  */
 const LFO_QUIET_THRESHOLD = 0.34;
 
+/** A global target's quiet edge: LFO_QUIET_THRESHOLD, except the master low-pass cutoff's, which is its band's unlit
+ *  share (lfoLink.lpf.frequency, docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6; Classic's lit of 0.66 is the same edge),
+ *  so a theme naming it at a lit of 1 ties it live in every world. */
+function quietThresholdForTarget(target: GlobalLfoTargetId): number {
+  return target === 'lpf.frequency' ? 1 - getBand('lfoLink.lpf.frequency').lit : LFO_QUIET_THRESHOLD;
+}
+
 /**
  * Ping Variance Automation's own seeded-default range — [10%, 60%] as a
  * fraction — same "bounded/legible default, freely draggable afterward"
@@ -472,15 +479,13 @@ export function generateSwellDuration(attenuationStyleId: string, attenuationSty
 }
 
 /**
- * Humanize's own seeded-default range — [2, 6] ms (docs/specs/ROBOT_PERFORMANCE.md assumption 9): audible as looseness on a
- * fresh world, a third of the slider's 20 ms top, so the first thing a listener hears is a fleet that is a touch off the grid.
- */
-export const HUMANIZE_SEED_RANGE = { min: 2, max: 6 };
-
-/**
- * Seeded starting value for audioStore's humanize, whole ms in [2, 6]. Same seed-once/carry-forward treatment as
- * generateSwellDuration above (audioStore.ts's regenerateGlobalAudioFromSeed calls it only on the first seed), snapped onto
- * HUMANIZE_SCHEMA's own 1 ms grid so a fresh world starts on a value the slider can actually produce.
+ * Seeded starting value for audioStore's humanize, whole ms in the loaded world's `humanize` band (Classic's [2, 6] ms,
+ * docs/specs/ROBOT_PERFORMANCE.md assumption 9: audible as looseness on a fresh world, a third of the slider's 20 ms top;
+ * a band since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, so a theme can tighten or loosen it). Same
+ * seed-once/carry-forward treatment as generateSwellDuration above on a style switch (audioStore.ts's
+ * regenerateGlobalAudioFromSeed calls it only on the first seed); a loading change draws it again
+ * (deriveGlobalHalfMoves). Snapped onto HUMANIZE_SCHEMA's own 1 ms grid so a fresh world starts on a value the slider can
+ * actually produce.
  *
  * A uniform draw, not getSeededVal: one plain draw at offset 0 takes only about three values across all worlds (measured
  * here: 3 over 300 styles, and a single value across 40 names), which would seed nearly every world to the same few ms
@@ -488,7 +493,8 @@ export const HUMANIZE_SEED_RANGE = { min: 2, max: 6 };
  */
 export function generateHumanize(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = HUMANIZE_SEED_RANGE.min + getUniformSeededVal(noiseMap, 'globalAudio.humanize') * (HUMANIZE_SEED_RANGE.max - HUMANIZE_SEED_RANGE.min);
+  const band = getBand('humanize');
+  const raw = band.min + getUniformSeededVal(noiseMap, 'globalAudio.humanize') * (band.max - band.min);
   return quantizeToStep(raw, HUMANIZE_SCHEMA.min, HUMANIZE_SCHEMA.step ?? 1);
 }
 
@@ -506,9 +512,14 @@ export const GLOBAL_LFO_EQ_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, 
 export const GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, max: 60 };
 export const GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, max: 40 };
 
-/** Picks the right depth seed window for a global-chain target: eq3.* -> EQ, *.Q -> filter Q,
- *  everything else (lpf.frequency/hpf.frequency) -> filter frequency. */
+/** Picks the right depth seed window for a global-chain target: the master low-pass cutoff its own band
+ *  (lfoLink.lpf.frequency, docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6), eq3.* -> EQ, *.Q -> filter Q, everything else
+ *  (hpf.frequency) -> filter frequency. */
 function globalLfoDepthSeedRangeForTarget(target: GlobalLfoTargetId): { min: number; max: number } {
+  if (target === 'lpf.frequency') {
+    const { min, max } = getBand('lfoLink.lpf.frequency');
+    return { min, max };
+  }
   if (target.startsWith('eq3.')) return GLOBAL_LFO_EQ_DEPTH_SEED_RANGE;
   return target.endsWith('.Q') ? GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE : GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE;
 }
@@ -663,7 +674,7 @@ export function generateGlobalLfoLinks(
 
   for (const target of GLOBAL_LFO_TARGET_IDS) {
     const quietT = getUniformSeededVal(noiseMap, `globalLfo.${target}.quiet`);
-    if (quietT < LFO_QUIET_THRESHOLD) {
+    if (quietT < quietThresholdForTarget(target)) {
       result[target] = { lane: null, depth: 0 };
       continue;
     }

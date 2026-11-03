@@ -4,6 +4,7 @@
 import type { LoadingRangeKey } from '../globalAudioSeedRanges';
 import type { RobotSendField } from '../robotSends';
 import type { WaveformType } from '../../types/Robot';
+import type { OctaveRegisterId } from '../octaveRegisters';
 
 // ========================================
 // TYPES
@@ -49,13 +50,14 @@ export interface ToggleBand {
 }
 
 /**
- * A weighted pick among the waveforms (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a fresh draw lands on waveform w with
- * a share of weights[w] / the total. The draw spans [0, total] and picks the first waveform, in WAVEFORMS order, whose
- * cumulative weight it falls under (robotFieldDerivation.ts's pickWaveform), so Classic's five equal unit weights - cumulative
- * edges 1 to 5 - give exactly the index Math.floor of the old [0, 5] draw gave. A zero weight is never drawn.
+ * A weighted pick (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a fresh draw lands on option o with a share of
+ * weights[o] / the total. The draw spans [0, total] and picks the first option, in the pick's own order, whose cumulative
+ * weight it falls under (robotFieldDerivation.ts's pickWeighted), so five equal unit weights - cumulative edges 1 to 5 -
+ * give exactly the index Math.floor of an even [0, 5] draw gave. A zero weight is never drawn. Two picks: the waveform,
+ * and the octave register since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6.
  */
-export interface PickBand {
-  weights: Record<WaveformType, number>;
+export interface PickBand<O extends string = WaveformType> {
+  weights: Record<O, number>;
 }
 
 /** The robot bands that are plain ranges, named for the robot field each seeds. */
@@ -66,6 +68,7 @@ export const ROBOT_RANGE_KEYS = [
   'robot.release',
   'robot.filterFreq',
   'robot.accentFilterQ',
+  'robot.detune',
   'robot.masterVolume',
   'robot.rhythmicDensity',
   'robot.pitchRepeat',
@@ -89,26 +92,40 @@ export const ROBOT_LIT_KEYS = [
 /** The two 1-8 toggle fields (ToggleBand). */
 export const ROBOT_TOGGLE_KEYS = ['robot.rhythmicMotifLength', 'robot.noteVariance'] as const;
 
-/** The weighted picks (PickBand): the waveform the base and the three Signature Array layers draw. */
-export const ROBOT_PICK_KEYS = ['robot.waveform'] as const;
+/** The weighted picks (PickBand): the waveform the base and the three Signature Array layers draw, and the octave
+ *  register a robot's Octave Min and Max are dealt from (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). */
+export const ROBOT_PICK_KEYS = ['robot.waveform', 'robot.octaveRegister'] as const;
+
+/**
+ * The world keys outside the global chain's loading rows (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6): Humanize, the
+ * timing scatter on every note, a plain range in ms; and the master low-pass cutoff's tie to the global LFO bank, a lit
+ * band - the share of worlds whose tie is live, and its depth window in percent.
+ */
+export const WORLD_RANGE_KEYS = ['humanize'] as const;
+export const WORLD_LIT_KEYS = ['lfoLink.lpf.frequency'] as const;
 
 export type RobotRangeKey = (typeof ROBOT_RANGE_KEYS)[number];
 export type RobotLitKey = (typeof ROBOT_LIT_KEYS)[number];
 export type RobotToggleKey = (typeof ROBOT_TOGGLE_KEYS)[number];
 export type RobotPickKey = (typeof ROBOT_PICK_KEYS)[number];
 export type RobotBandKey = RobotRangeKey | RobotLitKey | RobotToggleKey | RobotPickKey;
+export type WorldRangeKey = (typeof WORLD_RANGE_KEYS)[number];
+export type WorldLitKey = (typeof WORLD_LIT_KEYS)[number];
 
-/** Every key in the table: the tempo, the global chain's loading rows, the robot bands and the five sends. */
-export type BandKey = 'bpm' | LoadingRangeKey | RobotBandKey | RobotSendField;
+/** Every key in the table: the tempo, the global chain's loading rows, the two world keys, the robot bands and the five
+ *  sends. */
+export type BandKey = 'bpm' | LoadingRangeKey | WorldRangeKey | WorldLitKey | RobotBandKey | RobotSendField;
 
 /** The kind of band a key holds. */
 export type BandFor<K extends BandKey> = K extends RobotToggleKey
   ? ToggleBand
-  : K extends RobotPickKey
-    ? PickBand
-    : K extends RobotLitKey | RobotSendField
-      ? SendBand
-      : RangeBand;
+  : K extends 'robot.octaveRegister'
+    ? PickBand<OctaveRegisterId>
+    : K extends RobotPickKey
+      ? PickBand
+      : K extends RobotLitKey | RobotSendField | WorldLitKey
+        ? SendBand
+        : RangeBand;
 
 /** The whole table: one band per key, each of its key's kind. */
 export type BandTable = { [K in BandKey]: BandFor<K> };
