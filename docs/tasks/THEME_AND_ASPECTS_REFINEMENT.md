@@ -504,7 +504,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 - [x] Every survivor column's keys are its sheet's; every robot key has a compared-and-pushed path (T6's cases).
 - [x] If a derive function was added: `generateRobotRosterBaseline(noiseMap, 12)` re-timed as T18 did; still under
       the 16 ms line. (See the re-time below.)
-- [ ] Reviewed with Crawford. Session ends here.
+- [x] Reviewed with Crawford. Session ends here. (Passed, Crawford, 2026-11-03. Next: T10, in a fresh session.)
 - Crawford's answers (2026-11-03): a lit share of 0 as a column's "none" is fine; an off share of 1 as "always off"
   (and the `seedToggleValue` guard) is fine; a theme forcing more than two pedals lights them all and no coin pedal, as
   built; `scripts/sketch` is type-checked (T10 adds it to a tsconfig include).
