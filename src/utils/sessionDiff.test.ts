@@ -932,16 +932,16 @@ describe('applySessionPayload', () => {
     // docs/tasks/OFF_SCREEN_REVISIONS.md Task 8: the baseline re-derives every dealt family, so a world dealt across all three
     // diffs empty; the control (Envelope and Distance only, never dealt live) shows the adsr and the sends do move.
     it('an untweaked world dealt across three families has no robot overrides, where the same picks never dealt live read as edited adsr and sends', () => {
-      const aspects = { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] } as const;
+      const aspects = { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'] } as const;
       useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: [...aspects.melody], envelope: [...aspects.envelope], distance: [...aspects.distance] } });
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
       spawnInitialCompanies(localeId);
       applyAspectDeal(localeId);
       const payload = buildSessionPayload();
-      expect(payload.aspects).toEqual({ melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] });
+      expect(payload.aspects).toEqual({ melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'] });
       expect(payload.robotOverrides).toEqual({});
-      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { envelope: ['plucked'], distance: ['remote'] } });
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { envelope: ['plucked'], distance: ['halfHeard'] } });
       const control = setupWorld();
       spawnInitialRoster(control);
       spawnInitialCompanies(control);
@@ -971,7 +971,7 @@ describe('applySessionPayload', () => {
       spawnInitialRoster(localeId);
       spawnInitialCompanies(localeId);
       applyAspectDeal(localeId);
-      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['held'], distance: ['remote'] } });
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], envelope: ['held'], distance: ['halfHeard'] } });
       expect(Object.keys(buildSessionPayload().robotOverrides).length).toBeGreaterThan(0); // the control: not re-dealt yet
 
       rederiveLoading(
@@ -1007,7 +1007,7 @@ describe('applySessionPayload', () => {
         const { robotId } = swell.members![0];
         tickAudioSwells(localeId, 2); // mid-ramp: the store holds the swell's value now
 
-        useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
+        useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['halfHeard'] } });
         rederiveLoading(localeId, { theme: 'classic', aspects: {} }, audioSwells.cancelSwellForRobotAttribute);
 
         expect(swell.robotAttribute).toBe('shimmerSend'); // precondition: a send no Distance pick moves

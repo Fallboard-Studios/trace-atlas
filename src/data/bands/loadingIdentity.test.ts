@@ -27,7 +27,7 @@ describe('loadingOf', () => {
   });
 
   it('a family list of nothing but non-strings, or not a list, is no family', () => {
-    expect(loadingOf({ aspects: { envelope: [0, null, {}], distance: 'far', voice: ['woody'] } })).toEqual({
+    expect(loadingOf({ aspects: { envelope: [0, null, {}], distance: 'echoing', voice: ['woody'] } })).toEqual({
       theme: 'classic',
       aspects: { voice: ['woody'] },
     });

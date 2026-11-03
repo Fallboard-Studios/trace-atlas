@@ -338,18 +338,18 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     it('a world with picks in all four families writes a param per family, and reads every one back', () => {
       const loading: LoadingIdentity = {
         theme: 'float',
-        aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+        aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'], voice: ['woody'] },
       };
       const payload = untouchedWorld(undefined, undefined, loading);
       const params = encodeWorldLinkParams(payload);
       expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 'envelope', 'distance', 'voice']);
       expect(params.get('envelope')).toBe('plucked,held');
-      expect(params.get('distance')).toBe('remote');
+      expect(params.get('distance')).toBe('halfHeard');
       expect(params.get('voice')).toBe('woody');
       expect(throughLink(payload)).toEqual(payload);
       const { coordinates } = payload;
       const decoded = decodeWorldLink(
-        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&theme=float&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody`,
+        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&theme=float&melody=hypnotic&envelope=plucked,held&distance=halfHeard&voice=woody`,
       )!;
       expect(decoded.theme).toBe('float');
       expect(decoded.aspects).toEqual(loading.aspects);

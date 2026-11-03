@@ -159,8 +159,8 @@ describe('canonicalPicks (spec assumption 9: lists in the family\'s canonical op
 // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7: Envelope and Distance join Melody, each its own list.
 describe('canonicalAspects over the three families (revisions Task 7)', () => {
   it('keeps every family, each list canonical, the families in family order', () => {
-    const out = canonicalAspects({ distance: ['remote', 'near'], melody: ['wandering'], envelope: ['held', 'plucked', 'held'] });
-    expect(out).toStrictEqual({ melody: ['wandering'], envelope: ['plucked', 'held'], distance: ['near', 'remote'] });
+    const out = canonicalAspects({ distance: ['halfHeard', 'near'], melody: ['wandering'], envelope: ['held', 'plucked', 'held'] });
+    expect(out).toStrictEqual({ melody: ['wandering'], envelope: ['plucked', 'held'], distance: ['near', 'halfHeard'] });
     expect(Object.keys(out)).toEqual(['melody', 'envelope', 'distance']);
   });
 
@@ -179,12 +179,12 @@ describe('canonicalAspects over the three families (revisions Task 7)', () => {
 
   it('canonicalPicks orders each family by its own options', () => {
     expect(canonicalPicks('envelope', ['held', 'swelling', 'plucked'])).toEqual(['plucked', 'swelling', 'held']);
-    expect(canonicalPicks('distance', ['remote', 'far', 'near'])).toEqual(['near', 'far', 'remote']);
+    expect(canonicalPicks('distance', ['halfHeard', 'echoing', 'near'])).toEqual(['near', 'echoing', 'halfHeard']);
   });
 
   it('the store holds all three families through setLoading, as JSON', () => {
-    state().setLoading({ theme: 'float', aspects: { envelope: ['swelling'], distance: ['far'], melody: ['mechanical'] } });
-    expect(state().aspects).toStrictEqual({ melody: ['mechanical'], envelope: ['swelling'], distance: ['far'] });
+    state().setLoading({ theme: 'float', aspects: { envelope: ['swelling'], distance: ['echoing'], melody: ['mechanical'] } });
+    expect(state().aspects).toStrictEqual({ melody: ['mechanical'], envelope: ['swelling'], distance: ['echoing'] });
     expect(JSON.parse(JSON.stringify(state().aspects))).toStrictEqual(state().aspects);
   });
 });

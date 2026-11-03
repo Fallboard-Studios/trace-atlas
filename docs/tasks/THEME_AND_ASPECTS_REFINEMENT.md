@@ -467,7 +467,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (data, but every number cited)
 
-- [ ] **T9: `aspects.ts` — the survivor option columns, first cut**
+- [x] **T9: `aspects.ts` — the survivor option columns, first cut**
 
   **Description:** One column per survivor option in every family (renamed ids per T4), each key cited to its sheet
   line, every number marked first cut. Cut options go; new ones come in with their content stand-ins. A family's key
@@ -910,6 +910,26 @@ band outside its field, the lit rule's six (nothing lit, a room lit, a node igno
 the character, a forced pedal uncounted, unforced or capped), the context's two (lights not installed, not restored)
 and the lit check refusing lit 0. "Not restored" first survived: its case drew `before` after an earlier case's install
 had leaked under the mutant; `before` is now drawn inside an explicit Classic install.
+
+**T9 (2026-11-03).** Twenty-seven option columns in six families (6 / 6 / 3 / 6 / 3 / 3), the new ones after the
+options that stood, in the sheets' order: Melody adds Chanting, Tumbling, Telegraph; Envelope Bowed, Hammered,
+Breathing; Distance is Near, Echoing, Half-heard (`halfHeard`; Far and Remote gone from the ids, the maps and the
+content); Voice adds Brassy, Muted, Chiming; Motion and Performance fill their `{}`. The twelve options that stood keep
+the numbers their listens left: each sheet owns exactly the keys its column already named. Each new key is commented
+with its sheet sentence; every number is a first cut. `resolveBands.test.ts` types each option's "Keys owned" in
+(`OPTION_SHEET_KEYS`) and holds every column to it and to the kind-and-bounds check; per family, no two options equal
+and the key set the union of its sheets; per option, a difference from the theme-less table somewhere (the plan's
+rule, weaker than the themes': an option band equal to Classic's still overrides a theme that moves the key). Content
+stand-ins: the new names and each sheet's Promise line as the sentence. Deviations:
+- **An off share of 1 is a sheet's "always off"** (Tumbling: "never tiles a figure"). T5's check refused it, and
+  `seedToggleValue` divided by zero at a draw of exactly 1 (NaN); the toggle now lands off for any draw when the off
+  share is 1, with cases at both ends of the off share in `robotFieldDerivation.test.ts`, and the check takes [0, 1].
+- **The test ripple.** `far` and `remote` became `echoing` and `halfHeard` in eleven test files (the same script as
+  T8's); two `spawnSystem.test.ts` cases had leaned on Remote's deep sends on every robot and now run under Echoing,
+  with its own bounds; two OffScreen pins on the Melody row's option count moved to six.
+Nine mutants killed: a key off a sheet, a sheet key dropped, two options equal, an option equal to Classic everywhere,
+an option band outside its field, a cut id still listed, a new id out of row order, the toggle guard removed, the off
+share check refusing 1.
 
 ## Risks and Mitigations
 

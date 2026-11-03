@@ -1091,7 +1091,7 @@ describe('worldTransition', () => {
       retransmitWorld({ coordinates: { x: 540, y: 460 } });
       const before = currentWorld().locale.robots;
       const cancel = vi.spyOn(audioSwellsModule, 'cancelSwellForRobotAttribute');
-      retransmitWorld({ aspects: { distance: ['far'] } });
+      retransmitWorld({ aspects: { distance: ['echoing'] } });
       const robots = currentWorld().locale.robots;
       const SENDS = ['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const;
       const changed = robots.flatMap((robot, i) => SENDS.filter((f) => robot[f] !== before[i][f]).map((f) => `${robot.id}:${f}`));
@@ -1378,12 +1378,12 @@ describe('worldTransition', () => {
       const killAll = vi.spyOn(AudioEngine, 'killAll');
       const stopWork = vi.spyOn(workLoopModule, 'stopWorkLoop');
       const stopLifecycle = vi.spyOn(robotSystemsModule, 'stopRobotLifecycle');
-      retransmitWorld({ aspects: { distance: ['far'] } });
+      retransmitWorld({ aspects: { distance: ['echoing'] } });
       expect(killAll).not.toHaveBeenCalled();
       expect(stopWork).not.toHaveBeenCalled();
       expect(stopLifecycle).not.toHaveBeenCalled();
       expect(getWorldState()).toBe('paused');
-      for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toEqual({ distance: 'far' });
+      for (const robot of currentWorld().locale.robots) expect(robot.loadedUnder).toEqual({ distance: 'echoing' });
     });
 
     it('no change is a no-op: the loaded theme again, an empty pick list, or both, touch nothing', () => {

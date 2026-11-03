@@ -111,7 +111,7 @@ const everyRobotBandMoved = vi.hoisted(() => ({
   'robot.accents': { min: 0, max: 5 },
 }) satisfies Partial<BandTable>);
 
-// band-table T22: the sends read the band table too. Under Adventurous no robot carries a reverb (lit 0), every robot a
+// band-table T22: the sends read the band table too. Under Tide (injected) no robot carries a reverb (lit 0), every robot a
 // delay of exactly 0.3 (a point band, lit 1) and every Grit roll lands at 0.5 (so Shimmer and Double never do); Bold
 // gives the Reverb row a lit share of 0.5, to prove the roll against 1 - lit on a row Classic never rolls.
 const everySendMoved = vi.hoisted(() => ({
@@ -3874,29 +3874,30 @@ describe('spawnSystem', () => {
       expect(undealt.some((b) => b.audioAttributes.adsr.attack > 0.04)).toBe(true);
     });
 
-    it('a robot dealt Remote has the sends deriveSendFields draws at its index under Remote; its adsr and every other field are untouched', () => {
-      const { undealt, dealt } = deal({ distance: ['remote'] });
-      const bands = resolveBands('classic', { distance: 'remote' });
+    it('a robot dealt Echoing has the sends deriveSendFields draws at its index under Echoing; its adsr and every other field are untouched', () => {
+      const { undealt, dealt } = deal({ distance: ['echoing'] });
+      const bands = resolveBands('classic', { distance: 'echoing' });
       dealt.forEach((baseline, i) => {
-        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'remote' });
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'echoing' });
         expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, bands));
-        expect(baseline.reverbSend, `robot ${i}`).toBeGreaterThanOrEqual(0.65);
-        expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.35);
+        // Echoing's sheet: every probe deep in the delay, only lightly in the reverb.
+        expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.4);
+        expect(baseline.reverbSend, `robot ${i}`).toBeLessThanOrEqual(0.15);
         // The three effect room sends are the theme's: re-derived, they come out as they were.
         const { gritSend, shimmerSend, doubleSend } = undealt[i];
         expect({ gritSend: baseline.gritSend, shimmerSend: baseline.shimmerSend, doubleSend: baseline.doubleSend }).toEqual({ gritSend, shimmerSend, doubleSend });
         expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(undealt[i].audioAttributes.adsr);
         expect(restOf(baseline), `robot ${i}`).toEqual(restOf(undealt[i]));
       });
-      expect(undealt.some((b) => b.reverbSend < 0.65)).toBe(true);
+      expect(undealt.some((b) => b.delaySend < 0.4)).toBe(true);
     });
 
-    it('the deal reads every band from its own theme, never the installed context: Remote under Adventurous carries Adventurous\'s grit while Classic is loaded', () => {
+    it('the deal reads every band from its own theme, never the installed context: Half-heard under Tide (injected) carries Tide\'s grit while Classic is loaded', () => {
       expect(useLoadingStore.getState().theme).toBe('classic');
-      const { dealt } = deal({ distance: ['remote'] }, 'tide');
+      const { dealt } = deal({ distance: ['halfHeard'] }, 'tide');
       dealt.forEach((baseline, i) => {
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('tide', { distance: 'remote' })));
-        // This file's Adventurous seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('tide', { distance: 'halfHeard' })));
+        // This file's Tide (injected) seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
         expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
       });
     });
@@ -3912,7 +3913,7 @@ describe('spawnSystem', () => {
         expect(baseline.rhythmicDensity).toBe(expected.rhythmicDensity);
         expect(baseline.noteVariance).toEqual(expected.noteVariance);
       });
-      const { dealt: two } = deal({ envelope: ['swelling'], distance: ['far'] });
+      const { dealt: two } = deal({ envelope: ['swelling'], distance: ['echoing'] });
       for (const baseline of two) expect(Object.keys(baseline.loadedUnder ?? {}).sort()).toEqual(['distance', 'envelope']);
     });
 
@@ -3972,7 +3973,7 @@ describe('spawnSystem', () => {
     });
 
     it('applyAspectDeal, live: a Distance deal writes each robot\'s sends and hands all five to the engine, once a robot, and agrees with the baseline', () => {
-      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['echoing'] } });
       const localeId = 'revisions-t8-live-distance';
       freshLocale(localeId, { x: 7, y: 11 });
       spawnInitialRoster(localeId);
@@ -3986,7 +3987,7 @@ describe('spawnSystem', () => {
       expect(sends).toHaveBeenCalledTimes(robots.length);
       for (const robot of robots) {
         expect(sends).toHaveBeenCalledWith(robot.id, robotSendLevels(robot));
-        expect(robot.reverbSend).toBeGreaterThanOrEqual(0.65);
+        expect(robot.delaySend).toBeGreaterThanOrEqual(0.4);
       }
       expect(envelope).not.toHaveBeenCalled();
       const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
@@ -4185,7 +4186,7 @@ describe('spawnSystem', () => {
     it('applyAspectDeal, live: a push that throws for one robot leaves every robot dealt and every other push made, each after its write', () => {
       useLoadingStore.getState().setLoading({
         theme: 'classic',
-        aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['far'], voice: ['woody'] },
+        aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['echoing'], voice: ['woody'] },
       });
       const localeId = 'review-r14-throwing-push';
       freshLocale(localeId, { x: 7, y: 11 });
@@ -4207,7 +4208,7 @@ describe('spawnSystem', () => {
         if (id === victim) throw new Error('the engine refused this envelope');
       });
       const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation((id, levels) => {
-        note(id, 'distance', stored(id).loadedUnder?.distance === 'far' && JSON.stringify(robotSendLevels(stored(id))) === JSON.stringify(levels));
+        note(id, 'distance', stored(id).loadedUnder?.distance === 'echoing' && JSON.stringify(robotSendLevels(stored(id))) === JSON.stringify(levels));
       });
       const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation((id) => {
         note(id, 'voice', stored(id).loadedUnder?.voice === 'woody');
@@ -4220,7 +4221,7 @@ describe('spawnSystem', () => {
       const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       expect(robots).toHaveLength(ids.length);
       for (const robot of robots) {
-        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'plucked', distance: 'far', voice: 'woody' });
+        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'plucked', distance: 'echoing', voice: 'woody' });
         // Each family once, in family order, after the write: the victim's two families after the throw included.
         expect(pushes.get(robot.id), robot.id).toEqual(['melody', 'envelope', 'distance', 'voice']);
       }
@@ -4305,7 +4306,7 @@ describe('spawnSystem', () => {
     const idsCalled = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((call) => call[0] as string).sort();
     // Envelope narrows to one of its two picks, Distance is picked, Voice is emptied; Melody stays as it was.
     const FROM: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['plucked', 'held'], voice: ['glassy'] };
-    const TO: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['held'], distance: ['remote'] };
+    const TO: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['held'], distance: ['halfHeard'] };
 
     afterEach(async () => {
       useLoadingStore.getState().setLoading(DEFAULT_LOADING);
@@ -4326,7 +4327,7 @@ describe('spawnSystem', () => {
 
       expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
       for (const robot of robotsOf(live)) {
-        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'remote' });
+        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'halfHeard' });
       }
     });
 
@@ -4428,7 +4429,7 @@ describe('spawnSystem', () => {
     });
 
     it('emptying every family leaves a plain spawn: no loadedUnder, every field the theme\'s own draw', () => {
-      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], distance: ['far'], voice: ['hollow'] });
+      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], distance: ['echoing'], voice: ['hollow'] });
       const plain = robotsOf(buildWorld({}));
       redeal(live, {});
       expect(comparable(robotsOf(live))).toEqual(comparable(plain));

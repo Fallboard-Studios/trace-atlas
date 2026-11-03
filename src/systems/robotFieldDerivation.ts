@@ -74,7 +74,9 @@ function seedCurve(noiseMap: NoiseFunction2D, dataId: string, offset: number, sh
  * derived from the resulting `value > 0`, never drawn independently. The deal pass (Task 27) hands an aspect's band in.
  */
 export function seedToggleValue(raw: number, band: ToggleBand): ToggleValue {
-  if (raw < band.offShare) return { active: false, value: 0 };
+  // An off share of 1 is a column's "always off" (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9): the top of the draw
+  // lands off too, where the on span below would be 0 / 0.
+  if (raw < band.offShare || band.offShare >= 1) return { active: false, value: 0 };
   const fraction = (raw - band.offShare) / (1 - band.offShare); // 0..1 across the "on" span
   const span = band.max - band.min + 1; // the whole numbers min..max
   const value = band.min + Math.min(span - 1, Math.floor(fraction * span));

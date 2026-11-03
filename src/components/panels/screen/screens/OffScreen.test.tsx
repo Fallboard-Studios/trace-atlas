@@ -542,6 +542,9 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     hypnotic: human('home.off.melody.hypnotic'),
     mechanical: human('home.off.melody.mechanical'),
     wandering: human('home.off.melody.wandering'),
+    chanting: human('home.off.melody.chanting'),
+    tumbling: human('home.off.melody.tumbling'),
+    telegraph: human('home.off.melody.telegraph'),
   } as const;
   const melodyDescription = () => document.querySelector('.off-screen__description--melody');
   // An aspect's sentence, or the family's own for a row with nothing on (revisions Task 6: no as-theme member).
@@ -559,9 +562,9 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): no "As theme" option — the theme's own version may be
   // heard anyway, so an empty row is every robot as theme.
-  it('lists the three options in canonical order under the Melody label, no As theme, nothing pressed for a plain world', () => {
+  it('lists the six options in canonical order under the Melody label, no As theme, nothing pressed for a plain world', () => {
     render(<OffScreen />);
-    expect(melodyNames()).toEqual([NAME.hypnotic, NAME.mechanical, NAME.wandering]);
+    expect(melodyNames()).toEqual([NAME.hypnotic, NAME.mechanical, NAME.wandering, NAME.chanting, NAME.tumbling, NAME.telegraph]);
     for (const name of melodyNames()) expect(pressed(name!)).toBe('false');
     expect(within(melodyRow()).queryAllByRole('radio')).toHaveLength(0);
   });
@@ -572,7 +575,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     const root = melodyRow().closest('.sc-radio-button')!;
     expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
     expect(root.classList.contains('sc-radio-button--multiple')).toBe(true);
-    expect(root.querySelectorAll('.sc-cabinet-box')).toHaveLength(3);
+    expect(root.querySelectorAll('.sc-cabinet-box')).toHaveLength(6); // T9: six Melody options
     const column = container.querySelectorAll('.off-screen__axis')[1] as HTMLElement;
     expect(column.contains(melodyRow())).toBe(true);
     expect(within(column).getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual([
@@ -769,11 +772,11 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
   });
 
   it('toggling Plucked sends the whole loading: Envelope with Plucked, Melody and Distance carried as they were', () => {
-    load({ melody: ['hypnotic'], distance: ['remote'] });
+    load({ melody: ['hypnotic'], distance: ['halfHeard'] });
     render(<OffScreen />);
     fireEvent.click(option('envelope', name('envelope', 'plucked')));
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['remote'] } });
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['halfHeard'] } });
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
@@ -782,12 +785,12 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     retransmitSetsStore();
     load({ melody: ['wandering'] });
     render(<OffScreen />);
-    fireEvent.click(option('distance', name('distance', 'remote')));
+    fireEvent.click(option('distance', name('distance', 'halfHeard')));
     fireEvent.click(option('distance', name('distance', 'near')));
-    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: ['near', 'remote'] } });
-    expect(pressedIn('distance')).toEqual([name('distance', 'near'), name('distance', 'remote')]);
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: ['near', 'halfHeard'] } });
+    expect(pressedIn('distance')).toEqual([name('distance', 'near'), name('distance', 'halfHeard')]);
     fireEvent.click(option('distance', name('distance', 'near')));
-    fireEvent.click(option('distance', name('distance', 'remote')));
+    fireEvent.click(option('distance', name('distance', 'halfHeard')));
     expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: [] } });
     expect(pressedIn('melody')).toEqual([human('home.off.melody.wandering')]);
   });
@@ -806,20 +809,20 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     expect((screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('a save with Distance remote selects Remote, and the readout tail joins the families in family order', () => {
+  it('a save with Distance halfHeard selects Half-heard, and the readout tail joins the families in family order', () => {
     const save: SessionPayload = {
       ...savedPayload('dusk'),
-      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] },
+      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'] },
     };
     saveNamedSession('Dusk Run', save);
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    expect(pressedIn('distance')).toEqual([name('distance', 'remote')]);
+    expect(pressedIn('distance')).toEqual([name('distance', 'halfHeard')]);
     expect(pressedIn('envelope')).toEqual([name('envelope', 'plucked'), name('envelope', 'held')]);
     expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
     expect(
       readout().textContent!.endsWith(
-        ` · ${human('home.off.melody.hypnotic')} · ${name('envelope', 'plucked')} + ${name('envelope', 'held')} · ${name('distance', 'remote')}`,
+        ` · ${human('home.off.melody.hypnotic')} · ${name('envelope', 'plucked')} + ${name('envelope', 'held')} · ${name('distance', 'halfHeard')}`,
       ),
     ).toBe(true);
   });
@@ -834,8 +837,8 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     fireEvent.click(option('envelope', name('envelope', 'plucked')));
     expect(description('envelope')).toBe(sentence('envelope', 'plucked')); // the last toggled on, not the last in order
     expect(description('distance')).toBe(sentence('distance', 'none'));
-    fireEvent.click(option('distance', name('distance', 'far')));
-    expect(description('distance')).toBe(sentence('distance', 'far'));
+    fireEvent.click(option('distance', name('distance', 'echoing')));
+    expect(description('distance')).toBe(sentence('distance', 'echoing'));
     expect(description('envelope')).toBe(sentence('envelope', 'plucked')); // one family's toggle leaves another's line
     fireEvent.click(row('Dusk Run'));
     expect(description('envelope')).toBe(sentence('envelope', 'swelling')); // the save's set, the last in canonical order
@@ -843,15 +846,15 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
   });
 
   it('toggling Woody sends the Voice set with every other family carried (revisions Task 10)', () => {
-    load({ envelope: ['held'], distance: ['far'] });
+    load({ envelope: ['held'], distance: ['echoing'] });
     render(<OffScreen />);
     fireEvent.click(option('voice', name('voice', 'woody')));
-    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { envelope: ['held'], distance: ['far'], voice: ['woody'] } });
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { envelope: ['held'], distance: ['echoing'], voice: ['woody'] } });
   });
 
   it('Scan clears every family: its world has no aspects', () => {
     retransmitSetsStore();
-    load({ envelope: ['held'], distance: ['near', 'far'] });
+    load({ envelope: ['held'], distance: ['near', 'echoing'] });
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('button', { name: human('home.off.scan') }));
     expect(retransmitWorld).toHaveBeenCalledTimes(1);

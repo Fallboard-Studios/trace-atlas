@@ -34,7 +34,7 @@ import {
   type ToggleBand,
 } from './bandKeys';
 import { THEME_IDS, THEMES, isThemeId, themeLights, type ThemeColumn, type ThemeId } from './themes';
-import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectId, type AspectIdOf } from './aspects';
+import { ASPECT_FAMILIES, ASPECT_FAMILY_IDS, ASPECT_IDS_BY_FAMILY, type AspectFamilyId, type AspectId, type AspectIdOf } from './aspects';
 import type { RobotAspects } from './dealAspects';
 import type { LoadingIdentity } from './loadingIdentity';
 import type { Robot } from '../../types/Robot';
@@ -380,11 +380,13 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
   // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b (the cut's default order).
   it('names six families in order - melody, envelope, distance, voice, motion, performance - each with its options in canonical order and its key set', () => {
     expect(ASPECT_FAMILY_IDS).toEqual(['melody', 'envelope', 'distance', 'voice', 'motion', 'performance']);
+    // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9: the cut's twenty-seven, current options first, then the candidates
+    // kept, in the sheets' order; Far and Remote are cut.
     expect(ASPECT_IDS_BY_FAMILY).toEqual({
-      melody: ['hypnotic', 'mechanical', 'wandering'],
-      envelope: ['plucked', 'swelling', 'held'],
-      distance: ['near', 'far', 'remote'],
-      voice: ['glassy', 'woody', 'hollow'],
+      melody: ['hypnotic', 'mechanical', 'wandering', 'chanting', 'tumbling', 'telegraph'],
+      envelope: ['plucked', 'swelling', 'held', 'bowed', 'hammered', 'breathing'],
+      distance: ['near', 'echoing', 'halfHeard'],
+      voice: ['glassy', 'woody', 'hollow', 'brassy', 'muted', 'chiming'],
       motion: ['gliding', 'trembling', 'sweeping'],
       performance: ['steady', 'dramatic', 'halting'],
     });
@@ -885,16 +887,73 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(new Set(columns).size).toBe(SURVIVORS.length);
   });
 
-  it.each(['hypnotic', 'mechanical', 'wandering'] as const)(
-    'Melody %s differs from Classic on a non-empty subset of the four Melody keys and nowhere else',
-    (option) => {
-      const column = melodyColumn(option);
-      const moved = movedKeys(overlayBands(CLASSIC, column));
-      expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.melody.keys as readonly string[]).toContain(key);
-      expect([...moved].sort()).toEqual(Object.keys(column).sort());
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9: each option's "Keys owned", typed in from the sheets file (not read
+  // from the column under test). An option band equal to Classic's is allowed - it still overrides a theme that moves
+  // the key - but an option must differ from the theme-less table somewhere.
+  const D = 'robot.rhythmicDensity';
+  const V = 'robot.noteVariance';
+  const M = 'robot.rhythmicMotifLength';
+  const P = 'robot.pitchRepeat';
+  const ENVELOPE_ALL = ['robot.attack', 'robot.decay', 'robot.sustain', 'robot.release', 'robot.shapedAttack', 'robot.shapedRelease'];
+  const SENDS = ['reverbSend', 'delaySend'];
+  const VOICE_FOUR = ['robot.waveform', 'robot.filterFreq', 'robot.layerGain', 'robot.accentFilterFreq'];
+  const MOTION_ALL = ['robot.portamento', 'robot.lfoDetuneDepth', 'robot.lfoGainDepth', 'robot.lfoBusDepth'];
+  const PERFORMANCE_ALL = ['robot.dynamics', 'robot.accents', 'robot.rests'];
+  const OPTION_SHEET_KEYS: { [F in AspectFamilyId]: Record<AspectIdOf<F>, readonly string[]> } = {
+    melody: {
+      hypnotic: [D, V, P],
+      mechanical: [D, M, V, P],
+      wandering: [D, V, M, P],
+      chanting: [M, V, P, D],
+      tumbling: [D, V, M, P],
+      telegraph: [D, M, V, P],
     },
+    envelope: {
+      plucked: ENVELOPE_ALL,
+      swelling: ['robot.attack', 'robot.shapedAttack', 'robot.sustain'],
+      held: ['robot.attack', 'robot.sustain', 'robot.release', 'robot.shapedRelease'],
+      bowed: ['robot.attack', 'robot.sustain', 'robot.release', 'robot.shapedAttack', 'robot.shapedRelease'],
+      hammered: ['robot.attack', 'robot.sustain', 'robot.release', 'robot.shapedAttack', 'robot.shapedRelease'],
+      breathing: ENVELOPE_ALL,
+    },
+    distance: { near: SENDS, echoing: SENDS, halfHeard: SENDS },
+    voice: {
+      glassy: VOICE_FOUR,
+      woody: ['robot.waveform', 'robot.filterFreq', 'robot.layerGain'],
+      hollow: ['robot.waveform', 'robot.filterFreq', 'robot.accentFilterFreq', 'robot.accentFilterQ'],
+      brassy: VOICE_FOUR,
+      muted: VOICE_FOUR,
+      chiming: VOICE_FOUR,
+    },
+    motion: { gliding: MOTION_ALL, trembling: MOTION_ALL, sweeping: MOTION_ALL },
+    performance: { steady: PERFORMANCE_ALL, dramatic: PERFORMANCE_ALL, halting: PERFORMANCE_ALL },
+  };
+  const OPTIONS = ASPECT_FAMILY_IDS.flatMap((family) =>
+    (Object.keys(OPTION_SHEET_KEYS[family]) as AspectId[]).map((option) => [family, option] as const),
   );
+  const optionColumn = (family: AspectFamilyId, option: AspectId): Partial<BandTable> =>
+    (realAspects.ASPECT_FAMILIES[family].options as Record<string, Partial<BandTable>>)[option];
+
+  it('the option literal covers every family\'s options in its row order', () => {
+    for (const family of ASPECT_FAMILY_IDS) {
+      expect(Object.keys(OPTION_SHEET_KEYS[family]), family).toEqual([...realAspects.ASPECT_IDS_BY_FAMILY[family]]);
+    }
+    expect(OPTIONS).toHaveLength(27);
+  });
+
+  it.each(OPTIONS)('%s %s names exactly the keys its sheet owns, each of its kind and inside its field, and differs from Classic somewhere', (family, option) => {
+    const column = optionColumn(family, option);
+    expect(Object.keys(column).sort()).toEqual([...(OPTION_SHEET_KEYS[family] as Record<string, readonly string[]>)[option]].sort());
+    for (const [key, band] of Object.entries(column)) expect(bandProblems(key as BandKey, band), key).toEqual([]);
+    expect(movedKeys(overlayBands(CLASSIC, column)).length).toBeGreaterThan(0);
+  });
+
+  it.each(ASPECT_FAMILY_IDS)('%s: no two options are equal column for column, and the key set is the union its sheets own', (family) => {
+    const options = Object.values(realAspects.ASPECT_FAMILIES[family].options).map((column) => JSON.stringify(column));
+    expect(new Set(options).size).toBe(options.length);
+    const union = new Set(Object.values(OPTION_SHEET_KEYS[family] as Record<string, readonly string[]>).flat());
+    expect([...realAspects.ASPECT_FAMILIES[family].keys].sort()).toEqual([...union].sort());
+  });
 
   it('Hypnotic is low variance: its noteVariance toggle is always on, with a value band inside 1-2', () => {
     const band = melodyColumn('hypnotic')['robot.noteVariance']!;
@@ -918,30 +977,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(wandering['robot.rhythmicMotifLength']!.offShare).toBeGreaterThanOrEqual(0.5);
   });
 
-  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7: the two new families' placeholder columns, until the listen (Task 11). Each
-  // option moves only its family's keys, and the intent checks fail a wrong-way edit.
-  it.each(['plucked', 'swelling', 'held'] as const)(
-    'Envelope %s differs from Classic on a non-empty subset of the six Envelope keys and nowhere else',
-    (option) => {
-      const column = envelopeColumn(option);
-      const moved = movedKeys(overlayBands(CLASSIC, column));
-      expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.envelope.keys as readonly string[]).toContain(key);
-      expect([...moved].sort()).toEqual(Object.keys(column).sort());
-    },
-  );
-
-  it.each(['near', 'far', 'remote'] as const)(
-    'Distance %s differs from Classic on a non-empty subset of the two Distance keys and nowhere else',
-    (option) => {
-      const column = distanceColumn(option);
-      const moved = movedKeys(overlayBands(CLASSIC, column));
-      expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.distance.keys as readonly string[]).toContain(key);
-      expect([...moved].sort()).toEqual(Object.keys(column).sort());
-    },
-  );
-
+  // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7's intent checks, which fail a wrong-way edit.
   it('Plucked is a pluck: a near-instant attack (shaped or not) and a low sustain', () => {
     const plucked = envelopeColumn('plucked');
     expect(plucked['robot.attack']!.max).toBeLessThanOrEqual(0.05);
@@ -972,33 +1008,27 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(near.delaySend!.lit).toBeLessThan(0.5);
   });
 
-  it('Far is deep in the reverb with little delay', () => {
-    const far = distanceColumn('far');
-    expect(far.reverbSend!.min).toBeGreaterThanOrEqual(0.4);
-    expect(far.reverbSend!.lit).toBe(1);
-    expect(far.delaySend!.max).toBeLessThanOrEqual(0.15);
+  // T9: Far and Remote are cut (rungs); Echoing and Half-heard are two kinds of distance.
+  it('Echoing is deep in the delay on every probe and only lightly in the reverb', () => {
+    const echoing = distanceColumn('echoing');
+    expect(echoing.delaySend!.lit).toBe(1);
+    expect(echoing.delaySend!.min).toBeGreaterThanOrEqual(0.3);
+    expect(echoing.reverbSend!.max).toBeLessThanOrEqual(0.2);
   });
 
-  it('Remote is deep in both rooms: reverb from 0.6 up, and a deep delay', () => {
-    const remote = distanceColumn('remote');
-    expect(remote.reverbSend!.min).toBeGreaterThanOrEqual(0.6);
-    expect(remote.reverbSend!.lit).toBe(1);
-    expect(remote.delaySend!.min).toBeGreaterThanOrEqual(0.3);
-    expect(remote.delaySend!.lit).toBe(1);
+  it('Half-heard puts about half the fleet far off in the reverb and an echo on about half', () => {
+    const half = distanceColumn('halfHeard');
+    expect(half.reverbSend!.lit).toBeGreaterThanOrEqual(0.4);
+    expect(half.reverbSend!.lit).toBeLessThanOrEqual(0.6);
+    expect(half.reverbSend!.min).toBeGreaterThanOrEqual(0.5);
+    expect(half.delaySend!.lit).toBeGreaterThanOrEqual(0.4);
+    expect(half.delaySend!.lit).toBeLessThanOrEqual(0.6);
   });
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 10: the Voice family, its waveform through the fourth band kind (PickBand).
-  it.each(['glassy', 'woody', 'hollow'] as const)(
-    'Voice %s differs from Classic on a non-empty subset of the five Voice keys and nowhere else, its waveform pick moved',
-    (option) => {
-      const column = voiceColumn(option);
-      const moved = movedKeys(overlayBands(CLASSIC, column));
-      expect(moved.length).toBeGreaterThan(0);
-      for (const key of moved) expect(realAspects.ASPECT_FAMILIES.voice.keys as readonly string[]).toContain(key);
-      expect([...moved].sort()).toEqual(Object.keys(column).sort());
-      expect(moved).toContain('robot.waveform');
-    },
-  );
+  it.each(['glassy', 'woody', 'hollow', 'brassy', 'muted', 'chiming'] as const)('Voice %s moves its waveform pick', (option) => {
+    expect(movedKeys(overlayBands(CLASSIC, voiceColumn(option)))).toContain('robot.waveform');
+  });
 
   it('Glassy leans sine and triangle (at least 0.7 of the weight), with the cutoff opened above Classic\'s floor', () => {
     const glassy = voiceColumn('glassy');
@@ -1022,12 +1052,9 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
   it('every placeholder band, theme and aspect alike, is of its key\'s kind and inside what its field can hold', () => {
     const columns: Partial<BandTable>[] = [
       ...Object.values(realThemes.THEMES),
-      ...Object.values(realAspects.ASPECT_FAMILIES.melody.options),
-      ...Object.values(realAspects.ASPECT_FAMILIES.envelope.options),
-      ...Object.values(realAspects.ASPECT_FAMILIES.distance.options),
-      ...Object.values(realAspects.ASPECT_FAMILIES.voice.options),
+      ...ASPECT_FAMILY_IDS.flatMap((family) => Object.values(realAspects.ASPECT_FAMILIES[family].options) as Partial<BandTable>[]),
     ];
-    expect(columns.length).toBe(26);
+    expect(columns.length).toBe(41);
     for (const column of columns) {
       for (const [key, band] of Object.entries(column)) expect(bandProblems(key as BandKey, band), key).toEqual([]);
     }
@@ -1126,9 +1153,9 @@ function bandProblems(key: BandKey, band: object): string[] {
   // Classic's own shares stay in (0, 1] (the parity block above).
   if ('lit' in band && !((band as SendBand).lit >= 0 && (band as SendBand).lit <= 1)) problems.push('lit: not in [0, 1]');
   if ('offShare' in band) {
-    // A toggle always on (offShare 0) is a legitimate aspect; one never on is not.
+    // A toggle always on (offShare 0) or always off (offShare 1: T9's Tumbling, "never tiles a figure") is a legitimate aspect.
     const { offShare } = band as ToggleBand;
-    if (!(offShare >= 0 && offShare < 1)) problems.push('offShare: not in [0, 1)');
+    if (!(offShare >= 0 && offShare <= 1)) problems.push('offShare: not in [0, 1]');
     if (!Number.isInteger(min) || !Number.isInteger(max)) problems.push('toggle: a fractional value');
   }
   return problems;
@@ -1170,11 +1197,11 @@ describe('the kind-and-bounds check itself (docs/tasks/THEME_AND_ASPECTS_REFINEM
     expect(bandProblems('robot.portamento', { min: PORTAMENTO_MIN, max: PORTAMENTO_MAX, lit: 1 })).toEqual([]);
   });
 
-  it('fails min above max, a lit share below 0 or past 1, an off share of 1, and a fractional toggle', () => {
+  it('fails min above max, a lit share below 0 or past 1, an off share past 1, and a fractional toggle', () => {
     expect(bandProblems('reverb.decay', { min: 3, max: 2 })).not.toEqual([]);
     expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: -0.1 })).not.toEqual([]);
     expect(bandProblems('reverbSend', { min: 0, max: 0.5, lit: 1.1 })).not.toEqual([]);
-    expect(bandProblems('robot.noteVariance', { offShare: 1, min: 1, max: 8 })).not.toEqual([]);
+    expect(bandProblems('robot.noteVariance', { offShare: 1.1, min: 1, max: 8 })).not.toEqual([]);
     expect(bandProblems('robot.noteVariance', { offShare: 0.2, min: 1.5, max: 8 })).not.toEqual([]);
   });
 
@@ -1215,7 +1242,7 @@ describe('a pick is typed by its own family (review R15)', () => {
     const rightLists: LoadingIdentity['aspects'] = {
       melody: ['hypnotic', 'wandering'],
       envelope: ['plucked'],
-      distance: ['far', 'remote'],
+      distance: ['echoing', 'halfHeard'],
       voice: ['glassy'],
     };
     const rightLoadedUnder: Robot['loadedUnder'] = { voice: 'hollow' };

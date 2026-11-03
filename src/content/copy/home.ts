@@ -78,6 +78,11 @@ export const home = {
   'home.off.melody.hypnotic': { human: 'Hypnotic' },
   'home.off.melody.mechanical': { human: 'Mechanical' },
   'home.off.melody.wandering': { human: 'Wandering' },
+  // The options new at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9, named as the sheets name them; each sentence below
+  // is its sheet's Promise line, a STAND-IN until T12 writes the words.
+  'home.off.melody.chanting': { human: 'Chanting' },
+  'home.off.melody.tumbling': { human: 'Tumbling' },
+  'home.off.melody.telegraph': { human: 'Telegraph' },
   // One sentence per theme (assumption 17; spec §1.6, the Guide's part): the muted line under the theme row (Task 30),
   // and the entry the Guide's Themes page will read. STAND-INS until docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T12
   // writes the words: each is its sheet's Promise line (docs/reference/THEME_AND_ASPECT_SHEETS.md), T8.
@@ -104,36 +109,53 @@ export const home = {
   'home.off.melodyDescription.hypnotic': { human: 'Hypnotic probes circle a note or two at a steady, middling pace.' },
   'home.off.melodyDescription.mechanical': { human: 'Mechanical probes drive one long, fixed motif at high density.' },
   'home.off.melodyDescription.wandering': { human: 'Wandering probes roam wide and sparse, rarely repeating a phrase.' },
+  'home.off.melodyDescription.chanting': { human: 'Chanting probes chant a short figure over and over.' },
+  'home.off.melodyDescription.tumbling': { human: 'Tumbling probes run fast, wide and loose: a cascade.' },
+  'home.off.melodyDescription.telegraph': { human: 'Telegraph probes send a rare, clipped signal.' },
   // The Envelope and Distance families (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7; Crawford's note 3, the wireframe's
-  // Space renamed Distance in his answer 6): each family's label, its three names (Near / Far / Remote are Claude's words
-  // for his "distance", one line each to rename), and one sentence per option plus one for a row with nothing on.
+  // Space renamed Distance in his answer 6): each family's label, its option names, and one sentence per option plus one
+  // for a row with nothing on.
   // STAND-INS for Crawford's pass. Distance is how far off a probe sounds, never a room: a room's size is the theme's.
   'home.off.envelope': { human: 'Envelope' },
   'home.off.envelope.plucked': { human: 'Plucked' },
   'home.off.envelope.swelling': { human: 'Swelling' },
   'home.off.envelope.held': { human: 'Held' },
+  'home.off.envelope.bowed': { human: 'Bowed' },
+  'home.off.envelope.hammered': { human: 'Hammered' },
+  'home.off.envelope.breathing': { human: 'Breathing' },
   'home.off.envelopeDescription.none': { human: 'Every probe shapes its notes as the theme does.' },
   'home.off.envelopeDescription.plucked': { human: 'Plucked probes strike at once and die away, with hardly a sustain.' },
   'home.off.envelopeDescription.swelling': { human: 'Swelling probes rise slowly into each note and hold it high.' },
   'home.off.envelopeDescription.held': { human: 'Held probes sound in full and let each note ring on long after.' },
+  'home.off.envelopeDescription.bowed': { human: 'Bowed probes draw each note in slowly and out slowly, like a bow.' },
+  'home.off.envelopeDescription.hammered': { human: 'Hammered probes switch each note on and off: a hard start, a dead stop.' },
+  'home.off.envelopeDescription.breathing': { human: 'Breathing probes sigh: each note comes in, gives way, and lingers.' },
+  // Far and Remote were cut at the cut (rungs, docs/reference/THEME_AND_ASPECT_SHEETS.md); Echoing and Half-heard joined
+  // at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9, their sentences the sheets' Promise lines.
   'home.off.distance': { human: 'Distance' },
   'home.off.distance.near': { human: 'Near' },
-  'home.off.distance.far': { human: 'Far' },
-  'home.off.distance.remote': { human: 'Remote' },
+  'home.off.distance.echoing': { human: 'Echoing' },
+  'home.off.distance.halfHeard': { human: 'Half-heard' },
   'home.off.distanceDescription.none': { human: 'Every probe sounds as far off as the theme sets it.' },
   'home.off.distanceDescription.near': { human: 'Near probes sound close and dry, right at the receiver.' },
-  'home.off.distanceDescription.far': { human: 'Far probes sound well off, deep in the wash, with little echo.' },
-  'home.off.distanceDescription.remote': { human: 'Remote probes sound at the edge of range, washed out and echoing.' },
+  'home.off.distanceDescription.echoing': { human: 'Echoing probes repeat rather than wash: a call, and the call again.' },
+  'home.off.distanceDescription.halfHeard': { human: 'Half-heard probes sit near and far at once: half close, half far off.' },
   // The Voice family (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10; the wireframe's names): its label, three names and four
   // sentences, as Envelope's and Distance's. STAND-INS for Crawford's pass.
   'home.off.voice': { human: 'Voice' },
   'home.off.voice.glassy': { human: 'Glassy' },
   'home.off.voice.woody': { human: 'Woody' },
   'home.off.voice.hollow': { human: 'Hollow' },
+  'home.off.voice.brassy': { human: 'Brassy' },
+  'home.off.voice.muted': { human: 'Muted' },
+  'home.off.voice.chiming': { human: 'Chiming' },
   'home.off.voiceDescription.none': { human: 'Every probe speaks in the voice the theme gives it.' },
   'home.off.voiceDescription.glassy': { human: 'Glassy probes ring clear and pure, round tones under an open filter.' },
   'home.off.voiceDescription.woody': { human: 'Woody probes sound warm and soft-edged, their layers full and low.' },
   'home.off.voiceDescription.hollow': { human: 'Hollow probes sound reedy and resonant, as if through a tube.' },
+  'home.off.voiceDescription.brassy': { human: 'Brassy probes sound bright, edged and full.' },
+  'home.off.voiceDescription.muted': { human: 'Muted probes sound muffled, as if behind a wall.' },
+  'home.off.voiceDescription.chiming': { human: 'Chiming probes ring like bells, their partials loud above them.' },
   // The Motion and Performance families (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b; names and sentences from
   // docs/reference/THEME_AND_ASPECT_SHEETS.md's Promise lines). STAND-INS until T12 writes the words.
   'home.off.motion': { human: 'Motion' },

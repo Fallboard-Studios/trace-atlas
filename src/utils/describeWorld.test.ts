@@ -72,9 +72,9 @@ describe('describeWorld', () => {
     it('joins every family in family order, each its own segment', () => {
       const name = (key: Parameters<typeof labels>[0]) => labels(key).humanLabel;
       expect(
-        describeWorld({ ...plot, theme: 'anchor', aspects: { distance: ['remote'], melody: ['hypnotic'], envelope: ['plucked', 'held'] } }),
+        describeWorld({ ...plot, theme: 'anchor', aspects: { distance: ['halfHeard'], melody: ['hypnotic'], envelope: ['plucked', 'held'] } }),
       ).toBe(
-        `tr3nch-2 · (-30, -30) · Anchor · Hypnotic · ${name('home.off.envelope.plucked')} + ${name('home.off.envelope.held')} · ${name('home.off.distance.remote')}`,
+        `tr3nch-2 · (-30, -30) · Anchor · Hypnotic · ${name('home.off.envelope.plucked')} + ${name('home.off.envelope.held')} · ${name('home.off.distance.halfHeard')}`,
       );
     });
 
@@ -123,8 +123,8 @@ describe('describeWorld', () => {
   describe('describeLoading', () => {
     it('is the tail describeWorld carries, without the head: empty for Classic with no picks', () => {
       expect(describeLoading('classic', {})).toBe('');
-      expect(describeLoading('float', { melody: ['hypnotic', 'wandering'], distance: ['remote'] })).toBe(
-        `${labels('home.off.theme.float').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.wandering').humanLabel} · ${labels('home.off.distance.remote').humanLabel}`,
+      expect(describeLoading('float', { melody: ['hypnotic', 'wandering'], distance: ['halfHeard'] })).toBe(
+        `${labels('home.off.theme.float').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.wandering').humanLabel} · ${labels('home.off.distance.halfHeard').humanLabel}`,
       );
       expect(describeLoading('classic', { melody: ['hypnotic'] })).toBe(labels('home.off.melody.hypnotic').humanLabel);
     });

@@ -509,3 +509,18 @@ describe('derivePerformanceFields — the Performance family (themes-58 T7a)', (
     }
   });
 });
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9: an off share of 1 is a column's "always off" (Tumbling: "never tiles a
+// figure"), so every draw lands off - the top of the draw too, where (raw - 1) / (1 - 1) would be NaN.
+describe('seedToggleValue at the two ends of the off share (T9)', () => {
+  it('an off share of 1 lands every draw off, the top of the draw included', () => {
+    for (const raw of [0, 0.25, 0.5, 0.999, 1]) {
+      expect(seedToggleValue(raw, { offShare: 1, min: 1, max: 8 }), String(raw)).toEqual({ active: false, value: 0 });
+    }
+  });
+
+  it('an off share of 0 lands every draw on, inside the band, both ends of the draw included', () => {
+    expect(seedToggleValue(0, { offShare: 0, min: 6, max: 8 })).toEqual({ active: true, value: 6 });
+    expect(seedToggleValue(1, { offShare: 0, min: 6, max: 8 })).toEqual({ active: true, value: 8 });
+  });
+});

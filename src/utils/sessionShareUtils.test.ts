@@ -232,10 +232,10 @@ describe('mirrorWorldToUrl', () => {
     mirrorWorldToUrl({
       ...identity,
       theme: 'float',
-      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'], voice: ['woody'] },
     });
     expect(window.location.search).toBe(
-      '?seed=Pelagos+7%21&x=29&y=-14&theme=float&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody',
+      '?seed=Pelagos+7%21&x=29&y=-14&theme=float&melody=hypnotic&envelope=plucked,held&distance=halfHeard&voice=woody',
     );
   });
 
