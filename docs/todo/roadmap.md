@@ -506,7 +506,9 @@ placeholders, and propose additional options on each axis for him to choose from
 ([themes-and-aspects-refinement.md](../intent/themes-and-aspects-refinement.md)): a theme is a place, not a rung, and
 is both the world and every robot's guardrails when no aspect is picked; the listener is a first-time visitor; the
 whole set is open, Distance included, and a fifth family (Motion or Performance) may be proposed; a theme may move any
-key in the table; the choice is made on paper from character sheets before anything is built. Next: spec → plan. Backlog
+key in the table; the choice is made on paper from character sheets before anything is built. Spec
+[THEME_AND_ASPECTS_REFINEMENT.md](../specs/THEME_AND_ASPECTS_REFINEMENT.md), plan
+[THEME_AND_ASPECTS_REFINEMENT.md](../tasks/THEME_AND_ASPECTS_REFINEMENT.md). Next: the sheets (plan T1). Backlog
 [47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) was its step zero
 (merged 2026-11-02, PR #596): every audio draw is even, so a band is heard as written before anything is tuned. Plan.md
 Stage 1.
