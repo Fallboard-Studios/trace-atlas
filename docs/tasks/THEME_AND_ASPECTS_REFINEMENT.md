@@ -747,9 +747,13 @@ Trench low, Shatter high); their names are fixed at T6, and T6/T8's key-set test
 pedal's or a colour node's rows lights it in every world; a theme that names none leaves the coin.** So Shatter lights
 all three colour nodes, Wreck the drive and the crush, Tide the Vibrato, Vent Field the Auto-Wah, Squall the Tremolo; a
 theme that wants no drive owns `gritSend` at none (Float). T5/T8 must build the rule: a column naming any row of a pedal
-or node forces its lit roll, and the two-lit pedal cap counts a forced pedal. Still open: a global LFO link forced on the
-master filter (Tide), the fleet's size (Open Water), Humanize (Beacon, Performance); the family and option marks; open
-questions 1, 3, 5, 6; then T4's paper tests and survivor table.
+or node forces its lit roll, and the two-lit pedal cap counts a forced pedal. **Three more keys (Crawford, 2026-11-03,
+"make them keys"):** `lfoLink.lpf.frequency` (the master low-pass cutoff's tie to the global LFO bank, send-band shaped:
+a theme naming it forces the tie live; Tide), `fleetSize` (how many probes a fresh world holds; Open Water fewer; the
+roster is fixed today, so this key reaches the docking lifecycle and `docs/ROBOT_LIFECYCLE.md`, and T6 must size that
+cost before building it) and `humanize` (the per-world timing scatter; Beacon none; whether Performance's options own it
+waits for the family marks). Five new keys in all; nothing the sheets want is an ask-first any more. Still open: the
+family and option marks; open questions 1, 3, 5, 6; then T4's paper tests and survivor table.
 
 **Next:** the family and option marks, then the rest of T4.
 

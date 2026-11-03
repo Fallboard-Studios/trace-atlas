@@ -32,14 +32,18 @@ every candidate. The choice between them is made on this file, before any column
   three effect rooms (Grit, Shimmer, Double) light when a probe's send feeds them, and the sends are bands. A theme that
   wants no drive owns `gritSend` at none rather than the colour rows. A lit pedal counts toward the two-lit cap on the
   Tremolo and the Vibrato.
-- **Two new keys, agreed at the cut (Crawford, 2026-11-03), built at T6 and named there:** `robot.detune`, the fixed
-  offset in cents between a probe's layers (the Core, Companion and Accent sources each have a detune slider; the seed
-  draws one small value today outside the table), and `robot.octaveRegister`, a weighted pick over the register list a
-  probe's Octave Min and Max are dealt from, as the waveform pick weights the waveforms. Until T6 they are written on the
-  sheets as any other key, and the key check knows they are not in `classic.ts` yet.
-- **Not bands:** the fleet's size and Humanize (a seeded global setting): a sheet that needs one of these names it under
-  "Leaves alone" as an ask-first. Pitch drift is the docking lifecycle's and no theme's business (Crawford, 2026-11-03):
-  no sheet asks for it.
+- **Five new keys, agreed at the cut (Crawford, 2026-11-03), built at T6 and named there.** Two robot keys:
+  `robot.detune`, the fixed offset in cents between a probe's layers (the Core, Companion and Accent sources each have a
+  detune slider; the seed draws one small value today outside the table), and `robot.octaveRegister`, a weighted pick
+  over the register list a probe's Octave Min and Max are dealt from, as the waveform pick weights the waveforms. Three
+  world keys: `lfoLink.lpf.frequency`, the master low-pass cutoff's tie to the global LFO bank (a lit share and a depth,
+  shaped like a send band; a theme that names it forces the tie live, the coin decides under a theme that does not);
+  `fleetSize`, how many probes a fresh world holds (a fixed roster today, so this key reaches the docking lifecycle and
+  is the costliest of the five); and `humanize`, the small timing scatter on every note (seeded once per world today,
+  outside the table). Until T6 they are written on the sheets as any other key, and the key check knows they are not in
+  `classic.ts` yet.
+- **Not bands:** none remain. Every want the sheets raised is a key or dropped. Pitch drift is the docking lifecycle's
+  and no theme's business (Crawford, 2026-11-03): no sheet asks for it.
 
 ## The sheet
 
@@ -680,9 +684,9 @@ nearly half the fleet is on the resonant filter with a sharp peak, so many probe
 
 Ten places. Each is written as the world and the default probe, may own any key in the table (global rows included),
 and names its nearest neighbour among the current five and among the other candidates. A candidate that read as more or
-less of another was not written. Where the fleet's size or Humanize would suit the place, the sheet says so under "Leaves
-alone" as an ask-first and owns no key for it; a pedal or a colour node a sheet wants in every world is owned by its
-rows since the cut, and the register by the new register key. The three effect-room sends
+less of another was not written. A pedal or a colour node a sheet wants in every world is owned by its rows since the
+cut, and the register, the fleet's size, Humanize and the master filter's LFO tie by the new keys. The three effect-room
+sends
 are exclusive (a fresh probe carries at most one), so a sheet that raises one room's share notes that the measured
 sketch will show what share it reaches beside the other two.
 
@@ -909,8 +913,9 @@ its chain even when an aspect takes the glide.
 gently while a note lasts; notes arrive slowly, run into each other with no rests and release long, so the fleet is one
 moving surface. The voices are the saw and the triangle blended. The world itself is wet: most probes are sent to the
 Double room, whose chorus is set shallow, quick-ish and short-delayed, so it reads as water moving over the sound rather
-than as extra voices, a slow shallow vibrato rides the whole world so even a held note is never quite still, and the
-delay's feedback is moderate so each note ripples a few times behind itself, most probes sent into it.
+than as extra voices, a slow shallow vibrato rides the whole world so even a held note is never quite still, the master
+filter is tied to the world's slow oscillator so the whole world's brightness swells and dims like a surface over the
+fleet, and the delay's feedback is moderate so each note ripples a few times behind itself, most probes sent into it.
 
 **Heard first.** No note is fixed: each slides into the next.
 **Heard second.** Water moves over the whole sound: a wobble on the notes and a ripple behind them.
@@ -930,14 +935,15 @@ delay's feedback is moderate so each note ripples a few times behind itself, mos
 - `vibrato.wet` — a vibrato rides the whole world: lit in every Tide world by the rule.
 - `vibrato.depth` — shallow: never quite still, never seasick.
 - `vibrato.rate` — slow.
+- `lfoLink.lpf.frequency` — the master filter tied to the world's slow oscillator: the whole world's brightness swells
+  and dims, a surface over the fleet (new key, see the rules).
 - `delay.feedback` — moderate: each note ripples a few times.
 - `delaySend` — most probes sent into it.
 
 **Leaves alone.** `bpm`, the density, the rooms' size, the EQ, the master filter, the probe filter's rest position,
 dynamics, accents and the shaped stages: Classic's. `chorus.spread` and `chorus.feedback`: Classic's. `gritSend` and
 `shimmerSend`: Classic's, with the at-most-one-room note. The Phaser: the coin's; the vibrato does the pedal's work here.
-Not a band: a slow sweep on the master filter would make the world aquatic without any probe's help, and whether the
-master filter is linked to a global LFO is a coin today: ask-first, still open.
+The master filter's rest position: Classic's; only its tie is Tide's.
 
 **Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Portamento 0.15 to 0.35 s; the
 chorus shallow and short.
@@ -957,7 +963,8 @@ name's root and nothing else: tiny dry droplets.
 
 ### Open Water  ·  theme  ·  status: candidate
 
-**Character.** The pelagic: a vast open space with nothing near. The reverb is at its longest with its first reflection
+**Character.** The pelagic: a vast open space with nothing near, and fewer probes in it than any other world holds. The
+reverb is at its longest with its first reflection
 late, the delay long, and every probe is deep in both, so each call comes from far off and its echo later. Probes speak
 seldom and leave long gaps, so the silence between calls is the room; each is quieter than usual, as a far thing is,
 and its notes fade long. Wide across the field. The master filter is partly closed, since distance dulls, and the pulse
@@ -980,9 +987,9 @@ is slow to middling.
 - `stereoWidener.width` — wide across the field.
 - `filterLPF.frequency` — partly closed: distance dulls.
 - `bpm` — slow to middling.
+- `fleetSize` — fewer probes than any other world holds: nothing near (new key, see the rules).
 
-**Leaves alone.** The attack, voices, colour, pedals and EQ: Classic's. The fleet's size is not a band; fewer probes
-would suit the place: ask-first.
+**Leaves alone.** The attack, voices, colour, pedals and EQ: Classic's.
 
 **Overlaps.** Distance takes both sends (Near pulls the fleet in: "far" is lost, so the sentence must not promise it
 outright); Melody takes `robot.rhythmicDensity`; Envelope takes `robot.release`; Performance (candidate) would take
@@ -1065,9 +1072,9 @@ middling and probes speak at a middling-low rate.
 - `reverbSend` — little wash.
 - `bpm` — slow to middling.
 - `robot.rhythmicDensity` — a middling-low rate.
+- `humanize` — no timing scatter: the phrase comes round exactly, every time (new key, see the rules).
 
-**Leaves alone.** The envelope, voices, EQ, master filter, colour and pedals: Classic's. A beacon would want no Humanize,
-which is a seeded global setting and not a band: ask-first.
+**Leaves alone.** The envelope, voices, EQ, master filter, colour and pedals: Classic's.
 
 **Overlaps.** Melody takes `robot.rhythmicMotifLength`, `robot.noteVariance`, `robot.pitchRepeat` and
 `robot.rhythmicDensity` (Wandering ends the beacon); Performance (candidate) would take `robot.dynamics`,
@@ -1544,8 +1551,9 @@ three: Steady flattens all three, Dramatic raises the swell and the marks, Halti
 - `robot.accents` — how often a note carries a mark and how hard.
 - `robot.rests` — how often it breaks a note off short and leaves a gap.
 
-**Leaves alone.** Humanize, the small timing scatter, would belong here and is a seeded global setting, not a band:
-ask-first. The notes themselves (Melody) and their shape (Envelope).
+**Leaves alone.** Humanize, the small timing scatter, is a key since the cut (`humanize`, a world key, not a probe band)
+and would belong on this axis; whether Performance's options own it is decided at the family marks, and if they do,
+Beacon's "exactly, every time" must not be promised outright. The notes themselves (Melody) and their shape (Envelope).
 
 **Overlaps.** Takes `robot.rests` from every current theme but Classic (Calm's "stops short of the end of a phrase",
 Bold's "little left out", Adventurous's spread, Perilous's "hardly a rest" are all lost under a Performance pick, so none
