@@ -355,6 +355,36 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
       expect(decoded.aspects).toEqual(loading.aspects);
     });
 
+    // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: Motion and Performance carry a param each, after Voice.
+    it('a world with picks in all six families writes a param per family, Motion and Performance last, and reads every one back', () => {
+      const loading: LoadingIdentity = {
+        theme: 'calm',
+        aspects: {
+          melody: ['hypnotic'],
+          voice: ['woody'],
+          motion: ['sweeping', 'gliding'],
+          performance: ['halting'],
+        },
+      };
+      const payload = untouchedWorld(undefined, undefined, loading);
+      const params = encodeWorldLinkParams(payload);
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 'voice', 'motion', 'performance']);
+      expect(params.get('motion')).toBe('gliding,sweeping');
+      expect(params.get('performance')).toBe('halting');
+      expect(throughLink(payload)).toEqual({ ...payload, aspects: { ...loading.aspects, motion: ['gliding', 'sweeping'] } });
+      const { coordinates } = payload;
+      const decoded = decodeWorldLink(
+        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&motion=trembling&performance=steady,dramatic`,
+      )!;
+      expect(decoded.aspects).toEqual({ motion: ['trembling'], performance: ['steady', 'dramatic'] });
+    });
+
+    it('a Motion or Performance param carrying another family\'s id drops it and keeps the rest', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&motion=hypnotic,gliding&performance=woody')!;
+      expect(decoded.aspects).toEqual({ motion: ['gliding'] });
+      expect([...encodeWorldLinkParams(decoded).keys()]).toEqual(['seed', 'x', 'y', 'motion']);
+    });
+
     // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): the as-theme pick is gone, so a link still carrying
     // one reads it as any unknown id - dropped, the rest kept.
     it('a stale theme pick is dropped as any unknown id: melody=theme,hypnotic decodes to hypnotic, under Classic', () => {

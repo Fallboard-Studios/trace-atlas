@@ -404,7 +404,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (five files, mostly guided by the compiler)
 
-- [ ] **T7c: the carriers' tests — link, payload, rows, Loaded Under**
+- [x] **T7c: the carriers' tests — link, payload, rows, Loaded Under**
   *(only with T7b)*
 
   **Description:** No source change expected (spec §2's last paragraph). Extend the tests that enumerate families so
@@ -870,6 +870,12 @@ to the adsr alone. Deviations:
   must pass at this commit; T7c adds the carriers' cases proper.
 Seven mutants killed. Full suite: 13,446 passed; the 3 failures were those two pins and the documented
 `sceneToOrbiterLocal` parallel-run timeout (passes alone).
+
+**T7c (2026-11-03).** No source change. Cases added: the link writes and reads all six families' params, Motion and
+Performance last, and drops another family's id in either (`worldLink.test.ts`); a payload keeps both lists canonical
+(`loadingIdentity.test.ts`); `canonicalAspects` and `canonicalPicks` over six families (`loadingStore.test.ts`); the
+Loaded Under line names them after the four (`RobotScreen.test.tsx`, `CompanyScreen.test.tsx`). The OffScreen row pins
+moved at T7b. RED by reverting `ASPECT_FAMILY_IDS` to four: 8 failures (the 6 cases, the 2 pins).
 
 ## Risks and Mitigations
 

@@ -551,6 +551,20 @@ describe('CompanyScreen — the "loaded under" line (docs/tasks/OFF_SCREEN.md Ta
     );
   });
 
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: the six families, Motion and Performance last.
+  it('names a Motion and a Performance aspect too, after the four, in family order', () => {
+    const record = { performance: 'dramatic', motion: 'trembling', melody: 'wandering' };
+    const robots = useLocaleStore.getState().locales[localeId]!.robots.map((r) =>
+      r.companyId === RUST.id ? { ...r, loadedUnder: record } : r,
+    );
+    useLocaleStore.getState().setLocaleData(localeId, { robots } as unknown as Partial<Locale>);
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)[2].querySelector('.robot-screen__meta-value')?.textContent).toBe(
+      [human('home.off.melody.wandering'), human('home.off.motion.trembling'), human('home.off.performance.dramatic')].join(' + '),
+    );
+  });
+
   it('is text, not a control', () => {
     dealTo(RUST.id, 'mechanical');
     openCompany(RUST.id);

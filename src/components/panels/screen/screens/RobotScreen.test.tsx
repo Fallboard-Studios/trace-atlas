@@ -2289,4 +2289,13 @@ describe('RobotScreen — the "loaded under" line (docs/tasks/OFF_SCREEN.md Task
     const { container } = render(<RobotScreen />);
     expect(wells(container)).toHaveLength(4);
   });
+
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: Motion and Performance join the line after Voice, in family order.
+  it('names a Motion and a Performance aspect after the others, in family order', () => {
+    selectRobot(makeRobot('r1', { loadedUnder: { performance: 'halting', voice: 'woody', motion: 'gliding' } }));
+    const { container } = render(<RobotScreen />);
+    expect(metaValues(container)[4]).toBe(
+      [human('home.off.voice.woody'), human('home.off.motion.gliding'), human('home.off.performance.halting')].join(' + '),
+    );
+  });
 });

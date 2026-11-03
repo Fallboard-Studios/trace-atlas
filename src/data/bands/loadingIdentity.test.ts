@@ -33,6 +33,14 @@ describe('loadingOf', () => {
     });
   });
 
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: the two new families read as the four did.
+  it('keeps a Motion and a Performance list, each canonical, and drops a non-id or another family’s id in them', () => {
+    expect(
+      loadingOf({ aspects: { motion: ['sweeping', 7, 'gliding', 'sweeping'], performance: ['plucked', 'halting', 'steady'] } }),
+    ).toEqual({ theme: 'classic', aspects: { motion: ['gliding', 'sweeping'], performance: ['steady', 'halting'] } });
+    expect(loadingOf({ aspects: { motion: 'gliding', performance: [] } })).toEqual(DEFAULT_LOADING);
+  });
+
   it('drops an unknown family, and another family’s id within a family', () => {
     expect(loadingOf({ aspects: { tempo: ['fast'], envelope: ['hypnotic', 'held'] } })).toEqual({
       theme: 'classic',

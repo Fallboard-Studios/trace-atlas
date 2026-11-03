@@ -164,6 +164,15 @@ describe('canonicalAspects over the three families (revisions Task 7)', () => {
     expect(Object.keys(out)).toEqual(['melody', 'envelope', 'distance']);
   });
 
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: six families, Motion and Performance last.
+  it('keeps all six families in family order, Motion and Performance last, each list canonical', () => {
+    const out = canonicalAspects({ performance: ['halting', 'steady'], motion: ['trembling'], voice: ['hollow'], melody: ['wandering'] });
+    expect(out).toStrictEqual({ melody: ['wandering'], voice: ['hollow'], motion: ['trembling'], performance: ['steady', 'halting'] });
+    expect(Object.keys(out)).toEqual(['melody', 'voice', 'motion', 'performance']);
+    expect(canonicalPicks('motion', ['sweeping', 'trembling', 'gliding'])).toEqual(['gliding', 'trembling', 'sweeping']);
+    expect(canonicalPicks('performance', ['halting', 'dramatic', 'steady'])).toEqual(['steady', 'dramatic', 'halting']);
+  });
+
   it('drops an id from another family: hypnotic is no Envelope pick, plucked no Distance one', () => {
     expect(canonicalAspects({ envelope: ['hypnotic', 'held'], distance: ['plucked'] })).toStrictEqual({ envelope: ['held'] });
   });
