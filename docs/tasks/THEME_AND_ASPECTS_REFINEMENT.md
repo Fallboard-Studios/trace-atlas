@@ -497,12 +497,28 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Estimated scope:** M
 
 ### Checkpoint C: the table stands
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (any pre-existing failure named).
-- [ ] Classic spawn is byte for byte what it was, or moved once for a named Classic sheet key (the fixtures say which).
-- [ ] Every survivor column's keys are its sheet's; every robot key has a compared-and-pushed path (T6's cases).
-- [ ] If a derive function was added: `generateRobotRosterBaseline(noiseMap, 12)` re-timed as T18 did; still under
-      the 16 ms line.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (any pre-existing failure named). (At T9: 13,521 passed;
+      lint 0 errors, its 4 warnings standing before this phase.)
+- [x] Classic spawn is byte for byte what it was, or moved once for a named Classic sheet key (the fixtures say which).
+      (No Classic sheet key; the parity literal and the spawn fixtures pass unmodified.)
+- [x] Every survivor column's keys are its sheet's; every robot key has a compared-and-pushed path (T6's cases).
+- [x] If a derive function was added: `generateRobotRosterBaseline(noiseMap, 12)` re-timed as T18 did; still under
+      the 16 ms line. (See the re-time below.)
 - [ ] Reviewed with Crawford. Session ends here.
+- Crawford's answers (2026-11-03): a lit share of 0 as a column's "none" is fine; an off share of 1 as "always off"
+  (and the `seedToggleValue` guard) is fine; a theme forcing more than two pedals lights them all and no coin pedal, as
+  built; `scripts/sketch` is type-checked (T10 adds it to a tsconfig include).
+- **The re-time (2026-11-03, the desktop, non-essentials shut down).** EVEN_SEEDED_DRAWS T0's recipe: median of 200
+  runs after 20 warm-ups, a different world each run, three runs, under Classic and three themes that move the most
+  (Shatter, Tide, Squall). A temporary `src/utils/zzTime.test.ts`, deleted after the run.
+
+  | Generator | T18 (after Even Seeded Draws) | Now: Classic | Shatter | Tide | Squall |
+  |---|---|---|---|---|---|
+  | `generateRobotRosterBaseline(noiseMap, 12)` | 5.60 ms | 5.61–5.79 ms | 5.62–5.70 ms | 5.84–5.90 ms | 5.66–5.86 ms |
+  | `generateWorldSeedBaseline` | 1.25 ms | 1.21–1.26 ms | 1.24 ms | 1.25–1.26 ms | 1.23–1.29 ms |
+
+  T7a's two derive functions and the themes cost nothing measurable (within 0.3 ms of T18, run to run); both stay about
+  a third of the 16 ms stop line, so no cache.
 
 ---
 
@@ -522,8 +538,8 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   `scripts/sketch/**/*.harness.ts` only. Verified against the repo: `vitest.config.ts` includes only
   `src/**/*.{test,spec}.{ts,tsx}` and `scripts/**/*.{test,spec}.mjs`, and `eslint.config.js`'s text-read rule has the
   same globs, so the harness is outside both. `tsconfig.app.json` includes only `src`, so `npm run build:types` does
-  not type-check the harness; vitest strips its types at run time. Add `scripts/sketch` to a tsconfig include only if
-  Crawford wants it type-checked (ask at Checkpoint C).
+  not type-check the harness; vitest strips its types at run time. Add `scripts/sketch` to a tsconfig include so
+  `npm run build:types` checks the harness (Crawford, Checkpoint C, 2026-11-03: yes).
 
   **Proof:** Run — `npm run sketch:bands` writes the JSON; `npm test` does not run the harness (its file count is
   unchanged).
