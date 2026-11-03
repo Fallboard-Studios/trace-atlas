@@ -56,6 +56,8 @@ const injected = vi.hoisted(() => ({
     'robot.portamento': { min: 0.3, max: 0.6, lit: 0.8 },
   } satisfies ThemeColumn,
   hypnotic: { 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
+  gliding: { 'robot.portamento': { min: 0.5, max: 0.9, lit: 0.9 } },
+  dramatic: { 'robot.dynamics': { min: 85, max: 100 }, 'robot.accents': { min: 70, max: 90 } },
 }));
 
 vi.mock('./themes', async (importOriginal) => {
@@ -65,12 +67,15 @@ vi.mock('./themes', async (importOriginal) => {
 
 vi.mock('./aspects', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./aspects')>();
-  const melody = actual.ASPECT_FAMILIES.melody;
+  const { melody, motion, performance } = actual.ASPECT_FAMILIES;
   return {
     ...actual,
     ASPECT_FAMILIES: {
       ...actual.ASPECT_FAMILIES,
       melody: { ...melody, options: { ...melody.options, hypnotic: injected.hypnotic, wandering: {} } },
+      // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b: the two new families' options are `{}` until T9.
+      motion: { ...motion, options: { ...motion.options, gliding: injected.gliding } },
+      performance: { ...performance, options: { ...performance.options, dramatic: injected.dramatic } },
     },
   };
 });
@@ -322,15 +327,20 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
   });
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 7 and 10 (Crawford's note 3; Space renamed Distance, his answer 6; Voice
-  // through the fourth band kind, his answer 3): four families.
-  it('names four families in order - melody, envelope, distance, voice - each with three options in canonical order and its key set', () => {
-    expect(ASPECT_FAMILY_IDS).toEqual(['melody', 'envelope', 'distance', 'voice']);
+  // through the fourth band kind, his answer 3): four families; Motion and Performance last since
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b (the cut's default order).
+  it('names six families in order - melody, envelope, distance, voice, motion, performance - each with its options in canonical order and its key set', () => {
+    expect(ASPECT_FAMILY_IDS).toEqual(['melody', 'envelope', 'distance', 'voice', 'motion', 'performance']);
     expect(ASPECT_IDS_BY_FAMILY).toEqual({
       melody: ['hypnotic', 'mechanical', 'wandering'],
       envelope: ['plucked', 'swelling', 'held'],
       distance: ['near', 'far', 'remote'],
       voice: ['glassy', 'woody', 'hollow'],
+      motion: ['gliding', 'trembling', 'sweeping'],
+      performance: ['steady', 'dramatic', 'halting'],
     });
+    expect(ASPECT_FAMILIES.motion.keys).toEqual(['robot.portamento', 'robot.lfoGainDepth', 'robot.lfoDetuneDepth', 'robot.lfoBusDepth']);
+    expect(ASPECT_FAMILIES.performance.keys).toEqual(['robot.dynamics', 'robot.rests', 'robot.accents']);
     expect(ASPECT_FAMILIES.voice.keys).toEqual([
       'robot.waveform',
       'robot.filterFreq',
@@ -411,6 +421,29 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(Object.keys(both)).toHaveLength(Object.keys(CLASSIC).length);
   });
 
+  it('a Motion option replaces only its family keys: Gliding (injected) differs from Classic at the glide and nowhere else', () => {
+    const gliding = resolveBands('classic', { motion: 'gliding' });
+    expect(gliding['robot.portamento']).toStrictEqual({ min: 0.5, max: 0.9, lit: 0.9 });
+    const { 'robot.portamento': _a, ...rest } = gliding;
+    const { 'robot.portamento': _b, ...restClassic } = CLASSIC;
+    expect(rest).toStrictEqual(restClassic);
+  });
+
+  it('a Performance option replaces only its family keys, and wins over the theme on its own keys: Dramatic (injected) under Calm', () => {
+    const dramatic = resolveBands('calm', { performance: 'dramatic' });
+    expect(dramatic['robot.dynamics']).toStrictEqual({ min: 85, max: 100 });
+    expect(dramatic['robot.accents']).toStrictEqual({ min: 70, max: 90 });
+    expect(dramatic['robot.rests']).toStrictEqual(CLASSIC['robot.rests']);
+    expect(dramatic.bpm).toStrictEqual({ min: 150, max: 160 });
+  });
+
+  it('a Motion and a Performance option together each move their own family, no more', () => {
+    const both = resolveBands('classic', { motion: 'gliding', performance: 'dramatic' });
+    expect(both['robot.portamento']).toStrictEqual({ min: 0.5, max: 0.9, lit: 0.9 });
+    expect(both['robot.dynamics']).toStrictEqual({ min: 85, max: 100 });
+    expect(both['robot.lfoGainDepth']).toStrictEqual(CLASSIC['robot.lfoGainDepth']);
+  });
+
   it('an aspect with an empty option column (Wandering, injected empty) leaves the theme\'s table as it was', () => {
     expect(resolveBands('calm', { melody: 'wandering' })).toStrictEqual(resolveBands('calm', {}));
   });
@@ -479,6 +512,21 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     // @ts-expect-error - an Envelope id is not a Melody option
     const wrongFamily: AspectIdOf<'melody'> = 'plucked';
     expect(wrongFamily).toBe('plucked');
+  });
+
+  it('types: a Motion or a Performance option names its own keys and nothing else (themes-58 T7b)', () => {
+    type MotionOption = (typeof ASPECT_FAMILIES)['motion']['options']['gliding'];
+    type PerformanceOption = (typeof ASPECT_FAMILIES)['performance']['options']['steady'];
+    const glide: MotionOption = { 'robot.lfoBusDepth': { min: 1, max: 5, lit: 0.5 } };
+    const steady: PerformanceOption = { 'robot.rests': { min: 0, max: 5 } };
+    expect([glide, steady]).toHaveLength(2);
+    // @ts-expect-error - robot.dynamics is a Performance key, not a Motion one
+    const crossed: MotionOption = { 'robot.dynamics': { min: 0, max: 10 } };
+    // @ts-expect-error - the room sends stay with the theme (the Motion sheet): no family owns gritSend
+    const room: MotionOption = { gritSend: { min: 0, max: 0.1, lit: 0.1 } };
+    // @ts-expect-error - a Melody id is not a Performance option
+    const wrong: AspectIdOf<'performance'> = 'hypnotic';
+    expect([crossed, room, wrong]).toHaveLength(3);
   });
 
   it('types: a Voice option names its own keys, the waveform pick among them, and nothing else (revisions Task 10)', () => {

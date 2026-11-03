@@ -17,7 +17,16 @@ import { useLoadingStore } from '../stores/loadingStore';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks } from './robotLfoLinks';
-import { deriveEnvelopeFields, deriveMelodyFields, deriveSendFields, deriveVoiceFields, type MelodyFields } from './robotFieldDerivation';
+import {
+  deriveEnvelopeFields,
+  deriveMelodyFields,
+  deriveMotionFields,
+  derivePerformanceFields,
+  deriveSendFields,
+  deriveVoiceFields,
+  type MelodyFields,
+  type PerformanceFields,
+} from './robotFieldDerivation';
 import {
   generateCompanyRosterBaseline,
   generateRobotRosterBaseline,
@@ -26,7 +35,8 @@ import {
 } from './spawnSystem';
 import { SWELL_ROBOT_ATTRIBUTE_IDS, type SwellRobotAttributeId } from '../types/audioSwell';
 import type { OscillatorLayer } from '../types/layeredAudio';
-import { ROBOT_LFO_TARGET_IDS } from '../types/lfo';
+import { ROBOT_LFO_TARGET_IDS, type LfoLaneId, type LfoLink } from '../types/lfo';
+import { tallyLanes } from '../utils/lfoLaneDraw';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { withLoading } from '../data/bands/loadingContext';
 import { deepEqual } from '../utils/math';
@@ -44,20 +54,34 @@ import { deepEqual } from '../utils/math';
 // THE DEAL (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24)
 // ========================================
 
-/** What the deal re-derives on a robot: the Melody fields, the audio attributes (Envelope's adsr inside them) and the
- *  five sends. */
-type DealtFields = Partial<MelodyFields & Pick<RobotAudioBaseline, 'audioAttributes' | RobotSendField>>;
+/** What the deal re-derives on a robot: the Melody fields, the audio attributes (Envelope's adsr, Voice's filter and
+ *  layers, Motion's glide inside them), the five sends, Motion's links and the three Performance fields. */
+type DealtFields = Partial<
+  MelodyFields & PerformanceFields & Pick<RobotAudioBaseline, 'audioAttributes' | 'lfoLinks' | RobotSendField>
+>;
+
+/** The lane tally of the robots before a robot, as the roster spawned them: what a Motion deal re-derives its links
+ *  against (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b). Asked for only when Motion is dealt. */
+type PriorLanes = () => Readonly<Record<LfoLaneId, number>>;
+
+/** The lane tally of `roster`'s robots before index `i`, as a PriorLanes. */
+function priorLanesOf(roster: readonly { lfoLinks?: Record<string, LfoLink> }[], i: number): PriorLanes {
+  return () => tallyLanes(roster.slice(0, i).flatMap((robot) => Object.values(robot.lfoLinks ?? {})));
+}
 
 /** One family's re-derivation for one robot at `spawnIndex` under `bands` (resolveBands(theme, { [family]: aspect })):
  *  Melody its four fields, Envelope the robot's `adsr` inside its own audio attributes, Distance its five sends, Voice
- *  its filter, waveform and layers inside its audio attributes. `robot` is the robot as dealt so far, so Envelope and
- *  Voice both land in one set of audio attributes. A switch, so a new family is a compile error until it has its case. */
+ *  its filter, waveform and layers inside its audio attributes, Motion its glide there and its links (against the lane
+ *  tally of the roster before it as spawned), Performance its three fields. `robot` is the robot as dealt so far, so
+ *  Envelope, Voice and Motion all land in one set of audio attributes. A switch, so a new family is a compile error until
+ *  it has its case. */
 function deriveFamilyFields(
   family: AspectFamilyId,
   noiseMap: NoiseFunction2D,
   spawnIndex: number,
   bands: BandTable,
   robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
+  priorLanes: PriorLanes,
 ): DealtFields {
   switch (family) {
     case 'melody':
@@ -68,26 +92,35 @@ function deriveFamilyFields(
       return deriveSendFields(noiseMap, spawnIndex, bands);
     case 'voice':
       return { audioAttributes: { ...robot.audioAttributes, ...deriveVoiceFields(noiseMap, spawnIndex, bands) } };
+    case 'motion': {
+      const { portamento, lfoLinks } = deriveMotionFields(noiseMap, spawnIndex, bands, priorLanes());
+      return { audioAttributes: { ...robot.audioAttributes, portamento }, lfoLinks };
+    }
+    case 'performance':
+      return derivePerformanceFields(noiseMap, spawnIndex, bands);
   }
 }
 
 /** A dealt robot's re-derived fields (assumption 22; per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): for each
  *  dealt family in family order, its keys from the robot's own index under resolveBands(theme, { [family]: aspect }) -
  *  the same draws as at spawn, into the aspect's bands - so a dealt robot is what it would have been had it spawned
- *  under the aspect. A family not dealt keeps its fields. */
+ *  under the aspect. A family not dealt keeps its fields. `priorLanes` is the lane tally Motion's links draw against:
+ *  the robots before this one as the roster spawned them, so the baseline, the live deal and a re-derive agree without
+ *  waiting on each other's deals. */
 function dealtFields(
   noiseMap: NoiseFunction2D,
   spawnIndex: number,
   theme: ThemeId,
   aspects: RobotAspects,
   robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
+  priorLanes: PriorLanes,
 ): DealtFields {
   let fields: DealtFields = {};
   for (const family of ASPECT_FAMILY_IDS) {
     const aspect = aspects[family];
     if (aspect === undefined) continue;
     const bands = resolveBands(theme, { [family]: aspect });
-    fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, { ...robot, ...fields }) };
+    fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, { ...robot, ...fields }, priorLanes) };
   }
   return fields;
 }
@@ -112,7 +145,7 @@ export function applyDealToBaselines(
   return baselines.map((baseline, i) => {
     const aspects = dealt.get(robotIds[i]);
     if (!aspects) return baseline;
-    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects, baseline), loadedUnder: aspects };
+    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects, baseline, priorLanesOf(baselines, i)), loadedUnder: aspects };
   });
 }
 
@@ -135,9 +168,11 @@ export function generateDealtRosterBaseline(
  * One family's fields, already in the store, to the running engine, the way a hand edit of those fields reaches it
  * (docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): Melody regenerates the melody (regenerateMelody re-registers it,
  * applyDensity's path), Envelope hands the adsr to updateVoiceEnvelope (applyAdsr's path: a live write, curves included,
- * no rebuild; and the glide beside it, applyPortamento's live write, since T6), Distance hands all five sends to updateRobotSends (applySendValue's call, the prime every reservation
+ * no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the prime every reservation
  * makes), Voice rebuilds the voice from the robot and re-primes its LFO links (the structural edit's rebuildVoice,
- * robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions Task 10). The robot is
+ * robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions Task 10), Motion writes
+ * the glide live (applyPortamento's updateVoicePortamento, no rebuild) and re-primes the links, Performance regenerates
+ * the melody, which bakes in the rests and accents (applyRests' path; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b). The robot is
  * handed to reReserveVoice because a rebuild deals before its locale is current, where the engine's own lookup finds
  * nothing (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4). `robot` is the store's robot after the write. Guarded as
  * spawnRobot's reservation is, so a push that throws costs only itself, never the rest of the deal
@@ -152,8 +187,6 @@ function pushFamilyToEngine(family: AspectFamilyId, robot: Robot, localeId: stri
         break;
       case 'envelope':
         AudioEngine.updateVoiceEnvelope(robot.id, robot.audioAttributes.adsr);
-        // The glide, filed here until Motion takes it (T7b): a live write, as the Portamento edit makes.
-        AudioEngine.updateVoicePortamento(robot.id, robot.audioAttributes.portamento ?? 0);
         break;
       case 'distance':
         AudioEngine.updateRobotSends(robot.id, robotSendLevels(robot));
@@ -162,6 +195,13 @@ function pushFamilyToEngine(family: AspectFamilyId, robot: Robot, localeId: stri
         AudioEngine.reReserveVoice(robot.id, robot);
         primeRobotLinks(robot);
         break;
+      case 'motion':
+        AudioEngine.updateVoicePortamento(robot.id, robot.audioAttributes.portamento ?? 0);
+        primeRobotLinks(robot);
+        break;
+      case 'performance':
+        regenerateMelody(robot, localeId);
+        break;
       default: {
         const unpushed: never = family;
         throw new Error(`no engine push for the ${String(unpushed)} family`);
@@ -169,6 +209,17 @@ function pushFamilyToEngine(family: AspectFamilyId, robot: Robot, localeId: stri
     }
   } catch (err) {
     if (DEV_TUNING) console.warn('[SpawnSystem] the deal could not push', family, 'for', robot.id, err);
+  }
+}
+
+/** Each family in `families` to the engine, in family order, each push once: Performance's push is Melody's (one
+ *  regenerateMelody reads every field the melody bakes in), so it is skipped when Melody's runs
+ *  (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b). */
+function pushFamilies(families: ReadonlySet<AspectFamilyId>, robot: Robot, localeId: string): void {
+  for (const family of ASPECT_FAMILY_IDS) {
+    if (!families.has(family)) continue;
+    if (family === 'performance' && families.has('melody')) continue;
+    pushFamilyToEngine(family, robot, localeId);
   }
 }
 
@@ -190,12 +241,11 @@ export function applyAspectDeal(localeId: string): void {
   locale.robots.forEach((robot, i) => {
     const robotAspects = dealt.get(robot.id);
     if (!robotAspects) return;
-    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...dealtFields(noiseMap, i, theme, robotAspects, robot), loadedUnder: robotAspects });
+    const fields = dealtFields(noiseMap, i, theme, robotAspects, robot, priorLanesOf(locale.robots, i));
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...fields, loadedUnder: robotAspects });
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
-    for (const family of ASPECT_FAMILY_IDS) {
-      if (robotAspects[family] !== undefined) pushFamilyToEngine(family, updated, localeId);
-    }
+    pushFamilies(new Set(ASPECT_FAMILY_IDS.filter((family) => robotAspects[family] !== undefined)), updated, localeId);
   });
 }
 
@@ -213,8 +263,8 @@ const TOP_LEVEL_FIELDS = [
   ['rhythmicMotifLength', 'melody'],
   ['noteVariance', 'melody'],
   ['pitchRepeat', 'melody'],
-  ['rests', 'melody'],
-  ['accents', 'melody'],
+  ['rests', 'performance'],
+  ['accents', 'performance'],
   ['octaveRange', 'melody'],
   ['dynamics', null],
   ['masterVolume', 'voice'],
@@ -236,7 +286,7 @@ const ATTRIBUTE_FIELDS = [
   ['filterQ', 'voice'],
   ['filterType', 'voice'],
   ['waveform', 'voice'],
-  ['portamento', 'envelope'],
+  ['portamento', 'motion'],
   ['octaveRange', null],
 ] as const satisfies readonly (readonly [keyof AudioAttributes, AspectFamilyId | null])[];
 
@@ -268,12 +318,12 @@ function movedFields(
   }
 
   // The links per target (T6), as the layers are compared per key: only a moved target takes the new link, so a hand
-  // edit on another target stands. Voice's push re-primes the links (primeRobotLinks); T7b refiles them under Motion.
+  // edit on another target stands. Motion's push re-primes the links (primeRobotLinks), since T7b.
   let lfoLinks = robot.lfoLinks;
   for (const target of ROBOT_LFO_TARGET_IDS) {
     if (deepEqual(from.lfoLinks[target], to.lfoLinks[target])) continue;
     lfoLinks = { ...(lfoLinks ?? to.lfoLinks), [target]: to.lfoLinks[target] };
-    families.add('voice');
+    families.add('motion');
   }
   if (lfoLinks !== robot.lfoLinks) fields.lfoLinks = lfoLinks;
 
@@ -358,8 +408,13 @@ export function rederiveLoading(
   const oldDeal = dealAspects(from, locale.companies, locale.robots, noiseMap);
   const newDeal = dealAspects(to, locale.companies, locale.robots, noiseMap);
   /** A robot's baselines under `theme` and the given aspects, as a spawn under them would draw it. */
-  const drawn = (theme: ThemeId, i: number, baseline: RobotAudioBaseline, dealt: RobotAspects | undefined): RobotAudioBaseline =>
-    dealt ? { ...baseline, ...dealtFields(noiseMap, i, theme, dealt, baseline), loadedUnder: dealt } : baseline;
+  const drawn = (
+    theme: ThemeId,
+    i: number,
+    roster: readonly RobotAudioBaseline[],
+    dealt: RobotAspects | undefined,
+  ): RobotAudioBaseline =>
+    dealt ? { ...roster[i], ...dealtFields(noiseMap, i, theme, dealt, roster[i], priorLanesOf(roster, i)), loadedUnder: dealt } : roster[i];
   const aspectsAfter = (robot: Robot): RobotAspects | undefined => {
     const next: RobotAspects = { ...robot.loadedUnder };
     for (const family of ASPECT_FAMILY_IDS) {
@@ -373,10 +428,10 @@ export function rederiveLoading(
   };
   // The old side is what each robot was dealt, its own `loadedUnder` under the old theme (final fixes F16).
   const before = withLoading(from, () =>
-    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => drawn(from.theme, i, baseline, locale.robots[i].loadedUnder)),
+    generateRobotRosterBaseline(noiseMap, ids.length).map((_, i, roster) => drawn(from.theme, i, roster, locale.robots[i].loadedUnder)),
   );
   const after = withLoading(to, () =>
-    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => drawn(to.theme, i, baseline, aspectsAfter(locale.robots[i]))),
+    generateRobotRosterBaseline(noiseMap, ids.length).map((_, i, roster) => drawn(to.theme, i, roster, aspectsAfter(locale.robots[i]))),
   );
   locale.robots.forEach((robot, i) => {
     const { fields, families, swells } = movedFields(robot, before[i], after[i]);
@@ -385,6 +440,6 @@ export function rederiveLoading(
     useLocaleStore.getState().updateRobot(localeId, robot.id, fields);
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
-    for (const family of ASPECT_FAMILY_IDS) if (families.has(family)) pushFamilyToEngine(family, updated, localeId);
+    pushFamilies(families, updated, localeId);
   });
 }

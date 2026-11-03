@@ -581,6 +581,8 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
       human('home.off.envelope'),
       human('home.off.distance'),
       human('home.off.voice'), // revisions Task 10: the fifth row of the column, Voice
+      human('home.off.motion'), // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b: Motion and Performance last
+      human('home.off.performance'),
     ]);
   });
 
@@ -711,7 +713,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
   it("the description lines are text, one under each row, and the three aspect sentences and the row's own are distinct", () => {
     const { container } = render(<OffScreen />);
     const lines = container.querySelectorAll('.off-screen__description');
-    expect(lines).toHaveLength(5); // the theme's, then one per family (revisions Tasks 9 and 10)
+    expect(lines).toHaveLength(7); // the theme's, then one per family (revisions Tasks 9 and 10; themes-58 T7b)
     expect(lines[0].classList.contains('off-screen__description--theme')).toBe(true);
     expect(lines[1].classList.contains('off-screen__description--melody')).toBe(true);
     expect(lines[1].tagName).toBe('P');

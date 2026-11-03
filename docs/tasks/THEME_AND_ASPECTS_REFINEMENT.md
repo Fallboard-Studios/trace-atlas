@@ -369,7 +369,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (two modules and a test; the riskiest code task)
 
-- [ ] **T7b: `aspects.ts` + `aspectDeal.ts` + `loadingNames.ts` + `home.ts` — the family wired through**
+- [x] **T7b: `aspects.ts` + `aspectDeal.ts` + `loadingNames.ts` + `home.ts` — the family wired through**
   *(only with T7a)*
 
   **Description:** Add the family to `ASPECT_FAMILY_IDS` (position per Crawford at Checkpoint B, default last) and
@@ -853,6 +853,23 @@ keys as dataIds, as before; `spawnRobot` keeps its alea fallback beside it for a
 `PerformanceBandKey` is a plain union until T7b. Parity fixture from the same capture; three mutants killed (a dataId
 renamed, the band ignored, two fields swapped). The plan's "lit share within 3 points" does not apply here (three plain
 ranges); the case checks every value whole and inside its band, both ends reached.
+
+**T7b (2026-11-03).** Motion and Performance are families five and six, their options `{}` until T9, their content
+entries stand-ins marked in `home.ts`. The refiling T6 left for here: `rests` and `accents` under Performance, the glide
+and the links under Motion (Motion's push: the live glide write and `primeRobotLinks`, no rebuild), Envelope's push back
+to the adsr alone. Deviations:
+- **`dynamics` stays filed under no family** in the comparison, not Performance: a dynamics move needs no engine call
+  (the Dynamics edit makes none), so filing it would regenerate a melody for nothing. A Performance *deal* still pushes
+  Performance whole.
+- **One regeneration, not two.** Melody's and Performance's pushes are the same `regenerateMelody`, so a robot dealt
+  both, or a change moving both, regenerated twice; `aspectDeal.test.ts`'s rests case caught it. `pushFamilies` skips
+  Performance's push when Melody's runs.
+- **The Motion deal's lane tally** is the roster before the robot as spawned (undealt), so the baseline, the live deal
+  and a re-derive agree without each robot waiting on the deals before it.
+- **Two OffScreen row pins moved here from T7c** (the family row labels, the description line count), since the suite
+  must pass at this commit; T7c adds the carriers' cases proper.
+Seven mutants killed. Full suite: 13,446 passed; the 3 failures were those two pins and the documented
+`sceneToOrbiterLocal` parallel-run timeout (passes alone).
 
 ## Risks and Mitigations
 

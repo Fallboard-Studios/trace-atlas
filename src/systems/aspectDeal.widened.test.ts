@@ -7,7 +7,25 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 // pushed on a live world. Proved on an injected column, whatever the real columns hold: Calm's column is whatever the
 // case sets (a getter, so each case installs its own), every other theme the real one. Its own file, so
 // aspectDeal.test.ts's real-column cases (final fixes F7, F16, F20) run unmodified.
-const injected = vi.hoisted(() => ({ column: {} as Record<string, unknown> }));
+const injected = vi.hoisted(() => ({
+  column: {} as Record<string, unknown>,
+  // T7b: a Motion and a Performance option with columns, whatever T9 writes.
+  gliding: { 'robot.portamento': { min: 1, max: 1.5, lit: 1 }, 'robot.lfoGainDepth': { min: 70, max: 80, lit: 1 } },
+  dramatic: { 'robot.dynamics': { min: 90, max: 100 }, 'robot.accents': { min: 95, max: 100 } },
+}));
+
+vi.mock('../data/bands/aspects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../data/bands/aspects')>();
+  const { motion, performance } = actual.ASPECT_FAMILIES;
+  return {
+    ...actual,
+    ASPECT_FAMILIES: {
+      ...actual.ASPECT_FAMILIES,
+      motion: { ...motion, options: { ...motion.options, gliding: injected.gliding } },
+      performance: { ...performance, options: { ...performance.options, dramatic: injected.dramatic } },
+    },
+  };
+});
 
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
@@ -25,10 +43,22 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
 // ========================================
 // IMPORTS
 // ========================================
+import alea from 'alea';
+import { createNoise2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 import type { ThemeColumn } from '../data/bands/themes';
-import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
-import { applyAspectDeal, rederiveLoading } from './aspectDeal';
+import {
+  spawnInitialRoster,
+  spawnInitialCompanies,
+  generateCompanyRosterBaseline,
+  generateRobotRosterBaseline,
+  type RobotAudioBaseline,
+} from './spawnSystem';
+import { applyAspectDeal, applyDealToBaselines, generateDealtRosterBaseline, rederiveLoading } from './aspectDeal';
+import { deriveMotionFields, derivePerformanceFields } from './robotFieldDerivation';
+import { resolveBands } from '../data/bands/resolveBands';
+import { tallyLanes } from '../utils/lfoLaneDraw';
+import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -186,6 +216,8 @@ describe('rederiveLoading: every widened robot key is compared and pushed (theme
     }
     const linked = new Set(result.spies.link.mock.calls.map(([, , id]) => id));
     expect([...linked].sort()).toEqual(ids(moved));
+    // Motion's push since T7b: the links re-primed, the glide written live, and no voice rebuilt for a link.
+    expect(result.spies.rebuild).not.toHaveBeenCalled();
     expect(result.dropped).toEqual([]);
   });
 
@@ -270,6 +302,130 @@ describe('rederiveLoading: every widened robot key is compared and pushed (theme
     };
     const { after, fresh } = changeTheme(column);
     expect(comparable(after)).toEqual(comparable(fresh));
+  });
+});
+
+describe('the Motion and Performance deals (themes-58 T7b)', () => {
+  const NOISE = createNoise2D(alea('themes-58-t7b'));
+  const ROSTER = 12;
+  const robotIds = Array.from({ length: ROSTER }, (_, i) => `t7b-${i}`);
+  const dealtBaselines = (aspects: LoadingIdentity['aspects']) => {
+    const undealt = generateRobotRosterBaseline(NOISE, ROSTER);
+    const companies = generateCompanyRosterBaseline(NOISE, robotIds);
+    return { undealt, dealt: applyDealToBaselines(undealt, robotIds, companies, { theme: 'classic', aspects }, NOISE) };
+  };
+  const priorLanes = (roster: readonly RobotAudioBaseline[], i: number) => tallyLanes(roster.slice(0, i).flatMap((b) => Object.values(b.lfoLinks)));
+
+  it('a robot dealt Gliding is its Motion draw from its own index under the option, with the lane tally of the roster before it as spawned; nothing else moves', () => {
+    const { undealt, dealt } = dealtBaselines({ motion: ['gliding'] });
+    const bands = resolveBands('classic', { motion: 'gliding' });
+    dealt.forEach((baseline, i) => {
+      expect(baseline.loadedUnder, `robot ${i}`).toEqual({ motion: 'gliding' });
+      const expected = deriveMotionFields(NOISE, i, bands, priorLanes(undealt, i));
+      expect({ portamento: baseline.audioAttributes.portamento, lfoLinks: baseline.lfoLinks }, `robot ${i}`).toEqual(expected);
+      const { audioAttributes, lfoLinks: _l, loadedUnder: _u, ...rest } = baseline;
+      const { audioAttributes: undealtAttributes, lfoLinks: _ul, ...restUndealt } = undealt[i];
+      expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
+      expect({ ...audioAttributes, portamento: 0 }, `robot ${i} audio outside the glide`).toEqual({ ...undealtAttributes, portamento: 0 });
+    });
+    // Precondition: the option moves the roster (every robot glides under it).
+    expect(dealt.every((b) => (b.audioAttributes.portamento ?? 0) >= 1)).toBe(true);
+  });
+
+  it('a robot dealt Dramatic is its Performance draw from its own index under the option; nothing else moves', () => {
+    const { undealt, dealt } = dealtBaselines({ performance: ['dramatic'] });
+    const bands = resolveBands('classic', { performance: 'dramatic' });
+    dealt.forEach((baseline, i) => {
+      expect(baseline.loadedUnder, `robot ${i}`).toEqual({ performance: 'dramatic' });
+      const { dynamics, rests, accents, loadedUnder: _u, ...rest } = baseline;
+      expect({ dynamics, rests, accents }, `robot ${i}`).toEqual(derivePerformanceFields(NOISE, i, bands));
+      const { dynamics: _d, rests: _r, accents: _a, ...restUndealt } = undealt[i];
+      expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
+    });
+  });
+
+  it('live, a Motion deal writes each glide live and re-primes each robot\'s links, once a robot, and agrees with the dealt baseline', () => {
+    injected.column = {};
+    useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { motion: ['gliding'] } });
+    const localeId = `themes-58-t7b-live-motion-${worlds++}`;
+    useLocaleStore.setState((state) => ({
+      locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: COORDS, robots: [], companies: [] } },
+    }));
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const portamento = vi.spyOn(AudioEngine, 'updateVoicePortamento').mockImplementation(() => {});
+    const link = vi.spyOn(lfoEngine, 'linkTarget').mockImplementation(() => true);
+    const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+    const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+
+    applyAspectDeal(localeId);
+
+    const robots = robotsOf(localeId);
+    expect(portamento).toHaveBeenCalledTimes(robots.length);
+    for (const robot of robots) {
+      expect(portamento).toHaveBeenCalledWith(robot.id, robot.audioAttributes.portamento);
+      for (const target of ROBOT_LFO_TARGET_IDS) expect(link).toHaveBeenCalledWith(target, robot.lfoLinks![target], robot.id);
+    }
+    expect(rebuild).not.toHaveBeenCalled();
+    expect(register).not.toHaveBeenCalled();
+    const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, COORDS.x, COORDS.y), robots.map((r) => r.id), useLoadingStore.getState());
+    robots.forEach((robot, i) => {
+      expect(robot.audioAttributes.portamento, `robot ${i}`).toBe(baselines[i].audioAttributes.portamento);
+      expect(robot.lfoLinks, `robot ${i}`).toEqual(baselines[i].lfoLinks);
+      expect(robot.loadedUnder, `robot ${i}`).toEqual(baselines[i].loadedUnder);
+    });
+  });
+
+  it('live, a Performance deal regenerates each melody once a robot, and agrees with the dealt baseline', () => {
+    injected.column = {};
+    useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { performance: ['dramatic'] } });
+    const localeId = `themes-58-t7b-live-performance-${worlds++}`;
+    useLocaleStore.setState((state) => ({
+      locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: COORDS, robots: [], companies: [] } },
+    }));
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+
+    applyAspectDeal(localeId);
+
+    const robots = robotsOf(localeId);
+    expect(register.mock.calls.map(([id]) => id).sort()).toEqual(ids(robots));
+    const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, COORDS.x, COORDS.y), robots.map((r) => r.id), useLoadingStore.getState());
+    robots.forEach((robot, i) => {
+      expect([robot.dynamics, robot.rests, robot.accents], `robot ${i}`).toEqual([baselines[i].dynamics, baselines[i].rests, baselines[i].accents]);
+    });
+  });
+
+  it('live, a robot dealt Melody and Performance both regenerates its melody once, not once a family', () => {
+    injected.column = {};
+    useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { melody: ['hypnotic'], performance: ['dramatic'] } });
+    const localeId = `themes-58-t7b-live-both-${worlds++}`;
+    useLocaleStore.setState((state) => ({
+      locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: COORDS, robots: [], companies: [] } },
+    }));
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+
+    applyAspectDeal(localeId);
+
+    const robots = robotsOf(localeId);
+    expect(robots.every((r) => r.loadedUnder?.melody === 'hypnotic' && r.loadedUnder?.performance === 'dramatic')).toBe(true);
+    expect(register.mock.calls.map(([id]) => id).sort()).toEqual(ids(robots));
+  });
+
+  it('a theme change under a Motion pick leaves the dealt world what a fresh build under both gives', () => {
+    injected.column = {};
+    const pick: LoadingIdentity['aspects'] = { motion: ['gliding'], performance: ['dramatic'] };
+    const live = buildWorld({ theme: 'classic', aspects: pick });
+    injected.column = { 'robot.lfoBusDepth': { min: 30, max: 40, lit: 1 }, 'robot.masterVolume': { min: 0.3, max: 0.35 } };
+    const fresh = robotsOf(buildWorld({ theme: 'calm', aspects: pick }));
+    vi.spyOn(lfoEngine, 'linkTarget').mockImplementation(() => true);
+    vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+    useLoadingStore.getState().setLoading({ theme: 'calm', aspects: pick });
+    rederiveLoading(live, { theme: 'classic', aspects: pick }, vi.fn());
+    expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
   });
 });
 

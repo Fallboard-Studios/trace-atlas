@@ -9,10 +9,11 @@ import type { BandKey, BandTable } from './bandKeys';
 
 /** The aspect families (docs/specs/OFF_SCREEN.md assumption 15), in family order: Melody, then Envelope and Distance
  *  (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7, Crawford's note 3; the wireframe's Space became Distance in his answer 6),
- *  then Voice (revisions Task 10, through the waveform pick).
+ *  then Voice (revisions Task 10, through the waveform pick), then Motion and Performance
+ *  (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b, the cut's default order: last).
  *  A family is a key set and its options' columns; the deal (dealAspects.ts) seats one option per family per robot.
  *  Aspects are robot-side (spec §3): a family's keys are robot bands or sends, never `bpm` or a global row. */
-export const ASPECT_FAMILY_IDS = ['melody', 'envelope', 'distance', 'voice'] as const;
+export const ASPECT_FAMILY_IDS = ['melody', 'envelope', 'distance', 'voice', 'motion', 'performance'] as const;
 export type AspectFamilyId = (typeof ASPECT_FAMILY_IDS)[number];
 
 /** Each family's option ids in canonical option order (assumption 17): a family's row lists them so, and every pick list
@@ -25,6 +26,8 @@ export const ASPECT_IDS_BY_FAMILY = {
   envelope: ['plucked', 'swelling', 'held'],
   distance: ['near', 'far', 'remote'],
   voice: ['glassy', 'woody', 'hollow'],
+  motion: ['gliding', 'trembling', 'sweeping'],
+  performance: ['steady', 'dramatic', 'halting'],
 } as const satisfies Record<AspectFamilyId, readonly string[]>;
 
 /** One family's option ids. */
@@ -84,13 +87,17 @@ const VOICE_BAND_KEYS = [
 ] as const;
 export type VoiceBandKey = (typeof VOICE_BAND_KEYS)[number];
 
-/** The Motion family's keys (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5): the glide and the three LFO link depth
- *  windows. A type ahead of the family itself, which T7b wires through (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md). */
-export type MotionBandKey = 'robot.portamento' | 'robot.lfoGainDepth' | 'robot.lfoDetuneDepth' | 'robot.lfoBusDepth';
+/** The four Motion keys (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5; docs/reference/THEME_AND_ASPECT_SHEETS.md,
+ *  Motion): how the probes move while they sound - the glide and the three LFO link depth windows. The three room sends
+ *  stay the theme's (the Motion sheet), so Distance keeps the Reverb and Delay pair alone. */
+const MOTION_BAND_KEYS = ['robot.portamento', 'robot.lfoGainDepth', 'robot.lfoDetuneDepth', 'robot.lfoBusDepth'] as const;
+export type MotionBandKey = (typeof MOTION_BAND_KEYS)[number];
 
-/** The Performance family's keys (spec §1.5): how much a robot's velocities swing, how often it rests, how often it
- *  marks a note. A type ahead of the family itself, as MotionBandKey is. */
-export type PerformanceBandKey = 'robot.dynamics' | 'robot.rests' | 'robot.accents';
+/** The three Performance keys (spec §1.5; the Performance sheet): how the probes play their lines - how much a robot's
+ *  velocities swing, how often it rests, how often it marks a note. `humanize` stays the theme's (one scatter for the
+ *  fleet). */
+const PERFORMANCE_BAND_KEYS = ['robot.dynamics', 'robot.rests', 'robot.accents'] as const;
+export type PerformanceBandKey = (typeof PERFORMANCE_BAND_KEYS)[number];
 
 /** A family: its key set, and per option a column over those keys only. The option type is
  *  `Partial<Pick<BandTable, K>>`, so an aspect cannot reach outside its family (spec §1.5) and no conflict rule is
@@ -118,6 +125,9 @@ export interface AspectFamily<F extends AspectFamilyId, K extends BandKey> {
  * robots and quiet partials; Woody leans triangle and square under a lower cutoff with warm, mostly sounding layers;
  * Hollow leans square and pulse under a lower cutoff, with more robots on the resonant accent filter and a higher Q.
  *
+ * Motion and Performance (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b): empty columns until T9 writes the survivor
+ * columns from their sheets.
+ *
  * Each column names only keys it moves, inside its family. resolveBands.test.ts pins the key sets, the bounds and the
  * intent.
  */
@@ -126,6 +136,8 @@ export const ASPECT_FAMILIES: {
   readonly envelope: AspectFamily<'envelope', EnvelopeBandKey>;
   readonly distance: AspectFamily<'distance', DistanceBandKey>;
   readonly voice: AspectFamily<'voice', VoiceBandKey>;
+  readonly motion: AspectFamily<'motion', MotionBandKey>;
+  readonly performance: AspectFamily<'performance', PerformanceBandKey>;
 } = {
   melody: {
     keys: MELODY_BAND_KEYS,
@@ -211,6 +223,14 @@ export const ASPECT_FAMILIES: {
         'robot.accentFilterQ': { min: 6, max: 12 },
       },
     },
+  },
+  motion: {
+    keys: MOTION_BAND_KEYS,
+    options: { gliding: {}, trembling: {}, sweeping: {} },
+  },
+  performance: {
+    keys: PERFORMANCE_BAND_KEYS,
+    options: { steady: {}, dramatic: {}, halting: {} },
   },
 };
 

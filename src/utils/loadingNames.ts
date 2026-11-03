@@ -31,7 +31,8 @@ const THEME_DESCRIPTION_KEY: Record<ThemeId, ContentKey> = {
 
 /** The one entry per aspect option, per family, each family's map over its own ids. The family is a key segment (the
  *  content grammar allows four): `home.off.melody.<id>`, not the spec's `home.off.aspect.melody.<id>` (band-table T28).
- *  Envelope and Distance joined at docs/tasks/OFF_SCREEN_REVISIONS.md Task 7. */
+ *  Envelope and Distance joined at docs/tasks/OFF_SCREEN_REVISIONS.md Task 7, Motion and Performance at
+ *  docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b. */
 const ASPECT_NAME_KEY: { readonly [F in AspectFamilyId]: Readonly<Record<AspectIdOf<F>, ContentKey>> } = {
   melody: {
     hypnotic: 'home.off.melody.hypnotic',
@@ -53,6 +54,16 @@ const ASPECT_NAME_KEY: { readonly [F in AspectFamilyId]: Readonly<Record<AspectI
     woody: 'home.off.voice.woody',
     hollow: 'home.off.voice.hollow',
   },
+  motion: {
+    gliding: 'home.off.motion.gliding',
+    trembling: 'home.off.motion.trembling',
+    sweeping: 'home.off.motion.sweeping',
+  },
+  performance: {
+    steady: 'home.off.performance.steady',
+    dramatic: 'home.off.performance.dramatic',
+    halting: 'home.off.performance.halting',
+  },
 };
 
 /** A family's label: the heading of its row on the off screen (docs/tasks/OFF_SCREEN.md Task 31). */
@@ -61,6 +72,8 @@ const ASPECT_FAMILY_LABEL_KEY: Record<AspectFamilyId, ContentKey> = {
   envelope: 'home.off.envelope',
   distance: 'home.off.distance',
   voice: 'home.off.voice',
+  motion: 'home.off.motion',
+  performance: 'home.off.performance',
 };
 
 /** One sentence per option, per family, and the family's own for a row with nothing on (`none`) — the line under a
@@ -93,6 +106,18 @@ const ASPECT_DESCRIPTION_KEY: {
     glassy: 'home.off.voiceDescription.glassy',
     woody: 'home.off.voiceDescription.woody',
     hollow: 'home.off.voiceDescription.hollow',
+  },
+  motion: {
+    none: 'home.off.motionDescription.none',
+    gliding: 'home.off.motionDescription.gliding',
+    trembling: 'home.off.motionDescription.trembling',
+    sweeping: 'home.off.motionDescription.sweeping',
+  },
+  performance: {
+    none: 'home.off.performanceDescription.none',
+    steady: 'home.off.performanceDescription.steady',
+    dramatic: 'home.off.performanceDescription.dramatic',
+    halting: 'home.off.performanceDescription.halting',
   },
 };
 

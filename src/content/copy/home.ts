@@ -115,6 +115,24 @@ export const home = {
   'home.off.voiceDescription.glassy': { human: 'Glassy probes ring clear and pure, round tones under an open filter.' },
   'home.off.voiceDescription.woody': { human: 'Woody probes sound warm and soft-edged, their layers full and low.' },
   'home.off.voiceDescription.hollow': { human: 'Hollow probes sound reedy and resonant, as if through a tube.' },
+  // The Motion and Performance families (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b; names and sentences from
+  // docs/reference/THEME_AND_ASPECT_SHEETS.md's Promise lines). STAND-INS until T12 writes the words.
+  'home.off.motion': { human: 'Motion' },
+  'home.off.motion.gliding': { human: 'Gliding' },
+  'home.off.motion.trembling': { human: 'Trembling' },
+  'home.off.motion.sweeping': { human: 'Sweeping' },
+  'home.off.motionDescription.none': { human: 'Every probe moves as the theme sets it while it sounds.' },
+  'home.off.motionDescription.gliding': { human: 'Gliding probes slide into every note.' },
+  'home.off.motionDescription.trembling': { human: 'Trembling probes tremble while they hold a note.' },
+  'home.off.motionDescription.sweeping': { human: 'Sweeping probes carry a slow sweep through every note.' },
+  'home.off.performance': { human: 'Performance' },
+  'home.off.performance.steady': { human: 'Steady' },
+  'home.off.performance.dramatic': { human: 'Dramatic' },
+  'home.off.performance.halting': { human: 'Halting' },
+  'home.off.performanceDescription.none': { human: 'Every probe plays its line as the theme sets it.' },
+  'home.off.performanceDescription.steady': { human: 'Steady probes play their lines straight.' },
+  'home.off.performanceDescription.dramatic': { human: 'Dramatic probes act their lines out, loud and soft, every note marked.' },
+  'home.off.performanceDescription.halting': { human: 'Halting probes break their lines off, hesitant.' },
   // The readout well's accessible name; what it shows is describeWorld's string for the pick, so it carries no
   // template of its own (docs/tasks/OFF_SCREEN.md Task 10).
   'home.off.readout': {
