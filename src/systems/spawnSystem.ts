@@ -38,12 +38,14 @@ import {
   currentEnvelopeBands,
   currentMelodyBands,
   currentMotionBands,
+  currentPerformanceBands,
   currentSendBands,
   currentVoiceBands,
   deriveEnvelopeFields,
   deriveLfoLinks,
   deriveMelodyFields,
   deriveOctaveRange,
+  derivePerformanceFields,
   derivePortamento,
   deriveSendFields,
   deriveVoiceFields,
@@ -435,12 +437,7 @@ export function generateRobotAudioBaseline(
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
   const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands());
-  const dynamicsBand = getBand('robot.dynamics');
-  const dynamics = Math.round(getUniformSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max));
-  const restsBand = getBand('robot.rests');
-  const rests = Math.round(getUniformSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max));
-  const accentsBand = getBand('robot.accents');
-  const accents = Math.round(getUniformSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max));
+  const { dynamics, rests, accents } = derivePerformanceFields(noiseMap, spawnCount, currentPerformanceBands());
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
 
@@ -611,26 +608,21 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       spawnPitchRepeat = Math.round(repeat.min + alea(`${localeId}:${spawnCount}:pitchRepeat`)() * (repeat.max - repeat.min));
     }
 
-    // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): the three performance sliders, each its own dataId
-    // at the spawn count, with the same alea no-noise-map fallback the composition fields have.
-    const dynamicsBand = getBand('robot.dynamics');
-    spawnDynamics = Math.round(
-      noiseMap
-        ? getUniformSeededVal(noiseMap, 'robot.dynamics', spawnCount, dynamicsBand.min, dynamicsBand.max)
-        : dynamicsBand.min + alea(`${localeId}:${spawnCount}:dynamics`)() * (dynamicsBand.max - dynamicsBand.min)
-    );
-    const restsBand = getBand('robot.rests');
-    spawnRests = Math.round(
-      noiseMap
-        ? getUniformSeededVal(noiseMap, 'robot.rests', spawnCount, restsBand.min, restsBand.max)
-        : restsBand.min + alea(`${localeId}:${spawnCount}:rests`)() * (restsBand.max - restsBand.min)
-    );
-    const accentsBand = getBand('robot.accents');
-    spawnAccents = Math.round(
-      noiseMap
-        ? getUniformSeededVal(noiseMap, 'robot.accents', spawnCount, accentsBand.min, accentsBand.max)
-        : accentsBand.min + alea(`${localeId}:${spawnCount}:accents`)() * (accentsBand.max - accentsBand.min)
-    );
+    // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): the three performance sliders through the family's
+    // one derivation (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a), with the same alea no-noise-map fallback the
+    // composition fields have.
+    const performanceBands = currentPerformanceBands();
+    if (noiseMap) {
+      ({ dynamics: spawnDynamics, rests: spawnRests, accents: spawnAccents } = derivePerformanceFields(noiseMap, spawnCount, performanceBands));
+    } else {
+      const fallback = (key: keyof typeof performanceBands, name: string) => {
+        const band = performanceBands[key];
+        return Math.round(band.min + alea(`${localeId}:${spawnCount}:${name}`)() * (band.max - band.min));
+      };
+      spawnDynamics = fallback('robot.dynamics', 'dynamics');
+      spawnRests = fallback('robot.rests', 'rests');
+      spawnAccents = fallback('robot.accents', 'accents');
+    }
   }
 
   // Seeded melody (Roadmap Phase 31) -- the same buildSeededComposition formula

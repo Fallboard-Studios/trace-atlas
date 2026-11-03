@@ -16,6 +16,7 @@ import {
   deriveMelodyFields,
   deriveMotionFields,
   deriveOctaveRange,
+  derivePerformanceFields,
   deriveSendFields,
   deriveVoiceFields,
   seedToggleValue,
@@ -466,5 +467,45 @@ describe('deriveMotionFields — the Motion family (themes-58 T7a)', () => {
       }
       for (const link of links.filter((l) => l.lane === null)) expect(link.depth).toBe(0);
     });
+  });
+});
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a (Performance): dynamics, rests and accents, lifted out of spawnSystem.ts
+// into the family's one derivation at their dataIds and offset.
+describe('derivePerformanceFields — the Performance family (themes-58 T7a)', () => {
+  // Classic parity: the fresh robots of generateRobotRosterBaseline(createNoise2D(alea('motion-parity-a')), 8) as the
+  // generators drew them before either lift (HEAD b35a8558, captured 2026-11-03 and typed in, not read back).
+  const PARITY = [
+    { offset: 0, dynamics: 42, rests: 53, accents: 76 },
+    { offset: 1, dynamics: 44, rests: 54, accents: 76 },
+    { offset: 2, dynamics: 41, rests: 29, accents: 74 },
+    { offset: 3, dynamics: 52, rests: 35, accents: 63 },
+    { offset: 4, dynamics: 32, rests: 15, accents: 66 },
+    { offset: 5, dynamics: 72, rests: 14, accents: 45 },
+    { offset: 7, dynamics: 64, rests: 43, accents: 24 },
+  ];
+  const PARITY_MAP = createNoise2D(alea('motion-parity-a'));
+
+  it('under Classic returns, robot for robot, the three values the generators drew before the lift', () => {
+    for (const { offset, ...fields } of PARITY) {
+      expect(derivePerformanceFields(PARITY_MAP, offset, CLASSIC), `robot ${offset}`).toEqual(fields);
+    }
+  });
+
+  it('under an injected option column every value lands inside its band, whole, and the band is filled to both ends', () => {
+    const BANDS = {
+      ...CLASSIC,
+      'robot.dynamics': { min: 80, max: 95 },
+      'robot.rests': { min: 0, max: 8 },
+      'robot.accents': { min: 40, max: 50 },
+    };
+    const drawn = ROBOT_SLOTS.slice(0, 500).map(({ noiseMap, offset }) => derivePerformanceFields(noiseMap, offset, BANDS));
+    for (const [field, key] of [['dynamics', 'robot.dynamics'], ['rests', 'robot.rests'], ['accents', 'robot.accents']] as const) {
+      const values = drawn.map((d) => d[field]);
+      const { min, max } = BANDS[key];
+      expect(values.every((v) => Number.isInteger(v) && v >= min && v <= max), field).toBe(true);
+      expect(values, `${field} reaches its floor`).toContain(min);
+      expect(values, `${field} reaches its ceiling`).toContain(max);
+    }
   });
 });

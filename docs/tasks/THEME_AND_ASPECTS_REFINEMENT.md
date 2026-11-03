@@ -333,7 +333,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (one module and its test; a case per key)
 
-- [ ] **T7a: `robotFieldDerivation.ts` + `spawnSystem.ts` — the new family's derive function, with Classic parity**
+- [x] **T7a: `robotFieldDerivation.ts` + `spawnSystem.ts` — the new family's derive function, with Classic parity**
   *(only if T4 kept Motion or Performance, or replaced Distance)*
 
   **Description:** Spec §1.5, the fifth-family table. Lift the draws the new family's keys make into one
@@ -847,6 +847,12 @@ as spawn's wrapper over `deriveLfoLinks` and `currentMotionBands()`. `MotionBand
 until T7b makes it the family's key list. The parity fixture (seven fresh robots, two gliders, lit gain, detune and bus
 links) was captured at `b35a8558` before the lift; the spawn fixtures pass unmodified. Five mutants killed (two dataIds
 renamed, either lit ignored, the lane tally mutated in place).
+
+**T7a, Performance (2026-11-03).** `derivePerformanceFields(noiseMap, offset, bands)` draws the three at their own band
+keys as dataIds, as before; `spawnRobot` keeps its alea fallback beside it for a world with no noise map, and
+`PerformanceBandKey` is a plain union until T7b. Parity fixture from the same capture; three mutants killed (a dataId
+renamed, the band ignored, two fields swapped). The plan's "lit share within 3 points" does not apply here (three plain
+ranges); the case checks every value whole and inside its band, both ends reached.
 
 ## Risks and Mitigations
 

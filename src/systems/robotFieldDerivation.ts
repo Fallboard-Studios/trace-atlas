@@ -16,7 +16,7 @@ import type { RobotSendField } from '../data/robotSends';
 import { OCTAVE_REGISTER_IDS, OCTAVE_REGISTERS, type OctaveRegisterId } from '../data/octaveRegisters';
 import { getBand } from '../data/bands/loadingContext';
 import type { BandTable, PickBand, SendBand, ToggleBand } from '../data/bands/bandKeys';
-import type { EnvelopeBandKey, MelodyBandKey, MotionBandKey, VoiceBandKey } from '../data/bands/aspects';
+import type { EnvelopeBandKey, MelodyBandKey, MotionBandKey, PerformanceBandKey, VoiceBandKey } from '../data/bands/aspects';
 import { LFO_DEPTH_MIN, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type LfoLink, type RobotLfoTargetId } from '../types/lfo';
 import { pickLane } from '../utils/lfoLaneDraw';
 import type { RobotAudioBaseline } from './spawnSystem';
@@ -366,6 +366,31 @@ export function deriveMotionFields(
   priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
 ): MotionFields {
   return { portamento: derivePortamento(noiseMap, offset, bands), lfoLinks: deriveLfoLinks(noiseMap, offset, bands, priorLaneCounts) };
+}
+
+/** The theme's Performance bands as the loading context holds them now (getBand at the draw, band-table T21). */
+export function currentPerformanceBands(): Pick<BandTable, PerformanceBandKey> {
+  return {
+    'robot.dynamics': getBand('robot.dynamics'),
+    'robot.rests': getBand('robot.rests'),
+    'robot.accents': getBand('robot.accents'),
+  };
+}
+
+/** What a robot draws for Performance: three 0-100 whole numbers. */
+export type PerformanceFields = Pick<RobotAudioBaseline, 'dynamics' | 'rests' | 'accents'>;
+
+/**
+ * The Performance family's one derivation (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5; plan T7a): a robot's
+ * dynamics, rests and accents at `offset` under `bands` - the theme's at spawn (currentPerformanceBands), a Performance
+ * aspect's when the deal re-derives it - each its own even draw, rounded (docs/specs/ROBOT_PERFORMANCE.md §1.4). Lifted
+ * from spawnSystem.ts with its dataIds and offset unchanged.
+ */
+export function derivePerformanceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, PerformanceBandKey>): PerformanceFields {
+  // Each field's dataId is its band key, as it was before the lift ('robot.dynamics', 'robot.rests', 'robot.accents').
+  const draw = (key: PerformanceBandKey) =>
+    Math.round(getUniformSeededVal(noiseMap, key, offset, bands[key].min, bands[key].max));
+  return { dynamics: draw('robot.dynamics'), rests: draw('robot.rests'), accents: draw('robot.accents') };
 }
 
 /** A send fraction quantized in percent space (the Volume shape), so the stored value sits on the slider's

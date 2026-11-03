@@ -88,6 +88,10 @@ export type VoiceBandKey = (typeof VOICE_BAND_KEYS)[number];
  *  windows. A type ahead of the family itself, which T7b wires through (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md). */
 export type MotionBandKey = 'robot.portamento' | 'robot.lfoGainDepth' | 'robot.lfoDetuneDepth' | 'robot.lfoBusDepth';
 
+/** The Performance family's keys (spec §1.5): how much a robot's velocities swing, how often it rests, how often it
+ *  marks a note. A type ahead of the family itself, as MotionBandKey is. */
+export type PerformanceBandKey = 'robot.dynamics' | 'robot.rests' | 'robot.accents';
+
 /** A family: its key set, and per option a column over those keys only. The option type is
  *  `Partial<Pick<BandTable, K>>`, so an aspect cannot reach outside its family (spec §1.5) and no conflict rule is
  *  needed; the option ids are the family's own. */
