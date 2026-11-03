@@ -13,9 +13,6 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 1 — Feature wrap-up
 
-- Backlog [64](backlog.md#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan)
-  **The off screen's Current and New Transmission** — Current stays the world you powered off on, a New Transmission
-  row with Scan replaces Roll, and a theme or aspect click keeps the selected row; spec and plan written 2026-11-02.
 - Roadmap [58](roadmap.md#58-themes-and-aspects-refinement) **Themes and aspects refinement** — interview to character
   sheets, the measured sketch, listens one axis at a time, copy last; backlog 47 (even draws) was its step zero and
   merged 2026-11-02.

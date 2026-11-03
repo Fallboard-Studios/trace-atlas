@@ -695,7 +695,7 @@ own commit, and the item archives when the list is empty.
 - 2026-11-02 — Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or
   Roll): a warning, not an error, to silence or accept.
 - 2026-11-02 — The off screen's unsaved line (`home.off.unsavedWarning`, "Picking another transmission discards this
-  world's unsaved changes."): under backlog [64](#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan)
+  world's unsaved changes."): under backlog [64](archive/backlog-archive.md#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan)
   picking no longer discards Current, powering on into another row does. Reword it.
 
 ### 63. Style Fixes (a Bucket)
@@ -705,14 +705,3 @@ Opened by Crawford at the 2026-11-02 plan review: visual chrome fixes collected 
 per item, dated; each becomes its own commit when the pass runs, and the item archives when the list is empty.
 
 - (none yet)
-
-### 64. Off Screen: Current Stays the World You Came From, and a New Transmission Row with Scan
-
-Raised by Crawford at Checkpoint 5's Look in [OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md), 2026-11-02:
-Current renamed itself to every pick, and its only power over one (cancelling it, R3/F12) lasted the wash's 0.5 s fade.
-The fix: Current becomes a runtime snapshot of the world you powered off on, restored when picked and saved by Keep; a
-New Transmission row above it holds a fresh draw, with Scan in its row in place of Roll; and a theme or aspect click
-keeps whichever row is selected. Intent: [off-screen-current-and-new-transmission.md](../intent/off-screen-current-and-new-transmission.md).
-Spec: [OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan:
-[OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan.md Stage 1,
-ahead of roadmap 58.
