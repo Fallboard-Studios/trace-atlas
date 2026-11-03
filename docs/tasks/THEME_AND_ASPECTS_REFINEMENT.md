@@ -731,7 +731,17 @@ placeholder for no reason the sheet can give); Adventurous is written so its sta
 and Phaser; Squall: Tremolo); a colour node lit in every world (Wreck); the octave register (Trench); the fleet's size
 (Open Water); pitch drift (Current, Motion); Humanize (Beacon, Performance). None owns a key for it.
 
-**Next:** Checkpoint A, Crawford's read.
+**Checkpoint A, the theme marks (2026-11-03).** Crawford's first marks, recorded on the sheets as T4's first commit:
+Adventurous cut; Calm, Bold, Perilous and the Current candidate renamed Float, Anchor, Shatter (by way of "Gale") and
+Tide, each redefined from his notes (Gemini-assisted, checked against the band table). "Undertow" in his notes was Tide.
+Redundancy fixes he took: the pumping compressor is Squall's alone; Shatter has no resonance or sweep (Vent Field's) and
+is square-free (Anchor's); Vent Field is pushed all the way into its sweep. Neighbours kept as they are: Squall, Vent
+Field, Open Water, Thicket, Tidepool. One rule relaxed by him: a sheet may carry a "Sketch starting points" line of his
+numbers, guesses for the sketch and not rules (spec §1.3 and the sheets file's rules say so). The option sheets'
+"Overlaps" lines still name the old themes until the family marks. Still open: the family and option marks, the
+ask-firsts (asked again in plain words), open questions 1, 3, 5, 6, then T4's paper tests and survivor table.
+
+**Next:** the family and option marks, then the rest of T4.
 
 ## Risks and Mitigations
 

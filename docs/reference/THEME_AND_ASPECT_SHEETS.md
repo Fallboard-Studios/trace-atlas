@@ -8,9 +8,11 @@ every candidate. The choice between them is made on this file, before any column
 
 ## The rules
 
-- **No numbers.** A sheet says what a visitor hears, never a band's edges. Numbers come at the column, each cited to a
-  line here, and are measured and listened to afterwards. The only digit a sheet may carry is one inside a band key's
-  own name.
+- **No numbers in the character.** A sheet says what a visitor hears, never a band's edges. Numbers come at the column,
+  each cited to a line here, and are measured and listened to afterwards. The only digit a character field may carry is
+  one inside a band key's own name. Since the cut (Crawford, 2026-11-03) a sheet may also carry a **Sketch starting
+  points** line: his numbers for the measured sketch, read as guesses the sketch tests, never as rules; the sentence
+  beside the key stays the contract.
 - **A key with no sentence is not owned.** "Keys owned" lists the band keys the column must move, each followed by the
   sentence from the same sheet that needs it. A key the column would move for no reason the sheet can give goes under
   "Leaves alone" with that said plainly. This is the importance test, run on paper.
@@ -66,6 +68,12 @@ sheet was first written from its column's keys, then rewritten as a character; w
 sentence, it sits under "Leaves alone" with the note that the placeholder moved it for no reason the sheet can give.
 Classic's column is empty by definition, so its sheet owns no key.
 
+**The theme marks (Crawford, 2026-11-03).** Adventurous is cut (its sheet is under "Cut"). Calm, Bold, Perilous and the
+Current candidate are renamed Float, Anchor, Shatter and Tide and redefined; each renamed sheet opens with his mark and
+is rewritten to the new character, and the candidate themes' "Distinct from" lines now name the new set. The option
+sheets' "Overlaps" lines still name Calm, Bold, Perilous and Current: they are rewritten with the family marks, since the
+families are still to be cut.
+
 ### Themes
 
 ### Classic  ·  theme  ·  status: candidate
@@ -93,147 +101,180 @@ kind of probe at once.
 under Classic hears a narrowed fleet on that axis. What survives is the whole world side (tempo, rooms, filter, EQ,
 colour, pedals), since no family reaches a global row, and every probe band no family owns.
 
-**Distinct from.** Adventurous. Both are wide; Classic is the surveyed width and Adventurous wider still in the handful
-of keys it names. Inside a minute a visitor may not tell them apart on most seeds, and that is Adventurous's problem
-(its sheet says so), not Classic's.
+**Distinct from.** Every other theme leans somewhere; Classic leans nowhere. Its nearest neighbour by sound is whichever
+survivor moves the fewest keys, Anchor today: Anchor's probes are all dry and locked where Classic's are every kind at
+once. (Adventurous, the one theme wider than Classic, is cut.)
 
 **Promise.** The receiver as it came: the whole range, every kind of probe at once.
 
-### Calm  ·  theme  ·  status: candidate
+### Float (was Calm)  ·  theme  ·  status: renamed → Float
 
-**Character.** Slack water: a world where nothing hurries. The pulse is a slow walk, the master filter softens the top
-off the whole fleet, and every probe sits in the room's wash with a faint echo behind it. Each probe speaks seldom and
-often stops short of the end of a phrase, leaving the room to answer; notes arrive rather than strike and fade rather
-than stop. No probe is dry, no probe is sharp, no probe is in a hurry.
+**Crawford's mark (2026-11-03).** Renamed and redefined: slow and unhurried; sparse notes, long rests between phrases and
+short gentle cells; soft sine and triangle voices with long attacks and long tails; a warm master filter, a generous warm
+room, no drive and no rhythmic push.
 
-**Heard first.** Nothing hurries: a slow pulse and long gaps.
-**Heard second.** Every note arrives softly and fades rather than stops.
-**Heard third.** The whole fleet is in the wash, with the top softened off.
+**Character.** Slack water, warm. Nothing hurries: the pulse is slow, each probe speaks seldom, leaves long rests between
+phrases and plays short gentle cells, and no note is pushed harder than another. The voices are soft, the sine and the
+triangle, and every note arrives slowly and trails long. The probe filter sits open and warm, the master filter takes the
+top off the whole fleet, the colour nodes are dry whether or not the coin lit one, and every probe sits in a generous
+room that is near and warm rather than vast.
+
+**Heard first.** Nothing hurries: a slow pulse, long rests, short gentle phrases.
+**Heard second.** Soft round voices that arrive slowly and trail long.
+**Heard third.** Warm and washed: the top softened, every probe in a generous room.
 
 **Keys owned.**
-- `bpm` — nothing hurries: the pulse is a slow walk.
+- `bpm` — the pulse is slow.
 - `robot.rhythmicDensity` — each probe speaks seldom.
-- `robot.rests` — and often stops short of the end of a phrase, leaving the room to answer.
-- `robot.attack` — notes arrive rather than strike.
-- `robot.release` — and fade rather than stop.
-- `reverbSend` — every probe sits in the room's wash: none is dry.
-- `delaySend` — with a faint echo behind most of them.
-- `filterLPF.frequency` — the master filter softens the top off the whole fleet.
+- `robot.rests` — and leaves long rests between phrases.
+- `robot.rhythmicMotifLength` — short gentle cells: a figure that is short when it is on.
+- `robot.accents` — no note is pushed harder than another: no rhythmic push.
+- `robot.waveform` — soft voices: the sine and the triangle.
+- `robot.attack` — every note arrives slowly.
+- `robot.release` — and trails long.
+- `robot.filterFreq` — the probe filter open and warm.
+- `filterLPF.frequency` — the master filter takes the top off the whole fleet.
+- `distortion.wet` — no drive, whatever node the coin lit.
+- `chebyshev.wet` — no fold.
+- `bitCrusher.wet` — no crush.
+- `reverb.decay` — a generous room.
+- `reverb.preDelay` — near: its walls close, warm rather than vast.
+- `reverbSend` — every probe in it.
 
-**Leaves alone.** The rooms' own size, the EQ, the colour and the pedals: Classic's, the room is ordinary and only the
-probes are deep in it. The waveforms, filters and layers of a probe: Classic's. Dynamics and accents: Classic's.
+**Leaves alone.** The delay and its send: Classic's, on purpose; the late echo is Open Water's and Float is the near
+room. The EQ, the pedals, dynamics, decay and sustain, the shaped stages: Classic's.
 
-**Overlaps.** Melody takes `robot.rhythmicDensity` (Hypnotic, Mechanical and Wandering each set it); Envelope takes
-`robot.attack` and `robot.release` (Plucked makes the notes strike); Distance takes `reverbSend` and `delaySend` (Near
-dries the fleet out). With all three picked, what survives is the slow pulse, the long gaps (`robot.rests` is no
-family's today) and the softened top.
+**Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Master filter around 1.5 to 2.5
+kHz; attack 0.3 to 0.8 s; release 1.5 to 3.0 s.
 
-**Distinct from.** Bold. Calm is slow, soft, wet and sparse where Bold is quick, hard, dry and dense. Inside a minute the
-pulse alone tells them apart. Honest note: the pair reads as two rungs of one ladder (soft to hard), and Perilous as a
-third; this sheet gives Calm a place but does not change that.
+**Overlaps.** Melody takes `robot.rhythmicDensity` and `robot.rhythmicMotifLength`; Envelope takes `robot.attack` and
+`robot.release` (Plucked makes the notes strike); Voice takes `robot.waveform` and `robot.filterFreq`; Distance takes
+`reverbSend` (Near dries the fleet); Performance (candidate) would take `robot.rests` and `robot.accents`. What survives
+everything is the slow pulse, the softened top, the dry colour and the generous near room.
 
-**Promise.** Slow, soft and washed: nothing hurries and nothing is dry.
+**Distinct from.** Open Water, the nearest: both soft, slow and in a long room. Open Water is vast and far, quiet, with a
+late echo and the silence between calls; Float is near and warm, its probes soft at the receiver with no echo. In the
+current set, Anchor: dry weight against warm wash.
 
-### Bold  ·  theme  ·  status: candidate
+**Promise.** Slow, soft and warm: nothing hurries, nothing is pushed, everything is in the room.
 
-**Character.** The foreground. Every probe is close to the receiver, plain-spoken and dry, in a room kept small and
-bright by an open master filter. The pulse is brisk, the probes talk often and over each other, and a note strikes and
-stops. There is little wash and little echo: what a probe plays is heard as it plays it.
+### Anchor (was Bold)  ·  theme  ·  status: renamed → Anchor
 
-**Heard first.** The probes are right at the receiver, dry and close.
-**Heard second.** They talk often and over each other.
-**Heard third.** Each note strikes; nothing is softened.
+**Crawford's mark (2026-11-03).** Renamed and redefined: low-mid punch and a solid fundamental; transient weight and dry
+clarity, with every notion of speed stripped. Square and triangle layers, locked, so it stays apart from Shatter's saws.
 
-**Keys owned.**
-- `bpm` — the pulse is brisk.
-- `robot.rhythmicDensity` — the probes talk often.
-- `robot.rests` — and over each other, with little left out.
-- `robot.attack` — a note strikes.
-- `robot.release` — and stops.
-- `reverbSend` — every probe is close: little wash.
-- `delaySend` — and little echo.
-- `filterLPF.frequency` — the room is bright: the master filter stays open.
+**Character.** The hold on the sea floor. Every note lands with weight and stops: an instant attack, a tight decay, and
+nothing after it, since no probe is in the wash or the echo. Nothing slides and nothing wavers: no probe glides between
+notes and no probe's layers drift against each other, so each stack is locked and punches as one. The voices are the
+square and the triangle with the partner layers full, so the stack is dense and the fundamental solid. The EQ is flat but
+for a slight lift in the mid band, so the weight sits low-mid, and the limiter is held tight so the punch never spikes.
+The pulse, the crowdedness and the gaps are Classic's: Anchor is weight, not speed.
 
-**Leaves alone.** `robot.shapedAttack`: the placeholder raised the share of probes that curve their attack and kept the
-curve short, for no reason this sheet can give; the plain attack band already makes the strike, and a visitor does not
-hear a curve on a strike that short. The rooms' size, EQ, colour, pedals, voices, layers, dynamics and accents: Classic's.
-
-**Overlaps.** Melody takes `robot.rhythmicDensity` (Wandering thins the talk); Envelope takes `robot.attack` and
-`robot.release` (Swelling softens the strike); Distance takes `reverbSend` and `delaySend` (Remote pushes the fleet
-away). With all three picked, what survives is the brisk pulse, the few rests and the bright filter.
-
-**Distinct from.** Perilous. Both are brisk, dense, dry and bright; Perilous is faster, denser, drier and brighter still,
-with hardly a rest. Inside a minute they are told apart only by degree, which is the rung problem this sheet cannot
-solve: Bold's one claim of its own is the foreground, close and plain.
-
-**Promise.** Close and plain: the probes are at the receiver, talking often, each note a strike.
-
-### Adventurous  ·  theme  ·  status: candidate
-
-**Character.** Not a place: a dice cup. Every band it names is widened past Classic's, so one seed lands a crawl in a
-cavern and the next a sprint in a cupboard. What a visitor hears in one world is one draw from that spread; the width is
-heard only across worlds, which a first-time visitor does not do. Its one in-world trait is that more probes than usual
-bend the start or the tail of a note.
-
-**Heard first.** More probes than usual bend the start or the tail of a note.
-**Heard second.** Whatever this seed drew: the pulse may be a crawl or a run, the room dry or drowned.
-**Heard third.** Nothing a visitor can name as the theme's own.
+**Heard first.** Every note lands with weight, dry and close, and stops.
+**Heard second.** Nothing slides and nothing wavers: each stack is locked.
+**Heard third.** Solid and low-mid: dense, plain, nothing bright or washed.
 
 **Keys owned.**
-- `robot.shapedAttack` — more probes than usual bend the start of a note.
-- `robot.shapedRelease` — or its tail.
-- `bpm` — the pulse may be a crawl or a run.
-- `robot.rests` — a probe may leave out almost nothing or almost everything.
-- `reverbSend` — the fleet may be dry or drowned.
-- `delaySend` — with no echo or a long one.
-- `filterLPF.frequency` — the top may be shut down or wide open.
+- `robot.attack` — an instant attack: the note lands.
+- `robot.decay` — a tight decay.
+- `robot.portamento` — nothing slides: no probe glides.
+- `robot.lfoDetuneDepth` — nothing wavers: no layer drifts against another, so the stack punches as one.
+- `robot.waveform` — the square and the triangle.
+- `robot.layerGain` — partner layers full: the stack is dense.
+- `reverbSend` — no probe in the wash.
+- `delaySend` — none in the echo.
+- `eq3.low` — flat: held near centre.
+- `eq3.high` — flat.
+- `eq3.mid` — but for a slight lift: the weight sits low-mid.
+- `limiter.threshold` — held tight: the punch never spikes.
 
-**Leaves alone.** Density, the plain attack and release: Classic's (a band equal to Classic's is a no-op the tests
-forbid, so the placeholder could not widen them). Everything else: Classic's.
+**Leaves alone.** `bpm`, `robot.rhythmicDensity` and `robot.rests`: Classic's, on purpose; Anchor is weight, not speed.
+The compressor: Classic's; the pumping clamp is Squall's alone, and the mild compression Anchor wants is what Classic
+already draws. The master filter, the rooms' size, the pedals, dynamics, accents, sustain and the shaped stages:
+Classic's. Not bands: the per-probe static detune (the few cents the seed draws between a probe's layers) would want to
+be none, and pitch drift would want to be none: ask-first.
 
-**Overlaps.** Envelope takes `robot.shapedAttack` and `robot.shapedRelease`, the one trait a visitor could name; Distance
-takes `reverbSend` and `delaySend`. With both picked nothing of the character survives in a single world.
+**Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Attack 0.001 s; portamento none;
+the mid lift slight, around 200 to 500 Hz, which the three-band EQ can only approach; both sends zero; limiter threshold
+tight.
 
-**Distinct from.** Classic. Both are wide; this one is wider in seven keys. Inside a minute, on most seeds, a visitor
-cannot tell them apart. This sheet is written so that can be seen: the sentences above are statistics, not a character,
-and the sheet expects the cut.
+**Overlaps.** Envelope takes `robot.attack` and `robot.decay` (Swelling softens the landing: the first line is lost);
+Voice takes `robot.waveform` and `robot.layerGain`; Distance takes both sends (Remote puts the weight in the wash);
+Motion (candidate) would take `robot.portamento` and `robot.lfoDetuneDepth`. What survives everything is the flat EQ
+with its mid lift and the tight limiter: still solid, if no longer dry.
 
-**Promise.** It cannot promise a sound; it can only promise a spread.
+**Distinct from.** Shatter, the nearest by strike: both land notes hard and dry. Anchor is the square and the triangle,
+locked and clean; Shatter is the saw and the pulse, buzzing and crushed. Among the candidates, Tidepool is dry too, but
+tiny, thin and high where Anchor is dense and low-mid.
 
-### Perilous  ·  theme  ·  status: candidate
+**Promise.** Weight: every note lands dry and solid, and stops.
 
-**Character.** A shoal in alarm. The world is fast, crowded and bright, and it never stops: the pulse runs, every probe
-talks nearly all the time with hardly a rest, each note is a hard short strike that is gone at once, and the fleet is
-dry and close in a room that gives nothing back. Nothing is soft and nothing is far.
+### Shatter (was Perilous)  ·  theme  ·  status: renamed → Shatter
 
-**Heard first.** It is fast and it never stops.
-**Heard second.** Every note is a hard short strike, bright-edged.
-**Heard third.** It is dry: the room gives nothing back.
+**Crawford's mark (2026-11-03).** Renamed (by way of "Gale") and redefined: tense, sharp and aggressive; a static,
+abrasive, high-frequency wall of crunch from fold and crush, with no compressor pump (that is Squall's) and no resonant
+sweep (that is Vent Field's); uptempo.
+
+**Character.** Breaking glass. The world is bright, fast and abrasive, and it does not move. Most probes are sent to the
+Grit room, where the drive is high, the fold order high and the bit depth low, so whatever colour node the coin lit bites
+hard; the high band is lifted and the master filter wide open, so the crunch sits on top. The voices are the saw and the
+pulse, and every note is a hard short strike that is gone at once; probes talk nearly all the time with hardly a rest and
+the pulse is fast, so the wall is steady and never gusts. Nothing resonates and nothing sweeps: the accent filter is off
+most probes and the probe filter does not move. A short echo with high feedback rides every probe, so each strike rattles
+once behind itself, and the fleet is dry of wash.
+
+**Heard first.** A bright abrasive crunch on nearly every note, and it does not let up.
+**Heard second.** Buzzing saws and pulses striking hard and short, a rattle behind each.
+**Heard third.** Fast and steady: a wall, not a storm.
 
 **Keys owned.**
-- `bpm` — the pulse runs.
-- `robot.rhythmicDensity` — every probe talks nearly all the time.
-- `robot.rests` — with hardly a rest.
-- `robot.attack` — each note is a hard strike.
+- `gritSend` — most probes sent to the Grit room: a crunch on nearly every note.
+- `distortion.amount` — the drive high.
+- `chebyshev.order` — the fold order high: jagged.
+- `bitCrusher.bits` — the bit depth low.
+- `distortion.wet` — whatever node the coin lit bites hard.
+- `chebyshev.wet` — bites hard.
+- `bitCrusher.wet` — bites hard.
+- `eq3.high` — the high band lifted: the crunch sits on top.
+- `filterLPF.frequency` — the master filter wide open.
+- `robot.waveform` — the saw and the pulse.
+- `robot.attack` — a hard strike.
+- `robot.decay` — short.
+- `robot.sustain` — holds little.
 - `robot.release` — gone at once.
-- `reverbSend` — the fleet is dry and close.
-- `delaySend` — the room gives nothing back.
-- `filterLPF.frequency` — bright-edged: the master filter wide open.
+- `robot.rhythmicDensity` — probes talk nearly all the time.
+- `robot.rests` — with hardly a rest: a wall, never gusting.
+- `bpm` — the pulse is fast.
+- `robot.accentFilterFreq` — nothing resonates: the accent filter off most probes.
+- `robot.lfoBusDepth` — nothing sweeps: the probe filter does not move.
+- `delay.delayTime` — a short echo.
+- `delay.feedback` — with high feedback: a rattle.
+- `delaySend` — on every probe.
+- `reverbSend` — dry of wash.
 
-**Leaves alone.** `robot.shapedAttack` and `robot.shapedRelease`: the placeholder raised both shaped shares and kept the
-curves short, for no reason this sheet can give; the plain bands already make the strike and the stop. The rooms' size,
-EQ, colour, pedals, voices, layers, dynamics and accents: Classic's.
+**Leaves alone.** The compressor: Classic's; the pumping clamp is Squall's alone. `robot.accentFilterQ`: Classic's, since
+the filter is off most probes. The shaped stages, dynamics, accents, the probe filter's rest position and the layers:
+Classic's. `shimmerSend` and `doubleSend`: Classic's, with the at-most-one-room note. Not bands: a wide static detune
+between a probe's layers would make the buzz beat, and the seed's own detune is a few cents: ask-first; a noise layer:
+no waveform the table has; a colour node lit in every world: ask-first (Wreck raises it too), and without it the Grit
+room has nothing to bite with.
 
-**Overlaps.** Melody takes `robot.rhythmicDensity` (Wandering undoes the crowd); Envelope takes `robot.attack` and
-`robot.release` (Held lets the notes ring); Distance takes `reverbSend` and `delaySend` (Remote drowns the fleet). With
-all three picked, what survives is the running pulse, the missing rests and the open filter: it is still fast and it
-still never stops.
+**Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Detune 20 to 30 cents if it
+becomes a band; the delay a slapback. The fast compressor and the accent Q range from the "Gale" draft were dropped with
+the compressor and the resonance.
 
-**Distinct from.** Bold. Perilous is Bold pushed further on every key the two share, which is the rung problem; its
-claim of its own is the never-stopping, the alarm. Inside a minute the tempo and the absent rests tell them apart on
-most seeds, but not by kind.
+**Overlaps.** Voice takes `robot.waveform` and `robot.accentFilterFreq` (Hollow puts the resonance back); Envelope takes
+the four stages (Held lets the notes ring); Melody takes `robot.rhythmicDensity`; Performance (candidate) would take
+`robot.rests` (Halting turns the wall into gusts, which is Squall's); Distance takes both sends; Motion (candidate), if
+it took the room sends, would take `gritSend`, the crunch itself. What survives everything is the bright EQ, the open
+filter, the fast pulse and the hot Grit room: a probe still sent into it still crunches.
 
-**Promise.** Fast, crowded and bright, and it never stops.
+**Distinct from.** Squall, the nearest: both tear. Squall surges and drops, gusts, and pumps on its compressor; Shatter is
+a steady wall with no pump and no gusts. Anchor: clean square weight against buzzing saw crunch. Vent Field: its filter
+sweeps and squelches, low; Shatter's does not move, and sits on top. Wreck leans on the Grit room too, but dark, slow and
+echoing with long tails where Shatter is bright, fast and rattling.
+
+**Promise.** Bright, fast and abrasive: a wall of crunch that never lets up.
 
 ### Families and their options
 
@@ -668,8 +709,9 @@ register would suit it low and is not a band: ask-first if the listen wants it.
 takes `robot.waveform`; Motion (candidate) would take `robot.portamento`, the sonar slur. With everything picked, what
 survives is the dark filter and EQ, the crawl, the cavern and the gaps: still the deep, without the sonar.
 
-**Distinct from.** Calm, the nearest current theme: Calm is soft and slow in an ordinary room with the top only
-softened; Trench is dark, in a cavern, and its probes slide. Among the candidates, Open Water: far and wide, not dark.
+**Distinct from.** Float, the nearest current theme: Float is soft and slow in a warm near room with the top only
+softened; Trench is dark, in a cavern, and its probes slide. Among the candidates, Open Water: far and wide, not dark;
+Tide slides too, but bright and wet, not deep.
 
 **Promise.** Dark and deep: the top is gone, the room is a cavern, the probes slide like sonar.
 
@@ -712,9 +754,9 @@ no probe is in it.
 line is lost); Distance takes both sends; Voice takes `robot.waveform`, `robot.layerGain` and `robot.accentFilterFreq`;
 Melody takes `robot.rhythmicDensity`. What survives everything is the tiny bright room and the light pulse.
 
-**Distinct from.** Bold, the nearest current theme: Bold is a plain-spoken, dense foreground; Tidepool is small,
-delicate and bright, sparser, each note tiny. Among the candidates, Floe is glassy too, but slow and shimmering;
-Tidepool has no sheen and ticks.
+**Distinct from.** Anchor, the nearest current theme: Anchor is dry weight, dense and low-mid; Tidepool is dry too, but
+small, delicate and bright, each note tiny. Among the candidates, Floe is glassy too, but slow and shimmering; Tidepool
+has no sheen and ticks. Tide shares the name's root only: Tide slides and is wet.
 
 **Promise.** Small, bright and close: every note a dry droplet.
 
@@ -754,7 +796,7 @@ two crowd it out, this sheet will need to own them to lower them.
 `robot.rhythmicDensity`; Distance takes `reverbSend`; Motion (candidate), if it took the room sends, would take
 `shimmerSend`, the sheen itself. What survives everything is the slow pulse, the thin cold EQ and the large room.
 
-**Distinct from.** Calm, the nearest current theme: Calm is washed and soft with the top softened; Floe is cold and
+**Distinct from.** Float, the nearest current theme: Float is warm and soft with the top softened; Floe is cold and
 bright with a sheen and nothing underneath. Among the candidates, Tidepool (bright but dry and quick) and Open Water
 (far, no sheen).
 
@@ -797,8 +839,9 @@ takes `robot.sustain` and `robot.release`; Melody takes `robot.rhythmicDensity`;
 (candidate), if it took the room sends, would take `doubleSend`. What survives everything is the mid-heavy EQ, the
 part-closed master filter, the pulse, and the chorus room itself: a probe still in it is still doubled.
 
-**Distinct from.** Calm, the nearest current theme: Calm is sparse and washed; Thicket is thick and close. Among the
-candidates, Current also sways, but by sliding pitch, and is thin. Beside the Woody option: Thicket is the world Woody's
+**Distinct from.** Tide, the nearest current theme, and the one that shares the Double room: Tide's chorus is shallow and
+short, a wobble on a thin sliding voice; Thicket's is slow and deep, each probe two or three thick voices that stand
+still. Float is sparse and washed where Thicket is thick and close. Beside the Woody option: Thicket is the world Woody's
 voice lives in, plus the doubling.
 
 **Promise.** Thick, warm and swaying: every probe doubled.
@@ -840,52 +883,64 @@ takes `robot.waveform` and `robot.accentFilterFreq`; Distance takes `delaySend` 
 (candidate), if it took the room sends, would take `gritSend`. What survives everything is the dark EQ and filter, the
 slow pulse and the long-feedback delay room itself.
 
-**Distinct from.** Bold, the nearest current theme by edge: Bold is clean and close; Wreck is dirty, dark and echoing.
-Among the candidates, Trench is dark too, but round, sliding and silent where Wreck is grainy, cycling and echoing;
-Beacon repeats a figure too, but clean and flat.
+**Distinct from.** Shatter, the nearest current theme, and the one that shares the Grit room: Shatter is bright, fast and
+rattling, a wall; Wreck is dark, slow and echoing with long tails, a hulk. Among the candidates, Trench is dark too, but
+round, sliding and silent where Wreck is grainy, cycling and echoing; Beacon repeats a figure too, but clean and flat.
 
 **Promise.** Dark, rusted and echoing: machines still cycling in the hulk.
 
-### Current  ·  theme  ·  status: candidate
+### Tide (was Current)  ·  theme  ·  status: renamed → Tide
 
-**Character.** The drift. No note is fixed. Every probe glides from pitch to pitch over a long slide, and while a note
-lasts it wavers: the layers' pitch and loudness are tied to the slow oscillators on nearly every probe, and the probe
-filter sweeps on many. Notes arrive slowly and run into each other with no rests at all, holding and releasing long,
-curved or plain, so the fleet is one moving surface, wide across the field. The pulse is middling, and probes speak
-less often than most, since each note is long.
+**Crawford's mark (2026-11-03).** Renamed and redefined: fluid, sliding, aquatic pitch and filters; a high glide, a saw
+and triangle blend, gentle filter wobbles, a global chorus and a moderate delay feedback, so the world stays aquatic in
+its chain even when an aspect takes the glide.
 
-**Heard first.** No note is fixed: each slides into the next and wavers while it lasts.
-**Heard second.** One moving surface: no gaps, notes run together.
-**Heard third.** Wide, from edge to edge.
+**Character.** The tide. Every probe glides from pitch to pitch over a long slide, and on many the probe filter wobbles
+gently while a note lasts; notes arrive slowly, run into each other with no rests and release long, so the fleet is one
+moving surface. The voices are the saw and the triangle blended. The world itself is wet: most probes are sent to the
+Double room, whose chorus is set shallow, quick-ish and short-delayed, so it reads as water moving over the sound rather
+than as extra voices, and the delay's feedback is moderate so each note ripples a few times behind itself, most probes
+sent into it.
+
+**Heard first.** No note is fixed: each slides into the next.
+**Heard second.** Water moves over the whole sound: a wobble on the notes and a ripple behind them.
+**Heard third.** One surface: no gaps, notes run together, slow to arrive and slow to go.
 
 **Keys owned.**
-- `robot.portamento` — every probe glides from pitch to pitch over a long slide.
-- `robot.lfoDetuneDepth` — the layers' pitch wavers on nearly every probe.
-- `robot.lfoGainDepth` — and their loudness.
-- `robot.lfoBusDepth` — the probe filter sweeps on many.
+- `robot.portamento` — every probe glides over a long slide.
+- `robot.lfoBusDepth` — on many the probe filter wobbles gently.
 - `robot.attack` — notes arrive slowly.
-- `robot.rests` — and run into each other with no rests at all.
-- `robot.sustain` — holding.
-- `robot.release` — and releasing long.
-- `robot.shapedAttack` — a curved probe arrives as slowly.
-- `robot.shapedRelease` — and releases as long.
-- `stereoWidener.width` — wide across the field.
-- `bpm` — a middling pulse.
-- `robot.rhythmicDensity` — probes speak less often than most.
+- `robot.rests` — run into each other with no rests.
+- `robot.release` — and release long.
+- `robot.waveform` — the saw and the triangle blended.
+- `doubleSend` — most probes sent to the Double room: water over the sound.
+- `chorus.depth` — shallow: a wobble, not voices.
+- `chorus.rate` — quick-ish: water moving.
+- `chorus.delayTime` — short: a smear, not a second voice.
+- `delay.feedback` — moderate: each note ripples a few times.
+- `delaySend` — most probes sent into it.
 
-**Leaves alone.** A vibrato on the whole world would suit it, but the Vibrato pedal is lit by a coin, not a band:
-ask-first. Pitch drift would suit it and is the docking lifecycle's, not a band: ask-first. The rooms, EQ, master
-filter, colour and voices: Classic's.
+**Leaves alone.** `bpm`, the density, the rooms' size, the EQ, the master filter, the probe filter's rest position,
+dynamics, accents and the shaped stages: Classic's. `chorus.spread` and `chorus.feedback`: Classic's. `gritSend` and
+`shimmerSend`: Classic's, with the at-most-one-room note. Not bands: the Phaser lit in every world and a slow sweep on
+the master filter would make the world aquatic without any probe's help, and both are lit by a coin: ask-first; the
+Vibrato pedal and pitch drift, the same.
 
-**Overlaps.** Motion (candidate) takes `robot.portamento` and the three LFO depths: the whole first line. Envelope takes
-the stages and shaped stages; Performance (candidate) would take `robot.rests`; Melody takes `robot.rhythmicDensity`.
-What survives everything is the width and the pulse. If Motion is kept, Current is the theme most exposed to it, and
-its sentence can promise the slide only while the Motion row is empty.
+**Sketch starting points (Crawford, 2026-11-03; guesses for the sketch, not rules).** Portamento 0.15 to 0.35 s; the
+chorus shallow and short.
 
-**Distinct from.** Calm, the nearest current theme: Calm's long notes are still; Current's slide and waver. Among the
-candidates, Thicket sways by doubling and Floe shines with a fixed pitch.
+**Overlaps.** Motion (candidate) takes `robot.portamento` and `robot.lfoBusDepth`, the first line, and would take
+`doubleSend` if it took the room sends; Envelope takes `robot.attack` and `robot.release`; Voice takes `robot.waveform`;
+Performance (candidate) would take `robot.rests`; Distance takes `delaySend`. What survives everything is the chorus
+room's setting and the delay's ripple: a probe still in the Double room is still under water, which is why the chain
+carries it.
 
-**Promise.** Everything slides and wavers: one moving surface.
+**Distinct from.** Thicket, the nearest: both send most probes to the Double room. Thicket's chorus is slow and deep with
+a long delay, so each probe is two or three thick mid-heavy voices; Tide's is shallow and short, a wobble on one thin
+voice, and Tide slides where Thicket stands. Trench slides too, but dark, in a cavern, and seldom. Tidepool shares the
+name's root and nothing else: tiny dry droplets.
+
+**Promise.** Fluid: everything slides, and water moves over the whole sound.
 
 ### Open Water  ·  theme  ·  status: candidate
 
@@ -921,9 +976,9 @@ outright); Melody takes `robot.rhythmicDensity`; Envelope takes `robot.release`;
 `robot.rests`. What survives everything is the longest room with the late echo, the quiet, the width and the dulled
 filter: still a vast space.
 
-**Distinct from.** Calm, the nearest current theme: Calm is soft and slow and washed; Open Water is far, quiet, with
-long gaps and a late echo, space rather than softness. Among the candidates, Trench is dark, narrow and sliding where
-Open Water is not dark; Floe has its sheen.
+**Distinct from.** Float, the nearest current theme: Float is soft and slow in a warm near room with no echo; Open Water
+is far, quiet, with long gaps and a late echo, space rather than softness. Among the candidates, Trench is dark, narrow
+and sliding where Open Water is not dark; Floe has its sheen.
 
 **Promise.** Vast and far: each call from a distance, its echo late.
 
@@ -961,9 +1016,10 @@ whistle: the first line is lost); Motion (candidate) would take `robot.lfoBusDep
 `robot.rhythmicDensity` and `robot.noteVariance`; Envelope takes `robot.attack`, `robot.decay` and `robot.sustain`. What
 survives everything is the low-heavy EQ, the part-closed top and the pulse.
 
-**Distinct from.** Perilous, the nearest current theme: Perilous is clean, bright and steady; Vent Field is resonant,
-low and squelching. Among the candidates, Wreck is grainy and slow. Beside the Hollow option: Vent Field is the world
-Hollow's voice lives in, plus the sweep and the bubbling.
+**Distinct from.** Shatter, the nearest current theme: Shatter is bright crunch that does not move; Vent Field is a
+resonant filter that never stops moving, low and squelching, and that movement is the whole identity (Crawford,
+2026-11-03: push Vent Field all the way into its sweep). Among the candidates, Wreck is grainy and slow. Beside the Hollow
+option: Vent Field is the world Hollow's voice lives in, plus the sweep and the bubbling.
 
 **Promise.** Hot and bubbling: resonant probes squelching and whistling.
 
@@ -1002,9 +1058,9 @@ which is a seeded global setting and not a band: ask-first.
 everything is the feedback room and the pulse. Beacon is the theme most made of probe keys: with Melody and Distance
 picked, almost nothing of it is left, and its sentence must say "the probes" rather than "the world".
 
-**Distinct from.** Calm, the nearest current theme by pace: Calm's probes vary; Beacon's repeat. Among the candidates,
-Wreck also cycles, but dark and dirty. Beside the Mechanical option: Beacon is the world, sparser, flat and echoing;
-Mechanical is one family's point at high density.
+**Distinct from.** Float, the nearest current theme by pace: Float's probes vary and play short gentle cells; Beacon's
+repeat one long figure. Among the candidates, Wreck also cycles, but dark and dirty. Beside the Mechanical option: Beacon
+is the world, sparser, flat and echoing; Mechanical is one family's point at high density.
 
 **Promise.** One phrase, round and round, with its echo.
 
@@ -1044,8 +1100,10 @@ line. Melody takes `robot.rhythmicDensity` and `robot.noteVariance`; Envelope ta
 Motion (candidate), if it took the room sends, would take `gritSend`. What survives everything is the pumping
 compressor, the fast pulse, and the loud, low-heavy, wide world.
 
-**Distinct from.** Perilous, the nearest current theme: Perilous is steady and never stops; Squall stops and starts,
-loud and soft. Among the candidates, Vent Field bubbles steadily and resonates where Squall gusts and tears.
+**Distinct from.** Shatter, the nearest current theme: Shatter is a steady wall that never stops and never pumps;
+Squall stops and starts, loud and soft, and the pumping compressor is Squall's alone (Crawford, 2026-11-03). Both lean
+on the Grit room: Squall's loud ones tear, Shatter's every note crunches. Among the candidates, Vent Field bubbles
+steadily and resonates where Squall gusts and tears.
 
 **Promise.** Stormy: surging, gusting, tearing, nothing steady.
 
@@ -1551,4 +1609,36 @@ left out" are lost; Calm's gaps deepen. Undoes Current's "no rests at all".
 
 ## Cut
 
-(Empty. Cut sheets move here at the cut, each with Crawford's reason.)
+### Adventurous  ·  theme  ·  status: cut
+
+**Crawford's mark (2026-11-03).** Cut. Not a place: a spread, heard only across worlds, as the sheet itself says.
+
+**Character.** Not a place: a dice cup. Every band it names is widened past Classic's, so one seed lands a crawl in a
+cavern and the next a sprint in a cupboard. What a visitor hears in one world is one draw from that spread; the width is
+heard only across worlds, which a first-time visitor does not do. Its one in-world trait is that more probes than usual
+bend the start or the tail of a note.
+
+**Heard first.** More probes than usual bend the start or the tail of a note.
+**Heard second.** Whatever this seed drew: the pulse may be a crawl or a run, the room dry or drowned.
+**Heard third.** Nothing a visitor can name as the theme's own.
+
+**Keys owned.**
+- `robot.shapedAttack` — more probes than usual bend the start of a note.
+- `robot.shapedRelease` — or its tail.
+- `bpm` — the pulse may be a crawl or a run.
+- `robot.rests` — a probe may leave out almost nothing or almost everything.
+- `reverbSend` — the fleet may be dry or drowned.
+- `delaySend` — with no echo or a long one.
+- `filterLPF.frequency` — the top may be shut down or wide open.
+
+**Leaves alone.** Density, the plain attack and release: Classic's (a band equal to Classic's is a no-op the tests
+forbid, so the placeholder could not widen them). Everything else: Classic's.
+
+**Overlaps.** Envelope takes `robot.shapedAttack` and `robot.shapedRelease`, the one trait a visitor could name; Distance
+takes `reverbSend` and `delaySend`. With both picked nothing of the character survives in a single world.
+
+**Distinct from.** Classic. Both are wide; this one is wider in seven keys. Inside a minute, on most seeds, a visitor
+cannot tell them apart. This sheet is written so that can be seen: the sentences above are statistics, not a character,
+and the sheet expects the cut.
+
+**Promise.** It cannot promise a sound; it can only promise a spread.

@@ -77,7 +77,9 @@ section: the sheets are prose, they outlive the build (the copy step and the Gui
 comment cites its sheet), and the spec stays the contract rather than the catalogue. Cut sheets stay in the file under
 a "Cut" heading with Crawford's reason, so a candidate is never proposed twice.
 
-**The fixed shape.** Every sheet has the same fields, in this order, and no numbers anywhere.
+**The fixed shape.** Every sheet has the same fields, in this order, and no numbers in any of them. One optional field
+was added at the cut (Crawford, 2026-11-03): a **Sketch starting points** line carrying his numbers for the measured
+sketch, read as guesses the sketch tests and never as rules; the sentence beside each key remains the contract.
 
 ```markdown
 ### <Working name>  ·  <theme | family | option of <family>>  ·  status: candidate | kept | renamed → <name> | cut
@@ -263,7 +265,8 @@ change, the plan names it and why.
 ## 3. Implementation Boundaries & Constraints
 
 - **Always**
-  - A key moves only with a sheet sentence (the importance test). Sheets carry no numbers.
+  - A key moves only with a sheet sentence (the importance test). Sheets carry no numbers outside the "Sketch starting
+    points" line, and those are guesses for the sketch, not rules.
   - No column is written before Crawford's cut; no number is tuned before its listen.
   - Replace, never widen: `resolveBands` overlays whole bands, the aspect last. Unchanged.
   - A theme or aspect change is re-derived in place and rebuilds nothing. Every key a survivor moves has a push.
