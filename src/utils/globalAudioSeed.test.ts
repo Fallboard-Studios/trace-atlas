@@ -31,7 +31,7 @@ vi.mock('./tempoSync', async (importOriginal) => {
 // cutoff (a plain sampled field), the Delay time (the band the Delay Sync pick is handed) and the Chorus rate (a rate
 // band the Sync pick is handed; the Chorus is a room, so naming it lights nothing). The rest prove the lit rule
 // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8), each naming one SHAPE row only, so it is the row named and not a wet
-// band that lights: Shatter the three colour nodes, Wreck the drive and the crush, Vent Field the Auto-Wah, Abyss the
+// band that lights: Shatter the three colour nodes, Wreck the drive and the crush, Vent Field the Auto-Wah, Polar Low the
 // Tremolo, and Beacon three pedals at once, one more than the cap.
 vi.mock('@/data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/data/bands/themes')>();
@@ -51,7 +51,7 @@ vi.mock('@/data/bands/themes', async (importOriginal) => {
       },
       wreck: { 'distortion.amount': { min: 0.5, max: 0.6 }, 'bitCrusher.bits': { min: 4, max: 5 } },
       ventField: { 'autoWah.Q': { min: 6, max: 7 } },
-      abyss: { 'tremolo.depth': { min: 0.8, max: 0.9 } },
+      polarLow: { 'tremolo.depth': { min: 0.8, max: 0.9 } },
       beacon: { 'autoWah.Q': { min: 6, max: 7 }, 'tremolo.depth': { min: 0.8, max: 0.9 }, 'vibrato.depth': { min: 0.05, max: 0.06 } },
     },
   };
@@ -2442,7 +2442,7 @@ describe('generateGlobalAudioSettings reads the band table (band-table T22, spec
 describe('generateGlobalAudioSettings: a theme naming a pedal\'s or a colour node\'s rows lights it in every world (T8)', () => {
   const names = Array.from({ length: 60 }, (_, i) => `lit-rule-t8-${i}`);
   const idOf = (name: string) => `lit-rule-t8-id-${name}`;
-  const under = (theme: 'shatter' | 'wreck' | 'ventField' | 'abyss' | 'beacon' | 'classic', name: string) =>
+  const under = (theme: 'shatter' | 'wreck' | 'ventField' | 'polarLow' | 'beacon' | 'classic', name: string) =>
     withLoading({ theme, aspects: {} }, () => generateGlobalAudioSettings(idOf(name), name));
   type Settings = ReturnType<typeof generateGlobalAudioSettings>;
   const pedalsLit = (s: Settings) => ({
@@ -2505,10 +2505,10 @@ describe('generateGlobalAudioSettings: a theme naming a pedal\'s or a colour nod
     }
   });
 
-  it('a column naming a Tremolo row (Abyss, injected) lights it in every world, and the forced pedal counts against the two-lit cap', () => {
+  it('a column naming a Tremolo row (Polar Low, injected) lights it in every world, and the forced pedal counts against the two-lit cap', () => {
     let capped = 0;
     for (const name of names) {
-      const s = under('abyss', name);
+      const s = under('polarLow', name);
       const classic = pedalsLit(under('classic', name));
       expect(inWetBand(s.tremolo.wet, 'tremolo.wet') && s.tremolo.wet > 0, name).toBe(true);
       expect(litCount(s), name).toBeLessThanOrEqual(MAX_LIT_PEDALS);
@@ -2535,7 +2535,7 @@ describe('generateGlobalAudioSettings: a theme naming a pedal\'s or a colour nod
     clearSeedDraws();
     under('classic', name);
     const classic = drawnDataIds();
-    for (const theme of ['shatter', 'wreck', 'ventField', 'abyss', 'beacon'] as const) {
+    for (const theme of ['shatter', 'wreck', 'ventField', 'polarLow', 'beacon'] as const) {
       clearSeedDraws();
       under(theme, name);
       expect(drawnDataIds(), theme).toEqual(classic);

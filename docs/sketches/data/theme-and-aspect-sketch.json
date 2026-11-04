@@ -1,7 +1,7 @@
 {
  "meta": {
-  "generated": "2026-11-04T20:30:36.353Z",
-  "commit": "893f0d1e",
+  "generated": "2026-11-04T20:58:45.188Z",
+  "commit": "e5a3cb25",
   "worlds": 300,
   "robotsPerWorld": 12,
   "styles": 300,
@@ -24,7 +24,7 @@
   "openWater",
   "ventField",
   "beacon",
-  "abyss"
+  "polarLow"
  ],
  "families": {
   "melody": {
@@ -33511,7 +33511,7 @@
     }
    }
   },
-  "abyss": {
+  "polarLow": {
    "moves": [
     "robot.dynamics",
     "robot.accents",
@@ -36395,7 +36395,7 @@
        "high": 100
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.rhythmicDensity": {
        "n": 3600,
        "low": 40,
@@ -36810,7 +36810,7 @@
        "high": 70
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.rhythmicDensity": {
        "n": 3600,
        "low": 70,
@@ -37232,7 +37232,7 @@
        "high": 30
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.rhythmicDensity": {
        "n": 3600,
        "low": 20,
@@ -37654,7 +37654,7 @@
        "high": 80
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.rhythmicMotifLength": {
        "n": 3600,
        "low": 2,
@@ -38037,7 +38037,7 @@
        "high": 15
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.rhythmicDensity": {
        "n": 3600,
        "low": 85,
@@ -38456,7 +38456,7 @@
        "high": 60
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.rhythmicDensity": {
        "n": 3600,
        "low": 5,
@@ -39046,7 +39046,7 @@
        "share": 0.6161
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.attack": {
        "n": 1866,
        "low": 0.015,
@@ -39383,7 +39383,7 @@
        "share": 0.3892
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.attack": {
        "n": 2199,
        "low": 0.3002,
@@ -39784,7 +39784,7 @@
        "share": 0.29
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.attack": {
        "n": 3071,
        "low": 0.02003,
@@ -40288,7 +40288,7 @@
        "share": 0.3175
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.attack": {
        "n": 2571,
        "low": 0.4002,
@@ -40799,7 +40799,7 @@
        "share": 0.1561
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.attack": {
        "n": 3071,
        "low": 0.015,
@@ -41393,7 +41393,7 @@
        "share": 0.3175
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.attack": {
        "n": 2571,
        "low": 0.08006,
@@ -41663,7 +41663,7 @@
        "share": 0.08417
       }
      },
-     "abyss": {
+     "polarLow": {
       "reverbSend": {
        "n": 3600,
        "low": 0.01,
@@ -41907,7 +41907,7 @@
        "share": 1
       }
      },
-     "abyss": {
+     "polarLow": {
       "delaySend": {
        "n": 3600,
        "low": 0.4,
@@ -42151,7 +42151,7 @@
        "share": 0.4836
       }
      },
-     "abyss": {
+     "polarLow": {
       "reverbSend": {
        "n": 3600,
        "low": 0.55,
@@ -42620,7 +42620,7 @@
        "share": 0.2981
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.waveform": {
        "n": 14400,
        "picks": {
@@ -43006,7 +43006,7 @@
        "share": 0.7029
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.waveform": {
        "n": 14400,
        "picks": {
@@ -43468,7 +43468,7 @@
        "high": 12
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.waveform": {
        "n": 14400,
        "picks": {
@@ -43950,7 +43950,7 @@
        "share": 0.05139
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.waveform": {
        "n": 14400,
        "picks": {
@@ -44381,7 +44381,7 @@
        "share": 0
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.waveform": {
        "n": 14400,
        "picks": {
@@ -44769,7 +44769,7 @@
        "share": 0
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.waveform": {
        "n": 14400,
        "picks": {
@@ -45101,7 +45101,7 @@
        "share": 0
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.portamento": {
        "n": 3600,
        "low": 0.2,
@@ -45466,7 +45466,7 @@
        "share": 0
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.lfoDetuneDepth": {
        "n": 10800,
        "low": 4,
@@ -45795,7 +45795,7 @@
        "share": 0
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.lfoBusDepth": {
        "n": 3600,
        "low": 30,
@@ -46101,7 +46101,7 @@
        "high": 8
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.dynamics": {
        "n": 3600,
        "low": 0,
@@ -46404,7 +46404,7 @@
        "high": 30
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.dynamics": {
        "n": 3600,
        "low": 80,
@@ -46707,7 +46707,7 @@
        "high": 25
       }
      },
-     "abyss": {
+     "polarLow": {
       "robot.rests": {
        "n": 3600,
        "low": 65,
@@ -46733,60 +46733,60 @@
  },
  "timings": {
   "classic": {
-   "robotRosterMs": 6.69,
-   "worldSeedMs": 1.422
+   "robotRosterMs": 5.485,
+   "worldSeedMs": 1.254
   },
   "float": {
-   "robotRosterMs": 6.537,
-   "worldSeedMs": 1.524
+   "robotRosterMs": 5.376,
+   "worldSeedMs": 1.256
   },
   "anchor": {
-   "robotRosterMs": 6.165,
-   "worldSeedMs": 1.5
+   "robotRosterMs": 5.126,
+   "worldSeedMs": 1.23
   },
   "shatter": {
-   "robotRosterMs": 6.639,
-   "worldSeedMs": 1.461
+   "robotRosterMs": 5.345,
+   "worldSeedMs": 1.236
   },
   "undertow": {
-   "robotRosterMs": 6.717,
-   "worldSeedMs": 1.485
+   "robotRosterMs": 5.806,
+   "worldSeedMs": 1.295
   },
   "trench": {
-   "robotRosterMs": 6.854,
-   "worldSeedMs": 1.518
+   "robotRosterMs": 5.634,
+   "worldSeedMs": 1.314
   },
   "tidepool": {
-   "robotRosterMs": 6.562,
-   "worldSeedMs": 1.538
+   "robotRosterMs": 5.397,
+   "worldSeedMs": 1.243
   },
   "floe": {
-   "robotRosterMs": 6.696,
-   "worldSeedMs": 1.451
+   "robotRosterMs": 5.743,
+   "worldSeedMs": 1.28
   },
   "thicket": {
-   "robotRosterMs": 6.627,
-   "worldSeedMs": 1.51
+   "robotRosterMs": 5.683,
+   "worldSeedMs": 1.245
   },
   "wreck": {
-   "robotRosterMs": 7.138,
-   "worldSeedMs": 1.589
+   "robotRosterMs": 5.671,
+   "worldSeedMs": 1.234
   },
   "openWater": {
-   "robotRosterMs": 6.567,
-   "worldSeedMs": 1.514
+   "robotRosterMs": 5.572,
+   "worldSeedMs": 1.234
   },
   "ventField": {
-   "robotRosterMs": 7.328,
-   "worldSeedMs": 1.505
+   "robotRosterMs": 5.902,
+   "worldSeedMs": 1.251
   },
   "beacon": {
-   "robotRosterMs": 6.376,
-   "worldSeedMs": 1.549
+   "robotRosterMs": 5.628,
+   "worldSeedMs": 1.268
   },
-  "abyss": {
-   "robotRosterMs": 6.234,
-   "worldSeedMs": 1.324
+  "polarLow": {
+   "robotRosterMs": 5.662,
+   "worldSeedMs": 1.25
   }
  }
 }

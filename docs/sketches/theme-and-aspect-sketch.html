@@ -146,7 +146,7 @@ const SHEETS = {
   },
   shatter: {
     keys: ["gritSend","distortion.amount","chebyshev.order","bitCrusher.bits","distortion.wet","chebyshev.wet","bitCrusher.wet","eq3.high","filterLPF.frequency","robot.waveform","robot.octaveRegister","robot.detune","robot.attack","robot.decay","robot.sustain","robot.release","robot.rhythmicDensity","robot.rests","bpm","robot.accentFilterFreq","robot.lfoBusDepth","delay.delayTime","delay.feedback","delaySend","reverbSend"],
-    overlaps: "Voice takes `robot.waveform` and `robot.accentFilterFreq` (Hollow puts the resonance back); Envelope takes the four stages (Held lets the notes ring); Melody takes `robot.rhythmicDensity`; Performance would take `robot.rests` (Halting turns the wall into gusts, which is Abyss's); Distance takes both sends; Motion, if it took the room sends, would take `gritSend`, the crunch itself. What survives everything is the bright EQ, the open filter, the fast pulse and the hot Grit room: a probe still sent into it still crunches.",
+    overlaps: "Voice takes `robot.waveform` and `robot.accentFilterFreq` (Hollow puts the resonance back); Envelope takes the four stages (Held lets the notes ring); Melody takes `robot.rhythmicDensity`; Performance would take `robot.rests` (Halting turns the wall into gusts, which is Polar Low's); Distance takes both sends; Motion, if it took the room sends, would take `gritSend`, the crunch itself. What survives everything is the bright EQ, the open filter, the fast pulse and the hot Grit room: a probe still sent into it still crunches.",
   },
   trench: {
     keys: ["filterLPF.frequency","eq3.high","eq3.low","bpm","reverb.decay","reverb.preDelay","reverbSend","robot.rhythmicDensity","robot.rests","robot.portamento","robot.release","robot.waveform","robot.octaveRegister"],
@@ -184,7 +184,7 @@ const SHEETS = {
     keys: ["robot.rhythmicMotifLength","robot.noteVariance","robot.pitchRepeat","robot.dynamics","robot.accents","robot.rests","delaySend","delay.feedback","delay.delayTime","reverbSend","bpm","robot.rhythmicDensity","humanize"],
     overlaps: "Melody takes `robot.rhythmicMotifLength`, `robot.noteVariance`, `robot.pitchRepeat` and `robot.rhythmicDensity` (Wandering ends the beacon); Performance would take `robot.dynamics`, `robot.accents` and `robot.rests`; Distance takes `delaySend` and `reverbSend` (Near kills the echo). What survives everything is the feedback room and the pulse. Beacon is the theme most made of probe keys: with Melody and Distance picked, almost nothing of it is left, and its sentence must say \"the probes\" rather than \"the world\".",
   },
-  abyss: {
+  polarLow: {
     keys: ["robot.dynamics","robot.accents","robot.rests","compressor.threshold","compressor.ratio","bpm","robot.rhythmicDensity","robot.noteVariance","robot.attack","robot.release","gritSend","robot.masterVolume","eq3.low","stereoWidener.width","tremolo.wet","tremolo.depth","tremolo.rate"],
     overlaps: "Performance would take `robot.dynamics`, `robot.accents` and `robot.rests`: the whole first line. Melody takes `robot.rhythmicDensity` and `robot.noteVariance`; Envelope takes `robot.attack` and `robot.release`; Motion, if it took the room sends, would take `gritSend`. What survives everything is the pumping compressor, the fast pulse, and the loud, low-heavy, wide world.",
   },

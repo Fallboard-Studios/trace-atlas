@@ -74,7 +74,7 @@ export const home = {
   'home.off.theme.openWater': { human: 'Open Water' },
   'home.off.theme.ventField': { human: 'Vent Field' },
   'home.off.theme.beacon': { human: 'Beacon' },
-  'home.off.theme.abyss': { human: 'Abyss' },
+  'home.off.theme.polarLow': { human: 'Polar Low' },
   'home.off.melody.hypnotic': { human: 'Hypnotic' },
   'home.off.melody.mechanical': { human: 'Mechanical' },
   'home.off.melody.wandering': { human: 'Wandering' },
@@ -99,7 +99,7 @@ export const home = {
   'home.off.themeDescription.openWater': { human: 'Vast and far: each call from a distance, its echo late.' },
   'home.off.themeDescription.ventField': { human: 'Hot and bubbling: resonant probes squelching and whistling.' },
   'home.off.themeDescription.beacon': { human: 'One phrase, round and round, with its echo.' },
-  'home.off.themeDescription.abyss': { human: 'Stormy: surging, gusting, tearing, nothing steady.' },
+  'home.off.themeDescription.polarLow': { human: 'Stormy: surging, gusting, tearing, nothing steady.' },
   // The Melody row (Task 31; assumption 17): the family's label, and one sentence per option plus one for a row with no
   // aspect on - `none`, every probe as the theme (the as-theme option is gone, docs/tasks/OFF_SCREEN_REVISIONS.md Task 6)
   // - the Guide's part too. STAND-INS for Crawford's pass - each names what the option moves across the family's keys

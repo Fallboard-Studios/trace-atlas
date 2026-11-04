@@ -1042,6 +1042,10 @@ sheets file (heading "Abyss (was Squall)", a dated mark, every other sheet's men
 unchanged (still "A storm"). An old link's `squall` loads Classic. The history above and the envelope-floor comments
 ("Squall's Glass Nomad") keep the old name.
 
+**Then Abyss renamed Polar Low (Crawford, 2026-11-04).** Abyss sat too close to Trench ("the deep"); a polar low is "close
+enough to a storm", so the sheet's storm wording stays. Id `polarLow` (camelCase, as `ventField` and `openWater`);
+`abyss` joins the cut ids, so an `abyss` or `squall` link loads Classic.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
