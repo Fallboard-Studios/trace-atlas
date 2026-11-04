@@ -924,3 +924,52 @@ describe('createCompositeVoice: set reports a non-zero gain that found no synth'
     expect(gains.map((g) => g.count())).toEqual([0, 0]);
   });
 });
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b: a cut note stops. A trigger may carry its own release, which every
+// layer plays for that note alone: set on the layer's envelope for the trigger (Tone reads it when the release is
+// scheduled) and restored straight after, so the shared envelope and `written` never see it.
+describe('a per-note release on triggerAttackRelease', () => {
+  type ReleaseSynth = { triggerAttackRelease: ReturnType<typeof vi.fn>; envelope: { release: number } };
+  const synths = () => (Tone.Synth as unknown as { mock: { results: { value: ReleaseSynth }[] } }).mock.results.map((r) => r.value);
+
+  /** Each layer's envelope.release as it stood at the moment that layer was triggered. */
+  const releaseAtTrigger = () => {
+    const seen: number[] = [];
+    synths().forEach((synth, i) => {
+      synth.triggerAttackRelease.mockImplementation(() => { seen[i] = synth.envelope.release; });
+    });
+    return seen;
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('every layer is triggered with the note\'s release and gets the shared one back after', () => {
+    const voice = createCompositeVoice([makeLayer(), makeLayer({ type: 'square' })], SHARED_ADSR);
+    const seen = releaseAtTrigger();
+    voice.triggerAttackRelease('C4', '8n', 0, 0.6, 0.03);
+    expect(seen).toEqual([0.03, 0.03]);
+    expect(synths().map((s) => s.envelope.release)).toEqual([1.5, 1.5]);
+  });
+
+  it('a trigger with no release plays the shared one', () => {
+    const voice = createCompositeVoice([makeLayer()], SHARED_ADSR);
+    const seen = releaseAtTrigger();
+    voice.triggerAttackRelease('C4', '8n', 0, 0.6);
+    expect(seen).toEqual([1.5]);
+  });
+
+  it('the release is restored even when the trigger throws', () => {
+    const voice = createCompositeVoice([makeLayer()], SHARED_ADSR);
+    synths()[0].triggerAttackRelease.mockImplementation(() => { throw new Error('boom'); });
+    voice.triggerAttackRelease('C4', '8n', 0, 0.6, 0.03);
+    expect(synths()[0].envelope.release).toBe(1.5);
+  });
+
+  it('a later live envelope edit is not undone by a cut note: written keeps the shared release', () => {
+    const voice = createCompositeVoice([makeLayer()], SHARED_ADSR);
+    voice.triggerAttackRelease('C4', '8n', 0, 0.6, 0.03);
+    expect(voice.layers![0].written.adsr.release).toBe(1.5);
+  });
+});

@@ -134,7 +134,9 @@ export interface LayerRecord {
 // Composite voices (created from LayeredWave descriptors) — the shape reserveVoice stores.
 export interface CompositeVoice {
   output: Tone.Gain;
-  triggerAttackRelease: (note: string, dur: NoteDuration | string, time?: number, velocity?: number) => void;
+  /** `release` (seconds) is this note's alone: every layer plays it in place of the shared release, then gets the
+   *  shared one back (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b, a cut note). */
+  triggerAttackRelease: (note: string, dur: NoteDuration | string, time?: number, velocity?: number, release?: number) => void;
   /** Live edit; patch `i` is for robot layer `i`. `time` is the Transport tick's time when a swell writes
    *  (docs/specs/BEATCLOCK_TRANSPORT_TIME.md); a UI edit passes none and lands now. Returns the robot indices whose
    *  non-zero gain found no synth (a layer muted at build being unmuted), ascending: the caller rebuilds. */
@@ -241,10 +243,15 @@ export function createCompositeVoice(
   // in the same AudioContext quantum (where Tone.now() returns the same value for all calls).
   const layerLastTime: number[] = layerNodes.map(() => -Infinity);
 
-  const triggerAttackRelease = (note: string, dur: NoteDuration | string, time?: number, velocity?: number) => {
+  const triggerAttackRelease = (note: string, dur: NoteDuration | string, time?: number, velocity?: number, release?: number) => {
     const requested = (typeof time === 'number' && isFinite(time)) ? time : Tone.now();
     const durStr = String(dur);
     layerNodes.forEach(({ synth }, i) => {
+      // A per-note release: Tone reads envelope.release when the trigger schedules the release, so it is set for this
+      // call and restored in the finally. The shared envelope (setShared) and `written` never see it.
+      const envelope = (synth as unknown as { envelope?: { release: Tone.Unit.Time } }).envelope;
+      const sharedRelease = envelope?.release;
+      if (envelope && release !== undefined) envelope.release = release;
       try {
         const t = Math.max(requested, Tone.now() + 0.001, layerLastTime[i] + 0.001);
         layerLastTime[i] = t;
@@ -257,6 +264,8 @@ export function createCompositeVoice(
         }
       } catch (err) {
         devWarn('[AudioEngine] Composite layer trigger failed', err);
+      } finally {
+        if (envelope && release !== undefined && sharedRelease !== undefined) envelope.release = sharedRelease;
       }
     });
   };

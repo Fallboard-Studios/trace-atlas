@@ -655,7 +655,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   returns to its notes most of the time"), then green; kind-and-bounds and key-set tests pass; `npm run sketch:bands`
   re-run and the JSON recommitted.
 
-- [ ] **R2: Performance you can hear** (L2, under Classic in Kryndara; Crawford, 2026-11-04: "the items in performance
+- [x] **R2: Performance you can hear** (L2, under Classic in Kryndara; Crawford, 2026-11-04: "the items in performance
   are hard to hear", then "let's go straight to number 1")
 
   **Why:** the bands are not the problem, the engine's levers are. A mark's lift stopped at the velocity ceiling (an
@@ -673,13 +673,13 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
     mark's lift lands under the ceiling), then green; the existing oracles re-pinned to the new formula. Mutants
     (rate back to 0.3, width back to 0.25) each fail the Dynamics tests. `docs/AUDIO_SYSTEM.md`'s Velocity and marks
     steps and `docs/MELODY_SYSTEM.md`'s mark factors amended.
-  - [ ] **R2b: a cut note stops.** An event whose sounding length is cut (a rest, staccato, staccatissimo, marcato:
+  - [x] **R2b: a cut note stops.** An event whose sounding length is cut (a rest, staccato, staccatissimo, marcato:
     `resolveArticulation(...).length < 1`) releases in `CUT_RELEASE_SECONDS` (0.03, above the 20 ms floor), or the
     robot's own release if that is shorter. The playback loop passes it on `NoteParams.release`; the composite voice
     sets each layer's `envelope.release` for that one trigger and restores it (Tone reads it when the release is
     scheduled), so the shared envelope, the swells and `written` never see it. **Proof:** RED tests in
     `AudioEngine.test.ts` (a rested event schedules with the short release, an unstamped or tenuto one with none) and
-    `compositeVoice.test.ts` (the layer's release during the trigger, restored after), then green.
+    `compositeVoice.test.ts` (the layer's release during the trigger, restored after, also when the trigger throws), then green. Mutants (no restore, no `min` with the robot's release, the release not forwarded by `scheduleNote`) each fail. `docs/AUDIO_SYSTEM.md` and `docs/MELODY_SYSTEM.md` amended.
 
 - [ ] **L3: the risky pairs**
 

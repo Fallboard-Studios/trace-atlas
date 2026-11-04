@@ -155,6 +155,10 @@ export const PERFORMANCE_MAX = 100;
 export const HUMANIZE_MIN_MS = 0;
 export const HUMANIZE_MAX_MS = 20;
 export const MIN_SOUNDING_SECONDS = 0.03;
+/** The release a cut note (a rest, staccato, staccatissimo or marcato) plays in place of the robot's own, when the
+ *  robot's is longer: the cut is a gap, not a held note with the same tail. Above ENVELOPE_RELEASE_MIN_SECONDS, so it
+ *  never clicks. docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b. */
+export const CUT_RELEASE_SECONDS = 0.03;
 
 /**
  * Robot Pan (docs/specs/ROBOT_PAN.md §1.1): the stored `Robot.pan` runs -1 (hard left) … 1 (hard

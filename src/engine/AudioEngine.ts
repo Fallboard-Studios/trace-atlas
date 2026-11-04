@@ -15,7 +15,7 @@ import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type Se
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS } from '../constants';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
 
@@ -84,6 +84,9 @@ export interface NoteParams {
    * robot's compositionSeed, so a replay from power-on repeats the pattern and two robots at the same tick
    * differ. Absent: the legacy per-robot counter. Robot Performance, docs/specs/ROBOT_PERFORMANCE.md §1.3. */
   position?: number;
+  /** This note's release in seconds, in place of the robot's for this note alone (a cut note's, from
+   * processMelodyStep). Absent: the robot's own. docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b. */
+  release?: number;
 }
 
 interface MelodyEventEntry {
@@ -546,7 +549,7 @@ export function triggerWithCap(params: NoteParams): boolean {
     // so this was pure duplicate work on the hot path (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 6).
     // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
     // voice stringifies its duration anyway (it accepts NoteDuration | string).
-    synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8);
+    synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8, params.release);
     standingBy.recordNoteEnd(robotId, scheduleVoiceRelease(duration, scheduleTime));
     return true;
   } catch (err) {
@@ -779,7 +782,7 @@ export const AudioEngine = {
       devWarn('[AudioEngine] scheduleNote.audioMode failed', err);
     }
 
-    triggerWithCap({ robotId, note, duration, time, velocity: effectiveVelocity });
+    triggerWithCap({ robotId, note, duration, time, velocity: effectiveVelocity, release: params.release });
   },
 
   /**
@@ -1393,11 +1396,16 @@ export const AudioEngine = {
         // and a velocity multiplier. An unstamped event keeps its NoteDuration string exactly as before; a
         // shortened one becomes seconds at the live tempo, floored so it never collapses to a click and
         // never longer than the note as written.
+        // A cut note also releases in CUT_RELEASE_SECONDS, or the robot's own release if that is shorter
+        // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b): with the robot's whole release after it, the cut was hidden.
         const art = resolveArticulation(event);
         let duration: NoteDuration | number = event.length;
+        let release: number | undefined;
         if (art.length < 1) {
           const writtenSeconds = Tone.Time(event.length).toSeconds();
           duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
+          const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
+          release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
         }
         const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
 
@@ -1408,6 +1416,7 @@ export const AudioEngine = {
           time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
           accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
           position,
+          ...(release !== undefined ? { release } : {}),
         });
       } catch (err) {
         devWarn(`[AudioEngine] Failed to schedule note for robot ${robotId}`, err);

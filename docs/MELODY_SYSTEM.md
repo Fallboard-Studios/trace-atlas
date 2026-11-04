@@ -249,7 +249,8 @@ at 60.
 - **Rest.** With `restChance = rests / PERFORMANCE_MAX` and `restDepth = REST_MIN_FRACTION + REST_SPAN · restChance`, an event
   whose `restRoll` is under `restChance` gets `rest = REST_MIN_FRACTION + restDepthRoll · (restDepth − REST_MIN_FRACTION)`: at a
   low setting a rested note loses about a quarter of its length; at 100 it may lose up to three quarters. A rest is a shortened
-  note, never a skipped one (skipping would be anti-Density).
+  note, never a skipped one (skipping would be anti-Density), and since roadmap 58's R2b it releases short too
+  (`CUT_RELEASE_SECONDS`, 0.03 s), so the gap is heard rather than covered by the robot's release tail.
 - **Mark.** `unlockedMarks(accents)` (`src/engine/articulation.ts`) opens the five classical marks in tiers — below `ACCENT_TIER_2`
   (34) `accent` and `tenuto`; below `ACCENT_TIER_3` (67) also `staccato` and `marcato`; from 67 `staccatissimo` too — and an event
   whose `markRoll` is under `accents / PERFORMANCE_MAX` takes `kinds[floor(markPickRoll · kinds.length)]`. `ARTICULATION_MARKS`

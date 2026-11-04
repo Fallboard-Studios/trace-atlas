@@ -5992,6 +5992,24 @@ describe('AudioEngine — position-keyed, Dynamics-scaled note velocity (Robot P
       expect(triggeredVelocity(Tone, 'A4')).toBeCloseTo(0.99, 10);
       expect(triggeredVelocity(Tone, 'B4')).toBe(1);
     });
+
+    it('a note\'s release reaches the voice: each layer is triggered with it and gets the robot\'s back (R2b)', async () => {
+      const Tone = await import('tone');
+      const { AudioEngine } = await setup([robotFixture('r')]);
+      await AudioEngine.start();
+      AudioEngine.reserveVoice('r', layers as never, TEST_ADSR);
+      type Layer = { envelope?: { release: number }; triggerAttackRelease: ReturnType<typeof vi.fn> };
+      const layer = (Tone.Synth as unknown as { mock: { results: { value: Layer }[] } }).mock.results.at(-1)!.value;
+      layer.envelope = { release: 0.5 };
+      const seen: number[] = [];
+      layer.triggerAttackRelease.mockImplementation(() => { seen.push(layer.envelope!.release); });
+
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'C4', duration: 0.1, time: 0, position: 0, release: 0.03 });
+      AudioEngine.scheduleNote({ robotId: 'r', note: 'D4', duration: 0.1, time: 0, position: 1 });
+
+      expect(seen).toEqual([0.03, 0.5]);
+      expect(layer.envelope.release).toBe(0.5);
+    });
   });
 });
 
@@ -6098,6 +6116,38 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', rest: 0.75 })] as never);
       AudioEngine.processMelodyStep(1, 0);
       expect(params()[0].duration).toBe(0.03);
+    });
+
+    // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b: a cut note stops. A rest or a clipping mark shortened only the held
+    // part and the robot's whole release still sounded after it (up to 2 s), so the cut was hidden.
+    describe('a cut note releases short', () => {
+      const releaseOf = async (event: Record<string, unknown>, robot: Record<string, unknown> = {}) => {
+        const { AudioEngine, params } = await setup([robotFixture('r', robot)]);
+        AudioEngine.registerRobotMelody('r', [eventFixture(event)] as never);
+        AudioEngine.processMelodyStep(1, 0);
+        return params()[0].release;
+      };
+
+      it('a rested note releases in 0.03 s, not the robot\'s 0.5 s', async () => {
+        expect(await releaseOf({ rest: 0.5 })).toBe(0.03);
+      });
+
+      it('a staccato, a staccatissimo and a marcato release short too: each cuts the note', async () => {
+        expect(await releaseOf({ mark: 'staccato' })).toBe(0.03);
+        expect(await releaseOf({ mark: 'staccatissimo' })).toBe(0.03);
+        expect(await releaseOf({ mark: 'marcato' })).toBe(0.03);
+      });
+
+      it('a plain note, an accent and a tenuto over a rest keep the robot\'s release (none passed)', async () => {
+        expect(await releaseOf({})).toBeUndefined();
+        expect(await releaseOf({ mark: 'accent' })).toBeUndefined();
+        expect(await releaseOf({ rest: 0.6, mark: 'tenuto' })).toBeUndefined();
+      });
+
+      it('a robot whose own release is shorter keeps it: the cut never lengthens a release', async () => {
+        const adsr = { ...TEST_ADSR, release: 0.02 };
+        expect(await releaseOf({ rest: 0.5 }, { audioAttributes: { adsr, waveform: 'sine', filterFreq: 100 } })).toBe(0.02);
+      });
     });
 
     it('the floor never lengthens a note past its written length (a 0.02 s note stays 0.02 s, not 0.03 s)', async () => {
