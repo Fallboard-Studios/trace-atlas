@@ -4,6 +4,8 @@
 import { describe, it, expect, vi } from 'vitest';
 
 import {
+  ENVELOPE_ATTACK_MIN_SECONDS,
+  ENVELOPE_RELEASE_MIN_SECONDS,
   ENVELOPE_TIME_MAX_SECONDS,
   HUMANIZE_MAX_MS,
   HUMANIZE_MIN_MS,
@@ -154,11 +156,12 @@ const EXPECTED: BandTable = {
   humanize: { min: 2, max: 6 },
   'lfoLink.lpf.frequency': { min: 5, max: 60, lit: 0.66 },
 
-  // Robots (spawnSystem.ts). ATTACK/DECAY/SUSTAIN/RELEASE_RANGE (0-ENVELOPE_TIME_MAX_SECONDS, 0-1).
-  'robot.attack': { min: 0, max: 2 },
+  // Robots (spawnSystem.ts). ATTACK/DECAY/SUSTAIN/RELEASE_RANGE (to ENVELOPE_TIME_MAX_SECONDS, 0-1); Attack and Release
+  // start at their sliders' floors (15 ms, 20 ms: shorter edges click).
+  'robot.attack': { min: 0.015, max: 2 },
   'robot.decay': { min: 0, max: 2 },
   'robot.sustain': { min: 0, max: 1 },
-  'robot.release': { min: 0, max: 2 },
+  'robot.release': { min: 0.02, max: 2 },
   // SHAPED_ATTACK/RELEASE_RANGE with the shaped share as the lit share (Even Seeded Draws T4: the edge is the share).
   'robot.shapedAttack': { min: 0.03, max: 0.25, lit: 0.155 },
   'robot.shapedRelease': { min: 0.15, max: 0.8, lit: 0.15 },
@@ -309,7 +312,7 @@ describe('overlayBands - replace, never widen (spec §1.5)', () => {
   it('never mutates the base table', () => {
     overlayBands(CLASSIC, { bpm: { min: 1, max: 2 }, 'robot.attack': { min: 1, max: 1 } });
     expect(CLASSIC.bpm).toStrictEqual({ min: 40, max: 100 });
-    expect(CLASSIC['robot.attack']).toStrictEqual({ min: 0, max: 2 });
+    expect(CLASSIC['robot.attack']).toStrictEqual({ min: 0.015, max: 2 });
   });
 
   it('a later column wins over an earlier one for the same key, so a theme then an aspect resolves to the aspect', () => {
@@ -1072,12 +1075,13 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
  */
 const ROBOT_BOUNDS: Record<Exclude<BandKey, LoadingRangeKey | RobotPickKey>, readonly [number, number]> = {
   bpm: [20, 200], // the tempo the clock runs (src/constants/index.ts)
-  'robot.attack': [0, ENVELOPE_TIME_MAX_SECONDS],
+  // Attack and Release start at their sliders' floors, curved or not: a shorter edge clicks.
+  'robot.attack': [ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_TIME_MAX_SECONDS],
   'robot.decay': [0, ENVELOPE_TIME_MAX_SECONDS],
   'robot.sustain': [0, 1],
-  'robot.release': [0, ENVELOPE_TIME_MAX_SECONDS],
-  'robot.shapedAttack': [0, ENVELOPE_TIME_MAX_SECONDS],
-  'robot.shapedRelease': [0, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.release': [ENVELOPE_RELEASE_MIN_SECONDS, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.shapedAttack': [ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_TIME_MAX_SECONDS],
+  'robot.shapedRelease': [ENVELOPE_RELEASE_MIN_SECONDS, ENVELOPE_TIME_MAX_SECONDS],
   'robot.portamento': [PORTAMENTO_MIN, PORTAMENTO_MAX],
   // The bus filter's own slider ranges (ROBOT_BUS_FILTER_FREQ_RANGE, ROBOT_BUS_FILTER_Q_RANGE) and the Signature
   // Array's Gain slider (0-2).

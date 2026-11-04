@@ -100,7 +100,7 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
 
   // Anchor: the hold on the sea floor.
   anchor: {
-    'robot.attack': { min: 0, max: 0.005 }, // an instant attack: the note lands (sketch: 0.001 s)
+    'robot.attack': { min: 0.015, max: 0.015 }, // an instant attack: the note lands (sketch: 0.001 s; held at the slider's click-free floor)
     'robot.decay': { min: 0.05, max: 0.3 }, // a tight decay
     'robot.portamento': { min: 0.05, max: 0.2, lit: 0 }, // nothing slides: no probe glides
     'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0 }, // nothing wavers: no layer drifts against another
@@ -129,10 +129,10 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
     'robot.waveform': { weights: { sine: 0, square: 0, triangle: 0, sawtooth: 1, pulse: 1 } }, // the saw and the pulse
     'robot.octaveRegister': { weights: { bass: 0, low: 0, mid: 0, high: 1, treble: 1 } }, // set high in the register
     'robot.detune': { min: -30, max: 30 }, // each probe's layers tuned wide apart (sketch: 20 to 30 cents)
-    'robot.attack': { min: 0, max: 0.01 }, // a hard strike
+    'robot.attack': { min: 0.015, max: 0.015 }, // a hard strike (held at the slider's click-free floor)
     'robot.decay': { min: 0.02, max: 0.15 }, // short
     'robot.sustain': { min: 0, max: 0.2 }, // holds little
-    'robot.release': { min: 0, max: 0.1 }, // gone at once
+    'robot.release': { min: 0.02, max: 0.1 }, // gone at once
     'robot.rhythmicDensity': { min: 80, max: 100 }, // probes talk nearly all the time
     'robot.rests': { min: 0, max: 8 }, // with hardly a rest: a wall, never gusting
     bpm: { min: 110, max: 140 }, // the pulse is fast
@@ -190,11 +190,11 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
     'filterLPF.frequency': { min: 14000, max: 20000 }, // wide open: everything clear
     'eq3.high': { min: 2, max: 5 }, // the high band lifted
     bpm: { min: 90, max: 120 }, // a light, quick-ish pulse
-    'robot.attack': { min: 0, max: 0.02 }, // a droplet strikes
+    'robot.attack': { min: 0.015, max: 0.02 }, // a droplet strikes
     'robot.decay': { min: 0.02, max: 0.15 }, // settles at once
     'robot.sustain': { min: 0, max: 0.1 }, // holds almost nothing
-    'robot.release': { min: 0, max: 0.15 }, // and is gone
-    'robot.shapedAttack': { min: 0.01, max: 0.05, lit: 0.155 }, // a curved start kept as short as a plain one
+    'robot.release': { min: 0.02, max: 0.15 }, // and is gone
+    'robot.shapedAttack': { min: 0.015, max: 0.05, lit: 0.155 }, // a curved start kept as short as a plain one
     'robot.shapedRelease': { min: 0.03, max: 0.15, lit: 0.15 }, // the same for its tail
     'robot.waveform': { weights: { sine: 2, square: 0, triangle: 1, sawtooth: 0, pulse: 0 } }, // round, thin voices
     'robot.layerGain': { min: 0.2, max: 1.2, lit: 0 }, // one voice each, partners quiet
@@ -278,7 +278,7 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
     'robot.lfoBusDepth': { min: 20, max: 60, lit: 0.8 }, // the filter sweeps on most of them
     'robot.waveform': { weights: { sine: 0, square: 1, triangle: 0, sawtooth: 1, pulse: 1 } }, // hard-edged voices
     'robot.rhythmicDensity': { min: 60, max: 90 }, // probes speak often
-    'robot.attack': { min: 0, max: 0.03 }, // short notes
+    'robot.attack': { min: 0.015, max: 0.03 }, // short notes
     'robot.decay': { min: 0.05, max: 0.25 }, // that settle fast
     'robot.sustain': { min: 0, max: 0.3 }, // and hold little
     'robot.noteVariance': { offShare: 0, min: 5, max: 8 }, // a pitch that ranges wide
@@ -318,8 +318,8 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
     bpm: { min: 120, max: 160 }, // the pulse is fast
     'robot.rhythmicDensity': { min: 70, max: 100 }, // probes speak often
     'robot.noteVariance': { offShare: 0, min: 5, max: 8 }, // a wide-ranging pitch
-    'robot.attack': { min: 0, max: 0.02 }, // short hard notes
-    'robot.release': { min: 0, max: 0.2 }, // short
+    'robot.attack': { min: 0.015, max: 0.02 }, // short hard notes
+    'robot.release': { min: 0.02, max: 0.2 }, // short
     gritSend: { min: 0.5, max: 0.8, lit: 0.6 }, // many sent to the Grit room: the loud ones tear
     'robot.masterVolume': { min: 0.8, max: 0.95 }, // loud
     'eq3.low': { min: 2, max: 5 }, // the low band lifted

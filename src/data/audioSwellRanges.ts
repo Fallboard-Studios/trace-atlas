@@ -1,5 +1,5 @@
 import { recordByField } from './robotSends';
-import { SEND_MIN, SEND_MAX } from '@/constants';
+import { SEND_MIN, SEND_MAX, ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS } from '@/constants';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 
 /**
@@ -19,8 +19,8 @@ export const ROBOT_SWELL_FIELD_RANGE: Record<SwellRobotAttributeId, { min: numbe
   volume: { min: 0, max: 1 },
   'layer0.gain': { min: 0, max: 2 }, 'layer1.gain': { min: 0, max: 2 }, 'layer2.gain': { min: 0, max: 2 },
   'layer0.detune': { min: -50, max: 50 }, 'layer1.detune': { min: -50, max: 50 }, 'layer2.detune': { min: -50, max: 50 },
-  'adsr.attack': { min: 0, max: 10 }, 'adsr.decay': { min: 0, max: 10 },
-  'adsr.sustain': { min: 0, max: 1 }, 'adsr.release': { min: 0, max: 10 },
+  'adsr.attack': { min: ENVELOPE_ATTACK_MIN_SECONDS, max: 10 }, 'adsr.decay': { min: 0, max: 10 },
+  'adsr.sustain': { min: 0, max: 1 }, 'adsr.release': { min: ENVELOPE_RELEASE_MIN_SECONDS, max: 10 },
   // The five sends' stored 0..1 fractions, not the sliders' 0-100 % display (docs/specs/ROBOT_SEND_TABLE.md §1.5).
   ...recordByField(() => ({ min: SEND_MIN, max: SEND_MAX })),
 };

@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { ROBOT_SWELL_FIELD_RANGE } from './audioSwellRanges';
 import { GLOBAL_AUDIO_SEED_RANGES } from './globalAudioSeedRanges';
 import { SWELL_ROBOT_ATTRIBUTE_IDS } from '@/types/audioSwell';
-import { SEND_MIN, SEND_MAX } from '@/constants';
+import { SEND_MIN, SEND_MAX, ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS } from '@/constants';
 
 // ========================================
 // TESTS
@@ -60,9 +60,10 @@ describe('ROBOT_SWELL_FIELD_RANGE', () => {
   });
 
   it('matches each ADSR field\'s real schema range (robotOptionsConfig.ts\'s Attack/Decay/Sustain/Release)', () => {
-    expect(ROBOT_SWELL_FIELD_RANGE['adsr.attack']).toEqual({ min: 0, max: 10 });
+    // Attack and Release start at their sliders' floors, so a swell never sweeps an edge short enough to click.
+    expect(ROBOT_SWELL_FIELD_RANGE['adsr.attack']).toEqual({ min: ENVELOPE_ATTACK_MIN_SECONDS, max: 10 });
     expect(ROBOT_SWELL_FIELD_RANGE['adsr.decay']).toEqual({ min: 0, max: 10 });
     expect(ROBOT_SWELL_FIELD_RANGE['adsr.sustain']).toEqual({ min: 0, max: 1 });
-    expect(ROBOT_SWELL_FIELD_RANGE['adsr.release']).toEqual({ min: 0, max: 10 });
+    expect(ROBOT_SWELL_FIELD_RANGE['adsr.release']).toEqual({ min: ENVELOPE_RELEASE_MIN_SECONDS, max: 10 });
   });
 });

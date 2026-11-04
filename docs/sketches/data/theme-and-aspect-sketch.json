@@ -1,7 +1,7 @@
 {
  "meta": {
-  "generated": "2026-11-03T22:15:08.295Z",
-  "commit": "e93e7926",
+  "generated": "2026-11-04T19:18:44.932Z",
+  "commit": "ce9b4843",
   "worlds": 300,
   "robotsPerWorld": 12,
   "styles": 300,
@@ -334,7 +334,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 2
     },
     "robot.decay": {
@@ -346,7 +346,7 @@
      "max": 1
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 2
     },
     "robot.shapedAttack": {
@@ -808,8 +808,8 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.0005215,
-     "median": 1.03,
+     "low": 0.01552,
+     "median": 1.038,
      "high": 1.999
     },
     "robot.decay": {
@@ -826,8 +826,8 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.0007897,
-     "median": 0.973,
+     "low": 0.02078,
+     "median": 0.9833,
      "high": 2
     },
     "robot.shapedAttack": {
@@ -5483,8 +5483,8 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
-     "max": 0.005
+     "min": 0.015,
+     "max": 0.015
     },
     "robot.decay": {
      "min": 0.05,
@@ -5495,7 +5495,7 @@
      "max": 1
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 2
     },
     "robot.shapedAttack": {
@@ -5957,9 +5957,9 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.000001304,
-     "median": 0.002576,
-     "high": 0.004996
+     "low": 0.015,
+     "median": 0.015,
+     "high": 0.015
     },
     "robot.decay": {
      "n": 3600,
@@ -5975,8 +5975,8 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.0007897,
-     "median": 0.973,
+     "low": 0.02078,
+     "median": 0.9833,
      "high": 2
     },
     "robot.shapedAttack": {
@@ -6177,12 +6177,12 @@
      },
      "robot.audio.attack": {
       "fn": "uniform",
-      "n": 2605,
-      "low": 0.0002608,
-      "median": 0.5063,
+      "n": 381,
+      "low": 0.01337,
+      "median": 0.4908,
       "high": 0.9998,
-      "outer": 0.1977,
-      "distinct": 2605
+      "outer": 0.1942,
+      "distinct": 381
      },
      "robot.audio.attackCurve.shaped": {
       "fn": "uniform",
@@ -7994,8 +7994,8 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
-     "max": 0.01
+     "min": 0.015,
+     "max": 0.015
     },
     "robot.decay": {
      "min": 0.02,
@@ -8006,7 +8006,7 @@
      "max": 0.2
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 0.1
     },
     "robot.shapedAttack": {
@@ -8468,9 +8468,9 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.000002608,
-     "median": 0.005152,
-     "high": 0.009993
+     "low": 0.015,
+     "median": 0.015,
+     "high": 0.015
     },
     "robot.decay": {
      "n": 3600,
@@ -8486,8 +8486,8 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.00003949,
-     "median": 0.04865,
+     "low": 0.02003,
+     "median": 0.05892,
      "high": 0.09999
     },
     "robot.shapedAttack": {
@@ -8696,12 +8696,12 @@
      },
      "robot.audio.attack": {
       "fn": "uniform",
-      "n": 2605,
-      "low": 0.0002608,
-      "median": 0.5063,
+      "n": 381,
+      "low": 0.01337,
+      "median": 0.4908,
       "high": 0.9998,
-      "outer": 0.1977,
-      "distinct": 2605
+      "outer": 0.1942,
+      "distinct": 381
      },
      "robot.audio.attackCurve.shaped": {
       "fn": "uniform",
@@ -13135,7 +13135,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 2
     },
     "robot.decay": {
@@ -13609,8 +13609,8 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.0005215,
-     "median": 1.03,
+     "low": 0.01552,
+     "median": 1.038,
      "high": 1.999
     },
     "robot.decay": {
@@ -15715,7 +15715,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 0.02
     },
     "robot.decay": {
@@ -15727,11 +15727,11 @@
      "max": 0.1
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 0.15
     },
     "robot.shapedAttack": {
-     "min": 0.01,
+     "min": 0.015,
      "max": 0.05,
      "lit": 0.155
     },
@@ -16189,9 +16189,9 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.000005215,
-     "median": 0.0103,
-     "high": 0.01999
+     "low": 0.015,
+     "median": 0.01758,
+     "high": 0.02
     },
     "robot.decay": {
      "n": 3600,
@@ -16207,14 +16207,14 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.00005923,
-     "median": 0.07297,
+     "low": 0.02005,
+     "median": 0.08324,
      "high": 0.15
     },
     "robot.shapedAttack": {
      "n": 3600,
-     "low": 0.01053,
-     "median": 0.03043,
+     "low": 0.01547,
+     "median": 0.03288,
      "high": 0.04999,
      "share": 0.1469
     },
@@ -20849,7 +20849,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 2
     },
     "robot.decay": {
@@ -21323,8 +21323,8 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.0005215,
-     "median": 1.03,
+     "low": 0.01552,
+     "median": 1.038,
      "high": 1.999
     },
     "robot.decay": {
@@ -23430,7 +23430,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 2
     },
     "robot.decay": {
@@ -23442,7 +23442,7 @@
      "max": 1
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 2
     },
     "robot.shapedAttack": {
@@ -23904,8 +23904,8 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.0005215,
-     "median": 1.03,
+     "low": 0.01552,
+     "median": 1.038,
      "high": 1.999
     },
     "robot.decay": {
@@ -23922,8 +23922,8 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.0007897,
-     "median": 0.973,
+     "low": 0.02078,
+     "median": 0.9833,
      "high": 2
     },
     "robot.shapedAttack": {
@@ -26005,7 +26005,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 2
     },
     "robot.decay": {
@@ -26479,8 +26479,8 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.0005215,
-     "median": 1.03,
+     "low": 0.01552,
+     "median": 1.038,
      "high": 1.999
     },
     "robot.decay": {
@@ -28589,7 +28589,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 0.03
     },
     "robot.decay": {
@@ -28601,7 +28601,7 @@
      "max": 0.3
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 2
     },
     "robot.shapedAttack": {
@@ -29063,9 +29063,9 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.000007823,
-     "median": 0.01546,
-     "high": 0.02998
+     "low": 0.015,
+     "median": 0.02273,
+     "high": 0.02999
     },
     "robot.decay": {
      "n": 3600,
@@ -29081,8 +29081,8 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.0007897,
-     "median": 0.973,
+     "low": 0.02078,
+     "median": 0.9833,
      "high": 2
     },
     "robot.shapedAttack": {
@@ -31170,7 +31170,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 2
     },
     "robot.decay": {
@@ -31182,7 +31182,7 @@
      "max": 1
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 2
     },
     "robot.shapedAttack": {
@@ -31644,8 +31644,8 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.0005215,
-     "median": 1.03,
+     "low": 0.01552,
+     "median": 1.038,
      "high": 1.999
     },
     "robot.decay": {
@@ -31662,8 +31662,8 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.0007897,
-     "median": 0.973,
+     "low": 0.02078,
+     "median": 0.9833,
      "high": 2
     },
     "robot.shapedAttack": {
@@ -33749,7 +33749,7 @@
      "lit": 0.66
     },
     "robot.attack": {
-     "min": 0,
+     "min": 0.015,
      "max": 0.02
     },
     "robot.decay": {
@@ -33761,7 +33761,7 @@
      "max": 1
     },
     "robot.release": {
-     "min": 0,
+     "min": 0.02,
      "max": 0.2
     },
     "robot.shapedAttack": {
@@ -34223,9 +34223,9 @@
     },
     "robot.attack": {
      "n": 3071,
-     "low": 0.000005215,
-     "median": 0.0103,
-     "high": 0.01999
+     "low": 0.015,
+     "median": 0.01758,
+     "high": 0.02
     },
     "robot.decay": {
      "n": 3600,
@@ -34241,8 +34241,8 @@
     },
     "robot.release": {
      "n": 3030,
-     "low": 0.00007897,
-     "median": 0.0973,
+     "low": 0.02007,
+     "median": 0.1076,
      "high": 0.2
     },
     "robot.shapedAttack": {
@@ -38499,7 +38499,7 @@
     ],
     "written": {
      "robot.attack": {
-      "min": 0,
+      "min": 0.015,
       "max": 0.03
      },
      "robot.decay": {
@@ -38515,7 +38515,7 @@
       "max": 0.4
      },
      "robot.shapedAttack": {
-      "min": 0.005,
+      "min": 0.015,
       "max": 0.04,
       "lit": 0.5
      },
@@ -38529,9 +38529,9 @@
      "classic": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38553,8 +38553,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38569,9 +38569,9 @@
      "float": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38593,8 +38593,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38609,9 +38609,9 @@
      "anchor": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38633,8 +38633,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38649,9 +38649,9 @@
      "shatter": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38673,8 +38673,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38689,9 +38689,9 @@
      "tide": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38713,8 +38713,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38729,9 +38729,9 @@
      "trench": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38753,8 +38753,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38769,9 +38769,9 @@
      "tidepool": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38793,8 +38793,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38809,9 +38809,9 @@
      "floe": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38833,8 +38833,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38849,9 +38849,9 @@
      "thicket": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38873,8 +38873,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38889,9 +38889,9 @@
      "wreck": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38913,8 +38913,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38929,9 +38929,9 @@
      "openWater": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38953,8 +38953,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -38969,9 +38969,9 @@
      "ventField": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -38993,8 +38993,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -39009,9 +39009,9 @@
      "beacon": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -39033,8 +39033,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -39049,9 +39049,9 @@
      "squall": {
       "robot.attack": {
        "n": 1866,
-       "low": 0.000007823,
-       "median": 0.01519,
-       "high": 0.02997
+       "low": 0.015,
+       "median": 0.0226,
+       "high": 0.02999
       },
       "robot.decay": {
        "n": 3600,
@@ -39073,8 +39073,8 @@
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.005072,
-       "median": 0.02253,
+       "low": 0.01505,
+       "median": 0.02752,
        "high": 0.03999,
        "share": 0.4817
       },
@@ -40334,24 +40334,24 @@
     ],
     "written": {
      "robot.attack": {
-      "min": 0,
-      "max": 0.005
+      "min": 0.015,
+      "max": 0.015
      },
      "robot.sustain": {
       "min": 0.95,
       "max": 1
      },
      "robot.release": {
-      "min": 0,
+      "min": 0.02,
       "max": 0.02
      },
      "robot.shapedAttack": {
-      "min": 0,
-      "max": 0.005,
+      "min": 0.015,
+      "max": 0.015,
       "lit": 0.155
      },
      "robot.shapedRelease": {
-      "min": 0,
+      "min": 0.02,
       "max": 0.02,
       "lit": 0.15
      }
@@ -40360,9 +40360,9 @@
      "classic": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40372,31 +40372,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "float": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40406,31 +40406,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "anchor": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40440,31 +40440,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "shatter": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40474,31 +40474,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "tide": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40508,31 +40508,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "trench": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40542,31 +40542,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "tidepool": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40576,31 +40576,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "floe": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40610,31 +40610,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "thicket": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40644,31 +40644,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "wreck": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40678,31 +40678,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "openWater": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40712,31 +40712,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "ventField": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40746,31 +40746,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "beacon": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40780,31 +40780,31 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      },
      "squall": {
       "robot.attack": {
        "n": 3071,
-       "low": 0.000001304,
-       "median": 0.002527,
-       "high": 0.004996
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015
       },
       "robot.sustain": {
        "n": 3600,
@@ -40814,22 +40814,22 @@
       },
       "robot.release": {
        "n": 3038,
-       "low": 0.000007897,
-       "median": 0.01014,
+       "low": 0.02,
+       "median": 0.02,
        "high": 0.02
       },
       "robot.shapedAttack": {
        "n": 3600,
-       "low": 0.00006673,
-       "median": 0.00245,
-       "high": 0.004999,
+       "low": 0.015,
+       "median": 0.015,
+       "high": 0.015,
        "share": 0.1469
       },
       "robot.shapedRelease": {
        "n": 3600,
-       "low": 0.00001164,
-       "median": 0.009341,
-       "high": 0.01982,
+       "low": 0.02,
+       "median": 0.02,
+       "high": 0.02,
        "share": 0.1561
       }
      }
@@ -46733,60 +46733,60 @@
  },
  "timings": {
   "classic": {
-   "robotRosterMs": 5.848,
-   "worldSeedMs": 1.315
+   "robotRosterMs": 6.448,
+   "worldSeedMs": 1.448
   },
   "float": {
-   "robotRosterMs": 5.828,
-   "worldSeedMs": 1.294
+   "robotRosterMs": 6.315,
+   "worldSeedMs": 1.387
   },
   "anchor": {
-   "robotRosterMs": 5.661,
-   "worldSeedMs": 1.288
+   "robotRosterMs": 6.508,
+   "worldSeedMs": 1.423
   },
   "shatter": {
-   "robotRosterMs": 5.755,
-   "worldSeedMs": 1.302
+   "robotRosterMs": 6.353,
+   "worldSeedMs": 1.641
   },
   "tide": {
-   "robotRosterMs": 5.859,
-   "worldSeedMs": 1.323
+   "robotRosterMs": 6.536,
+   "worldSeedMs": 1.411
   },
   "trench": {
-   "robotRosterMs": 5.83,
-   "worldSeedMs": 1.303
+   "robotRosterMs": 6.37,
+   "worldSeedMs": 1.397
   },
   "tidepool": {
-   "robotRosterMs": 5.61,
-   "worldSeedMs": 1.275
+   "robotRosterMs": 6.086,
+   "worldSeedMs": 1.586
   },
   "floe": {
-   "robotRosterMs": 5.675,
-   "worldSeedMs": 1.287
+   "robotRosterMs": 6.665,
+   "worldSeedMs": 1.363
   },
   "thicket": {
-   "robotRosterMs": 5.881,
-   "worldSeedMs": 1.281
+   "robotRosterMs": 7.203,
+   "worldSeedMs": 1.399
   },
   "wreck": {
-   "robotRosterMs": 5.812,
-   "worldSeedMs": 1.274
+   "robotRosterMs": 8.038,
+   "worldSeedMs": 1.903
   },
   "openWater": {
-   "robotRosterMs": 5.724,
-   "worldSeedMs": 1.491
+   "robotRosterMs": 8.012,
+   "worldSeedMs": 1.969
   },
   "ventField": {
-   "robotRosterMs": 6.102,
-   "worldSeedMs": 1.276
+   "robotRosterMs": 7.454,
+   "worldSeedMs": 1.531
   },
   "beacon": {
-   "robotRosterMs": 5.871,
-   "worldSeedMs": 1.286
+   "robotRosterMs": 7.075,
+   "worldSeedMs": 1.611
   },
   "squall": {
-   "robotRosterMs": 5.902,
-   "worldSeedMs": 1.339
+   "robotRosterMs": 6.388,
+   "worldSeedMs": 1.349
   }
  }
 }

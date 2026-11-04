@@ -176,11 +176,11 @@ export const ASPECT_FAMILIES: {
     keys: ENVELOPE_BAND_KEYS,
     options: {
       plucked: {
-        'robot.attack': { min: 0, max: 0.03 },
+        'robot.attack': { min: 0.015, max: 0.03 },
         'robot.decay': { min: 0.1, max: 0.6 },
         'robot.sustain': { min: 0, max: 0.25 },
         'robot.release': { min: 0.05, max: 0.4 },
-        'robot.shapedAttack': { min: 0.005, max: 0.04, lit: 0.5 },
+        'robot.shapedAttack': { min: 0.015, max: 0.04, lit: 0.5 },
         'robot.shapedRelease': { min: 0.1, max: 0.4, lit: 0.6 },
       },
       swelling: {
@@ -203,12 +203,13 @@ export const ASPECT_FAMILIES: {
         'robot.shapedRelease': { min: 0.8, max: 2, lit: 0.3 }, // and out as slowly
       },
       // Hammered: a hard start and a dead stop.
+      // Its four edges are held at the sliders' click-free floors (15 ms attack, 20 ms release).
       hammered: {
-        'robot.attack': { min: 0, max: 0.005 }, // switches on at once
+        'robot.attack': { min: 0.015, max: 0.015 }, // switches on at once
         'robot.sustain': { min: 0.95, max: 1 }, // sounds in full for as long as it lasts
-        'robot.release': { min: 0, max: 0.02 }, // stops dead when it ends
-        'robot.shapedAttack': { min: 0, max: 0.005, lit: 0.155 }, // a curved probe switches on as fast
-        'robot.shapedRelease': { min: 0, max: 0.02, lit: 0.15 }, // and stops as dead
+        'robot.release': { min: 0.02, max: 0.02 }, // stops dead when it ends
+        'robot.shapedAttack': { min: 0.015, max: 0.015, lit: 0.155 }, // a curved probe switches on as fast
+        'robot.shapedRelease': { min: 0.02, max: 0.02, lit: 0.15 }, // and stops as dead
       },
       // Breathing: comes in, gives way, lingers.
       breathing: {

@@ -1012,6 +1012,18 @@ every survivor theme and option appears; **three marks**, each visible at a glan
 - Coverage: no marked row; every column moves exactly its sheet's keys.
 No other cell is marked, in any view.
 
+**Before L1: the envelope floors (Crawford, 2026-11-04).** Squall's Glass Nomad (`?seed=kr1nd4ra&x=12&y=68`; attack
+9 ms, decay 101 ms, sustain 40 %, release 5 ms, both linear) clicked on every note; sweeping the release up cleared it.
+Not an R-task (no sheet sentence asked for it): Attack now starts at `ENVELOPE_ATTACK_MIN_SECONDS` (15 ms) and Release at
+`ENVELOPE_RELEASE_MIN_SECONDS` (20 ms), Crawford's numbers. The floor is the sliders' minimum, Classic's bands, the swell
+ranges and the kind-and-bounds check's field range (shaped stages too), so the slider always shows what plays; no
+hidden floor in the engine, and old saves are left alone. Columns raised to it: Anchor's and Shatter's attack (now
+0.015 flat, their sketch's 1-10 ms is below the floor), Shatter's, Tidepool's and Squall's release, Tidepool's, Vent
+Field's and Squall's attack, Tidepool's shaped attack, Plucked's attack and shaped attack, and all four of Hammered's
+edges (attack and shaped attack 0.015 flat, release and shaped release 0.02 flat). The Classic parity rosters in
+`spawnSystem.test.ts` were re-captured from the generator for the plain stages that moved. `npm run sketch:bands` re-run
+and its JSON recommitted.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

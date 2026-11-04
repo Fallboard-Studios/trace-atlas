@@ -229,16 +229,18 @@ a continuous draw — correctly step-aligned.
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
-| Attack | Log | s | 0 | 2 | — | 0 | 2¹⁸ |
+| Attack | Log | s | 0.015 | 2 | — | 0.015 | 2¹⁸ |
 | Decay | Log | s | 0 | 2 | — | 0 | 2 |
 | Sustain | Linear | % | 0 | 100 | 1⁶ | 0 | 100 |
-| Release | Log | s | 0 | 2 | — | 0 | 2¹⁸ |
+| Release | Log | s | 0.02 | 2 | — | 0.02 | 2¹⁸ |
 | Portamento | Log | s | 0 | 2 | — | 0 | 0.2¹⁹ |
 
 ⁶ No `step` in the schema — defaults to `1`. Stored as a `0..1` fraction, seeded continuously and
 displayed ×100 with no rounding, same class as Density/Pitch Repeat/Volume above.
 ¹⁸ All three times share `ENVELOPE_TIME_MAX_SECONDS` (2 s) as the slider max and the top of the seed range, so a
-seeded value is always one the slider can show. A stage with a non-linear shape (Attack Shape / Release Shape, below the
+seeded value is always one the slider can show. Attack starts at `ENVELOPE_ATTACK_MIN_SECONDS` (15 ms) and Release at
+`ENVELOPE_RELEASE_MIN_SECONDS` (20 ms), the slider minimum and the bottom of every band and swell range: a shorter edge
+clicks on every note. A stage with a non-linear shape (Attack Shape / Release Shape, below the
 sliders) is seeded short from the same noise sample: the `robot.shapedAttack` band, 0.03–0.25 s, and
 `robot.shapedRelease`, 0.15–0.8 s, so the shape finishes inside a 0.15 s note and can be heard. Decay has no shape.
 ¹⁹ Most robots load at exactly `0` (no glide). About 1.5 in 12 are gliders (the `robot.portamento` band's `lit`, 0.23),

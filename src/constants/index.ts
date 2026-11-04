@@ -80,6 +80,14 @@ export const PORTAMENTO_MAX = 2;
  * Decay never reaches Sustain, which leaves the Sustain slider doing nothing; 0-10 s spent most of its travel there.
  */
 export const ENVELOPE_TIME_MAX_SECONDS = 2;
+/**
+ * Attack and Release start here, not at 0: the sliders' minimum and the bottom of every seeded band and swell range.
+ * A shorter edge is a step in the waveform, heard as a click on every note (Squall's Glass Nomad, attack 9 ms and
+ * release 5 ms at 40 % sustain; a longer release cleared it by ear, 2026-11-04). The slider shows what plays: no
+ * hidden floor in the engine.
+ */
+export const ENVELOPE_ATTACK_MIN_SECONDS = 0.015;
+export const ENVELOPE_RELEASE_MIN_SECONDS = 0.02;
 /** The robot bus filter's cutoff range, Hz: the slider's range and the bus.frequency LFO's output range (same as the global LPF). */
 export const ROBOT_BUS_FILTER_FREQ_RANGE = { min: 20, max: 20000 } as const;
 /** The robot bus filter's resonance range (the global LPF's pair). Today's fixed Q of 1 sits inside it. */

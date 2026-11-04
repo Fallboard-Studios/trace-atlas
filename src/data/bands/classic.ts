@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
+import { ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS, ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
 import type { BandTable } from './bandKeys';
 
 // ========================================
@@ -146,11 +146,12 @@ export const CLASSIC: BandTable = {
   // ---- Robots (spawnSystem.ts, robotFieldDerivation.ts) --------------------------------------------------------------
   // ADSR. Roadmap Phase 9 unified attack/decay/release to one flat 0-5 s range, kept narrower than the Ping Contour
   // drawer's 0-10 s edit range; all three have since been narrowed to their sliders' 0-2 s (ENVELOPE_TIME_MAX_SECONDS),
-  // so a seeded value is always one the slider can show.
-  'robot.attack': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
+  // so a seeded value is always one the slider can show. Attack and Release start at their sliders' floors
+  // (ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS): a shorter edge clicks.
+  'robot.attack': { min: ENVELOPE_ATTACK_MIN_SECONDS, max: ENVELOPE_TIME_MAX_SECONDS },
   'robot.decay': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
   'robot.sustain': { min: 0.0, max: 1.0 },
-  'robot.release': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
+  'robot.release': { min: ENVELOPE_RELEASE_MIN_SECONDS, max: ENVELOPE_TIME_MAX_SECONDS },
   // A stage that takes a non-linear shape is seeded short, so the shape can be heard: on a note stream the shape only
   // shows while the stage finishes within the note (notes are often 0.15 s). The same noise sample as a plain robot's,
   // spread over this range instead. `lit` is the shaped share, drawn even (docs/specs/EVEN_SEEDED_DRAWS.md §1.4), so the

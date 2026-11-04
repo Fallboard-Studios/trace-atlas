@@ -22,6 +22,7 @@ import { ROBOT_LFO_TARGET_IDS, LFO_LANE_IDS, type LfoLaneId } from '../types/lfo
 import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
+  ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS,
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
@@ -548,18 +549,20 @@ describe('spawnSystem', () => {
         expect(plain.some((a) => a.adsr.decay > 1.5)).toBe(true);
       });
 
-      it('a plain robot at a given point in the noise has the same body as before: seeded value / 2 s equals the old value / 5 s', async () => {
+      it('a plain robot lands 30 % of the way from the slider floor to 2 s, and its body reads that value over 2 s', async () => {
         const { bodyShapeFromAdsr } = await import('../components/robot/robotVisualHelpers');
         // Every draw lands 30 % of the way through whichever range it was given (raw -0.4); the shaped rolls say "not shaped".
         const a = generateAudioAttributes(
           noiseMapForDataIds({ 'robot.audio.attackCurve.shaped': 1, 'robot.audio.releaseCurve.shaped': 1 }, -0.4),
           0,
         );
-        expect(a.adsr.attack).toBeCloseTo(0.6, 9);
-        expect(a.adsr.release).toBeCloseTo(0.6, 9);
+        const attack = ENVELOPE_ATTACK_MIN_SECONDS + 0.3 * (2 - ENVELOPE_ATTACK_MIN_SECONDS);
+        const release = ENVELOPE_RELEASE_MIN_SECONDS + 0.3 * (2 - ENVELOPE_RELEASE_MIN_SECONDS);
+        expect(a.adsr.attack).toBeCloseTo(attack, 9);
+        expect(a.adsr.release).toBeCloseTo(release, 9);
         const body = bodyShapeFromAdsr(a.adsr);
-        expect(body.scale).toBeCloseTo(0.25 + (1 - 0.3) * 0.75, 9); // 30 % of the way along, as 1.5 s of 5 s was
-        expect(body.detail).toBeCloseTo(0.3, 9);
+        expect(body.scale).toBeCloseTo(0.25 + (1 - attack / 2) * 0.75, 9);
+        expect(body.detail).toBeCloseTo(release / 2, 9);
       });
 
       it('a shaped stage lands 50 % of the way through its own short range, not the full one', () => {
@@ -3502,11 +3505,11 @@ describe('spawnSystem', () => {
 
     // Classic parity (spec §5.2): the values the constants seeded on main at cc9a01f2, captured before the lift and typed in,
     // then re-captured from the generator at each Even Seeded Draws switch (docs/tasks/EVEN_SEEDED_DRAWS.md) for the
-    // fields that switch moved.
+    // fields that switch moved, and again when Attack and Release took their slider floors (15 ms, 20 ms; 2026-11-04).
     const PARITY_ROSTER: Omit<RobotAudioBaseline, 'name'>[] = [
       {
         audioAttributes: {
-          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
@@ -3516,7 +3519,7 @@ describe('spawnSystem', () => {
       },
       {
         audioAttributes: {
-          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
@@ -3526,7 +3529,7 @@ describe('spawnSystem', () => {
       },
       {
         audioAttributes: {
-          adsr: { attack: 0.16692632529884577, decay: 1.240191656164825, sustain: 0.3301627195905894, release: 1.3539673294872046, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 0.18067437785910445, decay: 1.240191656164825, sustain: 0.3301627195905894, release: 1.3604276561923325, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [2, 4], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 68, detune: -1, pulseWidth: 0.6791183213936165,
           layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
@@ -3550,7 +3553,7 @@ describe('spawnSystem', () => {
     const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
       4: {
         audioAttributes: {
-          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
@@ -3560,7 +3563,7 @@ describe('spawnSystem', () => {
       },
       11: {
         audioAttributes: {
-          adsr: { attack: 0.21824039553757757, decay: 1.1089304112829268, sustain: 0.02038705232553184, release: 1.5850363094359636, attackCurve: 'ripple', releaseCurve: 'linear' },
+          adsr: { attack: 0.21824039553757757, decay: 1.1089304112829268, sustain: 0.02038705232553184, release: 1.589185946341604, attackCurve: 'ripple', releaseCurve: 'linear' },
           octaveRange: [3, 5], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 80, detune: 1, pulseWidth: 0.3550120924133807,
           layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
         } as AudioAttributes,
@@ -3570,7 +3573,7 @@ describe('spawnSystem', () => {
       },
       50: {
         audioAttributes: {
-          adsr: { attack: 1.8607680136337876, decay: 1.7409854433499277, sustain: 0.36384062259458005, release: 1.6593553409911692, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 1.8618122535315342, decay: 1.7409854433499277, sustain: 0.36384062259458005, release: 1.6627617875812575, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [4, 6], filterFreq: 981.7550272680819, filterQ: 5.9, filterType: 'bandpass', portamento: 0.08, waveform: 'sawtooth', phase: 16, detune: -2, pulseWidth: 0.15774889986496418,
           layers: [{ type: 'sawtooth', gain: 0.98, detune: -1, phase: 125 }, { type: 'sine', gain: 0.74, detune: 0, phase: 5 }, { type: 'triangle', gain: 0, detune: 0, phase: 329 }],
         } as AudioAttributes,
