@@ -363,7 +363,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     render(<OffScreen />);
     expect(themeNames()).toEqual(THEME_IDS.map((id) => human(`home.off.theme.${id}`)));
     expect(checked('classic')).toBe('true');
-    for (const id of ['float', 'anchor', 'tide', 'shatter'] as const) expect(checked(id)).toBe('false');
+    for (const id of ['float', 'anchor', 'undertow', 'shatter'] as const) expect(checked(id)).toBe('false');
   });
 
   it('is muted: a flat face per theme, no cabinet box (the aspect rows pop, the theme row does not; revisions Task 9)', () => {
@@ -936,8 +936,8 @@ describe('OffScreen — a theme or aspect click keeps the selected row', () => {
     saveNamedSession('Calm Run', calmRun());
     render(<OffScreen />);
     fireEvent.click(row('Calm Run'));
-    act(() => useLoadingStore.getState().setLoading({ theme: 'tide', aspects: { voice: ['woody'] } }));
-    expect(checked(theme('tide'))).toBe('true');
+    act(() => useLoadingStore.getState().setLoading({ theme: 'undertow', aspects: { voice: ['woody'] } }));
+    expect(checked(theme('undertow'))).toBe('true');
     expect(pressed('home.off.voice.woody')).toBe('true');
     expect(pressed('home.off.melody.hypnotic')).toBe('false');
   });

@@ -47,13 +47,13 @@ import type { Robot } from '../../types/Robot';
 
 // The overlay direction is proved on injected columns, whatever the real columns hold (docs/tasks/
 // THEME_AND_ASPECTS_REFINEMENT.md T8 writes them, the listens tune them): Float moves bpm, Hypnotic moves noteVariance,
-// and an injected EMPTY column (Anchor, Wandering) proves silence. Tide is injected with a global row and a robot lit
+// and an injected EMPTY column (Anchor, Wandering) proves silence. Undertow is injected with a global row and a robot lit
 // key (T5: a theme column is any part of the band table), typed as a column so a narrower ThemeColumn fails to compile.
 // The originals are spread, so every other export is the real one; the real columns are read below through
 // vi.importActual.
 const injected = vi.hoisted(() => ({
   float: { bpm: { min: 150, max: 160 } },
-  tide: {
+  undertow: {
     'reverb.decay': { min: 6, max: 8 },
     'robot.portamento': { min: 0.3, max: 0.6, lit: 0.8 },
   } satisfies ThemeColumn,
@@ -64,7 +64,7 @@ const injected = vi.hoisted(() => ({
 
 vi.mock('./themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, float: injected.float, anchor: {}, tide: injected.tide } };
+  return { ...actual, THEMES: { ...actual.THEMES, float: injected.float, anchor: {}, undertow: injected.undertow } };
 });
 
 vi.mock('./aspects', async (importOriginal) => {
@@ -331,7 +331,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
       'float',
       'anchor',
       'shatter',
-      'tide',
+      'undertow',
       'trench',
       'tidepool',
       'floe',
@@ -373,8 +373,8 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     ]).toEqual([]);
   });
 
-  it('a cut or renamed theme id is no theme: calm, bold, adventurous and perilous fail isThemeId', () => {
-    for (const id of ['calm', 'bold', 'adventurous', 'perilous', 'current', 'Float', '']) expect(isThemeId(id), id).toBe(false);
+  it('a cut or renamed theme id is no theme: calm, bold, adventurous, perilous and tide fail isThemeId', () => {
+    for (const id of ['calm', 'bold', 'adventurous', 'perilous', 'current', 'tide', 'Float', '']) expect(isThemeId(id), id).toBe(false);
     for (const id of THEME_IDS) expect(isThemeId(id), id).toBe(true);
   });
 
@@ -441,17 +441,17 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     expect(restFloat).toStrictEqual(restClassic);
   });
 
-  it('a widened theme column replaces a global row and a robot lit band alike: Tide (injected) differs from Classic at reverb.decay and robot.portamento and nowhere else', () => {
-    const tide = resolveBands('tide', {});
-    expect(tide['reverb.decay']).toStrictEqual({ min: 6, max: 8 });
-    expect(tide['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
-    const { 'reverb.decay': _a, 'robot.portamento': _b, ...restTide } = tide;
+  it('a widened theme column replaces a global row and a robot lit band alike: Undertow (injected) differs from Classic at reverb.decay and robot.portamento and nowhere else', () => {
+    const undertow = resolveBands('undertow', {});
+    expect(undertow['reverb.decay']).toStrictEqual({ min: 6, max: 8 });
+    expect(undertow['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
+    const { 'reverb.decay': _a, 'robot.portamento': _b, ...restUndertow } = undertow;
     const { 'reverb.decay': _c, 'robot.portamento': _d, ...restClassic } = CLASSIC;
-    expect(restTide).toStrictEqual(restClassic);
+    expect(restUndertow).toStrictEqual(restClassic);
   });
 
-  it('a widened theme key under an aspect that does not name it survives the aspect: Tide plus Hypnotic keeps the glide band', () => {
-    const both = resolveBands('tide', { melody: 'hypnotic' });
+  it('a widened theme key under an aspect that does not name it survives the aspect: Undertow plus Hypnotic keeps the glide band', () => {
+    const both = resolveBands('undertow', { melody: 'hypnotic' });
     expect(both['robot.portamento']).toStrictEqual({ min: 0.3, max: 0.6, lit: 0.8 });
     expect(both['robot.noteVariance']).toStrictEqual({ offShare: 0, min: 1, max: 2 });
   });
@@ -678,7 +678,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       'delaySend',
       'reverbSend',
     ],
-    tide: [
+    undertow: [
       'robot.portamento',
       'robot.lfoBusDepth',
       'robot.attack',
@@ -867,14 +867,14 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
   });
 
   // The lit rule (Crawford, 2026-11-03; the sheets' rules): a theme naming a pedal's or a colour node's rows lights it
-  // in every world. Under the real columns: Shatter all three nodes, Wreck the drive and the crush, Tide the Vibrato,
+  // in every world. Under the real columns: Shatter all three nodes, Wreck the drive and the crush, Undertow the Vibrato,
   // Vent Field the Auto-Wah, Squall the Tremolo, and no other theme any.
   it('the real columns light what their sheets say and nothing else', () => {
     const lights = (theme: ThemeId) => [...realThemes.themeLights(realThemes.THEMES[theme])].sort();
     const expected: Partial<Record<ThemeId, string[]>> = {
       shatter: ['bitCrusher', 'chebyshev', 'distortion'],
       wreck: ['bitCrusher', 'distortion'],
-      tide: ['vibrato'],
+      undertow: ['vibrato'],
       ventField: ['autoWah'],
       squall: ['tremolo'],
     };

@@ -63,7 +63,7 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
   it.each<[ThemeId, ThemeId]>([
     ['classic', 'float'],
     ['classic', 'anchor'],
-    ['classic', 'tide'],
+    ['classic', 'undertow'],
     ['classic', 'shatter'],
     ['shatter', 'float'],
     ['float', 'classic'],

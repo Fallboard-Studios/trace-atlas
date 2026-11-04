@@ -1024,6 +1024,12 @@ edges (attack and shaped attack 0.015 flat, release and shaped release 0.02 flat
 `spawnSystem.test.ts` were re-captured from the generator for the plain stages that moved. `npm run sketch:bands` re-run
 and its JSON recommitted.
 
+**Before L1: Tide renamed Undertow (Crawford, 2026-11-04).** The id follows the name (open question 5): `undertow` in
+`THEME_IDS`, `themes.ts`, `loadingNames.ts`, `home.ts` (name "Undertow", the description unchanged), the sketch page's
+`SHEETS` and its JSON (re-run), and the sheets file (heading "Undertow (was Current, then Tide)"; Tidepool's two
+"shares the name's root" remarks dropped, as the root is no longer shared). An old link's `tide` is no theme and loads
+Classic. The history above and in the spec keeps the name Tide.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

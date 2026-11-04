@@ -8,16 +8,17 @@ import type { BandTable } from './bandKeys';
 // ========================================
 
 /** The fourteen theme ids (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md; the cut, docs/reference/THEME_AND_ASPECT_SHEETS.md),
- *  Classic first, then the four renamed (Float was Calm, Anchor Bold, Shatter Perilous, Tide the Current candidate) and
- *  the nine candidates kept, in the sheets' order - the order the Loading axis's theme row lists them. Each id follows
- *  its name (open question 5), so an old link's `calm` or `adventurous` is no theme and loads Classic. The ids are code;
+ *  Classic first, then the four renamed (Float was Calm, Anchor Bold, Shatter Perilous, Undertow the Current candidate,
+ *  first named Tide) and the nine candidates kept, in the sheets' order - the order the Loading axis's theme row lists
+ *  them. Each id follows its name (open question 5), so an old link's `calm`, `adventurous` or `tide` is no theme and
+ *  loads Classic. The ids are code;
  *  the names and one-line descriptions are content (`home.off.theme.<id>`, `home.off.themeDescription.<id>`). */
 export const THEME_IDS = [
   'classic',
   'float',
   'anchor',
   'shatter',
-  'tide',
+  'undertow',
   'trench',
   'tidepool',
   'floe',
@@ -74,7 +75,7 @@ export function themeLights(column: ThemeColumn): ReadonlySet<ThemeLight> {
  *
  * Two draws to read the numbers against. The three effect-room sends roll in the order Grit, Shimmer, Double and a probe
  * carries at most one (composeExclusiveSends), so a theme raising the Shimmer or the Double share realises less than its
- * `lit` beside Classic's Grit share; the sketch shows how much (Floe's, Thicket's and Tide's sheets say so). And the
+ * `lit` beside Classic's Grit share; the sketch shows how much (Floe's, Thicket's and Undertow's sheets say so). And the
  * layers' detune draws centred over its band, so most layers sit near the band's middle.
  */
 export const THEMES: Record<ThemeId, ThemeColumn> = {
@@ -144,8 +145,8 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
     reverbSend: { min: 0.1, max: 0.6, lit: 0 }, // dry of wash
   },
 
-  // Tide: everything slides, and water moves over the whole sound. Naming the Vibrato's rows lights it in every world.
-  tide: {
+  // Undertow: everything slides, and water moves over the whole sound. Naming the Vibrato's rows lights it in every world.
+  undertow: {
     'robot.portamento': { min: 0.15, max: 0.35, lit: 1 }, // every probe glides over a long slide (sketch: 0.15 to 0.35 s)
     'robot.lfoBusDepth': { min: 5, max: 25, lit: 0.6 }, // on many the probe filter wobbles gently
     'robot.attack': { min: 0.2, max: 0.6 }, // notes arrive slowly

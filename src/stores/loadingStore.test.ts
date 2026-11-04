@@ -98,7 +98,7 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('holds only JSON: the loading round-trips through JSON.stringify unchanged', () => {
-    state().setLoading({ theme: 'tide', aspects: { melody: ['hypnotic', 'mechanical'] } });
+    state().setLoading({ theme: 'undertow', aspects: { melody: ['hypnotic', 'mechanical'] } });
     const { theme, aspects } = state();
     expect(JSON.parse(JSON.stringify({ theme, aspects }))).toStrictEqual({ theme, aspects });
   });

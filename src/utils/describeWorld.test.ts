@@ -94,7 +94,7 @@ describe('describeWorld', () => {
       expect(tail).toBe(
         `tr3nch-2 · (-30, -30) · ${labels('home.off.theme.shatter').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.mechanical').humanLabel} + ${labels('home.off.melody.wandering').humanLabel}`,
       );
-      for (const theme of ['classic', 'float', 'anchor', 'tide', 'shatter'] as const) {
+      for (const theme of ['classic', 'float', 'anchor', 'undertow', 'shatter'] as const) {
         expect(labels(`home.off.theme.${theme}`).humanLabel.length).toBeGreaterThan(0);
       }
     });

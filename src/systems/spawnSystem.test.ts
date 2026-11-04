@@ -112,7 +112,7 @@ const everyRobotBandMoved = vi.hoisted(() => ({
   'robot.accents': { min: 0, max: 5 },
 }) satisfies Partial<BandTable>);
 
-// band-table T22: the sends read the band table too. Under Tide (injected) no robot carries a reverb (lit 0), every robot a
+// band-table T22: the sends read the band table too. Under Undertow (injected) no robot carries a reverb (lit 0), every robot a
 // delay of exactly 0.3 (a point band, lit 1) and every Grit roll lands at 0.5 (so Shimmer and Double never do); Bold
 // gives the Reverb row a lit share of 0.5, to prove the roll against 1 - lit on a row Classic never rolls.
 const everySendMoved = vi.hoisted(() => ({
@@ -141,7 +141,7 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
     THEMES: {
       ...actual.THEMES,
       shatter: everyRobotBandMoved,
-      tide: everySendMoved,
+      undertow: everySendMoved,
       anchor: halfLitReverb,
       float: melodyColumns.hypnotic,
     },
@@ -3602,7 +3602,7 @@ describe('spawnSystem', () => {
   });
 
   describe('the sends read the band table (band-table T22, spec assumption 15)', () => {
-    const ADVENTUROUS = { theme: 'tide', aspects: {} } as const;
+    const ADVENTUROUS = { theme: 'undertow', aspects: {} } as const;
     const BOLD = { theme: 'anchor', aspects: {} } as const;
     const noiseMap = createNoise2D(alea('band-table-t22'));
 
@@ -3859,8 +3859,8 @@ describe('spawnSystem', () => {
 
     it('generateRobotSends is deriveSendFields under the installed bands, value for value', () => {
       for (let i = 0; i < 6; i++) expect(generateRobotSends(noiseMap, i)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', {})));
-      const adventurous = withLoading({ theme: 'tide', aspects: {} }, () => generateRobotSends(noiseMap, 3));
-      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('tide', {})));
+      const adventurous = withLoading({ theme: 'undertow', aspects: {} }, () => generateRobotSends(noiseMap, 3));
+      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('undertow', {})));
     });
 
     it('a robot dealt Plucked has the adsr deriveEnvelopeFields draws at its index under Plucked; its sends and every other field are untouched', () => {
@@ -3895,12 +3895,12 @@ describe('spawnSystem', () => {
       expect(undealt.some((b) => b.delaySend < 0.4)).toBe(true);
     });
 
-    it('the deal reads every band from its own theme, never the installed context: Half-heard under Tide (injected) carries Tide\'s grit while Classic is loaded', () => {
+    it('the deal reads every band from its own theme, never the installed context: Half-heard under Undertow (injected) carries Undertow\'s grit while Classic is loaded', () => {
       expect(useLoadingStore.getState().theme).toBe('classic');
-      const { dealt } = deal({ distance: ['halfHeard'] }, 'tide');
+      const { dealt } = deal({ distance: ['halfHeard'] }, 'undertow');
       dealt.forEach((baseline, i) => {
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('tide', { distance: 'halfHeard' })));
-        // This file's Tide (injected) seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('undertow', { distance: 'halfHeard' })));
+        // This file's Undertow (injected) seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
         expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
       });
     });
