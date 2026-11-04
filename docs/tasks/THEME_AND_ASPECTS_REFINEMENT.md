@@ -1030,6 +1030,12 @@ and its JSON recommitted.
 "shares the name's root" remarks dropped, as the root is no longer shared). An old link's `tide` is no theme and loads
 Classic. The history above and in the spec keeps the name Tide.
 
+**Before L1: Classic's Chorus depth and shift (Crawford, 2026-11-04).** `chorus.depth` 0.3-0.7 -> 0.05-0.2 and
+`frequencyShifter.shift` (the magnitude) 2-20 -> 1-5 Hz, in `classic.ts`, `GLOBAL_CHAIN_GRID.md`'s Loading Range column,
+the seed oracle (amended by hand from the same raw draws, its rule) and the Global Pedals shift bound; sketch JSON re-run.
+Two sheet promises now sit close to Classic: Undertow's "shallow" chorus (0.1-0.25, now deeper than Classic's) and Floe's
+"small" shift (2-5, now inside Classic's 1-5). For L1 to hear.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |

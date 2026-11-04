@@ -42,7 +42,7 @@
 | Phaser | `setGlobalPhaser()` | wet ⁴ | 0–1 | 0.3–0.4 | PHASE LAG | MIX | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | rate (Tone `frequency`) ⁵ | Hz, 0.05–10 | 0.2–2 | TWIN CURRENT | RATE | SLIDER (Free \| Sync) | – | – |
 | Chorus | `setGlobalChorus()` | delayTime | ms, 1–20 | 6–15 | TWIN CURRENT | DELAY | SLIDER (step 0.5) | – | – |
-| Chorus | `setGlobalChorus()` | depth | 0–1 | 0.3–0.7 | TWIN CURRENT | DEPTH | SLIDER | – | – |
+| Chorus | `setGlobalChorus()` | depth | 0–1 | 0.05–0.2 | TWIN CURRENT | DEPTH | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | spread | degrees, 0–180 | 90–180 | TWIN CURRENT | SPREAD | SLIDER (step 5) | – | – |
 | Chorus | `setGlobalChorus()` | feedback | 0–0.9 | 0–0.2 | TWIN CURRENT | FEEDBACK | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | wet ⁵ | 0–1 (return level of the Double room²) | – (fixed `1`) | TWIN CURRENT | RETURN | SLIDER | – | – |
@@ -53,7 +53,7 @@
 | Vibrato | `setGlobalVibrato()` | rate (Tone `frequency`) ⁵ | Hz, 0.05–10 | 2–7 | LINE WAVER | RATE | SLIDER (Free \| Sync) | – | – |
 | Vibrato | `setGlobalVibrato()` | depth | 0–1 (of `maxDelay` 0.005 s) | 0.03–0.12 | LINE WAVER | DEPTH | SLIDER | – | – |
 | Vibrato | `setGlobalVibrato()` | wet ⁵ | 0–1 | 0.85–1 | LINE WAVER | MIX | SLIDER | – | – |
-| FrequencyShifter | `setGlobalFrequencyShifter()` | shift (Tone `frequency`) ⁵ | Hz, −1000 to 1000 (signed) | ±(2–20), sign drawn separately | BAND SLIP | SHIFT | SLIDER (Center-Zero) | – | – |
+| FrequencyShifter | `setGlobalFrequencyShifter()` | shift (Tone `frequency`) ⁵ | Hz, −1000 to 1000 (signed) | ±(1–5), sign drawn separately | BAND SLIP | SHIFT | SLIDER (Center-Zero) | – | – |
 | FrequencyShifter | `setGlobalFrequencyShifter()` | wet ⁵ | 0–1 (return level of the Shimmer room²) | – (fixed `1`) | BAND SLIP | RETURN | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | delayTime | seconds, 0–10 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER (Free \| Sync¹) | – | – |
 | Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |

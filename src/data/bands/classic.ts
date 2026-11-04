@@ -117,7 +117,7 @@ export const CLASSIC: BandTable = {
   // and 0.25-0.35) are history. Their shape rows below still seed every world.
   'chorus.rate': { min: 0.2, max: 2 },
   'chorus.delayTime': { min: 6, max: 15 },
-  'chorus.depth': { min: 0.3, max: 0.7 },
+  'chorus.depth': { min: 0.05, max: 0.2 }, // Crawford, 2026-11-04: shallower (was 0.3-0.7)
   'chorus.spread': { min: 90, max: 180 },
   'chorus.feedback': { min: 0, max: 0.2 },
   'tremolo.rate': { min: 0.5, max: 6 },
@@ -128,8 +128,8 @@ export const CLASSIC: BandTable = {
   'vibrato.depth': { min: 0.03, max: 0.12 },
   'vibrato.wet': { min: 0.85, max: 1 },
   // A MAGNITUDE band: the seeder draws the sign separately (`globalAudio.frequencyShifter.sign`), so a seeded shift is
-  // +/-(2 - 20) Hz and never inside +/-2 Hz.
-  'frequencyShifter.shift': { min: 2, max: 20 },
+  // +/-(1 - 5) Hz and never inside +/-1 Hz (Crawford, 2026-11-04; was 2-20).
+  'frequencyShifter.shift': { min: 1, max: 5 },
   // Never near 0: the mono fold is a hand setting only. The widener has no dark state.
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 

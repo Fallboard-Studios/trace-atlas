@@ -137,7 +137,7 @@ const EXPECTED: BandTable = {
   'phaser.wet': { min: 0.3, max: 0.4 },
   'chorus.rate': { min: 0.2, max: 2 },
   'chorus.delayTime': { min: 6, max: 15 },
-  'chorus.depth': { min: 0.3, max: 0.7 },
+  'chorus.depth': { min: 0.05, max: 0.2 },
   'chorus.spread': { min: 90, max: 180 },
   'chorus.feedback': { min: 0, max: 0.2 },
   'tremolo.rate': { min: 0.5, max: 6 },
@@ -147,7 +147,7 @@ const EXPECTED: BandTable = {
   'vibrato.rate': { min: 2, max: 7 },
   'vibrato.depth': { min: 0.03, max: 0.12 },
   'vibrato.wet': { min: 0.85, max: 1 },
-  'frequencyShifter.shift': { min: 2, max: 20 },
+  'frequencyShifter.shift': { min: 1, max: 5 },
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 
   // Two world keys new at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, each its draw as it stood (main at 3c188fec):

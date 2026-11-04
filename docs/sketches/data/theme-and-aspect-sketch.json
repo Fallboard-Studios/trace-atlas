@@ -1,7 +1,7 @@
 {
  "meta": {
-  "generated": "2026-11-04T19:38:20.671Z",
-  "commit": "42223739",
+  "generated": "2026-11-04T19:56:41.492Z",
+  "commit": "0f12fa84",
   "worlds": 300,
   "robotsPerWorld": 12,
   "styles": 300,
@@ -277,8 +277,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -317,8 +317,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -721,9 +721,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -783,9 +783,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -2848,8 +2848,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -2888,8 +2888,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -3292,9 +3292,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -3354,9 +3354,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -5426,8 +5426,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -5466,8 +5466,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -5870,9 +5870,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -5932,9 +5932,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -7937,8 +7937,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -7977,8 +7977,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -8381,9 +8381,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -8443,9 +8443,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -10539,8 +10539,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -11005,9 +11005,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -13078,8 +13078,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -13118,8 +13118,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -13522,9 +13522,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -13584,9 +13584,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -15658,8 +15658,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -15698,8 +15698,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -16102,9 +16102,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -16164,9 +16164,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -18212,8 +18212,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -18656,9 +18656,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -20832,8 +20832,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -21298,9 +21298,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -23373,8 +23373,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -23413,8 +23413,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -23817,9 +23817,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -23879,9 +23879,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -25948,8 +25948,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -25988,8 +25988,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.75,
@@ -26392,9 +26392,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -26454,9 +26454,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -28532,8 +28532,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -28572,8 +28572,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -28976,9 +28976,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -29038,9 +29038,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -31113,8 +31113,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -31153,8 +31153,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.4,
@@ -31557,9 +31557,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -31619,9 +31619,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -33692,8 +33692,8 @@
      "max": 15
     },
     "chorus.depth": {
-     "min": 0.3,
-     "max": 0.7
+     "min": 0.05,
+     "max": 0.2
     },
     "chorus.spread": {
      "min": 90,
@@ -33732,8 +33732,8 @@
      "max": 1
     },
     "frequencyShifter.shift": {
-     "min": 2,
-     "max": 20
+     "min": 1,
+     "max": 5
     },
     "stereoWidener.width": {
      "min": 0.75,
@@ -34136,9 +34136,9 @@
     },
     "chorus.depth": {
      "n": 300,
-     "low": 0.3,
-     "median": 0.48,
-     "high": 0.7
+     "low": 0.05,
+     "median": 0.12,
+     "high": 0.2
     },
     "chorus.spread": {
      "n": 300,
@@ -34198,9 +34198,9 @@
     },
     "frequencyShifter.shift": {
      "n": 300,
-     "low": 2,
-     "median": 10,
-     "high": 20
+     "low": 1,
+     "median": 3,
+     "high": 5
     },
     "stereoWidener.width": {
      "n": 300,
@@ -46733,60 +46733,60 @@
  },
  "timings": {
   "classic": {
-   "robotRosterMs": 5.84,
-   "worldSeedMs": 1.344
+   "robotRosterMs": 6.017,
+   "worldSeedMs": 1.428
   },
   "float": {
-   "robotRosterMs": 5.559,
-   "worldSeedMs": 1.283
+   "robotRosterMs": 6.409,
+   "worldSeedMs": 1.51
   },
   "anchor": {
-   "robotRosterMs": 5.631,
-   "worldSeedMs": 1.311
+   "robotRosterMs": 6.795,
+   "worldSeedMs": 1.364
   },
   "shatter": {
-   "robotRosterMs": 5.848,
-   "worldSeedMs": 1.331
+   "robotRosterMs": 6.839,
+   "worldSeedMs": 1.38
   },
   "undertow": {
-   "robotRosterMs": 5.937,
-   "worldSeedMs": 1.341
+   "robotRosterMs": 7.563,
+   "worldSeedMs": 2.174
   },
   "trench": {
-   "robotRosterMs": 5.874,
-   "worldSeedMs": 1.317
+   "robotRosterMs": 6.313,
+   "worldSeedMs": 1.71
   },
   "tidepool": {
-   "robotRosterMs": 5.466,
-   "worldSeedMs": 1.302
+   "robotRosterMs": 6.169,
+   "worldSeedMs": 1.351
   },
   "floe": {
-   "robotRosterMs": 5.92,
-   "worldSeedMs": 1.303
+   "robotRosterMs": 6.249,
+   "worldSeedMs": 1.416
   },
   "thicket": {
-   "robotRosterMs": 6.01,
-   "worldSeedMs": 1.299
+   "robotRosterMs": 6.542,
+   "worldSeedMs": 1.772
   },
   "wreck": {
-   "robotRosterMs": 5.844,
-   "worldSeedMs": 1.305
+   "robotRosterMs": 6.444,
+   "worldSeedMs": 1.34
   },
   "openWater": {
-   "robotRosterMs": 5.835,
-   "worldSeedMs": 1.316
+   "robotRosterMs": 6.161,
+   "worldSeedMs": 1.361
   },
   "ventField": {
-   "robotRosterMs": 6.171,
-   "worldSeedMs": 1.297
+   "robotRosterMs": 6.501,
+   "worldSeedMs": 1.338
   },
   "beacon": {
-   "robotRosterMs": 5.939,
-   "worldSeedMs": 1.309
+   "robotRosterMs": 6.301,
+   "worldSeedMs": 1.376
   },
   "squall": {
-   "robotRosterMs": 6,
-   "worldSeedMs": 1.324
+   "robotRosterMs": 6.448,
+   "worldSeedMs": 1.42
   }
  }
 }

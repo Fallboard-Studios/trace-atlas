@@ -92,7 +92,7 @@ const EXPECTED: Record<LoadingRangeKey, { min: number; max: number }> = {
   // retuned by Classic Band Retune T1 (rows 1, 2, 7-9, 12).
   'chorus.rate': { min: 0.2, max: 2 },
   'chorus.delayTime': { min: 6, max: 15 },
-  'chorus.depth': { min: 0.3, max: 0.7 },
+  'chorus.depth': { min: 0.05, max: 0.2 },
   'chorus.spread': { min: 90, max: 180 },
   'chorus.feedback': { min: 0, max: 0.2 },
   'tremolo.rate': { min: 0.5, max: 6 },
@@ -102,7 +102,7 @@ const EXPECTED: Record<LoadingRangeKey, { min: number; max: number }> = {
   'vibrato.rate': { min: 2, max: 7 },
   'vibrato.depth': { min: 0.03, max: 0.12 },
   'vibrato.wet': { min: 0.85, max: 1 },
-  'frequencyShifter.shift': { min: 2, max: 20 },
+  'frequencyShifter.shift': { min: 1, max: 5 },
   'stereoWidener.width': { min: 0.4, max: 0.65 },
 };
 
@@ -246,7 +246,7 @@ describe('CLASSIC: the global loading rows', () => {
   it('seeds the shift as a magnitude band strictly above zero, inside the signed full range on the positive side', () => {
     const band = CLASSIC['frequencyShifter.shift'];
     const full = GLOBAL_AUDIO_SEED_RANGES['frequencyShifter.shift'];
-    expect(band).toStrictEqual({ min: 2, max: 20 });
+    expect(band).toStrictEqual({ min: 1, max: 5 });
     expect(band.min).toBeGreaterThan(0);
     // The sign is a separate draw, so the negated band must fit inside the full range too.
     expect(-band.max).toBeGreaterThanOrEqual(full.min);

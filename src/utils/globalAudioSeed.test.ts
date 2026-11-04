@@ -1190,11 +1190,11 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       }
     });
 
-    it('never seeds a shift inside 2 Hz of zero, keeps it within 20 Hz, and seeds both signs', () => {
+    it('never seeds a shift inside 1 Hz of zero, keeps it within 5 Hz, and seeds both signs', () => {
       const shifts = samples.map((s) => s.frequencyShifter.shift);
       for (const shift of shifts) {
-        expect(Math.abs(shift)).toBeGreaterThanOrEqual(2);
-        expect(Math.abs(shift)).toBeLessThanOrEqual(20);
+        expect(Math.abs(shift)).toBeGreaterThanOrEqual(1);
+        expect(Math.abs(shift)).toBeLessThanOrEqual(5);
         expect(Number.isInteger(shift)).toBe(true);
       }
       const negative = shifts.filter((x) => x < 0).length / shifts.length;
@@ -2253,6 +2253,12 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // -> fold, theta fold -> clean) and the Delay Sync pair (alpha now Sync; theta's note). T12 moved the seed tempo (alpha
 // 74 -> 78 BPM, theta 58 -> 85), so four Sync notes snapped to it moved and no other value did. T13 moved every LFO
 // Bank lane (rate, shape, both drifts, Sync). The rule above stands again once Phase 3 is done.
+//
+// AMENDED BY HAND, themes-58 (Crawford, 2026-11-04): Classic's Chorus depth band moved to 0.05-0.2 and the shift's
+// magnitude band to 1-5 Hz (plain draws; the shift's sign is its own draw and did not move). From the same raw draws:
+// alpha depth t ~0.325 -> 0.05 + 0.15 * t = 0.099 -> 0.10 (was 0.43), shift t ~0.5 -> 1 + 4 * t = 3 -> -3 (was -11);
+// theta depth t ~0.25 -> 0.0875 -> 0.09 (was 0.40), shift t ~0.667 -> 3.67 -> 4 (was 14). The old bands 0.3 + 0.4 * t and
+// 2 + 18 * t reproduce 0.43, 11, 0.40 and 14, which is the check; the seeder's output matched. Nothing else moved.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2290,10 +2296,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Pedals T8: the Phaser is lit, the Chorus lit (synced), the shifter capped dark. Robot Effect Sends T8 (amended
       // by hand): the Chorus and shifter wets are their rooms' Returns, 1, and the Chorus keeps the Sync it already drew; the
       // Tremolo and Vibrato rolls are over their edges, so the smaller cap moved nothing else.
-      chorus: { rate: 0.7, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 1, sync: { division: '1/2', modifier: 'straight' } },
+      chorus: { rate: 0.7, delayTime: 12.5, depth: 0.1, spread: 95, feedback: 0.19, wet: 1, sync: { division: '1/2', modifier: 'straight' } },
       tremolo: { rate: 5.7, depth: 0.35, spread: 90, wet: 0 },
       vibrato: { rate: 6.85, depth: 0.05, wet: 0 },
-      frequencyShifter: { shift: -11, wet: 1 },
+      frequencyShifter: { shift: -3, wet: 1 },
       stereoWidener: { width: 0.64 },
       // Even Seeded Draws T11: the Delay now seeds Sync here.
       delay: { delayTime: 0.112, feedback: 0.01, wet: 1, sync: { division: '1/8', modifier: 'straight' } },
@@ -2326,10 +2332,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Pedals T8: the AutoWah is lit and the Tremolo lights (synced); the Vibrato rolls dark. Robot Effect Sends T8
       // (amended by hand): the Chorus and shifter wets are their rooms' Returns, 1; this style's Chorus Sync roll is over its
       // odds, so it stays Free; nothing else moved.
-      chorus: { rate: 1.5, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 1 },
+      chorus: { rate: 1.5, delayTime: 13, depth: 0.09, spread: 145, feedback: 0.09, wet: 1 },
       tremolo: { rate: 1.75, depth: 0.35, spread: 130, wet: 0.4, sync: { division: '1/4', modifier: 'triplet' } }, // T12: tempo 58 -> 85
       vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
-      frequencyShifter: { shift: 14, wet: 1 },
+      frequencyShifter: { shift: 4, wet: 1 },
       stereoWidener: { width: 0.51 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved. Even Seeded Draws
       // T11: the note moved (it was a straight 1/16).
