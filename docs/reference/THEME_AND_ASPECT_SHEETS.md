@@ -728,8 +728,9 @@ its voice is round, with no edges.
 **Leaves alone.** The delay, the colour, the pedals and the attack: Classic's; a dark world need not echo.
 
 **Overlaps.** Melody takes `robot.rhythmicDensity`; Envelope takes `robot.release`; Distance takes `reverbSend`; Voice
-takes `robot.waveform`; Motion would take `robot.portamento`, the sonar slur. With everything picked, what
-survives is the dark filter and EQ, the crawl, the cavern and the gaps: still the deep, without the sonar.
+takes `robot.waveform`; Motion would take `robot.portamento`, the sonar slur; Performance would take `robot.rests`,
+the gaps. With everything picked, what survives is the dark filter and EQ, the crawl and the cavern: still the deep,
+without the sonar or the gaps.
 
 **Distinct from.** Float, the nearest current theme: Float is soft and slow in a warm near room with the top only
 softened; Trench is dark, in a cavern, and its probes slide. Among the candidates, Open Water: far and wide, not dark;

@@ -584,10 +584,23 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Estimated scope:** M (one page)
 
 ### Checkpoint D: the look
-- [ ] Crawford opens the sketch. Every realised spread is its written band; every promised overlap is in the grid;
+- [x] Crawford opens the sketch. Every realised spread is its written band; every promised overlap is in the grid;
       the coverage frame has no marked row, or each marked row is fixed on the sheet or in the column first.
-- [ ] The three listen worlds confirmed (open question 3).
-- [ ] Session ends here.
+      (The look: "seems fine". `robot.masterVolume`'s mark stands by Crawford's call; Trench's grid mark fixed on the
+      sheet; coverage had none.)
+- [x] The three listen worlds confirmed (open question 3). (The three presets, as answered.)
+- [x] Session ends here. (Passed, Crawford, 2026-11-03. Next: L1, the themes listen.)
+- Crawford's answers (2026-11-03):
+  - **`robot.masterVolume` stays as built** ("I'm fine with it"). `masterVolumeFrom`'s register bias and its
+    0.5-0.95 clamp keep reaching past a theme's written band: a bass robot plays louder and a treble one quieter than
+    the band says, and Open Water's 0.45 floor is never reached. The sketch keeps marking the three cells; they are
+    known, not a fault.
+  - **Trench's Overlaps fixed** ("yes"): the sheet now says Performance would take `robot.rests`, the gaps, and the
+    gaps leave the survivor sentence. The page's `SHEETS` entry carries the same text. Proof: Read, and the page
+    rendered again in headless Chrome from file://: the grid has no marked cell, the spread one marked row
+    (`robot.masterVolume`, three cells), coverage none.
+  - **The theme for the family listens** (open question 4): the default stands for now, Classic then the grid's
+    riskiest theme; Crawford may name a different one at L2 ("we'll see").
 
 - [ ] **L1: the themes listen — three worlds × every survivor theme, no aspect**
 
@@ -1024,7 +1037,8 @@ Carried from the spec; each takes its default until Crawford answers at the name
 3. **The three listen worlds.** Default the three presets (`transmissionPresets.ts`). **Answered** (Crawford,
    2026-11-03): "the defaults you've been using for pixel testing are fine", read as the three presets, the worlds the
    Pixel underrun A/Bs ran on.
-4. **The theme for the family listens.** Default Classic, then the grid's riskiest theme. **Open** until Checkpoint D.
+4. **The theme for the family listens.** Default Classic, then the grid's riskiest theme. **Answered**
+   (Crawford, Checkpoint D, 2026-11-03): the default for now; "I might later choose a different theme, we'll see."
 5. **A renamed character's id.** Default: the id follows the name. **Answered** (Crawford, 2026-11-03): proposed is
    fine. So `float`, `anchor`, `shatter`, `tide` and the candidates' ids follow their names; an old link's `calm`,
    `bold`, `perilous` loads Classic with the dev warning.
