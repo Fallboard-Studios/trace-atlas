@@ -602,7 +602,8 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   - **The theme for the family listens** (open question 4): the default stands for now, Classic then the grid's
     riskiest theme; Crawford may name a different one at L2 ("we'll see").
 
-- [ ] **L1: the themes listen — three worlds × every survivor theme, no aspect**
+- [x] **L1: the themes listen — three worlds × every survivor theme, no aspect** (Passed, Crawford, 2026-11-04: "they
+  all sound great". Next: L2.)
 
   **Description:** Spec §1.7 step 1. A fixed listen sheet appended to this plan under "Listen record": per world, per
   theme, what was heard first, second and third against the sheet, and a verdict (keep, retune, cut). Two themes
@@ -613,12 +614,14 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Look (a listen) — Crawford's record.
 
   **Acceptance criteria:**
-  - [ ] Every survivor theme has a verdict on each of the three worlds.
-  - [ ] Every retune has an R-task with a sheet sentence; no number moved without one.
+  - [x] Every survivor theme has a verdict on each of the three worlds. (One verdict for the set, not per world: all
+        fourteen kept. See the Listen record.)
+  - [x] Every retune has an R-task with a sheet sentence; no number moved without one. (No R-task: the numbers that
+        moved during the listen were Crawford's own calls, not sheet retunes, each in "As Shipped" under "Before L1".)
 
   **Verification:**
-  - [ ] After the last R-task: `npx vitest run src/data/bands`, `npm run sketch:bands`, `npm run build:types`,
-        `npm run lint` clean.
+  - [x] After the last change (12535107): `npx vitest run src/data/bands`, `npm run sketch:bands`, `npm run
+        build:types`, `npm run lint` clean; full suite 13,522 passed.
 
   **Dependencies:** Checkpoint D. **Files:** this plan (the record), `src/data/bands/themes.ts` and the JSON per
   R-task
@@ -770,6 +773,21 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 (Filled in at L1–L3: per world and theme, per option, per pair — what was heard first, second and third against the
 sheet; the verdict; the R-task if any.)
+
+### L1: the themes (Crawford, 2026-11-04)
+
+**Verdict: all fourteen kept**, no R-task: "I'm happy with the themes, they all sound great, and we've made the changes
+I want to make." No pair failed the one-minute test. He gave one verdict for the set rather than a heard-first line per
+world and theme, so there is none to record here. The changes made during the listen, each in "As Shipped" under
+"Before L1":
+- Attack and Release floors, 15 ms and 20 ms (Squall's Glass Nomad clicked), `42223739`.
+- Tide renamed Undertow, `0f12fa84`.
+- Classic's Chorus depth 0.05-0.2 and shift 1-5 Hz, `893f0d1e`.
+- Squall renamed Abyss, then Polar Low, `e5a3cb25` and `12535107`.
+
+The set after L1: Classic, Float, Anchor, Shatter, Undertow, Trench, Tidepool, Floe, Thicket, Wreck, Open Water, Vent
+Field, Beacon, Polar Low. Two sheet promises sit near Classic since the chorus and shift moved, Undertow's "shallow"
+chorus and Floe's "small" shift. He heard both and kept them.
 
 ## As Shipped
 
