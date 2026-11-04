@@ -647,6 +647,14 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S per R-task
 
+- [x] **R1: Mechanical's pitch repeat** (L2, under Classic in Kryndara; Crawford, 2026-11-04)
+
+  **Sheet sentence:** `robot.pitchRepeat` — "comes round on the same notes most of the time" (amended from "returns to a
+  note about as often as it leaves it", which the old band encoded; the Character line amended to match).
+  **Key:** `robot.pitchRepeat`, 30-70 -> 70-100. **Proof:** a RED character test in `resolveBands.test.ts` ("Mechanical
+  returns to its notes most of the time"), then green; kind-and-bounds and key-set tests pass; `npm run sketch:bands`
+  re-run and the JSON recommitted.
+
 - [ ] **L3: the risky pairs**
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on
@@ -788,6 +796,12 @@ world and theme, so there is none to record here. The changes made during the li
 The set after L1: Classic, Float, Anchor, Shatter, Undertow, Trench, Tidepool, Floe, Thicket, Wreck, Open Water, Vent
 Field, Beacon, Polar Low. Two sheet promises sit near Classic since the chorus and shift moved, Undertow's "shallow"
 chorus and Floe's "small" shift. He heard both and kept them.
+
+### L2: the families (Crawford, under Classic, in progress)
+
+Under Classic only for now (Crawford, 2026-11-04: "I'll be using classic for now"), in Kryndara (`kr1nd4ra`, 12, 68),
+each option's link against the no-pick baseline.
+- **Mechanical:** retuned, R1 (pitch repeat 30-70 -> 70-100).
 
 ## As Shipped
 

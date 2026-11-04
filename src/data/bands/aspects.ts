@@ -141,7 +141,7 @@ export const ASPECT_FAMILIES: {
         'robot.rhythmicDensity': { min: 70, max: 95 },
         'robot.noteVariance': { offShare: 0, min: 1, max: 3 },
         'robot.rhythmicMotifLength': { offShare: 0, min: 6, max: 8 },
-        'robot.pitchRepeat': { min: 30, max: 70 },
+        'robot.pitchRepeat': { min: 70, max: 100 }, // L2 R1: the figure comes round on the same notes most of the time
       },
       wandering: {
         'robot.rhythmicDensity': { min: 20, max: 50 },

@@ -972,6 +972,11 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(band.max).toBeLessThanOrEqual(100);
   });
 
+  // L2 R1 (Crawford, 2026-11-04): the figure comes round on the same notes most of the time.
+  it('Mechanical returns to its notes most of the time: its pitchRepeat band is 70-100', () => {
+    expect(melodyColumn('mechanical')['robot.pitchRepeat']).toStrictEqual({ min: 70, max: 100 });
+  });
+
   it('Wandering roams: high variance (6-8), low to medium density (at most 50), the motif mostly off', () => {
     const wandering = melodyColumn('wandering');
     expect(wandering['robot.noteVariance']!.min).toBeGreaterThanOrEqual(6);

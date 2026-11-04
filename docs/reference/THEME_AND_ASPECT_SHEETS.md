@@ -365,7 +365,7 @@ circles at a middling pace with no figure of its own.
 ### Mechanical  ·  option of melody  ·  status: kept
 
 **Character.** A probe that drives. It speaks nearly all the time, tiles one long figure and keeps tiling it, holds its
-pitch close, and returns to a note about as often as it leaves it: a machine running a pattern.
+pitch close, and comes round on the same notes most of the time: a machine running a pattern.
 
 **Heard first.** One long figure, driven over and over.
 **Heard second.** At a high, unbroken rate.
@@ -375,7 +375,8 @@ pitch close, and returns to a note about as often as it leaves it: a machine run
 - `robot.rhythmicDensity` — speaks nearly all the time.
 - `robot.rhythmicMotifLength` — tiles one long figure and keeps tiling it: the figure is never off.
 - `robot.noteVariance` — holds its pitch close, and never off.
-- `robot.pitchRepeat` — returns to a note about as often as it leaves it.
+- `robot.pitchRepeat` — comes round on the same notes most of the time (L2 R1, Crawford, 2026-11-04; was "about as
+  often as it leaves it").
 
 **Leaves alone.** Nothing in its family: all four keys are set.
 
