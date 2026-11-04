@@ -209,7 +209,7 @@ The pulse, the crowdedness and the gaps are Classic's: Anchor is weight, not spe
 - `limiter.threshold` — held tight: the punch never spikes.
 
 **Leaves alone.** `bpm`, `robot.rhythmicDensity` and `robot.rests`: Classic's, on purpose; Anchor is weight, not speed.
-The compressor: Classic's; the pumping clamp is Squall's alone, and the mild compression Anchor wants is what Classic
+The compressor: Classic's; the pumping clamp is Abyss's alone, and the mild compression Anchor wants is what Classic
 already draws. The master filter, the rooms' size, the pedals, dynamics, accents, sustain and the shaped stages:
 Classic's. Pitch drift: the docking lifecycle's, not a theme's business.
 
@@ -233,7 +233,7 @@ tiny, thin and high where Anchor is dense and low-mid.
 ### Shatter (was Perilous)  ·  theme  ·  status: renamed → Shatter
 
 **Crawford's mark (2026-11-03).** Renamed (by way of "Gale") and redefined: tense, sharp and aggressive; a static,
-abrasive, high-frequency wall of crunch from fold and crush, with no compressor pump (that is Squall's) and no resonant
+abrasive, high-frequency wall of crunch from fold and crush, with no compressor pump (that is Abyss's) and no resonant
 sweep (that is Vent Field's); uptempo.
 
 **Character.** Breaking glass. The world is bright, fast and abrasive, and it does not move. Most probes are sent to the
@@ -277,7 +277,7 @@ once behind itself, and the fleet is dry of wash.
 - `delaySend` — on every probe.
 - `reverbSend` — dry of wash.
 
-**Leaves alone.** The compressor: Classic's; the pumping clamp is Squall's alone. `robot.accentFilterQ`: Classic's, since
+**Leaves alone.** The compressor: Classic's; the pumping clamp is Abyss's alone. `robot.accentFilterQ`: Classic's, since
 the filter is off most probes. The shaped stages, dynamics, accents, the probe filter's rest position and the layers:
 Classic's. `shimmerSend` and `doubleSend`: Classic's, with the at-most-one-room note. A noise layer: no waveform the
 table has. The pedals: the coin's.
@@ -288,11 +288,11 @@ resonance.
 
 **Overlaps.** Voice takes `robot.waveform` and `robot.accentFilterFreq` (Hollow puts the resonance back); Envelope takes
 the four stages (Held lets the notes ring); Melody takes `robot.rhythmicDensity`; Performance would take
-`robot.rests` (Halting turns the wall into gusts, which is Squall's); Distance takes both sends; Motion, if
+`robot.rests` (Halting turns the wall into gusts, which is Abyss's); Distance takes both sends; Motion, if
 it took the room sends, would take `gritSend`, the crunch itself. What survives everything is the bright EQ, the open
 filter, the fast pulse and the hot Grit room: a probe still sent into it still crunches.
 
-**Distinct from.** Squall, the nearest: both tear. Squall surges and drops, gusts, and pumps on its compressor; Shatter is
+**Distinct from.** Abyss, the nearest: both tear. Abyss surges and drops, gusts, and pumps on its compressor; Shatter is
 a steady wall with no pump and no gusts. Anchor: clean square weight against buzzing saw crunch. Vent Field: its filter
 sweeps and squelches, low; Shatter's does not move, and sits on top. Wreck leans on the Grit room too, but dark, slow and
 echoing with long tails where Shatter is bright, fast and rattling.
@@ -323,8 +323,8 @@ roaming, repeating or not".
 sends.
 
 **Overlaps.** Takes `robot.rhythmicDensity` from Float ("seldom") and Shatter ("nearly all the time") and from Trench,
-Tidepool, Floe, Thicket, Vent Field, Open Water, Beacon and Squall; `robot.rhythmicMotifLength` from Float, Wreck and
-Beacon; `robot.noteVariance` from Vent Field, Beacon and Squall; `robot.pitchRepeat` from Wreck and Beacon. A theme's
+Tidepool, Floe, Thicket, Vent Field, Open Water, Beacon and Abyss; `robot.rhythmicMotifLength` from Float, Wreck and
+Beacon; `robot.noteVariance` from Vent Field, Beacon and Abyss; `robot.pitchRepeat` from Wreck and Beacon. A theme's
 sentence about how often its probes speak or what figure they play does not survive a Melody pick. Anchor and Undertow name
 no Melody key.
 
@@ -1113,7 +1113,9 @@ is the world, sparser, flat and echoing; Mechanical is one family's point at hig
 
 **Paper tests (T4).** Covered: pass, every band the character needs is in “Keys owned”. Important: pass, every key owned has its sentence and nothing else is moved.
 
-### Squall  ·  theme  ·  status: kept
+### Abyss (was Squall)  ·  theme  ·  status: renamed → Abyss
+
+**Crawford's mark (2026-11-04).** Renamed Abyss; the sheet is otherwise unchanged.
 
 **Character.** A storm. The fleet surges and drops: probes play with wide dynamics and hard marks, break off in gusts
 and start again, and the master compressor clamps hard so the whole world pumps with them. The pulse is fast; probes
@@ -1139,7 +1141,7 @@ with the low band lifted and the field wide.
 - `robot.masterVolume` — loud.
 - `eq3.low` — the low band lifted.
 - `stereoWidener.width` — the field wide.
-- `tremolo.wet` — the whole world throbs under the gusts: the Tremolo lit in every Squall world by the rule.
+- `tremolo.wet` — the whole world throbs under the gusts: the Tremolo lit in every Abyss world by the rule.
 - `tremolo.depth` — deep: a throb, not a shimmer.
 - `tremolo.rate` — slow to middling: weather, not a buzz.
 
@@ -1152,9 +1154,9 @@ Motion, if it took the room sends, would take `gritSend`. What survives everythi
 compressor, the fast pulse, and the loud, low-heavy, wide world.
 
 **Distinct from.** Shatter, the nearest current theme: Shatter is a steady wall that never stops and never pumps;
-Squall stops and starts, loud and soft, and the pumping compressor is Squall's alone (Crawford, 2026-11-03). Both lean
-on the Grit room: Squall's loud ones tear, Shatter's every note crunches. Among the candidates, Vent Field bubbles
-steadily and resonates where Squall gusts and tears.
+Abyss stops and starts, loud and soft, and the pumping compressor is Abyss's alone (Crawford, 2026-11-03). Both lean
+on the Grit room: Abyss's loud ones tear, Shatter's every note crunches. Among the candidates, Vent Field bubbles
+steadily and resonates where Abyss gusts and tears.
 
 **Promise.** Stormy: surging, gusting, tearing, nothing steady.
 
@@ -1619,8 +1621,8 @@ world key, one scatter for the whole fleet, and a family's options set probe ban
 (Melody) and their shape (Envelope).
 
 **Overlaps.** Takes `robot.rests` from Float (long rests), Shatter ("hardly a rest") and Undertow ("no rests"), so none of
-those sentences may promise its rests, and from Trench, Open Water, Beacon and Squall; `robot.accents` from Float (no
-push); `robot.dynamics` and `robot.accents` from Beacon (its flatness) and Squall (its surges and marks: the whole first
+those sentences may promise its rests, and from Trench, Open Water, Beacon and Abyss; `robot.accents` from Float (no
+push); `robot.dynamics` and `robot.accents` from Beacon (its flatness) and Abyss (its surges and marks: the whole first
 line). Anchor names no Performance key.
 
 **Distinct from.** Melody, which decides the notes; Performance decides how hard and how whole they are played.
@@ -1646,7 +1648,7 @@ is played straight.
 **Leaves alone.** Nothing in its family.
 
 **Overlaps.** Overrides `robot.rests` wherever a theme sets it: Float's long rests and Shatter's lack of them both give
-way to "almost none". Agrees with Beacon and with Float's "no push"; undoes Squall.
+way to "almost none". Agrees with Beacon and with Float's "no push"; undoes Abyss.
 
 **Distinct from.** Dramatic, its opposite on dynamics and marks; Halting, its opposite on gaps.
 
@@ -1670,7 +1672,7 @@ unlocked, and now and then a note is cut short for effect: the line is shaped ra
 
 **Leaves alone.** Nothing in its family.
 
-**Overlaps.** Overrides `robot.rests` wherever a theme sets it; agrees with Squall and undoes Beacon's flatness and
+**Overlaps.** Overrides `robot.rests` wherever a theme sets it; agrees with Abyss and undoes Beacon's flatness and
 Float's "no push".
 
 **Distinct from.** Steady, as above; Halting, where the gaps lead and the marks are mild.

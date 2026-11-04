@@ -27,7 +27,7 @@ export const THEME_IDS = [
   'openWater',
   'ventField',
   'beacon',
-  'squall',
+  'abyss',
 ] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
 
@@ -309,8 +309,8 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
     humanize: { min: 0, max: 0 }, // no timing scatter: the phrase comes round exactly
   },
 
-  // Squall: a storm. Naming the Tremolo's rows lights it in every world.
-  squall: {
+  // Abyss (first named Squall): a storm. Naming the Tremolo's rows lights it in every world.
+  abyss: {
     'robot.dynamics': { min: 75, max: 100 }, // wide dynamics: surges and drops
     'robot.accents': { min: 70, max: 100 }, // hard marks
     'robot.rests': { min: 35, max: 70 }, // break off in gusts and start again

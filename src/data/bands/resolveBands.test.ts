@@ -340,7 +340,7 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
       'openWater',
       'ventField',
       'beacon',
-      'squall',
+      'abyss',
     ]);
     expect(Object.keys(THEMES).sort()).toEqual([...THEME_IDS].sort());
     expect(THEMES.classic).toStrictEqual({});
@@ -373,8 +373,8 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
     ]).toEqual([]);
   });
 
-  it('a cut or renamed theme id is no theme: calm, bold, adventurous, perilous and tide fail isThemeId', () => {
-    for (const id of ['calm', 'bold', 'adventurous', 'perilous', 'current', 'tide', 'Float', '']) expect(isThemeId(id), id).toBe(false);
+  it('a cut or renamed theme id is no theme: calm, bold, adventurous, perilous, tide and squall fail isThemeId', () => {
+    for (const id of ['calm', 'bold', 'adventurous', 'perilous', 'current', 'tide', 'squall', 'Float', '']) expect(isThemeId(id), id).toBe(false);
     for (const id of THEME_IDS) expect(isThemeId(id), id).toBe(true);
   });
 
@@ -824,7 +824,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       'robot.rhythmicDensity',
       'humanize',
     ],
-    squall: [
+    abyss: [
       'robot.dynamics',
       'robot.accents',
       'robot.rests',
@@ -868,7 +868,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
 
   // The lit rule (Crawford, 2026-11-03; the sheets' rules): a theme naming a pedal's or a colour node's rows lights it
   // in every world. Under the real columns: Shatter all three nodes, Wreck the drive and the crush, Undertow the Vibrato,
-  // Vent Field the Auto-Wah, Squall the Tremolo, and no other theme any.
+  // Vent Field the Auto-Wah, Abyss the Tremolo, and no other theme any.
   it('the real columns light what their sheets say and nothing else', () => {
     const lights = (theme: ThemeId) => [...realThemes.themeLights(realThemes.THEMES[theme])].sort();
     const expected: Partial<Record<ThemeId, string[]>> = {
@@ -876,7 +876,7 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       wreck: ['bitCrusher', 'distortion'],
       undertow: ['vibrato'],
       ventField: ['autoWah'],
-      squall: ['tremolo'],
+      abyss: ['tremolo'],
     };
     for (const theme of THEME_IDS) expect(lights(theme), theme).toEqual(expected[theme] ?? []);
   });

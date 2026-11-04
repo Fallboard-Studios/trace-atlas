@@ -25,7 +25,7 @@ const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
   openWater: 'home.off.theme.openWater',
   ventField: 'home.off.theme.ventField',
   beacon: 'home.off.theme.beacon',
-  squall: 'home.off.theme.squall',
+  abyss: 'home.off.theme.abyss',
 };
 
 /** One sentence per theme (assumption 17; §1.6 the Guide's part): the line under the off screen's theme row
@@ -44,7 +44,7 @@ const THEME_DESCRIPTION_KEY: Record<ThemeId, ContentKey> = {
   openWater: 'home.off.themeDescription.openWater',
   ventField: 'home.off.themeDescription.ventField',
   beacon: 'home.off.themeDescription.beacon',
-  squall: 'home.off.themeDescription.squall',
+  abyss: 'home.off.themeDescription.abyss',
 };
 
 /** The one entry per aspect option, per family, each family's map over its own ids. The family is a key segment (the

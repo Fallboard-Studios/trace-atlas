@@ -1036,6 +1036,12 @@ the seed oracle (amended by hand from the same raw draws, its rule) and the Glob
 Two sheet promises now sit close to Classic: Undertow's "shallow" chorus (0.1-0.25, now deeper than Classic's) and Floe's
 "small" shift (2-5, now inside Classic's 1-5). For L1 to hear.
 
+**Before L1: Squall renamed Abyss (Crawford, 2026-11-04).** As Tide's rename: `abyss` in `THEME_IDS`, `themes.ts`,
+`loadingNames.ts`, `home.ts` (name "Abyss", the description unchanged), the sketch page and its JSON (re-run), and the
+sheets file (heading "Abyss (was Squall)", a dated mark, every other sheet's mention). The sheet's character is
+unchanged (still "A storm"). An old link's `squall` loads Classic. The history above and the envelope-floor comments
+("Squall's Glass Nomad") keep the old name.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
