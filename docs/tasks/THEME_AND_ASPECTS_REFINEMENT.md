@@ -655,6 +655,32 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   returns to its notes most of the time"), then green; kind-and-bounds and key-set tests pass; `npm run sketch:bands`
   re-run and the JSON recommitted.
 
+- [ ] **R2: Performance you can hear** (L2, under Classic in Kryndara; Crawford, 2026-11-04: "the items in performance
+  are hard to hear", then "let's go straight to number 1")
+
+  **Why:** the bands are not the problem, the engine's levers are. A mark's lift stopped at the velocity ceiling (an
+  accent took 0.8 to 1.0, about 2 dB, and marcato hit the same ceiling); Dynamics 100 varied only 30 % of notes; and a
+  rest or a staccato only shortened the held part, so the full release tail still sounded (Classic's release runs to
+  2 s). Dramatic and Halting were already near their ends of the slider. An engine change, every world and every
+  robot: it amends Robot Performance (roadmap 50.5) assumptions 6 and 7, recorded here and in `docs/AUDIO_SYSTEM.md`,
+  the spec left as history. Pre-v1: no keep-the-old-sound clause.
+
+  - [x] **R2a: velocity.** `NOTE_VELOCITY_BASELINE` 0.8 -> 0.6 (about 2.5 dB quieter fleet-wide, Volume untouched).
+    Marks (`articulation.ts`): accent x1.25 -> x1.5, marcato x1.4 -> x1.65, tenuto x1.1 -> x1.2, so each lands under
+    the ceiling from the baseline (0.9, 0.99, 0.72). Dynamics `d`: the rate is `d / 100` (every note at 100, half at
+    50, none at 0) and the width `0.3 * d / 100` (±0.3 at 100: 0.3 to 0.9, about -6 to +3.5 dB). **Proof:** RED tests
+    in `AudioEngine.test.ts` (the baseline, the rate at 100 and at 50, the width) and `articulation.test.ts` (each
+    mark's lift lands under the ceiling), then green; the existing oracles re-pinned to the new formula. Mutants
+    (rate back to 0.3, width back to 0.25) each fail the Dynamics tests. `docs/AUDIO_SYSTEM.md`'s Velocity and marks
+    steps and `docs/MELODY_SYSTEM.md`'s mark factors amended.
+  - [ ] **R2b: a cut note stops.** An event whose sounding length is cut (a rest, staccato, staccatissimo, marcato:
+    `resolveArticulation(...).length < 1`) releases in `CUT_RELEASE_SECONDS` (0.03, above the 20 ms floor), or the
+    robot's own release if that is shorter. The playback loop passes it on `NoteParams.release`; the composite voice
+    sets each layer's `envelope.release` for that one trigger and restores it (Tone reads it when the release is
+    scheduled), so the shared envelope, the swells and `written` never see it. **Proof:** RED tests in
+    `AudioEngine.test.ts` (a rested event schedules with the short release, an unstamped or tenuto one with none) and
+    `compositeVoice.test.ts` (the layer's release during the trigger, restored after), then green.
+
 - [ ] **L3: the risky pairs**
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on
@@ -802,6 +828,9 @@ chorus and Floe's "small" shift. He heard both and kept them.
 Under Classic only for now (Crawford, 2026-11-04: "I'll be using classic for now"), in Kryndara (`kr1nd4ra`, 12, 68),
 each option's link against the no-pick baseline.
 - **Mechanical:** retuned, R1 (pitch repeat 30-70 -> 70-100).
+- **Performance (Steady, Dramatic, Halting):** "hard to hear". Not the bands: the engine's levers were too weak to
+  hear (a mark's lift capped near 2 dB, Dynamics moving at most 30 % of notes, a rest's cut hidden by the release
+  tail). R2, an engine change; the three options are heard again after it.
 
 ## As Shipped
 

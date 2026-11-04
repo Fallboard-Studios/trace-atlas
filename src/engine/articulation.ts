@@ -14,19 +14,23 @@ import { ARTICULATION_MARK_NAMES, type ArticulationMark, type MelodyEvent } from
  * with the motif-group accent, then clamped to 1 downstream); `length` is the fraction of the
  * event's written length that actually sounds.
  *
- * - accent: pushed — 25 % louder, full length.
- * - marcato: hard and short — 40 % louder, cut to three quarters.
+ * - accent: pushed — 50 % louder (about 3.5 dB), full length.
+ * - marcato: hard and short — 65 % louder (about 4.4 dB), cut to three quarters.
  * - staccato: clipped — half length.
  * - staccatissimo: very clipped — a quarter length.
- * - tenuto: leaned on — a touch louder, held to the full length, and it cancels any rest on the
+ * - tenuto: leaned on — a touch louder (about 1.6 dB), held to the full length, and it cancels any rest on the
  *   same event (its "minimal gap" meaning wins).
+ *
+ * The velocities were 1.25, 1.4 and 1.1 until docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2a: from the 0.8 baseline an
+ * accent rose about 2 dB and marcato hit the same ceiling, too little to hear. From the 0.6 baseline each lands under
+ * the ceiling and apart (0.9, 0.99, 0.72).
  */
 export const ARTICULATION_MARKS: Record<ArticulationMark, { velocity: number; length: number }> = {
-  accent: { velocity: 1.25, length: 1 },
-  marcato: { velocity: 1.4, length: 0.75 },
+  accent: { velocity: 1.5, length: 1 },
+  marcato: { velocity: 1.65, length: 0.75 },
   staccato: { velocity: 1, length: 0.5 },
   staccatissimo: { velocity: 1, length: 0.25 },
-  tenuto: { velocity: 1.1, length: 1 },
+  tenuto: { velocity: 1.2, length: 1 },
 };
 
 /** Accents value at which staccato and marcato join accent and tenuto. */

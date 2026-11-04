@@ -30,13 +30,13 @@ describe('ARTICULATION_MARKS', () => {
     expect(Object.keys(ARTICULATION_MARKS).sort()).toEqual([...ARTICULATION_MARK_NAMES].sort());
   });
 
-  it('holds the spec velocity and length multipliers', () => {
+  it('holds the velocity and length multipliers (velocities raised at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2a)', () => {
     expect(ARTICULATION_MARKS).toEqual({
-      accent: { velocity: 1.25, length: 1 },
-      marcato: { velocity: 1.4, length: 0.75 },
+      accent: { velocity: 1.5, length: 1 },
+      marcato: { velocity: 1.65, length: 0.75 },
       staccato: { velocity: 1, length: 0.5 },
       staccatissimo: { velocity: 1, length: 0.25 },
-      tenuto: { velocity: 1.1, length: 1 },
+      tenuto: { velocity: 1.2, length: 1 },
     });
   });
 
@@ -118,8 +118,8 @@ describe('resolveArticulation', () => {
   });
 
   it('accent is louder at full length, marcato louder and clipped to three quarters', () => {
-    expect(stamps({ mark: 'accent' })).toEqual({ velocity: 1.25, length: 1 });
-    expect(stamps({ mark: 'marcato' })).toEqual({ velocity: 1.4, length: 0.75 });
+    expect(stamps({ mark: 'accent' })).toEqual({ velocity: 1.5, length: 1 });
+    expect(stamps({ mark: 'marcato' })).toEqual({ velocity: 1.65, length: 0.75 });
   });
 
   it('a rest alone leaves the remainder of the length', () => {
@@ -141,19 +141,19 @@ describe('resolveArticulation', () => {
 
   it('a rest and marcato: the shorter of the two clips (0.4 beats 0.75, 0.75 beats 0.9)', () => {
     expect(stamps({ rest: 0.6, mark: 'marcato' })).toEqual({
-      velocity: 1.4,
+      velocity: 1.65,
       length: expect.closeTo(0.4, 10),
     });
     expect(stamps({ rest: 0.1, mark: 'marcato' }).length).toBe(0.75);
   });
 
   it('a rest and accent keeps the accent velocity and takes the rest length', () => {
-    expect(stamps({ rest: 0.5, mark: 'accent' })).toEqual({ velocity: 1.25, length: 0.5 });
+    expect(stamps({ rest: 0.5, mark: 'accent' })).toEqual({ velocity: 1.5, length: 0.5 });
   });
 
   it('tenuto cancels a rest: full length, tenuto velocity, at any rest depth', () => {
     for (const rest of [0.25, 0.5, 0.75]) {
-      expect(stamps({ rest, mark: 'tenuto' })).toEqual({ velocity: 1.1, length: 1 });
+      expect(stamps({ rest, mark: 'tenuto' })).toEqual({ velocity: 1.2, length: 1 });
     }
   });
 

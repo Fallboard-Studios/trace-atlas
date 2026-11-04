@@ -253,8 +253,8 @@ at 60.
 - **Mark.** `unlockedMarks(accents)` (`src/engine/articulation.ts`) opens the five classical marks in tiers — below `ACCENT_TIER_2`
   (34) `accent` and `tenuto`; below `ACCENT_TIER_3` (67) also `staccato` and `marcato`; from 67 `staccatissimo` too — and an event
   whose `markRoll` is under `accents / PERFORMANCE_MAX` takes `kinds[floor(markPickRoll · kinds.length)]`. `ARTICULATION_MARKS`
-  holds each mark's velocity and length factors (accent 1.25 × 1, marcato 1.4 × 0.75, staccato 1 × 0.5, staccatissimo 1 × 0.25,
-  tenuto 1.1 × 1).
+  holds each mark's velocity and length factors (accent 1.5 × 1, marcato 1.65 × 0.75, staccato 1 × 0.5, staccatissimo 1 × 0.25,
+  tenuto 1.2 × 1; the velocities raised from 1.25, 1.4 and 1.1 at roadmap 58's R2a).
 - **Both on one event.** `resolveArticulation(event)` lets the shorter of the rest remainder and the mark's length win, and a
   `tenuto` cancels the rest.
 
