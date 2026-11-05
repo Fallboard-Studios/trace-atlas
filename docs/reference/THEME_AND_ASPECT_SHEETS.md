@@ -288,7 +288,7 @@ resonance.
 
 **Overlaps.** Voice takes `robot.waveform` and `robot.accentFilterFreq` (Hollow puts the resonance back); Envelope takes
 the four stages (Held lets the notes ring); Melody takes `robot.rhythmicDensity`; Performance would take
-`robot.rests` (Halting turns the wall into gusts, which is Polar Low's); Distance takes both sends; Motion, if
+`robot.rests` (Halting breaks the wall into gaps); Distance takes both sends; Motion, if
 it took the room sends, would take `gritSend`, the crunch itself. What survives everything is the bright EQ, the open
 filter, the fast pulse and the hot Grit room: a probe still sent into it still crunches.
 
@@ -1118,19 +1118,17 @@ is the world, sparser, flat and echoing; Mechanical is one family's point at hig
 **Crawford's mark (2026-11-04).** Renamed Abyss, then Polar Low: Abyss sat too close to Trench, and a polar low is
 "close enough to a storm", so the sheet is otherwise unchanged.
 
-**Character.** A storm. The fleet surges and drops: probes play with wide dynamics and now and then a hard mark, break off in gusts
-and start again, and the master compressor clamps hard so the whole world pumps with them. The pulse is fast; probes
+**Character.** A storm. The fleet surges and drops: probes play with wide dynamics, loud and soft in
+gusts, and the master compressor clamps hard so the whole world pumps with them. The pulse is fast; probes
 speak often, with a wide-ranging pitch and short hard notes; many are sent to the Grit room, so the loud ones tear. Loud,
 with the low band lifted and the field wide.
 
-**Heard first.** The fleet surges and drops: loud bursts, sudden gaps, nothing steady.
-**Heard second.** Now and then a hard mark, and a tearing edge on the loud ones.
+**Heard first.** The fleet surges and falls back: loud bursts, sudden lulls, nothing steady.
+**Heard second.** A tearing edge on the loud ones.
 **Heard third.** Fast, wide and low-heavy.
 
 **Keys owned.**
 - `robot.dynamics` — wide dynamics: surges and drops.
-- `robot.accents` — now and then a hard mark: a few notes marked, the cutting marks rare.
-- `robot.rests` — break off in gusts and start again.
 - `compressor.threshold` — the master compressor clamps hard: the whole world pumps.
 - `compressor.ratio` — clamps hard.
 - `bpm` — the pulse is fast.
@@ -1147,15 +1145,16 @@ with the low band lifted and the field wide.
 - `tremolo.rate` — slow to middling: weather, not a buzz.
 
 **Leaves alone.** The compressor's attack, release and knee: Classic's. The rooms, voices and master filter: Classic's. `shimmerSend` and
-`doubleSend`: Classic's, with the at-most-one-room note.
+`doubleSend`: Classic's, with the at-most-one-room note. `robot.accents` and `robot.rests`: Classic's (Crawford,
+"too jittery with them": the storm surges in its dynamics, not in marks and gaps).
 
-**Overlaps.** Performance would take `robot.dynamics`, `robot.accents` and `robot.rests`: the whole first
+**Overlaps.** Performance would take `robot.dynamics`: the whole first
 line. Melody takes `robot.rhythmicDensity` and `robot.noteVariance`; Envelope takes `robot.attack` and `robot.release`;
 Motion, if it took the room sends, would take `gritSend`. What survives everything is the pumping
 compressor, the fast pulse, and the loud, low-heavy, wide world.
 
 **Distinct from.** Shatter, the nearest current theme: Shatter is a steady wall that never stops and never pumps;
-Polar Low stops and starts, loud and soft, and the pumping compressor is Polar Low's alone (Crawford, 2026-11-03). Both lean
+Polar Low surges and falls back, loud and soft, and the pumping compressor is Polar Low's alone (Crawford, 2026-11-03). Both lean
 on the Grit room: Polar Low's loud ones tear, Shatter's every note crunches. Among the candidates, Vent Field bubbles
 steadily and resonates where Polar Low gusts and tears.
 
@@ -1622,9 +1621,9 @@ world key, one scatter for the whole fleet, and a family's options set probe ban
 (Melody) and their shape (Envelope).
 
 **Overlaps.** Takes `robot.rests` from Float (long rests), Shatter ("hardly a rest") and Undertow ("no rests"), so none of
-those sentences may promise its rests, and from Trench, Open Water, Beacon and Polar Low; `robot.accents` from Float (no
-push); `robot.dynamics` and `robot.accents` from Beacon (its flatness) and Polar Low (its surges and marks: the whole first
-line). Anchor names no Performance key.
+those sentences may promise its rests, and from Trench and Open Water; `robot.accents` from Float (no push);
+`robot.dynamics` and `robot.accents` from Beacon (its flatness); `robot.dynamics` from Polar Low (its surges: the whole
+first line). Anchor names no Performance key.
 
 **Distinct from.** Melody, which decides the notes; Performance decides how hard and how whole they are played.
 
@@ -1673,7 +1672,7 @@ unlocked, and now and then a note is cut short for effect: the line is shaped ra
 
 **Leaves alone.** Nothing in its family.
 
-**Overlaps.** Overrides `robot.rests` wherever a theme sets it; agrees with Polar Low and undoes Beacon's flatness and
+**Overlaps.** Overrides `robot.rests` wherever a theme sets it; agrees with Polar Low's surges and undoes Beacon's flatness and
 Float's "no push".
 
 **Distinct from.** Steady, as above; Halting, where the gaps lead and the marks are mild.

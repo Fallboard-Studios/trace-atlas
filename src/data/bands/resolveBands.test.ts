@@ -825,8 +825,6 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     ],
     polarLow: [
       'robot.dynamics',
-      'robot.accents',
-      'robot.rests',
       'compressor.threshold',
       'compressor.ratio',
       'bpm',
@@ -976,14 +974,11 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(melodyColumn('mechanical')['robot.pitchRepeat']).toStrictEqual({ min: 70, max: 100 });
   });
 
-  // L2 R5 (Crawford, 2026-11-05): the storm's marks and gaps come and go (were 70-100, nearly every note marked, and
-  // 35-70 rests).
-  it('Polar Low marks some notes, not most: its accents band is 20-40', () => {
-    expect(themeColumn('polarLow')['robot.accents']).toStrictEqual({ min: 20, max: 40 });
-  });
-
-  it('Polar Low breaks off in gusts, not on most notes: its rests band is 10-45', () => {
-    expect(themeColumn('polarLow')['robot.rests']).toStrictEqual({ min: 10, max: 45 });
+  // L2 R5, then R6 (Crawford, 2026-11-05): "too jittery" with its own marks and gaps (were 70-100 and 35-70, then 20-40
+  // and 10-45), so Polar Low leaves accents and rests to Classic.
+  it("Polar Low leaves accents and rests alone: neither is in its column, so a world takes Classic's", () => {
+    expect(themeColumn('polarLow')).not.toHaveProperty(['robot.accents']);
+    expect(themeColumn('polarLow')).not.toHaveProperty(['robot.rests']);
   });
 
   it('Wandering roams: high variance (6-8), low to medium density (at most 50), the motif mostly off', () => {

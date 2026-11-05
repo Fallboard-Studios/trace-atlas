@@ -1,7 +1,7 @@
 {
  "meta": {
-  "generated": "2026-11-05T17:36:41.808Z",
-  "commit": "82e035d7",
+  "generated": "2026-11-05T18:00:11.209Z",
+  "commit": "c4bcf58e",
   "worlds": 300,
   "robotsPerWorld": 12,
   "styles": 300,
@@ -33512,8 +33512,6 @@
   "polarLow": {
    "moves": [
     "robot.dynamics",
-    "robot.accents",
-    "robot.rests",
     "compressor.threshold",
     "compressor.ratio",
     "bpm",
@@ -33841,12 +33839,12 @@
      "max": 100
     },
     "robot.rests": {
-     "min": 10,
-     "max": 45
+     "min": 0,
+     "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 40
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -34357,15 +34355,15 @@
     },
     "robot.rests": {
      "n": 3600,
-     "low": 10,
-     "median": 28,
-     "high": 45
+     "low": 0,
+     "median": 5,
+     "high": 10
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 30,
-     "high": 40
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -34436,9 +34434,7 @@
     "voice": [],
     "motion": [],
     "performance": [
-     "robot.dynamics",
-     "robot.accents",
-     "robot.rests"
+     "robot.dynamics"
     ]
    },
    "draws": {
@@ -46731,60 +46727,60 @@
  },
  "timings": {
   "classic": {
-   "robotRosterMs": 6.023,
-   "worldSeedMs": 1.363
+   "robotRosterMs": 5.581,
+   "worldSeedMs": 1.29
   },
   "float": {
-   "robotRosterMs": 5.908,
-   "worldSeedMs": 1.307
+   "robotRosterMs": 5.411,
+   "worldSeedMs": 1.298
   },
   "anchor": {
-   "robotRosterMs": 5.727,
-   "worldSeedMs": 1.3
+   "robotRosterMs": 5.537,
+   "worldSeedMs": 1.275
   },
   "shatter": {
-   "robotRosterMs": 6.335,
-   "worldSeedMs": 1.672
+   "robotRosterMs": 5.714,
+   "worldSeedMs": 1.288
   },
   "undertow": {
-   "robotRosterMs": 5.829,
-   "worldSeedMs": 1.316
+   "robotRosterMs": 5.621,
+   "worldSeedMs": 1.285
   },
   "trench": {
-   "robotRosterMs": 5.507,
-   "worldSeedMs": 1.294
+   "robotRosterMs": 5.67,
+   "worldSeedMs": 1.261
   },
   "tidepool": {
-   "robotRosterMs": 5.312,
-   "worldSeedMs": 1.279
+   "robotRosterMs": 5.407,
+   "worldSeedMs": 1.285
   },
   "floe": {
-   "robotRosterMs": 5.726,
-   "worldSeedMs": 1.273
+   "robotRosterMs": 5.564,
+   "worldSeedMs": 1.275
   },
   "thicket": {
-   "robotRosterMs": 5.559,
-   "worldSeedMs": 1.264
+   "robotRosterMs": 5.472,
+   "worldSeedMs": 1.277
   },
   "wreck": {
-   "robotRosterMs": 5.551,
-   "worldSeedMs": 1.26
+   "robotRosterMs": 5.676,
+   "worldSeedMs": 1.29
   },
   "openWater": {
-   "robotRosterMs": 5.524,
-   "worldSeedMs": 1.268
+   "robotRosterMs": 5.444,
+   "worldSeedMs": 1.278
   },
   "ventField": {
-   "robotRosterMs": 5.745,
-   "worldSeedMs": 1.269
+   "robotRosterMs": 5.799,
+   "worldSeedMs": 1.279
   },
   "beacon": {
-   "robotRosterMs": 5.468,
-   "worldSeedMs": 1.266
+   "robotRosterMs": 5.458,
+   "worldSeedMs": 1.279
   },
   "polarLow": {
-   "robotRosterMs": 5.473,
-   "worldSeedMs": 1.249
+   "robotRosterMs": 5.528,
+   "worldSeedMs": 1.291
   }
  }
 }

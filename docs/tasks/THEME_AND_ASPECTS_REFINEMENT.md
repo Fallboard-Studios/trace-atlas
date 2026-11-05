@@ -721,6 +721,19 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** two character tests in `resolveBands.test.ts` (each band pinned), RED first, then green; `npm run
   sketch:bands` re-run.
 
+- [x] **R6: Polar Low leaves accents and rests to Classic** (L2; Crawford, 2026-11-05, after hearing R5: "let's get rid
+  of rests and accents for polar low. too jittery with them.")
+
+  **Keys:** `robot.accents` and `robot.rests` dropped from Polar Low's column, so a Polar Low world takes Classic's 0-30
+  and 0-10 (read as "drop the keys", not "set them to none": a 0-0 band would be a key owned). The storm's surges are
+  its dynamics (75-100) alone.
+  **Sheet:** Polar Low's Character and Heard lines lose the gaps and marks (Heard first: "loud bursts, sudden lulls";
+  Heard second: "A tearing edge on the loud ones."), both keys move to Leaves alone, and its Overlaps keep only
+  `robot.dynamics`. The sheets that cited Polar Low's gusts follow: Shatter (Overlaps, Distinct from), the Performance
+  family (Overlaps, which also drops Beacon's rests, stale since R3) and Dramatic (Overlaps).
+  **Proof:** the importance test's typed-in Polar Low key list drops both keys and a character test pins their absence,
+  both RED first, then green; R5's two band tests replaced; `npm run sketch:bands` re-run.
+
 - [ ] **L3: the risky pairs**
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on
@@ -872,7 +885,8 @@ each option's link against the no-pick baseline.
   hear (a mark's lift capped near 2 dB, Dynamics moving at most 30 % of notes, a rest's cut hidden by the release
   tail). R2, an engine change; the three options are heard again after it. Classic's bands rebalanced after it (R3),
   then its Accents dropped to 0-30 when the cutting marks silenced Kryndara's slow-attack robots (R4).
-- **Polar Low (a theme, retuned during L2):** its accents and rests eased to 20-40 and 10-45 (R5).
+- **Polar Low (a theme, retuned during L2):** its accents and rests eased to 20-40 and 10-45 (R5), then dropped to
+  Classic's: "too jittery with them" (R6).
 
 ## As Shipped
 
