@@ -698,6 +698,14 @@ own commit, and the item archives when the list is empty.
 - 2026-11-02 — The off screen's unsaved line (`home.off.unsavedWarning`, "Picking another transmission discards this
   world's unsaved changes."): under backlog [64](archive/backlog-archive.md#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan)
   picking no longer discards Current, powering on into another row does. Reword it.
+- 2026-11-05 — A cut note stalls a slow-attack robot (roadmap
+  [58](roadmap.md#58-themes-and-aspects-refinement) R2b, `CUT_RELEASE_SECONDS` in `AudioEngine.processMelodyStep`): a
+  rest, staccato, staccatissimo or marcato releases in 30 ms, the level drops to zero, and an attack of about a second
+  cannot climb back inside the next eighth or sixteenth, so the robot goes near silent. Kryndara's Drift Beacon, Neon
+  Nomad and Neon Courier did at Accents 49; R4 moved Classic's Accents to 0-30 so no seed reaches the cutting marks, but
+  a player dragging Accents past 34 (or Dramatic's 75-100, or a theme's rests) still gets it, with no setting that shows
+  why. Options considered: release short only when the robot's attack fits inside the written note (recommended), a
+  release that spans the gap to the next note, or reverting R2b.
 
 ### 63. Style Fixes (a Bucket)
 
