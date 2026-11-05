@@ -504,8 +504,6 @@ frame wrappers left out", "the Pixel A/B: not separable on the phone" and the tw
 
 ### Open
 
-- Crawford's read of the docs as shipped, the last box of the plan's
-  [Checkpoint: Complete](../tasks/THEME_AND_ASPECTS_REFINEMENT.md#checkpoint-complete).
 - Whether a theme should preset a Mood once backlog [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)
   lands.
 

@@ -891,9 +891,10 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
     before the rail). Met with those two.
   - **Words, content test, grids and docs, the archive:** the words in `src/content/copy/home.ts` (T12),
     `content.test.ts` passes, the grids (T13) and docs (T14) describe the shipped set, roadmap 58 archived (T15). Met.
-- [ ] Crawford's reads (sheets, copy, docs) and looks (sketch, listens) all recorded in this file. Sheets: Checkpoints
+- [x] Crawford's reads (sheets, copy, docs) and looks (sketch, listens) all recorded in this file. Sheets: Checkpoints
       A and B. Sketch: Checkpoint D. Listens: L1 to L3. Copy: "copy is fine, and will be getting a once over in a week
-      or so" (Crawford, 2026-11-05). Docs (T13, T14 and the rail's two paragraphs): owed.
+      or so" (Crawford, 2026-11-05). Docs (T13, T14 and the rail's two paragraphs): "they're fine" (Crawford,
+      2026-11-05).
 - [x] Ready for Crawford's PR. (Merged: PR #600; the follow-ups PR #601 and #602.)
 
 ## Listen record

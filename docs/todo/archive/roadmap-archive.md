@@ -3463,8 +3463,8 @@ Checkpoint A's and D's Pixel counts were never handed over and those boxes stand
 **Merged via PR #600 (`feature/themes-aspects-58`), 2026-11-05; archived 2026-11-05.** The text below is the record as
 it stood at the merge; the shipped set (fourteen themes, six families, twenty-seven options), the listens and the
 deviations are in the plan's Listen record and As Shipped. Its Open list: the first item was answered on paper (the
-sheets, Checkpoints A and B); the Mood question stays open on the live stub, beside Crawford's docs read for
-Checkpoint: Complete. Two follow-ups merged after it: the attack rail (PR #601) and the deal's live master volume
+sheets, Checkpoints A and B); the Mood question stays open on the live stub. Checkpoint: Complete passed
+on Crawford's docs read (2026-11-05). Two follow-ups merged after it: the attack rail (PR #601) and the deal's live master volume
 (PR #602).
 
 Raised by Crawford on 2026-11-01, the day the off screen merged (PR #595): refine the five themes and the four aspect
