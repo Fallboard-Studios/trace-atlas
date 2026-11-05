@@ -219,7 +219,8 @@ re-runs the sketch. The listen record (what was heard, the verdict, the retune) 
 
 Once the listens have settled what each character is: a name and one sentence per theme, a label, option names and
 `none` and option sentences per family, in `home.ts`, replacing the stand-ins, written from the sheets' "Promise" lines.
-The sentence under the theme row must not promise what an aspect can override (the sheet's "Overlaps" field). Ids are
+A sentence may promise what an aspect can override: themes and aspects are starting places, and a player may use them
+in ways they were not meant (Crawford, 2026-11-05, removing the rule that the theme sentence must not). Ids are
 code and follow a rename (a renamed theme gets a new id; an old link naming the old id loads Classic with the existing
 dev warning). The same pass rewrites the grids' "Loading ranges" tables, `AUDIO_SYSTEM.md`'s band-table bullet,
 `COMPANIES.md`'s deal note if the family list moved, and roadmap 58's entry.
@@ -380,7 +381,8 @@ suite after any task that adds a call on a module tests mock (`grep -rln "vi.moc
 - A first-time visitor can tell any two shipped themes apart inside a minute, by Crawford's listen record, on each of
   the three fixed worlds.
 - Each shipped option reads as its sheet says against the row empty, by the listen record.
-- Every theme sentence survives every override the grid shows, or does not promise it.
+- Every risky pair the grid shows has a listen verdict. (Was: "every theme sentence survives every override the grid
+  shows, or does not promise it"; dropped with §1.8's copy rule, 2026-11-05.)
 - `ThemeColumn` is `Partial<BandTable>`; a column with a key the table lacks or a band of the wrong kind does not
   compile.
 - A theme or aspect change on a live world writes only the fields the change moves, for every key a shipped column

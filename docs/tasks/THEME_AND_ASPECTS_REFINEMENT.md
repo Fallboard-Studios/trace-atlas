@@ -764,7 +764,9 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 - [ ] **T12: `src/content/copy/home.ts` — the words**
 
   **Description:** Spec §1.8. For every shipped theme: `home.off.theme.<id>` and `home.off.themeDescription.<id>`
-  from the sheet's "Promise", one sentence, promising nothing an aspect can override (the sheet's "Overlaps"). For
+  from the sheet's "Promise", one sentence. It may promise what an aspect can override: themes and aspects are
+  starting places, used however a player likes (Crawford, 2026-11-05, removing the old "promise nothing an aspect can
+  override" rule). For
   every family: `home.off.<family>`, its option names, and `home.off.<family>Description.none|<id>`. Remove every
   stand-in and every cut id's entry. Crawford's words where he gave them at the listens; Claude's draft otherwise,
   each marked for his pass in the commit message, not in the file.
@@ -773,7 +775,6 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Acceptance criteria:**
   - [ ] Every shipped id has its entries; no cut id has one; no entry says "stand-in".
-  - [ ] Each theme sentence names only keys the theme's sheet owns and no family can take.
 
   **Verification:**
   - [ ] `npx vitest run src/content src/utils/describeWorld.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
@@ -901,7 +902,8 @@ each option's link against the no-pick baseline.
 
 **Verdict: every pair passes, no sheet amended, no R-task.** Crawford: an override that breaks a theme's Heard line
 still sounds interesting, "that's all I care about", so a theme's sentences stand and an aspect is free to undo them.
-That puts the weight on T12's rule that a theme's off-screen sentence promises nothing an aspect can take.
+The same reading dropped T12's copy rule: a theme's off-screen sentence may promise what an aspect can take
+(Crawford: "themes and aspects are starting places and users can use them however they want").
 In Kryndara, each pair's most opposed option(s), beside L2's six second-pass pairs:
 - Float: Steady (its long rests), Tumbling (short phrases), Hammered (arrive slowly, trail long), Brassy (soft round).
 - Anchor: Bowed (lands and stops), Half-heard (dry and close), Gliding and Trembling (nothing slides or wavers).
