@@ -13,9 +13,6 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 1 — Feature wrap-up
 
-- Roadmap [58](roadmap.md#58-themes-and-aspects-refinement) **Themes and aspects refinement** — interview to character
-  sheets, the measured sketch, listens one axis at a time, copy last; backlog 47 (even draws) was its step zero and
-  merged 2026-11-02.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.

@@ -691,7 +691,8 @@ own commit, and the item archives when the list is empty.
 - 2026-11-02 — Roadmap 57's copy stand-ins, all marked in `src/content/`: the five theme sentences, the Melody label and
   four Melody sentences, the Envelope, Distance and Voice labels, names and sentences, a save row's "saved …"
   (`home.ts`; Roll was one too, until backlog 64 replaced it with Crawford's Scan), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). Roadmap
-  [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrites the theme and aspect sentences; the rest is here.
+  [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrote the theme and aspect names and sentences (PR
+  #600; Crawford, 2026-11-05: "copy is fine", a once-over to come); the rest is here.
 - 2026-11-02 — Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or
   Scan): a warning, not an error, to silence or accept.
 - 2026-11-02 — The off screen's unsaved line (`home.off.unsavedWarning`, "Picking another transmission discards this
