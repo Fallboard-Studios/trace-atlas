@@ -79,7 +79,9 @@ the item's own measure-first check runs, and the item archives if the check find
   chain** (17's audit notes feed its determinism design); backlog
   [20](backlog.md#20-audio-user-authored-progressions-and-tags-editor-ui--maybe) **User-authored progressions** (a
   maybe, only if 7 earns it); roadmap [32](roadmap.md#32-robot-melody-history--configuration-scrubber) **Melody
-  history** (about sharing what a robot played, not metrics).
+  history** (about sharing what a robot played, not metrics); backlog
+  [65](backlog.md#65-robot-a-melody-strip-under-the-accents-slider-and-later-editing-the-notes) **Melody strip, then
+  note editing** (interview first).
 - **Stats:** backlog [18](backlog.md#18-telemetry-charts-of-notes-played-jobs-worked-fleet-activity) **Telemetry charts**
   (needs the visit log; shares its storage decision with 25).
 - **World:** backlog [25](backlog.md#25-neighbourhood-map-coherent-districts-and-the-visited-log) **Neighbourhood map,

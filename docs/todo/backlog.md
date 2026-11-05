@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 65.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 66.
 
 ## Open items
 
@@ -706,6 +706,25 @@ Opened by Crawford at the 2026-11-02 plan review: visual chrome fixes collected 
 per item, dated; each becomes its own commit when the pass runs, and the item archives when the list is empty.
 
 - (none yet)
+
+### 65. Robot: A Melody Strip Under the Accents Slider (and, Later, Editing the Notes)
+
+Raised by Crawford on 2026-11-05, during roadmap [58](roadmap.md#58-themes-and-aspects-refinement)'s families listen:
+a percentage is an arbitrary way to show the Accents slider. Picked from a pitch: a read-only strip under the slider
+(`PingControlsDrawer.tsx`'s Articulation panel), one cell per melody event, each marked cell showing its score mark
+(accent, marcato, tenuto, staccato, staccatissimo) and a bar for how long the note sounds (full, three quarters, half,
+a quarter), with ticks on the slider's track where the next marks unlock (34 and 67, `ACCENT_TIER_2` and
+`ACCENT_TIER_3`). It reads the marks `applyPerformanceMarks` already stamps on the robot's melody, so it shows what
+plays rather than a formula, and since the stamps are seeded per note, dragging adds and removes marks without
+reshuffling the rest. The Rests slider stamps the same events and could share the strip (a shaded tail on the bar).
+
+**The can of worms (Crawford):** once the notes are on screen, users will want to edit them, pitches included. That is
+the larger item and the reason this sits in the backlog, not the listen: editing a note touches the melody's
+determinism (a robot's melody is generated from its `compositionSeed`; an edit would have to be a saved override, like
+the session diff), the content layer (the mark names and legend), and long melodies (32 events need two rows or
+narrower cells, and the cells must hold their size). Neighbours: roadmap
+[32](roadmap.md#32-robot-melody-history--configuration-scrubber) (Melody history). Needs an interview before a spec:
+read-only strip first, or the editor with it. Plan.md Post-launch.
 
 ### 66. Tests: the Full Run's Unhandled "Timeout calling onTaskUpdate"
 
