@@ -71,7 +71,9 @@ function priorLanesOf(roster: readonly { lfoLinks?: Record<string, LfoLink> }[],
 }
 
 /** One family's re-derivation for one robot at `spawnIndex` under `bands` (resolveBands(theme, { [family]: aspect })):
- *  Melody its four fields, Envelope the robot's `adsr` inside its own audio attributes, Distance its five sends, Voice
+ *  Melody its four fields, Envelope the robot's `adsr` inside its own audio attributes and the density the attack rail
+ *  draws against the new attack (audibleDensityBand; an Envelope option names no Melody key nor the tempo, so `bands`
+ *  holds the theme's, as a spawn with that attack draws), Distance its five sends, Voice
  *  its filter, waveform and layers inside its audio attributes, Motion its glide there and its links (against the lane
  *  tally of the roster before it as spawned), Performance its three fields. `robot` is the robot as dealt so far, so
  *  Envelope, Voice and Motion all land in one set of audio attributes. A switch, so a new family is a compile error until
@@ -87,8 +89,13 @@ function deriveFamilyFields(
   switch (family) {
     case 'melody':
       return deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
-    case 'envelope':
-      return { audioAttributes: { ...robot.audioAttributes, adsr: deriveEnvelopeFields(noiseMap, spawnIndex, bands) } };
+    case 'envelope': {
+      const adsr = deriveEnvelopeFields(noiseMap, spawnIndex, bands);
+      return {
+        audioAttributes: { ...robot.audioAttributes, adsr },
+        rhythmicDensity: deriveRhythmicDensity(noiseMap, spawnIndex, bands, adsr.attack),
+      };
+    }
     case 'distance':
       return deriveSendFields(noiseMap, spawnIndex, bands);
     case 'voice':
@@ -102,6 +109,10 @@ function deriveFamilyFields(
   }
 }
 
+/** The families in the order dealtFields derives them: Envelope first, as at spawn, so Melody's density draw reads the
+ *  dealt attack; the rest in family order. */
+const DERIVE_ORDER: readonly AspectFamilyId[] = ['envelope', ...ASPECT_FAMILY_IDS.filter((family) => family !== 'envelope')];
+
 /** A dealt robot's re-derived fields (assumption 22; per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): for each
  *  dealt family in family order, its keys from the robot's own index under resolveBands(theme, { [family]: aspect }) -
  *  the same draws as at spawn, into the aspect's bands - so a dealt robot is what it would have been had it spawned
@@ -109,9 +120,9 @@ function deriveFamilyFields(
  *  the robots before this one as the roster spawned them, so the baseline, the live deal and a re-derive agree without
  *  waiting on each other's deals.
  *
- *  The attack rail (audibleDensityBand): the density is drawn against the robot's attack, so Envelope is derived first,
- *  and a robot dealt Envelope but not Melody re-draws its density alone under the theme's band against the dealt attack,
- *  as a spawn with that attack would. Its other Melody fields stand. */
+ *  The attack rail (audibleDensityBand): the density is drawn against the robot's attack, so Envelope is derived first
+ *  (DERIVE_ORDER). A robot dealt Envelope but not Melody keeps the density Envelope's case re-drew, its other Melody
+ *  fields standing; a Melody pick derived after it draws its own against the dealt attack, over Envelope's. */
 function dealtFields(
   noiseMap: NoiseFunction2D,
   spawnIndex: number,
@@ -127,16 +138,8 @@ function dealtFields(
     const bands = resolveBands(theme, { [family]: aspect });
     fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, { ...robot, ...fields }, priorLanes) };
   }
-  if (aspects.envelope !== undefined && aspects.melody === undefined) {
-    const attack = (fields.audioAttributes ?? robot.audioAttributes).adsr.attack;
-    fields = { ...fields, rhythmicDensity: deriveRhythmicDensity(noiseMap, spawnIndex, resolveBands(theme, {}), attack) };
-  }
   return fields;
 }
-
-/** The families in the order dealtFields derives them: Envelope first, as at spawn, so Melody's density draw reads the
- *  dealt attack; the rest in family order. */
-const DERIVE_ORDER: readonly AspectFamilyId[] = ['envelope', ...ASPECT_FAMILY_IDS.filter((family) => family !== 'envelope')];
 
 /**
  * The deal pass over a regenerated roster baseline, pure (assumption 22 as amended at planning): dealAspects over the
