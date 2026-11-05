@@ -266,7 +266,7 @@ imply. A restored session regenerates and therefore re-stamps (SESSION_STORAGE.m
 ## Constants of Interest
 
 - `PERFORMANCE_MIN = 0`, `PERFORMANCE_MAX = 100` (`src/constants/index.ts`) — the shared range of Dynamics, Rests and Accents.
-- `DEFAULT_DYNAMICS = 50`, `DEFAULT_RESTS = 0`, `DEFAULT_ACCENTS = 0` (`melodyGenerator.ts`) — absence reproduces the pre-50.5 sound exactly.
+- `DEFAULT_DYNAMICS = 50`, `DEFAULT_RESTS = 0`, `DEFAULT_ACCENTS = 0` (`melodyGenerator.ts`) — what a robot with the field absent plays (since roadmap 58 R2a, 50 no longer reproduces the pre-50.5 velocity spread: half the notes move by up to ±0.15 around 0.6).
 - `REST_MIN_FRACTION = 0.25`, `REST_SPAN = 0.5` — a rest removes between a quarter and three quarters of the note.
 - `ACCENT_TIER_2 = 34`, `ACCENT_TIER_3 = 67` (`src/engine/articulation.ts`) — where the third and fifth marks unlock.
 
