@@ -13,9 +13,6 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 1 — Feature wrap-up
 
-- Roadmap [58](roadmap.md#58-themes-and-aspects-refinement) **Themes and aspects refinement** — interview to character
-  sheets, the measured sketch, listens one axis at a time, copy last; backlog 47 (even draws) was its step zero and
-  merged 2026-11-02.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.
@@ -28,6 +25,8 @@ the item's own measure-first check runs, and the item archives if the check find
   and timelines built paused** — if needed, else archive.
 - Backlog [44](backlog.md#44-sessions-warn-before-the-saves-fill-the-browsers-storage) **Warn before the saves fill the
   browser's storage** — a short interview first.
+- Backlog [66](backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) **The full test run's
+  unhandled timeout** — find the test that never yields, then yield or split it.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes with DevTools open.
 - Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
@@ -80,7 +79,9 @@ the item's own measure-first check runs, and the item archives if the check find
   chain** (17's audit notes feed its determinism design); backlog
   [20](backlog.md#20-audio-user-authored-progressions-and-tags-editor-ui--maybe) **User-authored progressions** (a
   maybe, only if 7 earns it); roadmap [32](roadmap.md#32-robot-melody-history--configuration-scrubber) **Melody
-  history** (about sharing what a robot played, not metrics).
+  history** (about sharing what a robot played, not metrics); backlog
+  [65](backlog.md#65-robot-a-melody-strip-under-the-accents-slider-and-later-editing-the-notes) **Melody strip, then
+  note editing** (interview first).
 - **Stats:** backlog [18](backlog.md#18-telemetry-charts-of-notes-played-jobs-worked-fleet-activity) **Telemetry charts**
   (needs the visit log; shares its storage decision with 25).
 - **World:** backlog [25](backlog.md#25-neighbourhood-map-coherent-districts-and-the-visited-log) **Neighbourhood map,

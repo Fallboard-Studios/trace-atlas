@@ -500,61 +500,12 @@ frame wrappers left out", "the Pixel A/B: not separable on the phone" and the tw
 
 ## 58. Themes and Aspects Refinement
 
-Raised by Crawford on 2026-11-01, the day the off screen merged (PR #595): refine the five themes and the four aspect
-families roadmap [57](#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table) shipped as
-placeholders, and propose additional options on each axis for him to choose from. Interviewed 2026-11-02
-([themes-and-aspects-refinement.md](../intent/themes-and-aspects-refinement.md)): a theme is a place, not a rung, and
-is both the world and every robot's guardrails when no aspect is picked; the listener is a first-time visitor; the
-whole set is open, Distance included, and a fifth family (Motion or Performance) may be proposed; a theme may move any
-key in the table; the choice is made on paper from character sheets before anything is built. Spec
-[THEME_AND_ASPECTS_REFINEMENT.md](../specs/THEME_AND_ASPECTS_REFINEMENT.md), plan
-[THEME_AND_ASPECTS_REFINEMENT.md](../tasks/THEME_AND_ASPECTS_REFINEMENT.md). Next: the sheets (plan T1). Backlog
-[47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) was its step zero
-(merged 2026-11-02, PR #596): every audio draw is even, so a band is heard as written before anything is tuned. Plan.md
-Stage 1.
-
-### About
-
-**What is there.** Five themes over the v1 key list (tempo, Density, Rests, the envelope times and shaped stages, the
-Reverb and Delay sends, the Low-Pass cutoff) and four families of three aspects (Melody, Envelope, Distance, Voice),
-every number a placeholder from roadmap 57's plan (Task 34; the revisions' Tasks 7 and 10), kept by Crawford's listens
-of 2026-10-31 and 2026-11-01 as a starting point, not a finish. The grids hold them:
-[GLOBAL_CHAIN_GRID.md](../reference/GLOBAL_CHAIN_GRID.md) and [ROBOT_DATA_GRID.md](../reference/ROBOT_DATA_GRID.md),
-"Loading ranges by theme and aspect". Classic was re-heard on even draws on 2026-11-02 and passed ("i love it").
-
-**Method (agreed 2026-11-01):**
-
-1. Interview to a **character sheet** per theme and per aspect: what each is for and what a listener should notice,
-   with no numbers.
-2. A **measured sketch** in `docs/sketches/`: the spread each band realises (the live-harness recipe in
-   [docs/tasks/EVEN_SEEDED_DRAWS.md](../tasks/EVEN_SEEDED_DRAWS.md), T18) against the written bands, and the theme ×
-   aspect override grid, so every overlap is seen before it is heard.
-3. **Listens one axis at a time** from a fixed sheet: three worlds × five themes; then each family against none; then
-   the risky pairs.
-4. **Copy last**: the theme and aspect sentences, labels and names, replacing the stand-ins in `src/content/copy/home.ts`.
-
-**Decisions carried in:**
-
-- **Overlap rule: aspect wins.** `resolveBands` replaces whole bands, the aspect last, and that stays. Theme copy must
-  not promise what an aspect can override (Calm + Near loses Calm's reverb; Perilous + Wandering loses its density).
-- **Mood is backlog [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s**: only the
-  harmony note options, post-launch. Whether a theme limits the moods is undecided and likely later.
-- **The world and visual draws are not this phase**: backlog
-  [46](backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement) goes even on
-  its own branch, in plan.md's Stage 4.
-
-### Not Doing (and why)
-
-- **No new band kind, no key the table does not have** — each is ask-first, roadmap 57's rule. The interview widened
-  the theme key list to the whole table and opened a fifth family; neither is ask-first any longer.
-- **No tuning before the character sheets.** Numbers with no sentence to check them against are how the placeholders
-  happened.
+**Done — merged via PR #600 (`feature/themes-aspects-58`), 2026-11-05. Moved to [the archive](archive/roadmap-archive.md#58-themes-and-aspects-refinement).**
 
 ### Open
 
-- Which additional themes and aspects to propose: the character sheets answer it, on paper. The off screen's rows do
-  not steer the count (the interview's rule); Crawford expects no axis to pass eight.
-- Whether a theme should preset a Mood once backlog 7 lands.
+- Whether a theme should preset a Mood once backlog [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)
+  lands.
 
 ## 59. Launch
 

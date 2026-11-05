@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 65.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 66.
 
 ## Open items
 
@@ -691,12 +691,21 @@ own commit, and the item archives when the list is empty.
 - 2026-11-02 — Roadmap 57's copy stand-ins, all marked in `src/content/`: the five theme sentences, the Melody label and
   four Melody sentences, the Envelope, Distance and Voice labels, names and sentences, a save row's "saved …"
   (`home.ts`; Roll was one too, until backlog 64 replaced it with Crawford's Scan), `Loaded Under` (`company.ts`, `probe.ts`), the lore footer, the Factory Reset body (`session.ts`). Roadmap
-  [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrites the theme and aspect sentences; the rest is here.
+  [58](roadmap.md#58-themes-and-aspects-refinement)'s copy step rewrote the theme and aspect names and sentences (PR
+  #600; Crawford, 2026-11-05: "copy is fine", a once-over to come); the rest is here.
 - 2026-11-02 — Tone's `The AudioContext is "suspended"` console warning on every world rebuild while off (a pick or
   Scan): a warning, not an error, to silence or accept.
 - 2026-11-02 — The off screen's unsaved line (`home.off.unsavedWarning`, "Picking another transmission discards this
   world's unsaved changes."): under backlog [64](archive/backlog-archive.md#64-off-screen-current-stays-the-world-you-came-from-and-a-new-transmission-row-with-scan)
   picking no longer discards Current, powering on into another row does. Reword it.
+- 2026-11-05 — A cut note stalls a slow-attack robot (roadmap
+  [58](roadmap.md#58-themes-and-aspects-refinement) R2b, `CUT_RELEASE_SECONDS` in `AudioEngine.processMelodyStep`): a
+  rest, staccato, staccatissimo or marcato releases in 30 ms, the level drops to zero, and an attack of about a second
+  cannot climb back inside the next eighth or sixteenth, so the robot goes near silent. Kryndara's Drift Beacon, Neon
+  Nomad and Neon Courier did at Accents 49; R4 moved Classic's Accents to 0-30 so no seed reaches the cutting marks, but
+  a player dragging Accents past 34 (or Dramatic's 75-100, or a theme's rests) still gets it, with no setting that shows
+  why. Options considered: release short only when the robot's attack fits inside the written note (recommended), a
+  release that spans the gap to the next note, or reverting R2b.
 
 ### 63. Style Fixes (a Bucket)
 
@@ -705,3 +714,39 @@ Opened by Crawford at the 2026-11-02 plan review: visual chrome fixes collected 
 per item, dated; each becomes its own commit when the pass runs, and the item archives when the list is empty.
 
 - (none yet)
+
+### 65. Robot: A Melody Strip Under the Accents Slider (and, Later, Editing the Notes)
+
+Raised by Crawford on 2026-11-05, during roadmap [58](roadmap.md#58-themes-and-aspects-refinement)'s families listen:
+a percentage is an arbitrary way to show the Accents slider. Picked from a pitch: a read-only strip under the slider
+(`PingControlsDrawer.tsx`'s Articulation panel), one cell per melody event, each marked cell showing its score mark
+(accent, marcato, tenuto, staccato, staccatissimo) and a bar for how long the note sounds (full, three quarters, half,
+a quarter), with ticks on the slider's track where the next marks unlock (34 and 67, `ACCENT_TIER_2` and
+`ACCENT_TIER_3`). It reads the marks `applyPerformanceMarks` already stamps on the robot's melody, so it shows what
+plays rather than a formula, and since the stamps are seeded per note, dragging adds and removes marks without
+reshuffling the rest. The Rests slider stamps the same events and could share the strip (a shaded tail on the bar).
+
+**The can of worms (Crawford):** once the notes are on screen, users will want to edit them, pitches included. That is
+the larger item and the reason this sits in the backlog, not the listen: editing a note touches the melody's
+determinism (a robot's melody is generated from its `compositionSeed`; an edit would have to be a saved override, like
+the session diff), the content layer (the mark names and legend), and long melodies (32 events need two rows or
+narrower cells, and the cells must hold their size). Neighbours: roadmap
+[32](roadmap.md#32-robot-melody-history--configuration-scrubber) (Melody history). Needs an interview before a spec:
+read-only strip first, or the editor with it. Plan.md Post-launch.
+
+### 66. Tests: the Full Run's Unhandled "Timeout calling onTaskUpdate"
+
+**Found 2026-11-05** at the review of roadmap [58](roadmap.md#58-themes-and-aspects-refinement); **recorded, not
+chased** (Crawford). Every full `npm test` run that day (four: `main` at `70cc91ce`, then the branch
+`fix/deal-master-volume-push`) passed every test in 353 files and still printed "Vitest caught 1 unhandled error
+during the test run" with `[vitest-worker]: Timeout calling "onTaskUpdate"`. The run exits 0, so nothing fails, but a
+full run is never clean, and roadmap 58's Checkpoint: Complete asks for one.
+
+**What it most likely is.** A worker held its thread longer than Vitest's RPC timeout, so its progress report to the main
+process timed out: a long synchronous test that never yields. The measuring harness raised the same error until T10 of
+[THEME_AND_ASPECTS_REFINEMENT.md](../tasks/THEME_AND_ASPECTS_REFINEMENT.md) made it `await` between worlds. Candidates
+are the many-world loops (spread and share tests over hundreds of styles, the swell-roll counts), which run slower
+under a full parallel load.
+
+**To do:** find the file (run the suite by directory, or with `--reporter=verbose`, until the error follows one file),
+then let its loop yield or split the case. Done when a full run reports no errors.

@@ -830,7 +830,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S (docs and comments)
 
-- [ ] **T15: `docs/todo/` — roadmap 58 and plan.md**
+- [x] **T15: `docs/todo/` — roadmap 58 and plan.md** (2026-11-05, on `docs/checkpoint-complete-58`)
 
   **Description:** Roadmap 58's entry: "Done — merged via PR #N", the archive move per the todo conventions (the phase
   moves whole to `archive/roadmap-archive.md` with links rebased, a stub with any Open item stays), and plan.md's
@@ -840,10 +840,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Roadmap 58 is archived with every inbound anchor resolving; plan.md no longer lists it.
+  - [x] Roadmap 58 is archived with every inbound anchor resolving; plan.md no longer lists it.
 
   **Verification:**
-  - [ ] A before/after broken-link count over `docs/`. `npm run lint` clean.
+  - [x] A before/after broken-link count over `docs/`. `npm run lint` clean. (658 before, 658 after, the same set; the
+        658 are older links in the archives, none of them roadmap 58's.)
 
   **Dependencies:** T14, the merge. **Files:** `docs/todo/roadmap.md`, `docs/todo/archive/roadmap-archive.md`,
   `docs/todo/plan.md`, `docs/todo/backlog.md`
@@ -851,12 +852,50 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean; `npm run sketch:bands` runs and its
-      JSON matches the committed one.
-- [ ] Every task's acceptance criteria met; every mutant listed killed, or recorded and argued equivalent.
-- [ ] Spec §7's success criteria read against the shipped code and the listen record, one by one.
-- [ ] Crawford's reads (sheets, copy, docs) and looks (sketch, listens) all recorded in this file.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean; `npm run sketch:bands` runs and its
+      JSON matches the committed one. (2026-11-05, on `main` after PRs #600 to #602: types clean; lint 0 errors, the 4
+      old warnings; build clean; every test passes, 13,548 in 353 files, with one unhandled Vitest error, "Timeout
+      calling onTaskUpdate", on every full run, recorded as backlog
+      [66](../todo/backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) at Crawford's word. The
+      sketch re-run at `33dfc9ab` differs from the committed JSON only in `meta` and the timings: every measured
+      spread is the committed one.)
+- [x] Every task's acceptance criteria met; every mutant listed killed, or recorded and argued equivalent. (Each task's
+      record is its As Shipped paragraph and its commit; the sub-boxes of T0 to T9 were left unticked when their tasks
+      were ticked. A post-merge review, 2026-11-05, ran 8 more mutants over the shipped code: 7 killed; the eighth, the
+      attack rail's "Melody not dealt" guard dropped, survived, and its test was tightened (PR #602); `fix/review-58-tidy`
+      then removes the guard, moving the re-draw into Envelope's case.)
+- [x] Spec §7's success criteria read against the shipped code and the listen record, one by one (2026-11-05):
+  - **Sheets:** every shipped theme (14), family (6) and option (27) has a sheet `kept` or `renamed`; the cut sheets
+    (Adventurous, Far, Remote) have no id and no column. `resolveBands.test.ts` holds every column to its sheet's
+    "Keys owned" (`SHEET_KEYS`, `OPTION_SHEET_KEYS`). Met.
+  - **Covered:** T4's paper tests, then L1 to L3. Met.
+  - **Two themes apart inside a minute:** L1, the three preset worlds, passed (2026-11-04). Met.
+  - **Each option as its sheet says, against the row empty:** L2 passed under Classic in Kryndara (2026-11-05), the
+    default theme by Crawford's answer at Checkpoint D. Met.
+  - **Every risky pair has a verdict:** L3 passed (2026-11-05). Met.
+  - **`ThemeColumn` is `Partial<BandTable>`:** `themes.ts`; the `@ts-expect-error` cases in `resolveBands.test.ts`
+    (a key outside the table, a band of the wrong kind) keep it so. Met.
+  - **A live change writes only what it moves, no rebuild, no wash:** the world is never rebuilt (`rederiveLoading`,
+    the per-field cases in `aspectDeal.widened.test.ts`). A robot whose Voice fields move has its own voice rebuilt
+    (`reReserveVoice`, as the structural hand edit does); since PR #602 a moved master volume ramps live instead.
+    Met, reading "no rebuild" as no world rebuild.
+  - **Classic spawn byte for byte, or moved once per named key:** moved, each by Crawford's word and each recorded:
+    the envelope floors, Chorus depth and shift, Classic's Performance bands (R3, R4), and after the merge the attack
+    rail (PR #601), which narrows the density band by the attack. The rail is a loading rule, not a sheet key; its
+    record is `docs/MELODY_SYSTEM.md`. Met with that note.
+  - **The sketch's realised spread is the written band for every cell:** two recorded exceptions.
+    `robot.masterVolume` never realises its band (`masterVolumeFrom`'s register bias and clamp; Checkpoint D, kept as
+    built). `robot.rhythmicDensity` under the rail: a slow attack narrows the band, so the realised median sits low,
+    and under Thicket (30-60) and Beacon (20-45) the low end is 19, under the written floor, because a cap under a
+    band's bottom collapses the band onto the cap (`ROBOT_DATA_GRID.md`: the grid's density cells are the bands
+    before the rail). Met with those two.
+  - **Words, content test, grids and docs, the archive:** the words in `src/content/copy/home.ts` (T12),
+    `content.test.ts` passes, the grids (T13) and docs (T14) describe the shipped set, roadmap 58 archived (T15). Met.
+- [x] Crawford's reads (sheets, copy, docs) and looks (sketch, listens) all recorded in this file. Sheets: Checkpoints
+      A and B. Sketch: Checkpoint D. Listens: L1 to L3. Copy: "copy is fine, and will be getting a once over in a week
+      or so" (Crawford, 2026-11-05). Docs (T13, T14 and the rail's two paragraphs): "they're fine" (Crawford,
+      2026-11-05).
+- [x] Ready for Crawford's PR. (Merged: PR #600; the follow-ups PR #601 and #602.)
 
 ## Listen record
 
