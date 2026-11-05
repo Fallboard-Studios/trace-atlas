@@ -705,3 +705,20 @@ Opened by Crawford at the 2026-11-02 plan review: visual chrome fixes collected 
 per item, dated; each becomes its own commit when the pass runs, and the item archives when the list is empty.
 
 - (none yet)
+
+### 66. Tests: the Full Run's Unhandled "Timeout calling onTaskUpdate"
+
+**Found 2026-11-05** at the review of roadmap [58](roadmap.md#58-themes-and-aspects-refinement); **recorded, not
+chased** (Crawford). Every full `npm test` run that day (four: `main` at `70cc91ce`, then the branch
+`fix/deal-master-volume-push`) passed every test in 353 files and still printed "Vitest caught 1 unhandled error
+during the test run" with `[vitest-worker]: Timeout calling "onTaskUpdate"`. The run exits 0, so nothing fails, but a
+full run is never clean, and roadmap 58's Checkpoint: Complete asks for one.
+
+**What it most likely is.** A worker held its thread longer than Vitest's RPC timeout, so its progress report to the main
+process timed out: a long synchronous test that never yields. The measuring harness raised the same error until T10 of
+[THEME_AND_ASPECTS_REFINEMENT.md](../tasks/THEME_AND_ASPECTS_REFINEMENT.md) made it `await` between worlds. Candidates
+are the many-world loops (spread and share tests over hundreds of styles, the swell-roll counts), which run slower
+under a full parallel load.
+
+**To do:** find the file (run the suite by directory, or with `--reporter=verbose`, until the error follows one file),
+then let its loop yield or split the case. Done when a full run reports no errors.

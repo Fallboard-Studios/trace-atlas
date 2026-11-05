@@ -28,6 +28,8 @@ the item's own measure-first check runs, and the item archives if the check find
   and timelines built paused** — if needed, else archive.
 - Backlog [44](backlog.md#44-sessions-warn-before-the-saves-fill-the-browsers-storage) **Warn before the saves fill the
   browser's storage** — a short interview first.
+- Backlog [66](backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) **The full test run's
+  unhandled timeout** — find the test that never yields, then yield or split it.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes with DevTools open.
 - Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
