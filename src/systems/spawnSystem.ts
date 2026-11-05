@@ -38,6 +38,7 @@ import {
   currentEnvelopeBands,
   currentMelodyBands,
   currentMotionBands,
+  audibleDensityBand,
   currentPerformanceBands,
   currentSendBands,
   currentVoiceBands,
@@ -436,7 +437,7 @@ export function generateRobotAudioBaseline(
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
-  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands());
+  const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = deriveMelodyFields(noiseMap, spawnCount, currentMelodyBands(), audioAttributes.adsr.attack);
   const { dynamics, rests, accents } = derivePerformanceFields(noiseMap, spawnCount, currentPerformanceBands());
   const priorLaneCounts = tallyLanes(priorBaselines.flatMap((b) => Object.values(b.lfoLinks)));
   const lfoLinks = generateRobotLfoLinks(noiseMap, spawnCount, priorLaneCounts);
@@ -590,7 +591,8 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       : generateRobotLfoLinks((_x: number, _y: number) => 0 as number, spawnCount, priorLaneCounts);
 
     // The Melody fields from the loading context's bands (band-table T21) - one derivation shared with the baseline
-    // and the deal pass (deriveMelodyFields, Task 27); the alea fallbacks map into the same bands.
+    // and the deal pass (deriveMelodyFields, Task 27); the alea fallbacks map into the same bands. The density reads the
+    // attack just drawn (the attack rail, audibleDensityBand).
     const melodyBands = currentMelodyBands();
     if (noiseMap) {
       ({
@@ -598,9 +600,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
         rhythmicMotifLength: spawnRhythmicMotifLength,
         noteVariance: spawnNoteVariance,
         pitchRepeat: spawnPitchRepeat,
-      } = deriveMelodyFields(noiseMap, spawnCount, melodyBands));
+      } = deriveMelodyFields(noiseMap, spawnCount, melodyBands, audioAttributes.adsr.attack));
     } else {
-      const density = melodyBands['robot.rhythmicDensity'];
+      const density = audibleDensityBand(melodyBands['robot.rhythmicDensity'], audioAttributes.adsr.attack, melodyBands.bpm);
       spawnRhythmicDensity = Math.round(density.min + alea(`${localeId}:${spawnCount}:density`)() * (density.max - density.min));
       spawnRhythmicMotifLength = seedToggleValue(alea(`${localeId}:${spawnCount}:motifActive`)(), melodyBands['robot.rhythmicMotifLength']);
       spawnNoteVariance = seedToggleValue(alea(`${localeId}:${spawnCount}:nvActive`)(), melodyBands['robot.noteVariance']);

@@ -16,7 +16,13 @@ vi.mock('../engine/beatClock', () => ({
 // the spread originals: a robot regenerated under it has a density of 90 or more, where Classic's 0-100 draw rarely does.
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, float: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+  // With attacks the attack rail never narrows the 90-100 under (audibleDensityBand).
+  const float = {
+    'robot.rhythmicDensity': { min: 90, max: 100 },
+    'robot.attack': { min: 0.015, max: 0.015 },
+    'robot.shapedAttack': { min: 0.015, max: 0.015, lit: 0.155 },
+  };
+  return { ...actual, THEMES: { ...actual.THEMES, float } };
 });
 
 // band-table T27 (spec assumption 22): the baseline runs the same deal as the live spawn. The real option columns are {}

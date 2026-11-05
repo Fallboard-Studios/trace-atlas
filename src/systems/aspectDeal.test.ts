@@ -11,6 +11,8 @@ import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
 import { robotSendLevels } from '../data/robotSends';
 import type { ThemeId } from '../data/bands/themes';
+import { CLASSIC } from '../data/bands/classic';
+import { audibleDensityBand } from './robotFieldDerivation';
 
 // ========================================
 // TESTS
@@ -316,5 +318,90 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
 
   it('does nothing, and does not throw, for an unknown locale', () => {
     expect(() => rederiveLoading('no-such-locale', DEFAULT_LOADING, vi.fn())).not.toThrow();
+  });
+
+  it('an Envelope pick alone, as a change: the fresh build, its narrowed densities regenerating the melody', () => {
+    const live = buildWorld(CLASSIC_PLAIN);
+    const before = robotsOf(live);
+    const to: LoadingIdentity = { theme: 'classic', aspects: { envelope: ['bowed'] } };
+    const fresh = robotsOf(buildWorld(to));
+    const narrowed = fresh.filter((r, i) => r.rhythmicDensity !== before[i].rhythmicDensity).map((r) => r.id);
+    expect(narrowed.length).toBeGreaterThan(0); // precondition: Bowed's attacks narrow some robot's density
+    const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+
+    rederive(live, CLASSIC_PLAIN, to);
+
+    expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
+    const registered = new Set(register.mock.calls.map(([id]) => id as string));
+    for (const id of narrowed) expect(registered.has(id), id).toBe(true);
+  });
+});
+
+// The attack rail (a slow attack thins the density band): the deal honours it as spawn does. An Envelope pick re-draws
+// the density under the theme's band against the dealt attack; a Melody pick dealt with it draws against that attack too.
+describe('applyAspectDeal: the attack rail', () => {
+  const COORDS = { x: 23, y: 41 };
+  let worlds = 0;
+  const buildWorld = (loading: LoadingIdentity) => {
+    useLoadingStore.getState().setLoading(loading);
+    const localeId = `attack-rail-${worlds++}`;
+    useLocaleStore.setState((state) => ({
+      locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: COORDS, robots: [], companies: [] } },
+    }));
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    applyAspectDeal(localeId);
+    return useLocaleStore.getState().getLocaleById(localeId)!.robots;
+  };
+  /** The densest a robot's attack allows under Classic's tempo. */
+  const capOf = (robot: Robot) => Math.ceil(audibleDensityBand({ min: 0, max: 100 }, robot.audioAttributes.adsr.attack, CLASSIC.bpm).max);
+
+  afterEach(() => {
+    useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+    vi.restoreAllMocks();
+  });
+
+  it('Tumbling dealt with Bowed: every robot dealt both draws under its attack\'s cap, not Tumbling\'s 85-100', () => {
+    const robots = buildWorld({ theme: 'classic', aspects: { melody: ['tumbling'], envelope: ['bowed'] } });
+    const both = robots.filter((r) => r.loadedUnder?.melody === 'tumbling' && r.loadedUnder?.envelope === 'bowed');
+    expect(both.length).toBeGreaterThan(0);
+    for (const robot of both) {
+      expect(capOf(robot)).toBeLessThan(85); // precondition: Bowed's slowest attack sits under Tumbling's band
+      expect(robot.rhythmicDensity, robot.name).toBeLessThanOrEqual(capOf(robot));
+    }
+  });
+
+  it('Bowed alone: a dealt robot re-draws only its density, and every dealt robot keeps under its cap', () => {
+    const plain = buildWorld({ theme: 'classic', aspects: {} });
+    const robots = buildWorld({ theme: 'classic', aspects: { envelope: ['bowed'] } });
+    const dealt = robots.filter((r) => r.loadedUnder?.envelope === 'bowed');
+    expect(dealt.length).toBeGreaterThan(0);
+    expect(dealt.some((r) => r.rhythmicDensity !== plain[robots.indexOf(r)].rhythmicDensity)).toBe(true);
+    for (const robot of dealt) {
+      const was = plain[robots.indexOf(robot)];
+      expect(robot.rhythmicDensity, robot.name).toBeLessThanOrEqual(capOf(robot));
+      expect([robot.rhythmicMotifLength, robot.noteVariance, robot.pitchRepeat]).toEqual([was.rhythmicMotifLength, was.noteVariance, was.pitchRepeat]);
+    }
+  });
+
+  it('Bowed alone: a robot whose density the deal narrows has its melody regenerated', () => {
+    const plain = buildWorld({ theme: 'classic', aspects: {} });
+    // Spawned by hand, so the spy sees the deal's registrations and not the spawn's.
+    useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { envelope: ['bowed'] } });
+    const localeId = `attack-rail-${worlds++}`;
+    useLocaleStore.setState((state) => ({
+      locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: COORDS, robots: [], companies: [] } },
+    }));
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+    applyAspectDeal(localeId);
+    const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+    const narrowed = robots.filter((r, i) => r.rhythmicDensity !== plain[i].rhythmicDensity);
+    expect(narrowed.length).toBeGreaterThan(0);
+    const registered = new Set(register.mock.calls.map(([id]) => id as string));
+    for (const robot of narrowed) {
+      expect(registered.has(robot.id), robot.name).toBe(true);
+    }
   });
 });

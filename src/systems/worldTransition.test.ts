@@ -34,6 +34,9 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
         bpm: { min: 150, max: 160 },
         'filterLPF.frequency': { min: 500, max: 600 },
         'robot.rhythmicDensity': { min: 90, max: 100 },
+        // Attacks the attack rail never narrows the 90-100 under, even at this tempo (audibleDensityBand).
+        'robot.attack': { min: 0.015, max: 0.015 },
+        'robot.shapedAttack': { min: 0.015, max: 0.015, lit: 0.155 },
       },
     },
   };

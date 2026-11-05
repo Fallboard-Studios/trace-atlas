@@ -6,7 +6,7 @@ import type { AudioAttributes, WaveformType, EnvelopeCurveName, RobotFilterType 
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 import type { ToggleValue } from '../engine/melodyGenerator';
 import type { OscillatorLayer } from '../types/layeredAudio';
-import { ROBOT_BUS_FILTER_Q, SEND_STEP_PERCENT } from '../constants';
+import { ATTACK_REACH_SHARE, ROBOT_BUS_FILTER_Q, SEND_STEP_PERCENT } from '../constants';
 import {
   EXCLUSIVE_SEND_FIELDS,
   SEND_FIELD_ROOM,
@@ -15,7 +15,7 @@ import {
 import type { RobotSendField } from '../data/robotSends';
 import { OCTAVE_REGISTER_IDS, OCTAVE_REGISTERS, type OctaveRegisterId } from '../data/octaveRegisters';
 import { getBand } from '../data/bands/loadingContext';
-import type { BandTable, PickBand, SendBand, ToggleBand } from '../data/bands/bandKeys';
+import type { BandTable, PickBand, RangeBand, SendBand, ToggleBand } from '../data/bands/bandKeys';
 import type { EnvelopeBandKey, MelodyBandKey, MotionBandKey, PerformanceBandKey, VoiceBandKey } from '../data/bands/aspects';
 import { LFO_DEPTH_MIN, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type LfoLink, type RobotLfoTargetId } from '../types/lfo';
 import { pickLane } from '../utils/lfoLaneDraw';
@@ -86,14 +86,37 @@ export function seedToggleValue(raw: number, band: ToggleBand): ToggleValue {
 /** The four Melody fields a robot draws (docs/specs/MELODY_SYSTEM.md) - the Melody family's share of the deal. */
 export type MelodyFields = Pick<RobotAudioBaseline, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>;
 
-/** The theme's Melody bands as the loading context holds them now (getBand at the draw, band-table T21). */
-export function currentMelodyBands(): Pick<BandTable, MelodyBandKey> {
+/** The bands the Melody draw reads: the family's four, and the tempo the attack rail measures note length at. */
+export type MelodyDrawBands = Pick<BandTable, MelodyBandKey | 'bpm'>;
+
+/** The theme's Melody bands as the loading context holds them now (getBand at the draw, band-table T21), and its tempo. */
+export function currentMelodyBands(): MelodyDrawBands {
   return {
     'robot.rhythmicDensity': getBand('robot.rhythmicDensity'),
     'robot.noteVariance': getBand('robot.noteVariance'),
     'robot.rhythmicMotifLength': getBand('robot.rhythmicMotifLength'),
     'robot.pitchRepeat': getBand('robot.pitchRepeat'),
+    bpm: getBand('bpm'),
   };
+}
+
+/**
+ * The attack rail: the part of `density` a robot with a linear attack of `attackSeconds` may seed, so its notes reach
+ * ATTACK_REACH_SHARE of their peak. Density is a fill rate, so the mean gap between notes is 100 / density sixteenths;
+ * measured at the top of the `bpm` band, the fastest tempo the theme seeds, so it holds at any seeded tempo. Robots seed
+ * from their coordinates alone, never the tempo (the style seeds it), so the band, not the world's own BPM. A cap under
+ * the band's bottom collapses the band onto the cap: the rail wins. A loading rule only; a hand edit goes anywhere.
+ */
+export function audibleDensityBand(density: RangeBand, attackSeconds: number, bpm: RangeBand): RangeBand {
+  const sixteenthSeconds = 15 / bpm.max;
+  const cap = (100 * sixteenthSeconds) / (ATTACK_REACH_SHARE * attackSeconds);
+  return { min: Math.min(density.min, cap), max: Math.min(density.max, cap) };
+}
+
+/** A robot's density at `spawnIndex`: the even draw over its band as the attack rail leaves it. */
+export function deriveRhythmicDensity(noiseMap: NoiseFunction2D, spawnIndex: number, bands: Pick<BandTable, 'robot.rhythmicDensity' | 'bpm'>, attackSeconds: number): number {
+  const density = audibleDensityBand(bands['robot.rhythmicDensity'], attackSeconds, bands.bpm);
+  return Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', spawnIndex, density.min, density.max));
 }
 
 /**
@@ -102,11 +125,11 @@ export function currentMelodyBands(): Pick<BandTable, MelodyBandKey> {
  * noise, dataIds and formulas either way, so a dealt robot is exactly what it would have been had it spawned under the
  * aspect (docs/specs/OFF_SCREEN.md assumption 22). The toggle fields keep the old '.active' dataIds (the '.value' ones
  * are retired: value is derived from this same draw). Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so a
- * toggle's offShare is the share of robots with it off.
+ * toggle's offShare is the share of robots with it off. The density draw reads the robot's attack (`attackSeconds`, its
+ * Envelope drawn first): the attack rail, audibleDensityBand.
  */
-export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number, bands: Pick<BandTable, MelodyBandKey>): MelodyFields {
-  const density = bands['robot.rhythmicDensity'];
-  const rhythmicDensity = Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', spawnIndex, density.min, density.max));
+export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number, bands: MelodyDrawBands, attackSeconds: number): MelodyFields {
+  const rhythmicDensity = deriveRhythmicDensity(noiseMap, spawnIndex, bands, attackSeconds);
   const motifRaw = getUniformSeededVal(noiseMap, 'robot.rhythmicMotifLength.active', spawnIndex, 0, 1);
   const rhythmicMotifLength = seedToggleValue(motifRaw, bands['robot.rhythmicMotifLength']);
   const noteVarianceRaw = getUniformSeededVal(noiseMap, 'robot.noteVariance.active', spawnIndex, 0, 1);
