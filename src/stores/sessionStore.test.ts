@@ -254,7 +254,8 @@ describe('isWorldDirty', () => {
  * touches no session field; isPayloadDirty is isWorldDirty for any payload and name.
  */
 describe('keepWorld', () => {
-  const snapshot = () => ({ ...buildSessionPayload(), swellFrequency: 3 });
+  // A swell frequency the live world cannot have: the live one is seeded, so a fixed value collides with it now and then.
+  const snapshot = () => ({ ...buildSessionPayload(), swellFrequency: buildSessionPayload().swellFrequency + 10 });
 
   beforeEach(() => {
     localStorage.clear();
@@ -313,7 +314,7 @@ describe('isPayloadDirty', () => {
 
   it('is true for a payload that differs from its stored save, though the live world equals it', () => {
     saveNamedSession('Dusk Run', buildSessionPayload());
-    expect(isPayloadDirty({ ...buildSessionPayload(), swellFrequency: 3 }, 'Dusk Run')).toBe(true);
+    expect(isPayloadDirty({ ...buildSessionPayload(), swellFrequency: buildSessionPayload().swellFrequency + 10 }, 'Dusk Run')).toBe(true);
   });
 
   it('is true for a null name, and for a name with no save', () => {

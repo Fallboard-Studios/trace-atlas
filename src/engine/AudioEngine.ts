@@ -549,7 +549,7 @@ export function triggerWithCap(params: NoteParams): boolean {
     // so this was pure duplicate work on the hot path (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 6).
     // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
     // voice stringifies its duration anyway (it accepts NoteDuration | string).
-    synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8, params.release);
+    synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? NOTE_VELOCITY_BASELINE, params.release);
     standingBy.recordNoteEnd(robotId, scheduleVoiceRelease(duration, scheduleTime));
     return true;
   } catch (err) {

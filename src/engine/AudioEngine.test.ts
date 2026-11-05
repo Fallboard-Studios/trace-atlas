@@ -569,12 +569,17 @@ describe('AudioEngine - Polyphony Management', () => {
       expect(result).toBe(true);
     });
 
-    it('uses default velocity when velocity parameter omitted', async () => {
+    it('plays at the note velocity baseline (0.6) when velocity parameter omitted', async () => {
       const { triggerWithCap } = await import('./AudioEngine');
+      const Tone = await import('tone');
 
-      // Should not throw, should use 0.8
-      const result = triggerWithCap({ robotId: 'test', note: 'C4', duration: '4n', time: 0 });
+      const result = triggerWithCap({ robotId: 'test', note: 'D7', duration: '4n', time: 0 });
       expect(result).toBe(true);
+      const velocities = (Tone.Synth as unknown as any).mock.results.flatMap((r: any) =>
+        (r.value?.triggerAttackRelease?.mock?.calls ?? []).filter((call: any) => call[0] === 'D7').map((call: any) => call[3]),
+      );
+      expect(velocities.length).toBeGreaterThan(0);
+      for (const velocity of velocities) expect(velocity).toBe(0.6);
     });
 
     it('handles trigger errors gracefully', async () => {
