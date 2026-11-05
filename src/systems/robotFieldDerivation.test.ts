@@ -8,9 +8,10 @@ import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 import { CLASSIC } from '../data/bands/classic';
 import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
-import { ROBOT_BUS_FILTER_Q } from '../constants';
+import { ATTACK_REACH_SHARE, ENVELOPE_ATTACK_MIN_SECONDS, ROBOT_BUS_FILTER_Q } from '../constants';
 import { correlation, outerTenths } from '../testUtils/spread';
 import {
+  audibleDensityBand,
   composeSends,
   deriveEnvelopeFields,
   deriveMelodyFields,
@@ -116,8 +117,72 @@ describe('deriveEnvelopeFields — even draws (Even Seeded Draws T4)', () => {
   });
 });
 
+describe('audibleDensityBand — a slow attack thins the density band (the attack rail)', () => {
+  const FULL = { min: 0, max: 100 };
+  const CLASSIC_TEMPO = { min: 40, max: 100 };
+  /** The share of its peak a linear attack reaches across the mean gap between notes at `density`, at `bpm`. */
+  const reach = (density: number, attack: number, bpm: number) => ((100 / density) * (15 / bpm)) / attack;
+
+  it('leaves the band whole for an attack the densest melody still lets reach the share', () => {
+    expect(audibleDensityBand(FULL, ENVELOPE_ATTACK_MIN_SECONDS, CLASSIC_TEMPO)).toEqual(FULL);
+    // At the band's top, 100 % density, the mean gap is one sixteenth: 0.15 s at 100 BPM carries a 0.3 s attack half way.
+    expect(audibleDensityBand(FULL, 0.15 / ATTACK_REACH_SHARE, CLASSIC_TEMPO)).toEqual(FULL);
+  });
+
+  it('caps the band where the mean gap at the fastest tempo carries the attack to the reach share', () => {
+    const band = audibleDensityBand(FULL, 1.14, CLASSIC_TEMPO);
+    expect(band.min).toBe(0);
+    expect(band.max).toBeLessThan(100);
+    expect(reach(band.max, 1.14, CLASSIC_TEMPO.max)).toBeCloseTo(ATTACK_REACH_SHARE, 10);
+  });
+
+  it('reads the tempo band\'s top, not its bottom: a slower top allows denser notes', () => {
+    const fast = audibleDensityBand(FULL, 1, { min: 40, max: 100 });
+    const slow = audibleDensityBand(FULL, 1, { min: 40, max: 50 });
+    expect(slow.max).toBeCloseTo(fast.max * 2, 10);
+    expect(audibleDensityBand(FULL, 1, { min: 90, max: 100 }).max).toBeCloseTo(fast.max, 10);
+  });
+
+  it('a cap under the band\'s bottom collapses the band onto the cap: the rail wins over the band', () => {
+    const band = audibleDensityBand({ min: 85, max: 100 }, 1.2, CLASSIC_TEMPO);
+    expect(band.max).toBeLessThan(85);
+    expect(band.min).toBe(band.max);
+  });
+
+  it('a longer attack never allows a denser band', () => {
+    let last = Infinity;
+    for (let attack = ENVELOPE_ATTACK_MIN_SECONDS; attack <= 2; attack += 0.05) {
+      const { max } = audibleDensityBand(FULL, attack, CLASSIC_TEMPO);
+      expect(max).toBeLessThanOrEqual(last);
+      last = max;
+    }
+  });
+});
+
+describe('deriveMelodyFields — the attack rail', () => {
+  const SLOW = 1.14;
+
+  it('draws density evenly inside the band the attack leaves, at its own dataId and offset', () => {
+    const band = audibleDensityBand(CLASSIC['robot.rhythmicDensity'], SLOW, CLASSIC.bpm);
+    for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 120)) {
+      const m = deriveMelodyFields(noiseMap, offset, CLASSIC, SLOW);
+      expect(m.rhythmicDensity).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', offset, band.min, band.max)));
+      expect(m.rhythmicDensity).toBeLessThanOrEqual(Math.ceil(band.max));
+    }
+  });
+
+  it('leaves the other three melody fields as a short attack draws them', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 120)) {
+      const { rhythmicDensity: _slowDensity, ...slow } = deriveMelodyFields(noiseMap, offset, CLASSIC, SLOW);
+      const { rhythmicDensity: _fastDensity, ...fast } = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS);
+      expect(slow).toEqual(fast);
+    }
+  });
+});
+
 describe('deriveMelodyFields — even draws (Even Seeded Draws T5)', () => {
-  const MELODY = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveMelodyFields(noiseMap, offset, CLASSIC));
+  // An attack the rail never narrows, so these cases see the whole density band.
+  const MELODY = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS));
   const TOGGLES = ['rhythmicMotifLength', 'noteVariance'] as const;
 
   it('density and pitch repeat fill their bands: 8-12 % of robots in each outer tenth', () => {
@@ -163,7 +228,7 @@ describe('deriveMelodyFields — even draws (Even Seeded Draws T5)', () => {
 
   it('each melody field is the even draw at its own dataId and the robot\'s offset', () => {
     for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 120)) {
-      const m = deriveMelodyFields(noiseMap, offset, CLASSIC);
+      const m = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS);
       const density = CLASSIC['robot.rhythmicDensity'];
       const repeat = CLASSIC['robot.pitchRepeat'];
       expect(m.rhythmicDensity).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', offset, density.min, density.max)));

@@ -20,7 +20,13 @@ vi.mock('../engine/beatClock', () => ({
 // originals; the mocks survive vi.resetModules.
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, float: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+  // With attacks the attack rail never narrows the 90-100 under (audibleDensityBand).
+  const float = {
+    'robot.rhythmicDensity': { min: 90, max: 100 },
+    'robot.attack': { min: 0.015, max: 0.015 },
+    'robot.shapedAttack': { min: 0.015, max: 0.015, lit: 0.155 },
+  };
+  return { ...actual, THEMES: { ...actual.THEMES, float } };
 });
 vi.mock('../data/bands/aspects', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/aspects')>();

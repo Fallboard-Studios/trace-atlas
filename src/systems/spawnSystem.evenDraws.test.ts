@@ -9,7 +9,8 @@ import { CLASSIC } from '../data/bands/classic';
 import { getCentredSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { outerTenths } from '../testUtils/spread';
-import { generateAudioAttributes } from './spawnSystem';
+import { audibleDensityBand } from './robotFieldDerivation';
+import { generateAudioAttributes, generateRobotRosterBaseline } from './spawnSystem';
 
 // ========================================
 // THE SAMPLE
@@ -110,5 +111,25 @@ describe('generateAudioAttributes — glide, register, phase and pulse width eve
       expect(pulseWidthOf(a)).toBeGreaterThanOrEqual(0.05);
       expect(pulseWidthOf(a)).toBeLessThanOrEqual(0.95);
     }
+  });
+});
+
+describe('generateRobotRosterBaseline — the attack rail', () => {
+  // 300 worlds x 12 robots under Classic, copies included (a copy takes its source's attack and density together).
+  const ROSTER = Array.from({ length: 300 }, (_, i) => createNoise2D(alea(`rail:${i}`))).flatMap((noiseMap) =>
+    generateRobotRosterBaseline(noiseMap, ROBOTS_PER_WORLD),
+  );
+
+  it('no robot seeds a density denser than its attack lets a note reach', () => {
+    for (const robot of ROSTER) {
+      const { max } = audibleDensityBand(CLASSIC['robot.rhythmicDensity'], robot.audioAttributes.adsr.attack, CLASSIC.bpm);
+      expect(robot.rhythmicDensity, `attack ${robot.audioAttributes.adsr.attack}`).toBeLessThanOrEqual(Math.ceil(max));
+    }
+  });
+
+  it('the rail binds: some robots seed under a narrowed band, and fast attacks still reach the top of the band', () => {
+    const narrowed = ROSTER.filter((r) => audibleDensityBand(CLASSIC['robot.rhythmicDensity'], r.audioAttributes.adsr.attack, CLASSIC.bpm).max < 100);
+    expect(narrowed.length).toBeGreaterThan(ROSTER.length * 0.2);
+    expect(ROSTER.some((r) => r.rhythmicDensity >= 95)).toBe(true);
   });
 });

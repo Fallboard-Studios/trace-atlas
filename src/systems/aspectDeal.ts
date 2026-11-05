@@ -20,6 +20,7 @@ import { primeRobotLinks } from './robotLfoLinks';
 import {
   deriveEnvelopeFields,
   deriveMelodyFields,
+  deriveRhythmicDensity,
   deriveMotionFields,
   derivePerformanceFields,
   deriveSendFields,
@@ -85,7 +86,7 @@ function deriveFamilyFields(
 ): DealtFields {
   switch (family) {
     case 'melody':
-      return deriveMelodyFields(noiseMap, spawnIndex, bands);
+      return deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
     case 'envelope':
       return { audioAttributes: { ...robot.audioAttributes, adsr: deriveEnvelopeFields(noiseMap, spawnIndex, bands) } };
     case 'distance':
@@ -106,7 +107,11 @@ function deriveFamilyFields(
  *  the same draws as at spawn, into the aspect's bands - so a dealt robot is what it would have been had it spawned
  *  under the aspect. A family not dealt keeps its fields. `priorLanes` is the lane tally Motion's links draw against:
  *  the robots before this one as the roster spawned them, so the baseline, the live deal and a re-derive agree without
- *  waiting on each other's deals. */
+ *  waiting on each other's deals.
+ *
+ *  The attack rail (audibleDensityBand): the density is drawn against the robot's attack, so Envelope is derived first,
+ *  and a robot dealt Envelope but not Melody re-draws its density alone under the theme's band against the dealt attack,
+ *  as a spawn with that attack would. Its other Melody fields stand. */
 function dealtFields(
   noiseMap: NoiseFunction2D,
   spawnIndex: number,
@@ -116,14 +121,22 @@ function dealtFields(
   priorLanes: PriorLanes,
 ): DealtFields {
   let fields: DealtFields = {};
-  for (const family of ASPECT_FAMILY_IDS) {
+  for (const family of DERIVE_ORDER) {
     const aspect = aspects[family];
     if (aspect === undefined) continue;
     const bands = resolveBands(theme, { [family]: aspect });
     fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, { ...robot, ...fields }, priorLanes) };
   }
+  if (aspects.envelope !== undefined && aspects.melody === undefined) {
+    const attack = (fields.audioAttributes ?? robot.audioAttributes).adsr.attack;
+    fields = { ...fields, rhythmicDensity: deriveRhythmicDensity(noiseMap, spawnIndex, resolveBands(theme, {}), attack) };
+  }
   return fields;
 }
+
+/** The families in the order dealtFields derives them: Envelope first, as at spawn, so Melody's density draw reads the
+ *  dealt attack; the rest in family order. */
+const DERIVE_ORDER: readonly AspectFamilyId[] = ['envelope', ...ASPECT_FAMILY_IDS.filter((family) => family !== 'envelope')];
 
 /**
  * The deal pass over a regenerated roster baseline, pure (assumption 22 as amended at planning): dealAspects over the
@@ -245,7 +258,10 @@ export function applyAspectDeal(localeId: string): void {
     useLocaleStore.getState().updateRobot(localeId, robot.id, { ...fields, loadedUnder: robotAspects });
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
-    pushFamilies(new Set(ASPECT_FAMILY_IDS.filter((family) => robotAspects[family] !== undefined)), updated, localeId);
+    const families = new Set(ASPECT_FAMILY_IDS.filter((family) => robotAspects[family] !== undefined));
+    // An Envelope pick re-draws the density (the attack rail, dealtFields); a moved one plays only once the melody regenerates.
+    if (updated.rhythmicDensity !== robot.rhythmicDensity) families.add('melody');
+    pushFamilies(families, updated, localeId);
   });
 }
 
