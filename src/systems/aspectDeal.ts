@@ -269,8 +269,9 @@ export function applyAspectDeal(localeId: string): void {
  * The top-level seeded fields compared one by one, each with the family whose push carries it to the engine, or null
  * for a field no engine call needs. Melody's four; `rests`, `accents` and the register, which the melody bakes in
  * (regenerateMelody reads them, as a hand edit of Rests, Accents or the octaves regenerates); `dynamics`, a playback
- * scale read on every note, so the write is all (the Dynamics edit makes no engine call); `masterVolume`, filed under
- * Voice, whose rebuild reserves the voice at the robot's volume (reReserveVoice); and the five sends. The four after
+ * scale read on every note, so the write is all (the Dynamics edit makes no engine call); `masterVolume`, no family's:
+ * rederiveLoading writes it live as the Volume edit does (updateRobotMasterVolume, no rebuild), unless a Voice push
+ * rebuilds the voice, which reserves it at the robot's volume (reReserveVoice); and the five sends. The four after
  * `pitchRepeat` and the master volume joined at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, so a theme column may
  * name them; T7b refiles the Performance fields under their own family.
  */
@@ -283,7 +284,7 @@ const TOP_LEVEL_FIELDS = [
   ['accents', 'performance'],
   ['octaveRange', 'melody'],
   ['dynamics', null],
-  ['masterVolume', 'voice'],
+  ['masterVolume', null],
   ...ROBOT_SEND_FIELDS.map((field) => [field, 'distance'] as const),
 ] as const satisfies readonly (readonly [keyof RobotAudioBaseline, AspectFamilyId | null])[];
 
@@ -391,7 +392,7 @@ function movedFields(
  * robot field the two themes' columns name (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8); an aspect change riding
  * on the theme moves its families' fields and `loadedUnder` the same way. The swells riding the moved fields are
  * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
- * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the six families' fields
+ * pushFamilyToEngine, a moved master volume through updateRobotMasterVolume; a robot nothing moved for is not written. The comparison covers the six families' fields
  * (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md), `rests`, and since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6 every robot field a band seeds: `accents`,
  * `dynamics`, the register, the master volume, the glide and the LFO links per target. A theme column may name any key
  * of the band table (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5); a robot key's field must be compared here and
@@ -457,5 +458,7 @@ export function rederiveLoading(
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
     pushFamilies(families, updated, localeId);
+    // The master volume is no family's (TOP_LEVEL_FIELDS): live, as the Volume edit, unless Voice's rebuild reserved it.
+    if (fields.masterVolume !== undefined && !families.has('voice')) AudioEngine.updateRobotMasterVolume(robot.id, updated.masterVolume);
   });
 }

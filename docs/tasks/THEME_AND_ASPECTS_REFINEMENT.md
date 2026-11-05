@@ -1193,6 +1193,11 @@ unchanged (still "A storm"). An old link's `squall` loads Classic. The history a
 enough to a storm", so the sheet's storm wording stays. Id `polarLow` (camelCase, as `ventField` and `openWater`);
 `abyss` joins the cut ids, so an `abyss` or `squall` link loads Classic.
 
+**After merge: the master volume written live (review, 2026-11-05).** Open question 7 filed `robot.masterVolume` under
+Voice's case, so a theme change that moved only the volume rebuilt every moved robot's voice. It is no family's now:
+`rederiveLoading` writes a moved volume through `updateRobotMasterVolume` (the Volume edit's ramp, no rebuild), and
+skips that write when a Voice push rebuilds the robot, since `reReserveVoice` reserves it at the new volume.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
