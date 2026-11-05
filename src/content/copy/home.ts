@@ -56,11 +56,13 @@ export const home = {
   'home.off.presets.a': { human: 'Kryndara' },
   'home.off.presets.b': { human: 'Vessport Null' },
   'home.off.presets.c': { human: 'Halcyon Drift' },
-  // The Loading axis's names (docs/specs/OFF_SCREEN.md assumption 17), the sketch's lists as stand-ins until Crawford's
-  // pass: one entry per theme id and per Melody option id, read by describeWorld's tail (band-table T28) and by the two
-  // rows (Tasks 30 and 31) through src/utils/loadingNames.ts. The content grammar allows four key segments, so the
-  // family sits as one segment - home.off.melody.<id>, not the spec's home.off.aspect.melody.<id>.
-  // The fourteen themes since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8, named as the sheets name them.
+  // The Loading axis's names and sentences: the fourteen themes and the six aspect families of
+  // docs/specs/THEME_AND_ASPECTS_REFINEMENT.md, as shipped (its §1.8; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T12).
+  // Each sentence is written from its sheet's Promise line (docs/reference/THEME_AND_ASPECT_SHEETS.md); a theme's may
+  // promise what an aspect can override, since themes and aspects are starting places (Crawford, 2026-11-05). One entry
+  // per theme id and per option id, read by describeWorld's tail and by the off screen's rows through
+  // src/utils/loadingNames.ts. The content grammar allows four key segments, so the family sits as one segment -
+  // home.off.melody.<id>, not home.off.aspect.melody.<id>.
   'home.off.theme.classic': { human: 'Classic' },
   'home.off.theme.float': { human: 'Float' },
   'home.off.theme.anchor': { human: 'Anchor' },
@@ -78,14 +80,10 @@ export const home = {
   'home.off.melody.hypnotic': { human: 'Hypnotic' },
   'home.off.melody.mechanical': { human: 'Mechanical' },
   'home.off.melody.wandering': { human: 'Wandering' },
-  // The options new at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9, named as the sheets name them; each sentence below
-  // is its sheet's Promise line, a STAND-IN until T12 writes the words.
   'home.off.melody.chanting': { human: 'Chanting' },
   'home.off.melody.tumbling': { human: 'Tumbling' },
   'home.off.melody.telegraph': { human: 'Telegraph' },
-  // One sentence per theme (assumption 17; spec §1.6, the Guide's part): the muted line under the theme row (Task 30),
-  // and the entry the Guide's Themes page will read. STAND-INS until docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T12
-  // writes the words: each is its sheet's Promise line (docs/reference/THEME_AND_ASPECT_SHEETS.md), T8.
+  // One sentence per theme: the muted line under the theme row, and the entry the Guide's Themes page will read.
   'home.off.themeDescription.classic': { human: 'The receiver as it came: the whole range, every kind of probe at once.' },
   'home.off.themeDescription.float': { human: 'Slow, soft and warm: nothing hurries, nothing is pushed, everything is in the room.' },
   'home.off.themeDescription.anchor': { human: 'Weight: every note lands dry and solid, and stops.' },
@@ -100,22 +98,17 @@ export const home = {
   'home.off.themeDescription.ventField': { human: 'Hot and bubbling: resonant probes squelching and whistling.' },
   'home.off.themeDescription.beacon': { human: 'One phrase, round and round, with its echo.' },
   'home.off.themeDescription.polarLow': { human: 'Stormy: surging, gusting, tearing, nothing steady.' },
-  // The Melody row (Task 31; assumption 17): the family's label, and one sentence per option plus one for a row with no
-  // aspect on - `none`, every probe as the theme (the as-theme option is gone, docs/tasks/OFF_SCREEN_REVISIONS.md Task 6)
-  // - the Guide's part too. STAND-INS for Crawford's pass - each names what the option moves across the family's keys
-  // (assumption 16: density, note variance, motif length, pitch repeat).
+  // Each family: its label, its option names, and one sentence per option plus one for a row with no aspect on -
+  // `none`, every probe as the theme - the Guide's part too. Distance is how far off a probe sounds, never a room: a
+  // room's size is the theme's.
   'home.off.melody': { human: 'Melody' },
   'home.off.melodyDescription.none': { human: 'Every probe takes its melody from the theme alone.' },
   'home.off.melodyDescription.hypnotic': { human: 'Hypnotic probes circle a note or two at a steady, middling pace.' },
-  'home.off.melodyDescription.mechanical': { human: 'Mechanical probes drive one long, fixed motif at high density.' },
+  'home.off.melodyDescription.mechanical': { human: 'Mechanical probes drive one long figure, fast and over and over, on the same few notes.' },
   'home.off.melodyDescription.wandering': { human: 'Wandering probes roam wide and sparse, rarely repeating a phrase.' },
   'home.off.melodyDescription.chanting': { human: 'Chanting probes chant a short figure over and over.' },
   'home.off.melodyDescription.tumbling': { human: 'Tumbling probes run fast, wide and loose: a cascade.' },
   'home.off.melodyDescription.telegraph': { human: 'Telegraph probes send a rare, clipped signal.' },
-  // The Envelope and Distance families (docs/tasks/OFF_SCREEN_REVISIONS.md Task 7; Crawford's note 3, the wireframe's
-  // Space renamed Distance in his answer 6): each family's label, its option names, and one sentence per option plus one
-  // for a row with nothing on.
-  // STAND-INS for Crawford's pass. Distance is how far off a probe sounds, never a room: a room's size is the theme's.
   'home.off.envelope': { human: 'Envelope' },
   'home.off.envelope.plucked': { human: 'Plucked' },
   'home.off.envelope.swelling': { human: 'Swelling' },
@@ -130,8 +123,6 @@ export const home = {
   'home.off.envelopeDescription.bowed': { human: 'Bowed probes draw each note in slowly and out slowly, like a bow.' },
   'home.off.envelopeDescription.hammered': { human: 'Hammered probes switch each note on and off: a hard start, a dead stop.' },
   'home.off.envelopeDescription.breathing': { human: 'Breathing probes sigh: each note comes in, gives way, and lingers.' },
-  // Far and Remote were cut at the cut (rungs, docs/reference/THEME_AND_ASPECT_SHEETS.md); Echoing and Half-heard joined
-  // at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9, their sentences the sheets' Promise lines.
   'home.off.distance': { human: 'Distance' },
   'home.off.distance.near': { human: 'Near' },
   'home.off.distance.echoing': { human: 'Echoing' },
@@ -140,8 +131,6 @@ export const home = {
   'home.off.distanceDescription.near': { human: 'Near probes sound close and dry, right at the receiver.' },
   'home.off.distanceDescription.echoing': { human: 'Echoing probes repeat rather than wash: a call, and the call again.' },
   'home.off.distanceDescription.halfHeard': { human: 'Half-heard probes sit near and far at once: half close, half far off.' },
-  // The Voice family (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10; the wireframe's names): its label, three names and four
-  // sentences, as Envelope's and Distance's. STAND-INS for Crawford's pass.
   'home.off.voice': { human: 'Voice' },
   'home.off.voice.glassy': { human: 'Glassy' },
   'home.off.voice.woody': { human: 'Woody' },
@@ -156,8 +145,6 @@ export const home = {
   'home.off.voiceDescription.brassy': { human: 'Brassy probes sound bright, edged and full.' },
   'home.off.voiceDescription.muted': { human: 'Muted probes sound muffled, as if behind a wall.' },
   'home.off.voiceDescription.chiming': { human: 'Chiming probes ring like bells, their partials loud above them.' },
-  // The Motion and Performance families (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b; names and sentences from
-  // docs/reference/THEME_AND_ASPECT_SHEETS.md's Promise lines). STAND-INS until T12 writes the words.
   'home.off.motion': { human: 'Motion' },
   'home.off.motion.gliding': { human: 'Gliding' },
   'home.off.motion.trembling': { human: 'Trembling' },

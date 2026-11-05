@@ -761,7 +761,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 ### Phase 4: Copy and docs
 
-- [ ] **T12: `src/content/copy/home.ts` — the words**
+- [x] **T12: `src/content/copy/home.ts` — the words**
 
   **Description:** Spec §1.8. For every shipped theme: `home.off.theme.<id>` and `home.off.themeDescription.<id>`
   from the sheet's "Promise", one sentence. It may promise what an aspect can override: themes and aspects are
@@ -774,11 +774,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — Crawford. No test file: `src/content/content.test.ts` already guards the key set and passes.
 
   **Acceptance criteria:**
-  - [ ] Every shipped id has its entries; no cut id has one; no entry says "stand-in".
+  - [x] Every shipped id has its entries; no cut id has one; no entry says "stand-in".
 
   **Verification:**
-  - [ ] `npx vitest run src/content src/utils/describeWorld.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/content src/utils/describeWorld.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint E. **Files:** `src/content/copy/home.ts`
 
