@@ -628,7 +628,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S per R-task
 
-- [ ] **L2: the families listen — each option against the row empty**
+- [x] **L2: the families listen — each option against the row empty** (Passed, Crawford, 2026-11-05)
 
   **Description:** Spec §1.7 step 2. Under Classic first, then under the theme the override grid marks as taking the
   most from that family (open question 4): each survivor option on alone, against no pick, in one world. Verdict per
@@ -637,11 +637,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Look (a listen) — Crawford's record.
 
   **Acceptance criteria:**
-  - [ ] Every survivor option has a verdict under both themes.
-  - [ ] Every retune has an R-task with a sheet sentence.
+  - [x] Every survivor option has a verdict under both themes.
+  - [x] Every retune has an R-task with a sheet sentence.
 
   **Verification:**
-  - [ ] As L1's.
+  - [x] As L1's.
 
   **Dependencies:** L1. **Files:** this plan, `src/data/bands/aspects.ts` and the JSON per R-task
 
@@ -734,7 +734,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** the importance test's typed-in Polar Low key list drops both keys and a character test pins their absence,
   both RED first, then green; R5's two band tests replaced; `npm run sketch:bands` re-run.
 
-- [ ] **L3: the risky pairs**
+- [x] **L3: the risky pairs** (Passed, Crawford, 2026-11-05: every sentence survives; see the Listen record)
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on
   (its "Heard first" or "second" key): the theme with that option on, in one world. Verdict: the theme's sentence
@@ -743,19 +743,19 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Look (a listen) — Crawford's record.
 
   **Acceptance criteria:**
-  - [ ] Every marked cell has a verdict; every amended promise is on the sheet.
+  - [x] Every marked cell has a verdict; every amended promise is on the sheet.
 
   **Verification:**
-  - [ ] As L1's.
+  - [x] As L1's.
 
   **Dependencies:** L2. **Files:** this plan, the sheets file, the column files and the JSON per R-task
 
   **Estimated scope:** S per R-task
 
 ### Checkpoint E: the listens
-- [ ] Every survivor theme and option is kept or retuned, none `candidate`, and the listen record is complete.
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean; the JSON is from the final columns.
-- [ ] Reviewed with Crawford. Session ends here.
+- [x] Every survivor theme and option is kept or retuned, none `candidate`, and the listen record is complete.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean; the JSON is from the final columns.
+- [x] Reviewed with Crawford. Session ends here.
 
 ---
 
@@ -876,11 +876,16 @@ The set after L1: Classic, Float, Anchor, Shatter, Undertow, Trench, Tidepool, F
 Field, Beacon, Polar Low. Two sheet promises sit near Classic since the chorus and shift moved, Undertow's "shallow"
 chorus and Floe's "small" shift. He heard both and kept them.
 
-### L2: the families (Crawford, under Classic: passed 2026-11-05)
+### L2: the families (Crawford, passed 2026-11-05)
 
 **Verdict under Classic: every option kept**, with the retunes below: "I've listened to all of the aspects and with
-the tweaks we made along the way I'm happy with them." The second pass (each family under the theme the override grid
-marks as taking the most from it) is not yet heard or waived.
+the tweaks we made along the way I'm happy with them."
+
+**Second pass, every option kept, no R-task.** Each family under the theme that takes the most of its keys (ties broken
+toward the theme whose two Heard lines both lean on the family): Melody under Beacon (all four Melody keys), Envelope
+under Tidepool (all six), Distance under Open Water, Voice under Thicket, Motion under Undertow, Performance under
+Beacon. Crawford, of L2 and L3 together: "everything sounds good, even when it's 'conflicting' it still sounds
+interesting, that's all I care about."
 
 Under Classic only for now (Crawford, 2026-11-04: "I'll be using classic for now"), in Kryndara (`kr1nd4ra`, 12, 68),
 each option's link against the no-pick baseline.
@@ -891,6 +896,24 @@ each option's link against the no-pick baseline.
   then its Accents dropped to 0-30 when the cutting marks silenced Kryndara's slow-attack robots (R4).
 - **Polar Low (a theme, retuned during L2):** its accents and rests eased to 20-40 and 10-45 (R5), then dropped to
   Classic's: "too jittery with them" (R6).
+
+### L3: the risky pairs (Crawford, passed 2026-11-05)
+
+**Verdict: every pair passes, no sheet amended, no R-task.** Crawford: an override that breaks a theme's Heard line
+still sounds interesting, "that's all I care about", so a theme's sentences stand and an aspect is free to undo them.
+That puts the weight on T12's rule that a theme's off-screen sentence promises nothing an aspect can take.
+In Kryndara, each pair's most opposed option(s), beside L2's six second-pass pairs:
+- Float: Steady (its long rests), Tumbling (short phrases), Hammered (arrive slowly, trail long), Brassy (soft round).
+- Anchor: Bowed (lands and stops), Half-heard (dry and close), Gliding and Trembling (nothing slides or wavers).
+- Shatter: Muted (bright crunch), Bowed (hard and short), Near (the rattle behind).
+- Trench: Chiming (the top gone), Sweeping (the slur).
+- Tidepool: Brassy (the droplet), Half-heard (the tiny room).
+- Floe: Woody (the glassy sheen), Plucked (hold and ring long), Tumbling (slow and still).
+- Wreck: Near (the echo that will not die), Tumbling (fixed figures).
+- Undertow: Near (the ripple behind). Open Water: Steady (the silence between). Beacon: Near (its echo).
+- Vent Field: Muted (the resonant peak), Gliding (the sweep), Bowed (short notes), Telegraph (often).
+- Polar Low: Steady (the surges).
+Classic's Heard lines lean on no key; Thicket's lean only on Voice, heard in L2's second pass.
 
 ## As Shipped
 
