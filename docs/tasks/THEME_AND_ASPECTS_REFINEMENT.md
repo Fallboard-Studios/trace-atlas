@@ -876,7 +876,11 @@ The set after L1: Classic, Float, Anchor, Shatter, Undertow, Trench, Tidepool, F
 Field, Beacon, Polar Low. Two sheet promises sit near Classic since the chorus and shift moved, Undertow's "shallow"
 chorus and Floe's "small" shift. He heard both and kept them.
 
-### L2: the families (Crawford, under Classic, in progress)
+### L2: the families (Crawford, under Classic: passed 2026-11-05)
+
+**Verdict under Classic: every option kept**, with the retunes below: "I've listened to all of the aspects and with
+the tweaks we made along the way I'm happy with them." The second pass (each family under the theme the override grid
+marks as taking the most from it) is not yet heard or waived.
 
 Under Classic only for now (Crawford, 2026-11-04: "I'll be using classic for now"), in Kryndara (`kr1nd4ra`, 12, 68),
 each option's link against the no-pick baseline.
