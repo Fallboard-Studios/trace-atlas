@@ -830,7 +830,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S (docs and comments)
 
-- [ ] **T15: `docs/todo/` — roadmap 58 and plan.md**
+- [x] **T15: `docs/todo/` — roadmap 58 and plan.md** (2026-11-05, on `docs/checkpoint-complete-58`)
 
   **Description:** Roadmap 58's entry: "Done — merged via PR #N", the archive move per the todo conventions (the phase
   moves whole to `archive/roadmap-archive.md` with links rebased, a stub with any Open item stays), and plan.md's
@@ -840,10 +840,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Roadmap 58 is archived with every inbound anchor resolving; plan.md no longer lists it.
+  - [x] Roadmap 58 is archived with every inbound anchor resolving; plan.md no longer lists it.
 
   **Verification:**
-  - [ ] A before/after broken-link count over `docs/`. `npm run lint` clean.
+  - [x] A before/after broken-link count over `docs/`. `npm run lint` clean. (658 before, 658 after, the same set; the
+        658 are older links in the archives, none of them roadmap 58's.)
 
   **Dependencies:** T14, the merge. **Files:** `docs/todo/roadmap.md`, `docs/todo/archive/roadmap-archive.md`,
   `docs/todo/plan.md`, `docs/todo/backlog.md`
