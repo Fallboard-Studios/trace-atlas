@@ -1,7 +1,7 @@
 {
  "meta": {
-  "generated": "2026-11-05T00:01:04.710Z",
-  "commit": "2540a5e0",
+  "generated": "2026-11-05T17:06:00.854Z",
+  "commit": "b41a418a",
   "worlds": 300,
   "robotsPerWorld": 12,
   "styles": 300,
@@ -432,8 +432,8 @@
      "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -950,9 +950,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -5581,8 +5581,8 @@
      "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -6093,9 +6093,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -8092,8 +8092,8 @@
      "max": 8
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -8607,9 +8607,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -10654,8 +10654,8 @@
      "max": 5
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -11172,9 +11172,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -13233,8 +13233,8 @@
      "max": 85
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -13751,9 +13751,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -15813,8 +15813,8 @@
      "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -16325,9 +16325,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -18367,8 +18367,8 @@
      "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -18885,9 +18885,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -20947,8 +20947,8 @@
      "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -21465,9 +21465,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -23528,8 +23528,8 @@
      "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -24046,9 +24046,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -26103,8 +26103,8 @@
      "max": 90
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -26621,9 +26621,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -28687,8 +28687,8 @@
      "max": 10
     },
     "robot.accents": {
-     "min": 20,
-     "max": 60
+     "min": 0,
+     "max": 30
     },
     "robot.waveform": {
      "weights": {
@@ -29205,9 +29205,9 @@
     },
     "robot.accents": {
      "n": 3600,
-     "low": 20,
-     "median": 40,
-     "high": 60
+     "low": 0,
+     "median": 15,
+     "high": 30
     },
     "robot.waveform": {
      "n": 14400,
@@ -46731,60 +46731,60 @@
  },
  "timings": {
   "classic": {
-   "robotRosterMs": 5.414,
-   "worldSeedMs": 1.303
-  },
-  "float": {
-   "robotRosterMs": 5.549,
-   "worldSeedMs": 1.298
-  },
-  "anchor": {
-   "robotRosterMs": 5.343,
-   "worldSeedMs": 1.278
-  },
-  "shatter": {
-   "robotRosterMs": 5.525,
-   "worldSeedMs": 1.259
-  },
-  "undertow": {
-   "robotRosterMs": 5.805,
-   "worldSeedMs": 1.303
-  },
-  "trench": {
-   "robotRosterMs": 5.575,
-   "worldSeedMs": 1.304
-  },
-  "tidepool": {
-   "robotRosterMs": 5.379,
-   "worldSeedMs": 1.265
-  },
-  "floe": {
-   "robotRosterMs": 5.41,
-   "worldSeedMs": 1.284
-  },
-  "thicket": {
-   "robotRosterMs": 5.726,
+   "robotRosterMs": 5.802,
    "worldSeedMs": 1.279
   },
+  "float": {
+   "robotRosterMs": 5.898,
+   "worldSeedMs": 1.347
+  },
+  "anchor": {
+   "robotRosterMs": 5.536,
+   "worldSeedMs": 1.296
+  },
+  "shatter": {
+   "robotRosterMs": 5.604,
+   "worldSeedMs": 1.286
+  },
+  "undertow": {
+   "robotRosterMs": 5.783,
+   "worldSeedMs": 1.249
+  },
+  "trench": {
+   "robotRosterMs": 5.516,
+   "worldSeedMs": 1.241
+  },
+  "tidepool": {
+   "robotRosterMs": 5.148,
+   "worldSeedMs": 1.235
+  },
+  "floe": {
+   "robotRosterMs": 5.327,
+   "worldSeedMs": 1.252
+  },
+  "thicket": {
+   "robotRosterMs": 5.422,
+   "worldSeedMs": 1.217
+  },
   "wreck": {
-   "robotRosterMs": 5.564,
-   "worldSeedMs": 1.273
+   "robotRosterMs": 5.42,
+   "worldSeedMs": 1.267
   },
   "openWater": {
-   "robotRosterMs": 5.48,
-   "worldSeedMs": 1.287
+   "robotRosterMs": 5.3,
+   "worldSeedMs": 1.278
   },
   "ventField": {
-   "robotRosterMs": 5.782,
-   "worldSeedMs": 1.269
+   "robotRosterMs": 5.824,
+   "worldSeedMs": 1.278
   },
   "beacon": {
-   "robotRosterMs": 5.574,
-   "worldSeedMs": 1.297
+   "robotRosterMs": 5.507,
+   "worldSeedMs": 1.245
   },
   "polarLow": {
-   "robotRosterMs": 5.483,
-   "worldSeedMs": 1.295
+   "robotRosterMs": 5.363,
+   "worldSeedMs": 1.245
   }
  }
 }

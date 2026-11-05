@@ -694,6 +694,23 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   8-12 % outer tenth no longer hold: each tenth now expects its own even share); `npm run sketch:bands` re-run.
   `docs/reference/SLIDER_VALUES.md` and `docs/PROCEDURAL_GENERATION.md` amended.
 
+- [x] **R4: Classic's Accents band, 0-30** (L2, under Classic in Kryndara; Crawford, 2026-11-05: "let's reset classic's
+  accent range to min: 0 max: 30")
+
+  **Why:** Kryndara's first three robots (Drift Beacon, Neon Nomad, Neon Courier: copies, slow linear attacks of about
+  1.15 s on eighth and sixteenth notes, Accents 49) played near silent after R3. From 34 the cutting marks unlock
+  (staccato, marcato), R2b's short release drops a cut note to zero, and a slow attack cannot climb back inside the next
+  short note. Under 0-30 Classic only ever draws accent and tenuto, which lengthen nothing away. The cut-release rule
+  itself (R2b) is unchanged; whether it should spare slow attacks is still open.
+  **Keys:** `robot.accents` 20-60 -> 0-30 (`classic.ts`).
+  **Knock-on:** none in the columns (Beacon 0, Undertow's 0-15 and the 70-100 column all still differ). Halting's
+  10-25 and Steady's 0-5 now sit inside Classic's band: they still narrow it, but Halting's accents alone no longer
+  set it apart; heard at the re-listen.
+  **Proof:** the Classic literal in `resolveBands.test.ts` re-pinned RED first, then green; the Performance parity pins
+  (`robotFieldDerivation.test.ts`, `spawnSystem.test.ts`) re-captured from the generator (robot 0's accents 57 -> 28,
+  the same draw at t ~ 0.93); the baseline check that leaned on accents starting above its default 0 now checks dynamics
+  only; `npm run sketch:bands` re-run. `docs/reference/SLIDER_VALUES.md` and `docs/PROCEDURAL_GENERATION.md` amended.
+
 - [ ] **L3: the risky pairs**
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on
@@ -843,7 +860,8 @@ each option's link against the no-pick baseline.
 - **Mechanical:** retuned, R1 (pitch repeat 30-70 -> 70-100).
 - **Performance (Steady, Dramatic, Halting):** "hard to hear". Not the bands: the engine's levers were too weak to
   hear (a mark's lift capped near 2 dB, Dynamics moving at most 30 % of notes, a rest's cut hidden by the release
-  tail). R2, an engine change; the three options are heard again after it.
+  tail). R2, an engine change; the three options are heard again after it. Classic's bands rebalanced after it (R3),
+  then its Accents dropped to 0-30 when the cutting marks silenced Kryndara's slow-attack robots (R4).
 
 ## As Shipped
 
