@@ -311,8 +311,8 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
   // Polar Low (first named Squall, then Abyss): a storm. Naming the Tremolo's rows lights it in every world.
   polarLow: {
     'robot.dynamics': { min: 75, max: 100 }, // wide dynamics: surges and drops
-    'robot.accents': { min: 70, max: 100 }, // hard marks
-    'robot.rests': { min: 35, max: 70 }, // break off in gusts and start again
+    'robot.accents': { min: 20, max: 40 }, // some notes marked, now and then a hard one (R5; was 70-100)
+    'robot.rests': { min: 10, max: 45 }, // break off in gusts and start again (R5; was 35-70)
     'compressor.threshold': { min: -45, max: -35 }, // the master compressor clamps hard: the whole world pumps
     'compressor.ratio': { min: 10, max: 20 }, // clamps hard
     bpm: { min: 120, max: 160 }, // the pulse is fast

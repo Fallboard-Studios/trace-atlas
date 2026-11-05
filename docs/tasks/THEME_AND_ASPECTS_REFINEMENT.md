@@ -711,6 +711,16 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   the same draw at t ~ 0.93); the baseline check that leaned on accents starting above its default 0 now checks dynamics
   only; `npm run sketch:bands` re-run. `docs/reference/SLIDER_VALUES.md` and `docs/PROCEDURAL_GENERATION.md` amended.
 
+- [x] **R5: Polar Low's accents and rests** (L2; Crawford, 2026-11-05: "polar low accents should be min: 20, max: 40",
+  then "polar low rests should be min: 10, max: 45")
+
+  **Keys:** `robot.accents` 70-100 -> 20-40, `robot.rests` 35-70 -> 10-45 (`themes.ts`, Polar Low's column). Both still
+  differ from Classic's (0-30, 0-10), so both stay owned. Under R2's levers 70-100 marked nearly every note, three in
+  five of the marks cutting; 20-40 marks one to two notes in five, the cutting marks only above 34.
+  **Sheet:** the Character, Heard second and `robot.accents` sentences say "now and then a hard mark" for "hard marks".
+  **Proof:** two character tests in `resolveBands.test.ts` (each band pinned), RED first, then green; `npm run
+  sketch:bands` re-run.
+
 - [ ] **L3: the risky pairs**
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on
@@ -862,6 +872,7 @@ each option's link against the no-pick baseline.
   hear (a mark's lift capped near 2 dB, Dynamics moving at most 30 % of notes, a rest's cut hidden by the release
   tail). R2, an engine change; the three options are heard again after it. Classic's bands rebalanced after it (R3),
   then its Accents dropped to 0-30 when the cutting marks silenced Kryndara's slow-attack robots (R4).
+- **Polar Low (a theme, retuned during L2):** its accents and rests eased to 20-40 and 10-45 (R5).
 
 ## As Shipped
 

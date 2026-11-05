@@ -1118,18 +1118,18 @@ is the world, sparser, flat and echoing; Mechanical is one family's point at hig
 **Crawford's mark (2026-11-04).** Renamed Abyss, then Polar Low: Abyss sat too close to Trench, and a polar low is
 "close enough to a storm", so the sheet is otherwise unchanged.
 
-**Character.** A storm. The fleet surges and drops: probes play with wide dynamics and hard marks, break off in gusts
+**Character.** A storm. The fleet surges and drops: probes play with wide dynamics and now and then a hard mark, break off in gusts
 and start again, and the master compressor clamps hard so the whole world pumps with them. The pulse is fast; probes
 speak often, with a wide-ranging pitch and short hard notes; many are sent to the Grit room, so the loud ones tear. Loud,
 with the low band lifted and the field wide.
 
 **Heard first.** The fleet surges and drops: loud bursts, sudden gaps, nothing steady.
-**Heard second.** Hard marks on the notes, and a tearing edge on the loud ones.
+**Heard second.** Now and then a hard mark, and a tearing edge on the loud ones.
 **Heard third.** Fast, wide and low-heavy.
 
 **Keys owned.**
 - `robot.dynamics` — wide dynamics: surges and drops.
-- `robot.accents` — hard marks.
+- `robot.accents` — now and then a hard mark: a few notes marked, the cutting marks rare.
 - `robot.rests` — break off in gusts and start again.
 - `compressor.threshold` — the master compressor clamps hard: the whole world pumps.
 - `compressor.ratio` — clamps hard.

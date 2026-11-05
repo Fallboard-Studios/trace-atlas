@@ -976,6 +976,16 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
     expect(melodyColumn('mechanical')['robot.pitchRepeat']).toStrictEqual({ min: 70, max: 100 });
   });
 
+  // L2 R5 (Crawford, 2026-11-05): the storm's marks and gaps come and go (were 70-100, nearly every note marked, and
+  // 35-70 rests).
+  it('Polar Low marks some notes, not most: its accents band is 20-40', () => {
+    expect(themeColumn('polarLow')['robot.accents']).toStrictEqual({ min: 20, max: 40 });
+  });
+
+  it('Polar Low breaks off in gusts, not on most notes: its rests band is 10-45', () => {
+    expect(themeColumn('polarLow')['robot.rests']).toStrictEqual({ min: 10, max: 45 });
+  });
+
   it('Wandering roams: high variance (6-8), low to medium density (at most 50), the motif mostly off', () => {
     const wandering = melodyColumn('wandering');
     expect(wandering['robot.noteVariance']!.min).toBeGreaterThanOrEqual(6);
