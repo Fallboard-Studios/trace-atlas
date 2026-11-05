@@ -114,6 +114,7 @@ function changeTheme(column: ThemeColumn) {
     portamento: vi.spyOn(AudioEngine, 'updateVoicePortamento').mockImplementation(() => {}),
     sends: vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {}),
     rebuild: vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true),
+    volume: vi.spyOn(AudioEngine, 'updateRobotMasterVolume').mockImplementation(() => {}),
     link: vi.spyOn(lfoEngine, 'linkTarget').mockImplementation(() => true),
   };
   const dropped: string[] = [];
@@ -239,14 +240,25 @@ describe('rederiveLoading: every widened robot key is compared and pushed (theme
     expect(fresh.lfoLinks!['layer0.gain']).not.toEqual(robot.lfoLinks!['layer0.gain']); // precondition
   });
 
-  it('robot.masterVolume: the field alone, the voice rebuilt once per moved robot at its new volume, the volume swell dropped', () => {
+  it('robot.masterVolume: the field alone, written live once per moved robot (the Volume edit), no rebuild, the volume swell dropped', () => {
     const result = changeTheme({ 'robot.masterVolume': { min: 0.3, max: 0.35 } });
     const moved = expectFieldAlone(result, (r) => r.masterVolume, (_, f) => ({ masterVolume: f.masterVolume }));
-    expect(result.spies.rebuild.mock.calls.map(([id]) => id).sort()).toEqual(ids(moved));
+    expect(result.spies.volume.mock.calls.map(([id]) => id).sort()).toEqual(ids(moved));
+    for (const [id, volume] of result.spies.volume.mock.calls) {
+      expect(volume).toBe(result.after.find((r) => r.id === id)!.masterVolume);
+    }
+    expect(result.spies.rebuild).not.toHaveBeenCalled();
+    expect(result.dropped.sort()).toEqual(moved.map((r) => `${r.id}:volume`).sort());
+  });
+
+  it('robot.masterVolume beside a Voice key: the rebuild reserves the new volume, so no live write as well', () => {
+    const result = changeTheme({ 'robot.masterVolume': { min: 0.3, max: 0.35 }, 'robot.detune': { min: 15, max: 20 } });
+    const rebuilt = new Set(result.spies.rebuild.mock.calls.map(([id]) => id));
+    expect(rebuilt.size, 'a robot the detune rebuilds').toBeGreaterThan(0);
     for (const [id, robot] of result.spies.rebuild.mock.calls) {
       expect(robot!.masterVolume).toBe(result.after.find((r) => r.id === id)!.masterVolume);
     }
-    expect(result.dropped.sort()).toEqual(moved.map((r) => `${r.id}:volume`).sort());
+    expect(result.spies.volume.mock.calls.filter(([id]) => rebuilt.has(id))).toEqual([]);
   });
 
   it('robot.octaveRegister: the register (and the volume its bias moves) with the melody, regenerated once per moved robot', () => {

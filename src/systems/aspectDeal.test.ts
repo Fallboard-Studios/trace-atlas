@@ -361,13 +361,16 @@ describe('applyAspectDeal: the attack rail', () => {
     vi.restoreAllMocks();
   });
 
-  it('Tumbling dealt with Bowed: every robot dealt both draws under its attack\'s cap, not Tumbling\'s 85-100', () => {
+  it('Tumbling dealt with Bowed: every robot dealt both draws its attack\'s cap, Tumbling\'s 85-100 collapsed onto it', () => {
     const robots = buildWorld({ theme: 'classic', aspects: { melody: ['tumbling'], envelope: ['bowed'] } });
     const both = robots.filter((r) => r.loadedUnder?.melody === 'tumbling' && r.loadedUnder?.envelope === 'bowed');
     expect(both.length).toBeGreaterThan(0);
     for (const robot of both) {
       expect(capOf(robot)).toBeLessThan(85); // precondition: Bowed's slowest attack sits under Tumbling's band
-      expect(robot.rhythmicDensity, robot.name).toBeLessThanOrEqual(capOf(robot));
+      // Tumbling's band collapses onto the cap, so the draw is the cap itself: a re-draw under Classic's band (the
+      // theme's, the Envelope-only path) would land anywhere below it.
+      const cap = audibleDensityBand({ min: 0, max: 100 }, robot.audioAttributes.adsr.attack, CLASSIC.bpm).max;
+      expect(robot.rhythmicDensity, robot.name).toBe(Math.round(cap));
     }
   });
 
