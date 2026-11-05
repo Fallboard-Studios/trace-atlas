@@ -44,6 +44,8 @@ import {
   SEND_DISPLAY_SCALE,
   SEND_STEP_PERCENT,
   ENVELOPE_TIME_MAX_SECONDS,
+  ENVELOPE_ATTACK_MIN_SECONDS,
+  ENVELOPE_RELEASE_MIN_SECONDS,
   PORTAMENTO_MIN,
   PORTAMENTO_MAX,
   ROBOT_BUS_FILTER_FREQ_RANGE,
@@ -355,7 +357,7 @@ export const ATTACK_SCHEMA: SliderLogSchema = {
   id: 'robotOptions.attack',
   type: 'sliderLog',
   ...labels('probe.envelope.attack'),
-  min: 0,
+  min: ENVELOPE_ATTACK_MIN_SECONDS,
   max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };
@@ -387,7 +389,7 @@ export const RELEASE_SCHEMA: SliderLogSchema = {
   id: 'robotOptions.release',
   type: 'sliderLog',
   ...labels('probe.envelope.release'),
-  min: 0,
+  min: ENVELOPE_RELEASE_MIN_SECONDS,
   max: ENVELOPE_TIME_MAX_SECONDS,
   orientation: 'horizontal',
 };

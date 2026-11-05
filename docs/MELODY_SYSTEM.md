@@ -249,12 +249,13 @@ at 60.
 - **Rest.** With `restChance = rests / PERFORMANCE_MAX` and `restDepth = REST_MIN_FRACTION + REST_SPAN · restChance`, an event
   whose `restRoll` is under `restChance` gets `rest = REST_MIN_FRACTION + restDepthRoll · (restDepth − REST_MIN_FRACTION)`: at a
   low setting a rested note loses about a quarter of its length; at 100 it may lose up to three quarters. A rest is a shortened
-  note, never a skipped one (skipping would be anti-Density).
+  note, never a skipped one (skipping would be anti-Density), and since roadmap 58's R2b it releases short too
+  (`CUT_RELEASE_SECONDS`, 0.03 s), so the gap is heard rather than covered by the robot's release tail.
 - **Mark.** `unlockedMarks(accents)` (`src/engine/articulation.ts`) opens the five classical marks in tiers — below `ACCENT_TIER_2`
   (34) `accent` and `tenuto`; below `ACCENT_TIER_3` (67) also `staccato` and `marcato`; from 67 `staccatissimo` too — and an event
   whose `markRoll` is under `accents / PERFORMANCE_MAX` takes `kinds[floor(markPickRoll · kinds.length)]`. `ARTICULATION_MARKS`
-  holds each mark's velocity and length factors (accent 1.25 × 1, marcato 1.4 × 0.75, staccato 1 × 0.5, staccatissimo 1 × 0.25,
-  tenuto 1.1 × 1).
+  holds each mark's velocity and length factors (accent 1.5 × 1, marcato 1.65 × 0.75, staccato 1 × 0.5, staccatissimo 1 × 0.25,
+  tenuto 1.2 × 1; the velocities raised from 1.25, 1.4 and 1.1 at roadmap 58's R2a).
 - **Both on one event.** `resolveArticulation(event)` lets the shorter of the rest remainder and the mark's length win, and a
   `tenuto` cancels the rest.
 
@@ -265,7 +266,7 @@ imply. A restored session regenerates and therefore re-stamps (SESSION_STORAGE.m
 ## Constants of Interest
 
 - `PERFORMANCE_MIN = 0`, `PERFORMANCE_MAX = 100` (`src/constants/index.ts`) — the shared range of Dynamics, Rests and Accents.
-- `DEFAULT_DYNAMICS = 50`, `DEFAULT_RESTS = 0`, `DEFAULT_ACCENTS = 0` (`melodyGenerator.ts`) — absence reproduces the pre-50.5 sound exactly.
+- `DEFAULT_DYNAMICS = 50`, `DEFAULT_RESTS = 0`, `DEFAULT_ACCENTS = 0` (`melodyGenerator.ts`) — what a robot with the field absent plays (since roadmap 58 R2a, 50 no longer reproduces the pre-50.5 velocity spread: half the notes move by up to ±0.15 around 0.6).
 - `REST_MIN_FRACTION = 0.25`, `REST_SPAN = 0.5` — a rest removes between a quarter and three quarters of the note.
 - `ACCENT_TIER_2 = 34`, `ACCENT_TIER_3 = 67` (`src/engine/articulation.ts`) — where the third and fifth marks unlock.
 

@@ -263,7 +263,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 ### Phase 2: The table (`feature/themes-aspects-58`)
 
-- [ ] **T5: `themes.ts` + `resolveBands.test.ts` — `ThemeColumn` is `Partial<BandTable>`**
+- [x] **T5: `themes.ts` + `resolveBands.test.ts` — `ThemeColumn` is `Partial<BandTable>`**
 
   **Description:** Spec §1.5, widening. Delete `ThemeBandKey`; `ThemeColumn = Partial<BandTable>`. Rewrite the
   `themes.ts` header and `ThemeColumn` comments to cite this spec and say the v1 list went with the interview. Update
@@ -291,7 +291,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S
 
-- [ ] **T6: `aspectDeal.ts` — every survivor robot key is compared and pushed on a loading change**
+- [x] **T6: `aspectDeal.ts` — every survivor robot key is compared and pushed on a loading change**
 
   **Description:** Spec §1.5, "what a widened key costs". For each robot key in T4's survivor table that `movedFields`
   does not compare today, add the comparison and the push, per the Architecture Decisions table:
@@ -333,7 +333,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (one module and its test; a case per key)
 
-- [ ] **T7a: `robotFieldDerivation.ts` + `spawnSystem.ts` — the new family's derive function, with Classic parity**
+- [x] **T7a: `robotFieldDerivation.ts` + `spawnSystem.ts` — the new family's derive function, with Classic parity**
   *(only if T4 kept Motion or Performance, or replaced Distance)*
 
   **Description:** Spec §1.5, the fifth-family table. Lift the draws the new family's keys make into one
@@ -369,7 +369,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (two modules and a test; the riskiest code task)
 
-- [ ] **T7b: `aspects.ts` + `aspectDeal.ts` + `loadingNames.ts` + `home.ts` — the family wired through**
+- [x] **T7b: `aspects.ts` + `aspectDeal.ts` + `loadingNames.ts` + `home.ts` — the family wired through**
   *(only with T7a)*
 
   **Description:** Add the family to `ASPECT_FAMILY_IDS` (position per Crawford at Checkpoint B, default last) and
@@ -404,7 +404,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (five files, mostly guided by the compiler)
 
-- [ ] **T7c: the carriers' tests — link, payload, rows, Loaded Under**
+- [x] **T7c: the carriers' tests — link, payload, rows, Loaded Under**
   *(only with T7b)*
 
   **Description:** No source change expected (spec §2's last paragraph). Extend the tests that enumerate families so
@@ -432,7 +432,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S (tests only)
 
-- [ ] **T8: `themes.ts` (+ `classic.ts` if a Classic sheet owns a key) — the survivor theme columns, first cut**
+- [x] **T8: `themes.ts` (+ `classic.ts` if a Classic sheet owns a key) — the survivor theme columns, first cut**
 
   **Description:** Spec §1.5, "Columns". Replace the five current columns with one per survivor theme (renamed ids per
   T4), each key with a comment citing the sheet line that needs it, every number marked "first cut, T10 measures, L1
@@ -467,7 +467,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** M (data, but every number cited)
 
-- [ ] **T9: `aspects.ts` — the survivor option columns, first cut**
+- [x] **T9: `aspects.ts` — the survivor option columns, first cut**
 
   **Description:** One column per survivor option in every family (renamed ids per T4), each key cited to its sheet
   line, every number marked first cut. Cut options go; new ones come in with their content stand-ins. A family's key
@@ -497,18 +497,34 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Estimated scope:** M
 
 ### Checkpoint C: the table stands
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (any pre-existing failure named).
-- [ ] Classic spawn is byte for byte what it was, or moved once for a named Classic sheet key (the fixtures say which).
-- [ ] Every survivor column's keys are its sheet's; every robot key has a compared-and-pushed path (T6's cases).
-- [ ] If a derive function was added: `generateRobotRosterBaseline(noiseMap, 12)` re-timed as T18 did; still under
-      the 16 ms line.
-- [ ] Reviewed with Crawford. Session ends here.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (any pre-existing failure named). (At T9: 13,521 passed;
+      lint 0 errors, its 4 warnings standing before this phase.)
+- [x] Classic spawn is byte for byte what it was, or moved once for a named Classic sheet key (the fixtures say which).
+      (No Classic sheet key; the parity literal and the spawn fixtures pass unmodified.)
+- [x] Every survivor column's keys are its sheet's; every robot key has a compared-and-pushed path (T6's cases).
+- [x] If a derive function was added: `generateRobotRosterBaseline(noiseMap, 12)` re-timed as T18 did; still under
+      the 16 ms line. (See the re-time below.)
+- [x] Reviewed with Crawford. Session ends here. (Passed, Crawford, 2026-11-03. Next: T10, in a fresh session.)
+- Crawford's answers (2026-11-03): a lit share of 0 as a column's "none" is fine; an off share of 1 as "always off"
+  (and the `seedToggleValue` guard) is fine; a theme forcing more than two pedals lights them all and no coin pedal, as
+  built; `scripts/sketch` is type-checked (T10 adds it to a tsconfig include).
+- **The re-time (2026-11-03, the desktop, non-essentials shut down).** EVEN_SEEDED_DRAWS T0's recipe: median of 200
+  runs after 20 warm-ups, a different world each run, three runs, under Classic and three themes that move the most
+  (Shatter, Tide, Squall). A temporary `src/utils/zzTime.test.ts`, deleted after the run.
+
+  | Generator | T18 (after Even Seeded Draws) | Now: Classic | Shatter | Tide | Squall |
+  |---|---|---|---|---|---|
+  | `generateRobotRosterBaseline(noiseMap, 12)` | 5.60 ms | 5.61–5.79 ms | 5.62–5.70 ms | 5.84–5.90 ms | 5.66–5.86 ms |
+  | `generateWorldSeedBaseline` | 1.25 ms | 1.21–1.26 ms | 1.24 ms | 1.25–1.26 ms | 1.23–1.29 ms |
+
+  T7a's two derive functions and the themes cost nothing measurable (within 0.3 ms of T18, run to run); both stay about
+  a third of the 16 ms stop line, so no cache.
 
 ---
 
 ### Phase 3: The measured sketch and the listens
 
-- [ ] **T10: `scripts/sketch/measureBands.harness.ts` + `vitest.sketch.config.ts` + `package.json` — the harness**
+- [x] **T10: `scripts/sketch/measureBands.harness.ts` + `vitest.sketch.config.ts` + `package.json` — the harness**
 
   **Description:** The committed T18 recipe (Architecture Decisions). For every survivor theme: `withLoading({ theme,
   aspects: {} })`, 300 locales × 12 robots through `generateRobotAudioBaseline`, and 300 style names through
@@ -522,28 +538,28 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   `scripts/sketch/**/*.harness.ts` only. Verified against the repo: `vitest.config.ts` includes only
   `src/**/*.{test,spec}.{ts,tsx}` and `scripts/**/*.{test,spec}.mjs`, and `eslint.config.js`'s text-read rule has the
   same globs, so the harness is outside both. `tsconfig.app.json` includes only `src`, so `npm run build:types` does
-  not type-check the harness; vitest strips its types at run time. Add `scripts/sketch` to a tsconfig include only if
-  Crawford wants it type-checked (ask at Checkpoint C).
+  not type-check the harness; vitest strips its types at run time. Add `scripts/sketch` to a tsconfig include so
+  `npm run build:types` checks the harness (Crawford, Checkpoint C, 2026-11-03: yes).
 
   **Proof:** Run — `npm run sketch:bands` writes the JSON; `npm test` does not run the harness (its file count is
   unchanged).
 
   **Acceptance criteria:**
-  - [ ] The JSON has an entry for every survivor theme and option and every key its column moves, with written and
+  - [x] The JSON has an entry for every survivor theme and option and every key its column moves, with written and
         realised values.
-  - [ ] Under Classic the realised robot spread matches T18's after-table within sampling noise (a sanity check by eye).
-  - [ ] `npm run lint` is clean with the harness in place (the file is not a test, so the text-read rule does not
+  - [x] Under Classic the realised robot spread matches T18's after-table within sampling noise (a sanity check by eye).
+  - [x] `npm run lint` is clean with the harness in place (the file is not a test, so the text-read rule does not
         fire; if it does, the file moves, not the rule).
 
   **Verification:**
-  - [ ] `npm run sketch:bands`; `npm test` file count unchanged; `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run sketch:bands`; `npm test` file count unchanged; `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint C. **Files:** `scripts/sketch/measureBands.harness.ts`, `vitest.sketch.config.ts`,
   `package.json`, `docs/sketches/data/theme-and-aspect-sketch.json`
 
   **Estimated scope:** M (one script, a config, a script entry, the data)
 
-- [ ] **T11: `docs/sketches/theme-and-aspect-sketch.html` — the page**
+- [x] **T11: `docs/sketches/theme-and-aspect-sketch.html` — the page**
 
   **Description:** Spec §1.6. Static HTML and a little JS reading the JSON (relative path), following the sketch page
   rules (each frame `section.frame` with a sticky `div.bar` holding the h2 and its options; page-wide toggles in the
@@ -557,23 +573,37 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   glance; the page has no numbers the JSON did not supply.
 
   **Acceptance criteria:**
-  - [ ] The three frames render from the committed JSON with no server.
-  - [ ] `SHEET_KEYS` equals the sheets file's "Keys owned" lists (read side by side).
+  - [x] The three frames render from the committed JSON with no server.
+  - [x] `SHEET_KEYS` equals the sheets file's "Keys owned" lists (read side by side).
 
   **Verification:**
-  - [ ] The Look, recorded in the commit. `npm run lint` clean (the page is not linted; nothing else changed).
+  - [x] The Look, recorded in the commit. `npm run lint` clean (the page is not linted; nothing else changed).
 
   **Dependencies:** T10. **Files:** `docs/sketches/theme-and-aspect-sketch.html`
 
   **Estimated scope:** M (one page)
 
 ### Checkpoint D: the look
-- [ ] Crawford opens the sketch. Every realised spread is its written band; every promised overlap is in the grid;
+- [x] Crawford opens the sketch. Every realised spread is its written band; every promised overlap is in the grid;
       the coverage frame has no marked row, or each marked row is fixed on the sheet or in the column first.
-- [ ] The three listen worlds confirmed (open question 3).
-- [ ] Session ends here.
+      (The look: "seems fine". `robot.masterVolume`'s mark stands by Crawford's call; Trench's grid mark fixed on the
+      sheet; coverage had none.)
+- [x] The three listen worlds confirmed (open question 3). (The three presets, as answered.)
+- [x] Session ends here. (Passed, Crawford, 2026-11-03. Next: L1, the themes listen.)
+- Crawford's answers (2026-11-03):
+  - **`robot.masterVolume` stays as built** ("I'm fine with it"). `masterVolumeFrom`'s register bias and its
+    0.5-0.95 clamp keep reaching past a theme's written band: a bass robot plays louder and a treble one quieter than
+    the band says, and Open Water's 0.45 floor is never reached. The sketch keeps marking the three cells; they are
+    known, not a fault.
+  - **Trench's Overlaps fixed** ("yes"): the sheet now says Performance would take `robot.rests`, the gaps, and the
+    gaps leave the survivor sentence. The page's `SHEETS` entry carries the same text. Proof: Read, and the page
+    rendered again in headless Chrome from file://: the grid has no marked cell, the spread one marked row
+    (`robot.masterVolume`, three cells), coverage none.
+  - **The theme for the family listens** (open question 4): the default stands for now, Classic then the grid's
+    riskiest theme; Crawford may name a different one at L2 ("we'll see").
 
-- [ ] **L1: the themes listen — three worlds × every survivor theme, no aspect**
+- [x] **L1: the themes listen — three worlds × every survivor theme, no aspect** (Passed, Crawford, 2026-11-04: "they
+  all sound great". Next: L2.)
 
   **Description:** Spec §1.7 step 1. A fixed listen sheet appended to this plan under "Listen record": per world, per
   theme, what was heard first, second and third against the sheet, and a verdict (keep, retune, cut). Two themes
@@ -584,19 +614,21 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Look (a listen) — Crawford's record.
 
   **Acceptance criteria:**
-  - [ ] Every survivor theme has a verdict on each of the three worlds.
-  - [ ] Every retune has an R-task with a sheet sentence; no number moved without one.
+  - [x] Every survivor theme has a verdict on each of the three worlds. (One verdict for the set, not per world: all
+        fourteen kept. See the Listen record.)
+  - [x] Every retune has an R-task with a sheet sentence; no number moved without one. (No R-task: the numbers that
+        moved during the listen were Crawford's own calls, not sheet retunes, each in "As Shipped" under "Before L1".)
 
   **Verification:**
-  - [ ] After the last R-task: `npx vitest run src/data/bands`, `npm run sketch:bands`, `npm run build:types`,
-        `npm run lint` clean.
+  - [x] After the last change (12535107): `npx vitest run src/data/bands`, `npm run sketch:bands`, `npm run
+        build:types`, `npm run lint` clean; full suite 13,522 passed.
 
   **Dependencies:** Checkpoint D. **Files:** this plan (the record), `src/data/bands/themes.ts` and the JSON per
   R-task
 
   **Estimated scope:** S per R-task
 
-- [ ] **L2: the families listen — each option against the row empty**
+- [x] **L2: the families listen — each option against the row empty** (Passed, Crawford, 2026-11-05)
 
   **Description:** Spec §1.7 step 2. Under Classic first, then under the theme the override grid marks as taking the
   most from that family (open question 4): each survivor option on alone, against no pick, in one world. Verdict per
@@ -605,17 +637,104 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Look (a listen) — Crawford's record.
 
   **Acceptance criteria:**
-  - [ ] Every survivor option has a verdict under both themes.
-  - [ ] Every retune has an R-task with a sheet sentence.
+  - [x] Every survivor option has a verdict under both themes.
+  - [x] Every retune has an R-task with a sheet sentence.
 
   **Verification:**
-  - [ ] As L1's.
+  - [x] As L1's.
 
   **Dependencies:** L1. **Files:** this plan, `src/data/bands/aspects.ts` and the JSON per R-task
 
   **Estimated scope:** S per R-task
 
-- [ ] **L3: the risky pairs**
+- [x] **R1: Mechanical's pitch repeat** (L2, under Classic in Kryndara; Crawford, 2026-11-04)
+
+  **Sheet sentence:** `robot.pitchRepeat` — "comes round on the same notes most of the time" (amended from "returns to a
+  note about as often as it leaves it", which the old band encoded; the Character line amended to match).
+  **Key:** `robot.pitchRepeat`, 30-70 -> 70-100. **Proof:** a RED character test in `resolveBands.test.ts` ("Mechanical
+  returns to its notes most of the time"), then green; kind-and-bounds and key-set tests pass; `npm run sketch:bands`
+  re-run and the JSON recommitted.
+
+- [x] **R2: Performance you can hear** (L2, under Classic in Kryndara; Crawford, 2026-11-04: "the items in performance
+  are hard to hear", then "let's go straight to number 1")
+
+  **Why:** the bands are not the problem, the engine's levers are. A mark's lift stopped at the velocity ceiling (an
+  accent took 0.8 to 1.0, about 2 dB, and marcato hit the same ceiling); Dynamics 100 varied only 30 % of notes; and a
+  rest or a staccato only shortened the held part, so the full release tail still sounded (Classic's release runs to
+  2 s). Dramatic and Halting were already near their ends of the slider. An engine change, every world and every
+  robot: it amends Robot Performance (roadmap 50.5) assumptions 6 and 7, recorded here and in `docs/AUDIO_SYSTEM.md`,
+  the spec left as history. Pre-v1: no keep-the-old-sound clause.
+
+  - [x] **R2a: velocity.** `NOTE_VELOCITY_BASELINE` 0.8 -> 0.6 (about 2.5 dB quieter fleet-wide, Volume untouched).
+    Marks (`articulation.ts`): accent x1.25 -> x1.5, marcato x1.4 -> x1.65, tenuto x1.1 -> x1.2, so each lands under
+    the ceiling from the baseline (0.9, 0.99, 0.72). Dynamics `d`: the rate is `d / 100` (every note at 100, half at
+    50, none at 0) and the width `0.3 * d / 100` (±0.3 at 100: 0.3 to 0.9, about -6 to +3.5 dB). **Proof:** RED tests
+    in `AudioEngine.test.ts` (the baseline, the rate at 100 and at 50, the width) and `articulation.test.ts` (each
+    mark's lift lands under the ceiling), then green; the existing oracles re-pinned to the new formula. Mutants
+    (rate back to 0.3, width back to 0.25) each fail the Dynamics tests. `docs/AUDIO_SYSTEM.md`'s Velocity and marks
+    steps and `docs/MELODY_SYSTEM.md`'s mark factors amended.
+  - [x] **R2b: a cut note stops.** An event whose sounding length is cut (a rest, staccato, staccatissimo, marcato:
+    `resolveArticulation(...).length < 1`) releases in `CUT_RELEASE_SECONDS` (0.03, above the 20 ms floor), or the
+    robot's own release if that is shorter. The playback loop passes it on `NoteParams.release`; the composite voice
+    sets each layer's `envelope.release` for that one trigger and restores it (Tone reads it when the release is
+    scheduled), so the shared envelope, the swells and `written` never see it. **Proof:** RED tests in
+    `AudioEngine.test.ts` (a rested event schedules with the short release, an unstamped or tenuto one with none) and
+    `compositeVoice.test.ts` (the layer's release during the trigger, restored after, also when the trigger throws), then green. Mutants (no restore, no `min` with the robot's release, the release not forwarded by `scheduleNote`) each fail. `docs/AUDIO_SYSTEM.md` and `docs/MELODY_SYSTEM.md` amended.
+
+- [x] **R3: Classic's Performance bands, after R2** (L2, under Classic in Kryndara; Crawford, 2026-11-04: "to make up
+  for the new change, classic should have dynamics: min: 60, max 80; rests: min: 0, rest max: 10; accents: min: 20,
+  max: 60")
+
+  **Keys:** `robot.dynamics` 25-75 -> 60-80, `robot.rests` 10-60 -> 0-10, `robot.accents` 20-80 -> 20-60 (`classic.ts`).
+  **Knock-on:** Beacon's `robot.rests` (0-10, "few gaps") now equalled Classic's, a key moved for nothing, so it is
+  dropped from Beacon's column and its sheet moves the key to "Leaves alone" (Classic's own band now leaves few gaps).
+  **Proof:** the Classic literal in `resolveBands.test.ts` re-pinned RED first, then green; the Performance parity pins
+  (`robotFieldDerivation.test.ts`, `spawnSystem.test.ts`) re-captured from the generator (robot 0's dynamics 42 -> 67, the
+  same draw at t ~ 0.34); the spread tests made integer-aware (Rests 0-10 has eleven values, so "20 distinct" and a fixed
+  8-12 % outer tenth no longer hold: each tenth now expects its own even share); `npm run sketch:bands` re-run.
+  `docs/reference/SLIDER_VALUES.md` and `docs/PROCEDURAL_GENERATION.md` amended.
+
+- [x] **R4: Classic's Accents band, 0-30** (L2, under Classic in Kryndara; Crawford, 2026-11-05: "let's reset classic's
+  accent range to min: 0 max: 30")
+
+  **Why:** Kryndara's first three robots (Drift Beacon, Neon Nomad, Neon Courier: copies, slow linear attacks of about
+  1.15 s on eighth and sixteenth notes, Accents 49) played near silent after R3. From 34 the cutting marks unlock
+  (staccato, marcato), R2b's short release drops a cut note to zero, and a slow attack cannot climb back inside the next
+  short note. Under 0-30 Classic only ever draws accent and tenuto, which lengthen nothing away. The cut-release rule
+  itself (R2b) is unchanged; whether it should spare slow attacks is still open.
+  **Keys:** `robot.accents` 20-60 -> 0-30 (`classic.ts`).
+  **Knock-on:** none in the columns (Beacon 0, Undertow's 0-15 and the 70-100 column all still differ). Halting's
+  10-25 and Steady's 0-5 now sit inside Classic's band: they still narrow it, but Halting's accents alone no longer
+  set it apart; heard at the re-listen.
+  **Proof:** the Classic literal in `resolveBands.test.ts` re-pinned RED first, then green; the Performance parity pins
+  (`robotFieldDerivation.test.ts`, `spawnSystem.test.ts`) re-captured from the generator (robot 0's accents 57 -> 28,
+  the same draw at t ~ 0.93); the baseline check that leaned on accents starting above its default 0 now checks dynamics
+  only; `npm run sketch:bands` re-run. `docs/reference/SLIDER_VALUES.md` and `docs/PROCEDURAL_GENERATION.md` amended.
+
+- [x] **R5: Polar Low's accents and rests** (L2; Crawford, 2026-11-05: "polar low accents should be min: 20, max: 40",
+  then "polar low rests should be min: 10, max: 45")
+
+  **Keys:** `robot.accents` 70-100 -> 20-40, `robot.rests` 35-70 -> 10-45 (`themes.ts`, Polar Low's column). Both still
+  differ from Classic's (0-30, 0-10), so both stay owned. Under R2's levers 70-100 marked nearly every note, three in
+  five of the marks cutting; 20-40 marks one to two notes in five, the cutting marks only above 34.
+  **Sheet:** the Character, Heard second and `robot.accents` sentences say "now and then a hard mark" for "hard marks".
+  **Proof:** two character tests in `resolveBands.test.ts` (each band pinned), RED first, then green; `npm run
+  sketch:bands` re-run.
+
+- [x] **R6: Polar Low leaves accents and rests to Classic** (L2; Crawford, 2026-11-05, after hearing R5: "let's get rid
+  of rests and accents for polar low. too jittery with them.")
+
+  **Keys:** `robot.accents` and `robot.rests` dropped from Polar Low's column, so a Polar Low world takes Classic's 0-30
+  and 0-10 (read as "drop the keys", not "set them to none": a 0-0 band would be a key owned). The storm's surges are
+  its dynamics (75-100) alone.
+  **Sheet:** Polar Low's Character and Heard lines lose the gaps and marks (Heard first: "loud bursts, sudden lulls";
+  Heard second: "A tearing edge on the loud ones."), both keys move to Leaves alone, and its Overlaps keep only
+  `robot.dynamics`. The sheets that cited Polar Low's gusts follow: Shatter (Overlaps, Distinct from), the Performance
+  family (Overlaps, which also drops Beacon's rests, stale since R3) and Dramatic (Overlaps).
+  **Proof:** the importance test's typed-in Polar Low key list drops both keys and a character test pins their absence,
+  both RED first, then green; R5's two band tests replaced; `npm run sketch:bands` re-run.
+
+- [x] **L3: the risky pairs** (Passed, Crawford, 2026-11-05: every sentence survives; see the Listen record)
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on
   (its "Heard first" or "second" key): the theme with that option on, in one world. Verdict: the theme's sentence
@@ -624,28 +743,30 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Look (a listen) — Crawford's record.
 
   **Acceptance criteria:**
-  - [ ] Every marked cell has a verdict; every amended promise is on the sheet.
+  - [x] Every marked cell has a verdict; every amended promise is on the sheet.
 
   **Verification:**
-  - [ ] As L1's.
+  - [x] As L1's.
 
   **Dependencies:** L2. **Files:** this plan, the sheets file, the column files and the JSON per R-task
 
   **Estimated scope:** S per R-task
 
 ### Checkpoint E: the listens
-- [ ] Every survivor theme and option is kept or retuned, none `candidate`, and the listen record is complete.
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean; the JSON is from the final columns.
-- [ ] Reviewed with Crawford. Session ends here.
+- [x] Every survivor theme and option is kept or retuned, none `candidate`, and the listen record is complete.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean; the JSON is from the final columns.
+- [x] Reviewed with Crawford. Session ends here.
 
 ---
 
 ### Phase 4: Copy and docs
 
-- [ ] **T12: `src/content/copy/home.ts` — the words**
+- [x] **T12: `src/content/copy/home.ts` — the words**
 
   **Description:** Spec §1.8. For every shipped theme: `home.off.theme.<id>` and `home.off.themeDescription.<id>`
-  from the sheet's "Promise", one sentence, promising nothing an aspect can override (the sheet's "Overlaps"). For
+  from the sheet's "Promise", one sentence. It may promise what an aspect can override: themes and aspects are
+  starting places, used however a player likes (Crawford, 2026-11-05, removing the old "promise nothing an aspect can
+  override" rule). For
   every family: `home.off.<family>`, its option names, and `home.off.<family>Description.none|<id>`. Remove every
   stand-in and every cut id's entry. Crawford's words where he gave them at the listens; Claude's draft otherwise,
   each marked for his pass in the commit message, not in the file.
@@ -653,18 +774,17 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — Crawford. No test file: `src/content/content.test.ts` already guards the key set and passes.
 
   **Acceptance criteria:**
-  - [ ] Every shipped id has its entries; no cut id has one; no entry says "stand-in".
-  - [ ] Each theme sentence names only keys the theme's sheet owns and no family can take.
+  - [x] Every shipped id has its entries; no cut id has one; no entry says "stand-in".
 
   **Verification:**
-  - [ ] `npx vitest run src/content src/utils/describeWorld.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/content src/utils/describeWorld.test.ts src/components/panels/screen/screens/OffScreen.test.tsx`
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint E. **Files:** `src/content/copy/home.ts`
 
   **Estimated scope:** S
 
-- [ ] **T13: the two grids — "Loading ranges by theme and aspect" rewritten to the shipped set**
+- [x] **T13: the two grids — "Loading ranges by theme and aspect" rewritten to the shipped set**
 
   **Description:** `docs/reference/GLOBAL_CHAIN_GRID.md` §"Loading ranges by theme": every global row any theme
   moves, one column per shipped theme, and the paragraph rewritten (no "v1 key list", no "assumption 16").
@@ -675,17 +795,17 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every column in the grids equals the shipped code, value for value.
-  - [ ] The word "placeholder" is gone from both sections.
+  - [x] Every column in the grids equals the shipped code, value for value.
+  - [x] The word "placeholder" is gone from both sections.
 
   **Verification:**
-  - [ ] Spot-check every number against the source. `npm run lint` clean.
+  - [x] Spot-check every number against the source. `npm run lint` clean.
 
   **Dependencies:** T12. **Files:** `docs/reference/GLOBAL_CHAIN_GRID.md`, `docs/reference/ROBOT_DATA_GRID.md`
 
   **Estimated scope:** S (docs only)
 
-- [ ] **T14: `AUDIO_SYSTEM.md`, `COMPANIES.md`, `UI_SHELL.md`, the code comments — the set as shipped**
+- [x] **T14: `AUDIO_SYSTEM.md`, `COMPANIES.md`, `UI_SHELL.md`, the code comments — the set as shipped**
 
   **Description:** `docs/AUDIO_SYSTEM.md`'s band-table bullet "Themes and aspects": `ThemeColumn` over the whole table,
   the shipped families and options, the derive function per family, the rederive comparison's new fields, the
@@ -698,11 +818,12 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No live doc or comment describes the ten-key list or the placeholder set as current.
-  - [ ] Every named identifier spot-checked against the source.
+  - [x] No live doc or comment describes the ten-key list or the placeholder set as current.
+  - [x] Every named identifier spot-checked against the source.
 
   **Verification:**
-  - [ ] The grep above; `npm run lint` clean.
+  - [x] The grep above; `npm run lint` clean. (Its live hits left are other specs' own "assumption 16", the lore
+        words, and roadmap 58's own problem statement, which T15 archives.)
 
   **Dependencies:** T13. **Files:** `docs/AUDIO_SYSTEM.md`, `docs/COMPANIES.md`, `docs/UI_SHELL.md`, the spec, the
   intent, comments in the five source files
@@ -741,6 +862,61 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
 (Filled in at L1–L3: per world and theme, per option, per pair — what was heard first, second and third against the
 sheet; the verdict; the R-task if any.)
+
+### L1: the themes (Crawford, 2026-11-04)
+
+**Verdict: all fourteen kept**, no R-task: "I'm happy with the themes, they all sound great, and we've made the changes
+I want to make." No pair failed the one-minute test. He gave one verdict for the set rather than a heard-first line per
+world and theme, so there is none to record here. The changes made during the listen, each in "As Shipped" under
+"Before L1":
+- Attack and Release floors, 15 ms and 20 ms (Squall's Glass Nomad clicked), `42223739`.
+- Tide renamed Undertow, `0f12fa84`.
+- Classic's Chorus depth 0.05-0.2 and shift 1-5 Hz, `893f0d1e`.
+- Squall renamed Abyss, then Polar Low, `e5a3cb25` and `12535107`.
+
+The set after L1: Classic, Float, Anchor, Shatter, Undertow, Trench, Tidepool, Floe, Thicket, Wreck, Open Water, Vent
+Field, Beacon, Polar Low. Two sheet promises sit near Classic since the chorus and shift moved, Undertow's "shallow"
+chorus and Floe's "small" shift. He heard both and kept them.
+
+### L2: the families (Crawford, passed 2026-11-05)
+
+**Verdict under Classic: every option kept**, with the retunes below: "I've listened to all of the aspects and with
+the tweaks we made along the way I'm happy with them."
+
+**Second pass, every option kept, no R-task.** Each family under the theme that takes the most of its keys (ties broken
+toward the theme whose two Heard lines both lean on the family): Melody under Beacon (all four Melody keys), Envelope
+under Tidepool (all six), Distance under Open Water, Voice under Thicket, Motion under Undertow, Performance under
+Beacon. Crawford, of L2 and L3 together: "everything sounds good, even when it's 'conflicting' it still sounds
+interesting, that's all I care about."
+
+Under Classic only for now (Crawford, 2026-11-04: "I'll be using classic for now"), in Kryndara (`kr1nd4ra`, 12, 68),
+each option's link against the no-pick baseline.
+- **Mechanical:** retuned, R1 (pitch repeat 30-70 -> 70-100).
+- **Performance (Steady, Dramatic, Halting):** "hard to hear". Not the bands: the engine's levers were too weak to
+  hear (a mark's lift capped near 2 dB, Dynamics moving at most 30 % of notes, a rest's cut hidden by the release
+  tail). R2, an engine change; the three options are heard again after it. Classic's bands rebalanced after it (R3),
+  then its Accents dropped to 0-30 when the cutting marks silenced Kryndara's slow-attack robots (R4).
+- **Polar Low (a theme, retuned during L2):** its accents and rests eased to 20-40 and 10-45 (R5), then dropped to
+  Classic's: "too jittery with them" (R6).
+
+### L3: the risky pairs (Crawford, passed 2026-11-05)
+
+**Verdict: every pair passes, no sheet amended, no R-task.** Crawford: an override that breaks a theme's Heard line
+still sounds interesting, "that's all I care about", so a theme's sentences stand and an aspect is free to undo them.
+The same reading dropped T12's copy rule: a theme's off-screen sentence may promise what an aspect can take
+(Crawford: "themes and aspects are starting places and users can use them however they want").
+In Kryndara, each pair's most opposed option(s), beside L2's six second-pass pairs:
+- Float: Steady (its long rests), Tumbling (short phrases), Hammered (arrive slowly, trail long), Brassy (soft round).
+- Anchor: Bowed (lands and stops), Half-heard (dry and close), Gliding and Trembling (nothing slides or wavers).
+- Shatter: Muted (bright crunch), Bowed (hard and short), Near (the rattle behind).
+- Trench: Chiming (the top gone), Sweeping (the slur).
+- Tidepool: Brassy (the droplet), Half-heard (the tiny room).
+- Floe: Woody (the glassy sheen), Plucked (hold and ring long), Tumbling (slow and still).
+- Wreck: Near (the echo that will not die), Tumbling (fixed figures).
+- Undertow: Near (the ripple behind). Open Water: Steady (the silence between). Beacon: Near (its echo).
+- Vent Field: Muted (the resonant peak), Gliding (the sweep), Bowed (short notes), Telegraph (often).
+- Polar Low: Steady (the surges).
+Classic's Heard lines lean on no key; Thicket's lean only on Voice, heard in L2's second pass.
 
 ## As Shipped
 
@@ -806,7 +982,216 @@ question 7 is answered by the table (no pseudo-family). Lint clean.
 scope. Four new keys remain. Open question 2 takes its default: the harness is committed.
 
 **Next:** Crawford's PR for `docs/sheets-58` (and `docs/intent-themes-aspects-58`); Phase 2 (T5) starts fresh off `main`
-after it merges.
+after it merges. (Merged as PR #599; `feature/themes-aspects-58` branched from it, 2026-11-03.)
+
+**T5 (2026-11-03).** `ThemeBandKey` deleted, `ThemeColumn = Partial<BandTable>`. The RED was the type check: the test
+injects Adventurous with `reverb.decay` and `robot.portamento` as `satisfies ThemeColumn`, which failed `build:types`
+until the widening. The ten-key pin is now one kind-and-bounds check (`bandProblems` in `resolveBands.test.ts`) run over
+every theme and aspect band; its full ranges are a complete record over the robot keys, the tempo and the sends (so a
+new key without a bound does not compile) plus `GLOBAL_AUDIO_SEED_RANGES` for the global rows. The check has negative
+cases of its own, which kill both named mutants (the send clause dropped from the kind check; the global bound skipped).
+One deviation: the acceptance's "checked by hand with a throwaway edit" is held for good as `@ts-expect-error` lines (a
+key outside the table, a plain range on a lit key and on a send, a return level), so `build:types` keeps checking it.
+
+**T6 (2026-11-03).** The four new keys are named `robot.detune`, `robot.octaveRegister`, `humanize` and
+`lfoLink.lpf.frequency`; the table holds 83 bands. `robot.octaveRegister` weighs five register ids, `bass`, `low`, `mid`,
+`high`, `treble` (`src/data/octaveRegisters.ts`, the list moved out of `spawnSystem.ts`), through a `PickBand<O>` made
+generic and one `pickWeighted` the waveform shares; `humanize` and the low-pass tie are `WORLD_RANGE_KEYS` and
+`WORLD_LIT_KEYS` in `bandKeys.ts`. Classic's four bands are today's draws, so spawn is unchanged: the parity rosters
+pass with no value moved. `HUMANIZE_SEED_RANGE` went into the table (its guard in `globalAudioSeed.test.ts` now reads
+Classic's band). Deviations, all from the order of the plan (T6 runs before T7b makes Motion and Performance):
+- **Filing until T7b.** `accents` and the register under Melody (the push `regenerateMelody`); `dynamics` under no
+  family (`null`: the Dynamics edit makes no engine call, so the write is all); `masterVolume` and `lfoLinks` under
+  Voice (`reReserveVoice` reserves at the robot's volume, so the velocity cache follows; then `primeRobotLinks`); the
+  glide under Envelope, whose push now also makes the Portamento edit's live write (`updateVoicePortamento`). T7b refiles
+  the Performance fields and the glide and links under their own families.
+- **`masterVolume` joins `RobotAudioBaseline`**, drawn outside the copy branch as `spawnRobot` draws it
+  (`seedMasterVolume`), so a loading change can compare it. The session diff never reads it (a listening choice). The
+  parity fixtures gained one `masterVolume` per robot, computed with `main`'s formula and checked equal.
+- **A moved register writes `audioAttributes.octaveRange` too** (the body scale reads it), so an untweaked world ends
+  what a fresh build gives; the top-level field carries Melody's push.
+- **Humanize** is drawn per loading in `deriveGlobalHalfMoves` and written through `setHumanize`; a style switch still
+  carries it forward.
+- **The cases are their own file**, `src/systems/aspectDeal.widened.test.ts`, so `aspectDeal.test.ts`'s real-column
+  cases run unmodified. One case I wrote expected an LFO depth key to move only its own targets; the lane tally moves
+  other targets' lanes too, as a fresh build does, so the case now expects every moved target.
+
+**T7a, Motion (2026-11-03).** `deriveMotionFields(noiseMap, offset, bands, priorLaneCounts)` in
+`robotFieldDerivation.ts` composes two lifted pieces, `derivePortamento` and `deriveLfoLinks`, because spawn draws the
+glide inside `generateAudioAttributes` and the links apart (with the roster's lane tally); `generateRobotLfoLinks` stays
+as spawn's wrapper over `deriveLfoLinks` and `currentMotionBands()`. `MotionBandKey` is a plain union in `aspects.ts`
+until T7b makes it the family's key list. The parity fixture (seven fresh robots, two gliders, lit gain, detune and bus
+links) was captured at `b35a8558` before the lift; the spawn fixtures pass unmodified. Five mutants killed (two dataIds
+renamed, either lit ignored, the lane tally mutated in place).
+
+**T7a, Performance (2026-11-03).** `derivePerformanceFields(noiseMap, offset, bands)` draws the three at their own band
+keys as dataIds, as before; `spawnRobot` keeps its alea fallback beside it for a world with no noise map, and
+`PerformanceBandKey` is a plain union until T7b. Parity fixture from the same capture; three mutants killed (a dataId
+renamed, the band ignored, two fields swapped). The plan's "lit share within 3 points" does not apply here (three plain
+ranges); the case checks every value whole and inside its band, both ends reached.
+
+**T7b (2026-11-03).** Motion and Performance are families five and six, their options `{}` until T9, their content
+entries stand-ins marked in `home.ts`. The refiling T6 left for here: `rests` and `accents` under Performance, the glide
+and the links under Motion (Motion's push: the live glide write and `primeRobotLinks`, no rebuild), Envelope's push back
+to the adsr alone. Deviations:
+- **`dynamics` stays filed under no family** in the comparison, not Performance: a dynamics move needs no engine call
+  (the Dynamics edit makes none), so filing it would regenerate a melody for nothing. A Performance *deal* still pushes
+  Performance whole.
+- **One regeneration, not two.** Melody's and Performance's pushes are the same `regenerateMelody`, so a robot dealt
+  both, or a change moving both, regenerated twice; `aspectDeal.test.ts`'s rests case caught it. `pushFamilies` skips
+  Performance's push when Melody's runs.
+- **The Motion deal's lane tally** is the roster before the robot as spawned (undealt), so the baseline, the live deal
+  and a re-derive agree without each robot waiting on the deals before it.
+- **Two OffScreen row pins moved here from T7c** (the family row labels, the description line count), since the suite
+  must pass at this commit; T7c adds the carriers' cases proper.
+Seven mutants killed. Full suite: 13,446 passed; the 3 failures were those two pins and the documented
+`sceneToOrbiterLocal` parallel-run timeout (passes alone).
+
+**T7c (2026-11-03).** No source change. Cases added: the link writes and reads all six families' params, Motion and
+Performance last, and drops another family's id in either (`worldLink.test.ts`); a payload keeps both lists canonical
+(`loadingIdentity.test.ts`); `canonicalAspects` and `canonicalPicks` over six families (`loadingStore.test.ts`); the
+Loaded Under line names them after the four (`RobotScreen.test.tsx`, `CompanyScreen.test.tsx`). The OffScreen row pins
+moved at T7b. RED by reverting `ASPECT_FAMILY_IDS` to four: 8 failures (the 6 cases, the 2 pins).
+
+**T8 (2026-11-03).** Fourteen columns in `themes.ts`, each key commented with its sheet sentence, every number a first
+cut (the file header says so once, not per line); Crawford's "Sketch starting points" taken where given, Float's
+release clamped to the 2 s slider (his 1.5 to 3 s). `resolveBands.test.ts` types each sheet's "Keys owned" in as
+`SHEET_KEYS` and holds every column to it, to the kind-and-bounds check and to "no band equal to Classic's". The lit
+rule is `themeLights(column)` in `themes.ts` (any row of a colour node or of the four dry-chain pedals; the rooms light
+nothing), installed beside the table by the loading context (`isLitByTheme`, restored by `withLoading`) and read at the
+rolls in `generateGlobalAudioSettings`: a named node is lit on top of the character's pick, a named pedal is lit
+whatever its roll and counts against the cap from the start, so a coin pedal lights only while fewer than two are lit
+counting the forced ones. Classic draws, and lights, exactly as before (with nothing forced the AutoWah and Phaser
+never meet the cap). Content: the fourteen names and each sheet's Promise line as the stand-in description (T12 writes
+the words). Deviations:
+- **A lit share of 0 is a column's "none".** T5's check refused lit 0; the sheets ask for none (Float's Grit send,
+  Anchor's glide, detune links and rooms, Tidepool's and Shatter's rooms, Shatter's sweep), and every generator reads
+  lit 0 as never (a roll under 0 never lands, a quiet roll under 1 always does). The check now takes [0, 1]; Classic's
+  own shares stay in (0, 1].
+- **A theme forcing more than two pedals lights them all and no coin pedal.** No real column does (each forces at most
+  one); the case is held on an injected column so the rule has an answer.
+- **Owning a row to light a pedal moves its band.** Tide's `vibrato.wet` and Vent Field's `autoWah.wet` would equal
+  Classic's as written, a no-op the key-set test fails; each is nudged up (0.95 to 1, 0.45 to 0.6).
+- **The test ripple.** Eighteen test files named the old ids; `calm`, `bold`, `perilous` and `adventurous` became
+  `float`, `anchor`, `shatter` and `tide` (a script over quoted ids, object keys, content keys and link params), plus
+  the display names the describeWorld and status-line cases pin. Four cases had leaned on the old columns' contents and
+  were restated: `aspectDeal.test.ts`'s push case now expects Voice's rebuild for exactly the robots whose voice moved
+  (Shatter moves the waveform and the layers), its swell case counts every swellable field (Shatter's detune drops
+  layer swells), its tweak case runs under Trench, and `worldTransition.test.ts`'s "no voice re-reserved" case runs
+  under Beacon, the one survivor naming no Voice key. `globalAudioSeed.test.ts`'s injected Sync-band column names the
+  Chorus rate instead of the Phaser's, since a Phaser row now lights the Phaser.
+- `DEFAULT_LOADING.theme` stays `classic`; the presets carry no theme, so nothing there moved.
+Fourteen mutants killed: the two the task names (a key off a sheet, a band equal to Classic's), a sheet key dropped, a
+band outside its field, the lit rule's six (nothing lit, a room lit, a node ignoring the theme, a named node replacing
+the character, a forced pedal uncounted, unforced or capped), the context's two (lights not installed, not restored)
+and the lit check refusing lit 0. "Not restored" first survived: its case drew `before` after an earlier case's install
+had leaked under the mutant; `before` is now drawn inside an explicit Classic install.
+
+**T9 (2026-11-03).** Twenty-seven option columns in six families (6 / 6 / 3 / 6 / 3 / 3), the new ones after the
+options that stood, in the sheets' order: Melody adds Chanting, Tumbling, Telegraph; Envelope Bowed, Hammered,
+Breathing; Distance is Near, Echoing, Half-heard (`halfHeard`; Far and Remote gone from the ids, the maps and the
+content); Voice adds Brassy, Muted, Chiming; Motion and Performance fill their `{}`. The twelve options that stood keep
+the numbers their listens left: each sheet owns exactly the keys its column already named. Each new key is commented
+with its sheet sentence; every number is a first cut. `resolveBands.test.ts` types each option's "Keys owned" in
+(`OPTION_SHEET_KEYS`) and holds every column to it and to the kind-and-bounds check; per family, no two options equal
+and the key set the union of its sheets; per option, a difference from the theme-less table somewhere (the plan's
+rule, weaker than the themes': an option band equal to Classic's still overrides a theme that moves the key). Content
+stand-ins: the new names and each sheet's Promise line as the sentence. Deviations:
+- **An off share of 1 is a sheet's "always off"** (Tumbling: "never tiles a figure"). T5's check refused it, and
+  `seedToggleValue` divided by zero at a draw of exactly 1 (NaN); the toggle now lands off for any draw when the off
+  share is 1, with cases at both ends of the off share in `robotFieldDerivation.test.ts`, and the check takes [0, 1].
+- **The test ripple.** `far` and `remote` became `echoing` and `halfHeard` in eleven test files (the same script as
+  T8's); two `spawnSystem.test.ts` cases had leaned on Remote's deep sends on every robot and now run under Echoing,
+  with its own bounds; two OffScreen pins on the Melody row's option count moved to six.
+Nine mutants killed: a key off a sheet, a sheet key dropped, two options equal, an option equal to Classic everywhere,
+an option band outside its field, a cut id still listed, a new id out of row order, the toggle guard removed, the off
+share check refusing 1.
+
+**T10 (2026-11-03).** `npm run sketch:bands` runs `scripts/sketch/measureBands.harness.ts` in 183 s on the desktop and
+writes `docs/sketches/data/theme-and-aspect-sketch.json` (900 KB, four significant figures). Per theme: `moves`,
+`lights`, the full written table, every one of the 83 band keys realised over 300 worlds × 12 robots or 300 styles
+(n, low, median, high, and the share or the picks), the override grid, and the per-dataId draw record for the robots
+and the world apart (draw function, n, low / median / high fraction of the band, outer-tenths share, distinct values).
+Per option: its keys, its written bands, and those keys realised under each of the fourteen themes, every robot of the
+same 300 rosters dealt the option. Per theme, the timings. Each band key has a reader over the robot or world fields (a
+record over every robot key, so a new key does not compile until it is read): a shaped stage reads the shaped robots
+and the plain stage the rest; the open cutoff the open robots and the accent rows the accent ones (told apart by the
+bus Q); a Mix row of a node or pedal is a lit share plus the lit worlds' values; the shift its magnitude. Proof (Run):
+the JSON has every survivor theme (14) and option (27) and every key each moves, none missing; `vitest list` finds
+353 files, HEAD's count, none of them the harness; `npm run build:types` and `npm run lint` clean (0 errors, the 4
+standing warnings).
+- **Classic against T18, by eye.** Robots: the even draws' outer tenths 18.2-21.7 % over the 43 dataIds drawn at
+  least 1,000 times (T18: 19.0-20.7 % over ten times the robots), the centred 4.1-4.3 % (T18: 3.9-4.0 %), every draw
+  distinct. The world, 300 styles: 14-26 % even, 4.7-7.0 % on the three EQ bands. Within sampling noise.
+- **Timings** (the harness's own, wrappers installed, 50 runs after 10 warm-ups): the roster 5.2-6.5 ms, the world
+  1.2-1.6 ms across the fourteen themes, as Checkpoint C's re-time.
+- **A finding for Checkpoint D: `robot.masterVolume` never realises its written band.** `masterVolumeFrom`
+  (`spawnSystem.ts`) adds a register bias of up to +0.125 (bass) or -0.075 (treble) after the band draw, then clamps to
+  0.5-0.95: Classic's 0.65-0.85 realises 0.58-0.95, Open Water's 0.45-0.65 realises 0.50-0.77 (its floor cannot be
+  reached), Squall's 0.8-0.95 realises 0.73-0.95. The sketch marks the three cells; nothing here changes it.
+- **Deviations.** (1) The type check is its own `tsconfig.sketch.json` (the app's options, plus Node's types, over
+  `scripts/sketch` and the two vitest configs), and `build:types` runs it after the app's: putting the harness in
+  `tsconfig.app.json` would have brought Node's globals into the app's program. (2) The harness also writes
+  `theme-and-aspect-sketch.data.js`, the same data as `window.THEME_AND_ASPECT_SKETCH`: a page opened from a checkout
+  (file://) cannot fetch a JSON file, and T11's page must open with no server. The JSON stays the record. ESLint
+  ignores `docs/sketches/data/*` (flat config lints a `.js` by default). (3) The run is async and yields to the event
+  loop at each step: a first run that never yielded wrote the data and then failed on vitest's "Timeout calling
+  onTaskUpdate". (4) The output path resolves from the repo root, where the npm script runs: under jsdom
+  `import.meta.url` is not a file URL.
+
+**T11 (2026-11-03).** `docs/sketches/theme-and-aspect-sketch.html` loads `data/theme-and-aspect-sketch.data.js` with a
+script tag (T10's carrier) and opens from file://. Three frames, each a sticky bar: **Spread** (an Axis row, themes or
+one of the six families; a family's view has an "Under theme" pick, the cell's robots all dealt the option), **Override
+grid** (theme × family, the keys taken, the sheet's Overlaps beside each theme), **Coverage** (moved and owned, moved not
+owned, owned not moved). The fixed panel holds "marked only" and the mark rules. The one hand-typed constant is
+`SHEETS`, each theme sheet's "Keys owned" and "Overlaps" (named `SHEETS`, not `SHEET_KEYS`, since it carries both); its
+thirteen key lists were checked equal, key for key, to `resolveBands.test.ts`'s `SHEET_KEYS`, typed from the same sheets
+at T8. The marks' rules are on the panel: a value more than 2 % of the band's width outside it or filling under 90 % of
+it; a share more than 2 points or 4 standard errors off its expectation (the plain sends after the 1 % grid, the Shimmer
+and Double sends after the earlier rooms' rolls, which is why Floe's, Thicket's and Tide's room sends read under their
+`lit` and are not marked); a Mix row the theme lights that is dark in some world; a grid cell whose sheet's Overlaps
+names neither the family nor a key taken; a coverage difference. The rules are the page's only numbers of its own.
+Proof (Look, headless Chrome from file://, plus the page's own script run over every family × theme view, 84 views):
+every survivor theme and option appears; **three marks**, each visible at a glance:
+- `robot.masterVolume` under Classic, Open Water and Squall, outside the band (T10's finding).
+- **Trench's grid cell for Performance**: Performance takes Trench's `robot.rests`, and Trench's Overlaps names neither
+  the family nor the key. A sheet fix for Checkpoint D.
+- Coverage: no marked row; every column moves exactly its sheet's keys.
+No other cell is marked, in any view.
+
+**Before L1: the envelope floors (Crawford, 2026-11-04).** Squall's Glass Nomad (`?seed=kr1nd4ra&x=12&y=68`; attack
+9 ms, decay 101 ms, sustain 40 %, release 5 ms, both linear) clicked on every note; sweeping the release up cleared it.
+Not an R-task (no sheet sentence asked for it): Attack now starts at `ENVELOPE_ATTACK_MIN_SECONDS` (15 ms) and Release at
+`ENVELOPE_RELEASE_MIN_SECONDS` (20 ms), Crawford's numbers. The floor is the sliders' minimum, Classic's bands, the swell
+ranges and the kind-and-bounds check's field range (shaped stages too), so the slider always shows what plays; no
+hidden floor in the engine, and old saves are left alone. Columns raised to it: Anchor's and Shatter's attack (now
+0.015 flat, their sketch's 1-10 ms is below the floor), Shatter's, Tidepool's and Squall's release, Tidepool's, Vent
+Field's and Squall's attack, Tidepool's shaped attack, Plucked's attack and shaped attack, and all four of Hammered's
+edges (attack and shaped attack 0.015 flat, release and shaped release 0.02 flat). The Classic parity rosters in
+`spawnSystem.test.ts` were re-captured from the generator for the plain stages that moved. `npm run sketch:bands` re-run
+and its JSON recommitted.
+
+**Before L1: Tide renamed Undertow (Crawford, 2026-11-04).** The id follows the name (open question 5): `undertow` in
+`THEME_IDS`, `themes.ts`, `loadingNames.ts`, `home.ts` (name "Undertow", the description unchanged), the sketch page's
+`SHEETS` and its JSON (re-run), and the sheets file (heading "Undertow (was Current, then Tide)"; Tidepool's two
+"shares the name's root" remarks dropped, as the root is no longer shared). An old link's `tide` is no theme and loads
+Classic. The history above and in the spec keeps the name Tide.
+
+**Before L1: Classic's Chorus depth and shift (Crawford, 2026-11-04).** `chorus.depth` 0.3-0.7 -> 0.05-0.2 and
+`frequencyShifter.shift` (the magnitude) 2-20 -> 1-5 Hz, in `classic.ts`, `GLOBAL_CHAIN_GRID.md`'s Loading Range column,
+the seed oracle (amended by hand from the same raw draws, its rule) and the Global Pedals shift bound; sketch JSON re-run.
+Two sheet promises now sit close to Classic: Undertow's "shallow" chorus (0.1-0.25, now deeper than Classic's) and Floe's
+"small" shift (2-5, now inside Classic's 1-5). For L1 to hear.
+
+**Before L1: Squall renamed Abyss (Crawford, 2026-11-04).** As Tide's rename: `abyss` in `THEME_IDS`, `themes.ts`,
+`loadingNames.ts`, `home.ts` (name "Abyss", the description unchanged), the sketch page and its JSON (re-run), and the
+sheets file (heading "Abyss (was Squall)", a dated mark, every other sheet's mention). The sheet's character is
+unchanged (still "A storm"). An old link's `squall` loads Classic. The history above and the envelope-floor comments
+("Squall's Glass Nomad") keep the old name.
+
+**Then Abyss renamed Polar Low (Crawford, 2026-11-04).** Abyss sat too close to Trench ("the deep"); a polar low is "close
+enough to a storm", so the sheet's storm wording stays. Id `polarLow` (camelCase, as `ventField` and `openWater`);
+`abyss` joins the cut ids, so an `abyss` or `squall` link loads Classic.
 
 ## Risks and Mitigations
 
@@ -833,7 +1218,8 @@ Carried from the spec; each takes its default until Crawford answers at the name
 3. **The three listen worlds.** Default the three presets (`transmissionPresets.ts`). **Answered** (Crawford,
    2026-11-03): "the defaults you've been using for pixel testing are fine", read as the three presets, the worlds the
    Pixel underrun A/Bs ran on.
-4. **The theme for the family listens.** Default Classic, then the grid's riskiest theme. **Open** until Checkpoint D.
+4. **The theme for the family listens.** Default Classic, then the grid's riskiest theme. **Answered**
+   (Crawford, Checkpoint D, 2026-11-03): the default for now; "I might later choose a different theme, we'll see."
 5. **A renamed character's id.** Default: the id follows the name. **Answered** (Crawford, 2026-11-03): proposed is
    fine. So `float`, `anchor`, `shatter`, `tide` and the candidates' ids follow their names; an old link's `calm`,
    `bold`, `perilous` loads Classic with the dev warning.

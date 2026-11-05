@@ -1,0 +1,413 @@
+<!doctype html>
+<!-- The theme and aspect sketch (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.6; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md
+     T11). What the live generators realise under every survivor theme and option, beside the bands the table writes,
+     before anything is heard. Three frames:
+       Spread        per axis (the themes, or one family under a chosen theme), band key x column: the written band over
+                     the realised low / median / high and, for a lit, toggle or pick band, the share.
+       Override grid theme x family: the theme keys each family's options take, beside the sheet's "Overlaps" promise.
+       Coverage      per theme: the keys the column moves against the sheet's "Keys owned".
+     Every number comes from data/theme-and-aspect-sketch.data.js, which `npm run sketch:bands`
+     (scripts/sketch/measureBands.harness.ts) writes beside the JSON record; the page loads it with a script tag, so it
+     opens from a checkout with no server. The only hand-typed data is SHEETS below: each theme sheet's "Keys owned" and
+     "Overlaps" from docs/reference/THEME_AND_ASPECT_SHEETS.md (the harness does not parse markdown). If a sheet changes,
+     retype its entry.
+
+     The marks (a cell, a row): see markReasons() and the fixed panel. A mark is a reading to look at, not a verdict.
+
+     Page rules (memory: sketch-toggles-sticky-bar): each frame is section.frame whose first child is the sticky div.bar
+     holding the h2 and that frame's own options; page-wide options live in the fixed panel, bottom-right. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Themes and aspects — the measured sketch</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif;
+    --ac: #41ad9f; --ac2: #68cb97; --call: #e8b84a; --bad: #ff8f7a; --badbg: #3a1d19;
+  }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px 24px 180px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0; border-bottom: 1px solid #333; padding-bottom: 4px; }
+  h2 small { font-weight: 400; color: var(--mut); font-size: 12px; margin-left: 10px; font-family: var(--fc); }
+  p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
+  p.note b { color: var(--txt); }
+  .pending { border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); background: #3a2a10; border: 1px solid #c88a2a; }
+  .pending b { color: #e8b84a; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #c9d4de; }
+
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
+  .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
+  .controls button.on { background: #41ad9f; color: var(--bg); }
+  .controls select { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 3px 8px; font-family: var(--fc); }
+  .controls .grp { display: inline-flex; gap: 4px; align-items: center; }
+  .controls .lbl { color: var(--mut); margin-right: 2px; }
+  .fixedpanel { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #0b0f14; border: 1px solid #41ad9f; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .7); max-width: 460px; font-family: var(--fc); font-size: 12px; }
+  .fixedpanel .ttl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #68cb97; margin-bottom: 6px; }
+  .fixedpanel .controls { margin: 4px 0; }
+  .fixedpanel ul { margin: 6px 0 0 16px; padding: 0; color: var(--mut); }
+
+  /* ---------- frames: a sticky bar (heading + that frame's options), then the frame's table ---------- */
+  .frame { margin: 36px 0 0; }
+  .frame > .bar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: 8px 0 4px; border-bottom: 1px solid #333; box-shadow: 0 8px 16px rgba(18, 22, 26, .9); }
+  .frame > .bar h2 { border: 0; padding: 0; }
+  .frame > .bar .controls { margin: 6px 0 0; }
+
+  /* ---------- tables ---------- */
+  .scroll { overflow-x: auto; margin-top: 12px; }
+  table { border-collapse: collapse; font-family: var(--fc); font-size: 12px; }
+  th, td { border: 1px solid var(--line); padding: 4px 6px; vertical-align: top; text-align: left; }
+  thead th { background: var(--surf2); color: var(--ac2); font-weight: 600; white-space: nowrap; }
+  tbody th { background: var(--surf2); font-weight: 600; white-space: nowrap; position: sticky; left: 0; z-index: 1; }
+  [hidden] { display: none !important; }
+  td.cell { min-width: 112px; max-width: 170px; }
+  td.idle { color: #4a545d; text-align: center; }
+  .w { color: var(--txt); }
+  .r { color: var(--ac2); white-space: nowrap; }
+  .s { color: var(--mut); }
+  .why { color: var(--bad); font-size: 11px; margin-top: 2px; }
+  td.mark, tr.mark > th, li.mark { background: var(--badbg); }
+  td.mark { outline: 1px solid var(--bad); outline-offset: -1px; }
+  .keys { font-family: ui-monospace, Consolas, monospace; font-size: 11px; color: #c9d4de; }
+  .keys span { display: inline-block; margin: 0 6px 2px 0; }
+  .keys span.miss { color: var(--bad); }
+  td.text { max-width: 560px; color: var(--mut); font-size: 12px; }
+  .tally { color: var(--mut); white-space: nowrap; }
+  body.markedOnly tr.clean, body.markedOnly tbody.clean { display: none; }
+</style>
+</head>
+<body>
+<h1>Themes and aspects — the measured sketch</h1>
+<p class="note" id="runline"></p>
+<div class="pending" id="nodata" hidden><b>No data.</b> <code>docs/sketches/data/theme-and-aspect-sketch.data.js</code> did not load.
+  Run <code>npm run sketch:bands</code> from the repo root, then reload this page.</div>
+
+<div class="fixedpanel">
+  <div class="ttl">Page-wide</div>
+  <div class="controls"><span class="grp"><span class="lbl">Rows</span>
+    <button data-marked="all" class="on">all</button><button data-marked="marked">marked only</button></span></div>
+  <div>A <b>mark</b> is a reading to look at:</div>
+  <ul>
+    <li>a value outside the written band (more than 2 % of its width past an edge), or values filling under 90 % of it;</li>
+    <li>a share off its expected value by more than 2 points or 4 standard errors (the Shimmer and Double shares
+      expected after the Grit roll, every send's after the 1 % grid);</li>
+    <li>a Mix row the theme lights that is not lit in every world;</li>
+    <li>a grid cell whose theme sheet's Overlaps names neither the family nor any key taken;</li>
+    <li>a coverage key moved and not owned, or owned and not moved.</li>
+  </ul>
+</div>
+
+<section class="frame" id="spread">
+  <div class="bar">
+    <h2>Spread<small>written band · realised low · median · high · share</small></h2>
+    <div class="controls">
+      <span class="grp" id="axisButtons"><span class="lbl">Axis</span></span>
+      <span class="grp" id="themePick" hidden><span class="lbl">Under theme</span><select id="themeSelect"></select></span>
+    </div>
+  </div>
+  <p class="note" id="spreadNote"></p>
+  <div class="scroll"><table id="spreadTable"></table></div>
+</section>
+
+<section class="frame" id="grid">
+  <div class="bar">
+    <h2>Override grid<small>theme × family: the theme keys the family's options take</small></h2>
+  </div>
+  <p class="note">A family's option replaces the theme's band for each key here (aspect wins). The last column is the
+    theme sheet's "Overlaps", typed from the sheets file.</p>
+  <div class="scroll"><table id="gridTable"></table></div>
+</section>
+
+<section class="frame" id="coverage">
+  <div class="bar">
+    <h2>Coverage<small>keys the column moves against the sheet's "Keys owned"</small></h2>
+  </div>
+  <p class="note">"Keys owned" typed from the sheets file. Both lists are expected to be the same set.</p>
+  <div class="scroll"><table id="coverageTable"></table></div>
+</section>
+
+<script src="data/theme-and-aspect-sketch.data.js"></script>
+<script>
+// ---------- the sheets, typed from docs/reference/THEME_AND_ASPECT_SHEETS.md ("Keys owned" and "Overlaps") ----------
+const SHEETS = {
+  classic: {
+    keys: [],
+    overlaps: "Every family's option replaces Classic's band for its keys when picked, so a visitor who picks an aspect under Classic hears a narrowed fleet on that axis. What survives is the whole world side (tempo, rooms, filter, EQ, colour, pedals), since no family reaches a global row, and every probe band no family owns.",
+  },
+  float: {
+    keys: ["bpm","robot.rhythmicDensity","robot.rests","robot.rhythmicMotifLength","robot.accents","robot.waveform","robot.attack","robot.release","robot.filterFreq","filterLPF.frequency","gritSend","reverb.decay","reverb.preDelay","reverbSend"],
+    overlaps: "Melody takes `robot.rhythmicDensity` and `robot.rhythmicMotifLength`; Envelope takes `robot.attack` and `robot.release` (Plucked makes the notes strike); Voice takes `robot.waveform` and `robot.filterFreq`; Distance takes `reverbSend` (Near dries the fleet); Performance would take `robot.rests` and `robot.accents`. What survives everything is the slow pulse, the softened top, the dry colour and the generous near room.",
+  },
+  anchor: {
+    keys: ["robot.attack","robot.decay","robot.portamento","robot.lfoDetuneDepth","robot.detune","robot.waveform","robot.layerGain","reverbSend","delaySend","eq3.low","eq3.high","eq3.mid","limiter.threshold"],
+    overlaps: "Envelope takes `robot.attack` and `robot.decay` (Swelling softens the landing: the first line is lost); Voice takes `robot.waveform` and `robot.layerGain`; Distance takes both sends (Remote puts the weight in the wash); Motion would take `robot.portamento` and `robot.lfoDetuneDepth`. What survives everything is the flat EQ with its mid lift and the tight limiter: still solid, if no longer dry.",
+  },
+  shatter: {
+    keys: ["gritSend","distortion.amount","chebyshev.order","bitCrusher.bits","distortion.wet","chebyshev.wet","bitCrusher.wet","eq3.high","filterLPF.frequency","robot.waveform","robot.octaveRegister","robot.detune","robot.attack","robot.decay","robot.sustain","robot.release","robot.rhythmicDensity","robot.rests","bpm","robot.accentFilterFreq","robot.lfoBusDepth","delay.delayTime","delay.feedback","delaySend","reverbSend"],
+    overlaps: "Voice takes `robot.waveform` and `robot.accentFilterFreq` (Hollow puts the resonance back); Envelope takes the four stages (Held lets the notes ring); Melody takes `robot.rhythmicDensity`; Performance would take `robot.rests` (Halting turns the wall into gusts, which is Polar Low's); Distance takes both sends; Motion, if it took the room sends, would take `gritSend`, the crunch itself. What survives everything is the bright EQ, the open filter, the fast pulse and the hot Grit room: a probe still sent into it still crunches.",
+  },
+  trench: {
+    keys: ["filterLPF.frequency","eq3.high","eq3.low","bpm","reverb.decay","reverb.preDelay","reverbSend","robot.rhythmicDensity","robot.rests","robot.portamento","robot.release","robot.waveform","robot.octaveRegister"],
+    overlaps: "Melody takes `robot.rhythmicDensity`; Envelope takes `robot.release`; Distance takes `reverbSend`; Voice takes `robot.waveform`; Motion would take `robot.portamento`, the sonar slur; Performance would take `robot.rests`, the gaps. With everything picked, what survives is the dark filter and EQ, the crawl and the cavern: still the deep, without the sonar or the gaps.",
+  },
+  tidepool: {
+    keys: ["reverb.decay","reverb.preDelay","reverbSend","delaySend","filterLPF.frequency","eq3.high","bpm","robot.attack","robot.decay","robot.sustain","robot.release","robot.shapedAttack","robot.shapedRelease","robot.waveform","robot.layerGain","robot.accentFilterFreq","robot.rhythmicDensity"],
+    overlaps: "Envelope takes the four stages and both shaped stages (Held makes the droplets ring: the character's first line is lost); Distance takes both sends; Voice takes `robot.waveform`, `robot.layerGain` and `robot.accentFilterFreq`; Melody takes `robot.rhythmicDensity`. What survives everything is the tiny bright room and the light pulse.",
+  },
+  floe: {
+    keys: ["shimmerSend","frequencyShifter.shift","robot.waveform","robot.attack","robot.sustain","robot.release","robot.shapedAttack","robot.shapedRelease","bpm","robot.rhythmicDensity","eq3.high","filterHPF.frequency","reverb.decay","reverbSend"],
+    overlaps: "Envelope takes the stages and the shaped stages; Voice takes `robot.waveform`; Melody takes `robot.rhythmicDensity`; Distance takes `reverbSend`; Motion, if it took the room sends, would take `shimmerSend`, the sheen itself. What survives everything is the slow pulse, the thin cold EQ and the large room.",
+  },
+  thicket: {
+    keys: ["doubleSend","chorus.depth","chorus.rate","chorus.delayTime","robot.layerGain","robot.waveform","robot.filterFreq","eq3.mid","filterLPF.frequency","bpm","robot.rhythmicDensity","robot.sustain","robot.release","reverbSend"],
+    overlaps: "Voice takes `robot.waveform`, `robot.filterFreq` and `robot.layerGain` (Glassy thins the stack); Envelope takes `robot.sustain` and `robot.release`; Melody takes `robot.rhythmicDensity`; Distance takes `reverbSend`; Motion, if it took the room sends, would take `doubleSend`. What survives everything is the mid-heavy EQ, the part-closed master filter, the pulse, and the chorus room itself: a probe still in it is still doubled.",
+  },
+  wreck: {
+    keys: ["gritSend","distortion.amount","bitCrusher.bits","delay.delayTime","delay.feedback","delaySend","eq3.high","filterLPF.frequency","bpm","robot.rhythmicMotifLength","robot.pitchRepeat","robot.waveform","robot.accentFilterFreq"],
+    overlaps: "Melody takes `robot.rhythmicMotifLength` and `robot.pitchRepeat` (Wandering stops the cycling); Voice takes `robot.waveform` and `robot.accentFilterFreq`; Distance takes `delaySend` (Near kills the echo); Motion, if it took the room sends, would take `gritSend`. What survives everything is the dark EQ and filter, the slow pulse and the long-feedback delay room itself.",
+  },
+  undertow: {
+    keys: ["robot.portamento","robot.lfoBusDepth","robot.attack","robot.rests","robot.release","robot.waveform","doubleSend","chorus.depth","chorus.rate","chorus.delayTime","vibrato.wet","vibrato.depth","vibrato.rate","lfoLink.lpf.frequency","delay.feedback","delaySend"],
+    overlaps: "Motion takes `robot.portamento` and `robot.lfoBusDepth`, the first line, and would take `doubleSend` if it took the room sends; Envelope takes `robot.attack` and `robot.release`; Voice takes `robot.waveform`; Performance would take `robot.rests`; Distance takes `delaySend`. What survives everything is the chorus room's setting and the delay's ripple: a probe still in the Double room is still under water, which is why the chain carries it.",
+  },
+  openWater: {
+    keys: ["reverb.decay","reverb.preDelay","delay.delayTime","reverbSend","delaySend","robot.rhythmicDensity","robot.rests","robot.masterVolume","robot.release","stereoWidener.width","filterLPF.frequency","bpm"],
+    overlaps: "Distance takes both sends (Near pulls the fleet in: \"far\" is lost, so the sentence must not promise it outright); Melody takes `robot.rhythmicDensity`; Envelope takes `robot.release`; Performance would take `robot.rests`. What survives everything is the longest room with the late echo, the quiet, the width and the dulled filter: still a vast space.",
+  },
+  ventField: {
+    keys: ["robot.accentFilterFreq","robot.accentFilterQ","robot.lfoBusDepth","robot.waveform","robot.rhythmicDensity","robot.attack","robot.decay","robot.sustain","robot.noteVariance","eq3.low","eq3.mid","filterLPF.frequency","bpm","autoWah.wet","autoWah.baseFrequency","autoWah.Q"],
+    overlaps: "Voice takes `robot.accentFilterFreq`, `robot.accentFilterQ` and `robot.waveform` (Glassy silences the whistle: the first line is lost); Motion would take `robot.lfoBusDepth`, the sweep; Melody takes `robot.rhythmicDensity` and `robot.noteVariance`; Envelope takes `robot.attack`, `robot.decay` and `robot.sustain`. What survives everything is the low-heavy EQ, the part-closed top and the pulse.",
+  },
+  beacon: {
+    keys: ["robot.rhythmicMotifLength","robot.noteVariance","robot.pitchRepeat","robot.dynamics","robot.accents","robot.rests","delaySend","delay.feedback","delay.delayTime","reverbSend","bpm","robot.rhythmicDensity","humanize"],
+    overlaps: "Melody takes `robot.rhythmicMotifLength`, `robot.noteVariance`, `robot.pitchRepeat` and `robot.rhythmicDensity` (Wandering ends the beacon); Performance would take `robot.dynamics`, `robot.accents` and `robot.rests`; Distance takes `delaySend` and `reverbSend` (Near kills the echo). What survives everything is the feedback room and the pulse. Beacon is the theme most made of probe keys: with Melody and Distance picked, almost nothing of it is left, and its sentence must say \"the probes\" rather than \"the world\".",
+  },
+  polarLow: {
+    keys: ["robot.dynamics","robot.accents","robot.rests","compressor.threshold","compressor.ratio","bpm","robot.rhythmicDensity","robot.noteVariance","robot.attack","robot.release","gritSend","robot.masterVolume","eq3.low","stereoWidener.width","tremolo.wet","tremolo.depth","tremolo.rate"],
+    overlaps: "Performance would take `robot.dynamics`, `robot.accents` and `robot.rests`: the whole first line. Melody takes `robot.rhythmicDensity` and `robot.noteVariance`; Envelope takes `robot.attack` and `robot.release`; Motion, if it took the room sends, would take `gritSend`. What survives everything is the pumping compressor, the fast pulse, and the loud, low-heavy, wide world.",
+  },
+};
+
+// ---------- reading a band and a realised entry ----------
+const D = window.THEME_AND_ASPECT_SKETCH;
+const ROOM_SENDS = ['gritSend', 'shimmerSend', 'doubleSend'];
+const LIGHT_ROWS = ['distortion', 'chebyshev', 'bitCrusher', 'autoWah', 'phaser', 'tremolo', 'vibrato'].map((light) => `${light}.wet`);
+
+const kindOf = (band) => ('weights' in band ? 'pick' : 'offShare' in band ? 'toggle' : 'lit' in band ? 'lit' : 'range');
+const num = (x) => (x === undefined ? '–' : String(+(+x).toPrecision(3)));
+const pct = (x) => `${+(x * 100).toFixed(1)}%`;
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+
+function writtenText(band) {
+  switch (kindOf(band)) {
+    case 'pick': {
+      const total = Object.values(band.weights).reduce((a, b) => a + b, 0);
+      return Object.entries(band.weights).map(([o, w]) => `${o} ${pct(w / total)}`).join(' · ');
+    }
+    case 'toggle': return `${num(band.min)}–${num(band.max)}, off ${pct(band.offShare)}`;
+    case 'lit': return `${num(band.min)}–${num(band.max)}, lit ${pct(band.lit)}`;
+    default: return `${num(band.min)}–${num(band.max)}`;
+  }
+}
+
+function realisedText(real) {
+  if (!real || real.n === 0) return { r: 'no reading', s: '' };
+  const r = real.picks ? '' : real.low === undefined ? 'no value' : `${num(real.low)} · ${num(real.median)} · ${num(real.high)}`;
+  let s = real.share === undefined ? '' : `share ${pct(real.share)}`;
+  if (real.picks) s = Object.entries(real.picks).map(([o, p]) => `${o} ${pct(p)}`).join(' · ');
+  return { r, s };
+}
+
+/** The share a lit band should realise. A send rounds onto the 1 % grid, so a draw under 0.005 lands on 0; the room
+ *  sends roll Grit, Shimmer, Double, and a robot carries at most one, so a later room realises its lit times the
+ *  chance no earlier one landed. `table` is the full written table the cell's robots drew under. */
+function expectedShare(key, band, table) {
+  const onGrid = (b) => b.lit * (1 - Math.min(1, Math.max(0, (0.005 - b.min) / (b.max - b.min || 1))));
+  if (key === 'reverbSend' || key === 'delaySend') return onGrid(band);
+  if (!ROOM_SENDS.includes(key)) return band.lit;
+  let share = onGrid(band);
+  for (const earlier of ROOM_SENDS.slice(0, ROOM_SENDS.indexOf(key))) share *= 1 - onGrid(table[earlier]);
+  return share;
+}
+
+/** Why a cell is marked (an empty list: not marked). `lights` is the theme's lit set, `table` its full written table. */
+function markReasons(key, band, real, table, lights) {
+  const why = [];
+  if (!real) return why;
+  const kind = kindOf(band);
+  const offShare = (n, p) => Math.max(0.02, 4 * Math.sqrt((p * (1 - p)) / Math.max(1, n)));
+  if (kind === 'pick') {
+    const total = Object.values(band.weights).reduce((a, b) => a + b, 0);
+    for (const [o, w] of Object.entries(band.weights)) {
+      const got = real.picks?.[o] ?? 0;
+      if (Math.abs(got - w / total) > offShare(real.n, w / total)) why.push(`${o} ${pct(got)}, written ${pct(w / total)}`);
+    }
+    return why;
+  }
+  if (kind === 'lit' || kind === 'toggle') {
+    const want = kind === 'lit' ? expectedShare(key, band, table) : band.offShare >= 1 ? 1 : band.offShare;
+    if (real.share !== undefined && Math.abs(real.share - want) > offShare(real.n, want)) {
+      why.push(`share ${pct(real.share)}, expected ${pct(want)}`);
+    }
+  }
+  if (LIGHT_ROWS.includes(key) && lights.includes(key.split('.')[0]) && real.share !== undefined && real.share < 1) {
+    why.push(`lit by the theme, yet dark in ${pct(1 - real.share)} of worlds`);
+  }
+  // A send's value sits on the 1 % grid and a value that rounds to 0 reads as dark, so its lowest lit value is 0.01.
+  const SENDS = ['reverbSend', 'delaySend', ...ROOM_SENDS];
+  const min = SENDS.includes(key) && band.min < 0.01 ? Math.min(0.01, band.max) : band.min;
+  const span = band.max - min;
+  const valuesExpected = !(kind === 'lit' && band.lit === 0) && !(kind === 'toggle' && band.offShare >= 1);
+  if (real.low === undefined) {
+    if (valuesExpected && real.n > 0) why.push('no value drawn');
+    return why;
+  }
+  const eps = span === 0 ? 1e-9 : 0.02 * span;
+  if (real.low < band.min - eps || real.high > band.max + eps) why.push('outside the band');
+  else if (span > 0 && (real.high - real.low) / span < 0.9) why.push(`fills ${pct((real.high - real.low) / span)}`);
+  return why;
+}
+
+function cellHtml(key, band, real, table, lights) {
+  const why = markReasons(key, band, real, table, lights);
+  const { r, s } = realisedText(real);
+  const html = `<div class="w">${esc(writtenText(band))}</div><div class="r">${esc(r)}</div>` +
+    (s ? `<div class="s">${esc(s)}</div>` : '') + (why.length ? `<div class="why">${esc(why.join('; '))}</div>` : '');
+  return { html, marked: why.length > 0 };
+}
+
+// ---------- Spread ----------
+const AXES = ['themes', ...Object.keys(D?.families ?? {})];
+let axis = 'themes';
+let underTheme = 'classic';
+
+function keyOrder() {
+  return Object.keys(D.themes.classic.written);
+}
+
+function renderSpread() {
+  const table = document.getElementById('spreadTable');
+  const note = document.getElementById('spreadNote');
+  document.getElementById('themePick').hidden = axis === 'themes';
+  if (axis === 'themes') {
+    const moved = new Set(D.themeIds.flatMap((t) => D.themes[t].moves));
+    const keys = keyOrder().filter((k) => moved.has(k));
+    note.innerHTML = `Every key some theme moves (${keys.length}), each theme's column where it moves the key; the
+      Classic column is the base under all of them. A dot is a key the theme leaves to Classic.`;
+    let body = '';
+    for (const key of keys) {
+      let row = '';
+      let marked = false;
+      for (const t of D.themeIds) {
+        const theme = D.themes[t];
+        if (t !== 'classic' && !theme.moves.includes(key)) { row += '<td class="idle">·</td>'; continue; }
+        const cell = cellHtml(key, theme.written[key], theme.realised[key], theme.written, theme.lights);
+        marked ||= cell.marked;
+        row += `<td class="cell${cell.marked ? ' mark' : ''}">${cell.html}</td>`;
+      }
+      body += `<tr class="${marked ? 'mark' : 'clean'}"><th><code>${esc(key)}</code></th>${row}</tr>`;
+    }
+    table.innerHTML = `<thead><tr><th>key</th>${D.themeIds.map((t) => `<th>${esc(t)}</th>`).join('')}</tr></thead><tbody>${body}</tbody>`;
+    return;
+  }
+  const family = D.families[axis];
+  const theme = D.themes[underTheme];
+  note.innerHTML = `The ${esc(axis)} family's keys × its options, every robot dealt the option, under
+    <b>${esc(underTheme)}</b>. A blank cell is a key the option leaves to the theme.`;
+  let body = '';
+  for (const key of family.keys) {
+    let row = '';
+    let marked = false;
+    for (const option of family.options) {
+      const entry = D.options[axis][option];
+      if (!entry.moves.includes(key)) { row += '<td class="idle">·</td>'; continue; }
+      const table = { ...theme.written, ...entry.written };
+      const cell = cellHtml(key, entry.written[key], entry.realised[underTheme][key], table, theme.lights);
+      marked ||= cell.marked;
+      row += `<td class="cell${cell.marked ? ' mark' : ''}">${cell.html}</td>`;
+    }
+    body += `<tr class="${marked ? 'mark' : 'clean'}"><th><code>${esc(key)}</code></th>${row}</tr>`;
+  }
+  table.innerHTML = `<thead><tr><th>key</th>${family.options.map((o) => `<th>${esc(o)}</th>`).join('')}</tr></thead><tbody>${body}</tbody>`;
+}
+
+// ---------- Override grid ----------
+function renderGrid() {
+  const families = Object.keys(D.families);
+  let body = '';
+  for (const t of D.themeIds) {
+    const sheet = SHEETS[t];
+    let row = '';
+    let marked = false;
+    for (const family of families) {
+      const taken = D.themes[t].overrideGrid[family];
+      const promised = !taken.length || new RegExp(`\\b${family}\\b`, 'i').test(sheet.overlaps) ||
+        taken.some((key) => sheet.overlaps.includes(key));
+      marked ||= !promised;
+      row += taken.length
+        ? `<td class="cell${promised ? '' : ' mark'}"><div class="keys">${taken.map((k) => `<span>${esc(k)}</span>`).join('')}</div>` +
+          (promised ? '' : '<div class="why">not in the sheet\'s Overlaps</div>') + '</td>'
+        : '<td class="idle">·</td>';
+    }
+    body += `<tr class="${marked ? 'mark' : 'clean'}"><th>${esc(t)}</th>${row}<td class="text">${esc(sheet.overlaps)}</td></tr>`;
+  }
+  document.getElementById('gridTable').innerHTML =
+    `<thead><tr><th>theme</th>${families.map((f) => `<th>${esc(f)}</th>`).join('')}<th>the sheet's Overlaps</th></tr></thead><tbody>${body}</tbody>`;
+}
+
+// ---------- Coverage ----------
+function renderCoverage() {
+  let body = '';
+  for (const t of D.themeIds) {
+    const moved = D.themes[t].moves;
+    const owned = SHEETS[t].keys;
+    const movedNotOwned = moved.filter((k) => !owned.includes(k));
+    const ownedNotMoved = owned.filter((k) => !moved.includes(k));
+    const both = moved.filter((k) => owned.includes(k));
+    const marked = movedNotOwned.length + ownedNotMoved.length > 0;
+    const list = (keys, cls = '') => `<div class="keys">${keys.map((k) => `<span class="${cls}">${esc(k)}</span>`).join('') || '—'}</div>`;
+    body += `<tr class="${marked ? 'mark' : 'clean'}"><th>${esc(t)}</th>` +
+      `<td class="tally">${moved.length} moved · ${owned.length} owned</td>` +
+      `<td>${list(both)}</td><td class="${movedNotOwned.length ? 'mark' : ''}">${list(movedNotOwned, 'miss')}</td>` +
+      `<td class="${ownedNotMoved.length ? 'mark' : ''}">${list(ownedNotMoved, 'miss')}</td></tr>`;
+  }
+  document.getElementById('coverageTable').innerHTML =
+    '<thead><tr><th>theme</th><th>count</th><th>moved and owned</th><th>moved, not owned</th><th>owned, not moved</th></tr></thead>' +
+    `<tbody>${body}</tbody>`;
+}
+
+// ---------- wiring ----------
+function boot() {
+  if (!D) { document.getElementById('nodata').hidden = false; return; }
+  const m = D.meta;
+  document.getElementById('runline').innerHTML = `Data: <b>${esc(m.generated)}</b> at commit <b>${esc(m.commit)}</b>, by
+    <code>npm run sketch:bands</code>: ${m.worlds} worlds × ${m.robotsPerWorld} robots and ${m.styles} styles per theme;
+    every option dealt to every robot of the same worlds under each theme.`;
+  const buttons = document.getElementById('axisButtons');
+  for (const a of AXES) {
+    const b = document.createElement('button');
+    b.textContent = a;
+    b.className = a === axis ? 'on' : '';
+    b.onclick = () => { axis = a; [...buttons.querySelectorAll('button')].forEach((x) => x.classList.toggle('on', x === b)); renderSpread(); };
+    buttons.appendChild(b);
+  }
+  const select = document.getElementById('themeSelect');
+  select.innerHTML = D.themeIds.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+  select.onchange = () => { underTheme = select.value; renderSpread(); };
+
+  for (const b of document.querySelectorAll('[data-marked]')) {
+    b.onclick = () => {
+      document.body.classList.toggle('markedOnly', b.dataset.marked === 'marked');
+      document.querySelectorAll('[data-marked]').forEach((x) => x.classList.toggle('on', x === b));
+    };
+  }
+  renderSpread();
+  renderGrid();
+  renderCoverage();
+}
+boot();
+</script>
+</body>
+</html>

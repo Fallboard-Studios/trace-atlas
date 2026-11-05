@@ -6,8 +6,9 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default [
-  // Ignore build output and miscellaneous standalone scripts
-  { ignores: ['dist', 'docs/sketches/tools/*.cjs'] },
+  // Ignore build output, miscellaneous standalone scripts and the sketch data the harness writes
+  // (scripts/sketch/measureBands.harness.ts)
+  { ignores: ['dist', 'docs/sketches/tools/*.cjs', 'docs/sketches/data/*'] },
 
   // Base recommended configs
   js.configs.recommended,

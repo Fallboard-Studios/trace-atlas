@@ -357,13 +357,13 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
   const description = () => document.querySelector('.off-screen__description');
   const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
   const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
-  const calmSave = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'calm' });
+  const calmSave = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'float' });
 
   it('lists the five themes in order under the Loading heading, Classic selected for a Classic world', () => {
     render(<OffScreen />);
     expect(themeNames()).toEqual(THEME_IDS.map((id) => human(`home.off.theme.${id}`)));
     expect(checked('classic')).toBe('true');
-    for (const id of ['calm', 'bold', 'adventurous', 'perilous'] as const) expect(checked(id)).toBe('false');
+    for (const id of ['float', 'anchor', 'undertow', 'shatter'] as const) expect(checked(id)).toBe('false');
   });
 
   it('is muted: a flat face per theme, no cabinet box (the aspect rows pop, the theme row does not; revisions Task 9)', () => {
@@ -376,9 +376,9 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
   // The one retransmit carries the theme alone, so no new world is drawn with it (it was "no roll" before Roll went).
   it('a theme pick is one retransmitWorld with the theme alone: no payload applied, no new world, no sound', () => {
     render(<OffScreen />);
-    fireEvent.click(themeRadio('calm'));
+    fireEvent.click(themeRadio('float'));
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float' });
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
@@ -391,10 +391,10 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
     // The real retransmitWorld writes the loading store first (band-table T25); once, so it outlives nothing.
     vi.mocked(retransmitWorld).mockImplementationOnce((input) => useLoadingStore.getState().setLoading({ theme: input.theme!, aspects: {} }));
-    fireEvent.click(themeRadio('bold'));
+    fireEvent.click(themeRadio('anchor'));
     expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
     expect(currentRadio().getAttribute('aria-checked')).toBe('false');
-    expect(checked('bold')).toBe('true');
+    expect(checked('anchor')).toBe('true');
   });
 
   it('re-clicking the selected theme retransmits nothing', () => {
@@ -407,7 +407,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    fireEvent.click(themeRadio('calm'));
+    fireEvent.click(themeRadio('float'));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
     expect(currentRowName()).toBe(currentName('Dusk Run'));
   });
@@ -419,18 +419,18 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(keep().disabled).toBe(true);
     expect(warning()).toBeNull();
     live.payload = live.marker('themed'); // what the retransmit does to the live world
-    fireEvent.click(themeRadio('calm'));
+    fireEvent.click(themeRadio('float'));
     expect(keep().disabled).toBe(false);
     expect(warning()).not.toBeNull();
   });
 
   it('follows the loading store for the loaded world: the row, the Current row and the readout take the store theme', () => {
     render(<OffScreen />);
-    act(() => useLoadingStore.setState({ theme: 'bold' }));
-    expect(checked('bold')).toBe('true');
+    act(() => useLoadingStore.setState({ theme: 'anchor' }));
+    expect(checked('anchor')).toBe('true');
     expect(checked('classic')).toBe('false');
-    const expected = describeWorld({ ...liveIdentity(), theme: 'bold', aspects: {} });
-    expect(expected.endsWith(' · ' + human('home.off.theme.bold'))).toBe(true);
+    const expected = describeWorld({ ...liveIdentity(), theme: 'anchor', aspects: {} });
+    expect(expected.endsWith(' · ' + human('home.off.theme.anchor'))).toBe(true);
     expect(readout().textContent).toBe(expected);
     expect(currentRowName()).toBe(asCurrent(expected));
   });
@@ -440,14 +440,14 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     saveNamedSession('Dusk Run', save);
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    expect(checked('calm')).toBe('true');
+    expect(checked('float')).toBe('true');
     expect(checked('classic')).toBe('false');
     expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
-    expect(readout().textContent!.endsWith(' · ' + human('home.off.theme.calm'))).toBe(true);
+    expect(readout().textContent!.endsWith(' · ' + human('home.off.theme.float'))).toBe(true);
   });
 
   it('a save pick with picks shows them in the readout tail too (the Melody row itself is Task 31)', () => {
-    const save: SessionPayload = { ...savedPayload('dusk'), theme: 'perilous', aspects: { melody: ['hypnotic', 'wandering'] } };
+    const save: SessionPayload = { ...savedPayload('dusk'), theme: 'shatter', aspects: { melody: ['hypnotic', 'wandering'] } };
     saveNamedSession('Dusk Run', save);
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
@@ -459,10 +459,10 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     saveNamedSession('Dusk Run', calmSave());
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    expect(checked('calm')).toBe('true');
+    expect(checked('float')).toBe('true');
     fireEvent.click(row(presetName(0)));
     expect(checked('classic')).toBe('true');
-    expect(checked('calm')).toBe('false');
+    expect(checked('float')).toBe('false');
   });
 
   it('a theme the app does not know in a save reads as Classic, as loadingOf reads it', () => {
@@ -477,10 +477,10 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     render(<OffScreen />);
     expect(description()?.textContent).toBe(human('home.off.themeDescription.classic'));
     fireEvent.click(row('Dusk Run'));
-    expect(description()?.textContent).toBe(human('home.off.themeDescription.calm'));
+    expect(description()?.textContent).toBe(human('home.off.themeDescription.float'));
     // Landed, the row follows the live store (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 2).
-    act(() => useLoadingStore.setState({ theme: 'perilous' }));
-    expect(description()?.textContent).toBe(human('home.off.themeDescription.perilous'));
+    act(() => useLoadingStore.setState({ theme: 'shatter' }));
+    expect(description()?.textContent).toBe(human('home.off.themeDescription.shatter'));
     // Current restores the world left, under its own Classic (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 3).
     fireEvent.click(currentRadio());
     expect(description()?.textContent).toBe(human('home.off.themeDescription.classic'));
@@ -491,7 +491,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     saveNamedSession('Dusk Run', calmSave());
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    expect(checked('calm')).toBe('true');
+    expect(checked('float')).toBe('true');
     fireEvent.click(row(currentName()));
     expect(checked('classic')).toBe('true');
   });
@@ -542,6 +542,9 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     hypnotic: human('home.off.melody.hypnotic'),
     mechanical: human('home.off.melody.mechanical'),
     wandering: human('home.off.melody.wandering'),
+    chanting: human('home.off.melody.chanting'),
+    tumbling: human('home.off.melody.tumbling'),
+    telegraph: human('home.off.melody.telegraph'),
   } as const;
   const melodyDescription = () => document.querySelector('.off-screen__description--melody');
   // An aspect's sentence, or the family's own for a row with nothing on (revisions Task 6: no as-theme member).
@@ -559,9 +562,9 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
 
   // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): no "As theme" option — the theme's own version may be
   // heard anyway, so an empty row is every robot as theme.
-  it('lists the three options in canonical order under the Melody label, no As theme, nothing pressed for a plain world', () => {
+  it('lists the six options in canonical order under the Melody label, no As theme, nothing pressed for a plain world', () => {
     render(<OffScreen />);
-    expect(melodyNames()).toEqual([NAME.hypnotic, NAME.mechanical, NAME.wandering]);
+    expect(melodyNames()).toEqual([NAME.hypnotic, NAME.mechanical, NAME.wandering, NAME.chanting, NAME.tumbling, NAME.telegraph]);
     for (const name of melodyNames()) expect(pressed(name!)).toBe('false');
     expect(within(melodyRow()).queryAllByRole('radio')).toHaveLength(0);
   });
@@ -572,7 +575,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     const root = melodyRow().closest('.sc-radio-button')!;
     expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
     expect(root.classList.contains('sc-radio-button--multiple')).toBe(true);
-    expect(root.querySelectorAll('.sc-cabinet-box')).toHaveLength(3);
+    expect(root.querySelectorAll('.sc-cabinet-box')).toHaveLength(6); // T9: six Melody options
     const column = container.querySelectorAll('.off-screen__axis')[1] as HTMLElement;
     expect(column.contains(melodyRow())).toBe(true);
     expect(within(column).getAllByRole('group').map((g) => g.getAttribute('aria-label'))).toEqual([
@@ -581,6 +584,8 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
       human('home.off.envelope'),
       human('home.off.distance'),
       human('home.off.voice'), // revisions Task 10: the fifth row of the column, Voice
+      human('home.off.motion'), // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b: Motion and Performance last
+      human('home.off.performance'),
     ]);
   });
 
@@ -711,7 +716,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
   it("the description lines are text, one under each row, and the three aspect sentences and the row's own are distinct", () => {
     const { container } = render(<OffScreen />);
     const lines = container.querySelectorAll('.off-screen__description');
-    expect(lines).toHaveLength(5); // the theme's, then one per family (revisions Tasks 9 and 10)
+    expect(lines).toHaveLength(7); // the theme's, then one per family (revisions Tasks 9 and 10; themes-58 T7b)
     expect(lines[0].classList.contains('off-screen__description--theme')).toBe(true);
     expect(lines[1].classList.contains('off-screen__description--melody')).toBe(true);
     expect(lines[1].tagName).toBe('P');
@@ -767,11 +772,11 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
   });
 
   it('toggling Plucked sends the whole loading: Envelope with Plucked, Melody and Distance carried as they were', () => {
-    load({ melody: ['hypnotic'], distance: ['remote'] });
+    load({ melody: ['hypnotic'], distance: ['halfHeard'] });
     render(<OffScreen />);
     fireEvent.click(option('envelope', name('envelope', 'plucked')));
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['remote'] } });
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['halfHeard'] } });
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
@@ -780,12 +785,12 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     retransmitSetsStore();
     load({ melody: ['wandering'] });
     render(<OffScreen />);
-    fireEvent.click(option('distance', name('distance', 'remote')));
+    fireEvent.click(option('distance', name('distance', 'halfHeard')));
     fireEvent.click(option('distance', name('distance', 'near')));
-    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: ['near', 'remote'] } });
-    expect(pressedIn('distance')).toEqual([name('distance', 'near'), name('distance', 'remote')]);
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: ['near', 'halfHeard'] } });
+    expect(pressedIn('distance')).toEqual([name('distance', 'near'), name('distance', 'halfHeard')]);
     fireEvent.click(option('distance', name('distance', 'near')));
-    fireEvent.click(option('distance', name('distance', 'remote')));
+    fireEvent.click(option('distance', name('distance', 'halfHeard')));
     expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { melody: ['wandering'], distance: [] } });
     expect(pressedIn('melody')).toEqual([human('home.off.melody.wandering')]);
   });
@@ -804,20 +809,20 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     expect((screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it('a save with Distance remote selects Remote, and the readout tail joins the families in family order', () => {
+  it('a save with Distance halfHeard selects Half-heard, and the readout tail joins the families in family order', () => {
     const save: SessionPayload = {
       ...savedPayload('dusk'),
-      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'] },
+      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'] },
     };
     saveNamedSession('Dusk Run', save);
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    expect(pressedIn('distance')).toEqual([name('distance', 'remote')]);
+    expect(pressedIn('distance')).toEqual([name('distance', 'halfHeard')]);
     expect(pressedIn('envelope')).toEqual([name('envelope', 'plucked'), name('envelope', 'held')]);
     expect(readout().textContent).toBe(describeWorld(save, 'Dusk Run'));
     expect(
       readout().textContent!.endsWith(
-        ` · ${human('home.off.melody.hypnotic')} · ${name('envelope', 'plucked')} + ${name('envelope', 'held')} · ${name('distance', 'remote')}`,
+        ` · ${human('home.off.melody.hypnotic')} · ${name('envelope', 'plucked')} + ${name('envelope', 'held')} · ${name('distance', 'halfHeard')}`,
       ),
     ).toBe(true);
   });
@@ -832,8 +837,8 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     fireEvent.click(option('envelope', name('envelope', 'plucked')));
     expect(description('envelope')).toBe(sentence('envelope', 'plucked')); // the last toggled on, not the last in order
     expect(description('distance')).toBe(sentence('distance', 'none'));
-    fireEvent.click(option('distance', name('distance', 'far')));
-    expect(description('distance')).toBe(sentence('distance', 'far'));
+    fireEvent.click(option('distance', name('distance', 'echoing')));
+    expect(description('distance')).toBe(sentence('distance', 'echoing'));
     expect(description('envelope')).toBe(sentence('envelope', 'plucked')); // one family's toggle leaves another's line
     fireEvent.click(row('Dusk Run'));
     expect(description('envelope')).toBe(sentence('envelope', 'swelling')); // the save's set, the last in canonical order
@@ -841,15 +846,15 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
   });
 
   it('toggling Woody sends the Voice set with every other family carried (revisions Task 10)', () => {
-    load({ envelope: ['held'], distance: ['far'] });
+    load({ envelope: ['held'], distance: ['echoing'] });
     render(<OffScreen />);
     fireEvent.click(option('voice', name('voice', 'woody')));
-    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { envelope: ['held'], distance: ['far'], voice: ['woody'] } });
+    expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { envelope: ['held'], distance: ['echoing'], voice: ['woody'] } });
   });
 
   it('Scan clears every family: its world has no aspects', () => {
     retransmitSetsStore();
-    load({ envelope: ['held'], distance: ['near', 'far'] });
+    load({ envelope: ['held'], distance: ['near', 'echoing'] });
     render(<OffScreen />);
     fireEvent.click(screen.getByRole('button', { name: human('home.off.scan') }));
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
@@ -888,20 +893,20 @@ describe('OffScreen — a theme or aspect click keeps the selected row', () => {
   const checked = (name: string) => row(name).getAttribute('aria-checked');
   const theme = (id: (typeof THEME_IDS)[number]) => human(`home.off.theme.${id}`);
   const pressed = (key: keyof typeof CONTENT) => screen.getByRole('button', { name: human(key) }).getAttribute('aria-pressed');
-  const calmRun = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'calm', aspects: { melody: ['hypnotic'] } }) as SessionPayload;
+  const calmRun = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'float', aspects: { melody: ['hypnotic'] } }) as SessionPayload;
 
   it('a save lands, then a theme click: the save row stays checked and the theme row shows the theme clicked', () => {
     saveNamedSession('Calm Run', calmRun());
     render(<OffScreen />);
     fireEvent.click(row('Calm Run'));
-    expect(checked(theme('calm'))).toBe('true'); // precondition: the save landed under its own theme
-    fireEvent.click(row(theme('bold')));
-    expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'bold' });
+    expect(checked(theme('float'))).toBe('true'); // precondition: the save landed under its own theme
+    fireEvent.click(row(theme('anchor')));
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'anchor' });
     expect(row('Calm Run').getAttribute('aria-checked')).toBe('true');
     expect(currentRadio().getAttribute('aria-checked')).toBe('false');
-    expect(checked(theme('bold'))).toBe('true');
-    expect(checked(theme('calm'))).toBe('false');
-    expect(document.querySelector('.off-screen__description--theme')?.textContent).toBe(human('home.off.themeDescription.bold'));
+    expect(checked(theme('anchor'))).toBe('true');
+    expect(checked(theme('float'))).toBe('false');
+    expect(document.querySelector('.off-screen__description--theme')?.textContent).toBe(human('home.off.themeDescription.anchor'));
   });
 
   it('a save lands, then a family toggle: the save row stays checked and the family row shows the toggle on the save set', () => {
@@ -919,11 +924,11 @@ describe('OffScreen — a theme or aspect click keeps the selected row', () => {
   it('two clicks on a landed preset keep its row: a theme, then a toggle on top of it', () => {
     render(<OffScreen />);
     fireEvent.click(row(presetName(2)));
-    fireEvent.click(row(theme('perilous')));
+    fireEvent.click(row(theme('shatter')));
     fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
     expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { ...loadingOf(presetPayload(TRANSMISSION_PRESETS[2])!).aspects, envelope: ['held'] } });
     expect(row(presetName(2)).getAttribute('aria-checked')).toBe('true');
-    expect(checked(theme('perilous'))).toBe('true');
+    expect(checked(theme('shatter'))).toBe('true');
     expect(pressed('home.off.envelope.held')).toBe('true');
   });
 
@@ -931,17 +936,17 @@ describe('OffScreen — a theme or aspect click keeps the selected row', () => {
     saveNamedSession('Calm Run', calmRun());
     render(<OffScreen />);
     fireEvent.click(row('Calm Run'));
-    act(() => useLoadingStore.getState().setLoading({ theme: 'adventurous', aspects: { voice: ['woody'] } }));
-    expect(checked(theme('adventurous'))).toBe('true');
+    act(() => useLoadingStore.getState().setLoading({ theme: 'undertow', aspects: { voice: ['woody'] } }));
+    expect(checked(theme('undertow'))).toBe('true');
     expect(pressed('home.off.voice.woody')).toBe('true');
     expect(pressed('home.off.melody.hypnotic')).toBe('false');
   });
 
   it('a theme click on Current keeps Current selected, as it always has', () => {
     render(<OffScreen />);
-    fireEvent.click(row(theme('calm')));
+    fireEvent.click(row(theme('float')));
     expect(screen.getAllByRole('radio', { checked: true }).map((r) => r.getAttribute('aria-label'))).toContain(
-      asCurrent(describeWorld({ ...liveIdentity(), theme: 'calm' })),
+      asCurrent(describeWorld({ ...liveIdentity(), theme: 'float' })),
     );
   });
 });
@@ -961,7 +966,7 @@ describe('OffScreen — the selected row tail and the readout of the live world'
   const checked = (name: string) => row(name).getAttribute('aria-checked');
   const theme = (id: (typeof THEME_IDS)[number]) => human(`home.off.theme.${id}`);
   const dusk = () => savedPayload('dusk');
-  const calmRun = (): SessionPayload => ({ ...savedPayload('calm-run'), theme: 'calm' }) as SessionPayload;
+  const calmRun = (): SessionPayload => ({ ...savedPayload('calm-run'), theme: 'float' }) as SessionPayload;
   const labelOf = (name: string) => row(name).getAttribute('aria-label');
   /** A row's name fronting its seed and plot, with no loading: what an edited row's live loading follows (Task 6b). */
   const head = (payload: SessionPayload, name: string) =>
@@ -982,10 +987,10 @@ describe('OffScreen — the selected row tail and the readout of the live world'
     saveNamedSession('Dusk Run', dusk());
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    fireEvent.click(row(theme('calm')));
+    fireEvent.click(row(theme('float')));
     expect(checked('Dusk Run')).toBe('true');
-    expect(labelOf('Dusk Run')).toBe(`${head(dusk(), 'Dusk Run')} · ${theme('calm')}`);
-    expect(readout().textContent).toBe(describeWorld({ ...dusk(), ...loadingOf(dusk()), theme: 'calm' }, 'Dusk Run'));
+    expect(labelOf('Dusk Run')).toBe(`${head(dusk(), 'Dusk Run')} · ${theme('float')}`);
+    expect(readout().textContent).toBe(describeWorld({ ...dusk(), ...loadingOf(dusk()), theme: 'float' }, 'Dusk Run'));
   });
 
   it('a Calm save, then Classic: the row names Classic in place of Calm, as it differs from the save own theme', () => {
@@ -1004,7 +1009,7 @@ describe('OffScreen — the selected row tail and the readout of the live world'
     fireEvent.click(row('Calm Run'));
     const hypnotic = () => screen.getByRole('button', { name: human('home.off.melody.hypnotic') });
     fireEvent.click(hypnotic());
-    expect(labelOf('Calm Run')).toBe(`${head(calmRun(), 'Calm Run')} · ${theme('calm')} · ${human('home.off.melody.hypnotic')}`);
+    expect(labelOf('Calm Run')).toBe(`${head(calmRun(), 'Calm Run')} · ${theme('float')} · ${human('home.off.melody.hypnotic')}`);
     fireEvent.click(hypnotic());
     expect(labelOf('Calm Run')).toBe(describeWorld(calmRun(), 'Calm Run'));
   });
@@ -1013,16 +1018,16 @@ describe('OffScreen — the selected row tail and the readout of the live world'
     const preset = presetPayload(TRANSMISSION_PRESETS[1])!;
     render(<OffScreen />);
     fireEvent.click(row(presetName(1)));
-    fireEvent.click(row(theme('bold')));
+    fireEvent.click(row(theme('anchor')));
     expect(checked(presetName(1))).toBe('true');
-    expect(labelOf(presetName(1))).toBe(`${head(preset, presetName(1))} · ${theme('bold')}`);
+    expect(labelOf(presetName(1))).toBe(`${head(preset, presetName(1))} · ${theme('anchor')}`);
   });
 
   it('leaving an edited save and picking it again: it reads as stored, and the save reloads as stored', () => {
     saveNamedSession('Dusk Run', dusk());
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    fireEvent.click(row(theme('calm')));
+    fireEvent.click(row(theme('float')));
     fireEvent.click(row(presetName(0)));
     expect(row('Dusk Run').getAttribute('aria-checked')).toBe('false');
     expect(labelOf('Dusk Run')).toBe(savedLabel('Dusk Run'));
@@ -1036,10 +1041,10 @@ describe('OffScreen — the selected row tail and the readout of the live world'
 
   it('Current never shows a tail: its name already carries its loading', () => {
     render(<OffScreen />);
-    fireEvent.click(row(theme('calm')));
-    const label = describeWorld({ ...liveIdentity(), theme: 'calm' });
+    fireEvent.click(row(theme('float')));
+    const label = describeWorld({ ...liveIdentity(), theme: 'float' });
     expect(currentRowName()).toBe(asCurrent(label));
-    expect(label.split(theme('calm'))).toHaveLength(2); // named once
+    expect(label.split(theme('float'))).toHaveLength(2); // named once
   });
 });
 
@@ -1174,9 +1179,9 @@ describe('OffScreen — New Transmission and Scan (Current and New Transmission,
   it('picking it lands the drawn world under Classic with no aspects in one retransmit, and detaches the save', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
-    useLoadingStore.setState({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+    useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
     // The payload Current's snapshot is built from carries that loading too, as buildSessionPayload's would.
-    live.payload = { ...live.marker('live'), theme: 'calm', aspects: { melody: ['hypnotic'] } } as SessionPayload;
+    live.payload = { ...live.marker('live'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
     retransmitSetsStore();
     render(<OffScreen />);
     const current = currentRowName();
@@ -1257,11 +1262,11 @@ describe('OffScreen — New Transmission and Scan (Current and New Transmission,
     retransmitSetsStore();
     render(<OffScreen />);
     fireEvent.click(row(newTransmission()));
-    fireEvent.click(row(human('home.off.theme.calm')));
-    expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'calm' });
-    expect(radioNames()[0]).toBe(asNew(`${describeWorld(drawn(1))} · ${human('home.off.theme.calm')}`));
+    fireEvent.click(row(human('home.off.theme.float')));
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'float' });
+    expect(radioNames()[0]).toBe(asNew(`${describeWorld(drawn(1))} · ${human('home.off.theme.float')}`));
     expect(checked(newTransmission())).toBe('true');
-    expect(readout().textContent).toBe(describeWorld({ ...drawn(1), theme: 'calm' }));
+    expect(readout().textContent).toBe(describeWorld({ ...drawn(1), theme: 'float' }));
   });
 });
 
@@ -1348,7 +1353,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       render(<OffScreen />);
       fireEvent.click(keep());
       expect(failed()).not.toBeNull();
-      fireEvent.click(row(human('home.off.theme.calm')));
+      fireEvent.click(row(human('home.off.theme.float')));
       expect(failed()).toBeNull();
       expect(warning()).not.toBeNull();
     });
@@ -1395,7 +1400,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     render(<OffScreen />);
     fireEvent.click(keep());
     expect(keep().disabled).toBe(true);
-    fireEvent.click(row(human('home.off.theme.calm')));
+    fireEvent.click(row(human('home.off.theme.float')));
     expect(keep().disabled).toBe(false);
     expect(warning()).not.toBeNull();
     fireEvent.click(keep());
@@ -1531,7 +1536,7 @@ describe('OffScreen — Keep follows Current (Current and New Transmission, Task
     expect(keep().disabled).toBe(true);
     fireEvent.click(row('Other'));
     expect(keep().disabled).toBe(true);
-    fireEvent.click(row(human('home.off.theme.calm')));
+    fireEvent.click(row(human('home.off.theme.float')));
     expect(keep().disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
     expect(keep().disabled).toBe(true);
@@ -2018,25 +2023,25 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
   // no world change either: it applies at the click with no cover, as a family toggle does since R33.
   it('a theme pick raises no wash and retransmits at once', () => {
     render(<OffScreen />);
-    fireEvent.click(row(human('home.off.theme.calm')));
+    fireEvent.click(row(human('home.off.theme.float')));
     expect(wash()).toBe('clear');
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float' });
   });
 
   it('a theme pick while a save waits joins it: the one change lands the save, then the theme over it, and nothing before', async () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    fireEvent.click(row(human('home.off.theme.calm')));
+    fireEvent.click(row(human('home.off.theme.float')));
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(retransmitWorld).not.toHaveBeenCalled();
-    expect(checked(human('home.off.theme.calm'))).toBe('true'); // the click shows at once
+    expect(checked(human('home.off.theme.float'))).toBe('true'); // the click shows at once
     await land();
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
     expect(applySessionPayload).toHaveBeenCalledWith(savedPayload('dusk'));
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float' });
     expect(vi.mocked(applySessionPayload).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(retransmitWorld).mock.invocationCallOrder[0]);
   });
 
@@ -2045,9 +2050,9 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
     fireEvent.click(row(currentName()));
-    fireEvent.click(row(human('home.off.theme.calm')));
+    fireEvent.click(row(human('home.off.theme.float')));
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float' });
     await land();
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
@@ -2064,12 +2069,12 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       const preset = presetPayload(TRANSMISSION_PRESETS[0])!;
       render(<OffScreen />);
       fireEvent.click(row(presetName(0)));
-      fireEvent.click(row(human('home.off.theme.calm')));
+      fireEvent.click(row(human('home.off.theme.float')));
       fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
       expect(retransmitWorld).not.toHaveBeenCalled();
       await land();
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
-      expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm', aspects: { ...loadingOf(preset).aspects, envelope: ['held'] } });
+      expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float', aspects: { ...loadingOf(preset).aspects, envelope: ['held'] } });
     });
 
     it('a preset then Current applies nothing: the cover lands and lifts with no change, and Current stays picked', async () => {
@@ -2107,19 +2112,19 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     it("a preset then a theme pick leaves the preset's world under that theme: the apply, then one theme retransmit", async () => {
       render(<OffScreen />);
       fireEvent.click(row(presetName(0)));
-      fireEvent.click(row(human('home.off.theme.calm')));
+      fireEvent.click(row(human('home.off.theme.float')));
       await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[0]));
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
-      expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+      expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float' });
       expect(order(vi.mocked(applySessionPayload))).toBeLessThan(order(vi.mocked(retransmitWorld)));
     });
 
     // Roll's case rewritten for Scan (Task 5): Roll kept the loading, so the save's was laid over the rolled world;
     // Scan's world brings its own loading, Classic with no aspects, replacing the save's as a pick's own loading does.
     it('a save then Scan: the scan wins, its world under Classic with no aspects, and nothing is laid over it', async () => {
-      saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'calm' });
+      saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'float' });
       render(<OffScreen />);
       fireEvent.click(row('Dusk Run'));
       fireEvent.click(scanButton());
@@ -2138,13 +2143,13 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       });
       render(<OffScreen />);
       fireEvent.click(scanButton());
-      fireEvent.click(row(human('home.off.theme.calm')));
+      fireEvent.click(row(human('home.off.theme.float')));
       await land();
       expect(retransmitWorld).toHaveBeenCalledTimes(2);
       expect(vi.mocked(retransmitWorld).mock.calls[0][0]).toMatchObject({ theme: 'classic', aspects: {} });
-      expect(vi.mocked(retransmitWorld).mock.calls[1][0]).toEqual({ theme: 'calm' });
+      expect(vi.mocked(retransmitWorld).mock.calls[1][0]).toEqual({ theme: 'float' });
       expect(checked(newTransmission())).toBe('true');
-      expect(radioNames()[0]!.endsWith(` · ${human('home.off.theme.calm')}`)).toBe(true);
+      expect(radioNames()[0]!.endsWith(` · ${human('home.off.theme.float')}`)).toBe(true);
     });
 
     it('shows each click at once: the picked row, the theme row, its line and the readout follow the click, not the world', () => {
@@ -2153,12 +2158,12 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       fireEvent.click(row(presetName(1)));
       expect(checked(presetName(1))).toBe('true');
       expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset) }, presetName(1)));
-      fireEvent.click(row(human('home.off.theme.calm')));
+      fireEvent.click(row(human('home.off.theme.float')));
       // A theme pick while the preset waits keeps the preset's row (final fixes F12); the readout names the world to come.
       expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
-      expect(checked(human('home.off.theme.calm'))).toBe('true');
-      expect(document.querySelector('.off-screen__description--theme')?.textContent).toBe(human('home.off.themeDescription.calm'));
-      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset), theme: 'calm' }, presetName(1)));
+      expect(checked(human('home.off.theme.float'))).toBe('true');
+      expect(document.querySelector('.off-screen__description--theme')?.textContent).toBe(human('home.off.themeDescription.float'));
+      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset), theme: 'float' }, presetName(1)));
       expect(applySessionPayload).not.toHaveBeenCalled();
     });
 
@@ -2174,7 +2179,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
 
     it("a theme pick then a preset: the theme applies at the click, then the preset's own loading wins, so nothing is laid over it", async () => {
       render(<OffScreen />);
-      fireEvent.click(row(human('home.off.theme.calm')));
+      fireEvent.click(row(human('home.off.theme.float')));
       expect(retransmitWorld).toHaveBeenCalledTimes(1); // the theme, at once (F8)
       fireEvent.click(row(presetName(0)));
       expect(checked(human('home.off.theme.classic'))).toBe('true'); // the preset's own theme, shown at the click
@@ -2184,7 +2189,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
 
     it('a save that carries its own loading applies alone: its loading is the one intended, so nothing is laid over it', async () => {
-      const calmRun = { ...savedPayload('calm-run'), theme: 'calm', aspects: { melody: ['hypnotic'] } } as SessionPayload;
+      const calmRun = { ...savedPayload('calm-run'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
       saveNamedSession('Calm Run', calmRun);
       render(<OffScreen />);
       fireEvent.click(row('Calm Run'));
@@ -2203,10 +2208,10 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
         saveNamedSession('Dusk Run', dusk());
         render(<OffScreen />);
         fireEvent.click(row('Dusk Run'));
-        fireEvent.click(row(human('home.off.theme.calm')));
+        fireEvent.click(row(human('home.off.theme.float')));
         expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
         expect(checked(currentName())).toBe('false');
-        expect(readout().textContent).toBe(describeWorld({ ...duskIdentity(), theme: 'calm' }, 'Dusk Run'));
+        expect(readout().textContent).toBe(describeWorld({ ...duskIdentity(), theme: 'float' }, 'Dusk Run'));
       });
 
       it('then Current cancels the change: nothing runs at the cover, and the theme row shows the loaded theme again', async () => {
@@ -2214,7 +2219,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
         saveNamedSession('Dusk Run', dusk());
         render(<OffScreen />);
         fireEvent.click(row('Dusk Run'));
-        fireEvent.click(row(human('home.off.theme.calm')));
+        fireEvent.click(row(human('home.off.theme.float')));
         fireEvent.click(row(currentName()));
         expect(cancel).toHaveBeenCalledTimes(1);
         expect(checked(currentName())).toBe('true');
@@ -2256,10 +2261,10 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
         saveNamedSession('Dusk Run', dusk());
         render(<OffScreen />);
         fireEvent.click(row('Dusk Run'));
-        fireEvent.click(row(human('home.off.theme.calm')));
+        fireEvent.click(row(human('home.off.theme.float')));
         await land();
         expect(applySessionPayload).toHaveBeenCalledWith(dusk());
-        expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'calm' });
+        expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float' });
         expect(checked('Dusk Run')).toBe('true');
         expect(currentRadio().getAttribute('aria-checked')).toBe('false');
       });
@@ -2268,7 +2273,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
         saveNamedSession('Dusk Run', dusk());
         render(<OffScreen />);
         fireEvent.click(row('Dusk Run'));
-        fireEvent.click(row(human('home.off.theme.calm')));
+        fireEvent.click(row(human('home.off.theme.float')));
         fireEvent.click(row(human(`home.off.theme.${loadingOf(dusk()).theme}`)));
         await land();
         expect(applySessionPayload).toHaveBeenCalledTimes(1);
@@ -2371,7 +2376,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     vi.mocked(retransmitWorld).mockImplementation(() => {
       live.payload = live.marker('themed');
     });
-    fireEvent.click(row(human('home.off.theme.bold')));
+    fireEvent.click(row(human('home.off.theme.anchor')));
     expect(keep().disabled).toBe(false);
   });
 
@@ -2380,7 +2385,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
   // the wash; picked while the departure still waits, it cancels it.
   describe('Current is the world you left (Current and New Transmission, Task 3)', () => {
     const clear = () => act(() => useUIStore.getState().setSceneWash('clear'));
-    const calmRun = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'calm', aspects: { melody: ['hypnotic'] } }) as SessionPayload;
+    const calmRun = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'float', aspects: { melody: ['hypnotic'] } }) as SessionPayload;
     const lastApplied = () => vi.mocked(applySessionPayload).mock.lastCall?.[0];
 
     it('keeps its name through a save pick landing, though the live world and its loaded save have moved', async () => {
@@ -2392,7 +2397,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(currentRowName()).toBe(before);
       await land();
       expect(useSessionStore.getState().currentLoadedSessionName).toBe('Calm Run'); // the live world moved
-      expect(useLoadingStore.getState().theme).toBe('calm');
+      expect(useLoadingStore.getState().theme).toBe('float');
       expect(currentRowName()).toBe(before);
     });
 
@@ -2463,13 +2468,13 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       });
       saveNamedSession('Dusk Run', savedPayload('dusk'));
       render(<OffScreen />);
-      fireEvent.click(row(human('home.off.theme.calm')));
+      fireEvent.click(row(human('home.off.theme.float')));
       fireEvent.click(row('Dusk Run'));
       await land();
       clear();
       fireEvent.click(currentRadio());
       await land();
-      expect(lastApplied()).toMatchObject({ theme: 'calm' });
+      expect(lastApplied()).toMatchObject({ theme: 'float' });
     });
 
     it('a save lands, Current waits, then a preset: only the preset lands, Current still names the snapshot, and Current then restores it', async () => {
@@ -2500,11 +2505,11 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       await land();
       clear();
       fireEvent.click(currentRadio());
-      fireEvent.click(row(human('home.off.theme.bold')));
+      fireEvent.click(row(human('home.off.theme.anchor')));
       expect(retransmitWorld).not.toHaveBeenCalled();
       await land();
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
-      expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'bold' });
+      expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'anchor' });
       expect(vi.mocked(applySessionPayload).mock.invocationCallOrder[1]).toBeLessThan(vi.mocked(retransmitWorld).mock.invocationCallOrder[0]);
       expect(currentRadio().getAttribute('aria-checked')).toBe('true');
     });

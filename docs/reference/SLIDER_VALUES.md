@@ -173,9 +173,9 @@ Where a robot's Load Min / Load Max come from a band, they are Classic's, `src/d
 
 ²⁵ Robot Performance (roadmap 50.5): Dynamics, Rests and Accents are stored as the integer the slider shows
 (`Robot.dynamics` / `rests` / `accents`, `PERFORMANCE_MIN`–`PERFORMANCE_MAX`, no conversion), seeded at spawn by plain draws
-over the `robot.dynamics` (25–75), `robot.rests` (10–60) and `robot.accents` (20–80) bands and `Math.round`-ed, so all
-three are step-aligned. `DEFAULT_DYNAMICS` is 50 (the pre-50.5 sound), `DEFAULT_RESTS` / `DEFAULT_ACCENTS` are 0; the seeds
-never land on the defaults, so every fresh robot has some of each. None is a swell attribute.
+over the `robot.dynamics` (60–80), `robot.rests` (0–10) and `robot.accents` (0–30) bands (Classic's since roadmap 58's R3 and R4; were 25–75, 10–60, 20–80) and `Math.round`-ed, so all
+three are step-aligned. `DEFAULT_DYNAMICS` is 50 (the pre-50.5 sound until roadmap 58 R2a re-scaled the lever), `DEFAULT_RESTS` / `DEFAULT_ACCENTS` are 0; the Dynamics and Accents
+seeds never land on their defaults, and a Rests seed is 0 for about one robot in twenty (its band starts there). None is a swell attribute.
 
 ²³ Reverb, Delay, Grit, Shimmer and Double are the robot's five **sends** into the shared rooms (Robot Sends, roadmap
 50.2; Robot Effect Sends, roadmap 50.7), stored as `0..1` fractions (`Robot.reverbSend` / `delaySend` / `gritSend` /
@@ -229,16 +229,18 @@ a continuous draw — correctly step-aligned.
 
 | Human Label | Slider Type | Value Type | Min | Max | Step | Load Min | Load Max |
 |---|---|---|---|---|---|---|---|
-| Attack | Log | s | 0 | 2 | — | 0 | 2¹⁸ |
+| Attack | Log | s | 0.015 | 2 | — | 0.015 | 2¹⁸ |
 | Decay | Log | s | 0 | 2 | — | 0 | 2 |
 | Sustain | Linear | % | 0 | 100 | 1⁶ | 0 | 100 |
-| Release | Log | s | 0 | 2 | — | 0 | 2¹⁸ |
+| Release | Log | s | 0.02 | 2 | — | 0.02 | 2¹⁸ |
 | Portamento | Log | s | 0 | 2 | — | 0 | 0.2¹⁹ |
 
 ⁶ No `step` in the schema — defaults to `1`. Stored as a `0..1` fraction, seeded continuously and
 displayed ×100 with no rounding, same class as Density/Pitch Repeat/Volume above.
 ¹⁸ All three times share `ENVELOPE_TIME_MAX_SECONDS` (2 s) as the slider max and the top of the seed range, so a
-seeded value is always one the slider can show. A stage with a non-linear shape (Attack Shape / Release Shape, below the
+seeded value is always one the slider can show. Attack starts at `ENVELOPE_ATTACK_MIN_SECONDS` (15 ms) and Release at
+`ENVELOPE_RELEASE_MIN_SECONDS` (20 ms), the slider minimum and the bottom of every band and swell range: a shorter edge
+clicks on every note. A stage with a non-linear shape (Attack Shape / Release Shape, below the
 sliders) is seeded short from the same noise sample: the `robot.shapedAttack` band, 0.03–0.25 s, and
 `robot.shapedRelease`, 0.15–0.8 s, so the shape finishes inside a 0.15 s note and can be heard. Decay has no shape.
 ¹⁹ Most robots load at exactly `0` (no glide). About 1.5 in 12 are gliders (the `robot.portamento` band's `lit`, 0.23),

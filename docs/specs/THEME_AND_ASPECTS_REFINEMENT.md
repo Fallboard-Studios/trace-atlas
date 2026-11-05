@@ -13,6 +13,15 @@ Intent: [docs/intent/themes-and-aspects-refinement.md](../intent/themes-and-aspe
 Crawford on 2026-11-02. Roadmap [58](../todo/roadmap.md#58-themes-and-aspects-refinement), the first item of plan.md's
 Stage 1. Step zero, backlog 47 (even draws), merged 2026-11-02 as PR #596, so every band is heard as written.
 
+**Status: built** on `feature/themes-aspects-58`, 2026-11-05, waiting on Crawford's PR; the plan's "As Shipped" and
+"Listen record" are the record. Fourteen themes, six families, twenty-seven options; four new keys (`robot.detune`,
+`robot.octaveRegister`, `humanize`, `lfoLink.lpf.frequency`; the fifth proposed, `fleetSize`, struck at Checkpoint B).
+Deviations from this spec, each Crawford's call at a listen: (1) Performance was "hard to hear" at L2, and the fix was
+an engine change, not a band (R2: a lower velocity baseline, stronger marks, Dynamics moving more notes, a cut note's
+30 ms release), outside the band table this spec scoped; (2) Attack and Release floors of 15 ms and 20 ms in the
+sliders, Classic and every column, after a click before L1; (3) §1.8's rule that a theme's sentence promise nothing an
+aspect can take was dropped (2026-11-05).
+
 **Scope check (Phase 0):** one capability, taken in five ordered steps (§1.2). The steps are not independent modules:
 every code step waits on the paper cut, and the copy waits on the listens. The one conditional step, a fifth family or
 a replaced Distance (§1.5), has no meaning without the cut, so it is a step of this spec and not a module of its own.
@@ -219,7 +228,8 @@ re-runs the sketch. The listen record (what was heard, the verdict, the retune) 
 
 Once the listens have settled what each character is: a name and one sentence per theme, a label, option names and
 `none` and option sentences per family, in `home.ts`, replacing the stand-ins, written from the sheets' "Promise" lines.
-The sentence under the theme row must not promise what an aspect can override (the sheet's "Overlaps" field). Ids are
+A sentence may promise what an aspect can override: themes and aspects are starting places, and a player may use them
+in ways they were not meant (Crawford, 2026-11-05, removing the rule that the theme sentence must not). Ids are
 code and follow a rename (a renamed theme gets a new id; an old link naming the old id loads Classic with the existing
 dev warning). The same pass rewrites the grids' "Loading ranges" tables, `AUDIO_SYSTEM.md`'s band-table bullet,
 `COMPANIES.md`'s deal note if the family list moved, and roadmap 58's entry.
@@ -380,7 +390,8 @@ suite after any task that adds a call on a module tests mock (`grep -rln "vi.moc
 - A first-time visitor can tell any two shipped themes apart inside a minute, by Crawford's listen record, on each of
   the three fixed worlds.
 - Each shipped option reads as its sheet says against the row empty, by the listen record.
-- Every theme sentence survives every override the grid shows, or does not promise it.
+- Every risky pair the grid shows has a listen verdict. (Was: "every theme sentence survives every override the grid
+  shows, or does not promise it"; dropped with §1.8's copy rule, 2026-11-05.)
 - `ThemeColumn` is `Partial<BandTable>`; a column with a key the table lacks or a band of the wrong kind does not
   compile.
 - A theme or aspect change on a live world writes only the fields the change moves, for every key a shipped column

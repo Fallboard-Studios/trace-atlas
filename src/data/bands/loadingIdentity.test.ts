@@ -9,8 +9,8 @@ import { DEFAULT_LOADING, loadingOf } from './loadingIdentity';
  */
 describe('loadingOf', () => {
   it('reads a whole, valid loading as it is', () => {
-    expect(loadingOf({ theme: 'calm', aspects: { melody: ['wandering'], voice: ['woody', 'glassy'] } })).toEqual({
-      theme: 'calm',
+    expect(loadingOf({ theme: 'float', aspects: { melody: ['wandering'], voice: ['woody', 'glassy'] } })).toEqual({
+      theme: 'float',
       aspects: { melody: ['wandering'], voice: ['glassy', 'woody'] },
     });
   });
@@ -23,14 +23,22 @@ describe('loadingOf', () => {
 
   it('drops picks that are not strings, keeping the family ids among them in canonical order', () => {
     const aspects = { melody: [1, null, 'wandering', { id: 'hypnotic' }, true, 'hypnotic', ['mechanical'], undefined] };
-    expect(loadingOf({ theme: 'calm', aspects })).toEqual({ theme: 'calm', aspects: { melody: ['hypnotic', 'wandering'] } });
+    expect(loadingOf({ theme: 'float', aspects })).toEqual({ theme: 'float', aspects: { melody: ['hypnotic', 'wandering'] } });
   });
 
   it('a family list of nothing but non-strings, or not a list, is no family', () => {
-    expect(loadingOf({ aspects: { envelope: [0, null, {}], distance: 'far', voice: ['woody'] } })).toEqual({
+    expect(loadingOf({ aspects: { envelope: [0, null, {}], distance: 'echoing', voice: ['woody'] } })).toEqual({
       theme: 'classic',
       aspects: { voice: ['woody'] },
     });
+  });
+
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: the two new families read as the four did.
+  it('keeps a Motion and a Performance list, each canonical, and drops a non-id or another family’s id in them', () => {
+    expect(
+      loadingOf({ aspects: { motion: ['sweeping', 7, 'gliding', 'sweeping'], performance: ['plucked', 'halting', 'steady'] } }),
+    ).toEqual({ theme: 'classic', aspects: { motion: ['gliding', 'sweeping'], performance: ['steady', 'halting'] } });
+    expect(loadingOf({ aspects: { motion: 'gliding', performance: [] } })).toEqual(DEFAULT_LOADING);
   });
 
   it('drops an unknown family, and another family’s id within a family', () => {

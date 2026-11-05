@@ -136,9 +136,9 @@ describe('buildShareUrl', () => {
 // band-table T24 (docs/specs/OFF_SCREEN.md assumption 11): a share link carries the loading as plain params.
 describe('buildShareUrl - the loading params', () => {
   it('writes theme and the picks as a bare comma list, never %2C, and the link decodes back to the payload', () => {
-    const payload: SessionPayload = { ...untouchedWorld(), theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const payload: SessionPayload = { ...untouchedWorld(), theme: 'float', aspects: { melody: ['hypnotic', 'mechanical'] } };
     const url = buildShareUrl(payload);
-    expect(url).toContain('&theme=calm&melody=hypnotic,mechanical');
+    expect(url).toContain('&theme=float&melody=hypnotic,mechanical');
     expect(url).not.toContain('%2C');
     expect(decodeWorldLink(new URL(url).search)).toEqual(payload);
   });
@@ -218,10 +218,10 @@ describe('mirrorWorldToUrl', () => {
   // band-table T24 (docs/specs/OFF_SCREEN.md assumptions 11 and 12): the theme and family params follow the world too,
   // written only when not the default, as a bare comma list in canonical order.
   it('writes theme and melody after y for a themed world with picks, and what it writes decodes back', () => {
-    const loading: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'wandering'] } };
+    const loading: LoadingIdentity = { theme: 'float', aspects: { melody: ['hypnotic', 'wandering'] } };
     mirrorWorldToUrl({ ...identity, ...loading });
     // Share's own encoding of the name since review R17 (`+` and `%21`, where the bar once wrote `%20` and `!`).
-    expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&theme=calm&melody=hypnotic,wandering');
+    expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&theme=float&melody=hypnotic,wandering');
     // The link names an untouched Calm world: what decodes is the seed drawn under Calm (themes-and-aspects T34).
     expect(decodeWorldLink(window.location.search)).toEqual(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }, loading));
   });
@@ -231,11 +231,11 @@ describe('mirrorWorldToUrl', () => {
   it('writes every family param after the one before it, each a bare comma list in canonical order', () => {
     mirrorWorldToUrl({
       ...identity,
-      theme: 'calm',
-      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+      theme: 'float',
+      aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'], voice: ['woody'] },
     });
     expect(window.location.search).toBe(
-      '?seed=Pelagos+7%21&x=29&y=-14&theme=calm&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody',
+      '?seed=Pelagos+7%21&x=29&y=-14&theme=float&melody=hypnotic&envelope=plucked,held&distance=halfHeard&voice=woody',
     );
   });
 
@@ -263,18 +263,18 @@ describe('mirrorWorldToUrl', () => {
   });
 
   it('removes theme and melody when the world is Classic with no picks, so the bar never carries a stale loading', () => {
-    window.history.replaceState({}, '', '/?seed=old&x=1&y=2&theme=calm&melody=hypnotic&debug');
+    window.history.replaceState({}, '', '/?seed=old&x=1&y=2&theme=float&melody=hypnotic&debug');
     mirrorWorldToUrl(identity);
     expect(window.location.search).toBe('?seed=Pelagos+7%21&x=29&y=-14&debug');
   });
 
   it('writes when the bar names the world under a different loading, and not when the loading matches too', () => {
-    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=calm');
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=float');
     mirrorWorldToUrl(identity);
     expect(new URLSearchParams(window.location.search).has('theme')).toBe(false);
-    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=calm&melody=hypnotic');
+    window.history.replaceState({}, '', '/?seed=Pelagos+7%21&x=29&y=-14&theme=float&melody=hypnotic');
     const replace = vi.spyOn(window.history, 'replaceState');
-    mirrorWorldToUrl({ ...identity, theme: 'calm', aspects: { melody: ['hypnotic'] } });
+    mirrorWorldToUrl({ ...identity, theme: 'float', aspects: { melody: ['hypnotic'] } });
     expect(replace).not.toHaveBeenCalled();
   });
 
@@ -302,13 +302,13 @@ describe('mirrorWorldToUrl', () => {
         .filter((part) => ['seed', 'x', 'y', 's', 'theme', 'melody', 'envelope', 'distance', 'voice'].includes([...new URLSearchParams(part).keys()][0]));
 
     it("after a mirror, the bar's world params are buildShareUrl's for the same world, in the same order and spelling", () => {
-      const loading: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'wandering'], voice: ['woody'] } };
+      const loading: LoadingIdentity = { theme: 'float', aspects: { melody: ['hypnotic', 'wandering'], voice: ['woody'] } };
       // The bar carries the old world with Voice ahead of Melody, as a toggle made in that order once left it.
       window.history.replaceState({}, '', '/trace-atlas/?debug&voice=glassy&seed=old&x=1&y=2&load=light');
       mirrorWorldToUrl({ ...identity, ...loading });
       const share = new URL(buildShareUrl(untouchedWorld('Pelagos 7!', { x: 29, y: -14 }, loading))).search;
       expect(worldParts(window.location.search)).toEqual(worldParts(share));
-      expect(worldParts(share)).toEqual(['seed=Pelagos+7%21', 'x=29', 'y=-14', 'theme=calm', 'melody=hypnotic,wandering', 'voice=woody']);
+      expect(worldParts(share)).toEqual(['seed=Pelagos+7%21', 'x=29', 'y=-14', 'theme=float', 'melody=hypnotic,wandering', 'voice=woody']);
     });
 
     it('the world part sits where the first world param stood, the rest keeping their text and their order', () => {

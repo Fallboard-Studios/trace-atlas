@@ -15,7 +15,7 @@ import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type Se
 import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
 import { resetBeatClock, initBeatClock } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS } from '../constants';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
 
@@ -84,6 +84,9 @@ export interface NoteParams {
    * robot's compositionSeed, so a replay from power-on repeats the pattern and two robots at the same tick
    * differ. Absent: the legacy per-robot counter. Robot Performance, docs/specs/ROBOT_PERFORMANCE.md §1.3. */
   position?: number;
+  /** This note's release in seconds, in place of the robot's for this note alone (a cut note's, from
+   * processMelodyStep). Absent: the robot's own. docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b. */
+  release?: number;
 }
 
 interface MelodyEventEntry {
@@ -101,13 +104,15 @@ interface MelodyEventEntry {
 // CONSTANTS
 // ========================================
 // NOTE: MAX_POLYPHONY and MIN_LEAD are provided from src/constants for consistency across modules
-/** Fraction of notes that receive a random velocity offset for organic expressiveness, at the neutral Dynamics (50). */
-const VELOCITY_VARIANCE_RATE = 0.15;
-/** Maximum ± deviation applied to a note's velocity when variance is triggered, at the neutral Dynamics (50). */
-const VELOCITY_VARIANCE_AMOUNT = 0.25;  // ±25% offset
-/** The Dynamics value that leaves the variance rate and width exactly as the two constants above. Dynamics / this
- *  scales both: 0 is flat, 100 is twice the rate and twice the width. docs/specs/ROBOT_PERFORMANCE.md assumption 7. */
-const DYNAMICS_NEUTRAL = 50;
+/** Fraction of notes that receive a random velocity offset, at Dynamics 100: every note. */
+const VELOCITY_VARIANCE_RATE = 1;
+/** Maximum ± deviation applied to a note's velocity when variance is triggered, at Dynamics 100: 0.3 either side of
+ *  the 0.6 baseline, 0.3 to 0.9 (about -6 to +3.5 dB). */
+const VELOCITY_VARIANCE_AMOUNT = 0.3;
+/** The Dynamics value that gives the variance rate and width exactly as the two constants above. Dynamics / this
+ *  scales both: 0 is flat, 50 is half the notes by up to ±0.15. Was 50 with a 0.15 rate and ±0.25 (at most 30 % of
+ *  notes at 100) until docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2a: too few notes moved to hear Dynamics. */
+const DYNAMICS_FULL = 100;
 /** Length of the velocity-roll pattern: the noise offset is (compositionSeed + position) mod this. Prime, so the
  *  pattern does not line up with the 16-step measure and repeats only every 97 steps. */
 const VELOCITY_PERIOD = 97;
@@ -544,7 +549,7 @@ export function triggerWithCap(params: NoteParams): boolean {
     // so this was pure duplicate work on the hot path (docs/tasks/archive/AUDIO_ENGINE_CLEANUP.md Task 6).
     // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
     // voice stringifies its duration anyway (it accepts NoteDuration | string).
-    synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8);
+    synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? 0.8, params.release);
     standingBy.recordNoteEnd(robotId, scheduleVoiceRelease(duration, scheduleTime));
     return true;
   } catch (err) {
@@ -586,11 +591,12 @@ function startMelodyPlayback(): void {
  * double-applying the same scaling twice. This baseline is just where the small performance-level
  * variance below jitters around; it isn't itself a volume control.
  */
-const NOTE_VELOCITY_BASELINE = 0.8;
+const NOTE_VELOCITY_BASELINE = 0.6;
 // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md assumption 6): 0.8, down from 1. At 1 the baseline sat at
 // the velocity ceiling, so every "louder" multiplier (the 1.25 motif-group accent, the accent marks) could only
-// lift a note the variance had first pushed down. 0.8 leaves a 25 % lift before the clamp, at a cost of about
-// 2 dB fleet-wide. Volume is a separate bus gain and untouched.
+// lift a note the variance had first pushed down. Then 0.6 (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2a): from 0.8
+// an accent rose about 2 dB and marcato met it at the ceiling, too little to hear; 0.6 leaves 4.4 dB. About 2.5 dB
+// quieter fleet-wide again. Volume is a separate bus gain and untouched.
 
 function clampVelocity(velocity: number): number {
   return Math.min(1, Math.max(VELOCITY_MIN, velocity));
@@ -614,7 +620,7 @@ function resolveDynamics(robot?: Robot): number {
  * function of their inputs, so a replay from power-on repeats the pattern and two robots at the same tick differ
  * (T20). With no `position` (tests, callers outside the playback loop) it falls back to the legacy per-robot counter
  * sampling the locale noise map at precomputed X positions. Either way the noise map's presence gates the roll. The robot's
- * Dynamics scales the variance rate and width (50 = today's exactly, 0 = flat). Falls back to no variance when the
+ * Dynamics scales the variance rate and width (100 = every note by up to ±0.3, 0 = flat). Falls back to no variance when the
  * noise map is unavailable. `robot` is the store robot when the caller already has it; otherwise it is looked up.
  */
 export function computeNoteVelocitySeeded(robotId?: string, position?: number, robot?: Robot): number {
@@ -623,8 +629,8 @@ export function computeNoteVelocitySeeded(robotId?: string, position?: number, r
   if (!noiseMap) return clampVelocity(NOTE_VELOCITY_BASELINE);
 
   const storeRobot = robot ?? (robotId ? findActiveRobot(robotId) : undefined);
-  const scale = resolveDynamics(storeRobot) / DYNAMICS_NEUTRAL;
-  const rate = VELOCITY_VARIANCE_RATE * scale; // at most 0.3: resolveDynamics caps the scale at 2
+  const scale = resolveDynamics(storeRobot) / DYNAMICS_FULL;
+  const rate = VELOCITY_VARIANCE_RATE * scale; // at most 1: resolveDynamics caps the scale at 1
   const width = VELOCITY_VARIANCE_AMOUNT * scale;
 
   // The two draws: the roll in [0, 1) against the rate, and the signed variance in [-1, 1].
@@ -776,7 +782,7 @@ export const AudioEngine = {
       devWarn('[AudioEngine] scheduleNote.audioMode failed', err);
     }
 
-    triggerWithCap({ robotId, note, duration, time, velocity: effectiveVelocity });
+    triggerWithCap({ robotId, note, duration, time, velocity: effectiveVelocity, release: params.release });
   },
 
   /**
@@ -1390,11 +1396,16 @@ export const AudioEngine = {
         // and a velocity multiplier. An unstamped event keeps its NoteDuration string exactly as before; a
         // shortened one becomes seconds at the live tempo, floored so it never collapses to a click and
         // never longer than the note as written.
+        // A cut note also releases in CUT_RELEASE_SECONDS, or the robot's own release if that is shorter
+        // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b): with the robot's whole release after it, the cut was hidden.
         const art = resolveArticulation(event);
         let duration: NoteDuration | number = event.length;
+        let release: number | undefined;
         if (art.length < 1) {
           const writtenSeconds = Tone.Time(event.length).toSeconds();
           duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
+          const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
+          release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
         }
         const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
 
@@ -1405,6 +1416,7 @@ export const AudioEngine = {
           time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
           accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
           position,
+          ...(release !== undefined ? { release } : {}),
         });
       } catch (err) {
         devWarn(`[AudioEngine] Failed to schedule note for robot ${robotId}`, err);

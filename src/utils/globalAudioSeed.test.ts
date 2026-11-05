@@ -27,20 +27,32 @@ vi.mock('./tempoSync', async (importOriginal) => {
 });
 
 // band-table T22: the global bands are read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption
-// 15). The real Calm column is {} until the listen (plan Task 34), so one moving three keys is injected over the spread
-// originals: the LPF cutoff (a plain sampled field), the Delay time (the band the Delay Sync pick is handed) and the
-// Phaser rate (a pedal rate band the Sync pick is handed).
+// 15). Columns are injected over the spread originals, whatever the real ones hold. Float moves three keys: the LPF
+// cutoff (a plain sampled field), the Delay time (the band the Delay Sync pick is handed) and the Chorus rate (a rate
+// band the Sync pick is handed; the Chorus is a room, so naming it lights nothing). The rest prove the lit rule
+// (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8), each naming one SHAPE row only, so it is the row named and not a wet
+// band that lights: Shatter the three colour nodes, Wreck the drive and the crush, Vent Field the Auto-Wah, Polar Low the
+// Tremolo, and Beacon three pedals at once, one more than the cap.
 vi.mock('@/data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/data/bands/themes')>();
   return {
     ...actual,
     THEMES: {
       ...actual.THEMES,
-      calm: {
+      float: {
         'filterLPF.frequency': { min: 500, max: 600 },
         'delay.delayTime': { min: 0.2, max: 0.25 },
-        'phaser.rate': { min: 1, max: 1.5 },
+        'chorus.rate': { min: 1, max: 1.5 },
       },
+      shatter: {
+        'distortion.amount': { min: 0.5, max: 0.6 },
+        'chebyshev.order': { min: 6, max: 7 },
+        'bitCrusher.bits': { min: 4, max: 5 },
+      },
+      wreck: { 'distortion.amount': { min: 0.5, max: 0.6 }, 'bitCrusher.bits': { min: 4, max: 5 } },
+      ventField: { 'autoWah.Q': { min: 6, max: 7 } },
+      polarLow: { 'tremolo.depth': { min: 0.8, max: 0.9 } },
+      beacon: { 'autoWah.Q': { min: 6, max: 7 }, 'tremolo.depth': { min: 0.8, max: 0.9 }, 'vibrato.depth': { min: 0.05, max: 0.06 } },
     },
   };
 });
@@ -53,7 +65,6 @@ import {
   generateSwellFrequency,
   generateSwellDuration,
   generateHumanize,
-  HUMANIZE_SEED_RANGE,
   scaleUnitValue,
   pickColourCharacter,
   COLOUR_CHARACTERS,
@@ -1179,11 +1190,11 @@ describe('the Global Pedals (Global Pedals T8)', () => {
       }
     });
 
-    it('never seeds a shift inside 2 Hz of zero, keeps it within 20 Hz, and seeds both signs', () => {
+    it('never seeds a shift inside 1 Hz of zero, keeps it within 5 Hz, and seeds both signs', () => {
       const shifts = samples.map((s) => s.frequencyShifter.shift);
       for (const shift of shifts) {
-        expect(Math.abs(shift)).toBeGreaterThanOrEqual(2);
-        expect(Math.abs(shift)).toBeLessThanOrEqual(20);
+        expect(Math.abs(shift)).toBeGreaterThanOrEqual(1);
+        expect(Math.abs(shift)).toBeLessThanOrEqual(5);
         expect(Number.isInteger(shift)).toBe(true);
       }
       const negative = shifts.filter((x) => x < 0).length / shifts.length;
@@ -1792,10 +1803,10 @@ describe('generateHumanize (Robot Performance Task 12)', () => {
     for (let i = 0; i < STYLES; i++) evictAttenuationStyleNoiseMap(`seed-hum-sample-${i}`);
   });
 
-  it('seeds in [2, 6] ms: the constant is the spec range, and sits inside the slider range', () => {
-    expect(HUMANIZE_SEED_RANGE).toEqual({ min: 2, max: 6 });
-    expect(HUMANIZE_SEED_RANGE.min).toBeGreaterThanOrEqual(HUMANIZE_SCHEMA.min);
-    expect(HUMANIZE_SEED_RANGE.max).toBeLessThanOrEqual(HUMANIZE_SCHEMA.max);
+  it('seeds in [2, 6] ms: Classic\'s band is the spec range, and sits inside the slider range', () => {
+    expect(CLASSIC.humanize).toEqual({ min: 2, max: 6 });
+    expect(CLASSIC.humanize.min).toBeGreaterThanOrEqual(HUMANIZE_SCHEMA.min);
+    expect(CLASSIC.humanize.max).toBeLessThanOrEqual(HUMANIZE_SCHEMA.max);
   });
 
   it('always returns a whole number of ms in [2, 6], across many Attenuation Styles', () => {
@@ -2242,6 +2253,12 @@ describe('generateGlobalAudioSettings — Delay Sync draw', () => {
 // -> fold, theta fold -> clean) and the Delay Sync pair (alpha now Sync; theta's note). T12 moved the seed tempo (alpha
 // 74 -> 78 BPM, theta 58 -> 85), so four Sync notes snapped to it moved and no other value did. T13 moved every LFO
 // Bank lane (rate, shape, both drifts, Sync). The rule above stands again once Phase 3 is done.
+//
+// AMENDED BY HAND, themes-58 (Crawford, 2026-11-04): Classic's Chorus depth band moved to 0.05-0.2 and the shift's
+// magnitude band to 1-5 Hz (plain draws; the shift's sign is its own draw and did not move). From the same raw draws:
+// alpha depth t ~0.325 -> 0.05 + 0.15 * t = 0.099 -> 0.10 (was 0.43), shift t ~0.5 -> 1 + 4 * t = 3 -> -3 (was -11);
+// theta depth t ~0.25 -> 0.0875 -> 0.09 (was 0.40), shift t ~0.667 -> 3.67 -> 4 (was 14). The old bands 0.3 + 0.4 * t and
+// 2 + 18 * t reproduce 0.43, 11, 0.40 and 14, which is the check; the seeder's output matched. Nothing else moved.
 describe('seed oracle (pre-Sync output, do not regenerate)', () => {
   afterEach(() => {
     evictAttenuationStyleNoiseMap('oracle-alpha');
@@ -2279,10 +2296,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Pedals T8: the Phaser is lit, the Chorus lit (synced), the shifter capped dark. Robot Effect Sends T8 (amended
       // by hand): the Chorus and shifter wets are their rooms' Returns, 1, and the Chorus keeps the Sync it already drew; the
       // Tremolo and Vibrato rolls are over their edges, so the smaller cap moved nothing else.
-      chorus: { rate: 0.7, delayTime: 12.5, depth: 0.43, spread: 95, feedback: 0.19, wet: 1, sync: { division: '1/2', modifier: 'straight' } },
+      chorus: { rate: 0.7, delayTime: 12.5, depth: 0.1, spread: 95, feedback: 0.19, wet: 1, sync: { division: '1/2', modifier: 'straight' } },
       tremolo: { rate: 5.7, depth: 0.35, spread: 90, wet: 0 },
       vibrato: { rate: 6.85, depth: 0.05, wet: 0 },
-      frequencyShifter: { shift: -11, wet: 1 },
+      frequencyShifter: { shift: -3, wet: 1 },
       stereoWidener: { width: 0.64 },
       // Even Seeded Draws T11: the Delay now seeds Sync here.
       delay: { delayTime: 0.112, feedback: 0.01, wet: 1, sync: { division: '1/8', modifier: 'straight' } },
@@ -2315,10 +2332,10 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
       // Global Pedals T8: the AutoWah is lit and the Tremolo lights (synced); the Vibrato rolls dark. Robot Effect Sends T8
       // (amended by hand): the Chorus and shifter wets are their rooms' Returns, 1; this style's Chorus Sync roll is over its
       // odds, so it stays Free; nothing else moved.
-      chorus: { rate: 1.5, delayTime: 13, depth: 0.4, spread: 145, feedback: 0.09, wet: 1 },
+      chorus: { rate: 1.5, delayTime: 13, depth: 0.09, spread: 145, feedback: 0.09, wet: 1 },
       tremolo: { rate: 1.75, depth: 0.35, spread: 130, wet: 0.4, sync: { division: '1/4', modifier: 'triplet' } }, // T12: tempo 58 -> 85
       vibrato: { rate: 3.85, depth: 0.06, wet: 0 },
-      frequencyShifter: { shift: 14, wet: 1 },
+      frequencyShifter: { shift: 4, wet: 1 },
       stereoWidener: { width: 0.51 },
       // Task 13: the only change to this expectation — a Sync landing adds this key, nothing else moved. Even Seeded Draws
       // T11: the note moved (it was a straight 1/16).
@@ -2360,7 +2377,7 @@ describe('seed oracle (pre-Sync output, do not regenerate)', () => {
 // ========================================
 
 describe('generateGlobalAudioSettings reads the band table (band-table T22, spec assumption 15)', () => {
-  const CALM = { theme: 'calm', aspects: {} } as const;
+  const CALM = { theme: 'float', aspects: {} } as const;
   const names = Array.from({ length: 40 }, (_, i) => `band-table-t22-${i}`);
   const idOf = (name: string) => `band-table-t22-id-${name}`;
 
@@ -2378,16 +2395,17 @@ describe('generateGlobalAudioSettings reads the band table (band-table T22, spec
     }
   });
 
-  it('moves only the bands the column names: with the LPF cutoff, the Delay and the Phaser blocks set aside, the themed style equals the Classic one', () => {
-    const name = names[0];
-    const classic = generateGlobalAudioSettings(idOf(name), name);
-    const calm = withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name));
-    expect({
-      ...calm,
-      filterLPF: { ...calm.filterLPF, frequency: classic.filterLPF.frequency },
-      delay: classic.delay,
-      phaser: classic.phaser,
-    }).toStrictEqual(classic);
+  it('moves only the bands the column names: with the LPF cutoff, the Delay and the Chorus blocks set aside, the themed style equals the Classic one', () => {
+    for (const name of names.slice(0, 8)) {
+      const classic = generateGlobalAudioSettings(idOf(name), name);
+      const calm = withLoading(CALM, () => generateGlobalAudioSettings(idOf(name), name));
+      expect({
+        ...calm,
+        filterLPF: { ...calm.filterLPF, frequency: classic.filterLPF.frequency },
+        delay: classic.delay,
+        chorus: classic.chorus,
+      }, name).toStrictEqual(classic);
+    }
   });
 
   it('reads the band at the draw, never caching it: after withLoading the same style seeds its Classic cutoff again', () => {
@@ -2409,10 +2427,127 @@ describe('generateGlobalAudioSettings reads the band table (band-table T22, spec
     for (const call of seconds) expect(call[2]).toEqual([{ min: 0.2, max: 0.25 }]);
     expect(hz.length).toBeGreaterThan(0);
     expect(hz.some((call) => call[2][0].min === 1 && call[2][0].max === 1.5)).toBe(true);
-    // The chorus, tremolo and vibrato rate bands are untouched: every other hz band is Classic's.
+    // The phaser, tremolo and vibrato rate bands are untouched: every other hz band is Classic's.
     for (const call of hz) {
       if (call[2][0].min === 1 && call[2][0].max === 1.5) continue;
-      expect([CLASSIC['chorus.rate'], CLASSIC['tremolo.rate'], CLASSIC['vibrato.rate']]).toContainEqual(call[2][0]);
+      expect([CLASSIC['phaser.rate'], CLASSIC['tremolo.rate'], CLASSIC['vibrato.rate']]).toContainEqual(call[2][0]);
     }
+  });
+});
+
+// ========================================
+// THE LIT RULE (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8)
+// ========================================
+
+describe('generateGlobalAudioSettings: a theme naming a pedal\'s or a colour node\'s rows lights it in every world (T8)', () => {
+  const names = Array.from({ length: 60 }, (_, i) => `lit-rule-t8-${i}`);
+  const idOf = (name: string) => `lit-rule-t8-id-${name}`;
+  const under = (theme: 'shatter' | 'wreck' | 'ventField' | 'polarLow' | 'beacon' | 'classic', name: string) =>
+    withLoading({ theme, aspects: {} }, () => generateGlobalAudioSettings(idOf(name), name));
+  type Settings = ReturnType<typeof generateGlobalAudioSettings>;
+  const pedalsLit = (s: Settings) => ({
+    autoWah: s.autoWah.wet > 0,
+    phaser: s.phaser.wet > 0,
+    tremolo: s.tremolo.wet > 0,
+    vibrato: s.vibrato.wet > 0,
+  });
+  const litCount = (s: Settings) => Object.values(pedalsLit(s)).filter(Boolean).length;
+  const inWetBand = (wet: number, key: 'distortion.wet' | 'chebyshev.wet' | 'bitCrusher.wet' | 'autoWah.wet' | 'tremolo.wet' | 'vibrato.wet') =>
+    wet >= CLASSIC[key].min - 1e-9 && wet <= CLASSIC[key].max + 1e-9;
+
+  afterEach(() => {
+    for (const name of names) evictAttenuationStyleNoiseMap(idOf(name));
+  });
+
+  it('the precondition: under Classic the coin leaves each colour node and each pedal dark in some of these worlds', () => {
+    const classic = names.map((name) => under('classic', name));
+    expect(classic.some((s) => s.distortion.wet === 0)).toBe(true);
+    expect(classic.some((s) => s.chebyshev.wet === 0)).toBe(true);
+    expect(classic.some((s) => s.bitCrusher.wet === 0)).toBe(true);
+    expect(classic.some((s) => s.autoWah.wet === 0)).toBe(true);
+    expect(classic.some((s) => s.tremolo.wet === 0)).toBe(true);
+    expect(classic.some((s) => s.vibrato.wet === 0)).toBe(true);
+  });
+
+  it('a column naming one shape row of each colour node (Shatter, injected) lights all three in every world, each wet drawn from its own band', () => {
+    for (const name of names) {
+      const s = under('shatter', name);
+      expect(inWetBand(s.distortion.wet, 'distortion.wet') && s.distortion.wet > 0, name).toBe(true);
+      expect(inWetBand(s.chebyshev.wet, 'chebyshev.wet') && s.chebyshev.wet > 0, name).toBe(true);
+      expect(inWetBand(s.bitCrusher.wet, 'bitCrusher.wet') && s.bitCrusher.wet > 0, name).toBe(true);
+    }
+  });
+
+  it('a column naming two nodes (Wreck, injected) lights those two in every world and leaves the third to the coin, as Classic draws it', () => {
+    for (const name of names) {
+      const s = under('wreck', name);
+      expect(s.distortion.wet, name).toBeGreaterThan(0);
+      expect(s.bitCrusher.wet, name).toBeGreaterThan(0);
+      expect(s.chebyshev, name).toStrictEqual(under('classic', name).chebyshev);
+    }
+  });
+
+  it('a lit node seeds the wet its own draw gives: where Classic lit a node, the theme seeds the same wet', () => {
+    for (const name of names) {
+      const classic = under('classic', name);
+      const s = under('shatter', name);
+      for (const node of ['distortion', 'chebyshev', 'bitCrusher'] as const) {
+        if (classic[node].wet > 0) expect(s[node].wet, `${name} ${node}`).toBe(classic[node].wet);
+      }
+    }
+  });
+
+  it('a column naming an Auto-Wah row (Vent Field, injected) lights the Auto-Wah in every world, under the cap', () => {
+    for (const name of names) {
+      const s = under('ventField', name);
+      expect(inWetBand(s.autoWah.wet, 'autoWah.wet') && s.autoWah.wet > 0, name).toBe(true);
+      expect(litCount(s), name).toBeLessThanOrEqual(MAX_LIT_PEDALS);
+    }
+  });
+
+  it('a column naming a Tremolo row (Polar Low, injected) lights it in every world, and the forced pedal counts against the two-lit cap', () => {
+    let capped = 0;
+    for (const name of names) {
+      const s = under('polarLow', name);
+      const classic = pedalsLit(under('classic', name));
+      expect(inWetBand(s.tremolo.wet, 'tremolo.wet') && s.tremolo.wet > 0, name).toBe(true);
+      expect(litCount(s), name).toBeLessThanOrEqual(MAX_LIT_PEDALS);
+      // The Auto-Wah rolls first: the forced Tremolo leaves room for it, so it is the coin's as under Classic.
+      expect(pedalsLit(s).autoWah, name).toBe(classic.autoWah);
+      // With the Auto-Wah lit, the forced Tremolo fills the cap, so the Phaser's coin cannot light it.
+      if (classic.autoWah && classic.phaser) {
+        expect(pedalsLit(s).phaser, name).toBe(false);
+        capped += 1;
+      }
+    }
+    expect(capped, 'a world where the cap bit').toBeGreaterThan(0);
+  });
+
+  it('forced pedals light even past the cap (Beacon, injected, names three), and then no coin pedal lights', () => {
+    for (const name of names) {
+      const lit = pedalsLit(under('beacon', name));
+      expect(lit, name).toEqual({ autoWah: true, phaser: false, tremolo: true, vibrato: true });
+    }
+  });
+
+  it('a forcing theme draws the same dataIds as Classic: every roll is still read on every style', () => {
+    const name = names[0];
+    clearSeedDraws();
+    under('classic', name);
+    const classic = drawnDataIds();
+    for (const theme of ['shatter', 'wreck', 'ventField', 'polarLow', 'beacon'] as const) {
+      clearSeedDraws();
+      under(theme, name);
+      expect(drawnDataIds(), theme).toEqual(classic);
+    }
+  });
+
+  it('withLoading restores the lights: after a forcing theme the same style seeds its Classic colour and pedals again', () => {
+    // `before` is drawn inside an explicit Classic install, so a leaked install from an earlier case cannot hide here.
+    const name = names[2];
+    const before = under('classic', name);
+    under('shatter', name);
+    under('beacon', name);
+    expect(generateGlobalAudioSettings(idOf(name), name)).toStrictEqual(before);
   });
 });

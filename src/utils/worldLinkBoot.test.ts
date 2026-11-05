@@ -20,7 +20,7 @@ vi.mock('../engine/beatClock', () => ({
 // originals; the mocks survive vi.resetModules.
 vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, calm: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
+  return { ...actual, THEMES: { ...actual.THEMES, float: { 'robot.rhythmicDensity': { min: 90, max: 100 } } } };
 });
 vi.mock('../data/bands/aspects', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/aspects')>();
@@ -139,10 +139,10 @@ describe('the world link through the real boot (docs/specs/SHORT_WORLD_LINK.md: 
 
 describe('the loading identity through the real boot (band-table T24, docs/specs/OFF_SCREEN.md assumptions 9 and 11)', () => {
   it('a link with theme and melody has the store set before the locale builds: the robots draw under Calm, the live payload carries both, and the same link copies back untweaked', async () => {
-    const link = new URLSearchParams({ seed: 'n40dh8p8', x: '29', y: '-14', theme: 'calm', melody: 'hypnotic' }).toString();
+    const link = new URLSearchParams({ seed: 'n40dh8p8', x: '29', y: '-14', theme: 'float', melody: 'hypnotic' }).toString();
     const { live, encodeWorldLinkParams, densities, loading } = await bootWith(`?${link}`);
-    expect(loading).toEqual({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
-    expect(live.theme).toBe('calm');
+    expect(loading).toEqual({ theme: 'float', aspects: { melody: ['hypnotic'] } });
+    expect(live.theme).toBe('float');
     expect(live.aspects).toEqual({ melody: ['hypnotic'] });
     expect(densities.length).toBeGreaterThan(0);
     for (const density of densities) expect(density).toBeGreaterThanOrEqual(90);

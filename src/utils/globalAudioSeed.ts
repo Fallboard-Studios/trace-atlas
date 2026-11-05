@@ -15,7 +15,7 @@ import { SWELL_FREQUENCY_STEPS, SWELL_DURATION_SCHEMA, HUMANIZE_SCHEMA } from '@
 import type { NoteValue } from '@/data/noteValues';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS, SYNCED_RATE_KEYS, type SyncedRateKey } from '@/types/globalAudio';
-import { getBand } from '@/data/bands/loadingContext';
+import { getBand, isLitByTheme } from '@/data/bands/loadingContext';
 import { GLOBAL_AUDIO_SEED_RANGES, type LoadingRangeKey, type SeedRange } from '@/data/globalAudioSeedRanges';
 import {
   GLOBAL_LFO_TARGET_IDS,
@@ -156,10 +156,14 @@ export type MotionPedal = (typeof MOTION_PEDALS)[number];
  * counts four pedals (the Chorus and the shifter became rooms, lit by their robots' sends), giving Tremolo 22.2 % and
  * Vibrato 19.4 %. Measured over 20 000 styles ('PedalsCalibration<n>', 2026-10-21): Tremolo 22.04 %, Vibrato 19.55 %, two
  * pedals lit in 33.20 % of worlds and never more. The test holds a different set ('PedalsShare<n>', 3 000 styles) to
- * within 3 points of those. A theme that wants more lit moves the edges or this cap. By hand any number of pedals can be
+ * within 3 points of those. A theme that names a pedal's rows lights it in every world and the forced pedal counts
+ * against this cap (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8, the lit rule). By hand any number of pedals can be
  * lit.
  */
 export const MAX_LIT_PEDALS = 2;
+
+/** The four dry-chain pedals with a lit roll, in chain order: the order the cap admits them in. */
+const PEDALS_IN_CHAIN_ORDER = ['autoWah', 'phaser', ...MOTION_PEDALS] as const;
 
 /**
  * The share of LIT LFO pedals (Phaser, Chorus, Tremolo, Vibrato) that seed Sync rather than Free, one entry per pedal:
@@ -225,27 +229,44 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
   // Colour: the character draw says which nodes are lit. All seven colour keys are read on every style, lit or not,
   // so the draw set never depends on the character; an unlit node still seeds its shape value (a hand nudge of Mix
   // then hears something at once) and just has its `wet` forced to 0.
-  const lit = COLOUR_CHARACTER_NODES[pickColourCharacter(getUniformSeededVal(noiseMap, 'globalAudio.colour.character'))];
+  // The lit rule (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8): a node the loaded theme's column names is lit in every
+  // world on top of the character's pick; a node it does not name is the character's, as under Classic.
+  const character = COLOUR_CHARACTER_NODES[pickColourCharacter(getUniformSeededVal(noiseMap, 'globalAudio.colour.character'))];
+  const nodeLit = (node: ColourNode): boolean => character.includes(node) || isLitByTheme(node);
   const distortionWet = sampleField(noiseMap, 'distortion.wet');
   const chebyshevWet = sampleField(noiseMap, 'chebyshev.wet');
   const bitCrusherWet = sampleField(noiseMap, 'bitCrusher.wet');
 
   // Modulation: four roll draws, then the thirteen value draws, ALL read on every style, lit or dark, so the draw set
-  // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why).
-  const autoWahLit = getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah;
-  const phaserLit = getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser;
+  // never depends on the outcome. Every one is a uniform draw (see PEDAL_LIT_EDGE and sampleField for why). The rolls go
+  // in chain order under the two-lit cap (MAX_LIT_PEDALS). A pedal the loaded theme's column names is lit whatever its
+  // roll (the lit rule) and counts against the cap from the start, so a coin pedal lights only while fewer than two are
+  // lit counting the forced ones; a theme forcing more than two lights them all and no coin pedal. With nothing forced
+  // the AutoWah and Phaser can never meet the cap, so Classic is the sequential cap of docs/specs/GLOBAL_PEDALS.md §1.2.
+  const rolls = {
+    autoWah: getUniformSeededVal(noiseMap, 'globalAudio.autoWah.lit') < PEDAL_LIT_EDGE.autoWah,
+    phaser: getUniformSeededVal(noiseMap, 'globalAudio.phaser.lit') < PEDAL_LIT_EDGE.phaser,
+  };
   const autoWahWet = sampleField(noiseMap, 'autoWah.wet');
   const phaserWet = sampleField(noiseMap, 'phaser.wet');
-
-  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.2): the sequential cap. Each motion pedal's roll is read whether or not
-  // the cap would allow it, so the draw set is total; the AutoWah and Phaser results above count towards the cap.
-  let litCount = Number(autoWahLit) + Number(phaserLit);
-  const pedalLit = {} as Record<MotionPedal, boolean>;
+  const motionRolls = {} as Record<MotionPedal, boolean>;
   for (const pedal of MOTION_PEDALS) {
-    const wants = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.lit`) < PEDAL_LIT_EDGE[pedal];
-    pedalLit[pedal] = wants && litCount < MAX_LIT_PEDALS;
-    if (pedalLit[pedal]) litCount += 1;
+    motionRolls[pedal] = getUniformSeededVal(noiseMap, `globalAudio.${pedal}.lit`) < PEDAL_LIT_EDGE[pedal];
   }
+  const chain = { ...rolls, ...motionRolls };
+  let litCount = PEDALS_IN_CHAIN_ORDER.filter((pedal) => isLitByTheme(pedal)).length;
+  const lit = {} as Record<(typeof PEDALS_IN_CHAIN_ORDER)[number], boolean>;
+  for (const pedal of PEDALS_IN_CHAIN_ORDER) {
+    if (isLitByTheme(pedal)) {
+      lit[pedal] = true;
+      continue;
+    }
+    lit[pedal] = chain[pedal] && litCount < MAX_LIT_PEDALS;
+    if (lit[pedal]) litCount += 1;
+  }
+  const autoWahLit = lit.autoWah;
+  const phaserLit = lit.phaser;
+  const pedalLit: Record<MotionPedal, boolean> = { tremolo: lit.tremolo, vibrato: lit.vibrato };
   // A sync pair per synced-rate block (the Phaser and the three LFO pedals), read on every style; Sync only when lit and
   // under the odds, the note from the lit band. A dark one is Free (no `sync` key), like a Free lane; an empty band
   // leaves a lit one Free too.
@@ -309,15 +330,15 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
     },
     distortion: {
       amount: sampleField(noiseMap, 'distortion.amount'),
-      wet: lit.includes('distortion') ? distortionWet : 0,
+      wet: nodeLit('distortion') ? distortionWet : 0,
     },
     chebyshev: {
       order: sampleField(noiseMap, 'chebyshev.order'),
-      wet: lit.includes('chebyshev') ? chebyshevWet : 0,
+      wet: nodeLit('chebyshev') ? chebyshevWet : 0,
     },
     bitCrusher: {
       bits: sampleField(noiseMap, 'bitCrusher.bits'),
-      wet: lit.includes('bitCrusher') ? bitCrusherWet : 0,
+      wet: nodeLit('bitCrusher') ? bitCrusherWet : 0,
     },
     autoWah: {
       baseFrequency: sampleField(noiseMap, 'autoWah.baseFrequency'),
@@ -390,6 +411,13 @@ export function generateGlobalAudioSettings(attenuationStyleId: string, attenuat
  * comment (src/types/lfo.ts) for why rate=0 is now the "off" state.
  */
 const LFO_QUIET_THRESHOLD = 0.34;
+
+/** A global target's quiet edge: LFO_QUIET_THRESHOLD, except the master low-pass cutoff's, which is its band's unlit
+ *  share (lfoLink.lpf.frequency, docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6; Classic's lit of 0.66 is the same edge),
+ *  so a theme naming it at a lit of 1 ties it live in every world. */
+function quietThresholdForTarget(target: GlobalLfoTargetId): number {
+  return target === 'lpf.frequency' ? 1 - getBand('lfoLink.lpf.frequency').lit : LFO_QUIET_THRESHOLD;
+}
 
 /**
  * Ping Variance Automation's own seeded-default range — [10%, 60%] as a
@@ -472,15 +500,13 @@ export function generateSwellDuration(attenuationStyleId: string, attenuationSty
 }
 
 /**
- * Humanize's own seeded-default range — [2, 6] ms (docs/specs/ROBOT_PERFORMANCE.md assumption 9): audible as looseness on a
- * fresh world, a third of the slider's 20 ms top, so the first thing a listener hears is a fleet that is a touch off the grid.
- */
-export const HUMANIZE_SEED_RANGE = { min: 2, max: 6 };
-
-/**
- * Seeded starting value for audioStore's humanize, whole ms in [2, 6]. Same seed-once/carry-forward treatment as
- * generateSwellDuration above (audioStore.ts's regenerateGlobalAudioFromSeed calls it only on the first seed), snapped onto
- * HUMANIZE_SCHEMA's own 1 ms grid so a fresh world starts on a value the slider can actually produce.
+ * Seeded starting value for audioStore's humanize, whole ms in the loaded world's `humanize` band (Classic's [2, 6] ms,
+ * docs/specs/ROBOT_PERFORMANCE.md assumption 9: audible as looseness on a fresh world, a third of the slider's 20 ms top;
+ * a band since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, so a theme can tighten or loosen it). Same
+ * seed-once/carry-forward treatment as generateSwellDuration above on a style switch (audioStore.ts's
+ * regenerateGlobalAudioFromSeed calls it only on the first seed); a loading change draws it again
+ * (deriveGlobalHalfMoves). Snapped onto HUMANIZE_SCHEMA's own 1 ms grid so a fresh world starts on a value the slider can
+ * actually produce.
  *
  * A uniform draw, not getSeededVal: one plain draw at offset 0 takes only about three values across all worlds (measured
  * here: 3 over 300 styles, and a single value across 40 names), which would seed nearly every world to the same few ms
@@ -488,7 +514,8 @@ export const HUMANIZE_SEED_RANGE = { min: 2, max: 6 };
  */
 export function generateHumanize(attenuationStyleId: string, attenuationStyleName: string): number {
   const noiseMap = getAttenuationStyleNoiseMap(attenuationStyleId, attenuationStyleName);
-  const raw = HUMANIZE_SEED_RANGE.min + getUniformSeededVal(noiseMap, 'globalAudio.humanize') * (HUMANIZE_SEED_RANGE.max - HUMANIZE_SEED_RANGE.min);
+  const band = getBand('humanize');
+  const raw = band.min + getUniformSeededVal(noiseMap, 'globalAudio.humanize') * (band.max - band.min);
   return quantizeToStep(raw, HUMANIZE_SCHEMA.min, HUMANIZE_SCHEMA.step ?? 1);
 }
 
@@ -506,9 +533,14 @@ export const GLOBAL_LFO_EQ_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, 
 export const GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, max: 60 };
 export const GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE = { min: GLOBAL_LFO_DEPTH_SEED_MIN, max: 40 };
 
-/** Picks the right depth seed window for a global-chain target: eq3.* -> EQ, *.Q -> filter Q,
- *  everything else (lpf.frequency/hpf.frequency) -> filter frequency. */
+/** Picks the right depth seed window for a global-chain target: the master low-pass cutoff its own band
+ *  (lfoLink.lpf.frequency, docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6), eq3.* -> EQ, *.Q -> filter Q, everything else
+ *  (hpf.frequency) -> filter frequency. */
 function globalLfoDepthSeedRangeForTarget(target: GlobalLfoTargetId): { min: number; max: number } {
+  if (target === 'lpf.frequency') {
+    const { min, max } = getBand('lfoLink.lpf.frequency');
+    return { min, max };
+  }
   if (target.startsWith('eq3.')) return GLOBAL_LFO_EQ_DEPTH_SEED_RANGE;
   return target.endsWith('.Q') ? GLOBAL_LFO_FILTER_Q_DEPTH_SEED_RANGE : GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE;
 }
@@ -663,7 +695,7 @@ export function generateGlobalLfoLinks(
 
   for (const target of GLOBAL_LFO_TARGET_IDS) {
     const quietT = getUniformSeededVal(noiseMap, `globalLfo.${target}.quiet`);
-    if (quietT < LFO_QUIET_THRESHOLD) {
+    if (quietT < quietThresholdForTarget(target)) {
       result[target] = { lane: null, depth: 0 };
       continue;
     }

@@ -22,6 +22,7 @@ import { ROBOT_LFO_TARGET_IDS, LFO_LANE_IDS, type LfoLaneId } from '../types/lfo
 import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
+  ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS,
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
@@ -82,9 +83,8 @@ vi.mock('./stations', async (importOriginal) => {
 });
 
 // band-table T21: every robot band is read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption
-// 15). The real theme columns are {} until the listen (plan Task 34), so a column that moves EVERY robot band is injected
-// under the Perilous id; production's ThemeColumn confines a theme to assumption 16's key list, but the generator reads
-// whatever table is installed (the deal pass hands the same code its Melody bands, Task 27). Each value is chosen so a
+// 15). A column that moves EVERY robot band is injected under the Shatter id (Perilous when this was written), so the
+// test does not lean on the real columns; the generator reads whatever table is installed (the deal pass hands the same code its Melody bands, Task 27). Each value is chosen so a
 // Classic draw would break it somewhere: a lit share of 1 lands the trait on every robot, 0 on none.
 const everyRobotBandMoved = vi.hoisted(() => ({
   'robot.attack': { min: 1.5, max: 2 },
@@ -111,7 +111,7 @@ const everyRobotBandMoved = vi.hoisted(() => ({
   'robot.accents': { min: 0, max: 5 },
 }) satisfies Partial<BandTable>);
 
-// band-table T22: the sends read the band table too. Under Adventurous no robot carries a reverb (lit 0), every robot a
+// band-table T22: the sends read the band table too. Under Undertow (injected) no robot carries a reverb (lit 0), every robot a
 // delay of exactly 0.3 (a point band, lit 1) and every Grit roll lands at 0.5 (so Shimmer and Double never do); Bold
 // gives the Reverb row a lit share of 0.5, to prove the roll against 1 - lit on a row Classic never rolls.
 const everySendMoved = vi.hoisted(() => ({
@@ -121,9 +121,10 @@ const everySendMoved = vi.hoisted(() => ({
 }) satisfies Partial<BandTable>);
 const halfLitReverb = vi.hoisted(() => ({ reverbSend: { min: 0.1, max: 0.6, lit: 0.5 } }) satisfies Partial<BandTable>);
 
-// band-table T27: the deal pass re-derives a dealt robot's Melody fields under its aspect's bands. The real option columns
-// are {} until the listen (plan Task 34), so Hypnotic and Mechanical get distinguishing columns here; Calm is given
-// Hypnotic's column too, so a robot generated under Calm from its own index is exactly what the deal must produce.
+// band-table T27: the deal pass re-derives a dealt robot's Melody fields under its aspect's bands. Hypnotic and Mechanical
+// get injected distinguishing columns here, so the test does not lean on the real ones; Float (Calm when this was
+// written) is given Hypnotic's column too, so a robot generated under Float from its own index is exactly what the deal
+// must produce.
 const melodyColumns = vi.hoisted(() => ({
   hypnotic: { 'robot.rhythmicDensity': { min: 40, max: 60 }, 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
   mechanical: {
@@ -139,10 +140,10 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
     ...actual,
     THEMES: {
       ...actual.THEMES,
-      perilous: everyRobotBandMoved,
-      adventurous: everySendMoved,
-      bold: halfLitReverb,
-      calm: melodyColumns.hypnotic,
+      shatter: everyRobotBandMoved,
+      undertow: everySendMoved,
+      anchor: halfLitReverb,
+      float: melodyColumns.hypnotic,
     },
   };
 });
@@ -548,18 +549,20 @@ describe('spawnSystem', () => {
         expect(plain.some((a) => a.adsr.decay > 1.5)).toBe(true);
       });
 
-      it('a plain robot at a given point in the noise has the same body as before: seeded value / 2 s equals the old value / 5 s', async () => {
+      it('a plain robot lands 30 % of the way from the slider floor to 2 s, and its body reads that value over 2 s', async () => {
         const { bodyShapeFromAdsr } = await import('../components/robot/robotVisualHelpers');
         // Every draw lands 30 % of the way through whichever range it was given (raw -0.4); the shaped rolls say "not shaped".
         const a = generateAudioAttributes(
           noiseMapForDataIds({ 'robot.audio.attackCurve.shaped': 1, 'robot.audio.releaseCurve.shaped': 1 }, -0.4),
           0,
         );
-        expect(a.adsr.attack).toBeCloseTo(0.6, 9);
-        expect(a.adsr.release).toBeCloseTo(0.6, 9);
+        const attack = ENVELOPE_ATTACK_MIN_SECONDS + 0.3 * (2 - ENVELOPE_ATTACK_MIN_SECONDS);
+        const release = ENVELOPE_RELEASE_MIN_SECONDS + 0.3 * (2 - ENVELOPE_RELEASE_MIN_SECONDS);
+        expect(a.adsr.attack).toBeCloseTo(attack, 9);
+        expect(a.adsr.release).toBeCloseTo(release, 9);
         const body = bodyShapeFromAdsr(a.adsr);
-        expect(body.scale).toBeCloseTo(0.25 + (1 - 0.3) * 0.75, 9); // 30 % of the way along, as 1.5 s of 5 s was
-        expect(body.detail).toBeCloseTo(0.3, 9);
+        expect(body.scale).toBeCloseTo(0.25 + (1 - attack / 2) * 0.75, 9);
+        expect(body.detail).toBeCloseTo(release / 2, 9);
       });
 
       it('a shaped stage lands 50 % of the way through its own short range, not the full one', () => {
@@ -2886,7 +2889,7 @@ describe('spawnSystem', () => {
     // 10 worlds x 40 offsets = 400 robots; generateRobotAudioBaseline with no priors is always a fresh draw.
     const WORLDS = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`performance-seed-world-${i}`)));
     const SAMPLE = WORLDS.flatMap((noiseMap) => Array.from({ length: 40 }, (_, offset) => generateRobotAudioBaseline(noiseMap, offset, [])));
-    const BANDS = { dynamics: [25, 75], rests: [10, 60], accents: [20, 80] } as const;
+    const BANDS = { dynamics: [60, 80], rests: [0, 10], accents: [0, 30] } as const; // Classic's, since R3 and R4
     const FIELDS = ['dynamics', 'rests', 'accents'] as const;
     type PerformanceFields = { dynamics?: number; rests?: number; accents?: number };
     const fieldsOf = (x: PerformanceFields) => ({ dynamics: x.dynamics, rests: x.rests, accents: x.accents });
@@ -2929,11 +2932,11 @@ describe('spawnSystem', () => {
         }
       });
 
-      it.each(FIELDS)('spreads %s across the band: at least 20 distinct values, both halves used', (field) => {
+      it.each(FIELDS)('spreads %s across the band: at least 20 distinct values (every value of a narrower band), both halves used', (field) => {
         const values = SAMPLE.map((b) => b[field]);
         const [min, max] = BANDS[field];
         const middle = (min + max) / 2;
-        expect(new Set(values).size, `${field} distinct values`).toBeGreaterThanOrEqual(20);
+        expect(new Set(values).size, `${field} distinct values`).toBeGreaterThanOrEqual(Math.min(20, max - min + 1));
         expect(values.some((v) => v < middle)).toBe(true);
         expect(values.some((v) => v > middle)).toBe(true);
       });
@@ -2978,9 +2981,9 @@ describe('spawnSystem', () => {
         // The even draw (Even Seeded Draws T9).
         const calls = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
         expect(calls.map((c) => [c[1], c[2], c[3], c[4]]).sort()).toEqual([
-          ['robot.accents', 0, 20, 80],
-          ['robot.dynamics', 0, 25, 75],
-          ['robot.rests', 0, 10, 60],
+          ['robot.accents', 0, 0, 30],
+          ['robot.dynamics', 0, 60, 80],
+          ['robot.rests', 0, 0, 10],
         ]);
       });
 
@@ -3116,10 +3119,11 @@ describe('spawnSystem', () => {
         const baseline = generateRobotAudioBaseline(noiseFor('performance-baseline-fresh-locale'), 0, []);
 
         expect(fieldsOf(baseline)).toEqual(fieldsOf(robot));
-        // A baseline missing a field, or one equal to its default, cannot pass: rests and accents bands start above 0.
-        expect(baseline.rests).toBeGreaterThanOrEqual(10);
-        expect(baseline.accents).toBeGreaterThanOrEqual(20);
-        expect(typeof baseline.dynamics).toBe('number');
+        // A baseline missing a field, or one equal to its default, cannot pass: the dynamics band starts above its default
+        // 50 (rests' and accents' start at their default 0 since R3 and R4, so they are only checked present).
+        expect(baseline.dynamics).toBeGreaterThanOrEqual(60);
+        expect(typeof baseline.accents).toBe('number');
+        expect(typeof baseline.rests).toBe('number');
       });
 
       it('equals every robot of a real 12-robot roster, copied siblings included', () => {
@@ -3380,7 +3384,7 @@ describe('spawnSystem', () => {
   });
 
   describe('the robot bands read the loading context (band-table T21, spec assumption 15)', () => {
-    const PERILOUS = { theme: 'perilous', aspects: {} } as const;
+    const PERILOUS = { theme: 'shatter', aspects: {} } as const;
     const noiseMap = createNoise2D(alea('band-table-t21'));
     const ROSTER = 16;
 
@@ -3502,37 +3506,38 @@ describe('spawnSystem', () => {
 
     // Classic parity (spec §5.2): the values the constants seeded on main at cc9a01f2, captured before the lift and typed in,
     // then re-captured from the generator at each Even Seeded Draws switch (docs/tasks/EVEN_SEEDED_DRAWS.md) for the
-    // fields that switch moved.
+    // fields that switch moved, and again when Attack and Release took their slider floors (15 ms, 20 ms; 2026-11-04), and
+    // for accents when Classic's band moved to 0-30 (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R4).
     const PARITY_ROSTER: Omit<RobotAudioBaseline, 'name'>[] = [
       {
         audioAttributes: {
-          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 16,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.37, delaySend: 0.02, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.37, delaySend: 0.02, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.7,
       },
       {
         audioAttributes: {
-          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 16,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.51, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.51, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.63,
       },
       {
         audioAttributes: {
-          adsr: { attack: 0.16692632529884577, decay: 1.240191656164825, sustain: 0.3301627195905894, release: 1.3539673294872046, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 0.18067437785910445, decay: 1.240191656164825, sustain: 0.3301627195905894, release: 1.3604276561923325, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [2, 4], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 68, detune: -1, pulseWidth: 0.6791183213936165,
           layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 34, rests: 43, accents: 29,
+        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 64, rests: 7, accents: 4,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 27 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.33, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.33, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.83,
       },
     ];
 
@@ -3550,33 +3555,33 @@ describe('spawnSystem', () => {
     const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
       4: {
         audioAttributes: {
-          adsr: { attack: 0.6933524287305772, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
+          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 16,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.23, delaySend: 0, gritSend: 0, shimmerSend: 0.36, doubleSend: 0,
+        reverbSend: 0.23, delaySend: 0, gritSend: 0, shimmerSend: 0.36, doubleSend: 0, masterVolume: 0.77,
       },
       11: {
         audioAttributes: {
-          adsr: { attack: 0.21824039553757757, decay: 1.1089304112829268, sustain: 0.02038705232553184, release: 1.5850363094359636, attackCurve: 'ripple', releaseCurve: 'linear' },
+          adsr: { attack: 0.21824039553757757, decay: 1.1089304112829268, sustain: 0.02038705232553184, release: 1.589185946341604, attackCurve: 'ripple', releaseCurve: 'linear' },
           octaveRange: [3, 5], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 80, detune: 1, pulseWidth: 0.3550120924133807,
           layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
         } as AudioAttributes,
-        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 74, rests: 31, accents: 56,
+        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 80, rests: 4, accents: 18,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'a', depth: 9 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.56, delaySend: 0.23, gritSend: 0.63, shimmerSend: 0, doubleSend: 0,
+        reverbSend: 0.56, delaySend: 0.23, gritSend: 0.63, shimmerSend: 0, doubleSend: 0, masterVolume: 0.8,
       },
       50: {
         audioAttributes: {
-          adsr: { attack: 1.8607680136337876, decay: 1.7409854433499277, sustain: 0.36384062259458005, release: 1.6593553409911692, attackCurve: 'linear', releaseCurve: 'linear' },
+          adsr: { attack: 1.8618122535315342, decay: 1.7409854433499277, sustain: 0.36384062259458005, release: 1.6627617875812575, attackCurve: 'linear', releaseCurve: 'linear' },
           octaveRange: [4, 6], filterFreq: 981.7550272680819, filterQ: 5.9, filterType: 'bandpass', portamento: 0.08, waveform: 'sawtooth', phase: 16, detune: -2, pulseWidth: 0.15774889986496418,
           layers: [{ type: 'sawtooth', gain: 0.98, detune: -1, phase: 125 }, { type: 'sine', gain: 0.74, detune: 0, phase: 5 }, { type: 'triangle', gain: 0, detune: 0, phase: 329 }],
         } as AudioAttributes,
-        octaveRange: [4, 6], rhythmicDensity: 90, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 37, rests: 26, accents: 65,
+        octaveRange: [4, 6], rhythmicDensity: 90, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 65, rests: 3, accents: 23,
         lfoLinks: { 'layer0.gain': { lane: 'c', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'c', depth: 7 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.1, delaySend: 0.29, gritSend: 0, shimmerSend: 0.26, doubleSend: 0,
+        reverbSend: 0.1, delaySend: 0.29, gritSend: 0, shimmerSend: 0.26, doubleSend: 0, masterVolume: 0.73,
       },
     };
 
@@ -3599,8 +3604,8 @@ describe('spawnSystem', () => {
   });
 
   describe('the sends read the band table (band-table T22, spec assumption 15)', () => {
-    const ADVENTUROUS = { theme: 'adventurous', aspects: {} } as const;
-    const BOLD = { theme: 'bold', aspects: {} } as const;
+    const ADVENTUROUS = { theme: 'undertow', aspects: {} } as const;
+    const BOLD = { theme: 'anchor', aspects: {} } as const;
     const noiseMap = createNoise2D(alea('band-table-t22'));
 
     afterEach(async () => {
@@ -3713,7 +3718,7 @@ describe('spawnSystem', () => {
         expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
         if (loadedUnder?.melody === 'hypnotic') {
           // Calm carries Hypnotic's column: a fresh robot at this index under Calm is the exact re-derivation.
-          const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+          const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
           expect(melodyFieldsOf(baseline), `robot ${i}`).toEqual(melodyFieldsOf(expected));
         } else {
           expect(loadedUnder, `robot ${i}`).toEqual({ melody: 'mechanical' });
@@ -3850,14 +3855,14 @@ describe('spawnSystem', () => {
       for (let i = 0; i < 6; i++) {
         expect(generateAudioAttributes(noiseMap, i).adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', {})));
       }
-      const perilous = withLoading({ theme: 'perilous', aspects: {} }, () => generateAudioAttributes(noiseMap, 2).adsr);
-      expect(perilous).toEqual(deriveEnvelopeFields(noiseMap, 2, resolveBands('perilous', {})));
+      const perilous = withLoading({ theme: 'shatter', aspects: {} }, () => generateAudioAttributes(noiseMap, 2).adsr);
+      expect(perilous).toEqual(deriveEnvelopeFields(noiseMap, 2, resolveBands('shatter', {})));
     });
 
     it('generateRobotSends is deriveSendFields under the installed bands, value for value', () => {
       for (let i = 0; i < 6; i++) expect(generateRobotSends(noiseMap, i)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', {})));
-      const adventurous = withLoading({ theme: 'adventurous', aspects: {} }, () => generateRobotSends(noiseMap, 3));
-      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('adventurous', {})));
+      const adventurous = withLoading({ theme: 'undertow', aspects: {} }, () => generateRobotSends(noiseMap, 3));
+      expect(adventurous).toEqual(deriveSendFields(noiseMap, 3, resolveBands('undertow', {})));
     });
 
     it('a robot dealt Plucked has the adsr deriveEnvelopeFields draws at its index under Plucked; its sends and every other field are untouched', () => {
@@ -3874,29 +3879,30 @@ describe('spawnSystem', () => {
       expect(undealt.some((b) => b.audioAttributes.adsr.attack > 0.04)).toBe(true);
     });
 
-    it('a robot dealt Remote has the sends deriveSendFields draws at its index under Remote; its adsr and every other field are untouched', () => {
-      const { undealt, dealt } = deal({ distance: ['remote'] });
-      const bands = resolveBands('classic', { distance: 'remote' });
+    it('a robot dealt Echoing has the sends deriveSendFields draws at its index under Echoing; its adsr and every other field are untouched', () => {
+      const { undealt, dealt } = deal({ distance: ['echoing'] });
+      const bands = resolveBands('classic', { distance: 'echoing' });
       dealt.forEach((baseline, i) => {
-        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'remote' });
+        expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'echoing' });
         expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, bands));
-        expect(baseline.reverbSend, `robot ${i}`).toBeGreaterThanOrEqual(0.65);
-        expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.35);
+        // Echoing's sheet: every probe deep in the delay, only lightly in the reverb.
+        expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.4);
+        expect(baseline.reverbSend, `robot ${i}`).toBeLessThanOrEqual(0.15);
         // The three effect room sends are the theme's: re-derived, they come out as they were.
         const { gritSend, shimmerSend, doubleSend } = undealt[i];
         expect({ gritSend: baseline.gritSend, shimmerSend: baseline.shimmerSend, doubleSend: baseline.doubleSend }).toEqual({ gritSend, shimmerSend, doubleSend });
         expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(undealt[i].audioAttributes.adsr);
         expect(restOf(baseline), `robot ${i}`).toEqual(restOf(undealt[i]));
       });
-      expect(undealt.some((b) => b.reverbSend < 0.65)).toBe(true);
+      expect(undealt.some((b) => b.delaySend < 0.4)).toBe(true);
     });
 
-    it('the deal reads every band from its own theme, never the installed context: Remote under Adventurous carries Adventurous\'s grit while Classic is loaded', () => {
+    it('the deal reads every band from its own theme, never the installed context: Half-heard under Undertow (injected) carries Undertow\'s grit while Classic is loaded', () => {
       expect(useLoadingStore.getState().theme).toBe('classic');
-      const { dealt } = deal({ distance: ['remote'] }, 'adventurous');
+      const { dealt } = deal({ distance: ['halfHeard'] }, 'undertow');
       dealt.forEach((baseline, i) => {
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('adventurous', { distance: 'remote' })));
-        // This file's Adventurous seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('undertow', { distance: 'halfHeard' })));
+        // This file's Undertow (injected) seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
         expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
       });
     });
@@ -3908,19 +3914,19 @@ describe('spawnSystem', () => {
         expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
         expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', { distance: 'near' })));
         // Calm carries Hypnotic's column in this file's mock: a fresh robot at this index under Calm is the Melody re-derivation.
-        const expected = withLoading({ theme: 'calm', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+        const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
         expect(baseline.rhythmicDensity).toBe(expected.rhythmicDensity);
         expect(baseline.noteVariance).toEqual(expected.noteVariance);
       });
-      const { dealt: two } = deal({ envelope: ['swelling'], distance: ['far'] });
+      const { dealt: two } = deal({ envelope: ['swelling'], distance: ['echoing'] });
       for (const baseline of two) expect(Object.keys(baseline.loadedUnder ?? {}).sort()).toEqual(['distance', 'envelope']);
     });
 
     it('an aspect composes over the theme: Perilous plus Swelling takes Swelling\'s attack and sustain and Perilous\'s decay and release', () => {
-      const { dealt } = deal({ envelope: ['swelling'] }, 'perilous');
+      const { dealt } = deal({ envelope: ['swelling'] }, 'shatter');
       dealt.forEach((baseline, i) => {
         const { adsr } = baseline.audioAttributes;
-        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('perilous', { envelope: 'swelling' })));
+        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('shatter', { envelope: 'swelling' })));
         // Perilous (this file's mock) seeds attacks of 1.5-2 s; Swelling's 0.3-1.2 wins.
         expect(adsr.attack, `robot ${i}`).toBeLessThanOrEqual(1.2);
         expect(adsr.decay, `robot ${i}`).toBeGreaterThanOrEqual(1);
@@ -3972,7 +3978,7 @@ describe('spawnSystem', () => {
     });
 
     it('applyAspectDeal, live: a Distance deal writes each robot\'s sends and hands all five to the engine, once a robot, and agrees with the baseline', () => {
-      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['remote'] } });
+      useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['echoing'] } });
       const localeId = 'revisions-t8-live-distance';
       freshLocale(localeId, { x: 7, y: 11 });
       spawnInitialRoster(localeId);
@@ -3986,7 +3992,7 @@ describe('spawnSystem', () => {
       expect(sends).toHaveBeenCalledTimes(robots.length);
       for (const robot of robots) {
         expect(sends).toHaveBeenCalledWith(robot.id, robotSendLevels(robot));
-        expect(robot.reverbSend).toBeGreaterThanOrEqual(0.65);
+        expect(robot.delaySend).toBeGreaterThanOrEqual(0.4);
       }
       expect(envelope).not.toHaveBeenCalled();
       const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, 7, 11), robots.map((r) => r.id), useLoadingStore.getState());
@@ -4185,7 +4191,7 @@ describe('spawnSystem', () => {
     it('applyAspectDeal, live: a push that throws for one robot leaves every robot dealt and every other push made, each after its write', () => {
       useLoadingStore.getState().setLoading({
         theme: 'classic',
-        aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['far'], voice: ['woody'] },
+        aspects: { melody: ['hypnotic'], envelope: ['plucked'], distance: ['echoing'], voice: ['woody'] },
       });
       const localeId = 'review-r14-throwing-push';
       freshLocale(localeId, { x: 7, y: 11 });
@@ -4207,7 +4213,7 @@ describe('spawnSystem', () => {
         if (id === victim) throw new Error('the engine refused this envelope');
       });
       const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation((id, levels) => {
-        note(id, 'distance', stored(id).loadedUnder?.distance === 'far' && JSON.stringify(robotSendLevels(stored(id))) === JSON.stringify(levels));
+        note(id, 'distance', stored(id).loadedUnder?.distance === 'echoing' && JSON.stringify(robotSendLevels(stored(id))) === JSON.stringify(levels));
       });
       const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation((id) => {
         note(id, 'voice', stored(id).loadedUnder?.voice === 'woody');
@@ -4220,7 +4226,7 @@ describe('spawnSystem', () => {
       const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       expect(robots).toHaveLength(ids.length);
       for (const robot of robots) {
-        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'plucked', distance: 'far', voice: 'woody' });
+        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'plucked', distance: 'echoing', voice: 'woody' });
         // Each family once, in family order, after the write: the victim's two families after the throw included.
         expect(pushes.get(robot.id), robot.id).toEqual(['melody', 'envelope', 'distance', 'voice']);
       }
@@ -4305,7 +4311,7 @@ describe('spawnSystem', () => {
     const idsCalled = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.map((call) => call[0] as string).sort();
     // Envelope narrows to one of its two picks, Distance is picked, Voice is emptied; Melody stays as it was.
     const FROM: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['plucked', 'held'], voice: ['glassy'] };
-    const TO: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['held'], distance: ['remote'] };
+    const TO: LoadingIdentity['aspects'] = { melody: ['hypnotic'], envelope: ['held'], distance: ['halfHeard'] };
 
     afterEach(async () => {
       useLoadingStore.getState().setLoading(DEFAULT_LOADING);
@@ -4326,7 +4332,7 @@ describe('spawnSystem', () => {
 
       expect(comparable(robotsOf(live))).toEqual(comparable(fresh));
       for (const robot of robotsOf(live)) {
-        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'remote' });
+        expect(robot.loadedUnder, robot.id).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'halfHeard' });
       }
     });
 
@@ -4428,7 +4434,7 @@ describe('spawnSystem', () => {
     });
 
     it('emptying every family leaves a plain spawn: no loadedUnder, every field the theme\'s own draw', () => {
-      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], distance: ['far'], voice: ['hollow'] });
+      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], distance: ['echoing'], voice: ['hollow'] });
       const plain = robotsOf(buildWorld({}));
       redeal(live, {});
       expect(comparable(robotsOf(live))).toEqual(comparable(plain));
@@ -4510,11 +4516,11 @@ describe('spawnSystem', () => {
       it('keeps its pick through a theme change, its moved fields drawn under that pick', () => {
         const { live, mover, robotOf, before } = movedWorld();
         const own = before.loadedUnder!.melody!;
-        useLoadingStore.getState().setLoading({ theme: 'perilous', aspects: { melody: ['hypnotic', 'mechanical'] } });
+        useLoadingStore.getState().setLoading({ theme: 'shatter', aspects: { melody: ['hypnotic', 'mechanical'] } });
         rederiveLoading(live, { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } }, cancelSwellForRobotAttribute);
         expect(robotOf().loadedUnder?.melody).toBe(own);
         // The same plot built under Perilous with the mover's own pick for everyone: its fields as they should be.
-        const fresh = robotsOf(buildWorld({ melody: [own] }, 'perilous')).find((r) => r.id === mover)!;
+        const fresh = robotsOf(buildWorld({ melody: [own] }, 'shatter')).find((r) => r.id === mover)!;
         // Every seeded field as the fresh build under its own pick has it; at least one is moved by Perilous.
         const seeded = (r: Robot) => ({ melody: melodyFields(r), adsr: r.audioAttributes.adsr, sends: robotSendLevels(r) });
         expect(seeded(fresh)).not.toEqual(seeded(before)); // precondition

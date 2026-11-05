@@ -61,12 +61,12 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
   });
 
   it.each<[ThemeId, ThemeId]>([
-    ['classic', 'calm'],
-    ['classic', 'bold'],
-    ['classic', 'adventurous'],
-    ['classic', 'perilous'],
-    ['perilous', 'calm'],
-    ['calm', 'classic'],
+    ['classic', 'float'],
+    ['classic', 'anchor'],
+    ['classic', 'undertow'],
+    ['classic', 'shatter'],
+    ['shatter', 'float'],
+    ['float', 'classic'],
   ])('%s to %s leaves the roster what a fresh build under the new theme gives, robot for robot, Melody and Envelope dealt', (from, to) => {
     const live = buildWorld({ theme: from, aspects: ASPECTS });
     const fresh = robotsOf(buildWorld({ theme: to, aspects: ASPECTS }));
@@ -79,7 +79,7 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
 
   it('a theme and aspects at once: the moved families and the new loadedUnder, as a fresh build under both', () => {
     const live = buildWorld({ theme: 'classic', aspects: {} });
-    const next: LoadingIdentity = { theme: 'calm', aspects: { envelope: ['held'], voice: ['hollow'] } };
+    const next: LoadingIdentity = { theme: 'float', aspects: { envelope: ['held'], voice: ['hollow'] } };
     const fresh = robotsOf(buildWorld(next));
 
     rederive(live, { theme: 'classic', aspects: {} }, next);
@@ -100,7 +100,7 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
     useLocaleStore.getState().setLocaleData(live, { robots: moved });
     const companies = useLocaleStore.getState().getLocaleById(live)!.companies;
 
-    rederive(live, CLASSIC_PLAIN, { theme: 'perilous', aspects: {} });
+    rederive(live, CLASSIC_PLAIN, { theme: 'shatter', aspects: {} });
 
     const after = robotsOf(live);
     expect(after.map((r) => r.id)).toEqual(moved.map((r) => r.id));
@@ -118,10 +118,10 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
   it('a tweak on a field the theme does not move survives; one on a field it moves resets to the new draw', () => {
     const live = buildWorld({ theme: 'classic', aspects: {} });
     const robot = robotsOf(live)[0];
-    const fresh = robotsOf(buildWorld({ theme: 'perilous', aspects: {} }))[0];
+    const fresh = robotsOf(buildWorld({ theme: 'trench', aspects: {} }))[0];
     const { adsr } = robot.audioAttributes;
     useLocaleStore.getState().updateRobot(live, robot.id, {
-      // Perilous moves these four...
+      // Trench moves these four (its sheet: seldom, long gaps, sunk deep in the cavern, notes fading long)...
       rhythmicDensity: 3,
       rests: 97,
       reverbSend: 0.123,
@@ -129,47 +129,54 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
       pitchRepeat: 41,
       gritSend: 0.456,
       accents: 88,
-      audioAttributes: { ...robot.audioAttributes, filterFreq: 1234, adsr: { ...adsr, attack: 1.987, decay: 1.654 } },
+      audioAttributes: { ...robot.audioAttributes, filterFreq: 1234, adsr: { ...adsr, release: 0.012, attack: 1.987, decay: 1.654 } },
     });
 
-    rederive(live, CLASSIC_PLAIN, { theme: 'perilous', aspects: {} });
+    rederive(live, CLASSIC_PLAIN, { theme: 'trench', aspects: {} });
 
     const after = robotsOf(live)[0];
     expect(after.rhythmicDensity).toBe(fresh.rhythmicDensity);
     expect(after.rests).toBe(fresh.rests);
     expect(after.reverbSend).toBe(fresh.reverbSend);
-    expect(after.audioAttributes.adsr.attack).toBe(fresh.audioAttributes.adsr.attack);
+    expect(after.audioAttributes.adsr.release).toBe(fresh.audioAttributes.adsr.release);
     expect(after.pitchRepeat).toBe(41);
     expect(after.gritSend).toBe(0.456);
     expect(after.accents).toBe(88);
     expect(after.audioAttributes.filterFreq).toBe(1234);
+    expect(after.audioAttributes.adsr.attack).toBe(1.987);
     expect(after.audioAttributes.adsr.decay).toBe(1.654);
     // Preconditions: each reset is visible.
     expect(fresh.rhythmicDensity).not.toBe(3);
     expect(fresh.rests).not.toBe(97);
     expect(fresh.reverbSend).not.toBe(0.123);
-    expect(fresh.audioAttributes.adsr.attack).not.toBe(1.987);
+    expect(fresh.audioAttributes.adsr.release).not.toBe(0.012);
   });
 
-  it('pushes each moved family once per robot it moved for, with the value written, and never Voice', () => {
+  it('pushes each moved family once per robot it moved for, with the value written, Voice only where the voice moved', () => {
     const live = buildWorld({ theme: 'classic', aspects: ASPECTS });
     const before = robotsOf(live);
-    const fresh = robotsOf(buildWorld({ theme: 'perilous', aspects: ASPECTS }));
+    const fresh = robotsOf(buildWorld({ theme: 'shatter', aspects: ASPECTS }));
     const movedBy = (pick: (r: Robot) => unknown) =>
       before.filter((r, i) => JSON.stringify(pick(r)) !== JSON.stringify(pick(fresh[i]))).map((r) => r.id).sort();
-    const melodyMoved = movedBy((r) => [r.rhythmicDensity, r.rhythmicMotifLength, r.noteVariance, r.pitchRepeat, r.rests]);
+    const melodyMoved = movedBy((r) => [r.rhythmicDensity, r.rhythmicMotifLength, r.noteVariance, r.pitchRepeat, r.rests, r.octaveRange]);
     const envelopeMoved = movedBy((r) => r.audioAttributes.adsr);
     const sendsMoved = movedBy((r) => robotSendLevels(r));
+    // Shatter's sheet moves the voice (the saw and the pulse, the layers apart, the accent filter off most probes).
+    const voiceMoved = movedBy((r) => {
+      const a = r.audioAttributes;
+      return [a.waveform, a.layers, a.filterFreq, a.filterQ, a.filterType, r.masterVolume];
+    });
     // Preconditions: each family moves for some robot, so a skipped push is seen.
     expect(melodyMoved.length).toBeGreaterThan(0);
     expect(envelopeMoved.length).toBeGreaterThan(0);
     expect(sendsMoved.length).toBeGreaterThan(0);
+    expect(voiceMoved.length).toBeGreaterThan(0);
     const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
     const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
     const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
     const rebuild = vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
 
-    rederive(live, { theme: 'classic', aspects: ASPECTS }, { theme: 'perilous', aspects: ASPECTS });
+    rederive(live, { theme: 'classic', aspects: ASPECTS }, { theme: 'shatter', aspects: ASPECTS });
 
     const stored = (id: unknown) => robotsOf(live).find((r) => r.id === id)!;
     expect(idsCalled(register)).toEqual(melodyMoved);
@@ -178,20 +185,21 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
     for (const [id, adsr] of envelope.mock.calls) expect(adsr).toEqual(stored(id).audioAttributes.adsr);
     expect(idsCalled(sends)).toEqual(sendsMoved);
     for (const [id, levels] of sends.mock.calls) expect(levels).toEqual(robotSendLevels(stored(id)));
-    expect(rebuild).not.toHaveBeenCalled();
+    expect(idsCalled(rebuild)).toEqual(voiceMoved);
+    for (const [id, robot] of rebuild.mock.calls) expect(robot?.audioAttributes).toEqual(stored(id).audioAttributes);
   });
 
   it('a rests move alone regenerates the melody: the notes take the new rests, as a hand edit of Rests does', () => {
     const live = buildWorld({ theme: 'classic', aspects: {} });
     const robot = robotsOf(live)[0];
-    const fresh = robotsOf(buildWorld({ theme: 'calm', aspects: {} }))[0];
+    const fresh = robotsOf(buildWorld({ theme: 'float', aspects: {} }))[0];
     // Every Melody field but rests held at the new theme's values, so rests is the one field the change moves.
     const { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat } = fresh;
     useLocaleStore.getState().updateRobot(live, robot.id, { rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat });
     expect(robot.rests).not.toBe(fresh.rests); // precondition
     const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
 
-    rederive(live, CLASSIC_PLAIN, { theme: 'calm', aspects: {} });
+    rederive(live, CLASSIC_PLAIN, { theme: 'float', aspects: {} });
 
     expect(robotsOf(live)[0].rests).toBe(fresh.rests);
     expect(comparable([robotsOf(live)[0]])[0].melody).toEqual(comparable([fresh])[0].melody);
@@ -201,35 +209,42 @@ describe('rederiveLoading: a loading change re-derives the live roster in place 
   it('drops the swell riding each moved field before its write, and none on a field that stays', () => {
     const live = buildWorld({ theme: 'classic', aspects: {} });
     const before = robotsOf(live);
-    const fresh = robotsOf(buildWorld({ theme: 'perilous', aspects: {} }));
+    const fresh = robotsOf(buildWorld({ theme: 'shatter', aspects: {} }));
     const dropped: string[] = [];
     const dropSwell = (id: string, attribute: string) => {
       const written = JSON.stringify(robotsOf(live).find((r) => r.id === id)) !== JSON.stringify(before.find((r) => r.id === id));
       dropped.push(id + ':' + attribute + (written ? ' after the write' : ''));
     };
 
-    rederive(live, CLASSIC_PLAIN, { theme: 'perilous', aspects: {} }, dropSwell);
+    rederive(live, CLASSIC_PLAIN, { theme: 'shatter', aspects: {} }, dropSwell);
 
+    // Every swellable field (SWELL_ROBOT_ATTRIBUTE_IDS): the volume, the layers' gain and detune, the adsr and the sends.
     const expected = before.flatMap((r, i) => {
+      const volume = r.masterVolume !== fresh[i].masterVolume ? ['volume'] : [];
+      const layers = [0, 1, 2].flatMap((n) =>
+        (['gain', 'detune'] as const)
+          .filter((k) => r.audioAttributes.layers?.[n]?.[k] !== fresh[i].audioAttributes.layers?.[n]?.[k])
+          .map((k) => `layer${n}.${k}`),
+      );
       const adsr = (['attack', 'decay', 'sustain', 'release'] as const)
         .filter((k) => r.audioAttributes.adsr[k] !== fresh[i].audioAttributes.adsr[k])
         .map((k) => `adsr.${k}`);
       const sendFields = (['reverbSend', 'delaySend', 'gritSend', 'shimmerSend', 'doubleSend'] as const).filter((k) => r[k] !== fresh[i][k]);
-      return [...adsr, ...sendFields].map((attribute) => r.id + ':' + attribute);
+      return [...volume, ...layers, ...adsr, ...sendFields].map((attribute) => r.id + ':' + attribute);
     });
     expect(expected.length).toBeGreaterThan(0); // precondition
     expect(dropped.sort()).toEqual(expected.sort());
   });
 
   it('the same loading again touches nothing: no write, no push, no swell dropped', () => {
-    const live = buildWorld({ theme: 'bold', aspects: ASPECTS });
+    const live = buildWorld({ theme: 'anchor', aspects: ASPECTS });
     const before = robotsOf(live);
     const register = vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
     const sends = vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
     const envelope = vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
     const cancel = vi.fn();
 
-    rederive(live, { theme: 'bold', aspects: ASPECTS }, { theme: 'bold', aspects: ASPECTS }, cancel);
+    rederive(live, { theme: 'anchor', aspects: ASPECTS }, { theme: 'anchor', aspects: ASPECTS }, cancel);
 
     expect(robotsOf(live)).toBe(before);
     expect(register).not.toHaveBeenCalled();

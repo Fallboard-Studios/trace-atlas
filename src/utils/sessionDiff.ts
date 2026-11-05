@@ -208,9 +208,10 @@ function applyGlobalSwellBasesToAudio(globalAudio: ReturnType<typeof useAudioSto
 
 /**
  * Only the fields that differ from the seed baseline — an untouched robot diffs to `{}`.
- * Deliberately never inspects audioMode, masterVolume, job, docking, or batteryLevel: those
- * aren't part of RobotAudioBaseline at all, so they can't leak into the result (docs/specs/
- * SESSION_STORAGE.md §1.2/§7). `pan` is the one robot-level listening-adjacent field that IS
+ * Deliberately never inspects audioMode, masterVolume, job, docking, or batteryLevel (docs/specs/
+ * SESSION_STORAGE.md §1.2/§7): listening and lifecycle state, never saved. masterVolume is in
+ * RobotAudioBaseline since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6 (a loading change compares
+ * it), but this diff names its fields one by one, so it cannot leak into the result. `pan` is the one robot-level listening-adjacent field that IS
  * inspected: a manual pan is a composition choice, and Auto (the baseline) is the absence of the key.
  *
  * When a swell is active at save time, replaces the mid-ramp interpolated value with the

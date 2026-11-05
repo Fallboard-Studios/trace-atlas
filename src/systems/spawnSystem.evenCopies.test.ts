@@ -61,13 +61,20 @@ describe('copy, performance, volume and the melody seed draw even, in both robot
     return localeIds.flatMap((id) => useLocaleStore.getState().getLocaleById(id)!.robots);
   });
 
-  it('dynamics, rests and accents fill their bands: 8-12 % of fresh robots in each outer tenth', () => {
+  // On a rounded integer draw each whole value takes 1 / span of the robots and the two edge values half that, so an
+  // outer tenth expects (its whole values - 0.5) / span: 9 % and 11 % on a 50-wide band (outerTenths' top tenth counts
+  // its lower edge, the bottom does not), but 5 % and 15 % on Classic's 10-wide Rests
+  // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R3). Each within 2 points of its own.
+  it('dynamics, rests and accents fill their bands: each outer tenth holds its even share of fresh robots, within 2 points', () => {
     for (const field of ['dynamics', 'rests', 'accents'] as const) {
-      const { bottom, top } = outerTenths(FRESH.map((b) => b[field]), CLASSIC[`robot.${field}`]);
-      expect(bottom, `${field} bottom tenth`).toBeGreaterThanOrEqual(0.08);
-      expect(bottom, `${field} bottom tenth`).toBeLessThanOrEqual(0.12);
-      expect(top, `${field} top tenth`).toBeGreaterThanOrEqual(0.08);
-      expect(top, `${field} top tenth`).toBeLessThanOrEqual(0.12);
+      const band = CLASSIC[`robot.${field}`];
+      const span = band.max - band.min;
+      const wholes = Array.from({ length: span + 1 }, (_, i) => band.min + i);
+      const share = (values: number[]) => (outerTenths(values, band).bottom * values.length - 0.5) / span;
+      const topShare = (values: number[]) => (outerTenths(values, band).top * values.length - 0.5) / span;
+      const { bottom, top } = outerTenths(FRESH.map((b) => b[field]), band);
+      expect(Math.abs(bottom - share(wholes)), `${field} bottom tenth`).toBeLessThanOrEqual(0.02);
+      expect(Math.abs(top - topShare(wholes)), `${field} top tenth`).toBeLessThanOrEqual(0.02);
     }
   });
 

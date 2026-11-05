@@ -73,6 +73,8 @@ type EffectKey = Exclude<keyof GlobalAudioSettings, 'compressorBeforeDelay'>;
  */
 export interface GlobalHalfMoves {
   bpm?: number;
+  /** The timing scatter, when the loading's `humanize` band moves its draw (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). */
+  humanize?: number;
   globalAudio: { [K in EffectKey]?: Partial<GlobalAudioSettings[K]> };
   lfoBank: { [L in LfoLaneId]?: Partial<BankLfoSettings> };
   globalLfoLinks: { [T in GlobalLfoTargetId]?: Partial<LfoLink> };
@@ -752,6 +754,7 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
 
   applyGlobalHalfMoves: (moves) => {
     if (moves.bpm !== undefined) get().setBPM(moves.bpm);
+    if (moves.humanize !== undefined) get().setHumanize(moves.humanize);
     for (const effect of Object.keys(moves.globalAudio) as EffectKey[]) {
       const partial = moves.globalAudio[effect]!;
       if (!Object.values(partial).includes(undefined)) {
@@ -847,10 +850,12 @@ function movedBlocks<K extends string, B extends object>(from: Record<K, B>, to:
 /**
  * What a loading change from `from` to `to` moves in the global half, pure (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F17):
  * bpm, the Audio Rig, the LFO Bank and the global links drawn from the Attenuation Style's seed under each loading, the
- * way the style-sync draws them (the seed-once fields and compressorBeforeDelay are never drawn per loading), and per
- * field what the two draws disagree on. Under the real theme columns that is the tempo, the LPF cutoff and the Sync
- * picks the new tempo changes (the bank's and the synced blocks' allowed notes follow the tempo); the verify-first dump
- * over 12 seeds and every ordered theme pair found nothing else. So an untweaked world written with these ends equal to
+ * way the style-sync draws them, and Humanize, the one seed-once field with a band (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md
+ * T6: a style switch still carries it forward, a loading change draws it again; the other seed-once fields and
+ * compressorBeforeDelay are never drawn per loading), and per field what the two draws disagree on. That can be any
+ * global row either theme's column names (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5), any pedal or colour node the
+ * lit rule lights under one theme and leaves to the coin under the other, and the Sync picks the new tempo changes (the
+ * bank's and the synced blocks' allowed notes follow the tempo). So an untweaked world written with these ends equal to
  * a fresh draw under `to`, and a tweak on any other field stands.
  */
 export function deriveGlobalHalfMoves(
@@ -867,12 +872,14 @@ export function deriveGlobalHalfMoves(
         blocks,
         lfoBank: generateLfoBankSettings(attenuationStyleId, attenuationStyleName),
         globalLfoLinks: generateGlobalLfoLinks(attenuationStyleId, attenuationStyleName),
+        humanize: generateHumanize(attenuationStyleId, attenuationStyleName),
       };
     });
   const before = draw(from);
   const after = draw(to);
   return {
     ...(before.bpm !== after.bpm ? { bpm: after.bpm } : {}),
+    ...(before.humanize !== after.humanize ? { humanize: after.humanize } : {}),
     globalAudio: movedBlocks(before.blocks, after.blocks) as GlobalHalfMoves['globalAudio'],
     lfoBank: movedBlocks(before.lfoBank, after.lfoBank),
     globalLfoLinks: movedBlocks(before.globalLfoLinks, after.globalLfoLinks),

@@ -2,7 +2,7 @@
 // IMPORTS
 // ========================================
 import type { NoiseFunction2D } from 'simplex-noise';
-import type { Robot } from '../types/Robot';
+import type { AudioAttributes, Robot } from '../types/Robot';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { Company } from '../types/Company';
 import { DEV_TUNING } from '../constants';
@@ -17,7 +17,16 @@ import { useLoadingStore } from '../stores/loadingStore';
 import { regenerateMelody } from '../engine/regenerateMelody';
 import useLocaleStore from '../stores/localeStore';
 import { primeRobotLinks } from './robotLfoLinks';
-import { deriveEnvelopeFields, deriveMelodyFields, deriveSendFields, deriveVoiceFields, type MelodyFields } from './robotFieldDerivation';
+import {
+  deriveEnvelopeFields,
+  deriveMelodyFields,
+  deriveMotionFields,
+  derivePerformanceFields,
+  deriveSendFields,
+  deriveVoiceFields,
+  type MelodyFields,
+  type PerformanceFields,
+} from './robotFieldDerivation';
 import {
   generateCompanyRosterBaseline,
   generateRobotRosterBaseline,
@@ -26,6 +35,8 @@ import {
 } from './spawnSystem';
 import { SWELL_ROBOT_ATTRIBUTE_IDS, type SwellRobotAttributeId } from '../types/audioSwell';
 import type { OscillatorLayer } from '../types/layeredAudio';
+import { ROBOT_LFO_TARGET_IDS, type LfoLaneId, type LfoLink } from '../types/lfo';
+import { tallyLanes } from '../utils/lfoLaneDraw';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { withLoading } from '../data/bands/loadingContext';
 import { deepEqual } from '../utils/math';
@@ -43,20 +54,34 @@ import { deepEqual } from '../utils/math';
 // THE DEAL (docs/specs/OFF_SCREEN.md assumptions 21, 22 and 24)
 // ========================================
 
-/** What the deal re-derives on a robot: the Melody fields, the audio attributes (Envelope's adsr inside them) and the
- *  five sends. */
-type DealtFields = Partial<MelodyFields & Pick<RobotAudioBaseline, 'audioAttributes' | RobotSendField>>;
+/** What the deal re-derives on a robot: the Melody fields, the audio attributes (Envelope's adsr, Voice's filter and
+ *  layers, Motion's glide inside them), the five sends, Motion's links and the three Performance fields. */
+type DealtFields = Partial<
+  MelodyFields & PerformanceFields & Pick<RobotAudioBaseline, 'audioAttributes' | 'lfoLinks' | RobotSendField>
+>;
+
+/** The lane tally of the robots before a robot, as the roster spawned them: what a Motion deal re-derives its links
+ *  against (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b). Asked for only when Motion is dealt. */
+type PriorLanes = () => Readonly<Record<LfoLaneId, number>>;
+
+/** The lane tally of `roster`'s robots before index `i`, as a PriorLanes. */
+function priorLanesOf(roster: readonly { lfoLinks?: Record<string, LfoLink> }[], i: number): PriorLanes {
+  return () => tallyLanes(roster.slice(0, i).flatMap((robot) => Object.values(robot.lfoLinks ?? {})));
+}
 
 /** One family's re-derivation for one robot at `spawnIndex` under `bands` (resolveBands(theme, { [family]: aspect })):
  *  Melody its four fields, Envelope the robot's `adsr` inside its own audio attributes, Distance its five sends, Voice
- *  its filter, waveform and layers inside its audio attributes. `robot` is the robot as dealt so far, so Envelope and
- *  Voice both land in one set of audio attributes. A switch, so a new family is a compile error until it has its case. */
+ *  its filter, waveform and layers inside its audio attributes, Motion its glide there and its links (against the lane
+ *  tally of the roster before it as spawned), Performance its three fields. `robot` is the robot as dealt so far, so
+ *  Envelope, Voice and Motion all land in one set of audio attributes. A switch, so a new family is a compile error until
+ *  it has its case. */
 function deriveFamilyFields(
   family: AspectFamilyId,
   noiseMap: NoiseFunction2D,
   spawnIndex: number,
   bands: BandTable,
   robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
+  priorLanes: PriorLanes,
 ): DealtFields {
   switch (family) {
     case 'melody':
@@ -67,26 +92,35 @@ function deriveFamilyFields(
       return deriveSendFields(noiseMap, spawnIndex, bands);
     case 'voice':
       return { audioAttributes: { ...robot.audioAttributes, ...deriveVoiceFields(noiseMap, spawnIndex, bands) } };
+    case 'motion': {
+      const { portamento, lfoLinks } = deriveMotionFields(noiseMap, spawnIndex, bands, priorLanes());
+      return { audioAttributes: { ...robot.audioAttributes, portamento }, lfoLinks };
+    }
+    case 'performance':
+      return derivePerformanceFields(noiseMap, spawnIndex, bands);
   }
 }
 
 /** A dealt robot's re-derived fields (assumption 22; per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 8): for each
  *  dealt family in family order, its keys from the robot's own index under resolveBands(theme, { [family]: aspect }) -
  *  the same draws as at spawn, into the aspect's bands - so a dealt robot is what it would have been had it spawned
- *  under the aspect. A family not dealt keeps its fields. */
+ *  under the aspect. A family not dealt keeps its fields. `priorLanes` is the lane tally Motion's links draw against:
+ *  the robots before this one as the roster spawned them, so the baseline, the live deal and a re-derive agree without
+ *  waiting on each other's deals. */
 function dealtFields(
   noiseMap: NoiseFunction2D,
   spawnIndex: number,
   theme: ThemeId,
   aspects: RobotAspects,
   robot: Pick<RobotAudioBaseline, 'audioAttributes'>,
+  priorLanes: PriorLanes,
 ): DealtFields {
   let fields: DealtFields = {};
   for (const family of ASPECT_FAMILY_IDS) {
     const aspect = aspects[family];
     if (aspect === undefined) continue;
     const bands = resolveBands(theme, { [family]: aspect });
-    fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, { ...robot, ...fields }) };
+    fields = { ...fields, ...deriveFamilyFields(family, noiseMap, spawnIndex, bands, { ...robot, ...fields }, priorLanes) };
   }
   return fields;
 }
@@ -111,7 +145,7 @@ export function applyDealToBaselines(
   return baselines.map((baseline, i) => {
     const aspects = dealt.get(robotIds[i]);
     if (!aspects) return baseline;
-    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects, baseline), loadedUnder: aspects };
+    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects, baseline, priorLanesOf(baselines, i)), loadedUnder: aspects };
   });
 }
 
@@ -136,7 +170,9 @@ export function generateDealtRosterBaseline(
  * applyDensity's path), Envelope hands the adsr to updateVoiceEnvelope (applyAdsr's path: a live write, curves included,
  * no rebuild), Distance hands all five sends to updateRobotSends (applySendValue's call, the prime every reservation
  * makes), Voice rebuilds the voice from the robot and re-primes its LFO links (the structural edit's rebuildVoice,
- * robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions Task 10). The robot is
+ * robotOptionsActions.ts: reReserveVoice disposes the nodes the links were wired to; revisions Task 10), Motion writes
+ * the glide live (applyPortamento's updateVoicePortamento, no rebuild) and re-primes the links, Performance regenerates
+ * the melody, which bakes in the rests and accents (applyRests' path; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b). The robot is
  * handed to reReserveVoice because a rebuild deals before its locale is current, where the engine's own lookup finds
  * nothing (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R4). `robot` is the store's robot after the write. Guarded as
  * spawnRobot's reservation is, so a push that throws costs only itself, never the rest of the deal
@@ -159,6 +195,13 @@ function pushFamilyToEngine(family: AspectFamilyId, robot: Robot, localeId: stri
         AudioEngine.reReserveVoice(robot.id, robot);
         primeRobotLinks(robot);
         break;
+      case 'motion':
+        AudioEngine.updateVoicePortamento(robot.id, robot.audioAttributes.portamento ?? 0);
+        primeRobotLinks(robot);
+        break;
+      case 'performance':
+        regenerateMelody(robot, localeId);
+        break;
       default: {
         const unpushed: never = family;
         throw new Error(`no engine push for the ${String(unpushed)} family`);
@@ -166,6 +209,17 @@ function pushFamilyToEngine(family: AspectFamilyId, robot: Robot, localeId: stri
     }
   } catch (err) {
     if (DEV_TUNING) console.warn('[SpawnSystem] the deal could not push', family, 'for', robot.id, err);
+  }
+}
+
+/** Each family in `families` to the engine, in family order, each push once: Performance's push is Melody's (one
+ *  regenerateMelody reads every field the melody bakes in), so it is skipped when Melody's runs
+ *  (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b). */
+function pushFamilies(families: ReadonlySet<AspectFamilyId>, robot: Robot, localeId: string): void {
+  for (const family of ASPECT_FAMILY_IDS) {
+    if (!families.has(family)) continue;
+    if (family === 'performance' && families.has('melody')) continue;
+    pushFamilyToEngine(family, robot, localeId);
   }
 }
 
@@ -187,29 +241,54 @@ export function applyAspectDeal(localeId: string): void {
   locale.robots.forEach((robot, i) => {
     const robotAspects = dealt.get(robot.id);
     if (!robotAspects) return;
-    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...dealtFields(noiseMap, i, theme, robotAspects, robot), loadedUnder: robotAspects });
+    const fields = dealtFields(noiseMap, i, theme, robotAspects, robot, priorLanesOf(locale.robots, i));
+    useLocaleStore.getState().updateRobot(localeId, robot.id, { ...fields, loadedUnder: robotAspects });
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
-    for (const family of ASPECT_FAMILY_IDS) {
-      if (robotAspects[family] !== undefined) pushFamilyToEngine(family, updated, localeId);
-    }
+    pushFamilies(new Set(ASPECT_FAMILY_IDS.filter((family) => robotAspects[family] !== undefined)), updated, localeId);
   });
 }
 
-/** The top-level seeded fields compared one by one, each with the family whose push carries it to the engine: Melody's
- *  four and `rests`, which the melody bakes in (regenerateMelody reads it, as a hand edit of Rests regenerates), and
- *  the five sends. */
+/**
+ * The top-level seeded fields compared one by one, each with the family whose push carries it to the engine, or null
+ * for a field no engine call needs. Melody's four; `rests`, `accents` and the register, which the melody bakes in
+ * (regenerateMelody reads them, as a hand edit of Rests, Accents or the octaves regenerates); `dynamics`, a playback
+ * scale read on every note, so the write is all (the Dynamics edit makes no engine call); `masterVolume`, filed under
+ * Voice, whose rebuild reserves the voice at the robot's volume (reReserveVoice); and the five sends. The four after
+ * `pitchRepeat` and the master volume joined at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, so a theme column may
+ * name them; T7b refiles the Performance fields under their own family.
+ */
 const TOP_LEVEL_FIELDS = [
   ['rhythmicDensity', 'melody'],
   ['rhythmicMotifLength', 'melody'],
   ['noteVariance', 'melody'],
   ['pitchRepeat', 'melody'],
-  ['rests', 'melody'],
+  ['rests', 'performance'],
+  ['accents', 'performance'],
+  ['octaveRange', 'melody'],
+  ['dynamics', null],
+  ['masterVolume', 'voice'],
   ...ROBOT_SEND_FIELDS.map((field) => [field, 'distance'] as const),
-] as const satisfies readonly (readonly [keyof RobotAudioBaseline, AspectFamilyId])[];
+] as const satisfies readonly (readonly [keyof RobotAudioBaseline, AspectFamilyId | null])[];
 
-/** Voice's fields inside the audio attributes, compared one by one; the layers are compared apart, per layer and key. */
-const VOICE_FIELDS = ['filterFreq', 'filterQ', 'filterType', 'waveform'] as const;
+/** The swell riding a field where its attribute id is not the field's own name. */
+const SWELL_ID_OF: Partial<Record<keyof RobotAudioBaseline, SwellRobotAttributeId>> = { masterVolume: 'volume' };
+
+/**
+ * The fields inside the audio attributes compared one by one, each with the family whose push carries it: Voice's four;
+ * the glide, under Motion (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b), whose push writes it live as the Portamento
+ * edit does (updateVoicePortamento, no rebuild); and the register the body scale reads, which needs no push of its own: the
+ * top-level `octaveRange` beside it moves with it and carries Melody's (T6). The layers are compared apart, per layer
+ * and key.
+ */
+const ATTRIBUTE_FIELDS = [
+  ['filterFreq', 'voice'],
+  ['filterQ', 'voice'],
+  ['filterType', 'voice'],
+  ['waveform', 'voice'],
+  ['portamento', 'motion'],
+  ['octaveRange', null],
+] as const satisfies readonly (readonly [keyof AudioAttributes, AspectFamilyId | null])[];
 
 /** A layer's seeded keys, compared one by one (deriveVoiceFields draws each; `pulseWidth` is never seeded). Only a moved
  *  key is written into the robot's own layer, and only a moved gain or detune drops its swell (`layer<i>.<key>`). */
@@ -233,9 +312,20 @@ function movedFields(
   for (const [field, family] of TOP_LEVEL_FIELDS) {
     if (deepEqual(from[field], to[field])) continue;
     Object.assign(fields, { [field]: to[field] });
-    families.add(family);
-    if (isSwellable(field)) swells.push(field);
+    if (family) families.add(family);
+    const swell = SWELL_ID_OF[field] ?? field;
+    if (isSwellable(swell)) swells.push(swell);
   }
+
+  // The links per target (T6), as the layers are compared per key: only a moved target takes the new link, so a hand
+  // edit on another target stands. Motion's push re-primes the links (primeRobotLinks), since T7b.
+  let lfoLinks = robot.lfoLinks;
+  for (const target of ROBOT_LFO_TARGET_IDS) {
+    if (deepEqual(from.lfoLinks[target], to.lfoLinks[target])) continue;
+    lfoLinks = { ...(lfoLinks ?? to.lfoLinks), [target]: to.lfoLinks[target] };
+    families.add('motion');
+  }
+  if (lfoLinks !== robot.lfoLinks) fields.lfoLinks = lfoLinks;
 
   let audioAttributes = robot.audioAttributes;
   const fromAdsr = from.audioAttributes.adsr;
@@ -247,10 +337,10 @@ function movedFields(
     families.add('envelope');
     if (isSwellable(`adsr.${key}`)) swells.push(`adsr.${key}` as SwellRobotAttributeId);
   }
-  for (const key of VOICE_FIELDS) {
+  for (const [key, family] of ATTRIBUTE_FIELDS) {
     if (deepEqual(from.audioAttributes[key], to.audioAttributes[key])) continue;
     audioAttributes = { ...audioAttributes, [key]: to.audioAttributes[key] };
-    families.add('voice');
+    if (family) families.add(family);
   }
   const fromLayers = from.audioAttributes.layers ?? [];
   const toLayers = to.audioAttributes.layers ?? [];
@@ -281,13 +371,15 @@ function movedFields(
  * deal, under `from` (the loading the change replaced) and under the loading store's now - and per robot, field by
  * field (movedFields), every field whose seeded value moved takes the new one. Every other field stands, a tweak
  * included; a tweak on a moved field goes, as any re-derivation takes it. So an untweaked world ends what a rebuild
- * under the new loading spawns, and diffs to nothing against its own seed. Under the real theme columns that is
- * rhythmicDensity, rests, the attack and release (curves too) and the Reverb and Delay sends; an aspect change riding
+ * under the new loading spawns, and diffs to nothing against its own seed. Under the real theme columns that is every
+ * robot field the two themes' columns name (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8); an aspect change riding
  * on the theme moves its families' fields and `loadedUnder` the same way. The swells riding the moved fields are
  * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
- * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields and
- * `rests`, the robot rows a theme column may name (ThemeBandKey); widening that list is an "ask first" (spec §3), and
- * a widened row needs its field here.
+ * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the six families' fields
+ * (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md), `rests`, and since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6 every robot field a band seeds: `accents`,
+ * `dynamics`, the register, the master volume, the glide and the LFO links per target. A theme column may name any key
+ * of the band table (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5); a robot key's field must be compared here and
+ * pushed by pushFamilyToEngine, or a theme change would leave the live robots stale on it.
  *
  * An aspects-only change comes here too, with `from` the loading it replaced (final fixes F16, which folded R33's
  * redealAspects in): its moved fields are what the two dealt baselines disagree on, so a tweak on an attribute the aspect
@@ -316,8 +408,13 @@ export function rederiveLoading(
   const oldDeal = dealAspects(from, locale.companies, locale.robots, noiseMap);
   const newDeal = dealAspects(to, locale.companies, locale.robots, noiseMap);
   /** A robot's baselines under `theme` and the given aspects, as a spawn under them would draw it. */
-  const drawn = (theme: ThemeId, i: number, baseline: RobotAudioBaseline, dealt: RobotAspects | undefined): RobotAudioBaseline =>
-    dealt ? { ...baseline, ...dealtFields(noiseMap, i, theme, dealt, baseline), loadedUnder: dealt } : baseline;
+  const drawn = (
+    theme: ThemeId,
+    i: number,
+    roster: readonly RobotAudioBaseline[],
+    dealt: RobotAspects | undefined,
+  ): RobotAudioBaseline =>
+    dealt ? { ...roster[i], ...dealtFields(noiseMap, i, theme, dealt, roster[i], priorLanesOf(roster, i)), loadedUnder: dealt } : roster[i];
   const aspectsAfter = (robot: Robot): RobotAspects | undefined => {
     const next: RobotAspects = { ...robot.loadedUnder };
     for (const family of ASPECT_FAMILY_IDS) {
@@ -331,10 +428,10 @@ export function rederiveLoading(
   };
   // The old side is what each robot was dealt, its own `loadedUnder` under the old theme (final fixes F16).
   const before = withLoading(from, () =>
-    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => drawn(from.theme, i, baseline, locale.robots[i].loadedUnder)),
+    generateRobotRosterBaseline(noiseMap, ids.length).map((_, i, roster) => drawn(from.theme, i, roster, locale.robots[i].loadedUnder)),
   );
   const after = withLoading(to, () =>
-    generateRobotRosterBaseline(noiseMap, ids.length).map((baseline, i) => drawn(to.theme, i, baseline, aspectsAfter(locale.robots[i]))),
+    generateRobotRosterBaseline(noiseMap, ids.length).map((_, i, roster) => drawn(to.theme, i, roster, aspectsAfter(locale.robots[i]))),
   );
   locale.robots.forEach((robot, i) => {
     const { fields, families, swells } = movedFields(robot, before[i], after[i]);
@@ -343,6 +440,6 @@ export function rederiveLoading(
     useLocaleStore.getState().updateRobot(localeId, robot.id, fields);
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
-    for (const family of ASPECT_FAMILY_IDS) if (families.has(family)) pushFamilyToEngine(family, updated, localeId);
+    pushFamilies(families, updated, localeId);
   });
 }

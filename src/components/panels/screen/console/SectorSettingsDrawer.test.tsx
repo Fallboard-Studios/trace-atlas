@@ -106,21 +106,21 @@ describe('SectorSettingsDrawer', () => {
       expect(line(container)).toBe(describeWorld(identity()));
     });
 
-    it('for a Calm world with one pick it carries ` · Calm · Hypnotic`', () => {
-      useLoadingStore.setState({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
+    it('for a Float world with one pick it carries ` · Float · Hypnotic`', () => {
+      useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
       const { container } = render(<SectorSettingsDrawer />);
-      expect(line(container)).toBe('Pelagos · (5, 9) · Calm · Hypnotic');
+      expect(line(container)).toBe('Pelagos · (5, 9) · Float · Hypnotic');
       expect(line(container)).toBe(describeWorld(identity()));
     });
 
     it('follows the loading store and the plot live', () => {
       const { container } = render(<SectorSettingsDrawer />);
-      act(() => useLoadingStore.setState({ theme: 'perilous', aspects: { melody: ['wandering'] } }));
-      expect(line(container)).toBe('Pelagos · (5, 9) · Perilous · Wandering');
+      act(() => useLoadingStore.setState({ theme: 'shatter', aspects: { melody: ['wandering'] } }));
+      expect(line(container)).toBe('Pelagos · (5, 9) · Shatter · Wandering');
       act(() =>
         useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, coordinates: { x: -3, y: 12 } } } }),
       );
-      expect(line(container)).toBe('Pelagos · (-3, 12) · Perilous · Wandering');
+      expect(line(container)).toBe('Pelagos · (-3, 12) · Shatter · Wandering');
     });
 
     it('an empty Melody list adds no tail (every robot as theme; docs/tasks/OFF_SCREEN_REVISIONS.md Task 6)', () => {

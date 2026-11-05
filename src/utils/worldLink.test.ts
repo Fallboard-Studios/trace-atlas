@@ -301,30 +301,30 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
   describe('the loading params', () => {
     // An untouched Calm world is generated under Calm (themes-and-aspects T34 gave the column numbers): the same seed
     // relabelled would carry a blob of every band Calm moved.
-    const CALM_PICKS: LoadingIdentity = { theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const CALM_PICKS: LoadingIdentity = { theme: 'float', aspects: { melody: ['hypnotic', 'mechanical'] } };
     const untouchedCalmWorld = () => untouchedWorld(undefined, undefined, CALM_PICKS);
 
     it('a Calm world with two Melody picks encodes seed, x, y, theme and melody, the set in canonical order, and no blob', () => {
       const params = encodeWorldLinkParams(untouchedCalmWorld());
       expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody']);
-      expect(params.get('theme')).toBe('calm');
+      expect(params.get('theme')).toBe('float');
       expect(params.get('melody')).toBe('hypnotic,mechanical');
     });
 
     it('a tweaked themed world puts the blob last, after the loading params', () => {
-      const params = encodeWorldLinkParams({ ...fullyEditedWorld(), theme: 'bold', aspects: { melody: ['wandering'] } });
+      const params = encodeWorldLinkParams({ ...fullyEditedWorld(), theme: 'anchor', aspects: { melody: ['wandering'] } });
       expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 's']);
-      expect(params.get('theme')).toBe('bold');
+      expect(params.get('theme')).toBe('anchor');
       expect(params.get('melody')).toBe('wandering');
     });
 
     it('decodes theme and melody, sorting the set into canonical order, and the same set encodes to the same string whatever its order', () => {
-      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=calm&melody=mechanical,hypnotic')!;
-      expect(decoded.theme).toBe('calm');
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=float&melody=mechanical,hypnotic')!;
+      expect(decoded.theme).toBe('float');
       expect(decoded.aspects).toEqual({ melody: ['hypnotic', 'mechanical'] });
       const again = encodeWorldLinkParams(decoded);
       expect(again.get('melody')).toBe('hypnotic,mechanical');
-      const sorted = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=calm&melody=hypnotic,mechanical')!;
+      const sorted = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&theme=float&melody=hypnotic,mechanical')!;
       expect(again.toString()).toBe(encodeWorldLinkParams(sorted).toString());
     });
 
@@ -337,22 +337,52 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     // only, so a link that wrote or read Melody alone passed them.
     it('a world with picks in all four families writes a param per family, and reads every one back', () => {
       const loading: LoadingIdentity = {
-        theme: 'calm',
-        aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['remote'], voice: ['woody'] },
+        theme: 'float',
+        aspects: { melody: ['hypnotic'], envelope: ['plucked', 'held'], distance: ['halfHeard'], voice: ['woody'] },
       };
       const payload = untouchedWorld(undefined, undefined, loading);
       const params = encodeWorldLinkParams(payload);
       expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 'envelope', 'distance', 'voice']);
       expect(params.get('envelope')).toBe('plucked,held');
-      expect(params.get('distance')).toBe('remote');
+      expect(params.get('distance')).toBe('halfHeard');
       expect(params.get('voice')).toBe('woody');
       expect(throughLink(payload)).toEqual(payload);
       const { coordinates } = payload;
       const decoded = decodeWorldLink(
-        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&theme=calm&melody=hypnotic&envelope=plucked,held&distance=remote&voice=woody`,
+        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&theme=float&melody=hypnotic&envelope=plucked,held&distance=halfHeard&voice=woody`,
       )!;
-      expect(decoded.theme).toBe('calm');
+      expect(decoded.theme).toBe('float');
       expect(decoded.aspects).toEqual(loading.aspects);
+    });
+
+    // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: Motion and Performance carry a param each, after Voice.
+    it('a world with picks in all six families writes a param per family, Motion and Performance last, and reads every one back', () => {
+      const loading: LoadingIdentity = {
+        theme: 'float',
+        aspects: {
+          melody: ['hypnotic'],
+          voice: ['woody'],
+          motion: ['sweeping', 'gliding'],
+          performance: ['halting'],
+        },
+      };
+      const payload = untouchedWorld(undefined, undefined, loading);
+      const params = encodeWorldLinkParams(payload);
+      expect([...params.keys()]).toEqual(['seed', 'x', 'y', 'theme', 'melody', 'voice', 'motion', 'performance']);
+      expect(params.get('motion')).toBe('gliding,sweeping');
+      expect(params.get('performance')).toBe('halting');
+      expect(throughLink(payload)).toEqual({ ...payload, aspects: { ...loading.aspects, motion: ['gliding', 'sweeping'] } });
+      const { coordinates } = payload;
+      const decoded = decodeWorldLink(
+        `?seed=${payload.attenuationStyleName}&x=${coordinates.x}&y=${coordinates.y}&motion=trembling&performance=steady,dramatic`,
+      )!;
+      expect(decoded.aspects).toEqual({ motion: ['trembling'], performance: ['steady', 'dramatic'] });
+    });
+
+    it('a Motion or Performance param carrying another family\'s id drops it and keeps the rest', () => {
+      const decoded = decodeWorldLink('?seed=n40dh8p8&x=29&y=-14&motion=hypnotic,gliding&performance=woody')!;
+      expect(decoded.aspects).toEqual({ motion: ['gliding'] });
+      expect([...encodeWorldLinkParams(decoded).keys()]).toEqual(['seed', 'x', 'y', 'motion']);
     });
 
     // docs/tasks/OFF_SCREEN_REVISIONS.md Task 6 (Crawford's note 4): the as-theme pick is gone, so a link still carrying
@@ -391,7 +421,7 @@ describe('encodeWorldLinkParams / decodeWorldLink', () => {
     });
 
     it('a theme or a family param alone names no world: null, as before', () => {
-      expect(decodeWorldLink('?theme=calm')).toBeNull();
+      expect(decodeWorldLink('?theme=float')).toBeNull();
       expect(decodeWorldLink('?melody=hypnotic')).toBeNull();
     });
 

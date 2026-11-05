@@ -14,7 +14,7 @@ export const FIXTURE_COORDINATES = { x: 29, y: -14 };
 
 /** What buildSessionPayload produces for a world nobody touched: every world-level field is the seed's — drawn under
  *  the given loading (Classic by default), since a theme's column moves the seed's values (themes-and-aspects T34), so
- *  an untouched Calm world is one generated under Calm, not a Classic one relabelled. */
+ *  an untouched Float world is one generated under Float, not a Classic one relabelled. */
 export function untouchedWorld(
   name: string = FIXTURE_NAME,
   coordinates: { x: number; y: number } = FIXTURE_COORDINATES,

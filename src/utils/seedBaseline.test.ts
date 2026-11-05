@@ -36,7 +36,7 @@ vi.mock('../data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../data/bands/themes')>();
   return {
     ...actual,
-    THEMES: { ...actual.THEMES, calm: { 'filterLPF.frequency': { min: 500, max: 600 } }, bold: { bpm: { min: 150, max: 160 } } },
+    THEMES: { ...actual.THEMES, float: { 'filterLPF.frequency': { min: 500, max: 600 } }, anchor: { bpm: { min: 150, max: 160 } } },
   };
 });
 
@@ -49,8 +49,8 @@ const SCRATCH_ID = '__world-link__';
 
 /** The seed identity of a Classic world: what every world was before the themes. */
 const classicWorld = (name: string) => ({ attenuationStyleName: name, theme: 'classic', aspects: {} }) as const;
-const CALM: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES, theme: 'calm', aspects: {} };
-const BOLD: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES, theme: 'bold', aspects: {} };
+const CALM: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES, theme: 'float', aspects: {} };
+const BOLD: WorldIdentity = { attenuationStyleName: NAME, coordinates: FIXTURE_COORDINATES, theme: 'anchor', aspects: {} };
 
 /** The eight generators called directly, under an id of the test's own choosing, with the rig and the lanes through
  *  the capture step a save applies (sessionCapture.ts). */
@@ -150,14 +150,14 @@ describe('diffWorldAgainstSeed / fillWorldFromSeed', () => {
 
   it('fills the identity exactly and stamps version 3 and the identity\'s theme and aspects', () => {
     const filled = fillWorldFromSeed(
-      { attenuationStyleName: ' Pelagos 7! ', coordinates: { x: -3, y: 0 }, theme: 'bold', aspects: { melody: ['hypnotic'] } },
+      { attenuationStyleName: ' Pelagos 7! ', coordinates: { x: -3, y: 0 }, theme: 'anchor', aspects: { melody: ['hypnotic'] } },
       {},
       baseline
     );
     expect(filled.version).toBe(3);
     expect(filled.attenuationStyleName).toBe(' Pelagos 7! ');
     expect(filled.coordinates).toEqual({ x: -3, y: 0 });
-    expect(filled.theme).toBe('bold');
+    expect(filled.theme).toBe('anchor');
     expect(filled.aspects).toStrictEqual({ melody: ['hypnotic'] });
   });
 
@@ -383,7 +383,7 @@ describe('generateWorldSeedBaseline under the identity\'s theme (band-table T23,
   });
 
   it('restores the loaded world\'s bands afterwards: with Bold loaded, generating a Calm baseline leaves the context on Bold', () => {
-    useLoadingStore.getState().setLoading({ theme: 'bold', aspects: {} });
+    useLoadingStore.getState().setLoading({ theme: 'anchor', aspects: {} });
     generateWorldSeedBaseline(CALM);
     expect(getBand('bpm')).toStrictEqual({ min: 150, max: 160 });
     expect(getBand('filterLPF.frequency')).toStrictEqual({ min: 2000, max: 20000 });
@@ -401,7 +401,7 @@ describe('generateWorldSeedBaseline under the identity\'s theme (band-table T23,
   it('fillWorldFromSeed writes the identity\'s theme and aspects, so a payload names its loading; Classic writes classic and {}', () => {
     const calm = fillWorldFromSeed({ ...CALM, aspects: { melody: ['hypnotic', 'wandering'] } }, {}, generateWorldSeedBaseline(CALM));
     expect(calm.version).toBe(3);
-    expect(calm.theme).toBe('calm');
+    expect(calm.theme).toBe('float');
     expect(calm.aspects).toStrictEqual({ melody: ['hypnotic', 'wandering'] });
     const classic = fillWorldFromSeed(CLASSIC_WORLD, {}, generateWorldSeedBaseline(CLASSIC_WORLD));
     expect(classic.theme).toBe('classic');

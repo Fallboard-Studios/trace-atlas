@@ -10,48 +10,87 @@ import { labels, type ContentKey, type SchemaLabels } from '@/content';
 // ========================================
 
 /** The one entry per theme id (docs/specs/OFF_SCREEN.md assumption 17), named here as literals so the content guard
- *  (src/content/content.test.ts) sees each read and the type sees every id. The ids are code; the words are content. */
+ *  (src/content/content.test.ts) sees each read and the type sees every id. The ids are code; the words are content.
+ *  The set is the shipped one of docs/specs/THEME_AND_ASPECTS_REFINEMENT.md: fourteen themes here, six families below. */
 const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
   classic: 'home.off.theme.classic',
-  calm: 'home.off.theme.calm',
-  bold: 'home.off.theme.bold',
-  adventurous: 'home.off.theme.adventurous',
-  perilous: 'home.off.theme.perilous',
+  float: 'home.off.theme.float',
+  anchor: 'home.off.theme.anchor',
+  shatter: 'home.off.theme.shatter',
+  undertow: 'home.off.theme.undertow',
+  trench: 'home.off.theme.trench',
+  tidepool: 'home.off.theme.tidepool',
+  floe: 'home.off.theme.floe',
+  thicket: 'home.off.theme.thicket',
+  wreck: 'home.off.theme.wreck',
+  openWater: 'home.off.theme.openWater',
+  ventField: 'home.off.theme.ventField',
+  beacon: 'home.off.theme.beacon',
+  polarLow: 'home.off.theme.polarLow',
 };
 
 /** One sentence per theme (assumption 17; §1.6 the Guide's part): the line under the off screen's theme row
  *  (docs/tasks/OFF_SCREEN.md Task 30), and the entry the Guide's Themes page will read. */
 const THEME_DESCRIPTION_KEY: Record<ThemeId, ContentKey> = {
   classic: 'home.off.themeDescription.classic',
-  calm: 'home.off.themeDescription.calm',
-  bold: 'home.off.themeDescription.bold',
-  adventurous: 'home.off.themeDescription.adventurous',
-  perilous: 'home.off.themeDescription.perilous',
+  float: 'home.off.themeDescription.float',
+  anchor: 'home.off.themeDescription.anchor',
+  shatter: 'home.off.themeDescription.shatter',
+  undertow: 'home.off.themeDescription.undertow',
+  trench: 'home.off.themeDescription.trench',
+  tidepool: 'home.off.themeDescription.tidepool',
+  floe: 'home.off.themeDescription.floe',
+  thicket: 'home.off.themeDescription.thicket',
+  wreck: 'home.off.themeDescription.wreck',
+  openWater: 'home.off.themeDescription.openWater',
+  ventField: 'home.off.themeDescription.ventField',
+  beacon: 'home.off.themeDescription.beacon',
+  polarLow: 'home.off.themeDescription.polarLow',
 };
 
 /** The one entry per aspect option, per family, each family's map over its own ids. The family is a key segment (the
  *  content grammar allows four): `home.off.melody.<id>`, not the spec's `home.off.aspect.melody.<id>` (band-table T28).
- *  Envelope and Distance joined at docs/tasks/OFF_SCREEN_REVISIONS.md Task 7. */
+ *  Envelope and Distance joined at docs/tasks/OFF_SCREEN_REVISIONS.md Task 7, Motion and Performance at
+ *  docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b. */
 const ASPECT_NAME_KEY: { readonly [F in AspectFamilyId]: Readonly<Record<AspectIdOf<F>, ContentKey>> } = {
   melody: {
     hypnotic: 'home.off.melody.hypnotic',
     mechanical: 'home.off.melody.mechanical',
     wandering: 'home.off.melody.wandering',
+    chanting: 'home.off.melody.chanting',
+    tumbling: 'home.off.melody.tumbling',
+    telegraph: 'home.off.melody.telegraph',
   },
   envelope: {
     plucked: 'home.off.envelope.plucked',
     swelling: 'home.off.envelope.swelling',
     held: 'home.off.envelope.held',
+    bowed: 'home.off.envelope.bowed',
+    hammered: 'home.off.envelope.hammered',
+    breathing: 'home.off.envelope.breathing',
   },
   distance: {
     near: 'home.off.distance.near',
-    far: 'home.off.distance.far',
-    remote: 'home.off.distance.remote',
+    echoing: 'home.off.distance.echoing',
+    halfHeard: 'home.off.distance.halfHeard',
   },
   voice: {
     glassy: 'home.off.voice.glassy',
     woody: 'home.off.voice.woody',
     hollow: 'home.off.voice.hollow',
+    brassy: 'home.off.voice.brassy',
+    muted: 'home.off.voice.muted',
+    chiming: 'home.off.voice.chiming',
+  },
+  motion: {
+    gliding: 'home.off.motion.gliding',
+    trembling: 'home.off.motion.trembling',
+    sweeping: 'home.off.motion.sweeping',
+  },
+  performance: {
+    steady: 'home.off.performance.steady',
+    dramatic: 'home.off.performance.dramatic',
+    halting: 'home.off.performance.halting',
   },
 };
 
@@ -61,6 +100,8 @@ const ASPECT_FAMILY_LABEL_KEY: Record<AspectFamilyId, ContentKey> = {
   envelope: 'home.off.envelope',
   distance: 'home.off.distance',
   voice: 'home.off.voice',
+  motion: 'home.off.motion',
+  performance: 'home.off.performance',
 };
 
 /** One sentence per option, per family, and the family's own for a row with nothing on (`none`) — the line under a
@@ -75,24 +116,45 @@ const ASPECT_DESCRIPTION_KEY: {
     hypnotic: 'home.off.melodyDescription.hypnotic',
     mechanical: 'home.off.melodyDescription.mechanical',
     wandering: 'home.off.melodyDescription.wandering',
+    chanting: 'home.off.melodyDescription.chanting',
+    tumbling: 'home.off.melodyDescription.tumbling',
+    telegraph: 'home.off.melodyDescription.telegraph',
   },
   envelope: {
     none: 'home.off.envelopeDescription.none',
     plucked: 'home.off.envelopeDescription.plucked',
     swelling: 'home.off.envelopeDescription.swelling',
     held: 'home.off.envelopeDescription.held',
+    bowed: 'home.off.envelopeDescription.bowed',
+    hammered: 'home.off.envelopeDescription.hammered',
+    breathing: 'home.off.envelopeDescription.breathing',
   },
   distance: {
     none: 'home.off.distanceDescription.none',
     near: 'home.off.distanceDescription.near',
-    far: 'home.off.distanceDescription.far',
-    remote: 'home.off.distanceDescription.remote',
+    echoing: 'home.off.distanceDescription.echoing',
+    halfHeard: 'home.off.distanceDescription.halfHeard',
   },
   voice: {
     none: 'home.off.voiceDescription.none',
     glassy: 'home.off.voiceDescription.glassy',
     woody: 'home.off.voiceDescription.woody',
     hollow: 'home.off.voiceDescription.hollow',
+    brassy: 'home.off.voiceDescription.brassy',
+    muted: 'home.off.voiceDescription.muted',
+    chiming: 'home.off.voiceDescription.chiming',
+  },
+  motion: {
+    none: 'home.off.motionDescription.none',
+    gliding: 'home.off.motionDescription.gliding',
+    trembling: 'home.off.motionDescription.trembling',
+    sweeping: 'home.off.motionDescription.sweeping',
+  },
+  performance: {
+    none: 'home.off.performanceDescription.none',
+    steady: 'home.off.performanceDescription.steady',
+    dramatic: 'home.off.performanceDescription.dramatic',
+    halting: 'home.off.performanceDescription.halting',
   },
 };
 

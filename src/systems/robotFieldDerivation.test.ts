@@ -10,7 +10,17 @@ import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils
 import { quantizeToStep } from '../utils/math';
 import { ROBOT_BUS_FILTER_Q } from '../constants';
 import { correlation, outerTenths } from '../testUtils/spread';
-import { composeSends, deriveEnvelopeFields, deriveMelodyFields, deriveSendFields, deriveVoiceFields, seedToggleValue } from './robotFieldDerivation';
+import {
+  composeSends,
+  deriveEnvelopeFields,
+  deriveMelodyFields,
+  deriveMotionFields,
+  deriveOctaveRange,
+  derivePerformanceFields,
+  deriveSendFields,
+  deriveVoiceFields,
+  seedToggleValue,
+} from './robotFieldDerivation';
 
 // ========================================
 // THE SAMPLE
@@ -323,5 +333,197 @@ describe('deriveSendFields — the Reverb and Delay sends draw even (Even Seeded
         expect({ reverbSend: sends.reverbSend, delaySend: sends.delaySend }).toEqual(expected);
       }
     }
+  });
+});
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6: two robot keys new at the cut, each Classic's band its draw as it stood.
+describe('the two new robot keys: robot.detune and robot.octaveRegister (themes-58 T6)', () => {
+  /** The old draws, typed in from main at 3c188fec, not read from the code under test. */
+  const OLD_REGISTERS = [[1, 3], [2, 4], [3, 5], [4, 6], [5, 7]] as const;
+  const oldRegister = (noiseMap: (x: number, y: number) => number, offset: number) =>
+    OLD_REGISTERS[Math.min(4, Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.register', offset, 0, 5)))];
+  const oldLayerDetune = (noiseMap: (x: number, y: number) => number, layerOffset: number) =>
+    quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, 1);
+
+  it('under Classic the register is the old even pick, robot for robot', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS) {
+      expect(deriveOctaveRange(noiseMap, offset, CLASSIC['robot.octaveRegister'])).toEqual([...oldRegister(noiseMap, offset)]);
+    }
+  });
+
+  it('under Classic every layer detune is the old centred draw, layer for layer', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS) {
+      const layers = deriveVoiceFields(noiseMap, offset, CLASSIC).layers!;
+      layers.forEach((layer, i) => expect(layer.detune).toBe(oldLayerDetune(noiseMap, offset * 10 + i)));
+    }
+  });
+
+  it('a register pick weighing one register alone lands every robot on it; a zero weight is never drawn', () => {
+    const lowOnly = { weights: { bass: 0, low: 1, mid: 0, high: 0, treble: 0 } };
+    for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 600)) {
+      expect(deriveOctaveRange(noiseMap, offset, lowOnly)).toEqual([2, 4]);
+    }
+    const noTreble = { weights: { bass: 1, low: 1, mid: 1, high: 1, treble: 0 } };
+    const ranges = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveOctaveRange(noiseMap, offset, noTreble));
+    expect(ranges.some((r) => r[0] === 5)).toBe(false);
+    expect(ranges.some((r) => r[0] === 4)).toBe(true);
+  });
+
+  it('a register pick leaning low weights its share: bass 3 of 4 lands near three quarters of the robots in the bass', () => {
+    const lean = { weights: { bass: 3, low: 1, mid: 0, high: 0, treble: 0 } };
+    const ranges = ROBOT_SLOTS.map(({ noiseMap, offset }) => deriveOctaveRange(noiseMap, offset, lean));
+    const bass = ranges.filter((r) => r[0] === 1).length / ranges.length;
+    expect(bass).toBeGreaterThan(0.73);
+    expect(bass).toBeLessThan(0.77);
+    expect(ranges.every((r) => r[0] === 1 || r[0] === 2)).toBe(true);
+  });
+
+  it('a detune band moves every layer inside it: none at all, or wide apart', () => {
+    for (const { noiseMap, offset } of ROBOT_SLOTS.slice(0, 600)) {
+      const none = deriveVoiceFields(noiseMap, offset, { ...CLASSIC, 'robot.detune': { min: 0, max: 0 } }).layers!;
+      expect(none.map((layer) => layer.detune)).toEqual([0, 0, 0]);
+      const wide = deriveVoiceFields(noiseMap, offset, { ...CLASSIC, 'robot.detune': { min: -20, max: 20 } }).layers!;
+      for (const layer of wide) {
+        expect(layer.detune).toBeGreaterThanOrEqual(-20);
+        expect(layer.detune).toBeLessThanOrEqual(20);
+      }
+    }
+    const spread = ROBOT_SLOTS.slice(0, 600).flatMap(({ noiseMap, offset }) =>
+      deriveVoiceFields(noiseMap, offset, { ...CLASSIC, 'robot.detune': { min: -20, max: 20 } }).layers!.map((l) => Math.abs(l.detune)),
+    );
+    expect(Math.max(...spread)).toBeGreaterThan(10);
+  });
+});
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a (Motion): the glide and the LFO links, lifted out of spawnSystem.ts into
+// the family's one derivation at their dataIds and offsets.
+describe('deriveMotionFields — the Motion family (themes-58 T7a)', () => {
+  // Classic parity: the fresh robots of generateRobotRosterBaseline(createNoise2D(alea('motion-parity-a')), 8) as the
+  // generators drew them before the lift (HEAD b35a8558, captured 2026-11-03 and typed in, not read back), each with the
+  // lane tally of the robots before it. Two gliders, and lit gain, detune and bus links among them.
+  const PARITY = [
+    { offset: 0, prior: { a: 0, b: 0, c: 0, d: 0 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'c', depth: 3 }, 'layer2.gain': { lane: 'a', depth: 26 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } } },
+    { offset: 1, prior: { a: 1, b: 0, c: 1, d: 0 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'b', depth: 1 }, 'layer1.gain': { lane: 'b', depth: 34 }, 'layer1.detune': { lane: 'd', depth: 3 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } } },
+    { offset: 2, prior: { a: 1, b: 2, c: 1, d: 1 }, portamento: 0.14,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 53 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'a', depth: 6 } } },
+    { offset: 3, prior: { a: 2, b: 2, c: 1, d: 2 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'd', depth: 12 } } },
+    { offset: 4, prior: { a: 2, b: 2, c: 1, d: 3 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'c', depth: 47 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'b', depth: 46 }, 'layer2.detune': { lane: 'a', depth: 7 }, 'bus.frequency': { lane: null, depth: 0 } } },
+    { offset: 5, prior: { a: 3, b: 3, c: 2, d: 3 }, portamento: 0.07,
+      lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'a', depth: 3 }, 'bus.frequency': { lane: 'c', depth: 10 } } },
+    { offset: 7, prior: { a: 4, b: 3, c: 3, d: 4 }, portamento: 0,
+      lfoLinks: { 'layer0.gain': { lane: 'a', depth: 19 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } } },
+  ];
+  const PARITY_MAP = createNoise2D(alea('motion-parity-a'));
+
+  it('under Classic returns, robot for robot, the glide and the links the generators drew before the lift', () => {
+    for (const { offset, prior, portamento, lfoLinks } of PARITY) {
+      expect(deriveMotionFields(PARITY_MAP, offset, CLASSIC, prior), `robot ${offset}`).toEqual({ portamento, lfoLinks });
+    }
+  });
+
+  it('leaves the lane tally it is handed alone', () => {
+    const prior = { a: 1, b: 2, c: 3, d: 4 };
+    deriveMotionFields(PARITY_MAP, 0, CLASSIC, prior);
+    expect(prior).toEqual({ a: 1, b: 2, c: 3, d: 4 });
+  });
+
+  describe('under an injected option column, over 500 robots (spec §1.5: a band is heard as written)', () => {
+    const NONE = { a: 0, b: 0, c: 0, d: 0 };
+    const BANDS = {
+      ...CLASSIC,
+      'robot.portamento': { min: 0.5, max: 0.8, lit: 0.6 },
+      'robot.lfoGainDepth': { min: 20, max: 30, lit: 0.5 },
+      'robot.lfoDetuneDepth': { min: 3, max: 6, lit: 0.4 },
+      'robot.lfoBusDepth': { min: 10, max: 15, lit: 0.3 },
+    };
+    const SLOTS = ROBOT_SLOTS.slice(0, 500);
+    const DRAWN = SLOTS.map(({ noiseMap, offset }) => deriveMotionFields(noiseMap, offset, BANDS, NONE));
+    const share = (hits: number, of: number) => hits / of;
+
+    it('the glide: a glider share within 3 points of the band\'s lit, every glide inside the band, every other robot 0', () => {
+      const gliders = DRAWN.filter((m) => m.portamento > 0);
+      expect(Math.abs(share(gliders.length, DRAWN.length) - 0.6)).toBeLessThan(0.03);
+      for (const { portamento } of gliders) {
+        expect(portamento).toBeGreaterThanOrEqual(0.5);
+        expect(portamento).toBeLessThanOrEqual(0.8);
+      }
+    });
+
+    it.each([
+      ['gain', (t: string) => t.endsWith('.gain'), 0.5, 20, 30],
+      ['detune', (t: string) => t.endsWith('.detune'), 0.4, 3, 6],
+      ['bus', (t: string) => t === 'bus.frequency', 0.3, 10, 15],
+    ] as const)('the %s links: a lit share within 3 points of the band\'s lit, every lit depth inside the band', (_, isTarget, lit, min, max) => {
+      const links = DRAWN.flatMap((m) => Object.entries(m.lfoLinks).filter(([t]) => isTarget(t)).map(([, link]) => link));
+      const lit_ = links.filter((link) => link.lane !== null);
+      expect(Math.abs(share(lit_.length, links.length) - lit)).toBeLessThan(0.03);
+      for (const { depth } of lit_) {
+        expect(depth).toBeGreaterThanOrEqual(min);
+        expect(depth).toBeLessThanOrEqual(max);
+      }
+      for (const link of links.filter((l) => l.lane === null)) expect(link.depth).toBe(0);
+    });
+  });
+});
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a (Performance): dynamics, rests and accents, lifted out of spawnSystem.ts
+// into the family's one derivation at their dataIds and offset.
+describe('derivePerformanceFields — the Performance family (themes-58 T7a)', () => {
+  // Classic parity: the fresh robots of generateRobotRosterBaseline(createNoise2D(alea('motion-parity-a')), 8) as the
+  // generators drew them before either lift (HEAD b35a8558, captured 2026-11-03 and typed in, not read back).
+  // Re-captured from the generator when Classic's three bands moved (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R3:
+  // 25-75, 10-60, 20-80 -> 60-80, 0-10, 20-60); the same draws, robot 0's dynamics 42 -> 67 at t ~ 0.34. Accents again
+  // at R4 (20-60 -> 0-30): robot 0's 57 -> 28 at t ~ 0.93.
+  const PARITY = [
+    { offset: 0, dynamics: 67, rests: 9, accents: 28 },
+    { offset: 1, dynamics: 68, rests: 9, accents: 28 },
+    { offset: 2, dynamics: 66, rests: 4, accents: 27 },
+    { offset: 3, dynamics: 71, rests: 5, accents: 22 },
+    { offset: 4, dynamics: 63, rests: 1, accents: 23 },
+    { offset: 5, dynamics: 79, rests: 1, accents: 13 },
+    { offset: 7, dynamics: 75, rests: 7, accents: 2 },
+  ];
+  const PARITY_MAP = createNoise2D(alea('motion-parity-a'));
+
+  it('under Classic returns, robot for robot, the three values the generators drew before the lift', () => {
+    for (const { offset, ...fields } of PARITY) {
+      expect(derivePerformanceFields(PARITY_MAP, offset, CLASSIC), `robot ${offset}`).toEqual(fields);
+    }
+  });
+
+  it('under an injected option column every value lands inside its band, whole, and the band is filled to both ends', () => {
+    const BANDS = {
+      ...CLASSIC,
+      'robot.dynamics': { min: 80, max: 95 },
+      'robot.rests': { min: 0, max: 8 },
+      'robot.accents': { min: 40, max: 50 },
+    };
+    const drawn = ROBOT_SLOTS.slice(0, 500).map(({ noiseMap, offset }) => derivePerformanceFields(noiseMap, offset, BANDS));
+    for (const [field, key] of [['dynamics', 'robot.dynamics'], ['rests', 'robot.rests'], ['accents', 'robot.accents']] as const) {
+      const values = drawn.map((d) => d[field]);
+      const { min, max } = BANDS[key];
+      expect(values.every((v) => Number.isInteger(v) && v >= min && v <= max), field).toBe(true);
+      expect(values, `${field} reaches its floor`).toContain(min);
+      expect(values, `${field} reaches its ceiling`).toContain(max);
+    }
+  });
+});
+
+// docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9: an off share of 1 is a column's "always off" (Tumbling: "never tiles a
+// figure"), so every draw lands off - the top of the draw too, where (raw - 1) / (1 - 1) would be NaN.
+describe('seedToggleValue at the two ends of the off share (T9)', () => {
+  it('an off share of 1 lands every draw off, the top of the draw included', () => {
+    for (const raw of [0, 0.25, 0.5, 0.999, 1]) {
+      expect(seedToggleValue(raw, { offShare: 1, min: 1, max: 8 }), String(raw)).toEqual({ active: false, value: 0 });
+    }
+  });
+
+  it('an off share of 0 lands every draw on, inside the band, both ends of the draw included', () => {
+    expect(seedToggleValue(0, { offShare: 0, min: 6, max: 8 })).toEqual({ active: true, value: 6 });
+    expect(seedToggleValue(1, { offShare: 0, min: 6, max: 8 })).toEqual({ active: true, value: 8 });
   });
 });

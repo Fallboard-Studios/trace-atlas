@@ -16,7 +16,7 @@ import { CLASSIC } from '@/data/bands/classic';
 // one that moves bpm is injected over the spread originals.
 vi.mock('@/data/bands/themes', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/data/bands/themes')>();
-  return { ...actual, THEMES: { ...actual.THEMES, calm: { bpm: { min: 150, max: 160 } } } };
+  return { ...actual, THEMES: { ...actual.THEMES, float: { bpm: { min: 150, max: 160 } } } };
 });
 
 // ========================================
@@ -44,14 +44,14 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('setLoading installs a theme and a family\'s picks', () => {
-    state().setLoading({ theme: 'calm', aspects: { melody: ['hypnotic'] } });
-    expect(state().theme).toBe('calm');
+    state().setLoading({ theme: 'float', aspects: { melody: ['hypnotic'] } });
+    expect(state().theme).toBe('float');
     expect(state().aspects).toStrictEqual({ melody: ['hypnotic'] });
   });
 
   it('keeps each list in canonical option order, deduped, unknown ids dropped', () => {
     state().setLoading({
-      theme: 'bold',
+      theme: 'anchor',
       aspects: { melody: ['mechanical', 'hypnotic', 'hypnotic', 'zzz'] as MelodyId[] },
     });
     expect(state().aspects).toStrictEqual({ melody: ['hypnotic', 'mechanical'] });
@@ -69,24 +69,24 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('drops an empty family and an unknown family, so an all-as-theme world is always the one shape {}', () => {
-    state().setLoading({ theme: 'calm', aspects: { melody: [] } });
+    state().setLoading({ theme: 'float', aspects: { melody: [] } });
     expect(state().aspects).toStrictEqual({});
     state().setLoading({
-      theme: 'calm',
+      theme: 'float',
       aspects: { melody: ['hypnotic'], texture: ['warm'] } as unknown as LoadingIdentity['aspects'],
     });
     expect(state().aspects).toStrictEqual({ melody: ['hypnotic'] });
   });
 
   it('a list that is only unknown ids is dropped too', () => {
-    state().setLoading({ theme: 'calm', aspects: { melody: ['zzz', 'yyy'] as unknown as MelodyId[] } });
+    state().setLoading({ theme: 'float', aspects: { melody: ['zzz', 'yyy'] as unknown as MelodyId[] } });
     expect(state().aspects).toStrictEqual({});
   });
 
   it('replaces the previous loading whole: a later setLoading with no aspects clears the earlier picks', () => {
-    state().setLoading({ theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
-    state().setLoading({ theme: 'perilous', aspects: {} });
-    expect(state().theme).toBe('perilous');
+    state().setLoading({ theme: 'float', aspects: { melody: ['hypnotic', 'mechanical'] } });
+    state().setLoading({ theme: 'shatter', aspects: {} });
+    expect(state().theme).toBe('shatter');
     expect(state().aspects).toStrictEqual({});
   });
 
@@ -98,7 +98,7 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
   });
 
   it('holds only JSON: the loading round-trips through JSON.stringify unchanged', () => {
-    state().setLoading({ theme: 'adventurous', aspects: { melody: ['hypnotic', 'mechanical'] } });
+    state().setLoading({ theme: 'undertow', aspects: { melody: ['hypnotic', 'mechanical'] } });
     const { theme, aspects } = state();
     expect(JSON.parse(JSON.stringify({ theme, aspects }))).toStrictEqual({ theme, aspects });
   });
@@ -106,19 +106,19 @@ describe('loadingStore (docs/specs/OFF_SCREEN.md assumption 9, plan Task 19)', (
 
 describe('the loading context follows the store (band-table T23, spec assumptions 9 and 15)', () => {
   it('setLoading installs the theme\'s table: getBand reads Calm\'s bpm after the store moves to Calm, Classic\'s after it moves back', () => {
-    state().setLoading({ theme: 'calm', aspects: {} });
+    state().setLoading({ theme: 'float', aspects: {} });
     expect(getBand('bpm')).toStrictEqual({ min: 150, max: 160 });
     state().setLoading({ ...DEFAULT_LOADING });
     expect(getBand('bpm')).toStrictEqual(CLASSIC.bpm);
   });
 
   it('a direct setState is mirrored too: the context follows every write, not only the action', () => {
-    useLoadingStore.setState({ theme: 'calm' });
+    useLoadingStore.setState({ theme: 'float' });
     expect(getBand('bpm')).toStrictEqual({ min: 150, max: 160 });
   });
 
   it('aspects in the store never enter the context', () => {
-    state().setLoading({ theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } });
+    state().setLoading({ theme: 'float', aspects: { melody: ['hypnotic', 'mechanical'] } });
     expect(getBand('robot.noteVariance')).toStrictEqual(CLASSIC['robot.noteVariance']);
     expect(getBand('robot.rhythmicDensity')).toStrictEqual(CLASSIC['robot.rhythmicDensity']);
   });
@@ -159,9 +159,18 @@ describe('canonicalPicks (spec assumption 9: lists in the family\'s canonical op
 // docs/tasks/OFF_SCREEN_REVISIONS.md Task 7: Envelope and Distance join Melody, each its own list.
 describe('canonicalAspects over the three families (revisions Task 7)', () => {
   it('keeps every family, each list canonical, the families in family order', () => {
-    const out = canonicalAspects({ distance: ['remote', 'near'], melody: ['wandering'], envelope: ['held', 'plucked', 'held'] });
-    expect(out).toStrictEqual({ melody: ['wandering'], envelope: ['plucked', 'held'], distance: ['near', 'remote'] });
+    const out = canonicalAspects({ distance: ['halfHeard', 'near'], melody: ['wandering'], envelope: ['held', 'plucked', 'held'] });
+    expect(out).toStrictEqual({ melody: ['wandering'], envelope: ['plucked', 'held'], distance: ['near', 'halfHeard'] });
     expect(Object.keys(out)).toEqual(['melody', 'envelope', 'distance']);
+  });
+
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: six families, Motion and Performance last.
+  it('keeps all six families in family order, Motion and Performance last, each list canonical', () => {
+    const out = canonicalAspects({ performance: ['halting', 'steady'], motion: ['trembling'], voice: ['hollow'], melody: ['wandering'] });
+    expect(out).toStrictEqual({ melody: ['wandering'], voice: ['hollow'], motion: ['trembling'], performance: ['steady', 'halting'] });
+    expect(Object.keys(out)).toEqual(['melody', 'voice', 'motion', 'performance']);
+    expect(canonicalPicks('motion', ['sweeping', 'trembling', 'gliding'])).toEqual(['gliding', 'trembling', 'sweeping']);
+    expect(canonicalPicks('performance', ['halting', 'dramatic', 'steady'])).toEqual(['steady', 'dramatic', 'halting']);
   });
 
   it('drops an id from another family: hypnotic is no Envelope pick, plucked no Distance one', () => {
@@ -170,12 +179,12 @@ describe('canonicalAspects over the three families (revisions Task 7)', () => {
 
   it('canonicalPicks orders each family by its own options', () => {
     expect(canonicalPicks('envelope', ['held', 'swelling', 'plucked'])).toEqual(['plucked', 'swelling', 'held']);
-    expect(canonicalPicks('distance', ['remote', 'far', 'near'])).toEqual(['near', 'far', 'remote']);
+    expect(canonicalPicks('distance', ['halfHeard', 'echoing', 'near'])).toEqual(['near', 'echoing', 'halfHeard']);
   });
 
   it('the store holds all three families through setLoading, as JSON', () => {
-    state().setLoading({ theme: 'calm', aspects: { envelope: ['swelling'], distance: ['far'], melody: ['mechanical'] } });
-    expect(state().aspects).toStrictEqual({ melody: ['mechanical'], envelope: ['swelling'], distance: ['far'] });
+    state().setLoading({ theme: 'float', aspects: { envelope: ['swelling'], distance: ['echoing'], melody: ['mechanical'] } });
+    expect(state().aspects).toStrictEqual({ melody: ['mechanical'], envelope: ['swelling'], distance: ['echoing'] });
     expect(JSON.parse(JSON.stringify(state().aspects))).toStrictEqual(state().aspects);
   });
 });

@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
+import { ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS, ENVELOPE_TIME_MAX_SECONDS } from '../../constants';
 import type { BandTable } from './bandKeys';
 
 // ========================================
@@ -117,7 +117,7 @@ export const CLASSIC: BandTable = {
   // and 0.25-0.35) are history. Their shape rows below still seed every world.
   'chorus.rate': { min: 0.2, max: 2 },
   'chorus.delayTime': { min: 6, max: 15 },
-  'chorus.depth': { min: 0.3, max: 0.7 },
+  'chorus.depth': { min: 0.05, max: 0.2 }, // Crawford, 2026-11-04: shallower (was 0.3-0.7)
   'chorus.spread': { min: 90, max: 180 },
   'chorus.feedback': { min: 0, max: 0.2 },
   'tremolo.rate': { min: 0.5, max: 6 },
@@ -128,19 +128,30 @@ export const CLASSIC: BandTable = {
   'vibrato.depth': { min: 0.03, max: 0.12 },
   'vibrato.wet': { min: 0.85, max: 1 },
   // A MAGNITUDE band: the seeder draws the sign separately (`globalAudio.frequencyShifter.sign`), so a seeded shift is
-  // +/-(2 - 20) Hz and never inside +/-2 Hz.
-  'frequencyShifter.shift': { min: 2, max: 20 },
+  // +/-(1 - 5) Hz and never inside +/-1 Hz (Crawford, 2026-11-04; was 2-20).
+  'frequencyShifter.shift': { min: 1, max: 5 },
   // Never near 0: the mono fold is a hand setting only. The widener has no dark state.
   'stereoWidener.width': { min: 0.4, max: 0.65 },
+
+  // ---- The two world keys (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6) ----------------------------------------
+  // Each the draw as it stood outside the table. Humanize (HUMANIZE_SEED_RANGE, docs/specs/ROBOT_PERFORMANCE.md assumption
+  // 9): a touch off the grid, a third of the slider's 20 ms top; a loading change draws it again (the half-moves), a
+  // style switch carries it forward as it always has. The master low-pass cutoff's tie to the global LFO bank: the
+  // filter-frequency depth window (GLOBAL_LFO_FILTER_FREQUENCY_DEPTH_SEED_RANGE, 5-60 %), and as `lit` the share of
+  // worlds whose tie is live, 1 - LFO_QUIET_THRESHOLD (0.34) on the even draw. A theme naming it at a lit of 1 forces the
+  // tie live in every world.
+  humanize: { min: 2, max: 6 },
+  'lfoLink.lpf.frequency': { min: 5, max: 60, lit: 0.66 },
 
   // ---- Robots (spawnSystem.ts, robotFieldDerivation.ts) --------------------------------------------------------------
   // ADSR. Roadmap Phase 9 unified attack/decay/release to one flat 0-5 s range, kept narrower than the Ping Contour
   // drawer's 0-10 s edit range; all three have since been narrowed to their sliders' 0-2 s (ENVELOPE_TIME_MAX_SECONDS),
-  // so a seeded value is always one the slider can show.
-  'robot.attack': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
+  // so a seeded value is always one the slider can show. Attack and Release start at their sliders' floors
+  // (ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS): a shorter edge clicks.
+  'robot.attack': { min: ENVELOPE_ATTACK_MIN_SECONDS, max: ENVELOPE_TIME_MAX_SECONDS },
   'robot.decay': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
   'robot.sustain': { min: 0.0, max: 1.0 },
-  'robot.release': { min: 0.0, max: ENVELOPE_TIME_MAX_SECONDS },
+  'robot.release': { min: ENVELOPE_RELEASE_MIN_SECONDS, max: ENVELOPE_TIME_MAX_SECONDS },
   // A stage that takes a non-linear shape is seeded short, so the shape can be heard: on a note stream the shape only
   // shows while the stage finishes within the note (notes are often 0.15 s). The same noise sample as a plain robot's,
   // spread over this range instead. `lit` is the shaped share, drawn even (docs/specs/EVEN_SEEDED_DRAWS.md §1.4), so the
@@ -171,6 +182,9 @@ export const CLASSIC: BandTable = {
   // full, ready-to-resume config. No product requirement pinned a specific bias; the coin is the least-presumptuous
   // default for "each independently seeded on or muted".
   'robot.layerGain': { min: 0.2, max: 1.2, lit: 0.5 },
+  // The fixed offset in cents between a robot's layers, each layer drawn centred over the band, so most sit at or near 0
+  // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6: the -2..2 draw deriveVoiceFields made outside the table).
+  'robot.detune': { min: -2, max: 2 },
   // Master volume (MASTER_VOLUME_MIN/MAX): keep robots below full saturation.
   'robot.masterVolume': { min: 0.65, max: 0.85 },
   // The robot LFO link depth windows, percent (ROBOT_LFO_GAIN/DETUNE/BUS_DEPTH_SEED_RANGE; Crawford's own load-value
@@ -199,17 +213,22 @@ export const CLASSIC: BandTable = {
   // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md assumption 13). Unlike the articulation traits, these are not
   // minority traits: every robot is seeded, each as a rounded integer 0-100, the sliders' own scale. The draw is even, so
   // a robot is as likely near a band's edge as at its middle (Even Seeded Draws T9 replaced assumption 13's wanted
-  // middle lean, per the spec's decision 3). Dynamics: 25 plays almost
-  // flat (a quarter of today's velocity variance), 75 breathes (one and a half times it). Rests: 10 leaves a rare short
-  // gap, 60 cuts more than half the notes short, and deeper. Accents: 20 marks about one note in five with only the two
-  // mildest marks (accent, tenuto); 80 marks four in five with all five, staccatissimo included.
-  'robot.dynamics': { min: 25, max: 75 },
-  'robot.rests': { min: 10, max: 60 },
-  'robot.accents': { min: 20, max: 80 },
+  // middle lean, per the spec's decision 3). Retuned by Crawford after the levers got stronger
+  // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2, then R3 and R4; was 25-75, 10-60, 20-80). Dynamics: 60 moves three
+  // notes in five by up to ±0.18, 80 four in five by up to ±0.24. Rests: at most one note in ten cut short, and a cut is
+  // now a real gap. Accents: 0 to 30 marks at most about one note in three, and only with the two mildest marks (accent,
+  // tenuto): the cutting marks unlock at 34, past the band (R4; R3's 20-60 cut slow-attack robots near silent).
+  'robot.dynamics': { min: 60, max: 80 },
+  'robot.rests': { min: 0, max: 10 },
+  'robot.accents': { min: 0, max: 30 },
   // The waveform the base and the three Signature Array layers draw (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a pick
   // (PickBand), five equal unit weights in WAVEFORMS order: 20 % each on the even draw (the bunched draw gave sine and
   // pulse about 6.5 % each; Even Seeded Draws T6). The Voice family's options move the weights.
   'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
+  // The octave register a robot's Octave Min and Max are dealt from (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6): a
+  // pick over OCTAVE_REGISTERS, five equal unit weights lowest first, which is exactly the even five-way pick
+  // spawnSystem.ts made before the key existed.
+  'robot.octaveRegister': { weights: { bass: 1, low: 1, mid: 1, high: 1, treble: 1 } },
 
   // ---- The sends (docs/specs/ROBOT_EFFECT_SENDS.md assumption 6, §1.1) ---------------------------------------------
   // What a FRESH robot may seed for each of its five sends, never what the slider exposes (SEND_MIN..SEND_MAX). The

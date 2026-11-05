@@ -13,9 +13,12 @@ import {
   type ExclusiveSendField,
 } from '../data/robotSendLoadingRanges';
 import type { RobotSendField } from '../data/robotSends';
+import { OCTAVE_REGISTER_IDS, OCTAVE_REGISTERS, type OctaveRegisterId } from '../data/octaveRegisters';
 import { getBand } from '../data/bands/loadingContext';
-import type { BandTable, PickBand, ToggleBand } from '../data/bands/bandKeys';
-import type { EnvelopeBandKey, MelodyBandKey, VoiceBandKey } from '../data/bands/aspects';
+import type { BandTable, PickBand, SendBand, ToggleBand } from '../data/bands/bandKeys';
+import type { EnvelopeBandKey, MelodyBandKey, MotionBandKey, PerformanceBandKey, VoiceBandKey } from '../data/bands/aspects';
+import { LFO_DEPTH_MIN, ROBOT_LFO_TARGET_IDS, type LfoLaneId, type LfoLink, type RobotLfoTargetId } from '../types/lfo';
+import { pickLane } from '../utils/lfoLaneDraw';
 import type { RobotAudioBaseline } from './spawnSystem';
 import { getCentredSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
@@ -71,7 +74,9 @@ function seedCurve(noiseMap: NoiseFunction2D, dataId: string, offset: number, sh
  * derived from the resulting `value > 0`, never drawn independently. The deal pass (Task 27) hands an aspect's band in.
  */
 export function seedToggleValue(raw: number, band: ToggleBand): ToggleValue {
-  if (raw < band.offShare) return { active: false, value: 0 };
+  // An off share of 1 is a column's "always off" (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9): the top of the draw
+  // lands off too, where the on span below would be 0 / 0.
+  if (raw < band.offShare || band.offShare >= 1) return { active: false, value: 0 };
   const fraction = (raw - band.offShare) / (1 - band.offShare); // 0..1 across the "on" span
   const span = band.max - band.min + 1; // the whole numbers min..max
   const value = band.min + Math.min(span - 1, Math.floor(fraction * span));
@@ -115,20 +120,37 @@ export function deriveMelodyFields(noiseMap: NoiseFunction2D, spawnIndex: number
 const WAVEFORMS: WaveformType[] = ['sine', 'square', 'triangle', 'sawtooth', 'pulse'];
 
 /**
- * A waveform from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one even draw over [0, total weight) at
- * `dataId` / `offset`, landing on the first waveform in WAVEFORMS order whose cumulative weight it falls under, so each
- * waveform's share is its weight's share of the total (20 % each under Classic's five unit weights). A zero weight is
- * never drawn; a draw at the very top of the range lands on the last waveform with a weight.
+ * An option from a PickBand (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): one even draw over [0, total weight) at
+ * `dataId` / `offset`, landing on the first option in `order` whose cumulative weight it falls under, so each option's
+ * share is its weight's share of the total (20 % each under five unit weights). A zero weight is never drawn; a draw at
+ * the very top of the range lands on the last option with a weight. The waveform's pick, and the octave register's since
+ * docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6.
  */
-function pickWaveform(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: PickBand): WaveformType {
-  const total = WAVEFORMS.reduce((sum, wave) => sum + band.weights[wave], 0);
+function pickWeighted<O extends string>(noiseMap: NoiseFunction2D, dataId: string, offset: number, order: readonly O[], band: PickBand<O>): O {
+  const total = order.reduce((sum, option) => sum + band.weights[option], 0);
   const draw = getUniformSeededVal(noiseMap, dataId, offset, 0, total);
   let edge = 0;
-  for (const wave of WAVEFORMS) {
-    edge += band.weights[wave];
-    if (draw < edge) return wave;
+  for (const option of order) {
+    edge += band.weights[option];
+    if (draw < edge) return option;
   }
-  return [...WAVEFORMS].reverse().find((wave) => band.weights[wave] > 0) ?? WAVEFORMS[WAVEFORMS.length - 1];
+  return [...order].reverse().find((option) => band.weights[option] > 0) ?? order[order.length - 1];
+}
+
+/** A waveform from the robot.waveform pick. */
+function pickWaveform(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: PickBand): WaveformType {
+  return pickWeighted(noiseMap, dataId, offset, WAVEFORMS, band);
+}
+
+/**
+ * A robot's seeded octave range at `offset` under the robot.octaveRegister pick (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md
+ * T6): one register of OCTAVE_REGISTERS, lowest first, at the dataId the five-way even pick always used. Classic's five
+ * unit weights give exactly that pick's register: the draw spans [0, 5) either way, and the cumulative edges are its
+ * Math.floor.
+ */
+export function deriveOctaveRange(noiseMap: NoiseFunction2D, offset: number, band: PickBand<OctaveRegisterId>): [number, number] {
+  const [min, max] = OCTAVE_REGISTERS[pickWeighted(noiseMap, 'robot.audio.register', offset, OCTAVE_REGISTER_IDS, band)];
+  return [min, max];
 }
 
 /** The theme's Envelope bands as the loading context holds them now (getBand at the draw, band-table T21). */
@@ -173,14 +195,19 @@ export function deriveEnvelopeFields(
   };
 }
 
+/** The bands deriveVoiceFields reads: the Voice family's keys, and the layers' detune, a theme's key no family sets
+ *  (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). */
+type VoiceDrawKey = VoiceBandKey | 'robot.detune';
+
 /** The theme's Voice bands as the loading context holds them now (getBand at the draw, band-table T21). */
-export function currentVoiceBands(): Pick<BandTable, VoiceBandKey> {
+export function currentVoiceBands(): Pick<BandTable, VoiceDrawKey> {
   return {
     'robot.waveform': getBand('robot.waveform'),
     'robot.filterFreq': getBand('robot.filterFreq'),
     'robot.accentFilterFreq': getBand('robot.accentFilterFreq'),
     'robot.accentFilterQ': getBand('robot.accentFilterQ'),
     'robot.layerGain': getBand('robot.layerGain'),
+    'robot.detune': getBand('robot.detune'),
   };
 }
 
@@ -192,11 +219,12 @@ type VoiceFields = Pick<AudioAttributes, 'filterFreq' | 'filterQ' | 'filterType'
  * deal re-derives it (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10: resolveBands(theme, { voice })). Extracted from
  * generateAudioAttributes with its dataIds and offsets unchanged: the bus filter (an accent robot a darker, resonant one,
  * lowpass or bandpass; the cutoff keeps its own dataId in both tiers), the base waveform and the three layers (type, gain,
- * detune, phase), the waveforms now picked through the robot.waveform PickBand (pickWaveform). The layers' detune and
- * phase follow no band and re-derive unchanged. Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so each `lit` and
- * ACCENT_BANDPASS_SHARE is the share it names; the layer detune is centred, so most layers sit at or near 0 cents.
+ * detune, phase), the waveforms now picked through the robot.waveform PickBand (pickWaveform). The layers' detune draws
+ * centred over the robot.detune band (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6), so most layers sit at or near its
+ * middle, 0 cents under Classic; the phase follows no band. Every draw is even (docs/specs/EVEN_SEEDED_DRAWS.md), so
+ * each `lit` and ACCENT_BANDPASS_SHARE is the share it names.
  */
-export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, VoiceBandKey>): VoiceFields {
+export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, VoiceDrawKey>): VoiceFields {
   // Seeded bus filter (determines detail level): a common robot is an open lowpass, an accent robot
   // a darker, resonant one (lowpass or bandpass). The cutoff keeps its own dataId in both tiers.
   // The accent band's `lit` is the accent share (robot.accentFilterFreq); the open cutoff and the accent Q are bands too.
@@ -219,6 +247,7 @@ export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, ban
   // There is no per-layer ADSR anymore — every layer shares the one `adsr` envelope.
   const layers: OscillatorLayer[] = [];
   const layerGain = bands['robot.layerGain'];
+  const detune = bands['robot.detune'];
   for (let i = 0; i < LAYER_COUNT; i++) {
     const layerOffset = offset * 10 + i;
     // Baseline (layers[0]) always seeds a real, audible gain from the band; Coaxial/Harmonic (layers[1]/[2]) each go
@@ -229,12 +258,141 @@ export function deriveVoiceFields(noiseMap: NoiseFunction2D, offset: number, ban
     const layerWave: OscillatorLayer = {
       type: pickWaveform(noiseMap, 'robot.audio.layer.waveform', layerOffset, bands['robot.waveform']),
       gain: quiet ? 0 : quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.layer.gain', layerOffset, layerGain.min, layerGain.max), 0, LAYER_GAIN_STEP),
-      detune: quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, -2, 2), 0, DETUNE_STEP),
+      detune: quantizeToStep(getCentredSeededVal(noiseMap, 'robot.audio.layer.detune', layerOffset, detune.min, detune.max), 0, DETUNE_STEP),
       phase: Math.floor(getUniformSeededVal(noiseMap, 'robot.audio.layer.phase', layerOffset, 0, 361)) || 0,
     };
     layers.push(layerWave);
   }
   return { filterFreq, filterQ, filterType, waveform, layers };
+}
+
+/** Mirrors the Portamento slider's own step (SEEDED_SLIDER_VALUE_QUANTIZATION). */
+const PORTAMENTO_STEP = 0.01;
+
+/** Rounds Depth to a whole percent (SEEDED_SLIDER_VALUE_QUANTIZATION follow-up) — already
+ *  stored in percent units (0-100), so no unit conversion needed. */
+const LFO_DEPTH_STEP = 1;
+
+/** The theme's Motion bands as the loading context holds them now (getBand at the draw, band-table T21). */
+export function currentMotionBands(): Pick<BandTable, MotionBandKey> {
+  return {
+    'robot.portamento': getBand('robot.portamento'),
+    'robot.lfoGainDepth': getBand('robot.lfoGainDepth'),
+    'robot.lfoDetuneDepth': getBand('robot.lfoDetuneDepth'),
+    'robot.lfoBusDepth': getBand('robot.lfoBusDepth'),
+  };
+}
+
+/** What a robot draws for Motion: its glide and its seven LFO links. */
+export interface MotionFields {
+  portamento: number;
+  lfoLinks: Record<RobotLfoTargetId, LfoLink>;
+}
+
+/**
+ * A robot's seeded glide at `offset` under `bands`: most robots don't glide, a glider slurs each note into the next.
+ * The band's `lit` is the gliding share, drawn even, so the edge is the share; every other robot is exactly 0. Lifted
+ * from generateAudioAttributes with its dataIds and offset unchanged (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a).
+ */
+export function derivePortamento(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, 'robot.portamento'>): number {
+  const band = bands['robot.portamento'];
+  const glider = getUniformSeededVal(noiseMap, 'robot.audio.portamento.glider', offset, 0, 1) < band.lit;
+  return glider ? quantizeToStep(getUniformSeededVal(noiseMap, 'robot.audio.portamento', offset, band.min, band.max), 0, PORTAMENTO_STEP) : 0;
+}
+
+/** The band a robot LFO target seeds from (robot.lfoGainDepth, robot.lfoDetuneDepth, robot.lfoBusDepth): its depth
+ *  window in percent, with a never-zero floor so a lit link is always audible, and as `lit` the lit share. The on-roll
+ *  is even (docs/specs/EVEN_SEEDED_DRAWS.md), so `lit` is the share of robots with the link lit. */
+function lfoBandForTarget(target: RobotLfoTargetId, bands: Pick<BandTable, MotionBandKey>): SendBand {
+  if (target === 'bus.frequency') return bands['robot.lfoBusDepth'];
+  return bands[target.endsWith('.gain') ? 'robot.lfoGainDepth' : 'robot.lfoDetuneDepth'];
+}
+
+/**
+ * A lit detune link's depth, close to no detune (docs/specs/EVEN_SEEDED_DRAWS.md §1.2; Crawford, 2026-11-01): the
+ * centred draw over -1..1, folded so its peak sits at the window's floor, then floored onto the whole-percent grid so
+ * every percent gets a full share. Under Classic's 1-10 % window, 1 % is the commonest depth (about 19 % of lit detune
+ * links), each percent above it rarer, and 10 % the rarest (about 1 %). Rounding instead would give the floor only half
+ * a share and make 2 % the commonest.
+ */
+function detuneLinkDepth(noiseMap: NoiseFunction2D, dataId: string, offset: number, band: SendBand): number {
+  const steps = band.max - band.min;
+  const folded = Math.abs(getCentredSeededVal(noiseMap, dataId, offset, -1, 1));
+  return quantizeToStep(band.min + Math.min(steps, Math.floor(folded * (steps + 1))), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
+}
+
+/**
+ * A robot's seeded LfoLinks for every RobotLfoTargetId at `offset` under `bands` — a lane pick per target (docs/specs/
+ * LFO_BANK.md §1.3). The quiet share and the depth window are the target's band (lfoBandForTarget). The lane draw is
+ * roster-aware: `priorLaneCounts` is the tally of every earlier robot in the roster, and this robot's own earlier
+ * targets update a copy of it as the loop goes, so even one robot's targets lean away from each other, not just away
+ * from the rest of the roster. Lifted from spawnSystem.ts's generateRobotLfoLinks with its dataIds and offset unchanged
+ * (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7a).
+ */
+export function deriveLfoLinks(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  bands: Pick<BandTable, MotionBandKey>,
+  priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
+): Record<RobotLfoTargetId, LfoLink> {
+  const counts: Record<LfoLaneId, number> = { ...priorLaneCounts };
+  const result = {} as Record<RobotLfoTargetId, LfoLink>;
+  for (const target of ROBOT_LFO_TARGET_IDS) {
+    const band = lfoBandForTarget(target, bands);
+    const quiet = getUniformSeededVal(noiseMap, `robot.lfo.${target}.quiet`, offset, 0, 1) < 1 - band.lit;
+    if (quiet) {
+      result[target] = { lane: null, depth: 0 };
+      continue;
+    }
+    const laneT = getUniformSeededVal(noiseMap, `robot.lfo.${target}.lane`, offset, 0, 1);
+    const lane = pickLane(laneT, counts);
+    counts[lane]++;
+    const depthId = `robot.lfo.${target}.depth`;
+    const depth = target.endsWith('.detune')
+      ? detuneLinkDepth(noiseMap, depthId, offset, band)
+      : quantizeToStep(getUniformSeededVal(noiseMap, depthId, offset, band.min, band.max), LFO_DEPTH_MIN, LFO_DEPTH_STEP);
+    result[target] = { lane, depth };
+  }
+  return result;
+}
+
+/**
+ * The Motion family's one derivation (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5; plan T7a): a robot's glide and
+ * links at `offset` under `bands` - the theme's at spawn (currentMotionBands), a Motion aspect's when the deal
+ * re-derives it - with `priorLaneCounts` the lane tally of the robots before it.
+ */
+export function deriveMotionFields(
+  noiseMap: NoiseFunction2D,
+  offset: number,
+  bands: Pick<BandTable, MotionBandKey>,
+  priorLaneCounts: Readonly<Record<LfoLaneId, number>>,
+): MotionFields {
+  return { portamento: derivePortamento(noiseMap, offset, bands), lfoLinks: deriveLfoLinks(noiseMap, offset, bands, priorLaneCounts) };
+}
+
+/** The theme's Performance bands as the loading context holds them now (getBand at the draw, band-table T21). */
+export function currentPerformanceBands(): Pick<BandTable, PerformanceBandKey> {
+  return {
+    'robot.dynamics': getBand('robot.dynamics'),
+    'robot.rests': getBand('robot.rests'),
+    'robot.accents': getBand('robot.accents'),
+  };
+}
+
+/** What a robot draws for Performance: three 0-100 whole numbers. */
+export type PerformanceFields = Pick<RobotAudioBaseline, 'dynamics' | 'rests' | 'accents'>;
+
+/**
+ * The Performance family's one derivation (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5; plan T7a): a robot's
+ * dynamics, rests and accents at `offset` under `bands` - the theme's at spawn (currentPerformanceBands), a Performance
+ * aspect's when the deal re-derives it - each its own even draw, rounded (docs/specs/ROBOT_PERFORMANCE.md §1.4). Lifted
+ * from spawnSystem.ts with its dataIds and offset unchanged.
+ */
+export function derivePerformanceFields(noiseMap: NoiseFunction2D, offset: number, bands: Pick<BandTable, PerformanceBandKey>): PerformanceFields {
+  // Each field's dataId is its band key, as it was before the lift ('robot.dynamics', 'robot.rests', 'robot.accents').
+  const draw = (key: PerformanceBandKey) =>
+    Math.round(getUniformSeededVal(noiseMap, key, offset, bands[key].min, bands[key].max));
+  return { dynamics: draw('robot.dynamics'), rests: draw('robot.rests'), accents: draw('robot.accents') };
 }
 
 /** A send fraction quantized in percent space (the Volume shape), so the stored value sits on the slider's

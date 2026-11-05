@@ -98,7 +98,7 @@ const SCRATCH_ATTENUATION_STYLE_ID = '__world-link__';
  *  global links and the pacing scalars, through the same pure generators boot uses, then the rig and the lanes through
  *  the capture step buildSessionPayload applies (sessionCapture.ts). Without that step every seeded value off a slider
  *  step would read as an edit, and no untouched world would copy its bare triple. Generated inside the identity's own
- *  theme bands (withLoading, docs/specs/OFF_SCREEN.md assumption 15), so a Calm world is never read against Classic's
+ *  theme bands (withLoading, docs/specs/OFF_SCREEN.md assumption 15), so a Float world is never read against Classic's
  *  baseline - which would make every seeded value an override - and the loaded world's bands are back in place after;
  *  the aspects seed nothing world-level. Reads no store. */
 export function generateWorldSeedBaseline(identity: WorldSeedIdentity): WorldSeedBaseline {

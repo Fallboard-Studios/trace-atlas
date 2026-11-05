@@ -57,7 +57,7 @@ import {
   PERFORMANCE_MIN, PERFORMANCE_MAX,
 } from '@/constants';
 import { ENVELOPE_CURVE_NAMES, ROBOT_FILTER_TYPES } from '@/types/Robot';
-import { ENVELOPE_TIME_MAX_SECONDS } from '@/constants';
+import { ENVELOPE_TIME_MAX_SECONDS, ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS } from '@/constants';
 
 const SEND_SCHEMAS = ROBOT_SEND_FIELDS.map((field) => ROBOT_SEND_SCHEMAS[field]);
 
@@ -354,13 +354,22 @@ describe('robotOptionsConfig', () => {
   // Crawford, 2026-10-13: past about half a second a robot's notes (often back-to-back 16ths) never let the envelope
   // finish, so 0-10 s was mostly one drone (and a long Decay leaves the Sustain slider inert). Attack, Decay and
   // Release all run 0-2 s.
-  it('Attack, Decay and Release run 0-2 s, the one shared ENVELOPE_TIME_MAX_SECONDS', () => {
+  it('Attack, Decay and Release run to 2 s, the one shared ENVELOPE_TIME_MAX_SECONDS', () => {
     expect(ENVELOPE_TIME_MAX_SECONDS).toBe(2);
     [ATTACK_SCHEMA, DECAY_SCHEMA, RELEASE_SCHEMA].forEach((schema) => {
-      expect(schema.min).toBe(0);
       expect(schema.max).toBe(ENVELOPE_TIME_MAX_SECONDS);
       expect(schema.unit).toBe('s');
     });
+    expect(DECAY_SCHEMA.min).toBe(0);
+  });
+
+  // Crawford, 2026-11-04: Squall's Glass Nomad (attack 9 ms, sustain 40 %, release 5 ms) clicked on every note; a
+  // longer release cleared it by ear. The sliders start at the floor, so what they show is what plays.
+  it('Attack starts at 15 ms and Release at 20 ms: the shortest edges that do not click', () => {
+    expect(ENVELOPE_ATTACK_MIN_SECONDS).toBe(0.015);
+    expect(ENVELOPE_RELEASE_MIN_SECONDS).toBe(0.02);
+    expect(ATTACK_SCHEMA.min).toBe(ENVELOPE_ATTACK_MIN_SECONDS);
+    expect(RELEASE_SCHEMA.min).toBe(ENVELOPE_RELEASE_MIN_SECONDS);
   });
 
 

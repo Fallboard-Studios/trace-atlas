@@ -534,7 +534,7 @@ describe('CompanyScreen — the "loaded under" line (docs/tasks/OFF_SCREEN.md Ta
   // docs/tasks/OFF_SCREEN_REVISIONS.md Checkpoint C: the deal now seats four families; the line names every one the
   // company was dealt, in family order, joined as describeWorld joins a family's picks.
   it('names every dealt family, in family order, when every member carries the same record', () => {
-    const record = { voice: 'woody', melody: 'hypnotic', distance: 'remote', envelope: 'held' };
+    const record = { voice: 'woody', melody: 'hypnotic', distance: 'halfHeard', envelope: 'held' };
     const robots = useLocaleStore.getState().locales[localeId]!.robots.map((r) =>
       r.companyId === RUST.id ? { ...r, loadedUnder: record } : r,
     );
@@ -545,9 +545,23 @@ describe('CompanyScreen — the "loaded under" line (docs/tasks/OFF_SCREEN.md Ta
       [
         human('home.off.melody.hypnotic'),
         human('home.off.envelope.held'),
-        human('home.off.distance.remote'),
+        human('home.off.distance.halfHeard'),
         human('home.off.voice.woody'),
       ].join(' + '),
+    );
+  });
+
+  // docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7c: the six families, Motion and Performance last.
+  it('names a Motion and a Performance aspect too, after the four, in family order', () => {
+    const record = { performance: 'dramatic', motion: 'trembling', melody: 'wandering' };
+    const robots = useLocaleStore.getState().locales[localeId]!.robots.map((r) =>
+      r.companyId === RUST.id ? { ...r, loadedUnder: record } : r,
+    );
+    useLocaleStore.getState().setLocaleData(localeId, { robots } as unknown as Partial<Locale>);
+    openCompany(RUST.id);
+    const { container } = render(<CompanyScreen />);
+    expect(wells(container)[2].querySelector('.robot-screen__meta-value')?.textContent).toBe(
+      [human('home.off.melody.wandering'), human('home.off.motion.trembling'), human('home.off.performance.dramatic')].join(' + '),
     );
   });
 

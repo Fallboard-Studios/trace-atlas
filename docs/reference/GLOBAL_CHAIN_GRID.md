@@ -42,7 +42,7 @@
 | Phaser | `setGlobalPhaser()` | wet ⁴ | 0–1 | 0.3–0.4 | PHASE LAG | MIX | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | rate (Tone `frequency`) ⁵ | Hz, 0.05–10 | 0.2–2 | TWIN CURRENT | RATE | SLIDER (Free \| Sync) | – | – |
 | Chorus | `setGlobalChorus()` | delayTime | ms, 1–20 | 6–15 | TWIN CURRENT | DELAY | SLIDER (step 0.5) | – | – |
-| Chorus | `setGlobalChorus()` | depth | 0–1 | 0.3–0.7 | TWIN CURRENT | DEPTH | SLIDER | – | – |
+| Chorus | `setGlobalChorus()` | depth | 0–1 | 0.05–0.2 | TWIN CURRENT | DEPTH | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | spread | degrees, 0–180 | 90–180 | TWIN CURRENT | SPREAD | SLIDER (step 5) | – | – |
 | Chorus | `setGlobalChorus()` | feedback | 0–0.9 | 0–0.2 | TWIN CURRENT | FEEDBACK | SLIDER | – | – |
 | Chorus | `setGlobalChorus()` | wet ⁵ | 0–1 (return level of the Double room²) | – (fixed `1`) | TWIN CURRENT | RETURN | SLIDER | – | – |
@@ -53,7 +53,7 @@
 | Vibrato | `setGlobalVibrato()` | rate (Tone `frequency`) ⁵ | Hz, 0.05–10 | 2–7 | LINE WAVER | RATE | SLIDER (Free \| Sync) | – | – |
 | Vibrato | `setGlobalVibrato()` | depth | 0–1 (of `maxDelay` 0.005 s) | 0.03–0.12 | LINE WAVER | DEPTH | SLIDER | – | – |
 | Vibrato | `setGlobalVibrato()` | wet ⁵ | 0–1 | 0.85–1 | LINE WAVER | MIX | SLIDER | – | – |
-| FrequencyShifter | `setGlobalFrequencyShifter()` | shift (Tone `frequency`) ⁵ | Hz, −1000 to 1000 (signed) | ±(2–20), sign drawn separately | BAND SLIP | SHIFT | SLIDER (Center-Zero) | – | – |
+| FrequencyShifter | `setGlobalFrequencyShifter()` | shift (Tone `frequency`) ⁵ | Hz, −1000 to 1000 (signed) | ±(1–5), sign drawn separately | BAND SLIP | SHIFT | SLIDER (Center-Zero) | – | – |
 | FrequencyShifter | `setGlobalFrequencyShifter()` | wet ⁵ | 0–1 (return level of the Shimmer room²) | – (fixed `1`) | BAND SLIP | RETURN | SLIDER | – | – |
 | Delay | `setGlobalDelay()` | delayTime | seconds, 0–10 | 0.05–0.5 | TEMPORAL REFLECTION MATRIX | PROPAGATION LAG | SLIDER (Free \| Sync¹) | – | – |
 | Delay | `setGlobalDelay()` | feedback | 0–0.95 | 0–0.4 | TEMPORAL REFLECTION MATRIX | RECIRCULATION RATE | SLIDER | – | – |
@@ -104,18 +104,69 @@ A lane's Shape/Rate never grey; its Rate Drift/Depth Drift rows grey (with a "He
 
 ‡ **Status note is stale** — Ping Variance Automation has since shipped (an `audioRigConfig.ts` schema and `AudioRigDrawer.tsx` slider exist, and `src/systems/audioSwells.ts` reads it for the trigger gate, magnitude scaling, and the 0%-forced-return); `globalBypass` no longer exists at all (removed — see the note above the table). Source: `docs/intent/ping-variance-automation.md`, `docs/specs/PING-VARIANCE-AUTOMATION.md`.
 
-## Loading ranges by theme (roadmap 57, the off screen)
+## Loading ranges by theme (roadmaps 57 and 58, the off screen)
 
-A world is loaded under one of five **themes** (`src/data/bands/themes.ts`: `classic | calm | bold | adventurous | perilous`, picked on the off screen's Loading axis, carried by the session payload and the world link's `theme=` param). Classic is the table above by definition; every other theme is a column that replaces whole bands for the keys it names and leaves every other key Classic's (`resolveBands`, replace never widen). A v1 column may touch only `docs/specs/OFF_SCREEN.md` assumption 16's key list; the two global rows on it are the tempo and the Low-Pass Filter's cutoff. A theme is world-wide: the global half is regenerated from the same seed under the new bands on a theme change (`worldTransition.ts`'s `loadingOnly` retransmit) and the roster is drawn again at the same identity. The robot rows a theme moves are in `docs/reference/ROBOT_DATA_GRID.md`'s own "Loading ranges by theme and aspect" section; `src/data/bands/themes.ts` is the mechanical transcription of both tables, and `resolveBands.test.ts` pins each column to the key list and inside its field's full range. No aspect reaches this table: the four aspect families — Melody, and since `docs/tasks/OFF_SCREEN_REVISIONS.md` (2026-10-31) Envelope, Distance and Voice — are robot-side, so a room's own size (`reverb.decay`, `delay.delayTime`) stays a theme's and Distance moves only the robots' sends; their columns are in the robot grid. Every draw inside a band is even (`getUniformSeededVal`; Even Seeded Draws, `docs/specs/EVEN_SEEDED_DRAWS.md`, 2026-11-02), the three EQ bands centred, so a band's edges are reached and each lit, sync or colour edge is the share it says.
+A world is loaded under one of fourteen **themes** (`src/data/bands/themes.ts`, `THEME_IDS`: `classic`, `float`, `anchor`, `shatter`, `undertow`, `trench`, `tidepool`, `floe`, `thicket`, `wreck`, `openWater`, `ventField`, `beacon`, `polarLow`), picked on the off screen's Loading axis and carried by the session payload and the world link's `theme=` param; an unknown id, a cut one included, loads Classic. Classic is the table above by definition (`CLASSIC`, `src/data/bands/classic.ts`; its column is `{}`). Every other theme is a column, a `ThemeColumn` (`Partial<BandTable>`), that replaces whole bands for the keys it names and leaves every other key Classic's (`resolveBands`, replace never widen). A column may name any key of the band table, global or robot (`docs/specs/THEME_AND_ASPECTS_REFINEMENT.md` §1.5): a theme is the world and the default probe guardrails alike. Each column names exactly its sheet's "Keys owned" in `docs/reference/THEME_AND_ASPECT_SHEETS.md`, and each key carries the sheet sentence that needs it (the notes under the table). `resolveBands.test.ts` holds every column to its key list, to its key's band kind and inside its field's full range.
 
-**Status (2026-10-31):** the numbers are the plan's Task 34 placeholders, which Crawford's listen (Task 35, `docs/tasks/OFF_SCREEN.md`) kept as built — "everything sounds good". Each column reads as its one-line description in `src/content/copy/home.ts` (`home.off.themeDescription.<id>`): Calm slower, sparser and softer in a wetter room; Bold denser and sharper, drier and brighter; Adventurous wider in every band it touches (it names no tempo-free density or envelope band: equal to Classic's they would be no-ops, which the test forbids); Perilous the densest, fast, crowded and bright.
+A theme is world-wide: on a theme change the global half is re-derived in place from the same seed under the new bands (`worldTransition.ts`'s `loadingOnly` mode), and the robot fields the theme moves are compared and pushed (`aspectDeal.ts`). The robot rows a theme moves, and the six aspect families, are in `docs/reference/ROBOT_DATA_GRID.md`'s own "Loading ranges by theme and aspect" section. No aspect reaches this table: the families are robot-side, so a room's own size (`reverb.decay`, `delay.delayTime`) is a theme's and Distance moves only the robots' sends.
 
-| Band key | Row above | Classic | Calm | Bold | Adventurous | Perilous |
-|---|---|---|---|---|---|---|
-| `bpm` | Tempo (`globalAudio.bpm`, `bpmSeed.ts`; the Tempo slider's full range is 20–200) | 40–100 | 40–70 | 70–110 | 40–130 | 90–140 |
-| `filterLPF.frequency` | Low-Pass Filter · frequency (Hz) | 2000–20000 | 2000–9000 | 6000–20000 | 1000–20000 | 8000–20000 |
+**The lit rule** (`themeLights`, read through `isLitByTheme` by `generateGlobalAudioSettings`): a column naming any row of a dry-chain pedal or a colour node, its Mix or a shape row, lights that pedal or node in every world it seeds; a column naming none of its rows leaves the seeded coin. Shatter lights the Distortion, the Chebyshev and the Bit Crusher; Wreck the Distortion and the Bit Crusher; Undertow the Vibrato; Vent Field the Auto-Wah; Polar Low the Tremolo. A forced pedal counts against the two-lit cap (`MAX_LIT_PEDALS`).
 
-A dash would mean "Classic's band": every theme names both rows here. The `bpm` band is Classic's `bpm` row (`CLASSIC.bpm`; the name `BPM_SEED_RANGE` held it until `docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md` R31), seeded per Attenuation Style as `docs/AUDIO_SYSTEM.md`'s BPM / Tempo section describes; the Low-Pass row is the `filterLPF.frequency` row of `CLASSIC`, read through `getBand` by `generateGlobalAudioSettings`.
+**Two world keys** sit outside the chain's loading rows (`WORLD_RANGE_KEYS`, `WORLD_LIT_KEYS` in `bandKeys.ts`): `humanize`, the timing scatter on every note, a plain range in ms; and `lfoLink.lpf.frequency`, the master Low-Pass cutoff's tie to the global LFO bank, a lit band (`min–max · lit`: the depth window in percent, and the share of worlds whose tie is live).
+
+**Status (2026-11-05):** the numbers as shipped after Crawford's listens, L1 to L3 (`docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md`, "Listen record"). What the generators realise under each column is measured by `npm run sketch:bands` and shown on `docs/sketches/theme-and-aspect-sketch.html`. A dash means the theme leaves that band Classic's; a band of one value (`0–0`) pins the field. Every draw inside a band is even (`getUniformSeededVal`; Even Seeded Draws, `docs/specs/EVEN_SEEDED_DRAWS.md`), the three EQ bands centred, so a band's edges are reached and each lit, sync or colour edge is the share it says. The `bpm` band is Classic's `bpm` row, seeded per Attenuation Style as `docs/AUDIO_SYSTEM.md`'s BPM / Tempo section describes; the other rows are read through `getBand` by `generateGlobalAudioSettings`.
+
+| Band key | Classic | Float | Anchor | Shatter | Undertow | Trench | Tidepool | Floe | Thicket | Wreck | Open Water | Vent Field | Beacon | Polar Low |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `bpm` | 40–100 | 40–60 | — | 110–140 | — | 25–45 | 90–120 | 30–55 | 50–80 | 40–65 | 45–75 | 90–125 | 50–80 | 120–160 |
+| `eq3.low` | −6 to 6 | — | −1 to 1 | — | — | 2–5 | — | — | — | — | — | 2–5 | — | 2–5 |
+| `eq3.mid` | −6 to 6 | — | 1–3 | — | — | — | — | — | 2–5 | — | — | 1–4 | — | — |
+| `eq3.high` | −6 to 6 | — | −1 to 1 | 3–6 | — | −9 to −5 | 2–5 | 2–5 | — | −8 to −4 | — | — | — | — |
+| `filterLPF.frequency` | 2000–20000 | 1500–2500 | — | 12000–20000 | — | 400–1000 | 14000–20000 | — | 3000–7000 | 1500–4000 | 3000–7000 | 3000–8000 | — | — |
+| `filterHPF.frequency` | 20–120 | — | — | — | — | — | — | 200–400 | — | — | — | — | — | — |
+| `delay.delayTime` | 0.05–0.5 | — | — | 0.06–0.12 | — | — | — | — | — | 0.6–1.2 | 0.8–1.5 | — | 0.4–0.8 | — |
+| `delay.feedback` | 0–0.4 | — | — | 0.5–0.7 | 0.3–0.5 | — | — | — | — | 0.6–0.8 | — | — | 0.6–0.8 | — |
+| `reverb.decay` | 0.5–4 | 2–3.5 | — | — | — | 6–10 | 0.2–0.6 | 4–7 | — | — | 7–10 | — | — | — |
+| `reverb.preDelay` | 0–0.1 | 0–0.02 | — | — | — | 0.1–0.2 | 0–0.01 | — | — | — | 0.12–0.25 | — | — | — |
+| `compressor.threshold` | −36 to −18 | — | — | — | — | — | — | — | — | — | — | — | — | −45 to −35 |
+| `compressor.ratio` | 2–6 | — | — | — | — | — | — | — | — | — | — | — | — | 10–20 |
+| `limiter.threshold` | −3 to −1 | — | −6 to −4 | — | — | — | — | — | — | — | — | — | — | — |
+| `distortion.amount` | 0.1–0.35 | — | — | 0.5–0.8 | — | — | — | — | — | 0.4–0.7 | — | — | — | — |
+| `distortion.wet` | 0.1–0.2 | — | — | 0.2–0.3 | — | — | — | — | — | — | — | — | — | — |
+| `chebyshev.order` | 2–5 | — | — | 5–8 | — | — | — | — | — | — | — | — | — | — |
+| `chebyshev.wet` | 0.1–0.2 | — | — | 0.2–0.3 | — | — | — | — | — | — | — | — | — | — |
+| `bitCrusher.bits` | 6–10 | — | — | 3–6 | — | — | — | — | — | 4–7 | — | — | — | — |
+| `bitCrusher.wet` | 0.1–0.2 | — | — | 0.2–0.3 | — | — | — | — | — | — | — | — | — | — |
+| `autoWah.baseFrequency` | 50–250 | — | — | — | — | — | — | — | — | — | — | 50–120 | — | — |
+| `autoWah.Q` | 2–6 | — | — | — | — | — | — | — | — | — | — | 5–9 | — | — |
+| `autoWah.wet` | 0.35–0.5 | — | — | — | — | — | — | — | — | — | — | 0.45–0.6 | — | — |
+| `chorus.rate` | 0.2–2 | — | — | — | 1.5–3 | — | — | — | 0.1–0.4 | — | — | — | — | — |
+| `chorus.delayTime` | 6–15 | — | — | — | 2–5 | — | — | — | 12–20 | — | — | — | — | — |
+| `chorus.depth` | 0.05–0.2 | — | — | — | 0.1–0.25 | — | — | — | 0.7–0.95 | — | — | — | — | — |
+| `tremolo.rate` | 0.5–6 | — | — | — | — | — | — | — | — | — | — | — | — | 0.5–2.5 |
+| `tremolo.depth` | 0.3–0.7 | — | — | — | — | — | — | — | — | — | — | — | — | 0.7–0.95 |
+| `tremolo.wet` | 0.35–0.5 | — | — | — | — | — | — | — | — | — | — | — | — | 0.45–0.6 |
+| `vibrato.rate` | 2–7 | — | — | — | 0.5–2 | — | — | — | — | — | — | — | — | — |
+| `vibrato.depth` | 0.03–0.12 | — | — | — | 0.02–0.06 | — | — | — | — | — | — | — | — | — |
+| `vibrato.wet` | 0.85–1 | — | — | — | 0.95–1 | — | — | — | — | — | — | — | — | — |
+| `frequencyShifter.shift` | 1–5 | — | — | — | — | — | — | 2–5 | — | — | — | — | — | — |
+| `stereoWidener.width` | 0.4–0.65 | — | — | — | — | — | — | — | — | — | 0.75–0.95 | — | — | 0.75–0.95 |
+| `humanize` | 2–6 | — | — | — | — | — | — | — | — | — | — | — | 0–0 | — |
+| `lfoLink.lpf.frequency` | 5–60 · 0.66 | — | — | — | 10–40 · 1 | — | — | — | — | — | — | — | — | — |
+
+- **Float** — `bpm` the pulse is slow; `filterLPF.frequency` the master filter takes the top off the whole fleet; `reverb.decay` a generous room; `reverb.preDelay` near: its walls close, warm rather than vast
+- **Anchor** — `eq3.low` flat: held near centre; `eq3.mid` but for a slight lift: the weight sits low-mid; `eq3.high` flat; `limiter.threshold` held tight: the punch never spikes
+- **Shatter** — `bpm` the pulse is fast; `eq3.high` the high band lifted: the crunch sits on top; `filterLPF.frequency` the master filter wide open; `delay.delayTime` a short echo; `delay.feedback` with high feedback: a rattle; `distortion.amount` the drive high; `distortion.wet` whatever node the coin lit bites hard; `chebyshev.order` the fold order high: jagged; `chebyshev.wet` bites hard; `bitCrusher.bits` the bit depth low; `bitCrusher.wet` bites hard
+- **Undertow** — `delay.feedback` moderate: each note ripples a few times; `chorus.rate` quick-ish: water moving; `chorus.delayTime` short: a smear, not a second voice; `chorus.depth` shallow: a wobble, not voices; `vibrato.rate` slow; `vibrato.depth` shallow: never quite still, never seasick; `vibrato.wet` a vibrato rides the whole world: lit in every Undertow world by the rule; `lfoLink.lpf.frequency` the master filter tied to the world's slow oscillator: the whole world's brightness swells and dims, a surface over the fleet
+- **Trench** — `bpm` the pulse is a crawl; `eq3.low` the low band lifted: felt as much as heard; `eq3.high` the high band cut; `filterLPF.frequency` the master filter shut well down: the top is gone; `reverb.decay` the room is a cavern: a long tail; `reverb.preDelay` its walls are far: a late first reflection
+- **Tidepool** — `bpm` a light, quick-ish pulse; `eq3.high` the high band lifted; `filterLPF.frequency` wide open: everything clear; `reverb.decay` a tiny room: a short tail; `reverb.preDelay` no distance to the walls
+- **Floe** — `bpm` slow and still; `eq3.high` the high band lifted; `filterHPF.frequency` the low floor removed: nothing underneath; `reverb.decay` a large room with a long tail; `frequencyShifter.shift` the shift is small, so it beats rather than clashes
+- **Thicket** — `bpm` unhurried; `eq3.mid` the mid band lifted; `filterLPF.frequency` the master filter part-closed: nothing bright; `chorus.rate` slow: swaying; `chorus.delayTime` long enough to read as voices, not a smear; `chorus.depth` a deep chorus: two or three of itself
+- **Wreck** — `bpm` slow; `eq3.high` dark: the high band cut; `filterLPF.frequency` the master filter down; `delay.delayTime` the echo is long; `delay.feedback` and will not die; `distortion.amount` the drive is high; `bitCrusher.bits` the bit depth low: whatever nodes are lit bite hard
+- **Open Water** — `bpm` slow to middling; `filterLPF.frequency` partly closed: distance dulls; `delay.delayTime` the delay long: every call comes back late; `reverb.decay` the reverb at its longest; `reverb.preDelay` its first reflection late; `stereoWidener.width` wide across the field
+- **Vent Field** — `bpm` middling to fast; `eq3.low` the low band lifted; `eq3.mid` and the mid; `filterLPF.frequency` the top part-closed; `autoWah.baseFrequency` set low: the squelch starts in the mud; `autoWah.Q` sharp: it whistles as it opens; `autoWah.wet` the whole world's filter chews on the loud notes too: the Auto-Wah lit in every Vent Field world by the rule
+- **Beacon** — `bpm` slow to middling; `delay.delayTime` whose echo falls well behind the phrase, not on top of it; `delay.feedback` with high feedback: answered by its own repeats; `humanize` no timing scatter: the phrase comes round exactly, every time
+- **Polar Low** — `bpm` the pulse is fast; `eq3.low` the low band lifted; `compressor.threshold` the master compressor clamps hard: the whole world pumps; `compressor.ratio` clamps hard; `tremolo.rate` slow to middling: weather, not a buzz; `tremolo.depth` deep: a throb, not a shimmer; `tremolo.wet` the whole world throbs under the gusts: the Tremolo lit in every Polar Low world by the rule; `stereoWidener.width` the field wide
 
 ## Notes from the Tone.js verification pass (V2)
 

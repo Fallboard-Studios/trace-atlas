@@ -54,12 +54,12 @@ describe('describeWorld', () => {
     });
 
     it('a theme other than Classic appends its name', () => {
-      expect(describeWorld({ ...plot, theme: 'calm', aspects: {} })).toBe('tr3nch-2 · (-30, -30) · Calm');
+      expect(describeWorld({ ...plot, theme: 'float', aspects: {} })).toBe('tr3nch-2 · (-30, -30) · Float');
     });
 
     it('the picks append their names joined with " + ", in the list\'s order', () => {
-      expect(describeWorld({ ...plot, theme: 'calm', aspects: { melody: ['hypnotic', 'mechanical'] } })).toBe(
-        'tr3nch-2 · (-30, -30) · Calm · Hypnotic + Mechanical',
+      expect(describeWorld({ ...plot, theme: 'float', aspects: { melody: ['hypnotic', 'mechanical'] } })).toBe(
+        'tr3nch-2 · (-30, -30) · Float · Hypnotic + Mechanical',
       );
     });
 
@@ -72,9 +72,9 @@ describe('describeWorld', () => {
     it('joins every family in family order, each its own segment', () => {
       const name = (key: Parameters<typeof labels>[0]) => labels(key).humanLabel;
       expect(
-        describeWorld({ ...plot, theme: 'bold', aspects: { distance: ['remote'], melody: ['hypnotic'], envelope: ['plucked', 'held'] } }),
+        describeWorld({ ...plot, theme: 'anchor', aspects: { distance: ['halfHeard'], melody: ['hypnotic'], envelope: ['plucked', 'held'] } }),
       ).toBe(
-        `tr3nch-2 · (-30, -30) · Bold · Hypnotic · ${name('home.off.envelope.plucked')} + ${name('home.off.envelope.held')} · ${name('home.off.distance.remote')}`,
+        `tr3nch-2 · (-30, -30) · Anchor · Hypnotic · ${name('home.off.envelope.plucked')} + ${name('home.off.envelope.held')} · ${name('home.off.distance.halfHeard')}`,
       );
     });
 
@@ -84,17 +84,17 @@ describe('describeWorld', () => {
     });
 
     it('a labelled world carries the tail after the plot', () => {
-      expect(describeWorld({ attenuationStyleName: 'dusk', coordinates: { x: 12, y: 68 }, theme: 'bold', aspects: { melody: ['hypnotic'] } }, 'Dusk Run')).toBe(
-        'Dusk Run · dusk (12, 68) · Bold · Hypnotic',
+      expect(describeWorld({ attenuationStyleName: 'dusk', coordinates: { x: 12, y: 68 }, theme: 'anchor', aspects: { melody: ['hypnotic'] } }, 'Dusk Run')).toBe(
+        'Dusk Run · dusk (12, 68) · Anchor · Hypnotic',
       );
     });
 
     it('reads every name from content, so a copy change moves the readout', () => {
-      const tail = describeWorld({ ...plot, theme: 'perilous', aspects: { melody: ['hypnotic', 'mechanical', 'wandering'] } });
+      const tail = describeWorld({ ...plot, theme: 'shatter', aspects: { melody: ['hypnotic', 'mechanical', 'wandering'] } });
       expect(tail).toBe(
-        `tr3nch-2 · (-30, -30) · ${labels('home.off.theme.perilous').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.mechanical').humanLabel} + ${labels('home.off.melody.wandering').humanLabel}`,
+        `tr3nch-2 · (-30, -30) · ${labels('home.off.theme.shatter').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.mechanical').humanLabel} + ${labels('home.off.melody.wandering').humanLabel}`,
       );
-      for (const theme of ['classic', 'calm', 'bold', 'adventurous', 'perilous'] as const) {
+      for (const theme of ['classic', 'float', 'anchor', 'undertow', 'shatter'] as const) {
         expect(labels(`home.off.theme.${theme}`).humanLabel.length).toBeGreaterThan(0);
       }
     });
@@ -119,12 +119,12 @@ describe('describeWorld', () => {
   });
 
   // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 4: the loading tail on its own, for the off screen's
-  // selected row ("Harbour Song · Calm"), which also names Classic when the row's own theme was another.
+  // selected row ("Harbour Song · Float"), which also names Classic when the row's own theme was another.
   describe('describeLoading', () => {
     it('is the tail describeWorld carries, without the head: empty for Classic with no picks', () => {
       expect(describeLoading('classic', {})).toBe('');
-      expect(describeLoading('calm', { melody: ['hypnotic', 'wandering'], distance: ['remote'] })).toBe(
-        `${labels('home.off.theme.calm').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.wandering').humanLabel} · ${labels('home.off.distance.remote').humanLabel}`,
+      expect(describeLoading('float', { melody: ['hypnotic', 'wandering'], distance: ['halfHeard'] })).toBe(
+        `${labels('home.off.theme.float').humanLabel} · ${labels('home.off.melody.hypnotic').humanLabel} + ${labels('home.off.melody.wandering').humanLabel} · ${labels('home.off.distance.halfHeard').humanLabel}`,
       );
       expect(describeLoading('classic', { melody: ['hypnotic'] })).toBe(labels('home.off.melody.hypnotic').humanLabel);
     });
@@ -135,7 +135,7 @@ describe('describeWorld', () => {
       expect(describeLoading('classic', { melody: ['hypnotic'] }, { nameTheme: true })).toBe(
         `${classic} · ${labels('home.off.melody.hypnotic').humanLabel}`,
       );
-      expect(describeLoading('calm', {}, { nameTheme: true })).toBe(labels('home.off.theme.calm').humanLabel);
+      expect(describeLoading('float', {}, { nameTheme: true })).toBe(labels('home.off.theme.float').humanLabel);
       expect(describeLoading('classic', {}, { nameTheme: false })).toBe('');
     });
 
@@ -163,8 +163,8 @@ describe('describeWorld', () => {
     });
 
     it('still carries the loading tail after the seed', () => {
-      const identity = { ...unread(undefined), theme: 'calm' as const, aspects: { melody: ['hypnotic' as const] } };
-      expect(describeWorld(identity, 'Dusk Run')).toBe('Dusk Run · dusk · Calm · Hypnotic');
+      const identity = { ...unread(undefined), theme: 'float' as const, aspects: { melody: ['hypnotic' as const] } };
+      expect(describeWorld(identity, 'Dusk Run')).toBe('Dusk Run · dusk · Float · Hypnotic');
     });
 
     it('a plot of zeros is a plot', () => {

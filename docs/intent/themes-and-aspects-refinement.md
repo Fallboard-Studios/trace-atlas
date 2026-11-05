@@ -6,9 +6,12 @@ column sets every band its character needs, not coverage of some space of moods)
 pass. Roadmap [58](../todo/roadmap.md#58-themes-and-aspects-refinement), first item of plan.md's Stage 1. Backlog 47
 (even draws, merged 2026-11-02 as PR #596) was its step zero: every audio draw is even, so a band is heard as written.
 
-**Status: spec'd and planned** on `docs/intent-themes-aspects-58`, 2026-11-02 (spec
+**Status: built** on `feature/themes-aspects-58`, 2026-11-05, waiting on Crawford's PR (spec
 [THEME_AND_ASPECTS_REFINEMENT.md](../specs/THEME_AND_ASPECTS_REFINEMENT.md), plan
-[THEME_AND_ASPECTS_REFINEMENT.md](../tasks/THEME_AND_ASPECTS_REFINEMENT.md)). Next: the sheets (plan T1).
+[THEME_AND_ASPECTS_REFINEMENT.md](../tasks/THEME_AND_ASPECTS_REFINEMENT.md), whose "As Shipped" and "Listen record"
+are the record). Fourteen themes and six aspect families (Motion and Performance added, Distance reproposed as Near,
+Echoing, Half-heard), every column written from a character sheet and heard at L1 to L3. Spec'd and planned
+2026-11-02 on `docs/intent-themes-aspects-58`.
 
 ## Outcome
 
