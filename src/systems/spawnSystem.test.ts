@@ -83,9 +83,8 @@ vi.mock('./stations', async (importOriginal) => {
 });
 
 // band-table T21: every robot band is read from the loading context at the draw (docs/specs/OFF_SCREEN.md assumption
-// 15). The real theme columns are {} until the listen (plan Task 34), so a column that moves EVERY robot band is injected
-// under the Perilous id; production's ThemeColumn confines a theme to assumption 16's key list, but the generator reads
-// whatever table is installed (the deal pass hands the same code its Melody bands, Task 27). Each value is chosen so a
+// 15). A column that moves EVERY robot band is injected under the Shatter id (Perilous when this was written), so the
+// test does not lean on the real columns; the generator reads whatever table is installed (the deal pass hands the same code its Melody bands, Task 27). Each value is chosen so a
 // Classic draw would break it somewhere: a lit share of 1 lands the trait on every robot, 0 on none.
 const everyRobotBandMoved = vi.hoisted(() => ({
   'robot.attack': { min: 1.5, max: 2 },
@@ -122,9 +121,10 @@ const everySendMoved = vi.hoisted(() => ({
 }) satisfies Partial<BandTable>);
 const halfLitReverb = vi.hoisted(() => ({ reverbSend: { min: 0.1, max: 0.6, lit: 0.5 } }) satisfies Partial<BandTable>);
 
-// band-table T27: the deal pass re-derives a dealt robot's Melody fields under its aspect's bands. The real option columns
-// are {} until the listen (plan Task 34), so Hypnotic and Mechanical get distinguishing columns here; Calm is given
-// Hypnotic's column too, so a robot generated under Calm from its own index is exactly what the deal must produce.
+// band-table T27: the deal pass re-derives a dealt robot's Melody fields under its aspect's bands. Hypnotic and Mechanical
+// get injected distinguishing columns here, so the test does not lean on the real ones; Float (Calm when this was
+// written) is given Hypnotic's column too, so a robot generated under Float from its own index is exactly what the deal
+// must produce.
 const melodyColumns = vi.hoisted(() => ({
   hypnotic: { 'robot.rhythmicDensity': { min: 40, max: 60 }, 'robot.noteVariance': { offShare: 0, min: 1, max: 2 } },
   mechanical: {

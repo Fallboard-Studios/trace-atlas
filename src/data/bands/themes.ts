@@ -67,10 +67,11 @@ export function themeLights(column: ThemeColumn): ReadonlySet<ThemeLight> {
 /**
  * The theme columns, one per sheet in docs/reference/THEME_AND_ASPECT_SHEETS.md (plan T8). Each column names exactly the
  * sheet's "Keys owned" (resolveBands.test.ts types the lists in and holds them), each key's comment is the sheet
- * sentence that needs it, and no band equals Classic's. EVERY NUMBER HERE IS A FIRST CUT: T10's harness measures what
- * the generators realise under it, L1's listens tune it, and each retune is an R-task naming its sheet sentence. Where a
- * sheet gave "Sketch starting points" (Crawford's guesses for the sketch, not rules) the cut starts from them, clamped
- * to the field. A lit share of 0 is the sheet's "none": no probe carries the trait, and a lit coin never lands. Classic's
+ * sentence that needs it, and no band equals Classic's. The numbers are as Crawford's listens L1 to L3 left them
+ * (2026-11-04 and 05; the plan's "Listen record"), each retune an R-task naming its sheet sentence; `npm run
+ * sketch:bands` measures what the generators realise under each column, and the grids table them
+ * (docs/reference/GLOBAL_CHAIN_GRID.md, ROBOT_DATA_GRID.md, "Loading ranges"). Where a sheet gave "Sketch starting
+ * points" (Crawford's guesses for the sketch, not rules) the first cut started from them, clamped to the field. A lit share of 0 is the sheet's "none": no probe carries the trait, and a lit coin never lands. Classic's
  * column is `{}` by definition - Classic IS the lifted table (classic.ts); its sheet owns no key.
  *
  * Two draws to read the numbers against. The three effect-room sends roll in the order Grit, Shimmer, Double and a probe

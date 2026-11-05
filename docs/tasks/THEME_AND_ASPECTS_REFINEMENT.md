@@ -805,7 +805,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S (docs only)
 
-- [ ] **T14: `AUDIO_SYSTEM.md`, `COMPANIES.md`, `UI_SHELL.md`, the code comments — the set as shipped**
+- [x] **T14: `AUDIO_SYSTEM.md`, `COMPANIES.md`, `UI_SHELL.md`, the code comments — the set as shipped**
 
   **Description:** `docs/AUDIO_SYSTEM.md`'s band-table bullet "Themes and aspects": `ThemeColumn` over the whole table,
   the shipped families and options, the derive function per family, the rederive comparison's new fields, the
@@ -818,11 +818,12 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No live doc or comment describes the ten-key list or the placeholder set as current.
-  - [ ] Every named identifier spot-checked against the source.
+  - [x] No live doc or comment describes the ten-key list or the placeholder set as current.
+  - [x] Every named identifier spot-checked against the source.
 
   **Verification:**
-  - [ ] The grep above; `npm run lint` clean.
+  - [x] The grep above; `npm run lint` clean. (Its live hits left are other specs' own "assumption 16", the lore
+        words, and roadmap 58's own problem statement, which T15 archives.)
 
   **Dependencies:** T13. **Files:** `docs/AUDIO_SYSTEM.md`, `docs/COMPANIES.md`, `docs/UI_SHELL.md`, the spec, the
   intent, comments in the five source files

@@ -276,8 +276,8 @@ const SWELL_ID_OF: Partial<Record<keyof RobotAudioBaseline, SwellRobotAttributeI
 
 /**
  * The fields inside the audio attributes compared one by one, each with the family whose push carries it: Voice's four;
- * the glide, under Envelope, whose push writes it live as the Portamento edit does (updateVoicePortamento, no rebuild;
- * the Envelope drawer's glide row); and the register the body scale reads, which needs no push of its own: the
+ * the glide, under Motion (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T7b), whose push writes it live as the Portamento
+ * edit does (updateVoicePortamento, no rebuild); and the register the body scale reads, which needs no push of its own: the
  * top-level `octaveRange` beside it moves with it and carries Melody's (T6). The layers are compared apart, per layer
  * and key.
  */
@@ -375,8 +375,8 @@ function movedFields(
  * robot field the two themes' columns name (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T8); an aspect change riding
  * on the theme moves its families' fields and `loadedUnder` the same way. The swells riding the moved fields are
  * dropped first, the fields go through updateRobot, and each moved family reaches the engine through
- * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the four families' fields,
- * `rests`, and since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6 every robot field a band seeds: `accents`,
+ * pushFamilyToEngine; a robot nothing moved for is not written. The comparison covers the six families' fields
+ * (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md), `rests`, and since docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6 every robot field a band seeds: `accents`,
  * `dynamics`, the register, the master volume, the glide and the LFO links per target. A theme column may name any key
  * of the band table (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md §1.5); a robot key's field must be compared here and
  * pushed by pushFamilyToEngine, or a theme change would leave the live robots stale on it.

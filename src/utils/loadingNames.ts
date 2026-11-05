@@ -10,7 +10,8 @@ import { labels, type ContentKey, type SchemaLabels } from '@/content';
 // ========================================
 
 /** The one entry per theme id (docs/specs/OFF_SCREEN.md assumption 17), named here as literals so the content guard
- *  (src/content/content.test.ts) sees each read and the type sees every id. The ids are code; the words are content. */
+ *  (src/content/content.test.ts) sees each read and the type sees every id. The ids are code; the words are content.
+ *  The set is the shipped one of docs/specs/THEME_AND_ASPECTS_REFINEMENT.md: fourteen themes here, six families below. */
 const THEME_NAME_KEY: Record<ThemeId, ContentKey> = {
   classic: 'home.off.theme.classic',
   float: 'home.off.theme.float',

@@ -50,7 +50,7 @@ export type FamilyPicks = { [F in AspectFamilyId]?: AspectIdOf<F>[] };
 // FAMILIES
 // ========================================
 
-/** The four Melody keys an aspect may move (assumption 16). */
+/** The four Melody keys (docs/specs/OFF_SCREEN.md, the first family; kept by the refinement's sheets). */
 const MELODY_BAND_KEYS = [
   'robot.rhythmicDensity',
   'robot.noteVariance',
@@ -114,9 +114,11 @@ export interface AspectFamily<F extends AspectFamilyId, K extends BandKey> {
  * (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T9). Each column names exactly its sheet's "Keys owned" and each new key's
  * comment is the sheet sentence that needs it; resolveBands.test.ts types the lists in and holds every column to them,
  * to the kind-and-bounds check, and to differing from the theme-less table somewhere (an option band equal to Classic's
- * still overrides a theme that moves the key). EVERY NUMBER IS A FIRST CUT: T10 measures, L2 and L3 listen.
+ * still overrides a theme that moves the key). The numbers are as Crawford's listens L2 and L3 left them (2026-11-04
+ * and 05; the plan's "Listen record": Mechanical's pitch repeat retuned at R1), and the robot grid tables them
+ * (docs/reference/ROBOT_DATA_GRID.md, "Loading ranges by theme and aspect").
  *
- * The twelve options that stood before the cut keep the numbers their listens left (Melody: docs/tasks/OFF_SCREEN.md
+ * The twelve options that stood before the cut kept the numbers their listens left (Melody: docs/tasks/OFF_SCREEN.md
  * Tasks 34-35; Envelope, Near and Voice: docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 7, 10 and 11), since each sheet owns
  * exactly the keys its column already named. A lit share of 0 is a sheet's "none" and an off share of 1 its "always off",
  * as in the theme columns.

@@ -597,12 +597,12 @@ describe('resolveBands - themes and aspects (spec assumptions 15-17, plan Task 1
 });
 
 // ========================================
-// THE PLACEHOLDER COLUMNS (plan Task 34)
+// THE SHIPPED COLUMNS
 // ========================================
 
-describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assumption 16)', () => {
-  // The real modules (the mocks above hide Calm, Bold, Hypnotic and Wandering), overlaid by the real resolver's own pure
-  // step, so each check is on the columns as shipped. Task 35 replaces the numbers; these pin the shape and the intent.
+describe('the shipped columns (docs/specs/THEME_AND_ASPECTS_REFINEMENT.md)', () => {
+  // The real modules (the mocks above hide Float, Anchor, Undertow, Hypnotic, Wandering, Gliding and Dramatic), overlaid
+  // by the real resolver's own pure step, so each check is on the columns as shipped: the shape and the intent.
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
   const movedKeys = (table: BandTable) => (Object.keys(table) as (keyof BandTable)[]).filter((key) => !same(table[key], CLASSIC[key]));
   const themeColumn = (theme: ThemeId) => realThemes.THEMES[theme];
