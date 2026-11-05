@@ -784,7 +784,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
 
   **Estimated scope:** S
 
-- [ ] **T13: the two grids — "Loading ranges by theme and aspect" rewritten to the shipped set**
+- [x] **T13: the two grids — "Loading ranges by theme and aspect" rewritten to the shipped set**
 
   **Description:** `docs/reference/GLOBAL_CHAIN_GRID.md` §"Loading ranges by theme": every global row any theme
   moves, one column per shipped theme, and the paragraph rewritten (no "v1 key list", no "assumption 16").
@@ -795,11 +795,11 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every column in the grids equals the shipped code, value for value.
-  - [ ] The word "placeholder" is gone from both sections.
+  - [x] Every column in the grids equals the shipped code, value for value.
+  - [x] The word "placeholder" is gone from both sections.
 
   **Verification:**
-  - [ ] Spot-check every number against the source. `npm run lint` clean.
+  - [x] Spot-check every number against the source. `npm run lint` clean.
 
   **Dependencies:** T12. **Files:** `docs/reference/GLOBAL_CHAIN_GRID.md`, `docs/reference/ROBOT_DATA_GRID.md`
 

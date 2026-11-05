@@ -87,67 +87,148 @@ please review/edit both here and in that file together.
 | Emitting | ACOUSTIC EMISSION ACTIVE | `AUDIBILITY_LABELS.emitting` | Card Status value (Roadmap 15.2) — true audibility (not muted, and not excluded by another robot's Solo), not just this robot's own audioMode |
 | Disabled | ACOUSTIC EMISSION SUPPRESSED | `AUDIBILITY_LABELS.disabled` | Card Status value (Roadmap 15.2) |
 
-## Loading ranges by theme and aspect (roadmap 57, the off screen)
+## Loading ranges by theme and aspect (roadmaps 57 and 58, the off screen)
 
-Every seeded robot value above is drawn into a **band** from one table, `src/data/bands/` (`docs/specs/OFF_SCREEN.md` assumption 15; `docs/AUDIO_SYSTEM.md`'s "The band table"): `classic.ts` holds the Classic bands — the seeded ranges, lit shares and toggle thresholds this grid's Notes column names, lifted byte for byte and then drawn even by Even Seeded Draws (`docs/specs/EVEN_SEEDED_DRAWS.md`, 2026-11-02), which reset the fitted lit shares to their targets — and `spawnSystem.ts` and `robotFieldDerivation.ts` read each at the point of the draw through `getBand(key)`. The world's **theme** (`themes.ts`, picked on the off screen's Loading axis) is a column that replaces whole bands for the keys it names, on assumption 16's v1 key list, and leaves the rest Classic's; an **aspect** (`aspects.ts`) is a column over its own family's keys only — Melody, Envelope, Distance or Voice — seated per robot by the deal (`docs/COMPANIES.md`, "The deal") and applied by re-deriving that family's fields from the robot's own spawn index under the aspect's bands (`deriveMelodyFields`, `deriveEnvelopeFields`, `deriveSendFields`, `deriveVoiceFields`), so a dealt robot is exactly what it would have been had it spawned under the aspect. `Robot.loadedUnder` records the aspect each family dealt a robot; the robot screen's and company screen's "Loaded Under" line shows it. The global rows a theme moves (the tempo and the Low-Pass cutoff) are in `GLOBAL_CHAIN_GRID.md`'s own section. `themes.ts` and `aspects.ts` are the mechanical transcription of the five tables below (the themes, then one per family); `resolveBands.test.ts` pins every column to its key list and inside the field's full range.
+Every seeded robot value above is drawn into a **band** from one table, `src/data/bands/` (`docs/specs/OFF_SCREEN.md` assumption 15; `docs/AUDIO_SYSTEM.md`'s "The band table"): `classic.ts` holds the Classic bands, the seeded ranges, lit shares and toggle thresholds this grid's Notes column names, and `spawnSystem.ts` and `robotFieldDerivation.ts` read each at the point of the draw through `getBand(key)`. The world's **theme** (`themes.ts`, one of fourteen, picked on the off screen's Loading axis) is a column that replaces whole bands for any keys of the table it names and leaves the rest Classic's (`docs/specs/THEME_AND_ASPECTS_REFINEMENT.md` §1.5). An **aspect** (`aspects.ts`) is a column over its own family's keys only, one of six families: Melody, Envelope, Distance, Voice, Motion and Performance. The deal (`docs/COMPANIES.md`, "The deal") seats at most one option per family on each robot, and the robot re-derives that family's fields from its own spawn index under the option's bands (`deriveMelodyFields`, `deriveEnvelopeFields`, `deriveSendFields`, `deriveVoiceFields`, `deriveMotionFields`, `derivePerformanceFields`), so a dealt robot is exactly what it would have been had it spawned under the aspect. An aspect wins over the theme on its family's keys. `Robot.loadedUnder` records the option each family dealt a robot; the robot screen's and company screen's "Loaded Under" line shows it. The global rows a theme moves, and the lit rule for pedals and colour nodes, are in `GLOBAL_CHAIN_GRID.md`'s own section.
 
-**Status (2026-10-31):** the numbers are the plan's Task 34 placeholders, which Crawford's listen (`docs/tasks/OFF_SCREEN.md` Task 35) kept as built. A dash means the theme leaves that band Classic's.
+`themes.ts` and `aspects.ts` are the mechanical transcription of the seven tables below (the themes, then one per family). Each column names exactly its sheet's "Keys owned" in `docs/reference/THEME_AND_ASPECT_SHEETS.md`; the sheet sentence each key needs is in the notes under its table. `resolveBands.test.ts` holds every column to its key list, to its key's band kind and inside the field's full range.
 
-**Themes.** A range band is `min–max`; a lit band (`SendBand`) is `min–max · lit`, the share of fresh robots that draw from the range (the rest seed the field's plain value: a linear curve with the plain Attack / Release band, a send of exactly 0). Every draw inside a band is even (`getUniformSeededVal`), the detunes centred, so a band's edges are reached and a lit share is the share of robots it says.
+**Status (2026-11-05):** the numbers as shipped after Crawford's listens, L1 to L3 (`docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md`, "Listen record"). What the generators realise under each column is measured by `npm run sketch:bands` and shown on `docs/sketches/theme-and-aspect-sketch.html`.
 
-| Band key | Row above | Classic | Calm | Bold | Adventurous | Perilous |
-|---|---|---|---|---|---|---|
-| `robot.rhythmicDensity` | Density | 0–100 | 0–55 | 40–90 | — | 70–100 |
-| `robot.rests` | Rests | 10–60 | 30–70 | 5–35 | 0–80 | 0–20 |
-| `robot.attack` | Attack, s (a linear-curve robot) | 0–2 | 0.15–2 | 0–0.4 | — | 0–0.15 |
-| `robot.release` | Release, s (a linear-curve robot) | 0–2 | 0.4–2 | 0–1 | — | 0–0.6 |
-| `robot.shapedAttack` | Attack, s, of a robot whose Attack Shape is not Linear · the share of robots that are | 0.03–0.25 · 0.155 | — | 0.03–0.12 · 0.4 | 0.03–0.25 · 0.35 | 0.03–0.1 · 0.5 |
-| `robot.shapedRelease` | Release, s, of a robot whose Release Shape is not Linear · the share | 0.15–0.8 · 0.15 | — | — | 0.15–0.8 · 0.4 | 0.15–0.4 · 0.4 |
-| `reverbSend` | Reverb (0–1) · share carrying it | 0.1–0.6 · 1 | 0.3–0.6 · 1 | 0.1–0.35 · 1 | 0.05–0.8 · 1 | 0.05–0.3 · 1 |
-| `delaySend` | Delay (0–1) · share carrying it | 0–0.3 · 0.75 | 0.1–0.3 · 0.75 | 0–0.2 · 0.6 | 0–0.5 · 0.75 | 0–0.15 · 0.5 |
+**Reading a cell.** A dash leaves the band Classic's (in a theme table) or the theme's (in a family table). A range band is `min–max`; a band of one value (`0–0`) pins the field. A lit band (`SendBand`) is `min–max · lit`: `lit` is the share of fresh robots that draw from the range, and the rest seed the field's plain value (a send of exactly 0, a linear curve with the plain Attack / Release band, the open filter, a quiet layer, no link), so a lit of 0 means no robot carries the trait. A toggle band (`ToggleBand`, Motif Length and Note Variance) is `offShare · min–max`: a draw under `offShare` lands the field off (0), the rest maps uniformly onto the whole numbers of the span (`seedToggleValue`); an off share of 1 is always off. A pick band (`PickBand`, the waveform and the octave register) lists each option's weight, zero weights left out: a robot lands on an option with its weight's share of the total. Every draw inside a band is even (`getUniformSeededVal`), the detunes centred, so a band's edges are reached and a lit share is the share of robots it says. The three effect-room sends roll in the order Grit, Shimmer, Double and a robot carries at most one (`composeExclusiveSends`), so a theme raising the Shimmer or the Double share realises less than its `lit` beside Classic's Grit share.
 
-**Melody aspects.** The family's four keys. A toggle band (`ToggleBand`, Motif Length and Note Variance) is `offShare · min–max`: a draw under `offShare` lands the field off (0), the rest maps uniformly onto the whole numbers of the span (`seedToggleValue`). The Classic column is what an as-theme robot draws under Classic; under another theme the Density band is that theme's (above) and the other three stay Classic's, since no theme column names them.
+**Themes.**
 
-| Band key | Row above | Classic | Hypnotic | Mechanical | Wandering |
-|---|---|---|---|---|---|
-| `robot.rhythmicDensity` | Density | 0–100 | 40–60 | 70–95 | 20–50 |
-| `robot.noteVariance` | Note Variance | 0.15 · 1–8 | 0 · 1–2 | 0 · 1–3 | 0 · 6–8 |
-| `robot.rhythmicMotifLength` | Motif Length | 0.15 · 1–8 | — | 0 · 6–8 | 0.85 · 1–8 |
-| `robot.pitchRepeat` | Pitch Repeat | 0–100 | 50–100 | 30–70 | 0–30 |
+| Band key | Classic | Float | Anchor | Shatter | Undertow | Trench | Tidepool | Floe | Thicket | Wreck | Open Water | Vent Field | Beacon | Polar Low |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `robot.attack` | 0.015–2 | 0.3–0.8 | 0.015–0.015 | 0.015–0.015 | 0.2–0.6 | — | 0.015–0.02 | 0.5–1.5 | — | — | — | 0.015–0.03 | — | 0.015–0.02 |
+| `robot.decay` | 0–2 | — | 0.05–0.3 | 0.02–0.15 | — | — | 0.02–0.15 | — | — | — | — | 0.05–0.25 | — | — |
+| `robot.sustain` | 0–1 | — | — | 0–0.2 | — | — | 0–0.1 | 0.6–1 | 0.6–0.9 | — | — | 0–0.3 | — | — |
+| `robot.release` | 0.02–2 | 1.5–2 | — | 0.02–0.1 | 1–2 | 1–2 | 0.02–0.15 | 1.2–2 | 0.8–1.6 | — | 1–2 | — | — | 0.02–0.2 |
+| `robot.shapedAttack` | 0.03–0.25 · 0.155 | — | — | — | — | — | 0.015–0.05 · 0.155 | 0.5–1.5 · 0.155 | — | — | — | — | — | — |
+| `robot.shapedRelease` | 0.15–0.8 · 0.15 | — | — | — | — | — | 0.03–0.15 · 0.15 | 1.2–2 · 0.15 | — | — | — | — | — | — |
+| `robot.portamento` | 0.05–0.2 · 0.125 | — | 0.05–0.2 · 0 | — | 0.15–0.35 · 1 | 0.15–0.4 · 0.75 | — | — | — | — | — | — | — | — |
+| `robot.filterFreq` | 2000–8000 | 2000–4500 | — | — | — | — | — | — | 800–2500 | — | — | — | — | — |
+| `robot.accentFilterFreq` | 400–2500 · 0.2 | — | — | 400–2500 · 0.05 | — | — | 400–2500 · 0 | — | — | 400–2500 · 0.5 | — | 250–900 · 0.9 | — | — |
+| `robot.accentFilterQ` | 3–8 | — | — | — | — | — | — | — | — | — | — | 8–14 | — | — |
+| `robot.layerGain` | 0.2–1.2 · 0.5 | — | 0.8–1.2 · 1 | — | — | — | 0.2–1.2 · 0 | — | 0.8–1.2 · 1 | — | — | — | — | — |
+| `robot.detune` | −2 to 2 | — | 0–0 | −30 to 30 | — | — | — | — | — | — | — | — | — | — |
+| `robot.masterVolume` | 0.65–0.85 | — | — | — | — | — | — | — | — | — | 0.45–0.65 | — | — | 0.8–0.95 |
+| `robot.lfoDetuneDepth` | 1–10 · 0.25 | — | 1–10 · 0 | — | — | — | — | — | — | — | — | — | — | — |
+| `robot.lfoBusDepth` | 1–40 · 0.135 | — | — | 1–40 · 0 | 5–25 · 0.6 | — | — | — | — | — | — | 20–60 · 0.8 | — | — |
+| `robot.rhythmicDensity` | 0–100 | 0–40 | — | 80–100 | — | 0–30 | 35–65 | 0–35 | 30–60 | — | 0–30 | 60–90 | 20–45 | 70–100 |
+| `robot.pitchRepeat` | 0–100 | — | — | — | — | — | — | — | — | 60–100 | — | — | 70–100 | — |
+| `robot.rhythmicMotifLength` | 0.15 · 1–8 | 0.15 · 1–3 | — | — | — | — | — | — | — | 0 · 6–8 | — | — | 0 · 6–8 | — |
+| `robot.noteVariance` | 0.15 · 1–8 | — | — | — | — | — | — | — | — | — | — | 0 · 5–8 | 0 · 1–2 | 0 · 5–8 |
+| `robot.dynamics` | 60–80 | — | — | — | — | — | — | — | — | — | — | — | 0–15 | 75–100 |
+| `robot.rests` | 0–10 | 40–80 | — | 0–8 | 0–5 | 50–85 | — | — | — | — | 50–90 | — | — | — |
+| `robot.accents` | 0–30 | 0–15 | — | — | — | — | — | — | — | — | — | — | 0–0 | — |
+| `robot.waveform` | sine 1, square 1, triangle 1, sawtooth 1, pulse 1 | sine 1, triangle 1 | square 1, triangle 1 | sawtooth 1, pulse 1 | triangle 1, sawtooth 1 | sine 1, triangle 1 | sine 2, triangle 1 | sine 3, triangle 1 | square 1, triangle 2 | square 1, sawtooth 1, pulse 1 | — | square 1, sawtooth 1, pulse 1 | — | — |
+| `robot.octaveRegister` | bass 1, low 1, mid 1, high 1, treble 1 | — | — | high 1, treble 1 | — | bass 1, low 1 | — | — | — | — | — | — | — | — |
+| `reverbSend` | 0.1–0.6 · 1 | 0.35–0.6 · 1 | 0.1–0.6 · 0 | 0.1–0.6 · 0 | — | 0.5–0.8 · 1 | 0.1–0.6 · 0 | 0.4–0.7 · 1 | 0.2–0.4 · 1 | — | 0.5–0.8 · 1 | — | 0.05–0.15 · 1 | — |
+| `delaySend` | 0–0.3 · 0.75 | — | 0–0.3 · 0 | 0.2–0.4 · 1 | 0.15–0.35 · 0.9 | — | 0–0.3 · 0 | — | — | 0.3–0.5 · 1 | 0.3–0.5 · 1 | — | 0.4–0.6 · 1 | — |
+| `gritSend` | 0.4–0.8 · 0.21 | 0.4–0.8 · 0 | — | 0.6–0.9 · 0.85 | — | — | — | — | — | 0.4–0.7 · 0.8 | — | — | — | 0.5–0.8 · 0.6 |
+| `shimmerSend` | 0.2–0.5 · 0.16 | — | — | — | — | — | — | 0.4–0.7 · 0.85 | — | — | — | — | — | — |
+| `doubleSend` | 0.3–0.6 · 0.19 | — | — | — | 0.4–0.7 · 0.85 | — | — | — | 0.4–0.7 · 0.85 | — | — | — | — | — |
 
-- **Hypnotic** — a note or two, circled: the variance toggle always on and narrow (1–2 of the 8 indices), medium density, and a high Pitch Repeat so a tiled motif keeps its pitches. Motif Length is the theme's.
-- **Mechanical** — a long motif always on (6–8 steps), narrow variance (1–3), high density: the same long cell, hardly a gap.
-- **Wandering** — wide variance (6–8), the motif off on about 85 % of robots (and 1–8 when on), low-to-medium density and little repeat: free onsets over the measure, few pitches held.
-- **No as-theme pick** (removed 2026-10-31, `docs/tasks/OFF_SCREEN_REVISIONS.md` Task 6): a family with picks deals one to every group, and a family with none leaves every robot on the theme's bands.
+- **Float** — `robot.attack` every note arrives slowly; `robot.release` and trails long; `robot.filterFreq` the probe filter open and warm; `robot.rhythmicDensity` each probe speaks seldom; `robot.rhythmicMotifLength` short gentle cells: a figure that is short when it is on; `robot.rests` and leaves long rests between phrases; `robot.accents` no note is pushed harder than another: no rhythmic push; `robot.waveform` soft voices: the sine and the triangle; `reverbSend` every probe in it; `gritSend` no probe sent to the Grit room: no drive, whatever node the coin lit
+- **Anchor** — `robot.attack` an instant attack: the note lands; `robot.decay` a tight decay; `robot.portamento` nothing slides: no probe glides; `robot.layerGain` partner layers full: the stack is dense; `robot.detune` each probe's layers tuned dead on one another: the stack punches as one; `robot.lfoDetuneDepth` nothing wavers: no layer drifts against another; `robot.waveform` the square and the triangle; `reverbSend` no probe in the wash; `delaySend` none in the echo
+- **Shatter** — `robot.attack` a hard strike; `robot.decay` short; `robot.sustain` holds little; `robot.release` gone at once; `robot.accentFilterFreq` nothing resonates: the accent filter off most probes; `robot.detune` each probe's layers tuned wide apart: the buzz beats against itself; `robot.lfoBusDepth` nothing sweeps: the probe filter does not move; `robot.rhythmicDensity` probes talk nearly all the time; `robot.rests` with hardly a rest: a wall, never gusting; `robot.waveform` the saw and the pulse; `robot.octaveRegister` set high in the register; `reverbSend` dry of wash; `delaySend` on every probe; `gritSend` most probes sent to the Grit room: a crunch on nearly every note
+- **Undertow** — `robot.attack` notes arrive slowly; `robot.release` and release long; `robot.portamento` every probe glides over a long slide; `robot.lfoBusDepth` on many the probe filter wobbles gently; `robot.rests` run into each other with no rests; `robot.waveform` the saw and the triangle blended; `delaySend` most probes sent into it; `doubleSend` most probes sent to the Double room: water over the sound
+- **Trench** — `robot.release` its notes fade long; `robot.portamento` most probes slur between notes rather than step, like a sonar sweep; `robot.rhythmicDensity` a probe speaks seldom; `robot.rests` and leaves long gaps between calls; `robot.waveform` its voice is round, with no edges; `robot.octaveRegister` and set low in the register: the deep; `reverbSend` every probe sunk deep in it
+- **Tidepool** — `robot.attack` a droplet strikes; `robot.decay` settles at once; `robot.sustain` holds almost nothing; `robot.release` and is gone; `robot.shapedAttack` a probe that curves its start is kept as short as a plain one; `robot.shapedRelease` the same for its tail; `robot.accentFilterFreq` no probe is resonant; `robot.layerGain` one voice each, partners quiet; `robot.rhythmicDensity` a middling rate: the pool ticks; `robot.waveform` round, thin voices; `reverbSend` no wash; `delaySend` no echo
+- **Floe** — `robot.attack` notes arrive slowly; `robot.sustain` hold; `robot.release` and ring long; `robot.shapedAttack` a curved probe arrives as slowly; `robot.shapedRelease` and rings as long; `robot.rhythmicDensity` probes speak seldom; `robot.waveform` the voices are pure; `reverbSend` every probe in it; `shimmerSend` most probes sent to the Shimmer room: a sheen on nearly every note
+- **Thicket** — `robot.sustain` notes hold; `robot.release` and are let go slowly; `robot.filterFreq` under a probe filter brought down; `robot.layerGain` partner layers full and on; `robot.rhythmicDensity` a middling rate; `robot.waveform` the mellow and the square waveforms; `reverbSend` moderately in the wash; `doubleSend` most probes sent to the Double room
+- **Wreck** — `robot.accentFilterFreq` more probes than usual on a resonant filter: some creak; `robot.pitchRepeat` the same notes returning; `robot.rhythmicMotifLength` a long fixed figure, always on; `robot.waveform` hard-edged voices; `delaySend` every probe sent into it; `gritSend` most probes sent to the Grit room: a grain on the notes
+- **Open Water** — `robot.release` its notes fade long; `robot.masterVolume` each quieter than usual, as a far thing is; `robot.rhythmicDensity` probes speak seldom; `robot.rests` and leave long gaps: the silence is the room; `reverbSend` every probe deep in the reverb; `delaySend` and in the delay
+- **Vent Field** — `robot.attack` short notes; `robot.decay` that settle fast; `robot.sustain` and hold little; `robot.accentFilterFreq` nearly every probe on the resonant filter, set low; `robot.accentFilterQ` with a sharp peak; `robot.lfoBusDepth` the filter sweeps on most of them; `robot.rhythmicDensity` probes speak often; `robot.noteVariance` a pitch that ranges wide; `robot.waveform` hard-edged voices
+- **Beacon** — `robot.rhythmicDensity` a middling-low rate; `robot.pitchRepeat` returns to the same notes; `robot.rhythmicMotifLength` a long figure that is always on; `robot.noteVariance` keeps its pitch close, never off; `robot.dynamics` plays flat; `robot.accents` with no marks; `reverbSend` little wash; `delaySend` every probe sent into the delay
+- **Polar Low** — `robot.attack` short hard notes; `robot.release` short; `robot.masterVolume` loud; `robot.rhythmicDensity` probes speak often; `robot.noteVariance` a wide-ranging pitch; `robot.dynamics` wide dynamics: surges and drops; `gritSend` many sent to the Grit room: the loud ones tear
+**The aspect families.** A family's Classic column is what a robot with no pick in that family draws under Classic; under another theme the band a family leaves alone is that theme's.
 
-**Envelope, Distance and Voice aspects** (`docs/tasks/OFF_SCREEN_REVISIONS.md` Tasks 7 and 10, 2026-10-31). **Placeholders, not yet heard:** the revisions were built unattended, so these columns are the plan's starting guesses, waiting on Crawford's listen (that plan's Task 11). A lit band is `min–max · lit`; a dash leaves the band the theme's.
+**Melody.**
 
-| Band key | Row above | Classic | Plucked | Swelling | Held |
-|---|---|---|---|---|---|
-| `robot.attack` | Attack, s (a linear-curve robot) | 0–2 | 0–0.03 | 0.3–1.2 | 0.02–0.15 |
-| `robot.decay` | Decay, s | 0–2 | 0.1–0.6 | — | — |
-| `robot.sustain` | Sustain (0–1) | 0–1 | 0–0.25 | 0.7–1 | 0.9–1 |
-| `robot.release` | Release, s (a linear-curve robot) | 0–2 | 0.05–0.4 | — | 0.8–2 |
-| `robot.shapedAttack` | Attack, s, of a shaped robot · the share | 0.03–0.25 · 0.155 | 0.005–0.04 · 0.5 | 0.3–1.2 · 0.4 | — |
-| `robot.shapedRelease` | Release, s, of a shaped robot · the share | 0.15–0.8 · 0.15 | 0.1–0.4 · 0.6 | — | 0.8–2 · 0.275 |
+| Band key | Classic | Hypnotic | Mechanical | Wandering | Chanting | Tumbling | Telegraph |
+|---|---|---|---|---|---|---|---|
+| `robot.rhythmicDensity` | 0–100 | 40–60 | 70–95 | 20–50 | 60–80 | 85–100 | 5–20 |
+| `robot.noteVariance` | 0.15 · 1–8 | 0 · 1–2 | 0 · 1–3 | 0 · 6–8 | 0 · 1–2 | 0 · 6–8 | 0 · 1–2 |
+| `robot.rhythmicMotifLength` | 0.15 · 1–8 | — | 0 · 6–8 | 0.85 · 1–8 | 0 · 2–3 | 1 · 1–8 | 0 · 6–8 |
+| `robot.pitchRepeat` | 0–100 | 50–100 | 70–100 | 0–30 | 75–100 | 0–15 | 40–60 |
 
-- **Plucked** — struck at once (under 30 ms, the shaped band as short), a fast decay to a low sustain, a quick let-go, more robots shaped.
-- **Swelling** — rises over 0.3–1.2 s, shaped or not, into a high sustain.
-- **Held** — starts promptly, sustains in full and rings 0.8–2 s after, shaped or not.
+- **Hypnotic** — `robot.rhythmicDensity` a middling, steady pace; `robot.noteVariance` keeps to a note or two, and the roaming is never off; `robot.pitchRepeat` comes back to the one it just left more often than not
+- **Mechanical** — `robot.rhythmicDensity` speaks nearly all the time; `robot.noteVariance` holds its pitch close, and never off; `robot.rhythmicMotifLength` tiles one long figure and keeps tiling it: the figure is never off; `robot.pitchRepeat` comes round on the same notes most of the time (L2 R1, Crawford, 2026-11-04; was "about as often as it leaves it")
+- **Wandering** — `robot.rhythmicDensity` speaks less often than most; `robot.noteVariance` ranges wide in pitch, never off; `robot.rhythmicMotifLength` almost never tiles a figure; `robot.pitchRepeat` rarely returns to the note it just left
+- **Chanting** — `robot.rhythmicDensity` a brisk, even rate; `robot.noteVariance` keeps its pitch close, never off; `robot.rhythmicMotifLength` tiles a figure of two or three notes without end: short, and never off; `robot.pitchRepeat` comes back to the same notes nearly every time
+- **Tumbling** — `robot.rhythmicDensity` speaks nearly all the time; `robot.noteVariance` ranges wide in pitch, never off; `robot.rhythmicMotifLength` never tiles a figure: always off; `robot.pitchRepeat` rarely returns to a note
+- **Telegraph** — `robot.rhythmicDensity` speaks rarely; `robot.noteVariance` on one or two notes, never off; `robot.rhythmicMotifLength` a long fixed figure, never off; `robot.pitchRepeat` returning to them about as often as not
 
-| Band key | Row above | Classic | Near | Far | Remote |
-|---|---|---|---|---|---|
-| `reverbSend` | Reverb (0–1) · share carrying it | 0.1–0.6 · 1 | 0–0.1 · 0.3 | 0.45–0.8 · 1 | 0.65–0.95 · 1 |
-| `delaySend` | Delay (0–1) · share carrying it | 0–0.3 · 0.75 | 0–0.05 · 0.1 | 0–0.1 · 0.3 | 0.35–0.6 · 1 |
+**Envelope.**
 
-- **Near** keeps both sends low and mostly unlit; **Far** sinks deep into the Reverb with little Delay; **Remote** sinks deep into both. A room's own size (`reverb.decay`, `delay.delayTime`) is a global band and a theme's, so Distance sinks robots into the rooms without lengthening them.
+| Band key | Classic | Plucked | Swelling | Held | Bowed | Hammered | Breathing |
+|---|---|---|---|---|---|---|---|
+| `robot.attack` | 0.015–2 | 0.015–0.03 | 0.3–1.2 | 0.02–0.15 | 0.4–1.2 | 0.015–0.015 | 0.08–0.3 |
+| `robot.decay` | 0–2 | 0.1–0.6 | — | — | — | — | 0.2–0.6 |
+| `robot.sustain` | 0–1 | 0–0.25 | 0.7–1 | 0.9–1 | 0.75–1 | 0.95–1 | 0.1–0.3 |
+| `robot.release` | 0.02–2 | 0.05–0.4 | — | 0.8–2 | 0.8–2 | 0.02–0.02 | 1–2 |
+| `robot.shapedAttack` | 0.03–0.25 · 0.155 | 0.015–0.04 · 0.5 | 0.3–1.2 · 0.4 | — | 0.4–1.2 · 0.3 | 0.015–0.015 · 0.155 | 0.08–0.3 · 0.3 |
+| `robot.shapedRelease` | 0.15–0.8 · 0.15 | 0.1–0.4 · 0.6 | — | 0.8–2 · 0.275 | 0.8–2 · 0.3 | 0.02–0.02 · 0.15 | 1–2 · 0.3 |
 
-| Band key | Row above | Classic | Glassy | Woody | Hollow |
-|---|---|---|---|---|---|
-| `robot.waveform` | the voice's waveform and Layer 1–3: Type, weighted sine / square / triangle / sawtooth / pulse | 1 / 1 / 1 / 1 / 1 | 4 / 0.5 / 4 / 0.5 / 1 | 1 / 3 / 4 / 1 / 1 | 0.5 / 4 / 0.5 / 1 / 4 |
-| `robot.filterFreq` | Cutoff, Hz, of a common (open) robot | 2000–8000 | 5000–9000 | 1200–3500 | 1500–5000 |
-| `robot.accentFilterFreq` | Cutoff, Hz, of an accent robot · the accent share | 400–2500 · 0.2 | 400–2500 · 0.1 | — | 600–2000 · 0.45 |
-| `robot.accentFilterQ` | Resonance of an accent robot | 3–8 | — | — | 6–12 |
-| `robot.layerGain` | Layer 1–3: Gain · the share of Layers 2 and 3 sounding | 0.2–1.2 · 0.5 | 0.2–0.5 · 0.3 | 0.6–1 · 0.7 | — |
+- **Plucked** — `robot.attack` strikes at once; `robot.decay` falls away quickly; `robot.sustain` to almost nothing; `robot.release` and lets go; `robot.shapedAttack` a probe that curves its start is kept as short as a plain one; `robot.shapedRelease` the same for its tail, so the pluck survives the curve
+- **Swelling** — `robot.attack` rises slowly out of nothing; `robot.sustain` into a high held level; `robot.shapedAttack` plain or curved: a curved probe rises as slowly
+- **Held** — `robot.attack` starts promptly, without a strike; `robot.sustain` sounds in full for as long as it lasts; `robot.release` rings on long after it is let go; `robot.shapedRelease` curved or plain: a curved tail rings as long
+- **Bowed** — `robot.attack` drawn in slowly; `robot.sustain` holds high while it lasts; `robot.release` drawn out slowly after; `robot.shapedAttack` a curved probe is drawn in as slowly; `robot.shapedRelease` and out as slowly
+- **Hammered** — `robot.attack` switches on at once; `robot.sustain` sounds in full for as long as it lasts; `robot.release` stops dead when it ends; `robot.shapedAttack` a curved probe switches on as fast; `robot.shapedRelease` and stops as dead
+- **Breathing** — `robot.attack` comes in over a moment; `robot.decay` falls away; `robot.sustain` to a low level; `robot.release` and lingers after it is let go; `robot.shapedAttack` a curved probe comes in as slowly; `robot.shapedRelease` and lingers as long
 
-- **Glassy** leans sine and triangle under an open cutoff, with few dark accent robots and quiet partials; **Woody** leans triangle and square under a lower cutoff, with warm layers that mostly sound; **Hollow** leans square and pulse under a lower cutoff, with more robots on the resonant accent filter and a higher Q. The waveform is a `PickBand`: the draw takes the first waveform whose cumulative weight it falls under, so Classic's equal weights give each waveform a fifth of robots.
+**Distance.**
+
+| Band key | Classic | Near | Echoing | Half-heard |
+|---|---|---|---|---|
+| `reverbSend` | 0.1–0.6 · 1 | 0–0.1 · 0.3 | 0.05–0.15 · 1 | 0.55–0.85 · 0.5 |
+| `delaySend` | 0–0.3 · 0.75 | 0–0.05 · 0.1 | 0.4–0.7 · 1 | 0.2–0.4 · 0.5 |
+
+- **Near** — `reverbSend` dry, with next to no wash: most probes carry none; `delaySend` almost never an echo
+- **Echoing** — `reverbSend` only lightly into the reverb: repeats rather than wash; `delaySend` every probe sent deep into the delay: a call, and the call again
+- **Half-heard** — `reverbSend` half the probes dry and present, half far off in the reverb; `delaySend` an echo on about half
+
+**Voice.**
+
+| Band key | Classic | Glassy | Woody | Hollow | Brassy | Muted | Chiming |
+|---|---|---|---|---|---|---|---|
+| `robot.waveform` | sine 1, square 1, triangle 1, sawtooth 1, pulse 1 | sine 4, square 0.5, triangle 4, sawtooth 0.5, pulse 1 | sine 1, square 3, triangle 4, sawtooth 1, pulse 1 | sine 0.5, square 4, triangle 0.5, sawtooth 1, pulse 4 | sine 0.5, square 1, triangle 0.5, sawtooth 5, pulse 1 | sine 4, square 0.5, triangle 3, pulse 0.5 | sine 1 |
+| `robot.filterFreq` | 2000–8000 | 5000–9000 | 1200–3500 | 1500–5000 | 6000–10000 | 500–1200 | 6000–12000 |
+| `robot.accentFilterFreq` | 400–2500 · 0.2 | 400–2500 · 0.1 | — | 600–2000 · 0.45 | 400–2500 · 0.05 | 400–2500 · 0 | 400–2500 · 0 |
+| `robot.accentFilterQ` | 3–8 | — | — | 6–12 | — | — | — |
+| `robot.layerGain` | 0.2–1.2 · 0.5 | 0.2–0.5 · 0.3 | 0.6–1 · 0.7 | — | 0.8–1.2 · 1 | 0.2–0.4 · 0.15 | 0.9–1.2 · 1 |
+
+- **Glassy** — `robot.waveform` leans to the round waveforms; `robot.filterFreq` under a filter left wide open; `robot.accentFilterFreq` almost never one of the resonant ones; `robot.layerGain` partner layers quiet, so the fundamental rings alone
+- **Woody** — `robot.waveform` leans to the mellow and the square waveforms; `robot.filterFreq` under a filter brought well down; `robot.layerGain` partner layers full and nearly always on
+- **Hollow** — `robot.waveform` leans to the hard-edged waveforms; `robot.filterFreq` under a filter brought down; `robot.accentFilterFreq` nearly half the fleet is on the resonant filter; `robot.accentFilterQ` with a sharp peak
+- **Brassy** — `robot.waveform` leans to the sawtooth; `robot.filterFreq` under a filter left open; `robot.accentFilterFreq` almost never one of the resonant ones; `robot.layerGain` partner layers full and always on
+- **Muted** — `robot.waveform` leans to the round waveforms; `robot.filterFreq` under a filter brought right down; `robot.accentFilterFreq` none is resonant; `robot.layerGain` partner layers quiet and rarely on
+- **Chiming** — `robot.waveform` a pure fundamental; `robot.filterFreq` under an open filter; `robot.accentFilterFreq` none is resonant; `robot.layerGain` partner layers ring loud above it and are always on
+
+**Motion.**
+
+| Band key | Classic | Gliding | Trembling | Sweeping |
+|---|---|---|---|---|
+| `robot.portamento` | 0.05–0.2 · 0.125 | 0.2–0.4 · 1 | 0.05–0.2 · 0 | 0.05–0.2 · 0 |
+| `robot.lfoGainDepth` | 1–60 · 0.25 | 1–60 · 0 | 20–60 · 0.9 | 1–60 · 0 |
+| `robot.lfoDetuneDepth` | 1–10 · 0.25 | 1–10 · 0 | 4–15 · 0.9 | 1–10 · 0 |
+| `robot.lfoBusDepth` | 1–40 · 0.135 | 1–40 · 0 | 1–40 · 0 | 30–70 · 1 |
+
+- **Gliding** — `robot.portamento` every one glides into every note over a long slide; `robot.lfoGainDepth` and in loudness; `robot.lfoDetuneDepth` the layers hold still in pitch; `robot.lfoBusDepth` the filter holds still: the slide is heard clean
+- **Trembling** — `robot.portamento` no probe slides; `robot.lfoGainDepth` and in loudness; `robot.lfoDetuneDepth` the layers waver in pitch while a note holds, deep enough to hear; `robot.lfoBusDepth` and no filter sweeps: the tremor is heard clean
+- **Sweeping** — `robot.portamento` no probe slides; `robot.lfoGainDepth` and in loudness: the sweep is the only motion; `robot.lfoDetuneDepth` the layers hold still in pitch; `robot.lfoBusDepth` a deep filter sweep rolls through every probe
+
+**Performance.**
+
+| Band key | Classic | Steady | Dramatic | Halting |
+|---|---|---|---|---|
+| `robot.dynamics` | 60–80 | 0–15 | 80–100 | 30–50 |
+| `robot.rests` | 0–10 | 0–8 | 15–30 | 65–95 |
+| `robot.accents` | 0–30 | 0–5 | 75–100 | 10–25 |
+
+- **Steady** — `robot.dynamics` every note the same weight; `robot.rests` almost none is cut short; `robot.accents` none is marked
+- **Dramatic** — `robot.dynamics` played loud and soft; `robot.rests` now and then a note cut short for effect; `robot.accents` nearly every note carries a mark, the hardest unlocked
+- **Halting** — `robot.dynamics` the weight varies a little; `robot.rests` most notes cut short, the gaps deep; `robot.accents` the mild marks only
