@@ -2889,7 +2889,7 @@ describe('spawnSystem', () => {
     // 10 worlds x 40 offsets = 400 robots; generateRobotAudioBaseline with no priors is always a fresh draw.
     const WORLDS = Array.from({ length: 10 }, (_, i) => createNoise2D(alea(`performance-seed-world-${i}`)));
     const SAMPLE = WORLDS.flatMap((noiseMap) => Array.from({ length: 40 }, (_, offset) => generateRobotAudioBaseline(noiseMap, offset, [])));
-    const BANDS = { dynamics: [25, 75], rests: [10, 60], accents: [20, 80] } as const;
+    const BANDS = { dynamics: [60, 80], rests: [0, 10], accents: [20, 60] } as const; // Classic's, since R3
     const FIELDS = ['dynamics', 'rests', 'accents'] as const;
     type PerformanceFields = { dynamics?: number; rests?: number; accents?: number };
     const fieldsOf = (x: PerformanceFields) => ({ dynamics: x.dynamics, rests: x.rests, accents: x.accents });
@@ -2932,11 +2932,11 @@ describe('spawnSystem', () => {
         }
       });
 
-      it.each(FIELDS)('spreads %s across the band: at least 20 distinct values, both halves used', (field) => {
+      it.each(FIELDS)('spreads %s across the band: at least 20 distinct values (every value of a narrower band), both halves used', (field) => {
         const values = SAMPLE.map((b) => b[field]);
         const [min, max] = BANDS[field];
         const middle = (min + max) / 2;
-        expect(new Set(values).size, `${field} distinct values`).toBeGreaterThanOrEqual(20);
+        expect(new Set(values).size, `${field} distinct values`).toBeGreaterThanOrEqual(Math.min(20, max - min + 1));
         expect(values.some((v) => v < middle)).toBe(true);
         expect(values.some((v) => v > middle)).toBe(true);
       });
@@ -2981,9 +2981,9 @@ describe('spawnSystem', () => {
         // The even draw (Even Seeded Draws T9).
         const calls = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
         expect(calls.map((c) => [c[1], c[2], c[3], c[4]]).sort()).toEqual([
-          ['robot.accents', 0, 20, 80],
-          ['robot.dynamics', 0, 25, 75],
-          ['robot.rests', 0, 10, 60],
+          ['robot.accents', 0, 20, 60],
+          ['robot.dynamics', 0, 60, 80],
+          ['robot.rests', 0, 0, 10],
         ]);
       });
 
@@ -3119,10 +3119,11 @@ describe('spawnSystem', () => {
         const baseline = generateRobotAudioBaseline(noiseFor('performance-baseline-fresh-locale'), 0, []);
 
         expect(fieldsOf(baseline)).toEqual(fieldsOf(robot));
-        // A baseline missing a field, or one equal to its default, cannot pass: rests and accents bands start above 0.
-        expect(baseline.rests).toBeGreaterThanOrEqual(10);
+        // A baseline missing a field, or one equal to its default, cannot pass: the dynamics band starts above its default
+        // 50 and the accents band above 0 (rests' starts at its default 0 since R3, so it is only checked present).
+        expect(baseline.dynamics).toBeGreaterThanOrEqual(60);
         expect(baseline.accents).toBeGreaterThanOrEqual(20);
-        expect(typeof baseline.dynamics).toBe('number');
+        expect(typeof baseline.rests).toBe('number');
       });
 
       it('equals every robot of a real 12-robot roster, copied siblings included', () => {
@@ -3513,7 +3514,7 @@ describe('spawnSystem', () => {
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 41,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.37, delaySend: 0.02, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.7,
       },
@@ -3523,7 +3524,7 @@ describe('spawnSystem', () => {
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 41,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.51, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.63,
       },
@@ -3533,7 +3534,7 @@ describe('spawnSystem', () => {
           octaveRange: [2, 4], filterFreq: 2273.244400974363, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 68, detune: -1, pulseWidth: 0.6791183213936165,
           layers: [{ type: 'triangle', gain: 0.52, detune: 0, phase: 298 }, { type: 'pulse', gain: 0, detune: 0, phase: 302 }, { type: 'triangle', gain: 0, detune: 1, phase: 342 }],
         } as AudioAttributes,
-        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 34, rests: 43, accents: 29,
+        octaveRange: [2, 4], rhythmicDensity: 40, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 1 }, pitchRepeat: 14, dynamics: 64, rests: 7, accents: 26,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 27 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.33, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.83,
       },
@@ -3557,7 +3558,7 @@ describe('spawnSystem', () => {
           octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
           layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 69, rests: 35, accents: 52,
+        octaveRange: [5, 7], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 41,
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.23, delaySend: 0, gritSend: 0, shimmerSend: 0.36, doubleSend: 0, masterVolume: 0.77,
       },
@@ -3567,7 +3568,7 @@ describe('spawnSystem', () => {
           octaveRange: [3, 5], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 80, detune: 1, pulseWidth: 0.3550120924133807,
           layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
         } as AudioAttributes,
-        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 74, rests: 31, accents: 56,
+        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 80, rests: 4, accents: 44,
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'a', depth: 9 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.56, delaySend: 0.23, gritSend: 0.63, shimmerSend: 0, doubleSend: 0, masterVolume: 0.8,
       },
@@ -3577,7 +3578,7 @@ describe('spawnSystem', () => {
           octaveRange: [4, 6], filterFreq: 981.7550272680819, filterQ: 5.9, filterType: 'bandpass', portamento: 0.08, waveform: 'sawtooth', phase: 16, detune: -2, pulseWidth: 0.15774889986496418,
           layers: [{ type: 'sawtooth', gain: 0.98, detune: -1, phase: 125 }, { type: 'sine', gain: 0.74, detune: 0, phase: 5 }, { type: 'triangle', gain: 0, detune: 0, phase: 329 }],
         } as AudioAttributes,
-        octaveRange: [4, 6], rhythmicDensity: 90, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 37, rests: 26, accents: 65,
+        octaveRange: [4, 6], rhythmicDensity: 90, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 65, rests: 3, accents: 50,
         lfoLinks: { 'layer0.gain': { lane: 'c', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'c', depth: 7 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.1, delaySend: 0.29, gritSend: 0, shimmerSend: 0.26, doubleSend: 0, masterVolume: 0.73,
       },

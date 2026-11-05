@@ -188,10 +188,10 @@ const EXPECTED: BandTable = {
   // The two 1-8 toggle fields: RHYTHMIC_MOTIF_LENGTH_OFF_THRESHOLD and NOTE_VARIANCE_OFF_THRESHOLD, then 1-8.
   'robot.rhythmicMotifLength': { offShare: 0.15, min: 1, max: 8 },
   'robot.noteVariance': { offShare: 0.15, min: 1, max: 8 },
-  // DYNAMICS/RESTS/ACCENTS_SEED_RANGE.
-  'robot.dynamics': { min: 25, max: 75 },
-  'robot.rests': { min: 10, max: 60 },
-  'robot.accents': { min: 20, max: 80 },
+  // DYNAMICS/RESTS/ACCENTS_SEED_RANGE, retuned after R2 (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R3).
+  'robot.dynamics': { min: 60, max: 80 },
+  'robot.rests': { min: 0, max: 10 },
+  'robot.accents': { min: 20, max: 60 },
   // The waveform pick (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): WAVEFORMS' even ~20 % each, as five equal weights.
   'robot.waveform': { weights: { sine: 1, square: 1, triangle: 1, sawtooth: 1, pulse: 1 } },
   // The octave register (T6): spawnSystem.ts's even pick over its five OCTAVE_REGISTERS, as five equal weights.
@@ -815,7 +815,6 @@ describe('the placeholder columns (docs/tasks/OFF_SCREEN.md Task 34; spec assump
       'robot.pitchRepeat',
       'robot.dynamics',
       'robot.accents',
-      'robot.rests',
       'delaySend',
       'delay.feedback',
       'delay.delayTime',

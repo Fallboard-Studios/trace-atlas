@@ -1089,7 +1089,6 @@ middling and probes speak at a middling-low rate.
 - `robot.pitchRepeat` — returns to the same notes.
 - `robot.dynamics` — plays flat.
 - `robot.accents` — with no marks.
-- `robot.rests` — few gaps.
 - `delaySend` — every probe sent into the delay.
 - `delay.feedback` — with high feedback: answered by its own repeats.
 - `delay.delayTime` — whose echo falls well behind the phrase, not on top of it.
@@ -1098,11 +1097,11 @@ middling and probes speak at a middling-low rate.
 - `robot.rhythmicDensity` — a middling-low rate.
 - `humanize` — no timing scatter: the phrase comes round exactly, every time (new key, see the rules).
 
-**Leaves alone.** The envelope, voices, EQ, master filter, colour and pedals: Classic's.
+**Leaves alone.** The envelope, voices, EQ, master filter, colour and pedals: Classic's. And `robot.rests`: Classic's own band now leaves few gaps, so Beacon's "few gaps" is Classic's (dropped when Classic's rests narrowed).
 
 **Overlaps.** Melody takes `robot.rhythmicMotifLength`, `robot.noteVariance`, `robot.pitchRepeat` and
 `robot.rhythmicDensity` (Wandering ends the beacon); Performance would take `robot.dynamics`,
-`robot.accents` and `robot.rests`; Distance takes `delaySend` and `reverbSend` (Near kills the echo). What survives
+`robot.accents` (and `robot.rests`, which Beacon now leaves Classic's); Distance takes `delaySend` and `reverbSend` (Near kills the echo). What survives
 everything is the feedback room and the pulse. Beacon is the theme most made of probe keys: with Melody and Distance
 picked, almost nothing of it is left, and its sentence must say "the probes" rather than "the world".
 

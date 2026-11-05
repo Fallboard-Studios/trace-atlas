@@ -298,8 +298,7 @@ export const THEMES: Record<ThemeId, ThemeColumn> = {
     'robot.noteVariance': { offShare: 0, min: 1, max: 2 }, // keeps its pitch close, never off
     'robot.pitchRepeat': { min: 70, max: 100 }, // returns to the same notes
     'robot.dynamics': { min: 0, max: 15 }, // plays flat
-    'robot.accents': { min: 0, max: 0 }, // with no marks
-    'robot.rests': { min: 0, max: 10 }, // few gaps
+    'robot.accents': { min: 0, max: 0 }, // with no marks; few gaps is Classic's own rests band since R3 (was 0-10 here)
     delaySend: { min: 0.4, max: 0.6, lit: 1 }, // every probe sent into the delay
     'delay.feedback': { min: 0.6, max: 0.8 }, // with high feedback: answered by its own repeats
     'delay.delayTime': { min: 0.4, max: 0.8 }, // whose echo falls well behind the phrase

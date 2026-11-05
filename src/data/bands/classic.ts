@@ -213,13 +213,14 @@ export const CLASSIC: BandTable = {
   // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md assumption 13). Unlike the articulation traits, these are not
   // minority traits: every robot is seeded, each as a rounded integer 0-100, the sliders' own scale. The draw is even, so
   // a robot is as likely near a band's edge as at its middle (Even Seeded Draws T9 replaced assumption 13's wanted
-  // middle lean, per the spec's decision 3). Dynamics: 25 plays almost
-  // flat (a quarter of today's velocity variance), 75 breathes (one and a half times it). Rests: 10 leaves a rare short
-  // gap, 60 cuts more than half the notes short, and deeper. Accents: 20 marks about one note in five with only the two
-  // mildest marks (accent, tenuto); 80 marks four in five with all five, staccatissimo included.
-  'robot.dynamics': { min: 25, max: 75 },
-  'robot.rests': { min: 10, max: 60 },
-  'robot.accents': { min: 20, max: 80 },
+  // middle lean, per the spec's decision 3). Retuned by Crawford after the levers got stronger
+  // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2, then R3; was 25-75, 10-60, 20-80). Dynamics: 60 moves three notes in
+  // five by up to ±0.18, 80 four in five by up to ±0.24. Rests: at most one note in ten cut short, and a cut is now a
+  // real gap. Accents: 20 marks about one note in five with only the two mildest marks (accent, tenuto); 60 marks three
+  // in five with four of them, no staccatissimo.
+  'robot.dynamics': { min: 60, max: 80 },
+  'robot.rests': { min: 0, max: 10 },
+  'robot.accents': { min: 20, max: 60 },
   // The waveform the base and the three Signature Array layers draw (docs/tasks/OFF_SCREEN_REVISIONS.md Task 10): a pick
   // (PickBand), five equal unit weights in WAVEFORMS order: 20 % each on the even draw (the bunched draw gave sine and
   // pulse about 6.5 % each; Even Seeded Draws T6). The Voice family's options move the weights.

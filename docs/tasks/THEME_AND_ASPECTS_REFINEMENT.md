@@ -681,6 +681,19 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
     `AudioEngine.test.ts` (a rested event schedules with the short release, an unstamped or tenuto one with none) and
     `compositeVoice.test.ts` (the layer's release during the trigger, restored after, also when the trigger throws), then green. Mutants (no restore, no `min` with the robot's release, the release not forwarded by `scheduleNote`) each fail. `docs/AUDIO_SYSTEM.md` and `docs/MELODY_SYSTEM.md` amended.
 
+- [x] **R3: Classic's Performance bands, after R2** (L2, under Classic in Kryndara; Crawford, 2026-11-04: "to make up
+  for the new change, classic should have dynamics: min: 60, max 80; rests: min: 0, rest max: 10; accents: min: 20,
+  max: 60")
+
+  **Keys:** `robot.dynamics` 25-75 -> 60-80, `robot.rests` 10-60 -> 0-10, `robot.accents` 20-80 -> 20-60 (`classic.ts`).
+  **Knock-on:** Beacon's `robot.rests` (0-10, "few gaps") now equalled Classic's, a key moved for nothing, so it is
+  dropped from Beacon's column and its sheet moves the key to "Leaves alone" (Classic's own band now leaves few gaps).
+  **Proof:** the Classic literal in `resolveBands.test.ts` re-pinned RED first, then green; the Performance parity pins
+  (`robotFieldDerivation.test.ts`, `spawnSystem.test.ts`) re-captured from the generator (robot 0's dynamics 42 -> 67, the
+  same draw at t ~ 0.34); the spread tests made integer-aware (Rests 0-10 has eleven values, so "20 distinct" and a fixed
+  8-12 % outer tenth no longer hold: each tenth now expects its own even share); `npm run sketch:bands` re-run.
+  `docs/reference/SLIDER_VALUES.md` and `docs/PROCEDURAL_GENERATION.md` amended.
+
 - [ ] **L3: the risky pairs**
 
   **Description:** Spec §1.7 step 3. The override grid's cells where a family takes a key the theme's sheet leans on

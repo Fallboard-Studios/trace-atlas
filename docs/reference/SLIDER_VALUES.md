@@ -173,9 +173,9 @@ Where a robot's Load Min / Load Max come from a band, they are Classic's, `src/d
 
 ²⁵ Robot Performance (roadmap 50.5): Dynamics, Rests and Accents are stored as the integer the slider shows
 (`Robot.dynamics` / `rests` / `accents`, `PERFORMANCE_MIN`–`PERFORMANCE_MAX`, no conversion), seeded at spawn by plain draws
-over the `robot.dynamics` (25–75), `robot.rests` (10–60) and `robot.accents` (20–80) bands and `Math.round`-ed, so all
-three are step-aligned. `DEFAULT_DYNAMICS` is 50 (the pre-50.5 sound), `DEFAULT_RESTS` / `DEFAULT_ACCENTS` are 0; the seeds
-never land on the defaults, so every fresh robot has some of each. None is a swell attribute.
+over the `robot.dynamics` (60–80), `robot.rests` (0–10) and `robot.accents` (20–60) bands (Classic's since roadmap 58's R3; were 25–75, 10–60, 20–80) and `Math.round`-ed, so all
+three are step-aligned. `DEFAULT_DYNAMICS` is 50 (the pre-50.5 sound), `DEFAULT_RESTS` / `DEFAULT_ACCENTS` are 0; the Dynamics and Accents
+seeds never land on their defaults, and a Rests seed is 0 for about one robot in twenty (its band starts there). None is a swell attribute.
 
 ²³ Reverb, Delay, Grit, Shimmer and Double are the robot's five **sends** into the shared rooms (Robot Sends, roadmap
 50.2; Robot Effect Sends, roadmap 50.7), stored as `0..1` fractions (`Robot.reverbSend` / `delaySend` / `gritSend` /

@@ -475,14 +475,16 @@ describe('deriveMotionFields — the Motion family (themes-58 T7a)', () => {
 describe('derivePerformanceFields — the Performance family (themes-58 T7a)', () => {
   // Classic parity: the fresh robots of generateRobotRosterBaseline(createNoise2D(alea('motion-parity-a')), 8) as the
   // generators drew them before either lift (HEAD b35a8558, captured 2026-11-03 and typed in, not read back).
+  // Re-captured from the generator when Classic's three bands moved (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R3:
+  // 25-75, 10-60, 20-80 -> 60-80, 0-10, 20-60); the same draws, robot 0's dynamics 42 -> 67 at t ~ 0.34.
   const PARITY = [
-    { offset: 0, dynamics: 42, rests: 53, accents: 76 },
-    { offset: 1, dynamics: 44, rests: 54, accents: 76 },
-    { offset: 2, dynamics: 41, rests: 29, accents: 74 },
-    { offset: 3, dynamics: 52, rests: 35, accents: 63 },
-    { offset: 4, dynamics: 32, rests: 15, accents: 66 },
-    { offset: 5, dynamics: 72, rests: 14, accents: 45 },
-    { offset: 7, dynamics: 64, rests: 43, accents: 24 },
+    { offset: 0, dynamics: 67, rests: 9, accents: 57 },
+    { offset: 1, dynamics: 68, rests: 9, accents: 57 },
+    { offset: 2, dynamics: 66, rests: 4, accents: 56 },
+    { offset: 3, dynamics: 71, rests: 5, accents: 49 },
+    { offset: 4, dynamics: 63, rests: 1, accents: 51 },
+    { offset: 5, dynamics: 79, rests: 1, accents: 37 },
+    { offset: 7, dynamics: 75, rests: 7, accents: 23 },
   ];
   const PARITY_MAP = createNoise2D(alea('motion-parity-a'));
 
