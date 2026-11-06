@@ -13,6 +13,9 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 1 — Feature wrap-up
 
+- Backlog [67](backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) **The
+  desktop crackles at Full** — next (Crawford, 2026-11-05): a clean Full/Standard/Light A/B on ez84fjmr, then
+  interview → spec.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.
