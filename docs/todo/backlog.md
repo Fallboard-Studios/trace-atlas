@@ -812,7 +812,8 @@ Crawford's ear on Standard at full 4K was not taken. Next: interview → spec.
 graph's standing cost shrunk at every tier with backlog 27's method, inaudible plumbing first and any audible trade
 heard one at a time; the bar is Crawford's ear at full 4K, then a harness pin. Direction 2 is backlog
 [68](#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph); direction 3 waits for the lean
-graph. Next: spec.
+graph. Spec written 2026-11-06: [DESKTOP_FULL_TIER_STANDING_COST.md](../specs/DESKTOP_FULL_TIER_STANDING_COST.md),
+awaiting approval.
 
 ### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
 

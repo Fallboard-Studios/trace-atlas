@@ -15,7 +15,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 - Backlog [67](backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) **The
   desktop crackles at Full** — interviewed 2026-11-06 ([intent](../intent/desktop-full-tier-standing-cost.md)):
-  shrink the graph's standing cost at every tier, Crawford's ear at 4K the bar; next: spec.
+  shrink the graph's standing cost at every tier, Crawford's ear at 4K the bar; spec written 2026-11-06
+  ([DESKTOP_FULL_TIER_STANDING_COST.md](../specs/DESKTOP_FULL_TIER_STANDING_COST.md)), awaiting approval; then the plan.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.
