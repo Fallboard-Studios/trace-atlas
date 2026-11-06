@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 66.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 68.
 
 ## Open items
 
@@ -750,3 +750,44 @@ under a full parallel load.
 
 **To do:** find the file (run the suite by directory, or with `--reporter=verbose`, until the error follows one file),
 then let its loop yield or split the case. Done when a full run reports no errors.
+
+### 67. Audio: The Desktop Crackles at Full — the Graph's Standing Cost Leaves No Headroom
+
+**Found 2026-11-05** on Crawford's desktop (4K monitor, Balanced power plan), on the live site:
+`?seed=ez84fjmr&x=93&y=-146&theme=wreck&debug`. Clicking from about 0:20 on every trial, worse at full screen on the
+4K monitor (a quarter-size window helps a lot; on the laptop panel the window size barely matters), and any jump in
+the machine's CPU use clicks too. Not loudness.
+
+**What the overlay said** (full 4K, `&latency=playback`, 1:22 in): `clock x0.62`, `underruns 2063 (27653ms)`,
+`lag 0ms`, fps 42, `load 100%·fx 100% · sounding 9/12 · fx in 6/10`, `bank 4/4`, `base 20ms`. A clock this far below 1
+with the lag line quiet is the audio thread overloaded for seconds at a time, not the main thread and not missed
+deadlines here and there; `playback` only took the buffer from 10 to 20 ms, which absorbs a spike and not this.
+
+**What `perf:audio` measured** (headless on the same desktop, Full, one run each, Crawford's Chrome open alongside, so
+read the ranking and not the decimals): ez84fjmr mean capacity 0.90 over 150 s, already 0.90–0.99 with 2–5 robots
+sounding, r(audible, capacity) 0.04; the control `bravo:-150:90` mean 0.67, peak window 0.81, with up to 12 sounding.
+`perf:audio-handlers` (8 s, shares) splits both worlds alike: GainNode ~58 % (~950 nodes), ConstantSourceNode ~14 %
+(~340, Tone's Signals), Biquad ~4 %, Convolver 2–4 %, every other class under 4 %. Census ~1,800 nodes. No one node
+is the cost; the size of the graph is.
+
+**Confirmed by ear:** `&load=light` on the same link made "a very noticeable difference" (Crawford). Light is four
+sounding robots, eight voices, `playback`, no pedals, no Reverb, no drift, no filter LFOs (backlog 27's cuts,
+[archive](archive/backlog-archive.md#27-audio-phone-playback-underruns-at-light-load-main-included)). Standard was not
+tried.
+
+**Reading.** At Full the desktop's audio thread stands at 70–95 % of its budget on a heavy world before anything else
+runs; robots joining on the battery cycle (the 0:20 onset), the GPU and CPU work of drawing the scene at 4K, or any
+other program take the rest, and the clock falls behind. Backlog 27 cut the standing graph at Light only; Full and
+Standard carry all of it, and a desktop boots at Full (`resolveInitialAudioLoad`: no coarse pointer → Full).
+
+**Directions, none chosen** (each changes the audio architecture, so interview → spec first):
+
+1. **Shrink the standing graph at every tier.** Decompose where the ~950 Gains and ~340 ConstantSources come from (per
+   robot chains, the send table, bypass cells, the bank's links, Tone's Param plumbing) with backlog 27's method
+   (ablations through `perf:audio`, shares through `perf:audio-handlers`), then cut what is inaudible.
+2. **Let the budget step down by itself** when the measured render capacity stays high, or boot a desktop at Standard.
+3. **Draw less at large viewports** (what still re-rasters per frame at 4K; the harness `scripts/perf/idle-paint.mjs`
+   needs height and DPR flags to emulate it). Buys margin; does not fix the cause.
+
+**First step when picked up:** a clean same-session A/B on this world, Crawford's Chrome closed: Full, Standard and
+Light through `perf:audio`, three rotated rounds, plus his ear on Standard at full 4K.
