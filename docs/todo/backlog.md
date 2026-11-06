@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 68.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 69.
 
 ## Open items
 
@@ -806,3 +806,28 @@ that is the effects and LFOs Light turns off, not the robot cap. So Standard wou
 cause sits in the standing floor (the graph plus what is lit on it), not in the number of robots. The ~0.6 the
 headless run reads is not over budget by itself; the headed browser drawing at 4K takes the rest (clock x0.62 live).
 Crawford's ear on Standard at full 4K was not taken. Next: interview → spec.
+
+**Update 2026-11-06: interviewed.** Intent confirmed in
+[docs/intent/desktop-full-tier-standing-cost.md](../intent/desktop-full-tier-standing-cost.md): direction 1, the
+graph's standing cost shrunk at every tier with backlog 27's method, inaudible plumbing first and any audible trade
+heard one at a time; the bar is Crawford's ear at full 4K, then a harness pin. Direction 2 is backlog
+[68](#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph); direction 3 waits for the lean
+graph. Next: spec.
+
+### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
+
+**Raised 2026-11-06** at backlog 67's interview, as the question 67 set aside. A desktop boots at Full
+(`resolveInitialAudioLoad`: no coarse pointer → Full) and nothing moves the dial for it; a machine weaker than
+Crawford's gets the same graph and the same clicks. Two shapes were assessed and neither is 67's work:
+
+- **A static estimate at boot.** Cost tracks graph size and barely tracks sounding robots (r 0.04 on ez84fjmr), so a
+  node census at load time could pick the default tier before the first note, with no mid-session change. It knows the
+  graph and not the machine.
+- **A reactive step-down.** The page already samples `AudioContext.playbackStats` every 500 ms (`?debug`); a one-way
+  ratchet on a sustained underrun rate could drop the tier. It is after the fact (the first clicks are heard before it
+  knows; Chrome has no render-capacity API a page can read), Standard saves only ~0.05 so the step would have to be
+  Light-like and audible mid-session, and a graph change under the lock can click by itself. A safety net at best.
+
+**Decision (Crawford, 2026-11-06):** not in 67; revisit once the graph is lean, since every node 67 removes weakens the
+case for either shape. The Audio Load dial stays the answer for weaker machines meanwhile. If it is picked up, the
+first question is whether the lean graph leaves any desktop that needs it.

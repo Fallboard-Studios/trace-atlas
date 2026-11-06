@@ -14,8 +14,8 @@ the item's own measure-first check runs, and the item archives if the check find
 ## Stage 1 — Feature wrap-up
 
 - Backlog [67](backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) **The
-  desktop crackles at Full** — next (Crawford, 2026-11-05): a clean Full/Standard/Light A/B on ez84fjmr, then
-  interview → spec.
+  desktop crackles at Full** — interviewed 2026-11-06 ([intent](../intent/desktop-full-tier-standing-cost.md)):
+  shrink the graph's standing cost at every tier, Crawford's ear at 4K the bar; next: spec.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.
@@ -93,6 +93,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Parked (not sequenced)
 
+- Backlog [68](backlog.md#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph) **Automatic
+  tier choice for weaker desktops** — waits for 67's lean graph; first question then is whether any desktop still needs it.
 - Backlog [34](backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch) **The Tone
   upgrade** — waits for a Tone with the leak fix to be npm's `latest`; it then deletes `tonePatches.ts`.
 - Decisions, not work, left on three stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below
