@@ -789,5 +789,20 @@ Standard carry all of it, and a desktop boots at Full (`resolveInitialAudioLoad`
 3. **Draw less at large viewports** (what still re-rasters per frame at 4K; the harness `scripts/perf/idle-paint.mjs`
    needs height and DPR flags to emulate it). Buys margin; does not fix the cause.
 
-**First step when picked up:** a clean same-session A/B on this world, Crawford's Chrome closed: Full, Standard and
-Light through `perf:audio`, three rotated rounds, plus his ear on Standard at full 4K.
+**Update 2026-11-05, later: the clean A/B.** Same desktop with nothing but VS Code open, `perf:audio` headless on the
+live site, 120 s per run, 15 s buckets, three rounds with the order rotated (mean capacity per run):
+
+| Tier | Round 1 | Round 2 | Round 3 | Mean | Max sounding | Pedals lit |
+|---|---|---|---|---|---|---|
+| Full | 0.659 | 0.585 | 0.596 | 0.61 | 9 | 6/10 |
+| Standard | 0.560 | 0.571 | 0.539 | 0.56 | 8 | 6/10 |
+| Light | 0.292 | 0.302 | 0.287 | 0.29 | 4 | 0/10 |
+
+The contaminated first reading (0.90 at Full) was a third too high, so the decimals above replace it. Within a Full
+run, capacity climbs from 0.50–0.59 at about 2.6 sounding robots to 0.62–0.73 at about 8.5: roughly 0.02 per robot,
+and a standing floor near 0.5 before the robots. Standard saves only 0.05 here, because this world's robots never pass
+Standard's cap of 8 and Standard keeps the pedals, Reverb, drift and filter LFOs. Light halves the load, and most of
+that is the effects and LFOs Light turns off, not the robot cap. So Standard would not fix this desktop, and the
+cause sits in the standing floor (the graph plus what is lit on it), not in the number of robots. The ~0.6 the
+headless run reads is not over budget by itself; the headed browser drawing at 4K takes the rest (clock x0.62 live).
+Crawford's ear on Standard at full 4K was not taken. Next: interview → spec.
