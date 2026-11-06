@@ -18,8 +18,9 @@
 [docs/intent/desktop-full-tier-standing-cost.md](../intent/desktop-full-tier-standing-cost.md) (interview 2026-11-06,
 five questions, every guess confirmed) and the measurements on backlog
 [67](../todo/backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) (the clean
-Full/Standard/Light A/B of 2026-11-05). **Awaiting Crawford's approval.** This is backlog 67's own fix, so it carries no
-new number (§7 Q7); plan.md Stage 1's line points here. Backlog 27's spec,
+Full/Standard/Light A/B of 2026-11-05). **Awaiting Crawford's approval** of spec and plan together; §7 Q1–Q4 are his to answer at the plan's T0 or Gate A.
+Plan: [docs/tasks/DESKTOP_FULL_TIER_STANDING_COST.md](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md) (written
+2026-11-06). This is backlog 67's own fix, so it carries no new number (§7 Q7); plan.md Stage 1's line points here. Backlog 27's spec,
 [LIGHT_TIER_STANDING_COST.md](LIGHT_TIER_STANDING_COST.md), is the method this one reuses; its decomposition record
 (docs/todo/scratchy-audio-phones.md, "Backlog 27, the decomposition", §1–§13) is the price list this one starts from.
 
