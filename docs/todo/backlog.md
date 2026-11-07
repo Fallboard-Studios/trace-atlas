@@ -839,3 +839,28 @@ Crawford's gets the same graph and the same clicks. Two shapes were assessed and
 **Decision (Crawford, 2026-11-06):** not in 67; revisit once the graph is lean, since every node 67 removes weakens the
 case for either shape. The Audio Load dial stays the answer for weaker machines meanwhile. If it is picked up, the
 first question is whether the lean graph leaves any desktop that needs it.
+
+### 70. Tests: The Full Run Takes Too Long — Speed the Run, Don't Thin the Suite
+
+**Raised 2026-11-07** by Crawford: a full `npm test` takes long enough that it is run rarely, and the suite looks
+outdated and redundant in places. The audit written for that, [TEST_REMOVAL_CANDIDATES.md](../reference/TEST_REMOVAL_CANDIDATES.md)
+(354 files, 13,607 cases, 1,142 s of worker time), found the opposite of what it set out to find: the removable tests are
+about 3 % of the lines and a few seconds of run time. Deleting them cleans up the signal and does not move the clock.
+
+**Where the time is.** Three places, none of them "too many tests":
+
+- Every file boots jsdom, including the roughly 130 files under `engine/`, `utils/`, `systems/`, `data/`, `constants/`,
+  `types/`, `content/` and `stores/` that never touch the DOM.
+- Five or six files are slow by construction: `globalFx.test.ts` resets the module graph and re-imports per case
+  (22 s alone), `AudioEngine.test.ts` rebuilds its Tone mocks per case (39 s), `globalAudioSeed.test.ts` loops 3,000
+  styles three times (18 s), `OffScreen.test.tsx` mounts the full screen 195 times (17 s), `svgElementExtent.test.tsx`
+  renders 600 React trees per case (7 s), `lifecycleSim.test.ts` runs a 17 s readiness sim.
+- Sixteen workers contend for the CPU, so a file inside a full run takes three to six times its time alone; the
+  full-run per-file figures in the audit measure contention.
+
+**To do:** measure a wall-clock baseline, then take the levers in order of cost: the DOM-free folders off jsdom, a
+changed-files-only run for development with the full run kept for checkpoints, then the slow-by-construction files one
+at a time, each measured alone before and after. The audit's first PR (its groups 1.1 to 1.8 and 1.12) rides along as an
+optional last task for signal, not speed. Plan: [TEST_SUITE_RUN_TIME.md](../tasks/TEST_SUITE_RUN_TIME.md). Done when a
+full run's wall-clock time is recorded against the baseline and every test still proves what it proved before; the
+number to beat is set by the baseline task, not here.

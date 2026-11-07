@@ -33,6 +33,9 @@ the item's own measure-first check runs, and the item archives if the check find
   browser's storage** — a short interview first.
 - Backlog [66](backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) **The full test run's
   unhandled timeout** — find the test that never yields, then yield or split it.
+- Backlog [70](backlog.md#70-tests-the-full-run-takes-too-long--speed-the-run-dont-thin-the-suite) **The full run's
+  wall-clock time** — baseline first, then the DOM-free folders off jsdom, a changed-files run for development, and the
+  slow-by-construction files one at a time ([plan](../tasks/TEST_SUITE_RUN_TIME.md)); the removal audit rides along last.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes with DevTools open.
 - Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
