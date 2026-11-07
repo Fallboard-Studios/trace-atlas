@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { startAudioBudget, stopAudioBudget } from './audioBudgetSystem';
-import { tickRobotLifecycle } from './robotSystems';
+import { landOnActive, landOnDocked, tickRobotLifecycle } from './robotSystems';
 import { AudioEngine } from '../engine/AudioEngine';
 import { lfoEngine } from '../engine/lfoEngine';
 import { useAudioStore } from '../stores/audioStore';
@@ -408,16 +408,16 @@ describe('audioBudgetSystem', () => {
       expect(engineStandBy).toHaveBeenLastCalledWith(['r5', 'r6']);
     });
 
-    it('never names a muted robot or one silenced by a solo', () => {
+    it('names a muted robot after the robots over the budget, and never one silenced by a solo', () => {
       useAudioStore.setState({ robotLoad: 0.2 });
       setRoster(roster(6));
       startAudioBudget();
 
       update('r6', { audioMode: 'mute' });
-      expect(engineStandBy).toHaveBeenLastCalledWith(['r5']);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r5', 'r6']);
 
       update('r2', { audioMode: 'solo' });
-      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r6']);
     });
 
     it('stands a solo by when every slot already holds a solo', () => {
@@ -429,12 +429,11 @@ describe('audioBudgetSystem', () => {
       expect(engineStandBy).toHaveBeenLastCalledWith(['c']);
     });
 
-    it('names nobody at Full, mutes and all', () => {
+    it('names only the muted robots at Full', () => {
       setRoster([...roster(5), makeRobot('m', { audioMode: 'mute' })]);
       startAudioBudget();
 
-      expect(engineStandBy).toHaveBeenCalled();
-      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['m']);
     });
 
     it('names nobody again for churn that cannot change who stands by', () => {
@@ -485,6 +484,104 @@ describe('audioBudgetSystem', () => {
 
       expect(engineSet).toHaveBeenLastCalledWith(null);
       expect(link.mock.calls.map((call) => call[2])).toEqual(['r5', 'r6']);
+    });
+  });
+
+  // docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1 (Task 9): a muted robot (docked, or muted by the user) stands by
+  // too, at every tier, so its voice is released once its last note rings out. Solo-silenced robots keep their voices.
+  describe('muted robots stand down (backlog 67 G1)', () => {
+    const ids12 = roster(12).map((r) => r.id);
+
+    beforeEach(() => {
+      vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+    });
+
+    it('at Full, docking a robot names it on the next reconcile where nothing stood by before', () => {
+      setRoster(roster(12));
+      startAudioBudget();
+      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r4']);
+      expect(engineSet).toHaveBeenLastCalledWith(ids12.filter((id) => id !== 'r4'));
+    });
+
+    it('undocking takes it off the list and admits it to the sounding set', () => {
+      setRoster(roster(12));
+      startAudioBudget();
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      engineSet.mockClear();
+
+      landOnActive(DEFAULT_LOCALE_ID, 'r4');
+
+      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+      expect(engineSet).toHaveBeenCalledTimes(1);
+      expect(engineSet.mock.lastCall?.[0]).toContain('r4');
+      expect(sounding()).toContain('r4');
+    });
+
+    it('names a robot docked at boot, and every docked robot in roster order', () => {
+      setRoster(roster(12).map((r, i) => (i % 3 === 0 ? { ...r, docking: DockingState.Docked, audioMode: 'mute' as const } : r)));
+      startAudioBudget();
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r1', 'r4', 'r7', 'r10']);
+    });
+
+    it('a user mute and unmute go the same way', () => {
+      setRoster(roster(12));
+      startAudioBudget();
+
+      update('r9', { audioMode: 'mute' });
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r9']);
+
+      update('r9', { audioMode: 'none' });
+      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+      expect(sounding()).toContain('r9');
+    });
+
+    it('with one robot soloed, the eleven others are not named', () => {
+      setRoster(roster(12));
+      startAudioBudget();
+
+      update('r1', { audioMode: 'solo' });
+
+      expect(sounding()).toEqual(['r1']);
+      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+    });
+
+    it('under a solo, a muted robot is still named and the solo-silenced ones are not', () => {
+      setRoster(roster(12));
+      startAudioBudget();
+
+      update('r1', { audioMode: 'solo' });
+      update('r5', { audioMode: 'mute' });
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r5']);
+    });
+
+    it('an unmuted robot with the set full stands by as a robot over the budget', () => {
+      useAudioStore.setState({ robotLoad: 0.2 }); // 4 slots
+      setRoster(roster(5));
+      startAudioBudget();
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r5']);
+
+      update('r2', { audioMode: 'mute' }); // r5 takes the free slot
+      expect(sounding()).toEqual(['r1', 'r3', 'r4', 'r5']);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r2']);
+
+      update('r2', { audioMode: 'none' }); // no slot: over the budget now, still standing by
+      expect(sounding()).toEqual(['r1', 'r3', 'r4', 'r5']);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r2']);
+    });
+
+    it('stopAudioBudget stands every muted robot back (null)', () => {
+      setRoster([...roster(5), makeRobot('m', { audioMode: 'mute' })]);
+      startAudioBudget();
+
+      stopAudioBudget();
+
+      expect(engineSet).toHaveBeenLastCalledWith(null);
     });
   });
 

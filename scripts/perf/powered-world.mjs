@@ -1,6 +1,6 @@
 /**
- * The open-the-world sequence the two audio tools share, `perf:audio` (audio-load.mjs) and `perf:audio-handlers`
- * (audio-handlers.mjs), built on cdp-lib.mjs's general Chrome plumbing and audio-load-lib.mjs's pure world helpers
+ * The open-the-world sequence the audio tools share, `perf:audio` (audio-load.mjs), `perf:audio-handlers`
+ * (audio-handlers.mjs) and `perf:audio-census` (audio-census.mjs), built on cdp-lib.mjs's general Chrome plumbing and audio-load-lib.mjs's pure world helpers
  * (backlog 27 T2). Kept out of cdp-lib.mjs, which every perf script uses and which knows nothing about worlds.
  *
  * Network and process plumbing, so it is verified by real runs rather than unit tests, as cdp-lib.mjs is
@@ -15,10 +15,15 @@ import { sleep, withChrome } from './cdp-lib.mjs';
  * loads `world` under `baseUrl` (with `?debug` unless `debug` is false), the Power button is clicked, `warmupSec`
  * passes, the overlay's rows are read as `carried`, and the pin check aborts if the overlay landed anywhere but the
  * spec's coordinates. `domains` are extra CDP domains enabled before navigation (e.g. `['Performance']`); `listen`
- * sees every CDP event from before navigation on. `run` gets the page's `{ send, evaluate, onEvent }` plus
- * `{ url, contextId, carried }`, and its return value is returned; Chrome is always shut down afterwards.
+ * sees every CDP event from before navigation on; `beforeNavigate`, when given, gets the page's CDP handle once the
+ * domains are on and before navigation (`perf:audio-census` installs its node hook there). `run` gets the page's
+ * `{ send, evaluate, onEvent }` plus `{ url, contextId, carried }`, and its return value is returned; Chrome is always
+ * shut down afterwards.
  */
-export async function withPoweredWorld({ chromePath, port, baseUrl, world, debug = true, warmupSec, domains = [], listen }, run) {
+export async function withPoweredWorld(
+  { chromePath, port, baseUrl, world, debug = true, warmupSec, domains = [], listen, beforeNavigate },
+  run,
+) {
   return withChrome({ chromePath, port }, async (cdp) => {
     const { send, evaluate, onEvent } = cdp;
     const created = [];
@@ -32,6 +37,7 @@ export async function withPoweredWorld({ chromePath, port, baseUrl, world, debug
     await send('Runtime.enable');
     await send('WebAudio.enable');
     for (const domain of domains) await send(`${domain}.enable`);
+    if (beforeNavigate) await beforeNavigate(cdp);
 
     const url = buildPageUrl(baseUrl, world, { debug });
     await send('Page.navigate', { url });

@@ -351,6 +351,10 @@ import { SAMPLE_INTERVAL_MS } from '@/utils/audioHealth';
 // ========================================
 type AnyMock = Mock & { mock: { results: Array<{ value: unknown }> } };
 
+/** Every devWarn but bypassCell's one "has no send and return" per effect key: this file's fake effects carry neither
+ *  of Tone's send / return pairs, so their cells take the effect-itself edges (backlog 67 G3) and that warning. */
+const failureWarnings = () => vi.mocked(devWarn).mock.calls.filter(([message]) => !String(message).includes('has no send and return'));
+
 /** Most recently constructed instance of a mocked Tone constructor. */
 const lastInstance = (ctor: unknown) => (ctor as unknown as AnyMock).mock.results.at(-1)?.value;
 /** Second-to-most-recently constructed instance — Filter is constructed
@@ -2203,7 +2207,7 @@ describe('globalFx', () => {
         expect(cell.in.disconnect.mock.calls).toEqual([[old], [fresh]]);
         expect(fresh.disconnect.mock.calls).toEqual([[cell.wet]]);
         expect(old.disconnect.mock.calls).toEqual([[cell.wet]]);
-        expect(devWarn).not.toHaveBeenCalled();
+        expect(failureWarnings()).toEqual([]);
         // Disconnected: a Decay flip leaves the new node out.
         fresh.connect.mockClear();
         globalFx.wireGlobalFxChain(true);
@@ -2672,7 +2676,7 @@ describe('globalFx', () => {
           expect(old.dispose).toHaveBeenCalledTimes(1);
           expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.02);
           expect(globalFx.getConnectedEffectCount()).toBe(0);
-          expect(devWarn).not.toHaveBeenCalled();
+          expect(failureWarnings()).toEqual([]);
         });
 
         it('keeps one duck once the darken has fired inside it: a later Stages change re-arms it, and the last count wins', async () => {

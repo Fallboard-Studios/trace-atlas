@@ -10,7 +10,8 @@
  * peak window, the overall mean, and the correlation between audible robots and capacity. For a long run
  * (backlog 27) each bucket also carries the live AudioNode count, the renderer's JS heap and the pending Transport
  * events, and the summary says how each moved from the first bucket to the last; the overlay's text is printed
- * once after the warm-up, so the record says what the world carried. The page's console warnings and errors, from
+ * after the warm-up, so the record says what the world carried, and again at the end of the series (the underrun count
+ * and log, backlog 67's B8). The page's console warnings and errors, from
  * navigation on, are tallied by first line (backlog 35's proof that Tone's scheduling warning is gone).
  *
  *   npm run build && npx vite preview --port 4173      # terminal 1 — serve a production build
@@ -48,6 +49,12 @@ import { withPoweredWorld } from './powered-world.mjs';
 /** How often the DevTools realtime data is polled. `contextRealtimeDataChanged` events do not arrive on their own. */
 const POLL_MS = 500;
 
+/**
+ * Seconds between the forced GC and the census line (backlog 67 T3), so Chrome's node-destroyed events for the nodes
+ * it collected arrive first: a disposed voice's nodes stay in the tally until their wrappers are collected.
+ */
+const GC_SETTLE_SEC = 1;
+
 const HELP = `Usage: npm run perf:audio -- [flags]
 
   --world <spec>     one world, name:x:y (e.g. charlie:200:-30), pinned through the page's ?seed=&x=&y=. A tweaked
@@ -64,6 +71,8 @@ const HELP = `Usage: npm run perf:audio -- [flags]
   --url <url>        base URL of the served build (default http://localhost:4173/trace-atlas/, i.e. \`vite preview\`;
                      a LAN address such as http://192.168.1.20:4173/trace-atlas/ works too). Any query on it is replaced.
   --no-debug         do not add ?debug to the URL (no overlay, so no audible-robot column)
+  --no-gc            take the census line without forcing a garbage collection first (by default the census reads
+                     after a forced GC and a ${GC_SETTLE_SEC} s settle, so voices already disposed are not counted)
   --json <path>      also write each run's buckets and summary to this file (a .json array, one entry per world)
   --chrome <path>    Chrome/Edge executable (else $CHROME_PATH, else a platform default)
   --port <n>         remote-debugging port (default 9334)
@@ -83,6 +92,7 @@ const { values: opts } = parseArgs({
     warmup: { type: 'string', default: '8' },
     url: { type: 'string', default: 'http://localhost:4173/trace-atlas/' },
     'no-debug': { type: 'boolean', default: false },
+    'no-gc': { type: 'boolean', default: false },
     json: { type: 'string' },
     chrome: { type: 'string' },
     port: { type: 'string', default: '9334' },
@@ -117,10 +127,14 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
     world,
     debug: !opts['no-debug'],
     warmupSec,
-    domains: ['Performance'],
+    domains: opts['no-gc'] ? ['Performance'] : ['Performance', 'HeapProfiler'],
     listen,
   };
   return withPoweredWorld(open, async ({ send, evaluate, url, contextId, carried }) => {
+    if (!opts['no-gc']) {
+      await send('HeapProfiler.collectGarbage');
+      await sleep(GC_SETTLE_SEC * 1000);
+    }
     const nodesAtStart = nodes.liveByType(contextId);
     const samples = [];
     const start = performance.now();
@@ -146,6 +160,8 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       });
     }
 
+    // The overlay once more at the end, for what the series changed: the underrun count and its log above all.
+    const carriedAtEnd = await evaluate(`[...document.querySelectorAll('.audio-debug-hud > div')].map((d) => d.textContent)`);
     const buckets = bucketSamples(samples, bucketSec);
     return {
       world: world.label,
@@ -154,6 +170,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       bucketSec,
       samples: samples.length,
       carried,
+      carriedAtEnd,
       consoleTally: tallyConsole(consoleEvents),
       buckets,
       summary: summarizeBuckets(buckets),
@@ -204,6 +221,10 @@ function report(run) {
   if (change.length) {
     const total = atEnd.reduce((sum, [, n]) => sum + n, 0);
     console.log(`live nodes by type, start → end of series (${total} at end):   ${change.map(([type, d]) => `${type} ${d >= 0 ? '+' : ''}${d}`).join('   ')}`);
+  }
+  if (run.carriedAtEnd.length) {
+    console.log('overlay at end of series:');
+    for (const line of run.carriedAtEnd) console.log(`  ${line}`);
   }
 }
 

@@ -107,9 +107,8 @@ const OFF_LIST = new Intl.ListFormat('en-GB', { type: 'disjunction' });
 
 /**
  * One line saying what a dial position means, for the Audio Load readout — e.g. "Up to 4 robots · 8 notes · no drift,
- * filter LFOs, pedals, colour or reverb · latency: Playback (applies on next load)", every word from
- * `settings.quality.limits.*`. The latency clause only when the hint differs from interactive, with the caveat that a
- * context's latency is fixed at load. Never prints Infinity or NaN.
+ * filter LFOs, pedals, colour or reverb", every word from `settings.quality.limits.*`. It never names the latency hint:
+ * every position boots at playback (backlog 67 T17b). Never prints Infinity or NaN.
  */
 export function describeLimits(limits: LoadLimits): string {
   const parts = [
@@ -129,10 +128,6 @@ export function describeLimits(limits: LoadLimits): string {
       ? CONTENT['settings.quality.limits.allOn'].human
       : fill('settings.quality.limits.off', { list: OFF_LIST.format(off.map((item) => offNames[item].humanLabel)) }),
   );
-  if (limits.latencyHint !== 'interactive') {
-    const hint = optionsRecord('settings.quality.limits.latency')[limits.latencyHint].humanLabel;
-    parts.push(fill('settings.quality.limits.latency', { hint }));
-  }
   return parts.join(' · ');
 }
 

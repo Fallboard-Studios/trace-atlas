@@ -261,10 +261,11 @@ export function stopRobotLifecycle(): void {
  *
  * Voice reservation and melody registration are NOT done here — every robot
  * gets both once, at spawn (spawnSystem.ts's spawnRobot), regardless of
- * docking state, and they stay put across dock cycles. That's what makes
- * `audioMode` an effective, user-overridable mute in the first place: if a
- * Docked robot's synth/melody weren't already live, flipping audioMode back
- * to 'none' in Robot Options would still produce silence.
+ * docking state. The melody stays put across dock cycles; the voice does not:
+ * the Audio Load budget stands a muted robot by, releasing its voice once its
+ * last note rings out, and rebuilds it when `audioMode` leaves 'mute' (here, or
+ * the user flipping it back in Robot Options) and admits it
+ * (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1).
  */
 export function landOnActive(localeId: string, robotId: string): void {
   const robot = useLocaleStore.getState().getRobotById(localeId, robotId);

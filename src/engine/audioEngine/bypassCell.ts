@@ -235,15 +235,16 @@ export function cellNodes(key: BypassKey): Array<Tone.ToneAudioNode | null> {
  *  edges only while `connected`. */
 export function wireCells(): void {
   for (const room of Object.values(_rooms)) room.cut.connect(room.return);
-  for (const cell of Object.values(_cells)) {
+  for (const [key, cell] of Object.entries(_cells) as Array<[BypassKey, Cell]>) {
     if (cell.dry) {
       cell.in.connect(cell.dry);
       cell.dry.connect(cell.cut);
     }
     cell.wet.connect(cell.cut);
     if (cell.connected && cell.effect) {
-      cell.in.connect(cell.effect);
-      cell.effect.connect(cell.wet);
+      const { send, ret } = effectEnds(key, cell.effect);
+      cell.in.connect(send);
+      ret.connect(cell.wet);
     }
   }
 }
@@ -301,14 +302,44 @@ function rampCell(key: BypassKey, cell: Cell, from: number, to: number, seconds:
   }
 }
 
+/** The bypass keys already warned about by effectEnds, so a cell lit and darkened all session warns once. */
+const warnedNoEnds = new Set<BypassKey>();
+
+/**
+ * Where a cell enters and leaves its effect: past Tone's `input`, `CrossFade` and `output` around it, which then never
+ * render (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G3: 8 nodes a lit effect, B5). An `Effect` (the widener's
+ * `MidSideEffect` too) has `effectSend` and `effectReturn`; a `StereoEffect` (the Chorus, Phaser and Tremolo) has its
+ * `_split` and `_merge` in their place. Both pairs are `protected` in Tone's types, so they are read through a cast. The
+ * chain is stereo from the robots' panners on, so a Split takes it as the StereoEffect's own explicit-stereo input
+ * would. The answer follows from the effect alone, so a connect, its disconnect and a rewire all use the same pair. An
+ * effect with neither keeps the edges into the effect and out of it, warned once for its key; pinned fully wet, it
+ * sounds the same.
+ */
+function effectEnds(key: BypassKey, effect: Tone.ToneAudioNode): { send: Tone.InputNode; ret: Tone.ToneAudioNode } {
+  const fields = effect as unknown as {
+    effectSend?: Tone.ToneAudioNode;
+    effectReturn?: Tone.ToneAudioNode;
+    _split?: Tone.ToneAudioNode;
+    _merge?: Tone.ToneAudioNode;
+  };
+  if (fields.effectSend && fields.effectReturn) return { send: fields.effectSend, ret: fields.effectReturn };
+  if (fields._split && fields._merge) return { send: fields._split, ret: fields._merge };
+  if (!warnedNoEnds.has(key)) {
+    warnedNoEnds.add(key);
+    devWarn('[AudioEngine] the ' + key + ' effect has no send and return: its cell connects to the effect itself');
+  }
+  return { send: effect, ret: effect };
+}
+
 /** Make the effect's two edges, its LFOs started first. Only ever called while the cell's wet gain is 0, so the new path
  *  is silent. False, with a warning, if Tone refused: the cell stays dry and unconnected with its LFOs stopped again, and
  *  the next light tries again. */
 export function connectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): boolean {
   startLfos(cell);
   try {
-    cell.in.connect(effect);
-    effect.connect(cell.wet);
+    const { send, ret } = effectEnds(key, effect);
+    cell.in.connect(send);
+    ret.connect(cell.wet);
     cell.connected = true;
     return true;
   } catch (err) {
@@ -326,8 +357,9 @@ export function connectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudio
  *  a rewire re-makes them. */
 export function disconnectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): void {
   try {
-    cell.in.disconnect(effect);
-    effect.disconnect(cell.wet);
+    const { send, ret } = effectEnds(key, effect);
+    cell.in.disconnect(send);
+    ret.disconnect(cell.wet);
     cell.connected = false;
     stopLfos(cell);
   } catch (err) {

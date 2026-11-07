@@ -663,5 +663,132 @@ describe('bypassCell', () => {
         expect(old._lfoL.start).not.toHaveBeenCalled();
       });
     });
+
+    // docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G3 (Task 15): a cell enters its effect at the effect's send and
+    // leaves at its return, so Tone's input, CrossFade and output around the effect never render (8 nodes a lit
+    // effect, B5).
+    describe('the cells reach the effect send and return (backlog 67 G3)', () => {
+      /** A Tone Effect (the AutoWah, Distortion, Vibrato, the widener...): effectSend and effectReturn Gains. */
+      const sendReturnEffect = (name: string) =>
+        Object.assign(fakeNode(name), { effectSend: fakeNode(`${name}.send`), effectReturn: fakeNode(`${name}.return`) });
+      /** A Tone StereoEffect (the Chorus, Phaser and Tremolo): its Split and Merge in their place. */
+      const stereoEffect = (name: string) =>
+        Object.assign(fakeNode(name), { _split: fakeNode(`${name}.split`), _merge: fakeNode(`${name}.merge`) });
+
+      async function chainCell(key: 'autoWah' | 'tremolo' | 'phaser', effectNode: FakeNode) {
+        const cells = await import('./bypassCell');
+        const { devWarn } = await import('@/utils/helpers');
+        vi.mocked(devWarn).mockClear(); // the mock keeps its calls across resetModules; the earlier tests' fakes have no pairs
+        cells.buildCell(key, effectNode as unknown as Tone.ToneAudioNode, GainCtor, DelayCtor);
+        cells.wireCells();
+        return { cells, cell: cells.getCell(key)!, devWarn: vi.mocked(devWarn) };
+      }
+
+      it('a lit Effect is entered at its effectSend and left at its effectReturn; nothing connects to the effect itself', async () => {
+        const autoWah = sendReturnEffect('autoWah');
+        const { cells, cell, devWarn } = await chainCell('autoWah', autoWah);
+
+        cells.writeCellMix('autoWah', 0.5);
+
+        expect(cell.connected).toBe(true);
+        expect(edgesFrom(cell.in)).toContain(autoWah.effectSend);
+        expect(edgesFrom(cell.in)).not.toContain(autoWah);
+        expect(edgesFrom(autoWah.effectReturn)).toEqual([cell.wet]);
+        expect(autoWah.connect).not.toHaveBeenCalled();
+        expect(devWarn).not.toHaveBeenCalled();
+      });
+
+      it('a lit StereoEffect is entered at its Split and left at its Merge', async () => {
+        const tremolo = stereoEffect('tremolo');
+        const { cells, cell, devWarn } = await chainCell('tremolo', tremolo);
+
+        cells.writeCellMix('tremolo', 0.5);
+
+        expect(edgesFrom(cell.in)).toContain(tremolo._split);
+        expect(edgesFrom(tremolo._merge)).toEqual([cell.wet]);
+        expect(tremolo.connect).not.toHaveBeenCalled();
+        expect(devWarn).not.toHaveBeenCalled();
+      });
+
+      it('a darken disconnects exactly the send and return edges the light made', async () => {
+        const autoWah = sendReturnEffect('autoWah');
+        const { cells, cell } = await chainCell('autoWah', autoWah);
+        cells.writeCellMix('autoWah', 0.5);
+
+        cells.writeCellMix('autoWah', 0);
+        context.fireAll();
+
+        expect(cell.connected).toBe(false);
+        expect(fake(cell.in).disconnect).toHaveBeenCalledWith(autoWah.effectSend);
+        expect(autoWah.effectReturn.disconnect).toHaveBeenCalledWith(cell.wet);
+        expect(autoWah.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('wireCells re-makes a lit cell send and return edges (a Decay flip), and none for a dark one', async () => {
+        const autoWah = sendReturnEffect('autoWah');
+        const { cells, cell } = await chainCell('autoWah', autoWah);
+        cells.writeCellMix('autoWah', 0.5);
+        fake(cell.in).connect.mockClear();
+        autoWah.effectReturn.connect.mockClear();
+
+        cells.wireCells();
+
+        expect(edgesFrom(cell.in)).toContain(autoWah.effectSend);
+        expect(edgesFrom(autoWah.effectReturn)).toEqual([cell.wet]);
+        expect(autoWah.connect).not.toHaveBeenCalled();
+
+        const tremolo = stereoEffect('tremolo');
+        cells.buildCell('tremolo', tremolo as unknown as Tone.ToneAudioNode, GainCtor, DelayCtor);
+        cells.wireCells();
+        expect(tremolo._merge.connect).not.toHaveBeenCalled();
+      });
+
+      it('a room branch (the Chorus) reaches its Split from the room in and its Merge to the branch wet', async () => {
+        const cells = await import('./bypassCell');
+        cells.buildRoom('double', GainCtor, DelayCtor);
+        const chorus = stereoEffect('chorus');
+        cells.buildBranch('chorus', 'double', chorus as unknown as Tone.ToneAudioNode, GainCtor);
+        cells.wireCells();
+
+        cells.writeCellMix('chorus', 1);
+        cells.setRoomFed('double', true);
+
+        const branch = cells.getCell('chorus')!;
+        expect(branch.connected).toBe(true);
+        expect(edgesFrom(cells.getRoom('double')!.in)).toContain(chorus._split);
+        expect(edgesFrom(chorus._merge)).toEqual([branch.wet]);
+        expect(chorus.connect).not.toHaveBeenCalled();
+      });
+
+      it('the Phaser rebuild connects the new node at its Split and Merge', async () => {
+        const old = stereoEffect('phaser');
+        const { cells, cell } = await chainCell('phaser', old);
+        const fresh = stereoEffect('phaser');
+
+        cells.setCellEffect(cell, fresh as unknown as Tone.ToneAudioNode);
+        expect(cells.connectEffect('phaser', cell, fresh as unknown as Tone.ToneAudioNode)).toBe(true);
+
+        expect(edgesFrom(cell.in)).toContain(fresh._split);
+        expect(edgesFrom(fresh._merge)).toEqual([cell.wet]);
+        expect(fresh.connect).not.toHaveBeenCalled();
+      });
+
+      it('an effect with neither pair keeps the old edges into the effect and out of it, warned once for its key', async () => {
+        const plain = fakeNode('autoWah');
+        const { cells, cell, devWarn } = await chainCell('autoWah', plain);
+
+        cells.writeCellMix('autoWah', 0.5);
+        cells.writeCellMix('autoWah', 0);
+        context.fireAll();
+        cells.writeCellMix('autoWah', 0.5);
+
+        expect(edgesFrom(cell.in)).toContain(plain);
+        expect(edgesFrom(plain)).toContain(cell.wet);
+        expect(fake(cell.in).disconnect).toHaveBeenCalledWith(plain);
+        expect(plain.disconnect).toHaveBeenCalledWith(cell.wet);
+        expect(devWarn).toHaveBeenCalledTimes(1);
+        expect(String(devWarn.mock.calls[0][0])).toContain('autoWah');
+      });
+    });
   });
 });

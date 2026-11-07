@@ -137,10 +137,12 @@ describe('Audio Load panel', () => {
     // layout-updates.md) — a sibling of the sliders' own row, not the same panel as the sliders.
     const panel = presetRadio('Full').closest('.sc-directional-panel')!;
     expect(panel.textContent).toContain('Up to 12 robots · 16 notes · all LFOs and drift');
+    // Backlog 67 T17b: every position boots at playback, so the readout no longer names the latency.
+    expect(panel.textContent).not.toMatch(/latency/i);
 
     fireEvent.click(presetRadio('Light'));
     expect(panel.textContent).toContain('Up to 4 robots · 8 notes · no drift, filter LFOs');
-    expect(panel.textContent).toContain('latency: Playback (applies on next load)');
+    expect(panel.textContent).not.toMatch(/latency/i);
     // Light tier standing cost T9/T12/T19: Light holds the pedals, the colour effects and the Reverb off, and the readout says so.
     expect(panel.textContent).toContain('no drift, filter LFOs, pedals, colour or reverb');
     fireEvent.click(presetRadio('Standard'));

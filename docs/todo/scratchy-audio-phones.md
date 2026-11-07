@@ -2272,3 +2272,533 @@ the first clean build.
 unchanged (Crawford, 2026-10-29: "No need to change full.").
 
 **Gate B** (Crawford's desktop listen, run after this sitting on the branch as built): passed (Crawford, 2026-10-29: "Gate B sounds good").
+
+## Backlog 67, the decomposition at Full (2026-11-06)
+
+Phase A of [specs/DESKTOP_FULL_TIER_STANDING_COST.md](../specs/DESKTOP_FULL_TIER_STANDING_COST.md) (plan
+[tasks/DESKTOP_FULL_TIER_STANDING_COST.md](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md), T4–T8): what the audio thread
+carries at Full on W1 and W2, by kind of work (the handler breakdown), by count and maker (the two censuses) and by
+piece of the app (the ablations), closed by the decision table for Gate A. **Stock build** for every run in this
+section: a production `vite build` of `perf/desktop-full-tier-standing-cost` at `ce9c5779`, whose `src/` is `main`'s
+`6149d912` unchanged (`index-D-mpzOoQ.js`), from the session scratchpad, `vite preview` on :4181; a
+`vite build --sourcemap` of the same commit (the same bundle) on :4192 for the census by maker. Headless Chrome
+156.0.8078.81. **W1** = `ez84fjmr` (93, −146) `?theme=wreck&load=full`; **W2** = `bravo` (−150, 90) `?load=full`, with no
+`s=` blob, so not backlog 27's D5 (`bravo` with its "seven links" blob, at Light). The desktop had nothing but VS Code
+open (Crawford away), Chrome closed and sleep off. Run outputs (`.txt` and `.json`) are kept in the session scratchpad
+(`C:\Users\Crawford\AppData\Local\Temp\claude\c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7\fdba3a53-81e1-480f-a3a4-fb5c600708fc\scratchpad\runs\`),
+named as below.
+
+### 1. The handler breakdown (T4) — `npm run perf:audio-handlers`, W1 and W2 at Full
+
+**Method.** As backlog 27's §1: three 8 s traces per world after the 8 s warm-up, interleaved W1 W2 W1 W2 W1 W2
+(`h-w1-1` … `h-w2-3b`), foreground, one run at a time, orphaned Chrome 0 before and after every run. `h-w2-3` lost data
+(buffer peak 90 %, Render spanned 7.8 s of the 8) and was re-run as `h-w2-3b`; the six kept traces each cover their
+whole window (buffer peak 81–84 %). The overlays read W1 `sounding 2/12`, `fx in 6/10`, `links 25/91` and W2
+`sounding 4/12`, `fx in 4/10`, `links 28/91`, both `standing by 0` and `bank 4/4`. Shares are of the same trace's
+Render, read as ordering (backlog 27 §1: the tracer's own cost swamps the cheap classes).
+
+**W1** (`ez84fjmr`, Render 1 574–1 625 events, 4.90–5.05 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 58.2 % (58.1–58.3) | 971 | 0.060 % |
+| ConstantSourceNode | 13.3 % (13.3–13.4) | 331 | 0.040 % |
+| BiquadFilterNode | 4.2 % (4.2–4.2) | 19 | 0.219 % |
+| WaveShaperNode | 3.7 % (3.7–3.7) | 34 | 0.109 % |
+| ConvolverNode | 3.4 % (3.4–3.5) | 1 | 3.422 % |
+| OscillatorNode | 3.3 % (3.3–3.3) | 21 | 0.158 % |
+| AudioBufferSourceNode | 2.8 % (2.8–2.8) | 31 | 0.090 % |
+| StereoPannerNode | 1.5 % (1.4–1.5) | 17 | 0.086 % |
+| DelayNode | 1.1 % (1.1–1.1) | 13 | 0.087 % |
+| ChannelSplitterNode | 0.8 % (0.8–0.8) | 11 | 0.070 % |
+| AudioWorkletNode | 0.7 % (0.7–0.7) | 1 | 0.722 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.330 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.069 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.054 % |
+| IIRFilterNode | 0.1 % (0.1–0.1) | 1 | 0.087 % |
+| **all handlers** | 94.1 % (94.1–94.1) | | |
+
+**W2** (`bravo`, Render 1 705–1 773 events, 4.49–4.66 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 57.6 % (57.6–57.7) | 907 | 0.064 % |
+| ConstantSourceNode | 14.8 % (14.7–14.9) | 342 | 0.043 % |
+| OscillatorNode | 4.2 % (4.2–4.2) | 26 | 0.162 % |
+| BiquadFilterNode | 4.0 % (4.0–4.0) | 15 | 0.267 % |
+| WaveShaperNode | 3.2 % (3.2–3.3) | 22 | 0.147 % |
+| AudioBufferSourceNode | 3.0 % (3.0–3.0) | 31 | 0.097 % |
+| ConvolverNode | 2.4 % (2.4–2.4) | 1 | 2.363 % |
+| StereoPannerNode | 1.1 % (1.1–1.1) | 11 | 0.102 % |
+| DelayNode | 1.1 % (1.0–1.1) | 12 | 0.088 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.351 % |
+| ChannelSplitterNode | 0.7 % (0.7–0.7) | 9 | 0.077 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.073 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.058 % |
+| IIRFilterNode | 0.1 % (0.1–0.1) | 1 | 0.092 % |
+| **all handlers** | 93.3 % (93.3–93.4) | | |
+
+(One stray `GainHandler::Process` row at 0.0 % per world is left out, as in backlog 27's §1.)
+
+**Reading.**
+- **How many nodes render every quantum at Full:** about **1 458 on W1** of its 1 799 live (§2), and **1 384 on W2** of
+  its 1 829, beside Light's about 1 390 / 1 410 in backlog 27 (other worlds, an October build, before H2). Full renders
+  about as many nodes as Light did then: twelve robots' voices, the chain and the bank stand in the graph at every tier.
+- **Every ConstantSource but one renders** (331 of 332 on W1, 342 of 343 on W2), the dark effects' included: a started
+  source renders whether or not anything it drives is heard, as backlog 27's H3a found for the dark cells' LFOs. Every
+  Tone Signal is a started `ConstantSourceNode` (§2: 58–59 % of all live nodes sit inside a Signal), so a Signal costs
+  its source wherever it stands.
+- **The live nodes that do not render** are about 340 on W1 and 445 on W2, nearly all Gains (286 and 376), with a few
+  wave shapers, biquads, panners and IIR filters: consistent with the dark effects' own Gains and Tone's wrapper
+  around them (W1 has four effects dark, W2 six), which nothing pulls. The trace does not name nodes, so this is a
+  reading, not a count.
+- **The heavy single nodes:** the one **Convolver** (the Reverb) is 3.4 % of traced Render on W1 and 2.4 % on W2 (the two
+  worlds seed different decays, as D1 and D5 did); the BitCrusher's **AudioWorklet** renders on W1 (0.7 %, the
+  third-heaviest single node) and not on W2; the two DynamicsCompressors 0.7 % together.
+- **Biquads:** 19 render on W1 and 15 on W2, of 32 live on each: the twelve robots' bus filters on both, plus 7 and 3
+  in the chain. The robots' `bus.frequency` links are live at Full (Light holds them off); their price is B3's and
+  B6k's (§3, §4), which the trace cannot give.
+
+### 2. The two censuses — by class and by maker (T5)
+
+**Method.** The census by class is `perf:audio`'s census line, now read after a forced GC (plan T3), on the stock
+build: W1 read **1 799** on every read this session (T3, Checkpoint A1 and the census tool's own line), W2 **1 829**
+(the census tool's own line; T6's stock runs read it again, §3).
+The census by maker is `npm run perf:audio-census` (plan T2) once per world on the sourcemapped build (:4192,
+`census-w1`, `census-w2`): it hooks every node the page makes, keeps those alive after a forced GC in the open realtime
+context, and names each by the first app frame of its creation stack. A second pass over the same JSON resolves each
+node's Tone frames too (scratchpad `census-objects.mjs`, `census-plumbing.mjs`), so every count below is the Tone object
+the maker built. Foreground, one run at a time, orphaned Chrome 0 before and after.
+
+**By class:**
+- **W1** `census after warm-up (1799): Gain 1257 · ConstantSource 332 · WaveShaper 43 · AudioBufferSource 32 · BiquadFilter 32 · Oscillator 25 · StereoPanner 25 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+- **W2** `census after warm-up (1829): Gain 1283 · ConstantSource 343 · WaveShaper 34 · AudioBufferSource 32 · BiquadFilter 32 · Oscillator 27 · StereoPanner 25 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+
+The hook counts the same nodes less the context's AudioDestination (1 798, 1 828). The page has made 3 627 (W1) and
+3 725 (W2) nodes by the 8 s mark, in seven contexts; about half have been collected: the spawn-time voices
+`loadInstruments` replaces, and every note's spent oscillator.
+
+**By maker** (alive after the GC, the realtime context; Tone objects under each from the stacks):
+
+| Maker | W1 | W2 | What it is |
+|---|---|---|---|
+| `buildGlobalFxChain` (globalFx.ts) | 570 | 570 | the chain's Tone objects: Width 85, EQ3 74, Chorus 69, Tremolo 68, AutoWah 61, Shifter 55, Vibrato 38, LPF + HPF 30, Reverb 18, BitCrusher 18, Chebyshev 17, Delay 16, Distortion 15, the Compressor and Limiter, and 4 more |
+| `createCompositeVoice` (compositeVoice.ts) | 534 | 556 | the robots' `Tone.Synth` layers, 522 (24 layers: Gain 380 · ConstantSource 131 · WaveShaper 11) and 544 (28 layers: Gain 400 · ConstantSource 142 · WaveShaper 2); the twelve composite `out` Gains |
+| `reserveVoice` (AudioEngine.ts) | 204 | 204 | the twelve bus filters, 180 (`Tone.Filter`: Gain 120 · ConstantSource 48 · BiquadFilter 12); twelve Panners (one StereoPanner each); twelve bus Gains |
+| `primeLfoBank` (lfoEngine.ts) | 196 | 196 | eight `Tone.LFO`s (the four lanes and four drifts), 184 at 23 each (Gain 128 · ConstantSource 40 · WaveShaper 8 · AudioBufferSource 8); twelve trunk and drift Gains |
+| `buildPhaser` (globalFx.ts) | 76 | 76 | the Phaser (Gain 42 · ConstantSource 12 · BiquadFilter 10 · …) |
+| `_start` (tonePatches.ts) | 68 | 68 | every Tone source running at the 8 s mark, each a started `ToneOscillatorNode` (an Oscillator and its Gains; Oscillator 24 / 26 · Gain 44 / 42): the bank's eight LFOs' 24, the lit cells' LFOs and the Shifter's oscillator 20, the sounding layers' current notes 24 (8 / 10 oscillators) |
+| `buildSendGains` (AudioEngine.ts) | 60 | 60 | the robots' five send Gains each |
+| `createLayerGain` (compositeVoice.ts) | 24 | 28 | one Gain a layer |
+| `linkTarget` (lfoEngine.ts) | 19 | 23 | one Gain a live link |
+| `buildCell` · `buildRoom` · `buildBranch` (bypassCell.ts) | 34 | 34 | the cells' and rooms' own Gains and Delays |
+| `buildChainCut`, `createTap`, `setGlobalAutoWah` (globalFx.ts) | 5 | 5 | the chain cuts' Delays, the two `?debug` analysers, the AutoWah's IIR |
+| Tone's own (`index`, `ToneAudioWorklet`) | 8 | 8 | Tone's context set-up (6: the Destination's two Gains, the Transport clock's tick Signal, the raw context's own Gain), the BitCrusher's worklet (2) |
+| **all** | **1 798** | **1 828** | **99.6 % made outside `node_modules`** on both |
+
+Grouped: the **robots' voices** (`createCompositeVoice`, `createLayerGain`, `reserveVoice`, `buildSendGains` and the
+notes' share of `_start`) are **846 nodes on W1 and 872 on W2, about 70–73 a robot**; the **chain** (the global FX, the
+Phaser, the cells, the cuts and taps, Tone's own and its LFOs' share of `_start`) **713** on both; the **bank and its
+links 239 / 243**. **58.5 % of W1's live nodes and 59.4 % of W2's sit inside a Tone Signal** (1 052 and 1 085).
+(Corrected with T6: this section first put all of `_start` in the voices, 890 / 916, the chain at 693 and the bank at
+215 / 219; the stacks past `_start` show two thirds of it is LFOs.)
+
+**The spec's static tally against the measurement** (spec survey, "What one robot's voice is" and the chain and bank
+paragraphs). Every difference has one root: **a Tone `Signal` is three nodes, a ConstantSource and two Gains** (the
+`OneShotSource` Gain and the `ToneConstantSource` Gain, both read in the stacks), where the survey counted one.
+
+| Piece | Spec (static) | Measured | The difference |
+|---|---|---|---|
+| A robot's voice | 45 (three layers) | about 70 on W1 (two layers on average), 73 on W2 | a `Tone.Synth` layer is about 22 nodes (16 Gains, 5½ ConstantSources), not 9; the bus `Tone.Filter` is 15 (10 Gains, 4 ConstantSources, the biquad), not 7; a sounding layer's current note adds about 3 |
+| Twelve voices | about 540 | 846 / 872 | as above |
+| The bank | about 120 | 196 + 24 started + 19 / 23 link Gains | a running `Tone.LFO` is 26 nodes (23 built, its started oscillator's 3); the bank has eight (four lanes, four drifts) |
+| Tone's `Effect` plumbing | about 120 (about ten an effect) | **177** on both (14–18 an effect, twelve effects) | the CrossFade's `fade` is a Signal (three nodes); the Chorus carries 18 |
+| The chain | not tallied | 713 on both | built whole, so the same count on every world |
+
+**Reading.**
+- **The census attributes everything** (the plan's criterion was 90 %): 99.6 % of the live nodes go to a named app
+  function on both worlds, and the 0.4 % left is Tone's context set-up and the BitCrusher's worklet. Every class the
+  trace sees rendering (§1) is attributed.
+- **The robots are about half the graph at Full, whether they sound or not:** 846–872 of about 1 800 nodes, against the
+  spec's 540: the voices carry about 55–60 % more nodes than assumption 1's arithmetic counted. Whether their capacity price is
+  higher too is B1's and B2's to say (§3).
+- **G2's two cuts are larger than the spec counted.** G2a (a native bus filter, no composite `out` Gain) takes 15 a
+  robot, 180 for twelve, not 7 and 84: the B6 smoke build read 1 631 against 1 799, −168, the Filter's fourteen nodes a
+  robot, its biquad replaced not removed. G2b (a native synth layer) would take about 19 of a layer's 22 nodes, about
+  450–530 on these worlds; every one of the layers' 131–142 ConstantSources renders (§1).
+- **The bank is 239–243 nodes for four lanes.** Each running `Tone.LFO` is 26 nodes, and the four drift LFOs are as big as the
+  lanes they wobble.
+
+### 3. The noise band and the ablations B1–B4 (T6) — `npm run perf:audio`, 120 s, W1 and W2 at Full
+
+**Method.** As backlog 27's §3. Each variant is one `src/` edit on `ce9c5779`, built with `vite build` to the session
+scratchpad and served by `vite preview` on its own port (stock :4181, a byte-identical copy of it :4182, B1–B4
+:4183–4186); `src/` was restored and `git status --porcelain src` read empty after each build, and each diff is kept as
+`variants/<set>.diff` beside the runs. Per set, three rounds; each round W1 then W2, each a stock run and a variant run
+back to back, stock first in rounds 1 and 3 and second in round 2 (labels `<set>-r<round>-<w1|w2>-<stock|var>`). 120 s
+after the 8 s warm-up, 15 s buckets, foreground, one run at a time: 60 runs from 20:02 to 22:17, every one exit 0,
+orphaned Chrome 0 before and after each. **Delta** = variant − same-round stock, for the mean capacity, the **crest**
+(the run's highest 15 s bucket) and the **trough** (its lowest). The noise band took twelve runs, not the plan's six:
+each copy run is paired with its own same-round stock run.
+
+**The stock build, all fifteen stock runs per world:**
+- **W1** mean **0.573** (0.542–0.631), crest 0.629 (0.589–0.735), trough 0.508 (0.486–0.573); 6.7 robots sounding on
+  average, 8.6 in the crest bucket and 2.7–5.1 in the trough (W1's lowest bucket is its first or second); census
+  1 799 on twelve runs, 1 796 on one, 1 790 on two. Four runs underran past the boot's two (11, 63, 15 and 5 by the
+  end); the 63 is the run with the highest mean and crest (`B1-r1-w1-stock`, 0.631 / 0.735).
+- **W2** mean **0.451** (0.441–0.475), crest 0.521 (0.504–0.551), trough 0.335 (0.312–0.362); 5.6 sounding on average,
+  8.8 in the crest bucket and 0.5 in the trough (the last bucket, 105–120 s, when nearly every robot is quiet); census
+  1 829 on every run; one run underran past the boot's two (4).
+
+The music is the world's (its clock and seed), so every run of a world sounds the same robots in the same buckets: the
+mean sounding count agrees to 0.1 across all thirty runs of a world, variants included.
+
+**The noise band** (stock :4181 against its copy :4182, `NB-*`):
+
+| World | Mean delta | Crest delta | Trough delta |
+|---|---|---|---|
+| W1 | +0.002 (−0.000 to +0.009) | +0.003 (−0.022 to +0.011) | −0.020 (−0.034 to −0.018) |
+| W2 | −0.010 (−0.021 to +0.003) | −0.010 (−0.012 to +0.003) | +0.011 (−0.011 to +0.043) |
+
+The band, the largest copy delta: **mean ±0.009 on W1 and ±0.021 on W2; crest ±0.022 / ±0.012; trough ±0.034 /
+±0.043.** A delta inside it, or one whose rounds straddle zero, reads "below noise".
+
+**The variants** (one edit each):
+- **B1** `audioBudgetSystem.ts`: `applyStandingBy` fed every robot outside the sounding set
+  (`robots.map((r) => r.id)`) in place of the eligible arrivals over the cap, so every quiet robot, docked or muted,
+  stands by and is released after its last note. The sounding set is unchanged (6.7 / 5.6 sounding, as stock).
+- **B2** `AudioEngine.ts` `reserveVoice`: `if (robotId) return false;` in place of the standing-by refusal, so no robot
+  has a voice.
+- **B3** `src/constants`: `LOAD_DRIFT_MIN` and `LOAD_BUS_FILTER_LFOS_MIN` 0.8 → 1.01, Light's two tiers at Full: the
+  four drift LFOs stopped and the twelve `bus.frequency` links held off.
+- **B4** `bypassCell.ts` `writeCellMix`: `mix = key === 'stereoWidener' ? 0.5 : 0`, every bypass effect dark (Width at
+  its dark 0.5); the overlay reads `fx in 0/10`.
+
+**Results** (median of three rounds, range in brackets; the census at the 8 s mark, stock → variant):
+
+| Set | World | Stock mean / crest / trough | Mean delta | Crest delta | Trough delta | Census |
+|---|---|---|---|---|---|---|
+| B1 | W1 | 0.582 / 0.629 / 0.536 | **−0.079** (−0.118 to −0.058) | −0.002 (−0.131 to +0.003), below noise | **−0.152** (−0.187 to −0.126) | 1 790–1 799 → 1 119 |
+| B1 | W2 | 0.449 / 0.518 / 0.335 | **−0.054** (−0.066 to −0.040) | +0.006 (−0.003 to +0.032), below noise | **−0.142** (−0.145 to −0.116) | 1 829 → 1 267 |
+| B2 | W1 | 0.560 / 0.614 / 0.498 | **−0.409** (−0.413 to −0.404) | **−0.452** (−0.474 to −0.449) | **−0.349** (−0.351 to −0.340) | 1 799 → 934 |
+| B2 | W2 | 0.451 / 0.517 / 0.335 | **−0.304** (−0.315 to −0.300) | **−0.363** (−0.365 to −0.360) | **−0.191** (−0.203 to −0.184) | 1 829 → 937 |
+| B3 | W1 | 0.575 / 0.656 / 0.511 | **−0.037** (−0.052 to −0.021) | **−0.065** (−0.108 to −0.017) | −0.014 (−0.023 to −0.008), below noise | 1 799 → 1 787 |
+| B3 | W2 | 0.450 / 0.524 / 0.340 | −0.016 (−0.034 to −0.004), below noise | −0.017 (−0.035 to −0.005), at the band's edge | −0.012 (−0.043 to +0.001), below noise | 1 829 → 1 817 |
+| B4 | W1 | 0.572 / 0.628 / 0.503 | **−0.086** (−0.106 to −0.080) | **−0.082** (−0.122 to −0.049) | **−0.087** (−0.112 to −0.080) | 1 790–1 799 → 1 787–1 796 |
+| B4 | W2 | 0.455 / 0.527 / 0.340 | **−0.072** (−0.073 to −0.046) | **−0.082** (−0.089 to −0.053) | **−0.057** (−0.075 to −0.025) | 1 829 → 1 826 |
+
+The crest and trough are each run's own highest and lowest bucket. Where a variant moves which bucket is lowest (B1
+does), that delta compares two moments, so the per-robot prices below are read bucket by bucket instead. **B1 and B2,
+bucket by bucket** (each bucket's same-round delta, averaged over the three rounds, beside the bucket's stock sounding
+count; a bucket is the same moment of the music in all six runs):
+
+| W1 bucket (s) | 0–15 | 15–30 | 30–45 | 45–60 | 60–75 | 75–90 | 90–105 | 105–120 |
+|---|---|---|---|---|---|---|---|---|
+| Sounding (stock) | 2.7 | 5.1 | 6.8 | 8.6 | 8.1 | 8.9 | 7.4 | 5.7 |
+| B1 delta | −0.235 | −0.130 | −0.109 | −0.020 | −0.049 | −0.003 | −0.040 | −0.098 |
+| B2 delta | −0.345 | −0.364 | −0.387 | −0.443 | −0.432 | −0.447 | −0.439 | −0.410 |
+
+| W2 bucket (s) | 0–15 | 15–30 | 30–45 | 45–60 | 60–75 | 75–90 | 90–105 | 105–120 |
+|---|---|---|---|---|---|---|---|---|
+| Sounding (stock) | 5.3 | 8.3 | 9.9 | 8.8 | 6.5 | 3.6 | 1.9 | 0.5 |
+| B1 delta | −0.073 | −0.031 | +0.015 | −0.003 | −0.047 | −0.073 | −0.080 | −0.134 |
+| B2 delta | −0.329 | −0.354 | −0.363 | −0.370 | −0.315 | −0.275 | −0.257 | −0.190 |
+
+**The overlays.** B1's warm-up overlay read `fx in 5/10` on W1 (stock 6; 6 again by the end): a room branch only
+quiet robots fed goes dark while they are released, as backlog 27's A2 found, so B1's W1 delta carries a branch for
+part of the run. Its `standing by` token stayed 0, as stock (the census shows the voices gone). Every B1 run logged
+one console warning, Tone's "Events scheduled inside of scheduled callbacks should use the passed in scheduling time":
+a readmitted voice's sends ramping from `now()` inside the Transport callback, the wart H2 recorded and plan T10
+removes (spec §1.3 G1). B2's overlay read `fx in 3/10` on both worlds (stock 6 and 4): with no voice nothing feeds
+the three rooms, so the room branches lit on W1 (three) and W2 (one) go dark with the voices, and B2's delta carries
+them. B3's and B4's overlays matched stock but for B4's `fx in 0/10`; no other run logged a warning; every B1–B4 variant
+run ended on the boot's two underruns.
+
+**The dark effects' Signals render** (one 8 s `npm run perf:audio-handlers` trace on B4, W1, :4186, `h-w1-B4`, taken
+between T6 and T7: buffer peak 81 %, Render spanned the whole 8 s, overlay `sounding 2/12`, `fx in 0/10`):
+- **331 ConstantSourceNodes render, the same 331 as each stock W1 trace (§1).** Every effect is dark and not one source
+  stops: a dark effect's Signals render as a lit effect's do. The chain holds 112 ConstantSources
+  (`buildGlobalFxChain` 100, the Phaser 12) and 376 nodes inside a Signal (§2's census).
+- **What stops rendering:** Gains 971 → 839 (−132), WaveShaper 34 → 23, StereoPanner 17 → 11, ChannelSplitter 11 → 2,
+  Delay 13 → 8, BiquadFilter 19 → 15, Oscillator 21 → 18, ChannelMerger 3 → 0, the AudioWorklet (the BitCrusher's)
+  and the IIR filter 1 → 0: about 175 nodes, the lit effects' audio paths. Render per event fell to 4.25 ms from
+  4.90–5.05 (−13 to −16 %), as B4's mean did (−0.086 of 0.572, −15 %), though a traced Render's length is not a
+  price (§4).
+- So **B4 prices lit against dark, not lit against absent**: the dark effects' standing Signals are in both arms. No
+  B variant prices them; §5 carries them as a row.
+
+**Reading.**
+- **The robots are most of Full** (B2). With no voice, W1 stands at 0.15 (0.151–0.155) and W2 at 0.15 (0.145–0.149),
+  flat across the buckets (B2's crest is 0.16): the chain with three lit cells, the bank and the overhead, beside
+  Light's about 0.17 on D1/D5 with five lit (spec assumption 1). The voices and the room branches they feed are 0.409
+  of W1's 0.560 (73 %) and 0.304 of W2's 0.451 (67 %); at the crest 0.45 / 0.36, at the trough 0.35 / 0.19.
+- **A quiet robot's voice** (B1: the docked and muted robots released). On the mean, −0.079 over W1's 5.3 quiet
+  robots is **about 0.015 a robot**, and −0.054 over W2's 6.4 **about 0.008**. Bucket by bucket the price follows the
+  quiet count: W1's first bucket (9.3 quiet) −0.235, **about 0.025 a robot**; W2's last (11.5 quiet) −0.134, **about
+  0.012**. In the crest buckets (W1 8.6 sounding, W2 9.9) B1 is below noise: few robots are quiet then, and those are
+  between notes, released and readmitted. The census agrees on size: B1's 8 s census is 680 / 562 lower, about nine
+  or ten and eight voices at §2's 70–73 nodes.
+- **A sounding robot** (B2 by subtraction, as the plan asks): (B2 − B1 − B2's dark branches) ÷ the mean sounding count.
+  W1 (0.409 − 0.079 − 3 × 0.014) ÷ 6.7 ≈ **0.043**; W2 (0.304 − 0.054 − 0.018) ÷ 5.6 ≈ **0.041**; the branches priced
+  at B4's figure an effect (below), an estimate. Bucket by bucket, B2's delta deepens by **0.017–0.018 for each robot
+  more sounding** on both worlds (a least-squares fit over the 24 bucket deltas: r² 0.68 on W1, 0.88 on W2; the stock
+  runs themselves climb about 0.018 a sounding robot): a sounding robot costs about 0.018 more than a quiet one. The
+  same fit puts twelve quiet voices at 0.29 / 0.21 above the floor (0.25 / 0.19 less the branches), about 0.021 /
+  0.016 a quiet robot, so 0.038 / 0.034 a sounding one. B1's figure for W2 is below the fit's, probably because B1
+  releases a robot only after its last note and readmits it at its next, and so reaches fewer than every quiet one.
+  **A quiet robot costs about 0.01–0.025 at Full, a sounding one about 0.035–0.045**, W1 the dearer world on both.
+- **Against assumption 1's per-robot figures** (docked 0.015, sounding 0.06): the docked figure sits inside the
+  measured range (W1's trough reads above it), and a sounding robot costs about two thirds of what was assumed. A
+  sounding robot is 2–5 times a quiet one by these figures, not a constant. The sum against the stock mean is §4's.
+- **At W1's trough the quiet voices are the larger part; at its crest the sounding ones are.** In the 0–15 s bucket
+  the robots and their branches are 0.345 (B2), of which the 9.3 quiet voices are 0.235 (B1). In the crest bucket
+  (45–60 s) they are 0.443, of which B1 releases almost nothing (−0.020): the crest is the sounding robots.
+- **B3, Full's LFO extras:** W1 −0.037, every round clear of the band, inside the spec's 0.03–0.05 estimate, and −0.065
+  at the crest; the bucket deltas run from −0.007 to −0.081, deeper as more robots sound (fit r² 0.20, weak). On W2,
+  −0.016, below noise on the mean. The census's −12 (Gain −8, Oscillator −4) is the four stopped drift LFOs' started
+  oscillators; the held-off links keep their Gains (`links 25/91` and `28/91`, as stock). Whether the links'
+  audio-rate biquads or the drifts carry the price is B6k's to say (§4).
+- **B4, the lit effects:** W1 −0.086 for six lit, **about 0.014 an effect**; W2 −0.072 for four, **about 0.018**; flat
+  across the buckets (fit r² 0.04 / 0.20): the effects are a standing cost, not the music's. The 2026-10-20 offline
+  prices (lit, one at a time, ‰ of a core, "What a lit effect costs") run 9.8–45.8 ‰ an effect, and D1's five lit
+  summed to 75 ‰, about 0.075: B4's figures sit in that range. Which six are lit on W1 and which four on W2 is §5's
+  (the overlay counts the lit cells; it does not name them).
+
+### 4. The ablations B5–B8 and the sum (T7) — `npm run perf:audio`, 120 s, W1 and W2 at Full
+
+**Method.** As §3: the same stock build (:4181) and noise band; B5–B8 one `src/` edit each on `ce9c5779`, served on
+:4187–4191 (B6k between B6 and B7), each diff kept as `variants/<set>.diff`, `git status --porcelain src` empty after
+each build. 60 runs from 22:19 to 00:34, every one exit 0, orphaned Chrome 0 before and after each; no run logged a
+console warning, B5's and B6k's own checks included. The stock rose through the night, from 0.540–0.602 in B5's rounds
+to 0.636–0.642 in B8's on W1 and from 0.428–0.482 to 0.511–0.539 on W2; the same-round deltas cancel it, so each set
+is read against its own stock (the table's first column). Every variant's overlay matched its stock's (`fx in 6/10` and
+`4/10`, `links 25/91` and `28/91`, `bank 4/4`, `standing by 0`), and every variant's end-of-run output sat inside its
+stock's spread (`rms` within about 1 dB): each still sounds. After the runs, three more 8 s handler traces on W1: B5
+twice (:4187, `h-w1-B5`, `h-w1-B5b`) and the stock once between them (`h-w1-stock-t7`), each covering its window
+(buffer peak 74–82 %).
+
+**The variants** (one edit each):
+- **B5** `bypassCell.ts`: every cell's effect entered at its `effectSend` and left at its `effectReturn` (a
+  `StereoEffect`, i.e. the Chorus, Phaser and Tremolo, has `_split` and `_merge` in their place), in `connectEffect`,
+  `disconnectEffect` and `wireCells`, so Tone's `input`, `CrossFade` and `output` around each effect go unrendered.
+  The plan's B5 took one lit cell and one dark; a dark cell is unwired (§1: its Gains are live and unrendered), so
+  that arm had nothing to measure, and B5 took every cell instead: the six lit on W1 and the four on W2 (§5 names
+  them). The wet path was checked by structure and output level only (the overlay and `rms` above, and no
+  `ABLATION B5` warning, so every effect had one of the two pairs), not by a per-cell tap.
+- **B6** `AudioEngine.ts` `reserveVoice`: the bus filter a `BiquadFilterNode` from
+  `Tone.getContext().rawContext.createBiquadFilter()`, its type, cutoff and Q set, connected on with `Tone.connect`,
+  in place of the `Tone.Filter`. The `bus.frequency` links attach to its native `frequency` (`links 25/91` and
+  `28/91`, as stock).
+- **B6k** as B6, with the biquad's `frequency.automationRate = 'k-rate'`. standardized-audio-context's `AudioParam`
+  wrapper does not pass `automationRate` through, so the native biquad was caught as the wrapper made it, by wrapping
+  `createBiquadFilter` on the wrapper's private `_nativeAudioContext` for that one call. A warning would have fired
+  had the rate not read back as `'k-rate'`; none did.
+- **B7** `reserveVoice`: each layer's `gainNode` disconnected from the composite's `out` Gain and connected to the
+  Panner. The `out` Gain stays, unconnected, so it no longer renders.
+- **B8** `src/constants`: `LOAD_PLAYBACK_BELOW` 0.61 → 1.01, so Full boots at `latencyHint: 'playback'` (overlay
+  `latency playback … base 21ms`; stock `interactive … base 11ms`).
+
+**Results** (median of three rounds, range in brackets; the census at the 8 s mark, stock → variant; the bands are §3's):
+
+| Set | World | Stock mean / crest / trough | Mean delta | Crest delta | Trough delta | Census |
+|---|---|---|---|---|---|---|
+| B5 | W1 | 0.580 / 0.623 / 0.543 | **−0.028** (−0.032 to −0.024) | **−0.043** (−0.049 to −0.013) | −0.035 (−0.046 to −0.027), at the band's edge | 1 790–1 799 → 1 799 |
+| B5 | W2 | 0.429 / 0.505 / 0.305 | −0.006 (−0.023 to +0.004), below noise | −0.001 (−0.044 to +0.012), below noise | +0.009 (+0.003 to +0.017), below noise | 1 829 → 1 829 |
+| B6 | W1 | 0.557 / 0.616 / 0.513 | **−0.025** (−0.052 to −0.022) | **−0.036** (−0.070 to −0.001) | −0.033 (−0.046 to −0.031), below noise | 1 790–1 799 → 1 628–1 631 |
+| B6 | W2 | 0.462 / 0.533 / 0.340 | **−0.046** (−0.049 to −0.029) | **−0.042** (−0.052 to −0.024) | −0.025 (−0.037 to −0.018), below noise | 1 829 → 1 661 |
+| B6k | W1 | 0.614 / 0.678 / 0.521 | −0.032 (−0.101 to +0.004), below noise | −0.075 (−0.102 to +0.006), below noise | −0.029 (−0.055 to +0.035), below noise | 1 799 → 1 631 |
+| B6k | W2 | 0.502 / 0.598 / 0.348 | **−0.034** (−0.048 to −0.032) | **−0.020** (−0.093 to −0.011) | −0.020 (−0.040 to −0.005), below noise | 1 829 → 1 661 |
+| B7 | W1 | 0.638 / 0.710 / 0.572 | −0.006 (−0.046 to +0.025), below noise | −0.009 (−0.077 to +0.035), below noise | −0.002 (−0.050 to +0.016), below noise | 1 799 → 1 799 |
+| B7 | W2 | 0.501 / 0.613 / 0.358 | −0.003 (−0.020 to +0.006), below noise | −0.044 (−0.065 to −0.002), read below | +0.008 (−0.024 to +0.009), below noise | 1 829 → 1 829 |
+| B8 | W1 | 0.640 / 0.707 / 0.572 | **−0.028** (−0.033 to −0.023) | −0.011 (−0.018 to −0.007), below noise | −0.070 (−0.077 to +0.005), below noise | 1 799 → 1 799 |
+| B8 | W2 | 0.517 / 0.615 / 0.369 | **−0.042** (−0.063 to −0.038) | **−0.057** (−0.099 to −0.039) | **−0.050** (−0.063 to −0.005) | 1 829 → 1 829 |
+
+B6's census is Gain −120 and ConstantSource −48 on both worlds (W1 1 257 → 1 137 and 332 → 284), the BiquadFilters
+32 as stock. B5's and B7's are stock's: their nodes stay, unrendered. B8's underruns and latency, from the overlay at
+the end of each run:
+
+| | W1 stock | W1 B8 | W2 stock | W2 B8 |
+|---|---|---|---|---|
+| Underruns at the end (rounds 1–3, the boot's two included) | 4, 10, 5 | 2, 3, 2 | 2, 5, 2 | 2, 2, 61 |
+| Average output latency (`lat`) | 39–45 ms | 50–56 ms | 44–45 ms | 54–56 ms |
+
+**Reading.**
+- **B5, Tone's `Effect` plumbing around a lit effect:** W1 −0.028 for six lit, **about 0.005 an effect**, every
+  round clear of the band and flat across the buckets (fit r² 0.00); W2 below noise for four (under about 0.005 an
+  effect, by its band). The traces say what stops. Against the same-session stock (`h-w1-stock-t7`: Gains 971,
+  WaveShapers 34, StereoPanners 17, ChannelSplitters 11, as every §1 trace), both B5 traces render 941, 28, 11 and 5:
+  **48 nodes, 8 a lit effect** (five Gains and the CrossFade's WaveShaper, StereoPanner and ChannelSplitter). Every
+  other class renders as stock, the 331 ConstantSources included, so each CrossFade's fade Signal keeps its source
+  running. On W1 the plumbing is about a third of B4's price for the same six effects (0.028 of 0.086). Every cell lit
+  would put it near ten × 0.005 ≈ 0.05, an estimate. The Reverb and the Delay sit in Tone wrappers too, outside B5.
+- **A traced Render's length is not a price.** B5's two traces took 5.26 and 5.33 ms a Render event against the
+  same-session stock's 4.99, the opposite of B5's untraced −0.028. The tracer saturates the render thread (Render
+  spans the whole 8 s of every trace), so the time an event takes moves with the tracer's own work, not the graph's.
+  §3's B4 figure (4.25 ms, −13 to −16 %) happened to agree with B4's mean; it is not a price either. What a trace
+  gives is which nodes render.
+- **B6, the bus filter's Tone wrapper:** W1 −0.025 and W2 −0.046, every round clear of the band on both, flat across
+  the buckets (fit r² 0.00 / 0.01): **about 0.002–0.004 a robot**. The census is **−14 a robot** on both worlds (Gain
+  −10, ConstantSource −4: the `Tone.Filter`'s input and output Gains and its four Signals, `frequency`, `detune`, `Q`
+  and `gain`, against one native biquad, the biquad count unchanged), −168 for twelve: about 0.00015–0.0003 a node.
+- **B6k − B6, the a-rate price** (two builds, each against its own stock, so two noise bands apart): W1 −0.007, W2
+  +0.012, **below noise on both and of opposite sign**; B6k's own W1 rounds run from −0.101 to +0.004. The 2026-10-20
+  native probe ("What a lit effect costs", the k-rate table: 20 biquads at 27.6 ‰ a-rate, 10.5 ‰ k-rate) puts the
+  saving near 0.9 ‰ a biquad channel, so about 0.01–0.02 for twelve stereo bus filters: an estimate these runs neither
+  confirm nor rule out (W2's band is ±0.021). While a robot's link is live its bus biquad is on the per-sample path
+  whichever way it is built: in stock the `frequency` Signal drives the param at audio rate, in B6 the link Gain does.
+- **B7, one standing Gain a robot:** below noise on the mean and the trough on both worlds. W2's crest reads −0.044
+  with all three rounds negative, but twelve Gains at B6's price a node come to about 0.002–0.004 and the mean is
+  −0.003: read as the crest bucket's noise. **One Gain a robot is under about 0.001** (W1's mean band ÷ 12).
+- **B8, Full at `playback`:** the mean falls **0.028 on W1 and 0.042 on W2**, every round clear of the band, flat
+  across W2's buckets (−0.024 to −0.061) and patchy across W1's (−0.001 to −0.049). W2's crest (−0.057) and trough
+  (−0.050) clear their bands; W1's do not. The stock runs ended at 4, 10 and 5 underruns on W1 and 2, 5 and 2 on W2;
+  B8's at 2, 3 and 2 and at 2, 2 and 61. The 61 is one audio-clock stall at 0:30 in `B8-r3-w2-var` (`audio clock
+  stalled (x0.20)`, recovered after 0.5 s, 59 underruns in 0.9 s), the only stall the overlay logged in T6's and T7's
+  120 runs; one run cannot say whether the playback buffer or the host caused it. The cost on this desktop: average
+  output latency 50–56 ms against 39–45 (about +11 ms), base latency 21 ms against 11. Decision J's ~266 ms is the
+  Pixel's figure, not this machine's.
+
+**The sum** (the spec's criterion: B1 + B2 + B3 + B4 against the stock mean). The parts overlap:
+- B1 is a subset of B2: it releases some of the voices B2 refuses.
+- B2 includes the room branches its voices feed (Distortion, BitCrusher and Chorus on W1, Chorus on W2: §5), which B4
+  darkens too.
+- B3's twelve bus links sit on the voices' filters, inside B2; its four drift LFOs are the bank's, in the floor. No run
+  measured that split.
+- B5 is inside B4 (a lit effect's own plumbing); B6, B6k and B7 are inside B2 (a voice's filter and Gain). B8 is not a
+  part: it changes the buffer every part renders into.
+
+So the parts that do not overlap are B2, B4 less the branches, and anywhere from none to all of B3. The branches are
+priced at B4's figure an effect (W1 3 × 0.014 = 0.043, W2 0.018); the offline list's (W1 0.031, W2 0.017) would add
+0.012 to W1's explained share. Against T6's pooled stock (§3); the crest and trough rows add each run's own extreme
+bucket, so they are rougher than the mean's:
+
+| | W1 mean | W1 crest | W1 trough | W2 mean | W2 crest | W2 trough |
+|---|---|---|---|---|---|---|
+| Stock (pooled, §3) | 0.573 | 0.629 | 0.508 | 0.451 | 0.521 | 0.335 |
+| B2: the voices and their branches | 0.409 | 0.452 | 0.349 | 0.304 | 0.363 | 0.191 |
+| … of which B1: the quiet voices | 0.079 | below noise | 0.152 | 0.054 | below noise | 0.142 |
+| B4 less the branches: the lit chain cells | 0.043 | 0.039 | 0.044 | 0.054 | 0.064 | 0.039 |
+| B3, its part outside B2 | 0–0.037 | 0–0.065 | 0–0.014 | 0–0.016 | 0–0.017 | 0–0.012 |
+| **Explained** | **0.45–0.49 (79–85 %)** | **0.49–0.56 (78–88 %)** | **0.39–0.41 (77–80 %)** | **0.36–0.37 (79–83 %)** | **0.43–0.44 (82–85 %)** | **0.23–0.24 (69–72 %)** |
+| **Left** | 0.08–0.12 | 0.07–0.14 | 0.10–0.11 | 0.08–0.09 | 0.08–0.09 | 0.09–0.11 |
+
+**What is left**, about 0.08–0.12 of the mean on both worlds (a sixth to a fifth of it), is the part of the floor no
+B variant prices one by one: B2's 0.15 less the lit chain cells and B3's drift share. It holds the bank's LFOs (§2:
+239–243 nodes, 24 started oscillators), the master chain (EQ3, the LPF and HPF, the Compressor, the Delay, the
+Limiter), the Reverb's Convolver (3.4 % / 2.4 % of traced Render, §1), the dark effects' standing Signals (§3) and the
+graph's fixed overhead. §5 carries it as a row.
+
+**Assumption 1 against the numbers.** It predicted about 0.5 at W1's trough and about 0.7 at its crest; the stock
+reads 0.51 and 0.63 (T6's pooled; T7's 0.53 and 0.67). The totals hold. The parts, item by item:
+
+| Assumption 1's part (W1) | Assumed | Measured | From |
+|---|---|---|---|
+| The floor without the robots | Light's 0.17 | 0.15 at Full, three chain cells lit | B2 |
+| A docked voice | 0.015, × ~9 ≈ 0.13 at the trough | 0.008–0.025 a quiet robot; 0.235 for W1's 9.3 quiet in its 0–15 s bucket | B1 (§3) |
+| One more lit effect than Light's five | ≈ 0.02 | 0.014 an effect; six lit on W1 (the offline list's prices for those six sum to 0.078) | B4 |
+| The bus links and the drift LFOs | 0.03–0.05 | 0.037 on W1, below noise on W2 | B3 |
+| `interactive` callbacks | unpriced | 0.028 / 0.042 at the mean (what `playback` saves) | B8 |
+| A sounding robot | 0.06 (× 2.6 ≈ 0.16 at the trough, × 8.5 ≈ 0.5 at the crest) | 0.035–0.045 (× 8.6 ≈ 0.30–0.39 in W1's crest bucket) | B2 less B1 (§3) |
+
+Its conclusion was: "If it holds, the standing floor is mostly docked voices and Full's extras, and the crest is the
+music." **Half corrected:** the floor above Light's is mostly the quiet voices, not Full's extras. B3 and the sixth
+lit effect come to about 0.05 together on W1, and the `interactive` buffer to about 0.03, while at W1's trough the
+quiet voices are 0.235 of 0.508. **Half confirmed:** the crest is the music. In W1's crest bucket the robots are
+0.443, and releasing every quiet one moves it by 0.020. The totals came out right because the two errors cancel: a
+sounding robot costs about two thirds of what was assumed, and a quiet one costs as much as assumed on the mean but
+more at W1's trough.
+
+### 5. The decision table for Gate A (T8)
+
+One row per piece: the spec's G1–G8, two more the runs surfaced, and the spec's hygiene note. Prices are §3's and
+§4's medians: the mean, crest and trough deltas (bold where clear of the noise band), on W1 (`ez84fjmr`, 0.573 / 0.629
+/ 0.508 stock) and W2 (`bravo`, 0.451 / 0.521 / 0.335). The census is the 8 s mark's live-node change. Files are the
+spec §2's; tasks are the plan's. **Nothing here is decided: Gate A is Crawford's.**
+
+**Which effects are lit** (needed by G3 and G6; read from the running app at Full with backlog 27's lit probe, `npm run
+dev` on :5191, the engine's own cells and rooms; `probe-lit.mjs` in the session scratchpad, nothing of it committed;
+it matches the overlay's `fx in 6/10` and `4/10`):
+- **W1:** AutoWah (0.45), Vibrato (0.94) and Width (0.54) in the chain; Distortion (0.19) and BitCrusher (0.14) on
+  the Grit room (11 of 12 robots send to it); Chorus on the Double room (fed by one robot, 0.47). Dark: Chebyshev,
+  Phaser, Tremolo, and the Frequency Shifter (Shimmer is unfed). The offline list prices the six at 77.7 ‰, beside
+  B4's 0.086.
+- **W2:** AutoWah (0.44), Vibrato (0.88) and Width (0.62); Chorus on Double (three robots). Dark: Distortion,
+  Chebyshev and BitCrusher (Grit is fed by two robots but every Grit depth is 0), Phaser, Tremolo, Shifter (Shimmer
+  unfed). Offline 63.2 ‰, beside B4's 0.072.
+- **The Phaser is dark on both worlds** (Mix 0, 5 stages), so the Phaser is in neither world's price.
+
+**Inaudible**
+
+| Row | The piece | W1 mean / crest / trough | W2 mean / crest / trough | Census | The cut and its files | Audible? | To build | Rec. |
+|---|---|---|---|---|---|---|---|---|
+| **G1** | The quiet robots' standing voices: the docked (`audioMode: 'mute'`) and user-muted; solo-silenced per Q1 | **−0.079** / below noise / **−0.152** (0.015–0.025 a quiet robot) | **−0.054** / below noise / **−0.142** (0.008–0.016) | −680 / −562 (B1) | Every robot outside the sounding set stands by and is released after its last note, readmitted before its next; an admitted robot's sends at the tick's time. `standingBy.ts`, `audioBudgetSystem.ts`, `AudioEngine.ts`; `AUDIO_SYSTEM.md`, `ROBOT_LIFECYCLE.md` | No: a released robot triggers nothing. A room only quiet robots feed goes dark meanwhile (W1's Chorus), silent anyway | T9–T11 | **1st** |
+| **G2a** | The bus filter's Tone wrapper (14 nodes a robot) and the composite `out` Gain (1) | Filter **−0.025** / **−0.036** / below noise; `out` Gain below noise | Filter **−0.046** / **−0.042** / below noise; `out` Gain below noise | Filter −168 (Gain −120, ConstantSource −48); `out` −12 once removed | A native `BiquadFilterNode` behind `buildBusFilter` (T12); no `out` Gain (T13). `busFilter.ts`, `AudioEngine.ts`, `lfoShared.ts` / `lfoEngine.ts`, `compositeVoice.ts` | No | T12, T14; T13 optional | **2nd** (T12) |
+| **G2b** | The synth layer's Tone wrapper (the Synths' unity Gains, the Omni's Signals; −21 a robot by the spec's count) | Not priced: no variant isolates it. Its ceiling is the sounding robot, 0.035–0.045 each; W1's crest bucket's robots are 0.443 | Not priced, as W1; W2's crest bucket's robots are 0.363 | −252 for twelve by the spec, unmeasured | A layer on native nodes in place of `Tone.Synth`. `compositeVoice.ts`, `AudioEngine.ts`, `articulation.ts` | No, if the envelope and oscillator keep their shape; a listen proves it | T18 (a stub) or a phase of its own (Q2) | Own phase |
+| **G3** | Tone's `Effect` plumbing around each lit effect: its input, CrossFade and output, 8 rendering nodes | **−0.028** / **−0.043** / −0.035 at the band's edge (0.005 a lit effect, six lit) | Below noise on all three (four lit) | None (the nodes stay; 48 fewer render on W1) | Cells wired to `effectSend` / `effectReturn` (`_split` / `_merge` on a `StereoEffect`). `bypassCell.ts`: `connectEffect`, `disconnectEffect` **and `wireCells`**, which T15 calls unchanged but which B5 had to change; the Phaser's rebuild in `globalFx.ts` | No: the cell's law is the one in force; B5's output level matched | T15 (amended), T16 | **4th** |
+| **G4** | Full's `interactive` buffer | **−0.028** / below noise / below noise; underruns at the end 2, 3, 2 against the stock's 4, 10, 5 | **−0.042** / **−0.057** / **−0.050**; 2, 2, 61 (one clock stall) against 2, 5, 2 | None | `LOAD_PLAYBACK_BELOW` above 1 in `src/constants/index.ts`; `?latency=interactive` stays the way back | Not as sound; about +11 ms output latency (39–45 → 50–56 ms), a control-feel call (Q3) | T17 | **3rd** |
+| **New: dark Signals** | A dark effect's Signals keep their ConstantSources rendering (§3: all 331 render with every effect dark; §4: a bypassed CrossFade's fade source too). W1 has four dark effects, W2 six | Not priced: no variant removes them (B4 prices lit against dark) | Not priced | The chain's 112 ConstantSources and 376 nodes inside its Signals (§2); the dark share unmeasured | A dark effect torn down after its darken and rebuilt, silent under the cell's zero wet, when it lights (as `rebuildPhaser` swaps a Phaser today). `bypassCell.ts`, `globalFx.ts` | No, if the rebuild is silent; the crossing recipe proves it | No task; a spec after an ablation | Ablation first |
+| **New: the floor's remainder** | What §4's sum leaves: the bank's LFOs, the master chain (EQ3 = G7, LPF and HPF, Compressor, Delay, Limiter), the Reverb (G8), the dark Signals (above), overhead | 0.08–0.12 / 0.07–0.14 / 0.10–0.11 | 0.08–0.09 / 0.08–0.09 / 0.09–0.11 | Bank 239–243 (§2) | None proposed: the bank and the master chain are the music's own | — | — | Chase the dark Signals only |
+| **Hygiene: the double build** | Every voice built twice at boot and on restart | Not priced: disposed nodes cost the render thread nothing (T3's GC removes 38 at Full) | Not priced | +38 until the GC runs | Build once: the reservation path in `AudioEngine.ts` | No | No task | A backlog entry |
+
+**Audible** (Phase B2, only on a Gate B miss, each its own listen)
+
+| Row | The piece | W1 | W2 | Census | The cut and its files | Audible? | To build | Rec. |
+|---|---|---|---|---|---|---|---|---|
+| **G5** | The twelve bus biquads' per-sample coefficients while their links are live | B6k − B6: −0.007, below noise; the offline estimate is 0.01–0.02 for twelve | +0.012, below noise | None | `frequency.automationRate = 'k-rate'` on the native bus filter (needs G2a's T12). standardized-audio-context hides `automationRate`; B6k reached the native param through the wrapper's private `_nativeAudioContext`, so T21 must say how it reaches it. `busFilter.ts`, perhaps `tonePatches.ts` | Maybe: a slow LFO stepping every 2.7 ms | T21 | Last |
+| **G6** | The lit pedals | B4 **−0.086** / **−0.082** / **−0.087**, flat (six lit, 0.014 an effect) | **−0.072** / **−0.082** / **−0.057** (four lit, 0.018) | −3 (B4) | T22, the Phaser's stage ceiling: **the Phaser is dark on both worlds, so it saves nothing here.** T23, the AutoWah's rolloff (lit on both): offline −13 to −27 % of 24.9 ‰, about 0.003–0.007. T24, native Phaser and AutoWah at k-rate (the AutoWah about −35 %, about 0.009), a spec of its own. `classic.ts`, `aspects.ts`; `tonePatches.ts`, `globalFx.ts` | Yes | T22–T24 | T23 before T22 on these worlds |
+| **G7** | EQ3 as a `MultibandSplit` | Not priced: no ablation ran; the spec asks for one only if the census reads it large, and EQ3 is 74 of `buildGlobalFxChain`'s 570 nodes on W1 (§2), about 4 % of the graph | Not priced | 74 | Three native filters with the stored levels. `globalFx.ts` | Yes: the band edges' shape | No task | Drop for now |
+| **G8** | The Reverb's Convolver (W1 decay 2.85 s, W2 1.44 s) | Not priced: 3.4 % of traced Render (§1), an ordering, not a price | Not priced: 2.4 % | 1 | None proposed: the Reverb is music | Yes | — | Record only |
+
+**The agent's order, with reasons** (a recommendation only):
+1. **G1** (T9–T11). The largest inaudible piece on both worlds: −0.15 at the trough, −0.05 to −0.08 at the mean.
+   Nothing at the crest. Q1 decides solo.
+2. **G2a's filter** (T12, T14). Small, but clear on both worlds at every moment, and the native filter G5 would need.
+   After G1 the released voices take their filters with them, so it would save about the sounding share of B6 (W1
+   about 0.014, W2 about 0.021), an estimate. T13's `out` Gain is below noise (under 0.001 a robot): build it with
+   T12 as tidying, or drop it.
+3. **G4** (T17). One constant; a mean saving on both worlds the size of G2a's; fewer end-of-run underruns than the
+   stock in four of six runs (the same in one, the clock stall in one); +11 ms between a control and its sound. Q3 is
+   Crawford's. The spec's own recommendation was "take it if B8's crest underruns fall"; the harness reads underruns
+   at the end of a run, not in the crest bucket.
+4. **G3** (T15, T16). About 0.005 a lit effect: real on W1's six, below noise on W2's four. T15 needs `wireCells`
+   and the `StereoEffect` pair added to its description.
+5. **The dark Signals:** one ablation (a B9: every dark effect disposed after boot, both worlds, three rounds) to
+   price them before a spec is written.
+6. **G2b**, its own phase. It is the only inaudible row that reaches the crest, where the robots are 0.36–0.44
+   and G1–G4 together reach about 0.07–0.09. The spec's condition for building it in this phase ("B2's per-robot price
+   at Full and Gate A say the sounding robots are the load at the crest") is met by the numbers; here or its own phase
+   is Q2. Its size (a voice rewrite and a listen) argues for its own phase, with §2–§4 as its brief.
+7. **G5–G8** only on a Gate B miss, as the plan has it: G6's T23 first on these worlds, G5 last, G7 and G8 not at all.
+
+**What G1–G4 could add up to** (an estimate for Gate A, not measured; the parts are not additive, and T11, T14, T16
+and T17's A/Bs measure each in turn): G1 + G2a after G1 + G4 + G3 ≈ 0.15 off W1's mean (0.573 → about 0.42) and 0.12
+off W2's (0.451 → about 0.33). At the crest only G2a, G3 and G4 act: about 0.07 on W1 (0.629 → about 0.56) and 0.09 on
+W2 (0.521 → about 0.43).
+
+**Whether assumption 1 held** (§4 has the table). Its totals held: about 0.5 at W1's trough and 0.7 at its crest were
+predicted, and 0.51 and 0.63 were measured. Its parts did not. The floor above Light's is the quiet voices, not Full's
+extras: B3 and the sixth lit effect come to about 0.05 together, the `interactive` buffer to about 0.03, and the quiet
+voices to 0.235 at W1's trough. A sounding robot costs about two thirds of the assumed 0.06, and a quiet one at least
+the assumed 0.015, so the two errors cancelled in the totals. Its corollary held: the crest is the music. Releasing
+every quiet robot does not move it, and among the inaudible rows only G2b reaches it by much.
+
+**Gate A's questions** (the spec's §7, and the runs'):
+- Q1: G1's reach, muted robots only or solo-silenced too.
+- Q2: G2b, here or its own phase.
+- Q3: G4, Full at `playback`.
+- Per row: keep (Phase B, in what order), listen-only (Phase B2), drop, or spin off.
+- New: the B9 ablation of the dark effects' Signals, yes or no; T13 kept or dropped; T15's description amended
+  (`wireCells`, `_split` / `_merge`); T12's acceptance line corrected to the measured −14 a robot (Gain −10,
+  ConstantSource −4; it reads "Gains × 2").
+
+**Gate A's decisions (Crawford, 2026-11-07; his words in quotes):**
+- Q1, "only docked/muted ones": G1 releases the docked and the user-muted robots; solo-silenced robots keep their
+  voices.
+- Q2, "later": G2b becomes a phase of its own, roadmap
+  [69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes), with §2–§5 as its brief.
+- Q3, "yes": Full boots at `playback` (plan T17).
+- The rows, "build, try and listen": G1, G2a's bus filter, G4 and G3 are built in that order, each with its A/B, then
+  heard at Gate B. G5–G8 stay in Phase B2, for a Gate B miss only.
+- B9, "sure": the ablation of the dark effects' Signals runs after G3 (plan T16b, recorded as §9).
+- T13, "drop": the composite `out` Gain stays. The plan's T12 and T15 are amended as above.
+- Not asked, so left as this section lists them: the floor's remainder and the boot double build.

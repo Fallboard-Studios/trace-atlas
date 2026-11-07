@@ -21,8 +21,9 @@ import { patchOscillatorEndedDisconnect } from './tonePatches';
 //
 // The hint comes from, in order: an explicit `?latency=interactive|balanced|playback`; otherwise the Audio Load
 // preset in force at page load (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.5) — `?load=`, or device detection when there is
-// none — where Light selects `playback` and Standard/Full leave Tone's own default (interactive) alone. A context's
-// hint is fixed at creation, so only the BOOT-TIME preset counts; moving the dial later never touches the context.
+// none — and every preset selects `playback` (Light and Standard by decision J, Full since backlog 67 G4), so a boot
+// without `?latency=` always replaces Tone's interactive default. A context's hint is fixed at creation, so only the
+// BOOT-TIME preset counts; moving the dial later never touches the context.
 // That resolution uses only src/utils/audioBudget.ts (constants, no Tone, no stores), which is why it can run here.
 // With neither, nothing is touched and Tone keeps its own default. Roadmap 17.2.4 / docs/todo/scratchy-audio-phones.md — Chrome
 // Android's low-latency path is known to glitch on complex graphs, and `playback` is the usual
@@ -37,7 +38,7 @@ function resolveBootLatencyHint(): LatencyHint | null {
   if (explicit) return explicit;
   if (typeof window === 'undefined') return null;
   const load = resolveInitialAudioLoad({ search: window.location.search, coarsePointer: detectCoarsePointer() });
-  // Only Light's hint differs from Tone's default, so interactive means "install nothing".
+  // Interactive is Tone's own default, so it means "install nothing" (no preset gives it since backlog 67 G4).
   return latencyForLoad(load) === 'playback' ? 'playback' : null;
 }
 

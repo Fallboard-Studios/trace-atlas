@@ -49,7 +49,7 @@ const loadToLimits = (load: number) => ({ ...robotLoadToLimits(load), ...effects
 // ========================================
 
 describe('the two axes at one shared dial position', () => {
-  it('at Full (1): 12 robots, 16 notes, drift, filter LFOs and effects on, interactive', () => {
+  it('at Full (1): 12 robots, 16 notes, drift, filter LFOs and effects on, playback (backlog 67 G4)', () => {
     // Literal numbers as well as the constants, so a constant that drifts away from today is caught here.
     expect(loadToLimits(1)).toEqual({
       maxAudibleRobots: 12,
@@ -59,7 +59,7 @@ describe('the two axes at one shared dial position', () => {
       busFilterLfosEnabled: true,
       effectsEnabled: true,
       reverbEnabled: true,
-      latencyHint: 'interactive',
+      latencyHint: 'playback',
     });
     expect(MAX_ROBOTS).toBe(12);
     expect(MAX_POLYPHONY).toBe(16);
@@ -210,21 +210,20 @@ describe('the two axes at one shared dial position', () => {
       expect(loadToLimits(LOAD_DRIFT_MIN + 1e-9).driftEnabled).toBe(true);
     });
 
-    it('drops the latency hint to playback strictly below LOAD_PLAYBACK_BELOW (0.61)', () => {
-      // Decision J (docs/specs/archive/AUDIO_LOAD_BUDGET.md §7): the Pixel 8 phone run measured playback
-      // giving Standard 6.6x fewer output underruns than interactive on bravo (1227 -> 186), the
-      // same real cost (~266ms average output latency) Light already ships unremarked. The
-      // threshold sits strictly above Standard's dial value (0.6) so Standard gets playback too,
-      // and strictly below Full's (1) so Full is untouched.
-      expect(LOAD_PLAYBACK_BELOW).toBe(0.61);
-      expect(loadToLimits(LOAD_PLAYBACK_BELOW - 1e-9).latencyHint).toBe('playback');
-      expect(loadToLimits(LOAD_PLAYBACK_BELOW).latencyHint).toBe('interactive');
+    it('gives every dial position the playback hint, Full included: LOAD_PLAYBACK_BELOW sits above the dial', () => {
+      // Decision J (docs/specs/archive/AUDIO_LOAD_BUDGET.md §7): the Pixel 8 phone run measured playback giving Standard
+      // 6.6x fewer output underruns than interactive on bravo (1227 -> 186). Backlog 67 G4
+      // (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md, Gate A 2026-11-07): Full too, for about 11 ms more output latency
+      // and a 0.03-0.04 lower mean render load on the desktop (B8).
+      expect(LOAD_PLAYBACK_BELOW).toBeGreaterThan(1);
+      for (const t of dial) expect(loadToLimits(t).latencyHint).toBe('playback');
+      expect(loadToLimits(1).latencyHint).toBe('playback');
     });
 
-    it('gives Standard the playback hint too (decision J); Full still gets interactive', () => {
+    it('gives Light, Standard and Full the playback hint (decision J, then backlog 67 G4)', () => {
       expect(loadToLimits(AUDIO_LOAD_PRESETS.light).latencyHint).toBe('playback');
       expect(loadToLimits(AUDIO_LOAD_PRESETS.standard).latencyHint).toBe('playback');
-      expect(loadToLimits(AUDIO_LOAD_PRESETS.full).latencyHint).toBe('interactive');
+      expect(loadToLimits(AUDIO_LOAD_PRESETS.full).latencyHint).toBe('playback');
     });
 
     it('turns features on in the order drift last: filter LFOs before drift', () => {
@@ -380,10 +379,14 @@ describe('presetForLoad', () => {
 // ========================================
 
 describe('describeLimits', () => {
-  it('at Light reads what is capped, what is off, and that latency changes on the next load', () => {
+  it('at Light reads what is capped and what is off, and ends there', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.light))).toBe(
-      'Up to 4 robots · 8 notes · no drift, filter LFOs, pedals, colour or reverb · latency: Playback (applies on next load)',
+      'Up to 4 robots · 8 notes · no drift, filter LFOs, pedals, colour or reverb',
     );
+  });
+
+  it('at Full says everything is on (no robot-LFO cap clause, docs/specs/LFO_BANK.md Task 2)', () => {
+    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.full))).toBe('Up to 12 robots · 16 notes · all LFOs and drift');
   });
 
   it('lists what is off as one list: two things joined by "or", more by commas and a final "or"', () => {
@@ -416,22 +419,18 @@ describe('describeLimits', () => {
     }
   });
 
-  it('at Standard names drift and the robot filter LFOs as off (the global filter tier is on) and keeps the latency clause (decision J: Standard is playback too)', () => {
+  it('at Standard names drift and the robot filter LFOs as off (the global filter tier is on)', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.standard))).toBe(
-      'Up to 8 robots · 12 notes · no drift or robot filter LFOs · latency: Playback (applies on next load)',
+      'Up to 8 robots · 12 notes · no drift or robot filter LFOs',
     );
   });
 
-  it('at Full says everything is on and never mentions latency (the robot-LFO cap clause is gone, docs/specs/LFO_BANK.md Task 2)', () => {
-    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.full))).toBe('Up to 12 robots · 16 notes · all LFOs and drift');
-  });
-
-  it('mentions the load-time latency caveat only when the hint differs from interactive', () => {
+  it('never names the latency, at either hint, anywhere on the dial (backlog 67 T17b: every position is playback)', () => {
     for (const t of dial) {
-      const limits = loadToLimits(t);
-      const text = describeLimits(limits);
-      expect(text.includes('latency:'), `${t}`).toBe(limits.latencyHint !== 'interactive');
-      expect(text.includes('applies on next load'), `${t}`).toBe(limits.latencyHint !== 'interactive');
+      for (const latencyHint of ['playback', 'interactive'] as const) {
+        const text = describeLimits({ ...loadToLimits(t), latencyHint });
+        expect(text, `${t} ${latencyHint}`).not.toMatch(/latency|playback|interactive|next load/i);
+      }
     }
   });
 
@@ -484,15 +483,15 @@ describe('describeLimits', () => {
 // ========================================
 
 describe('latencyForLoad', () => {
-  it('is playback for Light and Standard, interactive for Full (decision J)', () => {
+  it('is playback for Light, Standard and Full (decision J, then backlog 67 G4)', () => {
     expect(latencyForLoad(AUDIO_LOAD_PRESETS.light)).toBe('playback');
     expect(latencyForLoad(AUDIO_LOAD_PRESETS.standard)).toBe('playback');
-    expect(latencyForLoad(AUDIO_LOAD_PRESETS.full)).toBe('interactive');
+    expect(latencyForLoad(AUDIO_LOAD_PRESETS.full)).toBe('playback');
   });
 
-  it('agrees with loadToLimits across the whole dial, and treats NaN as Full (interactive)', () => {
+  it('agrees with loadToLimits across the whole dial, and treats NaN as Full (playback)', () => {
     for (const t of dial) expect(latencyForLoad(t)).toBe(loadToLimits(t).latencyHint);
-    expect(latencyForLoad(NaN)).toBe('interactive');
+    expect(latencyForLoad(NaN)).toBe('playback');
   });
 });
 
@@ -823,7 +822,7 @@ describe('the two axes combined', () => {
     const merged = { ...robotLoadToLimits(AUDIO_LOAD_PRESETS.full), ...effectsLoadToLimits(AUDIO_LOAD_PRESETS.light) };
     expect(merged.maxAudibleRobots).toBe(12);
     expect(merged.maxPolyphony).toBe(16);
-    expect(merged.latencyHint).toBe('interactive');
+    expect(merged.latencyHint).toBe('playback');
     expect(merged.driftEnabled).toBe(false);
     expect(merged.filterLfosEnabled).toBe(false);
     expect(merged.busFilterLfosEnabled).toBe(false);

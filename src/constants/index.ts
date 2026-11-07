@@ -58,12 +58,14 @@ export const LOAD_EFFECTS_MIN = 0.4;
 export const LOAD_REVERB_MIN = 0.4;
 /**
  * Below this dial position the AudioContext latency hint is "playback"; at/above it, "interactive".
- * Above Standard's anchor (0.6) so Light AND Standard both get it (decision J,
- * docs/specs/archive/AUDIO_LOAD_BUDGET.md §7: the Pixel 8 phone run measured playback giving Standard 6.6x
- * fewer output underruns than interactive on bravo, at the same ~266ms average output latency cost
- * Light already ships unremarked); below Full's (1) so Full is untouched.
+ * It sits above the whole dial, so every position boots at playback, Full included. Decision J
+ * (docs/specs/archive/AUDIO_LOAD_BUDGET.md §7) put it at 0.61, above Standard's anchor: the Pixel 8 phone run measured
+ * playback giving Standard 6.6x fewer output underruns than interactive on bravo. Backlog 67 G4
+ * (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md, Gate A 2026-11-07) moved it above Full's 1: on the desktop, playback
+ * lowered Full's mean render load by 0.03-0.04 for about 11 ms more output latency. `?latency=interactive` is the
+ * way back (src/engine/audioContextSetup.ts).
  */
-export const LOAD_PLAYBACK_BELOW = 0.61;
+export const LOAD_PLAYBACK_BELOW = Infinity;
 
 // ========================================
 // ROBOT ARTICULATION (docs/specs/ROBOT_ARTICULATION.md §1.1)
