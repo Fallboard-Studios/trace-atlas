@@ -2358,3 +2358,71 @@ Render, read as ordering (backlog 27 §1: the tracer's own cost swamps the cheap
 - **Biquads:** 19 render on W1 and 15 on W2, of 32 live on each: the twelve robots' bus filters on both, plus 7 and 3
   in the chain. The robots' `bus.frequency` links are live at Full (Light holds them off); their price is B3's and
   B6k's (§3, §4), which the trace cannot give.
+
+### 2. The two censuses — by class and by maker (T5)
+
+**Method.** The census by class is `perf:audio`'s census line, now read after a forced GC (plan T3), on the stock
+build: W1 read **1 799** on every read this session (T3, Checkpoint A1 and the census tool's own line), W2 **1 829**
+(the census tool's own line; T6's stock runs read it again, §3).
+The census by maker is `npm run perf:audio-census` (plan T2) once per world on the sourcemapped build (:4192,
+`census-w1`, `census-w2`): it hooks every node the page makes, keeps those alive after a forced GC in the open realtime
+context, and names each by the first app frame of its creation stack. A second pass over the same JSON resolves each
+node's Tone frames too (scratchpad `census-objects.mjs`, `census-plumbing.mjs`), so every count below is the Tone object
+the maker built. Foreground, one run at a time, orphaned Chrome 0 before and after.
+
+**By class:**
+- **W1** `census after warm-up (1799): Gain 1257 · ConstantSource 332 · WaveShaper 43 · AudioBufferSource 32 · BiquadFilter 32 · Oscillator 25 · StereoPanner 25 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+- **W2** `census after warm-up (1829): Gain 1283 · ConstantSource 343 · WaveShaper 34 · AudioBufferSource 32 · BiquadFilter 32 · Oscillator 27 · StereoPanner 25 · ChannelSplitter 17 · Delay 14 · IIRFilter 10 · ChannelMerger 5 · Analyser 2 · DynamicsCompressor 2 · AudioDestination 1 · AudioWorklet 1 · Convolver 1`
+
+The hook counts the same nodes less the context's AudioDestination (1 798, 1 828). The page has made 3 627 (W1) and
+3 725 (W2) nodes by the 8 s mark, in seven contexts; about half have been collected: the spawn-time voices
+`loadInstruments` replaces, and every note's spent oscillator.
+
+**By maker** (alive after the GC, the realtime context; Tone objects under each from the stacks):
+
+| Maker | W1 | W2 | What it is |
+|---|---|---|---|
+| `buildGlobalFxChain` (globalFx.ts) | 570 | 570 | the chain's Tone objects: Width 85, EQ3 74, Chorus 69, Tremolo 68, AutoWah 61, Shifter 55, Vibrato 38, LPF + HPF 30, Reverb 18, BitCrusher 18, Chebyshev 17, Delay 16, Distortion 15, the Compressor and Limiter, and 4 more |
+| `createCompositeVoice` (compositeVoice.ts) | 534 | 556 | the robots' `Tone.Synth` layers, 522 (24 layers: Gain 380 · ConstantSource 131 · WaveShaper 11) and 544 (28 layers: Gain 400 · ConstantSource 142 · WaveShaper 2); the twelve composite `out` Gains |
+| `reserveVoice` (AudioEngine.ts) | 204 | 204 | the twelve bus filters, 180 (`Tone.Filter`: Gain 120 · ConstantSource 48 · BiquadFilter 12); twelve Panners (one StereoPanner each); twelve bus Gains |
+| `primeLfoBank` (lfoEngine.ts) | 196 | 196 | eight `Tone.LFO`s (the four lanes and four drifts), 184 at 23 each (Gain 128 · ConstantSource 40 · WaveShaper 8 · AudioBufferSource 8); twelve trunk and drift Gains |
+| `buildPhaser` (globalFx.ts) | 76 | 76 | the Phaser (Gain 42 · ConstantSource 12 · BiquadFilter 10 · …) |
+| `_start` (tonePatches.ts) | 68 | 68 | each layer's current note oscillator (`ToneOscillatorNode`: Oscillator 24 / 26 · Gain 44 / 42) |
+| `buildSendGains` (AudioEngine.ts) | 60 | 60 | the robots' five send Gains each |
+| `createLayerGain` (compositeVoice.ts) | 24 | 28 | one Gain a layer |
+| `linkTarget` (lfoEngine.ts) | 19 | 23 | one Gain a live link |
+| `buildCell` · `buildRoom` · `buildBranch` (bypassCell.ts) | 34 | 34 | the cells' and rooms' own Gains and Delays |
+| `buildChainCut`, `createTap`, `setGlobalAutoWah` (globalFx.ts) | 5 | 5 | the chain cuts' Delays, the two `?debug` analysers, the AutoWah's IIR |
+| Tone's own (`index`, `ToneAudioWorklet`) | 8 | 8 | Tone's context set-up (6: the Destination's two Gains, the Transport clock's tick Signal, the raw context's own Gain), the BitCrusher's worklet (2) |
+| **all** | **1 798** | **1 828** | **99.6 % made outside `node_modules`** on both |
+
+Grouped: the **robots' voices** (`createCompositeVoice`, `createLayerGain`, `reserveVoice`, `buildSendGains`, `_start`)
+are **890 nodes on W1 and 916 on W2, about 74–76 a robot**; the **chain** (the global FX, the Phaser, the cells, the
+cuts and taps, Tone's own) **693** on both; the **bank and its links 215 / 219**. **58.5 % of W1's live nodes and
+59.4 % of W2's sit inside a Tone Signal** (1 052 and 1 085).
+
+**The spec's static tally against the measurement** (spec survey, "What one robot's voice is" and the chain and bank
+paragraphs). Every difference has one root: **a Tone `Signal` is three nodes, a ConstantSource and two Gains** (the
+`OneShotSource` Gain and the `ToneConstantSource` Gain, both read in the stacks), where the survey counted one.
+
+| Piece | Spec (static) | Measured | The difference |
+|---|---|---|---|
+| A robot's voice | 45 (three layers) | about 74 on W1 (two layers on average), 76 on W2 | a `Tone.Synth` layer is about 22 nodes (16 Gains, 5½ ConstantSources), not 9; the bus `Tone.Filter` is 15 (10 Gains, 4 ConstantSources, the biquad), not 7; each layer's current note oscillator adds about 3 |
+| Twelve voices | about 540 | 890 / 916 | as above |
+| The bank | about 120 | 196 + 19 / 23 link Gains | a `Tone.LFO` is 23 nodes; the bank has eight (four lanes, four drifts) |
+| Tone's `Effect` plumbing | about 120 (about ten an effect) | **177** on both (14–18 an effect, twelve effects) | the CrossFade's `fade` is a Signal (three nodes); the Chorus carries 18 |
+| The chain | not tallied | 693 on both | built whole, so the same count on every world |
+
+**Reading.**
+- **The census attributes everything** (the plan's criterion was 90 %): 99.6 % of the live nodes go to a named app
+  function on both worlds, and the 0.4 % left is Tone's context set-up and the BitCrusher's worklet. Every class the
+  trace sees rendering (§1) is attributed.
+- **The robots are half the graph at Full, whether they sound or not:** 890–916 of about 1 800 nodes, against the spec's
+  540: the voices carry about 65 % more nodes than assumption 1's arithmetic counted. Whether their capacity price is
+  higher too is B1's and B2's to say (§3).
+- **G2's two cuts are larger than the spec counted.** G2a (a native bus filter, no composite `out` Gain) takes 15 a
+  robot, 180 for twelve, not 7 and 84: the B6 smoke build read 1 631 against 1 799, −168, the Filter's fourteen nodes a
+  robot, its biquad replaced not removed. G2b (a native synth layer) would take about 19 of a layer's 22 nodes, about
+  450–530 on these worlds; every one of the layers' 131–142 ConstantSources renders (§1).
+- **The bank is 215–219 nodes for four lanes.** Each `Tone.LFO` is 23 nodes, and the four drift LFOs are as big as the
+  lanes they wobble.
