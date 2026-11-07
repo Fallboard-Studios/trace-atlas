@@ -54,17 +54,17 @@ describe('audioContextSetup (?latency= opt-in)', () => {
     return import('./audioContextSetup');
   }
 
-  it('leaves Tone on its default context when no ?latency= is given', async () => {
+  it('with no ?latency= given, the boot preset decides: Full on a desktop installs playback (backlog 67 G4)', async () => {
     const fresh = await loadFreshWithQuery('');
-    expect(setContext).not.toHaveBeenCalled();
-    expect(ContextCtor).not.toHaveBeenCalled();
-    expect(fresh.appliedLatencyHint).toBeNull();
+    expect(ContextCtor).toHaveBeenCalledTimes(1);
+    expect(ContextCtor).toHaveBeenCalledWith({ latencyHint: 'playback' });
+    expect(fresh.appliedLatencyHint).toBe('playback');
   });
 
-  it('leaves Tone on its default context for an invalid ?latency= value', async () => {
+  it('ignores an invalid ?latency= value: the boot preset decides', async () => {
     const fresh = await loadFreshWithQuery('?latency=warp');
-    expect(setContext).not.toHaveBeenCalled();
-    expect(fresh.appliedLatencyHint).toBeNull();
+    expect(ContextCtor).toHaveBeenCalledWith({ latencyHint: 'playback' });
+    expect(fresh.appliedLatencyHint).toBe('playback');
   });
 
   it('installs a Tone.Context with the requested latencyHint at import time', async () => {
@@ -82,8 +82,9 @@ describe('audioContextSetup (?latency= opt-in)', () => {
 });
 
 // Audio Load Budget (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.5, plan task 23): with no explicit ?latency=, the preset in force at
-// page load — from ?load= or, failing that, device detection — chooses the hint. Light selects playback; Standard and Full
-// leave Tone's own default (interactive) untouched. A context's hint is fixed at creation, so only the boot-time preset counts.
+// page load — from ?load= or, failing that, device detection — chooses the hint. Light and Standard select playback
+// (decision J), and since backlog 67 G4 (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md) Full does too, so every boot
+// installs a playback context unless ?latency= says otherwise. A context's hint is fixed at creation.
 describe('audioContextSetup (boot-time Audio Load preset)', () => {
   const originalMatchMedia = window.matchMedia;
 
@@ -116,11 +117,12 @@ describe('audioContextSetup (boot-time Audio Load preset)', () => {
     expect(fresh.appliedLatencyHint).toBe('playback');
   });
 
-  it("?load=full installs nothing (Tone's interactive default stays); ?load=standard installs playback (decision J)", async () => {
+  it('?load=full installs a playback context too (backlog 67 G4); so does ?load=standard (decision J)', async () => {
     setContext.mockClear();
     const full = await loadFreshWithQuery('?load=full');
-    expect(setContext).not.toHaveBeenCalled();
-    expect(full.appliedLatencyHint).toBeNull();
+    expect(ContextCtor).toHaveBeenCalledWith({ latencyHint: 'playback' });
+    expect(setContext).toHaveBeenCalledTimes(1);
+    expect(full.appliedLatencyHint).toBe('playback');
 
     setContext.mockClear();
     const standard = await loadFreshWithQuery('?load=standard');
@@ -128,11 +130,16 @@ describe('audioContextSetup (boot-time Audio Load preset)', () => {
     expect(standard.appliedLatencyHint).toBe('playback');
   });
 
-  it('follows the dial threshold for a custom percent: 60 % is playback, 61 % is not (decision J: the threshold sits above Standard’s anchor)', async () => {
+  it('gives every custom percent playback: 60 %, 61 % and 100 % (the threshold sits above the dial)', async () => {
     expect((await loadFreshWithQuery('?load=60')).appliedLatencyHint).toBe('playback');
-    setContext.mockClear();
-    expect((await loadFreshWithQuery('?load=61')).appliedLatencyHint).toBeNull();
-    expect(setContext).not.toHaveBeenCalled();
+    expect((await loadFreshWithQuery('?load=61')).appliedLatencyHint).toBe('playback');
+    expect((await loadFreshWithQuery('?load=100')).appliedLatencyHint).toBe('playback');
+  });
+
+  it('?latency=interactive is the way back to the interactive context at Full', async () => {
+    expect((await loadFreshWithQuery('?latency=interactive')).appliedLatencyHint).toBe('interactive');
+    expect(ContextCtor).toHaveBeenLastCalledWith({ latencyHint: 'interactive' });
+    expect((await loadFreshWithQuery('?load=full&latency=interactive')).appliedLatencyHint).toBe('interactive');
   });
 
   it('an explicit ?latency= still wins over the preset, in both directions', async () => {
@@ -149,33 +156,33 @@ describe('audioContextSetup (boot-time Audio Load preset)', () => {
     expect(fresh.appliedLatencyHint).toBe('playback');
   });
 
-  it('a desktop with no params installs nothing — no behavior change', async () => {
+  it('a desktop with no params boots at Full, so installs playback (backlog 67 G4)', async () => {
     const fresh = await loadFreshWithQuery('');
-    expect(setContext).not.toHaveBeenCalled();
-    expect(fresh.appliedLatencyHint).toBeNull();
+    expect(ContextCtor).toHaveBeenCalledWith({ latencyHint: 'playback' });
+    expect(fresh.appliedLatencyHint).toBe('playback');
   });
 
-  it('?load= beats device detection: full on a phone installs nothing, light on a desktop installs playback', async () => {
+  it('?load= and device detection both land on playback: full on a phone, light on a desktop', async () => {
     coarsePointer();
-    expect((await loadFreshWithQuery('?load=full')).appliedLatencyHint).toBeNull();
+    expect((await loadFreshWithQuery('?load=full')).appliedLatencyHint).toBe('playback');
     window.matchMedia = originalMatchMedia;
     expect((await loadFreshWithQuery('?load=light')).appliedLatencyHint).toBe('playback');
   });
 
-  it('an invalid ?load= falls back to detection', async () => {
-    expect((await loadFreshWithQuery('?load=bogus')).appliedLatencyHint).toBeNull();
+  it('an invalid ?load= falls back to detection, which lands on playback on a desktop and a phone alike', async () => {
+    expect((await loadFreshWithQuery('?load=bogus')).appliedLatencyHint).toBe('playback');
     coarsePointer();
     expect((await loadFreshWithQuery('?load=bogus')).appliedLatencyHint).toBe('playback');
   });
 
-  it('treats a missing or throwing matchMedia as a non-phone: nothing installed', async () => {
+  it('treats a missing or throwing matchMedia as a non-phone: Full, so playback', async () => {
     // @ts-expect-error — simulating an environment without matchMedia
     window.matchMedia = undefined;
-    expect((await loadFreshWithQuery('')).appliedLatencyHint).toBeNull();
+    expect((await loadFreshWithQuery('')).appliedLatencyHint).toBe('playback');
     window.matchMedia = (() => {
       throw new Error('boom');
     }) as unknown as typeof window.matchMedia;
-    expect((await loadFreshWithQuery('')).appliedLatencyHint).toBeNull();
+    expect((await loadFreshWithQuery('')).appliedLatencyHint).toBe('playback');
   });
 
   it('installs at most one context per load', async () => {
