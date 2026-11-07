@@ -289,13 +289,18 @@ T3 (forced GC before perf:audio's census line) ──┤
 - [x] One smoke run each of `perf:audio` (with the GC), `perf:audio-handlers` and `perf:audio-census` on W1 at Full
       against a sourcemapped build, orphaned Chrome 0 before and after; the census totals agree (1 799, 1 799 and
       1 798 hooked; the trace's Render spans the whole 8 s window). (2026-11-06)
-- [ ] Reviewed with human before the runs.
+- [x] Reviewed with human before the runs (Crawford's "go" for Phase A2). (2026-11-06)
 
 ---
 
 ### Phase A2: The runs
 
-- [ ] **Task 4: The handler breakdown — W1 and W2 at Full**
+- [x] **Task 4: The handler breakdown — W1 and W2 at Full** (2026-11-06)
+
+  **As built (2026-11-06).** Seven traces for six: `h-w2-3` lost data (buffer peak 90 %, Render 7.8 s of the 8) and
+  was re-run as `h-w2-3b`. The stock is `ce9c5779`, whose `src/` is `main`'s `6149d912`. Full renders about 1 458 nodes
+  a quantum on W1 and 1 384 on W2, beside Light's about 1 390 / 1 410; every ConstantSource but one renders, the dark
+  effects' included. The traces' shares and node counts are the readings; a traced Render's length is not (T7).
 
   **Description:** `npm run perf:audio-handlers` on the stock production build (`main`'s `src/` at the build branch's
   base commit, named), 8 s traces, three per world interleaved W1 W2 W1 W2 W1 W2, foreground, one run at a time,
@@ -319,7 +324,13 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 5: The two censuses — by class and by maker, W1 and W2 at Full**
+- [x] **Task 5: The two censuses — by class and by maker, W1 and W2 at Full** (2026-11-06)
+
+  **As built (2026-11-06).** 99.6 % of the live nodes are attributed to a named maker, against the 90 % criterion. The
+  spec's static tally was low: a voice is about 70–73 nodes, not 45. §2's first reading put the census's
+  `_start (tonePatches.ts)` row on the voices' notes; T6's commit corrected it. That row is every started Tone source:
+  the bank's LFOs 24, the lit cells' LFOs and the Shifter's oscillator 20, the sounding layers' notes 24. So the voices
+  are 846 / 872 nodes, the chain 713 and the bank 239 / 243.
 
   **Description:** `perf:audio`'s census line (with T3's GC) once per world on the stock build, and
   `perf:audio-census` once per world on a sourcemapped build of the same commit served beside it. Recorded as §2: the
@@ -344,7 +355,14 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 6: The noise band and ablations B1–B4 — W1 and W2 at Full**
+- [x] **Task 6: The noise band and ablations B1–B4 — W1 and W2 at Full** (2026-11-06)
+
+  **As built (2026-11-06).** 60 runs, not 54: the noise band took twelve, each copy run paired with its own same-round
+  stock run. B1 is the ledger fed every robot outside the sounding set, B2 `reserveVoice` refusing every robot, B3
+  Light's two 0.8 tiers at Full, B4 `writeCellMix` forced dark. One extra 8 s handler trace on B4 (W1), taken between
+  T6 and T7, found every ConstantSource still rendering with every effect dark. B4 therefore prices lit against dark,
+  and the dark effects' standing Signals became a row of their own in §5. The six lit effects against the offline list
+  moved to §5, which names them.
 
   **Description:** `npm run perf:audio`, 120 s, 15 s buckets, the stock build on one port against a byte-identical copy
   on another for the **noise band** (three rounds), then four variants each one `src/` edit on the stock commit, built to
@@ -375,7 +393,22 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** XS as a diff (a record); the longest task in hours
 
-- [ ] **Task 7: Ablations B5–B8 — W1 and W2 at Full**
+- [x] **Task 7: Ablations B5–B8 — W1 and W2 at Full** (2026-11-07)
+
+  **As built (2026-11-07).**
+  - **B5 bypasses every cell**, not one lit and one dark: a dark cell is unwired, so the dark arm had nothing to
+    measure. Each cell reaches `effectSend` / `effectReturn`, and a `StereoEffect` (Chorus, Phaser, Tremolo) its
+    `_split` / `_merge`. `wireCells` changes too, so T15's "`wireCells` is unchanged" does not hold (§5 asks Gate A to
+    amend T15).
+  - **B6k reaches the native biquad's `automationRate` only through standardized-audio-context's private
+    `_nativeAudioContext`**, so G5's T21 must say how it reaches the param.
+  - **B6's census is −14 a robot** (Gain −10, ConstantSource −4). With T13's `out` Gain, G2a is −15 a robot, against
+    the spec's −7 and T12's "Gains × 2".
+  - After the runs: three more 8 s traces on W1 (B5 twice, the stock once between them) and backlog 27's lit probe at
+    Full for §5.
+  - Tooling: `97901a1a`, before T4, made `perf:audio` read the overlay again at the end of a run; B8's underruns are
+    read there, at the end of a run, not in the crest bucket.
+  - The commit also added a note to §3 that a traced Render's length is not a price.
 
   **Description:** As T6, same stock build, same noise band, four more variants: **B5** Tone's `Effect` plumbing bypassed
   on one lit cell (the Phaser, or W1's largest lit pedal) and one dark cell (`cell.in → effectSend`, `effectReturn →
@@ -404,7 +437,13 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** XS as a diff (a record); long in hours
 
-- [ ] **Task 8: The decision table for Gate A**
+- [x] **Task 8: The decision table for Gate A** (2026-11-07)
+
+  **As built (2026-11-07).** Inaudible and audible rows sit in two tables. Three rows were added: the dark effects'
+  standing Signals (unpriced; a B9 ablation proposed), the floor's unpriced remainder (0.08–0.12 of the mean) and the
+  boot double build (hygiene). The lit effects come from the running app: W1 AutoWah, Vibrato, Width, Distortion,
+  BitCrusher and Chorus; W2 AutoWah, Vibrato, Width and Chorus. The Phaser is dark on both. §5 closes with Gate A's
+  questions, the spec's Q1–Q3 and the runs' own.
 
   **Description:** §5 of the record: one row per piece (G1–G8 and anything the census surfaced), its price on W1 and W2
   (trough, crest, mean, census), the cut it implies with the files it touches (spec §2), whether it is audible, what it
