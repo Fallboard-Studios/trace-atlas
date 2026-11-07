@@ -9,6 +9,8 @@ vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testL
 
 // The raw AudioContext under Tone's context, one object shared by every getContext() call, so the pause()/resume()
 // cases below can watch it being suspended and resumed (docs/specs/OFF_SCREEN.md assumption 2).
+// Tone's destination, where a bus filter goes when no FX chain is built yet.
+const toneDestinationMock = vi.hoisted(() => ({ name: 'Destination' }));
 const rawContextMock = vi.hoisted(() => ({
   suspend: vi.fn(() => Promise.resolve()),
   resume: vi.fn(() => Promise.resolve()),
@@ -39,6 +41,9 @@ vi.mock('tone', () => ({
   // bug-fix follow-up) — distinct from Transport.scheduleOnce, which resolves a
   // '+N' offset against Transport's own tick timeline and is therefore skewed by
   // any bpm change between scheduling and firing.
+  // Tone.connect: how a native node (the bus filter's biquad, backlog 67 G2a) connects on into a Tone node.
+  connect: vi.fn(),
+  getDestination: vi.fn(() => toneDestinationMock),
   getContext: vi.fn(() => ({
     now: vi.fn(() => 0),
     setTimeout: vi.fn(() => 1),
@@ -4579,6 +4584,101 @@ describe('AudioEngine.updateRobotBusFilter', () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     expect(() => AudioEngine.updateRobotBusFilter('never-reserved', { frequency: 900 })).not.toThrow();
+  });
+});
+
+// docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G2a (Task 12): where the raw context can make a biquad, the bus filter
+// is that biquad, not a Tone.Filter (14 nodes fewer a robot, B6).
+describe('AudioEngine - a native bus filter (backlog 67 G2a)', () => {
+  type AnyMock = ReturnType<typeof vi.fn>;
+  const param = (value: number) => ({
+    value,
+    setValueAtTime: vi.fn(),
+    linearRampToValueAtTime: vi.fn(),
+    cancelScheduledValues: vi.fn(),
+    cancelAndHoldAtTime: vi.fn(),
+  });
+  const raw = rawContextMock as unknown as Record<string, unknown>;
+  let biquad: ReturnType<typeof makeBiquad>;
+  function makeBiquad() {
+    return { type: 'lowpass', frequency: param(350), Q: param(1), connect: vi.fn(), disconnect: vi.fn() };
+  }
+
+  beforeEach(() => {
+    vi.resetModules();
+    biquad = makeBiquad();
+    raw.createBiquadFilter = vi.fn(() => biquad);
+  });
+  afterEach(() => {
+    delete raw.createBiquadFilter;
+  });
+
+  /** The engine started (its FX chain built), then one robot reserved with articulation on its filter. */
+  const reserve = async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const filtersBefore = (Tone.Filter as unknown as AnyMock).mock.calls.length;
+    AudioEngine.reserveVoice('nb', [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] as any, TEST_ADSR, undefined, undefined, undefined, 0.8, 900, {
+      filterQ: 4,
+      filterType: 'highpass',
+    });
+    return { Tone, AudioEngine, filtersBefore };
+  };
+
+  it('reserves the raw context biquad as the bus filter: no Tone Filter is built for the robot', async () => {
+    const { Tone, filtersBefore } = await reserve();
+
+    expect(raw.createBiquadFilter).toHaveBeenCalledTimes(1);
+    expect((Tone.Filter as unknown as AnyMock).mock.calls.length).toBe(filtersBefore);
+    expect(biquad.frequency.value).toBe(900);
+    expect(biquad.Q.value).toBe(4);
+    expect(biquad.type).toBe('highpass');
+  });
+
+  it('feeds the bus gain into the biquad, and the biquad on to the chain entry and the five sends through Tone.connect', async () => {
+    const { Tone } = await reserve();
+    const gains = (Tone.Gain as unknown as AnyMock).mock.results.map((r) => r.value as { connect: AnyMock });
+    const fromBiquad = (Tone.connect as unknown as AnyMock).mock.calls.filter(([source]) => source === biquad);
+
+    expect(gains.filter((g) => g.connect.mock.calls.some(([target]) => target === biquad))).toHaveLength(1);
+    expect(fromBiquad).toHaveLength(6);
+    expect(biquad.connect).not.toHaveBeenCalled();
+  });
+
+  it('glides the native cutoff and resonance from Tone.now() over FILTER_RAMP_SECONDS on a live edit', async () => {
+    const { FILTER_RAMP_SECONDS } = await import('../constants');
+    const { AudioEngine } = await reserve();
+
+    AudioEngine.updateRobotBusFilter('nb', { frequency: 500, Q: 2, type: 'bandpass' });
+
+    expect(biquad.frequency.cancelAndHoldAtTime).toHaveBeenCalledWith(0);
+    expect(biquad.frequency.linearRampToValueAtTime).toHaveBeenCalledWith(500, FILTER_RAMP_SECONDS);
+    expect(biquad.Q.linearRampToValueAtTime).toHaveBeenCalledWith(2, FILTER_RAMP_SECONDS);
+    expect(biquad.type).toBe('bandpass');
+  });
+
+  it("hands the biquad's own frequency param to a bus.frequency link", async () => {
+    const { AudioEngine } = await reserve();
+
+    expect(AudioEngine.getRobotModulationTarget('nb', 'bus.frequency')).toBe(biquad.frequency);
+  });
+
+  it('disconnects the biquad when the voice is released', async () => {
+    const { AudioEngine } = await reserve();
+
+    AudioEngine.releaseVoice('nb');
+
+    expect(biquad.disconnect).toHaveBeenCalled();
+  });
+
+  it('sends the biquad straight to the destination when no FX chain is built yet', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+
+    AudioEngine.reserveVoice('early', [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] as any, TEST_ADSR);
+
+    expect(Tone.connect).toHaveBeenCalledWith(biquad, toneDestinationMock);
   });
 });
 

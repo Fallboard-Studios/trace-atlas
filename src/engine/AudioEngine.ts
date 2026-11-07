@@ -28,7 +28,16 @@ import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { lfoEngine } from './lfoEngine';
 import { calculatePanFromPosition } from './audioEngine/panning';
-import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from './audioEngine/busFilter';
+import {
+  buildBusFilter,
+  glideBusFilter,
+  isNativeBusFilter,
+  resolveBusFilterCutoff,
+  resolveBusFilterQ,
+  resolveBusFilterType,
+  type BusFilter,
+  type BusFilterContext,
+} from './audioEngine/busFilter';
 import { robotBusGain } from './audioEngine/headroom';
 import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
@@ -237,6 +246,22 @@ function setRoomFeeder(key: RoomKey, robotId: string, feeding: boolean): void {
   else feeders.delete(robotId);
   const now = feeders.size > 0;
   if (was !== now) setRoomFed(key, now);
+}
+
+/** Tone's raw context for buildBusFilter; undefined where a mocked Tone has no getContext. */
+function rawContextForBusFilter(): BusFilterContext['rawContext'] {
+  try {
+    return Tone.getContext().rawContext as unknown as BusFilterContext['rawContext'];
+  } catch {
+    return undefined;
+  }
+}
+
+/** Connect the bus filter on into a Tone node: a native biquad through Tone.connect, since its own connect cannot take
+ *  a Tone node (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G2a); a Tone.Filter or the stub through its own. */
+function connectBusFilterTo(busFilter: BusFilter, destination: unknown): void {
+  if (isNativeBusFilter(busFilter)) Tone.connect(busFilter as never, destination as never);
+  else (busFilter as unknown as { connect?: (target?: unknown) => unknown }).connect?.(destination);
 }
 
 /** A released (or replaced) voice feeds no room any more. */
@@ -841,7 +866,6 @@ export const AudioEngine = {
 
       const PannerCtor = getToneCtor<Tone.Panner>('Panner');
       const GainCtorLocal = getToneCtor<Tone.Gain>('Gain');
-      const FilterCtor = getToneCtor<Tone.Filter>('Filter');
 
       const initialBusGain = robotBusGain(masterVolume ?? 1);
       const busCutoff = resolveBusFilterCutoff(filterFreq);
@@ -849,11 +873,15 @@ export const AudioEngine = {
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
       // The sends start at 0 (dry); every reservation site primes them from the store afterwards.
       const sends = buildSendGains(GainCtorLocal);
-      const busFilter = FilterCtor ? new FilterCtor({
-        frequency: busCutoff,
-        Q: resolveBusFilterQ(articulation?.filterQ),
-        type: resolveBusFilterType(articulation?.filterType),
-      }) : makeStubFilter() as unknown as Tone.Filter;
+      // The raw context's biquad where it can make one (backlog 67 G2a), else a Tone.Filter, else the stub.
+      const busFilter: BusFilter = buildBusFilter(
+        { rawContext: rawContextForBusFilter(), FilterCtor: getToneCtor<Tone.Filter>('Filter') as BusFilterContext['FilterCtor'] },
+        {
+          frequency: busCutoff,
+          Q: resolveBusFilterQ(articulation?.filterQ),
+          type: resolveBusFilterType(articulation?.filterType),
+        },
+      ) ?? (makeStubFilter() as unknown as Tone.Filter);
 
       // Connect graph: composite.output -> panner -> busGain -> busFilter -> master compressor/destination
       try { composite.output.connect(panner); } catch (e) { devWarn('[AudioEngine] composite.output.connect failed', e); }
@@ -862,7 +890,9 @@ export const AudioEngine = {
       try {
         const chainEntry = getGlobalChainEntry();
         if (chainEntry) {
-          (busFilter as unknown as { connect?: (target?: unknown) => unknown }).connect?.(chainEntry);
+          connectBusFilterTo(busFilter, chainEntry);
+        } else if (isNativeBusFilter(busFilter)) {
+          Tone.connect(busFilter as never, Tone.getDestination());
         } else {
           (busFilter as unknown as { toDestination?: () => unknown }).toDestination?.();
         }
@@ -873,9 +903,8 @@ export const AudioEngine = {
       // above is untouched, so at send 0 the only way into a room is through these gains. A room that does not exist
       // (headless, or before the FX chain is built) simply gets no connection.
       try {
-        const busFilterOut = busFilter as unknown as { connect?: (target?: unknown) => unknown };
         for (const { engineKey } of ROBOT_SENDS) {
-          busFilterOut.connect?.(sends[engineKey]);
+          connectBusFilterTo(busFilter, sends[engineKey]);
           const target = sendTargetOf(engineKey);
           if (target) sends[engineKey].connect(target);
         }
@@ -964,7 +993,8 @@ export const AudioEngine = {
       if (!voice) return null;
 
       if (target === 'bus.frequency') {
-        return (compositeVoices.get(robotId)?.busFilter.frequency as ModulationTarget | undefined) ?? null;
+        // A native biquad's frequency is an AudioParam: a link connects into it additively, as into a Signal.
+        return (compositeVoices.get(robotId)?.busFilter.frequency as unknown as ModulationTarget | undefined) ?? null;
       }
 
       const match = /^layer(\d+)\.(gain|detune)$/.exec(target);
@@ -1123,7 +1153,8 @@ export const AudioEngine = {
   /**
    * Live-edit a robot's bus filter (docs/specs/ROBOT_ARTICULATION.md §1.3), any subset of cutoff `frequency`
    * (Hz), resonance `Q` and `type`. Frequency and Q glide over FILTER_RAMP_SECONDS when the live param can
-   * ramp, else are assigned (headless); `type` is assigned outright. A safe no-op (devWarn, as
+   * ramp, else are assigned (headless); `type` is assigned outright. A native biquad (backlog 67 G2a) glides with
+   * the Web Audio calls from Tone's now, as a Tone ramp starts. A safe no-op (devWarn, as
    * updateRobotMasterVolume) when no composite is reserved: the store already holds the values.
    */
   updateRobotBusFilter(robotId: string, patch: { frequency?: number; Q?: number; type?: RobotFilterType }): void {
@@ -1133,6 +1164,10 @@ export const AudioEngine = {
       return;
     }
     try {
+      if (isNativeBusFilter(entry.busFilter)) {
+        glideBusFilter(entry.busFilter, patch, FILTER_RAMP_SECONDS, Tone.now());
+        return;
+      }
       const filter = entry.busFilter as unknown as { frequency: RampableParam; Q: RampableParam; type: string };
       if (patch.frequency !== undefined) rampOrSet(filter.frequency, patch.frequency, FILTER_RAMP_SECONDS);
       if (patch.Q !== undefined) rampOrSet(filter.Q, patch.Q, FILTER_RAMP_SECONDS);

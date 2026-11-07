@@ -2,6 +2,7 @@ import type * as Tone from 'tone';
 
 import { devWarn } from '../../utils/helpers';
 import { getTickSeconds } from '../beatClock';
+import type { BusFilter } from './busFilter';
 import type { CompositeVoice } from './compositeVoice';
 import { ROBOT_SENDS, type SendEngineKey } from '../../data/robotSends';
 
@@ -14,7 +15,8 @@ export interface VoiceEntry {
   composite: CompositeVoice;
   panner: Tone.Panner;
   busGain: Tone.Gain;
-  busFilter: Tone.Filter;
+  /** The raw context's biquad, or a Tone.Filter where the context cannot make one (busFilter.ts). */
+  busFilter: BusFilter;
   /** busFilter -> sends[key] -> that send's room (Reverb, Delay, or the Colour / Shimmer / Double room's in); 0 = this
    *  robot is dry there. One record keyed by engine key (docs/specs/ROBOT_SEND_TABLE.md assumption 4). */
   sends: Readonly<Record<SendEngineKey, Tone.Gain>>;
@@ -33,14 +35,15 @@ function attempt(label: string, step: () => void): void {
  *  Every disconnect and dispose is its own step (Tone nodes may or may not implement dispose). */
 export function disposeVoiceNodes(entry: VoiceEntry): void {
   attempt('composite.dispose', () => entry.composite.dispose?.());
-  const nodes: readonly (readonly [string, Tone.Gain | Tone.Panner | Tone.Filter])[] = [
+  const nodes: readonly (readonly [string, Tone.Gain | Tone.Panner | BusFilter])[] = [
     ...ROBOT_SENDS.map((spec) => [spec.field, entry.sends[spec.engineKey]] as const),
     ['panner', entry.panner],
     ['busGain', entry.busGain],
     ['busFilter', entry.busFilter],
   ];
   for (const [name, node] of nodes) attempt(`${name}.disconnect`, () => node.disconnect());
-  for (const [name, node] of nodes) attempt(`${name}.dispose`, () => node.dispose?.());
+  // A native biquad has no dispose: its disconnect above is all it needs.
+  for (const [name, node] of nodes) attempt(`${name}.dispose`, () => (node as { dispose?: () => void }).dispose?.());
 }
 
 /** A Tone Param / Signal as far as a live edit needs it: `rampTo` and `setValueAtTime` when the real node has them. */
