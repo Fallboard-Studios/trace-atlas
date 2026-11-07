@@ -18,7 +18,12 @@
 [docs/intent/desktop-full-tier-standing-cost.md](../intent/desktop-full-tier-standing-cost.md) (interview 2026-11-06,
 five questions, every guess confirmed) and the measurements on backlog
 [67](../todo/backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) (the clean
-Full/Standard/Light A/B of 2026-11-05). **Awaiting Crawford's approval** of spec and plan together; §7 Q1–Q4 are his to answer at the plan's T0 or Gate A.
+Full/Standard/Light A/B of 2026-11-05). Approved for building 2026-11-06 (Crawford's word to implement the plan's
+Phase A); Phase A done 2026-11-07. **Gate A (Crawford, 2026-11-07):** Q1 muted robots only (the docked and the
+user-muted; solo-silenced robots keep their voices); Q2 G2b later, as roadmap
+[69](../todo/roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes); Q3 yes, Full boots at `playback`.
+Phase B builds G1, G2a's bus filter, G4 and G3 in that order (T13's `out` Gain dropped), then a B9 ablation of the dark
+effects' Signals, then the Gate B listen. Q4 is asked at Gate B, Q8 at Phase C.
 Plan: [docs/tasks/DESKTOP_FULL_TIER_STANDING_COST.md](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md) (written
 2026-11-06). This is backlog 67's own fix, so it carries no new number (§7 Q7); plan.md Stage 1's line points here. Backlog 27's spec,
 [LIGHT_TIER_STANDING_COST.md](LIGHT_TIER_STANDING_COST.md), is the method this one reuses; its decomposition record

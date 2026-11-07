@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 69.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 70.
 
 ## Open items
 
@@ -813,7 +813,13 @@ graph's standing cost shrunk at every tier with backlog 27's method, inaudible p
 heard one at a time; the bar is Crawford's ear at full 4K, then a harness pin. Direction 2 is backlog
 [68](#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph); direction 3 waits for the lean
 graph. Spec and plan written 2026-11-06: [spec](../specs/DESKTOP_FULL_TIER_STANDING_COST.md),
-[plan](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md), both awaiting approval.
+[plan](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md).
+
+**Update 2026-11-07: Phase A done, Gate A answered.** The decomposition is in
+[scratchy-audio-phones.md](scratchy-audio-phones.md#backlog-67-the-decomposition-at-full-2026-11-06) §1–§5. Crawford
+kept four inaudible cuts, built in this order: release the docked and muted robots' voices, a native bus filter, Full
+at `playback`, then the effects' cells wired past Tone's wrapper. The leaner synth layer is spun off as roadmap
+[69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes).
 
 ### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
 

@@ -526,3 +526,26 @@ when the stage opens (the shipping-and-launch workflow skill), so the About belo
 - The domain name and the host.
 - What "launched" means for a tablet with no accounts and no server: the URL serves `main` and the three presets play.
 
+## 69. The Leaner Synth Layer: Robot Voices on Native Nodes
+
+Spun off from backlog [67](backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom)
+at its Gate A (Crawford, 2026-11-07: "later"), where it was hypothesis G2b. Not yet interviewed or specced.
+
+### About
+
+A robot's synth layer is a `Tone.Synth` per layer inside `createCompositeVoice`. Tone's wrapper carries unity Gains and
+the Omni oscillator's Signals, about 21 nodes a robot by 67's spec count, and none of them changes the sound. This is
+the one inaudible cut that reaches the busiest moments. At Full the sounding robots are most of the crest bucket's
+load (0.44 of 0.63 on `ez84fjmr`, 0.36 of 0.52 on `bravo`, about 0.035–0.045 a robot), and 67's four other cuts
+together take only about 0.07–0.09 off the crest.
+
+The brief is 67's plan T18, which lists the four slices: a native layer behind the composite's `LayerRecord` surface,
+then the live updates and link targets, then the articulation and the note path, then the A/B, census and listen. The
+prices are in [scratchy-audio-phones.md](scratchy-audio-phones.md#backlog-67-the-decomposition-at-full-2026-11-06)
+§2–§5.
+
+### Open
+
+- Whether 67's Gate B listen passes without it, and so how soon this is needed.
+- Whether a native envelope keeps the stored ADSR curves exactly, which is the listen's question.
+

@@ -2790,3 +2790,15 @@ every quiet robot does not move it, and among the inaudible rows only G2b reache
 - New: the B9 ablation of the dark effects' Signals, yes or no; T13 kept or dropped; T15's description amended
   (`wireCells`, `_split` / `_merge`); T12's acceptance line corrected to the measured −14 a robot (Gain −10,
   ConstantSource −4; it reads "Gains × 2").
+
+**Gate A's decisions (Crawford, 2026-11-07; his words in quotes):**
+- Q1, "only docked/muted ones": G1 releases the docked and the user-muted robots; solo-silenced robots keep their
+  voices.
+- Q2, "later": G2b becomes a phase of its own, roadmap
+  [69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes), with §2–§5 as its brief.
+- Q3, "yes": Full boots at `playback` (plan T17).
+- The rows, "build, try and listen": G1, G2a's bus filter, G4 and G3 are built in that order, each with its A/B, then
+  heard at Gate B. G5–G8 stay in Phase B2, for a Gate B miss only.
+- B9, "sure": the ablation of the dark effects' Signals runs after G3 (plan T16b, recorded as §9).
+- T13, "drop": the composite `out` Gain stays. The plan's T12 and T15 are amended as above.
+- Not asked, so left as this section lists them: the floor's remainder and the boot double build.

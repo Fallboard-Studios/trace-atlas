@@ -466,15 +466,21 @@ T3 (forced GC before perf:audio's census line) ──┤
   **Estimated scope:** XS (a record)
 
 ### Gate A: Crawford picks the cuts
-- [ ] Crawford reads §1–§5 of the record and says, per row: keep (Phase B, in what order), listen-only (Phase B2),
-      drop, or spin off (G2b).
-- [ ] Spec §7 Q1 (solo in G1), Q2 (G2b here or its own phase) and Q3 (G4) answered and written on the spec's Status
-      line (T0 re-touched); G2b's slices (T18) expanded into tasks here if kept.
-- [ ] The build branch `perf/desktop-full-tier-standing-cost` is cut; the docs branch's PR is Crawford's.
+- [x] Crawford reads §1–§5 of the record and says, per row: keep (Phase B, in what order), listen-only (Phase B2),
+      drop, or spin off (G2b). (2026-11-07: G1, G2a's bus filter, G4 and G3 are built, in that order, then heard at
+      Gate B; T13 is dropped; G5–G8 stay in Phase B2, for a Gate B miss only; the B9 ablation is added as Task 16b.
+      The record's §5 closes with the decisions.)
+- [x] Spec §7 Q1 (solo in G1), Q2 (G2b here or its own phase) and Q3 (G4) answered and written on the spec's Status
+      line (T0 re-touched); G2b's slices (T18) expanded into tasks here if kept. (2026-11-07: Q1 muted robots only;
+      Q2 later, as roadmap 69; Q3 yes.)
+- [x] The build branch `perf/desktop-full-tier-standing-cost` is cut; the docs branch's PR is Crawford's. (Cut
+      2026-11-06 off the docs branch, both unpushed.)
 
 ---
 
-### Phase B: The inaudible cuts (Gate A's order; default G1, G2a, G3, G4, G2b)
+### Phase B: The inaudible cuts (Gate A's order: G1, G2a, G4, G3, then B9)
+
+Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 is spun off (Gate A, 2026-11-07).
 
 - [ ] **Task 9: `standingBy.ts`, `audioBudgetSystem.ts` — muted robots stand down (G1)**
 
@@ -589,7 +595,8 @@ T3 (forced GC before perf:audio's census line) ──┤
   re-asserts the value.
 
   **Acceptance criteria:**
-  - [ ] Every bus filter is native in a real browser (checked by T14's census: twelve fewer ConstantSources × 4, Gains × 2).
+  - [ ] Every bus filter is native in a real browser (checked by T14's census: 14 fewer nodes a reserved robot, 10 Gains
+        and 4 ConstantSources, as B6 measured).
   - [ ] Frequency, Q and type edits and swells land on the native node with the same ramps; the `bus.frequency` link
         drives it; `disposeRobotLinks` disconnects the link Gain from it.
   - [ ] Headless tests, the stub path and a mocked Tone keep working; every pre-existing bus-filter test passes.
@@ -605,7 +612,10 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** M (five files; the node changes class, the helpers keep their names)
 
-- [ ] **Task 13: `compositeVoice.ts`, `AudioEngine.ts` — no composite `out` Gain (G2a)**
+- [ ] **Task 13: `compositeVoice.ts`, `AudioEngine.ts` — no composite `out` Gain (G2a)** — dropped at Gate A
+
+  **Dropped at Gate A (Crawford, 2026-11-07).** B7 priced the `out` Gain below noise on both worlds (under 0.001 a
+  robot), so it is not built. The text below is kept as written.
 
   **Description:** `createCompositeVoice` no longer builds the unity `out` Gain. Each layer Gain is kept as the layer's
   output; the composite exposes `connect(destination)` (connects every layer Gain) and `disconnect()`; `reserveVoice`
@@ -633,21 +643,21 @@ T3 (forced GC before perf:audio's census line) ──┤
 
 - [ ] **Task 14: G2a's A/B and census**
 
-  **Description:** As T11: the branch (T12 + T13) against the branch at T11, three rounds, W1 and W2 at Full, 120 s, one
-  Light run per arm, the census line per arm (the expected drop: 12 × (2 Gains + 4 ConstantSources) + 12 Gains = 84
-  nodes), the stock noise band. No crossing (nothing connects at run time that did not before). Recorded as §7, with
-  Crawford's keep or drop.
+  **Description:** As T11: the branch at T12 against the branch at T11, three rounds, W1 and W2 at Full, 120 s, one
+  Light run per arm, the census line per arm (the expected drop: B6's 14 nodes a reserved robot, 10 Gains and 4
+  ConstantSources; after G1 only the robots holding a voice at the census mark have a filter to lose), the stock noise
+  band. No crossing (nothing connects at run time that did not before). Recorded as §7, with Crawford's keep or drop.
 
   **Proof:** a run. Read — the section.
 
   **Acceptance criteria:**
-  - [ ] The census falls by about 84 nodes per world; the delta reads against B6 + B7's price less the band; the crest
-        does not rise; Light inside the band.
+  - [ ] The census falls by 14 a reserved robot; the delta reads against B6's price after G1 (§5's estimate: about
+        0.014 on W1, 0.021 on W2) less the band; the crest does not rise; Light inside the band.
 
   **Verification:**
   - [ ] Runs kept and quoted; the section read.
 
-  **Dependencies:** Task 13.
+  **Dependencies:** Task 12.
 
   **Files:** `docs/todo/scratchy-audio-phones.md`
 
@@ -659,8 +669,10 @@ T3 (forced GC before perf:audio's census line) ──┤
   cell.wet` when the effect exposes both (read through a cast; `protected` on the `.d.ts`), else today's `cell.in →
   effect → cell.wet` with one `devWarn` naming the effect; `disconnectEffect` drops the same pair it made (the cell
   records which shape it used); `buildBranch`'s room branches and `rebuildPhaser`'s swap go through the same two
-  functions. `wireCells` is unchanged. The effect's `input`, `_dryWet` and `output` are left unconnected on purpose and
-  keep their `wet: 1` pin.
+  functions, and so does `wireCells` (amended at Gate A: B5 had to change it too, since it wires the lit cells' effects
+  itself). A `StereoEffect` (the Chorus, Phaser and Tremolo) has no `effectSend` / `effectReturn`; its `_split` and
+  `_merge` stand in their place, read through the same cast. The effect's `input`, `_dryWet` and `output` are left
+  unconnected on purpose and keep their `wet: 1` pin.
 
   **Proof:** RED test — `src/engine/audioEngine/bypassCell.test.ts`: with a mocked effect exposing `effectSend` and
   `effectReturn`, `connectEffect` connects `in → effectSend` and `effectReturn → wet` and nothing to the effect itself;
@@ -705,7 +717,32 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 17: `src/constants/index.ts` — Full at `playback` (G4; only if Crawford takes it at Gate A)**
+- [ ] **Task 16b: Ablation B9 — the dark effects' standing Signals (added at Gate A)**
+
+  **Description:** Added at Gate A (Crawford, 2026-11-07) to price §5's "dark Signals" row before any spec is written.
+  A variant build (scratch only, nothing committed) takes every dark effect out of the graph after boot (its links
+  first, then the effect disposed), so its Signals' ConstantSources stop rendering. The variant against the branch at
+  T16 (every Phase B cut in), same session, three interleaved rounds, W1 and W2 at Full, 120 s, the census line per
+  arm, and one 8 s handler trace per arm for the rendering ConstantSource count. No effect is lit during a run, so the
+  variant needs no rebuild path. Recorded as §9: the price, the census, the trace, and whether the fix is worth a spec
+  (it would take the next free number).
+
+  **Proof:** a run. Read — the section.
+
+  **Acceptance criteria:**
+  - [ ] The trace's rendering ConstantSources fall by the dark effects' Signals; the delta and its rounds recorded
+        against the band.
+
+  **Verification:**
+  - [ ] Runs kept and quoted; the section read.
+
+  **Dependencies:** Task 16.
+
+  **Files:** `docs/todo/scratchy-audio-phones.md`
+
+  **Estimated scope:** XS (a record)
+
+- [ ] **Task 17: `src/constants/index.ts` — Full at `playback` (G4; taken at Gate A, 2026-11-07)**
 
   **Description:** `LOAD_PLAYBACK_BELOW` moves from 0.61 to a value above 1, so `latencyForLoad(1)` is `'playback'` and
   `resolveBootLatencyHint` installs it at Full with no `?latency=`; an explicit `?latency=interactive` still wins. The
@@ -729,7 +766,11 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** XS (one constant, two tests)
 
-- [ ] **Task 18: The leaner synth layer (G2b) — a stub, expanded only on Gate A's word**
+- [x] **Task 18: The leaner synth layer (G2b) — a stub, expanded only on Gate A's word** (2026-11-07, spun off)
+
+  **Spun off at Gate A (Crawford, 2026-11-07: "later").** Roadmap
+  [69](../todo/roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes) carries the four slices below and
+  the record's §2–§5 as its brief. Nothing of it is built here.
 
   **Description:** Not built as written. If Gate A keeps G2b, this stub is replaced by its slices as tasks under a
   checkpoint of their own, each RED-tested: **(a)** a native layer behind `createCompositeVoice`'s `LayerRecord`
@@ -745,7 +786,7 @@ T3 (forced GC before perf:audio's census line) ──┤
   **Proof:** none here (a stub). Each slice names its RED test when expanded.
 
   **Acceptance criteria:**
-  - [ ] Gate A's decision on G2b is recorded on this task: expanded, spun off, or dropped.
+  - [x] Gate A's decision on G2b is recorded on this task: expanded, spun off, or dropped.
 
   **Dependencies:** Gate A.
 
