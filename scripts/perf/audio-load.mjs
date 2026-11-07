@@ -10,7 +10,8 @@
  * peak window, the overall mean, and the correlation between audible robots and capacity. For a long run
  * (backlog 27) each bucket also carries the live AudioNode count, the renderer's JS heap and the pending Transport
  * events, and the summary says how each moved from the first bucket to the last; the overlay's text is printed
- * once after the warm-up, so the record says what the world carried. The page's console warnings and errors, from
+ * after the warm-up, so the record says what the world carried, and again at the end of the series (the underrun count
+ * and log, backlog 67's B8). The page's console warnings and errors, from
  * navigation on, are tallied by first line (backlog 35's proof that Tone's scheduling warning is gone).
  *
  *   npm run build && npx vite preview --port 4173      # terminal 1 — serve a production build
@@ -159,6 +160,8 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       });
     }
 
+    // The overlay once more at the end, for what the series changed: the underrun count and its log above all.
+    const carriedAtEnd = await evaluate(`[...document.querySelectorAll('.audio-debug-hud > div')].map((d) => d.textContent)`);
     const buckets = bucketSamples(samples, bucketSec);
     return {
       world: world.label,
@@ -167,6 +170,7 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
       bucketSec,
       samples: samples.length,
       carried,
+      carriedAtEnd,
       consoleTally: tallyConsole(consoleEvents),
       buckets,
       summary: summarizeBuckets(buckets),
@@ -217,6 +221,10 @@ function report(run) {
   if (change.length) {
     const total = atEnd.reduce((sum, [, n]) => sum + n, 0);
     console.log(`live nodes by type, start → end of series (${total} at end):   ${change.map(([type, d]) => `${type} ${d >= 0 ? '+' : ''}${d}`).join('   ')}`);
+  }
+  if (run.carriedAtEnd.length) {
+    console.log('overlay at end of series:');
+    for (const line of run.carriedAtEnd) console.log(`  ${line}`);
   }
 }
 
