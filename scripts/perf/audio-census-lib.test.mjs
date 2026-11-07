@@ -90,8 +90,59 @@ describe('pickMaker', () => {
   });
 
   it('uses the frame name, cleaned, when the resolver gives no original name', () => {
-    const text = stack(['Hn', 100], ['Object.updateBus [as update]', 950]);
-    expect(pickMaker(text, resolve)).toBe('updateBus (globalFx.ts)');
+    expect(pickMaker(stack(['Hn', 100], ['Object.updateBus', 950]), resolve)).toBe('updateBus (globalFx.ts)');
+  });
+
+  it('prefers the [as …] alias V8 prints: the property a minified function was called through keeps its name', () => {
+    const text = stack(['Hn', 100], ['Object.Jce [as createCompositeVoice]', 950]);
+    expect(pickMaker(text, resolve)).toBe('createCompositeVoice (globalFx.ts)');
+  });
+
+  it('names an anonymous app frame by the nearest named frame out in the same file, its encloser', () => {
+    // A forEach callback: the arrow (globalFx.ts) is called by forEach (no location), then by the function holding it.
+    const text = [
+      'Error',
+      `    at Hn (${BUNDLE}:1:100)`,
+      `    at ${BUNDLE}:1:951`,
+      '    at Array.forEach (<anonymous>)',
+      `    at Ot (${BUNDLE}:1:900)`,
+      `    at Object.Yle [as buildGlobalFxChain] (${BUNDLE}:1:952)`,
+    ].join('\n');
+    const twoInFx = (frame, caller) => {
+      if (frame.column === 951 || frame.column === 952) return { ...MAP[950], line: frame.column - 740 };
+      return resolve(frame, caller);
+    };
+    expect(pickMaker(text, twoInFx)).toBe('buildGlobalFxChain (globalFx.ts)');
+  });
+
+  it('passes over a nested anonymous frame on the way out to the named encloser', () => {
+    const text = ['Error', `    at Hn (${BUNDLE}:1:100)`, `    at ${BUNDLE}:1:951`, `    at ${BUNDLE}:1:953`, `    at Object.Yle [as buildGlobalFxChain] (${BUNDLE}:1:952)`].join('\n');
+    const threeInFx = (frame, caller) => (frame.column > 950 ? { ...MAP[950], line: frame.column - 740 } : resolve(frame, caller));
+    expect(pickMaker(text, threeInFx)).toBe('buildGlobalFxChain (globalFx.ts)');
+  });
+
+  it('keeps an anonymous app frame as its file and line when no named frame out shares its file', () => {
+    const text = ['Error', `    at Hn (${BUNDLE}:1:100)`, `    at ${BUNDLE}:1:950`, `    at Ot (${BUNDLE}:1:900)`].join('\n');
+    expect(pickMaker(text, resolve)).toBe('globalFx.ts:210');
+  });
+
+  it('hands the resolver each frame with its caller, the next frame out, and null for the outermost', () => {
+    const seen = [];
+    const spy = (frame, caller) => {
+      seen.push([frame.column, caller?.column ?? null]);
+      return resolve(frame);
+    };
+    pickMaker(stack(['Hn', 100], ['Xe', 800], ['Ze', 950]), spy);
+    expect(seen).toEqual([[100, 800], [800, 950], [950, null]]);
+  });
+
+  it('takes a minified function name from its call site when the resolver reads it there', () => {
+    // A minified bundle keeps the original name at the call, so the runner names a frame from its caller's entry.
+    const callSite = (frame, caller) => {
+      const entry = resolve(frame);
+      return entry && caller?.column === 950 ? { ...entry, name: 'buildCell' } : entry;
+    };
+    expect(pickMaker(stack(['Hn', 100], ['Xe', 900], ['Ze', 950]), callSite)).toBe('buildCell (spawnSystem.ts)');
   });
 
   it('drops a constructor or async prefix from the frame name', () => {

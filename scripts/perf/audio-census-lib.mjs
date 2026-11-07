@@ -11,7 +11,9 @@
  *
  * `resolve`, when given, maps a raw frame `{ fn, url, line, column }` (line and column 1-based, as V8 prints them) to
  * its original `{ source, line, column, name? }` through the served build's source maps, or returns null when it
- * cannot; `name` is the original function name when the map knows it. A frame it cannot map keeps its raw location.
+ * cannot; `name` is the original function name when the map knows it. It is called as `resolve(frame, caller)`, the
+ * caller being the next frame out (null for the outermost), because a minified bundle keeps a renamed function's
+ * original name at the call to it, not inside it. A frame it cannot map keeps its raw location.
  */
 
 /** A V8 frame: `at fn (url:line:col)` or `at url:line:col`. Frames with no location (`at Array.forEach (<anonymous>)`) do not match. */
@@ -36,35 +38,48 @@ const slashes = (path) => path.replace(/\\/g, '/');
 /** The last path segment, with any `?query` dropped. */
 const fileOf = (path) => slashes(path).split('?')[0].split('/').pop();
 
-/** `new Kn` → `Kn`, `Object.reserveVoice [as reserve]` → `reserveVoice`, `async run` → `run`; null for no name. */
+/**
+ * A frame's function name: the `[as …]` alias when V8 prints one (the property it was called through, which a
+ * minifier leaves alone: `Object.Jce [as createCompositeVoice]`), else the name with `new `/`async ` and any receiver
+ * dropped (`new Kn` → `Kn`, `Object.reserveVoice` → `reserveVoice`); null for no name.
+ */
 function cleanName(fn) {
   if (!fn) return null;
-  const name = fn.replace(/ \[as [^\]]+\]$/, '').replace(/^(new|async) /, '').split('.').pop();
+  const name = / \[as ([^\]]+)\]$/.exec(fn)?.[1] ?? fn.replace(/^(new|async) /, '').split('.').pop();
   return name && name !== '<anonymous>' ? name : null;
 }
 
-/** A frame as the tally reads it: where it is (resolved when it can be), whether it is library code, and its label. */
-function locate(frame, resolve) {
-  const resolved = resolve ? resolve(frame) : null;
+/** A frame as the tally reads it: where it is (resolved when it can be), whether it is library code, its name and label. */
+function locate(frame, caller, resolve) {
+  const resolved = resolve ? resolve(frame, caller) : null;
   if (resolved) {
     const source = slashes(resolved.source);
     const name = resolved.name ?? cleanName(frame.fn);
     return {
       source,
       library: LIBRARY.test(source),
+      name,
       label: name ? `${name} (${fileOf(source)})` : `${fileOf(source)}:${resolved.line}`,
     };
   }
   const where = `${fileOf(frame.url)}:${frame.line}:${frame.column}`;
   const name = cleanName(frame.fn);
-  return { source: slashes(frame.url), library: LIBRARY.test(slashes(frame.url)), label: name ? `${name} (${where})` : where };
+  return { source: slashes(frame.url), library: LIBRARY.test(slashes(frame.url)), name, label: name ? `${name} (${where})` : where };
 }
 
-/** The maker of one stack and whether it is a frame outside `node_modules` (`attributed`). */
+/**
+ * The maker of one stack and whether it is a frame outside `node_modules` (`attributed`). An anonymous app frame (a
+ * `forEach` or helper callback) is named by the nearest named frame out in the same file, the function holding it.
+ */
 function makerOf(stackText, resolve) {
-  const located = parseStack(stackText).map((frame) => locate(frame, resolve));
-  const app = located.find((frame) => !frame.library);
-  if (app) return { maker: app.label, attributed: true };
+  const frames = parseStack(stackText);
+  const located = frames.map((frame, i) => locate(frame, frames[i + 1] ?? null, resolve));
+  const index = located.findIndex((frame) => !frame.library);
+  if (index >= 0) {
+    const app = located[index];
+    const encloser = app.name ? null : located.slice(index + 1).find((frame) => frame.name && frame.source === app.source);
+    return { maker: (encloser ?? app).label, attributed: true };
+  }
   const tone = located.filter((frame) => TONE.test(frame.source)).pop();
   if (tone) return { maker: `${fileOf(tone.source).replace(/\.[^.]+$/, '')} (tone)`, attributed: false };
   return { maker: 'unknown', attributed: false };
