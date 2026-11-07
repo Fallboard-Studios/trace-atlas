@@ -6,7 +6,8 @@ import { devWarn } from '../../utils/helpers';
  * Load budget) carry no voice. This is the budget's ledger of voices: who stands by, whose voice the budget took (or
  * refused) and so owes back, and the stand-downs waiting out a robot's last note. The voice work itself stays in
  * AudioEngine.ts, which hands it in as `StandingByHooks` and keeps the public calls (`setStandingByRobots`,
- * `setSoundingRobots`). Mute and solo never put a robot here.
+ * `setSoundingRobots`). A muted robot (docked, or muted by the user) is put here too, at every tier
+ * (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1); a solo never puts one here.
  */
 
 // A stand-down waits this long past a note's end plus its release: the composite voice starts the release 10 ms after

@@ -86,7 +86,8 @@ function primeRebuilt(ids: readonly string[]): void {
   }
 }
 
-/** The eligible robots outside the sounding set stand by and carry no voice (H2); pushed only when that list changes. */
+/** The eligible robots outside the sounding set stand by and carry no voice (H2), and so do the muted robots, docked or
+ *  muted by the user (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1); pushed only when that list changes. */
 function applyStandingBy(next: readonly string[], force: boolean): void {
   const key = next.join(',');
   if (!force && key === pushedStandingBy) return;
@@ -100,6 +101,9 @@ function reconcile(force = false): void {
   const anySolo = robots.some((r) => r.audioMode === 'solo');
   const eligible = robots.filter((r) => isRobotAudible(r.audioMode, anySolo)).map((r) => r.id);
   const soloIds = robots.filter((r) => r.audioMode === 'solo').map((r) => r.id);
+  // G1: a muted robot triggers nothing, so it stands by at every tier; a solo-silenced one keeps its voice, since an
+  // un-solo would readmit eleven at once.
+  const mutedIds = robots.filter((r) => r.audioMode === 'mute').map((r) => r.id);
   const { robotLoad, effectsLoad } = useAudioStore.getState();
   const limits: LoadLimits = { ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) };
 
@@ -107,7 +111,7 @@ function reconcile(force = false): void {
   const next = reconcileSounding(sounding, arrivalOrder, soloIds, limits.maxAudibleRobots);
   if (force || next !== sounding) applySet(next);
   const soundingNow = new Set(next);
-  applyStandingBy(arrivalOrder.filter((id) => !soundingNow.has(id)), force);
+  applyStandingBy([...arrivalOrder.filter((id) => !soundingNow.has(id)), ...mutedIds], force);
 
   if (limits.maxPolyphony !== pushedPolyphony) {
     pushedPolyphony = limits.maxPolyphony;

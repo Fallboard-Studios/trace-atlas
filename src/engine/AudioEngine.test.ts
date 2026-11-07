@@ -856,7 +856,8 @@ describe('AudioEngine - Polyphony Management', () => {
 
     // docs/specs/LIGHT_TIER_STANDING_COST.md H2 (Task 14): a robot standing by (eligible, over the budget) carries no
     // voice. Its release waits for its last note's tail; it is rebuilt only when it enters the sounding set or the
-    // budget is lifted. Robots silenced by mute/solo are never standing by, so they keep their voices as before.
+    // budget is lifted. Muted robots stand by too (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1, decided in the
+    // budget system); robots silenced by a solo never do, so they keep their voices.
     describe('standing-by voices (Light tier standing cost T14)', () => {
       const ROBOT_ADSR = { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 };
       const robot = (id: string) => ({
@@ -915,7 +916,7 @@ describe('AudioEngine - Polyphony Management', () => {
         const before = ['test', 'waiting', 'late'].map((id) => AudioEngine.getVoiceForRobot(id));
 
         push(['test', 'waiting', 'late'], []);
-        push(['test'], []); // the other two silenced by mute/solo: not standing by
+        push(['test'], []); // the other two silenced by a solo: not standing by
 
         expect(['test', 'waiting', 'late'].map((id) => AudioEngine.getVoiceForRobot(id))).toEqual(before);
         expect(before.every((voice) => voice !== null)).toBe(true);

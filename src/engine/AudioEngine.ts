@@ -1450,11 +1450,12 @@ export const AudioEngine = {
   },
 
   /**
-   * Light tier standing cost H2 (docs/specs/LIGHT_TIER_STANDING_COST.md): the eligible robots outside the sounding set.
-   * Each gives up its voice and its LFO links once its last note has rung out, and `reserveVoice` refuses it while it
-   * stands by. One that stops standing by without being admitted (mute, solo) keeps a voice it still has and stays
-   * released if it had none, until `setSoundingRobots` admits it. Mute and solo never stand a robot by, so with
-   * nobody over the budget (Full) nothing is released. Copies the ids; re-sending the same set does nothing.
+   * Light tier standing cost H2 (docs/specs/LIGHT_TIER_STANDING_COST.md): the eligible robots outside the sounding set,
+   * and the muted robots at every tier (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1). Each gives up its voice and
+   * its LFO links once its last note has rung out, and `reserveVoice` refuses it while it stands by. One that stops
+   * standing by without being admitted (a solo) keeps a voice it still has and stays released if it had none, until
+   * `setSoundingRobots` admits it. A solo never stands a robot by, so at Full only the muted robots are released.
+   * Copies the ids; re-sending the same set does nothing.
    */
   setStandingByRobots(ids: Iterable<string>): void {
     standingBy.setStandingBy(ids);
