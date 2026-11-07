@@ -6,7 +6,10 @@ proves what it proves today), and nothing user-facing changes. The audit that mo
 [TEST_REMOVAL_CANDIDATES.md](../reference/TEST_REMOVAL_CANDIDATES.md); its numbers are quoted below where a task
 starts from them.
 
-**Status:** drafted 2026-11-07 on `tests/pruning`; no task started. Next: Task 1.
+**Status:** Tasks 1, 2 and 4 done 2026-11-07 on `tests/pruning`; at Gate A. The Node switch saved 5 s of wall-clock
+(203 to 198 s) and 90 s of worker time on 67 files; Task 3 would move about 70 more files for a saving of the same
+order. Recommendation at the gate: stop here, record the figure in backlog 70 and archive it; leave Phase 3 and Task 11
+as recorded options. Crawford decides.
 
 ## Overview
 
@@ -29,7 +32,11 @@ the same cases run and pass before and after, which the case count from `--repor
   `environmentMatchGlobs` is deprecated in 3.2 and `test.projects` is its replacement. Two projects in
   `vitest.config.ts`: `node` for the DOM-free globs, `jsdom` for the rest. Both keep `vitest.setup.ts` (its GSAP and
   seedUtils mocks are environment-free; its ResizeObserver polyfill is a harmless no-op under Node). Where a folder is
-  mixed, a file joins the node project by a `// @vitest-environment node` docblock rather than a growing exclude list.
+  mixed, a file joins the node project by a `// @vitest-environment node` docblock rather than a growing exclude list,
+  and a DOM-reading file inside a node folder opts back out with `// @vitest-environment jsdom`. Found while building
+  (As built, Task 2): with `extends: true` the project's `include` is **concatenated** with the root's, not replaced,
+  so `include` lives on the projects only; and a glob exception in the jsdom project's `include` is swallowed by its
+  `exclude`, which is why the exceptions are docblocks.
 - **A `typeof window` branch is a behaviour, not a detail.** Six source modules branch on `window` or `document`
   (`audioStore.ts`, `audioBudget.ts`, `audioBudgetSystem.ts`, `debugParams.ts`, `audioContextSetup.ts`,
   `audioDiagnostics.ts`). A test that moves to Node and reaches one of those branches now tests the no-window path,
@@ -65,7 +72,8 @@ Task 1 (baseline)
 
 ### Phase 1: Measure
 
-- [ ] **Task 1: Baseline — one full run on an idle machine**
+- [x] **Task 1: Baseline — one full run on an idle machine** (done 2026-11-07; the shell `bc` is absent on this
+  machine, so the wall-clock figure is the JSON report's own timestamps, see the Baseline note)
 
   **Description:** Record the wall-clock time and worker time of a full run with nothing else running in the
   checkout (no dev server, no other session, no browser profiling; see the perf harness's hygiene note). Record the
@@ -86,8 +94,9 @@ Task 1 (baseline)
   **Proof:** Read — the Baseline table at the end of this file is filled in.
 
   **Acceptance criteria:**
-  - [ ] Wall-clock seconds, worker seconds, case count and the unhandled-error line are in the Baseline table.
-  - [ ] Alone times for the six Phase 3 files are in the Phase 3 table.
+  - [x] Wall-clock seconds, worker seconds, case count and the unhandled-error line are in the Baseline table (the
+        error line is not visible under the JSON reporter; noted there).
+  - [x] Alone times for the six Phase 3 files are in the Phase 3 table.
 
   **Dependencies:** None.
 
@@ -96,13 +105,13 @@ Task 1 (baseline)
   **Estimated scope:** XS (a run and a table).
 
 ### Checkpoint: Measure
-- [ ] The Baseline table has a wall-clock figure. Everything after is judged against it.
+- [x] The Baseline table has a wall-clock figure. Everything after is judged against it.
 
 ---
 
 ### Phase 2: Configuration
 
-- [ ] **Task 2: The DOM-free folders run in the Node environment**
+- [x] **Task 2: The DOM-free folders run in the Node environment** (done 2026-11-07)
 
   **Description:** Add `test.projects` to `vitest.config.ts`: a `node` project including `src/data/**`,
   `src/constants/**`, `src/types/**`, `src/content/**`, `src/testUtils/**` and `src/engine/**` less
@@ -118,20 +127,29 @@ Task 1 (baseline)
   `typeof window` branch (Architecture Decisions) goes back to jsdom too, even if it happens to pass. Take the full
   wall-clock figure again by the Task 1 recipe.
 
+  **As built (2026-11-07):** 67 files in the node project (the 60 under `src/` plus the 7 perf scripts), 2,931 cases,
+  green. Two files opt back into jsdom by docblock: `src/engine/audioContextSetup.test.ts` (reads the DOM) and
+  `scripts/perf/scene-markup-lib.test.mjs` (parses markup with `document`; 44 failures under Node). The `typeof window`
+  check: the node project reaches `audioStore.ts`'s initial-load reads (through `transmissionPresets.test.ts` and
+  `AudioEngine.test.ts`) and `audioDiagnostics.ts`'s `document.hidden`; without a window the loads are Full, and under
+  jsdom they are Full too (no `matchMedia`, empty search), and no test asserts on `hidden`, so no expectation moved.
+
   **Proof:** Measurement — the Baseline table gains an "after Task 2" row; the case count is unchanged.
 
   **Acceptance criteria:**
-  - [ ] `npx vitest run` passes with the same case count as the baseline.
-  - [ ] No test's expectations were edited to pass under Node; files that would have needed it are listed in the
-        commit and stay on jsdom.
-  - [ ] The "after Task 2" row is filled in.
+  - [x] `npx vitest run` passes with the same case count as the baseline (13,607).
+  - [x] No test's expectations were edited to pass under Node; the two files that need the DOM opt back into jsdom by
+        docblock (As built).
+  - [x] The "after Task 2" row is filled in.
 
   **Verification:**
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types` clean; `npm run lint` 0 errors, 4 pre-existing warnings in `Scenery.tsx` and
+        `gemShape.tsx` (react-refresh), untouched by this task.
 
   **Dependencies:** Task 1.
 
-  **Files:** `vitest.config.ts`, this file.
+  **Files:** `vitest.config.ts`, `src/engine/audioContextSetup.test.ts`, `scripts/perf/scene-markup-lib.test.mjs`,
+  this file.
 
   **Estimated scope:** S (one config change, one full run, a read of the failures).
 
@@ -161,7 +179,9 @@ Task 1 (baseline)
 
   **Estimated scope:** S (about 70 one-line inserts and a run).
 
-- [ ] **Task 4: A changed-files run for development; the full run is a checkpoint step**
+- [x] **Task 4: A changed-files run for development; the full run is a checkpoint step** (done 2026-11-07; the
+  proof run showed `colorUtils.ts` is a poor example, reaching 150 files and 6,444 cases through transitive imports,
+  so the guide names `--changed` as the everyday form and says so)
 
   **Description:** Add `"test:related": "vitest related --run"` to `package.json` so `npm run test:related -- <files>`
   runs only the tests that import the given source files, and note `npx vitest run --changed` for the uncommitted set.
@@ -173,8 +193,8 @@ Task 1 (baseline)
   files, not the suite.
 
   **Acceptance criteria:**
-  - [ ] The script exists and runs only the dependents of the named file.
-  - [ ] The guide names both forms and states the checkpoint rule.
+  - [x] The script exists and runs only the dependents of the named file (150 of 354 for `colorUtils.ts`).
+  - [x] The guide names both forms and states the checkpoint rule.
 
   **Dependencies:** Task 1 (so the guide can quote the full run's wall-clock time as the reason).
 
@@ -183,10 +203,12 @@ Task 1 (baseline)
   **Estimated scope:** XS.
 
 ### Checkpoint: Gate A
-- [ ] `npm run build:types`, `npm run lint` clean; full run green at the baseline's case count.
-- [ ] The Baseline table shows wall-clock after Tasks 2 and 3 against the baseline.
+- [x] `npm run build:types`, `npm run lint` clean; full run green at the baseline's case count.
+- [x] The Baseline table shows wall-clock after Task 2 against the baseline (Task 3 not run: on 67 files the switch
+      saved 5 s of 203, so 70 more files would save about the same again).
 - [ ] **Crawford decides** whether Phase 3 goes ahead, and for which files: each Phase 3 task's stop-if figure is
-      read against the new wall-clock, not the old.
+      read against the new wall-clock, not the old. Recommendation (2026-11-07): stop here and archive 70 with the
+      figures; the suite is 3.3 minutes at a checkpoint and the daily form is now `--changed`.
 
 ---
 
@@ -268,7 +290,7 @@ alone times quoted are from 2026-11-07 and Task 1 refreshes them. Order is by ex
 
   **Estimated scope:** S.
 
-- [ ] **Task 9: `src/screens/OffScreen.test.tsx` — the mounts**
+- [ ] **Task 9: `src/components/panels/screen/screens/OffScreen.test.tsx` — the mounts**
 
   **Description:** 195 full-screen mounts under the scene wash (16.5 s alone, 85 ms each; the file that suffers most
   under contention, 108 s in a full run). Find which of the 22 top-level `describe`s assert on the chooser, the
@@ -282,7 +304,7 @@ alone times quoted are from 2026-11-07 and Task 1 refreshes them. Order is by ex
 
   **Dependencies:** Gate A.
 
-  **Files:** `src/screens/OffScreen.test.tsx`.
+  **Files:** `src/components/panels/screen/screens/OffScreen.test.tsx`.
 
   **Estimated scope:** M.
 
@@ -394,13 +416,15 @@ Decisions for Crawford; each is named at the task that waits on it.
 
 ## Baseline
 
-Filled in by the tasks. Wall-clock is `Measure-Command` over `npx vitest run` on an idle checkout; worker seconds is
-the sum of per-file durations from `--reporter=json`.
+Filled in by the tasks. Wall-clock is the JSON report's own `startTime` to the last file's `endTime` (Vitest's
+start to the last test's end; the process adds a second or two either side), on an idle checkout with only the
+browser open; worker seconds is the sum of per-file durations from the same report. The shell `Measure-Command`
+figure in Task 1's recipe is an alternative; the two agree within the startup seconds.
 
 | Point | Wall-clock (s) | Worker (s) | Cases | Unhandled error | Date |
 | --- | --- | --- | --- | --- | --- |
-| Baseline (Task 1) | | | | | |
-| After Task 2 | | | | | |
+| Baseline (Task 1) | 203 | 1,144 | 13,607 | not visible: the JSON reporter prints no stderr line; read it from a default-reporter run | 2026-11-07 |
+| After Task 2 | 198 | 1,054 | 13,607 | exit 1 with 0 failures: the shape of backlog 66's unhandled timeout, invisible under the JSON reporter (the baseline run exited 0) | 2026-11-07 |
 | After Task 3 | | | | | |
 | After Phase 3 | | | | | |
 | After Task 11 | | | | | |
@@ -409,9 +433,9 @@ the sum of per-file durations from `--reporter=json`.
 
 | File | Alone before (s) | Alone after (s) | Cases before | Cases after | Task |
 | --- | --- | --- | --- | --- | --- |
-| `engine/audioEngine/globalFx.test.ts` | | | | | 5 |
-| `engine/AudioEngine.test.ts` | | | | | 6 |
-| `utils/globalAudioSeed.test.ts` | | | | | 7 |
-| `utils/svgElementExtent.test.tsx` | | | | | 8 |
-| `screens/OffScreen.test.tsx` | | | | | 9 |
-| `systems/lifecycleSim.test.ts` | | | | | 10 |
+| `engine/audioEngine/globalFx.test.ts` | 22.7 | | 468 | | 5 |
+| `engine/AudioEngine.test.ts` | 38.1 | | 395 | | 6 |
+| `utils/globalAudioSeed.test.ts` | 18.5 | | 179 | | 7 |
+| `utils/svgElementExtent.test.tsx` | 6.9 | | 33 | | 8 |
+| `components/panels/screen/screens/OffScreen.test.tsx` | 18.0 | | 195 | | 9 |
+| `systems/lifecycleSim.test.ts` | 7.0 | | 48 | | 10 |

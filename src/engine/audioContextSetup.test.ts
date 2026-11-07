@@ -1,3 +1,5 @@
+// @vitest-environment jsdom
+// The engine folder runs in the Node project (vitest.config.ts); this file reads the DOM, so it opts back into jsdom.
 // ========================================
 // IMPORTS
 // ========================================
