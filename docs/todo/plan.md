@@ -17,7 +17,8 @@ the item's own measure-first check runs, and the item archives if the check find
   desktop crackles at Full** — interviewed 2026-11-06 ([intent](../intent/desktop-full-tier-standing-cost.md)):
   shrink the graph's standing cost at every tier, Crawford's ear at 4K the bar; spec written 2026-11-06
   ([spec](../specs/DESKTOP_FULL_TIER_STANDING_COST.md), [plan](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md)); Phase A
-  measured and Gate A answered 2026-11-07; Phase B (four inaudible cuts) then the Gate B listen.
+  measured and Gate A answered 2026-11-07; Phase B's four inaudible cuts built 2026-11-07, their A/B runs waiting for
+  a quiet window, then the Gate B listen.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.

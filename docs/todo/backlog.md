@@ -819,7 +819,8 @@ graph. Spec and plan written 2026-11-06: [spec](../specs/DESKTOP_FULL_TIER_STAND
 [scratchy-audio-phones.md](scratchy-audio-phones.md#backlog-67-the-decomposition-at-full-2026-11-06) §1–§5. Crawford
 kept four inaudible cuts, built in this order: release the docked and muted robots' voices, a native bus filter, Full
 at `playback`, then the effects' cells wired past Tone's wrapper. The leaner synth layer is spun off as roadmap
-[69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes).
+[69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes). The four cuts were built the same day; their
+A/B runs wait for a quiet window Crawford names, then the Gate B listen.
 
 ### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
 

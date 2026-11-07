@@ -480,7 +480,9 @@ T3 (forced GC before perf:audio's census line) ──┤
 
 ### Phase B: The inaudible cuts (Gate A's order: G1, G2a, G4, G3, then B9)
 
-Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 is spun off (Gate A, 2026-11-07).
+Run order: T9, T11, T12, T14, T17, T17b, T15, T16, T16b. T13 is dropped and T18 is spun off (Gate A, 2026-11-07); T10
+is dropped and T17b added (Crawford, 2026-11-07). The code tasks are built; the A/B runs (T11, T14, T16, T16b) wait for
+a quiet window Crawford names ("can we put this off and come back to it later?", 2026-11-07).
 
 - [x] **Task 9: `standingBy.ts`, `audioBudgetSystem.ts` — muted robots stand down (G1)** (2026-11-07, 135d09f9)
 
@@ -527,9 +529,13 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
 
   **Estimated scope:** S (the rule moves one filter; tests carry the weight)
 
-- [ ] **Task 10: `audioBudgetSystem.ts`, `AudioEngine.ts` — an admitted robot's sends take the tick's time (G1)** — held
+- [x] **Task 10: `audioBudgetSystem.ts`, `AudioEngine.ts` — an admitted robot's sends take the tick's time (G1)** (2026-11-07, dropped)
 
-  **Held for Crawford (2026-11-07): the task's premise does not hold.** (1) The reconcile runs from a store subscription
+  **Dropped (Crawford, 2026-11-07: option (a)).** An admitted robot's sends keep their 50 ms fade from `now()`, and
+  Tone's once-per-page warning on an admission ("Events scheduled inside of scheduled callbacks should use the passed in
+  scheduling time") is expected: T11 notes it rather than counting it against G1, and T26 documents it.
+
+  **Why it was held: the task's premise does not hold.** (1) The reconcile runs from a store subscription
   inside the BeatClock's 16n Transport callback, and `subscribeToMeasure` hands its listeners no time
   (`docs/BEAT_CLOCK.md`), so there is no tick time to pass on. (2) `updateRobotSends`' `time` glides one 16n tick from
   that time (`rampOrSet` → `getTickSeconds`), so a timed prime would fade an admitted robot's sends in over about 125 ms
@@ -572,10 +578,11 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
   real-time-context recorder of DARK_EFFECT_BYPASS.md §5 step 2, backlog 27's `probe-crossing.mjs` shape against the
   branch's source): a docked robot's stand-down, an undocked robot's admission and its first note's onset against a
   warm voice, three runs each; and, for the record only, an un-solo readmitting eleven robots in one tick (the
-  measurement spec §7 Q1 asks for). Recorded as §6: kept or dropped by spec §1.5 step 3's bar, the console checked
-  for the Tone warning.
+  measurement spec §7 Q1 asks for). Recorded as §6: kept or dropped by spec §1.5 step 3's bar. The console's Tone
+  warning on an admission is expected (T10 dropped) and noted; any other warning is a finding.
 
-  **Proof:** a run — the A/B, the Light runs and the crossings; the console clean. Read — the section.
+  **Proof:** a run — the A/B, the Light runs and the crossings; the console clean apart from the expected warning. Read
+  — the section.
 
   **Acceptance criteria:**
   - [ ] Delta on W1 at least B1's price less the band; the crest bucket does not rise; `max lag` inside the base's
@@ -587,7 +594,7 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
   **Verification:**
   - [ ] Runs kept and quoted; the section read.
 
-  **Dependencies:** Task 10.
+  **Dependencies:** Task 9.
 
   **Files:** `docs/todo/scratchy-audio-phones.md`
 
@@ -784,7 +791,7 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
   **As built (2026-11-07).** `LOAD_PLAYBACK_BELOW = Infinity`, above the whole dial. Fifteen decision-J and boot-hint
   tests were updated, none deleted, and the `?latency=interactive` way back has its own case. One consequence for
   Crawford: the Audio Load readout (`describeLimits`) now ends "latency: Playback (applies on next load)" at every
-  position, Full included, so the clause no longer tells positions apart.
+  position, Full included, so the clause no longer tells positions apart. Crawford dropped it (2026-11-07): Task 17b.
 
   **Description:** `LOAD_PLAYBACK_BELOW` moves from 0.61 to a value above 1, so `latencyForLoad(1)` is `'playback'` and
   `resolveBootLatencyHint` installs it at Full with no `?latency=`; an explicit `?latency=interactive` still wins. The
@@ -807,6 +814,34 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
   **Files:** `src/constants/index.ts`, `src/utils/audioBudget.test.ts`, `src/engine/audioContextSetup.test.ts`
 
   **Estimated scope:** XS (one constant, two tests)
+
+- [ ] **Task 17b: `audioBudget.ts`, `settings.ts` — the readout drops its latency clause (added 2026-11-07)**
+
+  **Description:** With every position at `playback` (T17), the Audio Load readout's last clause, "latency: Playback
+  (applies on next load)", reads the same at every position and no longer tells them apart. Crawford's call
+  (2026-11-07): drop it. `describeLimits` ends at what is off, and the `settings.quality.limits.latency` content entry
+  goes with the clause (the content test fails on an unread key). `LoadLimits.latencyHint`, `latencyForLoad`, the boot
+  path, `?latency=` and the `?debug` overlay's `latency` line are unchanged.
+
+  **Proof:** RED test — `src/utils/audioBudget.test.ts`: `describeLimits` at Light, Standard and Full ends at what is
+  off, and no dial position names latency; `AudioLoadPanel.test.tsx`: the rendered readout never says "latency".
+
+  **Acceptance criteria:**
+  - [ ] The readout reads "Up to 12 robots · 16 notes · all LFOs and drift" at Full and names no latency at any
+        position.
+  - [ ] The latency hint, the boot path and `?latency=` are untouched.
+
+  **Verification:**
+  - [ ] `npx vitest run src/utils/audioBudget.test.ts src/components/panels/screen/console/AudioLoadPanel.test.tsx
+        src/content` passes.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 17.
+
+  **Files:** `src/utils/audioBudget.ts`, `src/content/copy/settings.ts`, `src/utils/audioBudget.test.ts`,
+  `src/components/panels/screen/console/AudioLoadPanel.test.tsx`
+
+  **Estimated scope:** XS (one clause and its copy)
 
 - [x] **Task 18: The leaner synth layer (G2b) — a stub, expanded only on Gate A's word** (2026-11-07, spun off)
 
@@ -1019,7 +1054,8 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
   **Description:** AUDIO_SYSTEM.md "Signal Graph": the per-robot bus after G2a (no composite out Gain; a native bus
   filter) and, if G2b shipped, the layer's shape; "Audio Load Budget": who stands down (muted robots at every tier, solo
   per Q1) and the admission path; "Global Pedals"/"The bypass cells": the cell reaches `effectSend`/`effectReturn`
-  (G3); the latency hint if G4 shipped. ROBOT_LIFECYCLE.md rule 6 and the "Standing-by robots keep the whole
+  (G3); the latency hint if G4 shipped, and a readout that no longer names it (T17b); an admission's Tone warning,
+  expected (T10 dropped). ROBOT_LIFECYCLE.md rule 6 and the "Standing-by robots keep the whole
   lifecycle" paragraph: a docked robot's voice is released after its last note and rebuilt the tick it is admitted
   after undocking; the melody stays registered. PERFORMANCE.md: `perf:audio-census` (flags, the source-map note, first
   use), the forced GC before the census line, the pin row (T25). Every named identifier spot-checked against the
@@ -1076,7 +1112,7 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
 | Risk | Impact | Mitigation |
 |---|---|---|
 | The floor arithmetic (spec assumption 1) is wrong and the docked voices are not the standing floor's bulk at Full | Medium | T6's B1 and B2 price it directly before any cut; T8 says whether it held; Gate A re-orders on the numbers |
-| An admitted robot's first note is late or clicks (a rebuild inside the live graph) | High | H2 measured the same path at ×1.000 and on-time onset; T11 re-measures with the docked case and the sends at the tick's time (T10) |
+| An admitted robot's first note is late or clicks (a rebuild inside the live graph) | High | H2 measured the same path at ×1.000 and on-time onset; T11 re-measures with the docked case; the sends keep their 50 ms fade from `now()` (T10 dropped) |
 | Solo stands eleven robots down and un-solo rebuilds eleven at once | Medium | Solo-silenced robots are excluded in T9; T11 measures the burst anyway, for the record; solo joins G1 only on a clean reading |
 | A native bus filter breaks a path that assumed a Tone node (`rampTo`, `dispose`, the link's `override`) | Medium | T12's RED tests cover the write paths and the link; the stub and Tone fallbacks stay; T14's census confirms the node count |
 | `effectSend`/`effectReturn` are `protected` and could move in a Tone release | Low | T15 feature-detects and falls back to today's edges with a `devWarn`; backlog 34 (the Tone upgrade) names it |
