@@ -1,15 +1,16 @@
 # Implementation Plan: Test Suite Run Time
 
-Source: backlog [70](../todo/backlog.md#70-tests-the-full-run-takes-too-long--speed-the-run-dont-thin-the-suite). No
+Source: backlog [70](../todo/archive/backlog-archive.md#70-tests-the-full-run-takes-too-long--speed-the-run-dont-thin-the-suite) (closed 2026-11-07 at Gate A). No
 spec and no intent doc: the goal is one sentence (a full `npm test` takes less wall-clock time, and every test still
 proves what it proves today), and nothing user-facing changes. The audit that motivated it is
 [TEST_REMOVAL_CANDIDATES.md](../reference/TEST_REMOVAL_CANDIDATES.md); its numbers are quoted below where a task
 starts from them.
 
-**Status:** Tasks 1, 2 and 4 done 2026-11-07 on `tests/pruning`; at Gate A. The Node switch saved 5 s of wall-clock
-(203 to 198 s) and 90 s of worker time on 67 files; Task 3 would move about 70 more files for a saving of the same
-order. Recommendation at the gate: stop here, record the figure in backlog 70 and archive it; leave Phase 3 and Task 11
-as recorded options. Crawford decides.
+**Status:** CLOSED at Gate A, 2026-11-07 (Crawford). Tasks 1, 2, 4 and 12 done on `tests/pruning`. The Node switch
+saved 5 s of wall-clock (203 to 198 s) and 90 s of worker time on 67 files. The twelve-minute run that raised the item
+did not reproduce: Crawford's own run the same evening read 204 s. Tasks 3 and 5 to 11 are not taken and stay here as
+recorded options with their stop-if figures; the audit's open questions stay open in
+[TEST_REMOVAL_CANDIDATES.md](../reference/TEST_REMOVAL_CANDIDATES.md) for whoever is next in those files.
 
 ## Overview
 
@@ -362,7 +363,10 @@ alone times quoted are from 2026-11-07 and Task 1 refreshes them. Order is by ex
 
   **Estimated scope:** M (about 4,000 lines deleted, four tests moved).
 
-- [ ] **Task 12: Docs — close backlog 70**
+- [x] **Task 12: Docs — close backlog 70** (done 2026-11-07, at Gate A rather than Gate B: 70 moved to the backlog
+  archive with the figures, its plan.md line deleted, the run-time note added to `docs/PERFORMANCE.md`; the audit doc
+  is untouched since Task 11 did not run; backlog 66 stays open, since the JSON reporter could not show whether the
+  timeout fired)
 
   **Description:** Write the final Baseline table into backlog 70's entry (or its archive entry, by the usual move),
   tick the audit doc's groups that Task 11 acted on, and add a short "Test run time" paragraph to
@@ -379,9 +383,9 @@ alone times quoted are from 2026-11-07 and Task 1 refreshes them. Order is by ex
   **Estimated scope:** XS.
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, full run clean.
-- [ ] The Baseline table is complete and copied into backlog 70's record.
-- [ ] Reviewed with Crawford.
+- [x] `npm run build:types`, `npm run lint`, full run clean (after Task 2; Phase 3 and Task 11 not run).
+- [x] The Baseline table is complete as far as the work went and its figures are in backlog 70's archive record.
+- [x] Reviewed with Crawford, 2026-11-07: closed at Gate A.
 
 ## Risks and Mitigations
 
