@@ -168,7 +168,11 @@ T3 (forced GC before perf:audio's census line) ──┤
 
 ### Phase A1: The tools
 
-- [ ] **Task 1: `scripts/perf/audio-census-lib.mjs` — the call-site tally**
+- [x] **Task 1: `scripts/perf/audio-census-lib.mjs` — the call-site tally** (2026-11-06)
+
+  **As built (2026-11-06).** "The top Tone frame" is read as the outermost one, the Tone class nearest whatever called
+  into Tone (a Phaser's CrossFade Gain goes to `Phaser (tone)`, not to the Gain wrapper), named by its file. Each maker
+  row carries `attributed` beside `byType` (`[class, count]` pairs). T2 extended the lib (see there).
 
   **Description:** The pure part of the census by call site. Given an array of `{ type, stack }` records (the node class
   and the creation stack as text) and an optional frame resolver (source-map lookup, supplied by the runner), it picks
@@ -200,7 +204,20 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** S (one module and its test)
 
-- [ ] **Task 2: `scripts/perf/audio-census.mjs` — the runner, and `perf:audio-census`**
+- [x] **Task 2: `scripts/perf/audio-census.mjs` — the runner, and `perf:audio-census`** (2026-11-06)
+
+  **As built (2026-11-06).** The hook holds each node by a `WeakRef`; the census counts the nodes still alive after a
+  forced GC in the open realtime context (the page makes 3 627 nodes in 7 contexts by 8 s; 1 798 are alive), so it
+  reads the live graph, not every creation. `withPoweredWorld` gained an optional `beforeNavigate` (the helper stays
+  shared). Readable makers took three lib changes, each RED first: the resolver is called as `resolve(frame, caller)`,
+  since a minified bundle keeps a renamed function's original name at the call to it (the runner trusts it only on an
+  exact entry whose generated text is the frame's own minified name, so `recordByEngineKey`'s `valueOf` parameter does
+  not name a callback); V8's `[as alias]` is preferred (`Object.Jce [as createCompositeVoice]`); an anonymous app frame
+  takes the nearest named frame out in the same file (`primeLfoBank`'s `forEach` arrows). W1 at Full on a sourcemapped
+  build of `main`'s `src/` at `6149d912`: hooked 1 798 against CDP's 1 799 (the context's AudioDestination), 99.6 %
+  made outside `node_modules`; makers `buildGlobalFxChain` 570, `createCompositeVoice` 534, `reserveVoice` 204,
+  `primeLfoBank` 196, `buildPhaser` 76, `_start (tonePatches.ts)` 68, `buildSendGains` 60, `createLayerGain` 24,
+  `buildCell` 20, `linkTarget` 19. A build without maps runs, with minified makers and a note.
 
   **Description:** Opens one world as `perf:audio` does (`withPoweredWorld`, `powered-world.mjs:21`, with `Page` in its
   `domains`), after installing through `Page.addScriptToEvaluateOnNewDocument` a wrapper that patches
@@ -234,7 +251,14 @@ T3 (forced GC before perf:audio's census line) ──┤
 
   **Estimated scope:** S (one runner on the shared helper, one script line)
 
-- [ ] **Task 3: `scripts/perf/audio-load.mjs` — a forced GC before the census line**
+- [x] **Task 3: `scripts/perf/audio-load.mjs` — a forced GC before the census line** (2026-11-06)
+
+  **As built (2026-11-06).** The premise did not hold. On W1 the GC removes 38 nodes at Full (1 837 → 1 799) and 80 at
+  Light (1 864 → 1 784), not about 500; the GC'd read is stable (1 799 in two runs) where the un-GC'd one wanders
+  (1 803, 1 837). The gap between the census and the nodes that render is live nodes that do not render (Checkpoint
+  A1's trace: 971 of 1 257 Gains and 331 of 332 ConstantSources render), for T5 to attribute. The GC lowers the first
+  bucket's heap (29.9 MB against 35.8 MB at Full), so a short run's heap trend reads larger; nodes and events read the
+  same.
 
   **Description:** Before printing `census after warm-up`, the runner calls `HeapProfiler.collectGarbage` (enabling the
   domain first) and waits a beat, so the disposed spawn-time voices (`storeVoice` disposes them at `loadInstruments`,
@@ -260,9 +284,11 @@ T3 (forced GC before perf:audio's census line) ──┤
   **Estimated scope:** XS (one runner)
 
 ### Checkpoint A1: The tools work
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] One smoke run each of `perf:audio` (with the GC), `perf:audio-handlers` and `perf:audio-census` on W1 at Full
-      against a sourcemapped build, orphaned Chrome 0 before and after; the census totals agree.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (13 576 tests in 354 files pass; the run exits 1 on
+      vitest's `Timeout calling "onTaskUpdate"` worker error, backlog 66, not a test failure). (2026-11-06)
+- [x] One smoke run each of `perf:audio` (with the GC), `perf:audio-handlers` and `perf:audio-census` on W1 at Full
+      against a sourcemapped build, orphaned Chrome 0 before and after; the census totals agree (1 799, 1 799 and
+      1 798 hooked; the trace's Render spans the whole 8 s window). (2026-11-06)
 - [ ] Reviewed with human before the runs.
 
 ---
