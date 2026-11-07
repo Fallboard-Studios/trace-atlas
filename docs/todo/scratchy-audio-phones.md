@@ -2272,3 +2272,89 @@ the first clean build.
 unchanged (Crawford, 2026-10-29: "No need to change full.").
 
 **Gate B** (Crawford's desktop listen, run after this sitting on the branch as built): passed (Crawford, 2026-10-29: "Gate B sounds good").
+
+## Backlog 67, the decomposition at Full (2026-11-06)
+
+Phase A of [specs/DESKTOP_FULL_TIER_STANDING_COST.md](../specs/DESKTOP_FULL_TIER_STANDING_COST.md) (plan
+[tasks/DESKTOP_FULL_TIER_STANDING_COST.md](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md), T4–T8): what the audio thread
+carries at Full on W1 and W2, by kind of work (the handler breakdown), by count and maker (the two censuses) and by
+piece of the app (the ablations), closed by the decision table for Gate A. **Stock build** for every run in this
+section: a production `vite build` of `perf/desktop-full-tier-standing-cost` at `ce9c5779`, whose `src/` is `main`'s
+`6149d912` unchanged (`index-D-mpzOoQ.js`), from the session scratchpad, `vite preview` on :4181; a
+`vite build --sourcemap` of the same commit (the same bundle) on :4192 for the census by maker. Headless Chrome
+156.0.8078.81. **W1** = `ez84fjmr` (93, −146) `?theme=wreck&load=full`; **W2** = `bravo` (−150, 90) `?load=full`, with no
+`s=` blob, so not backlog 27's D5 (`bravo` with its "seven links" blob, at Light). The desktop had nothing but VS Code
+open (Crawford away), Chrome closed and sleep off. Run outputs (`.txt` and `.json`) are kept in the session scratchpad
+(`C:\Users\Crawford\AppData\Local\Temp\claude\c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7\fdba3a53-81e1-480f-a3a4-fb5c600708fc\scratchpad\runs\`),
+named as below.
+
+### 1. The handler breakdown (T4) — `npm run perf:audio-handlers`, W1 and W2 at Full
+
+**Method.** As backlog 27's §1: three 8 s traces per world after the 8 s warm-up, interleaved W1 W2 W1 W2 W1 W2
+(`h-w1-1` … `h-w2-3b`), foreground, one run at a time, orphaned Chrome 0 before and after every run. `h-w2-3` lost data
+(buffer peak 90 %, Render spanned 7.8 s of the 8) and was re-run as `h-w2-3b`; the six kept traces each cover their
+whole window (buffer peak 81–84 %). The overlays read W1 `sounding 2/12`, `fx in 6/10`, `links 25/91` and W2
+`sounding 4/12`, `fx in 4/10`, `links 28/91`, both `standing by 0` and `bank 4/4`. Shares are of the same trace's
+Render, read as ordering (backlog 27 §1: the tracer's own cost swamps the cheap classes).
+
+**W1** (`ez84fjmr`, Render 1 574–1 625 events, 4.90–5.05 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 58.2 % (58.1–58.3) | 971 | 0.060 % |
+| ConstantSourceNode | 13.3 % (13.3–13.4) | 331 | 0.040 % |
+| BiquadFilterNode | 4.2 % (4.2–4.2) | 19 | 0.219 % |
+| WaveShaperNode | 3.7 % (3.7–3.7) | 34 | 0.109 % |
+| ConvolverNode | 3.4 % (3.4–3.5) | 1 | 3.422 % |
+| OscillatorNode | 3.3 % (3.3–3.3) | 21 | 0.158 % |
+| AudioBufferSourceNode | 2.8 % (2.8–2.8) | 31 | 0.090 % |
+| StereoPannerNode | 1.5 % (1.4–1.5) | 17 | 0.086 % |
+| DelayNode | 1.1 % (1.1–1.1) | 13 | 0.087 % |
+| ChannelSplitterNode | 0.8 % (0.8–0.8) | 11 | 0.070 % |
+| AudioWorkletNode | 0.7 % (0.7–0.7) | 1 | 0.722 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.330 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.069 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.054 % |
+| IIRFilterNode | 0.1 % (0.1–0.1) | 1 | 0.087 % |
+| **all handlers** | 94.1 % (94.1–94.1) | | |
+
+**W2** (`bravo`, Render 1 705–1 773 events, 4.49–4.66 ms each):
+
+| Handler class | Share of Render, median (min–max) | Instances | Per instance, median |
+|---|---|---|---|
+| GainNode | 57.6 % (57.6–57.7) | 907 | 0.064 % |
+| ConstantSourceNode | 14.8 % (14.7–14.9) | 342 | 0.043 % |
+| OscillatorNode | 4.2 % (4.2–4.2) | 26 | 0.162 % |
+| BiquadFilterNode | 4.0 % (4.0–4.0) | 15 | 0.267 % |
+| WaveShaperNode | 3.2 % (3.2–3.3) | 22 | 0.147 % |
+| AudioBufferSourceNode | 3.0 % (3.0–3.0) | 31 | 0.097 % |
+| ConvolverNode | 2.4 % (2.4–2.4) | 1 | 2.363 % |
+| StereoPannerNode | 1.1 % (1.1–1.1) | 11 | 0.102 % |
+| DelayNode | 1.1 % (1.0–1.1) | 12 | 0.088 % |
+| DynamicsCompressorNode | 0.7 % (0.7–0.7) | 2 | 0.351 % |
+| ChannelSplitterNode | 0.7 % (0.7–0.7) | 9 | 0.077 % |
+| ChannelMergerNode | 0.2 % (0.2–0.2) | 3 | 0.073 % |
+| AnalyserNode | 0.1 % (0.1–0.1) | 2 | 0.058 % |
+| IIRFilterNode | 0.1 % (0.1–0.1) | 1 | 0.092 % |
+| **all handlers** | 93.3 % (93.3–93.4) | | |
+
+(One stray `GainHandler::Process` row at 0.0 % per world is left out, as in backlog 27's §1.)
+
+**Reading.**
+- **How many nodes render every quantum at Full:** about **1 458 on W1** of its 1 799 live (§2), and **1 384 on W2** of
+  its 1 829, beside Light's about 1 390 / 1 410 in backlog 27 (other worlds, an October build, before H2). Full renders
+  about as many nodes as Light did then: twelve robots' voices, the chain and the bank stand in the graph at every tier.
+- **Every ConstantSource but one renders** (331 of 332 on W1, 342 of 343 on W2), the dark effects' included: a started
+  source renders whether or not anything it drives is heard, as backlog 27's H3a found for the dark cells' LFOs. Every
+  Tone Signal is a started `ConstantSourceNode` (§2: 58–59 % of all live nodes sit inside a Signal), so a Signal costs
+  its source wherever it stands.
+- **The live nodes that do not render** are about 340 on W1 and 445 on W2, nearly all Gains (286 and 376), with a few
+  wave shapers, biquads, panners and IIR filters: consistent with the dark effects' own Gains and Tone's wrapper
+  around them (W1 has four effects dark, W2 six), which nothing pulls. The trace does not name nodes, so this is a
+  reading, not a count.
+- **The heavy single nodes:** the one **Convolver** (the Reverb) is 3.4 % of traced Render on W1 and 2.4 % on W2 (the two
+  worlds seed different decays, as D1 and D5 did); the BitCrusher's **AudioWorklet** renders on W1 (0.7 %, the
+  third-heaviest single node) and not on W2; the two DynamicsCompressors 0.7 % together.
+- **Biquads:** 19 render on W1 and 15 on W2, of 32 live on each: the twelve robots' bus filters on both, plus 7 and 3
+  in the chain. The robots' `bus.frequency` links are live at Full (Light holds them off); their price is B3's and
+  B6k's (§3, §4), which the trace cannot give.
