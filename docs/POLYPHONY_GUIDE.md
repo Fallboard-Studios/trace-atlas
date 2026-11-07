@@ -59,7 +59,7 @@ AudioEngine.setPolyphonyCap(n);            // Audio Load: live ceiling, clamped 
 
 Both inputs are **pushed in** by `audioBudgetSystem` — the engine never reads a store for them, which keeps the existing engine ↔ `audioStore` load-order constraint intact — and both default to "no restriction", so the engine behaves exactly as before until something pushes them (Full is a no-op). The set is copied on the way in; `killAll()` resets `activeVoices` but leaves the set and the cap in force, so a power cycle keeps the budget.
 
-The cap applies to **new triggers only**. Lowering it below the notes already sounding blocks new notes without touching the counter — the counter drains as each scheduled release fires — because forcibly releasing counts could strand `activeVoices`, the failure mode the release-scheduling note above describes. Robots over the budget "stand by": gated at the trigger, they keep their reserved voice and registered melody. See [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget) for the whole feature.
+The cap applies to **new triggers only**. Lowering it below the notes already sounding blocks new notes without touching the counter — the counter drains as each scheduled release fires — because forcibly releasing counts could strand `activeVoices`, the failure mode the release-scheduling note above describes. Robots over the budget "stand by", and so do muted robots: gated at the trigger, they keep their registered melody and give up their voice after their last note, rebuilt when the budget admits them. See [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget) for the whole feature.
 
 ## Timing
 

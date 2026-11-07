@@ -1056,6 +1056,13 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
 
 - [ ] **Task 26: `docs/AUDIO_SYSTEM.md`, `docs/ROBOT_LIFECYCLE.md`, `docs/PERFORMANCE.md` — document the shipped behaviour**
 
+  **Part brought forward (Crawford, 2026-11-07, before Phase B's code merged).** The statements that code made false
+  are corrected: AUDIO_SYSTEM.md's who-stands-by rule (muted robots, the expected admission warning), the latency hint
+  (the pure core and "Latency is a load-time decision") and the cells' edges (G3); ROBOT_LIFECYCLE.md rule 6, the
+  standing-by paragraph and the power-on pass; POLYPHONY_GUIDE.md's stand-by line. T26 keeps the rest: the native bus
+  filter in "Signal Graph", the measured prices, PERFORMANCE.md's census docs and pin row, and a re-check of these
+  against the shipped source.
+
   **Description:** AUDIO_SYSTEM.md "Signal Graph": the per-robot bus after G2a (no composite out Gain; a native bus
   filter) and, if G2b shipped, the layer's shape; "Audio Load Budget": who stands down (muted robots at every tier, solo
   per Q1) and the admission path; "Global Pedals"/"The bypass cells": the cell reaches `effectSend`/`effectReturn`
