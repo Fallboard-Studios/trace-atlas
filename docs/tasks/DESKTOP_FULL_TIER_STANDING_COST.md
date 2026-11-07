@@ -482,7 +482,15 @@ T3 (forced GC before perf:audio's census line) ──┤
 
 Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 is spun off (Gate A, 2026-11-07).
 
-- [ ] **Task 9: `standingBy.ts`, `audioBudgetSystem.ts` — muted robots stand down (G1)**
+- [x] **Task 9: `standingBy.ts`, `audioBudgetSystem.ts` — muted robots stand down (G1)** (2026-11-07, 135d09f9)
+
+  **As built (2026-11-07).** `reconcile` pushes the robots over the budget in arrival order, then every `'mute'` robot in
+  roster order; solo-silenced robots are never pushed (Q1). The engine needed no change: its ledger does not ask why a
+  robot stands by, and its 23 standing-by tests already pin the four engine behaviours the Proof lists, so no engine test
+  was added (it would have passed first). Two pre-existing budget tests asserted the old rule ("never names a muted
+  robot", "names nobody at Full, mutes and all") and were rewritten to the new one, so "every pre-existing H2 test passes
+  unmodified" could not hold for those two. Comments that stated the old rule were corrected in `standingBy.ts`,
+  `AudioEngine.ts` and `robotSystems.ts` (`landOnActive` said a docked robot's voice stays reserved across dock cycles).
 
   **Description:** `reconcile` computes the stand-down list as every robot in the roster outside the sounding set
   whose `audioMode` is `'mute'`, plus the eligible robots over the cap it pushes today, and hands it to
@@ -519,7 +527,18 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
 
   **Estimated scope:** S (the rule moves one filter; tests carry the weight)
 
-- [ ] **Task 10: `audioBudgetSystem.ts`, `AudioEngine.ts` — an admitted robot's sends take the tick's time (G1)**
+- [ ] **Task 10: `audioBudgetSystem.ts`, `AudioEngine.ts` — an admitted robot's sends take the tick's time (G1)** — held
+
+  **Held for Crawford (2026-11-07): the task's premise does not hold.** (1) The reconcile runs from a store subscription
+  inside the BeatClock's 16n Transport callback, and `subscribeToMeasure` hands its listeners no time
+  (`docs/BEAT_CLOCK.md`), so there is no tick time to pass on. (2) `updateRobotSends`' `time` glides one 16n tick from
+  that time (`rampOrSet` → `getTickSeconds`), so a timed prime would fade an admitted robot's sends in over about 125 ms
+  at 120 bpm, not 50 ms, against the second acceptance line. (3) A room an admission relights (W1's Double room, fed by
+  one robot, goes dark under G1 when that robot docks) makes its own untimed ramps and LFO starts in `writeCellMix` inside
+  the same callback, so the once-per-page Tone warning would stay. What is heard today is the 50 ms send fade from
+  `now()`, which the note's MIN_LEAD mostly covers. Options: (a) drop T10 and record the warning as expected; (b) a fresh
+  voice's sends and manual pan set at once, no ramp: no fade, but the room warning stays; (c) thread the tick's time from
+  BeatClock through the budget and the engine to the cells: larger, and it changes what measure listeners receive.
 
   **Description:** The admission path (`setSoundingRobots` → `admit` → `rebuildVoice` → `reReserveVoice`, then
   `primeRebuilt`) runs inside the budget's Transport callback; `reReserveVoice` primes the fresh voice's sends with
@@ -574,7 +593,17 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 12: `busFilter.ts`, `AudioEngine.ts`, `lfoShared.ts` — a native bus filter (G2a)**
+- [x] **Task 12: `busFilter.ts`, `AudioEngine.ts`, `lfoShared.ts` — a native bus filter (G2a)** (2026-11-07, a0bc52db)
+
+  **As built (2026-11-07).** `buildBusFilter(context, options)` takes the raw context and the Filter constructor from
+  `AudioEngine.ts`, so `busFilter.ts` keeps no runtime Tone import (RobotScreen and companyOptions read its resolvers);
+  a WeakSet marks the biquads it made (`isNativeBusFilter`). The biquad connects on through `Tone.connect`, to the
+  destination when no chain exists yet. Deviations: a live edit glides through its own `glideBusFilter`
+  (`cancelAndHoldAtTime`, else cancel and pin the present value, then a linear ramp from `Tone.now()`; nothing non-finite
+  written), not through `rampOrSet`'s fallback, which assigns, so a cutoff edit would have jumped; `lfoShared.ts` is
+  unchanged (B6 ran the links on the native param with `connectAdditively` as it is, and its test pins `override = false`
+  on a Param-like target); the headless count pin is unchanged, since the mocked raw context has no `createBiquadFilter`
+  and headless keeps the Tone.Filter; six engine cases with a fake biquad pin the native path instead.
 
   **Description:** `busFilter.ts` gains `buildBusFilter({ frequency, Q, type })` returning a native `BiquadFilterNode`
   from `Tone.getContext().rawContext.createBiquadFilter()` when the context has it, else today's `Tone.Filter` (or the
@@ -663,7 +692,15 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 15: `bypassCell.ts` — the cells reach the effect's send and return (G3)**
+- [x] **Task 15: `bypassCell.ts` — the cells reach the effect's send and return (G3)** (2026-11-07, 7901cfd5)
+
+  **As built (2026-11-07).** One `effectEnds(key, effect)` picks `effectSend` / `effectReturn` (an `Effect`, the
+  widener's `MidSideEffect`) or `_split` / `_merge` (a `StereoEffect`) from the effect itself, so the cell records
+  nothing: a light, its darken, `wireCells`, a room branch and the Phaser swap all reach the same pair. Every one of the
+  ten effects in Tone 15.1.22 has a pair; the Chorus's feedback loop sits between its Split and Merge. The fallback warns
+  once per key. Two `globalFx.test.ts` cases asserted no devWarn at all; that file's fake effects carry no pair, so they
+  now filter out the fallback's warning (`failureWarnings`) and still assert that nothing failed. Every other
+  pre-existing cell and crossing test passes unmodified, on the fallback edges.
 
   **Description:** `connectEffect(key, cell, effect)` connects `cell.in → effect.effectSend` and `effect.effectReturn →
   cell.wet` when the effect exposes both (read through a cast; `protected` on the `.d.ts`), else today's `cell.in →
@@ -742,7 +779,12 @@ Run order: T9, T10, T11, T12, T14, T17, T15, T16, T16b. T13 is dropped and T18 i
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 17: `src/constants/index.ts` — Full at `playback` (G4; taken at Gate A, 2026-11-07)**
+- [x] **Task 17: `src/constants/index.ts` — Full at `playback` (G4; taken at Gate A, 2026-11-07)** (2026-11-07, f1ffd3d1)
+
+  **As built (2026-11-07).** `LOAD_PLAYBACK_BELOW = Infinity`, above the whole dial. Fifteen decision-J and boot-hint
+  tests were updated, none deleted, and the `?latency=interactive` way back has its own case. One consequence for
+  Crawford: the Audio Load readout (`describeLimits`) now ends "latency: Playback (applies on next load)" at every
+  position, Full included, so the clause no longer tells positions apart.
 
   **Description:** `LOAD_PLAYBACK_BELOW` moves from 0.61 to a value above 1, so `latencyForLoad(1)` is `'playback'` and
   `resolveBootLatencyHint` installs it at Full with no `?latency=`; an explicit `?latency=interactive` still wins. The
