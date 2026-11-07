@@ -2707,3 +2707,86 @@ quiet voices are 0.235 of 0.508. **Half confirmed:** the crest is the music. In 
 0.443, and releasing every quiet one moves it by 0.020. The totals came out right because the two errors cancel: a
 sounding robot costs about two thirds of what was assumed, and a quiet one costs as much as assumed on the mean but
 more at W1's trough.
+
+### 5. The decision table for Gate A (T8)
+
+One row per piece: the spec's G1–G8, two more the runs surfaced, and the spec's hygiene note. Prices are §3's and
+§4's medians: the mean, crest and trough deltas (bold where clear of the noise band), on W1 (`ez84fjmr`, 0.573 / 0.629
+/ 0.508 stock) and W2 (`bravo`, 0.451 / 0.521 / 0.335). The census is the 8 s mark's live-node change. Files are the
+spec §2's; tasks are the plan's. **Nothing here is decided: Gate A is Crawford's.**
+
+**Which effects are lit** (needed by G3 and G6; read from the running app at Full with backlog 27's lit probe, `npm run
+dev` on :5191, the engine's own cells and rooms; `probe-lit.mjs` in the session scratchpad, nothing of it committed;
+it matches the overlay's `fx in 6/10` and `4/10`):
+- **W1:** AutoWah (0.45), Vibrato (0.94) and Width (0.54) in the chain; Distortion (0.19) and BitCrusher (0.14) on
+  the Grit room (11 of 12 robots send to it); Chorus on the Double room (fed by one robot, 0.47). Dark: Chebyshev,
+  Phaser, Tremolo, and the Frequency Shifter (Shimmer is unfed). The offline list prices the six at 77.7 ‰, beside
+  B4's 0.086.
+- **W2:** AutoWah (0.44), Vibrato (0.88) and Width (0.62); Chorus on Double (three robots). Dark: Distortion,
+  Chebyshev and BitCrusher (Grit is fed by two robots but every Grit depth is 0), Phaser, Tremolo, Shifter (Shimmer
+  unfed). Offline 63.2 ‰, beside B4's 0.072.
+- **The Phaser is dark on both worlds** (Mix 0, 5 stages), so the Phaser is in neither world's price.
+
+**Inaudible**
+
+| Row | The piece | W1 mean / crest / trough | W2 mean / crest / trough | Census | The cut and its files | Audible? | To build | Rec. |
+|---|---|---|---|---|---|---|---|---|
+| **G1** | The quiet robots' standing voices: the docked (`audioMode: 'mute'`) and user-muted; solo-silenced per Q1 | **−0.079** / below noise / **−0.152** (0.015–0.025 a quiet robot) | **−0.054** / below noise / **−0.142** (0.008–0.016) | −680 / −562 (B1) | Every robot outside the sounding set stands by and is released after its last note, readmitted before its next; an admitted robot's sends at the tick's time. `standingBy.ts`, `audioBudgetSystem.ts`, `AudioEngine.ts`; `AUDIO_SYSTEM.md`, `ROBOT_LIFECYCLE.md` | No: a released robot triggers nothing. A room only quiet robots feed goes dark meanwhile (W1's Chorus), silent anyway | T9–T11 | **1st** |
+| **G2a** | The bus filter's Tone wrapper (14 nodes a robot) and the composite `out` Gain (1) | Filter **−0.025** / **−0.036** / below noise; `out` Gain below noise | Filter **−0.046** / **−0.042** / below noise; `out` Gain below noise | Filter −168 (Gain −120, ConstantSource −48); `out` −12 once removed | A native `BiquadFilterNode` behind `buildBusFilter` (T12); no `out` Gain (T13). `busFilter.ts`, `AudioEngine.ts`, `lfoShared.ts` / `lfoEngine.ts`, `compositeVoice.ts` | No | T12, T14; T13 optional | **2nd** (T12) |
+| **G2b** | The synth layer's Tone wrapper (the Synths' unity Gains, the Omni's Signals; −21 a robot by the spec's count) | Not priced: no variant isolates it. Its ceiling is the sounding robot, 0.035–0.045 each; W1's crest bucket's robots are 0.443 | Not priced, as W1; W2's crest bucket's robots are 0.363 | −252 for twelve by the spec, unmeasured | A layer on native nodes in place of `Tone.Synth`. `compositeVoice.ts`, `AudioEngine.ts`, `articulation.ts` | No, if the envelope and oscillator keep their shape; a listen proves it | T18 (a stub) or a phase of its own (Q2) | Own phase |
+| **G3** | Tone's `Effect` plumbing around each lit effect: its input, CrossFade and output, 8 rendering nodes | **−0.028** / **−0.043** / −0.035 at the band's edge (0.005 a lit effect, six lit) | Below noise on all three (four lit) | None (the nodes stay; 48 fewer render on W1) | Cells wired to `effectSend` / `effectReturn` (`_split` / `_merge` on a `StereoEffect`). `bypassCell.ts`: `connectEffect`, `disconnectEffect` **and `wireCells`**, which T15 calls unchanged but which B5 had to change; the Phaser's rebuild in `globalFx.ts` | No: the cell's law is the one in force; B5's output level matched | T15 (amended), T16 | **4th** |
+| **G4** | Full's `interactive` buffer | **−0.028** / below noise / below noise; underruns at the end 2, 3, 2 against the stock's 4, 10, 5 | **−0.042** / **−0.057** / **−0.050**; 2, 2, 61 (one clock stall) against 2, 5, 2 | None | `LOAD_PLAYBACK_BELOW` above 1 in `src/constants/index.ts`; `?latency=interactive` stays the way back | Not as sound; about +11 ms output latency (39–45 → 50–56 ms), a control-feel call (Q3) | T17 | **3rd** |
+| **New: dark Signals** | A dark effect's Signals keep their ConstantSources rendering (§3: all 331 render with every effect dark; §4: a bypassed CrossFade's fade source too). W1 has four dark effects, W2 six | Not priced: no variant removes them (B4 prices lit against dark) | Not priced | The chain's 112 ConstantSources and 376 nodes inside its Signals (§2); the dark share unmeasured | A dark effect torn down after its darken and rebuilt, silent under the cell's zero wet, when it lights (as `rebuildPhaser` swaps a Phaser today). `bypassCell.ts`, `globalFx.ts` | No, if the rebuild is silent; the crossing recipe proves it | No task; a spec after an ablation | Ablation first |
+| **New: the floor's remainder** | What §4's sum leaves: the bank's LFOs, the master chain (EQ3 = G7, LPF and HPF, Compressor, Delay, Limiter), the Reverb (G8), the dark Signals (above), overhead | 0.08–0.12 / 0.07–0.14 / 0.10–0.11 | 0.08–0.09 / 0.08–0.09 / 0.09–0.11 | Bank 239–243 (§2) | None proposed: the bank and the master chain are the music's own | — | — | Chase the dark Signals only |
+| **Hygiene: the double build** | Every voice built twice at boot and on restart | Not priced: disposed nodes cost the render thread nothing (T3's GC removes 38 at Full) | Not priced | +38 until the GC runs | Build once: the reservation path in `AudioEngine.ts` | No | No task | A backlog entry |
+
+**Audible** (Phase B2, only on a Gate B miss, each its own listen)
+
+| Row | The piece | W1 | W2 | Census | The cut and its files | Audible? | To build | Rec. |
+|---|---|---|---|---|---|---|---|---|
+| **G5** | The twelve bus biquads' per-sample coefficients while their links are live | B6k − B6: −0.007, below noise; the offline estimate is 0.01–0.02 for twelve | +0.012, below noise | None | `frequency.automationRate = 'k-rate'` on the native bus filter (needs G2a's T12). standardized-audio-context hides `automationRate`; B6k reached the native param through the wrapper's private `_nativeAudioContext`, so T21 must say how it reaches it. `busFilter.ts`, perhaps `tonePatches.ts` | Maybe: a slow LFO stepping every 2.7 ms | T21 | Last |
+| **G6** | The lit pedals | B4 **−0.086** / **−0.082** / **−0.087**, flat (six lit, 0.014 an effect) | **−0.072** / **−0.082** / **−0.057** (four lit, 0.018) | −3 (B4) | T22, the Phaser's stage ceiling: **the Phaser is dark on both worlds, so it saves nothing here.** T23, the AutoWah's rolloff (lit on both): offline −13 to −27 % of 24.9 ‰, about 0.003–0.007. T24, native Phaser and AutoWah at k-rate (the AutoWah about −35 %, about 0.009), a spec of its own. `classic.ts`, `aspects.ts`; `tonePatches.ts`, `globalFx.ts` | Yes | T22–T24 | T23 before T22 on these worlds |
+| **G7** | EQ3 as a `MultibandSplit` | Not priced: no ablation ran; the spec asks for one only if the census reads it large, and EQ3 is 74 of `buildGlobalFxChain`'s 570 nodes on W1 (§2), about 4 % of the graph | Not priced | 74 | Three native filters with the stored levels. `globalFx.ts` | Yes: the band edges' shape | No task | Drop for now |
+| **G8** | The Reverb's Convolver (W1 decay 2.85 s, W2 1.44 s) | Not priced: 3.4 % of traced Render (§1), an ordering, not a price | Not priced: 2.4 % | 1 | None proposed: the Reverb is music | Yes | — | Record only |
+
+**The agent's order, with reasons** (a recommendation only):
+1. **G1** (T9–T11). The largest inaudible piece on both worlds: −0.15 at the trough, −0.05 to −0.08 at the mean.
+   Nothing at the crest. Q1 decides solo.
+2. **G2a's filter** (T12, T14). Small, but clear on both worlds at every moment, and the native filter G5 would need.
+   After G1 the released voices take their filters with them, so it would save about the sounding share of B6 (W1
+   about 0.014, W2 about 0.021), an estimate. T13's `out` Gain is below noise (under 0.001 a robot): build it with
+   T12 as tidying, or drop it.
+3. **G4** (T17). One constant; a mean saving on both worlds the size of G2a's; fewer end-of-run underruns than the
+   stock in four of six runs (the same in one, the clock stall in one); +11 ms between a control and its sound. Q3 is
+   Crawford's. The spec's own recommendation was "take it if B8's crest underruns fall"; the harness reads underruns
+   at the end of a run, not in the crest bucket.
+4. **G3** (T15, T16). About 0.005 a lit effect: real on W1's six, below noise on W2's four. T15 needs `wireCells`
+   and the `StereoEffect` pair added to its description.
+5. **The dark Signals:** one ablation (a B9: every dark effect disposed after boot, both worlds, three rounds) to
+   price them before a spec is written.
+6. **G2b**, its own phase. It is the only inaudible row that reaches the crest, where the robots are 0.36–0.44
+   and G1–G4 together reach about 0.07–0.09. The spec's condition for building it in this phase ("B2's per-robot price
+   at Full and Gate A say the sounding robots are the load at the crest") is met by the numbers; here or its own phase
+   is Q2. Its size (a voice rewrite and a listen) argues for its own phase, with §2–§4 as its brief.
+7. **G5–G8** only on a Gate B miss, as the plan has it: G6's T23 first on these worlds, G5 last, G7 and G8 not at all.
+
+**What G1–G4 could add up to** (an estimate for Gate A, not measured; the parts are not additive, and T11, T14, T16
+and T17's A/Bs measure each in turn): G1 + G2a after G1 + G4 + G3 ≈ 0.15 off W1's mean (0.573 → about 0.42) and 0.12
+off W2's (0.451 → about 0.33). At the crest only G2a, G3 and G4 act: about 0.07 on W1 (0.629 → about 0.56) and 0.09 on
+W2 (0.521 → about 0.43).
+
+**Whether assumption 1 held** (§4 has the table). Its totals held: about 0.5 at W1's trough and 0.7 at its crest were
+predicted, and 0.51 and 0.63 were measured. Its parts did not. The floor above Light's is the quiet voices, not Full's
+extras: B3 and the sixth lit effect come to about 0.05 together, the `interactive` buffer to about 0.03, and the quiet
+voices to 0.235 at W1's trough. A sounding robot costs about two thirds of the assumed 0.06, and a quiet one at least
+the assumed 0.015, so the two errors cancelled in the totals. Its corollary held: the crest is the music. Releasing
+every quiet robot does not move it, and among the inaudible rows only G2b reaches it by much.
+
+**Gate A's questions** (the spec's §7, and the runs'):
+- Q1: G1's reach, muted robots only or solo-silenced too.
+- Q2: G2b, here or its own phase.
+- Q3: G4, Full at `playback`.
+- Per row: keep (Phase B, in what order), listen-only (Phase B2), drop, or spin off.
+- New: the B9 ablation of the dark effects' Signals, yes or no; T13 kept or dropped; T15's description amended
+  (`wireCells`, `_split` / `_merge`); T12's acceptance line corrected to the measured −14 a robot (Gain −10,
+  ConstantSource −4; it reads "Gains × 2").
