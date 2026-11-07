@@ -48,6 +48,12 @@ import { withPoweredWorld } from './powered-world.mjs';
 /** How often the DevTools realtime data is polled. `contextRealtimeDataChanged` events do not arrive on their own. */
 const POLL_MS = 500;
 
+/**
+ * Seconds between the forced GC and the census line (backlog 67 T3), so Chrome's node-destroyed events for the nodes
+ * it collected arrive first: a disposed voice's nodes stay in the tally until their wrappers are collected.
+ */
+const GC_SETTLE_SEC = 1;
+
 const HELP = `Usage: npm run perf:audio -- [flags]
 
   --world <spec>     one world, name:x:y (e.g. charlie:200:-30), pinned through the page's ?seed=&x=&y=. A tweaked
@@ -64,6 +70,8 @@ const HELP = `Usage: npm run perf:audio -- [flags]
   --url <url>        base URL of the served build (default http://localhost:4173/trace-atlas/, i.e. \`vite preview\`;
                      a LAN address such as http://192.168.1.20:4173/trace-atlas/ works too). Any query on it is replaced.
   --no-debug         do not add ?debug to the URL (no overlay, so no audible-robot column)
+  --no-gc            take the census line without forcing a garbage collection first (by default the census reads
+                     after a forced GC and a ${GC_SETTLE_SEC} s settle, so voices already disposed are not counted)
   --json <path>      also write each run's buckets and summary to this file (a .json array, one entry per world)
   --chrome <path>    Chrome/Edge executable (else $CHROME_PATH, else a platform default)
   --port <n>         remote-debugging port (default 9334)
@@ -83,6 +91,7 @@ const { values: opts } = parseArgs({
     warmup: { type: 'string', default: '8' },
     url: { type: 'string', default: 'http://localhost:4173/trace-atlas/' },
     'no-debug': { type: 'boolean', default: false },
+    'no-gc': { type: 'boolean', default: false },
     json: { type: 'string' },
     chrome: { type: 'string' },
     port: { type: 'string', default: '9334' },
@@ -117,10 +126,14 @@ async function measureWorld(world, { seconds, bucketSec, warmupSec }) {
     world,
     debug: !opts['no-debug'],
     warmupSec,
-    domains: ['Performance'],
+    domains: opts['no-gc'] ? ['Performance'] : ['Performance', 'HeapProfiler'],
     listen,
   };
   return withPoweredWorld(open, async ({ send, evaluate, url, contextId, carried }) => {
+    if (!opts['no-gc']) {
+      await send('HeapProfiler.collectGarbage');
+      await sleep(GC_SETTLE_SEC * 1000);
+    }
     const nodesAtStart = nodes.liveByType(contextId);
     const samples = [];
     const start = performance.now();
