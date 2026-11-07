@@ -2,15 +2,15 @@
 
 Source: backlog [70](../todo/archive/backlog-archive.md#70-tests-the-full-run-takes-too-long--speed-the-run-dont-thin-the-suite) (closed 2026-11-07 at Gate A). No
 spec and no intent doc: the goal is one sentence (a full `npm test` takes less wall-clock time, and every test still
-proves what it proves today), and nothing user-facing changes. The audit that motivated it is
-[TEST_REMOVAL_CANDIDATES.md](../reference/TEST_REMOVAL_CANDIDATES.md); its numbers are quoted below where a task
-starts from them.
+proves what it proves today), and nothing user-facing changes. It was motivated by a removal audit of the suite
+(2026-11-07, since deleted); the page of it that outlived its conclusion is the [appendix](#appendix-the-removal-audits-residue)
+at the end of this file, and its numbers are quoted below where a task starts from them.
 
 **Status:** CLOSED at Gate A, 2026-11-07 (Crawford). Tasks 1, 2, 4 and 12 done on `tests/pruning`. The Node switch
 saved 5 s of wall-clock (203 to 198 s) and 90 s of worker time on 67 files. The twelve-minute run that raised the item
 did not reproduce: Crawford's own run the same evening read 204 s. Tasks 3 and 5 to 11 are not taken and stay here as
-recorded options with their stop-if figures; the audit's open questions stay open in
-[TEST_REMOVAL_CANDIDATES.md](../reference/TEST_REMOVAL_CANDIDATES.md) for whoever is next in those files.
+recorded options with their stop-if figures; the audit's open questions stay open below for whoever is next in those
+files.
 
 ## Overview
 
@@ -343,8 +343,8 @@ alone times quoted are from 2026-11-07 and Task 1 refreshes them. Order is by ex
 
 - [ ] **Task 11 (optional): the audit's first PR — groups 1.1 to 1.8 and 1.12**
 
-  **Description:** As [TEST_REMOVAL_CANDIDATES.md](../reference/TEST_REMOVAL_CANDIDATES.md) section 7 step 1 lays
-  it out, with its four relocations done in the same commit as the deletion they precede, never after: the
+  **Description:** The whole-file list in the [appendix](#appendix-the-removal-audits-residue), with its four
+  relocations done in the same commit as the deletion they precede, never after: the
   `isSyncedRateKey` and `withGlobalAudioDefaults` blocks out of `types/globalAudio.test.ts`; the orbiter-timeline case
   out of `Robot.integration.test.tsx` into `Robot.test.tsx`; the re-reserve sends case out of
   `robotSendsParity.test.ts` into `AudioEngine.test.ts` (it uses the parity file's own `recordPrimes` harness, so
@@ -359,7 +359,7 @@ alone times quoted are from 2026-11-07 and Task 1 refreshes them. Order is by ex
 
   **Dependencies:** Gate B; the 1.3, 1.6 and 1.7 answers (Open Questions).
 
-  **Files:** the 31 files the audit's section 1 names; see the doc.
+  **Files:** the 31 files in the appendix.
 
   **Estimated scope:** M (about 4,000 lines deleted, four tests moved).
 
@@ -377,8 +377,7 @@ alone times quoted are from 2026-11-07 and Task 1 refreshes them. Order is by ex
 
   **Dependencies:** Gate B (and Task 11 if run).
 
-  **Files:** `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/PERFORMANCE.md`,
-  `docs/reference/TEST_REMOVAL_CANDIDATES.md`.
+  **Files:** `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/PERFORMANCE.md`, this file's appendix.
 
   **Estimated scope:** XS.
 
@@ -443,3 +442,69 @@ figure in Task 1's recipe is an alternative; the two agree within the startup se
 | `utils/svgElementExtent.test.tsx` | 6.9 | | 33 | | 8 |
 | `components/panels/screen/screens/OffScreen.test.tsx` | 18.0 | | 195 | | 9 |
 | `systems/lifecycleSim.test.ts` | 7.0 | | 48 | | 10 |
+
+## Appendix: the removal audit's residue
+
+A 643-line audit of the suite was written on 2026-11-07 and deleted the same day at Crawford's request once its own
+conclusion was clear: the removable tests are about 3 % of the lines and a few seconds of run time, and the suite is
+otherwise sound. This page is what outlived it: the whole-file candidates, the four tests that must move before their
+file goes, two flaky tests, the duplicate statistical tests, and the decisions that were never taken. It exists for
+Task 11, if anyone ever wants it. Nothing here has been removed. Line anchors are not given; find a test by its title.
+
+### Whole files (31; about 4,000 lines, 314 `it()`s)
+
+| File | Why it can go |
+| --- | --- |
+| `src/types/globalAudio.test.ts` | Defaults compared with literal copies; **but** its `isSyncedRateKey` and `withGlobalAudioDefaults` blocks are the only unit tests of those functions and move first |
+| `src/types/lfo.test.ts`, `audioSwell.test.ts`, `controls.test.ts`, `performance.test.ts`, `articulation.test.ts`, `Company.test.ts`, `traits.test.ts`, `Robot.test.ts` | Compile-time checks run at runtime, literal arrays compared with copies, and history guards ("no longer lists", "never carries"); `tsc` already enforces the type cases. `lfo.test.ts`'s "does not overlap with ROBOT_LFO_TARGET_IDS" is a real invariant that could move beside `engine/lfoEngine.test.ts` |
+| `src/constants/time.test.ts` | Trim, don't delete: the six `computeLocaleHour` wrap-around tests are the function's only direct tests; "DAY_DURATION_MS is a flat 6 minutes" and the absence guard go |
+| `src/constants/accentColors.test.ts`, `deckCamera.test.ts`, `sends.test.ts` | Constants equal to themselves; `accentColors` compares the table with a hand-copied CSS file |
+| `src/components/actors/Factory.bevel0.test.tsx`, `scenery/Scenery.bevel0.test.tsx`, `scenery/pipeBridges.bevel0.test.tsx`, `panels/screen/worldView/TerrainLayer.bevel0.test.tsx` | Mock the `as const` `WORLD_GEM` switches to all-`false`, a configuration no build can reach. The same pattern lives in 24 `it()`s inside the `.ring` and hairline files ("with the switch off there is no ring", "the other switches do not touch it") via `withSwitch`. Open question 1 |
+| `src/systems/lifecycleSim.test.ts` | Tests Phase 43's three measurement harnesses; nothing in production imports the module; holds the slowest case in the suite. Open question 2 |
+| `src/components/actors/scenery/sceneryTestHelpers.test.ts`, `material/ringTestHelpers.test.tsx`, `src/testUtils/seededDraws.test.ts` | Tests of test helpers; a helper that misbehaves fails the tests that use it |
+| `src/components/ui/controls/cabinetWallGeometry.verify.test.ts` | Proves GSAP composes `scaleY` before `skewX`, a property of GSAP settled once at design time |
+| `src/components/ui/controls/CabinetryCascade.test.tsx` | One of three cascade tests (the others: the `AudioRigEffectPanel.test.tsx` "re-render cascade regression" block and the per-control memo pair). Open question 6 |
+| `src/data/sliderOrientation.test.ts` | History guard: "no slider schema is vertical any more" |
+| `src/components/robot/Robot.noLabel.test.tsx` | History guard: "a selected robot in the world has no text label" |
+| `src/components/robot/Robot.integration.test.tsx` | Fold, don't drop: its one case is the only test that the orbiter timeline leaves `timelineMap` on unmount (a CLAUDE.md checklist item); move into `Robot.test.tsx` |
+| `src/engine/audioEngine/numericDuration.test.ts` | Asserts Tone's `Time` parsing, on purpose as a Tone-upgrade tripwire. Open question 3 |
+| `src/engine/audioEngine/chainCycleSearch.test.ts` | Measures `standardized-audio-context`'s internal expansion count through a `build/es2019/` import that breaks on any bump; the reason it records belongs in `docs/AUDIO_SYSTEM.md` |
+| `src/systems/robotSendsParity.test.ts` | Roadmap 55's parity oracle, honoured at PR #570; **but** its "AudioEngine.reReserveVoice hands the rebuilt voice the stored sends" case is the only test of that behaviour and moves into `AudioEngine.test.ts` first (rewrite against that file's mocks; it uses the parity file's own `recordPrimes`) |
+| `src/components/ui/controls/helpOnLabels.test.tsx` | Cross-control "?" checks that repeat each control's own file, except the Button and TempoSyncToggle cases, which move into those files first |
+
+Also whole-block, inside files that stay: the `globalAudioSeed.test.ts` "seed oracle (pre-Sync output, do not
+regenerate)" `describe` (five tests pinning 40-line literal outputs, re-recorded on every loading change);
+`colorUtils.test.ts` "reproduces the exact pre-refactor output ... (parity oracle)"; `factoryVariants.test.ts` "pins
+one known-seed output as a regression snapshot"; and `AudioEngine.test.ts`'s `describe('AudioEngine - Global FX Chain')`,
+which repeats `globalFx.test.ts` through the facade re-export, except "updates threshold and ratio on the master
+compressor", the only `setGlobalCompressor` test anywhere, which moves into `globalFx.test.ts` first.
+
+### Flaky (the house rule removes, never chases)
+
+- `src/animation/jobMoves/sceneToOrbiterLocal.test.tsx` "round-trips through the real transform chain within 0.01 u —
+  50 gems × 4 scale pairs × 4 corners": 800 real gems against Vitest's 5 s default; timed out in two of three full runs.
+  Cut to 5 gems or remove. Open question 4. The file's other nine tests are fast.
+- `src/systems/audioSwells.test.ts` "interpolates and returns to exactly baseValue on completion, removing the swell":
+  failed once under a parallel run, passed three times alone, 21 ms.
+
+### Duplicate statistical tests (21 `it()`s; the Even Seeded Draws series' own files are the keepers)
+
+Nine in `src/utils/globalAudioSeed.test.ts` and twelve in `src/systems/spawnSystem.test.ts`, written against the old
+bell-curved draw between August and October 2026, each with a stronger twin (bigger sample, tighter tolerance) in
+`globalAudioSeed.evenDraws.test.ts`, `spawnSystem.even{Draws,Links,Copies}.test.ts` or `robotFieldDerivation.test.ts`.
+Recognise them by their titles: "over 3000 styles", "roughly 2-in-3", "leans heavily toward sine", "about 12 % of
+robots glide", "roughly an 85% chance across many spawns", "through the single consolidated draw", "at roughly the same
+~30% rate". The two 3,000-style Global Colour share tests are the slowest cases in `globalAudioSeed.test.ts` (Task 7).
+Do **not** shrink the series' 3,000-style samples instead: at ±3 points, 300 styles is one standard deviation and the
+test turns flaky. The one policy call among them is open question 5.
+
+### Not candidates, so nobody re-audits them
+
+The renderer geometry tests (90/45 edges, no NaN, facets inside the ring); the large behaviour files (`workLoop`,
+`worldTransition`, `sessionDiff`, `worldDiffCodec`, `melodyGenerator`, `harmonySystem`, `beatClock`);
+`src/content/content.test.ts`; the perf scripts' tests; `RobotScreen.test.tsx`'s section block (it is the only coverage
+of the screen's `apply*` handler wiring, not a duplicate of the section files); the tempo sync files (no layer
+re-derives the note table); and the 150 tests whose titles say "unchanged" or "as before", of which all but two
+(`ContentPane.test.tsx` "renders ConsolePanel unchanged — this task does not touch its own dispatch logic" and the
+`Factory.test.tsx` `describe` "regression guard (documents pre-fix behavior; tightened by Task 4)") test an input the
+function must leave intact.

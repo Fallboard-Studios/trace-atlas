@@ -1092,8 +1092,9 @@ not taken: at 3.4 minutes the full run is a checkpoint step, and `npx vitest run
 the run-time note in [PERFORMANCE.md](../../PERFORMANCE.md). The original request follows.
 
 **Raised 2026-11-07** by Crawford: a full `npm test` takes long enough that it is run rarely, and the suite looks
-outdated and redundant in places. The audit written for that, [TEST_REMOVAL_CANDIDATES.md](../../reference/TEST_REMOVAL_CANDIDATES.md)
-(354 files, 13,607 cases, 1,142 s of worker time), found the opposite of what it set out to find: the removable tests are
+outdated and redundant in places. The audit written for that, `docs/reference/TEST_REMOVAL_CANDIDATES.md` (since
+deleted; its residue is the appendix of [TEST_SUITE_RUN_TIME.md](../../tasks/TEST_SUITE_RUN_TIME.md); 354 files,
+13,607 cases, 1,142 s of worker time), found the opposite of what it set out to find: the removable tests are
 about 3 % of the lines and a few seconds of run time. Deleting them cleans up the signal and does not move the clock.
 
 **Where the time is.** Three places, none of them "too many tests":
