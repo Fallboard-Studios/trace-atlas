@@ -12,6 +12,7 @@
     "lint:fix": "eslint . --ext ts,tsx --fix",
     "format": "prettier --write 'src/**/*.{ts,tsx,css}'",
     "test": "vitest",
+    "test:related": "vitest related --run",
     "test:coverage": "vitest run --coverage",
     "perf": "node scripts/perf/profile.mjs",
     "perf:audio": "node scripts/perf/audio-load.mjs",

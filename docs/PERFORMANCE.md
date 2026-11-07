@@ -2846,6 +2846,25 @@ Row 5 is measured first (one `npm run perf -- --profile` window over the idle wo
 long task. Row 6 is done opportunistically, next time that file is open. Row 8 is left until something measured points
 at it.
 
+## Test suite run time — backlog 70 (2026-11-07)
+
+Not a main-thread measurement, but the same discipline applies: one idle machine, numbers not adjectives. A full
+`npx vitest run` on the 16-core desktop with only the browser open is **203 s wall-clock** for 354 files and 13,607
+cases (1,144 s of worker time; Vitest's own summary that evening: 204 s, with `environment 981 s` and `tests 1,076 s`
+spread across the workers). A twelve-minute run reported earlier did not reproduce and was the machine, not the suite.
+
+What was tried: `vitest.config.ts` splits the suite into a `node` project (the DOM-free folders: `data/`, `constants/`,
+`types/`, `content/`, `testUtils/`, `engine/` and the perf scripts, 67 files) and a `jsdom` project for the rest. It
+saved 5 s of wall-clock and 90 s of worker time: jsdom's boot is a large share of worker time but runs in parallel, so
+it barely shows on the clock. The levers not taken, with their alone-time figures, are in
+[docs/tasks/TEST_SUITE_RUN_TIME.md](tasks/TEST_SUITE_RUN_TIME.md).
+
+How to measure it again: a file's duration inside a full run is three to six times its duration alone (worker
+contention), so quote a per-file cost only from `npx vitest run --reporter=json --outputFile=<f> <file>` and sum
+`endTime - startTime`; quote the full run's wall-clock from the same report's `startTime` to the last file's `endTime`.
+The JSON reporter prints no unhandled-error line, so an exit code of 1 with zero failures is backlog 66's timeout, read
+from a default-reporter run.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

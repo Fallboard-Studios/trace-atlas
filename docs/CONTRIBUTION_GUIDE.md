@@ -54,7 +54,16 @@ npm test               # run once
 npm run test:coverage  # coverage report
 npm test -- --watch    # watch mode
 npm test beatClock.test.ts   # single file
+npx vitest run --changed                          # only the test files reached by the uncommitted changes
+npm run test:related -- src/utils/colorUtils.ts   # only the test files that import the named source files
 ```
+
+**The full run is a checkpoint step, not an after-every-edit step.** While working, run the single file or the
+changed set; run `npm test` once before a commit or at a plan's checkpoint, with the type check and lint. The related
+set follows imports transitively, so a widely imported module pulls in much of the suite (`colorUtils.ts` reaches
+150 files); it is for a leaf module, and `--changed` is the everyday form.
+The full suite is 354 files and some 13,600 cases; on a 16-core machine it takes about three and a half minutes
+(203 s on 2026-11-07, recorded in `docs/tasks/TEST_SUITE_RUN_TIME.md`).
 
 **Resetting module-scoped state:** engine modules like `beatClock` and `harmonySystem` use module-scoped variables that a plain `beforeEach` can't reset. Use `vi.resetModules()` + a dynamic `await import()` for a fresh module instance per test:
 

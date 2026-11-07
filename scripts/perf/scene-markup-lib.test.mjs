@@ -1,4 +1,6 @@
-/* global document -- vitest runs this file under jsdom; the lint config gives scripts/ Node globals only */
+// @vitest-environment jsdom
+/* global document -- scripts/ runs in the Node project (vitest.config.ts) and this file parses markup, so it opts
+   back into jsdom; the lint config gives scripts/ Node globals only */
 // Tests for the pure scene-markup helpers behind `npm run perf:idle` (scripts/perf/idle-paint.mjs).
 // The harness runs against the branch under test AND a `main` build in the same session, so its
 // selectors must read the stage markup (roadmap Phase 53) and the markup before it. The Chrome/CDP
