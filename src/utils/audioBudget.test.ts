@@ -379,21 +379,18 @@ describe('presetForLoad', () => {
 // ========================================
 
 describe('describeLimits', () => {
-  it('at Light reads what is capped, what is off, and that latency changes on the next load', () => {
+  it('at Light reads what is capped and what is off, and ends there', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.light))).toBe(
-      'Up to 4 robots · 8 notes · no drift, filter LFOs, pedals, colour or reverb · latency: Playback (applies on next load)',
+      'Up to 4 robots · 8 notes · no drift, filter LFOs, pedals, colour or reverb',
     );
   });
 
-  it('at Full says everything is on, and reads the playback latency too (backlog 67 G4; no robot-LFO cap clause, docs/specs/LFO_BANK.md Task 2)', () => {
-    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.full))).toBe(
-      'Up to 12 robots · 16 notes · all LFOs and drift · latency: Playback (applies on next load)',
-    );
+  it('at Full says everything is on (no robot-LFO cap clause, docs/specs/LFO_BANK.md Task 2)', () => {
+    expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.full))).toBe('Up to 12 robots · 16 notes · all LFOs and drift');
   });
 
   it('lists what is off as one list: two things joined by "or", more by commas and a final "or"', () => {
-    // At interactive, so the line ends at the list (the latency clause has its own cases).
-    const full = { ...loadToLimits(1), latencyHint: 'interactive' as const };
+    const full = loadToLimits(1);
     expect(describeLimits({ ...full, driftEnabled: false })).toBe('Up to 12 robots · 16 notes · no drift');
     expect(describeLimits({ ...full, driftEnabled: false, reverbEnabled: false })).toBe('Up to 12 robots · 16 notes · no drift or reverb');
     expect(describeLimits({ ...full, driftEnabled: false, filterLfosEnabled: false, reverbEnabled: false })).toBe(
@@ -402,7 +399,7 @@ describe('describeLimits', () => {
   });
 
   it('names the Reverb when it is off, on its own or after the effects, and never when it is on', () => {
-    const full = { ...loadToLimits(1), latencyHint: 'interactive' as const };
+    const full = loadToLimits(1);
     expect(describeLimits({ ...full, reverbEnabled: false })).toBe('Up to 12 robots · 16 notes · no reverb');
     expect(describeLimits({ ...full, effectsEnabled: false, reverbEnabled: false })).toContain('no pedals, colour or reverb');
     for (const t of dial) {
@@ -412,7 +409,7 @@ describe('describeLimits', () => {
   });
 
   it('names the effects tier when it is off, on its own or beside the LFO tiers, and never when it is on', () => {
-    const full = { ...loadToLimits(1), latencyHint: 'interactive' as const };
+    const full = loadToLimits(1);
     expect(describeLimits({ ...full, effectsEnabled: false })).toBe('Up to 12 robots · 16 notes · no pedals or colour');
     expect(describeLimits({ ...full, driftEnabled: false, effectsEnabled: false })).toContain('no drift, pedals or colour');
     for (const t of dial) {
@@ -422,24 +419,23 @@ describe('describeLimits', () => {
     }
   });
 
-  it('at Standard names drift and the robot filter LFOs as off (the global filter tier is on) and keeps the latency clause (decision J: Standard is playback too)', () => {
+  it('at Standard names drift and the robot filter LFOs as off (the global filter tier is on)', () => {
     expect(describeLimits(loadToLimits(AUDIO_LOAD_PRESETS.standard))).toBe(
-      'Up to 8 robots · 12 notes · no drift or robot filter LFOs · latency: Playback (applies on next load)',
+      'Up to 8 robots · 12 notes · no drift or robot filter LFOs',
     );
   });
 
-
-  it('mentions the load-time latency caveat only when the hint differs from interactive', () => {
+  it('never names the latency, at either hint, anywhere on the dial (backlog 67 T17b: every position is playback)', () => {
     for (const t of dial) {
-      const limits = loadToLimits(t);
-      const text = describeLimits(limits);
-      expect(text.includes('latency:'), `${t}`).toBe(limits.latencyHint !== 'interactive');
-      expect(text.includes('applies on next load'), `${t}`).toBe(limits.latencyHint !== 'interactive');
+      for (const latencyHint of ['playback', 'interactive'] as const) {
+        const text = describeLimits({ ...loadToLimits(t), latencyHint });
+        expect(text, `${t} ${latencyHint}`).not.toMatch(/latency|playback|interactive|next load/i);
+      }
     }
   });
 
   it('names a bus tier that is off on its own, and a global filter tier that is off on its own', () => {
-    const full = { ...loadToLimits(1), latencyHint: 'interactive' as const };
+    const full = loadToLimits(1);
     expect(describeLimits({ ...full, busFilterLfosEnabled: false })).toContain('no robot filter LFOs');
     expect(describeLimits({ ...full, busFilterLfosEnabled: false })).not.toContain('all LFOs');
     expect(describeLimits({ ...full, filterLfosEnabled: false, busFilterLfosEnabled: false })).toContain('no filter LFOs');

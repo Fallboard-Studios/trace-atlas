@@ -815,7 +815,12 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
 
   **Estimated scope:** XS (one constant, two tests)
 
-- [ ] **Task 17b: `audioBudget.ts`, `settings.ts` — the readout drops its latency clause (added 2026-11-07)**
+- [x] **Task 17b: `audioBudget.ts`, `settings.ts` — the readout drops its latency clause (added 2026-11-07)** (2026-11-07)
+
+  **As built (2026-11-07).** As described. The four readout tests that pinned `latencyHint: 'interactive'` only to keep
+  the clause out now read the dial as it is; the clause's own case became "never names the latency, at either hint".
+  Nine tests went RED first. The full suite's one failure, `sceneToOrbiterLocal.test.tsx`, was a timeout beside backlog
+  66's: it passes alone in 1.4 s.
 
   **Description:** With every position at `playback` (T17), the Audio Load readout's last clause, "latency: Playback
   (applies on next load)", reads the same at every position and no longer tells them apart. Crawford's call
