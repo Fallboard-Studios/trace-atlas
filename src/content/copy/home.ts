@@ -50,6 +50,8 @@ export const home = {
   // ("New Transmission", "Current", or the save's or preset's name) and the count of stored worlds (saves plus presets).
   // Stand-in copy until Crawford's pass (backlog 62).
   'home.off.transmissionsHeader': { human: 'Transmissions', template: 'Transmissions · {name} · {count}' },
+  // The Device section's header (spec §1.4): over Factory Reset. Stand-in copy until Crawford's pass (backlog 62).
+  'home.off.device': { human: 'Device' },
   // The one warning worth having, shown under the chooser only while the loaded world is unkept.
   'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's

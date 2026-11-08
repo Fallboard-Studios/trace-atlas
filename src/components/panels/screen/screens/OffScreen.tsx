@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGSAP } from '@gsap/react';
+import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Disclosure } from './Disclosure';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
@@ -28,7 +29,8 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
 import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
-import { formatSessionTimestamp } from '@/utils/helpers';
+import { formatSessionTimestamp, getScreenViewportDomNode } from '@/utils/helpers';
+import { CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
 import { describeLoading, describeWorld, withTail } from '@/utils/describeWorld';
 import { aspectDescription, aspectName, familyLabels, themeDescription, themeName } from '@/utils/loadingNames';
@@ -82,6 +84,15 @@ const FOOTER = labels('home.off.footer').humanLabel;
 /** The Transmissions section's header (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): its face is a fill of its template, so
  *  the schema carries the id alone; Disclosure makes it muted. */
 const TRANSMISSIONS_SCHEMA: ButtonSchema = { id: 'offTransmissions', type: 'button' };
+
+/** The Device section (spec §1.4): Factory Reset under its label row, behind SessionsPanel's confirm, read from the
+ *  same content. */
+const DEVICE_SCHEMA: ButtonSchema = { id: 'offDevice', type: 'button' };
+const DEVICE = labels('home.off.device').humanLabel;
+const RESET_LABELS = labels('session.clearStorage');
+const RESET_CONFIRM_TITLE = labels('session.clearStorage.confirmTitle').humanLabel;
+const RESET_CONFIRM_BODY = labels('session.clearStorage.confirmBody').humanLabel;
+const CANCEL = labels('ui.cancel').humanLabel;
 
 /** The Loading axis's theme row (docs/tasks/OFF_SCREEN.md Task 30; spec assumption 17): the five ids in THEME_IDS
  *  order under the Loading heading — the row's own label, as Transmission is the world row's — muted like it. Static:
@@ -220,7 +231,10 @@ interface Intent {
  *
  * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and Keep sit in a Disclosure that starts
  * collapsed on every mount — component state, never persisted — under a header naming the shown row (New Transmission,
- * Current, or the save's or preset's name) and the count of stored worlds, saves plus presets, read every render.
+ * Current, or the save's or preset's name) and the count of stored worlds, saves plus presets, read every render. Under
+ * it, the Device section, collapsed the same way: Factory Reset behind SessionsPanel's confirm, portalled into the
+ * screen. Confirmed, it clears all of localStorage and detaches the loaded save, and the gate is read again, so the
+ * chooser gives way to the first-visit view at once (assumption 4).
  *
  * The gate (assumption 7) is read once on mount, as the saves are: a device that has never heard a world sees
  * the label and the hint only — the first flip writes the flag, so the chooser waits behind the first power-off.
@@ -300,7 +314,8 @@ interface Intent {
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
   const darkRef = useRef<HTMLDivElement>(null);
-  const [heardWorld] = useState(() => hasHeardWorld());
+  // Read on mount, and again after a Factory Reset, which clears the flag with the rest of storage (spec assumption 4).
+  const [heardWorld, setHeardWorld] = useState(() => hasHeardWorld());
   const [saves, setSaves] = useState(sortedSaves);
   const [pick, setPick] = useState<TransmissionPick>(CURRENT_PICK);
   // New Transmission's world (spec §1.1): drawn once on mount, so leaving the row and picking it again lands the same
@@ -332,6 +347,13 @@ export function OffScreen() {
   // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
   const [transmissionsOpen, setTransmissionsOpen] = useState(false);
   const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
+  // The Device section, the same way, and its Factory Reset confirm.
+  const [deviceOpen, setDeviceOpen] = useState(false);
+  const toggleDevice = useCallback(() => setDeviceOpen((open) => !open), []);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+  // A modal Radix dialog gives focus back only to its own Trigger, and Reset is not one, so the button that opened it
+  // is kept and focused again on close (SessionsPanel's way).
+  const resetOpenerRef = useRef<HTMLElement | null>(null);
 
   // The loaded world, for the Current row and the readout. Narrow selectors (the name, the coordinates
   // object) as SectorSettingsDrawer reads them, so a robot write elsewhere in the locale never re-renders this.
@@ -674,6 +696,24 @@ export function OffScreen() {
     setDirty(isCurrentDirty(snapshotRef.current));
   }, [setSnapshot]);
 
+  // Factory Reset (spec §1.4, assumption 4): Reset opens the confirm, keeping its opener for the focus to return to.
+  const openResetConfirm = useCallback(() => {
+    resetOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setResetConfirmOpen(true);
+  }, []);
+  const returnResetFocus = useCallback(() => resetOpenerRef.current?.focus(), []);
+
+  // Confirmed, it wipes all of localStorage, as SessionsPanel's does — the device flag with it — and drops the loaded
+  // save's name, which no entry backs any more. The gate is read again at once, so the chooser gives way to the
+  // first-visit view with no reload (assumption 4). The saves are not re-read: the chooser that lists them is gone for
+  // this mount, and the next mount reads them afresh. The paused world stands: nothing here is a world change.
+  const onConfirmReset = useCallback(() => {
+    localStorage.clear();
+    useSessionStore.getState().setCurrentLoadedSessionName(null);
+    setResetConfirmOpen(false);
+    setHeardWorld(hasHeardWorld());
+  }, []);
+
   const shownOf = (family: AspectFamilyId): readonly AspectId[] => shownAspects[family] ?? NO_PICKS;
   // A family's described aspect: the one toggled on last while it is still on, else the last of its set in canonical
   // order, else none — the row cleared, whose own sentence says every probe takes that family from the theme.
@@ -708,6 +748,24 @@ export function OffScreen() {
     [shownAspects, setIntent],
   );
 
+  // Factory Reset's confirm, SessionsPanel's dialog read from the same content (spec §1.4).
+  const screenNode = resetConfirmOpen ? getScreenViewportDomNode() : null;
+  const resetConfirm = (
+    <>
+      <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
+      <AlertDialog.Content className="clear-storage-confirm__content" onCloseAutoFocus={returnResetFocus}>
+        <AlertDialog.Title className="clear-storage-confirm__title">{RESET_CONFIRM_TITLE}</AlertDialog.Title>
+        <AlertDialog.Description className="clear-storage-confirm__description">{RESET_CONFIRM_BODY}</AlertDialog.Description>
+        <div className="clear-storage-confirm__actions">
+          <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CANCEL}</AlertDialog.Cancel>
+          <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={onConfirmReset}>
+            {RESET_LABELS.humanLabel}
+          </AlertDialog.Action>
+        </div>
+      </AlertDialog.Content>
+    </>
+  );
+
   return (
     <div className="off-screen" ref={rootRef} onPointerDown={skipOffScreenBoot}>
       <div className="off-screen__veil" aria-hidden="true" />
@@ -739,6 +797,11 @@ export function OffScreen() {
                     <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty || intent !== null} />
                   </div>
                 </Disclosure>
+                {/* The Device section (spec §1.4): Factory Reset under its label row, behind the confirm below. */}
+                <Disclosure schema={DEVICE_SCHEMA} title={DEVICE} open={deviceOpen} onToggle={toggleDevice}>
+                  <DualLabel loreLabel={RESET_LABELS.loreLabel} humanLabel={RESET_LABELS.humanLabel} />
+                  <Button schema={CLEAR_STORAGE_SCHEMA} face="single" onClick={openResetConfirm} />
+                </Disclosure>
               </div>
               <div className="off-screen__axis">
                 <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />
@@ -767,6 +830,11 @@ export function OffScreen() {
             <p className="off-screen__warning">
               {keepFailed ? <span role="alert">{KEEP_FAILED}</span> : dirty && UNSAVED_WARNING}
             </p>
+            {/* Factory Reset's confirm: into the screen, never <body> (the UI Shell guardrail), or in place when there
+                is no screen (a component test). */}
+            <AlertDialog.Root open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
+              {screenNode ? <AlertDialog.Portal container={screenNode}>{resetConfirm}</AlertDialog.Portal> : resetConfirm}
+            </AlertDialog.Root>
           </div>
         )}
         <p className="off-screen__footer">{FOOTER}</p>

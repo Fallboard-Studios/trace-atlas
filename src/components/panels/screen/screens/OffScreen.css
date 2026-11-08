@@ -238,6 +238,66 @@
   overflow-wrap: anywhere;
 }
 
+/* Factory Reset's confirm (docs/tasks/OFF_SCREEN_CONSOLE.md Task 3): SessionsPanel.css's clear-storage-confirm__*
+   rules, copied here because the dialog portals out of both components' trees. SessionsPanel.css keeps its copy until
+   the panel is deleted (Task 15), when this is the only one. */
+.clear-storage-confirm__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgb(0 0 0 / 60%);
+}
+
+.clear-storage-confirm__content {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 100;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  max-width: 360px;
+  background: var(--color-surface);
+  /* Its own text colour: inside the screen it would inherit a dark one and the title would vanish
+     (found in Chrome once it portalled into #screen-viewport, Task 17 follow-up). */
+  color: var(--color-text-primary-fixed);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+}
+
+.clear-storage-confirm__title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.clear-storage-confirm__description {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.clear-storage-confirm__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.clear-storage-confirm__cancel,
+.clear-storage-confirm__confirm {
+  padding: 0.4rem 0.9rem;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: inherit;
+  cursor: pointer;
+}
+
+.clear-storage-confirm__confirm {
+  border-color: #b3362c;
+  color: #b3362c;
+}
+
 /* Phone shell (docs/tasks/LAYOUT_REWORK.md Task 28; the sketch's .phone .splash). ScreenViewport marks
    the shell from useShell(), so no media query here. The label sits higher: the column starts at the top,
    not centred, a fixed 12 px under the sleeve's power corner on every phone height (Crawford, 2026-10-31,

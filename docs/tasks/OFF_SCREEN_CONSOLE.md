@@ -203,7 +203,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
   **Estimated scope:** M (one new component, the screen, the test's row-click helper threaded through)
 
-- [ ] **Task 3: `OffScreen.tsx` — the Device section: Factory Reset behind its confirm, and the gate**
+- [x] **Task 3: `OffScreen.tsx` — the Device section: Factory Reset behind its confirm, and the gate**
 
   **Description:** Spec §1.4 (Device), assumption 4. A second `Disclosure` under Transmissions, titled
   `home.off.device` ("Device"), collapsed on mount. Its body: a `DualLabel` from `session.clearStorage` and the
@@ -221,13 +221,19 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   cancelling leaves storage and the picker.
 
   **Acceptance criteria:**
-  - [ ] Reset is behind a confirm; the gate flips with no reload.
-  - [ ] The dialog is inside `#screen-viewport` when that node exists.
+  - [x] Reset is behind a confirm; the gate flips with no reload.
+  - [x] The dialog is inside `#screen-viewport` when that node exists.
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] Mutant: `heardWorld` not re-read after confirm (the first-visit case fails).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Focused run passes.
+  - [x] Mutant: `heardWorld` not re-read after confirm (the first-visit case fails).
+
+  **As built:** no `setSaves(sortedSaves())` on confirm. The device flag always goes with `localStorage.clear()`, so the
+  chooser that lists the saves unmounts in the same render and the next mount reads them afresh: the re-read could
+  never be seen, and a mutant removing it would survive. Four more mutants killed: the loaded name kept, storage not
+  cleared, focus not returned on Escape, the confirm never portalled. Spec §5 case 13 also gained: Device opens apart
+  from Transmissions, and a confirm requests no world change.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `OffScreen.css`, `src/content/copy/home.ts`
 
