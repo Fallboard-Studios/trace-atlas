@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGSAP } from '@gsap/react';
+import { Disclosure } from './Disclosure';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
@@ -77,6 +78,10 @@ const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('ho
 const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
 const KEEP_FAILED = labels('home.off.keepFailed').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
+
+/** The Transmissions section's header (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): its face is a fill of its template, so
+ *  the schema carries the id alone; Disclosure makes it muted. */
+const TRANSMISSIONS_SCHEMA: ButtonSchema = { id: 'offTransmissions', type: 'button' };
 
 /** The Loading axis's theme row (docs/tasks/OFF_SCREEN.md Task 30; spec assumption 17): the five ids in THEME_IDS
  *  order under the Loading heading — the row's own label, as Transmission is the world row's — muted like it. Static:
@@ -213,6 +218,10 @@ interface Intent {
  * (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Tasks 6b and 6c), with a well naming the pick through the same
  * helper.
  *
+ * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and Keep sit in a Disclosure that starts
+ * collapsed on every mount — component state, never persisted — under a header naming the shown row (New Transmission,
+ * Current, or the save's or preset's name) and the count of stored worlds, saves plus presets, read every render.
+ *
  * The gate (assumption 7) is read once on mount, as the saves are: a device that has never heard a world sees
  * the label and the hint only — the first flip writes the flag, so the chooser waits behind the first power-off.
  *
@@ -320,6 +329,9 @@ export function OffScreen() {
   const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
   // The last Keep was refused by the storage (R20): its line shows until a Keep succeeds or the world changes.
   const [keepFailed, setKeepFailed] = useState(false);
+  // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
+  const [transmissionsOpen, setTransmissionsOpen] = useState(false);
+  const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
 
   // The loaded world, for the Current row and the readout. Narrow selectors (the name, the coordinates
   // object) as SectorSettingsDrawer reads them, so a robot write elsewhere in the locale never re-renders this.
@@ -431,6 +443,14 @@ export function OffScreen() {
     (shownTheme !== own.theme || !deepEqual(canonicalAspects(shownAspects), canonicalAspects(own.aspects)));
   const selectedLoading = edited ? describeLoading(shownTheme, shownAspects, { nameTheme: shownTheme !== own.theme }) : null;
   const selectedValue = shownPick.value;
+
+  // The Transmissions header names the shown row — New Transmission, Current, or the save's or preset's name — and the
+  // count of stored worlds, saves plus presets, read every render so a pick or a save shows at once (spec §1.4).
+  const shownName = selectedValue === NEW_VALUE ? NEW_TRANSMISSION : 'name' in shownPick ? shownPick.name : CURRENT.humanLabel;
+  const transmissionsTitle = fill('home.off.transmissionsHeader', {
+    name: shownName,
+    count: String(saves.length + TRANSMISSION_PRESETS.length),
+  });
 
   // The presets' worlds, decoded once: a preset is a link (spec assumption 13), so one that cannot be read keeps its
   // name alone.
@@ -604,14 +624,15 @@ export function OffScreen() {
     { scope: rootRef, dependencies: [] },
   );
 
-  // After a power-off the chooser takes the focus, on the Transmission list's selected row, so keyboard and
-  // screen-reader users land in it rather than on a readout that mounted already filled
-  // (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25; Crawford, its Open Question 5). The world tells a power-off from a
-  // fresh page: pause() writes 'paused' in the same call that flips the power flag, before this mounts, and a fresh page
-  // is 'cold', which leaves the focus where it is. A first visit renders no rows, so nothing is found to take it.
+  // After a power-off the chooser takes the focus, so keyboard and screen-reader users land in it rather than on a
+  // readout that mounted already filled (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25; Crawford, its Open Question 5):
+  // on the Transmissions header, which names the selected row, since the list starts collapsed on every mount and its
+  // rows are not in the DOM (docs/specs/OFF_SCREEN_CONSOLE.md §1.4). The world tells a power-off from a fresh page:
+  // pause() writes 'paused' in the same call that flips the power flag, before this mounts, and a fresh page is 'cold',
+  // which leaves the focus where it is. A first visit renders no header, so nothing is found to take it.
   useEffect(() => {
     if (getWorldState() !== 'paused') return;
-    rootRef.current?.querySelector<HTMLElement>('.sc-radio-button--list [role="radio"][aria-checked="true"]')?.focus();
+    rootRef.current?.querySelector<HTMLElement>(`.disclosure--${TRANSMISSIONS_SCHEMA.id} > button`)?.focus();
   }, []);
 
   // Scan (spec §1.1): a new draw into New Transmission's row, then exactly a pick of it, from whichever row is selected,
@@ -705,10 +726,19 @@ export function OffScreen() {
             {/* The two axes (Task 30): Transmission — which world — then Loading — how it loads. */}
             <div className="off-screen__axes">
               <div className="off-screen__axis">
-                <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={scanOnNew} />
-                <div className="off-screen__actions">
-                  <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty || intent !== null} />
-                </div>
+                {/* The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its actions, under a
+                    header naming the selected row, collapsed until opened. */}
+                <Disclosure
+                  schema={TRANSMISSIONS_SCHEMA}
+                  title={transmissionsTitle}
+                  open={transmissionsOpen}
+                  onToggle={toggleTransmissions}
+                >
+                  <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={scanOnNew} />
+                  <div className="off-screen__actions">
+                    <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty || intent !== null} />
+                  </div>
+                </Disclosure>
               </div>
               <div className="off-screen__axis">
                 <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />

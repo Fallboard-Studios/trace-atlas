@@ -46,6 +46,10 @@ export const home = {
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
+  // The Transmissions section's header (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the section, the selected row's name
+  // ("New Transmission", "Current", or the save's or preset's name) and the count of stored worlds (saves plus presets).
+  // Stand-in copy until Crawford's pass (backlog 62).
+  'home.off.transmissionsHeader': { human: 'Transmissions', template: 'Transmissions · {name} · {count}' },
   // The one warning worth having, shown under the chooser only while the loaded world is unkept.
   'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's

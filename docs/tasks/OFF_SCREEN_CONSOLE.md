@@ -163,7 +163,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
 ### Phase 2: The two sections
 
-- [ ] **Task 2: `Disclosure.tsx` + `OffScreen.tsx` — the Transmissions section round the list**
+- [x] **Task 2: `Disclosure.tsx` + `OffScreen.tsx` — the Transmissions section round the list**
 
   **Description:** Spec §1.4. A new `src/components/panels/screen/screens/Disclosure.tsx`: props `{ schema, title, open,
   onToggle, children }`; it renders a muted single-face `Button` with `expanded={open}` and `controls={bodyId}`
@@ -184,15 +184,19 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   focus" case, block "focus on the selected row after a power-off (review R25)").
 
   **Acceptance criteria:**
-  - [ ] Both sections' bodies are conditionally rendered; no Radix `Collapsible` or `Accordion` import.
-  - [ ] The header text is one `fill` template and re-renders on every pick and every save-list change.
-  - [ ] Every other `OffScreen.test.tsx` case passes, with the list opened first where a case clicks a row (a shared
+  - [x] Both sections' bodies are conditionally rendered; no Radix `Collapsible` or `Accordion` import.
+  - [x] The header text is one `fill` template and re-renders on every pick and every save-list change.
+  - [x] Every other `OffScreen.test.tsx` case passes, with the list opened first where a case clicks a row (a shared
         `openTransmissions()` helper in the test file, used by every existing row-clicking case).
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] Mutant: the header text computed once on mount (case 6's "updates on a pick" fails).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Focused run passes.
+  - [x] Mutant: the header text computed once on mount (case 6's "updates on a pick" fails).
+
+  **As built:** R25 had a second case in the F6 block ("a power-off still lands the focus on the selected row"),
+  rewritten to the header too. The focus effect targets the header only: the list is collapsed on every mount, so a
+  checked-row branch could never run there. 142 existing cases gained `openTransmissions()` after their render.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None. **Files:** `src/components/panels/screen/screens/Disclosure.tsx`, `Disclosure.test.tsx`,
   `OffScreen.tsx`, `OffScreen.test.tsx`, `src/content/copy/home.ts`
