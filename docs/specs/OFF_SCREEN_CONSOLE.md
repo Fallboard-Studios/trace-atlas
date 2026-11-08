@@ -12,10 +12,12 @@ Intent: [docs/intent/off-screen-console.md](../intent/off-screen-console.md), co
 after an `idea-refine` pass. It reworks the screen roadmap
 [57](../todo/archive/roadmap-archive.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table)
 built and backlog 64 ([spec](OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md)) revised, and retires two Settings tabs
-roadmap 45 laid out ([LAYOUT_REWORK.md](LAYOUT_REWORK.md) §1.8). Backlog number 71 (the next free on the one counter);
-its entry and plan.md line are written when Crawford names the stage.
+roadmap 45 laid out ([LAYOUT_REWORK.md](LAYOUT_REWORK.md) §1.8). Backlog
+[71](../todo/backlog.md#71-off-screen-the-console--the-one-place-a-world-is-made-loaded-kept-shared-or-deleted), first
+line of plan.md's Stage 1.
 
-**Status: draft**, 2026-11-08, awaiting Crawford's review.
+**Status: approved** by Crawford 2026-11-08 ("I want to do this next"), the nine assumptions standing at their
+defaults; the sketch frame (`docs/sketches/off-screen.html`, frame F) drafted the same day. Plan not yet written.
 
 Written for: Crawford, and the agent that plans and builds it.
 
@@ -429,12 +431,10 @@ the two modules and before the retirement's deletions, each a look by Crawford.
    edited save leaves it. *Default: yes.*
 9. **`useShareStatus` moves** to `src/hooks/` since the off screen becomes its only consumer. *Default: yes.*
 
-**Open questions:**
+**Open questions** (answered 2026-11-08):
 
-1. The stage in plan.md and whether backlog 71's entry is written now or at the plan. *Default: entry now, stage
-   Crawford's.*
-2. The sketch frame: Crawford draws it, or the agent drafts it for his look. *Default: the agent drafts it as the
-   plan's Task 0.*
+1. The stage: the top of plan.md's Stage 1, "next" (Crawford). The backlog entry is written.
+2. The sketch frame: the agent drafted it (frame F in `docs/sketches/off-screen.html`), for Crawford's look.
 
 **Risks:**
 

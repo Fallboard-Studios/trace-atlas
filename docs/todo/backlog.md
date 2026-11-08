@@ -778,3 +778,32 @@ Crawford's gets the same graph and the same clicks. Two shapes were assessed and
 **Decision (Crawford, 2026-11-06):** not in 67; revisit once the graph is lean, since every node 67 removes weakens the
 case for either shape. The Audio Load dial stays the answer for weaker machines meanwhile. If it is picked up, the
 first question is whether the lean graph leaves any desktop that needs it.
+
+### 71. Off Screen: The Console — the One Place a World Is Made, Loaded, Kept, Shared or Deleted
+
+**Raised 2026-11-08** by Crawford, refined through `idea-refine` (six of seven variations taken) and confirmed through
+`interview-me` the same day ([intent](../intent/off-screen-console.md)); spec written and approved the same day
+([spec](../specs/OFF_SCREEN_CONSOLE.md)). The off screen roadmap 57 built and backlog 64 revised duplicates two Settings
+tabs, Foundry (Seeds) and Save & Share, and is already too tall at 1280 × 720 to take more without hiding something.
+
+**What it does.** The off screen becomes the only place a world is made, loaded, edited, saved, shared or deleted; the
+first-visit screen does not change. Two modules under one spec, built in order:
+
+1. **`off-screen-console`** — the left column re-aimed: a New Transmission *editor* (style name, coordinates, Scan; a
+   commit is a pick under the wash, Classic with no aspects; the inputs mirror the live world, so there is no draw on
+   mount) over a collapsible Transmissions list (Current with an "unsaved" eyebrow while nothing stored matches it, the
+   saves, a divider, the presets; no Load button — the pick is the load) with one Save / Rename / Delete row at its
+   foot acting on the selected row (dimmed where inert, no per-row buttons, no Keep, no confirm on Delete), and a
+   collapsed Device section holding Factory Reset with its confirm. Share moves beside the readout and copies the link
+   for whatever the readout names; the standing warning line goes. The Loading column is untouched.
+2. **`settings-retirement`** — Audio Quality becomes Fleet Params' last tab; the Settings branch leaves the nav;
+   `SettingsScreen`, `SectorSettingsDrawer`, `SessionsPanel` and `SessionListItem` are deleted with their content keys;
+   UI_SHELL.md, SESSION_STORAGE.md and COMPONENT_LIBRARY.md follow.
+
+**Decisions on record** (the spec's §7 assumptions, each with Crawford's default): no draw on mount; after Delete of
+the selected save the selection falls to New Transmission; a rename to a taken name is refused; Factory Reset flips the
+gate at once; the disclosures are a muted Button over a conditional render, no Radix Collapsible, both collapsed on
+every mount; Save on a preset or New Transmission moves the selection to the new row.
+
+**Status:** spec approved 2026-11-08; the sketch frame drafted in `docs/sketches/off-screen.html` (frame F); plan next.
+First line of plan.md's Stage 1.
