@@ -289,10 +289,15 @@ go"). The full suite was green at T3 (355 files, 13629 tests).
   **Estimated scope:** XS (docs and one doc comment)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every acceptance criterion in T1–T4 met; every mutation check stated in its commit.
-- [ ] `src/utils/sessionCapture.ts` and `src/utils/globalAudioSeed.ts` are absent from the branch diff.
-- [ ] Checkpoint A done, or flagged here.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] Every acceptance criterion in T1–T4 met; every mutation check stated in its commit.
+- [x] `src/utils/sessionCapture.ts` and `src/utils/globalAudioSeed.ts` are absent from the branch diff.
+- [x] Checkpoint A done, or flagged here.
+
+**Run 2026-11-08 after T4:** lint 0 errors (the 4 existing fast-refresh warnings), build:types and build clean. The
+full suite passed on a rerun, 355 files / 13629 tests, with only the three known `onTaskUpdate` worker timeouts
+(backlog 66). The first run had one failing test, not captured, which did not recur; treated as one of the documented
+flakes, not chased.
 - [ ] Ready for Crawford's PR. At merge: backlog 33 moves to the archive in the usual way (roadmap stubs, backlog no
       stubs; rebase links on the move), and its plan.md Stage 2 line is deleted.
 
