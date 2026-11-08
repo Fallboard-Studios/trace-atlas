@@ -67,18 +67,38 @@ import type { SessionPayload } from '@/types/session';
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
 const presetName = (i: number) => human(TRANSMISSION_PRESETS[i].nameKey);
 const picker = () => screen.getByRole('group', { name: human('home.off.transmission') });
-const radioNames = () => within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-label'));
+/** An accessible name with Current's eyebrow read as plain "Current" (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6): the
+ *  eyebrow reads "Current · unsaved" while Current is dirty, and the cases that name Current pin its label, not that;
+ *  the eyebrow's own cases read it from the row (currentEyebrow, below). */
+const plainEyebrow = (name: string) => {
+  const unsaved = `${human('home.off.unsavedEyebrow')}, `;
+  return name.startsWith(unsaved) ? `${human('home.off.current')}, ${name.slice(unsaved.length)}` : name;
+};
+const radioNames = () => within(picker()).getAllByRole('radio').map((r) => plainEyebrow(r.getAttribute('aria-label')!));
 const readout = () => screen.getByTestId('off-screen-readout');
 /** A radio by what fronts its accessible name: the whole name (Current, a theme), a save's or preset's name with its
- *  world after it ("Dusk Run · tr3nch-2 (-30, -30) · Calm"), or a lore label over its label ("New Transmission, …")
- *  (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6b: every row names its world). */
+ *  world after it ("Dusk Run · tr3nch-2 (-30, -30) · Calm"), or a lore label over its label ("Current, …")
+ *  (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6b: every row names its world). Current's eyebrow is read
+ *  plain (plainEyebrow). */
 const row = (name: string) =>
-  screen.getByRole('radio', { name: (accessible) => accessible === name || accessible.startsWith(`${name} · `) || accessible.startsWith(`${name}, `) });
+  screen.getByRole('radio', {
+    name: (accessible) => {
+      const plain = plainEyebrow(accessible);
+      return plain === name || plain.startsWith(`${name} · `) || plain.startsWith(`${name}, `);
+    },
+  });
 /** Current's row, by place: the first in the list, whatever it is named (New Transmission left the list for the editor,
  *  docs/tasks/OFF_SCREEN_CONSOLE.md Task 4). */
 const currentRadio = () => within(picker()).getAllByRole('radio')[0];
 /** Current's accessible name, by the same place. */
 const currentRowName = () => radioNames()[0];
+/** Current's eyebrow, its lore line: "Current" while a save matches it, "Current · unsaved" while none does (console Task
+ *  6). The list must be open. */
+const currentEyebrow = () => currentRadio().querySelector('.sc-radio-button__lore')?.textContent;
+/** The status slot under the readout (console Task 6): always in the DOM, at most one line. */
+const statusSlot = () => document.querySelector('.off-screen__status') as HTMLElement;
+/** The save failure in the slot, for the name the save tried. */
+const saveFailedLine = (name: string) => fill('session.status.saveFailed', { name });
 const newTransmission = () => human('home.off.newTransmission');
 /** The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): a group titled New Transmission. */
 const editor = () => screen.getByRole('group', { name: newTransmission() });
@@ -185,7 +205,7 @@ describe('OffScreen — the gate (spec assumption 7)', () => {
   });
 
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the dirty check builds the live payload, and a first visit has no
-  // Keep and no warning to light, so it builds none, even with a save loaded.
+  // Keep and no eyebrow to light, so it builds none, even with a save loaded.
   it('a first visit builds no payload on mount, even with a save loaded', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
@@ -402,7 +422,6 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
   const checked = (id: (typeof THEME_IDS)[number]) => themeRadio(id).getAttribute('aria-checked');
   const description = () => document.querySelector('.off-screen__description');
   const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
   const calmSave = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'float' });
 
   it('lists the five themes in order under the Loading heading, Classic selected for a Classic world', () => {
@@ -460,17 +479,17 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(currentRowName()).toBe(currentName('Dusk Run'));
   });
 
-  it('recomputes dirty after a theme pick: Keep lights and the warning shows once the world differs from its save', () => {
+  it('recomputes dirty after a theme pick: Keep lights and Current reads unsaved once the world differs from its save', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     openTransmissions();
     expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.current'));
     live.payload = live.marker('themed'); // what the retransmit does to the live world
     fireEvent.click(themeRadio('float'));
     expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
   });
 
   it('follows the loading store for the loaded world: the row, the Current row and the readout take the store theme', () => {
@@ -681,7 +700,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     expect(pressed(NAME.hypnotic)).toBe('true');
   });
 
-  it('a change reads dirty again and keeps the loaded save attached: Keep lights, the warning shows', () => {
+  it('a change reads dirty again and keeps the loaded save attached: Keep lights, Current reads unsaved', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
@@ -690,7 +709,7 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
     live.payload = live.marker('dealt');
     fireEvent.click(option(NAME.mechanical));
     expect(keep().disabled).toBe(false);
-    expect(screen.queryByText(human('home.off.unsavedWarning'))).not.toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
   });
 
@@ -1019,7 +1038,7 @@ describe('OffScreen — a theme or aspect click keeps the selected row', () => {
     render(<OffScreen />);
     openTransmissions();
     fireEvent.click(row(theme('float')));
-    expect(screen.getAllByRole('radio', { checked: true }).map((r) => r.getAttribute('aria-label'))).toContain(
+    expect(screen.getAllByRole('radio', { checked: true }).map((r) => plainEyebrow(r.getAttribute('aria-label')!))).toContain(
       asCurrent(describeWorld({ ...liveIdentity(), theme: 'float' })),
     );
   });
@@ -1137,7 +1156,8 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
     openTransmissions();
     const current = row(currentName());
     expect(currentRowName()).toBe(currentName());
-    expect(within(current).getByText(human('home.off.current'))).toBeTruthy();
+    // No save matches the world here, so the eyebrow says so (console Task 6).
+    expect(within(current).getByText(human('home.off.unsavedEyebrow'))).toBeTruthy();
   });
 
   it("is named after the loaded save when one is loaded: '<save> · AS (x, y)'", () => {
@@ -1533,26 +1553,118 @@ describe('OffScreen — the editor commits a world (console Task 5)', () => {
   });
 });
 
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 6 (spec §1.3 item 1, §1.6, §5 case 12): Current's eyebrow says unsaved, so the
+// standing warning line goes; its place is the status slot, empty but for a failure.
+describe('OffScreen — Current’s eyebrow and the status slot (console Task 6)', () => {
+  beforeEach(() => markHeardWorld());
+  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
+
+  it('Current’s eyebrow reads unsaved while no save matches it, and plain Current after a Keep', () => {
+    render(<OffScreen />);
+    openTransmissions();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    fireEvent.click(keep());
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+  });
+
+  it('a loaded save that matches the world reads plain Current from the start', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    openTransmissions();
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+  });
+
+  it('the slot is always in the DOM and empty, dirty or clean: there is no standing warning', () => {
+    const { unmount } = render(<OffScreen />);
+    expect(statusSlot()).not.toBeNull();
+    expect(statusSlot().textContent).toBe('');
+    unmount();
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(statusSlot()).not.toBeNull();
+    expect(statusSlot().textContent).toBe('');
+  });
+
+  it('the slot sits under the readout, in the picker', () => {
+    render(<OffScreen />);
+    expect(readout().nextElementSibling).toBe(statusSlot());
+  });
+
+  describe('a refused Keep', () => {
+    let setItem: ReturnType<typeof vi.spyOn> | undefined;
+    let logged: ReturnType<typeof vi.spyOn>;
+    /** From here on the storage refuses every write (a full quota). Called after a case has seeded its saves. */
+    const refuseStorage = () => {
+      setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+    };
+    beforeEach(() => {
+      logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      setItem?.mockRestore();
+      setItem = undefined;
+      logged.mockRestore();
+    });
+
+    // The session name differs from the loaded save's (a name typed since), and keepCurrentWorld writes the loaded one.
+    it('names the loaded save it tried to overwrite, as an alert', () => {
+      saveNamedSession('Dusk Run', live.marker('older'));
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Typed Since' });
+      refuseStorage();
+      render(<OffScreen />);
+      openTransmissions();
+      fireEvent.click(keep());
+      expect(within(statusSlot()).getByRole('alert').textContent).toBe(saveFailedLine('Dusk Run'));
+    });
+
+    it('names the snapshot’s save when Current was left: the save Keep tried', () => {
+      saveNamedSession('Old Run', live.marker('older'));
+      useSessionStore.setState({ currentLoadedSessionName: 'Old Run', currentSessionName: 'Old Run' });
+      refuseStorage();
+      render(<OffScreen />);
+      openTransmissions();
+      fireEvent.click(row(presetName(1)));
+      fireEvent.click(keep());
+      expect(within(statusSlot()).getByRole('alert').textContent).toBe(saveFailedLine('Old Run'));
+    });
+
+    it('a later Keep that succeeds empties the slot', () => {
+      refuseStorage();
+      render(<OffScreen />);
+      openTransmissions();
+      fireEvent.click(keep());
+      expect(statusSlot().textContent).not.toBe('');
+      setItem!.mockRestore();
+      fireEvent.click(keep());
+      expect(statusSlot().textContent).toBe('');
+      expect(currentEyebrow()).toBe(human('home.off.current'));
+    });
+  });
+});
+
 describe('OffScreen — Keep (spec assumption 14)', () => {
   beforeEach(() => markHeardWorld());
   const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
 
-  it('is lit, with the warning line under the chooser, when the loaded world is not kept (no save loaded)', () => {
+  it('is lit, Current reading unsaved, when the loaded world is not kept (no save loaded)', () => {
     const { container } = render(<OffScreen />);
     openTransmissions();
     expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     expect(container.querySelector('.sc-button--muted')).not.toBeNull(); // flat, like Scan: nothing pops
   });
 
-  it('is dim, with no warning, when the loaded save equals the live world', () => {
+  it('is dim, Current reading plain, when the loaded save equals the live world', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     openTransmissions();
     expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.current'));
   });
 
   it('is lit when the loaded save differs from the live world', () => {
@@ -1561,14 +1673,14 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     render(<OffScreen />);
     openTransmissions();
     expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
   });
 
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20: a Keep the storage refuses (a full quota) is a line under the
-  // chooser, not a throw into the click. It takes the unsaved warning's place, so nothing moves; the screen stays up
-  // and Keep stays lit, to try again.
+  // chooser, not a throw into the click; the screen stays up and Keep stays lit, to try again. The line is the status
+  // slot's since console Task 6, naming the save it tried, and Current's eyebrow still says unsaved.
   describe('a Keep the storage refuses (review R20)', () => {
-    const failed = () => screen.queryByText(human('home.off.keepFailed'));
+    const failed = () => within(statusSlot()).queryByRole('alert');
     let setItem: ReturnType<typeof vi.spyOn>;
     let logged: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
@@ -1582,14 +1694,14 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       logged.mockRestore();
     });
 
-    it("shows the failure line in the warning's place, logs the error, and leaves the screen up with Keep lit", () => {
+    it('shows the failure line in the slot, naming the save it tried, logs the error, and leaves the screen up with Keep lit', () => {
       render(<OffScreen />);
       openTransmissions();
       expect(failed()).toBeNull();
       fireEvent.click(keep());
-      expect(failed()).not.toBeNull();
-      expect(failed()!.getAttribute('role')).toBe('alert');
-      expect(warning()).toBeNull();
+      expect(failed()!.textContent).toBe(saveFailedLine('Quiet Harbour'));
+      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
       expect(logged).toHaveBeenCalled();
       expect(keep().disabled).toBe(false);
       expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
@@ -1614,7 +1726,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       expect(failed()).not.toBeNull();
       fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
       expect(failed()).toBeNull();
-      expect(warning()).not.toBeNull();
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     });
 
     // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F14: the second review's surviving mutant, onThemeChange's setKeepFailed(false).
@@ -1625,7 +1737,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       expect(failed()).not.toBeNull();
       fireEvent.click(row(human('home.off.theme.float')));
       expect(failed()).toBeNull();
-      expect(warning()).not.toBeNull();
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     });
 
     it('goes when the world changes: a preset pick, realised at once with no wash mounted', () => {
@@ -1649,7 +1761,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     expect(currentRowName()).toBe(currentName('Quiet Harbour'));
     expect(row(currentName('Quiet Harbour')).getAttribute('aria-checked')).toBe('true');
     expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.current'));
   });
 
   it('keeps under the loaded name, overwriting that row rather than adding one', () => {
@@ -1676,7 +1788,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     expect(keep().disabled).toBe(true);
     fireEvent.click(row(human('home.off.theme.float')));
     expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     fireEvent.click(keep());
     expect(keep().disabled).toBe(true);
     expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
@@ -1746,14 +1858,13 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
 
 // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6 (spec §1.4): once the listener has left Current, Keep saves
 // Current's snapshot, not the live world, under the snapshot's save name (or a fresh one), and touches no session field;
-// the dirty read that dims Keep and shows the warning describes the snapshot too. No wash is mounted, so a pick lands at
+// the dirty read that dims Keep and Current's eyebrow describes the snapshot too. No wash is mounted, so a pick lands at
 // the click.
 describe('OffScreen — Keep follows Current (Current and New Transmission, Task 6)', () => {
   beforeEach(() => markHeardWorld());
   afterEach(() => vi.mocked(retransmitWorld).mockReset());
   const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
-  const failed = () => screen.queryByText(human('home.off.keepFailed'));
+  const failed = () => within(statusSlot()).queryByRole('alert');
   const session = () => useSessionStore.getState();
   /** A pick lands a different world, what buildSessionPayload builds from then on; a Current restore (a built payload,
    *  carrying a marker) lands as itself, as a Load of it would. */
@@ -1779,7 +1890,7 @@ describe('OffScreen — Keep follows Current (Current and New Transmission, Task
     expect(loadSession('Dusk Run')).toEqual(savedPayload('dusk'));
     expect(session()).toMatchObject({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
     expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.current'));
     // Current is named after the save it now is; the new row is listed at once.
     expect(currentRowName()).toBe(currentName(kept));
     expect(row(kept)).toBeTruthy();
@@ -1803,7 +1914,7 @@ describe('OffScreen — Keep follows Current (Current and New Transmission, Task
     expect(keep().disabled).toBe(true);
   });
 
-  it('a clean Current, then a save lands and is edited: Keep stays dim, with no warning, because the dirty read follows Current', () => {
+  it('a clean Current, then a save lands and is edited: Keep stays dim, Current plain, because the dirty read follows Current', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     saveNamedSession('Other', live.marker('other'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
@@ -1820,7 +1931,7 @@ describe('OffScreen — Keep follows Current (Current and New Transmission, Task
     expect(keep().disabled).toBe(true);
     fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
     expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.current'));
   });
 
   it('a dirty Current stays lit through a pick of a clean save', () => {
@@ -1831,7 +1942,7 @@ describe('OffScreen — Keep follows Current (Current and New Transmission, Task
     expect(keep().disabled).toBe(false); // no save loaded: Current is unsaved
     fireEvent.click(row('Dusk Run'));
     expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
   });
 
   it('Current kept, then restored: the restore attaches the kept name, and Keep stays dim', () => {
@@ -2243,7 +2354,7 @@ describe('OffScreen — the Transmission row', () => {
     openTransmissions();
     // Scoped to the Transmission group: the Loading axis (Task 30) is a second radio group with its own selection.
     for (const radio of within(picker()).getAllByRole('radio')) {
-      expect(radio.getAttribute('aria-checked')).toBe(radio.getAttribute('aria-label') === currentName() ? 'true' : 'false');
+      expect(radio.getAttribute('aria-checked')).toBe(plainEyebrow(radio.getAttribute('aria-label')!) === currentName() ? 'true' : 'false');
     }
   });
 

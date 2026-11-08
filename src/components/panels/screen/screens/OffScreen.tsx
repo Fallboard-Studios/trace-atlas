@@ -76,8 +76,8 @@ const READOUT_LABEL = labels('home.off.readout').humanLabel;
 /** Keep (spec assumption 14), muted — flat, like the theme row and the list; only the aspect rows pop (Crawford's note
  *  5). It sits under the list; Scan is the New Transmission editor's (TransmissionEditor.tsx). */
 const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
-const UNSAVED_WARNING = labels('home.off.unsavedWarning').humanLabel;
-const KEEP_FAILED = labels('home.off.keepFailed').humanLabel;
+/** Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): what the standing warning said. */
+const UNSAVED_EYEBROW = labels('home.off.unsavedEyebrow').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
 
 /** The Transmissions section's header (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): its face is a fill of its template, so
@@ -191,7 +191,7 @@ interface CurrentSnapshot {
   landed: boolean;
 }
 
-/** Is Current unsaved? The dirty read that dims Keep and shows the warning describes Current: its snapshot while there
+/** Is Current unsaved? The dirty read that dims Keep and sets Current's eyebrow describes Current: its snapshot while there
  *  is one, else the live world (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4). */
 const isCurrentDirty = (snapshot: CurrentSnapshot | null): boolean =>
   snapshot ? isPayloadDirty(snapshot.payload, snapshot.loadedName) : isWorldDirty();
@@ -258,8 +258,9 @@ interface Intent {
  * new row appears at once: with a snapshot, sessionStore.keepWorld saves the snapshot under its save's name or a fresh
  * one, which the snapshot then carries, and no session field moves; with none, sessionStore.keepCurrentWorld saves the
  * live world (spec §1.4). It dims (the dim-controls rule) whenever Current equals its save (isCurrentDirty, above), and
- * a muted warning line sits under the chooser only while it does not. A Keep the storage refuses shows its failure line
- * in that warning's place until a Keep succeeds or the world changes (R20). Dirty is read on mount, after a landed
+ * Current's eyebrow reads "Current · unsaved" only while it does not (docs/specs/OFF_SCREEN_CONSOLE.md §1.3; the standing
+ * warning line it replaced is gone). A Keep the storage refuses shows its failure line, naming the save it tried, in the
+ * status slot under the readout until a Keep succeeds or the world changes (R20, spec §1.6). Dirty is read on mount, after a landed
  * change, after an in-place edit and after a Keep — never per render (it builds the live payload). The veil
  * (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
@@ -338,8 +339,9 @@ export function OffScreen() {
   const [lastOn, setLastOn] = useState<FamilyAspects>({});
   // Only the chooser reads it; a first visit (hint only) never builds the payload.
   const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
-  // The last Keep was refused by the storage (R20): its line shows until a Keep succeeds or the world changes.
-  const [keepFailed, setKeepFailed] = useState(false);
+  // The name the last Keep tried, when the storage refused it (R20): its line shows in the status slot until a Keep
+  // succeeds or the world changes. Null while there is none.
+  const [keepFailed, setKeepFailed] = useState<string | null>(null);
   // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
   const [transmissionsOpen, setTransmissionsOpen] = useState(false);
   const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
@@ -451,7 +453,7 @@ export function OffScreen() {
     // does (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5).
     setPick(intended.pick);
     setDirty(isCurrentDirty(snapshotRef.current));
-    setKeepFailed(false);
+    setKeepFailed(null);
   }, [setIntent, setSnapshot]);
 
   // The snapshot is taken on the way out of Current, never on mount: with none, Current is the live world, so a theme or
@@ -512,7 +514,8 @@ export function OffScreen() {
       // Transmission is the editor above the section, no row (docs/specs/OFF_SCREEN_CONSOLE.md §1.2).
       appearance: 'list',
       options: [
-        { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: CURRENT.humanLabel },
+        // Current's eyebrow says whether a save matches it, from the dirty read Keep dims on (spec §1.3).
+        { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: dirty ? UNSAVED_EYEBROW : CURRENT.humanLabel },
         ...saves.map((save, i) => ({
           value: SAVE_PREFIX + save.name,
           humanLabel: named(SAVE_PREFIX + save.name, save.name, identityOf(save.payload)),
@@ -529,7 +532,7 @@ export function OffScreen() {
         })),
       ],
     };
-  }, [currentLabel, presetWorlds, saves, selectedValue, selectedLoading]);
+  }, [currentLabel, dirty, presetWorlds, saves, selectedValue, selectedLoading]);
 
   // New Transmission picked — a Scan, or the editor's commit, which drops an unchanged draft itself
   // (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): its world waits under the wash like any pick, joining a waiting change with
@@ -622,7 +625,7 @@ export function OffScreen() {
       }
       retransmitWorld({ theme: value });
       setDirty(isCurrentDirty(snapshotRef.current));
-      setKeepFailed(false);
+      setKeepFailed(null);
     },
     [setIntent],
   );
@@ -674,7 +677,11 @@ export function OffScreen() {
   // live world. With none, the live world through keepCurrentWorld, as before.
   const onKeep = useCallback(() => {
     const held = snapshotRef.current;
-    // A save the storage refuses (a full quota) is a line in the warning's place, never a throw into the click (R20).
+    // A save the storage refuses (a full quota) is a line in the status slot, never a throw into the click (R20). It
+    // names the save Keep tried, read before the attempt: the snapshot's save, or the live world's loaded save, else the
+    // session name keepCurrentWorld would try first (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6).
+    const { currentLoadedSessionName, currentSessionName } = useSessionStore.getState();
+    const tried = held ? (held.loadedName ?? '') : (currentLoadedSessionName ?? currentSessionName);
     try {
       if (held) {
         const name = useSessionStore.getState().keepWorld(held.payload, held.loadedName);
@@ -684,10 +691,10 @@ export function OffScreen() {
       }
     } catch (err) {
       console.error('[OffScreen] Keep could not save', err);
-      setKeepFailed(true);
+      setKeepFailed(tried);
       return;
     }
-    setKeepFailed(false);
+    setKeepFailed(null);
     setSaves(sortedSaves());
     setDirty(isCurrentDirty(snapshotRef.current));
   }, [setSnapshot]);
@@ -739,7 +746,7 @@ export function OffScreen() {
       }
       retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
       setDirty(isCurrentDirty(snapshotRef.current));
-      setKeepFailed(false);
+      setKeepFailed(null);
     },
     [shownAspects, setIntent],
   );
@@ -829,10 +836,11 @@ export function OffScreen() {
             <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
               {readout}
             </p>
-            {/* The warning's line is always there, empty while the world is kept, so its sentence coming and going
-                never moves the column (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). */}
-            <p className="off-screen__warning">
-              {keepFailed ? <span role="alert">{KEEP_FAILED}</span> : dirty && UNSAVED_WARNING}
+            {/* The status slot (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), where the unsaved warning was: always there,
+                empty but for a failure, so a line coming and going never moves the column (docs/tasks/
+                OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). Current's eyebrow says unsaved now. */}
+            <p className="off-screen__status">
+              {keepFailed !== null && <span role="alert">{fill('session.status.saveFailed', { name: keepFailed })}</span>}
             </p>
             {/* Factory Reset's confirm: into the screen, never <body> (the UI Shell guardrail), or in place when there
                 is no screen (a component test). */}

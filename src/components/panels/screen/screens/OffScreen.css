@@ -227,12 +227,12 @@
   max-width: 100%;
 }
 
-/* The one warning worth having (docs/tasks/OFF_SCREEN.md Task 14): a muted line under the chooser, only while the
-   loaded world is unkept. Small and quiet — the same etched grey as the hint, not an alert. The line is always there and
-   holds its height while it is empty — one line on the desk, two on the phone (below), the most its sentence takes at
-   any width — so the warning coming and going never re-centres the column (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
-   R26). */
-.off-screen__warning {
+/* The status slot (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6, spec §1.6), where the unsaved warning line was
+   (docs/tasks/OFF_SCREEN.md Task 14; Current's eyebrow says unsaved now): a muted line under the readout, empty but
+   for a failure. Small and quiet — the same etched grey as the hint. The line is always there and holds its height
+   while it is empty — one line on the desk, two on the phone (below) — so a line coming and going never re-centres
+   the column (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). */
+.off-screen__status {
   margin: 0;
   line-height: 1.5;
   min-height: 1.5em;
@@ -368,8 +368,8 @@
   text-wrap: balance;
 }
 
-/* The warning takes two lines on a phone up to 414 px, so its line holds two. */
-#screen-viewport[data-shell='phone'] .off-screen__warning {
+/* A status line can take two lines on a phone up to 414 px, so the slot holds two. */
+#screen-viewport[data-shell='phone'] .off-screen__status {
   min-height: 3em;
 }
 

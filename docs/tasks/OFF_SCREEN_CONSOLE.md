@@ -355,7 +355,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
   **Estimated scope:** S (the commit path and the sync rule, both in the new component)
 
-- [ ] **Task 6: `OffScreen.tsx` — Current's eyebrow says unsaved; the warning line becomes the status slot**
+- [x] **Task 6: `OffScreen.tsx` — Current's eyebrow says unsaved; the warning line becomes the status slot**
 
   **Description:** Spec §1.3 item 1, §1.6 (the slot), §1.8. Current's `loreLabel` reads `home.off.unsavedEyebrow`
   ("Current · unsaved") while `dirty` is true and `home.off.current` while false. The `.off-screen__warning` paragraph
@@ -373,12 +373,24 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   with the attempted name into the slot with `role="alert"`, and a later Keep clears it).
 
   **Acceptance criteria:**
-  - [ ] No element on the screen carries the old warning sentence; the slot element is always in the DOM.
-  - [ ] The eyebrow follows the same `dirty` state Keep dims on.
+  - [x] No element on the screen carries the old warning sentence; the slot element is always in the DOM.
+  - [x] The eyebrow follows the same `dirty` state Keep dims on.
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] `npm run build:types`, `npm run lint` clean (`content.test.ts` passes with the two entries gone).
+  - [x] Focused run passes (14 files, 972 tests).
+  - [x] `npm run build:types`, `npm run lint` clean (`content.test.ts` passes with the two entries gone).
+
+  **As built:** the eyebrow moves Current's accessible name ("Current · unsaved, <label>") whenever Current is dirty,
+  the test file's default state, which the plan did not foresee: 53 call sites name Current. The test helpers that
+  name a row (`row`, `radioNames`) now read the unsaved eyebrow as plain "Current" (`plainEyebrow`), so those cases pin
+  the label as before, and the eyebrow's own cases read it from the row (`currentEyebrow`). Three cases outside the
+  named blocks changed by a token: the theme-row and family-row dirty cases (warning → eyebrow), the Current row's
+  "under the Current eyebrow" (unsaved there: no save loaded), and one raw `aria-label` read through `plainEyebrow`.
+  `keepFailed` holds the tried name (`string | null`). **For Crawford:** on the snapshot path with no save behind the
+  snapshot, the tried name is `''` as the plan says (keepWorld draws a fresh name inside the throw), so the line reads
+  " failed to save." with no name; stand-in copy (backlog 62) either way. Seven mutants killed: the eyebrow ignoring
+  dirty or always unsaved, either path naming the wrong save, the failure not an alert, a later Keep keeping it, a
+  standing line in the slot.
 
   **Dependencies:** Task 5 (sequencing: both rewrite the Keep block's cases). **Files:** `OffScreen.tsx`,
   `OffScreen.test.tsx`, `OffScreen.css`, `src/content/copy/home.ts`

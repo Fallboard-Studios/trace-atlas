@@ -18,6 +18,9 @@ export const home = {
   // The Current row's eyebrow (docs/specs/OFF_SCREEN.md assumption 8): the row itself is named by describeWorld
   // (the loaded world, or the loaded save's name in front of it) — data, not copy.
   'home.off.current': { human: 'Current' },
+  // Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): it says what the standing warning
+  // line said. Stand-in copy until Crawford's pass (backlog 62).
+  'home.off.unsavedEyebrow': { human: 'Current · unsaved' },
   // The theme row's label (docs/tasks/OFF_SCREEN.md Task 30), with its hint under it. "Drive" (Crawford, 2026-11-01,
   // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F5), then "Trace Type" with "select one" (Crawford, 2026-11-02,
   // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c); the key and the axis's internal name stay "loading".
@@ -40,9 +43,6 @@ export const home = {
   // the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20), after "Save the last session" (revisions
   // Task 4).
   'home.off.keep': { human: 'Save Last World' },
-  // Keep's failure line (R20): shown in the unsaved warning's place when the storage refuses the save (a full quota).
-  // Crawford's words, verbatim (2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md F3).
-  'home.off.keepFailed': { human: 'storage is already full, cannot save world' },
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
@@ -52,8 +52,6 @@ export const home = {
   'home.off.transmissionsHeader': { human: 'Transmissions', template: 'Transmissions · {name} · {count}' },
   // The Device section's header (spec §1.4): over Factory Reset. Stand-in copy until Crawford's pass (backlog 62).
   'home.off.device': { human: 'Device' },
-  // The one warning worth having, shown under the chooser only while the loaded world is unkept.
-  'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's
   // copy; this is the sketch's stand-in (docs/sketches/off-screen.html) until he writes it.
   'home.off.footer': {
