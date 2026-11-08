@@ -240,7 +240,8 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   **Estimated scope:** S (one section, one dialog moved)
 
 ### Checkpoint: The sections
-- [ ] `npm run build:types`, `npm run lint` clean; focused run green.
+- [x] `npm run build:types`, `npm run lint` clean; focused run green. Full suite 2026-11-08: 356 files, 13,661 tests,
+      all pass (218 s, run alone).
 - [ ] In the browser: the off screen opens with both headers collapsed; the Transmissions header names Current and
       the count; Reset from Device, confirmed, shows the first-visit screen.
 - [ ] Reviewed with Crawford before Phase 3.
