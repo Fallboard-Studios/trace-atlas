@@ -239,16 +239,19 @@ T1 and T2 are independent and may land in either order; T3 needs both.
   **Estimated scope:** S (four files; twelve one-token schema edits, one helper, two content lines, three test edits)
 
 ### Checkpoint A: Crawford's look (spec §5.3)
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite; name any pre-existing unrelated
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite; name any pre-existing unrelated
       failure so a new one stands out).
-- [ ] `npm run dev`, Fleet Params. Drag each of the twelve across its range:
+- [x] `npm run dev`, Fleet Params. Drag each of the twelve across its range:
   - the frequencies never show a decimal or a `k`;
   - attack and release read whole milliseconds with the space, `12 ms`;
   - the two-decimal fields never lose their second digit mid-drag;
   - no label's width jumps on a content flip (`20Hz` to `20000Hz` is the range, not a flip);
   - Automation Rate reads as before.
-- [ ] Accessibility tree or screen reader: a log slider's thumb announces the readout, not a fraction.
-- [ ] Reviewed with Crawford before T4. If the look is not done this session, it is flagged here, never skipped.
+- [x] Accessibility tree or screen reader: a log slider's thumb announces the readout, not a fraction.
+- [x] Reviewed with Crawford before T4. If the look is not done this session, it is flagged here, never skipped.
+
+**Passed 2026-11-08:** Crawford checked every item above and signed it off ("everything in checkpoint A is good to
+go"). The full suite was green at T3 (355 files, 13629 tests).
 
 ---
 
