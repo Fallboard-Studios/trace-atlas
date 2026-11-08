@@ -398,7 +398,10 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   **Estimated scope:** S (one label, one slot, two entries removed)
 
 ### Checkpoint: The editor
-- [ ] `npm run build:types`, `npm run lint` clean; focused run green.
+- [x] `npm run build:types`, `npm run lint` clean; focused run green. Full suite 2026-11-08: 357 files, 13,700 tests,
+      all pass (210 s, run alone, twice). Vitest still exits 1 on one unhandled `[vitest-worker]: Timeout calling
+      "onTaskUpdate"` (a worker's report to the main process timing out, no test named); the Phase 2 commit 1c1f10c5
+      gives the same error with all 13,661 of its tests passing, so it predates this phase.
 - [ ] In the browser: type a name, Enter: the wash, the new world, the editor selected, the header says New
       Transmission. Open the list: no row checked. Pick a save: the editor follows. Current reads "Current · unsaved"
       after an edit.
