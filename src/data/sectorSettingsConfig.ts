@@ -1,28 +1,16 @@
 // ========================================
 // IMPORTS
 // ========================================
-import type { TextInputSchema, CoordsInputSchema, ButtonSchema, DualLabelSchema } from '../types/controls';
+import type { ButtonSchema, DualLabelSchema } from '../types/controls';
 import { labels } from '@/content';
 
 // ========================================
 // SCHEMAS
 // ========================================
 
-export const ATTENUATION_STYLE_SCHEMA: TextInputSchema = {
-  id: 'sectorSettings.planetName',
-  type: 'textInput',
-  ...labels('sector.attenuationStyle'),
-  // Otherwise unbounded end-to-end — stored in state, hashed into a seed
-  // (deriveAttenuationStyleSeed), and rendered in the status line. 128 is generous for
-  // a lore-flavored name while ruling out pathological input.
-  maxLength: 128,
-};
-
-export const COORDS_SCHEMA: CoordsInputSchema = {
-  id: 'sectorSettings.coordinates',
-  type: 'coordsInput',
-  ...labels('sector.coords'),
-};
+// The style name and coordinates inputs moved to the off screen's New Transmission editor
+// (docs/tasks/OFF_SCREEN_CONSOLE.md Task 4); re-exported for Foundry until it and this file go (Task 15).
+export { ATTENUATION_STYLE_SCHEMA, COORDS_SCHEMA } from '@/components/panels/screen/screens/transmissionEditorSchemas';
 
 export const RETRANSMIT_SCHEMA: ButtonSchema = {
   id: 'sectorSettings.retransmit',

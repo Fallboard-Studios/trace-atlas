@@ -39,7 +39,7 @@ vi.mock('@/systems/worldTransition', () => ({
 
 import { OffScreen } from './OffScreen';
 import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
-import { retransmitWorld } from '@/systems/worldTransition';
+import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
 import * as seedUtils from '@/utils/seedUtils';
 import { AudioEngine } from '@/engine/AudioEngine';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
@@ -74,14 +74,22 @@ const readout = () => screen.getByTestId('off-screen-readout');
  *  (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6b: every row names its world). */
 const row = (name: string) =>
   screen.getByRole('radio', { name: (accessible) => accessible === name || accessible.startsWith(`${name} · `) || accessible.startsWith(`${name}, `) });
-/** Current's row, by place: the second in the list, under New Transmission, whatever it is named (docs/tasks/
- *  OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 5). */
-const currentRadio = () => within(picker()).getAllByRole('radio')[1];
+/** Current's row, by place: the first in the list, whatever it is named (New Transmission left the list for the editor,
+ *  docs/tasks/OFF_SCREEN_CONSOLE.md Task 4). */
+const currentRadio = () => within(picker()).getAllByRole('radio')[0];
 /** Current's accessible name, by the same place. */
-const currentRowName = () => radioNames()[1];
+const currentRowName = () => radioNames()[0];
 const newTransmission = () => human('home.off.newTransmission');
-/** New Transmission's accessible name: its lore label, then its world (Task 6b). */
-const asNew = (label: string) => `${newTransmission()}, ${label}`;
+/** The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): a group titled New Transmission. */
+const editor = () => screen.getByRole('group', { name: newTransmission() });
+/** Is New Transmission the shown pick? The editor wears the list row's selected state then, and no row is checked. */
+const editorSelected = () => editor().hasAttribute('data-selected');
+/** The identity in the editor's inputs. */
+const editorShows = () => {
+  const [x, y] = within(editor()).getAllByRole('spinbutton') as HTMLInputElement[];
+  const name = within(editor()).getByRole('textbox') as HTMLInputElement;
+  return { attenuationStyleName: name.value, coordinates: { x: Number(x.value), y: Number(y.value) } };
+};
 /** A save's and a preset's label: the name fronting the world (Task 6b). */
 const savedLabel = (name: string) => describeWorld(loadSession(name)!, name);
 const presetLabel = (i: number) => describeWorld(presetPayload(TRANSMISSION_PRESETS[i])!, presetName(i));
@@ -104,6 +112,28 @@ function liveIdentity() {
   return { attenuationStyleName: style.name, coordinates: locale.coordinates };
 }
 const currentLabel = (loadedName?: string) => describeWorld(liveIdentity(), loadedName);
+
+// The two stores the live identity is read from, as the module left them, so a case that lands a world in them
+// (landsInStores, below) leaves the next case the same world.
+const STYLES_AT_LOAD = useAttenuationStyleStore.getState().attenuationStyles;
+const LOCALES_AT_LOAD = useLocaleStore.getState().locales;
+/** A retransmitWorld double that does what the real one leaves behind: the seed and the plot in the stores the live
+ *  identity is read from, and the loading in its store (band-table T25). */
+function landsInStores(input: RetransmitInput) {
+  const styleState = useAttenuationStyleStore.getState();
+  const style = selectCurrentAttenuationStyle(styleState)!;
+  if (input.attenuationStyleName !== undefined) {
+    const name = input.attenuationStyleName;
+    useAttenuationStyleStore.setState({ attenuationStyles: styleState.attenuationStyles.map((s) => (s.id === style.id ? { ...s, name } : s)) });
+  }
+  if (input.coordinates) {
+    const { locales } = useLocaleStore.getState();
+    const id = style.currentLocaleId!;
+    useLocaleStore.setState({ locales: { ...locales, [id]: { ...locales[id], coordinates: input.coordinates } } });
+  }
+  const { theme, aspects, setLoading } = useLoadingStore.getState();
+  setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
+}
 /** Current's accessible name: its eyebrow, then its label (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25). */
 const asCurrent = (label: string) => `${human('home.off.current')}, ${label}`;
 const currentName = (loadedName?: string) => asCurrent(currentLabel(loadedName));
@@ -114,6 +144,8 @@ const savedPayload = (style: string): SessionPayload => ({ ...presetPayload(TRAN
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
+  useAttenuationStyleStore.setState({ attenuationStyles: STYLES_AT_LOAD });
+  useLocaleStore.setState({ locales: LOCALES_AT_LOAD });
   live.identity = liveIdentity();
   live.payload = live.marker('live');
   useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: 'Quiet Harbour' });
@@ -1150,11 +1182,11 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
   });
 });
 
-// docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 5 (spec §1.1, §1.3, §1.6): New Transmission, first in the
-// list, holds a world drawn on mount; picking it lands that world under Classic with no aspects and detaches the save.
-// Scan, in its row, draws again and does the same. Roll, on Current's row, is gone. The two draws are pinned: the name
-// counts up and the coordinates count up from 101, so the mount's draw is drawn-1 at (101, 102).
-describe('OffScreen — New Transmission and Scan (Current and New Transmission, Task 5)', () => {
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 4 (spec §1.2, §5 cases 1 and 4): the New Transmission editor replaces the row
+// that held a world drawn on mount (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 5). It opens on the live
+// world and draws nothing; Scan, in its title row, is the draw, landing under Classic with no aspects from any row. The
+// draws are pinned: the name counts up and the coordinates count up from 101, so the first Scan is drawn-1 at (101, 102).
+describe('OffScreen — the New Transmission editor and Scan (console Task 4)', () => {
   let nameDraw: ReturnType<typeof vi.spyOn>;
   let coordinateDraw: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
@@ -1173,112 +1205,79 @@ describe('OffScreen — New Transmission and Scan (Current and New Transmission,
   /** What landing draw n sends: its seed and plot, under Classic with no aspects. */
   const landed = (n: number) => ({ ...drawn(n), theme: 'classic', aspects: {} });
   const checked = (name: string) => row(name).getAttribute('aria-checked');
-  const rowOf = (el: Element) => el.closest('.sc-radio-button__row') as HTMLElement;
-  /** The real retransmitWorld writes the loading store first (band-table T25); this double does that half. */
-  const retransmitSetsStore = () =>
-    vi.mocked(retransmitWorld).mockImplementation((input) => {
-      const { theme, aspects, setLoading } = useLoadingStore.getState();
-      setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
-    });
+  const anyRowChecked = () => within(picker()).getAllByRole('radio').some((r) => r.getAttribute('aria-checked') === 'true');
 
-  // Its label is its drawn world under the New Transmission lore label, and every save and preset names its world after
-  // its name (Task 6b; Task 5 had the bare names).
-  it('is the first row, unselected, New Transmission over its drawn world, with Scan in its trailing slot; Current is selected under it', () => {
+  it('on open the editor shows the live world, no row is New Transmission, Current is checked and the header names Current', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    expect(editorShows()).toEqual(liveIdentity());
+    expect(editorSelected()).toBe(false);
+    expect(transmissionsHeader().textContent).toBe(headerText(human('home.off.current'), 1 + TRANSMISSION_PRESETS.length));
+    expect(readout().textContent).toBe(currentLabel());
+    openTransmissions();
+    expect(radioNames()).toEqual([currentName(), savedLabel('Dusk Run'), presetLabel(0), presetLabel(1), presetLabel(2)]);
+    expect(currentRadio().getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('draws nothing on mount: the seed helpers wait for Scan', () => {
+    render(<OffScreen />);
+    openTransmissions();
+    expect(nameDraw).not.toHaveBeenCalled();
+    expect(coordinateDraw).not.toHaveBeenCalled();
+  });
+
+  it('the editor shows the loaded save’s world on open, as Current names it', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(editorShows()).toEqual(liveIdentity());
+  });
+
+  it('Scan sits in the editor’s title row, outside the collapsed section; no row of the list carries a trailing action', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     const { container } = render(<OffScreen />);
+    expect(editor().contains(scanButton())).toBe(true);
     openTransmissions();
-    expect(radioNames()).toEqual([
-      asNew(describeWorld(drawn(1))),
-      currentName(),
-      savedLabel('Dusk Run'),
-      presetLabel(0),
-      presetLabel(1),
-      presetLabel(2),
-    ]);
-    expect(within(row(newTransmission())).getByText(newTransmission())).toBeTruthy();
-    expect(checked(newTransmission())).toBe('false');
-    expect(currentRadio().getAttribute('aria-checked')).toBe('true');
-    // Scan sits on New Transmission's grid line, outside the radio group (R8), and is the only trailing action.
-    const slot = scanButton().closest('.sc-radio-button__trailing') as HTMLElement;
-    expect(slot.style.gridRow).toBe(rowOf(row(newTransmission())).style.gridRow);
     expect(picker().contains(scanButton())).toBe(false);
-    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(1);
-    expect(rowOf(currentRadio()).querySelector('button:not([role])')).toBeNull();
+    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(0);
   });
 
-  it('Scan is a flat, muted button: it does not come off the plate', () => {
-    render(<OffScreen />);
-    openTransmissions();
-    expect(scanButton().querySelector('[class*="sc-cabinet-box"]')).toBeNull();
-    expect(scanButton().classList.contains('sc-button--muted')).toBe(true);
-  });
-
-  // Named on its row from the start since Task 6b (Crawford: from the start, not only after a Scan).
-  it('draws its world once, on mount, and names it on its row at once; the readout stays on Current until it is picked', () => {
-    render(<OffScreen />);
-    openTransmissions();
-    expect(nameDraw).toHaveBeenCalledTimes(1);
-    expect(coordinateDraw).toHaveBeenCalledTimes(2);
-    expect(readout().textContent).toBe(currentLabel());
-    expect(radioNames()[0]).toBe(asNew(describeWorld(drawn(1))));
-  });
-
-  it('a Scan puts the new draw on the row, and each Scan after it replaces it', () => {
-    render(<OffScreen />);
-    openTransmissions();
-    fireEvent.click(scanButton());
-    expect(radioNames()[0]).toBe(asNew(describeWorld(drawn(2))));
-    fireEvent.click(scanButton());
-    expect(radioNames()[0]).toBe(asNew(describeWorld(drawn(3))));
-    expect(radioNames().filter((n) => n!.includes('drawn-2'))).toEqual([]);
-  });
-
-  it('picking it lands the drawn world under Classic with no aspects in one retransmit, and detaches the save', () => {
+  it('Scan from Current draws into both inputs, selects the editor and lands under Classic with no aspects, detaching the save', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
     useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
     // The payload Current's snapshot is built from carries that loading too, as buildSessionPayload's would.
     live.payload = { ...live.marker('live'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
-    retransmitSetsStore();
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
     render(<OffScreen />);
     openTransmissions();
     const current = currentRowName();
-    fireEvent.click(row(newTransmission()));
+    fireEvent.click(scanButton());
+    expect(nameDraw).toHaveBeenCalledTimes(1);
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
     expect(retransmitWorld).toHaveBeenCalledWith(landed(1));
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorShows()).toEqual(drawn(1));
+    expect(editorSelected()).toBe(true);
+    expect(anyRowChecked()).toBe(false);
     expect(currentRowName()).toBe(current);
     // The readout names the drawn world with no label.
     expect(readout().textContent).toBe(describeWorld(drawn(1)));
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
-  it('Scan with Current selected draws a second world, selects New Transmission and lands it', () => {
+  it('Scan with the editor already selected draws and lands again, each time', () => {
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
     render(<OffScreen />);
     openTransmissions();
     const current = currentRowName();
     fireEvent.click(scanButton());
-    expect(nameDraw).toHaveBeenCalledTimes(2);
-    expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith(landed(2));
-    expect(checked(newTransmission())).toBe('true');
-    expect(currentRadio().getAttribute('aria-checked')).toBe('false');
-    expect(currentRowName()).toBe(current);
-    expect(readout().textContent).toBe(describeWorld(drawn(2)));
-    expect(AudioEngine.start).not.toHaveBeenCalled();
-  });
-
-  it('Scan with New Transmission already selected draws and lands again, each time', () => {
-    render(<OffScreen />);
-    openTransmissions();
-    const current = currentRowName();
-    fireEvent.click(row(newTransmission()));
     fireEvent.click(scanButton());
     fireEvent.click(scanButton());
     expect(vi.mocked(retransmitWorld).mock.calls.map(([input]) => input)).toEqual([landed(1), landed(2), landed(3)]);
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorShows()).toEqual(drawn(3));
+    expect(editorSelected()).toBe(true);
     expect(currentRowName()).toBe(current);
     expect(readout().textContent).toBe(describeWorld(drawn(3)));
   });
@@ -1290,47 +1289,78 @@ describe('OffScreen — New Transmission and Scan (Current and New Transmission,
     const current = currentRowName();
     fireEvent.click(row('Dusk Run'));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+    expect(editorSelected()).toBe(false);
     fireEvent.click(scanButton());
-    expect(retransmitWorld).toHaveBeenLastCalledWith(landed(2));
+    expect(retransmitWorld).toHaveBeenLastCalledWith(landed(1));
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
     expect(checked('Dusk Run')).toBe('false');
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorSelected()).toBe(true);
     expect(currentRowName()).toBe(current);
   });
 
-  it('holds the same world on return: picked, left for Current, then picked again, it lands the mount draw both times', () => {
+  it('picking a row after a Scan takes the selection back from the editor', () => {
     render(<OffScreen />);
     openTransmissions();
-    fireEvent.click(row(newTransmission()));
-    fireEvent.click(currentRadio());
-    fireEvent.click(row(newTransmission()));
-    expect(nameDraw).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledTimes(2);
-    expect(retransmitWorld).toHaveBeenLastCalledWith(landed(1));
+    fireEvent.click(scanButton());
+    fireEvent.click(row(presetName(1)));
+    expect(editorSelected()).toBe(false);
+    expect(checked(presetName(1))).toBe('true');
   });
 
-  it('re-clicking the selected row requests no change', () => {
-    const request = vi.spyOn(worldChange, 'requestWorldChange');
+  it('a theme click with the editor selected keeps it selected, and the readout names the drawn world under the theme', () => {
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
     render(<OffScreen />);
     openTransmissions();
-    fireEvent.click(row(newTransmission()));
-    expect(request).toHaveBeenCalledTimes(1);
-    fireEvent.click(row(newTransmission()));
-    expect(request).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    request.mockRestore();
-  });
-
-  it('a theme click on it keeps it selected, tailed with the theme, and the readout names the drawn world under it', () => {
-    retransmitSetsStore();
-    render(<OffScreen />);
-    openTransmissions();
-    fireEvent.click(row(newTransmission()));
+    fireEvent.click(scanButton());
     fireEvent.click(row(human('home.off.theme.float')));
     expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'float' });
-    expect(radioNames()[0]).toBe(asNew(`${describeWorld(drawn(1))} · ${human('home.off.theme.float')}`));
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorSelected()).toBe(true);
+    expect(anyRowChecked()).toBe(false);
     expect(readout().textContent).toBe(describeWorld({ ...drawn(1), theme: 'float' }));
+  });
+
+  describe('while the Scan waits under the wash', () => {
+    let detach: () => void;
+    beforeEach(() => {
+      useUIStore.setState({ sceneWash: 'clear' });
+      detach = attachSceneWash();
+    });
+    afterEach(() => detach());
+
+    it('the editor shows the drawn world at the click, before it has landed', () => {
+      render(<OffScreen />);
+      fireEvent.click(scanButton());
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      expect(editorShows()).toEqual(drawn(1));
+      expect(editorSelected()).toBe(true);
+    });
+
+    it('a Current restore waiting shows the world first left, while the live world is still the pick that landed', async () => {
+      vi.mocked(applySessionPayload).mockImplementation((payload) =>
+        landsInStores({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loadingOf(payload) }),
+      );
+      render(<OffScreen />);
+      openTransmissions();
+      const left = liveIdentity();
+      fireEvent.click(row(presetName(0)));
+      await act(async () => useUIStore.getState().setSceneWash('covered'));
+      act(() => useUIStore.getState().setSceneWash('clear'));
+      const { attenuationStyleName, coordinates } = presetPayload(TRANSMISSION_PRESETS[0])!;
+      expect(editorShows()).toEqual({ attenuationStyleName, coordinates });
+      fireEvent.click(currentRadio());
+      expect(liveIdentity()).toEqual({ attenuationStyleName, coordinates });
+      expect(editorShows()).toEqual(left);
+    });
+
+    it('a preset picked while the Scan waits replaces it in the editor too: it shows the preset’s world', () => {
+      render(<OffScreen />);
+      openTransmissions();
+      fireEvent.click(scanButton());
+      fireEvent.click(row(presetName(0)));
+      const { attenuationStyleName, coordinates } = presetPayload(TRANSMISSION_PRESETS[0])!;
+      expect(editorShows()).toEqual({ attenuationStyleName, coordinates });
+      expect(editorSelected()).toBe(false);
+    });
   });
 });
 
@@ -1699,8 +1729,6 @@ describe('OffScreen — the Transmissions section (console Task 2)', () => {
     saveNamedSession('Low Tide', savedPayload('tide'));
     render(<OffScreen />);
     expect(list()).toBeNull();
-    expect(screen.queryByRole('radio', { name: (name) => name.startsWith(newTransmission()) })).toBeNull();
-    expect(screen.queryByRole('button', { name: human('home.off.scan') })).toBeNull();
     expect(screen.queryByRole('button', { name: human('home.off.keep') })).toBeNull();
     expect(transmissionsHeader().getAttribute('aria-expanded')).toBe('false');
     expect(transmissionsHeader().textContent).toBe(headerText(human('home.off.current'), 2 + presets));
@@ -1711,18 +1739,19 @@ describe('OffScreen — the Transmissions section (console Task 2)', () => {
     expect(transmissionsHeader().textContent).toBe(headerText(human('home.off.current'), presets));
   });
 
-  it('opening reveals the list, Scan and Keep in the header’s body, with Current checked', () => {
+  // Scan left the body for the editor's title row (console Task 4).
+  it('opening reveals the list and Keep in the header’s body, with Current checked', () => {
     render(<OffScreen />);
     openTransmissions();
     expect(transmissionsHeader().getAttribute('aria-expanded')).toBe('true');
     const body = document.getElementById(transmissionsHeader().getAttribute('aria-controls')!)!;
     expect(body.contains(list())).toBe(true);
-    expect(body.contains(scanButton())).toBe(true);
+    expect(body.contains(scanButton())).toBe(false);
     expect(body.contains(keep())).toBe(true);
     expect(currentRadio().getAttribute('aria-checked')).toBe('true');
   });
 
-  it('the header names every pick as it lands: a preset, a save, New Transmission, then Current again', () => {
+  it('the header names every pick as it lands: a preset, a save, New Transmission (a Scan), then Current again', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
     openTransmissions();
@@ -1730,7 +1759,7 @@ describe('OffScreen — the Transmissions section (console Task 2)', () => {
     expect(transmissionsHeader().textContent).toBe(headerText(presetName(1), 1 + presets));
     fireEvent.click(row('Dusk Run'));
     expect(transmissionsHeader().textContent).toBe(headerText('Dusk Run', 1 + presets));
-    fireEvent.click(row(newTransmission()));
+    fireEvent.click(scanButton());
     expect(transmissionsHeader().textContent).toBe(headerText(newTransmission(), 1 + presets));
     fireEvent.click(currentRadio());
     expect(transmissionsHeader().textContent).toBe(headerText(human('home.off.current'), 1 + presets));
@@ -1921,10 +1950,9 @@ describe('OffScreen — the Device section (console Task 3)', () => {
   });
 });
 
-describe('OffScreen — the Transmission list and Scan on New Transmission', () => {
+describe('OffScreen — the Transmission list, and Scan in the editor', () => {
   beforeEach(() => markHeardWorld());
   const scan = scanButton;
-  const rowOf = (el: Element) => el.closest('.sc-radio-button__row');
   const savedMeta = (name: string) => {
     const entry = listSessions().find((s) => s.name === name)!;
     return fill('home.off.savedAt', { time: formatSessionTimestamp(entry.savedAt) });
@@ -1937,41 +1965,30 @@ describe('OffScreen — the Transmission list and Scan on New Transmission', () 
     const root = picker().closest('.sc-radio-button')!;
     expect(root.classList.contains('sc-radio-button--list')).toBe(true);
     expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
-    expect(root.querySelectorAll('.sc-radio-button__row')).toHaveLength(6);
+    expect(root.querySelectorAll('.sc-radio-button__row')).toHaveLength(5);
     expect(root.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
   });
 
-  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8: the trailing action follows the radio group, outside its roving focus,
-  // so Shift+Tab from Keep never loops between it and the selected row; Scan sits on New Transmission's grid line.
-  it('puts Scan on the New Transmission row, after the radio group and outside it', () => {
-    render(<OffScreen />);
-    openTransmissions();
-    const newRow = row(newTransmission());
-    const slot = scan().closest('.sc-radio-button__trailing') as HTMLElement;
-    expect(slot.style.gridRow).toBe((rowOf(newRow) as HTMLElement).style.gridRow);
-    expect(newRow.contains(scan())).toBe(false);
-    expect(picker().contains(scan())).toBe(false);
-    expect(within(picker()).queryAllByRole('button')).toEqual([]);
-  });
-
-  it('gives no other row a trailing action, Current included', () => {
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8 kept Scan outside the radio group's roving focus from the trailing slot;
+  // in the editor's title row (console Task 4) it is outside the list altogether, and the slot is unused.
+  it('the list holds no button and no row carries a trailing action: Scan is in the editor', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     const { container } = render(<OffScreen />);
     openTransmissions();
-    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(1);
-    expect(rowOf(row('Dusk Run'))!.querySelector('button:not([role])')).toBeNull();
-    expect(rowOf(row(currentName()))!.querySelector('button:not([role])')).toBeNull();
+    expect(within(picker()).queryAllByRole('button')).toEqual([]);
+    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(0);
+    expect(editor().contains(scan())).toBe(true);
   });
 
-  // Roll was never a pick; Scan is not a radio either, but it does select New Transmission, the row its world lands in.
-  it('a click on Scan is one retransmit, nothing applied, and selects New Transmission rather than being a row itself', () => {
+  // Roll was never a pick; Scan is not a radio either, but it does select New Transmission, which no row carries.
+  it('a click on Scan is one retransmit, nothing applied, and selects the editor, leaving no row checked', () => {
     render(<OffScreen />);
     openTransmissions();
     fireEvent.click(scan());
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
     expect(applySessionPayload).not.toHaveBeenCalled();
-    expect(row(newTransmission()).getAttribute('aria-checked')).toBe('true');
-    expect(row(currentName()).getAttribute('aria-checked')).toBe('false');
+    expect(editorSelected()).toBe(true);
+    expect(within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-checked'))).not.toContain('true');
   });
 
   it('shows each save with when it was saved, newest first; Current and the presets carry no meta', () => {
@@ -2022,13 +2039,11 @@ describe('OffScreen — the Transmission list and Scan on New Transmission', () 
 describe('OffScreen — the Transmission row', () => {
   beforeEach(() => markHeardWorld());
 
-  it('lists New Transmission, Current, then the three presets in order, under the Transmission label, with no divider when there are no saves', () => {
+  // New Transmission left the list for the editor (console Task 4): Current is first.
+  it('lists Current, then the three presets in order, under the Transmission label, with no divider when there are no saves', () => {
     const { container } = render(<OffScreen />);
     openTransmissions();
-    // Every row names its world (Task 6b); New Transmission's is a random draw here, so only its lore label is pinned.
-    const names = radioNames();
-    expect(names[0]!.startsWith(asNew(''))).toBe(true);
-    expect(names.slice(1)).toEqual([currentName(), presetLabel(0), presetLabel(1), presetLabel(2)]);
+    expect(radioNames()).toEqual([currentName(), presetLabel(0), presetLabel(1), presetLabel(2)]);
     expect(container.querySelector('.sc-radio-button__divider')).toBeNull();
   });
 
@@ -2041,10 +2056,9 @@ describe('OffScreen — the Transmission row', () => {
     const { container } = render(<OffScreen />);
     openTransmissions();
     const names = radioNames();
-    expect(names[0]!.startsWith(asNew(''))).toBe(true);
-    expect(names[1]).toBe(currentName());
-    expect(names.slice(2, 4)).toEqual([savedLabel('Night, all freelance'), savedLabel('Dusk Run')]);
-    expect(names.slice(4)).toEqual([presetLabel(0), presetLabel(1), presetLabel(2)]);
+    expect(names[0]).toBe(currentName());
+    expect(names.slice(1, 3)).toEqual([savedLabel('Night, all freelance'), savedLabel('Dusk Run')]);
+    expect(names.slice(3)).toEqual([presetLabel(0), presetLabel(1), presetLabel(2)]);
     const dividers = container.querySelectorAll('.sc-radio-button__divider');
     expect(dividers).toHaveLength(1);
     // The list (revisions Task 4) draws each option in a row, so the rule sits ahead of the first preset's row, with the
@@ -2075,19 +2089,20 @@ describe('OffScreen — the Transmission row', () => {
     expect(applySessionPayload).toHaveBeenCalledWith(save);
   });
 
-  it('keeps a save named New Transmission apart from the row: picking the save applies the save, and draws nothing', () => {
+  // With no New Transmission row (console Task 4), a save of that name is the only radio so named, and picking it is a
+  // save pick: the editor is not selected by it.
+  it('keeps a save named New Transmission apart from the editor: picking the save applies the save, and draws nothing', () => {
     const save = savedPayload('new-name');
     saveNamedSession(newTransmission(), save);
     render(<OffScreen />);
     openTransmissions();
-    // The row is "New Transmission, <its draw>"; the save is "New Transmission · <its world>" (Task 6b).
     const radios = screen.getAllByRole('radio').filter((r) => r.getAttribute('aria-label')!.startsWith(newTransmission()));
-    expect(radios).toHaveLength(2);
-    expect(radios[0].getAttribute('aria-label')!.startsWith(asNew(''))).toBe(true);
-    expect(radios[1].getAttribute('aria-label')).toBe(describeWorld(save, newTransmission()));
-    fireEvent.click(radios[1]); // the save sits under Current
+    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([describeWorld(save, newTransmission())]);
+    fireEvent.click(radios[0]);
     expect(applySessionPayload).toHaveBeenCalledWith(save);
     expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(radios[0].getAttribute('aria-checked')).toBe('true');
+    expect(editorSelected()).toBe(false);
   });
 
   it('keeps a save named like a preset id apart from the preset', () => {
@@ -2349,19 +2364,20 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     act(() => useUIStore.getState().setSceneWash('clear'));
     fireEvent.click(scanButton());
     expect(retransmitWorld).not.toHaveBeenCalled();
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorSelected()).toBe(true);
     expect(checked(presetName(2))).toBe('false');
     await land();
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
     expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ theme: 'classic', aspects: {} }));
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorSelected()).toBe(true);
   });
 
-  it('a New Transmission pick waiting, then Current: the change is cancelled and nothing is drawn into the world', async () => {
+  // A New Transmission pick is a Scan since console Task 4 (the row is gone).
+  it('a Scan waiting, then Current: the change is cancelled and nothing is drawn into the world', async () => {
     const cancel = vi.spyOn(worldChange, 'cancelWorldChange');
     render(<OffScreen />);
     openTransmissions();
-    fireEvent.click(row(newTransmission()));
+    fireEvent.click(scanButton());
     fireEvent.click(currentRadio());
     expect(cancel).toHaveBeenCalledTimes(1);
     await land();
@@ -2491,7 +2507,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ theme: 'classic', aspects: {} }));
       expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-      expect(checked(newTransmission())).toBe('true');
+      expect(editorSelected()).toBe(true);
     });
 
     it('a Scan then a theme pick: the scanned world lands, then the theme is laid over it, and the row keeps it', async () => {
@@ -2507,8 +2523,8 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(retransmitWorld).toHaveBeenCalledTimes(2);
       expect(vi.mocked(retransmitWorld).mock.calls[0][0]).toMatchObject({ theme: 'classic', aspects: {} });
       expect(vi.mocked(retransmitWorld).mock.calls[1][0]).toEqual({ theme: 'float' });
-      expect(checked(newTransmission())).toBe('true');
-      expect(radioNames()[0]!.endsWith(` · ${human('home.off.theme.float')}`)).toBe(true);
+      expect(editorSelected()).toBe(true);
+      expect(readout().textContent!.endsWith(` · ${human('home.off.theme.float')}`)).toBe(true);
     });
 
     it('shows each click at once: the picked row, the theme row, its line and the readout follow the click, not the world', () => {
@@ -3002,14 +3018,23 @@ describe('OffScreen — only the aspect rows come off the plate', () => {
     }
   });
 
-  it('every cabinet box on the screen belongs to an aspect row', () => {
+  // The editor's three inputs (console Task 4) are TextInputs, which carry their own static facade box (spec §3: the
+  // controls are used as they are): the only boxes besides the aspect rows'.
+  it('every cabinet box on the screen belongs to an aspect row or to one of the editor’s inputs', () => {
     const { container } = render(<OffScreen />);
     const boxes = Array.from(container.querySelectorAll('.sc-cabinet-box'));
-    expect(boxes.length).toBe(ASPECT_FAMILY_IDS.reduce((n, family) => n + ASPECT_IDS_BY_FAMILY[family].length, 0));
+    const aspectBoxes = ASPECT_FAMILY_IDS.reduce((n, family) => n + ASPECT_IDS_BY_FAMILY[family].length, 0);
+    expect(boxes.length).toBe(aspectBoxes + 3);
     const familyRoots = ASPECT_FAMILY_IDS.map((family) =>
       screen.getByRole('group', { name: human(`home.off.${family}`) }).closest('.sc-radio-button'),
     );
-    for (const box of boxes) expect(familyRoots).toContain(box.closest('.sc-radio-button'));
+    const inputFacades = Array.from(editor().querySelectorAll('.sc-text-input-facade'));
+    expect(inputFacades).toHaveLength(3);
+    for (const box of boxes) {
+      const facade = box.closest('.sc-text-input-facade');
+      if (facade) expect(inputFacades).toContain(facade);
+      else expect(familyRoots).toContain(box.closest('.sc-radio-button'));
+    }
   });
 });
 
@@ -3025,13 +3050,12 @@ describe('OffScreen — on the phone shell (Task 28)', () => {
       </main>,
     );
 
-  it('renders New Transmission, Current and all three presets in the picker, with Scan on New Transmission', () => {
+  it('renders the editor with Scan, and Current and all three presets in the picker', () => {
     renderOnPhone();
+    expect(editorShows()).toEqual(liveIdentity());
+    expect(editor().contains(scanButton())).toBe(true);
     openTransmissions();
-    const names = radioNames();
-    expect(names[0]!.startsWith(asNew(''))).toBe(true);
-    expect(names.slice(1)).toEqual([currentName(), presetLabel(0), presetLabel(1), presetLabel(2)]);
-    expect(scanButton().closest('.sc-radio-button__trailing')).not.toBeNull();
+    expect(radioNames()).toEqual([currentName(), presetLabel(0), presetLabel(1), presetLabel(2)]);
   });
 
   it('keeps a 128-character save name whole in its accessible name, drawn in the single-line label that ends in an ellipsis', () => {

@@ -146,6 +146,32 @@
   align-items: center;
 }
 
+/* The New Transmission editor (docs/tasks/OFF_SCREEN_CONSOLE.md Task 4, spec §1.2): its title row with Scan trailing
+   right, then the style name and the coordinates. Selected (New Transmission the shown pick), it takes the list row's
+   quiet fill and border, no walls (RadioButton.css's .sc-radio-button__row[data-state='on']); the same 1px border is
+   always drawn, transparent until then, so selecting it never moves it. Task 11 sets the rest against frame F. */
+.transmission-editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+  width: 100%;
+  box-sizing: border-box;
+  padding: var(--spacing-sm);
+  border: 1px solid transparent;
+}
+
+.transmission-editor[data-selected] {
+  border-color: rgba(207, 214, 220, 0.4);
+  background: rgba(207, 214, 220, 0.08);
+}
+
+.transmission-editor__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm);
+}
+
 .off-screen__picker .sc-radio-button__root {
   justify-content: center;
 }

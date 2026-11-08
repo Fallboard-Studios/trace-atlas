@@ -242,15 +242,15 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 ### Checkpoint: The sections
 - [x] `npm run build:types`, `npm run lint` clean; focused run green. Full suite 2026-11-08: 356 files, 13,661 tests,
       all pass (218 s, run alone).
-- [ ] In the browser: the off screen opens with both headers collapsed; the Transmissions header names Current and
+- [x] In the browser: the off screen opens with both headers collapsed; the Transmissions header names Current and
       the count; Reset from Device, confirmed, shows the first-visit screen.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3 (passed 2026-11-08).
 
 ---
 
 ### Phase 3: The New Transmission editor
 
-- [ ] **Task 4: `TransmissionEditor.tsx` + `OffScreen.tsx` — the editor replaces the row; Scan moves into its title**
+- [x] **Task 4: `TransmissionEditor.tsx` + `OffScreen.tsx` — the editor replaces the row; Scan moves into its title**
 
   **Description:** Spec §1.2, assumption 1. A new `src/components/panels/screen/screens/TransmissionEditor.tsx`: a
   group `div` with a title row (`DualLabel` "New Transmission" from `home.off.newTransmission`, and Scan, a muted
@@ -277,18 +277,33 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   carries `data-selected` only while New Transmission is the shown pick).
 
   **Acceptance criteria:**
-  - [ ] No random draw happens on mount (the seed helpers are not called until Scan).
-  - [ ] The list has no `NEW_VALUE` option and `RadioButton` gets no `trailing` prop from this screen.
-  - [ ] Every R3, F12, Current and family-row case passes, with "the New Transmission row" replaced by Scan where a
+  - [x] No random draw happens on mount (the seed helpers are not called until Scan).
+  - [x] The list has no `NEW_VALUE` option and `RadioButton` gets no `trailing` prop from this screen.
+  - [x] Every R3, F12, Current and family-row case passes, with "the New Transmission row" replaced by Scan where a
         case clicked the row to land a drawn world.
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] Mutant: the editor rendering `NEW_LOADING`'s world instead of the live identity on mount (case 1 fails).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Focused run passes (16 files, 978 tests, Foundry's two files included).
+  - [x] Mutant: the editor rendering `NEW_LOADING`'s world instead of the live identity on mount (case 1 fails).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Task 2. **Files:** `TransmissionEditor.tsx`, `TransmissionEditor.test.tsx`, `OffScreen.tsx`,
-  `OffScreen.test.tsx`, `OffScreen.css` (the group and title row), `src/data/sectorSettingsConfig.ts`
+  **As built:** the two schemas live in `transmissionEditorSchemas.ts` beside the editor, not in the component file:
+  exported from a `.tsx` they drew two `react-refresh/only-export-components` warnings, and `sectorSettingsConfig.ts`
+  (re-exporting them for Foundry until Task 15) would have imported a component. The editor takes no `onCommit` yet
+  (Task 5 adds it with the commit). Its sync is Foundry's, overwriting the draft on any change of identity, compared by
+  value since the screen builds the identity each render; Task 5's mid-edit guard goes RED against it. The editor
+  already shows the waiting change's identity (this task's description), so the wash cases for it (a waiting Scan, a
+  preset replacing it, a waiting Current restore) landed here, not in Task 5. The editor is a `role="group"` named New
+  Transmission. Two row cases went with the row ("holds the same world on return", "re-clicking the selected row");
+  Task 5's unchanged commit is the latter's heir. "Every cabinet box belongs to an aspect row" now admits the editor's
+  three `TextInput` facades (spec §3: the controls as they are). The test file gained `landsInStores`, a
+  `retransmitWorld` double that writes the seed and plot into the stores, which the global `beforeEach` resets. Eight
+  mutants killed: a fixed world on mount, the waiting change ignored, a waiting payload or restore read as the live
+  world, the editor never selected, no sync, a sync by reference, a draw on mount.
+
+  **Dependencies:** Task 2. **Files:** `TransmissionEditor.tsx`, `transmissionEditorSchemas.ts`,
+  `TransmissionEditor.test.tsx`, `OffScreen.tsx`, `OffScreen.test.tsx`, `OffScreen.css` (the group and title row),
+  `src/data/sectorSettingsConfig.ts`
 
   **Estimated scope:** M (one new component, the row removed, five test blocks rewritten)
 
