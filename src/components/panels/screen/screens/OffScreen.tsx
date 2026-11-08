@@ -225,8 +225,9 @@ interface Intent {
  *
  * The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2; TransmissionEditor.tsx) sits over the list in
  * place of the row that held a world drawn on mount: it shows the live world's seed and plot, or a waiting change's, and
- * draws nothing on mount (assumption 1). Scan, in its title row, is the draw. New Transmission is the pick a Scan makes;
- * no row carries it, so while it is the shown pick no row is checked and the editor wears the selected state.
+ * draws nothing on mount (assumption 1). A commit — Enter, or a blur out of it — of a draft that differs is a New
+ * Transmission pick of the typed world; Scan, in its title row, draws one and picks it the same way. No row carries New
+ * Transmission, so while it is the shown pick no row is checked and the editor wears the selected state.
  *
  * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and Keep sit in a Disclosure that starts
  * collapsed on every mount — component state, never persisted — under a header naming the shown row (New Transmission,
@@ -530,9 +531,11 @@ export function OffScreen() {
     };
   }, [currentLabel, presetWorlds, saves, selectedValue, selectedLoading]);
 
-  // New Transmission picked — a Scan (spec §1.1): its world waits under the wash like any pick, the editor selected at the
-  // click, under the world's own loading — Classic with no aspects — which replaces any loading clicked before it, as
-  // applying it would. Like a save or preset pick, it leaves Current first.
+  // New Transmission picked — a Scan, or the editor's commit, which drops an unchanged draft itself
+  // (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): its world waits under the wash like any pick, joining a waiting change with
+  // the last world click winning (R3), the editor selected at the click, under the world's own loading — Classic with no
+  // aspects — which replaces any loading clicked before it, as applying it would. Like a save or preset pick, it leaves
+  // Current first.
   const pickNew = useCallback(
     (world: EditorIdentity) => {
       leaveCurrent();
@@ -779,7 +782,12 @@ export function OffScreen() {
               <div className="off-screen__axis">
                 {/* The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): the shown world's seed and plot,
                     and Scan; selected while New Transmission is the shown pick. */}
-                <TransmissionEditor identity={editorIdentity} selected={selectedValue === NEW_VALUE} onScan={onScan} />
+                <TransmissionEditor
+                  identity={editorIdentity}
+                  selected={selectedValue === NEW_VALUE}
+                  onCommit={pickNew}
+                  onScan={onScan}
+                />
                 {/* The Transmissions section (spec §1.4): the list and its actions, under a header naming the selected
                     row, collapsed until opened. */}
                 <Disclosure

@@ -307,7 +307,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
   **Estimated scope:** M (one new component, the row removed, five test blocks rewritten)
 
-- [ ] **Task 5: `TransmissionEditor.tsx` + `OffScreen.tsx` — a commit is a pick; the draft follows the live identity**
+- [x] **Task 5: `TransmissionEditor.tsx` + `OffScreen.tsx` — a commit is a pick; the draft follows the live identity**
 
   **Description:** Spec §1.2 (commit, sync, the wash rule). In the editor: Enter in any input, or a blur whose
   `relatedTarget` is outside the group, calls `onCommit(draft)`; a commit whose draft `deepEqual`s what the editor last
@@ -330,16 +330,25 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   the intent's identity while it waits; a theme click with New Transmission selected keeps it selected).
 
   **Acceptance criteria:**
-  - [ ] An unchanged commit is no world change and no wash.
-  - [ ] A commit that differs does exactly what picking the New Transmission row did (one `retransmitWorld` with the
+  - [x] An unchanged commit is no world change and no wash.
+  - [x] A commit that differs does exactly what picking the New Transmission row did (one `retransmitWorld` with the
         identity and `NEW_LOADING`, then `detachLoadedSession`).
-  - [ ] The draft survives a sync while mid-edit and takes the next sync after a commit.
+  - [x] The draft survives a sync while mid-edit and takes the next sync after a commit.
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] Mutants: the sync overwriting a mid-edit draft (case 3 fails); the unchanged commit requesting a change (case 2
+  - [x] Focused run passes.
+  - [x] Mutants: the sync overwriting a mid-edit draft (case 3 fails); the unchanged commit requesting a change (case 2
         fails).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **As built:** a commit sets the editor's baseline to the committed draft before `onCommit`, so a second Enter or the
+  blur after it commits nothing and the next identity lands. Scan drops a mid-edit draft before it draws: focus moving
+  onto Scan is inside the group, so nothing commits, and without the drop the mid-edit guard would keep the typed draft
+  over the drawn world, against spec §1.2 ("draws into both inputs"); not in the plan, pinned by its own case. Enter
+  commits only from an input (Enter on Scan is Scan's); a blur to nowhere (`relatedTarget` null) commits as a blur to
+  outside does. `onCommit` is `pickNew` itself. The "editor shows the intent's identity" part of case 5 landed with
+  Task 4. Ten mutants killed, both of the plan's among them; also the baseline not moved on commit, Scan keeping the
+  draft, Enter from any target, any key, a blur inside the group, no blur, a blur to nowhere, and the commit unwired.
 
   **Dependencies:** Task 4. **Files:** `TransmissionEditor.tsx`, `TransmissionEditor.test.tsx`, `OffScreen.tsx`,
   `OffScreen.test.tsx`

@@ -12,9 +12,12 @@ import { CONTENT } from '@/content';
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
 const LIVE: EditorIdentity = { attenuationStyleName: 'live-as', coordinates: { x: 1, y: 2 } };
 
-function renderEditor(identity: EditorIdentity = LIVE, { selected = false, onScan = vi.fn() } = {}) {
-  const result = render(<TransmissionEditor identity={identity} selected={selected} onScan={onScan} />);
-  return { ...result, onScan };
+function renderEditor(identity: EditorIdentity = LIVE, { selected = false, onScan = vi.fn(), onCommit = vi.fn() } = {}) {
+  const result = render(<TransmissionEditor identity={identity} selected={selected} onCommit={onCommit} onScan={onScan} />);
+  /** The same editor handed a new identity. */
+  const handOver = (next: EditorIdentity) =>
+    result.rerender(<TransmissionEditor identity={next} selected={selected} onCommit={onCommit} onScan={onScan} />);
+  return { ...result, onScan, onCommit, handOver };
 }
 
 const editor = () => screen.getByRole('group', { name: human('home.off.newTransmission') });
@@ -52,21 +55,15 @@ describe('TransmissionEditor', () => {
   });
 
   it('a new identity re-syncs an untouched draft', () => {
-    const { rerender, onScan } = renderEditor();
-    rerender(
-      <TransmissionEditor
-        identity={{ attenuationStyleName: 'landed', coordinates: { x: -7, y: 30 } }}
-        selected={false}
-        onScan={onScan}
-      />,
-    );
+    const { handOver } = renderEditor();
+    handOver({ attenuationStyleName: 'landed', coordinates: { x: -7, y: 30 } });
     expect(shown()).toEqual({ name: 'landed', x: '-7', y: '30' });
   });
 
   it('the same identity as a fresh object leaves a typed draft alone', () => {
-    const { rerender, onScan } = renderEditor();
+    const { handOver } = renderEditor();
     fireEvent.change(styleInput(), { target: { value: 'typed' } });
-    rerender(<TransmissionEditor identity={structuredClone(LIVE)} selected={false} onScan={onScan} />);
+    handOver(structuredClone(LIVE));
     expect(styleInput().value).toBe('typed');
   });
 
@@ -84,9 +81,129 @@ describe('TransmissionEditor', () => {
   });
 
   it('wears data-selected only while selected', () => {
-    const { rerender, onScan } = renderEditor(LIVE, { selected: true });
+    const { rerender, onScan, onCommit } = renderEditor(LIVE, { selected: true });
     expect(editor().hasAttribute('data-selected')).toBe(true);
-    rerender(<TransmissionEditor identity={LIVE} selected={false} onScan={onScan} />);
+    rerender(<TransmissionEditor identity={LIVE} selected={false} onCommit={onCommit} onScan={onScan} />);
     expect(editor().hasAttribute('data-selected')).toBe(false);
+  });
+});
+
+/*
+ * docs/tasks/OFF_SCREEN_CONSOLE.md Task 5 (spec §1.2): a commit is Enter in any input or a blur out of the group, and an
+ * unchanged draft commits nothing. A sync never overwrites a draft the user is mid-edit on; a commit makes the draft the
+ * baseline again, so the next identity lands.
+ */
+describe('TransmissionEditor — the commit and the mid-edit draft (console Task 5)', () => {
+  const enter = (el: HTMLElement) => fireEvent.keyDown(el, { key: 'Enter' });
+
+  it('Enter in the name input commits the draft, once', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    enter(styleInput());
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'typed', coordinates: { x: 1, y: 2 } });
+    enter(styleInput());
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it('Enter in a coordinate input commits the draft, both fields as typed', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '9' } });
+    fireEvent.change(coordInputs()[1], { target: { value: '-3' } });
+    enter(coordInputs()[1]);
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'live-as', coordinates: { x: 9, y: -3 } });
+  });
+
+  it('a blank name commits as blank', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: '' } });
+    enter(styleInput());
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: '', coordinates: { x: 1, y: 2 } });
+  });
+
+  it('an unchanged draft commits nothing, by Enter or by blur', () => {
+    const { onCommit } = renderEditor();
+    enter(styleInput());
+    fireEvent.blur(styleInput(), { relatedTarget: null });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('a draft typed back to the identity commits nothing', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    fireEvent.change(styleInput(), { target: { value: 'live-as' } });
+    enter(styleInput());
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('other keys commit nothing', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    fireEvent.keyDown(styleInput(), { key: 'Tab' });
+    fireEvent.keyDown(styleInput(), { key: 'a' });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('Enter on Scan is Scan’s, not a commit', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    enter(scan());
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('a blur to outside the group commits, as Enter does; a blur to nowhere too', () => {
+    const outside = document.createElement('button');
+    document.body.appendChild(outside);
+    const { onCommit, handOver } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    fireEvent.blur(styleInput(), { relatedTarget: outside });
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'typed', coordinates: { x: 1, y: 2 } });
+    handOver({ attenuationStyleName: 'typed', coordinates: { x: 1, y: 2 } });
+    fireEvent.change(coordInputs()[0], { target: { value: '5' } });
+    fireEvent.blur(coordInputs()[0], { relatedTarget: null });
+    expect(onCommit).toHaveBeenLastCalledWith({ attenuationStyleName: 'typed', coordinates: { x: 5, y: 2 } });
+    outside.remove();
+  });
+
+  it('a blur between the group’s own inputs, or onto Scan, commits nothing', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    fireEvent.blur(styleInput(), { relatedTarget: coordInputs()[0] });
+    fireEvent.blur(coordInputs()[0], { relatedTarget: coordInputs()[1] });
+    fireEvent.blur(coordInputs()[1], { relatedTarget: scan() });
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it('a mid-edit draft survives a new identity', () => {
+    const { handOver } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    handOver({ attenuationStyleName: 'landed', coordinates: { x: -7, y: 30 } });
+    expect(shown()).toEqual({ name: 'typed', x: '1', y: '2' });
+  });
+
+  it('a mid-edit draft is still committed against the identity it now differs from', () => {
+    const { handOver, onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    handOver({ attenuationStyleName: 'landed', coordinates: { x: -7, y: 30 } });
+    enter(styleInput());
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'typed', coordinates: { x: 1, y: 2 } });
+  });
+
+  it('after a commit the next identity lands in the inputs', () => {
+    const { handOver } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    enter(styleInput());
+    handOver({ attenuationStyleName: 'landed', coordinates: { x: -7, y: 30 } });
+    expect(shown()).toEqual({ name: 'landed', x: '-7', y: '30' });
+  });
+
+  it('Scan drops a mid-edit draft, so the drawn world lands in the inputs', () => {
+    const { handOver, onScan, onCommit } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: 'typed' } });
+    fireEvent.click(scan());
+    expect(onScan).toHaveBeenCalledTimes(1);
+    handOver({ attenuationStyleName: 'drawn', coordinates: { x: 101, y: 102 } });
+    expect(shown()).toEqual({ name: 'drawn', x: '101', y: '102' });
+    expect(onCommit).not.toHaveBeenCalled();
   });
 });

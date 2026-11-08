@@ -1364,6 +1364,175 @@ describe('OffScreen — the New Transmission editor and Scan (console Task 4)', 
   });
 });
 
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 5 (spec §1.2, §5 cases 2, 3 and 5): a commit in the editor — Enter, or a blur out
+// of it — is a New Transmission pick of the typed world, exactly what picking the row did; an unchanged one is nothing.
+// The editor follows the world that lands, unless the listener is mid-edit.
+describe('OffScreen — the editor commits a world (console Task 5)', () => {
+  beforeEach(() => markHeardWorld());
+  afterEach(() => vi.mocked(retransmitWorld).mockReset());
+  const presets = TRANSMISSION_PRESETS.length;
+  const styleField = () => within(editor()).getByRole('textbox');
+  const typeName = (value: string) => fireEvent.change(styleField(), { target: { value } });
+  const enter = () => fireEvent.keyDown(styleField(), { key: 'Enter' });
+  /** applySessionPayload's double, landing the payload's seed, plot and loading in the stores. */
+  const applyLandsInStores = () =>
+    vi.mocked(applySessionPayload).mockImplementation((payload) =>
+      landsInStores({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loadingOf(payload) }),
+    );
+  const seedAndPlot = (payload: SessionPayload) => ({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates });
+
+  it('a typed name and Enter lands that world under Classic with no aspects, detaches the save and selects the editor', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
+    live.payload = { ...live.marker('live'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    render(<OffScreen />);
+    openTransmissions();
+    const current = currentRowName();
+    const { coordinates } = liveIdentity();
+    typeName('typed-world');
+    enter();
+    expect(retransmitWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName: 'typed-world', coordinates, theme: 'classic', aspects: {} });
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    expect(editorSelected()).toBe(true);
+    expect(within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-checked'))).not.toContain('true');
+    expect(transmissionsHeader().textContent).toBe(headerText(newTransmission(), 1 + presets));
+    expect(editorShows()).toEqual({ attenuationStyleName: 'typed-world', coordinates });
+    expect(readout().textContent).toBe(describeWorld({ attenuationStyleName: 'typed-world', coordinates }));
+    // Current still names the world left: the commit took the snapshot, as any pick does.
+    expect(currentRowName()).toBe(current);
+    expect(AudioEngine.start).not.toHaveBeenCalled();
+  });
+
+  it('typed coordinates commit with the name as it stands', () => {
+    render(<OffScreen />);
+    const { attenuationStyleName } = liveIdentity();
+    const [x, y] = within(editor()).getAllByRole('spinbutton');
+    fireEvent.change(x, { target: { value: '-12' } });
+    fireEvent.change(y, { target: { value: '34' } });
+    fireEvent.keyDown(y, { key: 'Enter' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName, coordinates: { x: -12, y: 34 }, theme: 'classic', aspects: {} });
+  });
+
+  it('an unchanged commit requests no world change: Enter, a blur, and a draft typed back to the world', () => {
+    const request = vi.spyOn(worldChange, 'requestWorldChange');
+    render(<OffScreen />);
+    enter();
+    fireEvent.blur(styleField(), { relatedTarget: null });
+    typeName('typed');
+    typeName(liveIdentity().attenuationStyleName);
+    enter();
+    expect(request).not.toHaveBeenCalled();
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(editorSelected()).toBe(false);
+    request.mockRestore();
+  });
+
+  it('a blur out of the editor commits as Enter does', () => {
+    render(<OffScreen />);
+    openTransmissions();
+    typeName('blurred');
+    fireEvent.blur(styleField(), { relatedTarget: currentRadio() });
+    expect(retransmitWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ attenuationStyleName: 'blurred', theme: 'classic', aspects: {} }));
+    expect(editorSelected()).toBe(true);
+  });
+
+  it('a blank name commits as blank, as retransmitWorld reads it', () => {
+    render(<OffScreen />);
+    typeName('');
+    enter();
+    expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ attenuationStyleName: '', theme: 'classic', aspects: {} }));
+  });
+
+  it('a save pick that lands shows the save’s seed and plot in the editor', () => {
+    applyLandsInStores();
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    openTransmissions();
+    fireEvent.click(row('Dusk Run'));
+    expect(editorShows()).toEqual(seedAndPlot(loadSession('Dusk Run')!));
+    expect(editorSelected()).toBe(false);
+  });
+
+  it('mid-edit, a landing pick leaves the draft alone; after a commit, the next landing pick shows', () => {
+    applyLandsInStores();
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    saveNamedSession('Low Tide', savedPayload('tide'));
+    render(<OffScreen />);
+    openTransmissions();
+    const { coordinates } = liveIdentity();
+    typeName('half-typed');
+    fireEvent.click(row('Dusk Run'));
+    expect(editorShows()).toEqual({ attenuationStyleName: 'half-typed', coordinates });
+    enter();
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ attenuationStyleName: 'half-typed', coordinates, theme: 'classic', aspects: {} });
+    expect(editorShows()).toEqual({ attenuationStyleName: 'half-typed', coordinates });
+    fireEvent.click(row('Low Tide'));
+    expect(editorShows()).toEqual(seedAndPlot(loadSession('Low Tide')!));
+  });
+
+  it('a theme click after a commit keeps the editor selected and edits the world in place', () => {
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    render(<OffScreen />);
+    openTransmissions();
+    typeName('typed-world');
+    enter();
+    fireEvent.click(row(human('home.off.theme.float')));
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'float' });
+    expect(editorSelected()).toBe(true);
+    expect(readout().textContent).toBe(describeWorld({ ...liveIdentity(), theme: 'float' }));
+  });
+
+  describe('while a change waits under the wash', () => {
+    let detach: () => void;
+    beforeEach(() => {
+      useUIStore.setState({ sceneWash: 'clear' });
+      detach = attachSceneWash();
+    });
+    afterEach(() => detach());
+    const land = () => act(async () => useUIStore.getState().setSceneWash('covered'));
+
+    it('a commit while a save pick waits replaces it: the editor’s world lands alone, from the save’s plot', async () => {
+      saveNamedSession('Dusk Run', savedPayload('dusk'));
+      render(<OffScreen />);
+      openTransmissions();
+      fireEvent.click(row('Dusk Run'));
+      const dusk = seedAndPlot(loadSession('Dusk Run')!);
+      expect(editorShows()).toEqual(dusk);
+      typeName('typed-over');
+      enter();
+      expect(editorSelected()).toBe(true);
+      expect(transmissionsHeader().textContent).toBe(headerText(newTransmission(), 1 + presets));
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      await land();
+      expect(applySessionPayload).not.toHaveBeenCalled();
+      expect(retransmitWorld).toHaveBeenCalledTimes(1);
+      expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName: 'typed-over', coordinates: dusk.coordinates, theme: 'classic', aspects: {} });
+      expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    });
+
+    it('a save picked while a commit waits replaces it, the last world click winning', async () => {
+      saveNamedSession('Dusk Run', savedPayload('dusk'));
+      render(<OffScreen />);
+      openTransmissions();
+      typeName('typed-first');
+      enter();
+      expect(editorShows().attenuationStyleName).toBe('typed-first');
+      fireEvent.click(row('Dusk Run'));
+      expect(editorShows()).toEqual(seedAndPlot(loadSession('Dusk Run')!));
+      await land();
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      expect(applySessionPayload).toHaveBeenCalledTimes(1);
+      expect(editorSelected()).toBe(false);
+    });
+  });
+});
+
 describe('OffScreen — Keep (spec assumption 14)', () => {
   beforeEach(() => markHeardWorld());
   const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;

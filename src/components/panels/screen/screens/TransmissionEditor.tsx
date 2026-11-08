@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { ATTENUATION_STYLE_SCHEMA, COORDS_SCHEMA } from './transmissionEditorSchemas';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { CoordsInput } from '@/components/ui/controls/CoordsInput';
@@ -24,6 +24,8 @@ interface TransmissionEditorProps {
   identity: EditorIdentity;
   /** Is New Transmission the shown pick? The group then wears the list row's selected state. */
   selected: boolean;
+  /** A draft that differs from the identity it was synced to, committed: the caller picks it as New Transmission. */
+  onCommit: (identity: EditorIdentity) => void;
   onScan: () => void;
 }
 
@@ -31,26 +33,55 @@ interface TransmissionEditorProps {
  * The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): a group titled New Transmission with Scan in its
  * title row, then the style name and the coordinates. The inputs hold a draft of `identity`, synced Foundry's way
  * (SectorSettingsDrawer: the last-seen value compared during render, no effect), so a world landing from elsewhere — a
- * pick, a restore, a Scan — shows in them. The identity is compared by value: the screen builds it afresh each render.
- * Scan is the caller's: it draws and picks the drawn world, which then arrives here as `identity`.
+ * pick, a restore, a Scan — shows in them, unless the listener is mid-edit: a draft that differs from the last synced
+ * identity is never overwritten. The identity is compared by value: the screen builds it afresh each render.
+ *
+ * A commit is Enter in any input, or a blur out of the group (caught on the group: TextInput takes no key or blur
+ * props, and both events bubble). One whose draft equals the last synced identity is dropped here; any other is handed
+ * to `onCommit`, and the draft becomes the baseline, so the next identity lands. Scan is the caller's draw; it drops a
+ * mid-edit draft first, so the drawn world lands in the inputs.
  */
-export function TransmissionEditor({ identity, selected, onScan }: TransmissionEditorProps) {
+export function TransmissionEditor({ identity, selected, onCommit, onScan }: TransmissionEditorProps) {
   const [draft, setDraft] = useState(identity);
   const [synced, setSynced] = useState(identity);
   if (!deepEqual(identity, synced)) {
     setSynced(identity);
-    setDraft(identity);
+    if (deepEqual(draft, synced)) setDraft(identity);
   }
 
   // Stable, so the memoized inputs re-render only on their own value.
   const onName = useCallback((attenuationStyleName: string) => setDraft((d) => ({ ...d, attenuationStyleName })), []);
   const onCoords = useCallback((coordinates: { x: number; y: number }) => setDraft((d) => ({ ...d, coordinates })), []);
 
+  const commit = () => {
+    if (deepEqual(draft, synced)) return;
+    setSynced(draft);
+    onCommit(draft);
+  };
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter' && e.target instanceof HTMLInputElement) commit();
+  };
+  // Focus moving between the group's own inputs, or onto Scan, is no commit.
+  const onBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) commit();
+  };
+  const scan = () => {
+    setDraft(synced);
+    onScan();
+  };
+
   return (
-    <div className="transmission-editor" role="group" aria-label={TITLE} data-selected={selected || undefined}>
+    <div
+      className="transmission-editor"
+      role="group"
+      aria-label={TITLE}
+      data-selected={selected || undefined}
+      onKeyDown={onKeyDown}
+      onBlur={onBlur}
+    >
       <div className="transmission-editor__title">
         <DualLabel humanLabel={TITLE} />
-        <Button schema={SCAN_SCHEMA} face="single" onClick={onScan} />
+        <Button schema={SCAN_SCHEMA} face="single" onClick={scan} />
       </div>
       <TextInput schema={ATTENUATION_STYLE_SCHEMA} value={draft.attenuationStyleName} onChange={onName} />
       <CoordsInput schema={COORDS_SCHEMA} value={draft.coordinates} onChange={onCoords} />
