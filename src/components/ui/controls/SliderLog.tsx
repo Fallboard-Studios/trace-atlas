@@ -63,9 +63,11 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight, swe
   // otherwise returns a fresh array every render.
   const states = useMemo(() => computeVoxelBoxStates(t, 0, 1, boxCount), [t, boxCount]);
 
+  // Computed once and shared: the visible readout and the thumb's aria-valuetext must never disagree.
+  const formattedValue = schema.formatValue?.(displayValue);
   const valueLabel = (
     <span className="sc-slider-log__value">
-      {schema.formatValue ? schema.formatValue(displayValue) : `${formatDisplayValue(displayValue)}${schema.unit ?? ''}`}
+      {schema.formatValue ? formattedValue : `${formatDisplayValue(displayValue)}${schema.unit ?? ''}`}
     </span>
   );
 
@@ -97,7 +99,9 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight, swe
             timelineKeyPrefix={`cabinet-voxel-${schema.id}`}
           />
         </Slider.Track>
-        <Slider.Thumb className="sc-slider-log__thumb" aria-label={resolveAccessibleName(schema)} />
+        {/* aria-valuetext only when the schema formats its value: aria-valuenow is the track position
+            t (0..1), so without it a screen reader would announce a fraction, not the readout. */}
+        <Slider.Thumb className="sc-slider-log__thumb" aria-label={resolveAccessibleName(schema)} aria-valuetext={formattedValue} />
       </Slider.Root>
       {!isVertical && valueLabel}
     </div>
