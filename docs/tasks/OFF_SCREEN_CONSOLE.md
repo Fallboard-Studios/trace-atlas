@@ -134,7 +134,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
 ### Phase 1: The engine's half of Rename
 
-- [ ] **Task 1: `sessionStorageEngine.ts` — `renameNamedSession(from, to): boolean`**
+- [x] **Task 1: `sessionStorageEngine.ts` — `renameNamedSession(from, to): boolean`**
 
   **Description:** Spec §1.5 (Rename). Re-keys `named[from]` to `to`, setting the entry's `name` to `to` and keeping
   its `savedAt` and `payload`. Returns `true` when it re-keyed. Returns `false` and writes nothing when `from` has no
@@ -146,14 +146,14 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   storage is byte-for-byte unchanged; a taken `to` returns `false` and both entries stand unchanged.
 
   **Acceptance criteria:**
-  - [ ] The three cases pass; the existing engine cases pass unmodified.
-  - [ ] `loadSession(from)` is `undefined` and `loadSession(to)` is the payload after a successful rename.
+  - [x] The three cases pass; the existing engine cases pass unmodified.
+  - [x] `loadSession(from)` is `undefined` and `loadSession(to)` is the payload after a successful rename.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/sessionStorageEngine.test.ts` passes.
-  - [ ] Mutants: `savedAt` reset to `Date.now()`; the taken-name guard removed (overwrites `to`); `from`'s entry left
+  - [x] `npx vitest run src/utils/sessionStorageEngine.test.ts` passes.
+  - [x] Mutants: `savedAt` reset to `Date.now()`; the taken-name guard removed (overwrites `to`); `from`'s entry left
         beside `to`'s.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None. **Files:** `src/utils/sessionStorageEngine.ts`, `src/utils/sessionStorageEngine.test.ts`
 
