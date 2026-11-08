@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/LOG_SLIDER_READOUTS.md](../specs/LOG_SLIDER_READOUTS.md). Source intent:
 [docs/intent/log-slider-readouts.md](../intent/log-slider-readouts.md). Backlog slot:
-[33](../todo/backlog.md#33-audio-rig-exact-stepped-values-and-log-sliders-that-read-cleanly) piece 2, the first line of
+[33](../todo/archive/backlog-archive.md#33-audio-rig-exact-stepped-values-and-log-sliders-that-read-cleanly) piece 2, the first line of
 plan.md's Stage 2. Build branch: `feature/log-slider-readouts` off `main` at `9fdb6919` (PR #608 merged).
 
 **Spec §7 is resolved** (Crawford, 2026-11-07). The Architecture Decisions record each answer:
