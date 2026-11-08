@@ -20,6 +20,7 @@ import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
 import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ } from '@/types/globalAudio';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
+import { fixedReadout } from '@/components/ui/controls/formatReadout';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
 import { HUMANIZE_MIN_MS, HUMANIZE_MAX_MS } from '@/constants';
 
@@ -60,6 +61,13 @@ function panelSchema(key: AudioRigEffectKey, content: ContentKey, orientation: P
   return { id: `audioRig.${key}`, type: 'directionalPanel', ...labels(content, { surface: 'heading' }), orientation };
 }
 
+/** A log slider's labels plus its fixed-width readout (fixedReadout), the unit read from the same
+ *  content entry: `decimals` places, the value times `scale` first. See docs/specs/LOG_SLIDER_READOUTS.md. */
+function logReadout(key: ContentKey, decimals: number, scale = 1) {
+  const l = labels(key);
+  return { ...l, formatValue: fixedReadout(decimals, l.unit, scale) };
+}
+
 // ========================================
 // CONFIG
 // ========================================
@@ -96,12 +104,12 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterLPF.frequency', type: 'sliderLog', ...labels('fleet.lpf.cutoff'), min: 20, max: 20000, orientation: 'horizontal' },
+        schema: { id: 'filterLPF.frequency', type: 'sliderLog', ...logReadout('fleet.lpf.cutoff', 0), min: 20, max: 20000, orientation: 'horizontal' },
         lfoTarget: 'lpf.frequency',
       },
       {
         field: 'Q',
-        schema: { id: 'filterLPF.Q', type: 'sliderLog', ...labels('fleet.lpf.resonance'), min: 0.1, max: 20, orientation: 'horizontal' },
+        schema: { id: 'filterLPF.Q', type: 'sliderLog', ...logReadout('fleet.lpf.resonance', 2), min: 0.1, max: 20, orientation: 'horizontal' },
         lfoTarget: 'lpf.Q',
       },
     ],
@@ -112,12 +120,12 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterHPF.frequency', type: 'sliderLog', ...labels('fleet.hpf.cutoff'), min: 20, max: 20000, orientation: 'horizontal' },
+        schema: { id: 'filterHPF.frequency', type: 'sliderLog', ...logReadout('fleet.hpf.cutoff', 0), min: 20, max: 20000, orientation: 'horizontal' },
         lfoTarget: 'hpf.frequency',
       },
       {
         field: 'Q',
-        schema: { id: 'filterHPF.Q', type: 'sliderLog', ...labels('fleet.hpf.resonance'), min: 0.1, max: 20, orientation: 'horizontal' },
+        schema: { id: 'filterHPF.Q', type: 'sliderLog', ...logReadout('fleet.hpf.resonance', 2), min: 0.1, max: 20, orientation: 'horizontal' },
         lfoTarget: 'hpf.Q',
       },
     ],
@@ -157,12 +165,12 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     key: 'autoWah',
     panel: panelSchema('autoWah', 'fleet.autoWah', 'column'),
     params: [
-      { field: 'baseFrequency', schema: { id: 'autoWah.baseFrequency', type: 'sliderLog', ...labels('fleet.autoWah.baseFrequency'), min: 50, max: 1000, orientation: 'horizontal' } },
+      { field: 'baseFrequency', schema: { id: 'autoWah.baseFrequency', type: 'sliderLog', ...logReadout('fleet.autoWah.baseFrequency', 0), min: 50, max: 1000, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'autoWah.octaves', type: 'sliderLinear', ...labels('fleet.autoWah.octaves'), min: 1, max: 8, step: 0.5, orientation: 'horizontal' } },
       { field: 'sensitivity', schema: { id: 'autoWah.sensitivity', type: 'sliderLinear', ...labels('fleet.autoWah.sensitivity'), min: -40, max: 0, step: 1, orientation: 'horizontal' } },
-      { field: 'Q', schema: { id: 'autoWah.Q', type: 'sliderLog', ...labels('fleet.autoWah.q'), min: 0.5, max: 10, orientation: 'horizontal' } },
+      { field: 'Q', schema: { id: 'autoWah.Q', type: 'sliderLog', ...logReadout('fleet.autoWah.q', 2), min: 0.5, max: 10, orientation: 'horizontal' } },
       { field: 'gain', schema: { id: 'autoWah.gain', type: 'sliderLinear', ...labels('fleet.autoWah.gain'), min: 0, max: 20, step: 0.5, orientation: 'horizontal' } },
-      { field: 'follower', schema: { id: 'autoWah.follower', type: 'sliderLog', ...labels('fleet.autoWah.follower'), min: 0.01, max: 1, orientation: 'horizontal' } },
+      { field: 'follower', schema: { id: 'autoWah.follower', type: 'sliderLog', ...logReadout('fleet.autoWah.follower', 2), min: 0.01, max: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'autoWah.wet', type: 'sliderLinear', ...labels('fleet.autoWah.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
@@ -172,9 +180,9 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'phaser.octaves', type: 'sliderLinear', ...labels('fleet.phaser.octaves'), min: 0.5, max: 6, step: 0.5, orientation: 'horizontal' } },
-      { field: 'baseFrequency', schema: { id: 'phaser.baseFrequency', type: 'sliderLog', ...labels('fleet.phaser.baseFrequency'), min: 50, max: 2000, orientation: 'horizontal' } },
+      { field: 'baseFrequency', schema: { id: 'phaser.baseFrequency', type: 'sliderLog', ...logReadout('fleet.phaser.baseFrequency', 0), min: 50, max: 2000, orientation: 'horizontal' } },
       { field: 'stages', schema: { id: 'phaser.stages', type: 'sliderLinear', ...labels('fleet.phaser.stages'), min: 1, max: 12, step: 1, orientation: 'horizontal' } },
-      { field: 'Q', schema: { id: 'phaser.Q', type: 'sliderLog', ...labels('fleet.phaser.q'), min: 0.5, max: 20, orientation: 'horizontal' } },
+      { field: 'Q', schema: { id: 'phaser.Q', type: 'sliderLog', ...logReadout('fleet.phaser.q', 2), min: 0.5, max: 20, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'phaser.wet', type: 'sliderLinear', ...labels('fleet.phaser.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
   },
@@ -237,7 +245,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     key: 'reverb',
     panel: panelSchema('reverb', 'fleet.reverb', 'column'),
     params: [
-      { field: 'decay', schema: { id: 'reverb.decay', type: 'sliderLog', ...labels('fleet.reverb.length'), min: 0.1, max: 10, orientation: 'horizontal' } },
+      { field: 'decay', schema: { id: 'reverb.decay', type: 'sliderLog', ...logReadout('fleet.reverb.length', 2), min: 0.1, max: 10, orientation: 'horizontal' } },
       { field: 'preDelay', schema: { id: 'reverb.preDelay', type: 'sliderLinear', ...labels('fleet.reverb.preDelay'), min: 0, max: 0.25, step: 0.01, orientation: 'horizontal' } },
       // dampening removed (V2) — Tone.Reverb has no such property; the slider
       // controlled a dead cast in globalFx.ts since Phase 0.
@@ -250,8 +258,8 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       { field: 'threshold', schema: { id: 'compressor.threshold', type: 'sliderLinear', ...labels('fleet.compressor.threshold'), min: -60, max: 0, orientation: 'horizontal' } },
       { field: 'ratio', schema: { id: 'compressor.ratio', type: 'sliderLinear', ...labels('fleet.compressor.ratio'), min: 1, max: 20, step: 1, orientation: 'horizontal' } },
-      { field: 'attack', schema: { id: 'compressor.attack', type: 'sliderLog', ...labels('fleet.compressor.attack'), min: 0.001, max: 0.2, orientation: 'horizontal' } },
-      { field: 'release', schema: { id: 'compressor.release', type: 'sliderLog', ...labels('fleet.compressor.release'), min: 0.01, max: 1, orientation: 'horizontal' } },
+      { field: 'attack', schema: { id: 'compressor.attack', type: 'sliderLog', ...logReadout('fleet.compressor.attack', 0, 1000), min: 0.001, max: 0.2, orientation: 'horizontal' } },
+      { field: 'release', schema: { id: 'compressor.release', type: 'sliderLog', ...logReadout('fleet.compressor.release', 0, 1000), min: 0.01, max: 1, orientation: 'horizontal' } },
       { field: 'knee', schema: { id: 'compressor.knee', type: 'sliderLinear', ...labels('fleet.compressor.knee'), min: 0, max: 40, orientation: 'horizontal' } },
     ],
   },
