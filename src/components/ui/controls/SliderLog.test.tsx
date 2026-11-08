@@ -230,6 +230,19 @@ describe('SliderLog component', () => {
       render(<SliderLog schema={formattedSchema} value={4.999999999999999} onChange={() => {}} />);
       expect(formatValue).toHaveBeenCalledWith(4.999999999999999);
     });
+
+    it('sets the thumb aria-valuetext to the rendered readout when formatValue is present', () => {
+      const formattedSchema: SliderLogSchema = { ...schema, formatValue: (v) => `custom:${v}` };
+      const { container } = render(<SliderLog schema={formattedSchema} value={2} onChange={() => {}} />);
+      const readout = container.querySelector('.sc-slider-log__value')?.textContent;
+      expect(readout).toBe('custom:2');
+      expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBe(readout);
+    });
+
+    it('renders no aria-valuetext on the thumb when formatValue is absent', () => {
+      render(<SliderLog schema={schema} value={2} onChange={() => {}} />);
+      expect(screen.getByRole('slider').getAttribute('aria-valuetext')).toBeNull();
+    });
   });
 
   it('onChange receives the mapped display value, never the raw internal t', () => {

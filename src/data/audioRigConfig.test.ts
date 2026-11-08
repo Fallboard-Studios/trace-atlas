@@ -69,6 +69,36 @@ describe('AUDIO_RIG_CONFIG', () => {
     }
   });
 
+  describe('log slider readouts (docs/specs/LOG_SLIDER_READOUTS.md)', () => {
+    it.each([
+      ['filterLPF', 'frequency', 3152.859, '3153Hz'],
+      ['filterHPF', 'frequency', 20, '20Hz'],
+      ['autoWah', 'baseFrequency', 999.6, '1000Hz'],
+      ['phaser', 'baseFrequency', 50, '50Hz'],
+      ['compressor', 'attack', 0.012, '12 ms'],
+      ['compressor', 'release', 0.35, '350 ms'],
+      ['filterLPF', 'Q', 3.15278, '3.15'],
+      ['filterHPF', 'Q', 0.1, '0.10'],
+      ['autoWah', 'Q', 0.5, '0.50'],
+      ['phaser', 'Q', 20, '20.00'],
+      ['reverb', 'decay', 2.4, '2.40s'],
+      ['autoWah', 'follower', 0.08, '0.08s'],
+    ] as const)('%s.%s reads %s as %s, display only (no step)', (block, field, sample, expected) => {
+      const schema = findParam(block, field).schema;
+      expect(schema.type).toBe('sliderLog');
+      expect('step' in schema).toBe(false);
+      expect(schema.type === 'sliderLog' && schema.formatValue?.(sample)).toBe(expected);
+    });
+
+    it('every log slider in the Rig formats its readout, Automation Rate included', () => {
+      const logSchemas = AUDIO_RIG_CONFIG.flatMap((b) => b.params.map((p) => p.schema)).filter((s) => s.type === 'sliderLog');
+      expect(logSchemas).toHaveLength(12);
+      for (const schema of [...logSchemas, SWELL_FREQUENCY_SCHEMA]) {
+        expect(schema.type === 'sliderLog' && typeof schema.formatValue, schema.id).toBe('function');
+      }
+    });
+  });
+
   describe('Compressor', () => {
     it('has all 5 params, matching GLOBAL_CHAIN_GRID.md exactly', () => {
       expect(findBlock('compressor').params.map((p) => p.field)).toEqual([
@@ -88,15 +118,15 @@ describe('AUDIO_RIG_CONFIG', () => {
       });
     });
 
-    it('attack is a log slider, seconds, 0.001 to 0.2', () => {
+    it('attack is a log slider stored in seconds, 0.001 to 0.2, read in milliseconds', () => {
       expect(findParam('compressor', 'attack').schema).toMatchObject({
-        type: 'sliderLog', loreLabel: 'Bundle Onset', min: 0.001, max: 0.2, unit: 's',
+        type: 'sliderLog', loreLabel: 'Bundle Onset', min: 0.001, max: 0.2, unit: ' ms',
       });
     });
 
-    it('release is a log slider, seconds, 0.01 to 1', () => {
+    it('release is a log slider stored in seconds, 0.01 to 1, read in milliseconds', () => {
       expect(findParam('compressor', 'release').schema).toMatchObject({
-        type: 'sliderLog', loreLabel: 'Bundle Recovery', min: 0.01, max: 1, unit: 's',
+        type: 'sliderLog', loreLabel: 'Bundle Recovery', min: 0.01, max: 1, unit: ' ms',
       });
     });
 

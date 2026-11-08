@@ -495,13 +495,13 @@ export const fleet = {
   'fleet.compressor.attack': {
     human: 'Attack Time',
     lore: 'Bundle Onset',
-    unit: 's',
+    unit: ' ms',
     help: { human: 'How quickly the compressor reacts once a sound crosses the threshold. Fast catches every peak; slow lets the start of each note punch through.' },
   },
   'fleet.compressor.release': {
     human: 'Release Time',
     lore: 'Bundle Recovery',
-    unit: 's',
+    unit: ' ms',
     help: { human: 'How quickly the compressor lets go once the sound drops back below the threshold. Fast sounds lively; slow sounds smooth.' },
   },
   'fleet.compressor.knee': {

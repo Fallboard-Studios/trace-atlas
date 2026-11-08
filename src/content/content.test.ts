@@ -580,6 +580,15 @@ describe('global modulation copy', () => {
     expect(labels('fleet.phaser.octaves').unit?.startsWith(' ')).toBe(true);
   });
 
+  it('the compressor attack and release read in milliseconds with room before the unit, like the chorus Delay', () => {
+    for (const key of ['fleet.compressor.attack', 'fleet.compressor.release'] as const) {
+      const unit = labels(key).unit;
+      expect(unit?.trim(), key).toBe('ms');
+      expect(unit?.startsWith(' '), key).toBe(true);
+      expect(unit, key).toBe(labels('fleet.chorus.delay').unit);
+    }
+  });
+
   it('the Phaser Rate help explains both Free and Sync, like the Delay Time help', () => {
     const help = (CONTENT['fleet.phaser.rate'] as ContentEntry).help?.human ?? '';
     expect(help).toMatch(/\bFree\b/);
