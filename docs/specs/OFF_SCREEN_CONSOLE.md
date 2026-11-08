@@ -17,7 +17,8 @@ roadmap 45 laid out ([LAYOUT_REWORK.md](LAYOUT_REWORK.md) §1.8). Backlog
 line of plan.md's Stage 1.
 
 **Status: approved** by Crawford 2026-11-08 ("I want to do this next"), the nine assumptions standing at their
-defaults; the sketch frame (`docs/sketches/off-screen.html`, frame F) drafted the same day. Plan not yet written.
+defaults; the sketch frame (`docs/sketches/off-screen.html`, frame F) drafted the same day. Plan:
+[docs/tasks/OFF_SCREEN_CONSOLE.md](../tasks/OFF_SCREEN_CONSOLE.md) (2026-11-08, sixteen tasks over two modules).
 
 Written for: Crawford, and the agent that plans and builds it.
 

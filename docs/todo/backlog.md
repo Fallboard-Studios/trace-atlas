@@ -805,5 +805,6 @@ the selected save the selection falls to New Transmission; a rename to a taken n
 gate at once; the disclosures are a muted Button over a conditional render, no Radix Collapsible, both collapsed on
 every mount; Save on a preset or New Transmission moves the selection to the new row.
 
-**Status:** spec approved 2026-11-08; the sketch frame drafted in `docs/sketches/off-screen.html` (frame F); plan next.
-First line of plan.md's Stage 1.
+**Status:** spec approved 2026-11-08; the sketch frame drafted in `docs/sketches/off-screen.html` (frame F); plan
+written the same day ([plan](../tasks/OFF_SCREEN_CONSOLE.md): Tasks 1–11 the console, Checkpoint A, Tasks 12–16 the
+retirement and docs). Build next, on `feature/off-screen-console`. First line of plan.md's Stage 1.
