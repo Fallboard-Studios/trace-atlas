@@ -91,7 +91,10 @@ export interface SliderLogSchema extends ControlSchemaBase, SliderVerticalHeight
    *  the default `formatDisplayValue(value) + unit` label entirely with this
    *  function's return value. The raw `value`/`onChange`/slider-thumb-position
    *  math (sliderLogValueToT/sliderLogTToValue) is completely unaffected —
-   *  this only changes what text renders next to the track. Optional so
+   *  this only changes what text renders next to the track, and is also set
+   *  as the thumb's `aria-valuetext`, as `SliderLinearSchema.formatValue`
+   *  is. The Rig's twelve continuous log sliders use `fixedReadout`
+   *  (formatReadout.ts). Optional so
    *  every existing SliderLog schema (Attack/Decay/Release, etc.) keeps its
    *  current plain-number-plus-unit display with zero changes. */
   formatValue?: (value: number) => string;

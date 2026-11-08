@@ -514,13 +514,20 @@ save's `roundToDecimals` is only there to clean that up.
 **2. Log sliders show sensible decimals.** Twelve log-scale fields have no step anywhere, so their values are whatever
 the seed or the drag produced: compressor attack and release, the LPF and HPF frequency and Q, reverb decay, the
 AutoWah's base frequency, Q and follower, and the Phaser's base frequency and Q. None of their `sliderLog` schemas
-(`src/data/audioRigConfig.ts`) has a `unit` or a `formatValue`, so the label falls back to `formatDisplayValue`
-(3 decimals, no unit) and a cutoff reads `3152.859`.
+(`src/data/audioRigConfig.ts`) has a `formatValue`, so the label falls back to `formatDisplayValue` (3 decimals) and a
+cutoff reads `3152.859Hz`. Eight of the twelve carry a unit through `labels()`; the four Qs are bare. (Corrected
+2026-11-07: this said none had a unit.)
 
 - Give each a display format: for example whole hertz with a unit for the frequencies, 2 decimals for Q, milliseconds
   for attack and release, 2 decimals of seconds for decay.
 - Display only, like `formatDisplayValue` itself: the stored value and the sound do not change.
 - Copy: any unit text goes through `src/content/` like every other label.
+
+**Piece 2 built 2026-11-08** (on `feature/log-slider-readouts`; [spec](../specs/LOG_SLIDER_READOUTS.md),
+[plan](../tasks/LOG_SLIDER_READOUTS.md)): `fixedReadout` (`src/components/ui/controls/formatReadout.ts`) gives the
+twelve three shapes, whole hertz (`3153Hz`), whole milliseconds (`12 ms`; the compressor's content unit is now
+`' ms'`), and two fixed decimals (`0.50`, `2.40s`), trailing zeros kept. `SliderLog` sets the thumb's
+`aria-valuetext` whenever a schema formats its value. Display only: no step, nothing stored moves.
 
 **Parked: a value grid for the log sliders.** Giving the twelve fields a step at load, making `SliderLog` snap to it,
 and then deleting `sessionCapture.ts`. Weighed 2026-10-25 and not worth it now: nothing audible changes (every value
