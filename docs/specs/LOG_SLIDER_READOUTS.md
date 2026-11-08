@@ -10,7 +10,7 @@
 
 **Status:** spec written 2026-11-07, from the confirmed intent
 [docs/intent/log-slider-readouts.md](../intent/log-slider-readouts.md) (4 questions, every guess confirmed). Backlog
-[33](../todo/backlog.md#33-audio-rig-exact-stepped-values-and-log-sliders-that-read-cleanly) piece 2, the first line of
+[33](../todo/archive/backlog-archive.md#33-audio-rig-exact-stepped-values-and-log-sliders-that-read-cleanly) piece 2, the first line of
 plan.md's Stage 2. Piece 1 shipped 2026-10-25. The parked value grid at the end of the backlog entry stays parked.
 Plan: [docs/tasks/LOG_SLIDER_READOUTS.md](../tasks/LOG_SLIDER_READOUTS.md).
 

@@ -1,7 +1,7 @@
 # Intent: Log Sliders That Read Cleanly — pedal-marking readouts for the twelve log fields
 
 Confirmed via `interview-me` on 2026-11-07 (4 questions, every guess confirmed), ahead of a `spec-driven-development`
-pass. Backlog [33](../todo/backlog.md#33-audio-rig-exact-stepped-values-and-log-sliders-that-read-cleanly) piece 2,
+pass. Backlog [33](../todo/archive/backlog-archive.md#33-audio-rig-exact-stepped-values-and-log-sliders-that-read-cleanly) piece 2,
 first item of plan.md's Stage 2. Piece 1 (`quantizeToStep` returns exact numbers) shipped 2026-10-25 on
 `feature/short-world-link`; piece 2 waited for roadmap 56 to merge (PR #581, 2026-10-26).
 

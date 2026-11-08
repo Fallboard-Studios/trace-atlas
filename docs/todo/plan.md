@@ -17,22 +17,21 @@ the item's own measure-first check runs, and the item archives if the check find
   desktop crackles at Full** — interviewed 2026-11-06 ([intent](../intent/desktop-full-tier-standing-cost.md)):
   shrink the graph's standing cost at every tier, Crawford's ear at 4K the bar; spec written 2026-11-06
   ([spec](../specs/DESKTOP_FULL_TIER_STANDING_COST.md), [plan](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md)); Phase A
-  measured and Gate A answered 2026-11-07; Phase B's four inaudible cuts built 2026-11-07, their A/B runs waiting for
-  a quiet window, then the Gate B listen.
+  measured and Gate A answered 2026-11-07; Phase B's four inaudible cuts built and merged 2026-11-07 (PR #607), their A/B
+  runs waiting for a quiet window, then the Gate B listen.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.
 
 ## Stage 2 — Bugs and quality of life
 
-- Backlog [33](backlog.md#33-audio-rig-exact-stepped-values-and-log-sliders-that-read-cleanly) **Log sliders that read
-  cleanly** — piece 2, a display format for each of the twelve log fields; unblocked since 56 merged.
 - Backlog [43](backlog.md#43-animation-the-world-pause-misses-timelines-built-paused-and-played-later) **The world pause
   and timelines built paused** — if needed, else archive.
 - Backlog [44](backlog.md#44-sessions-warn-before-the-saves-fill-the-browsers-storage) **Warn before the saves fill the
   browser's storage** — a short interview first.
 - Backlog [66](backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) **The full test run's
-  unhandled timeout** — find the test that never yields, then yield or split it.- Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
+  unhandled timeout** — find the test that never yields, then yield or split it.
+- Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes with DevTools open.
 - Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
   option (B), if needed, else archive.
