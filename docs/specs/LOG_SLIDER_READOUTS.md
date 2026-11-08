@@ -146,7 +146,7 @@ No file is deleted. `sessionCapture.ts` and the capture step are not touched.
 ```typescript
 // src/components/ui/controls/formatReadout.ts — shape, not final code
 /**
- * A fixed-width readout for a log slider's value: `decimals` places, trailing zeros kept, `unit`
+ * A fixed-precision readout for a log slider's value: `decimals` places, trailing zeros kept, `unit`
  * appended, the value multiplied by `scale` first (1000 for a seconds value shown in milliseconds).
  * Display only; the value handed to onChange and the store is never touched (docs/specs/LOG_SLIDER_READOUTS.md).
  */

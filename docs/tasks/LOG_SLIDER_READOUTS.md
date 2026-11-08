@@ -99,7 +99,7 @@ T1 and T2 are independent and may land in either order; T3 needs both.
 
 ### Phase 0: Record
 
-- [ ] **T0: the spec's Status and §7 — record the answers**
+- [x] **T0: the spec's Status and §7 — record the answers**
 
   **Description:** Already done on `main` while planning (2026-11-07): the spec's Status block carries the three §7
   answers and the readout table and §5.1 carry the `12 ms` spacing. This task is the first commit on the branch: the
@@ -108,11 +108,11 @@ T1 and T2 are independent and may land in either order; T3 needs both.
   **Proof:** Read — the three files on the branch.
 
   **Acceptance criteria:**
-  - [ ] The spec's Status names the plan and the three §7 answers.
-  - [ ] The intent file's last paragraph names the two `audioRigConfig.test.ts` unit pins and links the spec.
+  - [x] The spec's Status names the plan and the three §7 answers.
+  - [x] The intent file's last paragraph names the two `audioRigConfig.test.ts` unit pins and links the spec.
 
   **Verification:**
-  - [ ] `npm run lint` clean (docs only).
+  - [x] `npm run lint` clean (docs only).
 
   **Dependencies:** None.
 
@@ -125,7 +125,7 @@ T1 and T2 are independent and may land in either order; T3 needs both.
 
 ### Phase 1: Foundation
 
-- [ ] **T1: `formatReadout.ts` — the `fixedReadout` factory**
+- [x] **T1: `formatReadout.ts` — the `fixedReadout` factory**
 
   **Description:** New module `src/components/ui/controls/formatReadout.ts` exporting
   `fixedReadout(decimals: number, unit = '', scale = 1): (value: number) => string`, per Architecture Decisions.
@@ -136,19 +136,19 @@ T1 and T2 are independent and may land in either order; T3 needs both.
   exist.
 
   **Acceptance criteria:**
-  - [ ] `fixedReadout(0, 'Hz')` gives `3152.859 → '3153Hz'`, `20 → '20Hz'`, `19999.9999 → '20000Hz'`,
+  - [x] `fixedReadout(0, 'Hz')` gives `3152.859 → '3153Hz'`, `20 → '20Hz'`, `19999.9999 → '20000Hz'`,
         `4999.999999999999 → '5000Hz'`.
-  - [ ] `fixedReadout(0, ' ms', 1000)` gives `0.012 → '12 ms'`, `0.001 → '1 ms'`, `0.2 → '200 ms'`,
+  - [x] `fixedReadout(0, ' ms', 1000)` gives `0.012 → '12 ms'`, `0.001 → '1 ms'`, `0.2 → '200 ms'`,
         `0.35 → '350 ms'`, `1 → '1000 ms'`, `0.0005 → '1 ms'` (half rounds up, never `0 ms`).
-  - [ ] `fixedReadout(2, 's')` gives `2.4 → '2.40s'`, `0.1 → '0.10s'`, `10 → '10.00s'`, `0.07999 → '0.08s'`.
-  - [ ] `fixedReadout(2)` gives `3.15278 → '3.15'`, `0.5 → '0.50'`, `20 → '20.00'`, with no unit appended.
-  - [ ] An eased fractional argument formats like any other: `fixedReadout(0, 'Hz')(3152.4) → '3152Hz'`.
-  - [ ] Mutation check, done and stated in the commit: `toFixed` swapped for `formatDisplayValue` fails the zero-kept
+  - [x] `fixedReadout(2, 's')` gives `2.4 → '2.40s'`, `0.1 → '0.10s'`, `10 → '10.00s'`, `0.07999 → '0.08s'`.
+  - [x] `fixedReadout(2)` gives `3.15278 → '3.15'`, `0.5 → '0.50'`, `20 → '20.00'`, with no unit appended.
+  - [x] An eased fractional argument formats like any other: `fixedReadout(0, 'Hz')(3152.4) → '3152Hz'`.
+  - [x] Mutation check, done and stated in the commit: `toFixed` swapped for `formatDisplayValue` fails the zero-kept
         cases; `scale` dropped fails the millisecond cases.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/formatReadout.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/ui/controls/formatReadout.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T0.
 
@@ -156,7 +156,7 @@ T1 and T2 are independent and may land in either order; T3 needs both.
 
   **Estimated scope:** XS (one new function and its test)
 
-- [ ] **T2: `SliderLog.tsx` — `aria-valuetext` when the schema formats its value**
+- [x] **T2: `SliderLog.tsx` — `aria-valuetext` when the schema formats its value**
 
   **Description:** In `src/components/ui/controls/SliderLog.tsx`, compute
   `const formattedValue = schema.formatValue?.(displayValue);` once above the label (with `SliderLinear`'s comment:
@@ -168,16 +168,16 @@ T1 and T2 are independent and may land in either order; T3 needs both.
   `aria-valuetext`.
 
   **Acceptance criteria:**
-  - [ ] With a `formatValue`, `screen.getByRole('slider')`'s `aria-valuetext` equals the rendered
+  - [x] With a `formatValue`, `screen.getByRole('slider')`'s `aria-valuetext` equals the rendered
         `.sc-slider-log__value` text.
-  - [ ] Without a `formatValue`, the thumb has no `aria-valuetext` attribute (`getAttribute` returns `null`).
-  - [ ] `aria-valuenow` is still the track position `t` (the existing case near line 208 passes unchanged).
-  - [ ] The existing `formatValue` block's three cases and the `{value}{unit}` fallback case pass unmodified.
-  - [ ] Mutation check, stated in the commit: a constant `aria-valuetext` fails the first case.
+  - [x] Without a `formatValue`, the thumb has no `aria-valuetext` attribute (`getAttribute` returns `null`).
+  - [x] `aria-valuenow` is still the track position `t` (the existing case near line 208 passes unchanged).
+  - [x] The existing `formatValue` block's three cases and the `{value}{unit}` fallback case pass unmodified.
+  - [x] Mutation check, stated in the commit: a constant `aria-valuetext` fails the first case.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/SliderLog.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/ui/controls/SliderLog.test.tsx` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T0. Independent of T1.
 
@@ -186,16 +186,16 @@ T1 and T2 are independent and may land in either order; T3 needs both.
   **Estimated scope:** XS (three lines in one component, two test cases)
 
 ### Checkpoint: Foundation
-- [ ] `npm run build:types`, `npm run lint` clean; the two test files pass.
-- [ ] `fixedReadout` exists with both mutations proven; `SliderLog` announces a formatted readout and is unchanged
+- [x] `npm run build:types`, `npm run lint` clean; the two test files pass.
+- [x] `fixedReadout` exists with both mutations proven; `SliderLog` announces a formatted readout and is unchanged
       without one.
-- [ ] No consumer in the Rig has changed yet: every log slider but Automation Rate renders as before.
+- [x] No consumer in the Rig has changed yet: every log slider but Automation Rate renders as before.
 
 ---
 
 ### Phase 2: The twelve readouts
 
-- [ ] **T3: `audioRigConfig.ts` and `fleet.ts` — the twelve schemas read as the spec's table says**
+- [x] **T3: `audioRigConfig.ts` and `fleet.ts` — the twelve schemas read as the spec's table says**
 
   **Description:** In `src/data/audioRigConfig.ts`, add the local helper
   `logReadout(key: ContentKey, decimals: number, scale = 1)` (Architecture Decisions) and replace `...labels(key)` on
@@ -210,26 +210,26 @@ T1 and T2 are independent and may land in either order; T3 needs both.
   but Automation Rate has a `formatValue`. The new `content.test.ts` case fails first because the unit is `'s'`.
 
   **Acceptance criteria:**
-  - [ ] An `it.each` over `[block, field, sample, expected]` using the file's `findParam` passes for all twelve:
+  - [x] An `it.each` over `[block, field, sample, expected]` using the file's `findParam` passes for all twelve:
         `filterLPF.frequency 3152.859 → '3153Hz'`, `filterHPF.frequency 20 → '20Hz'`,
         `autoWah.baseFrequency 999.6 → '1000Hz'`, `phaser.baseFrequency 50 → '50Hz'`,
         `compressor.attack 0.012 → '12 ms'`, `compressor.release 0.35 → '350 ms'`,
         `filterLPF.Q 3.15278 → '3.15'`, `filterHPF.Q 0.1 → '0.10'`, `autoWah.Q 0.5 → '0.50'`, `phaser.Q 20 → '20.00'`,
         `reverb.decay 2.4 → '2.40s'`, `autoWah.follower 0.08 → '0.08s'`.
-  - [ ] Every `sliderLog` schema in `AUDIO_RIG_CONFIG` (and the Automation Rate schema) has a `formatValue`, so a
+  - [x] Every `sliderLog` schema in `AUDIO_RIG_CONFIG` (and the Automation Rate schema) has a `formatValue`, so a
         thirteenth log slider added without one fails.
-  - [ ] Display only (spec §5.2): the same `it.each` asserts each schema has no `step` property and `formatValue`
+  - [x] Display only (spec §5.2): the same `it.each` asserts each schema has no `step` property and `formatValue`
         returns a string.
-  - [ ] The attack and release pins pass with `unit: ' ms'`; the four `Hz`/`s` pins on the filters and reverb pass
+  - [x] The attack and release pins pass with `unit: ' ms'`; the four `Hz`/`s` pins on the filters and reverb pass
         unchanged; "every pedal param reads its label, lore and unit from its own content entry" passes unchanged.
-  - [ ] `content.test.ts`: `CONTENT['fleet.compressor.attack'].unit` and `.release` both trim to `ms` and start
+  - [x] `content.test.ts`: `CONTENT['fleet.compressor.attack'].unit` and `.release` both trim to `ms` and start
         with a space; the two help strings are unchanged (not asserted; a read at the checkpoint).
-  - [ ] Mutation check, stated in the commit: `scale` left off attack fails its case; `2` changed to `3` on a Q fails
+  - [x] Mutation check, stated in the commit: `scale` left off attack fails its case; `2` changed to `3` on a Q fails
         its case.
 
   **Verification:**
-  - [ ] `npx vitest run src/data/audioRigConfig.test.ts src/content/content.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean (the content guard sees no `unit:` literal in the config).
+  - [x] `npx vitest run src/data/audioRigConfig.test.ts src/content/content.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean (the content guard sees no `unit:` literal in the config).
 
   **Dependencies:** T1, T2.
 
@@ -257,7 +257,7 @@ go"). The full suite was green at T3 (355 files, 13629 tests).
 
 ### Phase 3: Docs
 
-- [ ] **T4: `COMPONENT_LIBRARY.md`, `controls.ts`, backlog 33 — document the shipped behaviour**
+- [x] **T4: `COMPONENT_LIBRARY.md`, `controls.ts`, backlog 33 — document the shipped behaviour**
 
   **Description:** `docs/COMPONENT_LIBRARY.md`: the readout paragraph (the one that names `formatDisplayValue` and
   "at most 3 decimal places") gains that `SliderLog`'s `formatValue` also sets the thumb's `aria-valuetext`, as
@@ -272,14 +272,14 @@ go"). The full suite was green at T3 (355 files, 13629 tests).
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] COMPONENT_LIBRARY.md describes `SliderLog`'s `aria-valuetext` and names `fixedReadout` and the twelve.
-  - [ ] The `formatValue` doc comment in `controls.ts` matches `SliderLinearSchema`'s on `aria-valuetext`.
-  - [ ] Backlog 33 carries the Built line and the corrected unit sentence; the parked paragraph is byte-for-byte as
+  - [x] COMPONENT_LIBRARY.md describes `SliderLog`'s `aria-valuetext` and names `fixedReadout` and the twelve.
+  - [x] The `formatValue` doc comment in `controls.ts` matches `SliderLinearSchema`'s on `aria-valuetext`.
+  - [x] Backlog 33 carries the Built line and the corrected unit sentence; the parked paragraph is byte-for-byte as
         before.
 
   **Verification:**
-  - [ ] Manual review, every name spot-checked against the final code.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual review, every name spot-checked against the final code.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** T3, Checkpoint A.
 
