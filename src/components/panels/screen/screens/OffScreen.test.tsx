@@ -2348,10 +2348,11 @@ describe('OffScreen — Rename (console Task 8)', () => {
   });
 });
 
-// docs/tasks/OFF_SCREEN_CONSOLE.md Task 9 (spec §1.5, assumption 2, §5 case 10): Delete removes the selected save at
-// once, no confirm. The live world stands: no world change, no wash. The loaded save detaches and Current's snapshot
-// forgets the name; the selection, matching no row, falls to New Transmission holding the live identity whole, so the
-// editor reads as the deleted save's world, selected, and the readout names it with no tail.
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 9 (spec §1.5, assumption 2, §5 case 10): Delete removes the selected save once
+// confirmed — a modal confirm since Checkpoint A (Crawford; it was at once, with none). The live world stands: no world
+// change, no wash. The loaded save detaches and Current's snapshot forgets the name; the selection, matching no row,
+// falls to New Transmission holding the live identity whole, so the editor reads as the deleted save's world, selected,
+// and the readout names it with no tail.
 describe('OffScreen — Delete (console Task 9)', () => {
   beforeEach(() => {
     markHeardWorld();
@@ -2364,6 +2365,12 @@ describe('OffScreen — Delete (console Task 9)', () => {
   const presets = TRANSMISSION_PRESETS.length;
   const session = () => useSessionStore.getState();
   const deleteButton = () => actionButton('home.off.delete');
+  const dialog = () => screen.queryByRole('alertdialog');
+  /** Delete, then the confirm's Delete. */
+  const deleteSave = () => {
+    fireEvent.click(deleteButton());
+    fireEvent.click(within(dialog()!).getByRole('button', { name: human('home.off.delete') }));
+  };
   /** Dusk Run, under Float, saved and picked, landed: the row Delete acts on. */
   const pickDuskRun = () => {
     saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'float' });
@@ -2371,19 +2378,81 @@ describe('OffScreen — Delete (console Task 9)', () => {
     openTransmissions();
     fireEvent.click(row('Dusk Run'));
   };
+  /** Nothing deleted: the save stored and listed, still selected and loaded. */
+  const untouched = () => {
+    expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+    expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+  };
 
-  it('removes the save from storage and from the list at once, with no dialog', () => {
+  describe('the confirm (Checkpoint A)', () => {
+    afterEach(() => document.getElementById('screen-viewport')?.remove());
+    const flush = () => act(() => new Promise((r) => setTimeout(r, 0)));
+
+    it('Delete opens a modal confirm naming the save, and deletes nothing yet', () => {
+      pickDuskRun();
+      fireEvent.click(deleteButton());
+      expect(dialog()).not.toBeNull();
+      expect(dialog()!.textContent).toContain(fill('session.delete.confirmTitle', { session: 'Dusk Run' }));
+      expect(dialog()!.textContent).toContain(human('session.delete.confirmBody'));
+      // The modal hides the screen behind it from the accessibility tree, so the rows are read once it closes.
+      expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+      expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    });
+
+    it('Cancel closes it, deletes nothing, and gives the focus back to Delete', async () => {
+      pickDuskRun();
+      act(() => deleteButton().focus());
+      fireEvent.click(deleteButton());
+      await flush();
+      fireEvent.click(within(dialog()!).getByRole('button', { name: human('ui.cancel') }));
+      await flush();
+      expect(dialog()).toBeNull();
+      untouched();
+      expect(document.activeElement).toBe(deleteButton());
+    });
+
+    it('Escape closes it and deletes nothing', async () => {
+      pickDuskRun();
+      fireEvent.click(deleteButton());
+      await flush();
+      fireEvent.keyDown(dialog()!, { key: 'Escape' });
+      await flush();
+      expect(dialog()).toBeNull();
+      untouched();
+    });
+
+    it('confirmed, the dialog closes and the focus lands on the Transmissions header, Delete being dimmed now', async () => {
+      pickDuskRun();
+      act(() => deleteButton().focus());
+      deleteSave();
+      await flush();
+      expect(dialog()).toBeNull();
+      expect(deleteButton().disabled).toBe(true);
+      expect(document.activeElement).toBe(transmissionsHeader());
+    });
+
+    it('portals into #screen-viewport when the screen exists', () => {
+      const viewport = document.createElement('div');
+      viewport.id = 'screen-viewport';
+      document.body.appendChild(viewport);
+      pickDuskRun();
+      fireEvent.click(deleteButton());
+      expect(viewport.contains(dialog())).toBe(true);
+    });
+  });
+
+  it('confirmed, removes the save from storage and from the list', () => {
     pickDuskRun();
-    fireEvent.click(deleteButton());
+    deleteSave();
     expect(listSessions()).toEqual([]);
     expect(radioNames().some((name) => name.startsWith('Dusk Run'))).toBe(false);
-    expect(screen.queryByRole('alertdialog')).toBeNull();
     expect(transmissionsHeader().textContent).toBe(headerText(newTransmission(), presets));
   });
 
   it('falls to New Transmission holding the live world: the editor selected, no row checked, the readout with no tail', () => {
     pickDuskRun();
-    fireEvent.click(deleteButton());
+    deleteSave();
     expect(editorSelected()).toBe(true);
     expect(editorShows()).toEqual(liveIdentity());
     expect(within(picker()).getAllByRole('radio').every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true);
@@ -2398,7 +2467,7 @@ describe('OffScreen — Delete (console Task 9)', () => {
     pickDuskRun();
     const applied = vi.mocked(applySessionPayload).mock.calls.length;
     request.mockClear();
-    fireEvent.click(deleteButton());
+    deleteSave();
     expect(request).not.toHaveBeenCalled();
     expect(applySessionPayload).toHaveBeenCalledTimes(applied);
     expect(retransmitWorld).not.toHaveBeenCalled();
@@ -2409,7 +2478,7 @@ describe('OffScreen — Delete (console Task 9)', () => {
   it('the loaded save detaches, the session name suggested afresh', () => {
     pickDuskRun();
     expect(session().currentLoadedSessionName).toBe('Dusk Run');
-    fireEvent.click(deleteButton());
+    deleteSave();
     expect(session().currentLoadedSessionName).toBeNull();
     expect(session().currentSessionName).not.toBe('Dusk Run');
   });
@@ -2417,7 +2486,7 @@ describe('OffScreen — Delete (console Task 9)', () => {
   it('a save that is not the loaded one leaves the loaded name alone', () => {
     pickDuskRun();
     act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' }));
-    fireEvent.click(deleteButton());
+    deleteSave();
     expect(session()).toMatchObject({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' });
   });
 
@@ -2428,7 +2497,7 @@ describe('OffScreen — Delete (console Task 9)', () => {
     openTransmissions();
     fireEvent.click(row('Dusk Run'));
     expect(currentEyebrow()).toBe(human('home.off.current'));
-    fireEvent.click(deleteButton());
+    deleteSave();
     expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     expect(currentRowName()).toBe(currentName());
     fireEvent.click(currentRadio());
@@ -2438,7 +2507,7 @@ describe('OffScreen — Delete (console Task 9)', () => {
   it('Save from there writes the deleted world back under a fresh name, and the selection moves to it', () => {
     pickDuskRun();
     const world = structuredClone(live.payload);
-    fireEvent.click(deleteButton());
+    deleteSave();
     fireEvent.click(saveButton());
     expect(listSessions()).toHaveLength(1);
     const added = listSessions()[0].name;

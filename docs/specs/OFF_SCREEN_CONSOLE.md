@@ -176,7 +176,11 @@ loses a button.
   `renameNamedSession(from, to)` in `sessionStorageEngine.ts`: the entry re-keyed, `savedAt` and payload kept. The
   session names follow: `currentLoadedSessionName` when it was `from`, the snapshot's `loadedName` when it was `from`.
   The list re-reads; the row stays selected under its new name.
-- **Delete** removes the save at once, no confirm (the intent's decision; `deleteNamedSession`). The live world
+- **Delete** asks first: a modal `AlertDialog` naming the save (`session.delete.confirmTitle` / `confirmBody`, the
+  Sessions list's copy), placed as Factory Reset's confirm is; Cancel or Escape leaves everything and gives the focus
+  back to Delete. Confirmed, the save goes (`deleteNamedSession`) and the focus lands on the Transmissions header, since
+  Delete is dimmed on New Transmission. **Amended at Checkpoint A (Crawford, 2026-11-09):** the intent had no confirm.
+  The live world
   stands. If the deleted save was the loaded one, `detachLoadedSession()`; if it was the snapshot's, the snapshot's
   `loadedName` goes null (Current reads "unsaved"). The selection, now matching no row, falls to New Transmission: the
   editor already mirrors the live identity, so it reads as the deleted save's world, selected, and the readout names
@@ -234,7 +238,8 @@ with the features they named: `home.off.keep`, `home.off.keepFailed` (superseded
   `SessionsPanel.tsx/.css/.test.tsx`, `SessionListItem.tsx/.css/.test.tsx`, `sectorSettingsConfig.ts` (its
   `ATTENUATION_STYLE_SCHEMA` and `COORDS_SCHEMA` move to where the editor builds its schemas), the `session.*` keys and
   `sessionConfig.ts` schemas nothing reads any more (`session.name`, `session.save`, `session.shareLive`,
-  `session.load`, `session.share`, `session.saved`, `session.delete.confirm*`, `session.status.saved`), and the
+  `session.load`, `session.share`, `session.saved`, `session.status.saved`; `session.delete.confirm*` stays, the off
+  screen's Delete confirm reads it since Checkpoint A), and the
   `sector.*` keys the editor does not reuse (`sector.retransmit`, `sector.status`, `sector.copyLink`,
   `sector.random.*`). `useShareStatus.ts` moves beside the off screen or to `src/hooks/`, its only consumer now.
 - **Docs:** UI_SHELL.md (the nav panel's five boxes become four, the screens table loses `SettingsScreen` and gains
@@ -306,7 +311,7 @@ docs/
 - **Content through the content layer:** every string in §1.8 is an entry; ESLint and `content.test.ts` enforce it.
 - **Ask first:**
   - a Radix `Collapsible` or `Accordion` dependency (the spec assumes neither);
-  - a confirm on Delete or Rename (the intent says none);
+  - a confirm on Rename (the intent says none; Delete gained one at Checkpoint A);
   - persisting a disclosure's open state;
   - a change to `worldChange.ts`, `sceneWash.ts` or `RadioButton`'s props;
   - keeping any of Foundry or Save & Share in the powered-on app.
@@ -369,7 +374,7 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
 9. **Rename:** the row's name becomes an input; Enter re-keys the save with `savedAt` kept, the row stays selected,
    `currentLoadedSessionName` follows when it was the loaded save, the snapshot's `loadedName` follows when it was
    the snapshot's; Escape, blank and unchanged revert; a taken name reverts with the refusal line.
-10. **Delete:** the save is gone at once with no dialog; the loaded save detaches; the snapshot's name clears and
+10. **Delete:** a confirm names the save, and Cancel or Escape deletes nothing; confirmed, the save is gone; the loaded save detaches; the snapshot's name clears and
     Current reads "unsaved"; the selection falls to New Transmission with the editor showing the live identity; no
     world change is requested.
 11. **Share:** copies the snapshot's payload on Current with a snapshot, else `buildSessionPayload()`; "copied" shows

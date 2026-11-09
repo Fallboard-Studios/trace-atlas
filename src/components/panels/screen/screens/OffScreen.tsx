@@ -111,6 +111,9 @@ const RESET_LABELS = labels('session.clearStorage');
 const RESET_CONFIRM_TITLE = labels('session.clearStorage.confirmTitle').humanLabel;
 const RESET_CONFIRM_BODY = labels('session.clearStorage.confirmBody').humanLabel;
 const CANCEL = labels('ui.cancel').humanLabel;
+/** Delete's confirm (Checkpoint A): the Sessions list's delete confirm, read from the same content. */
+const DELETE_CONFIRM_BODY = labels('session.delete.confirmBody').humanLabel;
+const DELETE = labels('home.off.delete').humanLabel;
 
 /** The Loading axis's theme row (docs/tasks/OFF_SCREEN.md Task 30; spec assumption 17): the five ids in THEME_IDS
  *  order under the Loading heading — the row's own label, as Transmission is the world row's — muted like it. Static:
@@ -426,6 +429,9 @@ export function OffScreen() {
   // A modal Radix dialog gives focus back only to its own Trigger, and Reset is not one, so the button that opened it
   // is kept and focused again on close (SessionsPanel's way).
   const resetOpenerRef = useRef<HTMLElement | null>(null);
+  // The save Delete's confirm asks about while it is open, and the button that opened it (Checkpoint A).
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const deleteOpenerRef = useRef<HTMLElement | null>(null);
 
   // The loaded world, for the Current row and the readout. Narrow selectors (the name, the coordinates
   // object) as SectorSettingsDrawer reads them, so a robot write elsewhere in the locale never re-renders this.
@@ -832,15 +838,20 @@ export function OffScreen() {
     [renameFollowers],
   );
 
-  // Delete (docs/specs/OFF_SCREEN_CONSOLE.md §1.5, assumption 2): the selected save goes at once, no confirm, and the live
-  // world stands — no world change, no wash. The names that pointed at it let go: the loaded save detaches (a fresh name
-  // suggested), and Current's snapshot forgets it, so Current reads unsaved. The selection, matching no row now, falls to
-  // New Transmission holding the live identity whole — the editor already shows its seed and plot, and the live loading
-  // is its own, so the readout names the deleted save's world with no tail. Only enabled on a save with no change
-  // waiting (actionRow), so the pick is the shown one.
-  const onDelete = useCallback(() => {
+  // Delete (docs/specs/OFF_SCREEN_CONSOLE.md §1.5, assumption 2) asks first: a modal confirm naming the save (Checkpoint
+  // A; it was at once, with none). Only enabled on a save with no change waiting (actionRow), so the pick is the shown
+  // one; the opener is kept for the focus to return to.
+  const openDeleteConfirm = useCallback(() => {
     if (!('name' in pick) || !pick.value.startsWith(SAVE_PREFIX)) return;
-    const { name } = pick;
+    deleteOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setDeleting(pick.name);
+  }, [pick]);
+
+  // Confirmed, the save goes, and the live world stands — no world change, no wash. The names that pointed at it let go:
+  // the loaded save detaches (a fresh name suggested), and Current's snapshot forgets it, so Current reads unsaved. The
+  // selection, matching no row now, falls to New Transmission holding the live identity whole — the editor already shows
+  // its seed and plot, and the live loading is its own, so the readout names the deleted save's world with no tail.
+  const deleteSave = useCallback((name: string) => {
     deleteNamedSession(name);
     const { currentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
     if (currentLoadedSessionName === name) detachLoadedSession();
@@ -849,7 +860,20 @@ export function OffScreen() {
     setSaves(sortedSaves());
     setPick({ value: NEW_VALUE, name: '', identity: { ...liveWorld, theme: loadedTheme, aspects: loadedAspects } });
     setDirty(readDirty(snapshotRef.current));
-  }, [pick, liveWorld, loadedTheme, loadedAspects, setSnapshot]);
+  }, [liveWorld, loadedTheme, loadedAspects, setSnapshot]);
+
+  const onConfirmDelete = () => {
+    if (deleting !== null) deleteSave(deleting);
+    setDeleting(null);
+  };
+  // The focus goes back to Delete when it is still lit (a cancel), else to the Transmissions header: a confirmed Delete
+  // leaves New Transmission selected, where Delete is dimmed.
+  const returnDeleteFocus = useCallback((event: Event) => {
+    event.preventDefault();
+    const opener = deleteOpenerRef.current;
+    if (opener instanceof HTMLButtonElement && opener.isConnected && !opener.disabled) opener.focus();
+    else rootRef.current?.querySelector<HTMLElement>(`.disclosure--${TRANSMISSIONS_SCHEMA.id} > button`)?.focus();
+  }, []);
 
   // The list's trailing slot (RadioButton's): Rename's input on the save being renamed, nothing on any other row.
   const trailing = useCallback(
@@ -917,8 +941,25 @@ export function OffScreen() {
     [shownAspects, setIntent],
   );
 
-  // Factory Reset's confirm, SessionsPanel's dialog read from the same content (spec §1.4).
-  const screenNode = resetConfirmOpen ? getScreenViewportDomNode() : null;
+  // Factory Reset's confirm, SessionsPanel's dialog read from the same content (spec §1.4), and Delete's, in its look.
+  const screenNode = resetConfirmOpen || deleting !== null ? getScreenViewportDomNode() : null;
+  const deleteConfirm = (
+    <>
+      <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
+      <AlertDialog.Content className="clear-storage-confirm__content" onCloseAutoFocus={returnDeleteFocus}>
+        <AlertDialog.Title className="clear-storage-confirm__title">
+          {fill('session.delete.confirmTitle', { session: deleting ?? '' })}
+        </AlertDialog.Title>
+        <AlertDialog.Description className="clear-storage-confirm__description">{DELETE_CONFIRM_BODY}</AlertDialog.Description>
+        <div className="clear-storage-confirm__actions">
+          <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CANCEL}</AlertDialog.Cancel>
+          <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={onConfirmDelete}>
+            {DELETE}
+          </AlertDialog.Action>
+        </div>
+      </AlertDialog.Content>
+    </>
+  );
   const resetConfirm = (
     <>
       <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
@@ -989,7 +1030,7 @@ export function OffScreen() {
                       schema={DELETE_SCHEMA}
                       face="single"
                       accessibleName={fill('home.off.delete', { name: shownName })}
-                      onClick={onDelete}
+                      onClick={openDeleteConfirm}
                       disabled={!actions.delete}
                     />
                   </div>
@@ -1046,6 +1087,10 @@ export function OffScreen() {
                 is no screen (a component test). */}
             <AlertDialog.Root open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
               {screenNode ? <AlertDialog.Portal container={screenNode}>{resetConfirm}</AlertDialog.Portal> : resetConfirm}
+            </AlertDialog.Root>
+            {/* Delete's confirm (Checkpoint A), placed as Factory Reset's is. */}
+            <AlertDialog.Root open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
+              {screenNode ? <AlertDialog.Portal container={screenNode}>{deleteConfirm}</AlertDialog.Portal> : deleteConfirm}
             </AlertDialog.Root>
           </div>
         )}

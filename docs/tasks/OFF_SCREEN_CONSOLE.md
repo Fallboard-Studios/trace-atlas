@@ -773,6 +773,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   `SessionsPanel.tsx/.css/.test.tsx`, `SessionListItem.tsx/.css/.test.tsx`, `src/data/sectorSettingsConfig.ts` (the two
   input schemas already live in `TransmissionEditor.tsx` since Task 4). `src/data/sessionConfig.ts` keeps
   `CLEAR_STORAGE_SCHEMA` only. `session.ts` keeps `session.clearStorage`, `.action`, `.confirmTitle`, `.confirmBody`,
+  `session.delete.confirmTitle` and `.confirmBody` (the off screen's Delete confirm, Checkpoint A),
   `session.status.linkCopied`, `.copyFailed`, `.saveFailed`. `sector.ts` keeps `sector.attenuationStyle`,
   `sector.coords`, `sector.coords.x`, `sector.coords.y`. `useShareStatus.ts` and `useShareStatus.test.ts` move to
   `src/hooks/` (a new folder); `OffScreen.tsx` imports from there. The old `clear-storage-confirm__*` rules in
