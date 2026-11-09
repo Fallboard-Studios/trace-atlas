@@ -8,6 +8,9 @@ import { describe, it, expect } from 'vitest';
 import { actionRow, type ActionRowKind } from './offScreenActions';
 
 const KINDS: ActionRowKind[] = ['current', 'save', 'new'];
+/** Share copies the live world, so it is lit on every row; dimmed only while a change waits (in the row again since
+ *  Checkpoint A, after the presets went). */
+const SHARE = true;
 
 describe('actionRow (spec §1.5)', () => {
   it('Current: Save while it is unsaved, never Rename or Delete', () => {
@@ -15,11 +18,13 @@ describe('actionRow (spec §1.5)', () => {
       save: true,
       rename: false,
       delete: false,
+      share: SHARE,
     });
     expect(actionRow('current', false, false)).toEqual({
       save: false,
       rename: false,
       delete: false,
+      share: SHARE,
     });
   });
 
@@ -28,11 +33,13 @@ describe('actionRow (spec §1.5)', () => {
       save: true,
       rename: true,
       delete: true,
+      share: SHARE,
     });
     expect(actionRow('save', false, false)).toEqual({
       save: false,
       rename: true,
       delete: true,
+      share: SHARE,
     });
   });
 
@@ -41,21 +48,24 @@ describe('actionRow (spec §1.5)', () => {
       save: true,
       rename: false,
       delete: false,
+      share: SHARE,
     });
     expect(actionRow('new', false, false)).toEqual({
       save: true,
       rename: false,
       delete: false,
+      share: SHARE,
     });
   });
 
-  it('while a change waits under the wash, all three are dimmed, whatever the row and the dirty read', () => {
+  it('while a change waits under the wash, all four are dimmed, whatever the row and the dirty read', () => {
     for (const kind of KINDS) {
       for (const dirty of [true, false]) {
         expect(actionRow(kind, dirty, true)).toEqual({
           save: false,
           rename: false,
           delete: false,
+          share: false,
         });
       }
     }

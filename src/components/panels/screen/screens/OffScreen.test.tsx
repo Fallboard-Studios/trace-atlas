@@ -115,7 +115,7 @@ const saveFailedLine = (name: string) => fill('session.status.saveFailed', { nam
 /** The action row under the list (console Task 7): Save, Rename and Delete, each named after the selected row ("Save
  *  Dusk Run"). The list must be open. */
 const actionsRow = () => document.querySelector('.off-screen__actions') as HTMLElement;
-const actionButton = (key: 'home.off.save' | 'home.off.rename' | 'home.off.delete') =>
+const actionButton = (key: 'home.off.save' | 'home.off.rename' | 'home.off.delete' | 'home.off.share') =>
   within(actionsRow()).getByRole('button', { name: (name) => name.startsWith(`${human(key)} `) }) as HTMLButtonElement;
 const saveButton = () => actionButton('home.off.save');
 /** Which of the three are enabled, as offScreenActions' matrix reads them. */
@@ -1636,9 +1636,9 @@ describe('OffScreen — Current’s eyebrow and the status slot (console Task 6)
     expect(statusSlot().textContent).toBe('');
   });
 
-  it('the slot sits under the readout and Share, in the picker', () => {
+  it('the slot sits under the readout, in the picker', () => {
     render(<OffScreen />);
-    expect(readout().nextElementSibling!.nextElementSibling).toBe(statusSlot());
+    expect(readout().nextElementSibling).toBe(statusSlot());
   });
 
   describe('a refused Save', () => {
@@ -2545,10 +2545,12 @@ describe('OffScreen — Share on the readout (console Task 10)', () => {
     detachWash?.();
     detachWash = undefined;
   });
-  /** Share, under the readout (Checkpoint A): in view whether or not the list is open. */
-  const shareButton = () =>
-    screen.getByRole('button', { name: (name) => name.startsWith(`${human('home.off.share')} `) }) as HTMLButtonElement;
-  /** A click on Share, its copy resolved. The button is found before the act. */
+  /** Share, in the action row since Checkpoint A: the Transmissions section is opened to reach it. */
+  const shareButton = () => {
+    openTransmissions();
+    return actionButton('home.off.share');
+  };
+  /** A click on Share, its copy resolved. The button is found (and the section opened) before the act. */
   const share = async () => {
     const button = shareButton();
     await act(async () => {
@@ -2558,20 +2560,14 @@ describe('OffScreen — Share on the readout (console Task 10)', () => {
   const copiedLine = () => within(statusSlot()).queryByRole('status');
   const failedLine = () => within(statusSlot()).queryByRole('alert');
 
-  // Beside the readout, then in the action row, then (Crawford, Checkpoint A) under the readout, over the status slot.
-  it('sits under the readout and over the status slot, flat, named after the shown row, with the list collapsed', () => {
+  // Beside the readout until Checkpoint A (Crawford): now last in the action row, after Delete.
+  it('sits last in the action row, flat, named after the shown row; the readout stands alone', () => {
     render(<OffScreen />);
-    expect(transmissionsHeader().getAttribute('aria-expanded')).toBe('false');
-    expect(readout().nextElementSibling).toBe(shareButton());
-    expect(shareButton().nextElementSibling).toBe(statusSlot());
+    const button = shareButton();
+    expect(within(actionsRow()).getAllByRole('button').at(-1)).toBe(button);
     expect(shareButton().classList.contains('sc-button--muted')).toBe(true);
     expect(shareButton().getAttribute('aria-label')).toBe(fill('home.off.share', { name: human('home.off.current') }));
-  });
-
-  it('is not in the action row', () => {
-    render(<OffScreen />);
-    openTransmissions();
-    expect(actionsRow().contains(shareButton())).toBe(false);
+    expect(readout().parentElement!.classList.contains('off-screen__picker')).toBe(true);
   });
 
   it('on Current, copies the live world', async () => {
@@ -2994,7 +2990,7 @@ describe('OffScreen — the Transmission list, and Scan in the editor', () => {
   });
 
   // Keep, alone, until console Task 7 (spec §1.5): now Save, Rename and Delete, each named after the selected row.
-  it('holds Save, Rename and Delete in the actions row under the list, each named after the selected row', () => {
+  it('holds Save, Rename, Delete and Share in the actions row under the list, each named after the selected row', () => {
     render(<OffScreen />);
     openTransmissions();
     const current = human('home.off.current');
@@ -3002,11 +2998,13 @@ describe('OffScreen — the Transmission list, and Scan in the editor', () => {
       fill('home.off.save', { name: current }),
       fill('home.off.rename', { name: current }),
       fill('home.off.delete', { name: current }),
+      fill('home.off.share', { name: current }),
     ]);
     expect(within(actionsRow()).getAllByRole('button').map((b) => b.textContent)).toEqual([
       human('home.off.save'),
       human('home.off.rename'),
       human('home.off.delete'),
+      human('home.off.share'),
     ]);
     expect(picker().closest('.sc-radio-button')!.nextElementSibling).toBe(actionsRow());
   });
