@@ -57,10 +57,9 @@ export interface SessionStore {
   /** The Session Name input's live value — starts as a generated suggestion the user can accept
    *  or overwrite before clicking Save Session. */
   currentSessionName: string;
-  /** Which named session, if any, is currently loaded — drives SessionListItem.tsx's Load-button
-   *  wiring. Defaults to null on every fresh store creation: nothing ever auto-loads a session on
-   *  boot (docs/specs/SESSION_STORAGE.md §1, §5.3 criterion 5), and this store's own default is
-   *  part of what keeps that true. */
+  /** Which named session, if any, is currently loaded — the off screen's list reads it. Defaults to null on
+   *  every fresh store creation: nothing ever auto-loads a session on boot (docs/specs/SESSION_STORAGE.md §1,
+   *  §5.3 criterion 5), and this store's own default is part of what keeps that true. */
   currentLoadedSessionName: string | null;
   setCurrentSessionName: (name: string) => void;
   setCurrentLoadedSessionName: (name: string | null) => void;

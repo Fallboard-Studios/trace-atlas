@@ -30,7 +30,7 @@ const RENAME_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.ren
  * A fresh "Adjective Noun" suggestion, reusing generateCompanyName's exact word-list logic
  * (Roadmap Phase 10 spawn generation) but fed by Math.random() instead of a seeded noise map —
  * this is a live, user-triggered suggestion, not part of replayable world generation, the same
- * "Random" precedent SectorSettingsDrawer's coordinate presets already establish (Math.random(),
+ * "Random" precedent Foundry's coordinate presets established (Math.random(),
  * not getSeededVal, for a one-off UI convenience roll rather than reproducible world state).
  */
 function suggestCompanyName(): string {
@@ -145,7 +145,7 @@ export function CompanyRenameDeleteForm() {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   // A modal Radix dialog gives focus back only to its own Trigger, and the Delete button is not one, so
-  // the button that opened it is kept and focused again on close (SessionsPanel's confirm does the same).
+  // the button that opened it is kept and focused again on close (the off screen's confirms do the same).
   const openerRef = useRef<HTMLElement | null>(null);
   const openConfirm = () => {
     openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;

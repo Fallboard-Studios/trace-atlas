@@ -83,7 +83,7 @@ describe('localeStore', () => {
       expect(DEFAULT_LOCALE.coordinates).not.toEqual({ x: 0, y: 0 });
     });
 
-    it('default locale coordinates are integers — CoordsInput.tsx and SectorSettingsDrawer.tsx both assume coordinates are integers system-wide (docs/specs/archive/SECTOR_SETTINGS.md); a decimal default renders as a multi-decimal value on first load, before any user edit rounds it', () => {
+    it('default locale coordinates are integers — CoordsInput.tsx and the New Transmission editor both assume coordinates are integers system-wide (docs/specs/archive/SECTOR_SETTINGS.md); a decimal default renders as a multi-decimal value on first load, before any user edit rounds it', () => {
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.x)).toBe(true);
       expect(Number.isInteger(DEFAULT_LOCALE.coordinates.y)).toBe(true);
     });

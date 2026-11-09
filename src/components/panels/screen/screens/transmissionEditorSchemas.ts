@@ -2,8 +2,7 @@ import { labels } from '@/content';
 import type { CoordsInputSchema, TextInputSchema } from '@/types/controls';
 
 // The New Transmission editor's two inputs (docs/tasks/OFF_SCREEN_CONSOLE.md Task 4), moved from Foundry's config.
-// Their own module beside the editor, so the component file exports components alone (fast refresh);
-// sectorSettingsConfig re-exports them for Foundry until both go (Task 15).
+// Their own module beside the editor, so the component file exports components alone (fast refresh).
 
 export const ATTENUATION_STYLE_SCHEMA: TextInputSchema = {
   id: 'sectorSettings.planetName',

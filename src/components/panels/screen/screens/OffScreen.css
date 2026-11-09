@@ -378,9 +378,9 @@
   overflow-wrap: anywhere;
 }
 
-/* Factory Reset's confirm (docs/tasks/OFF_SCREEN_CONSOLE.md Task 3): SessionsPanel.css's clear-storage-confirm__*
-   rules, copied here because the dialog portals out of both components' trees. SessionsPanel.css keeps its copy until
-   the panel is deleted (Task 15), when this is the only one. */
+/* Factory Reset's confirm (docs/tasks/OFF_SCREEN_CONSOLE.md Task 3): the Save & Share tab's clear-storage-confirm__*
+   rules, copied here because the dialog portals out of the component's tree; the only copy since the tab went
+   (Task 15). */
 .clear-storage-confirm__overlay {
   position: fixed;
   inset: 0;

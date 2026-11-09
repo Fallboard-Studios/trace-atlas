@@ -7,7 +7,7 @@ import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { TextInput } from '@/components/ui/controls/TextInput';
-import { useShareStatus } from '@/components/panels/screen/console/useShareStatus';
+import { useShareStatus } from '@/hooks/useShareStatus';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
 import {
@@ -98,7 +98,7 @@ const COPY_FAILED = labels('session.status.copyFailed').humanLabel;
 const UNSAVED_EYEBROW = labels('home.off.unsavedEyebrow').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
 
-/** Factory Reset (spec §1.4): under its label row, behind SessionsPanel's confirm, read from the same content. At the
+/** Factory Reset (spec §1.4): under its label row, behind the Save & Share tab's confirm, from the same content. At the
  *  foot of the Transmissions section, with the saves it deletes (Checkpoint A: the Device section it had is gone). */
 const RESET_LABELS = labels('session.clearStorage');
 const RESET_CONFIRM_TITLE = labels('session.clearStorage.confirmTitle').humanLabel;
@@ -197,7 +197,7 @@ function RenameField({ name, onDone }: { name: string; onDone: (from: string, to
   );
 }
 
-/** The saves, newest first, as SessionsPanel lists them. */
+/** The saves, newest first, as the Save & Share tab listed them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
 
 /** What a pick is: Current — the loaded world, described live from the stores — or a save / New Transmission, described from its own world under its name (none for New Transmission), so the well names what was
@@ -294,7 +294,7 @@ interface Intent {
  *
  * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its action row, always shown (they sat
  * in a collapsible section under a header naming the shown row until Checkpoint A dropped the toggle). At the
- * section's foot, with the saves it deletes, Factory Reset behind SessionsPanel's confirm, portalled into the screen
+ * section's foot, with the saves it deletes, Factory Reset behind the Save & Share tab's confirm, portalled into the screen
  * (it had a Device section of its own until Checkpoint A: nothing else was ever going in it). Confirmed, it clears all of localStorage and detaches the loaded save, and the gate is read again, so the
  * chooser gives way to the first-visit view at once (assumption 4).
  *
@@ -417,14 +417,14 @@ export function OffScreen() {
   // Factory Reset's confirm.
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   // A modal Radix dialog gives focus back only to its own Trigger, and Reset is not one, so the button that opened it
-  // is kept and focused again on close (SessionsPanel's way).
+  // is kept and focused again on close (the Save & Share tab's way).
   const resetOpenerRef = useRef<HTMLElement | null>(null);
   // The save Delete's confirm asks about while it is open, and the button that opened it (Checkpoint A).
   const [deleting, setDeleting] = useState<string | null>(null);
   const deleteOpenerRef = useRef<HTMLElement | null>(null);
 
   // The loaded world, for the Current row and the readout. Narrow selectors (the name, the coordinates
-  // object) as SectorSettingsDrawer reads them, so a robot write elsewhere in the locale never re-renders this.
+  // object) as Foundry read them, so a robot write elsewhere in the locale never re-renders this.
   const currentAttenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);
   const currentLocaleId = currentAttenuationStyle?.currentLocaleId;
   const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
@@ -843,7 +843,7 @@ export function OffScreen() {
   }, []);
   const returnResetFocus = useCallback(() => resetOpenerRef.current?.focus(), []);
 
-  // Confirmed, it wipes all of localStorage, as SessionsPanel's does — the device flag with it — and drops the loaded
+  // Confirmed, it wipes all of localStorage, as the Save & Share tab's did — the device flag with it — and drops the loaded
   // save's name, which no entry backs any more. The gate is read again at once, so the chooser gives way to the
   // first-visit view with no reload (assumption 4). The saves are not re-read: the chooser that lists them is gone for
   // this mount, and the next mount reads them afresh. The paused world stands: nothing here is a world change.
@@ -888,7 +888,7 @@ export function OffScreen() {
     [shownAspects, setIntent],
   );
 
-  // Factory Reset's confirm, SessionsPanel's dialog read from the same content (spec §1.4), and Delete's, in its look.
+  // Factory Reset's confirm, the Save & Share tab's dialog read from the same content (spec §1.4), and Delete's, in its look.
   const screenNode = resetConfirmOpen || deleting !== null ? getScreenViewportDomNode() : null;
   const deleteConfirm = (
     <>

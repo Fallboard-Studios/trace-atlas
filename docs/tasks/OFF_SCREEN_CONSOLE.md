@@ -855,7 +855,7 @@ cover yet: plan that before Task 12 starts.
   place of a Settings leaf. The gates are the type unions (a `'settings'` anywhere is a compile error) plus the two
   RED cases.
 
-- [ ] **Task 15: Foundry, Save & Share and their configs go; `useShareStatus` moves to `src/hooks/`**
+- [x] **Task 15: Foundry, Save & Share and their configs go; `useShareStatus` moves to `src/hooks/`**
 
   **Description:** Spec §1.9 (the deleted list), assumption 9. Deleted: `SectorSettingsDrawer.tsx/.css/.test.tsx`,
   `SessionsPanel.tsx/.css/.test.tsx`, `SessionListItem.tsx/.css/.test.tsx`, `src/data/sectorSettingsConfig.ts` (the two
@@ -873,17 +873,29 @@ cover yet: plan that before Task 12 starts.
   powered-on app has no Seeds and no Save & Share anywhere.
 
   **Acceptance criteria:**
-  - [ ] `grep -rn "SectorSettingsDrawer\|SessionsPanel\|SessionListItem\|sectorSettingsConfig" src` is empty.
-  - [ ] `useShareStatus.test.ts` passes unmodified from `src/hooks/`.
+  - [x] `grep -rn "SectorSettingsDrawer\|SessionsPanel\|SessionListItem\|sectorSettingsConfig" src` is empty.
+  - [x] `useShareStatus.test.ts` passes unmodified from `src/hooks/`.
 
   **Verification:**
-  - [ ] `npm test`, `npm run build:types`, `npm run lint` clean; `npm run build` clean.
+  - [x] `npm test`, `npm run build:types`, `npm run lint` clean; `npm run build` clean.
 
   **Dependencies:** Task 14. **Files:** the twelve deleted files above, `src/data/sessionConfig.ts`,
   `src/content/copy/session.ts`, `src/content/copy/sector.ts`, `src/hooks/useShareStatus.ts`,
   `src/hooks/useShareStatus.test.ts`, `OffScreen.tsx` (one import)
 
   **Estimated scope:** M (mostly deletion; two config trims, one move)
+
+  **As built (2026-11-09):** eleven files deleted (the three components' nine files and `sectorSettingsConfig.ts` with its test) and
+  the hook's two moved unchanged. `sessionConfig.test.ts` keeps Factory Reset's two cases. `content.test.ts`'s help
+  walk reads `transmissionEditorSchemas` in place of the deleted config (the editor's two inputs still need help) and
+  no longer expects `session.name`. The guard named exactly the thirteen entries to drop: `session.name`, `.save`,
+  `.shareLive`, `.share`, `.load`, `.delete`, `.saved`, `.status.saved`; `sector.retransmit`, `.status`, `.copyLink`,
+  `.random.attenuationStyle`, `.random.coords`. The acceptance grep also matched comments in eleven files (and one
+  `localeStore.test.ts` title), each reworded to the off screen, the editor or "Foundry" / "the Save & Share tab" in
+  the past tense. **For Crawford:** `retransmitChangesWorld` (`worldTransition.ts`) has no app caller now, only its
+  own test (Foundry was its last); and the `sector.attenuationStyle` and `sector.coords` help still says "then press
+  Retransmit", a button that no longer exists (the editor commits on Enter or blur). Both left as they are: a removal
+  and a copy change are his call. The look (no Seeds, no Save & Share in the powered-on app) is Checkpoint B's.
 
 ### Checkpoint B: `settings-retirement` built
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.

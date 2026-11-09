@@ -37,7 +37,7 @@ interface TransmissionEditorProps {
 /**
  * The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): a group titled New Transmission with Scan in its
  * title row, then the style name and the coordinates. The inputs hold a draft of `identity`, synced Foundry's way
- * (SectorSettingsDrawer: the last-seen value compared during render, no effect), so a world landing from elsewhere — a
+ * (the last-seen value compared during render, no effect), so a world landing from elsewhere — a
  * pick, a restore, a Scan — shows in them, unless the listener is mid-edit: a draft that differs from the last synced
  * identity is never overwritten. The identity is compared by value: the screen builds it afresh each render.
  *
