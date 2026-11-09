@@ -92,8 +92,9 @@ const RENAME_INPUT_SCHEMA: TextInputSchema = {
 };
 /** Rename refused: another save has the typed name (spec assumption 3). */
 const RENAME_TAKEN = labels('home.off.renameTaken').humanLabel;
-/** Share beside the readout (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), muted like the action row, and the two lines its copy
- *  writes into the status slot, read from the Sessions panel's content. */
+/** Share (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), last in the action row since Checkpoint A (it was beside the readout),
+ *  muted like the rest of it, and the two lines its copy writes into the status slot, read from the Sessions panel's
+ *  content. */
 const SHARE_SCHEMA: ButtonSchema = { id: 'offShare', type: 'button', ...labels('home.off.share'), appearance: 'muted' };
 const LINK_COPIED = labels('session.status.linkCopied').humanLabel;
 const COPY_FAILED = labels('session.status.copyFailed').humanLabel;
@@ -1033,6 +1034,14 @@ export function OffScreen() {
                       onClick={openDeleteConfirm}
                       disabled={!actions.delete}
                     />
+                    {/* Share (spec §1.6), last in the row since Checkpoint A; it was beside the readout. */}
+                    <Button
+                      schema={SHARE_SCHEMA}
+                      face="single"
+                      accessibleName={fill('home.off.share', { name: shownName })}
+                      onClick={onShare}
+                      disabled={!actions.share}
+                    />
                   </div>
                   {/* Factory Reset (spec §1.4), with the saves: under its label row, behind the confirm below. */}
                   <div className="off-screen__reset">
@@ -1060,19 +1069,9 @@ export function OffScreen() {
                 ))}
               </div>
             </div>
-            {/* The readout and Share, one row (spec §1.6). */}
-            <div className="off-screen__readout-row">
-              <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
-                {readout}
-              </p>
-              <Button
-                schema={SHARE_SCHEMA}
-                face="single"
-                accessibleName={fill('home.off.share', { name: shownName })}
-                onClick={onShare}
-                disabled={intent !== null}
-              />
-            </div>
+            <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
+              {readout}
+            </p>
             {/* The status slot (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), where the unsaved warning was: always there,
                 empty but for one line, so a line coming and going never moves the column (docs/tasks/
                 OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). Current's eyebrow says unsaved now. A failure is an alert; "copied"

@@ -273,9 +273,9 @@
   padding: 4px 8px;
 }
 
-/* The action row under the list (docs/tasks/OFF_SCREEN_CONSOLE.md Tasks 7 and 11, spec §1.5; Keep's place): Save, Rename
-   and Delete, flat (muted Buttons), centred, equal width — each the widest one's — and never wrapping: three short
-   words fit the phone's 320 px column with room to spare. */
+/* The action row under the list (docs/tasks/OFF_SCREEN_CONSOLE.md Tasks 7 and 11, spec §1.5; Keep's place): Save, Rename,
+   Delete and Share (Share since Checkpoint A), flat (muted Buttons), centred, equal width — each the widest one's — in
+   one row on the desk. Four do not fit the phone's 320 px column, so there it is two by two (below). */
 .off-screen__actions {
   display: grid;
   grid-auto-flow: column;
@@ -338,25 +338,6 @@
   letter-spacing: 0.04em;
   text-align: center;
   overflow-wrap: anywhere;
-}
-
-/* The readout and Share in one row (docs/tasks/OFF_SCREEN_CONSOLE.md Task 10, spec §1.6): the well centred as before,
-   Share flat beside it, the row never wider than the column; the well shrinks and wraps first, Share keeps its face.
-   Task 11 sets the look against frame F. */
-.off-screen__readout-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--spacing-sm);
-  max-width: 100%;
-}
-
-.off-screen__readout-row .off-screen__readout {
-  min-width: 0;
-}
-
-.off-screen__readout-row .sc-button {
-  flex: none;
 }
 
 /* Factory Reset's confirm (docs/tasks/OFF_SCREEN_CONSOLE.md Task 3): SessionsPanel.css's clear-storage-confirm__*
@@ -446,6 +427,12 @@
 #screen-viewport[data-shell='phone'] .off-screen__axes {
   grid-template-columns: minmax(0, 1fr);
   gap: var(--spacing-lg);
+}
+
+/* The action row two by two on the phone: Save and Rename, then Delete and Share. */
+#screen-viewport[data-shell='phone'] .off-screen__actions {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, 1fr);
 }
 
 #screen-viewport[data-shell='phone'] .off-screen__picker .sc-radio-button__flat {
