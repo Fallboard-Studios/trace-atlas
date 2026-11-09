@@ -402,10 +402,10 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
       all pass (210 s, run alone, twice). Vitest still exits 1 on one unhandled `[vitest-worker]: Timeout calling
       "onTaskUpdate"` (a worker's report to the main process timing out, no test named); the Phase 2 commit 1c1f10c5
       gives the same error with all 13,661 of its tests passing, so it predates this phase.
-- [ ] In the browser: type a name, Enter: the wash, the new world, the editor selected, the header says New
+- [x] In the browser: type a name, Enter: the wash, the new world, the editor selected, the header says New
       Transmission. Open the list: no row checked. Pick a save: the editor follows. Current reads "Current · unsaved"
       after an edit.
-- [ ] Reviewed with Crawford before Phase 4.
+- [x] Reviewed with Crawford before Phase 4 (passed 2026-11-09).
 
   **Found at the look (2026-11-09):** the commit logic works, but an X or Y field could not be emptied (`CoordsInput`
   ignored a blank entry, so React put the old number back), which made a sign flip awkward. Fixed: `CoordsValue`'s
@@ -416,7 +416,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   of nine mutants killed; the survivor (a null axis rendered as the text "null") is the same as `''` in jsdom, which
   blanks any non-number, but in a browser React would rewrite the field and erase a typed "-": the browser look
   covers it.
-- [ ] In the browser: clear X, type "-", then a number: the minus stays. Clear a field and press Enter: that axis is
+- [x] In the browser: clear X, type "-", then a number: the minus stays. Clear a field and press Enter: that axis is
       drawn and shows in the field.
 
 ---
