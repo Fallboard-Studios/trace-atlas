@@ -314,6 +314,44 @@
   padding: 4px 8px;
 }
 
+/* On the phone (Crawford's answer to Open Question 1, 2026-11-09): there is no room beside the row, so the input drops
+   inside the selected row, under its name — the row keeps its whole width — and covers the rows below rather than
+   pushing them down. The slot is taken out of the list's flow and placed against its own row's grid area (the list is
+   its containing block), starting at the row's foot, full width, over everything after it, in the selected row's
+   border and fill (opaque, since it covers rows), open at the top so it reads as the row grown downwards. */
+#screen-viewport[data-shell='phone'] .off-screen .sc-radio-button__list {
+  position: relative;
+}
+
+#screen-viewport[data-shell='phone'] .off-screen .sc-radio-button__row--trailing .sc-radio-button__list-item {
+  grid-column: 1 / -1;
+}
+
+/* RadioButton sets the slot's line inline (grid-row: N, so its end line is auto), and an absolutely positioned grid
+   item reads an auto line as the list's own edge: the area would run from the row to the list's foot. Its end is pinned
+   to the row's own line (the !important outranks the inline style, which sets the start only in effect), and it
+   stretches across, where the slot is otherwise end-aligned. */
+#screen-viewport[data-shell='phone'] .off-screen .sc-radio-button__trailing:has(> .off-screen__rename) {
+  position: absolute;
+  grid-column: 1 / -1;
+  grid-row-end: span 1 !important;
+  justify-self: stretch;
+  align-self: start;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 2;
+  padding: 2px 12px 10px;
+  box-sizing: border-box;
+  border: 1px solid rgba(207, 214, 220, 0.4);
+  border-top: none;
+  background: linear-gradient(rgba(207, 214, 220, 0.08), rgba(207, 214, 220, 0.08)), var(--color-bg);
+}
+
+#screen-viewport[data-shell='phone'] .off-screen__rename {
+  width: 100%;
+}
+
 /* The action row under the list (docs/tasks/OFF_SCREEN_CONSOLE.md Tasks 7 and 11, spec §1.5; Keep's place): Save, Rename
    and Delete, flat (muted Buttons), centred, equal width — each the widest one's — and never wrapping: three short
    words fit the phone's 320 px column with room to spare. */

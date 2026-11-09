@@ -175,7 +175,9 @@ loses a button.
 - **Save** re-reads the saves afterwards so the new row appears, and re-reads the dirty flag. A save the storage
   refuses writes the failure line into the status slot (§1.6), never a throw into the click (R20). The eyebrow on
   Current turns from "unsaved" to plain as the dirty read clears.
-- **Rename** turns the selected row's name into an inline `TextInput` in the row, prefilled, focused and selected.
+- **Rename** turns the selected row's name into an inline `TextInput` in the row, prefilled, focused and selected:
+  beside the name on the desk; on the phone under it, inside the row, covering the rows below without moving them
+  (Crawford, Checkpoint A).
   Enter or blur commits; Escape cancels; a blank or unchanged name reverts. A name another save already has is refused:
   the input reverts and the status slot says so (one content line; assumption 3). The commit is
   `renameNamedSession(from, to)` in `sessionStorageEngine.ts`: the entry re-keyed, `savedAt` and payload kept. The

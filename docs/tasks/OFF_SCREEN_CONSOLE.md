@@ -665,7 +665,9 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
       Vitest also reports the pre-existing `[vitest-worker]: Timeout calling "onTaskUpdate"` (see "The editor").
 - [ ] Spec §5's Look, by Crawford, through "Share: copied. Open Device, Reset, confirm: the first-visit screen. Power
       on: the live world plays. On a phone: the same, stacked, the header one line at 320 px."
-- [ ] Open Question 1 (the rename input's placement) answered.
+- [x] Open Question 1 (the rename input's placement) answered. Crawford, 2026-11-09: on the desk it stays beside the
+      row (the trailing slot); on the phone it drops inside the selected row, under its name, and covers the rows below
+      rather than shifting them. CSS only (the slot positioned against its row's grid area); a look at 320 px.
 - [x] Crawford's call (spec §6): module B on this branch, or on `feature/settings-retirement` after this one merges.
       **A separate branch** (Crawford, 2026-11-09), which he expects will also retire the **Companies** nav item; that
       is not in this plan's Tasks 12–16 yet and needs planning before module B starts.
@@ -894,7 +896,8 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
 1. **Where the rename input renders.** **Default (this plan):** `RadioButton`'s `trailing` slot on the selected save's
    row, the control untouched. **Alternative:** the input replaces the row's label, which needs a new `RadioButton` prop
-   (spec §3, ask first). Crawford decides at Checkpoint A from the look.
+   (spec §3, ask first). Crawford decides at Checkpoint A from the look. **Answered 2026-11-09:** the trailing slot on
+   the desk; on the phone, inside the selected row under its name, covering the rows below (Checkpoint A).
 2. **One branch or two for module B** (spec §6). Crawford's call at Checkpoint A.
 3. **Does the editor's blank-name commit need a guard?** `retransmitWorld` reads a blank name as none and derives a
    world from it today (Foundry's behaviour), so the plan passes it through (spec §1.2). If the resulting world reads
