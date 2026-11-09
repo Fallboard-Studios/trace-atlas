@@ -809,7 +809,7 @@ cover yet: plan that before Task 12 starts.
   listed; `uiStore.test.ts`'s "touches no other nav field" case pins `expandedTopLevelBranch` in place of
   `selectedSettingsLeaf`, and its expand case sets `'probes'`. The eight files: 460 pass, before and after.
 
-- [ ] **Task 14: The Settings branch leaves the nav; `SettingsScreen` is deleted**
+- [x] **Task 14: The Settings branch leaves the nav; `SettingsScreen` is deleted**
 
   **Description:** Spec §1.9 (second and third bullets, the screen). `'settings'` leaves `HubTile` (`src/types/hub.ts`),
   `TopLevelBranch`, `SettingsLeaf`, `selectedSettingsLeaf` and `setSelectedSettingsLeaf` (`uiStore.ts`);
@@ -828,13 +828,13 @@ cover yet: plan that before Task 12 starts.
   `selectedSettingsSubsection` case already pins a retired field).
 
   **Acceptance criteria:**
-  - [ ] `npm run build:types` passes with `'settings'` gone from every union: a missing tile is a compile error the
+  - [x] `npm run build:types` passes with `'settings'` gone from every union: a missing tile is a compile error the
         record catches (spec §7 risk 3), so nothing routes to it.
-  - [ ] `src/content/copy/settings.ts` does not exist; `content.test.ts` passes.
+  - [x] `src/content/copy/settings.ts` does not exist; `content.test.ts` passes.
 
   **Verification:**
-  - [ ] Module B's focused run and `npm test` pass.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Module B's focused run and `npm test` pass.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 13. **Files:** `src/types/hub.ts`, `src/stores/uiStore.ts`, `uiStore.test.ts`,
   `src/components/panels/screen/nav/navActions.ts`, `navActions.test.ts`, `NavPanel.tsx`, `NavPanel.test.tsx`,
@@ -844,6 +844,16 @@ cover yet: plan that before Task 12 starts.
 
   **Estimated scope:** L (fourteen files, but every edit is a deletion or a one-row table change; splitting would
   leave the build red between commits because the `HubTile` union and `ConsolePanel`'s record must change together)
+
+  **As built (2026-11-09):** as planned, plus three readers the plan did not name: `NavBreadcrumb.tsx` subscribed to
+  `selectedSettingsLeaf` and passed it to `breadcrumbTrail`; `src/content/index.ts` imported `settings`; and
+  `AudioLoadPanel.tsx`'s doc comment named `SettingsScreen` (now Fleet Params' tab). `TopLevelBranch` also loses
+  `'settings'`. `NavBreadcrumb.test.tsx` had no Settings case left after Task 13. The `uiStore.test.ts`
+  `selectedSettingsLeaf` block became "the Settings branch's fields are retired" (both Settings fields, the
+  `selectedSettingsSubsection` case folded in). Tests whose point was any non-expanding box now press Fleet Params
+  (or the Deck, for "two leaves, no width change"); navActions' "goes nowhere" case checks Audio Quality's crumb in
+  place of a Settings leaf. The gates are the type unions (a `'settings'` anywhere is a compile error) plus the two
+  RED cases.
 
 - [ ] **Task 15: Foundry, Save & Share and their configs go; `useShareStatus` moves to `src/hooks/`**
 

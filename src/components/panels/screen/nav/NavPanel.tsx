@@ -35,7 +35,6 @@ const PARENT_BOXES = (
     ['fleetParams', 'spectral'],
     ['probes', 'output'],
     ['companies', 'company'],
-    ['settings', 'seed'],
   ] as const satisfies readonly (readonly [NavBranch, Trait])[]
 ).map(([branch, trait]) => ({ branch, ...labels(branchContent(branch)), accentStyle: getTraitColorStyle(trait) }));
 

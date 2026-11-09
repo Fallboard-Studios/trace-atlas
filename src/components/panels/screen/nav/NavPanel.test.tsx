@@ -15,7 +15,7 @@ import type { Company } from '@/types/Company';
 import type { Locale } from '@/types/locale';
 
 /*
- * docs/tasks/LAYOUT_REWORK.md Task 4 (spec §1.2): one panel of five parent boxes that expands in place
+ * docs/tasks/LAYOUT_REWORK.md Task 4 (spec §1.2): one panel of four parent boxes (five until docs/tasks/OFF_SCREEN_CONSOLE.md Task 14 took Settings out) that expands in place
  * for Probes and Companies. CabinetBox is stubbed to expose `popped`; gsap is stubbed to record each
  * call and apply custom properties to their target at once, so the expand factor the width timeline
  * writes on #screen-viewport is readable from the DOM.
@@ -77,7 +77,7 @@ function stubMatchMedia({ desk, reducedMotion = false }: { desk: boolean; reduce
 const realMatchMedia = window.matchMedia;
 const localeId = getActiveLocaleId();
 const human = (key: ContentKey) => labels(key).humanLabel;
-const BOX_ORDER: ContentKey[] = ['nav.home', 'fleet.root', 'probe.root', 'company.root', 'settings.root'];
+const BOX_ORDER: ContentKey[] = ['nav.home', 'fleet.root', 'probe.root', 'company.root'];
 
 function seedRoster() {
   useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
@@ -111,8 +111,8 @@ afterEach(() => {
   Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
 });
 
-describe('NavPanel — five parent boxes (desk)', () => {
-  it('is a navigation landmark holding the five boxes in the sketch order, named from the content layer', () => {
+describe('NavPanel — four parent boxes (desk)', () => {
+  it('is a navigation landmark holding the four boxes in the sketch order, named from the content layer: Deck, Fleet Params, Probes, Companies, and no Settings', () => {
     renderPanel();
     const names = within(nav()).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
     expect(names).toEqual(BOX_ORDER.map(human));
@@ -142,7 +142,6 @@ describe('NavPanel — five parent boxes (desk)', () => {
     ['audioRig', 'fleet.root'],
     ['robots', 'probe.root'],
     ['companies', 'company.root'],
-    ['settings', 'settings.root'],
   ] as [HubTile | null, ContentKey][])('with tile %s open, only the %s box is popped and marked current', (tile, activeKey) => {
     useUIStore.setState({ activeHubTile: tile });
     renderPanel();
@@ -157,7 +156,6 @@ describe('NavPanel — five parent boxes (desk)', () => {
     ['fleet.root', 'audioRig'],
     ['probe.root', 'robots'],
     ['company.root', 'companies'],
-    ['settings.root', 'settings'],
   ] as [ContentKey, HubTile][])('clicking %s opens the %s tile and pops its box', (key, tile) => {
     renderPanel();
     fireEvent.click(box(key));
@@ -183,24 +181,24 @@ describe('NavPanel — five parent boxes (desk)', () => {
 
   it('a resting box pops while hovered, focused or pressed, and returns to rest after; the active box stays popped', () => {
     renderPanel();
-    const settings = box('settings.root');
-    const rest = poppedOf(settings);
+    const resting = box('fleet.root');
+    const rest = poppedOf(resting);
     expect(rest).not.toBe('true');
 
-    fireEvent.mouseEnter(settings);
-    expect(poppedOf(settings)).toBe('true');
-    fireEvent.mouseLeave(settings);
-    expect(poppedOf(settings)).toBe(rest);
+    fireEvent.mouseEnter(resting);
+    expect(poppedOf(resting)).toBe('true');
+    fireEvent.mouseLeave(resting);
+    expect(poppedOf(resting)).toBe(rest);
 
-    fireEvent.focus(settings);
-    expect(poppedOf(settings)).toBe('true');
-    fireEvent.blur(settings);
-    expect(poppedOf(settings)).toBe(rest);
+    fireEvent.focus(resting);
+    expect(poppedOf(resting)).toBe('true');
+    fireEvent.blur(resting);
+    expect(poppedOf(resting)).toBe(rest);
 
-    fireEvent.pointerDown(settings);
-    expect(poppedOf(settings)).toBe('true');
-    fireEvent.pointerUp(settings);
-    expect(poppedOf(settings)).toBe(rest);
+    fireEvent.pointerDown(resting);
+    expect(poppedOf(resting)).toBe('true');
+    fireEvent.pointerUp(resting);
+    expect(poppedOf(resting)).toBe(rest);
 
     const deck = box('nav.home');
     fireEvent.mouseEnter(deck);
@@ -225,7 +223,7 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
     expect(expandFactor()).toBe('1');
   });
 
-  it.each(['nav.home', 'fleet.root', 'settings.root'] as ContentKey[])('selecting %s lists nothing and returns to the rest value', (key) => {
+  it.each(['nav.home', 'fleet.root'] as ContentKey[])('selecting %s lists nothing and returns to the rest value', (key) => {
     useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
     renderPanel();
     expect(expandFactor()).toBe('1');
@@ -332,7 +330,7 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
     expect(gsapLog.calls.at(-1)).toMatchObject({ kind: 'to', vars: { '--nav-panel-expand': 1 } });
     expect(gsapLog.calls.at(-1)!.vars.duration).toBeGreaterThan(0);
 
-    fireEvent.click(box('settings.root'));
+    fireEvent.click(box('fleet.root'));
     expect(setTimeline).toHaveBeenCalledTimes(2);
     expect(gsapLog.calls.at(-1)).toMatchObject({ kind: 'to', vars: { '--nav-panel-expand': 0 } });
     expect(gsapLog.calls.at(-1)!.vars.duration).toBeGreaterThan(0);
@@ -342,7 +340,7 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
     renderPanel();
     fireEvent.click(box('probe.root'));
     vi.mocked(killTimeline).mockClear();
-    fireEvent.click(box('settings.root'));
+    fireEvent.click(box('fleet.root'));
     expect(killTimeline).toHaveBeenCalledWith('nav-panel-width');
     expect(vi.mocked(killTimeline).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(setTimeline).mock.invocationCallOrder.at(-1)!);
   });
@@ -350,7 +348,7 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
   it('moving between two leaves (no width change) starts no timeline', () => {
     useUIStore.setState({ activeHubTile: 'audioRig' });
     renderPanel();
-    fireEvent.click(box('settings.root'));
+    fireEvent.click(box('nav.home'));
     expect(setTimeline).not.toHaveBeenCalled();
   });
 
@@ -399,7 +397,6 @@ describe('NavPanel — keyboard', () => {
       'Tidal Wisp',
       'Glass Drifter',
       human('company.root'),
-      human('settings.root'),
     ]);
     for (const b of buttons) {
       expect(b.tagName).toBe('BUTTON');
@@ -473,7 +470,7 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     return renderPanel();
   }
 
-  it('on the phone shell the panel is not in the DOM until the sheet opens, then the same five boxes sit in a dialog', () => {
+  it('on the phone shell the panel is not in the DOM until the sheet opens, then the same four boxes sit in a dialog', () => {
     stubMatchMedia({ desk: false });
     renderPanel();
     expect(screen.queryByRole('navigation')).toBeNull();
@@ -520,9 +517,8 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     ['fleet.root', 'audioRig'],
     ['probe.root', 'robots'],
     ['company.root', 'companies'],
-    ['settings.root', 'settings'],
   ] as [ContentKey, HubTile | null][])('picking %s opens it and closes the sheet', (key, tile) => {
-    openSheet({ activeHubTile: key === 'nav.home' ? 'settings' : null });
+    openSheet({ activeHubTile: key === 'nav.home' ? 'audioRig' : null });
     fireEvent.click(box(key));
     expect(useUIStore.getState().isNavPanelOpen).toBe(false);
     expect(useUIStore.getState().activeHubTile).toBe(tile);
@@ -604,7 +600,7 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
       const opener = document.body.appendChild(document.createElement('button'));
       openFrom(opener);
 
-      fireEvent.click(box('settings.root'));
+      fireEvent.click(box('fleet.root'));
       await afterOpenTick();
 
       expect(document.activeElement).toBe(opener);
@@ -628,7 +624,7 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     openSheet();
     await afterOpenTick();
 
-    fireEvent.pointerDown(box('settings.root'));
+    fireEvent.pointerDown(box('fleet.root'));
     expect(useUIStore.getState().isNavPanelOpen).toBe(true);
 
     fireEvent.pointerDown(scrim()!);

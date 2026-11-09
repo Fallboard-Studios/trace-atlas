@@ -5,7 +5,6 @@ import {
   type TopLevelBranch,
   type FleetParamsGroup,
   type SelectedFleetParamsEffect,
-  type SettingsLeaf,
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
 import { ROBOT_SECTIONS_CONFIG, activeRobotSection, sectionTabContent } from '@/data/robotSubsectionConfig';
@@ -32,10 +31,9 @@ const BRANCH_TILE: Record<TopLevelBranch, HubTile> = {
   probes: 'robots',
   companies: 'companies',
   fleetParams: 'audioRig',
-  settings: 'settings',
 };
 
-/** Branches whose entities list in place under their box; Fleet Params and Settings are leaves. */
+/** Branches whose entities list in place under their box; Fleet Params is a leaf. */
 export type ExpandingBranch = 'probes' | 'companies';
 const EXPANDS_IN_PLACE: ReadonlySet<NavBranch> = new Set<ExpandingBranch>(['probes', 'companies']);
 
@@ -43,7 +41,6 @@ const TILE_CONTENT: Record<HubTile, ContentKey> = {
   robots: 'probe.root',
   companies: 'company.root',
   audioRig: 'fleet.root',
-  settings: 'settings.root',
 };
 
 /** The parent box a tile belongs to (the one the panel pops) — the Deck when no tile is open. */
@@ -135,26 +132,6 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   quality: 'fleet.quality',
 };
 
-/** Settings' three tabs in the sketch's order (Task 17). The screen and the breadcrumb both read this
- *  and the names below, so they name the same tab; it is the one order there is. */
-export const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions'];
-
-/** Each Settings tab's concept: its title on the tab and in the breadcrumb. */
-export const SETTINGS_LEAF_CONTENT: Record<SettingsLeaf, ContentKey> = {
-  quality: 'fleet.quality',
-  sectorSettings: 'settings.seeds',
-  sessions: 'settings.sessions',
-};
-
-/** The tab Settings opens on, and every nav pick returns to (cleanSlate stores null). */
-export const DEFAULT_SETTINGS_LEAF: SettingsLeaf = SETTINGS_LEAVES[0];
-
-/** The open Settings tab: the stored one when it is a tab, else Audio Quality — the tab SectionTabs
- *  falls back to, so the breadcrumb never names a tab the screen is not showing. */
-export function activeSettingsLeaf(stored: SettingsLeaf | null): SettingsLeaf {
-  return SETTINGS_LEAVES.find((leaf) => leaf === stored) ?? DEFAULT_SETTINGS_LEAF;
-}
-
 function cleanSlate(): void {
   const s = useUIStore.getState();
   s.setNavPanelOpen(false); // the phone sheet's open flag; the desk panel ignores it
@@ -162,7 +139,6 @@ function cleanSlate(): void {
   s.selectAllRobots(); // the "no company" state: selectedCompanyId null, allRobotsSelected true
   s.setAllProbesSelected(false);
   s.setFleetParamsSection(DEFAULT_FLEET_PARAMS_SECTION); // also clears the sub-tab
-  s.setSelectedSettingsLeaf(null); // Settings back on its first tab (Task 17)
 }
 
 /** Opens a branch's tile with its entity list expanded in place (Probes / Companies) or collapsed. */
@@ -241,7 +217,6 @@ export type BreadcrumbState = Pick<
   | 'selectedSection'
   | 'fleetParamsSection'
   | 'fleetParamsSubsection'
-  | 'selectedSettingsLeaf'
 >;
 
 interface NamedEntity {
@@ -281,14 +256,14 @@ function openEntity(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 
 
 /** One breadcrumb segment: its name and, for Root, the branch, the entity and a Fleet Params section
  *  with a sub-tab after it, the call that goes there (Tasks 8, 15). A robot section, a Fleet Params
- *  sub-tab, Pacing or a Settings leaf has none: it is only ever the current view. */
+ *  sub-tab, Pacing or Audio Quality has none: it is only ever the current view. */
 export interface BreadcrumbSegment {
   label: string;
   go?: () => void;
 }
 
 /** Root / branch / entity / section — `[]` on the Deck. A section shows only under an entity (Probes,
- *  Companies), as Settings' leaf, or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
+ *  Companies), or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
  *  <section> / <sub-tab>). The branch goes back with selectBranch, which never toggles (pressBranchBox
  *  is the panel's own). */
 export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): BreadcrumbSegment[] {
@@ -312,11 +287,6 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
     }
     trail.push({ label, go: () => useUIStore.getState().setFleetParamsSection(section) });
     trail.push({ label: name(sub.content) });
-    return trail;
-  }
-  if (tile === 'settings') {
-    // Always a tab open (Task 17): Audio Quality when none is stored.
-    trail.push({ label: name(SETTINGS_LEAF_CONTENT[activeSettingsLeaf(state.selectedSettingsLeaf)]) });
     return trail;
   }
 

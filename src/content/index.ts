@@ -14,7 +14,6 @@ import { company } from './copy/company';
 import { home } from './copy/home';
 import { header } from './copy/header';
 import { nav } from './copy/nav';
-import { settings } from './copy/settings';
 import { session } from './copy/session';
 import { sector } from './copy/sector';
 
@@ -32,7 +31,6 @@ export const CONTENT = {
   ...home,
   ...header,
   ...nav,
-  ...settings,
   ...session,
   ...sector,
   ...ui,

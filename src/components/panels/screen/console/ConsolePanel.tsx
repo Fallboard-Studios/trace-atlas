@@ -3,7 +3,6 @@ import { CompanyScreen } from '../screens/CompanyScreen';
 import { FleetParamsScreen } from '../screens/FleetParamsScreen';
 import { RobotScreen } from '../screens/RobotScreen';
 import { RosterBoard } from '../screens/RosterBoard';
-import { SettingsScreen } from '../screens/SettingsScreen';
 import type { HubTile } from '@/types/hub';
 import { useUIStore } from '@/stores/uiStore';
 import { CONTENT } from '@/content';
@@ -39,7 +38,6 @@ function CompaniesBranch() {
 const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
   robots: () => <ProbesBranch />,
   audioRig: () => <FleetParamsScreen />,
-  settings: () => <SettingsScreen />,
   companies: () => <CompaniesBranch />,
 };
 

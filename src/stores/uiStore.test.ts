@@ -185,45 +185,17 @@ describe('uiStore — isNavPanelOpen (mobile-only nav slide state, docs/specs/ar
   });
 });
 
-describe('uiStore — selectedSettingsLeaf (which Settings child is open, docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 11)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — no Settings leaf chosen until one is selected', () => {
-    expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
-  });
-
-  it('setSelectedSettingsLeaf sets one of the 2 Settings leaves', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('quality');
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
-  });
-
-  it('setSelectedSettingsLeaf(null) clears back to no leaf chosen', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('sectorSettings');
-    useUIStore.getState().setSelectedSettingsLeaf(null);
-    expect(useUIStore.getState().selectedSettingsLeaf).toBeNull();
-  });
-
-  it('is independent of selectedSection — Settings is not an entity with robot/company sections', () => {
-    useUIStore.getState().setSelectedSection('melody');
-    useUIStore.getState().setSelectedSettingsLeaf('quality');
-    expect(useUIStore.getState().selectedSection).toBe('melody');
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('quality');
-  });
-
-  it('accepts the third leaf, Save & Share', () => {
-    useUIStore.getState().setSelectedSettingsLeaf('sessions');
-    expect(useUIStore.getState().selectedSettingsLeaf).toBe('sessions');
-  });
-
-  // docs/tasks/LAYOUT_REWORK.md Task 17 (spec §1.10): the leaf is the Settings tab; the subsection below
-  // it was the tree's third level, read by nothing once the stacked screen's scrollspy is gone.
-  it('has no Settings subsection: the field and its setter are retired', () => {
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 14 (spec §1.9): the Settings branch left the nav, and its open tab with it.
+// The subsection below it had already gone with the stacked screen (docs/tasks/LAYOUT_REWORK.md Task 17).
+describe('uiStore — the Settings branch\'s fields are retired', () => {
+  it.each([
+    ['selectedSettingsLeaf', 'setSelectedSettingsLeaf'],
+    ['selectedSettingsSubsection', 'setSelectedSettingsSubsection'],
+  ])('has no %s and no %s', (field, setter) => {
     const state = useUIStore.getState() as unknown as Record<string, unknown>;
-    expect('selectedSettingsSubsection' in state).toBe(false);
-    expect('setSelectedSettingsSubsection' in state).toBe(false);
-    expect('selectedSettingsSubsection' in useUIStore.getInitialState()).toBe(false);
+    expect(field in state).toBe(false);
+    expect(setter in state).toBe(false);
+    expect(field in useUIStore.getInitialState()).toBe(false);
   });
 });
 
@@ -263,7 +235,7 @@ describe('uiStore — the initial state is spec §1.10\'s table', () => {
   // §1.10's kept and new fields.
   const NAV_FIELDS = [
     'activeHubTile', 'selectedRobotId', 'selectedCompanyId', 'allRobotsSelected', 'allProbesSelected',
-    'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection', 'selectedSettingsLeaf',
+    'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection',
     'isPoweredOn', 'isNavPanelOpen',
     'fleetParamsSection', 'fleetParamsSubsection', 'movePanelRobotId',
   ];

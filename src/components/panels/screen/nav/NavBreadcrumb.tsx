@@ -36,14 +36,13 @@ export function NavBreadcrumb({ inBar = false }: NavBreadcrumbProps) {
   const selectedSection = useUIStore((s) => s.selectedSection);
   const fleetParamsSection = useUIStore((s) => s.fleetParamsSection);
   const fleetParamsSubsection = useUIStore((s) => s.fleetParamsSubsection);
-  const selectedSettingsLeaf = useUIStore((s) => s.selectedSettingsLeaf);
   const robots = useEntityRoster('robots');
   const companies = useEntityRoster('companies');
 
   if (!inBar && shell !== 'desk') return null;
 
   const fullTrail = breadcrumbTrail(
-    { activeHubTile, selectedRobotId, selectedCompanyId, allProbesSelected, selectedSection, fleetParamsSection, fleetParamsSubsection, selectedSettingsLeaf },
+    { activeHubTile, selectedRobotId, selectedCompanyId, allProbesSelected, selectedSection, fleetParamsSection, fleetParamsSubsection },
     { robots, companies },
   );
   if (fullTrail.length === 0) return null;

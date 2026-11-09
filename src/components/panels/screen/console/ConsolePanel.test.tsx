@@ -15,14 +15,11 @@ vi.mock('../screens/RobotScreen', () => ({
 vi.mock('../screens/FleetParamsScreen', () => ({
   FleetParamsScreen: () => <div data-testid="fleet-params-screen-stub" />,
 }));
-vi.mock('../screens/SettingsScreen', () => ({
-  SettingsScreen: () => <div data-testid="settings-screen-stub" />,
-}));
 vi.mock('../screens/CompanyScreen', () => ({
   CompanyScreen: () => <div data-testid="company-screen-stub" />,
 }));
 
-const ROUTED = ['roster-board-stub', 'robot-screen-stub', 'company-screen-stub', 'fleet-params-screen-stub', 'settings-screen-stub'];
+const ROUTED = ['roster-board-stub', 'robot-screen-stub', 'company-screen-stub', 'fleet-params-screen-stub'];
 /** Every routed screen in the DOM, by its stub's test id. */
 const shown = () => ROUTED.filter((id) => screen.queryByTestId(id));
 
@@ -46,12 +43,6 @@ describe('ConsolePanel', () => {
     useUIStore.getState().setActiveHubTile('audioRig');
     render(<ConsolePanel />);
     expect(shown()).toEqual(['fleet-params-screen-stub']);
-  });
-
-  it('renders SettingsScreen when settings is active', () => {
-    useUIStore.getState().setActiveHubTile('settings');
-    render(<ConsolePanel />);
-    expect(shown()).toEqual(['settings-screen-stub']);
   });
 });
 

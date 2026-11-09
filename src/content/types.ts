@@ -61,7 +61,7 @@ export interface ContentHelp {
 }
 
 /** The closed list of top-level key areas (spec §1.2). A key's first segment must be one of these. */
-export const CONTENT_AREAS = ['home', 'header', 'nav', 'fleet', 'probe', 'company', 'settings', 'session', 'sector', 'ui'] as const;
+export const CONTENT_AREAS = ['home', 'header', 'nav', 'fleet', 'probe', 'company', 'session', 'sector', 'ui'] as const;
 export type ContentArea = (typeof CONTENT_AREAS)[number];
 
 export type LabelSurface = 'row' | 'heading';
