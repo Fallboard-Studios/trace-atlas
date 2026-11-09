@@ -31,7 +31,7 @@ along the line between them. Crawford asked for one spec file; this is it, in tw
 
 | Module id | Responsibility | Depends on |
 |---|---|---|
-| `off-screen-console` | The off screen's left column: the New Transmission editor, the collapsible Transmissions list, the action row, Share on the readout, the Device section. §1.1–§1.8. | — |
+| `off-screen-console` | The off screen's left column: the New Transmission editor, the collapsible Transmissions list, the action row, Share on the readout, Factory Reset with the saves. §1.1–§1.8. | — |
 | `settings-retirement` | Audio Quality moves to Fleet Params; the Settings branch, `SettingsScreen`, `SectorSettingsDrawer`, `SessionsPanel` and `SessionListItem` leave; docs follow. §1.9. | `off-screen-console` (nothing is removed until the off screen does its job) |
 
 Build order: `off-screen-console` → `settings-retirement`. The first part is complete and reviewable before the second
@@ -64,9 +64,8 @@ left column, then the right, as today.
 │ ▸ Transmissions · Harbour Song · 5  │  │ Trace Aspects · select many        │
 │   (collapsed; open: the list)       │  │ (six family rows + descriptions)   │
 │   [Save] [Rename] [Delete]          │  │                                    │
-│                                     │  │                                    │
-│ ▸ Device                            │  │                                    │
-│   (collapsed; open: Factory Reset)  │  │                                    │
+│   ─────────────────────────────     │  │                                    │
+│   Factory Reset  [Clear …]          │  │                                    │
 └─────────────────────────────────────┘  └────────────────────────────────────┘
           [ AS · (x, y) · Theme · aspects ]  [Share]
           (status slot: "copied" / a failure line / empty, height held)
@@ -128,25 +127,28 @@ Inside the collapsible Transmissions section (§1.4), one `RadioButton` in the `
 
 Re-clicking the selected row does nothing. The address bar follows every landed world (`mirrorWorldToUrl`) as today.
 
-### 1.4 The two collapsible sections
+### 1.4 The collapsible section
 
-Two sections in the left column, under the editor: **Transmissions** (the list and the action row) and **Device**
-(Factory Reset). Each is a header `Button` (muted, single face, `aria-expanded`, `aria-controls`) over a body that is
-in the DOM only while open, the lazy mount `SectionTabs` already uses. Both start collapsed on every mount; the open
-state is component state and is not persisted (assumption 6).
+One section in the left column, under the editor: **Transmissions** (the list, the action row, and Factory Reset at its
+foot). It is a header `Button` (muted, single face, `aria-expanded`, `aria-controls`) over a body that is in the DOM
+only while open, the lazy mount `SectionTabs` already uses. It starts collapsed on every mount; the open state is
+component state and is not persisted (assumption 6). **Amended at Checkpoint A (Crawford, 2026-11-09):** Factory Reset
+had a second section of its own, **Device**; nothing else would ever go in it, and it deletes the saves (for the most
+part), so it moved in with them and the Device section went.
 
 - **The Transmissions header** reads its title, the selected row's name and the count of stored worlds (saves plus
   presets): "Transmissions · Harbour Song · 7", through one `fill` template. When New Transmission is selected the
   name is "New Transmission"; when Current is, "Current". The header holds one line at every width (the name wraps
   inside a fixed height with `text-overflow`), so opening and closing moves only the body.
-- **The Device header** reads "Device". Its body is the Factory Reset `Button` with its lore label, behind the
+- **Factory Reset** sits at the Transmissions section's foot, under the action row and set off from it by a rule: the
+  Factory Reset `Button` with its lore label, behind the
   `AlertDialog` confirm `SessionsPanel` has today (portalled into `ScreenViewport`, focus returned to the opener).
   On confirm: `localStorage.clear()`, `currentLoadedSessionName` to null, the saves re-read. The device flag goes
   with the rest of storage, so the screen re-reads `hasHeardWorld()` and shows the first-visit view at once
   (assumption 4).
 - **Focus after a power-off** (R25) lands on the Transmissions header when the list is collapsed, since the selected
   row is not in the DOM; on the selected row when it is open.
-- No `Accordion` and no `Collapsible` from Radix: the pair is two independent disclosures, which a button and a
+- No `Accordion` and no `Collapsible` from Radix: the section is a disclosure, which a button and a
   conditional render give without a dependency (assumption 6). `IntroPanel`'s expander is the precedent for an
   expander that is not an accordion.
 
@@ -247,7 +249,7 @@ with the features they named: `home.off.keep`, `home.off.keepFailed` (superseded
 ```text
 src/
 ├── components/panels/screen/screens/
-│   ├── OffScreen.tsx              # the editor, the two disclosures, the action row, Share, the Device confirm
+│   ├── OffScreen.tsx              # the editor, the Transmissions disclosure, the action row, Share, the Factory Reset confirm
 │   ├── OffScreen.test.tsx         # Keep / New Transmission row / Scan / warning cases rewritten; the new cases (§5)
 │   ├── OffScreen.css              # editor group, disclosure header, action row, status slot; warning rules removed
 │   └── FleetParamsScreen.tsx      # the eighth section (retirement)
@@ -349,7 +351,7 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
 **`OffScreen.test.tsx`** (the wash attached where a case needs a wait):
 
 1. **On open:** the editor shows the live world's style and coordinates; no row is New Transmission; Current is
-   checked; the Transmissions header is collapsed and names Current and the count; Device is collapsed.
+   checked; the Transmissions header is collapsed and names Current and the count; there is no other section.
 2. **Editor commit:** a typed name + Enter lands that world under Classic with no aspects, detaches the save, and the
    editor reads selected. An unchanged commit requests no world change. Blur commits as Enter does.
 3. **Editor sync:** a save pick lands → the editor shows the save's style and coordinates. Mid-edit, a landing pick
@@ -373,7 +375,7 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
 11. **Share:** copies the snapshot's payload on Current with a snapshot, else `buildSessionPayload()`; "copied" shows
     in the slot and is gone after the dismiss; dimmed while a change waits.
 12. **The eyebrow:** "Current · unsaved" while dirty, "Current" after a Save.
-13. **Device:** Factory Reset is behind the confirm; confirming clears storage, detaches, and the screen shows the
+13. **Factory Reset** (in the Transmissions section since Checkpoint A) is behind the confirm; confirming clears storage, detaches, and the screen shows the
     first-visit view.
 14. **Rewritten:** the Keep cases (spec assumption 14, Task 6), the New Transmission row and trailing Scan cases
     (Task 5), the warning line cases (R26) and R25's focus case are rewritten to these rules. Every R3, F12, Current
@@ -393,7 +395,7 @@ the loaded name attached (case 10); Share while waiting enabled (case 11); the h
 **Look (Crawford):** power off on a world. The editor shows it; type a new name, Enter: the wash, the new world,
 the editor selected, the header says New Transmission. Open Transmissions: no row checked. Pick a save: the editor
 follows, the header names the save. Click a theme: the save's label gains the tail. Save: the row stays, the eyebrow
-on Current unchanged. Rename it, Delete it: the editor is selected, holding its world. Share: "copied". Open Device,
+on Current unchanged. Rename it, Delete it: the editor is selected, holding its world. Share: "copied". Factory
 Reset, confirm: the first-visit screen. Power on: the live world plays. On a phone: the same, stacked, the header one
 line at 320 px.
 

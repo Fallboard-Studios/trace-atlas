@@ -57,8 +57,6 @@ export const home = {
   // ("New Transmission", "Current", or the save's or preset's name) and the count of stored worlds (saves plus presets).
   // Stand-in copy until Crawford's pass (backlog 62).
   'home.off.transmissionsHeader': { human: 'Transmissions', template: 'Transmissions · {name} · {count}' },
-  // The Device section's header (spec §1.4): over Factory Reset. Stand-in copy until Crawford's pass (backlog 62).
-  'home.off.device': { human: 'Device' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's
   // copy; this is the sketch's stand-in (docs/sketches/off-screen.html) until he writes it.
   'home.off.footer': {

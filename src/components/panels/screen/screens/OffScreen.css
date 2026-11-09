@@ -289,6 +289,20 @@
   width: 100%;
 }
 
+/* Factory Reset at the Transmissions section's foot (Checkpoint A: the Device section it had is gone), with the saves it
+   deletes: its label row over the button, centred, set off from the action row by a quiet rule — the list's divider's
+   weight — so it does not read as a fourth action on the selected row. */
+.off-screen__reset {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  margin-top: var(--spacing-sm);
+  padding-top: var(--spacing-md);
+  border-top: 1px solid rgba(207, 214, 220, 0.15);
+}
+
 /* The status slot (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6, spec §1.6), where the unsaved warning line was
    (docs/tasks/OFF_SCREEN.md Task 14; Current's eyebrow says unsaved now): a muted line under the readout, empty but
    for a failure. Small and quiet — the same etched grey as the hint. The line is always there and holds its height

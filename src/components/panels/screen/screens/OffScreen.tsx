@@ -105,10 +105,8 @@ const FOOTER = labels('home.off.footer').humanLabel;
  *  the schema carries the id alone; Disclosure makes it muted. */
 const TRANSMISSIONS_SCHEMA: ButtonSchema = { id: 'offTransmissions', type: 'button' };
 
-/** The Device section (spec §1.4): Factory Reset under its label row, behind SessionsPanel's confirm, read from the
- *  same content. */
-const DEVICE_SCHEMA: ButtonSchema = { id: 'offDevice', type: 'button' };
-const DEVICE = labels('home.off.device').humanLabel;
+/** Factory Reset (spec §1.4): under its label row, behind SessionsPanel's confirm, read from the same content. At the
+ *  foot of the Transmissions section, with the saves it deletes (Checkpoint A: the Device section it had is gone). */
 const RESET_LABELS = labels('session.clearStorage');
 const RESET_CONFIRM_TITLE = labels('session.clearStorage.confirmTitle').humanLabel;
 const RESET_CONFIRM_BODY = labels('session.clearStorage.confirmBody').humanLabel;
@@ -300,9 +298,9 @@ interface Intent {
  *
  * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its action row sit in a Disclosure that starts
  * collapsed on every mount — component state, never persisted — under a header naming the shown row (New Transmission,
- * Current, or the save's or preset's name) and the count of stored worlds, saves plus presets, read every render. Under
- * it, the Device section, collapsed the same way: Factory Reset behind SessionsPanel's confirm, portalled into the
- * screen. Confirmed, it clears all of localStorage and detaches the loaded save, and the gate is read again, so the
+ * Current, or the save's or preset's name) and the count of stored worlds, saves plus presets, read every render. At the
+ * section's foot, with the saves it deletes, Factory Reset behind SessionsPanel's confirm, portalled into the screen
+ * (it had a Device section of its own until Checkpoint A: nothing else was ever going in it). Confirmed, it clears all of localStorage and detaches the loaded save, and the gate is read again, so the
  * chooser gives way to the first-visit view at once (assumption 4).
  *
  * The gate (assumption 7) is read once on mount, as the saves are: a device that has never heard a world sees
@@ -423,9 +421,7 @@ export function OffScreen() {
   // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
   const [transmissionsOpen, setTransmissionsOpen] = useState(false);
   const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
-  // The Device section, the same way, and its Factory Reset confirm.
-  const [deviceOpen, setDeviceOpen] = useState(false);
-  const toggleDevice = useCallback(() => setDeviceOpen((open) => !open), []);
+  // Factory Reset's confirm.
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   // A modal Radix dialog gives focus back only to its own Trigger, and Reset is not one, so the button that opened it
   // is kept and focused again on close (SessionsPanel's way).
@@ -997,11 +993,11 @@ export function OffScreen() {
                       disabled={!actions.delete}
                     />
                   </div>
-                </Disclosure>
-                {/* The Device section (spec §1.4): Factory Reset under its label row, behind the confirm below. */}
-                <Disclosure schema={DEVICE_SCHEMA} title={DEVICE} open={deviceOpen} onToggle={toggleDevice}>
-                  <DualLabel loreLabel={RESET_LABELS.loreLabel} humanLabel={RESET_LABELS.humanLabel} />
-                  <Button schema={CLEAR_STORAGE_SCHEMA} face="single" onClick={openResetConfirm} />
+                  {/* Factory Reset (spec §1.4), with the saves: under its label row, behind the confirm below. */}
+                  <div className="off-screen__reset">
+                    <DualLabel loreLabel={RESET_LABELS.loreLabel} humanLabel={RESET_LABELS.humanLabel} />
+                    <Button schema={CLEAR_STORAGE_SCHEMA} face="single" onClick={openResetConfirm} />
+                  </div>
                 </Disclosure>
               </div>
               <div className="off-screen__axis">

@@ -2711,44 +2711,34 @@ describe('OffScreen — the Transmissions section (console Task 2)', () => {
   });
 });
 
-// docs/tasks/OFF_SCREEN_CONSOLE.md Task 3 (spec §1.4, assumption 4, §5 case 13): Factory Reset, behind its confirm, in
-// a Device section under Transmissions. Confirming clears every key, detaches the loaded save, and the screen gives way to
-// the first-visit view at once: the device flag went with the rest of storage.
-describe('OffScreen — the Device section (console Task 3)', () => {
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 3 (spec §1.4, assumption 4, §5 case 13): Factory Reset, behind its confirm.
+// Confirming clears every key, detaches the loaded save, and the screen gives way to the first-visit view at once: the
+// device flag went with the rest of storage. It sat in its own Device section until Checkpoint A (Crawford: nothing
+// else would go there, and it deletes the saves), so now it is with the saves, at the foot of the Transmissions section.
+describe('OffScreen — Factory Reset, with the saves (console Task 3; Checkpoint A)', () => {
   beforeEach(() => markHeardWorld());
   afterEach(() => document.getElementById('screen-viewport')?.remove());
-  const deviceHeader = () => screen.getByRole('button', { name: human('home.off.device') });
-  const openDevice = () => fireEvent.click(deviceHeader());
   const reset = () => screen.queryByRole('button', { name: human('session.clearStorage.action') });
   const dialog = () => screen.queryByRole('alertdialog');
   const confirm = () => fireEvent.click(within(dialog()!).getByRole('button', { name: human('session.clearStorage') }));
   const cancel = () => fireEvent.click(within(dialog()!).getByRole('button', { name: human('ui.cancel') }));
   const stored = () => [localStorage.getItem(STORAGE_KEY), localStorage.getItem(DEVICE_FLAGS_KEY)];
 
-  it('is collapsed on mount, under Transmissions, with no Reset in the DOM', () => {
-    render(<OffScreen />);
-    expect(deviceHeader().getAttribute('aria-expanded')).toBe('false');
+  it('there is no Device section: the Transmissions header is the only one, and Reset is hidden while it is collapsed', () => {
+    const { container } = render(<OffScreen />);
+    expect(container.querySelectorAll('.disclosure')).toHaveLength(1);
     expect(reset()).toBeNull();
-    expect(transmissionsHeader().compareDocumentPosition(deviceHeader()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
-  it('opening it shows Reset under its label row, Factory Reset over Clear Local Storage', () => {
+  it('opening Transmissions shows Reset in its body, after the action row, under its label row', () => {
     render(<OffScreen />);
-    openDevice();
-    expect(deviceHeader().getAttribute('aria-expanded')).toBe('true');
-    const body = document.getElementById(deviceHeader().getAttribute('aria-controls')!)!;
+    openTransmissions();
+    const body = document.getElementById(transmissionsHeader().getAttribute('aria-controls')!)!;
     expect(body.contains(reset())).toBe(true);
-    const label = body.querySelector('.sc-dual-label')!;
+    expect(actionsRow().compareDocumentPosition(reset()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const label = reset()!.closest('.off-screen__reset')!.querySelector('.sc-dual-label')!;
     expect(label.textContent).toContain(CONTENT['session.clearStorage'].lore);
     expect(label.textContent).toContain(human('session.clearStorage'));
-  });
-
-  it('opens on its own: Transmissions stays collapsed, and opening Transmissions leaves Device open', () => {
-    render(<OffScreen />);
-    openDevice();
-    expect(transmissionsHeader().getAttribute('aria-expanded')).toBe('false');
-    openTransmissions();
-    expect(deviceHeader().getAttribute('aria-expanded')).toBe('true');
   });
 
   it('Reset opens the confirm and clears nothing', () => {
@@ -2756,7 +2746,7 @@ describe('OffScreen — the Device section (console Task 3)', () => {
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     const before = stored();
-    openDevice();
+    openTransmissions();
     fireEvent.click(reset()!);
     expect(dialog()).not.toBeNull();
     expect(dialog()!.textContent).toContain(human('session.clearStorage.confirmTitle'));
@@ -2771,7 +2761,7 @@ describe('OffScreen — the Device section (console Task 3)', () => {
     localStorage.setItem('trace-atlas.other', 'kept until now');
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    openDevice();
+    openTransmissions();
     fireEvent.click(reset()!);
     confirm();
     expect(localStorage.length).toBe(0);
@@ -2787,7 +2777,7 @@ describe('OffScreen — the Device section (console Task 3)', () => {
   it('confirming requests no world change and applies nothing: the paused world stands', () => {
     const request = vi.spyOn(worldChange, 'requestWorldChange');
     render(<OffScreen />);
-    openDevice();
+    openTransmissions();
     fireEvent.click(reset()!);
     confirm();
     expect(request).not.toHaveBeenCalled();
@@ -2801,7 +2791,7 @@ describe('OffScreen — the Device section (console Task 3)', () => {
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     const before = stored();
-    openDevice();
+    openTransmissions();
     fireEvent.click(reset()!);
     cancel();
     expect(dialog()).toBeNull();
@@ -2816,21 +2806,21 @@ describe('OffScreen — the Device section (console Task 3)', () => {
     viewport.id = 'screen-viewport';
     document.body.appendChild(viewport);
     render(<OffScreen />);
-    openDevice();
+    openTransmissions();
     fireEvent.click(reset()!);
     expect(viewport.contains(dialog())).toBe(true);
   });
 
   it('with no screen the confirm opens in place, never as a child of <body>', () => {
     const { container } = render(<OffScreen />);
-    openDevice();
+    openTransmissions();
     fireEvent.click(reset()!);
     expect(container.contains(dialog())).toBe(true);
   });
 
   it('Escape closes the confirm and gives focus back to Reset', async () => {
     render(<OffScreen />);
-    openDevice();
+    openTransmissions();
     const opener = reset()!;
     act(() => opener.focus());
     fireEvent.click(opener);
