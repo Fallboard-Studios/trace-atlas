@@ -159,6 +159,17 @@ describe('CoordsInput', () => {
     expect(container.querySelectorAll('.sc-text-input-facade')).toHaveLength(2);
   });
 
+  // docs/tasks/OFF_SCREEN_CONSOLE.md, Checkpoint A: facade={false} reaches both fields, for a caller whose own panel frames
+  // them (the off screen's New Transmission editor).
+  it('facade={false} draws neither field’s facade, and the fields still edit', () => {
+    const onChange = vi.fn();
+    const { container } = render(<CoordsInput schema={schema} value={{ x: 1, y: 2 }} onChange={onChange} facade={false} />);
+    expect(container.querySelectorAll('.sc-text-input-facade')).toHaveLength(0);
+    expect(container.querySelectorAll('.sc-text-input')).toHaveLength(2);
+    fireEvent.change(screen.getAllByRole('spinbutton')[0], { target: { value: '7' } });
+    expect(onChange).toHaveBeenCalledWith({ x: 7, y: 2 });
+  });
+
   describe('React.memo (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md Task 9)', () => {
     it('is a React.memo-wrapped component', () => {
       expect((CoordsInput as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));

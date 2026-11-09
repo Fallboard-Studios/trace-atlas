@@ -17,6 +17,8 @@ interface CoordsInputProps {
   schema: CoordsInputSchema;
   value: CoordsValue;
   onChange: (value: CoordsValue) => void;
+  /** Passed to both fields' TextInput: false drops their facades, for a caller whose own panel frames them. */
+  facade?: boolean;
 }
 
 /** One field's entry as a coordinate: null when it is blank, undefined when it is no coordinate the world can hold. A
@@ -39,7 +41,7 @@ function coordinateOf(raw: string): number | null | undefined {
  * onChange with null for its axis; an entry past the safe integers does not
  * call onChange.
  */
-function CoordsInputInner({ schema, value, onChange }: CoordsInputProps) {
+function CoordsInputInner({ schema, value, onChange, facade = true }: CoordsInputProps) {
   const xSchema: TextInputSchema = { id: `${schema.id}.x`, type: 'textInput', ...labels('sector.coords.x') };
   const ySchema: TextInputSchema = { id: `${schema.id}.y`, type: 'textInput', ...labels('sector.coords.y') };
 
@@ -57,8 +59,8 @@ function CoordsInputInner({ schema, value, onChange }: CoordsInputProps) {
     <div className="sc-coords-input">
       <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
       <div className="sc-coords-input__fields">
-        <TextInput schema={xSchema} value={value.x === null ? '' : String(value.x)} onChange={handleX} numeric />
-        <TextInput schema={ySchema} value={value.y === null ? '' : String(value.y)} onChange={handleY} numeric />
+        <TextInput schema={xSchema} value={value.x === null ? '' : String(value.x)} onChange={handleX} numeric facade={facade} />
+        <TextInput schema={ySchema} value={value.y === null ? '' : String(value.y)} onChange={handleY} numeric facade={facade} />
       </div>
     </div>
   );
