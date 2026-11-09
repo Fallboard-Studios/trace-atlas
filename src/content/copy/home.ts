@@ -52,10 +52,6 @@ export const home = {
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
-  // The Transmissions section's header (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the section, the selected row's name
-  // ("New Transmission", "Current", or the save's name) and the count of saves.
-  // Stand-in copy until Crawford's pass (backlog 62).
-  'home.off.transmissionsHeader': { human: 'Transmissions', template: 'Transmissions · {name} · {count}' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's
   // copy; this is the sketch's stand-in (docs/sketches/off-screen.html) until he writes it.
   'home.off.footer': {

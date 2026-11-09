@@ -717,6 +717,16 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
     Task 11's look came from a hand-written fixture with no `globalAudio` at all, which no app save lacks. Not filed.
   - Seen in the look, for Crawford: Factory Reset's button is the full cabinet face (`CLEAR_STORAGE_SCHEMA` is not
     muted), as it was in Device; under the saves it now stands out more than the flat action row.
+  - **The list's show/hide toggle is gone** (Crawford: "we no longer need to show/hide the sessions"): the list, the
+    action row and Factory Reset show on every mount in a plain `.off-screen__transmissions` block, with no header.
+    `Disclosure.tsx`, its test, its CSS and `home.off.transmissionsHeader` are deleted, and so is the
+    `openTransmissions()` helper threaded through 179 cases. Focus after a power-off is back on the selected row (R25's
+    original rule); a confirmed Delete puts it on Save, the button beside Delete, always lit on New Transmission. The
+    header's name and count are gone with it: the checked row and the readout name the pick. Factory Reset's cabinet
+    button now shows on open (the "only the aspect rows pop" case counts it). Proof: RED test (the list shown with no
+    click and no header; the two R25 cases; Delete's focus); mutants killed (power-off focus on an unchecked row, Delete's
+    focus on the action row's last button); a third, power-off focus on the list's first radio, survives as equivalent
+    (Current is always first and checked on mount). Spec §1.1, §1.2, §1.3, §1.4, §1.5, §1.8, §2, §5 amended.
 
 ---
 

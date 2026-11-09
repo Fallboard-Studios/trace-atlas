@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { useGSAP } from '@gsap/react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import { Disclosure } from './Disclosure';
 import { TransmissionEditor, type EditorIdentity } from './TransmissionEditor';
 import { actionRow, type ActionRowKind } from './offScreenActions';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
@@ -98,10 +97,6 @@ const COPY_FAILED = labels('session.status.copyFailed').humanLabel;
 /** Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): what the standing warning said. */
 const UNSAVED_EYEBROW = labels('home.off.unsavedEyebrow').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
-
-/** The Transmissions section's header (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): its face is a fill of its template, so
- *  the schema carries the id alone; Disclosure makes it muted. */
-const TRANSMISSIONS_SCHEMA: ButtonSchema = { id: 'offTransmissions', type: 'button' };
 
 /** Factory Reset (spec §1.4): under its label row, behind SessionsPanel's confirm, read from the same content. At the
  *  foot of the Transmissions section, with the saves it deletes (Checkpoint A: the Device section it had is gone). */
@@ -297,9 +292,8 @@ interface Intent {
  * Transmission pick of the typed world; Scan, in its title row, draws one and picks it the same way. No row carries New
  * Transmission, so while it is the shown pick no row is checked and the editor wears the selected state.
  *
- * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its action row sit in a Disclosure that starts
- * collapsed on every mount — component state, never persisted — under a header naming the shown row (New Transmission,
- * Current, or the save's name) and the count of saves, read every render. At the
+ * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its action row, always shown (they sat
+ * in a collapsible section under a header naming the shown row until Checkpoint A dropped the toggle). At the
  * section's foot, with the saves it deletes, Factory Reset behind SessionsPanel's confirm, portalled into the screen
  * (it had a Device section of its own until Checkpoint A: nothing else was ever going in it). Confirmed, it clears all of localStorage and detaches the loaded save, and the gate is read again, so the
  * chooser gives way to the first-visit view at once (assumption 4).
@@ -420,9 +414,6 @@ export function OffScreen() {
   const [renaming, setRenaming] = useState<string | null>(null);
   // Share's copy and its auto-dismissing status (spec §1.6), the Sessions panel's hook.
   const { shareStatus, share } = useShareStatus();
-  // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
-  const [transmissionsOpen, setTransmissionsOpen] = useState(false);
-  const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
   // Factory Reset's confirm.
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
   // A modal Radix dialog gives focus back only to its own Trigger, and Reset is not one, so the button that opened it
@@ -557,13 +548,9 @@ export function OffScreen() {
   const selectedLoading = edited ? describeLoading(shownTheme, shownAspects, { nameTheme: shownTheme !== own.theme }) : null;
   const selectedValue = shownPick.value;
 
-  // The Transmissions header names the shown row — New Transmission, Current, or the save's name — and the count of
-  // saves, read every render so a pick or a save shows at once (spec §1.4).
+  // The shown row's name — New Transmission, Current, or the save's — which the action row's buttons are named after
+  // (spec §1.5).
   const shownName = selectedValue === NEW_VALUE ? NEW_TRANSMISSION : 'name' in shownPick ? shownPick.name : CURRENT.humanLabel;
-  const transmissionsTitle = fill('home.off.transmissionsHeader', {
-    name: shownName,
-    count: String(saves.length),
-  });
 
   // The action row (spec §1.5): the dim matrix of the shown row, the live world's dirty read — Save writes the live world,
   // and Current is selected only with no snapshot, when Current's read is the same one — and the waiting change, under
@@ -711,13 +698,13 @@ export function OffScreen() {
 
   // After a power-off the chooser takes the focus, so keyboard and screen-reader users land in it rather than on a
   // readout that mounted already filled (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25; Crawford, its Open Question 5):
-  // on the Transmissions header, which names the selected row, since the list starts collapsed on every mount and its
-  // rows are not in the DOM (docs/specs/OFF_SCREEN_CONSOLE.md §1.4). The world tells a power-off from a fresh page:
-  // pause() writes 'paused' in the same call that flips the power flag, before this mounts, and a fresh page is 'cold',
-  // which leaves the focus where it is. A first visit renders no header, so nothing is found to take it.
+  // on the list's selected row (the Transmissions header took it while the list was collapsible, until Checkpoint A).
+  // The world tells a power-off from a fresh page: pause() writes 'paused' in the same call that flips the power flag,
+  // before this mounts, and a fresh page is 'cold', which leaves the focus where it is. A first visit renders no rows,
+  // so nothing is found to take it.
   useEffect(() => {
     if (getWorldState() !== 'paused') return;
-    rootRef.current?.querySelector<HTMLElement>(`.disclosure--${TRANSMISSIONS_SCHEMA.id} > button`)?.focus();
+    rootRef.current?.querySelector<HTMLElement>('.sc-radio-button--list [role="radio"][aria-checked="true"]')?.focus();
   }, []);
 
   // Scan (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): a new draw, then exactly a pick of it as New Transmission, from
@@ -826,13 +813,13 @@ export function OffScreen() {
     if (deleting !== null) deleteSave(deleting);
     setDeleting(null);
   };
-  // The focus goes back to Delete when it is still lit (a cancel), else to the Transmissions header: a confirmed Delete
-  // leaves New Transmission selected, where Delete is dimmed.
+  // The focus goes back to Delete when it is still lit (a cancel), else to Save beside it, the action row's first: a
+  // confirmed Delete leaves New Transmission selected, where Delete is dimmed and Save is always lit.
   const returnDeleteFocus = useCallback((event: Event) => {
     event.preventDefault();
     const opener = deleteOpenerRef.current;
     if (opener instanceof HTMLButtonElement && opener.isConnected && !opener.disabled) opener.focus();
-    else rootRef.current?.querySelector<HTMLElement>(`.disclosure--${TRANSMISSIONS_SCHEMA.id} > button`)?.focus();
+    else rootRef.current?.querySelector<HTMLElement>('.off-screen__actions button')?.focus();
   }, []);
 
   // The list's trailing slot (RadioButton's): Rename's input on the save being renamed, nothing on any other row.
@@ -962,14 +949,9 @@ export function OffScreen() {
                   onCommit={pickNew}
                   onScan={onScan}
                 />
-                {/* The Transmissions section (spec §1.4): the list and its actions, under a header naming the selected
-                    row, collapsed until opened. */}
-                <Disclosure
-                  schema={TRANSMISSIONS_SCHEMA}
-                  title={transmissionsTitle}
-                  open={transmissionsOpen}
-                  onToggle={toggleTransmissions}
-                >
+                {/* The Transmissions section (spec §1.4): the list, its actions and Factory Reset, always shown (no
+                    toggle since Checkpoint A). */}
+                <div className="off-screen__transmissions">
                   <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={trailing} />
                   <div className="off-screen__actions">
                     <Button
@@ -1007,7 +989,7 @@ export function OffScreen() {
                     <DualLabel loreLabel={RESET_LABELS.loreLabel} humanLabel={RESET_LABELS.humanLabel} />
                     <Button schema={CLEAR_STORAGE_SCHEMA} face="single" onClick={openResetConfirm} />
                   </div>
-                </Disclosure>
+                </div>
               </div>
               <div className="off-screen__axis">
                 <RadioButton schema={THEME_SCHEMA} value={shownTheme} onChange={onThemeChange} />

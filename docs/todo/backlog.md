@@ -808,7 +808,8 @@ every mount; Save on a preset or New Transmission moves the selection to the new
 **Amended at Checkpoint A** (Crawford, 2026-11-09; the plan's Checkpoint A records each change): the presets are gone
 (the list is Current and the saves); the Device section is gone, Factory Reset sits at the Transmissions section's foot;
 Delete asks first, in a modal confirm; Share is the fourth button in the action row, not beside the readout; the
-editor's three fields share one panel; `sessionStore.keepWorld` is cut. Module B goes on a branch of its own after
+editor's three fields share one panel; `sessionStore.keepWorld` is cut; the list's show/hide toggle is gone (the list,
+the action row and Factory Reset always show). Module B goes on a branch of its own after
 this one merges, and may also retire the Companies nav item (not yet planned).
 
 **Status:** spec approved 2026-11-08; the sketch frame drafted in `docs/sketches/off-screen.html` (frame F); plan

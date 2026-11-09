@@ -34,7 +34,7 @@ along the line between them. Crawford asked for one spec file; this is it, in tw
 
 | Module id | Responsibility | Depends on |
 |---|---|---|
-| `off-screen-console` | The off screen's left column: the New Transmission editor, the collapsible Transmissions list, the action row with Share in it, Factory Reset with the saves. §1.1–§1.8. | — |
+| `off-screen-console` | The off screen's left column: the New Transmission editor, the Transmissions list (collapsible until Checkpoint A), the action row with Share in it, Factory Reset with the saves. §1.1–§1.8. | — |
 | `settings-retirement` | Audio Quality moves to Fleet Params; the Settings branch, `SettingsScreen`, `SectorSettingsDrawer`, `SessionsPanel` and `SessionListItem` leave; docs follow. §1.9. | `off-screen-console` (nothing is removed until the off screen does its job) |
 
 Build order: `off-screen-console` → `settings-retirement`. The first part is complete and reviewable before the second
@@ -64,15 +64,18 @@ left column, then the right, as today.
 │ New Transmission            [Scan]  │  │ Trace Type · select one            │
 │ [ style name          ] [x   ][y  ] │  │ (theme row)                        │
 │                                     │  │ (theme description)                │
-│ ▸ Transmissions · Harbour Song · 5  │  │ Trace Aspects · select many        │
-│   (collapsed; open: the list)       │  │ (six family rows + descriptions)   │
-│   [Save] [Rename] [Delete] [Share]  │  │                                    │
-│   ─────────────────────────────     │  │                                    │
-│   Factory Reset  [Clear …]          │  │                                    │
+│ Transmission                        │  │ Trace Aspects · select many        │
+│ (• Current, then the saves)         │  │ (six family rows + descriptions)   │
+│ [Save] [Rename] [Delete] [Share]    │  │                                    │
+│ ─────────────────────────────       │  │                                    │
+│ Factory Reset  [Clear …]            │  │                                    │
 └─────────────────────────────────────┘  └────────────────────────────────────┘
                [ AS · (x, y) · Theme · aspects ]
           (status slot: "copied" / a failure line / empty, height held)
 ```
+
+(As built after Checkpoint A: the list shows with no header over it; it sat behind a collapsed "▸ Transmissions ·
+Harbour Song · 5" header until the toggle went.)
 
 The right column's content and behaviour are unchanged by this spec: the theme row, its description, the aspects title
 and the six family rows do what [UI_SHELL.md](../UI_SHELL.md#the-off-screen) says. Nothing here touches the Loading
@@ -109,7 +112,7 @@ three, else X and Y in one row under the name.
   go, from any selected row.
 - **Selected state.** New Transmission is selected when the last landed or waiting world is the editor's (the pick's
   value is `NEW_VALUE`, which no list row carries, so no row is checked). The editor group wears the list row's
-  selected fill (`data-selected`) in that state and the collapsed header names "New Transmission" (§1.4). A theme or
+  selected fill (`data-selected`) in that state ~~and the collapsed header names "New Transmission" (§1.4)~~ (no header since Checkpoint A). A theme or
   family click with New Transmission selected keeps it selected and edits the live world in place, as for any other
   row.
 - **The wash rule (R3) stands.** A commit made while a change waits joins the waiting intent, the last world click
@@ -117,7 +120,7 @@ three, else X and Y in one row under the name.
 
 ### 1.3 One list of every world you could load
 
-Inside the collapsible Transmissions section (§1.4), one `RadioButton` in the `list` appearance:
+Inside the Transmissions section (§1.4; collapsible until Checkpoint A), one `RadioButton` in the `list` appearance:
 
 1. **Current**, first: the world you powered off on. Its eyebrow (`loreLabel`) reads "Current" while a save matches
    it, and "Current · unsaved" while none does (the dirty read: `isWorldDirty()` with no snapshot,
@@ -135,7 +138,13 @@ Inside the collapsible Transmissions section (§1.4), one `RadioButton` in the `
 
 Re-clicking the selected row does nothing. The address bar follows every landed world (`mirrorWorldToUrl`) as today.
 
-### 1.4 The collapsible section
+### 1.4 The ~~collapsible~~ section
+
+**Amended at Checkpoint A (Crawford, 2026-11-09: "we no longer need to show/hide the sessions"): the toggle is gone.**
+The section is a plain block (`.off-screen__transmissions`): the list, the action row and Factory Reset show on every
+mount, with no header over them; `Disclosure.tsx` and `home.off.transmissionsHeader` went with it. Focus after a
+power-off (R25) lands on the selected row again (Current, on every mount). What follows describes the toggle as built
+and is superseded.
 
 One section in the left column, under the editor: **Transmissions** (the list, the action row, and Factory Reset at its
 foot). It is a header `Button` (muted, single face, `aria-expanded`, `aria-controls`) over a body that is in the DOM
@@ -192,8 +201,8 @@ Share (§1.6) is enabled on every row and dimmed only while a change waits. The 
   The list re-reads; the row stays selected under its new name.
 - **Delete** asks first: a modal `AlertDialog` naming the save (`session.delete.confirmTitle` / `confirmBody`, the
   Sessions list's copy), placed as Factory Reset's confirm is; Cancel or Escape leaves everything and gives the focus
-  back to Delete. Confirmed, the save goes (`deleteNamedSession`) and the focus lands on the Transmissions header, since
-  Delete is dimmed on New Transmission. **Amended at Checkpoint A (Crawford, 2026-11-09):** the intent had no confirm.
+  back to Delete. Confirmed, the save goes (`deleteNamedSession`) and the focus lands on ~~the Transmissions header~~ Save
+  beside it (since the header went at Checkpoint A), since Delete is dimmed on New Transmission. **Amended at Checkpoint A (Crawford, 2026-11-09):** the intent had no confirm.
   The live world
   stands. If the deleted save was the loaded one, `detachLoadedSession()`; if it was the snapshot's, the snapshot's
   `loadedName` goes null (Current reads "unsaved"). The selection, now matching no row, falls to New Transmission: the
@@ -231,7 +240,8 @@ row).
 ### 1.8 Content
 
 New entries in `src/content/copy/home.ts`, every one a stand-in until Crawford's copy (backlog 62): the Transmissions
-header template (`home.off.transmissionsHeader`, "Transmissions · {name} · {count}"), ~~`home.off.device`~~ (gone
+header template (`home.off.transmissionsHeader`, "Transmissions · {name} · {count}"; gone with the toggle at
+Checkpoint A), ~~`home.off.device`~~ (gone
 with the Device section at Checkpoint A), `home.off.save`, `home.off.rename`, `home.off.delete`, `home.off.share`, `home.off.unsavedEyebrow` ("Current ·
 unsaved"), `home.off.renameTaken` ("a save already has that name"). Reused from elsewhere: `sector.attenuationStyle`,
 `sector.coords`, `sector.coords.x`, `sector.coords.y` for the editor's inputs; `session.clearStorage` and its confirm
@@ -271,10 +281,10 @@ them at Checkpoint A. §1.9 lists the retirement's removals.
 ```text
 src/
 ├── components/panels/screen/screens/
-│   ├── OffScreen.tsx              # the editor, the Transmissions disclosure, the action row, Share, the Factory Reset confirm
+│   ├── OffScreen.tsx              # the editor, the Transmissions section, the action row, Share, the Factory Reset confirm
 │   ├── OffScreen.test.tsx         # Keep / New Transmission row / Scan / warning cases rewritten; the new cases (§5)
-│   ├── OffScreen.css              # editor group, disclosure header, action row, status slot; warning rules removed
-│   ├── Disclosure.tsx (+ test)    # as built: the header button and its lazy body
+│   ├── OffScreen.css              # editor group, the section, action row, status slot; warning rules removed
+│   ├── Disclosure.tsx (+ test)    # as built, then deleted at Checkpoint A with the toggle
 │   ├── TransmissionEditor.tsx (+ test)  # as built: the editor, its draft sync and commit
 │   ├── transmissionEditorSchemas.ts     # as built: the two input schemas (fast refresh keeps them out of the .tsx)
 │   ├── offScreenActions.ts (+ test)     # as built: the pure dim matrix (§1.5)
@@ -382,7 +392,8 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
 **`OffScreen.test.tsx`** (the wash attached where a case needs a wait):
 
 1. **On open:** the editor shows the live world's style and coordinates; no row is New Transmission; Current is
-   checked; the Transmissions header is collapsed and names Current and the count; there is no other section.
+   checked; ~~the Transmissions header is collapsed and names Current and the count~~ the list, the action row and
+   Factory Reset show with no click (Checkpoint A); there is no other section.
 2. **Editor commit:** a typed name + Enter lands that world under Classic with no aspects, detaches the save, and the
    editor reads selected. An unchanged commit requests no world change. Blur commits as Enter does.
 3. **Editor sync:** a save pick lands → the editor shows the save's style and coordinates. Mid-edit, a landing pick
@@ -390,8 +401,10 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
 4. **Scan:** draws into both inputs and lands, from any selected row; a second Scan draws again.
 5. **The waiting intent:** an editor commit while a change waits joins it (last click wins); the editor shows the
    intent's identity while it waits.
-6. **The header:** opening reveals the list with the selected row checked; the header's text names the selected row
-   and updates on a pick; collapsing keeps the pick. Focus after a power-off lands on the header when collapsed.
+6. ~~**The header:** opening reveals the list with the selected row checked; the header's text names the selected row
+   and updates on a pick; collapsing keeps the pick. Focus after a power-off lands on the header when collapsed.~~
+   Superseded at Checkpoint A: there is no header and nothing collapses; focus after a power-off lands on the selected
+   row.
 7. **The dim matrix:** every row of §1.5's table, Save / Rename / Delete / Share `disabled` as it says, including all
    four dimmed while a change waits.
 8. **Save:** on Current saves the live world (~~with a snapshot saves the snapshot~~: unreachable, §1.5); on an
@@ -424,11 +437,10 @@ Quality.
 the loaded name attached (case 10); Share while waiting enabled (case 11); the header text frozen on mount (case 6).
 
 **Look (Crawford):** power off on a world. The editor shows it; type a new name, Enter: the wash, the new world,
-the editor selected, the header says New Transmission. Open Transmissions: no row checked. Pick a save: the editor
-follows, the header names the save. Click a theme: the save's label gains the tail. Save: the row stays, the eyebrow
-on Current unchanged. Rename it, Delete it: the editor is selected, holding its world. Share: "copied". Factory
-Reset, confirm: the first-visit screen. Power on: the live world plays. On a phone: the same, stacked, the header one
-line at 320 px.
+the editor selected, no row checked. Pick a save: the editor follows, the row is checked. Click a theme: the save's
+label gains the tail. Save: the row stays, the eyebrow on Current unchanged. Rename it, Delete it: the editor is
+selected, holding its world. Share: "copied". Factory Reset, confirm: the first-visit screen. Power on: the live world
+plays. On a phone: the same, stacked, at 320 px. (Amended at Checkpoint A: no header to open or read.)
 
 **Gates:** `npm run build:types`, `npm run lint` and `npm test` clean, and `npm run build` clean. Checkpoints between
 the two modules and before the retirement's deletions, each a look by Crawford.

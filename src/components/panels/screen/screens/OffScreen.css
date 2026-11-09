@@ -242,55 +242,17 @@
   text-wrap: balance;
 }
 
-/* The two collapsible sections (docs/tasks/OFF_SCREEN_CONSOLE.md Task 11, spec §1.4; the sketch's frame F): each takes
-   the column's full width, and so does its body, so the list inside it does too (docs/tasks/OFF_SCREEN_REVISIONS.md
-   Task 5) — a row truncates only past the column, never past its own content. */
-.off-screen__axis > .disclosure {
+/* The Transmissions section (docs/tasks/OFF_SCREEN_CONSOLE.md Task 11, spec §1.4; the sketch's frame F): the list, its
+   action row and Factory Reset, always shown since Checkpoint A dropped the toggle. It takes the column's full width,
+   so the list inside it does too (docs/tasks/OFF_SCREEN_REVISIONS.md Task 5) — a row truncates only past the column,
+   never past its own content. */
+.off-screen__transmissions {
   align-self: stretch;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-sm);
   min-width: 0;
-}
-
-.off-screen .disclosure__body {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-sm);
-  width: 100%;
-}
-
-/* The header: one line at every width, at the muted face's own fixed height, the column's full width, flat. A name past
-   the line ends in an ellipsis rather than widening the column (the whole name is the header's accessible name, and the
-   readout's); a caret before it says the section opens. */
-.off-screen .disclosure > .sc-button {
-  width: 100%;
-  min-width: 0;
-}
-
-.off-screen .disclosure > .sc-button .sc-button__flat {
-  width: 100%;
-  min-width: 0;
-  justify-content: flex-start;
-  gap: 8px;
-}
-
-.off-screen .disclosure > .sc-button .sc-button__flat::before {
-  content: '▸';
-  flex: none;
-  color: var(--color-text-muted);
-}
-
-.off-screen .disclosure > .sc-button[aria-expanded='true'] .sc-button__flat::before {
-  content: '▾';
-}
-
-.off-screen .disclosure > .sc-button .sc-button__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 /* Rename's input (docs/tasks/OFF_SCREEN_CONSOLE.md Task 8, spec §1.5): in the trailing slot of the save being renamed,
