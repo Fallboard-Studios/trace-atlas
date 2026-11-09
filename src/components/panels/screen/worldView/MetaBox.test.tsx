@@ -153,7 +153,7 @@ describe('MetaBox — the Deck’s well on the desk shell', () => {
     ]);
   });
 
-  it.each(['robots', 'audioRig', 'settings', 'companies'] as const)('renders nothing while %s is open (the breadcrumb has the corner)', (tile) => {
+  it.each(['robots', 'audioRig', 'companies'] as const)('renders nothing while %s is open (the breadcrumb has the corner)', (tile) => {
     useUIStore.setState({ activeHubTile: tile });
     const { container } = render(<MetaBox />);
     expect(container.firstChild).toBeNull();

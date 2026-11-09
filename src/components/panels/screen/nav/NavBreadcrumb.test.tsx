@@ -281,7 +281,7 @@ describe('NavBreadcrumb — where it renders, by shell', () => {
   });
 
   it('on the desk shell it is the positioned well, not the bar variant', () => {
-    setNav({ activeHubTile: 'settings' });
+    setNav({ activeHubTile: 'audioRig' });
     render(<NavBreadcrumb />);
     expect(crumb().classList.contains('nav-breadcrumb--bar')).toBe(false);
   });

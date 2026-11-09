@@ -339,10 +339,10 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
   });
 
   it('touches no other nav field', () => {
-    useUIStore.setState({ activeHubTile: 'audioRig', selectedSettingsLeaf: 'quality', selectedSection: 'source' });
+    useUIStore.setState({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'companies', selectedSection: 'source' });
     useUIStore.getState().setFleetParamsSection('output');
     useUIStore.getState().setFleetParamsSubsection('limiter');
-    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', selectedSettingsLeaf: 'quality', selectedSection: 'source' });
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'companies', selectedSection: 'source' });
   });
 
   it('stays JSON-serialisable', () => {
@@ -363,8 +363,8 @@ describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes
   });
 
   it('setExpandedTopLevelBranch sets one of the 4 top-level branches, replacing any other', () => {
-    useUIStore.getState().setExpandedTopLevelBranch('settings');
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('settings');
+    useUIStore.getState().setExpandedTopLevelBranch('probes');
+    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
     useUIStore.getState().setExpandedTopLevelBranch('fleetParams');
     expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
   });

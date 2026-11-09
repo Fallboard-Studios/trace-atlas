@@ -362,10 +362,10 @@ describe('worldTransition', () => {
     });
 
     it('clears selectedRobotId but leaves activeHubTile untouched', () => {
-      useUIStore.setState({ selectedRobotId: 'some-robot', activeHubTile: 'settings' });
+      useUIStore.setState({ selectedRobotId: 'some-robot', activeHubTile: 'audioRig' });
       retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
       expect(useUIStore.getState().selectedRobotId).toBeNull();
-      expect(useUIStore.getState().activeHubTile).toBe('settings');
+      expect(useUIStore.getState().activeHubTile).toBe('audioRig');
     });
 
     // Companies are regenerated with fresh ids on a reseed, so a previously selected company id

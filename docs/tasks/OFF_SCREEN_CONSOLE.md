@@ -803,7 +803,156 @@ cover yet: plan that before Task 12 starts.
 
   **Estimated scope:** S (nine one-line edits)
 
+  **As built (2026-11-09):** eight files, not nine: `ConsolePanel.test.tsx`'s only `'settings'` is the Settings tile
+  case itself, so Task 14 takes it. A stand-in tile became `'audioRig'` (or `'companies'` where `'audioRig'` was
+  already the step before); the `MetaBox` and `WorldView` tile lists drop `'settings'` instead, the other three still
+  listed; `uiStore.test.ts`'s "touches no other nav field" case pins `expandedTopLevelBranch` in place of
+  `selectedSettingsLeaf`, and its expand case sets `'probes'`. The eight files: 460 pass, before and after.
+
 - [ ] **Task 14: The Settings branch leaves the nav; `SettingsScreen` is deleted**
+
+  **Description:** Spec §1.9 (second and third bullets, the screen). `'settings'` leaves `HubTile` (`src/types/hub.ts`),
+  `TopLevelBranch`, `SettingsLeaf`, `selectedSettingsLeaf` and `setSelectedSettingsLeaf` (`uiStore.ts`);
+  `navActions.ts` loses `BRANCH_TILE.settings`, `TILE_CONTENT.settings`, `SETTINGS_LEAVES`, `SETTINGS_LEAF_CONTENT`,
+  `DEFAULT_SETTINGS_LEAF`, `activeSettingsLeaf`, `cleanSlate`'s leaf reset and the breadcrumb's Settings arm;
+  `BreadcrumbState` drops the field. `NavPanel.tsx`'s `PARENT_BOXES` loses the fifth row. `ConsolePanel.tsx`'s record
+  loses `settings` and the import. Deleted: `SettingsScreen.tsx`, `.css`, `SettingsScreen.test.tsx`,
+  `SettingsScreen.panels.test.tsx`. `settings.ts` is deleted (its remaining keys `settings.root`, `settings.seeds`,
+  `settings.sessions` have no reader), `CONTENT_AREAS` drops `'settings'` and `index.test.ts` line 183 follows. Tests:
+  `NavPanel.test.tsx` (`BOX_ORDER` four boxes, the Settings rows of its tables, the `it.each` lists),
+  `navActions.test.ts` (the Settings leaf cases), `uiStore.test.ts` (the `selectedSettingsLeaf` block and the field
+  list), `NavBreadcrumb.test.tsx` (the Settings path), `ConsolePanel.test.tsx` (the Settings tile case).
+
+  **Proof:** RED test — `NavPanel.test.tsx` (four parent boxes, Deck, Fleet Params, Probes, Companies, in order; no box
+  named Settings) and `uiStore.test.ts` (the store has no `selectedSettingsLeaf` field and no setter, the way the
+  `selectedSettingsSubsection` case already pins a retired field).
+
+  **Acceptance criteria:**
+  - [ ] `npm run build:types` passes with `'settings'` gone from every union: a missing tile is a compile error the
+        record catches (spec §7 risk 3), so nothing routes to it.
+  - [ ] `src/content/copy/settings.ts` does not exist; `content.test.ts` passes.
+
+  **Verification:**
+  - [ ] Module B's focused run and `npm test` pass.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 13. **Files:** `src/types/hub.ts`, `src/stores/uiStore.ts`, `uiStore.test.ts`,
+  `src/components/panels/screen/nav/navActions.ts`, `navActions.test.ts`, `NavPanel.tsx`, `NavPanel.test.tsx`,
+  `NavBreadcrumb.test.tsx`, `src/components/panels/screen/console/ConsolePanel.tsx`, `ConsolePanel.test.tsx`,
+  `src/components/panels/screen/screens/SettingsScreen.*` (deleted), `src/content/copy/settings.ts` (deleted),
+  `src/content/types.ts`, `src/content/index.test.ts`
+
+  **Estimated scope:** L (fourteen files, but every edit is a deletion or a one-row table change; splitting would
+  leave the build red between commits because the `HubTile` union and `ConsolePanel`'s record must change together)
+
+- [ ] **Task 15: Foundry, Save & Share and their configs go; `useShareStatus` moves to `src/hooks/`**
+
+  **Description:** Spec §1.9 (the deleted list), assumption 9. Deleted: `SectorSettingsDrawer.tsx/.css/.test.tsx`,
+  `SessionsPanel.tsx/.css/.test.tsx`, `SessionListItem.tsx/.css/.test.tsx`, `src/data/sectorSettingsConfig.ts` (the two
+  input schemas already live in `transmissionEditorSchemas.ts` since Task 4; the config's re-export of them goes with
+  it). `src/data/sessionConfig.ts` keeps
+  `CLEAR_STORAGE_SCHEMA` only. `session.ts` keeps `session.clearStorage`, `.action`, `.confirmTitle`, `.confirmBody`,
+  `session.delete.confirmTitle` and `.confirmBody` (the off screen's Delete confirm, Checkpoint A),
+  `session.status.linkCopied`, `.copyFailed`, `.saveFailed`. `sector.ts` keeps `sector.attenuationStyle`,
+  `sector.coords`, `sector.coords.x`, `sector.coords.y`. `useShareStatus.ts` and `useShareStatus.test.ts` move to
+  `src/hooks/` (a new folder); `OffScreen.tsx` imports from there. The old `clear-storage-confirm__*` rules in
+  `SessionsPanel.css` go with the file (Task 3 copied them to `OffScreen.css`).
+
+  **Proof:** Read — a deletion-only task gets no test (CLAUDE.md). The moved hook's test runs from its new path. The
+  proof is `npm run build:types` (no dangling import) and `content.test.ts` (no unread entry), plus a look: the
+  powered-on app has no Seeds and no Save & Share anywhere.
+
+  **Acceptance criteria:**
+  - [ ] `grep -rn "SectorSettingsDrawer\|SessionsPanel\|SessionListItem\|sectorSettingsConfig" src` is empty.
+  - [ ] `useShareStatus.test.ts` passes unmodified from `src/hooks/`.
+
+  **Verification:**
+  - [ ] `npm test`, `npm run build:types`, `npm run lint` clean; `npm run build` clean.
+
+  **Dependencies:** Task 14. **Files:** the twelve deleted files above, `src/data/sessionConfig.ts`,
+  `src/content/copy/session.ts`, `src/content/copy/sector.ts`, `src/hooks/useShareStatus.ts`,
+  `src/hooks/useShareStatus.test.ts`, `OffScreen.tsx` (one import)
+
+  **Estimated scope:** M (mostly deletion; two config trims, one move)
+
+### Checkpoint B: `settings-retirement` built
+- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [ ] In the browser: the nav shows four boxes; Fleet Params' last tab is Audio Quality with its sliders and intro,
+      breadcrumb Root / Fleet Params / Audio Quality; nothing in the powered-on app makes, loads, saves or shares a
+      world.
+- [ ] Reviewed with Crawford before Phase 6.
+
+---
+
+### Phase 6: Docs
+
+- [ ] **Task 16: `docs/` — document the shipped behaviour**
+
+  **Description:** Spec §1.9 (Docs). **The off screen's half is done** (Checkpoint A, 2026-11-09, on
+  `feature/off-screen-console`): the off screen section of `UI_SHELL.md` and of `SESSION_STORAGE.md`, the presets'
+  lines everywhere, `renameNamedSession` in the engine's list, the off-screen consumers in `COMPONENT_LIBRARY.md`,
+  `CLAUDE.md`'s two reference lines, the spec's new children in §2, and frame F's note. **What is left is the
+  retirement's half**, on its own branch. `UI_SHELL.md`: the nav panel's five boxes become four; the screens table
+  loses `SettingsScreen` and Fleet Params' row gains Audio Quality as the eighth tab; `ConsolePanel`'s route list loses
+  `settings`; the scene wash paragraph loses Foundry's Retransmit and a session Load; the Foundry paragraph goes (the
+  off screen section's last sentence of its intro, "Foundry and Save & Share still do the same jobs", goes with it).
+  `SESSION_STORAGE.md`: the Save & Share tab paragraphs go (the off screen section already describes Save, Rename,
+  Delete, Share and Factory Reset), and the "three buttons, one encoder" bullet becomes one button.
+  `COMPONENT_LIBRARY.md`: the consumers it names (`SectorSettingsDrawer`, Save & Share, the session list's rows,
+  `SettingsScreen`) go. `CLAUDE.md`: SESSION_STORAGE's line loses the "Sessions" Settings accordion.
+  `docs/specs/OFF_SCREEN_CONSOLE.md` §2 gains the readers Task 12 found. Plus whatever the Companies nav item's
+  retirement needs, once planned. Spot-check every identifier against the shipped source, not this plan.
+
+  **Proof:** Read — human review. No test file.
+
+  **Acceptance criteria:**
+  - [ ] Every documented name exists in the shipped source; no doc names `SettingsScreen`, `SectorSettingsDrawer`,
+        `SessionsPanel`, `SessionListItem`, Keep or the warning line as current.
+
+  **Verification:**
+  - [ ] Manual review, each named identifier grepped in `src/`.
+  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
+
+  **Dependencies:** Tasks 1–15. **Files:** `docs/UI_SHELL.md`, `docs/SESSION_STORAGE.md`, `docs/COMPONENT_LIBRARY.md`,
+  `CLAUDE.md`, `docs/specs/OFF_SCREEN_CONSOLE.md`, `docs/sketches/off-screen.html`
+
+  **Estimated scope:** S (docs only, five files)
+
+### Checkpoint: Complete
+- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [ ] Every automated acceptance criterion across Tasks 1–15 met; spec §5's seven mutants each checked by hand and
+      named in their task's commit.
+- [ ] Docs reflect the shipped API, every name spot-checked.
+- [ ] Any Look not done this session flagged here, never silently skipped.
+- [ ] Ready for Crawford's PR. Archiving backlog 71 and the spec's status line wait for the merge (the todo
+      conventions).
+
+## Risks and Mitigations
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| The editor's sync overwrites a draft the user started during the wash (spec §7 risk 1) | Medium | Task 5's sync leaves a draft that differs from the last synced value alone; case 3 and `TransmissionEditor.test.tsx` pin it, and the mutant is named. |
+| `OffScreen.tsx` grows past readable (spec §7 risk 2) | Medium | Tasks 2, 4 and 7 extract `Disclosure`, `TransmissionEditor` and `offScreenActions`; the action row's handlers stay, since they read the snapshot and intent refs. |
+| The blur-commit fires when focus moves between the editor's own inputs, or into Scan | Medium | The group's `onBlur` checks `currentTarget.contains(relatedTarget)`; Task 5's component test has a case for an internal blur and one for a blur to outside. A click on Scan while mid-edit: Scan's own `pickNew` wins, and the unchanged-draft guard drops the blur's commit when Scan already synced the draft. |
+| The rename input in the `trailing` slot reads oddly beside the old name (Open Question 1) | Low | Checkpoint A's look decides; the alternative (the input replacing the row's label) needs a `RadioButton` prop, which the spec says to ask about first. |
+| A rename of the loaded save while the snapshot also names it leaves one stale (spec §7 risk 4) | Medium | One `renameFollowers(from, to)` step in Task 8; case 9 covers both names and the mutant is named. |
+| Deleting the Settings branch breaks a path a link arrival or the Guide expects (spec §7 risk 3) | Low | `ConsolePanel`'s `Record<HubTile, …>` makes a missing tile a compile error (Task 14's criterion); the link arrival never names a branch. |
+| `content.test.ts` fails between commits on an entry nobody reads yet | Low | Content entries land with their first consumer (Architecture Decisions); removals land with the feature they named. |
+| Task 14 is L and cannot be split without a red build | Medium | Task 13 pulls the fixture sweep out first, so Task 14 is deletions plus one-row table edits only. |
+| The phone's left column is longer than the row it replaced (spec §7 risk 6) | Low | Both sections start collapsed; Task 11's Look measures at 320 px. |
+| The test file's many row-click cases each need the list opened first (Task 2) | Low | One `openTransmissions()` helper in `OffScreen.test.tsx`, threaded through in Task 2 alone, so later tasks inherit it. |
+
+## Open Questions
+
+1. **Where the rename input renders.** **Default (this plan):** `RadioButton`'s `trailing` slot on the selected save's
+   row, the control untouched. **Alternative:** the input replaces the row's label, which needs a new `RadioButton` prop
+   (spec §3, ask first). Crawford decides at Checkpoint A from the look. **Answered 2026-11-09:** the trailing slot on
+   the desk; on the phone, inside the selected row under its name, covering the rows below (Checkpoint A).
+2. **One branch or two for module B** (spec §6). Crawford's call at Checkpoint A. **Answered 2026-11-09:** two; module
+   B on `feature/settings-retirement` after this branch merges (Phase 5's note).
+3. **Does the editor's blank-name commit need a guard?** `retransmitWorld` reads a blank name as none and derives a
+   world from it today (Foundry's behaviour), so the plan passes it through (spec §1.2). If the resulting world reads
+   as a mistake in the look, a follow-up pins a minimum length. **Open**, low priority, decided at Checkpoint A.- [ ] **Task 14: The Settings branch leaves the nav; `SettingsScreen` is deleted**
 
   **Description:** Spec §1.9 (second and third bullets, the screen). `'settings'` leaves `HubTile` (`src/types/hub.ts`),
   `TopLevelBranch`, `SettingsLeaf`, `selectedSettingsLeaf` and `setSelectedSettingsLeaf` (`uiStore.ts`);

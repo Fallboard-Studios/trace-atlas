@@ -525,7 +525,7 @@ describe('Header', () => {
     it('the world line shows in the well on the Deck; a branch shows the breadcrumb there', () => {
       const { container } = render(<Header />);
       expect(container.querySelector('.header__well .world-line')).not.toBeNull();
-      act(() => useUIStore.setState({ activeHubTile: 'settings' }));
+      act(() => useUIStore.setState({ activeHubTile: 'audioRig' }));
       expect(container.querySelector('.header__well .world-line')).toBeNull();
       expect(container.querySelector('.header__well [role="navigation"]')).not.toBeNull();
     });

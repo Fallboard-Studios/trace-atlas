@@ -1338,14 +1338,14 @@ describe('deckCamera', () => {
     it('triggers nothing while browsing within the hub, with no return to the Deck', () => {
       useUIStore.getState().setActiveHubTile('robots');
       useUIStore.getState().selectRobot('alpha');
-      useUIStore.getState().setActiveHubTile('settings');
+      useUIStore.getState().setActiveHubTile('audioRig');
       useUIStore.getState().selectRobot('beta');
 
       expect(gsap.timeline).not.toHaveBeenCalled();
     });
 
     it('triggers nothing on returning to the Deck when no robot was ever selected', () => {
-      useUIStore.getState().setActiveHubTile('settings');
+      useUIStore.getState().setActiveHubTile('audioRig');
       useUIStore.getState().setActiveHubTile(null);
 
       expect(gsap.timeline).not.toHaveBeenCalled();
