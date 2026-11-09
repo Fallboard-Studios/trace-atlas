@@ -39,10 +39,10 @@ describe('SettingsScreen — the real panels in their tabs', () => {
   it('Audio Quality: the preset radio, the two limit sliders and the limits readout', () => {
     render(<SettingsScreen />);
     // RadioButton is a Radix ToggleGroup: a group of radios.
-    expect(screen.getByRole('group', { name: CONTENT['settings.quality.preset'].human })).toBeTruthy();
-    expect(screen.getByRole('radio', { name: CONTENT['settings.quality.preset'].options.full.human }).getAttribute('aria-checked')).toBe('true');
-    expect(screen.getByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: CONTENT['settings.quality.effectsLoad'].human })).toBeTruthy();
+    expect(screen.getByRole('group', { name: CONTENT['fleet.quality.preset'].human })).toBeTruthy();
+    expect(screen.getByRole('radio', { name: CONTENT['fleet.quality.preset'].options.full.human }).getAttribute('aria-checked')).toBe('true');
+    expect(screen.getByRole('slider', { name: CONTENT['fleet.quality.robotLoad'].human })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: CONTENT['fleet.quality.effectsLoad'].human })).toBeTruthy();
     expect(screen.getByText(describeLimits({ ...robotLoadToLimits(1), ...effectsLoadToLimits(1) }))).toBeTruthy();
     // Nothing from the other two tabs.
     expect(screen.queryByRole('button', { name: /retransmit/i })).toBeNull();
@@ -66,7 +66,7 @@ describe('SettingsScreen — the real panels in their tabs', () => {
     pick('settings.seeds');
     expect(screen.getByRole('button', { name: /retransmit/i })).toBeTruthy();
     expect(screen.getAllByRole('spinbutton').map((input) => (input as HTMLInputElement).value)).toEqual(['12', '68']);
-    expect(screen.queryByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human })).toBeNull();
+    expect(screen.queryByRole('slider', { name: CONTENT['fleet.quality.robotLoad'].human })).toBeNull();
   });
 
   it('Save & Share: the session name and Save', () => {
@@ -79,12 +79,12 @@ describe('SettingsScreen — the real panels in their tabs', () => {
 
   it('a limit edit made on Audio Quality is still there after a trip to another tab', () => {
     render(<SettingsScreen />);
-    fireEvent.keyDown(screen.getByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human }), { key: 'ArrowLeft' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: CONTENT['fleet.quality.robotLoad'].human }), { key: 'ArrowLeft' });
     const edited = useAudioStore.getState().robotLoad;
     expect(edited).toBeLessThan(1);
     pick('settings.sessions');
-    pick('settings.quality');
+    pick('fleet.quality');
     expect(useAudioStore.getState().robotLoad).toBe(edited);
-    expect(screen.getByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human }).getAttribute('aria-valuenow')).toBe(String(Math.round(edited * 100)));
+    expect(screen.getByRole('slider', { name: CONTENT['fleet.quality.robotLoad'].human }).getAttribute('aria-valuenow')).toBe(String(Math.round(edited * 100)));
   });
 });

@@ -532,4 +532,54 @@ export const fleet = {
     unit: 'dB',
     help: { human: 'The loudest the fleet is ever allowed to get. Anything that would go past it is held down to it.' },
   },
+  // Audio Quality, Fleet Params' last tab (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12): moved verbatim from Settings.
+  'fleet.quality': {
+    human: 'Audio Quality',
+    lore: 'Trace Capacity',
+    intro: {
+      lore: 'Audio Quality — tune your terminal’s processing load.',
+      loreDescription: 'Meridia Power Group’s Perpetualish Battery Packs keep probes running, but your terminal has its own limits on how much it can process at once.',
+      humanDescription: 'Robot Load limits how many probes can play sound at the same time. Effects Load limits how many effects — like LFOs — can run at once. Lower these if the app stutters or sounds glitchy on your device.',
+    },
+  },
+  'fleet.quality.audioLoad': { human: 'Audio Load', lore: 'ACOUSTIC LOAD MANAGEMENT' },
+  'fleet.quality.preset': {
+    human: 'Preset',
+    lore: 'ACOUSTIC LOAD PROTOCOL',
+    options: {
+      light: { human: 'Light' },
+      standard: { human: 'Standard' },
+      full: { human: 'Full' },
+    },
+    help: { human: 'Sets both limits below to one level at once. Full runs everything, Light suits phones and older devices, and Standard sits between; drag either slider afterwards to fine-tune.' },
+  },
+  'fleet.quality.robotLoad': {
+    human: 'Voice Limit',
+    lore: 'Fleet Size',
+    unit: '%',
+    help: { human: 'How many probes can play sound at once, and how many notes they can hold. Probes over the limit keep working silently until a slot frees up. Lower it if the sound crackles or cuts out.' },
+  },
+  'fleet.quality.effectsLoad': {
+    human: 'Effects Limit',
+    lore: 'Trace Budget',
+    unit: '%',
+    help: { human: 'How much automatic motion the effects can run at once. Lowering it switches off the LFO lanes’ drift first, then the LFOs on the filters, the pedals, the colour effects and the Reverb. Lower it if the sound crackles or cuts out.' },
+  },
+  // The readout beside the Preset radio (utils/audioBudget.ts describeLimits): what the two limits allow right now, as
+  // "Up to 4 robots · 8 notes · no drift, filter LFOs, pedals, colour or reverb".
+  'fleet.quality.limits.robots': { human: 'Robots', template: 'Up to {n} robots' },
+  'fleet.quality.limits.notes': { human: 'Notes', template: '{n} notes' },
+  'fleet.quality.limits.allOn': { human: 'all LFOs and drift' },
+  'fleet.quality.limits.off': {
+    human: 'Switched off',
+    template: 'no {list}',
+    options: {
+      drift: { human: 'drift' },
+      filterLfos: { human: 'filter LFOs' },
+      robotFilterLfos: { human: 'robot filter LFOs' },
+      pedals: { human: 'pedals' },
+      colour: { human: 'colour' },
+      reverb: { human: 'reverb' },
+    },
+  },
 } as const satisfies Record<string, ContentEntry>;

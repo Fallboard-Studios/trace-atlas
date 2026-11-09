@@ -35,8 +35,8 @@ describe('AudioRigDrawer', () => {
 
   it('renders no Audio Load panel — relocated to Settings -> Quality (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 13; see AudioLoadPanel.test.tsx)', () => {
     render(<AudioRigDrawer />);
-    expect(screen.queryByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human })).toBeNull();
-    expect(screen.queryByRole('slider', { name: CONTENT['settings.quality.effectsLoad'].human })).toBeNull();
+    expect(screen.queryByRole('slider', { name: CONTENT['fleet.quality.robotLoad'].human })).toBeNull();
+    expect(screen.queryByRole('slider', { name: CONTENT['fleet.quality.effectsLoad'].human })).toBeNull();
   });
 
   it('renders no effect controls at all — every real effect relocated to its own tree leaf (Task 14; see AudioRigEffectPanel.test.tsx)', () => {

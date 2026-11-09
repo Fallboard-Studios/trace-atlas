@@ -68,7 +68,7 @@ export interface FleetParamsSubTab {
   content: ContentKey;
 }
 
-/** Each Fleet Params section's sub-tabs, in the sketch's order (Task 15). Pacing has none: its four
+/** Each Fleet Params section's sub-tabs, in the sketch's order (Task 15). Pacing and Audio Quality have none: Pacing's four
  *  leaves are one panel of two rows. The screen and the breadcrumb both read this, so they name the
  *  same tab. */
 export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetParamsSubTab[]> = {
@@ -110,6 +110,8 @@ export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetPa
     { id: 'stereoWidener', content: 'fleet.stereoWidener' },
     { id: 'limiter', content: 'fleet.limiter' },
   ],
+  // Audio Quality is one panel, as Pacing is (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12).
+  quality: [],
 };
 
 /** The sub-tab a section shows: the stored one when it is this section's, else the section's first
@@ -130,6 +132,7 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   colour: 'fleet.colour',
   modulation: 'fleet.modulation',
   output: 'fleet.output',
+  quality: 'fleet.quality',
 };
 
 /** Settings' three tabs in the sketch's order (Task 17). The screen and the breadcrumb both read this
@@ -138,7 +141,7 @@ export const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSetti
 
 /** Each Settings tab's concept: its title on the tab and in the breadcrumb. */
 export const SETTINGS_LEAF_CONTENT: Record<SettingsLeaf, ContentKey> = {
-  quality: 'settings.quality',
+  quality: 'fleet.quality',
   sectorSettings: 'settings.seeds',
   sessions: 'settings.sessions',
 };

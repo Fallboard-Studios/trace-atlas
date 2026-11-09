@@ -487,20 +487,24 @@ describe('breadcrumbPath', () => {
     ['colour', 'phaser', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
     // A sub-tab left over from another group reads as the group's first, which is what the screen shows.
     ['output', 'laneC', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
+    // Audio Quality is one panel, like Pacing (off-screen console Task 12): no sub-tab segment, whatever is stored.
+    ['quality', null, [CONTENT['fleet.quality'].human]],
+    ['quality', 'compressor', [CONTENT['fleet.quality'].human]],
+    ['quality', 'tempo', [CONTENT['fleet.quality'].human]],
   ])('Fleet Params on %s / %s names %j', (section, subsection, tail) => {
     expect(path({ activeHubTile: 'audioRig', fleetParamsSection: section, fleetParamsSubsection: subsection })).toEqual([ROOT, FLEET, ...tail]);
   });
 
   it('a Settings leaf names its own concept (sectorSettings reads settings.seeds)', () => {
     expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'sectorSettings' })).toEqual([ROOT, SETTINGS, CONTENT['settings.seeds'].human]);
-    expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'quality' })).toEqual([ROOT, SETTINGS, CONTENT['settings.quality'].human]);
+    expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'quality' })).toEqual([ROOT, SETTINGS, CONTENT['fleet.quality'].human]);
     expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' })).toEqual([ROOT, SETTINGS, CONTENT['settings.sessions'].human]);
   });
 
   // Task 17: Settings is tabs, so one is always open — Audio Quality when none is stored, the tab the
   // screen shows. (The old stacked screen's scrollspy wrote it on mount, so the crumb read the same.)
   it('reads Root / Settings / Audio Quality with no leaf stored', () => {
-    expect(path({ activeHubTile: 'settings' })).toEqual([ROOT, SETTINGS, CONTENT['settings.quality'].human]);
+    expect(path({ activeHubTile: 'settings' })).toEqual([ROOT, SETTINGS, CONTENT['fleet.quality'].human]);
   });
 
   it('a leaf stored for Settings never shows on another branch', () => {
@@ -691,9 +695,15 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(FLEET_PARAMS_SUBSECTIONS.colour.map((sub) => sub.id as string)).not.toContain('colourRoom');
   });
 
-  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output', () => {
-    expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output']);
-    expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output']);
+  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output, Audio Quality', () => {
+    const order = ['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output', 'quality'];
+    expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(order);
+    expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(order);
+  });
+
+  it('names the Audio Quality group from fleet.quality, with no sub-tabs (one panel, like Pacing)', () => {
+    expect(FLEET_PARAMS_GROUP_CONTENT.quality).toBe('fleet.quality');
+    expect(ids('quality')).toEqual([]);
   });
 
   it('names the Colour group from fleet.colour', () => {
@@ -764,6 +774,10 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['pacing', null, null],
     ['pacing', 'tempo', null],
     ['pacing', 'laneB', null],
+    // Nor has Audio Quality.
+    ['quality', null, null],
+    ['quality', 'compressor', null],
+    ['quality', 'laneA', null],
   ])('on %s with %s stored, the open sub-tab is %s', (section, stored, expected) => {
     expect(activeFleetParamsSubsection(section, stored)).toBe(expected);
   });
@@ -778,7 +792,7 @@ describe('SETTINGS_LEAVES and activeSettingsLeaf', () => {
 
   it('names every leaf it lists, and lists every leaf it names', () => {
     expect(Object.keys(SETTINGS_LEAF_CONTENT).sort()).toEqual([...SETTINGS_LEAVES].sort());
-    expect(SETTINGS_LEAVES.map((leaf) => SETTINGS_LEAF_CONTENT[leaf])).toEqual(['settings.quality', 'settings.seeds', 'settings.sessions']);
+    expect(SETTINGS_LEAVES.map((leaf) => SETTINGS_LEAF_CONTENT[leaf])).toEqual(['fleet.quality', 'settings.seeds', 'settings.sessions']);
   });
 
   it('opens on Audio Quality, the first tab', () => {
@@ -808,7 +822,7 @@ describe('SETTINGS_LEAVES and activeSettingsLeaf', () => {
       fleetParamsSubsection: null,
       selectedSettingsLeaf: 'coordinates' as SettingsLeaf,
     };
-    expect(breadcrumbPath(state, { robots: [], companies: [] })).toEqual([CONTENT['nav.root'].human, CONTENT['settings.root'].human, CONTENT['settings.quality'].human]);
+    expect(breadcrumbPath(state, { robots: [], companies: [] })).toEqual([CONTENT['nav.root'].human, CONTENT['settings.root'].human, CONTENT['fleet.quality'].human]);
   });
 
   it('every nav pick lands Settings back on its first tab', () => {

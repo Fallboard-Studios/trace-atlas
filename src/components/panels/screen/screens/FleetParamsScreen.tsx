@@ -1,3 +1,4 @@
+import { AudioLoadPanel } from '../console/AudioLoadPanel';
 import { AudioRigDrawer, AudioRigEffectPanel } from '../console/AudioRigDrawer';
 import { LfoBankLanePanel } from '../console/LfoBankLanePanel';
 import { useShell, type Shell } from '../useShell';
@@ -18,9 +19,10 @@ import type { LfoLaneId } from '@/types/lfo';
 import type { Trait } from '@/types/traits';
 import './FleetParamsScreen.css';
 
-/** The seven sections in the sketch's order (Colour, Global Colour T9, then Modulation, Global Modulation T10,
+/** The eight sections in the sketch's order (Colour, Global Colour T9, then Modulation, Global Modulation T10,
  *  sit on the chain side of Output), each in the trait its group accordion wore. Modulation wears Spectral:
- *  no new trait (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 11). */
+ *  no new trait (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 11). Audio Quality, last, came from Settings
+ *  in Settings' own trait, Seed (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12). */
 const SECTIONS: readonly (readonly [FleetParamsGroup, Trait])[] = [
   ['pacing', 'composition'],
   ['lfoBank', 'timeSpace'],
@@ -29,6 +31,7 @@ const SECTIONS: readonly (readonly [FleetParamsGroup, Trait])[] = [
   ['colour', 'colour'],
   ['modulation', 'spectral'],
   ['output', 'output'],
+  ['quality', 'seed'],
 ];
 const SECTION_TRAIT = Object.fromEntries(SECTIONS) as Record<FleetParamsGroup, Trait>;
 
@@ -87,7 +90,7 @@ function PacingPanel() {
   );
 }
 
-type SubTabbedSection = Exclude<FleetParamsGroup, 'pacing'>;
+type SubTabbedSection = Exclude<FleetParamsGroup, 'pacing' | 'quality'>;
 
 /** A section's sub-tab items for one shell — built once per shell at load, so SectionTabs' memo holds.
  *  A lane's tab reads laneTitle(); every other sub-tab its panel's entry. */
@@ -124,13 +127,20 @@ function SubTabs({ section }: { section: SubTabbedSection }) {
   );
 }
 
+/** A section's body: Pacing's and Audio Quality's one panel each, else the sub-tab row. */
+function SectionBody({ section }: { section: FleetParamsGroup }) {
+  if (section === 'pacing') return <PacingPanel />;
+  if (section === 'quality') return <AudioLoadPanel />;
+  return <SubTabs section={section} />;
+}
+
 /** One section's panel, in its group's trait so the panels inside keep the colour they had. */
 function SectionPanel({ section }: { section: FleetParamsGroup }) {
   const key = FLEET_PARAMS_GROUP_CONTENT[section];
   return (
     <div className="fleet-params-screen__section" style={getTraitColorStyle(SECTION_TRAIT[section])}>
       <IntroPanel {...introProps(key)} name={labels(key).humanLabel} trait={SECTION_TRAIT[section]} collapsible />
-      {section === 'pacing' ? <PacingPanel /> : <SubTabs section={section} />}
+      <SectionBody section={section} />
     </div>
   );
 }
@@ -145,8 +155,8 @@ const SECTIONS_LABEL = labels('fleet.root').humanLabel;
 
 /**
  * Fleet Params (docs/specs/LAYOUT_REWORK.md §1.3–§1.4; docs/tasks/LAYOUT_REWORK.md Task 15): the
- * screen's intro, then the seven sections as tabs — Pacing, LFO Bank, EQ & Filters, Time & Space,
- * Colour, Modulation, Output — with a nested sub-tab row for the four lanes and the effect leaves. One section and one
+ * screen's intro, then the eight sections as tabs — Pacing, LFO Bank, EQ & Filters, Time & Space,
+ * Colour, Modulation, Output, Audio Quality — with a nested sub-tab row for the four lanes and the effect leaves. One section and one
  * sub-tab are in the DOM at a time (SectionTabs, no forceMount), which carries roadmap 17.2.2's
  * lazy-mount forward. The open tab is `fleetParamsSection` / `fleetParamsSubsection` in uiStore, read
  * by the breadcrumb through navActions' same table. The panels are the existing ones, unchanged. Each

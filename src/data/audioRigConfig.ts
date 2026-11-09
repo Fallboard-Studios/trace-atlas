@@ -497,15 +497,15 @@ export const HUMANIZE_SCHEMA: SliderLinearSchema = {
 export const AUDIO_LOAD_PRESET_SCHEMA: RadioButtonSchema = {
   id: 'audioRig.audioLoadPreset',
   type: 'radio',
-  ...labels('settings.quality.preset'),
-  options: options('settings.quality.preset'),
+  ...labels('fleet.quality.preset'),
+  options: options('fleet.quality.preset'),
 };
 
 /** The Robot Load fine dial (audible robots, polyphony, boot-time latency), 0–100 % — 100 % (Full) is today's behavior exactly. */
 export const AUDIO_ROBOT_LOAD_SCHEMA: SliderLinearSchema = {
   id: 'audioRig.robotLoad',
   type: 'sliderLinear',
-  ...labels('settings.quality.robotLoad'),
+  ...labels('fleet.quality.robotLoad'),
   min: 0,
   max: 100,
   step: 1,
@@ -516,7 +516,7 @@ export const AUDIO_ROBOT_LOAD_SCHEMA: SliderLinearSchema = {
 export const AUDIO_EFFECTS_LOAD_SCHEMA: SliderLinearSchema = {
   id: 'audioRig.effectsLoad',
   type: 'sliderLinear',
-  ...labels('settings.quality.effectsLoad'),
+  ...labels('fleet.quality.effectsLoad'),
   min: 0,
   max: 100,
   step: 1,
@@ -531,7 +531,7 @@ export const AUDIO_EFFECTS_LOAD_SCHEMA: SliderLinearSchema = {
 export const AUDIO_LOAD_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'audioRig.audioLoadPanel',
   type: 'directionalPanel',
-  ...labels('settings.quality.audioLoad'),
+  ...labels('fleet.quality.audioLoad'),
   orientation: 'column',
 };
 

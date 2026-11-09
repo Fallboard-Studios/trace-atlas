@@ -985,7 +985,7 @@ describe('SPEED_AUTOMATION_PANEL_SCHEMA no longer exists (docs/specs/archive/AUT
 describe('AUDIO_LOAD_PRESET_SCHEMA', () => {
   it('is a radio in the audioRig.* namespace offering exactly Light, Standard and Full', () => {
     expect(AUDIO_LOAD_PRESET_SCHEMA).toMatchObject({ type: 'radio', id: 'audioRig.audioLoadPreset' });
-    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.humanLabel)).toEqual(Object.values(CONTENT['settings.quality.preset'].options).map((o) => o.human));
+    expect(AUDIO_LOAD_PRESET_SCHEMA.options.map((o) => o.humanLabel)).toEqual(Object.values(CONTENT['fleet.quality.preset'].options).map((o) => o.human));
   });
 
   it('uses the preset names audioBudget.ts parses (?load=light|standard|full) as its option values', () => {
@@ -1021,9 +1021,9 @@ describe('AUDIO_ROBOT_LOAD_SCHEMA', () => {
     }
   });
 
-  it('has a non-empty invented loreLabel and the humanLabel from content (settings.quality.robotLoad)', () => {
+  it('has a non-empty invented loreLabel and the humanLabel from content (fleet.quality.robotLoad)', () => {
     expect(AUDIO_ROBOT_LOAD_SCHEMA.loreLabel).toBeTruthy();
-    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe(CONTENT['settings.quality.robotLoad'].human);
+    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe(CONTENT['fleet.quality.robotLoad'].human);
   });
 });
 
@@ -1049,9 +1049,9 @@ describe('AUDIO_EFFECTS_LOAD_SCHEMA', () => {
     }
   });
 
-  it('has a non-empty invented loreLabel and the humanLabel from content (settings.quality.effectsLoad)', () => {
+  it('has a non-empty invented loreLabel and the humanLabel from content (fleet.quality.effectsLoad)', () => {
     expect(AUDIO_EFFECTS_LOAD_SCHEMA.loreLabel).toBeTruthy();
-    expect(AUDIO_EFFECTS_LOAD_SCHEMA.humanLabel).toBe(CONTENT['settings.quality.effectsLoad'].human);
+    expect(AUDIO_EFFECTS_LOAD_SCHEMA.humanLabel).toBe(CONTENT['fleet.quality.effectsLoad'].human);
   });
 
   it('has a distinct id and loreLabel from AUDIO_ROBOT_LOAD_SCHEMA', () => {
@@ -1065,7 +1065,7 @@ describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
     expect(AUDIO_LOAD_PANEL_SCHEMA).toMatchObject({
       type: 'directionalPanel',
       orientation: 'column',
-      humanLabel: CONTENT['settings.quality.audioLoad'].human,
+      humanLabel: CONTENT['fleet.quality.audioLoad'].human,
     });
     expect(AUDIO_LOAD_PANEL_SCHEMA.id).toMatch(/^audioRig\./);
     expect(AUDIO_LOAD_PANEL_SCHEMA.loreLabel).toBeTruthy();
@@ -1091,7 +1091,7 @@ describe('audioRigConfig reads its copy from src/content (docs/specs/CONTENT_LAY
     const { CONTENT } = await import('@/content');
     expect(BPM_SCHEMA.humanLabel).toBe(CONTENT['fleet.pacing.tempo'].human);
     expect(BPM_SCHEMA.unit).toBe(CONTENT['fleet.pacing.tempo'].unit);
-    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe(CONTENT['settings.quality.robotLoad'].human);
+    expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe(CONTENT['fleet.quality.robotLoad'].human);
     const lpf = AUDIO_RIG_CONFIG.find((b) => b.key === 'filterLPF')!;
     expect(lpf.panel.loreLabel).toBe(CONTENT['fleet.lpf'].heading);
     expect(lpf.params[0].schema.loreLabel).toBe(CONTENT['fleet.lpf.cutoff'].lore);

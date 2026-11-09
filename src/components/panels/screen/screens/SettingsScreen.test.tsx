@@ -38,7 +38,7 @@ const AUDIO_INITIAL = useAudioStore.getState();
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
 const LEAVES: readonly [SettingsLeaf, keyof typeof CONTENT, string][] = [
-  ['quality', 'settings.quality', 'audio-load-panel-stub'],
+  ['quality', 'fleet.quality', 'audio-load-panel-stub'],
   ['sectorSettings', 'settings.seeds', 'sector-settings-drawer-stub'],
   ['sessions', 'settings.sessions', 'sessions-panel-stub'],
 ];
@@ -62,7 +62,7 @@ beforeEach(() => {
 describe('SettingsScreen — the default view', () => {
   it('opens on Audio Quality, with only its panel in the DOM', () => {
     render(<SettingsScreen />);
-    expect(selectedTab().textContent).toBe(human('settings.quality'));
+    expect(selectedTab().textContent).toBe(human('fleet.quality'));
     expect(mountedPanels()).toHaveLength(1);
     expect(screen.getByTestId('audio-load-panel-stub')).toBeTruthy();
   });
@@ -114,7 +114,7 @@ describe('SettingsScreen — switching tabs', () => {
     useUIStore.setState({ selectedSettingsLeaf: 'subsection' as SettingsLeaf });
     render(<SettingsScreen />);
     await flush();
-    expect(selectedTab().textContent).toBe(human('settings.quality'));
+    expect(selectedTab().textContent).toBe(human('fleet.quality'));
     expect(mountedPanels()).toHaveLength(1);
     expect(screen.getByTestId('audio-load-panel-stub')).toBeTruthy();
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('subsection');
@@ -122,8 +122,8 @@ describe('SettingsScreen — switching tabs', () => {
 
   it('the arrow keys move the tab and the store with it, wrapping at the ends', async () => {
     render(<SettingsScreen />);
-    act(() => tab('settings.quality').focus());
-    fireEvent.keyDown(tab('settings.quality'), { key: 'ArrowLeft' });
+    act(() => tab('fleet.quality').focus());
+    fireEvent.keyDown(tab('fleet.quality'), { key: 'ArrowLeft' });
     await flush();
     expect(useUIStore.getState().selectedSettingsLeaf).toBe('sessions');
     expect(screen.getByTestId('sessions-panel-stub')).toBeTruthy();
@@ -136,7 +136,7 @@ describe('SettingsScreen — switching tabs', () => {
     render(<SettingsScreen />);
     pick('settings.sessions');
     act(() => selectBranch('settings'));
-    expect(selectedTab().textContent).toBe(human('settings.quality'));
+    expect(selectedTab().textContent).toBe(human('fleet.quality'));
     expect(screen.getByTestId('audio-load-panel-stub')).toBeTruthy();
   });
 });
@@ -200,7 +200,7 @@ describe('SettingsScreen — the intros, each an expander (spec §1.3)', () => {
   it('an expanded screen intro stays expanded across a tab switch; the new tab\'s starts collapsed', () => {
     render(<SettingsScreen />);
     fireEvent.click(more('settings.root'));
-    fireEvent.click(more('settings.quality'));
+    fireEvent.click(more('fleet.quality'));
     pick('settings.sessions');
     expect(less('settings.root').getAttribute('aria-expanded')).toBe('true');
     expect(more('settings.sessions').getAttribute('aria-expanded')).toBe('false');
@@ -244,12 +244,12 @@ describe('SettingsScreen — the breadcrumb names the open tab (Root / Settings 
         <NavBreadcrumb />
       </>,
     );
-    expect(crumb()).toBe(path('settings.quality'));
+    expect(crumb()).toBe(path('fleet.quality'));
     pick('settings.seeds');
     expect(crumb()).toBe(path('settings.seeds'));
     pick('settings.sessions');
     expect(crumb()).toBe(path('settings.sessions'));
-    pick('settings.quality');
-    expect(crumb()).toBe(path('settings.quality'));
+    pick('fleet.quality');
+    expect(crumb()).toBe(path('fleet.quality'));
   });
 });

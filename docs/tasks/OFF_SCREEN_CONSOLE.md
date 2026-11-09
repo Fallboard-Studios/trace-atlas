@@ -736,7 +736,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 `feature/off-screen-console` merges. Crawford expects it to retire the Companies nav item too, which Tasks 12–16 do not
 cover yet: plan that before Task 12 starts.
 
-- [ ] **Task 12: Fleet Params gains Audio Quality; `settings.quality*` becomes `fleet.quality*`**
+- [x] **Task 12: Fleet Params gains Audio Quality; `settings.quality*` becomes `fleet.quality*`**
 
   **Description:** Spec §1.9 (first bullet), assumption 5; Architecture Decisions (the readers). `'quality'` joins
   `FleetParamsGroup` (`uiStore.ts`), last; `FLEET_PARAMS_GROUP_CONTENT.quality = 'fleet.quality'` and
@@ -753,14 +753,14 @@ cover yet: plan that before Task 12 starts.
   …)` is null).
 
   **Acceptance criteria:**
-  - [ ] `CONTENT['settings.quality…']` no longer exists; every reader compiles against `fleet.quality*`.
-  - [ ] `AudioLoadPanel.test.tsx` and `AudioRigDrawer.test.tsx` pass with the renamed keys and no other change.
+  - [x] `CONTENT['settings.quality…']` no longer exists; every reader compiles against `fleet.quality*`.
+  - [x] `AudioLoadPanel.test.tsx` and `AudioRigDrawer.test.tsx` pass with the renamed keys and no other change.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/components/panels/screen/nav
+  - [x] `npx vitest run src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/components/panels/screen/nav
         src/components/panels/screen/console/AudioLoadPanel.test.tsx src/components/panels/screen/console/AudioRigDrawer.test.tsx
         src/content src/utils/audioBudget.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint A. **Files:** `src/stores/uiStore.ts`, `src/components/panels/screen/nav/navActions.ts`,
   `navActions.test.ts`, `src/components/panels/screen/screens/FleetParamsScreen.tsx`, `FleetParamsScreen.test.tsx`,
@@ -769,7 +769,16 @@ cover yet: plan that before Task 12 starts.
 
   **Estimated scope:** M (one section added; a key rename across four readers — mechanical)
 
-- [ ] **Task 13: Test fixtures stop naming Settings**
+  **As built (2026-11-09, on `feature/settings-retirement`, stacked on `feature/off-screen-console` by Crawford's
+  call since that branch has not merged):** nine entries moved, not eleven (the plan miscounted: `quality`,
+  `.audioLoad`, `.preset`, `.robotLoad`, `.effectsLoad` and the four `.limits.*`), appended verbatim to the end of
+  `fleet.ts`. Two more readers than the plan named, renamed in the same sweep: `audioRigConfig.test.ts` and the two
+  `SettingsScreen` test files (deleted in Task 14). The screen's body choice is a small `SectionBody` (Pacing, Audio
+  Quality, else the sub-tabs). The screen test stubs `AudioLoadPanel` like the other panels, so `mountedPanels()`
+  counts it and the `GROUPS` tables cover it (trait, intro); the sliders stay `AudioLoadPanel.test.tsx`'s. Mutants
+  killed: `quality` rendering nothing (3 cases), `FLEET_PARAMS_SUBSECTIONS.quality` given a sub-tab (10 cases).
+
+- [x] **Task 13: Test fixtures stop naming Settings**
 
   **Description:** Architecture Decisions. Nine test files use `'settings'` as an incidental `HubTile` or branch:
   `src/animation/deckCamera.test.ts` (1341, 1348), `Header.test.tsx` (528), `PhoneBar.test.tsx` (114),
