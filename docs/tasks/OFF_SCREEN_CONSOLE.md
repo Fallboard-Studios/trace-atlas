@@ -571,7 +571,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   for the selected row's tail, and New Transmission has no row; the readout reads the shown loading whichever it
   carries. Kept as the plan says (the identity whole), the behaviour case kept, the mutant recorded here.
 
-- [ ] **Task 10: `OffScreen.tsx` — Share on the readout; "copied" in the slot**
+- [x] **Task 10: `OffScreen.tsx` — Share on the readout; "copied" in the slot**
 
   **Description:** Spec §1.6. A muted single-face `Button` (`SHARE_SCHEMA` from `home.off.share`) beside the readout, in
   one row with it (`.off-screen__readout-row`), `disabled` while `intent !== null`. Click: `share(payload)` from
@@ -588,17 +588,30 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   Share is `disabled` while a change waits and enabled once it lands.
 
   **Acceptance criteria:**
-  - [ ] One encoder: every Share goes through `copySessionLink`.
-  - [ ] The slot shows at most one line at a time.
+  - [x] One encoder: every Share goes through `copySessionLink`.
+  - [x] The slot shows at most one line at a time.
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] Mutant: Share enabled while waiting (case 11 fails).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Focused run passes.
+  - [x] Mutant: Share enabled while waiting (case 11 fails).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `OffScreen.css`, `src/content/copy/home.ts`
 
   **Estimated scope:** S (one button, one hook, the slot's union)
+
+  **As built:** Share always copies `buildSessionPayload()`: "Current with a snapshot" cannot be the shown pick while
+  Share is lit, for Task 7's reason (picking Current drops the snapshot, and Share dims while a change waits), so the
+  snapshot branch was not written; a mutant that copies the snapshot whenever one is held is killed by the save-row
+  case. The share status maps into the slot without an effect: a click sets the slot to `{ kind: 'share' }`, and that
+  line renders from the hook's live `shareStatus` (copied as `role="status"`, the failure as `role="alert"`, nothing once
+  the hook's 5 s dismiss clears it). A later Save failure or rename refusal replaces it; a later Share takes it back.
+  The hook is unchanged and imported from its current path (Task 15 moves it). Share is named "Share {name}" after the
+  shown row, like the action row. The readout and Share sit in `.off-screen__readout-row`; two layout cases now read
+  the readout's row as the axes' and the slot's sibling. A first run leaked an attached wash into later suites when the
+  waiting case failed before its inline detach; the detach moved to the block's `afterEach`. Seven mutants killed: the
+  plan's (Share enabled while waiting), copying the snapshot, Share not taking the slot, "copied" as an alert, the
+  failure worded as copied, the share line ignoring the dismiss, the share line showing over a later failure.
 
 - [ ] **Task 11: `OffScreen.css` — the left column against frame F**
 

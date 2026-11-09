@@ -46,6 +46,7 @@ import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets'
 import { THEME_IDS } from '@/data/bands/themes';
 import { STORAGE_KEY, listSessions, loadSession, saveNamedSession } from '@/utils/sessionStorageEngine';
 import * as sessionStorageEngine from '@/utils/sessionStorageEngine';
+import * as sessionShareUtils from '@/utils/sessionShareUtils';
 import { DEVICE_FLAGS_KEY, markHeardWorld } from '@/utils/deviceFlags';
 import { setWorldState } from '@/systems/worldState';
 import { describeWorld } from '@/utils/describeWorld';
@@ -606,7 +607,8 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(columns[0].contains(saveButton())).toBe(true);
     expect(within(columns[1]).getByRole('group', { name: human('home.off.loading') })).toBeTruthy();
     expect(within(columns[1]).getByText(human('home.off.themeDescription.classic'))).toBeTruthy();
-    expect(axes.nextElementSibling).toBe(readout());
+    // The readout sits in its row with Share since console Task 10.
+    expect(axes.nextElementSibling).toBe(readout().parentElement);
   });
 
   it('is behind the gate too: a device that has never heard a world sees no Loading axis', () => {
@@ -1613,9 +1615,9 @@ describe('OffScreen — Current’s eyebrow and the status slot (console Task 6)
     expect(statusSlot().textContent).toBe('');
   });
 
-  it('the slot sits under the readout, in the picker', () => {
+  it('the slot sits under the readout’s row, in the picker', () => {
     render(<OffScreen />);
-    expect(readout().nextElementSibling).toBe(statusSlot());
+    expect(readout().parentElement!.nextElementSibling).toBe(statusSlot());
   });
 
   describe('a refused Save', () => {
@@ -2444,6 +2446,163 @@ describe('OffScreen — Delete (console Task 9)', () => {
     expect(loadSession(added)).toEqual(JSON.parse(JSON.stringify(world)));
     expect(row(added).getAttribute('aria-checked')).toBe('true');
     expect(editorSelected()).toBe(false);
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 10 (spec §1.6, §5 case 11): Share sits beside the readout and copies the link for
+// what the readout names, through useShareStatus and copySessionLink: the live world (Current is shown only with no
+// snapshot, as Task 7 found, so that is every case). "Copied" shows in the status slot until the hook's dismiss, a failed
+// copy as an alert; the slot holds one line, the latest event's. Dimmed while a change waits.
+describe('OffScreen — Share on the readout (console Task 10)', () => {
+  let copy: MockInstance<typeof sessionShareUtils.copySessionLink>;
+  beforeEach(() => {
+    markHeardWorld();
+    copy = vi.spyOn(sessionShareUtils, 'copySessionLink').mockResolvedValue(true);
+    // A pick lands as itself, so the live world is what was picked, as in the app.
+    vi.mocked(applySessionPayload).mockImplementation((payload) => {
+      useLoadingStore.getState().setLoading(loadingOf(payload));
+      live.payload = structuredClone(payload);
+    });
+  });
+  let detachWash: (() => void) | undefined;
+  afterEach(() => {
+    copy.mockRestore();
+    vi.useRealTimers();
+    detachWash?.();
+    detachWash = undefined;
+  });
+  const shareButton = () =>
+    screen.getByRole('button', { name: (name) => name.startsWith(`${human('home.off.share')} `) }) as HTMLButtonElement;
+  /** A click on Share, its copy resolved. */
+  const share = () =>
+    act(async () => {
+      fireEvent.click(shareButton());
+    });
+  const copiedLine = () => within(statusSlot()).queryByRole('status');
+  const failedLine = () => within(statusSlot()).queryByRole('alert');
+
+  it('sits beside the readout, in one row with it, flat, and named after the shown row', () => {
+    render(<OffScreen />);
+    const readoutRow = readout().parentElement!;
+    expect(readoutRow.classList.contains('off-screen__readout-row')).toBe(true);
+    expect(readoutRow.contains(shareButton())).toBe(true);
+    expect(shareButton().classList.contains('sc-button--muted')).toBe(true);
+    expect(shareButton().getAttribute('aria-label')).toBe(fill('home.off.share', { name: human('home.off.current') }));
+    expect(readoutRow.nextElementSibling).toBe(statusSlot());
+  });
+
+  it('on Current, copies the live world', async () => {
+    render(<OffScreen />);
+    await share();
+    expect(copy).toHaveBeenCalledTimes(1);
+    expect(copy).toHaveBeenCalledWith(live.marker('live'));
+  });
+
+  it('on a save, a preset and New Transmission, copies the live world: what landed, with any edit since', async () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    vi.mocked(retransmitWorld).mockImplementation((input) => {
+      live.payload = input.attenuationStyleName !== undefined ? live.marker('scanned') : { ...live.payload, theme: input.theme };
+      landsInStores(input);
+    });
+    render(<OffScreen />);
+    openTransmissions();
+    fireEvent.click(row('Dusk Run'));
+    fireEvent.click(row(human('home.off.theme.anchor')));
+    await share();
+    expect(copy).toHaveBeenLastCalledWith({ ...savedPayload('dusk'), theme: 'anchor' });
+    fireEvent.click(row(presetName(1)));
+    await share();
+    expect(copy).toHaveBeenLastCalledWith(presetPayload(TRANSMISSION_PRESETS[1]));
+    fireEvent.click(scanButton());
+    await share();
+    expect(copy).toHaveBeenLastCalledWith(live.marker('scanned'));
+    vi.mocked(retransmitWorld).mockReset();
+  });
+
+  it('“copied” shows in the slot as a status, and is gone after the dismiss', async () => {
+    vi.useFakeTimers();
+    render(<OffScreen />);
+    await share();
+    expect(copiedLine()!.textContent).toBe(human('session.status.linkCopied'));
+    expect(failedLine()).toBeNull();
+    act(() => vi.advanceTimersByTime(5000));
+    expect(statusSlot().textContent).toBe('');
+  });
+
+  it('a failed copy shows the failure as an alert', async () => {
+    copy.mockResolvedValue(false);
+    render(<OffScreen />);
+    await share();
+    expect(failedLine()!.textContent).toBe(human('session.status.copyFailed'));
+    expect(copiedLine()).toBeNull();
+  });
+
+  it('is dimmed while a change waits, and lit once it lands', async () => {
+    useUIStore.setState({ sceneWash: 'clear' });
+    detachWash = attachSceneWash();
+    render(<OffScreen />);
+    openTransmissions();
+    expect(shareButton().disabled).toBe(false);
+    fireEvent.click(row(presetName(0)));
+    expect(shareButton().disabled).toBe(true);
+    await act(async () => {
+      useUIStore.getState().setSceneWash('covered');
+    });
+    expect(shareButton().disabled).toBe(false);
+  });
+
+  describe('one line at a time, the latest event’s', () => {
+    let logged: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => logged.mockRestore());
+    const refuseSave = () => {
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+      fireEvent.click(saveButton());
+      setItem.mockRestore();
+    };
+
+    it('a refused Save after a copy replaces “copied”', async () => {
+      render(<OffScreen />);
+      openTransmissions();
+      await share();
+      refuseSave();
+      expect(copiedLine()).toBeNull();
+      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+    });
+
+    it('a copy after a refused Save replaces the failure, and the dismiss leaves the slot empty', async () => {
+      vi.useFakeTimers();
+      render(<OffScreen />);
+      openTransmissions();
+      refuseSave();
+      await share();
+      expect(statusSlot().textContent).toBe(human('session.status.linkCopied'));
+      act(() => vi.advanceTimersByTime(5000));
+      expect(statusSlot().textContent).toBe('');
+    });
+
+    it('a second copy after a refused Save shows “copied” again', async () => {
+      render(<OffScreen />);
+      openTransmissions();
+      await share();
+      refuseSave();
+      await share();
+      expect(statusSlot().textContent).toBe(human('session.status.linkCopied'));
+    });
+
+    it('the dismiss of an earlier copy leaves a later failure standing', async () => {
+      vi.useFakeTimers();
+      render(<OffScreen />);
+      openTransmissions();
+      await share();
+      refuseSave();
+      act(() => vi.advanceTimersByTime(5000));
+      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+    });
   });
 });
 

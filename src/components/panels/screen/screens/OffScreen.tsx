@@ -8,6 +8,7 @@ import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { TextInput } from '@/components/ui/controls/TextInput';
+import { useShareStatus } from '@/components/panels/screen/console/useShareStatus';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
@@ -91,6 +92,11 @@ const RENAME_INPUT_SCHEMA: TextInputSchema = {
 };
 /** Rename refused: another save has the typed name (spec assumption 3). */
 const RENAME_TAKEN = labels('home.off.renameTaken').humanLabel;
+/** Share beside the readout (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), muted like the action row, and the two lines its copy
+ *  writes into the status slot, read from the Sessions panel's content. */
+const SHARE_SCHEMA: ButtonSchema = { id: 'offShare', type: 'button', ...labels('home.off.share'), appearance: 'muted' };
+const LINK_COPIED = labels('session.status.linkCopied').humanLabel;
+const COPY_FAILED = labels('session.status.copyFailed').humanLabel;
 /** Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): what the standing warning said. */
 const UNSAVED_EYEBROW = labels('home.off.unsavedEyebrow').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
@@ -238,9 +244,9 @@ interface CurrentSnapshot {
   landed: boolean;
 }
 
-/** The status slot's one line (docs/specs/OFF_SCREEN_CONSOLE.md §1.6): a refused Save, naming the save it tried, or a
- *  refused Rename. */
-type SlotLine = { kind: 'saveFailed'; name: string } | { kind: 'renameTaken' };
+/** The status slot's one line (docs/specs/OFF_SCREEN_CONSOLE.md §1.6): a refused Save, naming the save it tried, a
+ *  refused Rename, or a Share — whose words are useShareStatus's live status, so the hook's dismiss empties the slot. */
+type SlotLine = { kind: 'saveFailed'; name: string } | { kind: 'renameTaken' } | { kind: 'share' };
 
 /** The two dirty reads (docs/specs/OFF_SCREEN_CONSOLE.md §1.5). `current`: is Current unsaved? It describes Current — its
  *  snapshot while there is one, else the live world (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4) — and
@@ -412,6 +418,8 @@ export function OffScreen() {
   const [slot, setSlot] = useState<SlotLine | null>(null);
   // The save whose row holds Rename's input, while one does (spec §1.5).
   const [renaming, setRenaming] = useState<string | null>(null);
+  // Share's copy and its auto-dismissing status (spec §1.6), the Sessions panel's hook.
+  const { shareStatus, share } = useShareStatus();
   // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
   const [transmissionsOpen, setTransmissionsOpen] = useState(false);
   const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
@@ -853,6 +861,14 @@ export function OffScreen() {
     [renaming, onRenameDone],
   );
 
+  // Share (docs/specs/OFF_SCREEN_CONSOLE.md §1.6) copies the link for the world the readout names — the live world:
+  // Current is shown only with no snapshot, and Share dims while a change waits — through useShareStatus and
+  // copySessionLink, the one encoder. The slot takes the share's line at the click, so the latest event's line shows.
+  const onShare = () => {
+    setSlot({ kind: 'share' });
+    void share(buildSessionPayload());
+  };
+
   // Factory Reset (spec §1.4, assumption 4): Reset opens the confirm, keeping its opener for the focus to return to.
   const openResetConfirm = useCallback(() => {
     resetOpenerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
@@ -1007,18 +1023,28 @@ export function OffScreen() {
                 ))}
               </div>
             </div>
-            <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
-              {readout}
-            </p>
+            {/* The readout and Share, one row (spec §1.6). */}
+            <div className="off-screen__readout-row">
+              <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
+                {readout}
+              </p>
+              <Button
+                schema={SHARE_SCHEMA}
+                face="single"
+                accessibleName={fill('home.off.share', { name: shownName })}
+                onClick={onShare}
+                disabled={intent !== null}
+              />
+            </div>
             {/* The status slot (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), where the unsaved warning was: always there,
-                empty but for a failure, so a line coming and going never moves the column (docs/tasks/
-                OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). Current's eyebrow says unsaved now. */}
+                empty but for one line, so a line coming and going never moves the column (docs/tasks/
+                OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). Current's eyebrow says unsaved now. A failure is an alert; "copied"
+                a status, gone at the hook's dismiss. */}
             <p className="off-screen__status">
-              {slot && (
-                <span role="alert">
-                  {slot.kind === 'saveFailed' ? fill('session.status.saveFailed', { name: slot.name }) : RENAME_TAKEN}
-                </span>
-              )}
+              {slot?.kind === 'saveFailed' && <span role="alert">{fill('session.status.saveFailed', { name: slot.name })}</span>}
+              {slot?.kind === 'renameTaken' && <span role="alert">{RENAME_TAKEN}</span>}
+              {slot?.kind === 'share' && shareStatus === 'copied' && <span role="status">{LINK_COPIED}</span>}
+              {slot?.kind === 'share' && shareStatus === 'error' && <span role="alert">{COPY_FAILED}</span>}
             </p>
             {/* Factory Reset's confirm: into the screen, never <body> (the UI Shell guardrail), or in place when there
                 is no screen (a component test). */}

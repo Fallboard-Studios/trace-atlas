@@ -271,6 +271,25 @@
   overflow-wrap: anywhere;
 }
 
+/* The readout and Share in one row (docs/tasks/OFF_SCREEN_CONSOLE.md Task 10, spec §1.6): the well centred as before,
+   Share flat beside it, the row never wider than the column; the well shrinks and wraps first, Share keeps its face.
+   Task 11 sets the look against frame F. */
+.off-screen__readout-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--spacing-sm);
+  max-width: 100%;
+}
+
+.off-screen__readout-row .off-screen__readout {
+  min-width: 0;
+}
+
+.off-screen__readout-row .sc-button {
+  flex: none;
+}
+
 /* Factory Reset's confirm (docs/tasks/OFF_SCREEN_CONSOLE.md Task 3): SessionsPanel.css's clear-storage-confirm__*
    rules, copied here because the dialog portals out of both components' trees. SessionsPanel.css keeps its copy until
    the panel is deleted (Task 15), when this is the only one. */
