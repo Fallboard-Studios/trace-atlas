@@ -666,8 +666,26 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 - [ ] Spec §5's Look, by Crawford, through "Share: copied. Open Device, Reset, confirm: the first-visit screen. Power
       on: the live world plays. On a phone: the same, stacked, the header one line at 320 px."
 - [ ] Open Question 1 (the rename input's placement) answered.
-- [ ] Crawford's call (spec §6): module B on this branch, or on `feature/settings-retirement` after this one merges.
+- [x] Crawford's call (spec §6): module B on this branch, or on `feature/settings-retirement` after this one merges.
+      **A separate branch** (Crawford, 2026-11-09), which he expects will also retire the **Companies** nav item; that
+      is not in this plan's Tasks 12–16 yet and needs planning before module B starts.
 - [ ] Reviewed with Crawford before Phase 5.
+
+  **Review, 2026-11-09 (Crawford, after the Phase 4 report), each its own commit:**
+  - `sessionStore.keepWorld` cut, with its tests (fd15996e): no Save reaches a snapshot (Task 7's As built).
+  - **Factory Reset moves in with the saves; the Device section goes** (f02862af): nothing else would ever go in it,
+    and Reset deletes the saves (for the most part). It sits at the Transmissions section's foot, under the action row,
+    set off by a rule. Spec §1.1, §1.4, §5 amended.
+  - **A modal confirm before Delete** (5a613ddc), reversing the intent's "no confirm": the Sessions list's
+    `session.delete.confirm*` copy (Task 15 now keeps those two keys), placed as Reset's confirm is; Cancel or Escape
+    returns the focus to Delete, a confirmed Delete to the Transmissions header. Spec §1.5, §3, §5 amended.
+  - **Share moves into the action row** (22909047), last, after Delete; the readout stands alone again. Four buttons:
+    one row on the desk, two by two on the phone. Share is now inside the collapsed section, so sharing opens the list
+    first. Spec §1.1, §1.5, §1.6 amended.
+  - The missing-fields question: `withGlobalAudioDefaults` fills missing fields inside `globalAudio`; the throw seen in
+    Task 11's look came from a hand-written fixture with no `globalAudio` at all, which no app save lacks. Not filed.
+  - Seen in the look, for Crawford: Factory Reset's button is the full cabinet face (`CLEAR_STORAGE_SCHEMA` is not
+    muted), as it was in Device; under the saves it now stands out more than the flat action row.
 
 ---
 
