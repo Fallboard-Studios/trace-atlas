@@ -30,7 +30,7 @@ import { useSessionStore, isPayloadDirty, isWorldDirty } from '@/stores/sessionS
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
-import { listSessions, loadSession, renameNamedSession } from '@/utils/sessionStorageEngine';
+import { deleteNamedSession, listSessions, loadSession, renameNamedSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { formatSessionTimestamp, getScreenViewportDomNode } from '@/utils/helpers';
 import { CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
@@ -81,8 +81,6 @@ const READOUT_LABEL = labels('home.off.readout').humanLabel;
 const SAVE_SCHEMA: ButtonSchema = { id: 'offSave', type: 'button', ...labels('home.off.save'), appearance: 'muted' };
 const RENAME_SCHEMA: ButtonSchema = { id: 'offRename', type: 'button', ...labels('home.off.rename'), appearance: 'muted' };
 const DELETE_SCHEMA: ButtonSchema = { id: 'offDelete', type: 'button', ...labels('home.off.delete'), appearance: 'muted' };
-/** Delete is wired in docs/tasks/OFF_SCREEN_CONSOLE.md Task 9. */
-const notYet = () => {};
 /** Rename's inline input (spec §1.5), in the selected save's row: the save's name, as long as the Sessions panel's name
  *  field allows. */
 const RENAME_INPUT_SCHEMA: TextInputSchema = {
@@ -329,7 +327,8 @@ interface Intent {
  * replaced is gone). A Save the storage refuses shows its failure line, naming the save it tried, in the status slot
  * under the readout until a Save succeeds or the world changes (R20, spec §1.6). Rename puts an input in the selected
  * save's trailing slot (RenameField, above): its commit re-keys the save, and the loaded name and Current's snapshot
- * name follow; a taken name is refused in the same slot, one line at a time. Dirty is read on mount, after a landed
+ * name follow; a taken name is refused in the same slot, one line at a time. Delete removes the selected save at once,
+ * no confirm and no world change, and the selection falls to New Transmission holding the live world (onDelete). Dirty is read on mount, after a landed
  * change, after an in-place edit and after a Save — never per render (it builds the live payload). The veil
  * (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
@@ -434,7 +433,11 @@ export function OffScreen() {
   const loadedTheme = useLoadingStore((s) => s.theme);
   const loadedAspects = useLoadingStore((s) => s.aspects);
   // The stores hold a current world from module load on (their defaults), so the fallback never shows in the app.
-  const liveWorld = { attenuationStyleName: currentAttenuationStyle?.name ?? '', coordinates: coordinates ?? { x: 0, y: 0 } };
+  const liveName = currentAttenuationStyle?.name ?? '';
+  const liveWorld = useMemo(
+    () => ({ attenuationStyleName: liveName, coordinates: coordinates ?? { x: 0, y: 0 } }),
+    [liveName, coordinates],
+  );
   const liveLabel = describeWorld({ ...liveWorld, theme: loadedTheme, aspects: loadedAspects }, loadedSessionName ?? undefined);
   // Current is named after the world the listener left while there is a snapshot, so no pick renames it; with none it
   // is the live world (spec §1.3).
@@ -825,6 +828,25 @@ export function OffScreen() {
     [renameFollowers],
   );
 
+  // Delete (docs/specs/OFF_SCREEN_CONSOLE.md §1.5, assumption 2): the selected save goes at once, no confirm, and the live
+  // world stands — no world change, no wash. The names that pointed at it let go: the loaded save detaches (a fresh name
+  // suggested), and Current's snapshot forgets it, so Current reads unsaved. The selection, matching no row now, falls to
+  // New Transmission holding the live identity whole — the editor already shows its seed and plot, and the live loading
+  // is its own, so the readout names the deleted save's world with no tail. Only enabled on a save with no change
+  // waiting (actionRow), so the pick is the shown one.
+  const onDelete = useCallback(() => {
+    if (!('name' in pick) || !pick.value.startsWith(SAVE_PREFIX)) return;
+    const { name } = pick;
+    deleteNamedSession(name);
+    const { currentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
+    if (currentLoadedSessionName === name) detachLoadedSession();
+    const held = snapshotRef.current;
+    if (held?.loadedName === name) setSnapshot({ ...held, loadedName: null });
+    setSaves(sortedSaves());
+    setPick({ value: NEW_VALUE, name: '', identity: { ...liveWorld, theme: loadedTheme, aspects: loadedAspects } });
+    setDirty(readDirty(snapshotRef.current));
+  }, [pick, liveWorld, loadedTheme, loadedAspects, setSnapshot]);
+
   // The list's trailing slot (RadioButton's): Rename's input on the save being renamed, nothing on any other row.
   const trailing = useCallback(
     (value: string) => (renaming !== null && value === SAVE_PREFIX + renaming ? <RenameField name={renaming} onDone={onRenameDone} /> : null),
@@ -955,7 +977,7 @@ export function OffScreen() {
                       schema={DELETE_SCHEMA}
                       face="single"
                       accessibleName={fill('home.off.delete', { name: shownName })}
-                      onClick={notYet}
+                      onClick={onDelete}
                       disabled={!actions.delete}
                     />
                   </div>

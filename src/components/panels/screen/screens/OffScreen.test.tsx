@@ -2346,6 +2346,107 @@ describe('OffScreen — Rename (console Task 8)', () => {
   });
 });
 
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 9 (spec §1.5, assumption 2, §5 case 10): Delete removes the selected save at
+// once, no confirm. The live world stands: no world change, no wash. The loaded save detaches and Current's snapshot
+// forgets the name; the selection, matching no row, falls to New Transmission holding the live identity whole, so the
+// editor reads as the deleted save's world, selected, and the readout names it with no tail.
+describe('OffScreen — Delete (console Task 9)', () => {
+  beforeEach(() => {
+    markHeardWorld();
+    // A pick lands as itself, so a landed save reads clean, as in the app.
+    vi.mocked(applySessionPayload).mockImplementation((payload) => {
+      useLoadingStore.getState().setLoading(loadingOf(payload));
+      live.payload = structuredClone(payload);
+    });
+  });
+  const presets = TRANSMISSION_PRESETS.length;
+  const session = () => useSessionStore.getState();
+  const deleteButton = () => actionButton('home.off.delete');
+  /** Dusk Run, under Float, saved and picked, landed: the row Delete acts on. */
+  const pickDuskRun = () => {
+    saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'float' });
+    render(<OffScreen />);
+    openTransmissions();
+    fireEvent.click(row('Dusk Run'));
+  };
+
+  it('removes the save from storage and from the list at once, with no dialog', () => {
+    pickDuskRun();
+    fireEvent.click(deleteButton());
+    expect(listSessions()).toEqual([]);
+    expect(radioNames().some((name) => name.startsWith('Dusk Run'))).toBe(false);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(transmissionsHeader().textContent).toBe(headerText(newTransmission(), presets));
+  });
+
+  it('falls to New Transmission holding the live world: the editor selected, no row checked, the readout with no tail', () => {
+    pickDuskRun();
+    fireEvent.click(deleteButton());
+    expect(editorSelected()).toBe(true);
+    expect(editorShows()).toEqual(liveIdentity());
+    expect(within(picker()).getAllByRole('radio').every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true);
+    // The live loading is the save's own (Float), so it is the world's, not a tail on it.
+    expect(readout().textContent).toBe(describeWorld({ ...liveIdentity(), theme: 'float', aspects: {} }));
+    expect(enabledActions()).toEqual({ save: true, rename: false, delete: false });
+    expect(actionButton('home.off.save').getAttribute('aria-label')).toBe(fill('home.off.save', { name: newTransmission() }));
+  });
+
+  it('is no world change: nothing requested, applied or retransmitted, and the Loading rows stay', () => {
+    const request = vi.spyOn(worldChange, 'requestWorldChange');
+    pickDuskRun();
+    const applied = vi.mocked(applySessionPayload).mock.calls.length;
+    request.mockClear();
+    fireEvent.click(deleteButton());
+    expect(request).not.toHaveBeenCalled();
+    expect(applySessionPayload).toHaveBeenCalledTimes(applied);
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(useLoadingStore.getState().theme).toBe('float');
+    request.mockRestore();
+  });
+
+  it('the loaded save detaches, the session name suggested afresh', () => {
+    pickDuskRun();
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    fireEvent.click(deleteButton());
+    expect(session().currentLoadedSessionName).toBeNull();
+    expect(session().currentSessionName).not.toBe('Dusk Run');
+  });
+
+  it('a save that is not the loaded one leaves the loaded name alone', () => {
+    pickDuskRun();
+    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' }));
+    fireEvent.click(deleteButton());
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' });
+  });
+
+  it('Current’s snapshot forgets the name: Current, left from the save, reads unsaved and unnamed, and a restore detaches', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    openTransmissions();
+    fireEvent.click(row('Dusk Run'));
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+    fireEvent.click(deleteButton());
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    expect(currentRowName()).toBe(currentName());
+    fireEvent.click(currentRadio());
+    expect(session().currentLoadedSessionName).toBeNull();
+  });
+
+  it('Save from there writes the deleted world back under a fresh name, and the selection moves to it', () => {
+    pickDuskRun();
+    const world = structuredClone(live.payload);
+    fireEvent.click(deleteButton());
+    fireEvent.click(saveButton());
+    expect(listSessions()).toHaveLength(1);
+    const added = listSessions()[0].name;
+    expect(added).not.toBe('Dusk Run');
+    expect(loadSession(added)).toEqual(JSON.parse(JSON.stringify(world)));
+    expect(row(added).getAttribute('aria-checked')).toBe('true');
+    expect(editorSelected()).toBe(false);
+  });
+});
+
 // docs/tasks/OFF_SCREEN_REVISIONS.md Task 4 (Crawford's notes 1 and 2, 2026-10-31): the Transmission row is a list —
 // New Transmission, Current, the saves with when they were saved, a rule, the presets — and Scan rides on New
 // Transmission's row, beside its radio, so what Scan does is plain (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md

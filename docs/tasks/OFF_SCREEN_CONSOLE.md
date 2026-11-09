@@ -534,7 +534,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   unchanged name reaching the engine, Escape committing, blur not committing, no select on mount, no `done` guard, the
   pick not following, a successful rename keeping the refusal, the input on every save row.
 
-- [ ] **Task 9: `OffScreen.tsx` — Delete, at once**
+- [x] **Task 9: `OffScreen.tsx` — Delete, at once**
 
   **Description:** Spec §1.5 (Delete), assumption 2. Clicking Delete with a save selected calls
   `deleteNamedSession(name)` with no confirm. Then: `detachLoadedSession()` when it was the loaded save; the snapshot's
@@ -549,17 +549,27 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   `disabled` on Current, a preset and New Transmission (case 7).
 
   **Acceptance criteria:**
-  - [ ] No `AlertDialog` on Delete.
-  - [ ] The selection matches no row after the delete and the editor carries `data-selected`.
+  - [x] No `AlertDialog` on Delete.
+  - [x] The selection matches no row after the delete and the editor carries `data-selected`.
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] Mutant: the loaded name left attached after deleting the loaded save (case 10 fails).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Focused run passes.
+  - [x] Mutant: the loaded name left attached after deleting the loaded save (case 10 fails).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 7. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`
 
   **Estimated scope:** S (one handler)
+
+  **As built:** `onDelete` in `OffScreen.tsx`, as described; the live identity comes from the stores (the editor's seed
+  and plot, now memoized as `liveWorld`, and the loading store), not a built payload. The slot is left alone (the spec
+  names Save, Rename and a world change as what clears it). Seven cases, among them: deleting a save that is not the
+  loaded one leaves the loaded name alone, and Save from New Transmission after a delete writes the deleted world back
+  under a fresh name. Six mutants killed: the plan's (the loaded name left attached), any loaded name detached, the
+  snapshot keeping the name, the pick staying on the gone row, the saves or dirty not re-read. **One equivalent
+  survivor:** New Transmission's pick carrying `NEW_LOADING` instead of the live loading. A pick's loading is read only
+  for the selected row's tail, and New Transmission has no row; the readout reads the shown loading whichever it
+  carries. Kept as the plan says (the identity whole), the behaviour case kept, the mutant recorded here.
 
 - [ ] **Task 10: `OffScreen.tsx` — Share on the readout; "copied" in the slot**
 
