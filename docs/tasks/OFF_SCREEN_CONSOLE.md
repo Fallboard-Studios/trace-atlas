@@ -423,7 +423,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
 ### Phase 4: The action row and Share
 
-- [ ] **Task 7: `offScreenActions.ts` + `OffScreen.tsx` — Save / Rename / Delete replace Keep; the dim matrix; Save**
+- [x] **Task 7: `offScreenActions.ts` + `OffScreen.tsx` — Save / Rename / Delete replace Keep; the dim matrix; Save**
 
   **Description:** Spec §1.5 (the table, Save), §4, assumption 8. A new `src/components/panels/screen/screens/
   offScreenActions.ts` exporting `actionRow(pick, hasSnapshot, dirty, waiting): { save, rename, delete }` (true =
@@ -449,19 +449,42 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   the same; a refused Save writes the failure line into the slot).
 
   **Acceptance criteria:**
-  - [ ] The row never loses a button: inert ones are `disabled` in place.
-  - [ ] The matrix is one pure function with no React import, and the component reads it.
-  - [ ] Each button's accessible name names the selected row.
+  - [x] The row never loses a button: inert ones are `disabled` in place.
+  - [x] The matrix is one pure function with no React import, and the component reads it.
+  - [x] Each button's accessible name names the selected row.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/offScreenActions.test.ts` and the focused run pass.
-  - [ ] Mutants: Save on New Transmission saving the snapshot (case 8 fails); the matrix ignoring `waiting`.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/screens/offScreenActions.test.ts` and the focused run pass.
+  - [x] Mutants: Save on New Transmission saving the snapshot (case 8 fails); the matrix ignoring `waiting`.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6. **Files:** `offScreenActions.ts`, `offScreenActions.test.ts`, `OffScreen.tsx`,
   `OffScreen.test.tsx`, `src/content/copy/home.ts`
 
   **Estimated scope:** M (one pure module, the row, Save's five branches, the Keep blocks rewritten)
+
+  **As built:** **§1.5's "Current, with a snapshot" row cannot be reached**, so Save on Current is always
+  `keepCurrentWorld()` and no Save calls `keepWorld`. Current is selected again only by picking it, which either cancels
+  the change that left it (the snapshot dropped) or restores the snapshot under the wash (the action row dimmed while it
+  waits, the snapshot dropped when it lands). The snapshot branch would be code no click reaches and no test can pin, so
+  it was not written; case 8's "Save on Current with a snapshot" became "Current saved, then left, then restored: the
+  restore attaches the saved name". `sessionStore.keepWorld` now has no caller in the app (its own tests remain):
+  **for Crawford**, cut or keep. Task 6's open note (the snapshot path's " failed to save." with no name) went with the
+  branch. The matrix is `actionRow(kind, dirty, waiting)` with `kind` one of `'current' | 'save' | 'preset' | 'new'`;
+  the plan's `hasSnapshot` argument decided nothing, so it is not there. Two dirty reads (`DirtyReads`, read together at
+  the same moments as before): `current` (Current's, the snapshot's while there is one) sets the eyebrow; `live` (the
+  live world against its loaded save) dims Save on every row, since Save always writes the live world (on Current the
+  two agree: no snapshot while it is selected; a mutant feeding Current's Save the `current` read survived as
+  equivalent, so the row reads `live` alone). Not in
+  the plan: Save off Current also sets the pick's identity to the live world's, so an edited save, once saved, reads as
+  stored with no tail. Each button is named "Save {name}" etc. after the header's name for the shown row. The "Keep
+  follows Current" block became "the action row (console Task 7)" with the matrix, Save and "the eyebrow and Save read
+  different worlds" cases; five cases elsewhere changed an expectation where Save now acts on a non-Current row (the
+  family-row toggle on a preset, "recomputes dirty after a pick", the preset-and-Scan detach case, the refused Save on a
+  save, the wash's kept-Current Scan landing: Save lit there, Current's eyebrow plain). Nine mutants killed: the plan's
+  two, the component passing `waiting` false, a save row's identity not following, the selection never moving, Save
+  reading Current's dirty read, Current's dirty read being the live one, Save not re-reading dirty, a preset gaining
+  Rename.
 
 - [ ] **Task 8: `OffScreen.tsx` — Rename, inline in the row**
 

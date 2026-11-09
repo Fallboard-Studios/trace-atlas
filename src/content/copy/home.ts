@@ -38,11 +38,12 @@ export const home = {
   // radio. Crawford's words (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.6); Scan replaced Roll.
   'home.off.newTransmission': { human: 'New Transmission' },
   'home.off.scan': { human: 'Scan' },
-  // Keep (spec assumption 14): the one save action on the off screen — the loaded world, under the name Comms would
-  // suggest, no name field. Dims once the world is kept. Crawford's words, 2026-10-31: "Save Last World", his answer to
-  // the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20), after "Save the last session" (revisions
-  // Task 4).
-  'home.off.keep': { human: 'Save Last World' },
+  // The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5), each acting on the selected row and named
+  // after it ("Delete Harbour Song"). Save replaced Keep ("Save Last World"). Stand-in copy until Crawford's pass
+  // (backlog 62).
+  'home.off.save': { human: 'Save', template: 'Save {name}' },
+  'home.off.rename': { human: 'Rename', template: 'Rename {name}' },
+  'home.off.delete': { human: 'Delete', template: 'Delete {name}' },
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },

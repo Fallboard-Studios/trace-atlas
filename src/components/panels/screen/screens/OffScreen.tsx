@@ -3,6 +3,7 @@ import { useGSAP } from '@gsap/react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Disclosure } from './Disclosure';
 import { TransmissionEditor, type EditorIdentity } from './TransmissionEditor';
+import { actionRow, type ActionRowKind } from './offScreenActions';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
@@ -73,9 +74,14 @@ const ASPECTS_TITLE = labels('home.off.aspects').humanLabel;
 const ASPECTS_HINT = labels('home.off.aspectsHint').humanLabel;
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
 
-/** Keep (spec assumption 14), muted — flat, like the theme row and the list; only the aspect rows pop (Crawford's note
- *  5). It sits under the list; Scan is the New Transmission editor's (TransmissionEditor.tsx). */
-const KEEP_SCHEMA: ButtonSchema = { id: 'offKeep', type: 'button', ...labels('home.off.keep'), appearance: 'muted' };
+/** The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5): Save, Rename and Delete, muted — flat, like the
+ *  theme row and the list; only the aspect rows pop (Crawford's note 5). Each acts on the selected row and is named after
+ *  it through its template. Scan is the New Transmission editor's (TransmissionEditor.tsx). */
+const SAVE_SCHEMA: ButtonSchema = { id: 'offSave', type: 'button', ...labels('home.off.save'), appearance: 'muted' };
+const RENAME_SCHEMA: ButtonSchema = { id: 'offRename', type: 'button', ...labels('home.off.rename'), appearance: 'muted' };
+const DELETE_SCHEMA: ButtonSchema = { id: 'offDelete', type: 'button', ...labels('home.off.delete'), appearance: 'muted' };
+/** Rename and Delete are wired in docs/tasks/OFF_SCREEN_CONSOLE.md Tasks 8 and 9. */
+const notYet = () => {};
 /** Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): what the standing warning said. */
 const UNSAVED_EYEBROW = labels('home.off.unsavedEyebrow').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
@@ -191,10 +197,22 @@ interface CurrentSnapshot {
   landed: boolean;
 }
 
-/** Is Current unsaved? The dirty read that dims Keep and sets Current's eyebrow describes Current: its snapshot while there
- *  is one, else the live world (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4). */
-const isCurrentDirty = (snapshot: CurrentSnapshot | null): boolean =>
-  snapshot ? isPayloadDirty(snapshot.payload, snapshot.loadedName) : isWorldDirty();
+/** The two dirty reads (docs/specs/OFF_SCREEN_CONSOLE.md §1.5). `current`: is Current unsaved? It describes Current — its
+ *  snapshot while there is one, else the live world (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4) — and
+ *  sets Current's eyebrow. `live`: does the live world differ from its loaded save? It dims Save, which writes the live
+ *  world: over the selected save, or Current's (Current is selected only with no snapshot). The same read while there is
+ *  no snapshot. */
+interface DirtyReads {
+  current: boolean;
+  live: boolean;
+}
+
+const CLEAN: DirtyReads = { current: false, live: false };
+
+const readDirty = (snapshot: CurrentSnapshot | null): DirtyReads => {
+  const live = isWorldDirty();
+  return { current: snapshot ? isPayloadDirty(snapshot.payload, snapshot.loadedName) : live, live };
+};
 
 /**
  * A world change waiting under the scene wash, as the clicks since have shaped it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
@@ -229,7 +247,7 @@ interface Intent {
  * Transmission pick of the typed world; Scan, in its title row, draws one and picks it the same way. No row carries New
  * Transmission, so while it is the shown pick no row is checked and the editor wears the selected state.
  *
- * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and Keep sit in a Disclosure that starts
+ * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its action row sit in a Disclosure that starts
  * collapsed on every mount — component state, never persisted — under a header naming the shown row (New Transmission,
  * Current, or the save's or preset's name) and the count of stored worlds, saves plus presets, read every render. Under
  * it, the Device section, collapsed the same way: Factory Reset behind SessionsPanel's confirm, portalled into the
@@ -254,14 +272,16 @@ interface Intent {
  * and drops it. Re-clicking the selected row does nothing. A theme or aspect click keeps the selected row; on a row
  * other than Current, the row's label names the live loading in place of its own until the row is left (§1.3).
  *
- * Keep (assumption 14), labelled "Save Last World" under the list (review R20), saves Current — no name field — and the
- * new row appears at once: with a snapshot, sessionStore.keepWorld saves the snapshot under its save's name or a fresh
- * one, which the snapshot then carries, and no session field moves; with none, sessionStore.keepCurrentWorld saves the
- * live world (spec §1.4). It dims (the dim-controls rule) whenever Current equals its save (isCurrentDirty, above), and
- * Current's eyebrow reads "Current · unsaved" only while it does not (docs/specs/OFF_SCREEN_CONSOLE.md §1.3; the standing
- * warning line it replaced is gone). A Keep the storage refuses shows its failure line, naming the save it tried, in the
- * status slot under the readout until a Keep succeeds or the world changes (R20, spec §1.6). Dirty is read on mount, after a landed
- * change, after an in-place edit and after a Keep — never per render (it builds the live payload). The veil
+ * The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5; Keep's place, review R20): Save, Rename and
+ * Delete, each acting on the selected row and named after it, an inert one dimmed in place by the pure matrix in
+ * offScreenActions.ts, all three while a change waits. Save writes the live world through sessionStore.keepCurrentWorld —
+ * no name field — and the new row appears at once: on Current, under its loaded save's name or a fresh one, lit while
+ * Current is unsaved; on a save, over that save, lit while the live world differs from it; on a preset or New
+ * Transmission, under a fresh name, always lit, and the selection moves to the new row. Current's eyebrow reads
+ * "Current · unsaved" only while no save matches Current (DirtyReads, above; spec §1.3; the standing warning line it
+ * replaced is gone). A Save the storage refuses shows its failure line, naming the save it tried, in the status slot
+ * under the readout until a Save succeeds or the world changes (R20, spec §1.6). Dirty is read on mount, after a landed
+ * change, after an in-place edit and after a Save — never per render (it builds the live payload). The veil
  * (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
  * column in both gate states. The column is the root's third child, `.off-screen__scroll`, after the veil and the
@@ -291,7 +311,7 @@ interface Intent {
  * 17 and 21) sit under the theme row's line and a "Trace Aspects" title (hinted "select many"), in ASPECT_FAMILY_IDS
  * order — Melody, Envelope, Distance, Voice: each a
  * multiple RadioButton in the cabinet appearance, the only thing on this screen that pops (Crawford's note 5; the theme
- * row, the list, Scan and Keep stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
+ * row, the list, Scan and the action row stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
  * waiting change's picks or the live world's, as the theme row does. A change
  * sends the whole loading, `retransmitWorld({ aspects })`, with the changed family's set canonical (an empty list when
  * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the live roster
@@ -309,7 +329,7 @@ interface Intent {
  * re-deriving a world about to go, and the waiting row stays selected, the readout naming it under the loading clicked
  * (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F12); the loading is laid over its world at the cover, and the row stays the
  * intended pick, always (spec §1.5). The last world click wins, a Current restore included. Picking Current before the
- * change has landed cancels it instead (above); Keep dims until the change has run.
+ * change has landed cancels it instead (above); the action row dims until the change has run.
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -337,11 +357,11 @@ export function OffScreen() {
   // Per family, the aspect toggled on most recently (Task 31, per family since revisions Task 9), for its row's
   // description line; emptied by a world pick.
   const [lastOn, setLastOn] = useState<FamilyAspects>({});
-  // Only the chooser reads it; a first visit (hint only) never builds the payload.
-  const [dirty, setDirty] = useState(() => heardWorld && isWorldDirty());
-  // The name the last Keep tried, when the storage refused it (R20): its line shows in the status slot until a Keep
+  // Only the chooser reads them; a first visit (hint only) never builds the payload.
+  const [dirty, setDirty] = useState(() => (heardWorld ? readDirty(null) : CLEAN));
+  // The name the last Save tried, when the storage refused it (R20): its line shows in the status slot until a Save
   // succeeds or the world changes. Null while there is none.
-  const [keepFailed, setKeepFailed] = useState<string | null>(null);
+  const [saveFailed, setSaveFailed] = useState<string | null>(null);
   // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
   const [transmissionsOpen, setTransmissionsOpen] = useState(false);
   const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
@@ -452,8 +472,8 @@ export function OffScreen() {
     // The row is the intended pick, always: a loading laid over it keeps it, as a theme or aspect click on a landed pick
     // does (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5).
     setPick(intended.pick);
-    setDirty(isCurrentDirty(snapshotRef.current));
-    setKeepFailed(null);
+    setDirty(readDirty(snapshotRef.current));
+    setSaveFailed(null);
   }, [setIntent, setSnapshot]);
 
   // The snapshot is taken on the way out of Current, never on mount: with none, Current is the live world, so a theme or
@@ -486,6 +506,20 @@ export function OffScreen() {
     count: String(saves.length + TRANSMISSION_PRESETS.length),
   });
 
+  // The action row (spec §1.5): the dim matrix of the shown row, the live world's dirty read — Save writes the live world,
+  // and Current is selected only with no snapshot, when Current's read is the same one — and the waiting change, under
+  // which nothing acts on a world not yet live.
+  const currentDirty = dirty.current;
+  const rowKind: ActionRowKind =
+    selectedValue === CURRENT_VALUE
+      ? 'current'
+      : selectedValue === NEW_VALUE
+        ? 'new'
+        : selectedValue.startsWith(SAVE_PREFIX)
+          ? 'save'
+          : 'preset';
+  const actions = actionRow(rowKind, dirty.live, intent !== null);
+
   // The presets' worlds, decoded once: a preset is a link (spec assumption 13), so one that cannot be read keeps its
   // name alone.
   const presetWorlds = useMemo(
@@ -514,8 +548,8 @@ export function OffScreen() {
       // Transmission is the editor above the section, no row (docs/specs/OFF_SCREEN_CONSOLE.md §1.2).
       appearance: 'list',
       options: [
-        // Current's eyebrow says whether a save matches it, from the dirty read Keep dims on (spec §1.3).
-        { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: dirty ? UNSAVED_EYEBROW : CURRENT.humanLabel },
+        // Current's eyebrow says whether a save matches it, from Current's dirty read (spec §1.3).
+        { value: CURRENT_VALUE, humanLabel: currentLabel, loreLabel: currentDirty ? UNSAVED_EYEBROW : CURRENT.humanLabel },
         ...saves.map((save, i) => ({
           value: SAVE_PREFIX + save.name,
           humanLabel: named(SAVE_PREFIX + save.name, save.name, identityOf(save.payload)),
@@ -532,7 +566,7 @@ export function OffScreen() {
         })),
       ],
     };
-  }, [currentLabel, dirty, presetWorlds, saves, selectedValue, selectedLoading]);
+  }, [currentLabel, currentDirty, presetWorlds, saves, selectedValue, selectedLoading]);
 
   // New Transmission picked — a Scan, or the editor's commit, which drops an unchanged draft itself
   // (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): its world waits under the wash like any pick, joining a waiting change with
@@ -624,8 +658,8 @@ export function OffScreen() {
         return;
       }
       retransmitWorld({ theme: value });
-      setDirty(isCurrentDirty(snapshotRef.current));
-      setKeepFailed(null);
+      setDirty(readDirty(snapshotRef.current));
+      setSaveFailed(null);
     },
     [setIntent],
   );
@@ -672,32 +706,31 @@ export function OffScreen() {
     });
   }, [pickNew]);
 
-  // Keep saves Current (spec §1.4): with a snapshot, the snapshot, under its save name or a fresh one, which it then
-  // carries, so Current is named after it and a restore attaches it; no session field moves, since those describe the
-  // live world. With none, the live world through keepCurrentWorld, as before.
-  const onKeep = useCallback(() => {
-    const held = snapshotRef.current;
+  // Save (docs/specs/OFF_SCREEN_CONSOLE.md §1.5) writes the live world through keepCurrentWorld, whichever row is selected:
+  // on Current, under its loaded save's name or a fresh one, as Keep did; on a save, over that save, the loaded one; on a
+  // preset or New Transmission, under a fresh name, since nothing is loaded. Current is selected only with no snapshot —
+  // picking it cancels the change that left it or restores the snapshot, and both drop it — so Current's Save is the live
+  // world. Off Current the selection moves to the save just written, its identity the live world's, so the row reads as
+  // stored with no tail. Only enabled with no change waiting (actionRow), so the pick is the shown one.
+  const onSave = useCallback(() => {
     // A save the storage refuses (a full quota) is a line in the status slot, never a throw into the click (R20). It
-    // names the save Keep tried, read before the attempt: the snapshot's save, or the live world's loaded save, else the
-    // session name keepCurrentWorld would try first (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6).
-    const { currentLoadedSessionName, currentSessionName } = useSessionStore.getState();
-    const tried = held ? (held.loadedName ?? '') : (currentLoadedSessionName ?? currentSessionName);
+    // names the save it tried, read before the attempt: the loaded save, else the session name keepCurrentWorld would
+    // try first (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6).
+    const { currentLoadedSessionName, currentSessionName, keepCurrentWorld } = useSessionStore.getState();
+    const tried = currentLoadedSessionName ?? currentSessionName;
+    let name: string;
     try {
-      if (held) {
-        const name = useSessionStore.getState().keepWorld(held.payload, held.loadedName);
-        setSnapshot({ ...held, loadedName: name });
-      } else {
-        useSessionStore.getState().keepCurrentWorld();
-      }
+      name = keepCurrentWorld();
     } catch (err) {
-      console.error('[OffScreen] Keep could not save', err);
-      setKeepFailed(tried);
+      console.error('[OffScreen] Save could not save', err);
+      setSaveFailed(tried);
       return;
     }
-    setKeepFailed(null);
+    setSaveFailed(null);
     setSaves(sortedSaves());
-    setDirty(isCurrentDirty(snapshotRef.current));
-  }, [setSnapshot]);
+    if (pick.value !== CURRENT_VALUE) setPick({ value: SAVE_PREFIX + name, name, identity: identityOf(buildSessionPayload()) });
+    setDirty(readDirty(snapshotRef.current));
+  }, [pick]);
 
   // Factory Reset (spec §1.4, assumption 4): Reset opens the confirm, keeping its opener for the focus to return to.
   const openResetConfirm = useCallback(() => {
@@ -745,8 +778,8 @@ export function OffScreen() {
         return;
       }
       retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
-      setDirty(isCurrentDirty(snapshotRef.current));
-      setKeepFailed(null);
+      setDirty(readDirty(snapshotRef.current));
+      setSaveFailed(null);
     },
     [shownAspects, setIntent],
   );
@@ -805,7 +838,27 @@ export function OffScreen() {
                 >
                   <RadioButton schema={schema} value={shownPick.value} onChange={onChange} />
                   <div className="off-screen__actions">
-                    <Button schema={KEEP_SCHEMA} face="single" onClick={onKeep} disabled={!dirty || intent !== null} />
+                    <Button
+                      schema={SAVE_SCHEMA}
+                      face="single"
+                      accessibleName={fill('home.off.save', { name: shownName })}
+                      onClick={onSave}
+                      disabled={!actions.save}
+                    />
+                    <Button
+                      schema={RENAME_SCHEMA}
+                      face="single"
+                      accessibleName={fill('home.off.rename', { name: shownName })}
+                      onClick={notYet}
+                      disabled={!actions.rename}
+                    />
+                    <Button
+                      schema={DELETE_SCHEMA}
+                      face="single"
+                      accessibleName={fill('home.off.delete', { name: shownName })}
+                      onClick={notYet}
+                      disabled={!actions.delete}
+                    />
                   </div>
                 </Disclosure>
                 {/* The Device section (spec §1.4): Factory Reset under its label row, behind the confirm below. */}
@@ -840,7 +893,7 @@ export function OffScreen() {
                 empty but for a failure, so a line coming and going never moves the column (docs/tasks/
                 OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). Current's eyebrow says unsaved now. */}
             <p className="off-screen__status">
-              {keepFailed !== null && <span role="alert">{fill('session.status.saveFailed', { name: keepFailed })}</span>}
+              {saveFailed !== null && <span role="alert">{fill('session.status.saveFailed', { name: saveFailed })}</span>}
             </p>
             {/* Factory Reset's confirm: into the screen, never <body> (the UI Shell guardrail), or in place when there
                 is no screen (a component test). */}
