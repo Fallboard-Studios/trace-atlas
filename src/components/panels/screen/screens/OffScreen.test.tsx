@@ -2169,6 +2169,15 @@ describe('OffScreen — Rename (console Task 8)', () => {
     fireEvent.click(row('Dusk Run'));
   };
 
+  // Crawford, Checkpoint A: the input sits in the row bare, with no cabinet box of its own.
+  it('the input draws no cabinet box: a bare field in the row', () => {
+    pickDuskRun();
+    startRename();
+    const field = renameInput()!.closest('.off-screen__rename')!;
+    expect(field.querySelector('.sc-cabinet-box')).toBeNull();
+    expect(field.querySelector('.sc-text-input-facade')).toBeNull();
+  });
+
   it('turns the selected save’s trailing slot into an input, prefilled, focused and selected, the radio still checked', () => {
     pickDuskRun();
     expect(renameInput()).toBeNull();

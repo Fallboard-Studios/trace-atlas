@@ -199,7 +199,8 @@ function RenameField({ name, onDone }: { name: string; onDone: (from: string, to
   };
   return (
     <div className="off-screen__rename" ref={ref} onKeyDown={onKeyDown} onBlur={onBlur}>
-      <TextInput schema={RENAME_INPUT_SCHEMA} value={draft} onChange={setDraft} />
+      {/* Bare in the row: no cabinet box of its own (Crawford, Checkpoint A). */}
+      <TextInput schema={RENAME_INPUT_SCHEMA} value={draft} onChange={setDraft} facade={false} />
     </div>
   );
 }

@@ -295,9 +295,9 @@
 
 /* Rename's input (docs/tasks/OFF_SCREEN_CONSOLE.md Task 8, spec §1.5): in the trailing slot of the save being renamed,
    beside its radio, a little in from the row's edge. A fixed width, so the row keeps its line and the name beside it
-   keeps room on a phone; the TextInput's own label line hidden (the input is named Rename all the same) and its facade
-   trimmed to a row's height, so the list keeps its rhythm. Its facade is the control's own static box (spec §3), the
-   only one in the list. */
+   keeps room on a phone; the TextInput's own label line hidden (the input is named Rename all the same), and no
+   cabinet box (facade={false}, Crawford at Checkpoint A): a bare field, about a row's height, so the list keeps its
+   rhythm. */
 .off-screen .sc-radio-button__trailing {
   padding-right: 6px;
 }
@@ -308,10 +308,6 @@
 
 .off-screen__rename .sc-dual-label {
   display: none;
-}
-
-.off-screen__rename .sc-text-input-facade > .sc-cabinet-box > .sc-cabinet-box__front {
-  padding: 4px 8px;
 }
 
 /* On the phone (Crawford's answer to Open Question 1, 2026-11-09): there is no room beside the row, so the input drops
