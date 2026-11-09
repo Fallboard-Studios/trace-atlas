@@ -126,8 +126,10 @@ Inside the collapsible Transmissions section (§1.4), one `RadioButton` in the `
    `meta`, named `<name> · <world>`, with the live loading tail when its loading has drifted (§1.3 of the earlier
    spec). Picking one is loading it: `applySessionPayload` under the wash, the session names moving with it. **There
    is no Load button.**
-3. A divider (`dividerBefore`, only when there are saves), then **Preset Transmissions** under their heading: the
-   three presets as today, read-only (they have no Rename and no Delete; §1.5).
+3. ~~A divider, then **Preset Transmissions** under their heading: the three presets, read-only.~~ **Removed at
+   Checkpoint A (Crawford, 2026-11-09):** "we don't need them" for now, maybe back later. The list is Current and the
+   saves; the data module, its test and the presets' content went in one commit, so restoring them is one revert (the
+   plan's Checkpoint A notes name it).
 
 Re-clicking the selected row does nothing. The address bar follows every landed world (`mirrorWorldToUrl`) as today.
 
@@ -140,8 +142,8 @@ component state and is not persisted (assumption 6). **Amended at Checkpoint A (
 had a second section of its own, **Device**; nothing else would ever go in it, and it deletes the saves (for the most
 part), so it moved in with them and the Device section went.
 
-- **The Transmissions header** reads its title, the selected row's name and the count of stored worlds (saves plus
-  presets): "Transmissions · Harbour Song · 7", through one `fill` template. When New Transmission is selected the
+- **The Transmissions header** reads its title, the selected row's name and the count of saves (saves plus presets
+  until Checkpoint A): "Transmissions · Harbour Song · 7", through one `fill` template. When New Transmission is selected the
   name is "New Transmission"; when Current is, "Current". The header holds one line at every width (the name wraps
   inside a fixed height with `text-overflow`), so opening and closing moves only the body.
 - **Factory Reset** sits at the Transmissions section's foot, under the action row and set off from it by a rule: the
@@ -168,7 +170,6 @@ loses a button.
 | Current, no snapshot | `keepCurrentWorld()`: the live world under its loaded save's name, else a fresh unused name (R6). Enabled while `isWorldDirty()`. | dimmed | dimmed |
 | Current, with a snapshot | `keepWorld(snapshot.payload, snapshot.loadedName)`; the snapshot carries the name it got. Enabled while `isPayloadDirty(…)`. | dimmed | dimmed |
 | A save | `keepCurrentWorld()`: the live world (its edited loading included) overwrites the save, since the save is the loaded one. Enabled while `isWorldDirty()`. | enabled | enabled |
-| A preset | `keepCurrentWorld()`: the live world (the preset, with any edits) under a fresh unused name; the selection moves to the new save's row. Always enabled. | dimmed | dimmed |
 | New Transmission | the same: the typed world under a fresh name; the selection moves to the new row. Always enabled. | dimmed | dimmed |
 | Any, while a change waits under the wash | dimmed | dimmed | dimmed |
 
@@ -203,8 +204,7 @@ beside the readout, then briefly last in the action row, then here. Share copies
 the readout names, through `useShareStatus` and `copySessionLink`:
 
 - `buildSessionPayload()`, the live world, always (Current is shown only with no snapshot: the plan's Tasks 7 and 10).
-  An edited save shares its edited loading; a landed preset or New Transmission shares what landed. An edited save shares its edited loading; a landed preset or
-  New Transmission shares what landed.
+  An edited save shares its edited loading; a landed New Transmission shares what landed.
 - While a change waits under the wash, Share is dimmed: the intent is not yet a world.
 
 Share Live, Share Save and Copy link collapse into it: one encoder, one button.
@@ -217,7 +217,7 @@ unsaved warning (`home.off.unsavedWarning`) goes: Current's eyebrow says it.
 ### 1.7 Row labels and the readout
 
 Unchanged from the earlier spec's §1.3: `describeWorld`, `describeLoading` and `withTail` name the rows and the
-readout, Current from the snapshot or the live stores, a save or preset from its own payload with the live loading
+readout, Current from the snapshot or the live stores, a save from its own payload with the live loading
 tail when it differs, New Transmission from the editor's committed identity (the readout, not a row, since it has no
 row).
 
@@ -378,7 +378,7 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
 7. **The dim matrix:** every row of §1.5's table, Save / Rename / Delete `disabled` as it says, including all three
    dimmed while a change waits.
 8. **Save:** on Current with a snapshot saves the snapshot (the earlier spec's case 11); on an edited save overwrites
-   it; on a preset and on New Transmission writes a fresh name and moves the selection to the new row. A refused save
+   it; on New Transmission writes a fresh name and moves the selection to the new row. A refused save
    writes the failure line into the slot.
 9. **Rename:** the row's name becomes an input; Enter re-keys the save with `savedAt` kept, the row stays selected,
    `currentLoadedSessionName` follows when it was the loaded save, the snapshot's `loadedName` follows when it was
@@ -445,7 +445,8 @@ the two modules and before the retirement's deletions, each a look by Crawford.
 5. **Audio Quality is Fleet Params' last tab**, and its content keys become `fleet.quality*`. *Default: yes.*
 6. **The disclosures are a muted `Button` with `aria-expanded` over a conditionally rendered body**, no Radix
    `Collapsible`, open state in component state, both collapsed on every mount. *Default: yes.*
-7. **The Transmissions count** is saves plus presets. *Default: yes.*
+7. **The Transmissions count** is saves plus presets. *Default: yes.* (The saves alone since the presets went at
+   Checkpoint A.)
 8. **Save on a preset or New Transmission moves the selection to the new save's row**; Save on Current or on an
    edited save leaves it. *Default: yes.*
 9. **`useShareStatus` moves** to `src/hooks/` since the off screen becomes its only consumer. *Default: yes.*

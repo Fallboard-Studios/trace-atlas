@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
  */
 import { actionRow, type ActionRowKind } from './offScreenActions';
 
-const KINDS: ActionRowKind[] = ['current', 'save', 'preset', 'new'];
+const KINDS: ActionRowKind[] = ['current', 'save', 'new'];
 
 describe('actionRow (spec §1.5)', () => {
   it('Current: Save while it is unsaved, never Rename or Delete', () => {
@@ -36,20 +36,7 @@ describe('actionRow (spec §1.5)', () => {
     });
   });
 
-  it('a preset: Save always, as a fresh save; no Rename or Delete, it is no save', () => {
-    expect(actionRow('preset', true, false)).toEqual({
-      save: true,
-      rename: false,
-      delete: false,
-    });
-    expect(actionRow('preset', false, false)).toEqual({
-      save: true,
-      rename: false,
-      delete: false,
-    });
-  });
-
-  it('New Transmission: the same as a preset', () => {
+  it('New Transmission: Save always, as a fresh save; no Rename or Delete', () => {
     expect(actionRow('new', true, false)).toEqual({
       save: true,
       rename: false,

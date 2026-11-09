@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { useShareStatus } from '@/components/panels/screen/console/useShareStatus';
-import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
 import {
@@ -57,11 +56,10 @@ import './OffScreen.css';
 // CONSTANTS
 // ========================================
 
-// Option values carry their source, so a save named like a preset's id (or like its name) never
-// collides with the preset — or with Current, or New Transmission.
+// Option values carry their source, so a save named Current or New Transmission never collides with either. (The
+// presets, a third source, went at docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A; Crawford may bring them back.)
 const NEW_VALUE = 'new';
 const CURRENT_VALUE = 'current';
-const PRESET_PREFIX = 'preset:';
 const SAVE_PREFIX = 'save:';
 
 const LABEL = labels('home.off.label');
@@ -69,9 +67,8 @@ const POWER_HINT = labels('home.off.powerHint').humanLabel;
 const TRANSMISSION = labels('home.off.transmission');
 const CURRENT = labels('home.off.current');
 const NEW_TRANSMISSION = labels('home.off.newTransmission').humanLabel;
-// The list's section titles, and the title over the aspect family rows with its hint (Task 6c).
+// The list's title over the saves, and the title over the aspect family rows with its hint (Task 6c).
 const SAVED_TITLE = labels('home.off.savedTransmissions').humanLabel;
-const PRESET_TITLE = labels('home.off.presetTransmissions').humanLabel;
 const ASPECTS_TITLE = labels('home.off.aspects').humanLabel;
 const ASPECTS_HINT = labels('home.off.aspectsHint').humanLabel;
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
@@ -208,8 +205,7 @@ function RenameField({ name, onDone }: { name: string; onDone: (from: string, to
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
 
-/** What a pick is: Current — the loaded world, described live from the stores — or a save / preset / New
- *  Transmission, described from its own world under its name (none for New Transmission), so the well names what was
+/** What a pick is: Current — the loaded world, described live from the stores — or a save / New Transmission, described from its own world under its name (none for New Transmission), so the well names what was
  *  picked even before the world has rebuilt. The identity is whole (Task 30): the payload's loading, read leniently by
  *  loadingOf, or New Transmission's Classic with no aspects, is the row's own, which its tail is read against. New
  *  Transmission is the editor's pick (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): no row carries its value. */
@@ -235,7 +231,7 @@ const identityOf = (payload: SessionPayload): WorldIdentity => ({
   ...loadingOf(payload),
 });
 
-/** The world the listener powered off on, kept from the moment they leave it (a save, preset or New Transmission pick,
+/** The world the listener powered off on, kept from the moment they leave it (a save or New Transmission pick,
  *  or a Scan) until it is live again (Current picked). Runtime only: component state, never a store, a save or the link
  *  (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.2). */
 interface CurrentSnapshot {
@@ -270,14 +266,14 @@ const readDirty = (snapshot: CurrentSnapshot | null): DirtyReads => {
 
 /**
  * A world change waiting under the scene wash, as the clicks since have shaped it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md
- * R3). The world part is one of a save or preset to apply, New Transmission's world (a Scan's draw), or Current's
+ * R3). The world part is one of a save to apply, New Transmission's world (a Scan's draw), or Current's
  * snapshot to restore, the last world click winning (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5); then
  * the loading the world should end under, and the row the list shows. Runtime only, like the change itself
  * (worldChange.ts keeps the closure).
  */
 interface Intent {
   world:
-    | { kind: 'payload'; value: string; name: string; payload: SessionPayload }
+    | { kind: 'payload'; name: string; payload: SessionPayload }
     | ({ kind: 'new' } & EditorIdentity)
     | { kind: 'current'; snapshot: CurrentSnapshot };
   pick: TransmissionPick;
@@ -289,9 +285,9 @@ interface Intent {
  * The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9; docs/specs/OFF_SCREEN.md §1.1, assumptions 7 and 8):
  * the etched label and the power hint over the dimmed, still world (WorldView stays mounted behind it —
  * ScreenViewport), and — once this device has heard a world — the Transmission row: Current (the world the listener
- * powered off on), then the user's saves newest first under "Saved Transmissions", each with when it was saved, a
- * divider, then the three presets under "Preset Transmissions", as a RadioButton in the `list` appearance — rows, nothing
- * coming off the plate while the power is off (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4, Crawford's note 1) — every row
+ * powered off on), then the user's saves newest first under "Saved Transmissions", each with when it was saved (the
+ * three presets that followed went at docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A), as a RadioButton in the `list`
+ * appearance — rows, nothing coming off the plate while the power is off (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4, Crawford's note 1) — every row
  * naming its world through describeWorld (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Tasks 6b and 6c), with a
  * well naming the pick through the same helper.
  *
@@ -303,7 +299,7 @@ interface Intent {
  *
  * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its action row sit in a Disclosure that starts
  * collapsed on every mount — component state, never persisted — under a header naming the shown row (New Transmission,
- * Current, or the save's or preset's name) and the count of stored worlds, saves plus presets, read every render. At the
+ * Current, or the save's name) and the count of saves, read every render. At the
  * section's foot, with the saves it deletes, Factory Reset behind SessionsPanel's confirm, portalled into the screen
  * (it had a Device section of its own until Checkpoint A: nothing else was ever going in it). Confirmed, it clears all of localStorage and detaches the loaded save, and the gate is read again, so the
  * chooser gives way to the first-visit view at once (assumption 4).
@@ -311,12 +307,12 @@ interface Intent {
  * The gate (assumption 7) is read once on mount, as the saves are: a device that has never heard a world sees
  * the label and the hint only — the first flip writes the flag, so the chooser waits behind the first power-off.
  *
- * Picking a save or preset retransmits the faint world through applySessionPayload, the same path a Load does,
+ * Picking a save retransmits the faint world through applySessionPayload, the same path a Load does,
  * and never starts audio: only the power switch does (powerController). A save pick also names the session after the
  * save, as loading it from the Sessions list does, so a later Save overwrites it. A save that has since vanished from
  * storage applies nothing and is not claimed as the pick. Scan draws a world and picks it as New Transmission, from any
- * row, landing it under Classic with no aspects (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1). A preset
- * pick or a Scan detaches the loaded save (sessionStore.detachLoadedSession): that world is no longer the save.
+ * row, landing it under Classic with no aspects (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1). A Scan
+ * or an editor commit detaches the loaded save (sessionStore.detachLoadedSession): that world is no longer the save.
  *
  * Current is an anchor (spec §1.2): the first pick that leaves it takes a snapshot (CurrentSnapshot, above: the payload
  * and the loaded save's name, runtime only), and Current is named from the snapshot while there is one, so no pick
@@ -330,8 +326,8 @@ interface Intent {
  * Delete, each acting on the selected row and named after it, an inert one dimmed in place by the pure matrix in
  * offScreenActions.ts, all three while a change waits. Save writes the live world through sessionStore.keepCurrentWorld —
  * no name field — and the new row appears at once: on Current, under its loaded save's name or a fresh one, lit while
- * Current is unsaved; on a save, over that save, lit while the live world differs from it; on a preset or New
- * Transmission, under a fresh name, always lit, and the selection moves to the new row. Current's eyebrow reads
+ * Current is unsaved; on a save, over that save, lit while the live world differs from it; on New Transmission,
+ * under a fresh name, always lit, and the selection moves to the new row. Current's eyebrow reads
  * "Current · unsaved" only while no save matches Current (DirtyReads, above; spec §1.3; the standing warning line it
  * replaced is gone). A Save the storage refuses shows its failure line, naming the save it tried, in the status slot
  * under the readout until a Save succeeds or the world changes (R20, spec §1.6). Rename puts an input in the selected
@@ -463,7 +459,7 @@ export function OffScreen() {
   const shownTheme: ThemeId = intent?.theme ?? loadedTheme;
   // The family rows' sets (Task 31; per family since revisions Task 9), by the same rule.
   const shownAspects = intent?.aspects ?? loadedAspects;
-  // The readout names the shown pick. A save's, preset's or New Transmission's world is named under the loading shown:
+  // The readout names the shown pick. A save's or New Transmission's world is named under the loading shown:
   // the intent's while a change waits, the live world's once it has landed, so an edit in place shows (spec §1.3). Its
   // seed and plot are the pick's: only the loading moves in place. New Transmission's name is empty, so its readout is
   // the drawn style and plot alone. Current with a change waiting is a restore of its snapshot, named under the intended
@@ -513,14 +509,10 @@ export function OffScreen() {
       setSnapshot(null);
       left = loadingOf(payload);
     } else if (intended.world.kind === 'payload') {
-      const { value, name, payload } = intended.world;
+      const { name, payload } = intended.world;
       applySessionPayload(payload);
-      if (value.startsWith(SAVE_PREFIX)) {
-        setCurrentSessionName(name);
-        setCurrentLoadedSessionName(name);
-      } else {
-        detachLoadedSession();
-      }
+      setCurrentSessionName(name);
+      setCurrentLoadedSessionName(name);
       left = loadingOf(payload);
     } else {
       // New Transmission's world, whole: its seed and plot under Classic with no aspects, and no save attached (spec §1.1).
@@ -553,7 +545,7 @@ export function OffScreen() {
     });
   }, [setSnapshot]);
 
-  // The selected save's, preset's or New Transmission's live loading (spec §1.3): the shown loading, while it is not the
+  // The selected save's or New Transmission's live loading (spec §1.3): the shown loading, while it is not the
   // row's own, the theme named whenever it differs from the row's (Classic too). The row then reads it in place of its
   // own (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6b). Current never needs one: its label is the live
   // world already. Not stored: the row reads as stored again once it is left.
@@ -564,44 +556,25 @@ export function OffScreen() {
   const selectedLoading = edited ? describeLoading(shownTheme, shownAspects, { nameTheme: shownTheme !== own.theme }) : null;
   const selectedValue = shownPick.value;
 
-  // The Transmissions header names the shown row — New Transmission, Current, or the save's or preset's name — and the
-  // count of stored worlds, saves plus presets, read every render so a pick or a save shows at once (spec §1.4).
+  // The Transmissions header names the shown row — New Transmission, Current, or the save's name — and the count of
+  // saves, read every render so a pick or a save shows at once (spec §1.4).
   const shownName = selectedValue === NEW_VALUE ? NEW_TRANSMISSION : 'name' in shownPick ? shownPick.name : CURRENT.humanLabel;
   const transmissionsTitle = fill('home.off.transmissionsHeader', {
     name: shownName,
-    count: String(saves.length + TRANSMISSION_PRESETS.length),
+    count: String(saves.length),
   });
 
   // The action row (spec §1.5): the dim matrix of the shown row, the live world's dirty read — Save writes the live world,
   // and Current is selected only with no snapshot, when Current's read is the same one — and the waiting change, under
   // which nothing acts on a world not yet live.
   const currentDirty = dirty.current;
-  const rowKind: ActionRowKind =
-    selectedValue === CURRENT_VALUE
-      ? 'current'
-      : selectedValue === NEW_VALUE
-        ? 'new'
-        : selectedValue.startsWith(SAVE_PREFIX)
-          ? 'save'
-          : 'preset';
+  const rowKind: ActionRowKind = selectedValue === CURRENT_VALUE ? 'current' : selectedValue === NEW_VALUE ? 'new' : 'save';
   const actions = actionRow(rowKind, dirty.live, intent !== null);
-
-  // The presets' worlds, decoded once: a preset is a link (spec assumption 13), so one that cannot be read keeps its
-  // name alone.
-  const presetWorlds = useMemo(
-    () =>
-      TRANSMISSION_PRESETS.map((preset) => {
-        const payload = presetPayload(preset);
-        return payload ? identityOf(payload) : undefined;
-      }),
-    [],
-  );
 
   const schema = useMemo<RadioButtonSchema>(() => {
     // Every row names its world, as Current does (Task 6b): the name fronting the seed and plot, then the loading - the
     // row's own, or on the selected, edited row the live one in its place.
-    const named = (value: string, name: string, world: WorldIdentity | undefined) => {
-      if (!world) return name;
+    const named = (value: string, name: string, world: WorldIdentity) => {
       if (value !== selectedValue || selectedLoading === null) return describeWorld(world, name || undefined);
       const { attenuationStyleName, coordinates } = world;
       return withTail(describeWorld({ attenuationStyleName, coordinates }, name || undefined), selectedLoading);
@@ -623,22 +596,15 @@ export function OffScreen() {
           // Titled while there are saves (Task 6c).
           headingBefore: i === 0 ? SAVED_TITLE : undefined,
         })),
-        ...TRANSMISSION_PRESETS.map((preset, i) => ({
-          value: PRESET_PREFIX + preset.id,
-          humanLabel: named(PRESET_PREFIX + preset.id, labels(preset.nameKey).humanLabel, presetWorlds[i]),
-          // The rule between the saves and the presets — only when there are saves to rule off — then their title.
-          dividerBefore: i === 0 && saves.length > 0,
-          headingBefore: i === 0 ? PRESET_TITLE : undefined,
-        })),
       ],
     };
-  }, [currentLabel, currentDirty, presetWorlds, saves, selectedValue, selectedLoading]);
+  }, [currentLabel, currentDirty, saves, selectedValue, selectedLoading]);
 
   // New Transmission picked — a Scan, or the editor's commit, which drops an unchanged draft itself
   // (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): its world waits under the wash like any pick, joining a waiting change with
   // the last world click winning (R3), the editor selected at the click, under the world's own loading — Classic with no
-  // aspects — which replaces any loading clicked before it, as applying it would. Like a save or preset pick, it leaves
-  // Current first.
+  // aspects — which replaces any loading clicked before it, as applying it would. Like a save pick, it leaves Current
+  // first.
   const pickNew = useCallback(
     (world: EditorIdentity) => {
       leaveCurrent();
@@ -682,17 +648,8 @@ export function OffScreen() {
       setPick(CURRENT_PICK);
       return;
     }
-    let name: string;
-    let payload: SessionPayload | undefined;
-    if (value.startsWith(PRESET_PREFIX)) {
-      // A preset is a link (spec assumption 13): the pick applies whatever world it decodes to.
-      const preset = TRANSMISSION_PRESETS.find((p) => PRESET_PREFIX + p.id === value);
-      name = preset ? labels(preset.nameKey).humanLabel : '';
-      payload = (preset && presetPayload(preset)) ?? undefined;
-    } else {
-      name = value.slice(SAVE_PREFIX.length);
-      payload = loadSession(name);
-    }
+    const name = value.slice(SAVE_PREFIX.length);
+    const payload = loadSession(name);
     if (!payload) return;
     // The world change waits under the scene wash (docs/tasks/OFF_SCREEN_REVISIONS.md Task 13), the pick showing at the
     // click (R3); the payload, the names, the row and the dirty read land with the cover. The pick's own loading
@@ -700,7 +657,7 @@ export function OffScreen() {
     leaveCurrent();
     const identity = identityOf(payload);
     setIntent({
-      world: { kind: 'payload', value, name, payload },
+      world: { kind: 'payload', name, payload },
       pick: { value, name, identity },
       theme: identity.theme,
       aspects: identity.aspects,
@@ -773,8 +730,8 @@ export function OffScreen() {
   }, [pickNew]);
 
   // Save (docs/specs/OFF_SCREEN_CONSOLE.md §1.5) writes the live world through keepCurrentWorld, whichever row is selected:
-  // on Current, under its loaded save's name or a fresh one, as Keep did; on a save, over that save, the loaded one; on a
-  // preset or New Transmission, under a fresh name, since nothing is loaded. Current is selected only with no snapshot —
+  // on Current, under its loaded save's name or a fresh one, as Keep did; on a save, over that save, the loaded one; on
+  // New Transmission, under a fresh name, since nothing is loaded. Current is selected only with no snapshot —
   // picking it cancels the change that left it or restores the snapshot, and both drop it — so Current's Save is the live
   // world. Off Current the selection moves to the save just written, its identity the live world's, so the row reads as
   // stored with no tail. Only enabled with no change waiting (actionRow), so the pick is the shown one.

@@ -840,7 +840,10 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
 - [ ] **Task 16: `docs/` — document the shipped behaviour**
 
-  **Description:** Spec §1.9 (Docs). `UI_SHELL.md`: the nav panel's five boxes become four; the screens table loses
+  **Description:** Spec §1.9 (Docs). **Also (Checkpoint A):** the presets are gone, so `UI_SHELL.md`'s off-screen list,
+  pick rules and scene-wash lines, `SESSION_STORAGE.md`'s "Transmission presets and the off screen" section and its
+  per-block "Presets" lines, and `CONTENT_LAYER.md`'s preset mention drop them. `UI_SHELL.md`: the nav panel's five
+  boxes become four; the screens table loses
   `SettingsScreen` and Fleet Params' row gains Audio Quality as the eighth tab; `ConsolePanel`'s route list loses
   `settings`; the off screen section is rewritten for the editor, the two sections, the action row, Share and the
   slot; the scene wash paragraph loses Foundry's Retransmit and a session Load and gains the editor's commit; the

@@ -4,7 +4,7 @@ import type { ContentEntry } from '../types';
  *  removed with the accordion itself. */
 export const home = {
   // The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9). Placeholder copy until Crawford's
-  // review; the preset names are the sketch's stand-ins (src/data/transmissionPresets.ts).
+  // review. (The three presets' names went with the presets at docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A.)
   'home.off.label': {
     human: 'Trace Atlas',
     lore: 'A Meridia Telemetry Group product',
@@ -29,10 +29,9 @@ export const home = {
   // The title over the aspect family rows, with its hint (Crawford, 2026-11-02, Task 6c).
   'home.off.aspects': { human: 'Trace Aspects' },
   'home.off.aspectsHint': { human: 'select many' },
-  // The Transmission list's section titles over the saves and the presets (Crawford, 2026-11-02, Task 6c). The saves'
-  // shows only while there are saves.
+  // The Transmission list's title over the saves (Crawford, 2026-11-02, Task 6c), shown only while there are saves. The
+  // presets had one too until they went (docs/tasks/OFF_SCREEN_CONSOLE.md, Checkpoint A).
   'home.off.savedTransmissions': { human: 'Saved Transmissions' },
-  'home.off.presetTransmissions': { human: 'Preset Transmissions' },
   // New Transmission: the first row of the list, a world drawn when the off screen opens (a random Attenuation Style and
   // plot, under Classic with no aspects); Scan, the action in its row, draws another and selects it. An action, not a
   // radio. Crawford's words (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.6); Scan replaced Roll.
@@ -62,9 +61,6 @@ export const home = {
   'home.off.footer': {
     human: 'Meridia Telemetry Group · Trace Atlas receiver firmware · unauthorised retransmission of any trace is an offence under the Deep Charter · no warranty is expressed or implied',
   },
-  'home.off.presets.a': { human: 'Kryndara' },
-  'home.off.presets.b': { human: 'Vessport Null' },
-  'home.off.presets.c': { human: 'Halcyon Drift' },
   // The Loading axis's names and sentences: the fourteen themes and the six aspect families of
   // docs/specs/THEME_AND_ASPECTS_REFINEMENT.md, as shipped (its §1.8; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T12).
   // Each sentence is written from its sheet's Promise line (docs/reference/THEME_AND_ASPECT_SHEETS.md); a theme's may
