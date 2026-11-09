@@ -125,10 +125,12 @@
 
 /* The two axes (docs/tasks/OFF_SCREEN.md Task 30; the sketch's two-column chooser, decided 2026-10-30): Transmission
    left — which world — and Loading right — how it loads — as two equal columns, each its own centred stack; the
-   readout, a sibling after this grid, spans under both. The phone shell stacks the columns (below). */
+   readout, a sibling after this grid, spans under both. The phone shell stacks the columns (below). Neither column can
+   be widened by its content (minmax(0, …)): a long save name in the Transmissions header ends in an ellipsis instead
+   (docs/tasks/OFF_SCREEN_CONSOLE.md Task 11). */
 .off-screen__axes {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: var(--spacing-md) var(--spacing-xl);
   align-items: start;
   width: 100%;
@@ -199,39 +201,92 @@
   text-wrap: balance;
 }
 
-/* The Transmission list (docs/tasks/OFF_SCREEN_REVISIONS.md Task 5; the sketch's .r rows): the list takes the
-   column's full width, rows as RadioButton's list draws them. Roll sits at the Current row's end as the sketch's small
-   flat button — a face shorter than the row and a smaller label, so the row keeps the list's rhythm — a little in
-   from the row's edge. Nothing lifts off the plate. */
+/* The two collapsible sections (docs/tasks/OFF_SCREEN_CONSOLE.md Task 11, spec §1.4; the sketch's frame F): each takes
+   the column's full width, and so does its body, so the list inside it does too (docs/tasks/OFF_SCREEN_REVISIONS.md
+   Task 5) — a row truncates only past the column, never past its own content. */
+.off-screen__axis > .disclosure {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 0;
+}
+
+.off-screen .disclosure__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+}
+
+/* The header: one line at every width, at the muted face's own fixed height, the column's full width, flat. A name past
+   the line ends in an ellipsis rather than widening the column (the whole name is the header's accessible name, and the
+   readout's); a caret before it says the section opens. */
+.off-screen .disclosure > .sc-button {
+  width: 100%;
+  min-width: 0;
+}
+
+.off-screen .disclosure > .sc-button .sc-button__flat {
+  width: 100%;
+  min-width: 0;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.off-screen .disclosure > .sc-button .sc-button__flat::before {
+  content: '▸';
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.off-screen .disclosure > .sc-button[aria-expanded='true'] .sc-button__flat::before {
+  content: '▾';
+}
+
+.off-screen .disclosure > .sc-button .sc-button__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Rename's input (docs/tasks/OFF_SCREEN_CONSOLE.md Task 8, spec §1.5): in the trailing slot of the save being renamed,
+   beside its radio, a little in from the row's edge. A fixed width, so the row keeps its line and the name beside it
+   keeps room on a phone; the TextInput's own label line hidden (the input is named Rename all the same) and its facade
+   trimmed to a row's height, so the list keeps its rhythm. Its facade is the control's own static box (spec §3), the
+   only one in the list. */
 .off-screen .sc-radio-button__trailing {
   padding-right: 6px;
 }
 
-.off-screen .sc-radio-button__trailing .sc-button__flat {
-  height: 26px;
-  padding: 0 10px;
-}
-
-.off-screen .sc-radio-button__trailing .sc-button__label {
-  font-size: var(--font-size-label-lore);
-  letter-spacing: 0.04em;
-}
-
-/* Rename's input (docs/tasks/OFF_SCREEN_CONSOLE.md Task 8, spec §1.5): in the trailing slot of the save being renamed,
-   beside its radio, at a fixed width so the row keeps its line and the name beside it keeps room on a phone. Task 11
-   sets the look against frame F. */
 .off-screen__rename {
   width: min(14rem, 55vw);
 }
 
-/* Keep under the list (Task 14; revisions Task 4): the RadioButton's rows are its own, so it sits in this row right
-   under the Transmission list, centred, flat like it (a muted Button). */
+.off-screen__rename .sc-dual-label {
+  display: none;
+}
+
+.off-screen__rename .sc-text-input-facade > .sc-cabinet-box > .sc-cabinet-box__front {
+  padding: 4px 8px;
+}
+
+/* The action row under the list (docs/tasks/OFF_SCREEN_CONSOLE.md Tasks 7 and 11, spec §1.5; Keep's place): Save, Rename
+   and Delete, flat (muted Buttons), centred, equal width — each the widest one's — and never wrapping: three short
+   words fit the phone's 320 px column with room to spare. */
 .off-screen__actions {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
   gap: var(--spacing-sm);
   max-width: 100%;
+}
+
+.off-screen__actions > .sc-button,
+.off-screen__actions .sc-button__flat {
+  width: 100%;
 }
 
 /* The status slot (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6, spec §1.6), where the unsaved warning line was
@@ -375,7 +430,7 @@
 
 /* One column on the phone (Task 30): Transmission, then Loading below the fold, then the readout. */
 #screen-viewport[data-shell='phone'] .off-screen__axes {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--spacing-lg);
 }
 

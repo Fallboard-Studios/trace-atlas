@@ -613,7 +613,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   plan's (Share enabled while waiting), copying the snapshot, Share not taking the slot, "copied" as an alert, the
   failure worded as copied, the share line ignoring the dismiss, the share line showing over a later failure.
 
-- [ ] **Task 11: `OffScreen.css` — the left column against frame F**
+- [x] **Task 11: `OffScreen.css` — the left column against frame F**
 
   **Description:** The layout pass over Tasks 2–10's markup, read against `docs/sketches/off-screen.html` frame F: the
   editor group's selected fill (`[data-selected]`, the list row's flat light fill from `RadioButton.css`, no walls),
@@ -627,16 +627,34 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   the slot's "copied" and the failure line neither grow nor shrink the column.
 
   **Acceptance criteria:**
-  - [ ] The header, the action row, the readout row and the slot hold their largest size on every content flip.
-  - [ ] No new cabinetry: headers, action row and Share are muted, flat.
+  - [x] The header, the action row, the readout row and the slot hold their largest size on every content flip.
+  - [x] No new cabinetry: headers, action row and Share are muted, flat.
 
   **Verification:**
-  - [ ] The Look above in a live browser, recorded in the commit.
-  - [ ] `npm run build:types`, `npm run lint` clean. No test file.
+  - [x] The Look above in a live browser, recorded in the commit.
+  - [x] `npm run build:types`, `npm run lint` clean. No test file.
 
   **Dependencies:** Tasks 2–10. **Files:** `OffScreen.css` (no `*.test.ts`)
 
   **Estimated scope:** S (one stylesheet)
+
+  **As built (2026-11-09):** the look was taken in headless Chrome through `scripts/perf/cdp-lib.mjs` (a scratch script,
+  not committed), desk 1280 × 720 and phone 320 × 640, driving the real UI: Save on Current, Scan, Save (the selection
+  moves), Rename to an 82-character name, Share, Delete (falls to New Transmission), Device open. Found before the CSS:
+  a long save name **widened the column** — on the desk the header pushed the left column past half, on the phone the
+  whole column overflowed sideways — the list was content-width (~220 px, so "Iron Cre…" while the column had room), the
+  rename input covered its row, and the headers and the three buttons were content-sized and unequal. Now: the axes are
+  `minmax(0, 1fr)` columns, so no content widens one; each section and its body stretch to the column; the header is one
+  line at the muted face's fixed height with an ellipsis and a ▸/▾ caret; the action row is a three-column grid of equal
+  `1fr` tracks, centred, never wrapping (it fits 320 px); the rename field hides the TextInput's own label line (the input
+  is still named Rename) and trims its facade's padding to a row's height. The trailing slot's old rules for Scan's flat
+  button (unused since Task 4) are gone with it. The readout row and the slot needed nothing more: "Unable to copy" (the
+  headless clipboard refusing) took the slot's one line without moving the column. **For Crawford at Checkpoint A:** on
+  the phone the rename input covers the row's name while renaming (it holds that name) — Open Question 1's call; the
+  RadioButton's own "Transmission" label still shows under the header, which frame F does not draw (it names the list
+  for screen readers, so it was left). Also seen: a save whose stored payload lacks fields (a hand-written fixture with
+  no `globalAudio`) makes `applySessionPayload` throw inside `realise`, leaving the pick on Current and the world half
+  applied; real saves are whole, so not this plan's, but worth a backlog line.
 
 ### Checkpoint A: `off-screen-console` built
 - [ ] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite; name any pre-existing, unrelated
