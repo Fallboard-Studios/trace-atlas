@@ -248,58 +248,7 @@ describe('isWorldDirty', () => {
   });
 });
 
-/*
- * Keep with a snapshot (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4): the off screen keeps the world the
- * listener powered off on, not the live one, so keepWorld saves a payload it is handed under a name it is handed and
- * touches no session field; isPayloadDirty is isWorldDirty for any payload and name.
- */
-describe('keepWorld', () => {
-  // A swell frequency the live world cannot have: the live one is seeded, so a fixed value collides with it now and then.
-  const snapshot = () => ({ ...buildSessionPayload(), swellFrequency: (buildSessionPayload().swellFrequency ?? 0) + 10 });
-
-  beforeEach(() => {
-    localStorage.clear();
-    useSessionStore.setState({ currentSessionName: 'Quiet Harbour', currentLoadedSessionName: 'Live Save' });
-  });
-
-  it('with a name, overwrites that save with the given payload, not the live one, and returns the name', () => {
-    saveNamedSession('Dusk Run', { ...buildSessionPayload(), swellFrequency: 1 });
-    expect(snapshot().swellFrequency).not.toBe(buildSessionPayload().swellFrequency); // precondition
-
-    expect(useSessionStore.getState().keepWorld(snapshot(), 'Dusk Run')).toBe('Dusk Run');
-
-    expect(loadSession('Dusk Run')).toEqual(JSON.parse(JSON.stringify(snapshot())));
-    expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
-  });
-
-  it('with null, writes a new row under a name no save has, leaving the existing saves alone', () => {
-    saveNamedSession('Quiet Harbour', { ...buildSessionPayload(), swellFrequency: 1 });
-
-    const name = useSessionStore.getState().keepWorld(snapshot(), null);
-
-    expect(name).not.toBe('Quiet Harbour');
-    expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+( \d+)?$/);
-    expect(loadSession(name)).toEqual(JSON.parse(JSON.stringify(snapshot())));
-    expect(loadSession('Quiet Harbour')?.swellFrequency).toBe(1);
-    expect(listSessions()).toHaveLength(2);
-  });
-
-  it('with a blank name, writes a new row as null does: never an unnamed row', () => {
-    const name = useSessionStore.getState().keepWorld(snapshot(), '   ');
-    expect(name.trim()).not.toBe('');
-    expect(listSessions().map((s) => s.name)).toEqual([name]);
-  });
-
-  it('changes neither currentLoadedSessionName nor currentSessionName, with a name or without', () => {
-    useSessionStore.getState().keepWorld(snapshot(), 'Dusk Run');
-    useSessionStore.getState().keepWorld(snapshot(), null);
-    expect(useSessionStore.getState()).toMatchObject({
-      currentLoadedSessionName: 'Live Save',
-      currentSessionName: 'Quiet Harbour',
-    });
-  });
-});
-
+/* isPayloadDirty is isWorldDirty for any payload and name (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4). */
 describe('isPayloadDirty', () => {
   beforeEach(() => {
     localStorage.clear();

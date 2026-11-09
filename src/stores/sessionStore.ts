@@ -74,12 +74,6 @@ export interface SessionStore {
    */
   keepCurrentWorld: () => string;
   /**
-   * Keep with a snapshot (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4): save `payload` under
-   * `loadedName`, overwriting that save, or under a name no save has when it is null or blank. Returns the name. Touches
-   * no session field: those describe the live world, and the off screen's Current is a world the listener has left.
-   */
-  keepWorld: (payload: SessionPayload, loadedName: string | null) => string;
-  /**
    * The loaded save is no longer the world (the off screen's preset or New Transmission pick, or a Scan): forget it, and if the name
    * input still carries that save's name (a Load or a save pick put it there so Save would overwrite the row), suggest
    * afresh, a name no save has (R6) — so the next Keep or Save writes a new row instead of overwriting a save with a
@@ -106,12 +100,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         : unusedSessionName(currentSessionName.trim());
     saveNamedSession(name, buildSessionPayload());
     set({ currentLoadedSessionName: name, currentSessionName: name });
-    return name;
-  },
-
-  keepWorld: (payload, loadedName) => {
-    const name = loadedName?.trim() || unusedSessionName('');
-    saveNamedSession(name, payload);
     return name;
   },
 
