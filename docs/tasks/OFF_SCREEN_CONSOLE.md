@@ -692,6 +692,14 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
     gained `facade={false}` (default on; COMPONENT_LIBRARY.md), and the editor draws one static facade around the name
     and the coordinates. One row when the panel is 32rem or wider, else X and Y under the name. On the desk the editor
     went from about 340 px to 150 px tall. Spec §1.2 amended.
+  - **The presets are gone** (5d3faaed; Crawford: "we don't need them" for now, maybe back later). The list is Current
+    and the saves; the header counts the saves; `src/data/transmissionPresets.ts`, its test and the presets' content
+    went in that one commit, so **bringing them back is `git revert 5d3faaed`** (then re-apply Share's place). Test
+    cases that picked a preset pick one of three saves with the presets' names and links (`seedWorlds`); preset-only
+    cases were rewritten or removed. That commit had no RED step: the code changed before the list-shape cases were
+    rewritten. Task 16 now lists the long docs still describing presets.
+  - **Share back in the action row** (4bcdf5d1), grouped with the saves now that the presets went: Save / Rename /
+    Delete / Share, one row on the desk, two by two on the phone; the reverse of 3532f79f, tests reversed first.
   - **The panel's labels are the names alone** (Crawford: "leave atmosphere, location, x, & y, remove the rest"): the
     lore lines (Attenuation Style, Atlas Vector, Lateral/Vertical Vector [C]) are hidden inside the panel by CSS; the
     help icons stay, and Foundry keeps its labels until Task 15 removes it. Proof: a look at 1280 × 720 and 320 px.
