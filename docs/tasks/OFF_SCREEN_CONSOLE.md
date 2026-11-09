@@ -657,8 +657,12 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   applied; real saves are whole, so not this plan's, but worth a backlog line.
 
 ### Checkpoint A: `off-screen-console` built
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite; name any pre-existing, unrelated
-      failures). `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean (full suite; name any pre-existing, unrelated
+      failures). `npm run build` clean. 2026-11-09: types clean; lint 0 errors (the 4 warnings are in
+      `src/components/actors/scenery`, unchanged); vite build clean. Full suite run alone: 358 files, 13,756 tests,
+      13,755 pass (233 s). The one failure is `sceneToOrbiterLocal.test.tsx`'s round-trip case timing out at 5 s under
+      the full run — the known slow case; alone it passes (10/10), and this branch has not touched `src/animation`.
+      Vitest also reports the pre-existing `[vitest-worker]: Timeout calling "onTaskUpdate"` (see "The editor").
 - [ ] Spec §5's Look, by Crawford, through "Share: copied. Open Device, Reset, confirm: the first-visit screen. Power
       on: the live world plays. On a phone: the same, stacked, the header one line at 320 px."
 - [ ] Open Question 1 (the rename input's placement) answered.
