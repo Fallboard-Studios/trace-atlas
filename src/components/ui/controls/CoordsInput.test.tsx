@@ -15,7 +15,8 @@ vi.mock('./accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { CoordsInput } from './CoordsInput';
+import { useState } from 'react';
+import { CoordsInput, type CoordsValue } from './CoordsInput';
 import { resolveAccessibleName } from './accessibleName';
 import type { CoordsInputSchema } from '@/types/controls';
 
@@ -56,12 +57,13 @@ describe('CoordsInput', () => {
     expect(screen.getByText('Sector Coordinates')).toBeTruthy();
   });
 
-  it('does not throw and does not call onChange with NaN on a non-numeric entry', () => {
+  // A native number input blanks a non-numeric entry, so it reads as a cleared field: null, never NaN.
+  it('does not throw and never calls onChange with NaN on a non-numeric entry', () => {
     const onChange = vi.fn();
     render(<CoordsInput schema={schema} value={{ x: 0, y: 0 }} onChange={onChange} />);
     const [xInput] = screen.getAllByRole('spinbutton');
     expect(() => fireEvent.change(xInput, { target: { value: 'abc' } })).not.toThrow();
-    expect(onChange).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith({ x: null, y: 0 });
   });
 
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R23: a coordinate is a safe integer, the bound the world link reads, so
@@ -85,12 +87,36 @@ describe('CoordsInput', () => {
     expect(onChange).toHaveBeenNthCalledWith(2, { x: 0, y: -Number.MAX_SAFE_INTEGER });
   });
 
-  it('does not call onChange when a field is cleared to empty', () => {
+  // Found at the off screen console's "editor" checkpoint (docs/tasks/OFF_SCREEN_CONSOLE.md): a field that snapped back
+  // when emptied made a sign flip awkward. A cleared field is null; the caller decides what a blank axis means.
+  it('a field cleared to empty calls onChange with null for that axis, on either axis', () => {
     const onChange = vi.fn();
-    render(<CoordsInput schema={schema} value={{ x: 5, y: 5 }} onChange={onChange} />);
-    const [xInput] = screen.getAllByRole('spinbutton');
+    render(<CoordsInput schema={schema} value={{ x: 5, y: 6 }} onChange={onChange} />);
+    const [xInput, yInput] = screen.getAllByRole('spinbutton');
     fireEvent.change(xInput, { target: { value: '' } });
-    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(yInput, { target: { value: '  ' } });
+    expect(onChange).toHaveBeenNthCalledWith(1, { x: null, y: 6 });
+    expect(onChange).toHaveBeenNthCalledWith(2, { x: 5, y: null });
+  });
+
+  it('renders a null axis as an empty field', () => {
+    render(<CoordsInput schema={schema} value={{ x: null, y: -3 }} onChange={() => {}} />);
+    const [xInput, yInput] = screen.getAllByRole('spinbutton') as HTMLInputElement[];
+    expect(xInput.value).toBe('');
+    expect(yInput.value).toBe('-3');
+  });
+
+  it('a cleared field stays empty in a controlled parent', () => {
+    function Parent() {
+      const [value, setValue] = useState<CoordsValue>({ x: 5, y: 6 });
+      return <CoordsInput schema={schema} value={value} onChange={setValue} />;
+    }
+    render(<Parent />);
+    const [xInput] = screen.getAllByRole('spinbutton') as HTMLInputElement[];
+    fireEvent.change(xInput, { target: { value: '' } });
+    expect(xInput.value).toBe('');
+    fireEvent.change(xInput, { target: { value: '-8' } });
+    expect(xInput.value).toBe('-8');
   });
 
   it('renders its X/Y fields as native numeric inputs', () => {

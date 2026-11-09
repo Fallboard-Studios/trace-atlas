@@ -9,7 +9,7 @@ import { requestWorldChange } from '@/systems/worldChange';
 import { describeWorld } from '@/utils/describeWorld';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
 import { TextInput } from '@/components/ui/controls/TextInput';
-import { CoordsInput } from '@/components/ui/controls/CoordsInput';
+import { CoordsInput, type CoordsValue } from '@/components/ui/controls/CoordsInput';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import {
@@ -59,7 +59,7 @@ export function SectorSettingsDrawer() {
   const { shareStatus, share } = useShareStatus();
 
   const [attenuationStyleNameDraft, setAttenuationStyleNameDraft] = useState(currentAttenuationStyle?.name ?? '');
-  const [coordsDraft, setCoordsDraft] = useState(coordinates ?? { x: 0, y: 0 });
+  const [coordsDraft, setCoordsDraft] = useState<CoordsValue>(coordinates ?? { x: 0, y: 0 });
 
   // Reset the drafts when the store's "current" values actually change (e.g.
   // right after a retransmit resolves) — done during render, comparing
@@ -83,8 +83,10 @@ export function SectorSettingsDrawer() {
     if (attenuationStyleNameDraft !== (currentAttenuationStyle?.name ?? '')) {
       input.attenuationStyleName = attenuationStyleNameDraft;
     }
-    if (coordinates && (coordsDraft.x !== coordinates.x || coordsDraft.y !== coordinates.y)) {
-      input.coordinates = coordsDraft;
+    // A field left blank is drawn, as the off screen's editor draws it on a commit.
+    const coords = { x: coordsDraft.x ?? randomCoordinate(), y: coordsDraft.y ?? randomCoordinate() };
+    if (coordinates && (coords.x !== coordinates.x || coords.y !== coordinates.y)) {
+      input.coordinates = coords;
     }
     // Nothing edited - an emptied name reads as none, as retransmitWorld reads it - is no world change: nothing waits,
     // and no wash fades over an unchanged world (found at the revisions plan's Checkpoint D). retransmitWorld's own

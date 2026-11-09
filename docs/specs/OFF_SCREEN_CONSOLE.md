@@ -96,8 +96,9 @@ Scan; `RadioButton`'s `trailing` slot is no longer used on this screen.
   that differs selects New Transmission and does exactly what picking the New Transmission row does today: the
   snapshot is taken if there is none (§1.3), the change waits under the wash, then
   `retransmitWorld({ attenuationStyleName, coordinates, theme: 'classic', aspects: {} })` and
-  `detachLoadedSession()`. A blank name commits as no name, as `retransmitWorld` reads it. A coordinate field left
-  blank or non-numeric is `CoordsInput`'s own guard and never reaches the commit.
+  `detachLoadedSession()`. A blank name commits as no name, as `retransmitWorld` reads it. A coordinate field may be
+  emptied (so a sign flip is easy); a commit with an axis left blank draws that axis with `randomCoordinate()`, keeps
+  a typed one, and shows the drawn value in its field (changed at the plan's "editor" checkpoint, 2026-11-09).
 - **Scan** draws `generateRandomAttenuationStyleName()` at `randomCoordinate()`s into both inputs and commits in one
   go, from any selected row.
 - **Selected state.** New Transmission is selected when the last landed or waiting world is the editor's (the pick's

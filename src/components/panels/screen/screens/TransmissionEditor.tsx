@@ -1,10 +1,11 @@
 import { useCallback, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { ATTENUATION_STYLE_SCHEMA, COORDS_SCHEMA } from './transmissionEditorSchemas';
 import { TextInput } from '@/components/ui/controls/TextInput';
-import { CoordsInput } from '@/components/ui/controls/CoordsInput';
+import { CoordsInput, type CoordsValue } from '@/components/ui/controls/CoordsInput';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { deepEqual } from '@/utils/math';
+import { randomCoordinate } from '@/utils/seedUtils';
 import { labels } from '@/content';
 import type { ButtonSchema } from '@/types/controls';
 
@@ -18,6 +19,9 @@ export interface EditorIdentity {
   attenuationStyleName: string;
   coordinates: { x: number; y: number };
 }
+
+/** What the inputs hold: an identity whose coordinate fields may be blank (null). */
+type Draft = Omit<EditorIdentity, 'coordinates'> & { coordinates: CoordsValue };
 
 interface TransmissionEditorProps {
   /** The live world's seed and plot, or the waiting change's while one waits. */
@@ -38,11 +42,13 @@ interface TransmissionEditorProps {
  *
  * A commit is Enter in any input, or a blur out of the group (caught on the group: TextInput takes no key or blur
  * props, and both events bubble). One whose draft equals the last synced identity is dropped here; any other is handed
- * to `onCommit`, and the draft becomes the baseline, so the next identity lands. Scan is the caller's draw; it drops a
- * mid-edit draft first, so the drawn world lands in the inputs.
+ * to `onCommit`, and the draft becomes the baseline, so the next identity lands. A coordinate field left blank is drawn
+ * with `randomCoordinate()` on the commit, and the drawn value shows in its field (found at the plan's "editor"
+ * checkpoint: a field may be emptied, so a sign flip is easy). Scan is the caller's draw; it drops a mid-edit draft
+ * first, so the drawn world lands in the inputs.
  */
 export function TransmissionEditor({ identity, selected, onCommit, onScan }: TransmissionEditorProps) {
-  const [draft, setDraft] = useState(identity);
+  const [draft, setDraft] = useState<Draft>(identity);
   const [synced, setSynced] = useState(identity);
   if (!deepEqual(identity, synced)) {
     setSynced(identity);
@@ -51,12 +57,17 @@ export function TransmissionEditor({ identity, selected, onCommit, onScan }: Tra
 
   // Stable, so the memoized inputs re-render only on their own value.
   const onName = useCallback((attenuationStyleName: string) => setDraft((d) => ({ ...d, attenuationStyleName })), []);
-  const onCoords = useCallback((coordinates: { x: number; y: number }) => setDraft((d) => ({ ...d, coordinates })), []);
+  const onCoords = useCallback((coordinates: CoordsValue) => setDraft((d) => ({ ...d, coordinates })), []);
 
   const commit = () => {
     if (deepEqual(draft, synced)) return;
-    setSynced(draft);
-    onCommit(draft);
+    const { x, y } = draft.coordinates;
+    const committed = { ...draft, coordinates: { x: x ?? randomCoordinate(), y: y ?? randomCoordinate() } };
+    setDraft(committed);
+    // A draw that lands back on the identity is no change.
+    if (deepEqual(committed, synced)) return;
+    setSynced(committed);
+    onCommit(committed);
   };
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (e.key === 'Enter' && e.target instanceof HTMLInputElement) commit();

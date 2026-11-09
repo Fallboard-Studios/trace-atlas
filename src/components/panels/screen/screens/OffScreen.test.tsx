@@ -1437,6 +1437,21 @@ describe('OffScreen — the editor commits a world (console Task 5)', () => {
     expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName, coordinates: { x: -12, y: 34 }, theme: 'classic', aspects: {} });
   });
 
+  // Found at the "editor" checkpoint: a coordinate field may be emptied, and a commit draws the blank axis.
+  it('a blank X commits a drawn X with the typed Y, and the editor shows the world that landed', () => {
+    const draw = vi.spyOn(seedUtils, 'randomCoordinate').mockReturnValue(88);
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    render(<OffScreen />);
+    const { attenuationStyleName } = liveIdentity();
+    const [x, y] = within(editor()).getAllByRole('spinbutton');
+    fireEvent.change(x, { target: { value: '' } });
+    fireEvent.change(y, { target: { value: '-3' } });
+    fireEvent.keyDown(y, { key: 'Enter' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName, coordinates: { x: 88, y: -3 }, theme: 'classic', aspects: {} });
+    expect(draw).toHaveBeenCalledTimes(1);
+    expect(editorShows()).toEqual({ attenuationStyleName, coordinates: { x: 88, y: -3 } });
+  });
+
   it('an unchanged commit requests no world change: Enter, a blur, and a draft typed back to the world', () => {
     const request = vi.spyOn(worldChange, 'requestWorldChange');
     render(<OffScreen />);

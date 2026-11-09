@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 /*
@@ -8,6 +8,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
  */
 import { TransmissionEditor, type EditorIdentity } from './TransmissionEditor';
 import { CONTENT } from '@/content';
+import * as seedUtils from '@/utils/seedUtils';
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
 const LIVE: EditorIdentity = { attenuationStyleName: 'live-as', coordinates: { x: 1, y: 2 } };
@@ -205,5 +206,102 @@ describe('TransmissionEditor — the commit and the mid-edit draft (console Task
     handOver({ attenuationStyleName: 'drawn', coordinates: { x: 101, y: 102 } });
     expect(shown()).toEqual({ name: 'drawn', x: '101', y: '102' });
     expect(onCommit).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * Found at the "editor" checkpoint (docs/tasks/OFF_SCREEN_CONSOLE.md): a coordinate field may be emptied, which makes a
+ * sign flip easy, and a commit with an axis left blank draws that axis with randomCoordinate(); a typed axis is kept.
+ */
+describe('TransmissionEditor — a blank coordinate is drawn on commit', () => {
+  const enter = (el: HTMLElement) => fireEvent.keyDown(el, { key: 'Enter' });
+  let draws: number;
+
+  beforeEach(() => {
+    draws = 0;
+    vi.spyOn(seedUtils, 'randomCoordinate').mockImplementation(() => 70 + ++draws);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('a coordinate field may be cleared: it stays empty, and nothing is drawn yet', () => {
+    renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    expect(shown()).toEqual({ name: 'live-as', x: '', y: '2' });
+    expect(draws).toBe(0);
+  });
+
+  it('Enter with X blank draws X, keeps the typed Y, and shows the drawn X once the world is handed back', () => {
+    const { onCommit, handOver } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    fireEvent.change(coordInputs()[1], { target: { value: '-5' } });
+    enter(coordInputs()[1]);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'live-as', coordinates: { x: 71, y: -5 } });
+    handOver({ attenuationStyleName: 'live-as', coordinates: { x: 71, y: -5 } });
+    expect(shown()).toEqual({ name: 'live-as', x: '71', y: '-5' });
+  });
+
+  it('Y blank draws Y alone', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(coordInputs()[1], { target: { value: '' } });
+    enter(styleInput());
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'live-as', coordinates: { x: 1, y: 71 } });
+  });
+
+  it('both blank draws both, once each', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    fireEvent.change(coordInputs()[1], { target: { value: '' } });
+    enter(coordInputs()[0]);
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'live-as', coordinates: { x: 71, y: 72 } });
+    expect(draws).toBe(2);
+  });
+
+  it('a blur out of the group with a blank axis commits a drawn one; a blur within the group draws nothing', () => {
+    const { onCommit } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    fireEvent.blur(coordInputs()[0], { relatedTarget: coordInputs()[1] });
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(draws).toBe(0);
+    fireEvent.blur(coordInputs()[1], { relatedTarget: null });
+    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'live-as', coordinates: { x: 71, y: 2 } });
+  });
+
+  it('the drawn world handed back is the baseline: a second Enter commits nothing and draws nothing', () => {
+    const { onCommit, handOver } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    enter(coordInputs()[0]);
+    handOver({ attenuationStyleName: 'live-as', coordinates: { x: 71, y: 2 } });
+    enter(coordInputs()[0]);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+    expect(draws).toBe(1);
+    expect(shown()).toEqual({ name: 'live-as', x: '71', y: '2' });
+  });
+
+  it('a draw that lands back on the identity commits nothing, and the field shows it', () => {
+    vi.mocked(seedUtils.randomCoordinate).mockReturnValue(1);
+    const { onCommit } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    enter(coordInputs()[0]);
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(shown()).toEqual({ name: 'live-as', x: '1', y: '2' });
+  });
+
+  it('a blank axis survives a new identity mid-edit, and a new identity lands over an untouched draft', () => {
+    const { handOver } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    handOver({ attenuationStyleName: 'landed', coordinates: { x: -7, y: 30 } });
+    expect(shown()).toEqual({ name: 'live-as', x: '', y: '2' });
+  });
+
+  it('Scan drops a blank axis with the rest of the draft', () => {
+    const { handOver } = renderEditor();
+    fireEvent.change(coordInputs()[0], { target: { value: '' } });
+    fireEvent.click(scan());
+    handOver({ attenuationStyleName: 'drawn', coordinates: { x: 101, y: 102 } });
+    expect(shown()).toEqual({ name: 'drawn', x: '101', y: '102' });
   });
 });

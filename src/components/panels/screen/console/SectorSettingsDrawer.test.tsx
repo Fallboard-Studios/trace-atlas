@@ -39,6 +39,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { attachSceneWash } from '@/systems/worldChange';
 import { useSessionStore } from '@/stores/sessionStore';
 import { CONTENT, labels } from '@/content';
+import * as seedUtils from '@/utils/seedUtils';
 
 // ========================================
 // TESTS
@@ -185,6 +186,23 @@ describe('SectorSettingsDrawer', () => {
     fireEvent.click(screen.getByText('Retransmit'));
 
     expect(retransmitWorldMock).toHaveBeenCalledWith({ coordinates: { x: 42, y: 9 } });
+  });
+
+  // CoordsInput lets a field be emptied (found at docs/tasks/OFF_SCREEN_CONSOLE.md's "editor" checkpoint); a blank axis
+  // is drawn at Retransmit, as the off screen's editor draws it on a commit.
+  it('a coordinate field left blank is drawn at Retransmit; the other axis is kept', () => {
+    const draw = vi.spyOn(seedUtils, 'randomCoordinate').mockReturnValue(-61);
+    try {
+      render(<SectorSettingsDrawer />);
+      const [xInput] = screen.getAllByRole('spinbutton') as HTMLInputElement[];
+      fireEvent.change(xInput, { target: { value: '' } });
+      expect(xInput.value).toBe('');
+      fireEvent.click(screen.getByText('Retransmit'));
+      expect(retransmitWorldMock).toHaveBeenCalledWith({ coordinates: { x: -61, y: 9 } });
+      expect(draw).toHaveBeenCalledTimes(1);
+    } finally {
+      draw.mockRestore();
+    }
   });
 
   // Found at Checkpoint D of docs/tasks/OFF_SCREEN_REVISIONS.md: with nothing edited retransmitWorld does nothing (its

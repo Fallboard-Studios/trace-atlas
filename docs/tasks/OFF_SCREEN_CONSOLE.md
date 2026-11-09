@@ -407,6 +407,18 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
       after an edit.
 - [ ] Reviewed with Crawford before Phase 4.
 
+  **Found at the look (2026-11-09):** the commit logic works, but an X or Y field could not be emptied (`CoordsInput`
+  ignored a blank entry, so React put the old number back), which made a sign flip awkward. Fixed: `CoordsValue`'s
+  axes are `number | null`; a cleared field (or a lone "-", which the browser blanks) calls `onChange` with null and
+  renders empty. The editor's commit draws a blank axis with `randomCoordinate()`, keeps a typed one, and puts the
+  drawn value in the draft; a draw that lands back on the identity commits nothing. Foundry's Retransmit draws a blank
+  axis too, since it shares the input (it goes at Task 15). Spec §1.2 and `docs/COMPONENT_LIBRARY.md` updated. Eight
+  of nine mutants killed; the survivor (a null axis rendered as the text "null") is the same as `''` in jsdom, which
+  blanks any non-number, but in a browser React would rewrite the field and erase a typed "-": the browser look
+  covers it.
+- [ ] In the browser: clear X, type "-", then a number: the minus stays. Clear a field and press Enter: that axis is
+      drawn and shows in the field.
+
 ---
 
 ### Phase 4: The action row and Share
