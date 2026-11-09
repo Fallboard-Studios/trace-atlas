@@ -19,6 +19,9 @@ line of plan.md's Stage 1.
 **Status: approved** by Crawford 2026-11-08 ("I want to do this next"), the nine assumptions standing at their
 defaults; the sketch frame (`docs/sketches/off-screen.html`, frame F) drafted the same day. Plan:
 [docs/tasks/OFF_SCREEN_CONSOLE.md](../tasks/OFF_SCREEN_CONSOLE.md) (2026-11-08, sixteen tasks over two modules).
+`off-screen-console` built on `feature/off-screen-console` and amended at the plan's Checkpoint A (Crawford,
+2026-11-09): the sections below are amended in place where it changed them, each marked. `settings-retirement` goes on
+a branch of its own after this one merges.
 
 Written for: Crawford, and the agent that plans and builds it.
 
@@ -167,11 +170,14 @@ loses a button.
 
 | Selected | Save | Rename | Delete |
 |---|---|---|---|
-| Current, no snapshot | `keepCurrentWorld()`: the live world under its loaded save's name, else a fresh unused name (R6). Enabled while `isWorldDirty()`. | dimmed | dimmed |
-| Current, with a snapshot | `keepWorld(snapshot.payload, snapshot.loadedName)`; the snapshot carries the name it got. Enabled while `isPayloadDirty(…)`. | dimmed | dimmed |
+| Current | `keepCurrentWorld()`: the live world under its loaded save's name, else a fresh unused name (R6). Enabled while `isWorldDirty()`. | dimmed | dimmed |
+| ~~Current, with a snapshot~~ | ~~`keepWorld(snapshot.payload, snapshot.loadedName)`~~ — unreachable, found in the build (plan Task 7): picking Current cancels or restores, and both drop the snapshot, so Current is never selected with one. `keepWorld` was cut at Checkpoint A. | | |
 | A save | `keepCurrentWorld()`: the live world (its edited loading included) overwrites the save, since the save is the loaded one. Enabled while `isWorldDirty()`. | enabled | enabled |
 | New Transmission | the same: the typed world under a fresh name; the selection moves to the new row. Always enabled. | dimmed | dimmed |
 | Any, while a change waits under the wash | dimmed | dimmed | dimmed |
+
+Share (§1.6) is enabled on every row and dimmed only while a change waits. The matrix is
+`actionRow(kind, dirty, waiting)` in `offScreenActions.ts`, its kinds `'current' | 'save' | 'new'`.
 
 - **Save** re-reads the saves afterwards so the new row appears, and re-reads the dirty flag. A save the storage
   refuses writes the failure line into the status slot (§1.6), never a throw into the click (R20). The eyebrow on
@@ -193,7 +199,7 @@ loses a button.
   `loadedName` goes null (Current reads "unsaved"). The selection, now matching no row, falls to New Transmission: the
   editor already mirrors the live identity, so it reads as the deleted save's world, selected, and the readout names
   it (assumption 2). No world change and no wash.
-- The three buttons carry an `accessibleName` naming the row they act on ("Delete Harbour Song"), as
+- The four buttons carry an `accessibleName` naming the row they act on ("Delete Harbour Song"), as
   `SessionListItem`'s buttons do today.
 
 ### 1.6 Share, and the status slot
@@ -225,13 +231,14 @@ row).
 ### 1.8 Content
 
 New entries in `src/content/copy/home.ts`, every one a stand-in until Crawford's copy (backlog 62): the Transmissions
-header template (`home.off.transmissionsHeader`, "Transmissions · {name} · {count}"), `home.off.device`,
-`home.off.save`, `home.off.rename`, `home.off.delete`, `home.off.share`, `home.off.unsavedEyebrow` ("Current ·
+header template (`home.off.transmissionsHeader`, "Transmissions · {name} · {count}"), ~~`home.off.device`~~ (gone
+with the Device section at Checkpoint A), `home.off.save`, `home.off.rename`, `home.off.delete`, `home.off.share`, `home.off.unsavedEyebrow` ("Current ·
 unsaved"), `home.off.renameTaken` ("a save already has that name"). Reused from elsewhere: `sector.attenuationStyle`,
 `sector.coords`, `sector.coords.x`, `sector.coords.y` for the editor's inputs; `session.clearStorage` and its confirm
 copy, `session.status.linkCopied`, `session.status.copyFailed`, `session.status.saveFailed` for the slot. Removed
 with the features they named: `home.off.keep`, `home.off.keepFailed` (superseded by `session.status.saveFailed`),
-`home.off.unsavedWarning`, `home.off.scan` stays. §1.9 lists the retirement's removals.
+`home.off.unsavedWarning`, `home.off.scan` stays. The presets' names (`home.off.presets.*`) and their heading went with
+them at Checkpoint A. §1.9 lists the retirement's removals.
 
 ### 1.9 The retirement (`settings-retirement`)
 
@@ -267,7 +274,13 @@ src/
 │   ├── OffScreen.tsx              # the editor, the Transmissions disclosure, the action row, Share, the Factory Reset confirm
 │   ├── OffScreen.test.tsx         # Keep / New Transmission row / Scan / warning cases rewritten; the new cases (§5)
 │   ├── OffScreen.css              # editor group, disclosure header, action row, status slot; warning rules removed
+│   ├── Disclosure.tsx (+ test)    # as built: the header button and its lazy body
+│   ├── TransmissionEditor.tsx (+ test)  # as built: the editor, its draft sync and commit
+│   ├── transmissionEditorSchemas.ts     # as built: the two input schemas (fast refresh keeps them out of the .tsx)
+│   ├── offScreenActions.ts (+ test)     # as built: the pure dim matrix (§1.5)
 │   └── FleetParamsScreen.tsx      # the eighth section (retirement)
+├── components/ui/controls/
+│   └── TextInput.tsx, CoordsInput.tsx   # as built (Checkpoint A): facade={false}, so the editor draws one panel
 ├── components/panels/screen/nav/
 │   ├── navActions.ts              # Settings tables and branch removed; FLEET_PARAMS_GROUP_CONTENT.quality
 │   ├── navActions.test.ts
@@ -278,12 +291,13 @@ src/
 │   └── (SettingsScreen, SectorSettingsDrawer, SessionsPanel, SessionListItem deleted)
 ├── stores/
 │   ├── uiStore.ts                 # FleetParamsGroup + 'quality'; SettingsLeaf and its field removed
-│   ├── sessionStore.ts            # unchanged API; keepWorld / keepCurrentWorld / detachLoadedSession as they are
+│   ├── sessionStore.ts            # keepCurrentWorld / detachLoadedSession as they are; keepWorld cut (Checkpoint A)
 │   └── sessionStore.test.ts
 ├── utils/
 │   ├── sessionStorageEngine.ts    # renameNamedSession
 │   └── sessionStorageEngine.test.ts
 ├── data/
+│   ├── transmissionPresets.ts (+ test)  # deleted at Checkpoint A (the presets)
 │   ├── sectorSettingsConfig.ts    # deleted; the two input schemas move to OffScreen's constants
 │   └── sessionConfig.ts           # CLEAR_STORAGE_SCHEMA kept, the rest removed
 └── content/copy/
@@ -312,11 +326,12 @@ docs/
   musical timing, and is already in the codebase); the address bar mirrors at the end of every `retransmitWorld`; all
   interactive UI stays inside `ScreenViewport` (the Reset confirm portals into it).
 - **Existing controls keep their styling.** `TextInput`, `CoordsInput`, `Button`, `RadioButton` and `DualLabel` are
-  used as they are; the only new CSS is the editor group, the disclosure header, the action row and the status slot.
+  used as they are (amended at Checkpoint A: `TextInput` and `CoordsInput` gained `facade={false}`, default on, for
+  the editor's one panel); the only new CSS is the editor group, the disclosure header, the action row and the status slot.
   Cabinetry only on interactive things: the headers and the action row are muted, flat; the family rows stay the only
   thing that pops.
 - **Controls hold their largest size** (Crawford's rule): the header's one line, the status slot's height, the action
-  row's three buttons and the readout's `min-height` never change on a content flip.
+  row's four buttons and the readout's `min-height` never change on a content flip.
 - **Dim, never hide**: an inert action is `disabled` in place.
 - **Content through the content layer:** every string in §1.8 is an entry; ESLint and `content.test.ts` enforce it.
 - **Ask first:**
@@ -354,7 +369,8 @@ const commitEditor = useCallback(() => {
 ```
 
 The action row's dim matrix (§1.5) is one pure function of `(pick, snapshot, dirty, waiting)` returning three
-booleans, so the test pins the table directly.
+booleans, so the test pins the table directly. (As built: `actionRow(kind, dirty, waiting)`, four booleans with
+Share's; no snapshot argument, since Current is never selected with one.)
 
 ---
 
@@ -376,10 +392,10 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
    intent's identity while it waits.
 6. **The header:** opening reveals the list with the selected row checked; the header's text names the selected row
    and updates on a pick; collapsing keeps the pick. Focus after a power-off lands on the header when collapsed.
-7. **The dim matrix:** every row of §1.5's table, Save / Rename / Delete `disabled` as it says, including all three
-   dimmed while a change waits.
-8. **Save:** on Current with a snapshot saves the snapshot (the earlier spec's case 11); on an edited save overwrites
-   it; on New Transmission writes a fresh name and moves the selection to the new row. A refused save
+7. **The dim matrix:** every row of §1.5's table, Save / Rename / Delete / Share `disabled` as it says, including all
+   four dimmed while a change waits.
+8. **Save:** on Current saves the live world (~~with a snapshot saves the snapshot~~: unreachable, §1.5); on an
+   edited save overwrites it; on New Transmission writes a fresh name and moves the selection to the new row. A refused save
    writes the failure line into the slot.
 9. **Rename:** the row's name becomes an input; Enter re-keys the save with `savedAt` kept, the row stays selected,
    `currentLoadedSessionName` follows when it was the loaded save, the snapshot's `loadedName` follows when it was
@@ -387,7 +403,7 @@ copy, gets no test and names a look as its proof. Each new gate is mutation-chec
 10. **Delete:** a confirm names the save, and Cancel or Escape deletes nothing; confirmed, the save is gone; the loaded save detaches; the snapshot's name clears and
     Current reads "unsaved"; the selection falls to New Transmission with the editor showing the live identity; no
     world change is requested.
-11. **Share:** copies the snapshot's payload on Current with a snapshot, else `buildSessionPayload()`; "copied" shows
+11. **Share:** copies `buildSessionPayload()`, the live world, on every row (no snapshot case, §1.6); "copied" shows
     in the slot and is gone after the dismiss; dimmed while a change waits.
 12. **The eyebrow:** "Current · unsaved" while dirty, "Current" after a Save.
 13. **Factory Reset** (in the Transmissions section since Checkpoint A) is behind the confirm; confirming clears storage, detaches, and the screen shows the
@@ -423,7 +439,8 @@ the two modules and before the retirement's deletions, each a look by Crawford.
 
 - **Branch:** `feature/off-screen-console`, off `main` after the intent and this spec merge (they sit on
   `docs/off-screen-console-intent`). One branch for both modules, or a second `feature/settings-retirement` after the
-  first merges; Crawford's call at the first checkpoint.
+  first merges; Crawford's call at the first checkpoint. **Answered at Checkpoint A (2026-11-09): a separate branch**,
+  which he expects will also retire the Companies nav item (not yet planned).
 - **Commits:** `off-screen-console T<n>: …`, one per task, RED first, `Co-Authored-By` as the reminder gives.
 - **PR:** Crawford opens it.
 
@@ -449,7 +466,7 @@ the two modules and before the retirement's deletions, each a look by Crawford.
 7. **The Transmissions count** is saves plus presets. *Default: yes.* (The saves alone since the presets went at
    Checkpoint A.)
 8. **Save on a preset or New Transmission moves the selection to the new save's row**; Save on Current or on an
-   edited save leaves it. *Default: yes.*
+   edited save leaves it. *Default: yes.* (New Transmission alone since the presets went at Checkpoint A.)
 9. **`useShareStatus` moves** to `src/hooks/` since the off screen becomes its only consumer. *Default: yes.*
 
 **Open questions** (answered 2026-11-08):
@@ -462,7 +479,7 @@ the two modules and before the retirement's deletions, each a look by Crawford.
 | Risk | Impact | Mitigation |
 |---|---|---|
 | The editor's draft-versus-live sync fights the wash: a commit lands, the intent clears, the live identity changes, and the sync overwrites a draft the user started during the wash | Medium | The sync leaves a dirty draft alone (§1.2); case 3 pins it. |
-| `OffScreen.tsx` grows past readable: the editor, two disclosures, an inline rename and a confirm in one 750-line file | Medium | The plan extracts `TransmissionEditor`, `Disclosure` and `TransmissionActions` as children in the same folder, each with its own test file where it has behaviour. |
+| `OffScreen.tsx` grows past readable: the editor, two disclosures, an inline rename and a confirm in one 750-line file | Medium | The plan extracts `TransmissionEditor`, `Disclosure` and `TransmissionActions` as children in the same folder, each with its own test file where it has behaviour (as built: `offScreenActions.ts`, the pure matrix; the handlers stayed in `OffScreen.tsx`). |
 | Deleting the Settings branch breaks a path the Guide (roadmap 51) or a link arrival expects | Low | `ConsolePanel`'s `Record<HubTile, …>` makes a missing tile a compile error; the link arrival never names a branch. |
 | A rename of the loaded save while a snapshot also names it leaves one of the two stale | Medium | One `renameFollowers(from, to)` step updates both; case 9 covers both names. |
 | Collapsing the list hides a checked row from a screen reader's first pass | Low | The header's text names the selected row, and the `RadioButton` keeps its group semantics when open. |

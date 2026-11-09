@@ -15,9 +15,10 @@ the item's own measure-first check runs, and the item archives if the check find
 
 - Backlog [71](backlog.md#71-off-screen-the-console--the-one-place-a-world-is-made-loaded-kept-shared-or-deleted) **The
   off screen as the console** — interviewed and spec approved 2026-11-08 ([intent](../intent/off-screen-console.md),
-  [spec](../specs/OFF_SCREEN_CONSOLE.md)): the New Transmission editor, the collapsible list with one action row, Share
-  on the readout, Factory Reset on the off screen; then Audio Quality to Fleet Params and the Settings branch gone.
-  Sketch frame drafted; plan written 2026-11-08 ([plan](../tasks/OFF_SCREEN_CONSOLE.md)); build next.
+  [spec](../specs/OFF_SCREEN_CONSOLE.md)): the New Transmission editor, the collapsible list with one action row
+  (Save, Rename, Delete, Share), Factory Reset at its foot, no presets; then, on its own branch, Audio Quality to Fleet
+  Params and the Settings branch gone. Plan written 2026-11-08 ([plan](../tasks/OFF_SCREEN_CONSOLE.md)); the console
+  built on `feature/off-screen-console`, at Checkpoint A (Crawford's look).
 - Backlog [67](backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) **The
   desktop crackles at Full** — interviewed 2026-11-06 ([intent](../intent/desktop-full-tier-standing-cost.md)):
   shrink the graph's standing cost at every tier, Crawford's ear at 4K the bar; spec written 2026-11-06

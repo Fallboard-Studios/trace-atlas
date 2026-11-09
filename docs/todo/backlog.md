@@ -805,6 +805,13 @@ the selected save the selection falls to New Transmission; a rename to a taken n
 gate at once; the disclosures are a muted Button over a conditional render, no Radix Collapsible, both collapsed on
 every mount; Save on a preset or New Transmission moves the selection to the new row.
 
+**Amended at Checkpoint A** (Crawford, 2026-11-09; the plan's Checkpoint A records each change): the presets are gone
+(the list is Current and the saves); the Device section is gone, Factory Reset sits at the Transmissions section's foot;
+Delete asks first, in a modal confirm; Share is the fourth button in the action row, not beside the readout; the
+editor's three fields share one panel; `sessionStore.keepWorld` is cut. Module B goes on a branch of its own after
+this one merges, and may also retire the Companies nav item (not yet planned).
+
 **Status:** spec approved 2026-11-08; the sketch frame drafted in `docs/sketches/off-screen.html` (frame F); plan
 written the same day ([plan](../tasks/OFF_SCREEN_CONSOLE.md): Tasks 1–11 the console, Checkpoint A, Tasks 12–16 the
-retirement and docs). Build next, on `feature/off-screen-console`. First line of plan.md's Stage 1.
+retirement and docs). Module A (`off-screen-console`) built on `feature/off-screen-console`, its docs updated; at
+Checkpoint A, awaiting Crawford's look. First line of plan.md's Stage 1.

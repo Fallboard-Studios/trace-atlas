@@ -322,9 +322,9 @@ interface Intent {
  * and drops it. Re-clicking the selected row does nothing. A theme or aspect click keeps the selected row; on a row
  * other than Current, the row's label names the live loading in place of its own until the row is left (§1.3).
  *
- * The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5; Keep's place, review R20): Save, Rename and
- * Delete, each acting on the selected row and named after it, an inert one dimmed in place by the pure matrix in
- * offScreenActions.ts, all three while a change waits. Save writes the live world through sessionStore.keepCurrentWorld —
+ * The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5; Keep's place, review R20): Save, Rename,
+ * Delete and Share, each acting on the selected row and named after it, an inert one dimmed in place by the pure matrix
+ * in offScreenActions.ts, all four while a change waits. Save writes the live world through sessionStore.keepCurrentWorld —
  * no name field — and the new row appears at once: on Current, under its loaded save's name or a fresh one, lit while
  * Current is unsaved; on a save, over that save, lit while the live world differs from it; on New Transmission,
  * under a fresh name, always lit, and the selection moves to the new row. Current's eyebrow reads
@@ -332,8 +332,9 @@ interface Intent {
  * replaced is gone). A Save the storage refuses shows its failure line, naming the save it tried, in the status slot
  * under the readout until a Save succeeds or the world changes (R20, spec §1.6). Rename puts an input in the selected
  * save's trailing slot (RenameField, above): its commit re-keys the save, and the loaded name and Current's snapshot
- * name follow; a taken name is refused in the same slot, one line at a time. Delete removes the selected save at once,
- * no confirm and no world change, and the selection falls to New Transmission holding the live world (onDelete). Dirty is read on mount, after a landed
+ * name follow; a taken name is refused in the same slot, one line at a time. Delete asks first, a modal confirm naming the
+ * save (Checkpoint A); confirmed, it removes the save with no world change, and the selection falls to New Transmission
+ * holding the live world (deleteSave). Share copies the live world's link, its line in the same slot. Dirty is read on mount, after a landed
  * change, after an in-place edit and after a Save — never per render (it builds the live payload). The veil
  * (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the

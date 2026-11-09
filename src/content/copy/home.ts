@@ -46,14 +46,14 @@ export const home = {
   // Rename refused (spec assumption 3): another save already has the typed name, so the row keeps its own. In the status
   // slot under the readout. Stand-in copy until Crawford's pass (backlog 62).
   'home.off.renameTaken': { human: 'a save already has that name' },
-  // Share beside the readout (spec §1.6): copies the link for the world the readout names, named after the selected row.
+  // Share, last in the action row (spec §1.6): copies the link for the world the readout names, named after the selected row.
   // Stand-in copy until Crawford's pass (backlog 62).
   'home.off.share': { human: 'Share', template: 'Share {name}' },
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
   // The Transmissions section's header (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the section, the selected row's name
-  // ("New Transmission", "Current", or the save's or preset's name) and the count of stored worlds (saves plus presets).
+  // ("New Transmission", "Current", or the save's name) and the count of saves.
   // Stand-in copy until Crawford's pass (backlog 62).
   'home.off.transmissionsHeader': { human: 'Transmissions', template: 'Transmissions · {name} · {count}' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's

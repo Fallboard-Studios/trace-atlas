@@ -28,7 +28,8 @@ changed. Spec §5 case 14 lists the rewrites; the blocks are named in the tasks 
   no draw on mount; Delete falls to New Transmission; a taken rename is refused; Factory Reset flips the gate at once;
   Audio Quality is Fleet Params' last tab with `fleet.quality*` keys; the disclosures are a muted `Button` over a
   conditional render, no Radix `Collapsible`; the count is saves plus presets; Save on a preset or New Transmission
-  moves the selection to the new row; `useShareStatus` moves to `src/hooks/`.
+  moves the selection to the new row; `useShareStatus` moves to `src/hooks/`. (Since Checkpoint A there are no
+  presets, so the count is the saves and only New Transmission's Save moves the selection.)
 - **Enter and blur are caught on the editor group, not in `TextInput`.** `TextInput` (`src/components/ui/controls/
   TextInput.tsx`) takes `schema`, `value`, `onChange`, `numeric` and `disabled` only: no key or blur props, and spec §3
   says the controls are used as they are. React's `onKeyDown` and `onBlur` bubble, so the editor's wrapping `div`
@@ -663,8 +664,17 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
       13,755 pass (233 s). The one failure is `sceneToOrbiterLocal.test.tsx`'s round-trip case timing out at 5 s under
       the full run — the known slow case; alone it passes (10/10), and this branch has not touched `src/animation`.
       Vitest also reports the pre-existing `[vitest-worker]: Timeout calling "onTaskUpdate"` (see "The editor").
-- [ ] Spec §5's Look, by Crawford, through "Share: copied. Open Device, Reset, confirm: the first-visit screen. Power
-      on: the live world plays. On a phone: the same, stacked, the header one line at 320 px."
+- [ ] Spec §5's Look, by Crawford, through "Share: copied. Factory Reset (at the Transmissions section's foot since
+      the Device section went), confirm: the first-visit screen. Power on: the live world plays. On a phone: the same,
+      stacked, the header one line at 320 px."
+- [x] The long docs describe the console as built (2026-11-09, Crawford: "make sure any documentation correctly
+      reflects the current layout"): the module-A half of Task 16, done here since module B goes on its own branch.
+      UI_SHELL.md's off screen section (the editor, the Transmissions section, the action row, Factory Reset, the
+      status slot, no presets, no Keep), SESSION_STORAGE.md's off screen section (Save, Rename, Delete, Share, Factory
+      Reset; `renameNamedSession` in the engine's list; the presets' lines gone), the scene-wash and paused-change
+      lines in ANIMATION_SYSTEM.md and AUDIO_SYSTEM.md, CONTENT_LAYER.md's preset line, COMPONENT_LIBRARY.md's
+      off-screen consumers, CLAUDE.md's UI_SHELL and SESSION_STORAGE lines, the spec's stale clauses (marked as built),
+      backlog 71, plan.md and frame F's note. Proof: Read; every name grepped in `src/`.
 - [x] Open Question 1 (the rename input's placement) answered. Crawford, 2026-11-09: on the desk it stays beside the
       row (the trailing slot); on the phone it drops inside the selected row, under its name, and covers the rows below
       rather than shifting them. CSS only (the slot positioned against its row's grid area); a look at 320 px.
@@ -711,6 +721,10 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 ---
 
 ### Phase 5: The retirement
+
+**On a branch of its own** (Crawford at Checkpoint A): `feature/settings-retirement`, off `main` once
+`feature/off-screen-console` merges. Crawford expects it to retire the Companies nav item too, which Tasks 12–16 do not
+cover yet: plan that before Task 12 starts.
 
 - [ ] **Task 12: Fleet Params gains Audio Quality; `settings.quality*` becomes `fleet.quality*`**
 
@@ -810,7 +824,8 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
   **Description:** Spec §1.9 (the deleted list), assumption 9. Deleted: `SectorSettingsDrawer.tsx/.css/.test.tsx`,
   `SessionsPanel.tsx/.css/.test.tsx`, `SessionListItem.tsx/.css/.test.tsx`, `src/data/sectorSettingsConfig.ts` (the two
-  input schemas already live in `TransmissionEditor.tsx` since Task 4). `src/data/sessionConfig.ts` keeps
+  input schemas already live in `transmissionEditorSchemas.ts` since Task 4; the config's re-export of them goes with
+  it). `src/data/sessionConfig.ts` keeps
   `CLEAR_STORAGE_SCHEMA` only. `session.ts` keeps `session.clearStorage`, `.action`, `.confirmTitle`, `.confirmBody`,
   `session.delete.confirmTitle` and `.confirmBody` (the off screen's Delete confirm, Checkpoint A),
   `session.status.linkCopied`, `.copyFailed`, `.saveFailed`. `sector.ts` keeps `sector.attenuationStyle`,
@@ -848,21 +863,20 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
 - [ ] **Task 16: `docs/` — document the shipped behaviour**
 
-  **Description:** Spec §1.9 (Docs). **Also (Checkpoint A):** the presets are gone, so `UI_SHELL.md`'s off-screen list,
-  pick rules and scene-wash lines, `SESSION_STORAGE.md`'s "Transmission presets and the off screen" section and its
-  per-block "Presets" lines, and `CONTENT_LAYER.md`'s preset mention drop them. `UI_SHELL.md`: the nav panel's five
-  boxes become four; the screens table loses
-  `SettingsScreen` and Fleet Params' row gains Audio Quality as the eighth tab; `ConsolePanel`'s route list loses
-  `settings`; the off screen section is rewritten for the editor, the two sections, the action row, Share and the
-  slot; the scene wash paragraph loses Foundry's Retransmit and a session Load and gains the editor's commit; the
-  Foundry paragraph goes. `SESSION_STORAGE.md`: the Save & Share tab paragraphs become the off screen's (Save / Rename
-  / Delete on the selected row, no confirm on Delete, Rename refusal, Share on the readout, Factory Reset in Device);
-  the "three buttons, one encoder" bullet becomes one button; `renameNamedSession` joins the engine's list.
+  **Description:** Spec §1.9 (Docs). **The off screen's half is done** (Checkpoint A, 2026-11-09, on
+  `feature/off-screen-console`): the off screen section of `UI_SHELL.md` and of `SESSION_STORAGE.md`, the presets'
+  lines everywhere, `renameNamedSession` in the engine's list, the off-screen consumers in `COMPONENT_LIBRARY.md`,
+  `CLAUDE.md`'s two reference lines, the spec's new children in §2, and frame F's note. **What is left is the
+  retirement's half**, on its own branch. `UI_SHELL.md`: the nav panel's five boxes become four; the screens table
+  loses `SettingsScreen` and Fleet Params' row gains Audio Quality as the eighth tab; `ConsolePanel`'s route list loses
+  `settings`; the scene wash paragraph loses Foundry's Retransmit and a session Load; the Foundry paragraph goes (the
+  off screen section's last sentence of its intro, "Foundry and Save & Share still do the same jobs", goes with it).
+  `SESSION_STORAGE.md`: the Save & Share tab paragraphs go (the off screen section already describes Save, Rename,
+  Delete, Share and Factory Reset), and the "three buttons, one encoder" bullet becomes one button.
   `COMPONENT_LIBRARY.md`: the consumers it names (`SectorSettingsDrawer`, Save & Share, the session list's rows,
-  `SettingsScreen`) become the off screen's editor, action row and `Disclosure`. `CLAUDE.md`: the UI_SHELL and
-  SESSION_STORAGE reference lines name the console. `docs/specs/OFF_SCREEN_CONSOLE.md` §2 gains the readers Task 12
-  found and the three new children; `docs/sketches/off-screen.html` frame F's note records what shipped differs, if
-  anything. Spot-check every identifier against the shipped source, not this plan.
+  `SettingsScreen`) go. `CLAUDE.md`: SESSION_STORAGE's line loses the "Sessions" Settings accordion.
+  `docs/specs/OFF_SCREEN_CONSOLE.md` §2 gains the readers Task 12 found. Plus whatever the Companies nav item's
+  retirement needs, once planned. Spot-check every identifier against the shipped source, not this plan.
 
   **Proof:** Read — human review. No test file.
 
@@ -909,7 +923,8 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
    row, the control untouched. **Alternative:** the input replaces the row's label, which needs a new `RadioButton` prop
    (spec §3, ask first). Crawford decides at Checkpoint A from the look. **Answered 2026-11-09:** the trailing slot on
    the desk; on the phone, inside the selected row under its name, covering the rows below (Checkpoint A).
-2. **One branch or two for module B** (spec §6). Crawford's call at Checkpoint A.
+2. **One branch or two for module B** (spec §6). Crawford's call at Checkpoint A. **Answered 2026-11-09:** two; module
+   B on `feature/settings-retirement` after this branch merges (Phase 5's note).
 3. **Does the editor's blank-name commit need a guard?** `retransmitWorld` reads a blank name as none and derives a
    world from it today (Foundry's behaviour), so the plan passes it through (spec §1.2). If the resulting world reads
    as a mistake in the look, a follow-up pins a minimum length. **Open**, low priority, decided at Checkpoint A.
