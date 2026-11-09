@@ -681,7 +681,17 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
     returns the focus to Delete, a confirmed Delete to the Transmissions header. Spec §1.5, §3, §5 amended.
   - **Share moves into the action row** (22909047), last, after Delete; the readout stands alone again. Four buttons:
     one row on the desk, two by two on the phone. Share is now inside the collapsed section, so sharing opens the list
-    first. Spec §1.1, §1.5, §1.6 amended.
+    first. Spec §1.1, §1.5, §1.6 amended. **Superseded** by the next round.
+
+  **Review, round 2 (Crawford, same day):**
+  - **Share sits under the readout** (3532f79f), over the status slot, in view with the list collapsed; the action row
+    is Save / Rename / Delete again, three across at every width. Spec §1.1, §1.5, §1.6 amended.
+  - **The New Transmission editor's three fields share one panel** (7e29396e, ee622a0c): `TextInput` and `CoordsInput`
+    gained `facade={false}` (default on; COMPONENT_LIBRARY.md), and the editor draws one static facade around the name
+    and the coordinates. One row when the panel is 32rem or wider, else X and Y under the name. On the desk the editor
+    went from about 340 px to 150 px tall. Spec §1.2 amended. **For Crawford:** the coordinates still carry three label
+    levels ("Atlas Vector / Location", then "Lateral Vector [C] / X"), now the tallest part of the panel; trimming them
+    is a copy call, left alone.
   - The missing-fields question: `withGlobalAudioDefaults` fills missing fields inside `globalAudio`; the throw seen in
     Task 11's look came from a hand-written fixture with no `globalAudio` at all, which no app save lacks. Not filed.
   - Seen in the look, for Crawford: Factory Reset's button is the full cabinet face (`CLEAR_STORAGE_SCHEMA` is not
