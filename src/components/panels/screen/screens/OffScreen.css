@@ -194,6 +194,13 @@
   gap: var(--spacing-sm) var(--spacing-md);
 }
 
+/* The panel's labels are the names alone — Atmosphere, Location, X and Y, with their help — (Crawford, Checkpoint A):
+   the lore lines over them (Attenuation Style, Atlas Vector, Lateral/Vertical Vector [C]) are not drawn here. Each
+   input's accessible name is its human label already. Foundry, until it goes (Task 15), keeps them. */
+.transmission-editor__panel .sc-dual-label__lore {
+  display: none;
+}
+
 @container transmission-editor-panel (min-width: 32rem) {
   .transmission-editor__fields {
     grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);

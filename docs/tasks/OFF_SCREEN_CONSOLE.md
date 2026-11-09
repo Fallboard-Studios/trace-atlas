@@ -689,9 +689,10 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   - **The New Transmission editor's three fields share one panel** (7e29396e, ee622a0c): `TextInput` and `CoordsInput`
     gained `facade={false}` (default on; COMPONENT_LIBRARY.md), and the editor draws one static facade around the name
     and the coordinates. One row when the panel is 32rem or wider, else X and Y under the name. On the desk the editor
-    went from about 340 px to 150 px tall. Spec §1.2 amended. **For Crawford:** the coordinates still carry three label
-    levels ("Atlas Vector / Location", then "Lateral Vector [C] / X"), now the tallest part of the panel; trimming them
-    is a copy call, left alone.
+    went from about 340 px to 150 px tall. Spec §1.2 amended.
+  - **The panel's labels are the names alone** (Crawford: "leave atmosphere, location, x, & y, remove the rest"): the
+    lore lines (Attenuation Style, Atlas Vector, Lateral/Vertical Vector [C]) are hidden inside the panel by CSS; the
+    help icons stay, and Foundry keeps its labels until Task 15 removes it. Proof: a look at 1280 × 720 and 320 px.
   - The missing-fields question: `withGlobalAudioDefaults` fills missing fields inside `globalAudio`; the throw seen in
     Task 11's look came from a hand-written fixture with no `globalAudio` at all, which no app save lacks. Not filed.
   - Seen in the look, for Crawford: Factory Reset's button is the full cabinet face (`CLEAR_STORAGE_SCHEMA` is not
