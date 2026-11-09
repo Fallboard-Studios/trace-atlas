@@ -31,7 +31,7 @@ along the line between them. Crawford asked for one spec file; this is it, in tw
 
 | Module id | Responsibility | Depends on |
 |---|---|---|
-| `off-screen-console` | The off screen's left column: the New Transmission editor, the collapsible Transmissions list, the action row with Share in it, Factory Reset with the saves. §1.1–§1.8. | — |
+| `off-screen-console` | The off screen's left column: the New Transmission editor, the collapsible Transmissions list, the action row, Share under the readout, Factory Reset with the saves. §1.1–§1.8. | — |
 | `settings-retirement` | Audio Quality moves to Fleet Params; the Settings branch, `SettingsScreen`, `SectorSettingsDrawer`, `SessionsPanel` and `SessionListItem` leave; docs follow. §1.9. | `off-screen-console` (nothing is removed until the off screen does its job) |
 
 Build order: `off-screen-console` → `settings-retirement`. The first part is complete and reviewable before the second
@@ -63,11 +63,12 @@ left column, then the right, as today.
 │                                     │  │ (theme description)                │
 │ ▸ Transmissions · Harbour Song · 5  │  │ Trace Aspects · select many        │
 │   (collapsed; open: the list)       │  │ (six family rows + descriptions)   │
-│   [Save] [Rename] [Delete] [Share]  │  │                                    │
+│   [Save] [Rename] [Delete]          │  │                                    │
 │   ─────────────────────────────     │  │                                    │
 │   Factory Reset  [Clear …]          │  │                                    │
 └─────────────────────────────────────┘  └────────────────────────────────────┘
                [ AS · (x, y) · Theme · aspects ]
+                           [Share]
           (status slot: "copied" / a failure line / empty, height held)
 ```
 
@@ -155,8 +156,8 @@ part), so it moved in with them and the Device section went.
 ### 1.5 The action row
 
 One row at the list's foot, inside the Transmissions section, where Keep sits today: **Save**, **Rename**, **Delete**,
-and **Share** (§1.6; in the row since Checkpoint A), muted `Button`s, each acting on the selected row. One row on the
-desk; two by two on the phone, where four do not fit 320 px. An inert one is `disabled`, dimmed in place; the row never
+three muted `Button`s, each acting on the selected row, three across at every width. (Share sat in the row for a while
+at Checkpoint A; it is under the readout now, §1.6.) An inert one is `disabled`, dimmed in place; the row never
 loses a button.
 
 | Selected | Save | Rename | Delete |
@@ -191,9 +192,9 @@ loses a button.
 
 ### 1.6 Share, and the status slot
 
-**Share** is a muted `Button`, last in the action row (§1.5). **Amended at Checkpoint A (Crawford, 2026-11-09):** it sat
-beside the readout (`role="status"`, `describeWorld` of the selected row's world), which now stands alone again; in the
-row it is inside the Transmissions section, so it is reached by opening the list. Share copies the link for whatever
+**Share** is a muted `Button` under the readout (`role="status"`, `describeWorld` of the selected row's world) and over
+the status slot, in view whether or not the list is open. **Amended at Checkpoint A (Crawford, 2026-11-09):** it sat
+beside the readout, then briefly last in the action row, then here. Share copies the link for whatever
 the readout names, through `useShareStatus` and `copySessionLink`:
 
 - `buildSessionPayload()`, the live world, always (Current is shown only with no snapshot: the plan's Tasks 7 and 10).
