@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 
 /*
@@ -45,6 +45,7 @@ import { AudioEngine } from '@/engine/AudioEngine';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { THEME_IDS } from '@/data/bands/themes';
 import { STORAGE_KEY, listSessions, loadSession, saveNamedSession } from '@/utils/sessionStorageEngine';
+import * as sessionStorageEngine from '@/utils/sessionStorageEngine';
 import { DEVICE_FLAGS_KEY, markHeardWorld } from '@/utils/deviceFlags';
 import { setWorldState } from '@/systems/worldState';
 import { describeWorld } from '@/utils/describeWorld';
@@ -2134,6 +2135,214 @@ describe('OffScreen — the action row (console Task 7)', () => {
       expect(enabledActions()).toEqual(SAVE_ONLY);
       expect(listSessions()).toHaveLength(1);
     });
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 8 (spec §1.5, assumption 3, §5 case 9): Rename turns the selected save's
+// trailing slot into an input, prefilled, focused and selected. Enter or a blur out of it commits through
+// renameNamedSession; Escape, a blank or an unchanged name revert with no engine call; a name another save has is
+// refused, the slot saying so. The loaded name and Current's snapshot name follow, and the row stays selected under its
+// new name.
+describe('OffScreen — Rename (console Task 8)', () => {
+  beforeEach(() => {
+    markHeardWorld();
+    // A pick lands as itself, so a landed save reads clean, as in the app.
+    vi.mocked(applySessionPayload).mockImplementation((payload) => {
+      useLoadingStore.getState().setLoading(loadingOf(payload));
+      live.payload = structuredClone(payload);
+    });
+  });
+  const presets = TRANSMISSION_PRESETS.length;
+  const session = () => useSessionStore.getState();
+  const renameInput = () => screen.queryByRole('textbox', { name: human('home.off.rename') }) as HTMLInputElement | null;
+  const startRename = () => fireEvent.click(actionButton('home.off.rename'));
+  const typeName = (name: string) => fireEvent.change(renameInput()!, { target: { value: name } });
+  const enter = () => fireEvent.keyDown(renameInput()!, { key: 'Enter' });
+  const refusal = () => within(statusSlot()).queryByRole('alert');
+  /** Dusk Run saved and picked, landed: the row Rename acts on. */
+  const pickDuskRun = () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    openTransmissions();
+    fireEvent.click(row('Dusk Run'));
+  };
+
+  it('turns the selected save’s trailing slot into an input, prefilled, focused and selected, the radio still checked', () => {
+    pickDuskRun();
+    expect(renameInput()).toBeNull();
+    startRename();
+    const input = renameInput()!;
+    expect(input.value).toBe('Dusk Run');
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'Dusk Run'.length]);
+    // In the save's own row, beside its radio (RadioButton's trailing slot, outside the radio: review R8).
+    const slots = document.querySelectorAll('.sc-radio-button__trailing');
+    expect(slots).toHaveLength(1);
+    expect(slots[0].contains(input)).toBe(true);
+    expect((slots[0] as HTMLElement).style.gridRow).toBe((row('Dusk Run').closest('.sc-radio-button__row') as HTMLElement).style.gridRow);
+    expect(row('Dusk Run').contains(input)).toBe(false);
+    expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('Enter re-keys the save, its savedAt and payload kept; the row stays checked under the new name and the header follows', () => {
+    pickDuskRun();
+    const before = listSessions()[0];
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(listSessions()).toEqual([{ ...before, name: 'Dawn Run' }]);
+    expect(renameInput()).toBeNull();
+    expect(row('Dawn Run').getAttribute('aria-checked')).toBe('true');
+    expect(transmissionsHeader().textContent).toBe(headerText('Dawn Run', 1 + presets));
+    expect(enabledActions()).toEqual({ save: false, rename: true, delete: true });
+  });
+
+  it('the loaded save’s name follows, the session name with it, so a later Save overwrites the renamed row', () => {
+    pickDuskRun();
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Dawn Run', currentSessionName: 'Dawn Run' });
+    fireEvent.click(row(human('home.off.theme.anchor')));
+    fireEvent.click(saveButton());
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+  });
+
+  it('the session names are left alone when the renamed save is not the loaded one', () => {
+    pickDuskRun();
+    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other', currentSessionName: 'Typed Since' }));
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Other', currentSessionName: 'Typed Since' });
+  });
+
+  it('Current’s snapshot follows: Current, left from the save, is named after the new name, and a restore attaches it', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    openTransmissions();
+    fireEvent.click(row('Dusk Run'));
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(currentRowName()).toBe(currentName('Dawn Run'));
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+    fireEvent.click(currentRadio());
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Dawn Run', currentSessionName: 'Dawn Run' });
+  });
+
+  it('a blur out of the input commits, as Enter does', () => {
+    pickDuskRun();
+    startRename();
+    typeName('Dawn Run');
+    fireEvent.blur(renameInput()!, { relatedTarget: document.body });
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+    expect(renameInput()).toBeNull();
+  });
+
+  // A browser may blur the input as the commit removes it: that blur is no second commit, which would find the old name
+  // gone and read as a refusal.
+  it('Enter and a blur in the same tick commit once: no refusal', () => {
+    pickDuskRun();
+    startRename();
+    typeName('Dawn Run');
+    const input = renameInput()!;
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
+    });
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+    expect(refusal()).toBeNull();
+  });
+
+  it('a name is trimmed: the spaces round it are not part of the save’s name', () => {
+    pickDuskRun();
+    startRename();
+    typeName('  Dawn Run  ');
+    enter();
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+  });
+
+  describe('reverting, with no engine call', () => {
+    let rename: MockInstance<typeof sessionStorageEngine.renameNamedSession>;
+    beforeEach(() => {
+      rename = vi.spyOn(sessionStorageEngine, 'renameNamedSession');
+    });
+    afterEach(() => rename.mockRestore());
+    const reverted = () => {
+      expect(rename).not.toHaveBeenCalled();
+      expect(renameInput()).toBeNull();
+      expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+      expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+    };
+
+    it('Escape', () => {
+      pickDuskRun();
+      startRename();
+      typeName('Dawn Run');
+      fireEvent.keyDown(renameInput()!, { key: 'Escape' });
+      reverted();
+    });
+
+    it('a blank name', () => {
+      pickDuskRun();
+      startRename();
+      typeName('   ');
+      enter();
+      reverted();
+    });
+
+    it('an unchanged name, by Enter or by blur', () => {
+      pickDuskRun();
+      startRename();
+      enter();
+      reverted();
+      startRename();
+      fireEvent.blur(renameInput()!, { relatedTarget: null });
+      reverted();
+    });
+  });
+
+  it('a name another save has is refused: the input reverts and the slot says so, as an alert, until a Rename succeeds', () => {
+    saveNamedSession('Low Tide', savedPayload('tide'));
+    pickDuskRun();
+    startRename();
+    typeName('Low Tide');
+    enter();
+    expect(listSessions().map((s) => s.name).sort()).toEqual(['Dusk Run', 'Low Tide']);
+    expect(loadSession('Low Tide')).toEqual(savedPayload('tide'));
+    expect(renameInput()).toBeNull();
+    expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+    expect(refusal()!.textContent).toBe(human('home.off.renameTaken'));
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(refusal()).toBeNull();
+    expect(statusSlot().textContent).toBe('');
+  });
+
+  it('the refusal goes with a successful Save, or a world change', () => {
+    saveNamedSession('Low Tide', savedPayload('tide'));
+    pickDuskRun();
+    startRename();
+    typeName('Low Tide');
+    enter();
+    // The theme pick moves the live world, so Save on the save is lit afterwards.
+    vi.mocked(retransmitWorld).mockImplementationOnce(() => {
+      live.payload = live.marker('themed');
+    });
+    fireEvent.click(row(human('home.off.theme.anchor')));
+    expect(refusal()).toBeNull();
+    startRename();
+    typeName('Low Tide');
+    enter();
+    expect(refusal()).not.toBeNull();
+    expect(saveButton().disabled).toBe(false);
+    fireEvent.click(saveButton());
+    expect(refusal()).toBeNull();
   });
 });
 

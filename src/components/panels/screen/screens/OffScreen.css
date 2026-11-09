@@ -217,6 +217,13 @@
   letter-spacing: 0.04em;
 }
 
+/* Rename's input (docs/tasks/OFF_SCREEN_CONSOLE.md Task 8, spec §1.5): in the trailing slot of the save being renamed,
+   beside its radio, at a fixed width so the row keeps its line and the name beside it keeps room on a phone. Task 11
+   sets the look against frame F. */
+.off-screen__rename {
+  width: min(14rem, 55vw);
+}
+
 /* Keep under the list (Task 14; revisions Task 4): the RadioButton's rows are its own, so it sits in this row right
    under the Transmission list, centred, flat like it (a muted Button). */
 .off-screen__actions {

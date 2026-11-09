@@ -80,7 +80,8 @@ axis's handlers.
 
 A titled group (a `DualLabel`, "New Transmission"), a `TextInput` for the Attenuation Style name, a `CoordsInput` for
 the coordinates, and Scan as a muted `Button` in the title row. It replaces the New Transmission *row* and its trailing
-Scan; `RadioButton`'s `trailing` slot is no longer used on this screen.
+Scan; `RadioButton`'s `trailing` slot no longer holds Scan. It holds Rename's inline input instead, on the save being
+renamed (§1.5; amended by the plan's Task 8, its placement Open Question 1 for Crawford).
 
 - **The inputs hold a draft of the live identity.** On mount they show the live world's style name and coordinates
   (Current's). Whenever the live identity changes from elsewhere (a pick lands, a Current restore, a Scan), the draft

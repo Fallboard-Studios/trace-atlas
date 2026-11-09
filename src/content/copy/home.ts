@@ -44,6 +44,9 @@ export const home = {
   'home.off.save': { human: 'Save', template: 'Save {name}' },
   'home.off.rename': { human: 'Rename', template: 'Rename {name}' },
   'home.off.delete': { human: 'Delete', template: 'Delete {name}' },
+  // Rename refused (spec assumption 3): another save already has the typed name, so the row keeps its own. In the status
+  // slot under the readout. Stand-in copy until Crawford's pass (backlog 62).
+  'home.off.renameTaken': { human: 'a save already has that name' },
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
 import { useGSAP } from '@gsap/react';
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { Disclosure } from './Disclosure';
@@ -7,6 +7,7 @@ import { actionRow, type ActionRowKind } from './offScreenActions';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
+import { TextInput } from '@/components/ui/controls/TextInput';
 import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
@@ -29,7 +30,7 @@ import { useSessionStore, isPayloadDirty, isWorldDirty } from '@/stores/sessionS
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
-import { listSessions, loadSession } from '@/utils/sessionStorageEngine';
+import { listSessions, loadSession, renameNamedSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
 import { formatSessionTimestamp, getScreenViewportDomNode } from '@/utils/helpers';
 import { CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
@@ -46,7 +47,7 @@ import {
   startOffScreenBoot,
 } from '@/animation/offScreenTheatre';
 import { fill, labels } from '@/content';
-import type { ButtonSchema, RadioButtonSchema } from '@/types/controls';
+import type { ButtonSchema, RadioButtonSchema, TextInputSchema } from '@/types/controls';
 import type { SessionPayload } from '@/types/session';
 import type { WorldIdentity } from '@/utils/seedBaseline';
 import './OffScreen.css';
@@ -80,8 +81,18 @@ const READOUT_LABEL = labels('home.off.readout').humanLabel;
 const SAVE_SCHEMA: ButtonSchema = { id: 'offSave', type: 'button', ...labels('home.off.save'), appearance: 'muted' };
 const RENAME_SCHEMA: ButtonSchema = { id: 'offRename', type: 'button', ...labels('home.off.rename'), appearance: 'muted' };
 const DELETE_SCHEMA: ButtonSchema = { id: 'offDelete', type: 'button', ...labels('home.off.delete'), appearance: 'muted' };
-/** Rename and Delete are wired in docs/tasks/OFF_SCREEN_CONSOLE.md Tasks 8 and 9. */
+/** Delete is wired in docs/tasks/OFF_SCREEN_CONSOLE.md Task 9. */
 const notYet = () => {};
+/** Rename's inline input (spec §1.5), in the selected save's row: the save's name, as long as the Sessions panel's name
+ *  field allows. */
+const RENAME_INPUT_SCHEMA: TextInputSchema = {
+  id: 'offRenameInput',
+  type: 'textInput',
+  ...labels('home.off.rename'),
+  maxLength: 128,
+};
+/** Rename refused: another save has the typed name (spec assumption 3). */
+const RENAME_TAKEN = labels('home.off.renameTaken').humanLabel;
 /** Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): what the standing warning said. */
 const UNSAVED_EYEBROW = labels('home.off.unsavedEyebrow').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
@@ -155,6 +166,38 @@ function AspectFamilyRow({
   );
 }
 
+/** Rename's input (docs/specs/OFF_SCREEN_CONSOLE.md §1.5), in RadioButton's trailing slot on the save's row: prefilled,
+ *  focused and selected on mount. Enter commits, Escape cancels (null), and a blur out of it commits, caught on the
+ *  wrapper as the New Transmission editor catches its own (TextInput takes no key or blur props, and both bubble). It
+ *  reports once: the input unmounting after a commit is no second one. */
+function RenameField({ name, onDone }: { name: string; onDone: (from: string, to: string | null) => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState(name);
+  const done = useRef(false);
+  const finish = (to: string | null) => {
+    if (done.current) return;
+    done.current = true;
+    onDone(name, to);
+  };
+  useEffect(() => {
+    const input = ref.current?.querySelector('input');
+    input?.focus();
+    input?.select();
+  }, []);
+  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Enter') finish(draft);
+    else if (e.key === 'Escape') finish(null);
+  };
+  const onBlur = (e: FocusEvent<HTMLDivElement>) => {
+    if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) finish(draft);
+  };
+  return (
+    <div className="off-screen__rename" ref={ref} onKeyDown={onKeyDown} onBlur={onBlur}>
+      <TextInput schema={RENAME_INPUT_SCHEMA} value={draft} onChange={setDraft} />
+    </div>
+  );
+}
+
 /** The saves, newest first, as SessionsPanel lists them. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
 
@@ -196,6 +239,10 @@ interface CurrentSnapshot {
   /** Has a world change landed since it was taken? Until one has, picking Current cancels rather than restores. */
   landed: boolean;
 }
+
+/** The status slot's one line (docs/specs/OFF_SCREEN_CONSOLE.md §1.6): a refused Save, naming the save it tried, or a
+ *  refused Rename. */
+type SlotLine = { kind: 'saveFailed'; name: string } | { kind: 'renameTaken' };
 
 /** The two dirty reads (docs/specs/OFF_SCREEN_CONSOLE.md §1.5). `current`: is Current unsaved? It describes Current — its
  *  snapshot while there is one, else the live world (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4) — and
@@ -280,7 +327,9 @@ interface Intent {
  * Transmission, under a fresh name, always lit, and the selection moves to the new row. Current's eyebrow reads
  * "Current · unsaved" only while no save matches Current (DirtyReads, above; spec §1.3; the standing warning line it
  * replaced is gone). A Save the storage refuses shows its failure line, naming the save it tried, in the status slot
- * under the readout until a Save succeeds or the world changes (R20, spec §1.6). Dirty is read on mount, after a landed
+ * under the readout until a Save succeeds or the world changes (R20, spec §1.6). Rename puts an input in the selected
+ * save's trailing slot (RenameField, above): its commit re-keys the save, and the loaded name and Current's snapshot
+ * name follow; a taken name is refused in the same slot, one line at a time. Dirty is read on mount, after a landed
  * change, after an in-place edit and after a Save — never per render (it builds the live payload). The veil
  * (assumption 18) is the screen's own backdrop — the
  * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
@@ -359,9 +408,11 @@ export function OffScreen() {
   const [lastOn, setLastOn] = useState<FamilyAspects>({});
   // Only the chooser reads them; a first visit (hint only) never builds the payload.
   const [dirty, setDirty] = useState(() => (heardWorld ? readDirty(null) : CLEAN));
-  // The name the last Save tried, when the storage refused it (R20): its line shows in the status slot until a Save
-  // succeeds or the world changes. Null while there is none.
-  const [saveFailed, setSaveFailed] = useState<string | null>(null);
+  // The status slot's line (spec §1.6), one at a time, the latest event's: a Save the storage refused (R20), naming the
+  // save it tried, or a Rename refused for a taken name. It stays until a Save or Rename succeeds or the world changes.
+  const [slot, setSlot] = useState<SlotLine | null>(null);
+  // The save whose row holds Rename's input, while one does (spec §1.5).
+  const [renaming, setRenaming] = useState<string | null>(null);
   // The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): collapsed on every mount, never persisted.
   const [transmissionsOpen, setTransmissionsOpen] = useState(false);
   const toggleTransmissions = useCallback(() => setTransmissionsOpen((open) => !open), []);
@@ -473,7 +524,7 @@ export function OffScreen() {
     // does (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.5).
     setPick(intended.pick);
     setDirty(readDirty(snapshotRef.current));
-    setSaveFailed(null);
+    setSlot(null);
   }, [setIntent, setSnapshot]);
 
   // The snapshot is taken on the way out of Current, never on mount: with none, Current is the live world, so a theme or
@@ -659,7 +710,7 @@ export function OffScreen() {
       }
       retransmitWorld({ theme: value });
       setDirty(readDirty(snapshotRef.current));
-      setSaveFailed(null);
+      setSlot(null);
     },
     [setIntent],
   );
@@ -723,14 +774,62 @@ export function OffScreen() {
       name = keepCurrentWorld();
     } catch (err) {
       console.error('[OffScreen] Save could not save', err);
-      setSaveFailed(tried);
+      setSlot({ kind: 'saveFailed', name: tried });
       return;
     }
-    setSaveFailed(null);
+    setSlot(null);
     setSaves(sortedSaves());
     if (pick.value !== CURRENT_VALUE) setPick({ value: SAVE_PREFIX + name, name, identity: identityOf(buildSessionPayload()) });
     setDirty(readDirty(snapshotRef.current));
   }, [pick]);
+
+  // Rename (docs/specs/OFF_SCREEN_CONSOLE.md §1.5): the selected save's row gains its input. Only enabled on a save with no
+  // change waiting (actionRow), so the pick is the shown one.
+  const onRename = useCallback(() => {
+    if ('name' in pick && pick.value.startsWith(SAVE_PREFIX)) setRenaming(pick.name);
+  }, [pick]);
+
+  // A save renamed: the names that point at it follow — the loaded save's (and the session name with it, so a later Save
+  // overwrites the renamed row) and Current's snapshot's, so Current is named after it and a restore attaches it
+  // (spec §7 risk 4). Neither is left naming a save that is gone.
+  const renameFollowers = useCallback(
+    (from: string, to: string) => {
+      const { currentLoadedSessionName, setCurrentLoadedSessionName, setCurrentSessionName } = useSessionStore.getState();
+      if (currentLoadedSessionName === from) {
+        setCurrentLoadedSessionName(to);
+        setCurrentSessionName(to);
+      }
+      const held = snapshotRef.current;
+      if (held?.loadedName === from) setSnapshot({ ...held, loadedName: to });
+    },
+    [setSnapshot],
+  );
+
+  // Rename's commit: a blank or unchanged name (trimmed) or an Escape reverts with nothing written; a name another save
+  // has is refused, the slot saying so (assumption 3); else the save is re-keyed (renameNamedSession: its savedAt and
+  // payload kept), the followers follow, the saves re-read, and the row stays selected under its new name.
+  const onRenameDone = useCallback(
+    (from: string, typed: string | null) => {
+      setRenaming(null);
+      const to = typed?.trim();
+      if (!to || to === from) return;
+      if (!renameNamedSession(from, to)) {
+        setSlot({ kind: 'renameTaken' });
+        return;
+      }
+      renameFollowers(from, to);
+      setSlot(null);
+      setSaves(sortedSaves());
+      setPick((shown) => ('name' in shown && shown.value === SAVE_PREFIX + from ? { ...shown, value: SAVE_PREFIX + to, name: to } : shown));
+    },
+    [renameFollowers],
+  );
+
+  // The list's trailing slot (RadioButton's): Rename's input on the save being renamed, nothing on any other row.
+  const trailing = useCallback(
+    (value: string) => (renaming !== null && value === SAVE_PREFIX + renaming ? <RenameField name={renaming} onDone={onRenameDone} /> : null),
+    [renaming, onRenameDone],
+  );
 
   // Factory Reset (spec §1.4, assumption 4): Reset opens the confirm, keeping its opener for the focus to return to.
   const openResetConfirm = useCallback(() => {
@@ -779,7 +878,7 @@ export function OffScreen() {
       }
       retransmitWorld({ aspects: { ...shownAspects, [family]: next } });
       setDirty(readDirty(snapshotRef.current));
-      setSaveFailed(null);
+      setSlot(null);
     },
     [shownAspects, setIntent],
   );
@@ -836,7 +935,7 @@ export function OffScreen() {
                   open={transmissionsOpen}
                   onToggle={toggleTransmissions}
                 >
-                  <RadioButton schema={schema} value={shownPick.value} onChange={onChange} />
+                  <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={trailing} />
                   <div className="off-screen__actions">
                     <Button
                       schema={SAVE_SCHEMA}
@@ -849,7 +948,7 @@ export function OffScreen() {
                       schema={RENAME_SCHEMA}
                       face="single"
                       accessibleName={fill('home.off.rename', { name: shownName })}
-                      onClick={notYet}
+                      onClick={onRename}
                       disabled={!actions.rename}
                     />
                     <Button
@@ -893,7 +992,11 @@ export function OffScreen() {
                 empty but for a failure, so a line coming and going never moves the column (docs/tasks/
                 OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). Current's eyebrow says unsaved now. */}
             <p className="off-screen__status">
-              {saveFailed !== null && <span role="alert">{fill('session.status.saveFailed', { name: saveFailed })}</span>}
+              {slot && (
+                <span role="alert">
+                  {slot.kind === 'saveFailed' ? fill('session.status.saveFailed', { name: slot.name }) : RENAME_TAKEN}
+                </span>
+              )}
             </p>
             {/* Factory Reset's confirm: into the screen, never <body> (the UI Shell guardrail), or in place when there
                 is no screen (a component test). */}

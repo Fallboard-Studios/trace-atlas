@@ -486,7 +486,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   reading Current's dirty read, Current's dirty read being the live one, Save not re-reading dirty, a preset gaining
   Rename.
 
-- [ ] **Task 8: `OffScreen.tsx` — Rename, inline in the row**
+- [x] **Task 8: `OffScreen.tsx` — Rename, inline in the row**
 
   **Description:** Spec §1.5 (Rename), assumption 3; Architecture Decisions (the `trailing` slot, the wrapper's key
   and blur handling). Clicking Rename with a save selected sets `renaming` state (the save's name as the draft). The
@@ -508,18 +508,31 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   on Current, a preset and New Transmission (case 7 already pins it).
 
   **Acceptance criteria:**
-  - [ ] One `renameFollowers` step updates both names; neither is left stale.
-  - [ ] The input is in the DOM only while renaming; the row's radio stays checked throughout.
+  - [x] One `renameFollowers` step updates both names; neither is left stale.
+  - [x] The input is in the DOM only while renaming; the row's radio stays checked throughout.
 
   **Verification:**
-  - [ ] Focused run passes.
-  - [ ] Mutants: the snapshot's `loadedName` not followed; the taken-name refusal path committing anyway.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Focused run passes.
+  - [x] Mutants: the snapshot's `loadedName` not followed; the taken-name refusal path committing anyway.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1, 7. **Files:** `OffScreen.tsx`, `OffScreen.test.tsx`, `OffScreen.css` (the inline input's
   width in the slot), `src/content/copy/home.ts`, `docs/specs/OFF_SCREEN_CONSOLE.md` (§1.2 amendment)
 
   **Estimated scope:** M (one inline editor, the engine wired, two followers)
+
+  **As built:** the input is a small `RenameField` in `OffScreen.tsx` (a `TextInput` from `home.off.rename`, maxLength
+  128 as the Sessions name field), in RadioButton's trailing slot on the save being renamed; the radio stays checked.
+  The slot's one line is now a union (`SlotLine`: the save failure or the rename refusal), which Task 10 extends with the
+  share status. Not in the plan: the typed name is trimmed (spaces round it are not part of the save's name), and the
+  field reports once: Chrome blurs an input as it is removed, and a second commit would find the old name gone and show a
+  false refusal, so a `done` ref guards it (a case fires Enter and a blur in one tick). `setCurrentSessionName(to)` runs
+  with `setCurrentLoadedSessionName(to)` only when the loaded name was `from`. Dirty is not re-read: with both
+  followers done, neither read changes. The CSS is the input's width only (`min(14rem, 55vw)`); the trailing slot's old
+  rules for Scan's flat button are unused since Task 4 and are left for Task 11's pass. Spec §1.2's trailing-slot line
+  amended. Thirteen mutants killed: the plan's two, the loaded name not followed or followed always, no trim, an
+  unchanged name reaching the engine, Escape committing, blur not committing, no select on mount, no `done` guard, the
+  pick not following, a successful rename keeping the refusal, the input on every save row.
 
 - [ ] **Task 9: `OffScreen.tsx` — Delete, at once**
 
