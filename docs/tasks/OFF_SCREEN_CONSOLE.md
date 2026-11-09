@@ -734,7 +734,9 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 
 **On a branch of its own** (Crawford at Checkpoint A): `feature/settings-retirement`, off `main` once
 `feature/off-screen-console` merges. Crawford expects it to retire the Companies nav item too, which Tasks 12–16 do not
-cover yet: plan that before Task 12 starts.
+cover yet: plan that before Task 12 starts. **Built 2026-11-09, Crawford's call that day:** stacked on
+`feature/off-screen-console` (not merged yet; rebase onto `main` after it), and Tasks 12–15 as written, the nav at four
+boxes with Companies kept; the Companies retirement is a follow-up to plan on its own.
 
 - [x] **Task 12: Fleet Params gains Audio Quality; `settings.quality*` becomes `fleet.quality*`**
 
@@ -898,7 +900,9 @@ cover yet: plan that before Task 12 starts.
   and a copy change are his call. The look (no Seeds, no Save & Share in the powered-on app) is Checkpoint B's.
 
 ### Checkpoint B: `settings-retirement` built
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. 2026-11-09, at Task 15: types
+      clean; lint 0 errors (the same 4 warnings in `src/components/actors/scenery`); full suite 350 files, 13,549 pass,
+      with the known `[vitest-worker] Timeout calling "onTaskUpdate"` exit; vite build clean.
 - [ ] In the browser: the nav shows four boxes; Fleet Params' last tab is Audio Quality with its sliders and intro,
       breadcrumb Root / Fleet Params / Audio Quality; nothing in the powered-on app makes, loads, saves or shares a
       world.
