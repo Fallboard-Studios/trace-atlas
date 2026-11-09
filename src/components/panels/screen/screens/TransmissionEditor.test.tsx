@@ -81,6 +81,20 @@ describe('TransmissionEditor', () => {
     expect(scan().querySelector('[class*="sc-cabinet-box"]')).toBeNull();
   });
 
+  // Checkpoint A (Crawford): the three fields share one panel — one static cabinet facade — under the title row, where
+  // each drew its own and the editor took too much room.
+  it('frames its three fields in one panel: one cabinet box, under the title row, and no field facade of their own', () => {
+    renderEditor();
+    const boxes = editor().querySelectorAll('.sc-cabinet-box');
+    expect(boxes).toHaveLength(1);
+    const panel = editor().querySelector('.transmission-editor__panel')!;
+    expect(panel.contains(boxes[0])).toBe(true);
+    expect(editor().querySelectorAll('.sc-text-input-facade')).toHaveLength(0);
+    for (const input of [styleInput(), ...coordInputs()]) expect(boxes[0].contains(input)).toBe(true);
+    expect(panel.contains(scan())).toBe(false);
+    expect(editor().querySelector('.transmission-editor__title')!.nextElementSibling).toBe(panel);
+  });
+
   it('wears data-selected only while selected', () => {
     const { rerender, onScan, onCommit } = renderEditor(LIVE, { selected: true });
     expect(editor().hasAttribute('data-selected')).toBe(true);

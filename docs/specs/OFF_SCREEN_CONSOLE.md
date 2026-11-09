@@ -81,7 +81,10 @@ axis's handlers.
 A titled group (a `DualLabel`, "New Transmission"), a `TextInput` for the Attenuation Style name, a `CoordsInput` for
 the coordinates, and Scan as a muted `Button` in the title row. It replaces the New Transmission *row* and its trailing
 Scan; `RadioButton`'s `trailing` slot no longer holds Scan. It holds Rename's inline input instead, on the save being
-renamed (§1.5; amended by the plan's Task 8, its placement Open Question 1 for Crawford).
+renamed (§1.5; amended by the plan's Task 8, its placement Open Question 1 for Crawford). **Amended at Checkpoint A
+(Crawford, 2026-11-09):** the name and the coordinates share one panel — one static cabinet facade, the fields drawing
+none of their own (`TextInput`'s and `CoordsInput`'s new `facade={false}`) — in one row when the panel has room for all
+three, else X and Y in one row under the name.
 
 - **The inputs hold a draft of the live identity.** On mount they show the live world's style name and coordinates
   (Current's). Whenever the live identity changes from elsewhere (a pick lands, a Current restore, a Scan), the draft

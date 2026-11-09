@@ -167,6 +167,40 @@
   background: rgba(207, 214, 220, 0.08);
 }
 
+/* The editor's panel (docs/tasks/OFF_SCREEN_CONSOLE.md Checkpoint A, Crawford: the editor took too much room): the
+   style name and the coordinates in one static cabinet facade — sized as TextInput.css sizes its own, the front a block
+   as tall as its content — where each field drew its own. One row (the name, then X and Y, inputs aligned along their
+   bottoms) when the panel has room for all three; else the name, with X and Y in one row under it (CoordsInput's own
+   row). The breakpoint is the width at which X's and Y's labels still fit beside the name. */
+.transmission-editor__panel {
+  width: 100%;
+  container: transmission-editor-panel / inline-size;
+}
+
+.transmission-editor__panel > .sc-cabinet-box {
+  width: 100%;
+}
+
+.transmission-editor__panel > .sc-cabinet-box > .sc-cabinet-box__front {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 12px 14px;
+}
+
+.transmission-editor__fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--spacing-sm) var(--spacing-md);
+}
+
+@container transmission-editor-panel (min-width: 32rem) {
+  .transmission-editor__fields {
+    grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+    align-items: end;
+  }
+}
+
 .transmission-editor__title {
   display: flex;
   align-items: center;

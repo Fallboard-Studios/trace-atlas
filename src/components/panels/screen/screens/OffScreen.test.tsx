@@ -3981,23 +3981,22 @@ describe('OffScreen — only the aspect rows come off the plate', () => {
     }
   });
 
-  // The editor's three inputs (console Task 4) are TextInputs, which carry their own static facade box (spec §3: the
-  // controls are used as they are): the only boxes besides the aspect rows'.
-  it('every cabinet box on the screen belongs to an aspect row or to one of the editor’s inputs', () => {
+  // The editor's three inputs (console Task 4) share one static panel facade since Checkpoint A (each drew its own
+  // before): the only box besides the aspect rows'.
+  it('every cabinet box on the screen belongs to an aspect row or is the editor’s one panel', () => {
     const { container } = render(<OffScreen />);
     const boxes = Array.from(container.querySelectorAll('.sc-cabinet-box'));
     const aspectBoxes = ASPECT_FAMILY_IDS.reduce((n, family) => n + ASPECT_IDS_BY_FAMILY[family].length, 0);
-    expect(boxes.length).toBe(aspectBoxes + 3);
+    expect(boxes.length).toBe(aspectBoxes + 1);
     const familyRoots = ASPECT_FAMILY_IDS.map((family) =>
       screen.getByRole('group', { name: human(`home.off.${family}`) }).closest('.sc-radio-button'),
     );
-    const inputFacades = Array.from(editor().querySelectorAll('.sc-text-input-facade'));
-    expect(inputFacades).toHaveLength(3);
+    const panel = editor().querySelector('.transmission-editor__panel');
     for (const box of boxes) {
-      const facade = box.closest('.sc-text-input-facade');
-      if (facade) expect(inputFacades).toContain(facade);
-      else expect(familyRoots).toContain(box.closest('.sc-radio-button'));
+      if (panel?.contains(box)) continue;
+      expect(familyRoots).toContain(box.closest('.sc-radio-button'));
     }
+    expect(boxes.filter((box) => panel?.contains(box))).toHaveLength(1);
   });
 });
 

@@ -3,6 +3,7 @@ import { ATTENUATION_STYLE_SCHEMA, COORDS_SCHEMA } from './transmissionEditorSch
 import { TextInput } from '@/components/ui/controls/TextInput';
 import { CoordsInput, type CoordsValue } from '@/components/ui/controls/CoordsInput';
 import { Button } from '@/components/ui/controls/Button';
+import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
 import { deepEqual } from '@/utils/math';
 import { randomCoordinate } from '@/utils/seedUtils';
@@ -94,8 +95,17 @@ export function TransmissionEditor({ identity, selected, onCommit, onScan }: Tra
         <DualLabel humanLabel={TITLE} />
         <Button schema={SCAN_SCHEMA} face="single" onClick={scan} />
       </div>
-      <TextInput schema={ATTENUATION_STYLE_SCHEMA} value={draft.attenuationStyleName} onChange={onName} />
-      <CoordsInput schema={COORDS_SCHEMA} value={draft.coordinates} onChange={onCoords} />
+      {/* The three fields in one panel (Crawford, docs/tasks/OFF_SCREEN_CONSOLE.md Checkpoint A): one static facade, the
+          kind TextInput draws for itself, around the style name and the coordinates, which draw none of their own. One
+          row where the panel has room for all three, else the coordinates under the name (OffScreen.css). */}
+      <div className="transmission-editor__panel">
+        <CabinetBox popped skipMountAnimation autoHeight timelineKey="cabinet-transmission-editor-panel">
+          <div className="transmission-editor__fields">
+            <TextInput schema={ATTENUATION_STYLE_SCHEMA} value={draft.attenuationStyleName} onChange={onName} facade={false} />
+            <CoordsInput schema={COORDS_SCHEMA} value={draft.coordinates} onChange={onCoords} facade={false} />
+          </div>
+        </CabinetBox>
+      </div>
     </div>
   );
 }
