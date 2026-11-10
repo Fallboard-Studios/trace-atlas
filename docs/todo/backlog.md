@@ -741,5 +741,8 @@ effect 3 s after power-on. The node census fell by 163 nodes on W1 and 196 on W2
 - How long does the teardown wait after the darken?
 - How does it interact with Light's hold-offs, a world change, and a save's load?
 
-**Status:** raised; next is `/interview-me` → spec → plan. The ablation's code lives only in the backlog 67 session's
-scratchpad, not in the repo; record §9 describes it.
+**Status:** intent confirmed 2026-11-10 ([intent](../intent/dark-effects-leave-the-graph.md)), which answers the
+questions above or hands them to the spec; spec approved the same day ([spec](../specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md),
+its two open questions at their defaults) and the plan written ([plan](../tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md),
+seventeen tasks). Next: Crawford's review of the plan, then the build. The ablation's code lives only in the backlog 67
+session's scratchpad, not in the repo; record §9 describes it.
