@@ -247,24 +247,22 @@ describe('NavPanel — Probes expands in place (desk)', () => {
   });
 
   // Crawford, 2026-10-09: "back, then collapse".
-  it.each(['probe.root'] as ContentKey[])(
-    'clicking the open %s box on its own page collapses the list to rest, and again reopens it',
-    (key) => {
-      renderPanel();
-      fireEvent.click(box(key));
-      expect(expandFactor()).toBe('1');
+  it('clicking the open Probes box on its own page collapses the list to rest, and again reopens it', () => {
+    const key: ContentKey = 'probe.root';
+    renderPanel();
+    fireEvent.click(box(key));
+    expect(expandFactor()).toBe('1');
 
-      fireEvent.click(box(key));
-      expect(entityList()).toBeNull();
-      expect(expandFactor()).toBe('0');
-      expect(poppedOf(box(key))).toBe('true');
-      expect(setTimeline).toHaveBeenLastCalledWith('nav-panel-width', expect.anything());
+    fireEvent.click(box(key));
+    expect(entityList()).toBeNull();
+    expect(expandFactor()).toBe('0');
+    expect(poppedOf(box(key))).toBe('true');
+    expect(setTimeline).toHaveBeenLastCalledWith('nav-panel-width', expect.anything());
 
-      fireEvent.click(box(key));
-      expect(box(key).closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
-      expect(expandFactor()).toBe('1');
-    },
-  );
+    fireEvent.click(box(key));
+    expect(box(key).closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
+    expect(expandFactor()).toBe('1');
+  });
 
   // Crawford, 2026-10-10: picking a robot collapses the list, so the robot screen gets the rest width.
   it('picking a robot collapses the list to the rest width; clicking Probes goes back to the page with the list open; the next click collapses', () => {
@@ -456,7 +454,7 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     return renderPanel();
   }
 
-  it('on the phone shell the panel is not in the DOM until the sheet opens, then the same four boxes sit in a dialog', () => {
+  it('on the phone shell the panel is not in the DOM until the sheet opens, then the same three boxes sit in a dialog', () => {
     stubMatchMedia({ desk: false });
     renderPanel();
     expect(screen.queryByRole('navigation')).toBeNull();

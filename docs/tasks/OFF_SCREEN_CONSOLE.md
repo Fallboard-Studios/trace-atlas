@@ -316,7 +316,8 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   synced value (mid-edit); after a commit the draft equals the synced value again, so the next sync lands. In
   `OffScreen.tsx`, `onEditorCommit(identity)` is `pickNew(identity)`: `leaveCurrent()`, the `'new'` intent, the wash
   (joining a waiting intent, the last world click winning; R3), `retransmitWorld({ …identity, …NEW_LOADING })` and
-  `detachLoadedSession()` at the cover. A blank name commits as blank, as `retransmitWorld` reads it. `CoordsInput`'s own
+  `detachLoadedSession()` at the cover. A blank name commits as blank, as `retransmitWorld` reads it (superseded at the code review, 2026-11-10: a blank
+  name is no change; Open Question 3). `CoordsInput`'s own
   guard keeps a non-numeric coordinate out of the draft. A theme or family click with New Transmission selected keeps
   it selected and edits in place, as for any row (already the rule; a case pins it).
 
@@ -1069,6 +1070,32 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
 - [x] Ready for Crawford's PR. Passed 2026-11-09 (Crawford). Archiving backlog 71 and the spec's status line wait for the merge (the todo
       conventions).
 
+### Code review follow-ups (2026-11-10)
+
+A five-axis review of `main..feature/settings-retirement` before the PR (both modules). Crawford: skip item 3, do the
+rest. One commit each, on `feature/settings-retirement`:
+- [x] **1. A save renamed to `__proto__` vanished** (3555abae). `data.named` came from `JSON.parse`, so assigning that
+      key set the object's prototype: Rename returned true and the save was gone (`saveNamedSession` had the same
+      hole). The map is a null-prototype object now. Two RED cases in `sessionStorageEngine.test.ts`.
+- [x] **2. A blank name in the editor is no change** (36848360): Open Question 3, answered. A blank kept the old style
+      while the readout named a blank one (` · 3, 4`). Mutant (drop the trim) killed.
+- [ ] **3. A world click on a company's screen leaves the company.** Since Task 17 a company's screen sits on the
+      `'robots'` tile, so `Robot.tsx`'s click is a nav pick (`selectEntity`) that clears the company, where it used to
+      move the halo only. Not recorded at Task 17. **Skipped** (Crawford, 2026-11-10): the behaviour stands as built.
+- [x] **4. `currentSessionName` and `detachLoadedSession` cut** (0e80e2ad). With the name input gone, the one only
+      mirrored the loaded name or held a suggestion, the other was `setCurrentLoadedSessionName(null)`.
+      `nextSaveName()` is Save's name and `keepCurrentWorld(name)` takes it, so a refused Save names the save it tried.
+      Mutant (ignore the loaded name) killed: 9 tests.
+- [x] **5. `OffScreen.tsx` split** (83a84657): 1,041 lines to 882. `OffScreenConfirm.tsx` (Reset's and Delete's
+      confirms, two near-copies before), `RenameField.tsx`, and a 30-line component note in place of the 100-line one.
+      No behaviour change.
+- [x] **Nits.** Comments naming deleted UI in twelve files (a9908e8b); navActions' one-member `ExpandingBranch` set and
+      Fleet Params' three "no sub-tabs" encodings, now one `SINGLE_PANEL` map, plus stale test titles (b461ab4e);
+      `nav.entity.newCompany` → `company.new` (2969e050).
+- [x] Gates, 2026-11-10: `npm run build:types` clean; `npm run lint` 0 errors (the same 4 warnings); full suite 350
+      files, 13,515 pass (two fewer: the cut store fields' cases), with the known `onTaskUpdate` exit; vite build
+      clean.
+
 ## Risks and Mitigations
 
 | Risk | Impact | Mitigation |
@@ -1094,4 +1121,6 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
    B on `feature/settings-retirement` after this branch merges (Phase 5's note).
 3. **Does the editor's blank-name commit need a guard?** `retransmitWorld` reads a blank name as none and derives a
    world from it today (Foundry's behaviour), so the plan passes it through (spec §1.2). If the resulting world reads
-   as a mistake in the look, a follow-up pins a minimum length. **Open**, low priority, decided at Checkpoint A.
+   as a mistake in the look, a follow-up pins a minimum length. **Answered 2026-11-10 (code review):** yes. A blank
+   name kept the old style while the readout named a blank one (` · 3, 4`), so a blank name (trimmed) is now no
+   change: the field refills with the shown name, and a moved coordinate commits under it.

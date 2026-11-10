@@ -15,11 +15,9 @@ export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
  *  rename, a different control; `colour` added by docs/tasks/GLOBAL_COLOUR.md Task 9, between
  *  `timeSpace` and `output`, the chain order; `modulation` added by docs/tasks/GLOBAL_MODULATION_COLOUR.md
  *  Task 10, between `colour` and `output`; `quality`, Audio Quality, moved from Settings by
- *  docs/tasks/OFF_SCREEN_CONSOLE.md Task 12, last) — used to type-narrow a tree node id segment
- *  (useNavTree.ts's `asFleetParamsGroup`), not to back any expand-tracking store field: all 8 are
- *  always expanded once Fleet Params itself is expanded
- *  (docs/specs/archive/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3) — there is no independent per-group
- *  toggle state anymore. */
+ *  docs/tasks/OFF_SCREEN_CONSOLE.md Task 12, last) — the key of Fleet Params' section tabs
+ *  (fleetParamsSection) and of the per-section tables in navActions.ts. There is no per-group
+ *  expand-toggle state (docs/specs/archive/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3). */
 export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'colour' | 'modulation' | 'output' | 'quality';
 /** A Fleet Params sub-tab — fleetParamsSubsection's type (docs/specs/LAYOUT_REWORK.md §1.10). Added in
  *  Task 14 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) for the tree's effect leaf, a field that retired with the

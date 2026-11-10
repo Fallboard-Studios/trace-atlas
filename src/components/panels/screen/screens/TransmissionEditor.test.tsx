@@ -129,11 +129,29 @@ describe('TransmissionEditor — the commit and the mid-edit draft (console Task
     expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: 'live-as', coordinates: { x: 9, y: -3 } });
   });
 
-  it('a blank name commits as blank', () => {
+  // A blank name is no change (Crawford, the console's code review 2026-11-10; plan Open Question 3): the field refills
+  // with the shown name, as Rename treats a blank.
+  it('a blank name, by Enter or by blur, commits nothing and the field refills with the shown name', () => {
     const { onCommit } = renderEditor();
     fireEvent.change(styleInput(), { target: { value: '' } });
     enter(styleInput());
-    expect(onCommit).toHaveBeenCalledWith({ attenuationStyleName: '', coordinates: { x: 1, y: 2 } });
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(shown()).toEqual({ name: 'live-as', x: '1', y: '2' });
+    fireEvent.change(styleInput(), { target: { value: '   ' } });
+    fireEvent.blur(styleInput());
+    expect(onCommit).not.toHaveBeenCalled();
+    expect(styleInput().value).toBe('live-as');
+  });
+
+  it('a blank name with a moved coordinate commits the coordinate under the shown name', () => {
+    const { onCommit, handOver } = renderEditor();
+    fireEvent.change(styleInput(), { target: { value: '' } });
+    fireEvent.change(coordInputs()[0], { target: { value: '9' } });
+    enter(coordInputs()[0]);
+    const landed = { attenuationStyleName: 'live-as', coordinates: { x: 9, y: 2 } };
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(landed);
+    handOver(landed);
+    expect(shown()).toEqual({ name: 'live-as', x: '9', y: '2' });
   });
 
   it('an unchanged draft commits nothing, by Enter or by blur', () => {

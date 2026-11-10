@@ -295,12 +295,10 @@ describe('pressBranchBox', () => {
     expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 
-  it.each([
-    ['fleetParams', 'audioRig'],
-  ] as const)('a leaf (%s) never toggles: pressing it again is selectBranch', (branch, tile) => {
-    dirtyStore({ activeHubTile: tile, expandedTopLevelBranch: null, selectedRobotId: null });
-    pressBranchBox(branch);
-    expect(ui().activeHubTile).toBe(tile);
+  it('a leaf (fleetParams) never toggles: pressing it again is selectBranch', () => {
+    dirtyStore({ activeHubTile: 'audioRig', expandedTopLevelBranch: null, selectedRobotId: null });
+    pressBranchBox('fleetParams');
+    expect(ui().activeHubTile).toBe('audioRig');
     expect(ui().expandedTopLevelBranch).toBeNull();
     expectNoEntityAndNoSection();
   });

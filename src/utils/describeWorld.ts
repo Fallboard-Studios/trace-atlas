@@ -31,10 +31,10 @@ function plotOf(coordinates: unknown): string | null {
 
 /**
  * One name for a world (docs/specs/OFF_SCREEN.md assumption 8): `AS · (x, y)` for a world that is nothing but its
- * seed, or `<label> · AS (x, y)` when a save or preset name fronts it; then the loading tail (assumption 17, band-table
+ * seed, or `<label> · AS (x, y)` when a save's name fronts it; then the loading tail (assumption 17, band-table
  * T28) - ` · <Theme>` when the theme is not Classic, and ` · A + B` for each family's picks in the list's order - as in
- * `tr3nch-2 · (-30, -30) · Float · Hypnotic + Mechanical`. The off screen's Current
- * row, its readout and Foundry's status line all read this, so the three agree byte-for-byte. Pure - names and numbers
+ * `tr3nch-2 · (-30, -30) · Float · Hypnotic + Mechanical`. The off screen's rows and its
+ * readout all read this, so they agree byte-for-byte. Pure - names and numbers
  * are data, the theme and aspect names come from content (labels), the punctuation is the only text here. An id the
  * content does not know (a stale payload), and a plot that cannot be read (plotOf), are left out rather than thrown on.
  */

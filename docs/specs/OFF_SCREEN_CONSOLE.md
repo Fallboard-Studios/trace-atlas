@@ -105,7 +105,9 @@ three, else X and Y in one row under the name.
   that differs selects New Transmission and does exactly what picking the New Transmission row does today: the
   snapshot is taken if there is none (§1.3), the change waits under the wash, then
   `retransmitWorld({ attenuationStyleName, coordinates, theme: 'classic', aspects: {} })` and
-  `detachLoadedSession()`. A blank name commits as no name, as `retransmitWorld` reads it. A coordinate field may be
+  `detachLoadedSession()`. A blank name (trimmed) is no change: the field refills with the shown name, and a moved coordinate commits under it
+  (changed at the code review, 2026-11-10: a blank reached `retransmitWorld`, which kept the old style while the readout
+  named a blank one). A coordinate field may be
   emptied (so a sign flip is easy); a commit with an axis left blank draws that axis with `randomCoordinate()`, keeps
   a typed one, and shows the drawn value in its field (changed at the plan's "editor" checkpoint, 2026-11-09).
 - **Scan** draws `generateRandomAttenuationStyleName()` at `randomCoordinate()`s into both inputs and commits in one

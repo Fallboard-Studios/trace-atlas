@@ -413,7 +413,7 @@ describe('roster and company detail copy', () => {
 
   it('the phone roster head\'s short forms: "All" and "+", never spread into a schema', () => {
     expect(CONTENT['probe.all'].short).toBe('All');
-    expect(CONTENT['nav.entity.newCompany'].short).toBe('+');
+    expect(CONTENT['company.new'].short).toBe('+');
     expect(labels('probe.all')).not.toHaveProperty('short');
   });
 });

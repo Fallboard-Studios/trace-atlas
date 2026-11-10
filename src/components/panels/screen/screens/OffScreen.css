@@ -196,7 +196,7 @@
 
 /* The panel's labels are the names alone — Atmosphere, Location, X and Y, with their help — (Crawford, Checkpoint A):
    the lore lines over them (Attenuation Style, Atlas Vector, Lateral/Vertical Vector [C]) are not drawn here. Each
-   input's accessible name is its human label already. Foundry, until it goes (Task 15), keeps them. */
+   input's accessible name is its human label already. */
 .transmission-editor__panel .sc-dual-label__lore {
   display: none;
 }
@@ -378,9 +378,8 @@
   overflow-wrap: anywhere;
 }
 
-/* Factory Reset's confirm (docs/tasks/OFF_SCREEN_CONSOLE.md Task 3): the Save & Share tab's clear-storage-confirm__*
-   rules, copied here because the dialog portals out of the component's tree; the only copy since the tab went
-   (Task 15). */
+/* The off screen's confirms (OffScreenConfirm.tsx: Factory Reset's and Delete's), the clear-storage-confirm__* rules.
+   Here, not beside the component, because the dialog portals out of the component's tree. */
 .clear-storage-confirm__overlay {
   position: fixed;
   inset: 0;
