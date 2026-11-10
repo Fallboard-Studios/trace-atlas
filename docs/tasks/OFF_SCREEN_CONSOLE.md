@@ -898,6 +898,7 @@ boxes with Companies kept; the Companies retirement is a follow-up to plan on it
   own test (Foundry was its last); and the `sector.attenuationStyle` and `sector.coords` help still says "then press
   Retransmit", a button that no longer exists (the editor commits on Enter or blur). Both left as they are: a removal
   and a copy change are his call. The look (no Seeds, no Save & Share in the powered-on app) is Checkpoint B's.
+  **Answered 2026-11-09 (Crawford):** `retransmitChangesWorld` cut; both help lines now end "then press Scan to go there."
 
 ### Checkpoint B: `settings-retirement` built
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. 2026-11-09, at Task 15: types
