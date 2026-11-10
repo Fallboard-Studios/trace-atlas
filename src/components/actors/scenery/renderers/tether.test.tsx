@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { tether } from './tether';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -29,12 +29,12 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('tether renderer', () => {
   it('renders under data-scenery="tether"', () => {
-    const { container } = render(tether(makeCtx()));
+    const { container } = renderSvg(tether(makeCtx()));
     expect(container.querySelector('[data-scenery="tether"]')).not.toBeNull();
   });
 
   it("the dog-leg polygon's slanted edges are 45° with |dx| matching params.dx", () => {
-    const { container } = render(tether(makeCtx({ params: { tether: { w: 36, h1: 200, dx: 72, hasFloat: false } } })));
+    const { container } = renderSvg(tether(makeCtx({ params: { tether: { w: 36, h1: 200, dx: 72, hasFloat: false } } })));
     const dogleg = container.querySelector('[data-tether="dogleg"]')!;
     const points = (dogleg.getAttribute('points') ?? '').trim().split(/\s+/).map((pair) => pair.split(',').map(Number));
     let foundSpecLength = false;
@@ -52,15 +52,15 @@ describe('tether renderer', () => {
   });
 
   it('the top segment ends at y = -20 (off frame)', () => {
-    const { container } = render(tether(makeCtx()));
+    const { container } = renderSvg(tether(makeCtx()));
     const riser = container.querySelector('[data-tether="riser"]')!;
     const top = Number(riser.getAttribute('y'));
     expect(top).toBeCloseTo(-20, 1);
   });
 
   it('float is present when hasFloat is true, absent when false', () => {
-    const withFloat = render(tether(makeCtx({ params: { tether: { w: 36, h1: 200, dx: 60, hasFloat: true } } })));
-    const withoutFloat = render(tether(makeCtx({ params: { tether: { w: 36, h1: 200, dx: 60, hasFloat: false } } })));
+    const withFloat = renderSvg(tether(makeCtx({ params: { tether: { w: 36, h1: 200, dx: 60, hasFloat: true } } })));
+    const withoutFloat = renderSvg(tether(makeCtx({ params: { tether: { w: 36, h1: 200, dx: 60, hasFloat: false } } })));
     expect(withFloat.container.querySelector('[data-tether="float"]')).not.toBeNull();
     expect(withoutFloat.container.querySelector('[data-tether="float"]')).toBeNull();
   });
@@ -72,14 +72,14 @@ describe('tether renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(tether(ctx));
+      const { container } = renderSvg(tether(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(tether(makeCtx({ cap: 0.7 })));
-    const uncapped = render(tether(makeCtx({ cap: 1 })));
+    const capped = renderSvg(tether(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(tether(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-tether="anchor"]')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-tether="anchor"]')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);

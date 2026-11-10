@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { wreck } from './wreck';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -29,13 +29,13 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('wreck renderer', () => {
   it('renders under data-scenery="wreck"', () => {
-    const { container } = render(wreck(makeCtx()));
+    const { container } = renderSvg(wreck(makeCtx()));
     expect(container.querySelector('[data-scenery="wreck"]')).not.toBeNull();
   });
 
   it("bow polygon's raked edge is 45° and exactly h long (x1 - h)", () => {
     const ctx = makeCtx();
-    const { container } = render(wreck(ctx));
+    const { container } = renderSvg(wreck(ctx));
     const bow = container.querySelector('[data-wreck="bow"]')!;
     expect(bow).not.toBeNull();
     const points = (bow.getAttribute('points') ?? '').trim().split(/\s+/).map((pair) => pair.split(',').map(Number));
@@ -55,14 +55,14 @@ describe('wreck renderer', () => {
   });
 
   it('renders the expected number of dead portholes, each the shadowDepth colour (never lit)', () => {
-    const { container } = render(wreck(makeCtx()));
+    const { container } = renderSvg(wreck(makeCtx()));
     const portholes = container.querySelectorAll('[data-wreck="porthole"]');
     expect(portholes.length).toBe(6);
   });
 
   it('no lit element at any hour: fills are identical at nightDepth 0 and 1', () => {
-    const atZero = render(wreck(makeCtx({ nightDepth: 0 })));
-    const atOne = render(wreck(makeCtx({ nightDepth: 1 })));
+    const atZero = renderSvg(wreck(makeCtx({ nightDepth: 0 })));
+    const atOne = renderSvg(wreck(makeCtx({ nightDepth: 1 })));
     const fillsZero = Array.from(atZero.container.querySelectorAll('[data-scenery="wreck"] *')).map((el) => el.getAttribute('fill'));
     const fillsOne = Array.from(atOne.container.querySelectorAll('[data-scenery="wreck"] *')).map((el) => el.getAttribute('fill'));
     expect(fillsZero).toEqual(fillsOne);
@@ -82,21 +82,21 @@ describe('wreck renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(wreck(ctx));
+      const { container } = renderSvg(wreck(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(wreck(makeCtx({ cap: 0.7 })));
-    const uncapped = render(wreck(makeCtx({ cap: 1 })));
+    const capped = renderSvg(wreck(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(wreck(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-wreck="hull-west"]')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-wreck="hull-west"]')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);
   });
 
   it('two faces with differing west/east fills at a non-noon hour', () => {
-    const { container } = render(wreck(makeCtx()));
+    const { container } = renderSvg(wreck(makeCtx()));
     const west = container.querySelector('[data-wreck="hull-west"]')?.getAttribute('fill');
     const east = container.querySelector('[data-wreck="bow"]')?.getAttribute('fill');
     expect(west).not.toBe(east);

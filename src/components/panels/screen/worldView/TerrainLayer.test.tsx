@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { act, render, cleanup } from '@testing-library/react';
-
+import { act, cleanup } from '@testing-library/react';
 import { TerrainLayer } from './TerrainLayer';
+import { renderSvg } from '@/testUtils/renderSvg';
+
 import { getTerrainProfile, __clearTerrainProfileCache } from '@/systems/terrainProfile';
 import { getLocaleNoiseMap, evictLocaleNoiseMap } from '@/utils/noiseMaps';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
@@ -60,7 +61,7 @@ describe('TerrainLayer', () => {
       const noiseMap = getLocaleNoiseMap(TEST_LOCALE.id, TEST_LOCALE.coordinates.x, TEST_LOCALE.coordinates.y);
       const { ridge } = getTerrainProfile(TEST_LOCALE.id, noiseMap);
 
-      const { container } = render(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />);
+      const { container } = renderSvg(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />);
       const polygon = getPolygon(container, 'ridge');
       expect(polygon).not.toBeNull();
 
@@ -77,7 +78,7 @@ describe('TerrainLayer', () => {
       const noiseMap = getLocaleNoiseMap(TEST_LOCALE.id, TEST_LOCALE.coordinates.x, TEST_LOCALE.coordinates.y);
       const { ground } = getTerrainProfile(TEST_LOCALE.id, noiseMap);
 
-      const { container } = render(<TerrainLayer localeId={TEST_LOCALE.id} part="ground" width={1920} height={1080} />);
+      const { container } = renderSvg(<TerrainLayer localeId={TEST_LOCALE.id} part="ground" width={1920} height={1080} />);
       const polygon = getPolygon(container, 'ground');
       expect(polygon).not.toBeNull();
 
@@ -91,7 +92,7 @@ describe('TerrainLayer', () => {
     });
 
     it('uses the given width/height for the two bottom corners, not a hardcoded 1920x1080', () => {
-      const { container } = render(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={800} height={400} />);
+      const { container } = renderSvg(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={800} height={400} />);
       const polygon = getPolygon(container, 'ridge');
       const points = polygon!.getAttribute('points')!.split(' ');
       expect(points.at(-2)).toBe('800,400');
@@ -102,7 +103,7 @@ describe('TerrainLayer', () => {
   describe('fill lightness tracks the day/night cycle', () => {
     it('ridge and ground fills differ between noon and midnight', () => {
       setLocalTime(12);
-      const { container } = render(
+      const { container } = renderSvg(
         <>
           <TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />
           <TerrainLayer localeId={TEST_LOCALE.id} part="ground" width={1920} height={1080} />
@@ -124,7 +125,7 @@ describe('TerrainLayer', () => {
     // current hour — the same eastL/westL Factory.tsx derives from activeLocaleLocalTime.
     it('matches the §1.3 formula at noon within whole-percent rounding', () => {
       setLocalTime(12);
-      const { container } = render(
+      const { container } = renderSvg(
         <>
           <TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />
           <TerrainLayer localeId={TEST_LOCALE.id} part="ground" width={1920} height={1080} />
@@ -141,7 +142,7 @@ describe('TerrainLayer', () => {
 
     it('re-render at the same rounded hour produces an identical fill attribute (no churn)', () => {
       setLocalTime(9);
-      const { container, rerender } = render(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />);
+      const { container, rerender } = renderSvg(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />);
       const first = getPolygon(container, 'ridge')!.getAttribute('fill');
 
       rerender(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />);
@@ -151,7 +152,7 @@ describe('TerrainLayer', () => {
     });
 
     it('carries no transition style on the polygon', () => {
-      const { container } = render(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />);
+      const { container } = renderSvg(<TerrainLayer localeId={TEST_LOCALE.id} part="ridge" width={1920} height={1080} />);
       const polygon = getPolygon(container, 'ridge')!;
       expect(polygon.getAttribute('style')).toBeNull();
     });
@@ -159,7 +160,7 @@ describe('TerrainLayer', () => {
 
   describe('missing locale', () => {
     it('renders nothing when the locale does not exist (defensive)', () => {
-      const { container } = render(<TerrainLayer localeId="does-not-exist" part="ridge" width={1920} height={1080} />);
+      const { container } = renderSvg(<TerrainLayer localeId="does-not-exist" part="ridge" width={1920} height={1080} />);
       expect(getPolygon(container, 'ridge')).toBeNull();
       expect(container.querySelector('polygon')).toBeNull();
     });

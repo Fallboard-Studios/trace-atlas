@@ -4,7 +4,6 @@
  * mast are untouched, so the ring is the only thing the dome gains.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { dome } from './dome';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
@@ -13,6 +12,7 @@ import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, markupWithoutRings, outerBox, ringsIn, withSwitch } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}, size: { w?: number; bh?: number } = {}): SceneryContext {
   const actor: Actor = {
@@ -50,7 +50,7 @@ const MID = 500;
 const SHIFT = { hueShift: 10, satShift: -5 };
 const bodyBase = (satMult = 1) => ({ ...colorTheme.body.base, s: colorTheme.body.base.s * satMult });
 const tone = (mult: number, satMult = 1) => applyColorShift(bodyBase(satMult), SHIFT, mult);
-const draw = (c: SceneryContext) => render(dome(c)).container;
+const draw = (c: SceneryContext) => renderSvg(dome(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="dome"]')!;
 
 describe('dome ring: geometry and order', () => {

@@ -4,7 +4,6 @@
  * move inside the ring by its depth on both sides (assumption 9).
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { tank } from './tank';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
@@ -13,6 +12,7 @@ import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift, shiftHSL } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, ringsIn, withSwitch, type Pt } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -47,7 +47,7 @@ const SPLIT = 500;
 const body = (c: SceneryContext) =>
   shiftHSL(colorTheme.shell.shadow, { hueShift: c.actor.config?.hueShift ?? 0, satShift: c.actor.config?.satShift ?? 0 });
 const tone = (c: SceneryContext, mult: number) => applyColorShift(body(c), NO_SHIFT, mult);
-const draw = (c: SceneryContext) => render(tank(c)).container;
+const draw = (c: SceneryContext) => renderSvg(tank(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="tank"]')!;
 const narrow = () => makeCtx({ params: { tank: { w: 40, h: 200, corner: 0.5, beltCourses: 1, hueShift: 10, satShift: -5 } } });
 

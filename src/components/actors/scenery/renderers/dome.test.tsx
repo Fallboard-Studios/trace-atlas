@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { dome } from './dome';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -36,12 +36,12 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('dome renderer', () => {
   it('renders under data-scenery="dome"', () => {
-    const { container } = render(dome(makeCtx()));
+    const { container } = renderSvg(dome(makeCtx()));
     expect(container.querySelector('[data-scenery="dome"]')).not.toBeNull();
   });
 
   it('the two dome paths meet at x with differing west/east fills', () => {
-    const { container } = render(dome(makeCtx()));
+    const { container } = renderSvg(dome(makeCtx()));
     // the two filled cap halves: not the world gem ring (a group of paths of its own, Phase 44) and
     // not the hairline arc along the cap (an open path with no fill, Phase 44)
     const paths = container.querySelectorAll('[data-scenery="dome"] > path:not([fill="none"])');
@@ -54,21 +54,21 @@ describe('dome renderer', () => {
   });
 
   it('base block renders two faces with differing fills', () => {
-    const { container } = render(dome(makeCtx()));
+    const { container } = renderSvg(dome(makeCtx()));
     const rects = Array.from(container.querySelectorAll('[data-scenery="dome"] rect'));
     // base west/east + hatch + mast rod, at minimum
     expect(rects.length).toBeGreaterThanOrEqual(4);
   });
 
   it('renders one porthole circle per params.portholes', () => {
-    const { container } = render(dome(makeCtx()));
+    const { container } = renderSvg(dome(makeCtx()));
     const portholes = container.querySelectorAll('[data-scenery="dome"] [data-dome="porthole"]');
     expect(portholes.length).toBe(4);
   });
 
   it('portholes lit fraction rises with nightDepth (same seeded rolls, higher nd crosses more thresholds)', () => {
-    const dim = render(dome(makeCtx({ nightDepth: 0 })));
-    const bright = render(dome(makeCtx({ nightDepth: 1 })));
+    const dim = renderSvg(dome(makeCtx({ nightDepth: 0 })));
+    const bright = renderSvg(dome(makeCtx({ nightDepth: 1 })));
     const countLit = (container: HTMLElement) =>
       Array.from(container.querySelectorAll('[data-dome="porthole"]')).filter(
         (el) => el.getAttribute('data-lit') === 'true',
@@ -81,7 +81,7 @@ describe('dome renderer', () => {
   });
 
   it('mast light is present and lit when not derelict', () => {
-    const { container } = render(dome(makeCtx()));
+    const { container } = renderSvg(dome(makeCtx()));
     const light = container.querySelector('[data-dome="mast-light"]');
     expect(light).not.toBeNull();
   });
@@ -95,7 +95,7 @@ describe('dome renderer', () => {
       config: { kind: 'dome', district: 'habitat', row: 2, hueShift: 10, satShift: -5, derelict: true },
     };
     // Even at nightDepth 1 (which would otherwise light every porthole), derelict forces none lit.
-    const { container } = render(dome(makeCtx({ actor: derelictActor, nightDepth: 1 })));
+    const { container } = renderSvg(dome(makeCtx({ actor: derelictActor, nightDepth: 1 })));
     const litPortholes = Array.from(container.querySelectorAll('[data-dome="porthole"]')).filter(
       (el) => el.getAttribute('data-lit') === 'true',
     );
@@ -111,7 +111,7 @@ describe('dome renderer', () => {
       isActive: false,
       config: { kind: 'dome', district: 'habitat', row: 2, hueShift: 0, satShift: 0 },
     };
-    const { container } = render(dome(makeCtx({ actor: zeroShiftActor, cap: 1, eastL: 1, westL: 1 })));
+    const { container } = renderSvg(dome(makeCtx({ actor: zeroShiftActor, cap: 1, eastL: 1, westL: 1 })));
     const rects = container.querySelectorAll('[data-scenery="dome"] rect');
     const fill = rects[0].getAttribute('fill');
     const h = Number(fill?.match(/hsl\((\d+)/)?.[1]);
@@ -123,8 +123,8 @@ describe('dome renderer', () => {
     const ctxDifferentConfigShift = makeCtx({
       actor: { ...ctxDefault.actor, config: { ...ctxDefault.actor.config, hueShift: 170, satShift: 40 } },
     });
-    const a = render(dome(ctxDefault)).container.querySelectorAll('[data-scenery="dome"] rect')[0]?.getAttribute('fill');
-    const b = render(dome(ctxDifferentConfigShift)).container.querySelectorAll('[data-scenery="dome"] rect')[0]?.getAttribute('fill');
+    const a = renderSvg(dome(ctxDefault)).container.querySelectorAll('[data-scenery="dome"] rect')[0]?.getAttribute('fill');
+    const b = renderSvg(dome(ctxDifferentConfigShift)).container.querySelectorAll('[data-scenery="dome"] rect')[0]?.getAttribute('fill');
     expect(a).not.toBe(b);
   });
 
@@ -143,14 +143,14 @@ describe('dome renderer', () => {
         westL: 0.8 - (i % 10) / 10,
         nightDepth: (i % 10) / 10,
       });
-      const { container } = render(dome(ctx));
+      const { container } = renderSvg(dome(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(dome(makeCtx({ cap: 0.7 })));
-    const uncapped = render(dome(makeCtx({ cap: 1 })));
+    const capped = renderSvg(dome(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(dome(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelectorAll('[data-scenery="dome"] rect')[0]?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelectorAll('[data-scenery="dome"] rect')[0]?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);

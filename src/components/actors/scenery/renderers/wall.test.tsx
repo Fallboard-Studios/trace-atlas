@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { wall } from './wall';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -29,19 +29,19 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('wall renderer', () => {
   it('renders under data-scenery="wall"', () => {
-    const { container } = render(wall(makeCtx()));
+    const { container } = renderSvg(wall(makeCtx()));
     expect(container.querySelector('[data-scenery="wall"]')).not.toBeNull();
   });
 
   it('two faces with differing west/east fills at a non-noon hour', () => {
-    const { container } = render(wall(makeCtx()));
+    const { container } = renderSvg(wall(makeCtx()));
     const rects = container.querySelectorAll('[data-scenery="wall"] rect');
     expect(rects.length).toBeGreaterThanOrEqual(2);
     expect(rects[0].getAttribute('fill')).not.toBe(rects[1].getAttribute('fill'));
   });
 
   it('cap rail is present at the row thickness', () => {
-    const { container } = render(wall(makeCtx()));
+    const { container } = renderSvg(wall(makeCtx()));
     const rects = Array.from(container.querySelectorAll('[data-scenery="wall"] rect'));
     expect(rects.some((r) => r.getAttribute('height') === '5')).toBe(true);
   });
@@ -53,14 +53,14 @@ describe('wall renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(wall(ctx));
+      const { container } = renderSvg(wall(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(wall(makeCtx({ cap: 0.7 })));
-    const uncapped = render(wall(makeCtx({ cap: 1 })));
+    const capped = renderSvg(wall(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(wall(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-scenery="wall"] rect')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-scenery="wall"] rect')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);

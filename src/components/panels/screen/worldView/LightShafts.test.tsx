@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { act, render, cleanup } from '@testing-library/react';
-
+import { act, cleanup } from '@testing-library/react';
 import { LightShafts } from './LightShafts';
+import { renderSvg } from '@/testUtils/renderSvg';
+
 import { evictLocaleNoiseMap } from '@/utils/noiseMaps';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -62,13 +63,13 @@ describe('LightShafts', () => {
   describe('polygon count (§1.12)', () => {
     it('renders between 3 and 5 polygons, deterministic for a given locale', () => {
       setLocalTime(12);
-      const { container, unmount } = render(<LightShafts localeId={TEST_LOCALE.id} />);
+      const { container, unmount } = renderSvg(<LightShafts localeId={TEST_LOCALE.id} />);
       const count = getGroup(container)!.querySelectorAll('polygon').length;
       expect(count).toBeGreaterThanOrEqual(3);
       expect(count).toBeLessThanOrEqual(5);
       unmount();
 
-      const { container: second } = render(<LightShafts localeId={TEST_LOCALE.id} />);
+      const { container: second } = renderSvg(<LightShafts localeId={TEST_LOCALE.id} />);
       const secondCount = getGroup(second)!.querySelectorAll('polygon').length;
       expect(secondCount).toBe(count);
     });
@@ -79,7 +80,7 @@ describe('LightShafts', () => {
       for (let i = 0; i < 25; i++) {
         const locale: Locale = { ...DEFAULT_LOCALE, id: `shaft-sweep-${i}`, coordinates: { x: i, y: -i } };
         setStoreFixtures(locale);
-        const { container, unmount } = render(<LightShafts localeId={locale.id} />);
+        const { container, unmount } = renderSvg(<LightShafts localeId={locale.id} />);
         counts.add(getGroup(container)!.querySelectorAll('polygon').length);
         unmount();
         evictLocaleNoiseMap(locale.id);
@@ -91,7 +92,7 @@ describe('LightShafts', () => {
   describe('polygon shape (§1.12)', () => {
     it('each polygon has exactly one vertical edge and one 45-degree edge, depth within 420-760', () => {
       setLocalTime(12);
-      const { container } = render(<LightShafts localeId={TEST_LOCALE.id} />);
+      const { container } = renderSvg(<LightShafts localeId={TEST_LOCALE.id} />);
       const group = getGroup(container)!;
       assertNinetyFortyFive(group);
 
@@ -123,7 +124,7 @@ describe('LightShafts', () => {
 
     it('every polygon starts at the top edge (y = 0)', () => {
       setLocalTime(12);
-      const { container } = render(<LightShafts localeId={TEST_LOCALE.id} />);
+      const { container } = renderSvg(<LightShafts localeId={TEST_LOCALE.id} />);
       const group = getGroup(container)!;
       group.querySelectorAll('polygon').forEach((polygon) => {
         const points = polygon.getAttribute('points')!.trim().split(/\s+/).map((pair) => pair.split(',').map(Number));
@@ -136,9 +137,11 @@ describe('LightShafts', () => {
   describe('gradient opacity tracks the day/night cycle (§1.12)', () => {
     it('top stop opacity equals 0.11 x (1 - nightDepth) at hour 12', () => {
       setLocalTime(12);
-      const { container } = render(<LightShafts localeId={TEST_LOCALE.id} />);
+      const { container } = renderSvg(<LightShafts localeId={TEST_LOCALE.id} />);
       const group = getGroup(container)!;
-      const stops = group.querySelectorAll('linearGradient stop');
+      // The gradient's stops are the only <stop>s in the group (jsdom's selector engine does not match a
+      // camelCase SVG tag in a descendant selector once the tree is in the SVG namespace).
+      const stops = group.querySelectorAll('stop');
       const expected = 0.11 * (1 - ndAt(12));
       expect(Number(stops[0].getAttribute('stop-opacity'))).toBeCloseTo(expected, 3);
       expect(Number(stops[1].getAttribute('stop-opacity'))).toBe(0);
@@ -146,7 +149,7 @@ describe('LightShafts', () => {
 
     it('is entirely absent at hour 0 (opacity below the 0.005 omit threshold)', () => {
       setLocalTime(0);
-      const { container } = render(<LightShafts localeId={TEST_LOCALE.id} />);
+      const { container } = renderSvg(<LightShafts localeId={TEST_LOCALE.id} />);
       expect(0.11 * (1 - ndAt(0))).toBeLessThan(0.005);
       expect(getGroup(container)).toBeNull();
     });
@@ -160,7 +163,7 @@ describe('LightShafts', () => {
         locales: { [TEST_LOCALE.id]: TEST_LOCALE, [localeB.id]: localeB },
       });
 
-      const { container } = render(
+      const { container } = renderSvg(
         <>
           <LightShafts localeId={TEST_LOCALE.id} />
           <LightShafts localeId={localeB.id} />
@@ -177,7 +180,7 @@ describe('LightShafts', () => {
   describe('missing locale', () => {
     it('renders nothing when the locale does not exist (defensive)', () => {
       setLocalTime(12);
-      const { container } = render(<LightShafts localeId="does-not-exist" />);
+      const { container } = renderSvg(<LightShafts localeId="does-not-exist" />);
       expect(container.querySelector('g[data-atmos="shafts"]')).toBeNull();
     });
   });

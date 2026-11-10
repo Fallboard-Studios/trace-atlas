@@ -6,7 +6,6 @@
  * into every tone on top of the row's cap.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { wreck, wreckLayout } from './wreck';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
@@ -15,6 +14,7 @@ import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, markupWithoutRings, outerBox, ringsIn, withSwitch, type Pt } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}, p: Partial<NonNullable<SceneryContext['params']['wreck']>> = {}): SceneryContext {
   const actor: Actor = {
@@ -42,7 +42,7 @@ const NO_SHIFT = { hueShift: 0, satShift: 0 };
 const HULL_BODY = { ...colorTheme.body.base, s: 6 };
 const hullTone = (mult: number) => applyColorShift(HULL_BODY, NO_SHIFT, mult);
 const steelTone = (mult: number) => applyColorShift(colorTheme.shell.shadow, NO_SHIFT, mult);
-const draw = (c: SceneryContext) => render(wreck(c)).container;
+const draw = (c: SceneryContext) => renderSvg(wreck(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="wreck"]')!;
 const lay = (c: SceneryContext) => wreckLayout(500, 1030, c.params.wreck!);
 const hullRing = (c: HTMLElement) => ringsIn(group(c)).find((r) => r === group(c).lastElementChild)!;

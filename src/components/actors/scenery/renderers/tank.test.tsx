@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { tank } from './tank';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -30,25 +30,25 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('tank renderer', () => {
   it('renders under data-scenery="tank"', () => {
-    const { container } = render(tank(makeCtx()));
+    const { container } = renderSvg(tank(makeCtx()));
     expect(container.querySelector('[data-scenery="tank"]')).not.toBeNull();
   });
 
   it('two faces with differing west/east fills at a non-noon hour', () => {
-    const { container } = render(tank(makeCtx()));
+    const { container } = renderSvg(tank(makeCtx()));
     const polys = container.querySelectorAll('[data-scenery="tank"] polygon');
     expect(polys.length).toBe(2);
     expect(polys[0].getAttribute('fill')).not.toBe(polys[1].getAttribute('fill'));
   });
 
   it('renders one belt course rect per params.beltCourses', () => {
-    const { container } = render(tank(makeCtx({ params: { tank: { w: 120, h: 200, corner: 0.5, beltCourses: 3, hueShift: 10, satShift: -5 } } })));
+    const { container } = renderSvg(tank(makeCtx({ params: { tank: { w: 120, h: 200, corner: 0.5, beltCourses: 3, hueShift: 10, satShift: -5 } } })));
     const rects = container.querySelectorAll('[data-scenery="tank"] rect');
     expect(rects.length).toBe(3);
   });
 
   it("shoulder polygon edges include a 45° run of exactly the shoulder length (0.3 w)", () => {
-    const { container } = render(tank(makeCtx()));
+    const { container } = renderSvg(tank(makeCtx()));
     const west = container.querySelector('[data-scenery="tank"] polygon')!;
     const points = (west.getAttribute('points') ?? '').trim().split(/\s+/).map((pair) => pair.split(',').map(Number));
     let foundDiagonal = false;
@@ -67,8 +67,8 @@ describe('tank renderer', () => {
   });
 
   it('gauge circle is lit (indicator.powered, lamped) when not derelict, and the plain indicator.off colour when derelict', () => {
-    const notDerelict = render(tank(makeCtx()));
-    const derelict = render(
+    const notDerelict = renderSvg(tank(makeCtx()));
+    const derelict = renderSvg(
       tank(
         makeCtx({
           actor: {
@@ -103,8 +103,8 @@ describe('tank renderer', () => {
 
     // Same cap for both — isolates the saturation effect from the depth-cap multiply, which
     // Scenery.tsx (not this renderer) is responsible for folding into ctx.cap.
-    const derelict = render(tank(makeCtx({ actor: derelictActor, cap: 1, eastL: 1, westL: 1 })));
-    const live = render(tank(makeCtx({ actor: liveActor, cap: 1, eastL: 1, westL: 1 })));
+    const derelict = renderSvg(tank(makeCtx({ actor: derelictActor, cap: 1, eastL: 1, westL: 1 })));
+    const live = renderSvg(tank(makeCtx({ actor: liveActor, cap: 1, eastL: 1, westL: 1 })));
 
     const derelictFill = derelict.container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
     const liveFill = live.container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
@@ -126,14 +126,14 @@ describe('tank renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(tank(ctx));
+      const { container } = renderSvg(tank(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(tank(makeCtx({ cap: 0.7 })));
-    const uncapped = render(tank(makeCtx({ cap: 1 })));
+    const capped = renderSvg(tank(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(tank(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);
@@ -144,8 +144,8 @@ describe('tank renderer', () => {
     const ctxDifferentConfigShift = makeCtx({
       actor: { ...ctxDefault.actor, config: { ...ctxDefault.actor.config, hueShift: 170, satShift: 40 } },
     });
-    const a = render(tank(ctxDefault)).container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
-    const b = render(tank(ctxDifferentConfigShift)).container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
+    const a = renderSvg(tank(ctxDefault)).container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
+    const b = renderSvg(tank(ctxDifferentConfigShift)).container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
     expect(a).not.toBe(b);
   });
 
@@ -157,7 +157,7 @@ describe('tank renderer', () => {
       isActive: false,
       config: { kind: 'tank', district: 'outskirts', row: 5, hueShift: 0, satShift: 0 },
     };
-    const { container } = render(tank(makeCtx({ actor: zeroShiftActor, cap: 1, eastL: 1, westL: 1 })));
+    const { container } = renderSvg(tank(makeCtx({ actor: zeroShiftActor, cap: 1, eastL: 1, westL: 1 })));
     const fill = container.querySelector('[data-scenery="tank"] polygon')?.getAttribute('fill');
     const h = Number(fill?.match(/hsl\((\d+)/)?.[1]);
     expect(h).toBe(colorTheme.shell.shadow.h);

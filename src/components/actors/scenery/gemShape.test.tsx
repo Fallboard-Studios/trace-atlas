@@ -1,13 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { GemShape, accentBase, facetMultiplier, gemOutlineStroke } from './gemShape';
 import { assertNinetyFortyFive } from './sceneryTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 const BASE = { h: 20, s: 55, l: 42 };
 
 function renderGem(overrides: Partial<Parameters<typeof GemShape>[0]> = {}) {
-  return render(
+  return renderSvg(
     <GemShape cx={100} cy={200} w={26} h={18} base={BASE} lit={false} eastL={0.9} westL={0.5} nightDepth={0.3} cap={1} {...overrides} />,
   );
 }

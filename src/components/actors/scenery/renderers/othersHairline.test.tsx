@@ -6,7 +6,6 @@
  * light and centre light are left exactly as they are.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { dish } from './dish';
 import { turbine } from './turbine';
@@ -22,6 +21,7 @@ import { createFactory, getRecipeRow } from '../../../../systems/factoryPlacemen
 import { selectVariantFromSeed, VARIANT_CONF } from '../../factoryVariants';
 import { calcSilhouetteSize } from '../../silhouetteUtils';
 import { withSwitch } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function ctxFor(kind: SceneryKind, params: SceneryContext['params'], overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -41,7 +41,7 @@ const TETHER = (o: Partial<SceneryContext> = {}, hasFloat = true) => ctxFor('tet
 const PIPELINE = (o: Partial<SceneryContext> = {}, w = 500, riserRight = true) =>
   ctxFor('pipeline', { pipeline: { w, d: 18, e: 46, riserH: 150, riserRight } }, o);
 
-const draw = (el: ReturnType<typeof dish>) => render(el).container;
+const draw = (el: ReturnType<typeof dish>) => renderSvg(el).container;
 const isHairline = (el: Element) => el.getAttribute('stroke') === gemOutlineStroke() && el.getAttribute('stroke-width') === '1.5';
 const bare = (el: Element) => el.getAttribute('stroke') === null && el.getAttribute('stroke-width') === null;
 const part = (c: HTMLElement, attr: string, value: string) => Array.from(c.querySelectorAll(`[${attr}="${value}"]`));
@@ -147,7 +147,7 @@ describe('pipe bridges', () => {
     const idB = `hair-b-${gap}`;
     const xB = xA + widthOf(idA, xA, row) + gap;
     const factories = [createFactory({ x: xA, y: 1000 }, row, 1, idA), createFactory({ x: xB, y: 1000 }, row, 1, idB)];
-    return render(<svg><PipeBridges factories={factories} /></svg>).container;
+    return renderSvg(<svg><PipeBridges factories={factories} /></svg>).container;
   };
 
   it('puts the hairline on the bar and the post', () => {
@@ -186,7 +186,7 @@ describe('the switch, the hour, and the grid', () => {
   it('with the others switch off the pipe bridges draw no stroke either', () => {
     withSwitch('others', false, () => {
       const factories = [createFactory({ x: 400, y: 1000 }, 0, 1, 'sw-a'), createFactory({ x: 900, y: 1000 }, 0, 1, 'sw-b')];
-      const c = render(<svg><PipeBridges factories={factories} /></svg>).container;
+      const c = renderSvg(<svg><PipeBridges factories={factories} /></svg>).container;
       expect(c.querySelectorAll('[stroke]')).toHaveLength(0);
     });
   });

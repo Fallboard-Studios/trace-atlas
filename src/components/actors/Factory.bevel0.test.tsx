@@ -7,7 +7,7 @@
  * Its own file because vi.mock is file-wide and Factory.test.tsx needs the real switches.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { act, render } from '@testing-library/react';
+import { act } from '@testing-library/react';
 
 vi.mock('./material/worldGemMaterial', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./material/worldGemMaterial')>();
@@ -25,6 +25,7 @@ import { useUIStore } from '../../stores/uiStore';
 import { ActorType } from '../../types/Actor';
 import type { Actor } from '../../types/Actor';
 import type { RooftopGreeble, FacadeGreeble } from './greebles/greebleTypes';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 const ALL_VARIANTS: FactoryVariant[] = ['Monolith', 'Stacks', 'Refinery', 'Skyscraper', 'Warehouse'];
 const ROOFTOPS: RooftopGreeble[] = ['machinery', 'antennae', 'waterTower', 'cupola', 'crownSpire', 'pitchedRoof', 'steppeRoof', 'pipesValves'];
@@ -60,7 +61,7 @@ const IDS = idsByVariant();
 
 function markup(actor: Actor, hour: number): string {
   act(() => useUIStore.getState().setActiveLocaleLocalTime(hour));
-  const { container, unmount } = render(<Factory actor={actor} />);
+  const { container, unmount } = renderSvg(<Factory actor={actor} />);
   const html = container.innerHTML;
   unmount();
   return html;
@@ -69,7 +70,7 @@ function markup(actor: Actor, hour: number): string {
 /** Rendered for real (not blank), body clip back at the old 2 / 2 / 96 / 96, and no ring or hairline anywhere. */
 function expectPlain(html: string): void {
   expect(html).toContain('data-factory-type');
-  expect(html).toMatch(/<clippath id="body-clip-[^"]*"><rect x="2" y="2" width="96" height="96">/);
+  expect(html).toMatch(/<clipPath id="body-clip-[^"]*"><rect x="2" y="2" width="96" height="96">/);
   expect(worldGemTraces(html)).toEqual([]);
 }
 

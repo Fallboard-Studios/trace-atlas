@@ -4,7 +4,6 @@
  * hanger are members (Task 16's hairline), and take no ring.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { crane, craneLayout } from './crane';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
@@ -13,6 +12,7 @@ import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, markupWithoutRings, outerBox, ringsIn, withSwitch } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}, p: Partial<NonNullable<SceneryContext['params']['crane']>> = {}): SceneryContext {
   const actor: Actor = {
@@ -39,7 +39,7 @@ const CTX = makeCtx();
 const AMBIENT = (0.9 + 0.5) / 2;
 const NO_SHIFT = { hueShift: 0, satShift: 0 };
 const tone = (mult: number) => applyColorShift(colorTheme.vent.base, NO_SHIFT, mult);
-const draw = (c: SceneryContext) => render(crane(c)).container;
+const draw = (c: SceneryContext) => renderSvg(crane(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="crane"]')!;
 const loadOf = (c: SceneryContext) => craneLayout(500, 1030, c.params.crane!).load;
 

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { act, render } from '@testing-library/react';
+import { act } from '@testing-library/react';
 import { vi } from 'vitest';
 
 import { Factory } from './Factory';
@@ -18,6 +18,7 @@ import { ActorType } from '../../types/Actor';
 import type { Actor } from '../../types/Actor';
 import type { AttenuationStyle } from '../../types/attenuationStyle';
 import type { Locale } from '../../types/locale';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 // ========================================
 // FIXTURES
@@ -150,19 +151,19 @@ afterEach(() => {
 describe('Factory — renders every variant without crashing', () => {
   it.each(ALL_VARIANTS)('renders a %s factory without throwing', (variant) => {
     const actor = makeActor({}, idsByVariant[variant]);
-    expect(() => render(<Factory actor={actor} />)).not.toThrow();
+    expect(() => renderSvg(<Factory actor={actor} />)).not.toThrow();
   });
 
   it('renders without throwing when no rooftop or facade greeble is configured', () => {
     const actor = makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Monolith);
-    expect(() => render(<Factory actor={actor} />)).not.toThrow();
+    expect(() => renderSvg(<Factory actor={actor} />)).not.toThrow();
   });
 });
 
 describe('Factory — body fill tracks the day/night lighting cycle', () => {
   it('body fill differs between a day and a night activeLocaleLocalTime', () => {
     setLocalTime(12); // noon — hour 12, both faces near peak brightness
-    const { container } = render(<Factory actor={makeActor({}, idsByVariant.Monolith)} />);
+    const { container } = renderSvg(<Factory actor={makeActor({}, idsByVariant.Monolith)} />);
     const dayFills = getBodyFills(container);
     expect(dayFills.length).toBeGreaterThanOrEqual(2);
 
@@ -182,7 +183,7 @@ describe('Factory — body fill tracks the day/night lighting cycle', () => {
   it('body fill is unchanged across a realistic one-second tick, even at dawn (the steepest part of the day/night curve)', () => {
     const actor = makeActor({}, idsByVariant.Monolith);
     setLocalTime(6); // dawn — steepest slope of the sine-based lighting curve
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const before = getBodyFills(container);
 
     setLocalTime(6 + 24 / 360); // +1 real second at the ~6-minute-per-day-cycle rate
@@ -202,7 +203,7 @@ describe('Factory — static-only greebles stay visually identical across a ligh
   it.each(['cupola', 'pipesValves'] as const)('rooftop: %s', (rooftopGreeble) => {
     const actor = makeActor({ rooftopGreeble, facadeGreeble: undefined }, idsByVariant.Monolith);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const dayHTML = getRooftopHTML(container);
     expect(dayHTML).not.toBe('');
 
@@ -216,7 +217,7 @@ describe('Factory — static-only greebles stay visually identical across a ligh
       idsByVariant.Monolith,
     );
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const dayHTML = getFacadeHTML(container);
     expect(dayHTML).not.toBe('');
 
@@ -232,7 +233,7 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
   it('rooftop: pitchedRoof', () => {
     const actor = makeActor({ rooftopGreeble: 'pitchedRoof', facadeGreeble: undefined }, idsByVariant.Monolith);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const dayHTML = getRooftopHTML(container);
     expect(dayHTML).not.toBe('');
 
@@ -243,7 +244,7 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
   it('rooftop: crownSpire', () => {
     const actor = makeActor({ rooftopGreeble: 'crownSpire', facadeGreeble: undefined }, idsByVariant.Skyscraper);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const dayHTML = getRooftopHTML(container);
     expect(dayHTML).not.toBe('');
 
@@ -255,7 +256,7 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
   it.each(['machinery', 'waterTower', 'steppeRoof'] as const)('rooftop: %s (ring lit by the hour)', (rooftopGreeble) => {
     const actor = makeActor({ rooftopGreeble, facadeGreeble: undefined }, idsByVariant.Skyscraper);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const dayHTML = getRooftopHTML(container);
     expect(dayHTML).not.toBe('');
     expect(dayHTML).toContain('data-gem="ring"');
@@ -270,7 +271,7 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
       idsByVariant.Stacks,
     );
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const dayHTML = getFacadeHTML(container);
     expect(dayHTML).not.toBe('');
 
@@ -286,7 +287,7 @@ describe('Factory — lighting-dependent greebles change across a lighting tick'
       idsByVariant.Skyscraper,
     );
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const dayHTML = getFacadeHTML(container);
     expect(dayHTML).not.toBe('');
 
@@ -306,14 +307,14 @@ describe('Factory — no CSS transition on lighting fills (roadmap 17.2.5)', () 
   it.each(ALL_VARIANTS)('%s: no element carries an inline transition', (variant) => {
     const actor = makeActor({ rooftopGreeble: 'pitchedRoof', facadeGreeble: 'squareWindows', beltCourseCount: 2 }, idsByVariant[variant]);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     expect(container.querySelectorAll('[style*="transition"]').length).toBe(0);
   });
 
   it.each(['steppeRoof', 'crownSpire'] as const)('rooftop %s: no element carries an inline transition', (rooftopGreeble) => {
     const actor = makeActor({ rooftopGreeble, facadeGreeble: undefined }, idsByVariant.Skyscraper);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     expect(container.querySelectorAll('[style*="transition"]').length).toBe(0);
   });
 });
@@ -326,7 +327,7 @@ describe('Factory — regression guard (documents pre-fix behavior; tightened by
   it('re-renders and recomputes fills on every activeLocaleLocalTime change, today', () => {
     const actor = makeActor({ rooftopGreeble: 'pitchedRoof', facadeGreeble: 'squareWindows' }, idsByVariant.Stacks);
     const times = [12, 6, 0, 18];
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const seen = new Set<string>();
     for (const t of times) {
       setLocalTime(t);
@@ -360,7 +361,7 @@ describe('Factory — Task 4: staticVisual isolates geometry from the lighting t
     const shiftSpy = vi.spyOn(colorUtils, 'shiftHSL');
     const actor = makeActor({}, idsByVariant.Stacks);
     setLocalTime(12);
-    render(<Factory actor={actor} />);
+    renderSvg(<Factory actor={actor} />);
     const callsAfterMount = shiftSpy.mock.calls.length;
     expect(callsAfterMount).toBeGreaterThan(0);
 
@@ -396,7 +397,7 @@ describe('Factory — Task 6: depth lightness cap and derelict rendering', () =>
     // dense row 2: background, full spread, Monolith-only (districtRecipes.ts).
     const actor = makeActor({ district: 'dense', row: 2 }, idsByVariant.Monolith);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const base = VARIANT_CONF[renderedVariant(container)].colors.body;
     const expectedL = Math.round(base.l * eastLAt(12) * 0.7);
     const [, eastFill] = getBodyFills(container);
@@ -407,7 +408,7 @@ describe('Factory — Task 6: depth lightness cap and derelict rendering', () =>
     // dense row 10: foreground, edges spread, Warehouse/Monolith (districtRecipes.ts).
     const actor = makeActor({ district: 'dense', row: 10 }, idsByVariant.Monolith);
     setLocalTime(12);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     const base = VARIANT_CONF[renderedVariant(container)].colors.body;
     const expectedL = Math.round(base.l * eastLAt(12));
     const [, eastFill] = getBodyFills(container);
@@ -424,8 +425,8 @@ describe('Factory — Task 6: depth lightness cap and derelict rendering', () =>
       idsByVariant.Monolith,
     );
     setLocalTime(0); // midnight — highest nightDepth, windows most likely lit
-    const { container: bgContainer } = render(<Factory actor={bgActor} />);
-    const { container: fgContainer } = render(<Factory actor={fgActor} />);
+    const { container: bgContainer } = renderSvg(<Factory actor={bgActor} />);
+    const { container: fgContainer } = renderSvg(<Factory actor={fgActor} />);
 
     const bgVariant = renderedVariant(bgContainer);
     const fgVariant = renderedVariant(fgContainer);
@@ -449,8 +450,8 @@ describe('Factory — Task 6: depth lightness cap and derelict rendering', () =>
     // certainly lit, making "the derelict twin has none" a meaningful assertion rather than
     // a coincidence of both being dark.
 
-    const { container: liveContainer } = render(<Factory actor={live} />);
-    const { container: derelictContainer } = render(<Factory actor={derelict} />);
+    const { container: liveContainer } = renderSvg(<Factory actor={live} />);
+    const { container: derelictContainer } = renderSvg(<Factory actor={derelict} />);
 
     // Antenna light absent.
     expect(getRooftopHTML(liveContainer)).not.toBe('');
@@ -473,7 +474,7 @@ describe('Factory — Task 6: depth lightness cap and derelict rendering', () =>
   it('mutation check: a derelict actor still renders without throwing when it has no rooftop/facade greeble', () => {
     const actor = makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined, derelict: true }, idsByVariant.Monolith);
     setLocalTime(0);
-    expect(() => render(<Factory actor={actor} />)).not.toThrow();
+    expect(() => renderSvg(<Factory actor={actor} />)).not.toThrow();
   });
 });
 
@@ -534,7 +535,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('has exactly one ring, after the scaled body group and before the rooftop greeble', () => {
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       // the building's own ring is the only one among the factory group's direct children before
       // the rooftop greeble; the greeble's block rings follow its fills
       const outer = container.querySelector('g[data-rooftop-greeble]')!;
@@ -549,7 +550,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('is the six facets of a front-corner-split rectangle that exactly covers the building', () => {
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const facets = ringFacets(container);
       const { W, H, fc } = box(actor);
       expect(facets).toHaveLength(6);
@@ -563,7 +564,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('is 8 px deep on both axes, never stretched by the body scale (capped at 18% of the short side)', () => {
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const facets = ringFacets(container);
       const { W, H, fc } = box(actor);
       const d = Math.min(8, 0.18 * Math.min(W, H));
@@ -575,7 +576,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('carries no style attribute, so nothing can transition (roadmap 17.2.5)', () => {
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       expect(container.querySelector('g[data-gem="ring"]')!.querySelectorAll('[style]')).toHaveLength(0);
     });
   });
@@ -585,7 +586,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('at 9 am the top-west and top-east facets differ, the east one in the lit tone of the body at eastL', () => {
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, H, fc, variant } = box(actor);
       const facets = ringFacets(container);
       const topWest = facetOn(facets, [0, 0], [fc, 0])!;
@@ -600,7 +601,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('at noon the two top halves match and the sides are neutral', () => {
       setLocalTime(12);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, H, fc, variant } = box(actor);
       const facets = ringFacets(container);
       expect(facetOn(facets, [0, 0], [fc, 0])!.fill).toBe(facetOn(facets, [fc, 0], [W, 0])!.fill);
@@ -610,7 +611,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('at 3 pm the sun is in the west: the west facet is lit and the east shaded', () => {
       setLocalTime(15);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, H, variant } = box(actor);
       const facets = ringFacets(container);
       expect(facetOn(facets, [0, H], [0, 0])!.fill).toBe(fill(variant, hour(15).westL * 1.25));
@@ -619,7 +620,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('re-lights across the hour: the ring changes between 9 am and 10 pm', () => {
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const morning = ringFacets(container).map((f) => f.fill);
       setLocalTime(22);
       const night = ringFacets(container).map((f) => f.fill);
@@ -629,7 +630,7 @@ describe('Factory — the world gem body ring', () => {
 
     it('reuses its elements across a lighting tick (only the fills move)', () => {
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const before = Array.from(container.querySelectorAll('g[data-gem="ring"] path'));
       setLocalTime(15);
       const after = Array.from(container.querySelectorAll('g[data-gem="ring"] path'));
@@ -643,8 +644,8 @@ describe('Factory — the world gem body ring', () => {
       const live = makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Stacks);
       const dead = makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined, derelict: true }, idsByVariant.Stacks);
       setLocalTime(9);
-      const { container: liveC } = render(<Factory actor={live} />);
-      const { container: deadC } = render(<Factory actor={dead} />);
+      const { container: liveC } = renderSvg(<Factory actor={live} />);
+      const { container: deadC } = renderSvg(<Factory actor={dead} />);
       const { W, variant } = box(dead);
       const topEast = (c: HTMLElement) => facetOn(ringFacets(c), [box(live).fc, 0], [W, 0])!.fill;
       const desaturated = { ...body(variant), s: body(variant).s * 0.4 };
@@ -656,7 +657,7 @@ describe('Factory — the world gem body ring', () => {
     it('a background-row factory\'s facets carry the 0.7 depth cap', () => {
       const actor = makeActor({ district: 'dense', row: 2, rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Monolith);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, variant, fc } = box(actor);
       const topEast = facetOn(ringFacets(container), [fc, 0], [W, 0])!;
       expect(topEast.fill).toBe(fill(variant, hour(9).eastL * 0.7 * 1.25));
@@ -665,7 +666,7 @@ describe('Factory — the world gem body ring', () => {
     it('a foreground-row factory\'s facets are uncapped', () => {
       const actor = makeActor({ district: 'dense', row: 10, rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Monolith);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, variant, fc } = box(actor);
       const topEast = facetOn(ringFacets(container), [fc, 0], [W, 0])!;
       expect(topEast.fill).toBe(fill(variant, hour(9).eastL * 1.25));
@@ -674,7 +675,7 @@ describe('Factory — the world gem body ring', () => {
     it('applies the actor\'s hue and saturation shift to every facet', () => {
       const actor = makeActor({ hueShift: 30, satShift: -15, rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Stacks);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, variant, fc } = box(actor);
       const shifted = colorUtils.shiftHSL(body(variant), { hueShift: 30, satShift: -15 });
       const topEast = facetOn(ringFacets(container), [fc, 0], [W, 0])!;
@@ -686,7 +687,7 @@ describe('Factory — the world gem body ring', () => {
     it('sizes the ring to the scaled building and scales its depth with it (8 × scaleX)', () => {
       const actor: Actor = { ...makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Skyscraper), scaleX: 1.1, scaleY: 1.1 };
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, H, fc } = box(actor);
       const facets = ringFacets(container);
       const d = Math.min(8.8, 0.18 * Math.min(W, H));
@@ -698,7 +699,7 @@ describe('Factory — the world gem body ring', () => {
     it('strokes its facets at 0.6 × the scale', () => {
       const actor: Actor = { ...makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Skyscraper), scaleX: 0.9, scaleY: 0.9 };
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       for (const p of Array.from(container.querySelectorAll('g[data-gem="ring"] path'))) {
         expect(p.getAttribute('stroke-width')).toBe('0.54');
       }
@@ -731,7 +732,7 @@ describe('Factory — the world gem body ring', () => {
     it('a wide short building keeps the 2 % side margin and takes a deeper top and bottom one', () => {
       const actor = withBelts(idsByVariant[wide], 1);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, H } = box(actor);
       const d = ringDepth(W, H);
       expect(100 * d / W).toBeLessThan(2); // the premise: the ring is narrower than 2 % of the width
@@ -745,7 +746,7 @@ describe('Factory — the world gem body ring', () => {
     it('a tall narrow building takes a deeper side margin and keeps the 2 % top and bottom one', () => {
       const actor = withBelts(idsByVariant[tall], 1);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, H } = box(actor);
       const d = ringDepth(W, H);
       expect(100 * d / H).toBeLessThan(2);
@@ -759,7 +760,7 @@ describe('Factory — the world gem body ring', () => {
     it.each(ALL_VARIANTS)('%s: the clip is max(100d/size, 2) on each axis, centred', (variant) => {
       const actor = withBelts(idsByVariant[variant], 0);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W, H } = box(actor);
       const d = ringDepth(W, H);
       const mx = Math.max((100 * d) / W, 2);
@@ -774,7 +775,7 @@ describe('Factory — the world gem body ring', () => {
     it('scales the margin with the actor scale (the ring is 8 × scaleX deep)', () => {
       const actor: Actor = { ...withBelts(idsByVariant[tall], 0), scaleX: 1.1, scaleY: 1.1 };
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { W } = box(actor);
       expect(num(clipRect(container), 'x')).toBeCloseTo((100 * 8.8) / W, 2);
     });
@@ -782,7 +783,7 @@ describe('Factory — the world gem body ring', () => {
     it('still clips the facade: the clip excludes x = 1 and y = 1, so a window there would not appear', () => {
       const actor = withBelts(idsByVariant.Stacks, 0);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const clip = clipRect(container);
       const clipId = clip!.parentElement!.getAttribute('id');
       expect(container.querySelectorAll('g[clip-path]')[1].getAttribute('clip-path')).toBe(`url(#${clipId})`);
@@ -796,7 +797,7 @@ describe('Factory — the world gem body ring', () => {
       factories.factories = false;
       try {
         setLocalTime(9);
-        const { container } = render(<Factory actor={actor} />);
+        const { container } = renderSvg(<Factory actor={actor} />);
         const clip = clipRect(container);
         expect([num(clip, 'x'), num(clip, 'y'), num(clip, 'width'), num(clip, 'height')]).toEqual([2, 2, 96, 96]);
         expect(container.querySelectorAll('g[data-gem="ring"]')).toHaveLength(0);
@@ -819,7 +820,7 @@ describe('Factory — the world gem body ring', () => {
       it.each(ALL_VARIANTS)('%s: the belts start at 100d/W, meet at the front corner and end at 100 - 100d/W', (variant) => {
         const actor = withBelts(idsByVariant[variant], belts);
         setLocalTime(9);
-        const { container } = render(<Factory actor={actor} />);
+        const { container } = renderSvg(<Factory actor={actor} />);
         const { W, H, fc } = box(actor);
         const bx = (100 * ringDepth(W, H)) / W;
         const fcBox = (fc / W) * 100;
@@ -841,7 +842,7 @@ describe('Factory — the world gem body ring', () => {
     it('the belts keep their height, y and face fills', () => {
       const actor = withBelts(idsByVariant.Skyscraper, 2);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const rects = beltRects(container);
       expect(rects.map((r) => r.getAttribute('height'))).toEqual(['2', '2', '2', '2']);
       expect(num(rects[0], 'y')).toBe(num(rects[1], 'y'));
@@ -852,7 +853,7 @@ describe('Factory — the world gem body ring', () => {
     it('draws no belts when there are no belt courses, but still clips', () => {
       const actor = withBelts(idsByVariant.Stacks, 0);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       expect(beltRects(container)).toHaveLength(0);
       expect(clipRect(container)).not.toBeNull();
     });
@@ -917,7 +918,7 @@ describe('Factory — the world gem body ring', () => {
 
         it('keeps every window inside the ring vertically, on both faces', () => {
           setLocalTime(9);
-          const { container } = render(<Factory actor={actor} />);
+          const { container } = renderSvg(<Factory actor={actor} />);
           const { my } = clipOf(container);
           const all = windows(container);
           expect(all.length).toBeGreaterThan(0);
@@ -929,7 +930,7 @@ describe('Factory — the world gem body ring', () => {
 
         it('keeps every west-face window inside the ring horizontally and left of the front corner', () => {
           setLocalTime(9);
-          const { container } = render(<Factory actor={actor} />);
+          const { container } = renderSvg(<Factory actor={actor} />);
           const { mx } = clipOf(container);
           const { W, fc } = box(actor);
           const fcBox = (fc / W) * 100;
@@ -943,7 +944,7 @@ describe('Factory — the world gem body ring', () => {
 
         it('centres the west face: the gap from the ring to the first column equals the gap after the last', () => {
           setLocalTime(9);
-          const { container } = render(<Factory actor={actor} />);
+          const { container } = renderSvg(<Factory actor={actor} />);
           const { mx } = clipOf(container);
           const { W, fc } = box(actor);
           const fcBox = (fc / W) * 100;
@@ -955,7 +956,7 @@ describe('Factory — the world gem body ring', () => {
 
         it('centres the grid vertically: the gap below the ring to the first row matches the gap after the last, within one slot', () => {
           setLocalTime(9);
-          const { container } = render(<Factory actor={actor} />);
+          const { container } = renderSvg(<Factory actor={actor} />);
           const { my } = clipOf(container);
           const all = windows(container);
           const top = Math.min(...all.map((w) => w.y)) - my;
@@ -967,7 +968,7 @@ describe('Factory — the world gem body ring', () => {
         if (belts > 0) {
           it('keeps every window clear of every belt course, so a shrunk zone never runs into the belt below it', () => {
             setLocalTime(9);
-            const { container } = render(<Factory actor={actor} />);
+            const { container } = renderSvg(<Factory actor={actor} />);
             const beltYs = Array.from(container.querySelector('g[data-rooftop-greeble]')!.children[1].children)
               .filter((el) => el.tagName.toLowerCase() === 'rect' && el.getAttribute('height') === '2' && el.getAttribute('width') !== '100')
               .map((el) => Number(el.getAttribute('y')));
@@ -980,12 +981,12 @@ describe('Factory — the world gem body ring', () => {
 
         it('does not resize the windows: the same unit as with the ring off', () => {
           setLocalTime(9);
-          const { container } = render(<Factory actor={actor} />);
+          const { container } = renderSvg(<Factory actor={actor} />);
           const on = windows(container)[0];
           const factories = WORLD_GEM as { factories: boolean };
           factories.factories = false;
           try {
-            const { container: off } = render(<Factory actor={actor} />);
+            const { container: off } = renderSvg(<Factory actor={actor} />);
             const base = windows(off)[0];
             expect(on.w).toBeCloseTo(base.w, 9);
             expect(on.h).toBeCloseTo(base.h, 9);
@@ -999,7 +1000,7 @@ describe('Factory — the world gem body ring', () => {
     it('leaves the belts where they were: no window overlaps a belt course', () => {
       const actor = squareWindowsActor('Skyscraper', 2);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const belts = Array.from(container.querySelector('g[data-rooftop-greeble]')!.children[1].children).filter(
         (el) => el.tagName.toLowerCase() === 'rect' && el.getAttribute('height') === '2' && el.getAttribute('width') !== '100',
       );
@@ -1018,7 +1019,7 @@ describe('Factory — the world gem body ring', () => {
     it('shifts the facade in by the clip margin only through a marked wrapper, and not at all with the ring off', () => {
       const actor = squareWindowsActor('Skyscraper', 1);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const facade = container.querySelectorAll('g[clip-path]')[1];
       const wrapper = facade.querySelector('[data-facade-inset]')!;
       expect(wrapper).not.toBeNull();
@@ -1028,7 +1029,7 @@ describe('Factory — the world gem body ring', () => {
       const factories = WORLD_GEM as { factories: boolean };
       factories.factories = false;
       try {
-        const { container: off } = render(<Factory actor={actor} />);
+        const { container: off } = renderSvg(<Factory actor={actor} />);
         expect(off.querySelector('[data-facade-inset]')).toBeNull();
       } finally {
         factories.factories = true;
@@ -1038,7 +1039,7 @@ describe('Factory — the world gem body ring', () => {
     it('scales with the actor: a 1.1 building takes the deeper margin and still centres the west face', () => {
       const actor = squareWindowsActor('Skyscraper', 1, { scaleX: 1.1, scaleY: 1.1 });
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const { mx, my } = clipOf(container);
       const { W, fc } = box(actor);
       const west = windows(container).filter((w) => w.face === 'west');
@@ -1054,7 +1055,7 @@ describe('Factory — the world gem body ring', () => {
     it('documents the east face quirk: its grid still overflows the clip on the right', () => {
       const actor = squareWindowsActor('Stacks', 1);
       setLocalTime(9);
-      const { container } = render(<Factory actor={actor} />);
+      const { container } = renderSvg(<Factory actor={actor} />);
       const east = windows(container).filter((w) => w.face === 'east');
       expect(Math.max(...east.map((w) => w.x + w.w))).toBeGreaterThan(100);
     });
@@ -1063,7 +1064,7 @@ describe('Factory — the world gem body ring', () => {
   it('adds only the ring to a bare building: the body, clip and facade markup are untouched', () => {
     const actor = makeActor({ rooftopGreeble: undefined, facadeGreeble: undefined }, idsByVariant.Monolith);
     setLocalTime(9);
-    const { container } = render(<Factory actor={actor} />);
+    const { container } = renderSvg(<Factory actor={actor} />);
     expect(getBodyFills(container)).toHaveLength(2);
     expect(container.querySelectorAll('clipPath')).toHaveLength(2);
     expect(container.querySelectorAll('g[data-gem="ring"]')).toHaveLength(1);
