@@ -88,7 +88,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
 ### Phase 1: The cell's lifetime (`bypassCell.ts`, no product change)
 
-- [ ] **Task 1: `bypassCell.ts` — a registered cell builds its absent effect at a light**
+- [x] **Task 1: `bypassCell.ts` — a registered cell builds its absent effect at a light**
 
   **Description:** `registerEffect(key, { build })` and the registry, cleared by `clearCells()`. `writeCellMix` stops
   returning early for a cell with no effect: when the target is above 0 and the key is registered, it calls `build()`,
@@ -102,13 +102,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   the cell dry each time.
 
   **Acceptance criteria:**
-  - [ ] A light on a registered, empty cell builds once, connects silently and ramps; a lit cell builds nothing more.
-  - [ ] A failed build is one warning per key, a dry unconnected cell, no recorded target, and a retry at the next light.
-  - [ ] An unregistered empty cell ignores the write, as today; every existing test passes unmodified.
+  - [x] A light on a registered, empty cell builds once, connects silently and ramps; a lit cell builds nothing more.
+  - [x] A failed build is one warning per key, a dry unconnected cell, no recorded target, and a retry at the next light.
+  - [x] An unregistered empty cell ignores the write, as today; every existing test passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
@@ -116,7 +116,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S (one module, one test file)
 
-- [ ] **Task 2: `bypassCell.ts` — the teardown after a darken**
+- [x] **Task 2: `bypassCell.ts` — the teardown after a darken**
 
   **Description:** `Cell.teardown` (a context timer id or null), `DARK_TEARDOWN_SECONDS = 1`, and `darkAtOwnLevel(key,
   cell)`: a chain cell whose target is 0, or a branch whose depth is 0 or whose room's Return is 0; never a branch whose
@@ -131,14 +131,14 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   arms no teardown; `clearCells()` clears a pending one.
 
   **Acceptance criteria:**
-  - [ ] Dark at its own level and out of the path for `DARK_TEARDOWN_SECONDS`: the effect is disposed and the cell empty.
-  - [ ] A light in the wait keeps the same node; an unfed room alone never tears a branch down.
-  - [ ] An unregistered cell is never torn down; every existing test passes unmodified.
+  - [x] Dark at its own level and out of the path for `DARK_TEARDOWN_SECONDS`: the effect is disposed and the cell empty.
+  - [x] A light in the wait keeps the same node; an unfed room alone never tears a branch down.
+  - [x] An unregistered cell is never torn down; every existing test passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: tear down on an unfed room (spec §5.1, case 7) fails the unfed-room case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: tear down on an unfed room (spec §5.1, case 7) fails the unfed-room case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1.
 
@@ -146,7 +146,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S
 
-- [ ] **Task 3: `bypassCell.ts` — the teardown check on every write**
+- [x] **Task 3: `bypassCell.ts` — the teardown check on every write**
 
   **Description:** `checkTeardown(key, cell)` arms or cancels by the same four conditions, and runs at the end of every
   `writeCellMix` (the re-send path included, where today it returns before anything) and for each of its branches in
@@ -159,14 +159,14 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   `setRoomReturn(room, 0.5)` before the fire cancels it; both fail on Task 2's code.
 
   **Acceptance criteria:**
-  - [ ] A re-sent dark write that makes a disconnected cell dark at its own level arms its teardown.
-  - [ ] `setRoomReturn` arms or cancels each branch's teardown even when the room's liveness does not flip.
-  - [ ] A pending teardown is cancelled by any write after which the cell is no longer dark at its own level.
+  - [x] A re-sent dark write that makes a disconnected cell dark at its own level arms its teardown.
+  - [x] `setRoomReturn` arms or cancels each branch's teardown even when the room's liveness does not flip.
+  - [x] A pending teardown is cancelled by any write after which the cell is no longer dark at its own level.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: drop the re-send check (spec §5.1, case 8) fails the unfed-room depth case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: drop the re-send check (spec §5.1, case 8) fails the unfed-room depth case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2.
 
@@ -174,7 +174,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S
 
-- [ ] **Task 4: `bypassCell.ts` — a teardown cancels its key's pending duck**
+- [x] **Task 4: `bypassCell.ts` — a teardown cancels its key's pending duck**
 
   **Description:** The teardown's fire clears the key's duck (`_ducks[key]`: its timer cancelled, its `apply` dropped)
   before disposing, and calls `onTeardown` after, so `globalFx.ts` can fold a pending change into its mirror (Task 7).
@@ -185,13 +185,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   `isDucked(key)` is false.
 
   **Acceptance criteria:**
-  - [ ] A teardown leaves no duck pending for its key and never runs the dropped `apply`.
-  - [ ] A duck on a cell that is not torn down runs as today.
+  - [x] A teardown leaves no duck pending for its key and never runs the dropped `apply`.
+  - [x] A duck on a cell that is not torn down runs as today.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: drop the duck cancel (spec §5.1, case 12) fails the case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: drop the duck cancel (spec §5.1, case 12) fails the case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2.
 
@@ -199,7 +199,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** XS
 
-- [ ] **Task 5: `bypassCell.ts` — a light waits for an effect that is not ready**
+- [x] **Task 5: `bypassCell.ts` — a light waits for an effect that is not ready**
 
   **Description:** A registration with `whenReady(node)` (Q1, the BitCrusher's): a light that builds the node records
   the target, keeps the cell dry and unconnected, and sets a pending-light marker; when `whenReady` resolves, if the
@@ -212,13 +212,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   before the resolve leaves the cell unconnected after it.
 
   **Acceptance criteria:**
-  - [ ] An unready effect is never connected before its readiness resolves, and lights from wet 0 after it.
-  - [ ] A darken before readiness cancels the pending light.
-  - [ ] A registration without `whenReady` lights in the same call, as Task 1.
+  - [x] An unready effect is never connected before its readiness resolves, and lights from wet 0 after it.
+  - [x] A darken before readiness cancels the pending light.
+  - [x] A registration without `whenReady` lights in the same call, as Task 1.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1 (and Task 3's check, which a pending light must pass).
 
@@ -227,9 +227,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Estimated scope:** S
 
 ### Checkpoint A: The cell's lifetime
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted, backlog 66).
-- [ ] No existing test was edited in Tasks 1–5: nothing in the app registers an effect, so its behaviour is unchanged.
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted, backlog 66).
+- [x] No existing test was edited in Tasks 1–5: nothing in the app registers an effect, so its behaviour is unchanged.
+- [x] Reviewed with Crawford before Phase 2.
+
+**Status (2026-11-10):** Phase 1 committed (86898863..422f1f84); Checkpoint A passed (full suite: the two known
+flakes, sceneToOrbiterLocal and an audioSwells ramp case, failed under load and passed alone; the onTaskUpdate exit
+noted). Next: Task 6, in a fresh session.
 
 ---
 
