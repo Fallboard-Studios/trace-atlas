@@ -664,7 +664,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
       13,755 pass (233 s). The one failure is `sceneToOrbiterLocal.test.tsx`'s round-trip case timing out at 5 s under
       the full run — the known slow case; alone it passes (10/10), and this branch has not touched `src/animation`.
       Vitest also reports the pre-existing `[vitest-worker]: Timeout calling "onTaskUpdate"` (see "The editor").
-- [ ] Spec §5's Look, by Crawford, through "Share: copied. Factory Reset (at the Transmissions section's foot since
+- [x] Spec §5's Look, by Crawford, through "Share: copied. Factory Reset (at the Transmissions section's foot since
       the Device section went), confirm: the first-visit screen. Power on: the live world plays. On a phone: the same,
       stacked, the header one line at 320 px."
 - [x] The long docs describe the console as built (2026-11-09, Crawford: "make sure any documentation correctly
@@ -681,7 +681,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 - [x] Crawford's call (spec §6): module B on this branch, or on `feature/settings-retirement` after this one merges.
       **A separate branch** (Crawford, 2026-11-09), which he expects will also retire the **Companies** nav item; that
       is not in this plan's Tasks 12–16 yet and needs planning before module B starts.
-- [ ] Reviewed with Crawford before Phase 5.
+- [x] Reviewed with Crawford before Phase 5. Passed 2026-11-09 (Crawford).
 
   **Review, 2026-11-09 (Crawford, after the Phase 4 report), each its own commit:**
   - `sessionStore.keepWorld` cut, with its tests (fd15996e): no Save reaches a snapshot (Task 7's As built).
