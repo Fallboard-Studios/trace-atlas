@@ -61,6 +61,8 @@ export type Cell = {
   darken: number | null;
   /** The pending Tone.getContext().setTimeout id of the effect's teardown (checkTeardown). */
   teardown: number | null;
+  /** A light is waiting for the effect to be ready (watchReady): `mix` holds its target, the cell stays dry. */
+  pendingLight: boolean;
   /** The room this cell is a branch of; null for a chain cell. */
   room: RoomKey | null;
   /** A branch's own Mix, the law input while its room is live (recorded on every write, lit or not). 0 on a chain cell. */
@@ -108,13 +110,15 @@ const _cells: Partial<Record<BypassKey, Cell>> = {};
 
 /**
  * How globalFx.ts makes a key's effect (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2): `build` returns a fresh effect
- * from that key's settings mirror, pinned fully wet, or throws; `onTeardown` runs after a teardown has disposed it. A
+ * from that key's settings mirror, pinned fully wet, or throws; `whenReady` (the BitCrusher's, §1.7) resolves once the
+ * effect's path exists, and its cell never connects it before; `onTeardown` runs after a teardown has disposed it. A
  * registered key's effect exists only between its cell's first light and the teardown after it goes dark at its own
  * level. A key with no registration (a headless chain, or a key globalFx.ts has not moved yet) is never built at a light
  * and never torn down, so its cell behaves as before.
  */
 export type EffectRegistration = {
   build: () => Tone.ToneAudioNode;
+  whenReady?: (effect: Tone.ToneAudioNode) => Promise<unknown>;
   onTeardown?: () => void;
 };
 
@@ -145,7 +149,43 @@ function buildEffect(key: BypassKey, cell: Cell): boolean {
     return false;
   }
   setCellEffect(cell, effect);
+  watchReady(key, cell, effect);
   return true;
+}
+
+/** Effects whose registration's whenReady has not settled yet: never connected until it has (§1.7). */
+const _unready = new WeakSet<Tone.ToneAudioNode>();
+
+/** The bypass keys already warned about by watchReady, so a readiness that fails at every build warns once. */
+const warnedNotReady = new Set<BypassKey>();
+
+/**
+ * Wait for `effect`, just put in `key`'s cell, to be ready when its registration says it may not be (§1.7, Q1). Until
+ * then a light records its target and keeps the cell dry (writeCellMix); at the resolve, a light still pending connects
+ * the effect under the zero wet gain and ramps from 0. A readiness that fails is warned once and taken as ready. A node
+ * that has left its cell by then (torn down, or the cells cleared) is left alone.
+ */
+function watchReady(key: BypassKey, cell: Cell, effect: Tone.ToneAudioNode): void {
+  const whenReady = _registrations[key]?.whenReady;
+  if (!whenReady) return;
+  _unready.add(effect);
+  const ready = () => {
+    _unready.delete(effect);
+    if (!cell.pendingLight || cell.effect !== effect) return;
+    cell.pendingLight = false;
+    if (!connectEffect(key, cell, effect)) {
+      cell.mix = 0;
+      return;
+    }
+    rampCell(key, cell, 0, cell.mix, COLOUR_RAMP_SECONDS);
+  };
+  new Promise((settle) => settle(whenReady(effect))).then(ready, (err: unknown) => {
+    if (!warnedNotReady.has(key)) {
+      warnedNotReady.add(key);
+      devWarn('[AudioEngine] the ' + key + ' effect did not report ready; its cell lights it anyway', err);
+    }
+    ready();
+  });
 }
 
 /** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
@@ -195,6 +235,7 @@ export function clearCells(): void {
   for (const cell of Object.values(_cells)) {
     if (cell.darken !== null) Tone.getContext().clearTimeout(cell.darken);
     cancelTeardown(cell);
+    cell.pendingLight = false;
   }
   for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
   for (const key of Object.keys(_registrations) as BypassKey[]) delete _registrations[key];
@@ -232,11 +273,13 @@ export function buildCell(
       mix: 0,
       darken: null,
       teardown: null,
+      pendingLight: false,
       room: null,
       depth: 0,
       lfos: effectLfos(effect),
     };
     stopLfos(_cells[key]); // built dark; undoes a start in Tone's constructor (Vibrato, Phaser) or the build's (Chorus, Tremolo)
+    if (effect) watchReady(key, _cells[key], effect);
   } catch (err) {
     devWarn(
       '[AudioEngine] the ' + key + ' bypass cell could not be constructed; the chain runs without the ' + key,
@@ -500,12 +543,24 @@ export function writeCellMix(key: BypassKey, mix: number): void {
     cancelTeardown(cell);
     // A failed build returns before the target is recorded, so the next light tries again.
     if (!cell.effect && !buildEffect(key, cell)) return;
+    if (_unready.has(cell.effect!)) {
+      // §1.7: the effect's path is not there yet. The target waits in `mix` and watchReady lights it from wet 0.
+      cell.mix = w;
+      cell.pendingLight = true;
+      return;
+    }
     if (!cell.connected && !connectEffect(key, cell, cell.effect!)) return;
     cell.mix = w;
     if (ramp) rampCell(key, cell, from, w, COLOUR_RAMP_SECONDS);
     return;
   }
   cell.mix = 0;
+  if (cell.pendingLight) {
+    // A darken before the effect was ready: the light it was waiting for is cancelled, and the cell never left dry.
+    cell.pendingLight = false;
+    checkTeardown(key, cell);
+    return;
+  }
   if (ramp) rampCell(key, cell, from, 0, COLOUR_RAMP_SECONDS);
   cell.darken = context.setTimeout(
     () => {
@@ -627,11 +682,13 @@ export function buildBranch(
       mix: 0,
       darken: null,
       teardown: null,
+      pendingLight: false,
       room,
       depth: 0,
       lfos: effectLfos(effect),
     };
     stopLfos(_cells[key]); // built dark, as a chain cell
+    if (effect) watchReady(key, _cells[key], effect);
   } catch (err) {
     devWarn('[AudioEngine] the ' + key + ' branch of the ' + room + ' room could not be constructed; it is left out', err);
     disposeQuietly(effect);

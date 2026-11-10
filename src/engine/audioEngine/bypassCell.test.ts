@@ -1294,6 +1294,255 @@ describe('bypassCell', () => {
           expect(cells.isDucked('tremolo')).toBe(false);
         });
       });
+
+      // §1.7 (Q1): the BitCrusher's worklet node is made after its constructor returns, so its light waits for it.
+      describe('a light waits for an effect that is not ready (Task 5)', () => {
+        /** A promise the test resolves or rejects by hand. */
+        function deferred() {
+          let resolve!: () => void;
+          let reject!: (err: unknown) => void;
+          const promise = new Promise<void>((res, rej) => {
+            resolve = res;
+            reject = rej;
+          });
+          return { promise, resolve, reject };
+        }
+        /** Let the resolved promises' callbacks run. */
+        const flush = () => new Promise((settle) => setTimeout(settle, 0));
+
+        /** An empty registered Tremolo whose every built node waits on its own hand-resolved readiness. */
+        async function unreadyTremolo() {
+          const { cells, devWarn } = await setup();
+          const stub = stubBuilder('tremolo');
+          const readiness: Array<ReturnType<typeof deferred>> = [];
+          const whenReady = vi.fn(() => {
+            const ready = deferred();
+            readiness.push(ready);
+            return ready.promise;
+          });
+          cells.registerEffect('tremolo', { build: stub.build, whenReady });
+          cells.buildCell('tremolo', null, GainCtor, DelayCtor);
+          cells.wireCells();
+          return { cells, devWarn, whenReady, readiness, cell: cells.getCell('tremolo')!, ...stub };
+        }
+        const wetValues = (cell: { wet: unknown }) => fake(cell.wet).gain.rampTo.mock.calls.map((c: unknown[]) => c[0]);
+
+        it('builds at the light but keeps the cell dry and unconnected until whenReady resolves, then connects and ramps from wet 0', async () => {
+          const { cells, cell, built, whenReady, readiness } = await unreadyTremolo();
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(built).toHaveLength(1);
+          expect(whenReady).toHaveBeenCalledWith(built[0]);
+          expect(cell.effect).toBe(built[0]);
+          expect(cell.connected).toBe(false);
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+          expect(built[0]._lfoL.start).not.toHaveBeenCalled();
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+          expect(context.timeouts).toEqual([]);
+          expect(cells.getConnectedEffectCount()).toBe(0);
+
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(true);
+          expect(edgesFrom(cell.in)).toContain(built[0].effectSend);
+          expect(built[0]._lfoL.start).toHaveBeenCalledTimes(1);
+          expect(wetValues(cell)).toEqual([expect.closeTo(Math.sin((colourWetGainOf(0.5) * Math.PI) / 2), 12)]);
+          expect(order(fake(cell.wet).gain.rampTo)).toBeGreaterThan(order(built[0].effectReturn.connect));
+        });
+
+        it('lights at the last target written while it waited, once, building nothing more', async () => {
+          const { cells, cell, built, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0.7);
+          expect(built).toHaveLength(1);
+          expect(whenReady).toHaveBeenCalledTimes(1);
+
+          readiness[0].resolve();
+          await flush();
+          expect(edgesFrom(cell.in).filter((n: unknown) => n === built[0].effectSend)).toHaveLength(1);
+          expect(wetValues(cell)).toEqual([expect.closeTo(Math.sin((colourWetGainOf(0.7) * Math.PI) / 2), 12)]);
+        });
+
+        it('a darken before the resolve cancels the pending light: no darken timer, the teardown armed, the resolve connects nothing', async () => {
+          const { cells, cell, built, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          expect(cell.mix).toBe(0);
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(false);
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+
+          context.fireAll();
+          expect(built[0].dispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('a node torn down before it was ready ignores its late resolve; the next light builds a fresh one and waits for that', async () => {
+          const { cells, cell, built, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          expect(cell.effect).toBeNull();
+
+          readiness[0].resolve();
+          await flush();
+          expect(built[0].effectSend.connect).not.toHaveBeenCalled();
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(whenReady).toHaveBeenCalledTimes(2);
+          expect(cell.connected).toBe(false);
+          readiness[1].resolve();
+          await flush();
+          expect(cell.effect).toBe(built[1]);
+          expect(cell.connected).toBe(true);
+        });
+
+        it('a node already ready lights in the same call (a re-light in the teardown wait)', async () => {
+          const { cells, cell, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          readiness[0].resolve();
+          await flush();
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll(); // the disconnect; the teardown now waits
+          cells.writeCellMix('tremolo', 0.5);
+          expect(cell.connected).toBe(true);
+          expect(whenReady).toHaveBeenCalledTimes(1);
+        });
+
+        it('a node put in its cell at build (a chain cell or a branch) waits for its readiness too, then lights in the same call', async () => {
+          const { cells } = await setup();
+          const readiness: Array<ReturnType<typeof deferred>> = [];
+          const whenReady = () => {
+            const ready = deferred();
+            readiness.push(ready);
+            return ready.promise;
+          };
+          cells.registerEffect('autoWah', { build: vi.fn(), whenReady });
+          cells.registerEffect('bitCrusher', { build: vi.fn(), whenReady });
+          cells.buildCell('autoWah', stubBuilder('autoWah').build(), GainCtor, DelayCtor);
+          cells.buildRoom('grit', GainCtor, DelayCtor);
+          cells.buildBranch('bitCrusher', 'grit', stubBuilder('bitCrusher').build(), GainCtor);
+          cells.wireCells();
+          cells.setRoomFed('grit', true);
+          expect(readiness).toHaveLength(2);
+
+          cells.writeCellMix('autoWah', 0.5);
+          cells.writeCellMix('bitCrusher', 0.5);
+          expect(cells.getConnectedEffectCount()).toBe(0);
+          for (const ready of readiness) ready.resolve();
+          await flush();
+          expect(cells.getConnectedEffectCount()).toBe(2);
+
+          cells.writeCellMix('autoWah', 0);
+          context.fireAll();
+          expect(cells.getCell('autoWah')!.connected).toBe(false);
+          cells.writeCellMix('autoWah', 0.5);
+          expect(cells.getCell('autoWah')!.connected).toBe(true);
+        });
+
+        it('lights from wet 0 along the law chords at the resolve, as a light from dark does', async () => {
+          const { cells, cell, readiness } = await unreadyTremolo();
+          fake(cell.dry).gain.linearRampToValueAtTime = vi.fn();
+          fake(cell.wet).gain.linearRampToValueAtTime = vi.fn();
+          cells.writeCellMix('tremolo', 0.9);
+          readiness[0].resolve();
+          await flush();
+          // From 0 to colourWetGain(0.9) = 0.81: four chords of at most a quarter, the first a rampTo.
+          expect(fake(cell.wet).gain.rampTo).toHaveBeenCalledTimes(1);
+          expect(fake(cell.wet).gain.linearRampToValueAtTime).toHaveBeenCalledTimes(3);
+          expect(fake(cell.wet).gain.rampTo.mock.calls[0][0]).toBeCloseTo(Math.sin((0.81 / 4) * (Math.PI / 2)), 12);
+        });
+
+        it('an effect swapped into the cell while its light waits is never lit by the old node resolve', async () => {
+          const { cells, cell, built, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          const fresh = stubBuilder('tremolo').build();
+          cells.setCellEffect(cell, fresh);
+
+          readiness[0].resolve();
+          await flush();
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+          expect(built[0].effectReturn.connect).not.toHaveBeenCalled();
+        });
+
+        it('a connect Tone refuses at the resolve leaves the cell dry with no target recorded, and the next light tries again', async () => {
+          const { cells, cell, readiness } = await unreadyTremolo();
+          fake(cell.in).connect.mockImplementationOnce(() => {
+            throw new Error('refused');
+          });
+          cells.writeCellMix('tremolo', 0.5);
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(false);
+          expect(cell.mix).toBe(0);
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(cell.connected).toBe(true);
+        });
+
+        it('a branch whose room goes unfed while it waits keeps its node, and lights at once when fed again after the resolve', async () => {
+          const { cells } = await setup();
+          const stub = stubBuilder('bitCrusher');
+          const ready = deferred();
+          cells.registerEffect('bitCrusher', { build: stub.build, whenReady: () => ready.promise });
+          cells.buildRoom('grit', GainCtor, DelayCtor);
+          cells.buildBranch('bitCrusher', 'grit', null, GainCtor);
+          cells.wireCells();
+          const branch = cells.getCell('bitCrusher')!;
+          cells.setRoomFed('grit', true);
+          cells.writeCellMix('bitCrusher', 0.5);
+          cells.setRoomFed('grit', false);
+          expect(context.timeouts).toEqual([]); // no darken to run and no teardown: only unfed
+
+          ready.resolve();
+          await flush();
+          expect(branch.connected).toBe(false);
+          cells.setRoomFed('grit', true);
+          expect(branch.connected).toBe(true);
+          expect(branch.effect).toBe(stub.built[0]);
+          expect(wetRamps(branch)).toEqual([expect.closeTo(colourWetGainOf(0.5), 12)]);
+        });
+
+        it('a readiness that fails, by rejecting or by throwing, lights anyway, warned once for its key', async () => {
+          const { cells, devWarn, cell, built, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          readiness[0].reject(new Error('no worklet'));
+          await flush();
+          expect(cell.connected).toBe(true);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+          expect(String(devWarn.mock.calls[0][0])).toContain('tremolo');
+
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          context.fireAll();
+          expect(cell.effect).toBeNull();
+          whenReady.mockImplementationOnce(() => {
+            throw new Error('no context');
+          });
+          cells.writeCellMix('tremolo', 0.5);
+          await flush();
+          expect(cell.effect).toBe(built[1]);
+          expect(cell.connected).toBe(true);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+        });
+
+        it('clearCells drops a pending light: a resolve after it connects nothing', async () => {
+          const { cells, cell, built, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.clearCells();
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(false);
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+        });
+      });
     });
   });
 });
