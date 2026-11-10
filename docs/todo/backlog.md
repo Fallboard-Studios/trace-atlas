@@ -758,8 +758,13 @@ graph. Spec and plan written 2026-11-06: [spec](../specs/DESKTOP_FULL_TIER_STAND
 kept four inaudible cuts, built in this order: release the docked and muted robots' voices, a native bus filter, Full
 at `playback`, then the effects' cells wired past Tone's wrapper. The leaner synth layer is spun off as roadmap
 [69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes). The four cuts were built the same day and merged
-(PR #607, `perf/desktop-full-tier-standing-cost`); their A/B runs wait for a quiet window Crawford names, then the
-Gate B listen.
+(PR #607, `perf/desktop-full-tier-standing-cost`).
+
+**Update 2026-11-10: the A/B runs are done** (record §6–§9, branch `perf/desktop-full-tier-ab-runs`). Same-round mean
+deltas, W1 / W2: release the docked and muted robots' voices −0.074 / −0.064 (trough −0.14), the native bus filter
+−0.031 / −0.018 (crest −0.055 / −0.032), the cells past Tone's wrapper −0.020 / −0.018. Every crossing is inaudible
+(≤ ×1.02), and Light got cheaper. The dark effects' Signals (B9) price at −0.026 / −0.022; whether that becomes a spec
+is Crawford's call. Next: his keep or drop on each cut, then the Gate B listen.
 
 ### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
 

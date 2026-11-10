@@ -2802,3 +2802,194 @@ every quiet robot does not move it, and among the inaudible rows only G2b reache
 - B9, "sure": the ablation of the dark effects' Signals runs after G3 (plan T16b, recorded as §9).
 - T13, "drop": the composite `out` Gain stays. The plan's T12 and T15 are amended as above.
 - Not asked, so left as this section lists them: the floor's remainder and the boot double build.
+
+### 6. Phase B's A/Bs: the sitting, the noise band, and G1 (T11) — 2026-11-10
+
+**The sitting.** One sitting, 03:10–06:02 on 2026-11-10. Crawford had shut everything down and gone to bed, so only VS
+Code was open. Runs went strictly one at a time, the orphaned-Chrome check read 0 before and after every run, and every
+run exited 0. Each arm is a production build (`vite build --sourcemap`) of its commit's source, built in its own `git
+worktree` with `node_modules` a junction to the repo's, so no arm was made by checking `src/` out over the working tree.
+Each was served by `vite preview`:
+
+| Arm | Commit | Port | Adds |
+|---|---|---|---|
+| base | a2a400c1 | :4181 | Phase B's base: the source Phase A2 measured |
+| base-copy | — | :4182 | Nothing: a byte copy of base, for the noise band |
+| g1 | 135d09f9 | :4183 | T9, G1 |
+| g2a | a0bc52db | :4184 | T12, G2a |
+| g4 | f1ffd3d1 | :4185 | T17, G4 (Full at `playback`) |
+| g3 | 7901cfd5 | :4186 | T15, G3 |
+| b9 | 7901cfd5 + a scratch diff | :4187 | The B9 ablation (§9) |
+
+Method as §3: `npm run perf:audio`, 120 s, 15 s buckets, W1 (`ez84fjmr:93:-146?theme=wreck&load=full`) and W2
+(`bravo:-150:90?load=full`), three interleaved rounds a pair (arm A first in odd rounds), each delta read against the
+same round's arm A. Each pair is the plan's: a cut against the build before it. The scripts (`serve-all.mjs`, `run.sh`,
+`driver.sh`, `task.sh`, `agg.mjs`), the raw runs (`runs/`), every per-round table (`agg-all.md`), the B9 diff and the
+crossing probe (`probe/`) are in this session's scratchpad:
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/02308205-01fc-496d-8dd2-c476c4aa407a/scratchpad/`.
+
+**The noise band** (base against its copy). The band is the largest same-round difference: **0.021 on the mean, 0.033 on
+the crest, 0.041 on the trough**. Base read W1 0.598 / 0.646 / 0.529 and W2 0.466 / 0.532 / 0.354 (mean / crest /
+trough), about 0.02 above A2's stock (0.573 / 0.629 / 0.508, 0.451 / 0.521 / 0.335): the drift between sessions that
+the hygiene notes warn of, so every delta below is read inside this sitting only. Max lag 13–21 ms; underruns at the end
+of a run 5–42.
+
+**G1 (T11): g1 against base.** Bold where clear of the band:
+
+| World | Base mean / crest / trough | Mean delta | Crest delta | Trough delta | Census | Max lag (base / g1) | Underruns at end (base / g1) |
+|---|---|---|---|---|---|---|---|
+| W1 | 0.581 / 0.644 / 0.534 | **−0.074** (−0.075 to −0.056) | −0.016 (−0.029 to +0.023), below noise | **−0.144** (−0.144 to −0.138) | 1 799 → 1 119 | 18–25 / 20–23 ms | 15–78 / 2 |
+| W2 | 0.457 / 0.532 / 0.350 | **−0.064** (−0.074 to −0.049) | **−0.042** (−0.043 to −0.014) | **−0.146** (−0.150 to −0.138) | 1 829 → 1 268–1 276 | 16–21 / 20–26 ms | 2–15 / 2 |
+
+- **Light** (one run a world an arm): base 0.280 / 0.267, g1 0.225 / 0.211: **−0.055 / −0.056**. G1 stands the muted
+  robots down at Light too, where H2 stood down only the robots over the cap.
+- **The overlays.** g1's W1 read `fx in 5/10` against base's 6, as B1's did: the Chorus's Double room is fed by one
+  robot, and while it stands down the branch is dark (silent either way). W2 read 4 on both. Every g1 run logged Tone's
+  "Events scheduled inside of scheduled callbacks should use the passed in scheduling time" once. It is the admission's
+  warning, expected since T10 was dropped. Base's Full runs logged nothing; every Light run on either arm logged the same
+  warning once, as A2's did.
+- **The census** is B1's to the node (1 119 on W1), so G1 as built is B1's shape: the docked robots are `'mute'`.
+
+**The crossings.** Backlog 27's probe and DARK_EFFECT_BYPASS's §8.2 probe were both in scratchpads since cleaned, so
+the probe was rebuilt from spec §8.2's recipe (`probe/`: `site/probe.js`, `site/public/recorder-worklet.js`,
+`vite.config.mjs`, `drive.mjs`, results `t11-g1.json` and `t16-g3.json`). A Vite page imports the arm's own `src/`
+through `@` (`ARM=g1 npx vite --config probe/vite.config.mjs --port 5199`, run from the repo), so the code measured is
+that commit's. Tone runs on a native `AudioContext` (48 kHz, `baseLatency` 0.0107) with `lookAhead` 0.1, in headless
+Chrome. The chain is built by `buildGlobalFxChain`, and a 440 Hz + 1 kHz stereo pair (§8.2's levels) is fed into
+`getGlobalChainEntry()`, stereo, so no channel-count change can fake a click (backlog 27's mono artifact). An
+AudioWorklet recorder on the destination stamps every chunk with `currentFrame`, and the context's `setTimeout` is
+wrapped to stamp each timer fire. The metric is the peak |second difference| over both channels, from 20 ms before the
+call to 150 ms after the later of the ramp's end and the last timer fire, divided by the larger of the 400 ms before and
+after. A gap is ≥ 64 samples under 10⁻⁴ inside the window. "Admission" is what `reReserveVoice` does: `reserveVoice` for
+a three-layer voice, then `updateRobotSends` (reverb 0.25, delay 0.15, Double 0.2), with one resident robot already
+reserved. "Stand-down" is `releaseVoice`. Events are 1.2 s apart.
+
+| Event (g1's source) | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread |
+|---|---|---|---|
+| Admission | ×1.000 · ×1.000 · ×1.000 | none | 5.8 · 4.9 · 4.8 ms |
+| Stand-down | ×1.000 · ×1.000 · ×1.000 | none | 1.6 · 1.1 · 0.7 ms |
+| Eleven admitted in one tick (the un-solo; record only) | ×1.000 | none | 42.3 ms |
+| Eleven stood down in one tick | ×1.000 | none | 6.4 ms |
+| Control: no change | ×1.000 · ×1.000 · ×1.000 | none | — |
+| Control: a bare full-level connect (the metric's check) | ×10.0 · ×10.2 | — | — |
+
+**The first note is not late.** With the tone off, a note goes out at `Tone.now() + 0.05` on a voice built just
+before it (cold) or 1.5 s before (warm), four runs each, alternating. The onset is the first sample over 10⁻⁴ after the
+scheduled frame. It read **12.13 ms in all eight**, so cold and warm agree to the sample; the 12 ms is the
+measurement's own offset (backlog 27 read 12.33 ms). The probe logged no console warning: it has no Transport callback,
+so Tone's scheduling warning, which comes from an admission inside the app's tick, does not arise.
+
+**Against T11's bars.**
+- **Met:**
+  - The W1 delta passes B1's price less the band (0.079 − 0.021 = 0.058): 0.074 measured.
+  - The crest does not rise.
+  - Stand-down and admission are ×1.000 with no gap.
+  - The first note's onset is within one render quantum of the warm voice's.
+  - The eleven-robot burst is recorded.
+- **Max lag:** inside base's spread on W1. On W2 one g1 run read 26 ms against base's highest of 21 ms. This sitting's
+  max lags run 13–45 ms across arms (T16b's g3 read 36 and 45 ms), so I read it as noise, not a finding.
+- **Light inside the band: missed, in the right direction.** Light fell 0.055, beyond the band, on both worlds. The
+  bar guarded against Light rising.
+- **Underruns at the end of a run:** 2 in every g1 run against base's 2–78.
+
+**Recommendation: keep.** Crawford's keep or drop: pending.
+
+### 7. G2a (T14): g2a against g1
+
+| World | g1 mean / crest / trough | Mean delta | Crest delta | Trough delta | Census (`perf:audio-census`) |
+|---|---|---|---|---|---|
+| W1 | 0.497 / 0.584 / 0.379 | **−0.031** (−0.039 to −0.020) | **−0.055** (−0.061 to −0.042) | −0.008 (−0.012 to +0.004), below noise | 1 118 → 1 081: Gain −26, ConstantSource −8, Oscillator −3 |
+| W2 | 0.393 / 0.504 / 0.212 | −0.018 (−0.019 to −0.017), just under the band | **−0.032** (−0.056 to −0.030), at the band | +0.005, below noise | 1 266 → 1 210: Gain −40, ConstantSource −16 |
+
+- **The census falls by 14 a reserved robot.** W2 is exactly four robots (10 Gains and 4 ConstantSources each). W1's
+  ConstantSources are two robots' worth; its Gains are 6 over two robots' 20, and 3 Oscillators also left. Those are
+  notes in flight at the census mark, which reads a live world.
+- **Against §5's estimate** (B6's price after G1: about 0.014 on W1, 0.021 on W2): W1 measured more than that (0.031), and
+  W2 matched it (0.018, all three rounds within 0.002 of each other).
+- **It is the first cut that clearly reaches the crest**, on both worlds: a sounding robot keeps its filter, so the
+  filter's saving lands where the robots are.
+- **Light:** g1 0.225 / 0.204, g2a 0.210 / 0.198: −0.015 / −0.006, inside the band.
+- Max lag inside g1's spread. Underruns at the end: 2 in every run on both arms. Each run logged the expected warning
+  once. No crossing, as the plan has it: nothing connects at run time that did not before.
+
+**Recommendation: keep.** Crawford's keep or drop: pending.
+
+### 8. G3 (T16): g3 against g4
+
+Arm A is g4, which has G4 in it, so G4 has no A/B of its own in this sitting. Its price stays B8's (§4: −0.028 / −0.042).
+
+| World | g4 mean / crest / trough | Mean delta | Crest delta | Trough delta | Census |
+|---|---|---|---|---|---|
+| W1 | 0.445 / 0.533 / 0.336 | −0.020 (−0.025 to −0.014), at the band | −0.017 (−0.034 to +0.006), below noise | +0.001, below noise | Unchanged (1 082–1 091 on both) |
+| W2 | 0.351 / 0.465 / 0.177 | −0.018 (−0.019 to −0.005), at the band | −0.019 (−0.027 to −0.001), below noise | +0.000, below noise | Unchanged (1 211–1 220) |
+
+- **The price is B5's times the lit effects.** B5's 0.005 a lit effect × 5 lit on W1 (`fx in 5/10` once G1 is in) and 4
+  on W2 comes to 0.025 / 0.020; measured 0.020 / 0.018. Each delta sits at the band on its own, but the six rounds all
+  point the same way and agree with B5.
+- **The breakdown** (`perf:audio-handlers`, 8 s, one an arm a world): rendering GainNodes 570 → 547 on W1 (−23) and
+  672 → 652 on W2 (−20), WaveShapers 21 → 16 and 19 → 15 (the CrossFades' shapers), ConstantSources 180 → 185 and
+  204 → 204 (no change beyond notes). The nodes stay built; fewer render.
+- **Light:** g4 0.210 / 0.205, g3 0.212 / 0.195, inside the band. Max lag inside; underruns 2 at the end in every run.
+
+**The crossings** (g3's source, the probe above, three runs each; `getConnectedEffectCount()` read 1 after every light
+and 0 after every darken, so each graph change happened):
+
+| Event | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | The disconnect fired |
+|---|---|---|---|
+| Phaser light (Mix 0 → 0.3) | ×0.880 · ×0.874 · ×0.875 | none | — |
+| Phaser darken (0.3 → 0) | ×0.802 · ×0.804 · ×0.801 | none | +309–349 ms |
+| Chorus light by Mix (Double room fed, 0 → 0.3) | ×1.011 · ×1.008 · ×1.013 | none | — |
+| Chorus darken by Mix (0.3 → 0) | ×0.982 · ×0.979 · ×0.980 | none | +288–320 ms |
+| Chorus light by the room's feed (Mix 0.3, unfed → fed) | ×1.012 · ×1.011 · ×1.011 | none | — |
+| Chorus darken by the room's feed (fed → unfed) | ×0.979 · ×0.972 · ×0.977 | none | +309–320 ms |
+| Control: no change | ×1.000 · ×1.000 · ×1.000 | none | — |
+| Control: a bare full-level connect | ×10.1 · ×9.7 | — | — |
+
+- **Ratios under 1** mean the lit Phaser's own second difference, in the steady state on the lit side, is larger than
+  anything in the transition.
+- **A first pass** (`t16-g3-first.json`, every ratio ≤ ×1.014, no gap) had the Chorus already lit when the probe fed
+  the Double room: the build's default Mix is above 0. So that pass's first Chorus "light" was a lit ramp, not a
+  crossing. The probe now zeroes the Chorus's Mix first; the table is the second pass.
+
+**Recommendation: keep.** Crawford's keep or drop: pending.
+
+### 9. B9 (T16b): the dark effects' standing Signals
+
+- **The variant** (`b9.diff`: `pruneDarkEffects` in `globalFx.ts`, called 3 s after `AudioEngine.start` returns, on
+  Tone's context timer): each effect whose own Mix is 0 (a chain cell's `mix`, a branch's `depth`) and is not connected
+  is disposed, its cell's `effect` and LFO list emptied, and its `_global*` alias nulled so its setter does nothing.
+- **Deviation from the task.** "Every dark effect" was first built as "every effect not connected at 3 s". That pruned
+  W1's Chorus, whose Double room happened to be unfed at that moment although its Mix is 0.47. A room branch lights and
+  darkens with its room's feed, so an unfed branch with a Mix is not dark for good. The variant as run prunes only
+  effects at Mix 0, which cannot light during a run.
+- **What it pruned.** W1: Chebyshev, Phaser, Tremolo. The Shifter stays: Shimmer is unfed, but its Mix is above 0. W2:
+  Distortion, Chebyshev, BitCrusher, Phaser, Tremolo. Every b9 run logged that list once (a `console.warn`, so each b9
+  run shows two warnings).
+
+| World | g3 mean / crest / trough | Mean delta | Crest delta | Trough delta |
+|---|---|---|---|---|
+| W1 | 0.436 / 0.527 / 0.331 | **−0.026** (−0.038 to −0.024) | **−0.055** (−0.060 to −0.022) | −0.005, below noise |
+| W2 | 0.349 / 0.450 / 0.178 | **−0.022** (−0.027 to −0.009), at the band's edge | −0.028 (−0.039 to −0.000), below noise | −0.020 (−0.030 to −0.020), below noise |
+
+- **The census** (`perf:audio-census`): W1 1 091 → 928 (**−163**: Gain −100, ConstantSource −26, BiquadFilter −10,
+  WaveShaper −8, AudioBufferSource −8, ChannelSplitter −5, Oscillator −4, ChannelMerger −2). W2 1 211 → 1 015
+  (**−196**: Gain −123, ConstantSource −28, WaveShaper −11, AudioBufferSource −10, BiquadFilter −10, ChannelSplitter
+  −7, Oscillator −4, ChannelMerger −2, the BitCrusher's AudioWorklet −1).
+- **The trace** (8 s, one an arm a world): **rendering ConstantSources 185 → 159 on W1 (−26) and 204 → 176 on W2
+  (−28)**, the dark effects' Signals, as the task's bar asks; rendering Gains 547 → 518 and 649 → 612.
+- **The price:** about 0.009 a dark effect on W1 and 0.004 on W2 at the mean; W1's crest falls as much as G2a's did.
+- **Max lag:** g3 read 36 and 45 ms in two W2 runs (b9 21 and 19). That is g3's arm, not the variant's, and noted only.
+
+**Is the fix worth a spec? My recommendation: yes, after Gate B.** It is the size of G2a or G3 and inaudible if done
+right: a dark effect torn down after its darken's disconnect and rebuilt, silent under the cell's zero wet, when it
+lights, as `rebuildPhaser` already swaps a Phaser. The crossing recipe above proves it. It would take the next free
+number (71). If Gate B passes without it, it is a backlog entry rather than part of this work. Crawford's call.
+
+**What Phase B adds up to** (a rough reading: arm medians from different pairs, not same-round deltas). Base to g3, with
+G4 in: W1's mean 0.581 → 0.436–0.445 (about −0.14), W2's 0.457 → 0.349–0.351 (about −0.11). The crest goes 0.644 →
+0.527–0.533 (about −0.11) and 0.532 → 0.450–0.465 (about −0.07). §5's estimate was −0.15 / −0.12 on the mean and
+−0.07 / −0.09 on the crest. Summing this sitting's same-round deltas without G4 gives −0.125 / −0.100 on the mean. The
+crest is still the sounding robots (roadmap 69's G2b) and the music's own floor.
+
+**Next:** Checkpoint B (the suite on the merged code, and Crawford's review of §6–§9 with his keep or drop for G1, G2a
+and G3, and his word on a B9 spec), then Gate B, his ear at full 4K (T19, T20).

@@ -481,8 +481,9 @@ T3 (forced GC before perf:audio's census line) ──┤
 ### Phase B: The inaudible cuts (Gate A's order: G1, G2a, G4, G3, then B9)
 
 Run order: T9, T11, T12, T14, T17, T17b, T15, T16, T16b. T13 is dropped and T18 is spun off (Gate A, 2026-11-07); T10
-is dropped and T17b added (Crawford, 2026-11-07). The code tasks are built; the A/B runs (T11, T14, T16, T16b) wait for
-a quiet window Crawford names ("can we put this off and come back to it later?", 2026-11-07).
+is dropped and T17b added (Crawford, 2026-11-07). The code tasks are built; the A/B runs (T11, T14, T16, T16b) were put
+off ("can we put this off and come back to it later?", 2026-11-07) and run in one sitting on 2026-11-10 (record §6–§9,
+branch `perf/desktop-full-tier-ab-runs`).
 
 - [x] **Task 9: `standingBy.ts`, `audioBudgetSystem.ts` — muted robots stand down (G1)** (2026-11-07, 135d09f9)
 
@@ -571,7 +572,23 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
 
   **Estimated scope:** XS (one parameter threaded through)
 
-- [ ] **Task 11: G1's A/B and crossings**
+- [ ] **Task 11: G1's A/B and crossings** (runs 2026-11-10; Crawford's keep or drop pending)
+
+  **As run (2026-11-10, record §6).** The noise band was 0.021 on the mean, 0.033 on the crest and 0.041 on the trough.
+  G1 against base: −0.074 / −0.064 on the mean, −0.144 / −0.146 on the trough, and the crest below noise / −0.042. The
+  census is 1 799 → 1 119, B1's to the node. Underruns at the end of a run: 2 in every g1 run against base's 2–78.
+  Crossings: admission and stand-down ×1.000 in all runs with no gap; the eleven-robot burst ×1.000, with 42 ms on the
+  main thread; cold and warm onsets identical (12.13 ms, the measurement's offset).
+  - **The probe was rebuilt.** Backlog 27's `probe-crossing.mjs` and the T11 probe of DARK_EFFECT_BYPASS were gone with
+    their scratchpads, so a new one was written from spec §8.2's recipe, against each arm's own `src/` through Vite (the
+    record's §6 has its path).
+  - **Every arm was built from its own `git worktree`**, so `src/` was never checked out over the working tree. The plan
+    had said `git checkout <c> -- src`.
+  - **One bar missed, in the right direction.** "Light inside the band": Light fell 0.055 on both worlds, because G1
+    stands the muted robots down at Light too.
+  - **Max lag:** one W2 run read 26 ms against base's 21 ms. This sitting's max lags run 13–45 ms across arms, so it is
+    noted as noise.
+  - **The probe logged no Tone warning,** because it has no Transport callback. The app's runs logged the expected one.
 
   **Description:** The build branch against its base (the stock build), same session, three interleaved rounds, W1 and
   W2 at Full, 120 s, plus one Light run per world per arm; the noise band first. Then the crossing recipe (the
@@ -587,12 +604,12 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
   **Acceptance criteria:**
   - [ ] Delta on W1 at least B1's price less the band; the crest bucket does not rise; `max lag` inside the base's
         spread; the Light runs inside the band.
-  - [ ] Stand-down and admission ≤ ×1.6 with no gap; the first note's onset within one render quantum of the warm
+  - [x] Stand-down and admission ≤ ×1.6 with no gap; the first note's onset within one render quantum of the warm
         voice's; the eleven-robot burst recorded with its ratio and main-thread time.
   - [ ] Crawford's keep or drop recorded with the numbers.
 
   **Verification:**
-  - [ ] Runs kept and quoted; the section read.
+  - [x] Runs kept and quoted; the section read.
 
   **Dependencies:** Task 9.
 
@@ -677,7 +694,11 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
 
   **Estimated scope:** S (four files; one node fewer per robot)
 
-- [ ] **Task 14: G2a's A/B and census**
+- [ ] **Task 14: G2a's A/B and census** (runs 2026-11-10; Crawford's keep or drop pending)
+
+  **As run (2026-11-10, record §7).** −0.031 / −0.018 on the mean and −0.055 / −0.032 on the crest: the first cut that
+  reaches the crest. The census fell 37 / 56: W2 is exactly four robots × 14, and W1 is two robots plus notes in flight.
+  Light moved −0.015 / −0.006, inside the band.
 
   **Description:** As T11: the branch at T12 against the branch at T11, three rounds, W1 and W2 at Full, 120 s, one
   Light run per arm, the census line per arm (the expected drop: B6's 14 nodes a reserved robot, 10 Gains and 4
@@ -687,11 +708,11 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
   **Proof:** a run. Read — the section.
 
   **Acceptance criteria:**
-  - [ ] The census falls by 14 a reserved robot; the delta reads against B6's price after G1 (§5's estimate: about
+  - [x] The census falls by 14 a reserved robot; the delta reads against B6's price after G1 (§5's estimate: about
         0.014 on W1, 0.021 on W2) less the band; the crest does not rise; Light inside the band.
 
   **Verification:**
-  - [ ] Runs kept and quoted; the section read.
+  - [x] Runs kept and quoted; the section read.
 
   **Dependencies:** Task 12.
 
@@ -740,7 +761,15 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
 
   **Estimated scope:** S (one module's two functions; three files)
 
-- [ ] **Task 16: G3's A/B and crossings**
+- [ ] **Task 16: G3's A/B and crossings** (runs 2026-11-10; Crawford's keep or drop pending)
+
+  **As run (2026-11-10, record §8).** Arm A was the branch at T17 (f1ffd3d1), so G4 has no A/B of its own in this
+  sitting; B8 stays its price.
+  - **The A/B:** −0.020 / −0.018 on the mean. Each is at the band, and both agree with B5 × 5 / 4 lit effects (0.025 /
+    0.020). The crest is below noise.
+  - **The trace:** rendering Gains −23 / −20, WaveShapers −5 / −4.
+  - **The crossings:** the Phaser ×0.80–0.88, the Chorus ×0.97–1.01, by Mix and by the Double room's feed, no gap. A
+    first pass had the Chorus lit at its build default when the room was fed, so the probe now zeroes it first.
 
   **Description:** As T11: the branch against its previous cut, three rounds, W1 and W2 at Full, one Light run per arm,
   the breakdown once per arm (the rendering count), and the crossing recipe on a Phaser light and darken and a Chorus
@@ -749,11 +778,11 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
   **Proof:** a run. Read — the section.
 
   **Acceptance criteria:**
-  - [ ] The delta reads against B5's price × the cells bypassed less the band; the crest does not rise; Light inside
+  - [x] The delta reads against B5's price × the cells bypassed less the band; the crest does not rise; Light inside
         the band; the crossings pass.
 
   **Verification:**
-  - [ ] Runs kept and quoted; the section read.
+  - [x] Runs kept and quoted; the section read.
 
   **Dependencies:** Task 15.
 
@@ -761,7 +790,15 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 16b: Ablation B9 — the dark effects' standing Signals (added at Gate A)**
+- [x] **Task 16b: Ablation B9 — the dark effects' standing Signals (added at Gate A)** (2026-11-10)
+
+  **As run (2026-11-10, record §9).**
+  - **The price:** −0.026 / −0.022 on the mean, −0.055 / −0.028 on the crest.
+  - **The census** fell 163 / 196.
+  - **The trace:** rendering ConstantSources 185 → 159 and 204 → 176.
+  - **Deviation:** "dark" means the effect's own Mix is 0. A first variant pruned every effect unconnected at 3 s,
+    which took W1's Chorus, a branch whose room was momentarily unfed.
+  - **Recommendation:** a spec after Gate B (the next free number, 71); Crawford's call.
 
   **Description:** Added at Gate A (Crawford, 2026-11-07) to price §5's "dark Signals" row before any spec is written.
   A variant build (scratch only, nothing committed) takes every dark effect out of the graph after boot (its links
@@ -774,11 +811,11 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
   **Proof:** a run. Read — the section.
 
   **Acceptance criteria:**
-  - [ ] The trace's rendering ConstantSources fall by the dark effects' Signals; the delta and its rounds recorded
+  - [x] The trace's rendering ConstantSources fall by the dark effects' Signals; the delta and its rounds recorded
         against the band.
 
   **Verification:**
-  - [ ] Runs kept and quoted; the section read.
+  - [x] Runs kept and quoted; the section read.
 
   **Dependencies:** Task 16.
 
@@ -878,10 +915,13 @@ a quiet window Crawford names ("can we put this off and come back to it later?",
   **Estimated scope:** L as a whole — to be broken into S/M slices before any is built
 
 ### Checkpoint B: The inaudible cuts are in
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (any pre-existing unrelated failure
-      named).
-- [ ] Every kept cut's A/B and crossing recorded; every dropped cut reverted with its price in the table.
-- [ ] One Light run per world reads inside the band against the branch's base (Light did not move the wrong way).
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (any pre-existing unrelated failure
+      named). 2026-11-10 on main 5ca8679f's code: types and build clean; lint 0 errors, 4 warnings; 350 files and 13 515
+      tests pass, and the exit 1 is only backlog 66's `onTaskUpdate` timeout.
+- [ ] Every kept cut's A/B and crossing recorded; every dropped cut reverted with its price in the table. (Recorded,
+      record §6–§8; Crawford's keep or drop pending.)
+- [x] One Light run per world reads inside the band against the branch's base (Light did not move the wrong way).
+      Light fell 0.055 at G1 and stayed inside the band at G2a and G3 (record §6–§8).
 - [ ] Reviewed with human before the listen.
 
 ---
