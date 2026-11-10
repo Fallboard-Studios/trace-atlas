@@ -29,6 +29,25 @@ export interface SynthWithOscillator {
 // Lightweight record view of Tone to access constructors safely in test/runtime.
 const toneRecord = Tone as unknown as Record<string, unknown>;
 
+/**
+ * Whether Tone has a WebAudio context to build nodes on. The real Tone with no AudioContext (jsdom, Node, a browser
+ * without WebAudio) hands out its DummyContext, whose createGain() returns a bare object that `new Tone.Gain()`
+ * rejects with "param must be an AudioParam" — so every composite voice fails there, by construction, and
+ * AudioEngine.reserveVoice takes its stub path without a warning. A Tone that exposes no getContext()/Context pair
+ * (the engine tests' mocks) is trusted as it is: its constructors build whatever they build.
+ */
+export function toneHasWebAudio(): boolean {
+  // The reads sit inside the try too: Vitest throws on reading an export a `vi.mock('tone')` factory left out.
+  try {
+    const getContext = toneRecord.getContext;
+    const Context = toneRecord.Context;
+    if (typeof getContext !== 'function' || typeof Context !== 'function') return true;
+    return (getContext as () => unknown)() instanceof (Context as new (...args: unknown[]) => unknown);
+  } catch {
+    return true;
+  }
+}
+
 /** Look up a Tone constructor by name, returning undefined when absent (test/headless envs). */
 export function getToneCtor<T>(name: string): (new (...args: unknown[]) => T) | undefined {
   const ctor = toneRecord[name];
