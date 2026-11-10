@@ -89,13 +89,18 @@ let _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
 let _phaserLive: PhaserLive = defaultPhaserLive();
 /** The count a ducked Stages swap will build at the bottom of the duck, or null when none is pending (writePhaserStages). */
 let _phaserDuckStages: number | null = null;
-// The motion pedals, in chain order after the Phaser and before the Compressor (docs/specs/GLOBAL_PEDALS.md §1.3).
-let _globalChorus: Tone.Chorus | null = null;
-let _globalTremolo: Tone.Tremolo | null = null;
-// Plain Tone `Effect`s, not `StereoEffect`s, but neither is mono: the Vibrato's delay moves left and right alike, and
-// only the shifter's sine branch is downmixed (see setGlobalFrequencyShifter).
-let _globalVibrato: Tone.Vibrato | null = null;
-let _globalFrequencyShifter: Tone.FrequencyShifter | null = null;
+// The motion pedals' mirrors (docs/specs/GLOBAL_PEDALS.md §1.3): the Chorus's Delay in ms and its Depth as written, every
+// Rate in Hz as the store resolved it. The Chorus's and the Tremolo's Spread is _spreadTarget. The Vibrato and the
+// shifter are plain Tone `Effect`s, not `StereoEffect`s, but neither is mono: the Vibrato's delay moves left and right
+// alike, and only the shifter's sine branch is downmixed (see setGlobalFrequencyShifter).
+type ChorusLive = Omit<ChorusSettings, 'sync' | 'spread' | 'wet'>;
+type TremoloLive = Omit<TremoloSettings, 'sync' | 'spread' | 'wet'>;
+type VibratoLive = Omit<VibratoSettings, 'sync' | 'wet'>;
+type FrequencyShifterLive = Omit<FrequencyShifterSettings, 'wet'>;
+let _chorusLive: ChorusLive = defaultChorusLive();
+let _tremoloLive: TremoloLive = defaultTremoloLive();
+let _vibratoLive: VibratoLive = defaultVibratoLive();
+let _frequencyShifterLive: FrequencyShifterLive = defaultFrequencyShifterLive();
 // The Width stage, between the Compressor and the Limiter: after the rooms' join in both Decay Modes (GLOBAL_PEDALS.md §1.3).
 let _globalStereoWidener: Tone.StereoWidener | null = null;
 // The cycle-search cuts: zero-delay DelayNodes at the chain entry and after the High-Pass Filter (see CHAIN_CUT_OPTIONS).
@@ -150,6 +155,26 @@ function defaultBitCrusherLive(): BitCrusherLive {
 function defaultAutoWahLive(): AutoWahLive {
   const { baseFrequency, octaves, sensitivity, Q, gain, follower } = DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah;
   return { baseFrequency, octaves, sensitivity, Q, gain, follower };
+}
+
+function defaultChorusLive(): ChorusLive {
+  const { rate, delayTime, depth, feedback } = DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus;
+  return { rate, delayTime, depth, feedback };
+}
+
+function defaultTremoloLive(): TremoloLive {
+  const { rate, depth } = DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo;
+  return { rate, depth };
+}
+
+function defaultVibratoLive(): VibratoLive {
+  const { rate, depth } = DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato;
+  return { rate, depth };
+}
+
+function defaultFrequencyShifterLive(): FrequencyShifterLive {
+  const { shift } = DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter;
+  return { shift };
 }
 
 function defaultPhaserLive(): PhaserLive {
@@ -281,6 +306,11 @@ export function buildGlobalFxChain(): void {
   _phaserDuckStages = null;
   _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
   _phaserLive = defaultPhaserLive();
+  _chorusLive = defaultChorusLive();
+  _tremoloLive = defaultTremoloLive();
+  _vibratoLive = defaultVibratoLive();
+  _frequencyShifterLive = defaultFrequencyShifterLive();
+  resetSpreadTargets();
   const registrations: Partial<Record<BypassKey, EffectRegistration>> = {};
   if (DistortionCtor) {
     registrations.distortion = {
@@ -303,6 +333,42 @@ export function buildGlobalFxChain(): void {
       },
     };
   }
+  // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.3). Tone's Chorus and Tremolo do NOT start their LFOs in the
+  // constructor, so each is started once built (GLOBAL_PEDALS.md assumption 4); its bypass cell then stops them while it
+  // is dark and starts them at each light (docs/specs/LIGHT_TIER_STANDING_COST.md H3a, bypassCell.ts's effectLfos). A
+  // Spread duck's change is already in _spreadTarget, so a teardown that drops the duck needs nothing more (§1.5).
+  if (ChorusCtor) {
+    registrations.chorus = {
+      build: () => {
+        const { rate, delayTime, depth, feedback } = _chorusLive;
+        const chorus = new ChorusCtor({ frequency: rate, delayTime, depth, spread: _spreadTarget.chorus, feedback, wet: 1 });
+        chorus.start();
+        return chorus;
+      },
+    };
+  }
+  if (TremoloCtor) {
+    registrations.tremolo = {
+      build: () => {
+        const { rate, depth } = _tremoloLive;
+        const tremolo = new TremoloCtor({ frequency: rate, depth, spread: _spreadTarget.tremolo, wet: 1 });
+        tremolo.start();
+        return tremolo;
+      },
+    };
+  }
+  // The Vibrato starts its own LFO in its constructor, so it is never start()ed. Its `maxDelay` (constructor-only, the
+  // Depth ceiling) is left at Tone's 0.005 s default, which the full Depth range is written against.
+  if (VibratoCtor) {
+    registrations.vibrato = {
+      build: () => new VibratoCtor({ frequency: _vibratoLive.rate, depth: _vibratoLive.depth, wet: 1 }),
+    };
+  }
+  if (FrequencyShifterCtor) {
+    registrations.frequencyShifter = {
+      build: () => new FrequencyShifterCtor({ frequency: _frequencyShifterLive.shift, wet: 1 }),
+    };
+  }
   const distortion = registrations.distortion?.build() ?? null;
   const chebyshev = registrations.chebyshev?.build() ?? null;
   // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
@@ -323,60 +389,19 @@ export function buildGlobalFxChain(): void {
   } catch (err) {
     devWarn('[AudioEngine] Phaser could not be constructed; the modulation slot runs without it', err);
   }
-  // Global Pedals: built pinned fully wet at the stored defaults, in dark cells that carry the Mix
-  // (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). Tone's Chorus and Tremolo do NOT start their LFOs in the
-  // constructor, so each is started once here (docs/specs/GLOBAL_PEDALS.md assumption 4); its bypass cell then stops them
-  // while it is dark and starts them at each light (docs/specs/LIGHT_TIER_STANDING_COST.md H3a, bypassCell.ts's
-  // effectLfos). A failed construction leaves the slot empty and the chain whole.
-  resetSpreadTargets();
-  _globalChorus = null;
-  if (ChorusCtor) {
+  // Global Pedals, each built at its mirror's defaults. A failed construction leaves its cell dry and the chain whole.
+  const pedal = (key: BypassKey, name: string): Tone.ToneAudioNode | null => {
     try {
-      const { rate, delayTime, depth, spread, feedback } = DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus;
-      _globalChorus = new ChorusCtor({ frequency: rate, delayTime, depth, spread, feedback, wet: 1 });
-      _globalChorus.start();
+      return registrations[key]?.build() ?? null;
     } catch (err) {
-      devWarn('[AudioEngine] Chorus could not be constructed; the pedal slot runs without it', err);
-      _globalChorus = null;
+      devWarn('[AudioEngine] ' + name + ' could not be constructed; the pedal slot runs without it', err);
+      return null;
     }
-  }
-  _globalTremolo = null;
-  if (TremoloCtor) {
-    try {
-      const { rate, depth, spread } = DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo;
-      _globalTremolo = new TremoloCtor({ frequency: rate, depth, spread, wet: 1 });
-      _globalTremolo.start();
-    } catch (err) {
-      devWarn('[AudioEngine] Tremolo could not be constructed; the pedal slot runs without it', err);
-      _globalTremolo = null;
-    }
-  }
-  // The Vibrato starts its own LFO in its constructor, so it is never start()ed here. Its `maxDelay` (constructor-only,
-  // the Depth ceiling) is left at Tone's 0.005 s default, which the full Depth range is written against.
-  _globalVibrato = null;
-  if (VibratoCtor) {
-    try {
-      const { rate, depth } = DEFAULT_GLOBAL_AUDIO_SETTINGS.vibrato;
-      // Pinned fully wet: its bypass cell carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9).
-      _globalVibrato = new VibratoCtor({ frequency: rate, depth, wet: 1 });
-    } catch (err) {
-      devWarn('[AudioEngine] Vibrato could not be constructed; the pedal slot runs without it', err);
-      _globalVibrato = null;
-    }
-  }
-  _globalFrequencyShifter = null;
-  if (FrequencyShifterCtor) {
-    try {
-      // Pinned fully wet: its bypass cell carries the Mix.
-      _globalFrequencyShifter = new FrequencyShifterCtor({
-        frequency: DEFAULT_GLOBAL_AUDIO_SETTINGS.frequencyShifter.shift,
-        wet: 1,
-      });
-    } catch (err) {
-      devWarn('[AudioEngine] FrequencyShifter could not be constructed; the pedal slot runs without it', err);
-      _globalFrequencyShifter = null;
-    }
-  }
+  };
+  const chorus = pedal('chorus', 'Chorus');
+  const tremolo = pedal('tremolo', 'Tremolo');
+  const vibrato = pedal('vibrato', 'Vibrato');
+  const frequencyShifter = pedal('frequencyShifter', 'FrequencyShifter');
   // Width: built at unity (0.5) and held fully wet - Width itself is the control, and exactly 0.5 is its dark state.
   _globalStereoWidener = null;
   if (StereoWidenerCtor) {
@@ -402,10 +427,10 @@ export function buildGlobalFxChain(): void {
     ['bitCrusher', BitCrusherCtor, bitCrusher],
     ['autoWah', AutoWahCtor, autoWah],
     ['phaser', PhaserCtor, phaser],
-    ['chorus', ChorusCtor, _globalChorus],
-    ['tremolo', TremoloCtor, _globalTremolo],
-    ['vibrato', VibratoCtor, _globalVibrato],
-    ['frequencyShifter', FrequencyShifterCtor, _globalFrequencyShifter],
+    ['chorus', ChorusCtor, chorus],
+    ['tremolo', TremoloCtor, tremolo],
+    ['vibrato', VibratoCtor, vibrato],
+    ['frequencyShifter', FrequencyShifterCtor, frequencyShifter],
     ['stereoWidener', StereoWidenerCtor, _globalStereoWidener],
   ];
   if (GainCtorFX && ChainCutCtor) {
@@ -430,10 +455,7 @@ export function buildGlobalFxChain(): void {
   // The `_global<Effect>` names of the effects not yet registered stay as aliases of the cells' effects, so a left-out
   // effect's setter no-ops. A registered effect's setter reads its cell.
 
-  _globalChorus = cellEffect<Tone.Chorus>('chorus');
-  _globalTremolo = cellEffect<Tone.Tremolo>('tremolo');
-  _globalVibrato = cellEffect<Tone.Vibrato>('vibrato');
-  _globalFrequencyShifter = cellEffect<Tone.FrequencyShifter>('frequencyShifter');
+
   _globalStereoWidener = cellEffect<Tone.StereoWidener>('stereoWidener');
 
   if (GainCtorFX) {
@@ -1109,25 +1131,28 @@ function rampChorusSweep(chorus: Tone.Chorus, delayTimeMs: number | undefined, d
  */
 type SpreadPedal = 'chorus' | 'tremolo';
 type SpreadNode = { spread: number };
-/** The Spread each node has, or is about to get from a duck. Every whole-block apply re-sends it, and a lit pedal must
- *  not drop to dry for a value it already has. */
+/** The Spread each node has, or is about to get from a duck: the two pedals' Spread mirror, which a build at a light
+ *  reads (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.4). Every whole-block apply re-sends it, and a lit pedal must not
+ *  drop to dry for a value it already has. */
 const _spreadTarget: Record<SpreadPedal, number> = {
   chorus: DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus.spread,
   tremolo: DEFAULT_GLOBAL_AUDIO_SETTINGS.tremolo.spread,
 };
 
-/** The nodes are being rebuilt in dark cells, at the default Spread (clearCells drops their ducks). */
+/** The chain is being rebuilt, its pedals at the default Spread (clearCells drops their ducks). */
 function resetSpreadTargets(): void {
   for (const pedal of ['chorus', 'tremolo'] as const) {
     _spreadTarget[pedal] = DEFAULT_GLOBAL_AUDIO_SETTINGS[pedal].spread;
   }
 }
 
-/** A Spread write: nothing if the node has (or is getting) it, at once while the pedal is out of the signal path, ducked
- *  while it is in it. */
-function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void {
+/** A Spread write: nothing if the node has (or is getting) it, the mirror only while the pedal is torn down, at once
+ *  while it is out of the signal path, ducked while it is in it. */
+function writeSpread(pedal: SpreadPedal, spread: number): void {
   if (spread === _spreadTarget[pedal]) return;
   _spreadTarget[pedal] = spread;
+  const node = cellEffect(pedal) as unknown as SpreadNode | null;
+  if (!node) return;
   if (!needsDuck(pedal)) {
     node.spread = spread;
     return;
@@ -1142,8 +1167,6 @@ function writeSpread(pedal: SpreadPedal, node: SpreadNode, spread: number): void
  *  through the LFOs' range (rampChorusSweep); spread is ducked when lit (writeSpread). The Chorus is the Double room's one
  *  branch (Robot Effect Sends §1.3), pinned at depth 1, so `wet` is the room's RETURN level (setRoomReturn). */
 export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): void {
-  const chorus = _globalChorus;
-  if (!chorus) return;
   try {
     const rate = clampIfGiven('chorus.rate', params.rate);
     const delayTime = clampIfGiven('chorus.delayTime', params.delayTime);
@@ -1151,10 +1174,17 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
     const spread = clampIfGiven('chorus.spread', params.spread);
     const feedback = clampIfGiven('chorus.feedback', params.feedback);
     const wet = clampIfGiven('chorus.wet', params.wet);
-    if (rate !== undefined) rampOrSet(chorus.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
-    if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
-    if (spread !== undefined) writeSpread('chorus', chorus, spread);
-    if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
+    if (rate !== undefined) _chorusLive.rate = rate;
+    if (delayTime !== undefined) _chorusLive.delayTime = delayTime;
+    if (depth !== undefined) _chorusLive.depth = depth;
+    if (feedback !== undefined) _chorusLive.feedback = feedback;
+    const chorus = cellEffect<Tone.Chorus>('chorus');
+    if (chorus) {
+      if (rate !== undefined) rampOrSet(chorus.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
+      if (delayTime !== undefined || depth !== undefined) rampChorusSweep(chorus, delayTime, depth);
+      if (feedback !== undefined) rampOrSet(chorus.feedback, feedback, COLOUR_RAMP_SECONDS);
+    }
+    if (spread !== undefined) writeSpread('chorus', spread);
     if (wet !== undefined) setRoomReturn('double', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChorus failed', err);
@@ -1165,16 +1195,19 @@ export function setGlobalChorus(params: Partial<Omit<ChorusSettings, 'sync'>>): 
  *  spread is ducked when lit (writeSpread); the Mix is tapered like Colour's and written through the bypass cell
  *  (writeCellMix). `rate` arrives already resolved to Hz. */
 export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>): void {
-  const tremolo = _globalTremolo;
-  if (!tremolo) return;
   try {
     const rate = clampIfGiven('tremolo.rate', params.rate);
     const depth = clampIfGiven('tremolo.depth', params.depth);
     const spread = clampIfGiven('tremolo.spread', params.spread);
     const wet = clampIfGiven('tremolo.wet', params.wet);
-    if (rate !== undefined) rampOrSet(tremolo.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
-    if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
-    if (spread !== undefined) writeSpread('tremolo', tremolo, spread);
+    if (rate !== undefined) _tremoloLive.rate = rate;
+    if (depth !== undefined) _tremoloLive.depth = depth;
+    const tremolo = cellEffect<Tone.Tremolo>('tremolo');
+    if (tremolo) {
+      if (rate !== undefined) rampOrSet(tremolo.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
+      if (depth !== undefined) rampOrSet(tremolo.depth, depth, COLOUR_RAMP_SECONDS);
+    }
+    if (spread !== undefined) writeSpread('tremolo', spread);
     if (wet !== undefined) writeMix('tremolo', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalTremolo failed', err);
@@ -1185,14 +1218,17 @@ export function setGlobalTremolo(params: Partial<Omit<TremoloSettings, 'sync'>>)
  *  tapered like Colour's and written through the bypass cell (writeCellMix), which takes the node out of the signal path
  *  while it is dark. `rate` arrives already resolved to Hz. Stereo: one LFO moves one delay for both channels. */
 export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>): void {
-  const vibrato = _globalVibrato;
-  if (!vibrato) return;
   try {
     const rate = clampIfGiven('vibrato.rate', params.rate);
     const depth = clampIfGiven('vibrato.depth', params.depth);
     const wet = clampIfGiven('vibrato.wet', params.wet);
-    if (rate !== undefined) rampOrSet(vibrato.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
-    if (depth !== undefined) rampOrSet(vibrato.depth, depth, COLOUR_RAMP_SECONDS);
+    if (rate !== undefined) _vibratoLive.rate = rate;
+    if (depth !== undefined) _vibratoLive.depth = depth;
+    const vibrato = cellEffect<Tone.Vibrato>('vibrato');
+    if (vibrato) {
+      if (rate !== undefined) rampOrSet(vibrato.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
+      if (depth !== undefined) rampOrSet(vibrato.depth, depth, COLOUR_RAMP_SECONDS);
+    }
     if (wet !== undefined) writeMix('vibrato', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalVibrato failed', err);
@@ -1206,12 +1242,14 @@ export function setGlobalVibrato(params: Partial<Omit<VibratoSettings, 'sync'>>)
  *  voice shifts cleanly; a hard-panned one leaks the other sideband at a third of the wanted one and puts both, at a
  *  quarter level, in the far channel (measured, docs/specs/GLOBAL_PEDALS.md §8). */
 export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettings>): void {
-  const shifter = _globalFrequencyShifter;
-  if (!shifter) return;
   try {
     const shift = clampIfGiven('frequencyShifter.shift', params.shift);
     const wet = clampIfGiven('frequencyShifter.wet', params.wet);
-    if (shift !== undefined) rampOrSet(shifter.frequency as unknown as RampableParam, shift, COLOUR_RAMP_SECONDS);
+    if (shift !== undefined) _frequencyShifterLive.shift = shift;
+    const shifter = cellEffect<Tone.FrequencyShifter>('frequencyShifter');
+    if (shifter && shift !== undefined) {
+      rampOrSet(shifter.frequency as unknown as RampableParam, shift, COLOUR_RAMP_SECONDS);
+    }
     if (wet !== undefined) setRoomReturn('shimmer', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalFrequencyShifter failed', err);

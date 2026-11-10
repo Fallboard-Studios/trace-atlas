@@ -66,6 +66,7 @@ const toneFlags = vi.hoisted(() => ({
       const node = {
         connect: vi.fn().mockReturnThis(),
         disconnect: vi.fn(),
+        dispose: vi.fn(),
         toDestination: vi.fn(),
         start: vi.fn(),
         delayTime: opts.delayTime ?? 3.5,
@@ -84,6 +85,7 @@ const toneFlags = vi.hoisted(() => ({
     const node = {
       connect: vi.fn().mockReturnThis(),
       disconnect: vi.fn(),
+      dispose: vi.fn(),
       toDestination: vi.fn(),
       start: vi.fn(),
       spread: opts.spread ?? 180,
@@ -101,6 +103,7 @@ const toneFlags = vi.hoisted(() => ({
   vibratoCtor: vi.fn((opts: { frequency?: number; depth?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
+    dispose: vi.fn(),
     toDestination: vi.fn(),
     start: vi.fn(),
     frequency: { value: opts.frequency ?? 5, rampTo: vi.fn() },
@@ -111,6 +114,7 @@ const toneFlags = vi.hoisted(() => ({
   shifterCtor: vi.fn((opts: { frequency?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
+    dispose: vi.fn(),
     toDestination: vi.fn(),
     frequency: { value: opts.frequency ?? 0, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
@@ -129,6 +133,7 @@ const toneFlags = vi.hoisted(() => ({
   widenerCtor: vi.fn((opts: { width?: number; wet?: number } = {}) => ({
     connect: vi.fn().mockReturnThis(),
     disconnect: vi.fn(),
+    dispose: vi.fn(),
     toDestination: vi.fn(),
     width: { value: opts.width ?? 0.5, rampTo: vi.fn() },
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
@@ -2897,7 +2902,8 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Chorus'), expect.any(Error));
-      expect(live.getCell('chorus')).toBeUndefined();
+      // Dark Effects Leave the Graph T8: a registered key keeps an empty branch, and its next light builds again.
+      expect(live.getCell('chorus')!.effect).toBeNull();
       expect(live.getRoom('double')).toBeDefined();
       expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
       expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
@@ -2970,7 +2976,8 @@ describe('globalFx', () => {
       expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('FrequencyShifter'), expect.any(Error));
       const vibratoCell = emptyCellAfter(cutOf(lastInstance(toneFlags.tremoloCtor)));
       expect(vibratoCell.cut.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
-      expect(live.getCell('frequencyShifter')).toBeUndefined();
+      // Dark Effects Leave the Graph T8: a registered key keeps an empty branch, and its next light builds again.
+      expect(live.getCell('frequencyShifter')!.effect).toBeNull();
     });
 
     it('disconnects each once per rewire and connects neither to a room or a return', async () => {
@@ -3560,7 +3567,7 @@ describe('globalFx', () => {
         expect(vibrato.connect).not.toHaveBeenCalled();
         expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
         expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
-        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(darkens()).toHaveLength(0);
       });
 
       it('warns, keeps the cell dry and stays unconnected when the connect throws; the next light retries', async () => {
@@ -3652,7 +3659,7 @@ describe('globalFx', () => {
         globalFx.setGlobalVibrato({ wet: 0 });
         expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
         expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
-        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(darkens()).toHaveLength(0);
       });
 
       it('warns and does not throw when the disconnect throws, and a later light ramps up without reconnecting', async () => {
@@ -3767,9 +3774,12 @@ describe('globalFx', () => {
       });
 
       it('leaves the empty cell dry when the Vibrato constructor threw', async () => {
-        toneFlags.vibratoCtor.mockImplementationOnce(() => {
-          throw new Error('no vibrato');
-        });
+        // Dark Effects Leave the Graph T8: a light builds an absent Vibrato, so the constructor throws there too.
+        for (let n = 0; n < 2; n++) {
+          toneFlags.vibratoCtor.mockImplementationOnce(() => {
+            throw new Error('no vibrato');
+          });
+        }
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
         const empty = emptyCellAfter(cutOf(lastInstance(toneFlags.tremoloCtor)));
@@ -4894,6 +4904,198 @@ describe('globalFx', () => {
     });
   });
 
+  describe('the Chorus, Tremolo, Vibrato and Shifter leave and come back (Dark Effects Leave the Graph T8)', () => {
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.4, §1.5, §7 assumption 3 (the Chorus and the Shifter go at a Return
+    // of 0, their Mix), §5.1 cases 7, 8 and 12.
+    const DUCK_WAIT = 0.1 + 0.02 + 0.01;
+    const DARKEN_WAIT = 0.1 + 0.05 + 0.01;
+    function fireOnly(seconds: number) {
+      const due = toneFlags.timeouts.find((t) => Math.abs(t.seconds - seconds) < 1e-9)!;
+      expect(due).toBeDefined();
+      toneFlags.timeouts = toneFlags.timeouts.filter((t) => t !== due);
+      due.fn();
+    }
+    const built = (ctor: unknown) => (ctor as AnyMock).mock.calls.length;
+    const lastOptions = (ctor: unknown) => (ctor as AnyMock).mock.calls.at(-1)?.[0];
+
+    /** The Double room fed, its Chorus lit at the built Return of 1, then the Return written to 0 and torn down. */
+    async function chorusTornDown() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('double');
+      const gone = lastInstance(toneFlags.chorusCtor);
+      expect(live.getCell('chorus')!.connected).toBe(true);
+      globalFx.setGlobalChorus({ wet: 0 });
+      settle();
+      return { globalFx, gone };
+    }
+
+    it('the Chorus with its Double room fed and its Return written to 0 is disposed after the wait, its cell emptied', async () => {
+      const { gone } = await chorusTornDown();
+      expect(gone.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('chorus')!.effect).toBeNull();
+    });
+
+    it('Spread, Delay, Depth, Rate and Feedback written while absent touch no node and reach the Chorus the next Return builds, started', async () => {
+      const { globalFx, gone } = await chorusTornDown();
+      const before = built(toneFlags.chorusCtor);
+      globalFx.setGlobalChorus({ spread: 90, delayTime: 5, depth: 0.4, rate: 2, feedback: 0.3 });
+      expect(built(toneFlags.chorusCtor)).toBe(before);
+      expect(gone.spread).toBe(180);
+      expect(gone.delayTime).toBe(3.5);
+      expect(gone.frequency.rampTo).not.toHaveBeenCalled();
+      expect(gone.feedback.rampTo).not.toHaveBeenCalled();
+      expect(toneFlags.timeouts).toEqual([]);
+      globalFx.setGlobalChorus({ wet: 0.6 });
+      expect(built(toneFlags.chorusCtor)).toBe(before + 1);
+      expect(lastOptions(toneFlags.chorusCtor)).toStrictEqual({
+        frequency: 2,
+        delayTime: 5,
+        depth: 0.4,
+        spread: 90,
+        feedback: 0.3,
+        wet: 1,
+      });
+      const fresh = lastInstance(toneFlags.chorusCtor);
+      expect(fresh.start).toHaveBeenCalledTimes(1);
+      expect(live.getCell('chorus')!.effect).toBe(fresh);
+      expect(live.getCell('chorus')!.connected).toBe(true);
+    });
+
+    it('a call that lights an absent Chorus with a new Rate and Spread builds it at both and writes neither to it', async () => {
+      const { globalFx } = await chorusTornDown();
+      globalFx.setGlobalChorus({ rate: 3, spread: 60, wet: 0.5 });
+      const fresh = lastInstance(toneFlags.chorusCtor);
+      expect(lastOptions(toneFlags.chorusCtor)).toMatchObject({ frequency: 3, spread: 60 });
+      expect(fresh.frequency.rampTo).not.toHaveBeenCalled();
+      expect(live.isDucked('chorus')).toBe(false);
+      expect(toneFlags.timeouts).toEqual([]);
+    });
+
+    it('a Chorus torn down with a Spread duck pending is rebuilt at that Spread; the dropped duck never writes', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('double');
+      const lit = lastInstance(toneFlags.chorusCtor);
+      globalFx.setGlobalChorus({ spread: 120 }); // lit: ducked
+      expect(live.isDucked('chorus')).toBe(true);
+      globalFx.setGlobalChorus({ wet: 0 });
+      fireOnly(DARKEN_WAIT);
+      fireOnly(live.DARK_TEARDOWN_SECONDS);
+      expect(lit.dispose).toHaveBeenCalledTimes(1);
+      expect(toneFlags.timeouts.map((t) => t.seconds)).not.toContain(DUCK_WAIT);
+      expect(lit.spread).toBe(180);
+      globalFx.setGlobalChorus({ wet: 0.5 });
+      expect(lastOptions(toneFlags.chorusCtor)).toMatchObject({ spread: 120 });
+    });
+
+    it('a Tremolo torn down with a Spread duck pending is rebuilt at that Spread, and started', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalTremolo({ wet: 0.5 });
+      globalFx.setGlobalTremolo({ spread: 45 }); // lit: ducked
+      globalFx.setGlobalTremolo({ wet: 0 });
+      fireOnly(DARKEN_WAIT);
+      fireOnly(live.DARK_TEARDOWN_SECONDS);
+      expect(live.getCell('tremolo')!.effect).toBeNull();
+      globalFx.setGlobalTremolo({ wet: 0.5 });
+      expect(lastOptions(toneFlags.tremoloCtor)).toMatchObject({ spread: 45 });
+      expect(lastInstance(toneFlags.tremoloCtor).start).toHaveBeenCalledTimes(1);
+    });
+
+    it('the Tremolo darkened is torn down, and Rate, Depth and Spread written while absent reach the started rebuild', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalTremolo({ wet: 0.5 });
+      const gone = lastInstance(toneFlags.tremoloCtor);
+      globalFx.setGlobalTremolo({ wet: 0 });
+      settle();
+      expect(gone.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('tremolo')!.effect).toBeNull();
+      const before = built(toneFlags.tremoloCtor);
+      globalFx.setGlobalTremolo({ rate: 4, depth: 0.8, spread: 30 });
+      expect(built(toneFlags.tremoloCtor)).toBe(before);
+      expect(gone.frequency.rampTo).not.toHaveBeenCalled();
+      expect(gone.depth.rampTo).not.toHaveBeenCalled();
+      expect(gone.spread).toBe(180);
+      globalFx.setGlobalTremolo({ wet: 0.4 });
+      expect(lastOptions(toneFlags.tremoloCtor)).toStrictEqual({ frequency: 4, depth: 0.8, spread: 30, wet: 1 });
+      const fresh = lastInstance(toneFlags.tremoloCtor);
+      expect(fresh.start).toHaveBeenCalledTimes(1);
+      expect(fresh.frequency.rampTo).not.toHaveBeenCalled();
+      expect(live.getCell('tremolo')!.connected).toBe(true);
+    });
+
+    it('the Vibrato darkened is torn down, and Rate and Depth written while absent reach the rebuild, never started by the build', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalVibrato({ wet: 0.5 });
+      const gone = lastInstance(toneFlags.vibratoCtor);
+      globalFx.setGlobalVibrato({ wet: 0 });
+      settle();
+      expect(gone.dispose).toHaveBeenCalledTimes(1);
+      const before = built(toneFlags.vibratoCtor);
+      globalFx.setGlobalVibrato({ rate: 7, depth: 0.3 });
+      expect(built(toneFlags.vibratoCtor)).toBe(before);
+      expect(gone.frequency.rampTo).not.toHaveBeenCalled();
+      globalFx.setGlobalVibrato({ rate: 6, wet: 0.2 });
+      expect(lastOptions(toneFlags.vibratoCtor)).toStrictEqual({ frequency: 6, depth: 0.3, wet: 1 });
+      const fresh = lastInstance(toneFlags.vibratoCtor);
+      expect(fresh.start).not.toHaveBeenCalled();
+      expect(fresh.frequency.rampTo).not.toHaveBeenCalled();
+      expect(live.getCell('vibrato')!.connected).toBe(true);
+    });
+
+    it('a Shimmer Return of 0 on the unfed room arms the teardown, and raising it again before the fire cancels it', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const shifter = lastInstance(toneFlags.shifterCtor);
+      globalFx.setGlobalFrequencyShifter({ wet: 0 });
+      expect(toneFlags.timeouts.map((t) => t.seconds)).toEqual([live.DARK_TEARDOWN_SECONDS]);
+      globalFx.setGlobalFrequencyShifter({ wet: 0.5 });
+      expect(toneFlags.timeouts).toEqual([]);
+      settle();
+      expect(shifter.dispose).not.toHaveBeenCalled();
+      expect(live.getCell('frequencyShifter')!.effect).toBe(shifter);
+    });
+
+    it('the Shifter torn down at a Return of 0 takes a shift while absent, and is built at it when the fed room has a Return again', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const gone = lastInstance(toneFlags.shifterCtor);
+      globalFx.setGlobalFrequencyShifter({ wet: 0 });
+      settle();
+      expect(gone.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('frequencyShifter')!.effect).toBeNull();
+      const before = built(toneFlags.shifterCtor);
+      globalFx.setGlobalFrequencyShifter({ shift: -250 });
+      feedRooms('shimmer');
+      expect(built(toneFlags.shifterCtor)).toBe(before);
+      expect(gone.frequency.rampTo).not.toHaveBeenCalled();
+      globalFx.setGlobalFrequencyShifter({ wet: 0.8 });
+      expect(built(toneFlags.shifterCtor)).toBe(before + 1);
+      expect(lastOptions(toneFlags.shifterCtor)).toStrictEqual({ frequency: -250, wet: 1 });
+      expect(live.getCell('frequencyShifter')!.connected).toBe(true);
+    });
+
+    it('an unfed Shimmer or Double room with its Return above 0 keeps its effect', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const shifter = lastInstance(toneFlags.shifterCtor);
+      const chorus = lastInstance(toneFlags.chorusCtor);
+      globalFx.setGlobalFrequencyShifter({ wet: 0.7, shift: 100 });
+      globalFx.setGlobalChorus({ wet: 0.4, rate: 2 });
+      feedRooms('shimmer', 'double');
+      live.setRoomFed('shimmer', false);
+      live.setRoomFed('double', false);
+      settle();
+      expect(shifter.dispose).not.toHaveBeenCalled();
+      expect(chorus.dispose).not.toHaveBeenCalled();
+      expect(live.getCell('frequencyShifter')!.effect).toBe(shifter);
+      expect(live.getCell('chorus')!.effect).toBe(chorus);
+    });
+  });
+
   describe('setGlobalFrequencyShifter (Global Pedals)', () => {
     async function built() {
       const globalFx = await import('./globalFx');
@@ -5327,7 +5529,7 @@ describe('globalFx', () => {
       const cell = cellOf(n);
       set(globalFx, { spread: 90 });
       expect(n.spread).toBe(90);
-      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(darkens()).toHaveLength(0);
       expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
       if (cell.dry) expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
       expect(n.connect).not.toHaveBeenCalled();
@@ -5341,7 +5543,7 @@ describe('globalFx', () => {
       cell.wet.gain.rampTo.mockClear();
       set(globalFx, { spread: 90 });
       expect(n.spread).toBe(90);
-      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(darkens()).toHaveLength(0);
       expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
       expect(n.connect).not.toHaveBeenCalled();
     });
