@@ -480,7 +480,7 @@ describe('a world change while paused', () => {
     expect(getWorldState()).toBe('cold');
   });
 
-  it('a world change while running (Foundry Retransmit) tears nothing down and stays running', async () => {
+  it('a world change while running (a retransmit to new coordinates) tears nothing down and stays running', async () => {
     initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
     await powerController.powerOnSequence();
     vi.clearAllMocks();

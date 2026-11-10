@@ -1,3 +1,4 @@
+import type { ComponentType } from 'react';
 import { AudioLoadPanel } from '../console/AudioLoadPanel';
 import { AudioRigDrawer, AudioRigEffectPanel } from '../console/AudioRigDrawer';
 import { LfoBankLanePanel } from '../console/LfoBankLanePanel';
@@ -90,11 +91,13 @@ function PacingPanel() {
   );
 }
 
-type SubTabbedSection = Exclude<FleetParamsGroup, 'pacing' | 'quality'>;
+/** The sections that are one panel, with no sub-tab row: Pacing, and Audio Quality (docs/tasks/OFF_SCREEN_CONSOLE.md
+ *  Task 12). FLEET_PARAMS_SUBSECTIONS lists no sub-tabs for them; every other section is a sub-tab row. */
+const SINGLE_PANEL: Partial<Record<FleetParamsGroup, ComponentType>> = { pacing: PacingPanel, quality: AudioLoadPanel };
 
 /** A section's sub-tab items for one shell — built once per shell at load, so SectionTabs' memo holds.
  *  A lane's tab reads laneTitle(); every other sub-tab its panel's entry. */
-function subTabItems(section: SubTabbedSection, shell: Shell): readonly SectionTabItem<SelectedFleetParamsEffect>[] {
+function subTabItems(section: FleetParamsGroup, shell: Shell): readonly SectionTabItem<SelectedFleetParamsEffect>[] {
   return FLEET_PARAMS_SUBSECTIONS[section].map(({ id, content }) => {
     const lane = LANE_OF[id];
     return {
@@ -107,31 +110,31 @@ function subTabItems(section: SubTabbedSection, shell: Shell): readonly SectionT
   });
 }
 
-const SUB_TABBED: readonly SubTabbedSection[] = ['lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output'];
+const SUB_TABBED = SECTIONS.map(([section]) => section).filter((section) => !SINGLE_PANEL[section]);
 const SUB_TAB_ITEMS = Object.fromEntries(
   (['desk', 'phone'] as const).map((shell) => [shell, Object.fromEntries(SUB_TABBED.map((section) => [section, subTabItems(section, shell)]))]),
-) as Record<Shell, Record<SubTabbedSection, readonly SectionTabItem<SelectedFleetParamsEffect>[]>>;
+) as Record<Shell, Partial<Record<FleetParamsGroup, readonly SectionTabItem<SelectedFleetParamsEffect>[]>>>;
 
-/** The sub-tab row, nested in its section's panel; it alone reads the stored sub-tab. */
-function SubTabs({ section }: { section: SubTabbedSection }) {
+/** The sub-tab row, nested in its section's panel; it alone reads the stored sub-tab. Rendered only for a section
+ *  that is no single panel, so its items are always built. */
+function SubTabs({ section }: { section: FleetParamsGroup }) {
   const shell = useShell();
   const stored = useUIStore((s) => s.fleetParamsSubsection);
   return (
     <SectionTabs
       variant="sub"
       label={labels(FLEET_PARAMS_GROUP_CONTENT[section]).humanLabel}
-      items={SUB_TAB_ITEMS[shell][section]}
+      items={SUB_TAB_ITEMS[shell][section]!}
       value={activeFleetParamsSubsection(section, stored)!}
       onValueChange={setSubsection}
     />
   );
 }
 
-/** A section's body: Pacing's and Audio Quality's one panel each, else the sub-tab row. */
+/** A section's body: its one panel (SINGLE_PANEL), else the sub-tab row. */
 function SectionBody({ section }: { section: FleetParamsGroup }) {
-  if (section === 'pacing') return <PacingPanel />;
-  if (section === 'quality') return <AudioLoadPanel />;
-  return <SubTabs section={section} />;
+  const Panel = SINGLE_PANEL[section];
+  return Panel ? <Panel /> : <SubTabs section={section} />;
 }
 
 /** One section's panel, in its group's trait so the panels inside keep the colour they had. */

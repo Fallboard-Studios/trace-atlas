@@ -32,12 +32,6 @@ const BRANCH_TILE: Record<TopLevelBranch, HubTile> = {
   fleetParams: 'audioRig',
 };
 
-/** Branches whose entities list in place under their box; Fleet Params is a leaf. Companies had a list
- *  too until it left the nav (docs/tasks/OFF_SCREEN_CONSOLE.md Task 18): a company opens from the
- *  roster board, under Probes. */
-export type ExpandingBranch = 'probes';
-const EXPANDS_IN_PLACE: ReadonlySet<NavBranch> = new Set<ExpandingBranch>(['probes']);
-
 const TILE_CONTENT: Record<HubTile, ContentKey> = {
   robots: 'probe.root',
   audioRig: 'fleet.root',
@@ -49,9 +43,10 @@ export function branchOfTile(tile: HubTile | null): NavBranch {
   return (Object.keys(BRANCH_TILE) as TopLevelBranch[]).find((branch) => BRANCH_TILE[branch] === tile)!;
 }
 
-/** Whether a branch lists its entities in place under its box — the panel widens for these. */
-export function expandsInPlace(branch: NavBranch): branch is ExpandingBranch {
-  return EXPANDS_IN_PLACE.has(branch);
+/** Whether a branch lists its entities in place under its box — the panel widens for these. Probes alone:
+ *  Fleet Params is a leaf, and Companies' list went with its box (docs/tasks/OFF_SCREEN_CONSOLE.md Task 18). */
+export function expandsInPlace(branch: NavBranch): branch is 'probes' {
+  return branch === 'probes';
 }
 
 /** A parent box's label: the Deck's own entry, else its tile's root concept (the breadcrumb's name). */
@@ -165,17 +160,11 @@ export function selectBranch(branch: NavBranch): void {
 export function selectEntity(entity: NavEntity): void {
   cleanSlate();
   const s = useUIStore.getState();
-  if (entity === 'all') {
-    s.setAllProbesSelected(true);
-    open('probes', false);
-  } else if ('robotId' in entity) {
-    s.selectRobot(entity.robotId);
-    open('probes', false);
-  } else {
-    // A company opens under Probes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 17, Crawford, 2026-11-09).
-    s.selectCompany(entity.companyId);
-    open('probes', false);
-  }
+  if (entity === 'all') s.setAllProbesSelected(true);
+  else if ('robotId' in entity) s.selectRobot(entity.robotId);
+  // A company opens under Probes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 17, Crawford, 2026-11-09).
+  else s.selectCompany(entity.companyId);
+  open('probes', false);
 }
 
 /** Whether Probes is on an entity rather than its own page, as the breadcrumb reads it. */
