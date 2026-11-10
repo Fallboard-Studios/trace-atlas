@@ -1218,3 +1218,54 @@ at a time, each measured alone before and after. The audit's first PR (its group
 optional last task for signal, not speed. Plan: [TEST_SUITE_RUN_TIME.md](../../tasks/TEST_SUITE_RUN_TIME.md). Done when a
 full run's wall-clock time is recorded against the baseline and every test still proves what it proved before; the
 number to beat is set by the baseline task, not here.
+
+## 71. Off Screen: The Console — the One Place a World Is Made, Loaded, Kept, Shared or Deleted
+
+**Closed** 2026-11-10 (both modules merged in PR #611, `feature/settings-retirement`, with module B stacked on module
+A; the code review follow-ups, `3555abae`..`354459d5`, in PR #612). Crawford passed Checkpoints A, B, C and Complete
+on 2026-11-09. The off screen is now the one place a world is made, loaded, saved, renamed, deleted or shared. Its
+left column holds the New Transmission editor in one panel (style name, coordinates, Scan) and the Transmissions list
+(Current, then the saves; the presets are gone). One action row (Save, Rename, Delete, Share) sits under the list,
+Delete asks first in a modal confirm, and Factory Reset sits at the foot. The Settings branch has left the nav:
+Audio Quality is Fleet Params' eighth tab, and Foundry and Save & Share are deleted. The Companies box went too
+(Phase 5b): a company now opens under Probes. Crawford skipped one code review finding: a world click on a company's
+screen leaves the company, and that stands as built. The shipped screen is described in
+[UI_SHELL.md](../../UI_SHELL.md#the-off-screen) and [SESSION_STORAGE.md](../../SESSION_STORAGE.md), and each task's
+**As built** note in the [plan](../../tasks/OFF_SCREEN_CONSOLE.md) holds the detail. The original request follows.
+
+**Raised 2026-11-08** by Crawford, refined through `idea-refine` (six of seven variations taken) and confirmed through
+`interview-me` the same day ([intent](../../intent/off-screen-console.md)); spec written and approved the same day
+([spec](../../specs/OFF_SCREEN_CONSOLE.md)). The off screen roadmap 57 built and backlog 64 revised duplicates two
+Settings tabs, Foundry (Seeds) and Save & Share, and is already too tall at 1280 × 720 to take more without hiding
+something.
+
+**What it does.** The off screen becomes the only place a world is made, loaded, edited, saved, shared or deleted; the
+first-visit screen does not change. Two modules under one spec, built in order:
+
+1. **`off-screen-console`** — the left column re-aimed: a New Transmission *editor* (style name, coordinates, Scan; a
+   commit is a pick under the wash, Classic with no aspects; the inputs mirror the live world, so there is no draw on
+   mount) over a collapsible Transmissions list (Current with an "unsaved" eyebrow while nothing stored matches it, the
+   saves, a divider, the presets; no Load button — the pick is the load) with one Save / Rename / Delete row at its
+   foot acting on the selected row (dimmed where inert, no per-row buttons, no Keep, no confirm on Delete), and a
+   collapsed Device section holding Factory Reset with its confirm. Share moves beside the readout and copies the link
+   for whatever the readout names; the standing warning line goes. The Loading column is untouched.
+2. **`settings-retirement`** — Audio Quality becomes Fleet Params' last tab; the Settings branch leaves the nav;
+   `SettingsScreen`, `SectorSettingsDrawer`, `SessionsPanel` and `SessionListItem` are deleted with their content keys;
+   UI_SHELL.md, SESSION_STORAGE.md and COMPONENT_LIBRARY.md follow.
+
+**Decisions on record** (the spec's §7 assumptions, each with Crawford's default): no draw on mount; after Delete of
+the selected save the selection falls to New Transmission; a rename to a taken name is refused; Factory Reset flips the
+gate at once; the disclosures are a muted Button over a conditional render, no Radix Collapsible, both collapsed on
+every mount; Save on a preset or New Transmission moves the selection to the new row.
+
+**Amended at Checkpoint A** (Crawford, 2026-11-09; the plan's Checkpoint A records each change): the presets are gone
+(the list is Current and the saves); the Device section is gone, Factory Reset sits at the Transmissions section's foot;
+Delete asks first, in a modal confirm; Share is the fourth button in the action row, not beside the readout; the
+editor's three fields share one panel; `sessionStore.keepWorld` is cut; the list's show/hide toggle is gone (the list,
+the action row and Factory Reset always show). Module B goes on a branch of its own after
+this one merges, and may also retire the Companies nav item (not yet planned).
+
+**Status:** spec approved 2026-11-08; the sketch frame drafted in `docs/sketches/off-screen.html` (frame F); plan
+written the same day ([plan](../../tasks/OFF_SCREEN_CONSOLE.md): Tasks 1–11 the console, Checkpoint A, Tasks 12–16 the
+retirement and docs). Module A (`off-screen-console`) built on `feature/off-screen-console`, its docs updated; at
+Checkpoint A, awaiting Crawford's look. First line of plan.md's Stage 1.

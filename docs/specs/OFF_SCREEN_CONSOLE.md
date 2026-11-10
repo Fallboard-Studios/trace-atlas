@@ -13,15 +13,15 @@ after an `idea-refine` pass. It reworks the screen roadmap
 [57](../todo/archive/roadmap-archive.md#57-the-off-screen-power-as-pause-the-two-axis-chooser-keep-and-the-band-table)
 built and backlog 64 ([spec](OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md)) revised, and retires two Settings tabs
 roadmap 45 laid out ([LAYOUT_REWORK.md](LAYOUT_REWORK.md) §1.8). Backlog
-[71](../todo/backlog.md#71-off-screen-the-console--the-one-place-a-world-is-made-loaded-kept-shared-or-deleted), first
-line of plan.md's Stage 1.
+[71](../todo/archive/backlog-archive.md#71-off-screen-the-console--the-one-place-a-world-is-made-loaded-kept-shared-or-deleted),
+closed and archived 2026-11-10.
 
-**Status: approved** by Crawford 2026-11-08 ("I want to do this next"), the nine assumptions standing at their
-defaults; the sketch frame (`docs/sketches/off-screen.html`, frame F) drafted the same day. Plan:
-[docs/tasks/OFF_SCREEN_CONSOLE.md](../tasks/OFF_SCREEN_CONSOLE.md) (2026-11-08, sixteen tasks over two modules).
-`off-screen-console` built on `feature/off-screen-console` and amended at the plan's Checkpoint A (Crawford,
-2026-11-09): the sections below are amended in place where it changed them, each marked. `settings-retirement` goes on
-a branch of its own after this one merges.
+**Status: built and merged**: both modules in PR #611 (`feature/settings-retirement`, stacked on
+`feature/off-screen-console`), the code review follow-ups in PR #612. Approved by Crawford 2026-11-08 ("I want to do
+this next"), the nine assumptions standing at their defaults; the sketch frame (`docs/sketches/off-screen.html`,
+frame F) drafted the same day. Plan: [docs/tasks/OFF_SCREEN_CONSOLE.md](../tasks/OFF_SCREEN_CONSOLE.md) (2026-11-08,
+sixteen tasks over two modules, then Phase 5b's two). Amended at the plan's Checkpoint A (Crawford, 2026-11-09): the
+sections below are amended in place where it changed them, each marked.
 
 Written for: Crawford, and the agent that plans and builds it.
 
