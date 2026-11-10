@@ -23,15 +23,6 @@ function ProbesBranch() {
 }
 
 /**
- * The Companies branch: a selected company's screen, else the same roster board (it replaced the
- * Companies index, spec §1.5).
- */
-function CompaniesBranch() {
-  const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
-  return selectedCompanyId ? <CompanyScreen /> : <RosterBoard />;
-}
-
-/**
  * One entry per HubTile, keyed by a Record so TypeScript itself enforces
  * every tile is covered — a new HubTile value that's missing an entry here
  * is a compile error, not a silent blank render. Adding a future tile is one
@@ -40,7 +31,6 @@ function CompaniesBranch() {
 const TILE_CONTENT: Record<HubTile, () => ReactNode> = {
   robots: () => <ProbesBranch />,
   audioRig: () => <FleetParamsScreen />,
-  companies: () => <CompaniesBranch />,
 };
 
 export function ConsolePanel() {

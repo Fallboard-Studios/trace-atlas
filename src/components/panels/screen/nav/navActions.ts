@@ -29,17 +29,17 @@ export type NavEntity = { robotId: string } | { companyId: string } | 'all';
 
 const BRANCH_TILE: Record<TopLevelBranch, HubTile> = {
   probes: 'robots',
-  companies: 'companies',
   fleetParams: 'audioRig',
 };
 
-/** Branches whose entities list in place under their box; Fleet Params is a leaf. */
-export type ExpandingBranch = 'probes' | 'companies';
-const EXPANDS_IN_PLACE: ReadonlySet<NavBranch> = new Set<ExpandingBranch>(['probes', 'companies']);
+/** Branches whose entities list in place under their box; Fleet Params is a leaf. Companies had a list
+ *  too until it left the nav (docs/tasks/OFF_SCREEN_CONSOLE.md Task 18): a company opens from the
+ *  roster board, under Probes. */
+export type ExpandingBranch = 'probes';
+const EXPANDS_IN_PLACE: ReadonlySet<NavBranch> = new Set<ExpandingBranch>(['probes']);
 
 const TILE_CONTENT: Record<HubTile, ContentKey> = {
   robots: 'probe.root',
-  companies: 'company.root',
   audioRig: 'fleet.root',
 };
 
@@ -141,14 +141,14 @@ function cleanSlate(): void {
   s.setFleetParamsSection(DEFAULT_FLEET_PARAMS_SECTION); // also clears the sub-tab
 }
 
-/** Opens a branch's tile with its entity list expanded in place (Probes / Companies) or collapsed. */
+/** Opens a branch's tile with its entity list expanded in place (Probes) or collapsed. */
 function open(branch: TopLevelBranch, expand = expandsInPlace(branch)): void {
   const s = useUIStore.getState();
   s.setActiveHubTile(BRANCH_TILE[branch]);
   s.setExpandedTopLevelBranch(expand ? branch : null);
 }
 
-/** A parent box: that branch's own page, Probes / Companies expanded in place, a leaf collapsing
+/** A parent box: that branch's own page, Probes expanded in place, a leaf collapsing
  *  whatever was. `'deck'` is goHome. */
 export function selectBranch(branch: NavBranch): void {
   if (branch === 'deck') {
@@ -159,9 +159,9 @@ export function selectBranch(branch: NavBranch): void {
   open(branch);
 }
 
-/** An entity under Probes or Companies: opens its branch on it, at no section, with the list collapsed
- *  (Crawford, 2026-10-10: "collapse the nav when a probe or company is selected"), so the entity's
- *  screen gets the panel's rest width. The parent box brings the list back (pressBranchBox). */
+/** An entity under Probes (a robot, All Probes or a company): opens Probes on it, at no section, with the
+ *  list collapsed (Crawford, 2026-10-10: "collapse the nav when a probe or company is selected"), so the
+ *  entity's screen gets the panel's rest width. The parent box brings the list back (pressBranchBox). */
 export function selectEntity(entity: NavEntity): void {
   cleanSlate();
   const s = useUIStore.getState();
@@ -178,21 +178,18 @@ export function selectEntity(entity: NavEntity): void {
   }
 }
 
-/** Only the open branch's own entity counts, as the breadcrumb reads it: a robot picked in the world
- *  is not a Companies entity. */
-function branchHasEntity(s: UIStore, branch: ExpandingBranch): boolean {
-  return branch === 'probes'
-    ? s.selectedRobotId !== null || s.selectedCompanyId !== null || s.allProbesSelected
-    : s.selectedCompanyId !== null;
+/** Whether Probes is on an entity rather than its own page, as the breadcrumb reads it. */
+function probesHasEntity(s: UIStore): boolean {
+  return s.selectedRobotId !== null || s.selectedCompanyId !== null || s.allProbesSelected;
 }
 
 /** A parent box pressed in the panel (Crawford, 2026-10-09: "back, then collapse"). Anywhere but its
  *  own page it is selectBranch, so on an entity it goes back to the branch's page with the list open.
- *  On Probes' or Companies' own page it toggles the list in place and changes nothing else. Other
+ *  On Probes' own page it toggles the list in place and changes nothing else. Other
  *  callers use selectBranch, which never toggles. */
 export function pressBranchBox(branch: NavBranch): void {
   const s = useUIStore.getState();
-  if (expandsInPlace(branch) && branchOfTile(s.activeHubTile) === branch && !branchHasEntity(s, branch)) {
+  if (expandsInPlace(branch) && branchOfTile(s.activeHubTile) === branch && !probesHasEntity(s)) {
     s.setExpandedTopLevelBranch(s.expandedTopLevelBranch === branch ? null : branch);
     return;
   }
@@ -241,10 +238,10 @@ function nameOf(list: readonly NamedEntity[], id: string): string | null {
   return entity ? (entity.name ?? entity.id) : null;
 }
 
-/** Only the open branch's entity counts; a specific robot wins over a company, and a company over All
- *  Probes, as ProbesBranch routes. With its name, the entity selectEntity takes to go back to it. */
-function openEntity(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 'companies'): { label: string; entity: NavEntity } | null {
-  if (tile === 'robots' && state.selectedRobotId !== null) {
+/** Probes' entity: a specific robot wins over a company, and a company over All Probes, as ProbesBranch
+ *  routes. With its name, the entity selectEntity takes to go back to it. */
+function openEntity(state: BreadcrumbState, roster: NavRoster): { label: string; entity: NavEntity } | null {
+  if (state.selectedRobotId !== null) {
     const id = state.selectedRobotId;
     const label = nameOf(roster.robots, id);
     return label !== null ? { label, entity: { robotId: id } } : null;
@@ -254,7 +251,7 @@ function openEntity(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 
     const label = nameOf(roster.companies, id);
     return label !== null ? { label, entity: { companyId: id } } : null;
   }
-  return tile === 'robots' && state.allProbesSelected ? { label: name('probe.all'), entity: 'all' } : null;
+  return state.allProbesSelected ? { label: name('probe.all'), entity: 'all' } : null;
 }
 
 /** One breadcrumb segment: its name and, for Root, the branch, the entity and a Fleet Params section
@@ -265,8 +262,8 @@ export interface BreadcrumbSegment {
   go?: () => void;
 }
 
-/** Root / branch / entity / section — `[]` on the Deck. A section shows only under an entity (Probes,
- *  Companies), or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
+/** Root / branch / entity / section — `[]` on the Deck. A section shows only under a Probes entity
+ *  (a robot, a company, All Probes), or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
  *  <section> / <sub-tab>). The branch goes back with selectBranch, which never toggles (pressBranchBox
  *  is the panel's own). */
 export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): BreadcrumbSegment[] {
@@ -293,7 +290,7 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
     return trail;
   }
 
-  const open = openEntity(state, roster, tile);
+  const open = openEntity(state, roster);
   if (open === null) return trail;
   trail.push({ label: open.label, go: () => selectEntity(open.entity) });
   // A robot's screen is tabs (Task 16), and so are a company's and All Probes' (Task 23: the same

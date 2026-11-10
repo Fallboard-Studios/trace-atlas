@@ -191,8 +191,8 @@ function RosterRowView({ row, company, onMove }: RosterRowViewProps) {
 }
 
 /**
- * The roster board (docs/specs/LAYOUT_REWORK.md §1.5; docs/tasks/LAYOUT_REWORK.md Task 21), the Probes
- * and Companies branches' own page: the head (All Probes, + New Company disclosing the staged
+ * The roster board (docs/specs/LAYOUT_REWORK.md §1.5; docs/tasks/LAYOUT_REWORK.md Task 21), Probes'
+ * own page (and the Companies branch's until it left the nav, docs/tasks/OFF_SCREEN_CONSOLE.md Task 18): the head (All Probes, + New Company disclosing the staged
  * CompanyCreateForm inline), the Probes intro as an expander, then one row per group in rosterRows()
  * order — the companies, then Freelance. No filter: the board is grouped already. Desk tiles flow right
  * and wrap; the phone stacks them in one column and the pane scrolls.

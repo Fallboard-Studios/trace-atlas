@@ -951,12 +951,12 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
 
   **As built (2026-11-09):** as planned. Five older cases expected the Companies branch after a company pick or a
   company Delete (`RosterBoard`, `NavEntityList`'s Companies list, `CompanyScreen`'s Delete, two `navActions`
-  breadcrumb cases) and now expect `'robots'`; the `navActions` case "a company selected under Probes is not an entity"
-  lost its Probes line, now the opposite rule. The Companies-tile cases stay for Task 18. Mutants killed: `selectEntity`
+  breadcrumb cases) and now expect `'robots'`; the `navActions` case "a world-selected robot does not appear under
+  Companies" lost its Probes line (a company under Probes is not an entity), now the opposite rule. The Companies-tile cases stay for Task 18. Mutants killed: `selectEntity`
   opening Companies (RED), `branchHasEntity` ignoring the company (RED), `ProbesBranch` ignoring the company (RED), a
   company before a robot in `ProbesBranch` (1 case) and in the breadcrumb (1 case).
 
-- [ ] **Task 18: The Companies box and branch go**
+- [x] **Task 18: The Companies box and branch go**
 
   **Description:** `'companies'` leaves `HubTile` (`src/types/hub.ts`) and `TopLevelBranch` (`uiStore.ts`);
   `navActions.ts` loses `BRANCH_TILE.companies`, `TILE_CONTENT.companies`, `'companies'` from `ExpandingBranch` and
@@ -974,21 +974,31 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
   Companies).
 
   **Acceptance criteria:**
-  - [ ] `npm run build:types` passes with `'companies'` gone from both unions: `ConsolePanel`'s record and
+  - [x] `npm run build:types` passes with `'companies'` gone from both unions: `ConsolePanel`'s record and
         `BRANCH_TILE` make any leftover a compile error.
-  - [ ] `content.test.ts` passes without `company.root`.
+  - [x] `content.test.ts` passes without `company.root`.
 
   **Verification:**
-  - [ ] `npm test` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 17. **Files:** `src/types/hub.ts`, `src/stores/uiStore.ts`, `navActions.ts`, `NavPanel.tsx`,
   `NavEntityList.tsx`, `NavEntityList.css`, `ConsolePanel.tsx`, `src/content/copy/company.ts`, and the test files above
 
   **Estimated scope:** M (the unions must change with their records in one commit; most edits are deletions)
 
+  **As built (2026-11-09):** as planned, except `ExpandingBranch` stays as `'probes'` alone rather than going, and
+  `branchHasEntity` became `probesHasEntity(s)`. Not named in the plan: `NavPanel.css`, `RosterBoard.tsx`,
+  `src/content/copy/nav.ts` and two `uiStore.ts` field comments named the Companies branch and were reworded; the
+  `+ New Company` sheet case in `NavPanel.test.tsx` went with the list. `RosterBoard.test.tsx`, `CompanyScreen.test.tsx`
+  and `CompanyCrudControls.test.tsx` needed nothing more (Task 17 had moved them). The gates are the unions (a
+  `'companies'` tile or branch anywhere is a compile error) plus the RED case. Full suite 350 files, 13,517 pass, with
+  the known `[vitest-worker] Timeout calling "onTaskUpdate"` exit.
+
 ### Checkpoint C: Companies off the nav
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. 2026-11-09, at Task 18: types
+      clean; lint 0 errors (the same 4 warnings); full suite 350 files, 13,517 pass, with the known
+      `[vitest-worker] Timeout calling "onTaskUpdate"` exit; vite build clean.
 - [ ] In the browser: the nav shows three boxes (Deck, Fleet Params, Probes); a company's name on the Probes page opens
       its screen with the Probes box popped and the breadcrumb Root / Probes / <Company> / <section>; the Probes box or
       the breadcrumb's Probes goes back to the board; + New Company still works from the board; deleting a company

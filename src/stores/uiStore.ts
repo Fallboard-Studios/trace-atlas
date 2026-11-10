@@ -36,7 +36,7 @@ export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automatic
 /** The 4th tree level under a robot's/company's RobotSection — docs/specs/archive/NAV_PANEL_VIEWS_AND_CONTENT.md
  *  §1.3/§1.4. Flat union rather than nested per-section, because a subsection is always read
  *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection
- *  name collides across sections). Shared by Probes and Companies, same as RobotSection itself. */
+ *  name collides across sections). Shared by robots and companies, same as RobotSection itself. */
 export type RobotSubsection =
   | 'audioSettings'
   | 'rhythm'
@@ -46,14 +46,14 @@ export type RobotSubsection =
   | 'coaxialOscillator'
   | 'harmonicOscillator'
   | 'busFilter';
-/** Which of the 3 top-level branches is open in the nav panel (its entity list, for Probes and
- *  Companies). The tree's per-branch fields, which tracked which probe or company was peeked
+/** Which of the 2 top-level branches is open in the nav panel (its entity list, for Probes). The tree's per-branch fields, which tracked which probe or company was peeked
  *  open, retired with the stacked scroll (docs/tasks/LAYOUT_REWORK.md Task 18). Bugfix: this
  *  field was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
  *  for a bare single-segment node id ('settings', 'fleetParams', 'probes', 'companies'), so every
  *  top-level node's own +/- button was a silent no-op and its children could never render, found
- *  live by Crawford after Checkpoint 3. Settings left the nav in docs/tasks/OFF_SCREEN_CONSOLE.md Task 14. */
-export type TopLevelBranch = 'fleetParams' | 'probes' | 'companies';
+ *  live by Crawford after Checkpoint 3. Settings left the nav in docs/tasks/OFF_SCREEN_CONSOLE.md Task 14,
+ *  Companies in Task 18. */
+export type TopLevelBranch = 'fleetParams' | 'probes';
 /** The scene wash over the world (docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 12-13; Crawford's note 7): 'clear' at rest;
  *  'covering' while it fades in over a requested world change (systems/worldChange.ts); 'covered' when opaque, which runs
  *  the change; 'uncovering' while it fades out over the new world. Semantic state only: the wash's timelines
@@ -95,7 +95,7 @@ export interface UIStore {
    *  a handful of per-level fields, not a single opaque node-id scheme. */
   selectedSection: RobotSection | null;
   /** The open great-grandchild, when one is selected — null when only a RobotSection (or
-   *  nothing) is selected. Shared by Probes and Companies, same reasoning as selectedSection.
+   *  nothing) is selected. Shared by robots and companies, same reasoning as selectedSection.
    *  docs/specs/archive/NAV_PANEL_VIEWS_AND_CONTENT.md §1.3. */
   selectedSubsection: RobotSubsection | null;
   /** Mobile only; desktop/tablet ignore this and stay docked-open. */

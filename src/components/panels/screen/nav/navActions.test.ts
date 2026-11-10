@@ -69,7 +69,6 @@ beforeEach(() => {
 describe('selectBranch', () => {
   it.each([
     ['probes', 'robots', 'probes'],
-    ['companies', 'companies', 'companies'],
     ['fleetParams', 'audioRig', null],
   ] as const)('%s opens the %s tile and expands %s in place', (branch, tile, expanded) => {
     selectBranch(branch);
@@ -78,7 +77,7 @@ describe('selectBranch', () => {
   });
 
   it('a leaf (Fleet Params) collapses whichever branch was expanded', () => {
-    dirtyStore({ expandedTopLevelBranch: 'companies' });
+    dirtyStore({ expandedTopLevelBranch: 'probes' });
     selectBranch('fleetParams');
     expect(ui().expandedTopLevelBranch).toBeNull();
   });
@@ -86,7 +85,7 @@ describe('selectBranch', () => {
   // Crawford, 2026-10-09: picking a parent opens that branch's own page — the robot / company / All
   // and every section are cleared, so the Probes box and the breadcrumb's "Probes" segment return to
   // the list rather than reopening the last robot.
-  it.each(['probes', 'companies', 'fleetParams', 'deck'] as const)(
+  it.each(['probes', 'fleetParams', 'deck'] as const)(
     '%s clears the entity and every section, from a robot with sections open',
     (branch: NavBranch) => {
       dirtyStore();
@@ -104,7 +103,7 @@ describe('selectBranch', () => {
 
   it('clears a selected company and All Probes too', () => {
     dirtyStore({ selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false });
-    selectBranch('companies');
+    selectBranch('probes');
     expect(ui().selectedCompanyId).toBeNull();
     expectCompanyInvariant();
 
@@ -131,7 +130,7 @@ describe('selectBranch', () => {
 describe('selectEntity', () => {
   // Crawford, 2026-10-10: an entity pick collapses the list, so the screen gets the panel's rest width.
   it('a robot: opens Probes on it with the list collapsed, clearing the company, All Probes and any section', () => {
-    dirtyStore({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies', selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
+    dirtyStore({ activeHubTile: 'audioRig', expandedTopLevelBranch: null, selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
     selectEntity({ robotId: 'r2' });
     expect(ui()).toMatchObject({
       activeHubTile: 'robots',
@@ -195,21 +194,21 @@ describe('goHome', () => {
 });
 
 // Crawford, 2026-10-09 ("back, then collapse"): the panel's parent box. On an entity it is
-// selectBranch — back to the branch's page, list open; on that page already, Probes and Companies
-// toggle their list in place. selectBranch itself never toggles.
+// selectBranch — back to the branch's page, list open; on that page already, Probes toggles its list
+// in place. selectBranch itself never toggles.
 describe('pressBranchBox', () => {
   /** On the Probes page with the list open and nothing selected. */
   function onProbesPage(overrides: Partial<UIStore> = {}) {
     useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', ...overrides });
   }
 
-  it.each(['probes', 'companies', 'fleetParams', 'deck'] as const)(
+  it.each(['probes', 'fleetParams', 'deck'] as const)(
     'from another branch, %s does what selectBranch does',
     (branch: NavBranch) => {
-      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'companies' : 'audioRig', expandedTopLevelBranch: null });
+      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'robots' : 'audioRig', expandedTopLevelBranch: null });
       pressBranchBox(branch);
       const pressed = { ...ui() };
-      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'companies' : 'audioRig', expandedTopLevelBranch: null });
+      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'robots' : 'audioRig', expandedTopLevelBranch: null });
       selectBranch(branch);
       expect(pressed).toEqual({ ...ui() });
     },
@@ -259,16 +258,16 @@ describe('pressBranchBox', () => {
   });
 
   // Crawford, 2026-10-10: a pick from the list collapses it; the parent box brings it back.
-  it.each<[string, Parameters<typeof selectEntity>[0], 'probes' | 'companies']>([
-    ['a robot', { robotId: 'r2' }, 'probes'],
-    ['All Probes', 'all', 'probes'],
-    ['a company', { companyId: 'c1' }, 'probes'],
-  ])('list page -> pick %s (list collapses) -> its box goes back to the page with the list open', (_case, entity, branch) => {
-    useUIStore.setState({ activeHubTile: branch === 'probes' ? 'robots' : 'companies', expandedTopLevelBranch: branch });
+  it.each<[string, Parameters<typeof selectEntity>[0]]>([
+    ['a robot', { robotId: 'r2' }],
+    ['All Probes', 'all'],
+    ['a company', { companyId: 'c1' }],
+  ])('list page -> pick %s (list collapses) -> the Probes box goes back to the page with the list open', (_case, entity) => {
+    onProbesPage();
     selectEntity(entity);
     expect(ui().expandedTopLevelBranch).toBeNull();
-    pressBranchBox(branch);
-    expect(ui().expandedTopLevelBranch).toBe(branch);
+    pressBranchBox('probes');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
     expectNoEntityAndNoSection();
   });
 
@@ -294,13 +293,6 @@ describe('pressBranchBox', () => {
 
     pressBranchBox('probes');
     expect(ui().expandedTopLevelBranch).toBe('probes');
-  });
-
-  it("only the open branch's entity counts: a world-selected robot on the Companies page does not stop the collapse", () => {
-    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies', selectedRobotId: 'r1' });
-    pressBranchBox('companies');
-    expect(ui().expandedTopLevelBranch).toBeNull();
-    expect(ui().selectedRobotId).toBe('r1');
   });
 
   it.each([
@@ -330,7 +322,7 @@ describe('pressBranchBox', () => {
 // closes it. A pick is anything that moves the selection; a collapse in place is not one (pressBranchBox's
 // "changes nothing else" test above holds the flag open).
 describe('a pick closes the phone nav sheet', () => {
-  it.each(['probes', 'companies', 'fleetParams', 'deck'] as const)('selectBranch(%s)', (branch: NavBranch) => {
+  it.each(['probes', 'fleetParams', 'deck'] as const)('selectBranch(%s)', (branch: NavBranch) => {
     dirtyStore({ isNavPanelOpen: true });
     selectBranch(branch);
     expect(ui().isNavPanelOpen).toBe(false);
@@ -360,7 +352,7 @@ describe('a pick closes the phone nav sheet', () => {
 
   it('a pick never opens the sheet', () => {
     selectEntity({ robotId: 'r1' });
-    selectBranch('companies');
+    selectBranch('fleetParams');
     goHome();
     expect(ui().isNavPanelOpen).toBe(false);
   });
@@ -372,33 +364,30 @@ describe('the parent-box tables the panel reads', () => {
   it.each([
     [null, 'deck'],
     ['robots', 'probes'],
-    ['companies', 'companies'],
     ['audioRig', 'fleetParams'],
   ] as const)('branchOfTile(%s) is %s', (tile, branch) => {
     expect(branchOfTile(tile)).toBe(branch);
   });
 
   it('branchOfTile inverts what selectBranch opens, for every branch', () => {
-    for (const branch of ['deck', 'probes', 'companies', 'fleetParams'] as const) {
+    for (const branch of ['deck', 'probes', 'fleetParams'] as const) {
       selectBranch(branch);
       expect(branchOfTile(ui().activeHubTile)).toBe(branch);
     }
   });
 
-  it('only Probes and Companies expand in place, the same branches selectBranch expands', () => {
-    for (const branch of ['deck', 'probes', 'companies', 'fleetParams'] as const) {
+  it('only Probes expands in place, the same branch selectBranch expands', () => {
+    for (const branch of ['deck', 'probes', 'fleetParams'] as const) {
       selectBranch(branch);
       expect(expandsInPlace(branch)).toBe(ui().expandedTopLevelBranch === branch);
     }
     expect(expandsInPlace('probes')).toBe(true);
-    expect(expandsInPlace('companies')).toBe(true);
   });
 
   it.each([
     ['deck', 'nav.home'],
     ['fleetParams', 'fleet.root'],
     ['probes', 'probe.root'],
-    ['companies', 'company.root'],
   ] as const)('branchContent(%s) is %s, the same name the breadcrumb shows for the branch', (branch, key) => {
     expect(branchContent(branch)).toBe(key);
     if (branch !== 'deck') {
@@ -411,7 +400,6 @@ describe('the parent-box tables the panel reads', () => {
 describe('breadcrumbPath', () => {
   const ROOT = CONTENT['nav.root'].human;
   const PROBES = CONTENT['probe.root'].human;
-  const COMPANIES = CONTENT['company.root'].human;
   const FLEET = CONTENT['fleet.root'].human;
 
   const roster: NavRoster = {
@@ -446,7 +434,6 @@ describe('breadcrumbPath', () => {
 
   it('names the branch alone when no entity is selected', () => {
     expect(path({ activeHubTile: 'robots' })).toEqual([ROOT, PROBES]);
-    expect(path({ activeHubTile: 'companies' })).toEqual([ROOT, COMPANIES]);
   });
 
   it.each<[FleetParamsGroup, BreadcrumbState['fleetParamsSubsection'], string[]]>([
@@ -535,15 +522,6 @@ describe('breadcrumbPath', () => {
 
   it('a specific robot wins over All Probes when both are set (ProbesContent routes the same way)', () => {
     expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', allProbesSelected: true })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.source'].human]);
-  });
-
-  it('reads Root / Companies / <company name> / <section>', () => {
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.source'].human]);
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
-  });
-
-  it("only the open branch's entity counts: a world-selected robot does not appear under Companies", () => {
-    expect(path({ activeHubTile: 'companies', selectedRobotId: 'r1' })).toEqual([ROOT, COMPANIES]);
   });
 });
 

@@ -27,14 +27,14 @@ const NAV_LABEL = labels('nav.toggle').humanLabel;
 /** Where focus goes when a pick takes its own button away: the box for where you now are, else the first. */
 const FOCUS_RESCUE_TARGETS = ['.nav-box[aria-current="true"]', '.nav-box'] as const;
 
-/** The five parent boxes in the sketch's order, each in its branch's trait (the tree's, the Deck in
- *  the header's teal as the sketch draws it). */
+/** The three parent boxes in the sketch's order, each in its branch's trait (the tree's, the Deck in
+ *  the header's teal as the sketch draws it). Settings left in docs/tasks/OFF_SCREEN_CONSOLE.md Task 14,
+ *  Companies in Task 18. */
 const PARENT_BOXES = (
   [
     ['deck', 'header'],
     ['fleetParams', 'spectral'],
     ['probes', 'output'],
-    ['companies', 'company'],
   ] as const satisfies readonly (readonly [NavBranch, Trait])[]
 ).map(([branch, trait]) => ({ branch, ...labels(branchContent(branch)), accentStyle: getTraitColorStyle(trait) }));
 
@@ -76,16 +76,15 @@ function useNavPanelWidth(wide: boolean): void {
 }
 
 /**
- * The one nav panel (docs/specs/LAYOUT_REWORK.md §1.2; docs/tasks/LAYOUT_REWORK.md Task 4): five parent
- * boxes in the panel's static popped facade, the open branch's box out. Probes and Companies expand in
- * place — their entities list under the box and the panel widens — while `expandedTopLevelBranch` is
+ * The one nav panel (docs/specs/LAYOUT_REWORK.md §1.2; docs/tasks/LAYOUT_REWORK.md Task 4): three parent
+ * boxes in the panel's static popped facade, the open branch's box out. Probes expands in
+ * place — its entities list under the box and the panel widens — while `expandedTopLevelBranch` is
  * that branch; pressing the box on its own page collapses or reopens the list (navActions.pressBranchBox).
  * Every pick goes through navActions.
  *
  * Phone shell (Task 5): the same panel in a sheet — a modal Radix Dialog whose open flag is
  * `isNavPanelOpen`, opened by PhoneBar's menu, with a scrim, a focus trap and Escape. It is not in the
- * DOM while shut. A pick closes it (navActions); collapsing a list or opening + New Company's form does
- * not. No Dialog.Portal: the sheet renders in place, inside ScreenViewport, never out on <body> (the
+ * DOM while shut. A pick closes it (navActions); collapsing the list does not. No Dialog.Portal: the sheet renders in place, inside ScreenViewport, never out on <body> (the
  * UI Shell guardrail, CLAUDE.md), and Radix's focus scope hands focus back to the menu on close.
  */
 export function NavPanel() {
@@ -123,7 +122,7 @@ export function NavPanel() {
                   expanded={expandsInPlace(branch) ? listOpen : undefined}
                   onClick={() => pressBranchBox(branch)}
                 />
-                {listOpen && expandsInPlace(branch) && <NavEntityList branch={branch} />}
+                {listOpen && expandsInPlace(branch) && <NavEntityList />}
               </li>
             );
           })}

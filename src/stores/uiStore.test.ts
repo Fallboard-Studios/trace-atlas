@@ -311,10 +311,10 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
   });
 
   it('touches no other nav field', () => {
-    useUIStore.setState({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'companies', selectedSection: 'source' });
+    useUIStore.setState({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'probes', selectedSection: 'source' });
     useUIStore.getState().setFleetParamsSection('output');
     useUIStore.getState().setFleetParamsSubsection('limiter');
-    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'companies', selectedSection: 'source' });
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'probes', selectedSection: 'source' });
   });
 
   it('stays JSON-serialisable', () => {

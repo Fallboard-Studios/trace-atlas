@@ -47,7 +47,8 @@ describe('ConsolePanel', () => {
 });
 
 // docs/tasks/LAYOUT_REWORK.md Task 21 (spec §1.5): the roster board replaces the Probes list and the
-// Companies index, so both branches show it when no entity is selected.
+// Companies index; since docs/tasks/OFF_SCREEN_CONSOLE.md Task 18 it is Probes' page alone, and a
+// company's screen opens there too.
 describe('ConsolePanel — the Probes branch', () => {
   beforeEach(() => {
     useUIStore.setState(useUIStore.getInitialState(), true);
@@ -90,30 +91,5 @@ describe('ConsolePanel — the Probes branch', () => {
     useUIStore.getState().selectRobot('r1');
     render(<ConsolePanel />);
     expect(shown()).toEqual(['robot-screen-stub']);
-  });
-});
-
-describe('ConsolePanel — the Companies branch', () => {
-  beforeEach(() => {
-    useUIStore.setState(useUIStore.getInitialState(), true);
-    useUIStore.getState().setActiveHubTile('companies');
-  });
-
-  it('shows the roster board when no company is selected — no separate Companies index', () => {
-    render(<ConsolePanel />);
-    expect(shown()).toEqual(['roster-board-stub']);
-    expect(screen.queryByTestId('company-create-form-stub')).toBeNull();
-  });
-
-  it('shows the company screen when a company is selected', () => {
-    useUIStore.getState().selectCompany('c1');
-    render(<ConsolePanel />);
-    expect(shown()).toEqual(['company-screen-stub']);
-  });
-
-  it("keeps the roster board for the Companies page even if All Probes was left selected (that form belongs to the Probes branch)", () => {
-    useUIStore.getState().setAllProbesSelected(true);
-    render(<ConsolePanel />);
-    expect(shown()).toEqual(['roster-board-stub']);
   });
 });

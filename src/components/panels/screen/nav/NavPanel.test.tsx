@@ -15,8 +15,8 @@ import type { Company } from '@/types/Company';
 import type { Locale } from '@/types/locale';
 
 /*
- * docs/tasks/LAYOUT_REWORK.md Task 4 (spec §1.2): one panel of four parent boxes (five until docs/tasks/OFF_SCREEN_CONSOLE.md Task 14 took Settings out) that expands in place
- * for Probes and Companies. CabinetBox is stubbed to expose `popped`; gsap is stubbed to record each
+ * docs/tasks/LAYOUT_REWORK.md Task 4 (spec §1.2): one panel of three parent boxes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 14 took Settings
+ * out, Task 18 Companies) that expands in place for Probes. CabinetBox is stubbed to expose `popped`; gsap is stubbed to record each
  * call and apply custom properties to their target at once, so the expand factor the width timeline
  * writes on #screen-viewport is readable from the DOM.
  */
@@ -77,7 +77,7 @@ function stubMatchMedia({ desk, reducedMotion = false }: { desk: boolean; reduce
 const realMatchMedia = window.matchMedia;
 const localeId = getActiveLocaleId();
 const human = (key: ContentKey) => labels(key).humanLabel;
-const BOX_ORDER: ContentKey[] = ['nav.home', 'fleet.root', 'probe.root', 'company.root'];
+const BOX_ORDER: ContentKey[] = ['nav.home', 'fleet.root', 'probe.root'];
 
 function seedRoster() {
   useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
@@ -111,8 +111,8 @@ afterEach(() => {
   Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
 });
 
-describe('NavPanel — four parent boxes (desk)', () => {
-  it('is a navigation landmark holding the four boxes in the sketch order, named from the content layer: Deck, Fleet Params, Probes, Companies, and no Settings', () => {
+describe('NavPanel — three parent boxes (desk)', () => {
+  it('is a navigation landmark holding the three boxes in the sketch order, named from the content layer: Deck, Fleet Params, Probes, and no Settings or Companies', () => {
     renderPanel();
     const names = within(nav()).getAllByRole('button').map((b) => b.getAttribute('aria-label'));
     expect(names).toEqual(BOX_ORDER.map(human));
@@ -141,7 +141,6 @@ describe('NavPanel — four parent boxes (desk)', () => {
     [null, 'nav.home'],
     ['audioRig', 'fleet.root'],
     ['robots', 'probe.root'],
-    ['companies', 'company.root'],
   ] as [HubTile | null, ContentKey][])('with tile %s open, only the %s box is popped and marked current', (tile, activeKey) => {
     useUIStore.setState({ activeHubTile: tile });
     renderPanel();
@@ -155,7 +154,6 @@ describe('NavPanel — four parent boxes (desk)', () => {
   it.each([
     ['fleet.root', 'audioRig'],
     ['probe.root', 'robots'],
-    ['company.root', 'companies'],
   ] as [ContentKey, HubTile][])('clicking %s opens the %s tile and pops its box', (key, tile) => {
     renderPanel();
     fireEvent.click(box(key));
@@ -207,10 +205,9 @@ describe('NavPanel — four parent boxes (desk)', () => {
   });
 });
 
-describe('NavPanel — Probes and Companies expand in place (desk)', () => {
+describe('NavPanel — Probes expands in place (desk)', () => {
   it.each([
     ['probe.root', 'probe.all'],
-    ['company.root', 'nav.entity.newCompany'],
   ] as [ContentKey, ContentKey][])('selecting %s lists its entities under its own box, %s first, and sets the wide value', (key, firstEntity) => {
     renderPanel();
     expect(expandFactor()).toBe('0');
@@ -234,15 +231,6 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
     expect(expandFactor()).toBe('0');
   });
 
-  it('switching straight from Probes to Companies swaps the list and stays wide', () => {
-    renderPanel();
-    fireEvent.click(box('probe.root'));
-    fireEvent.click(box('company.root'));
-    expect(nav().querySelectorAll('.nav-entity-list')).toHaveLength(1);
-    expect(box('company.root').closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
-    expect(expandFactor()).toBe('1');
-  });
-
   it('the list and the width follow expandedTopLevelBranch: the Probes tile with its list collapsed lists nothing, at rest', () => {
     useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
     renderPanel();
@@ -259,7 +247,7 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
   });
 
   // Crawford, 2026-10-09: "back, then collapse".
-  it.each(['probe.root', 'company.root'] as ContentKey[])(
+  it.each(['probe.root'] as ContentKey[])(
     'clicking the open %s box on its own page collapses the list to rest, and again reopens it',
     (key) => {
       renderPanel();
@@ -298,23 +286,22 @@ describe('NavPanel — Probes and Companies expand in place (desk)', () => {
     expect(expandFactor()).toBe('0');
   });
 
-  it('marks the open Probes / Companies box aria-expanded, and only that box', () => {
+  it('marks the open Probes box aria-expanded, and only that box', () => {
     renderPanel();
     expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
-    expect(box('company.root').getAttribute('aria-expanded')).toBe('false');
     expect(box('fleet.root').getAttribute('aria-expanded')).toBeNull();
     expect(box('nav.home').getAttribute('aria-expanded')).toBeNull();
 
     fireEvent.click(box('probe.root'));
     expect(box('probe.root').getAttribute('aria-expanded')).toBe('true');
-    expect(box('company.root').getAttribute('aria-expanded')).toBe('false');
+    expect(box('fleet.root').getAttribute('aria-expanded')).toBeNull();
 
     fireEvent.click(box('probe.root'));
     expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
   });
 
   it('mounting with a branch already open sets the wide value at once, without a tween', () => {
-    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
     renderPanel();
     expect(expandFactor()).toBe('1');
     expect(gsapLog.calls.map((c) => c.kind)).toEqual(['set']);
@@ -396,7 +383,6 @@ describe('NavPanel — keyboard', () => {
       human('probe.all'),
       'Tidal Wisp',
       'Glass Drifter',
-      human('company.root'),
     ]);
     for (const b of buttons) {
       expect(b.tagName).toBe('BUTTON');
@@ -516,7 +502,6 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     ['nav.home', null],
     ['fleet.root', 'audioRig'],
     ['probe.root', 'robots'],
-    ['company.root', 'companies'],
   ] as [ContentKey, HubTile | null][])('picking %s opens it and closes the sheet', (key, tile) => {
     openSheet({ activeHubTile: key === 'nav.home' ? 'audioRig' : null });
     fireEvent.click(box(key));
@@ -529,7 +514,6 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
   it.each([
     ['Tidal Wisp', { selectedRobotId: 'r1' }, 'robots', 'probes'],
     [human('probe.all'), { allProbesSelected: true }, 'robots', 'probes'],
-    ['Rust Syndicate', { selectedCompanyId: 'c1' }, 'companies', 'companies'],
   ] as const)('picking the entity %s selects it and closes the sheet', (name, selected, tile, branch) => {
     openSheet({ activeHubTile: tile, expandedTopLevelBranch: branch });
     fireEvent.click(within(sheet()).getByRole('button', { name }));
@@ -543,14 +527,6 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
     expect(useUIStore.getState().isNavPanelOpen).toBe(true);
     expect(entityList()).toBeNull();
-  });
-
-  it('+ New Company opens its form in the sheet and is not a pick', () => {
-    openSheet({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
-    const newCompany = within(sheet()).getByRole('button', { name: human('nav.entity.newCompany') });
-    fireEvent.click(newCompany);
-    expect(newCompany.getAttribute('aria-expanded')).toBe('true');
-    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
   });
 
   it('moves focus into the sheet on open', () => {

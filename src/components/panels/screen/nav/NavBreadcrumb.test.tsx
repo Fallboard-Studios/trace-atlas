@@ -23,7 +23,6 @@ const realMatchMedia = window.matchMedia;
 
 const ROOT = CONTENT['nav.root'].human;
 const PROBES = CONTENT['probe.root'].human;
-const COMPANIES = CONTENT['company.root'].human;
 const FLEET = CONTENT['fleet.root'].human;
 const LFO_BANK = CONTENT['fleet.lfoBank'].human;
 const LANE_B = CONTENT['fleet.lfoBank.laneB'].human;
@@ -113,9 +112,9 @@ describe('NavBreadcrumb — the path, from navActions', () => {
   });
 
   it('reads a company by its name', () => {
-    setNav({ activeHubTile: 'companies', selectedCompanyId: 'c1' });
+    setNav({ activeHubTile: 'robots', selectedCompanyId: 'c1' });
     render(<NavBreadcrumb />);
-    expect(crumb().textContent).toBe(`${ROOT} / ${COMPANIES} / Rust Syndicate / ${SOURCE}`);
+    expect(crumb().textContent).toBe(`${ROOT} / ${PROBES} / Rust Syndicate / ${SOURCE}`);
   });
 
   it('follows the store: a rename shows at once, and going home empties it', () => {
@@ -216,7 +215,7 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
   });
 
   it('a company under a section goes back to the company', () => {
-    setNav({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' });
+    setNav({ activeHubTile: 'robots', selectedCompanyId: 'c1', selectedSection: 'envelope' });
     render(<NavBreadcrumb />);
     fireEvent.click(screen.getByRole('button', { name: 'Rust Syndicate' }));
     expect(useUIStore.getState().selectedCompanyId).toBe('c1');

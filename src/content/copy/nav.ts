@@ -6,7 +6,7 @@ import type { ContentEntry } from '../types';
  *  NavBreadcrumb.tsx and NavStatusBlock.tsx.
  *  Layout rework (docs/specs/LAYOUT_REWORK.md §1.2): the panel's entity list follows the same rule —
  *  "All Probes" reads probe.all, robots and companies show their own names (data) — so the only new
- *  nav key is the one action the panel owns, `nav.entity.newCompany`. The world line kept nav.status.*
+ *  nav key is the one action the panel owned, `nav.entity.newCompany` (the roster board's since Task 18 of docs/tasks/OFF_SCREEN_CONSOLE.md). The world line kept nav.status.*
  *  when it moved from NavStatusBlock to the meta box (MetaBox.tsx, Task 8): no separate field names
  *  exist to add. `nav.expand` / `nav.collapse` (the tree rows' +/- buttons) went with the tree (Task 9). */
 export const nav = {
