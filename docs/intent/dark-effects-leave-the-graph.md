@@ -1,7 +1,7 @@
 # Intent: Dark Effects Leave the Graph — a dark effect does not exist
 
 Confirmed via `interview-me` on 2026-11-10 (5 questions, each guess taken), ahead of a `spec-driven-development` pass.
-Backlog [72](../todo/backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9), 67's B9, first
+Backlog [72](../todo/archive/backlog-archive.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9), 67's B9, first
 item of plan.md's Stage 1. Its evidence is the ablation in the backlog 67 record
 ([scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), the second §9, "B9 (T16b)").
 

@@ -19,8 +19,8 @@ questions, every guess taken). Open questions Q1 and Q2 answered by Crawford the
 defaults); spec approved for planning the same day. Plan:
 [docs/tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md](../tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md) (2026-11-10, seventeen tasks
 in five phases). **Built** 2026-11-10 on `perf/dark-effects-leave-the-graph`, the runs and Crawford's ear passed:
-§8, "As built". Backlog
-[72](../todo/backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9), 67's B9, first item of
+§8, "As built". Merged in PR #617 (2026-11-10); backlog 72 archived. Backlog
+[72](../todo/archive/backlog-archive.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9), 67's B9, first item of
 plan.md's Stage 1. The evidence is the ablation in the backlog 67 record
 ([scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), the second §9, "B9 (T16b)"); the cell model it changes
 is [DARK_EFFECT_BYPASS.md](DARK_EFFECT_BYPASS.md)'s, and the hold-off it extends is

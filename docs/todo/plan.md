@@ -13,9 +13,7 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 1 — Feature wrap-up
 
-- Backlog [72](backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9) **Dark effects leave the
-  graph** — 67's B9, priced −0.026 / −0.022 at Full; interviewed 2026-11-10
-  ([intent](../intent/dark-effects-leave-the-graph.md)); built 2026-11-10, waiting on its PR.
+- Empty: its last item, backlog 72, merged 2026-11-10 (PR #617). Stage 2 is next.
 
 ## Stage 2 — Bugs and quality of life
 
