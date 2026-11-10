@@ -790,5 +790,759 @@ describe('bypassCell', () => {
         expect(String(devWarn.mock.calls[0][0])).toContain('autoWah');
       });
     });
+
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2: a registered key's effect exists only between its cell's first
+    // light and the teardown after it goes dark at its own level. Stub builders stand in for globalFx.ts's; a cell with
+    // no registration keeps today's behaviour.
+    describe('the effect lifetime (backlog 72)', () => {
+      type FakeLfo = { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
+      type StubEffect = FakeNode & { effectSend: FakeNode; effectReturn: FakeNode; _lfoL: FakeLfo; _lfoR: FakeLfo };
+      const lfo = (): FakeLfo => ({ start: vi.fn(), stop: vi.fn() });
+      /** A fresh effect per build, with its send and return (no ends warning) and two LFOs. */
+      const stubBuilder = (name: string) => {
+        const built: StubEffect[] = [];
+        const build = vi.fn(() => {
+          const node = Object.assign(fakeNode(name), {
+            effectSend: fakeNode(`${name}.send`),
+            effectReturn: fakeNode(`${name}.return`),
+            _lfoL: lfo(),
+            _lfoR: lfo(),
+          });
+          built.push(node);
+          return node as unknown as Tone.ToneAudioNode;
+        });
+        return { build, built };
+      };
+      const order = (fn: ReturnType<typeof vi.fn>, k = 0) => fn.mock.invocationCallOrder[k];
+
+      async function setup() {
+        const cells = await import('./bypassCell');
+        const { devWarn } = await import('@/utils/helpers');
+        vi.mocked(devWarn).mockClear(); // the mock keeps its calls across resetModules
+        return { cells, devWarn: vi.mocked(devWarn) };
+      }
+
+      /** The Grit room with an empty Distortion branch, registered unless `register` is false. */
+      async function emptyGrit(register = true) {
+        const { cells, devWarn } = await setup();
+        const stub = stubBuilder('distortion');
+        const onTeardown = vi.fn();
+        if (register) cells.registerEffect('distortion', { build: stub.build, onTeardown });
+        cells.buildRoom('grit', GainCtor, DelayCtor);
+        cells.buildBranch('distortion', 'grit', null, GainCtor);
+        cells.wireCells();
+        return { cells, devWarn, onTeardown, room: cells.getRoom('grit')!, branch: cells.getCell('distortion')!, ...stub };
+      }
+
+      /** An empty Tremolo chain cell, registered. */
+      async function emptyTremolo() {
+        const { cells, devWarn } = await setup();
+        const stub = stubBuilder('tremolo');
+        const onTeardown = vi.fn();
+        cells.registerEffect('tremolo', { build: stub.build, onTeardown });
+        cells.buildCell('tremolo', null, GainCtor, DelayCtor);
+        cells.wireCells();
+        return { cells, devWarn, onTeardown, cell: cells.getCell('tremolo')!, ...stub };
+      }
+
+      /** Fire one pending context timer by hand, leaving the others pending. */
+      const fire = (timer: { id: number; fn: () => void }) => {
+        context.timeouts = context.timeouts.filter((t) => t.id !== timer.id);
+        timer.fn();
+      };
+
+      /** The Distortion branch built and lit at a depth of 0.3 in its fed Grit room. */
+      async function litGrit() {
+        const grit = await emptyGrit();
+        grit.cells.setRoomFed('grit', true);
+        grit.cells.writeCellMix('distortion', 0.3);
+        return { ...grit, node: grit.built[0] };
+      }
+
+      /** The Shifter branch, pinned at depth 1, lit in its fed Shimmer room and then left unfed: disconnected, effect kept. */
+      async function unfedShimmer() {
+        const { cells } = await setup();
+        const stub = stubBuilder('frequencyShifter');
+        cells.registerEffect('frequencyShifter', { build: stub.build });
+        cells.buildRoom('shimmer', GainCtor, DelayCtor);
+        cells.buildBranch('frequencyShifter', 'shimmer', null, GainCtor);
+        cells.wireCells();
+        cells.writeCellMix('frequencyShifter', 1);
+        cells.setRoomFed('shimmer', true);
+        cells.setRoomFed('shimmer', false);
+        context.fireAll();
+        return { cells, branch: cells.getCell('frequencyShifter')!, node: stub.built[0], ...stub };
+      }
+
+      describe('built at a light (Task 1)', () => {
+        it('a registered empty branch builds its effect at its first light, connects it under a wet of 0, then ramps', async () => {
+          const { cells, room, branch, build, built } = await emptyGrit();
+          cells.setRoomFed('grit', true);
+          expect(build).not.toHaveBeenCalled(); // fed, but its depth is 0: dark
+
+          cells.writeCellMix('distortion', 0.3);
+
+          expect(build).toHaveBeenCalledTimes(1);
+          const node = built[0];
+          expect(branch.effect).toBe(node);
+          expect(branch.connected).toBe(true);
+          expect(edgesFrom(room.in)).toContain(node.effectSend);
+          expect(edgesFrom(node.effectReturn)).toEqual([branch.wet]);
+          expect(fake(branch.wet).gain.value).toBe(0);
+          const wetRamp = fake(branch.wet).gain.rampTo;
+          expect(wetRamps(branch)).toEqual([expect.closeTo(colourWetGainOf(0.3), 12)]);
+          expect(order(wetRamp)).toBeGreaterThan(order(node.effectReturn.connect));
+          expect(context.timeouts).toEqual([]);
+        });
+
+        it('records the built effect LFOs and stops them before the connect starts them', async () => {
+          const { cells, branch, built } = await emptyGrit();
+          cells.setRoomFed('grit', true);
+          cells.writeCellMix('distortion', 0.3);
+          const node = built[0];
+          expect(branch.lfos).toEqual([node._lfoL, node._lfoR]);
+          for (const l of [node._lfoL, node._lfoR]) {
+            expect(l.stop).toHaveBeenCalledTimes(1);
+            expect(l.start).toHaveBeenCalledTimes(1);
+            expect(order(l.stop)).toBeLessThan(order(l.start));
+          }
+        });
+
+        it('a second light and a depth change while lit build nothing more', async () => {
+          const { cells, branch, build, built } = await emptyGrit();
+          cells.setRoomFed('grit', true);
+          cells.writeCellMix('distortion', 0.3);
+          cells.writeCellMix('distortion', 0.3);
+          cells.writeCellMix('distortion', 0.6);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBe(built[0]);
+          expect(wetRamps(branch).at(-1)).toBeCloseTo(colourWetGainOf(0.6), 12);
+        });
+
+        it('a depth written while the room is unfed builds nothing; the feed then lights it and builds once', async () => {
+          const { cells, branch, build } = await emptyGrit();
+          cells.writeCellMix('distortion', 0.3);
+          expect(build).not.toHaveBeenCalled();
+          expect(branch.depth).toBe(0.3);
+          expect(branch.connected).toBe(false);
+          expect(context.timeouts).toEqual([]);
+
+          cells.setRoomFed('grit', true);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.connected).toBe(true);
+        });
+
+        it('a registered empty chain cell builds at a Mix above 0 and ramps both gains; a Mix of 0 builds nothing', async () => {
+          const { cells, cell, build, built } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0);
+          expect(build).not.toHaveBeenCalled();
+          expect(context.timeouts).toEqual([]);
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(cell.effect).toBe(built[0]);
+          expect(cell.connected).toBe(true);
+          expect(edgesFrom(cell.in)).toContain(built[0].effectSend);
+          expect(fake(cell.dry).gain.rampTo).toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).toHaveBeenCalled();
+          expect(cells.getConnectedEffectCount()).toBe(1);
+        });
+
+        it('a throwing builder warns once over two lights, leaves the cell dry and unconnected each time, and the next light tries again', async () => {
+          const { cells, devWarn, branch, build, built } = await emptyGrit();
+          const fails = () => {
+            throw new Error('no constructor today');
+          };
+          build.mockImplementationOnce(fails).mockImplementationOnce(fails);
+          cells.setRoomFed('grit', true);
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(branch.effect).toBeNull();
+          expect(branch.connected).toBe(false);
+          expect(branch.mix).toBe(0);
+          expect(wetRamps(branch)).toEqual([]);
+          expect(context.timeouts).toEqual([]);
+
+          cells.writeCellMix('distortion', 0.3); // the same value: a retry, not a re-send
+          expect(build).toHaveBeenCalledTimes(2);
+          expect(branch.effect).toBeNull();
+          expect(wetRamps(branch)).toEqual([]);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+          expect(String(devWarn.mock.calls[0][0])).toContain('distortion');
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(build).toHaveBeenCalledTimes(3);
+          expect(branch.effect).toBe(built[0]);
+          expect(branch.connected).toBe(true);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+        });
+
+        it('a throwing builder on a chain cell writes neither gain', async () => {
+          const { cells, cell, build } = await emptyTremolo();
+          build.mockImplementation(() => {
+            throw new Error('no constructor today');
+          });
+          cells.writeCellMix('tremolo', 0.5);
+          expect(cell.connected).toBe(false);
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+        });
+
+        it('an unregistered empty chain cell ignores every write, as today', async () => {
+          const { cells } = await setup();
+          cells.buildCell('autoWah', null, GainCtor, DelayCtor);
+          cells.wireCells();
+          const cell = cells.getCell('autoWah')!;
+          cells.writeCellMix('autoWah', 0.5);
+          cells.writeCellMix('autoWah', 0);
+          expect(cell.effect).toBeNull();
+          expect(cell.connected).toBe(false);
+          expect(cell.mix).toBe(0);
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+          expect(context.timeouts).toEqual([]);
+        });
+
+        it('an unregistered key with no effect gets no branch, as today', async () => {
+          const { cells } = await emptyGrit(false);
+          expect(cells.getCell('distortion')).toBeUndefined();
+        });
+
+        it('clearCells drops the registrations with the cells', async () => {
+          const { cells, build } = await emptyTremolo();
+          cells.clearCells();
+          cells.buildCell('tremolo', null, GainCtor, DelayCtor);
+          cells.writeCellMix('tremolo', 0.5);
+          expect(build).not.toHaveBeenCalled();
+          expect(cells.getCell('tremolo')!.connected).toBe(false);
+          cells.buildRoom('grit', GainCtor, DelayCtor);
+          cells.buildBranch('distortion', 'grit', null, GainCtor);
+          expect(cells.getCell('distortion')).toBeUndefined();
+        });
+      });
+
+      describe('torn down after a darken (Task 2)', () => {
+        it('exports the wait, 1 s on the context timer', async () => {
+          const { DARK_TEARDOWN_SECONDS } = await import('./bypassCell');
+          expect(DARK_TEARDOWN_SECONDS).toBe(1);
+        });
+
+        it('a branch darkened by its depth disconnects at the first fire, arms one teardown, and is disposed at the second', async () => {
+          const { cells, branch, node, onTeardown } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          expect(context.timeouts).toHaveLength(1); // the darken's disconnect only
+
+          context.fireAll();
+          expect(branch.connected).toBe(false);
+          expect(branch.effect).toBe(node);
+          expect(context.timeouts).toHaveLength(1);
+          expect(context.timeouts[0].seconds).toBe(1);
+          expect(node.dispose).not.toHaveBeenCalled();
+          expect(onTeardown).not.toHaveBeenCalled();
+
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+          expect(branch.lfos).toEqual([]);
+          expect(onTeardown).toHaveBeenCalledTimes(1);
+          expect(order(onTeardown)).toBeGreaterThan(order(node.dispose));
+          expect(context.timeouts).toEqual([]);
+          expect(cells.getConnectedEffectCount()).toBe(0);
+          expect(cells.roomNodes('grit')).not.toContain(node);
+        });
+
+        it('the next light after a teardown builds a fresh effect and lights it', async () => {
+          const { cells, branch, build, built } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          context.fireAll();
+
+          cells.writeCellMix('distortion', 0.5);
+          expect(build).toHaveBeenCalledTimes(2);
+          expect(branch.effect).toBe(built[1]);
+          expect(branch.connected).toBe(true);
+          expect(wetRamps(branch).at(-1)).toBeCloseTo(colourWetGainOf(0.5), 12);
+        });
+
+        it('a light inside the wait cancels the teardown and lights the same node, building nothing', async () => {
+          const { cells, branch, node, build } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          const teardown = context.timeouts[0];
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBe(node);
+          expect(branch.connected).toBe(true);
+          context.fireAll();
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('a branch darkened only by its room going unfed keeps its effect: no teardown, and a re-feed lights the same node', async () => {
+          const { cells, branch, node, build } = await litGrit();
+          cells.setRoomFed('grit', false);
+          context.fireAll();
+          expect(branch.connected).toBe(false);
+          expect(context.timeouts).toEqual([]);
+          expect(branch.effect).toBe(node);
+          expect(node.dispose).not.toHaveBeenCalled();
+
+          cells.setRoomFed('grit', true);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBe(node);
+          expect(branch.connected).toBe(true);
+        });
+
+        it('a branch darkened by a Return of 0 on its fed room is torn down', async () => {
+          const { cells, branch, node } = await litGrit();
+          cells.setRoomReturn('grit', 0);
+          context.fireAll();
+          expect(context.timeouts).toHaveLength(1);
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+        });
+
+        it('a chain cell darkened by a Mix of 0 is torn down', async () => {
+          const { cells, cell, built, onTeardown } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+          context.fireAll();
+          expect(built[0].dispose).toHaveBeenCalledTimes(1);
+          expect(cell.effect).toBeNull();
+          expect(onTeardown).toHaveBeenCalledTimes(1);
+        });
+
+        it('a darken whose disconnect Tone refuses leaves the effect in the path: no teardown', async () => {
+          const { cells, branch, room, node } = await litGrit();
+          fake(room.in).disconnect.mockImplementationOnce(() => {
+            throw new Error('refused');
+          });
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          expect(branch.connected).toBe(true);
+          expect(context.timeouts).toEqual([]);
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('an unregistered cell darkened keeps its effect for good', async () => {
+          const { cells } = await setup();
+          const wah = fakeNode('autoWah');
+          cells.buildCell('autoWah', wah as unknown as Tone.ToneAudioNode, GainCtor, DelayCtor);
+          cells.wireCells();
+          cells.writeCellMix('autoWah', 0.5);
+          cells.writeCellMix('autoWah', 0);
+          context.fireAll();
+          expect(context.timeouts).toEqual([]);
+          context.fireAll();
+          expect(wah.dispose).not.toHaveBeenCalled();
+          expect(cells.getCell('autoWah')!.effect).toBe(wah);
+        });
+
+        it('clearCells cancels a pending teardown', async () => {
+          const { cells, node } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          const teardown = context.timeouts[0];
+          cells.clearCells();
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          fire(teardown); // a fire that slipped past the cancel finds its cell gone
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+      });
+
+      describe('checked on every write (Task 3)', () => {
+        it('a depth of 0 on an unfed room, its branch already disconnected, arms the teardown (the re-sent dark write, as the hold-off sends it)', async () => {
+          const { cells, branch, node } = await litGrit();
+          cells.setRoomFed('grit', false);
+          context.fireAll();
+          expect(context.timeouts).toEqual([]);
+
+          cells.writeCellMix('distortion', 0);
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+        });
+
+        it('a depth raised again on the unfed room before the fire cancels the teardown and keeps the node, unlit', async () => {
+          const { cells, branch, node } = await litGrit();
+          cells.setRoomFed('grit', false);
+          context.fireAll();
+          cells.writeCellMix('distortion', 0);
+          const teardown = context.timeouts[0];
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          expect(branch.connected).toBe(false);
+          expect(branch.effect).toBe(node);
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('on a pinned branch of an unfed room, a Return of 0 arms the teardown and a Return of 0.5 before the fire cancels it', async () => {
+          const { cells, branch, node } = await unfedShimmer();
+          expect(context.timeouts).toEqual([]);
+
+          cells.setRoomReturn('shimmer', 0);
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+          const teardown = context.timeouts[0];
+
+          cells.setRoomReturn('shimmer', 0.5);
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          context.fireAll();
+          expect(branch.effect).toBe(node);
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('a Return of 0 on an unfed room left to its fire tears the branch down; feeding the room after builds it again', async () => {
+          const { cells, branch, node, build } = await unfedShimmer();
+          cells.setRoomReturn('shimmer', 0);
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+
+          cells.setRoomFed('shimmer', true);
+          expect(build).toHaveBeenCalledTimes(1); // the Return is still 0: dark
+          cells.setRoomReturn('shimmer', 0.8);
+          expect(build).toHaveBeenCalledTimes(2);
+          expect(branch.connected).toBe(true);
+        });
+
+        it('a re-sent dark write keeps a pending teardown as it is, so the wait still runs from the disconnect', async () => {
+          const { cells } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          const teardown = context.timeouts[0];
+
+          cells.writeCellMix('distortion', 0);
+          cells.setRoomFed('grit', false);
+          cells.setRoomFed('grit', true);
+          expect(context.timeouts.map((t) => t.id)).toEqual([teardown.id]);
+          expect(context.cleared).not.toContain(teardown.id);
+        });
+
+        it('a re-sent dark write on a torn-down cell arms nothing', async () => {
+          const { cells } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          context.fireAll();
+          cells.writeCellMix('tremolo', 0);
+          expect(context.timeouts).toEqual([]);
+        });
+      });
+
+      describe('a teardown cancels its key duck (Task 4)', () => {
+        /** A lit Tremolo ducked, darkened, its disconnect fired, and the duck re-armed past it: the teardown pending. */
+        async function duckPastDarken() {
+          const tremolo = await emptyTremolo();
+          const { cells } = tremolo;
+          cells.writeCellMix('tremolo', 0.5);
+          cells.duckCell('tremolo', vi.fn());
+          cells.writeCellMix('tremolo', 0);
+          fire(context.timeouts[1]); // the darken's disconnect, the duck's first change still pending
+          expect(tremolo.cell.connected).toBe(false);
+          const apply = vi.fn();
+          expect(cells.needsDuck('tremolo')).toBe(true);
+          cells.duckCell('tremolo', apply); // a drag still re-arming it
+          const [teardown, duck] = context.timeouts;
+          expect(teardown.seconds).toBe(1);
+          return { ...tremolo, apply, teardown, duck };
+        }
+
+        it('the teardown clears the pending duck: its timer is cancelled, its apply never runs, the key is not ducked', async () => {
+          const { cells, cell, built, apply, teardown, duck, onTeardown } = await duckPastDarken();
+
+          fire(teardown);
+
+          expect(context.cleared).toContain(duck.id);
+          expect(cells.isDucked('tremolo')).toBe(false);
+          expect(built[0].dispose).toHaveBeenCalledTimes(1);
+          expect(cell.effect).toBeNull();
+          expect(onTeardown).toHaveBeenCalledTimes(1);
+          expect(context.timeouts).toEqual([]);
+          context.fireAll();
+          expect(apply).not.toHaveBeenCalled();
+        });
+
+        it('a light in the wait keeps the duck, which then runs as before', async () => {
+          const { cells, cell, built, apply } = await duckPastDarken();
+
+          cells.writeCellMix('tremolo', 0.5);
+          context.fireAll();
+
+          expect(apply).toHaveBeenCalledTimes(1);
+          expect(cells.isDucked('tremolo')).toBe(false);
+          expect(cell.effect).toBe(built[0]);
+          expect(cell.connected).toBe(true);
+        });
+
+        it('a duck on a lit registered cell runs as before', async () => {
+          const { cells } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          const apply = vi.fn();
+          cells.duckCell('tremolo', apply);
+          context.fireAll();
+          expect(apply).toHaveBeenCalledTimes(1);
+          expect(cells.isDucked('tremolo')).toBe(false);
+        });
+      });
+
+      // §1.7 (Q1): the BitCrusher's worklet node is made after its constructor returns, so its light waits for it.
+      describe('a light waits for an effect that is not ready (Task 5)', () => {
+        /** A promise the test resolves or rejects by hand. */
+        function deferred() {
+          let resolve!: () => void;
+          let reject!: (err: unknown) => void;
+          const promise = new Promise<void>((res, rej) => {
+            resolve = res;
+            reject = rej;
+          });
+          return { promise, resolve, reject };
+        }
+        /** Let the resolved promises' callbacks run. */
+        const flush = () => new Promise((settle) => setTimeout(settle, 0));
+
+        /** An empty registered Tremolo whose every built node waits on its own hand-resolved readiness. */
+        async function unreadyTremolo() {
+          const { cells, devWarn } = await setup();
+          const stub = stubBuilder('tremolo');
+          const readiness: Array<ReturnType<typeof deferred>> = [];
+          const whenReady = vi.fn(() => {
+            const ready = deferred();
+            readiness.push(ready);
+            return ready.promise;
+          });
+          cells.registerEffect('tremolo', { build: stub.build, whenReady });
+          cells.buildCell('tremolo', null, GainCtor, DelayCtor);
+          cells.wireCells();
+          return { cells, devWarn, whenReady, readiness, cell: cells.getCell('tremolo')!, ...stub };
+        }
+        const wetValues = (cell: { wet: unknown }) => fake(cell.wet).gain.rampTo.mock.calls.map((c: unknown[]) => c[0]);
+
+        it('builds at the light but keeps the cell dry and unconnected until whenReady resolves, then connects and ramps from wet 0', async () => {
+          const { cells, cell, built, whenReady, readiness } = await unreadyTremolo();
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(built).toHaveLength(1);
+          expect(whenReady).toHaveBeenCalledWith(built[0]);
+          expect(cell.effect).toBe(built[0]);
+          expect(cell.connected).toBe(false);
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+          expect(built[0]._lfoL.start).not.toHaveBeenCalled();
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+          expect(context.timeouts).toEqual([]);
+          expect(cells.getConnectedEffectCount()).toBe(0);
+
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(true);
+          expect(edgesFrom(cell.in)).toContain(built[0].effectSend);
+          expect(built[0]._lfoL.start).toHaveBeenCalledTimes(1);
+          expect(wetValues(cell)).toEqual([expect.closeTo(Math.sin((colourWetGainOf(0.5) * Math.PI) / 2), 12)]);
+          expect(order(fake(cell.wet).gain.rampTo)).toBeGreaterThan(order(built[0].effectReturn.connect));
+        });
+
+        it('lights at the last target written while it waited, once, building nothing more', async () => {
+          const { cells, cell, built, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0.7);
+          expect(built).toHaveLength(1);
+          expect(whenReady).toHaveBeenCalledTimes(1);
+
+          readiness[0].resolve();
+          await flush();
+          expect(edgesFrom(cell.in).filter((n: unknown) => n === built[0].effectSend)).toHaveLength(1);
+          expect(wetValues(cell)).toEqual([expect.closeTo(Math.sin((colourWetGainOf(0.7) * Math.PI) / 2), 12)]);
+        });
+
+        it('a darken before the resolve cancels the pending light: no darken timer, the teardown armed, the resolve connects nothing', async () => {
+          const { cells, cell, built, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          expect(cell.mix).toBe(0);
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(false);
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+
+          context.fireAll();
+          expect(built[0].dispose).toHaveBeenCalledTimes(1);
+        });
+
+        it('a node torn down before it was ready ignores its late resolve; the next light builds a fresh one and waits for that', async () => {
+          const { cells, cell, built, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          expect(cell.effect).toBeNull();
+
+          readiness[0].resolve();
+          await flush();
+          expect(built[0].effectSend.connect).not.toHaveBeenCalled();
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(whenReady).toHaveBeenCalledTimes(2);
+          expect(cell.connected).toBe(false);
+          readiness[1].resolve();
+          await flush();
+          expect(cell.effect).toBe(built[1]);
+          expect(cell.connected).toBe(true);
+        });
+
+        it('a node already ready lights in the same call (a re-light in the teardown wait)', async () => {
+          const { cells, cell, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          readiness[0].resolve();
+          await flush();
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll(); // the disconnect; the teardown now waits
+          cells.writeCellMix('tremolo', 0.5);
+          expect(cell.connected).toBe(true);
+          expect(whenReady).toHaveBeenCalledTimes(1);
+        });
+
+        it('a node put in its cell at build (a chain cell or a branch) waits for its readiness too, then lights in the same call', async () => {
+          const { cells } = await setup();
+          const readiness: Array<ReturnType<typeof deferred>> = [];
+          const whenReady = () => {
+            const ready = deferred();
+            readiness.push(ready);
+            return ready.promise;
+          };
+          cells.registerEffect('autoWah', { build: vi.fn(), whenReady });
+          cells.registerEffect('bitCrusher', { build: vi.fn(), whenReady });
+          cells.buildCell('autoWah', stubBuilder('autoWah').build(), GainCtor, DelayCtor);
+          cells.buildRoom('grit', GainCtor, DelayCtor);
+          cells.buildBranch('bitCrusher', 'grit', stubBuilder('bitCrusher').build(), GainCtor);
+          cells.wireCells();
+          cells.setRoomFed('grit', true);
+          expect(readiness).toHaveLength(2);
+
+          cells.writeCellMix('autoWah', 0.5);
+          cells.writeCellMix('bitCrusher', 0.5);
+          expect(cells.getConnectedEffectCount()).toBe(0);
+          for (const ready of readiness) ready.resolve();
+          await flush();
+          expect(cells.getConnectedEffectCount()).toBe(2);
+
+          cells.writeCellMix('autoWah', 0);
+          context.fireAll();
+          expect(cells.getCell('autoWah')!.connected).toBe(false);
+          cells.writeCellMix('autoWah', 0.5);
+          expect(cells.getCell('autoWah')!.connected).toBe(true);
+        });
+
+        it('lights from wet 0 along the law chords at the resolve, as a light from dark does', async () => {
+          const { cells, cell, readiness } = await unreadyTremolo();
+          fake(cell.dry).gain.linearRampToValueAtTime = vi.fn();
+          fake(cell.wet).gain.linearRampToValueAtTime = vi.fn();
+          cells.writeCellMix('tremolo', 0.9);
+          readiness[0].resolve();
+          await flush();
+          // From 0 to colourWetGain(0.9) = 0.81: four chords of at most a quarter, the first a rampTo.
+          expect(fake(cell.wet).gain.rampTo).toHaveBeenCalledTimes(1);
+          expect(fake(cell.wet).gain.linearRampToValueAtTime).toHaveBeenCalledTimes(3);
+          expect(fake(cell.wet).gain.rampTo.mock.calls[0][0]).toBeCloseTo(Math.sin((0.81 / 4) * (Math.PI / 2)), 12);
+        });
+
+        it('an effect swapped into the cell while its light waits is never lit by the old node resolve', async () => {
+          const { cells, cell, built, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          const fresh = stubBuilder('tremolo').build();
+          cells.setCellEffect(cell, fresh);
+
+          readiness[0].resolve();
+          await flush();
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+          expect(built[0].effectReturn.connect).not.toHaveBeenCalled();
+        });
+
+        it('a connect Tone refuses at the resolve leaves the cell dry with no target recorded, and the next light tries again', async () => {
+          const { cells, cell, readiness } = await unreadyTremolo();
+          fake(cell.in).connect.mockImplementationOnce(() => {
+            throw new Error('refused');
+          });
+          cells.writeCellMix('tremolo', 0.5);
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(false);
+          expect(cell.mix).toBe(0);
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(cell.connected).toBe(true);
+        });
+
+        it('a branch whose room goes unfed while it waits keeps its node, and lights at once when fed again after the resolve', async () => {
+          const { cells } = await setup();
+          const stub = stubBuilder('bitCrusher');
+          const ready = deferred();
+          cells.registerEffect('bitCrusher', { build: stub.build, whenReady: () => ready.promise });
+          cells.buildRoom('grit', GainCtor, DelayCtor);
+          cells.buildBranch('bitCrusher', 'grit', null, GainCtor);
+          cells.wireCells();
+          const branch = cells.getCell('bitCrusher')!;
+          cells.setRoomFed('grit', true);
+          cells.writeCellMix('bitCrusher', 0.5);
+          cells.setRoomFed('grit', false);
+          expect(context.timeouts).toEqual([]); // no darken to run and no teardown: only unfed
+
+          ready.resolve();
+          await flush();
+          expect(branch.connected).toBe(false);
+          cells.setRoomFed('grit', true);
+          expect(branch.connected).toBe(true);
+          expect(branch.effect).toBe(stub.built[0]);
+          expect(wetRamps(branch)).toEqual([expect.closeTo(colourWetGainOf(0.5), 12)]);
+        });
+
+        it('a readiness that fails, by rejecting or by throwing, lights anyway, warned once for its key', async () => {
+          const { cells, devWarn, cell, built, whenReady, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          readiness[0].reject(new Error('no worklet'));
+          await flush();
+          expect(cell.connected).toBe(true);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+          expect(String(devWarn.mock.calls[0][0])).toContain('tremolo');
+
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          context.fireAll();
+          expect(cell.effect).toBeNull();
+          whenReady.mockImplementationOnce(() => {
+            throw new Error('no context');
+          });
+          cells.writeCellMix('tremolo', 0.5);
+          await flush();
+          expect(cell.effect).toBe(built[1]);
+          expect(cell.connected).toBe(true);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+        });
+
+        it('clearCells drops a pending light: a resolve after it connects nothing', async () => {
+          const { cells, cell, built, readiness } = await unreadyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.clearCells();
+          readiness[0].resolve();
+          await flush();
+          expect(cell.connected).toBe(false);
+          expect(edgesFrom(cell.in)).not.toContain(built[0].effectSend);
+        });
+      });
+    });
   });
 });

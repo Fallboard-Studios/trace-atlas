@@ -3285,6 +3285,8 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
     };
     type Node = { connect: AnyMock; disconnect: AnyMock; gain?: { value: number } };
 
+    // Dark Effects Leave the Graph T11: an effect is built only at its cell's first light, so `effects` holds the lit
+    // ones and `built` counts every construction since the start.
     async function startWith(globalAudio: typeof FIXTURE_GLOBAL_AUDIO) {
       const Tone = await import('tone');
       const ctors = Tone as unknown as Record<string, AnyMock>;
@@ -3294,9 +3296,12 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
       useAudioStore.setState({ globalAudio: globalAudio as any });
       await AudioEngine.start();
-      const effects = Object.fromEntries(CELL_CARRIED.map((name) => [name, lastInstance(ctors[name]) as Node]));
+      const effects = Object.fromEntries(
+        CELL_CARRIED.flatMap((name) => (ctors[name].mock.calls.length > 0 ? [[name, lastInstance(ctors[name]) as Node]] : [])),
+      );
+      const built = (name: string) => ctors[name].mock.calls.length;
       const reapply = () => applyGlobalAudioToEngine(useAudioStore.getState().globalAudio, useAudioStore.getState().bpm);
-      return { Tone, effects, reapply };
+      return { Tone, effects, built, reapply };
     }
     const timersArmed = (Tone: typeof import('tone')) =>
       (Tone.getContext as unknown as AnyMock).mock.results.reduce(
@@ -3304,22 +3309,24 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
         0,
       );
 
-    it('wires in exactly the two lit chain effects; the five others, unfed room branches included, stay out of the signal path', async () => {
-      const { effects } = await startWith(TWO_LIT);
+    it('builds and wires in exactly the two lit chain effects; the five others, unfed room branches included, are never built', async () => {
+      const { effects, built } = await startWith(TWO_LIT);
+      expect(built('AutoWah')).toBe(1);
+      expect(built('Vibrato')).toBe(1);
       expect(effects.AutoWah.connect).toHaveBeenCalledTimes(1);
       expect(effects.Vibrato.connect).toHaveBeenCalledTimes(1);
       for (const name of ['Distortion', 'Chebyshev', 'BitCrusher', 'Phaser', 'FrequencyShifter']) {
-        expect(effects[name].connect).not.toHaveBeenCalled();
+        expect(built(name), name).toBe(0);
       }
     });
 
-    it('wires in none of them when every Mix is 0', async () => {
-      const { effects } = await startWith(FIXTURE_GLOBAL_AUDIO);
-      for (const name of CELL_CARRIED) expect(effects[name].connect).not.toHaveBeenCalled();
+    it('builds none of them when every Mix is 0', async () => {
+      const { built } = await startWith(FIXTURE_GLOBAL_AUDIO);
+      for (const name of CELL_CARRIED) expect(built(name), name).toBe(0);
     });
 
-    it('touches no cell when the same settings are applied again: no connect, no timer, no gain write', async () => {
-      const { Tone, effects, reapply } = await startWith(TWO_LIT);
+    it('touches no cell when the same settings are applied again: no construction, no connect, no timer, no gain write', async () => {
+      const { Tone, effects, built, reapply } = await startWith(TWO_LIT);
       const gains = (Tone.Gain as unknown as AnyMock).mock.results.map((r) => r.value as Node);
       const litCells = [effects.AutoWah, effects.Vibrato].map((effect) => {
         const wet = effect.connect.mock.calls[0][0] as Node;
@@ -3331,12 +3338,14 @@ describe('AudioEngine.start — primes the just-built global FX chain from curre
         dry.gain!.value = 0.123;
         wet.gain!.value = 0.456;
       }
-      for (const name of CELL_CARRIED) effects[name].connect.mockClear();
+      for (const effect of Object.values(effects)) effect.connect.mockClear();
+      const builtBefore = CELL_CARRIED.map(built);
       const armed = timersArmed(Tone);
 
       reapply();
 
-      for (const name of CELL_CARRIED) expect(effects[name].connect).not.toHaveBeenCalled();
+      expect(CELL_CARRIED.map(built)).toEqual(builtBefore);
+      for (const effect of Object.values(effects)) expect(effect.connect).not.toHaveBeenCalled();
       expect(timersArmed(Tone)).toBe(armed);
       for (const { dry, wet } of litCells) {
         expect(dry.gain!.value).toBe(0.123);
@@ -3384,15 +3393,16 @@ describe('AudioEngine.start — the colour slot (Global Colour T3)', () => {
     vi.resetModules();
   });
 
-  it('constructs exactly one Distortion, one Chebyshev and one BitCrusher', async () => {
+  // Dark Effects Leave the Graph T11: a branch is built at its first light, and no robot feeds the Colour room at start.
+  it('constructs no Distortion, Chebyshev or BitCrusher: none lights while no robot feeds the Colour room', async () => {
     const Tone = await import('tone');
     // The mocked module outlives vi.resetModules(), so earlier tests' constructions are still in the call history.
     for (const ctor of [Tone.Distortion, Tone.Chebyshev, Tone.BitCrusher]) vi.mocked(ctor).mockClear();
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
-    expect(Tone.Distortion).toHaveBeenCalledTimes(1);
-    expect(Tone.Chebyshev).toHaveBeenCalledTimes(1);
-    expect(Tone.BitCrusher).toHaveBeenCalledTimes(1);
+    expect(Tone.Distortion).not.toHaveBeenCalled();
+    expect(Tone.Chebyshev).not.toHaveBeenCalled();
+    expect(Tone.BitCrusher).not.toHaveBeenCalled();
   });
 
   it('exposes setGlobalDistortion, setGlobalChebyshev and setGlobalBitCrusher', async () => {
@@ -3407,6 +3417,12 @@ describe('AudioEngine.start — the colour slot (Global Colour T3)', () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+    // Lit first, so each setter below writes a node that exists: the Colour room fed, each Mix above 0.
+    const cells = await import('./audioEngine/bypassCell');
+    cells.setRoomFed('grit', true);
+    AudioEngine.setGlobalDistortion({ wet: 0.5 });
+    AudioEngine.setGlobalChebyshev({ wet: 0.5 });
+    AudioEngine.setGlobalBitCrusher({ wet: 0.5 });
 
     AudioEngine.setGlobalDistortion({ amount: 0.7 });
     AudioEngine.setGlobalChebyshev({ order: 5 });
@@ -3443,11 +3459,15 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     }
   }
 
-  it('constructs exactly one AutoWah', async () => {
+  // Dark Effects Leave the Graph T11: built at its first light, so start() builds one only when the seeded Mix lights it.
+  it('constructs an AutoWah only at its light, and exactly one', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.AutoWah).mockClear();
     const { AudioEngine } = await import('./AudioEngine');
+    const { useAudioStore } = await import('../stores/audioStore');
     await AudioEngine.start();
+    expect(Tone.AutoWah).toHaveBeenCalledTimes(useAudioStore.getState().globalAudio.autoWah.wet > 0 ? 1 : 0);
+    AudioEngine.setGlobalAutoWah({ wet: 0.5 });
     expect(Tone.AutoWah).toHaveBeenCalledTimes(1);
   });
 
@@ -3473,23 +3493,19 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     expect(last(Tone.AutoWah).wet.rampTo).not.toHaveBeenCalled();
   });
 
-  // start() builds the chain (one Phaser, at the default ten stages) and then pushes the seeded settings. A seeded Phaser
-  // always has 4-12 stages (retuned from 4-8 at Global Modulation T16), so that push rebuilds the node once before anything is
-  // playing unless it seeds ten exactly: one or two constructions, the first at ten stages, the second at the seeded count. (buildGlobalFxChain alone builds
-  // exactly one; globalFx.test.ts pins that.)
-  it('builds the Phaser at ten stages, then at most once more at the seeded stage count', async () => {
+  // start() builds the chain (no Phaser, Dark Effects Leave the Graph T11) and then pushes the seeded settings, whose
+  // Stages reach the mirror before the Mix lights the cell. So a seeded world builds its Phaser once, at its seeded count,
+  // and only if its seeded Mix lights it: never first at the default ten. (globalFx.test.ts pins the chain build.)
+  it('builds the Phaser at most once, at the seeded stage count, and only when the seeded Mix lights it', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.Phaser).mockClear();
     const { AudioEngine } = await import('./AudioEngine');
+    const { useAudioStore } = await import('../stores/audioStore');
     await AudioEngine.start();
+    const seeded = useAudioStore.getState().globalAudio.phaser;
     const calls = vi.mocked(Tone.Phaser).mock.calls as unknown as Array<[{ stages: number }]>;
-    expect(calls.length).toBeGreaterThanOrEqual(1);
-    expect(calls.length).toBeLessThanOrEqual(2);
-    expect(calls[0][0].stages).toBe(10);
-    if (calls.length === 2) {
-      expect(calls[1][0].stages).toBeGreaterThanOrEqual(4);
-      expect(calls[1][0].stages).toBeLessThanOrEqual(12);
-    }
+    expect(calls.length).toBe(seeded.wet > 0 ? 1 : 0);
+    for (const [options] of calls) expect(options.stages).toBe(seeded.stages);
   });
 
   it('exposes setGlobalPhaser', async () => {
@@ -3503,6 +3519,8 @@ describe('AudioEngine.start — the modulation slot (Global Modulation T4, T5)',
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
     const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
+    // Lit first (a no-op if the seed already lit it), so the writes below reach a node that exists.
+    AudioEngine.setGlobalPhaser({ wet: 1 });
 
     AudioEngine.setGlobalPhaser({ octaves: 4, rate: 2 });
     expect(last(Tone.Phaser).octaves).toBe(4);
@@ -3548,16 +3566,24 @@ describe('AudioEngine.start — the Chorus and the Tremolo (Global Pedals T4)', 
 
   const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
 
-  it('constructs exactly one of each and starts each LFO once', async () => {
+  // Dark Effects Leave the Graph T11: each is built at its first light, and started once when it is.
+  it('constructs no Chorus while no robot feeds the Double room, and a Tremolo only at its light, its LFO started once', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.Chorus).mockClear();
     vi.mocked(Tone.Tremolo).mockClear();
     const { AudioEngine } = await import('./AudioEngine');
+    const { useAudioStore } = await import('../stores/audioStore');
     await AudioEngine.start();
-    expect(Tone.Chorus).toHaveBeenCalledTimes(1);
+    expect(Tone.Chorus).not.toHaveBeenCalled();
+    expect(Tone.Tremolo).toHaveBeenCalledTimes(useAudioStore.getState().globalAudio.tremolo.wet > 0 ? 1 : 0);
+    AudioEngine.setGlobalTremolo({ wet: 0.5 });
     expect(Tone.Tremolo).toHaveBeenCalledTimes(1);
-    expect(last(Tone.Chorus).start).toHaveBeenCalledTimes(1);
     expect(last(Tone.Tremolo).start).toHaveBeenCalledTimes(1);
+    const cells = await import('./audioEngine/bypassCell');
+    AudioEngine.setGlobalChorus({ wet: 0.5 });
+    cells.setRoomFed('double', true);
+    expect(Tone.Chorus).toHaveBeenCalledTimes(1);
+    expect(last(Tone.Chorus).start).toHaveBeenCalledTimes(1);
   });
 
   it('exposes setGlobalChorus and setGlobalTremolo', async () => {
@@ -3570,6 +3596,10 @@ describe('AudioEngine.start — the Chorus and the Tremolo (Global Pedals T4)', 
     const Tone = await import('tone');
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
+    // The Chorus lit first (its Return above 0 and its room fed), so the writes below reach a node that exists.
+    const cells = await import('./audioEngine/bypassCell');
+    AudioEngine.setGlobalChorus({ wet: 0.5 });
+    cells.setRoomFed('double', true);
     AudioEngine.setGlobalChorus({ delayTime: 7, rate: 1.25 });
     AudioEngine.setGlobalTremolo({ spread: 30, wet: 1 });
     // start() may leave the seeded Tremolo lit, and a lit pedal's Spread waits for the de-click duck's audio-clock timer
@@ -3594,21 +3624,34 @@ describe('AudioEngine.start — the Vibrato and the FrequencyShifter (Global Ped
 
   const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
 
-  it('constructs exactly one of each, and never starts the Vibrato', async () => {
+  // Dark Effects Leave the Graph T11: each is built at its first light.
+  it('constructs no FrequencyShifter while no robot feeds the Shimmer room, and a Vibrato only at its light, never started', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.Vibrato).mockClear();
     vi.mocked(Tone.FrequencyShifter).mockClear();
     const { AudioEngine } = await import('./AudioEngine');
+    const { useAudioStore } = await import('../stores/audioStore');
     await AudioEngine.start();
+    expect(Tone.FrequencyShifter).not.toHaveBeenCalled();
+    expect(Tone.Vibrato).toHaveBeenCalledTimes(useAudioStore.getState().globalAudio.vibrato.wet > 0 ? 1 : 0);
+    AudioEngine.setGlobalVibrato({ wet: 0.5 });
     expect(Tone.Vibrato).toHaveBeenCalledTimes(1);
-    expect(Tone.FrequencyShifter).toHaveBeenCalledTimes(1);
     expect(last(Tone.Vibrato).start).not.toHaveBeenCalled();
+    const cells = await import('./audioEngine/bypassCell');
+    AudioEngine.setGlobalFrequencyShifter({ wet: 0.5 });
+    cells.setRoomFed('shimmer', true);
+    expect(Tone.FrequencyShifter).toHaveBeenCalledTimes(1);
   });
 
   it('exposes and routes setGlobalVibrato and setGlobalFrequencyShifter', async () => {
     const Tone = await import('tone');
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();
+    // Both lit first, so the writes below reach nodes that exist.
+    const cells = await import('./audioEngine/bypassCell');
+    AudioEngine.setGlobalVibrato({ wet: 0.5 });
+    AudioEngine.setGlobalFrequencyShifter({ wet: 0.5 });
+    cells.setRoomFed('shimmer', true);
     AudioEngine.setGlobalVibrato({ depth: 0.2 });
     AudioEngine.setGlobalFrequencyShifter({ shift: -9 });
     expect(last(Tone.Vibrato).depth.rampTo).toHaveBeenCalledWith(0.2, 0.05);
@@ -3624,13 +3667,16 @@ describe('AudioEngine.start — the StereoWidener (Global Pedals T6)', () => {
 
   const last = (ctor: unknown) => (ctor as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
 
-  it('constructs exactly one and routes setGlobalStereoWidener to it, untapered', async () => {
+  // Dark Effects Leave the Graph T11: built at its first light, so start() builds one only when the seeded width is off 0.5.
+  it('constructs one at its light and routes setGlobalStereoWidener to it, untapered', async () => {
     const Tone = await import('tone');
     vi.mocked(Tone.StereoWidener).mockClear();
     const { AudioEngine } = await import('./AudioEngine');
+    const { useAudioStore } = await import('../stores/audioStore');
     await AudioEngine.start();
-    expect(Tone.StereoWidener).toHaveBeenCalledTimes(1);
+    expect(Tone.StereoWidener).toHaveBeenCalledTimes(useAudioStore.getState().globalAudio.stereoWidener.width !== 0.5 ? 1 : 0);
     AudioEngine.setGlobalStereoWidener({ width: 0.3 });
+    expect(Tone.StereoWidener).toHaveBeenCalledTimes(1);
     expect(last(Tone.StereoWidener).width.rampTo).toHaveBeenLastCalledWith(0.3, 0.05);
   });
 
@@ -5404,6 +5450,79 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
           { id: 'b', grit: 0, shimmer: 0, double: 0 },
         ]);
         for (const key of ['grit', 'shimmer', 'double'] as const) expect(cells.getRoom(key)!.fed, key).toBe(false);
+      });
+
+      // Dark Effects Leave the Graph T12 (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.6, §5.1 case 15): a room learns it
+      // is fed only once start() has pushed the seeded values, so a fed room's branch is built at them, or not at all at
+      // a seeded Return of 0. One feeder too: the post-load pass re-reserves it, and its set goes empty and back.
+      describe('the rooms are told they are fed after the first push (Dark Effects Leave the Graph T12)', () => {
+        const DOUBLE_FEEDERS = {
+          one: [{ id: 'e', grit: 0, shimmer: 0, double: 0.6 }],
+          two: [
+            { id: 'e', grit: 0, shimmer: 0, double: 0.6 },
+            { id: 'f', grit: 0, shimmer: 0, double: 0.2 },
+          ],
+        };
+        async function seedChorus(chorus: Record<string, number>) {
+          const Tone = await import('tone');
+          const { useAudioStore } = await import('../stores/audioStore');
+          // A seed may sync the Rate to a note (resolved to Hz at the tempo): free it, so the Rate given is the Hz built.
+          useAudioStore.setState((s) => ({
+            globalAudio: { ...s.globalAudio, chorus: { ...s.globalAudio.chorus, sync: undefined, ...chorus } },
+          }));
+          vi.mocked(Tone.Chorus).mockClear();
+          return Tone;
+        }
+        /** primedRosterThenStart, with the roster in the active locale the engine reads, so start()'s post-load pass
+         *  re-reserves each robot as the app's does (a lone feeder's set goes empty and back there). */
+        async function primedRosterThenStart(robots: Array<{ id: string; grit: number; shimmer: number; double: number }>) {
+          const { AudioEngine, reserve } = await setup({ start: false });
+          const cells = await import('./audioEngine/bypassCell');
+          const { useLocaleStore } = await import('../stores/localeStore');
+          useLocaleStore.setState({
+            locales: {
+              testLocale: {
+                robots: robots.map((r) => ({
+                  id: r.id, position: { x: 0, y: 0 }, audioMode: 'none', masterVolume: 0.5, panAuto: true,
+                  audioAttributes: { adsr: TEST_ADSR, filterFreq: 0, waveform: 'sine', layers: LAYERS },
+                  reverbSend: 0, delaySend: 0, gritSend: r.grit, shimmerSend: r.shimmer, doubleSend: r.double,
+                })),
+              },
+            },
+          } as any);
+          for (const r of robots) {
+            reserve(r.id);
+            AudioEngine.updateRobotSends(r.id, { grit: r.grit, shimmer: r.shimmer, double: r.double });
+          }
+          const reserved = vi.spyOn(AudioEngine, 'reserveVoice');
+          await AudioEngine.start();
+          // The post-load pass ran over this roster.
+          expect(reserved.mock.calls.map(([id]) => id)).toEqual(robots.map((r) => r.id));
+          return { AudioEngine, cells };
+        }
+
+        it.each(['one', 'two'] as const)('a seeded Double Return of 0 builds no Chorus, with %s feeder(s) primed before start', async (feeders) => {
+          const Tone = await seedChorus({ wet: 0 });
+          const { cells } = await primedRosterThenStart(DOUBLE_FEEDERS[feeders]);
+          expect(cells.getRoom('double')!.fed).toBe(true);
+          expect(Tone.Chorus).not.toHaveBeenCalled();
+          expect(cells.getCell('chorus')!.effect).toBeNull();
+        });
+
+        it.each(['one', 'two'] as const)('a seeded Double Return of 0.4 builds one Chorus, at the seeded settings, with %s feeder(s)', async (feeders) => {
+          const Tone = await seedChorus({ rate: 2.5, delayTime: 6, depth: 0.3, spread: 90, feedback: 0.2, wet: 0.4 });
+          const { cells } = await primedRosterThenStart(DOUBLE_FEEDERS[feeders]);
+          expect(Tone.Chorus).toHaveBeenCalledTimes(1);
+          expect(vi.mocked(Tone.Chorus).mock.calls[0][0]).toStrictEqual({
+            frequency: 2.5,
+            delayTime: 6,
+            depth: 0.3,
+            spread: 90,
+            feedback: 0.2,
+            wet: 1,
+          });
+          expect(cells.getCell('chorus')!.connected).toBe(true);
+        });
       });
     });
   });

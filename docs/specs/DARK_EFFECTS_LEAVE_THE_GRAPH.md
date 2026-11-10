@@ -18,7 +18,8 @@
 questions, every guess taken). Open questions Q1 and Q2 answered by Crawford the same day (§7, both at their
 defaults); spec approved for planning the same day. Plan:
 [docs/tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md](../tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md) (2026-11-10, seventeen tasks
-in five phases). Backlog
+in five phases). **Built** 2026-11-10 on `perf/dark-effects-leave-the-graph`, the runs and Crawford's ear passed:
+§8, "As built". Backlog
 [72](../todo/backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9), 67's B9, first item of
 plan.md's Stage 1. The evidence is the ablation in the backlog 67 record
 ([scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), the second §9, "B9 (T16b)"); the cell model it changes
@@ -371,3 +372,49 @@ Each assumption below is the default the spec is written to. Crawford's word cha
   gains, oscillators) whose whole path exists when the constructor returns.
 - **Q2. The boot order (§1.6): move it.** The room-feed sync runs after the first push, so no effect is built before
   the seeded values are in.
+
+---
+
+## 8. As built
+
+Built 2026-11-10 on `perf/dark-effects-leave-the-graph`, one commit per task (T1 86898863 to T12 06f8bbb0), the runs
+and the ear recorded in [todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), "Backlog 72", §1–§4. The
+plan's tasks carry the detail ([tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md](../tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md)); the
+shipped design is in [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md), **The bypass cells**.
+
+**The names §4 left provisional.** The builders are registrations, not a bare table:
+`registerEffect(key, { build, whenReady?, onTeardown? })` (an `EffectRegistration`), dropped with the cells by
+`clearCells()`. `buildEffect`, `darkAtOwnLevel`, `teardownDue`, `checkTeardown`, `cancelTeardown`, `Cell.teardown`,
+`DARK_TEARDOWN_SECONDS` and `cancelDuck` are as §4 named them. The deferred light (§1.7) is in `bypassCell.ts`:
+`Cell.pendingLight`, set by a light on an unready node, and `watchReady`, which connects and ramps from wet 0 when the
+registration's `whenReady` settles.
+
+**Where it differs from §1.**
+
+| Where | Built | Why |
+|---|---|---|
+| §1.4, Width | The widener's builder ramps its width from 0.5 to the mirror's; the setter ramps only a widener present before the call (T9, 18a2c8fb). | The hold-off's lift lights Width through `writeCellMix` without the setter, so a ramp in the setter would leave a widener torn down while held at unity after the lift. |
+| §1.4, the setters | Most setters write their node's fields before their Mix write, to the node the cell held at the start of the call; only the Phaser reads its node before and writes after, if it is still the same node. | Equivalent to §1.4's rule (a node built in the call takes none of its writes) for every setter whose call cannot swap its node. |
+| §1.6, the boot order | Moving the `setRoomFed` loop after the push was not enough. `AudioEngine.ts` gained `roomsTold`: until `start()` has pushed and told the rooms, a feeder flip only updates its set (T12, 06f8bbb0). | `loadInstruments`' post-load pass re-reserves every robot; a replaced voice unfeeds its rooms, and a lone feeder's set went empty and back, which told the room it was fed before the push. |
+| §1.7, the readiness | `bitCrusherReady` awaits the context's `workletsAreReady()` and then checks `_bitCrusherWorklet._worklet` (Tone 15.1.22, read through a cast). No wrapper: ready, warned once. A disposed wrapper resolves. A failed load, or one with no node, rejects: the cell warns once and lights anyway (T10, 1cec48f4). | §1.7 left the field to the plan. |
+| §1.2, the fire | The teardown's fire checks four conditions, not three: the key is also registered, so a cell that cannot come back is never emptied. | A headless chain, or a key with no constructor, keeps today's cell. |
+
+Task 11 (647d9686) rewrote 297 cases that read an effect straight after `buildGlobalFxChain()` (286 in
+`globalFx.test.ts`, 11 in `AudioEngine.test.ts`), each named in the commit: they now light their effect first, or sit
+it in its teardown wait (`darkInWait`), or assert its absence. Lazy builds made two `AudioEngine.test.ts` start cases
+seed-dependent; they read the seed.
+
+**The six mutants of §5.1**, each killed, named in its commit: build at chain build again (T11, 647d9686); drop the
+re-send check (T3, 1532fc51); tear down on an unfed room (T2, 2079716d, and again in T8, 75116ec5); skip the mirror
+write on an absent effect (T6, b7f61474); build Width at the mirror's width (T9, 18a2c8fb); drop the teardown's duck
+cancel (T4, 8eeedc58, and again in T7, fd5711be).
+
+**The runs** (record "Backlog 72"):
+- **The census** (§1): at Full, −307 nodes on W1 and −251 on W2, the rendering ConstantSources −46 and −36. Larger than
+  the ablation's −163 / −196 because a Shifter whose room is unfed is never built on either world, nor W1's Chorus,
+  where the ablation kept both at a Mix above 0. At Light no node of the ten is left on either world.
+- **The A/B** (§2): the mean fell −0.050 on W1 and −0.032 on W2 against `main`, in every round and beyond every band,
+  about twice the ablation's. PERFORMANCE.md's pin section has the backlog 72 rows.
+- **The crossings** (§3): every event at or under ×1.107 with no gap, three runs each. A build costs 3–25 ms of main
+  thread; the hold-off lift's six, 60–62 ms. The abrupt-step control ran twice per page, not three times.
+- **Crawford's ear** (§4): "it all sounds fine, did all three things".

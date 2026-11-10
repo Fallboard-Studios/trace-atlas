@@ -2913,6 +2913,23 @@ against 5ca8679f's code, is a regression to explain in its PR. Compare within a 
 same graph read 0.436–0.445 on W1 the night before (record §8–§9, the g3 arm, census 1 091), about 0.03 lower than
 this sitting. The absolute figure moves with the machine's state; the same-session delta does not.
 
+### Backlog 72, dark effects leave the graph (2026-11-10)
+
+The pin's code against the branch `perf/dark-effects-leave-the-graph` at 5b914870, with the method above. One
+difference: there were three arms a round (the pin's code, the branch, and a byte copy of the pin's code), with the
+order rotated. `main` b79e2f72's `src/` is 5ca8679f's unchanged. The record is
+[todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md), "Backlog 72, dark effects leave the graph" §2.
+
+| Date | World | Tier | Code | Mean (median, runs) | Crest (median) | Trough (median) | Band (mean / crest / trough) | Census | Underruns at end |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-10 | W1 | Full | 5ca8679f (as b79e2f72) | 0.512 (0.512, 0.496, 0.580) | 0.655 | 0.401 | 0.006 / 0.047 / 0.027 (r2) | 1 088–1 091 | 56, 2, 99 |
+| 2026-11-10 | W1 | Full | 5b914870 (backlog 72) | **0.461** (0.461, 0.460, 0.476) | **0.573** | 0.350 | as above | 784 | 2 in every run |
+
+The pin's code read about 0.04 above its own pin in this sitting, and its copy read 0.521, 0.489 and 0.523. Two of
+the pin's runs stalled (56 and 99 underruns); the copy never did. So the band is taken from the one round with no stall.
+Same-round, the branch reads −0.050 on the mean against the pin's code and −0.047 against its copy. **From backlog
+72's merge, compare against 5b914870's code** (or the merge commit that carries it), as the rule above says.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

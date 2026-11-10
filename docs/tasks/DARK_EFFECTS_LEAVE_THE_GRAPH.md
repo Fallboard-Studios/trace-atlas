@@ -88,7 +88,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
 ### Phase 1: The cell's lifetime (`bypassCell.ts`, no product change)
 
-- [ ] **Task 1: `bypassCell.ts` — a registered cell builds its absent effect at a light**
+- [x] **Task 1: `bypassCell.ts` — a registered cell builds its absent effect at a light**
 
   **Description:** `registerEffect(key, { build })` and the registry, cleared by `clearCells()`. `writeCellMix` stops
   returning early for a cell with no effect: when the target is above 0 and the key is registered, it calls `build()`,
@@ -102,13 +102,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   the cell dry each time.
 
   **Acceptance criteria:**
-  - [ ] A light on a registered, empty cell builds once, connects silently and ramps; a lit cell builds nothing more.
-  - [ ] A failed build is one warning per key, a dry unconnected cell, no recorded target, and a retry at the next light.
-  - [ ] An unregistered empty cell ignores the write, as today; every existing test passes unmodified.
+  - [x] A light on a registered, empty cell builds once, connects silently and ramps; a lit cell builds nothing more.
+  - [x] A failed build is one warning per key, a dry unconnected cell, no recorded target, and a retry at the next light.
+  - [x] An unregistered empty cell ignores the write, as today; every existing test passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
@@ -116,7 +116,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S (one module, one test file)
 
-- [ ] **Task 2: `bypassCell.ts` — the teardown after a darken**
+- [x] **Task 2: `bypassCell.ts` — the teardown after a darken**
 
   **Description:** `Cell.teardown` (a context timer id or null), `DARK_TEARDOWN_SECONDS = 1`, and `darkAtOwnLevel(key,
   cell)`: a chain cell whose target is 0, or a branch whose depth is 0 or whose room's Return is 0; never a branch whose
@@ -131,14 +131,14 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   arms no teardown; `clearCells()` clears a pending one.
 
   **Acceptance criteria:**
-  - [ ] Dark at its own level and out of the path for `DARK_TEARDOWN_SECONDS`: the effect is disposed and the cell empty.
-  - [ ] A light in the wait keeps the same node; an unfed room alone never tears a branch down.
-  - [ ] An unregistered cell is never torn down; every existing test passes unmodified.
+  - [x] Dark at its own level and out of the path for `DARK_TEARDOWN_SECONDS`: the effect is disposed and the cell empty.
+  - [x] A light in the wait keeps the same node; an unfed room alone never tears a branch down.
+  - [x] An unregistered cell is never torn down; every existing test passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: tear down on an unfed room (spec §5.1, case 7) fails the unfed-room case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: tear down on an unfed room (spec §5.1, case 7) fails the unfed-room case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1.
 
@@ -146,7 +146,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S
 
-- [ ] **Task 3: `bypassCell.ts` — the teardown check on every write**
+- [x] **Task 3: `bypassCell.ts` — the teardown check on every write**
 
   **Description:** `checkTeardown(key, cell)` arms or cancels by the same four conditions, and runs at the end of every
   `writeCellMix` (the re-send path included, where today it returns before anything) and for each of its branches in
@@ -159,14 +159,14 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   `setRoomReturn(room, 0.5)` before the fire cancels it; both fail on Task 2's code.
 
   **Acceptance criteria:**
-  - [ ] A re-sent dark write that makes a disconnected cell dark at its own level arms its teardown.
-  - [ ] `setRoomReturn` arms or cancels each branch's teardown even when the room's liveness does not flip.
-  - [ ] A pending teardown is cancelled by any write after which the cell is no longer dark at its own level.
+  - [x] A re-sent dark write that makes a disconnected cell dark at its own level arms its teardown.
+  - [x] `setRoomReturn` arms or cancels each branch's teardown even when the room's liveness does not flip.
+  - [x] A pending teardown is cancelled by any write after which the cell is no longer dark at its own level.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: drop the re-send check (spec §5.1, case 8) fails the unfed-room depth case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: drop the re-send check (spec §5.1, case 8) fails the unfed-room depth case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2.
 
@@ -174,7 +174,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S
 
-- [ ] **Task 4: `bypassCell.ts` — a teardown cancels its key's pending duck**
+- [x] **Task 4: `bypassCell.ts` — a teardown cancels its key's pending duck**
 
   **Description:** The teardown's fire clears the key's duck (`_ducks[key]`: its timer cancelled, its `apply` dropped)
   before disposing, and calls `onTeardown` after, so `globalFx.ts` can fold a pending change into its mirror (Task 7).
@@ -185,13 +185,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   `isDucked(key)` is false.
 
   **Acceptance criteria:**
-  - [ ] A teardown leaves no duck pending for its key and never runs the dropped `apply`.
-  - [ ] A duck on a cell that is not torn down runs as today.
+  - [x] A teardown leaves no duck pending for its key and never runs the dropped `apply`.
+  - [x] A duck on a cell that is not torn down runs as today.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: drop the duck cancel (spec §5.1, case 12) fails the case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: drop the duck cancel (spec §5.1, case 12) fails the case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2.
 
@@ -199,7 +199,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** XS
 
-- [ ] **Task 5: `bypassCell.ts` — a light waits for an effect that is not ready**
+- [x] **Task 5: `bypassCell.ts` — a light waits for an effect that is not ready**
 
   **Description:** A registration with `whenReady(node)` (Q1, the BitCrusher's): a light that builds the node records
   the target, keeps the cell dry and unconnected, and sets a pending-light marker; when `whenReady` resolves, if the
@@ -212,13 +212,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   before the resolve leaves the cell unconnected after it.
 
   **Acceptance criteria:**
-  - [ ] An unready effect is never connected before its readiness resolves, and lights from wet 0 after it.
-  - [ ] A darken before readiness cancels the pending light.
-  - [ ] A registration without `whenReady` lights in the same call, as Task 1.
+  - [x] An unready effect is never connected before its readiness resolves, and lights from wet 0 after it.
+  - [x] A darken before readiness cancels the pending light.
+  - [x] A registration without `whenReady` lights in the same call, as Task 1.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/bypassCell.test.ts src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1 (and Task 3's check, which a pending light must pass).
 
@@ -227,15 +227,19 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Estimated scope:** S
 
 ### Checkpoint A: The cell's lifetime
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted, backlog 66).
-- [ ] No existing test was edited in Tasks 1–5: nothing in the app registers an effect, so its behaviour is unchanged.
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted, backlog 66).
+- [x] No existing test was edited in Tasks 1–5: nothing in the app registers an effect, so its behaviour is unchanged.
+- [x] Reviewed with Crawford before Phase 2.
+
+**Status (2026-11-10):** Phase 1 committed (86898863..422f1f84); Checkpoint A passed (full suite: the two known
+flakes, sceneToOrbiterLocal and an audioSwells ramp case, failed under load and passed alone; the onTaskUpdate exit
+noted). Next: Task 6, in a fresh session.
 
 ---
 
 ### Phase 2: `globalFx.ts` registers its effects (still built at chain build)
 
-- [ ] **Task 6: `globalFx.ts` — the colour trio and the AutoWah leave and come back**
+- [x] **Task 6: `globalFx.ts` — the colour trio and the AutoWah leave and come back**
 
   **Description:** Mirrors for the Distortion (`amount`), Chebyshev (`order`), BitCrusher (`bits`) and AutoWah (its six
   non-Mix fields); a builder per key from its mirror, pinned wet 1 (`oversample: 'none'` on the two shapers, the
@@ -251,14 +255,14 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   at a Mix above 0 (the branches with their Colour room fed).
 
   **Acceptance criteria:**
-  - [ ] The four are torn down when dark at their own level and rebuilt at a light with every value written while absent.
-  - [ ] A setter call that builds its node writes nothing further to it; an absent node is never written.
-  - [ ] The hold-off tears them down and its lift rebuilds them; every other existing case passes unmodified.
+  - [x] The four are torn down when dark at their own level and rebuilt at a light with every value written while absent.
+  - [x] A setter call that builds its node writes nothing further to it; an absent node is never written.
+  - [x] The hold-off tears them down and its lift rebuilds them; every other existing case passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/bypassCell.test.ts` passes.
-  - [ ] Mutant: skip the mirror write on an absent effect (spec §5.1, case 3) fails the amount case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/bypassCell.test.ts` passes.
+  - [x] Mutant: skip the mirror write on an absent effect (spec §5.1, case 3) fails the amount case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1–4.
 
@@ -266,7 +270,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** M (one module and its large test file; four setters)
 
-- [ ] **Task 7: `globalFx.ts` — the Phaser leaves and comes back**
+- [x] **Task 7: `globalFx.ts` — the Phaser leaves and comes back**
 
   **Description:** `_phaserLive` and `_phaserStages` become the Phaser's mirror and builder (`buildPhaser` at the
   mirror's stages). `writePhaserStages` on an absent Phaser records the count only (no rebuild, no duck); a present
@@ -279,13 +283,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   rebuilt at that duck's count; a present dark Phaser given Stages rebuilds as today.
 
   **Acceptance criteria:**
-  - [ ] Stages on an absent Phaser are mirror-only; the next light builds at that count.
-  - [ ] A teardown with a pending Stages duck keeps the duck's count.
-  - [ ] The Stages duck and the dark rebuild of a present Phaser are unchanged.
+  - [x] Stages on an absent Phaser are mirror-only; the next light builds at that count.
+  - [x] A teardown with a pending Stages duck keeps the duck's count.
+  - [x] The Stages duck and the dark rebuild of a present Phaser are unchanged.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6 (the registration pattern), Task 4.
 
@@ -293,7 +297,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S
 
-- [ ] **Task 8: `globalFx.ts` — the Chorus, Tremolo, Vibrato and Shifter leave and come back**
+- [x] **Task 8: `globalFx.ts` — the Chorus, Tremolo, Vibrato and Shifter leave and come back**
 
   **Description:** Mirrors for the four pedals' non-Mix fields (the Chorus's Delay in ms and Depth as written, Rate in
   Hz as resolved, Feedback; the Tremolo's Rate and Depth; the Vibrato's Rate and Depth; the Shifter's shift), with
@@ -308,13 +312,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   Shifter with its room unfed and its Return above 0 is never torn down.
 
   **Acceptance criteria:**
-  - [ ] Each of the four is torn down when dark at its own level and rebuilt with every value written while absent.
-  - [ ] A rebuilt Chorus or Tremolo is started and carries the last Spread, a pending duck's included.
-  - [ ] An unfed Shimmer or Double room with its Return above 0 keeps its effect.
+  - [x] Each of the four is torn down when dark at its own level and rebuilt with every value written while absent.
+  - [x] A rebuilt Chorus or Tremolo is started and carries the last Spread, a pending duck's included.
+  - [x] An unfed Shimmer or Double room with its Return above 0 keeps its effect.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6, Task 4.
 
@@ -322,7 +326,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** M (four setters)
 
-- [ ] **Task 9: `globalFx.ts` — Width leaves at 0.5 and comes back at 0.5**
+- [x] **Task 9: `globalFx.ts` — Width leaves at 0.5 and comes back at 0.5**
 
   **Description:** The widener's builder constructs at width 0.5 (unity) whatever its mirror holds; `setGlobalStereoWidener`
   records the width, writes the Mix (which lights and may build), then ramps `width` to the written value on the node
@@ -333,13 +337,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   Width 0.7 then constructs one at width 0.5 and ramps its `width` to 0.7 over `COLOUR_RAMP_SECONDS`.
 
   **Acceptance criteria:**
-  - [ ] A widener built at a light is constructed at 0.5 and ramps to the written width.
-  - [ ] Width at exactly 0.5 tears it down after the wait.
+  - [x] A widener built at a light is constructed at 0.5 and ramps to the written width.
+  - [x] Width at exactly 0.5 tears it down after the wait.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: build Width at the mirror's width (spec §5.1, case 9) fails the case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: build Width at the mirror's width (spec §5.1, case 9) fails the case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6.
 
@@ -347,7 +351,13 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** XS
 
-- [ ] **Task 10: `globalFx.ts` — the BitCrusher lights once its worklet exists**
+  **As built (18a2c8fb):** the width ramp is in the widener's builder, not the setter. The hold-off's lift lights Width
+  through `writeCellMix` without the setter, so a widener torn down while held would have come back at 0.5 and stayed at
+  unity. The builder constructs at 0.5 and ramps to the mirror's width, which covers every light (spec §1.4, "its width
+  ramps from there as the cell lights"); the setter ramps only a widener present before the call, as the other nine
+  setters write only a node present before theirs. A test case covers the lift.
+
+- [x] **Task 10: `globalFx.ts` — the BitCrusher lights once its worklet exists**
 
   **Description:** The BitCrusher's registration gains `whenReady(node)`: it resolves once the wrapper's worklet node
   exists (Tone makes it in the `then` of `addAudioWorkletModule`; the field is read through a cast, as `effectEnds`
@@ -360,12 +370,12 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   unconnected; after the worklet field is set and the promise resolves, it connects and ramps.
 
   **Acceptance criteria:**
-  - [ ] A BitCrusher built at a light connects only once its worklet node exists.
-  - [ ] A darken before that leaves it unconnected; a crusher with no worklet field warns once and lights at once.
+  - [x] A BitCrusher built at a light connects only once its worklet node exists.
+  - [x] A darken before that leaves it unconnected; a crusher with no worklet field warns once and lights at once.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 5 and 6.
 
@@ -374,16 +384,22 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Estimated scope:** S
 
 ### Checkpoint B: Every effect has a lifetime
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted).
-- [ ] No `_global<Effect>` alias is left for the ten; every setter reads its cell.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted).
+- [x] No `_global<Effect>` alias is left for the ten; every setter reads its cell.
 - [ ] Optional early listen, at Crawford's word: the dev server, W1, a Mix dragged through 0 and back after a second.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3.
+
+**Status (2026-11-10):** Phase 2 committed (b7f61474..1cec48f4); Checkpoint B passed (full suite 13602 tests in 350
+files green, the onTaskUpdate exit noted; reviewed by Crawford; the optional listen not taken). Two notes for Task 11:
+Task 9 is as built below, and a BitCrusher light now waits on its worklet check, which settles a few microtasks later
+even when the node exists, so the test helper that lights an effect must `await flush()` for the crusher (Task 10's
+commit names the existing cases that gained one). Next: Task 11, in a fresh session.
 
 ---
 
 ### Phase 3: Nothing built at chain build
 
-- [ ] **Task 11: `globalFx.ts` — the chain constructs no effect**
+- [x] **Task 11: `globalFx.ts` — the chain constructs no effect**
 
   **Description:** `buildGlobalFxChain()` builds the three rooms and the ten cells with a null effect and registers the
   ten builders; it constructs none of the ten (the `effects` table keeps the constructors only to decide which keys get
@@ -397,14 +413,14 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   dry and, after one light, reconnects only that one.
 
   **Acceptance criteria:**
-  - [ ] The chain build constructs none of the ten effects; every cell and room exists and the chain is whole.
-  - [ ] Every rewritten case still proves what it proved, against a lit effect; the list of rewrites is in the commit.
-  - [ ] A Decay flip with absent effects wires dry and reconnects the lit ones.
+  - [x] The chain build constructs none of the ten effects; every cell and room exists and the chain is whole.
+  - [x] Every rewritten case still proves what it proved, against a lit effect; the list of rewrites is in the commit.
+  - [x] A Decay flip with absent effects wires dry and reconnects the lit ones.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine src/engine/AudioEngine.test.ts` passes.
-  - [ ] Mutant: build at chain build again (spec §5.1, case 1) fails the case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine src/engine/AudioEngine.test.ts` passes.
+  - [x] Mutant: build at chain build again (spec §5.1, case 1) fails the case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 6–10.
 
@@ -414,7 +430,15 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Estimated scope:** L (one product line, a large mechanical test rewrite; one commit by necessity, see Architecture
   Decisions)
 
-- [ ] **Task 12: `AudioEngine.ts` — the rooms learn they are fed after the first push**
+  **As built (647d9686):** 297 cases failed (globalFx.test.ts 286, AudioEngine.test.ts 11, the headless file none);
+  the commit lists them by group. Besides `lightUp` (the light helper this task names), the setter groups use
+  `darkInWait`: lit, darkened and its disconnect fired, so the effect sits present and unconnected inside its teardown
+  wait, the state every build left all ten in before, and their cases read as before. Constructor-throws cases now throw
+  at the light. Two AudioEngine.test.ts cases that the lazy build made seed-dependent (one AutoWah, one widener at
+  start) now read the seed, and two that would have passed vacuously (`disconnect()` with no argument, the ceiling's
+  one feeder) light every effect first.
+
+- [x] **Task 12: `AudioEngine.ts` — the rooms learn they are fed after the first push**
 
   **Description:** In `loadInstruments`, the `setRoomFed` loop over `ROOM_KEYS` moves after
   `applyGlobalAudioToEngine(globalAudio, bpm)`, so no effect is built before the seeded values are in. Check what sits
@@ -426,12 +450,12 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   Chorus is constructed, after the push, at the seeded settings.
 
   **Acceptance criteria:**
-  - [ ] No effect is constructed before `applyGlobalAudioToEngine` at start.
-  - [ ] A fed room whose seeded Return is 0 builds no branch; one above 0 builds it once, at the seeded values.
+  - [x] No effect is constructed before `applyGlobalAudioToEngine` at start.
+  - [x] A fed room whose seeded Return is 0 builds no branch; one above 0 builds it once, at the seeded values.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 11.
 
@@ -439,16 +463,32 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S
 
+  **As built (06f8bbb0):** moving the loop was not enough. `loadInstruments`' post-load pass re-reserves every robot, a
+  replaced voice unfeeds its rooms (`storeVoice`), and a lone feeder's set goes empty and back, so `setRoomFeeder` told
+  the room it was fed before the push and its branch was built at the defaults (at a seeded Return of 0, built to be
+  torn down). So a feeder flip updates its set only until `start()` has told the rooms (`roomsTold`), and `start()`
+  tells each where its set stands once, after the push's `try` (a failed push still leaves the rooms told). The cases
+  run with one feeder and with two, and assert that the post-load pass ran over the roster: the older
+  `primedRosterThenStart` helper writes its roster to a locale the engine never reads, so its cases do not reach that
+  pass. Mutants: telling the rooms right after the chain build fails all four; dropping the `roomsTold` check fails the
+  two one-feeder cases.
+
 ### Checkpoint C: The build
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
-- [ ] Every spec §5.1 case is covered by a named test, and the six mutants were each checked and named in a commit.
-- [ ] Reviewed with Crawford before the runs.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
+- [x] Every spec §5.1 case is covered by a named test, and the six mutants were each checked and named in a commit.
+- [x] Reviewed with Crawford before the runs.
+
+**Status (2026-11-10):** Phase 3 committed (647d9686, 06f8bbb0). Full suite 13609 of 13610 green in 350 files: the one
+failure was the known `sceneToOrbiterLocal` round-trip timing out at 5.7 s under the parallel run (10 of 10 alone), with
+the known `onTaskUpdate` exit; lint has the four existing scenery warnings only; types and the build clean. The six
+mutants are named in the T2, T3, T4, T6, T9 and T11 commits. Checkpoint C passed: reviewed by Crawford, who listened in the
+dev server to effects lit and darkened ("everything sounds good"). Next: Task 13, in a fresh session.
 
 ---
 
 ### Phase 4: The proof (runs; measurement hygiene per PERFORMANCE.md, one harness call at a time, foreground)
 
-- [ ] **Task 13: The censuses, Full and Light**
+- [x] **Task 13: The censuses, Full and Light**
 
   **Description:** Production builds of `main` and the branch on two `vite preview` ports. `perf:audio-census` and
   `perf:audio-handlers` (8 s) on W1 and W2 at `load=full`, then at `load=light` (read after the hold's wait has run).
@@ -458,12 +498,16 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Proof:** Run — recorded in the record.
 
   **Acceptance criteria:**
-  - [ ] Full: the node drop is near the ablation's −163 / −196 and the rendering ConstantSources near −26 / −28, or the
+  - [x] Full: the node drop is near the ablation's −163 / −196 and the rendering ConstantSources near −26 / −28, or the
         difference is explained.
-  - [ ] Light: none of the ten effects' nodes remain.
+  - [x] Light: none of the ten effects' nodes remain.
 
   **Verification:**
-  - [ ] The record's tables, commits named; no orphaned Chrome before or after.
+  - [x] The record's tables, commits named; no orphaned Chrome before or after.
+
+  **As run (2026-11-10):** record "Backlog 72" §1. Full: −307 / −251 nodes and −46 / −36 rendering ConstantSources,
+  larger than the ablation's because the branch also never builds the unfed rooms' Shifter (both worlds) and Chorus
+  (W1), which the ablation kept at a Mix above 0. Light: no node of the ten left on either world.
 
   **Dependencies:** Checkpoint C.
 
@@ -471,7 +515,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S (runs and a record section)
 
-- [ ] **Task 14: The A/B at Full**
+- [x] **Task 14: The A/B at Full**
 
   **Description:** `perf:audio` on W1 and W2 at Full, same session, interleaved, `main` against the branch, the
   rotation and seconds of the execution commands. Deltas and noise bands recorded beside 67's. It ships even if the
@@ -480,10 +524,15 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Proof:** Run — recorded in the record.
 
   **Acceptance criteria:**
-  - [ ] Mean, crest and trough deltas on W1 and W2, with their bands, in the record.
+  - [x] Mean, crest and trough deltas on W1 and W2, with their bands, in the record.
 
   **Verification:**
-  - [ ] The record's table, commits named.
+  - [x] The record's table, commits named.
+
+  **As run (2026-11-10):** record "Backlog 72" §2. 18 runs, three arms a round (main, the branch, main's byte copy),
+  rotated. The mean fell −0.050 / −0.032 against main and −0.047 / −0.032 against its copy, in every round, about twice
+  B9's ablation. Two of main's W1 runs stalled (56 and 99 underruns; the copy never did), so W1's band is taken from the
+  unstalled round. The W1 mean moved, so PERFORMANCE.md's pin section has the backlog 72 rows.
 
   **Dependencies:** Task 13.
 
@@ -491,7 +540,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S
 
-- [ ] **Task 15: The crossings**
+- [x] **Task 15: The crossings**
 
   **Description:** The crossing probe rebuilt in the scratchpad from the backlog 67 record's recipe (the G1 section's
   "The crossings": the Vite page on the branch's `src/`, the 440 Hz + 1 kHz stereo pair into `getGlobalChainEntry()`,
@@ -504,10 +553,15 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Proof:** Run — recorded in the record, with the main-thread time of each build.
 
   **Acceptance criteria:**
-  - [ ] Every event's ratio is at or under ×1.6 with no gap, or the failure is reported to Crawford before anything else.
+  - [x] Every event's ratio is at or under ×1.6 with no gap, or the failure is reported to Crawford before anything else.
 
   **Verification:**
-  - [ ] The record's table, three runs each, the probe's location named.
+  - [x] The record's table, three runs each, the probe's location named.
+
+  **As run (2026-11-10):** record "Backlog 72" §3. Every event is at or under ×1.107 with no gap, over three runs; the
+  checks read around each call confirm each light really built from absent (and the inside-the-wait light kept its
+  node). Builds cost 3–25 ms of main thread; the hold-off lift's six, 60–62 ms. One deviation: the abrupt step ran
+  twice on the `t72` page and twice on each of the three BitCrusher pages (eight in all), not three times.
 
   **Dependencies:** Checkpoint C.
 
@@ -515,7 +569,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** M (the probe's rebuild and seven events)
 
-- [ ] **Task 16: Crawford's ear**
+- [x] **Task 16: Crawford's ear**
 
   **Description:** Crawford's desktop, W1 at Full with `?debug`: a hand drag of a Mix through 0 and back (before and
   after the wait), the Audio Load dial down to Light and back (the hold-off and its lift), and a world change. Any
@@ -524,10 +578,16 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Proof:** Ear — Crawford's.
 
   **Acceptance criteria:**
-  - [ ] Crawford hears no click or gap on any of the three.
+  - [x] Crawford hears no click or gap on any of the three.
 
   **Verification:**
-  - [ ] His verdict in the record.
+  - [x] His verdict in the record.
+
+  **As run (2026-11-10):** record "Backlog 72" §4. On his dev server (5b914870's code): "it all sounds fine, did all
+  three things". Pass.
+
+  **Status (2026-11-10):** Phase 4 done (T13 5b16a3ee, T14 a41fca0e, T15 34b3bcff, T16 here). Next: Task 17, the docs,
+  in a fresh session.
 
   **Dependencies:** Tasks 13–15.
 
@@ -539,7 +599,7 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
 ### Phase 5: Docs
 
-- [ ] **Task 17: The docs, the spec's As built, backlog 72**
+- [x] **Task 17: The docs, the spec's As built, backlog 72**
 
   **Description:** `docs/AUDIO_SYSTEM.md`: "The bypass cells" says a dark effect is not built and when it is torn down
   and rebuilt; the Phaser's "Boot builds the Phaser twice" line is corrected; the effects-tiers paragraph says a hold
@@ -549,11 +609,11 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
   **Proof:** Read — Crawford's review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every documented name and behaviour matches the shipped code.
+  - [x] Every documented name and behaviour matches the shipped code.
 
   **Verification:**
-  - [ ] Manual read; every identifier grepped in `src/`.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual read; every identifier grepped in `src/`.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1–16.
 
@@ -561,12 +621,27 @@ its mutant by hand where the spec names one (§5.1), and names it in the commit.
 
   **Estimated scope:** S (docs only)
 
+  **As built (2026-11-10):** AUDIO_SYSTEM.md: **The bypass cells** gains "A dark effect is not built" (the registration,
+  dark at its own level, the teardown, the mirrors, where the build lands) and the backlog 72 measurements; the Phaser's
+  "Boot builds the Phaser twice" line now says boot builds none and a seeded lit one is built once at its seeded count;
+  the effects tiers paragraph says a hold tears the ten down and the lift builds them; and four lines the build made
+  stale are corrected (the Colour setters' "no-op when its node was not built", the BitCrusher's worklet, the rooms'
+  feed told by `start()` after the push, the LFOs recorded by `setCellEffect`). The spec gains §8, "As built", and a
+  status line; backlog 72's status and plan.md's line say built. Every identifier named was grepped in `src/` (45, all
+  present); types clean, lint the four existing scenery warnings.
+
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
-- [ ] Every automated acceptance criterion met; the six mutants named in their commits.
-- [ ] The runs recorded (Tasks 13–15) and Crawford's ear passed (Task 16), or any not done flagged here, never skipped.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
+- [x] Every automated acceptance criterion met; the six mutants named in their commits.
+- [x] The runs recorded (Tasks 13–15) and Crawford's ear passed (Task 16), or any not done flagged here, never skipped.
 - [ ] Docs match the shipped code.
 - [ ] Ready for Crawford's PR. Archiving backlog 72 and the plan.md line wait for the merge.
+
+**Status (2026-11-10):** Task 17 committed (52825193). Types and lint re-run after it (clean; lint the four existing
+scenery warnings). `npm test` and `npm run build` were not re-run: nothing outside `docs/` has changed since Checkpoint
+C's run at 097a76ca (13609 of 13610, the one failure the known `sceneToOrbiterLocal` timeout, passing alone; the build
+clean), so that run stands for this code. The six mutants are named in the T2, T3, T4, T6, T9 and T11 commits (the spec's
+§8 lists them). Open: Crawford's read of the docs (Task 17's Proof), then his PR.
 
 ## Risks and Mitigations
 
