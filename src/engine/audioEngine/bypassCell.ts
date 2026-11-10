@@ -483,7 +483,12 @@ export function writeCellMix(key: BypassKey, mix: number): void {
   if (!cell) return;
   if (cell.room !== null) cell.depth = mix;
   const w = cellTarget(key, cell, mix);
-  if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) return;
+  if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) {
+    // Nothing to ramp, but a disconnected cell can still have become dark at its own level (a depth of 0 on an unfed
+    // room, the hold-off's write) or stopped being so (a depth raised while unfed). §1.2 "Checked on every write".
+    checkTeardown(key, cell);
+    return;
+  }
   const ramp = !isDucked(key);
   const from = cell.mix;
   const context = Tone.getContext();
@@ -673,8 +678,11 @@ export function setRoomFed(key: RoomKey, fed: boolean): void {
   syncRoom(key);
 }
 
-/** The Return: ramps `key`'s return gain over COLOUR_RAMP_SECONDS and, when the level crosses 0, re-targets every branch
- *  (a Return of 0 takes the room's effects out of the signal path). A non-finite or re-sent equal level writes nothing. */
+/** The Return: ramps `key`'s return gain over COLOUR_RAMP_SECONDS and, when the room's liveness flips, re-targets every
+ *  branch (a Return of 0 takes the room's effects out of the signal path). Every branch's teardown is checked either way:
+ *  a Return of 0 on an unfed room makes its disconnected branches dark at their own level without a crossing, and a
+ *  Return raised again ends that (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2). A non-finite or re-sent equal level
+ *  writes nothing. */
 export function setRoomReturn(key: RoomKey, level: number): void {
   const room = _rooms[key];
   if (!room || !Number.isFinite(level) || level === room.returnLevel) return;
@@ -682,6 +690,10 @@ export function setRoomReturn(key: RoomKey, level: number): void {
   room.returnLevel = level;
   rampOrSet(room.return.gain, level, COLOUR_RAMP_SECONDS);
   if (roomLive(room) !== wasLive) syncRoom(key);
+  for (const branch of ROOM_BRANCHES[key]) {
+    const cell = _cells[branch];
+    if (cell?.room === key) checkTeardown(branch, cell);
+  }
 }
 
 // ========================================

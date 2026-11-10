@@ -859,6 +859,21 @@ describe('bypassCell', () => {
         return { ...grit, node: grit.built[0] };
       }
 
+      /** The Shifter branch, pinned at depth 1, lit in its fed Shimmer room and then left unfed: disconnected, effect kept. */
+      async function unfedShimmer() {
+        const { cells } = await setup();
+        const stub = stubBuilder('frequencyShifter');
+        cells.registerEffect('frequencyShifter', { build: stub.build });
+        cells.buildRoom('shimmer', GainCtor, DelayCtor);
+        cells.buildBranch('frequencyShifter', 'shimmer', null, GainCtor);
+        cells.wireCells();
+        cells.writeCellMix('frequencyShifter', 1);
+        cells.setRoomFed('shimmer', true);
+        cells.setRoomFed('shimmer', false);
+        context.fireAll();
+        return { cells, branch: cells.getCell('frequencyShifter')!, node: stub.built[0], ...stub };
+      }
+
       describe('built at a light (Task 1)', () => {
         it('a registered empty branch builds its effect at its first light, connects it under a wet of 0, then ramps', async () => {
           const { cells, room, branch, build, built } = await emptyGrit();
@@ -1138,6 +1153,89 @@ describe('bypassCell', () => {
           expect(context.timeouts).toEqual([]);
           fire(teardown); // a fire that slipped past the cancel finds its cell gone
           expect(node.dispose).not.toHaveBeenCalled();
+        });
+      });
+
+      describe('checked on every write (Task 3)', () => {
+        it('a depth of 0 on an unfed room, its branch already disconnected, arms the teardown (the re-sent dark write, as the hold-off sends it)', async () => {
+          const { cells, branch, node } = await litGrit();
+          cells.setRoomFed('grit', false);
+          context.fireAll();
+          expect(context.timeouts).toEqual([]);
+
+          cells.writeCellMix('distortion', 0);
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+        });
+
+        it('a depth raised again on the unfed room before the fire cancels the teardown and keeps the node, unlit', async () => {
+          const { cells, branch, node } = await litGrit();
+          cells.setRoomFed('grit', false);
+          context.fireAll();
+          cells.writeCellMix('distortion', 0);
+          const teardown = context.timeouts[0];
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          expect(branch.connected).toBe(false);
+          expect(branch.effect).toBe(node);
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('on a pinned branch of an unfed room, a Return of 0 arms the teardown and a Return of 0.5 before the fire cancels it', async () => {
+          const { cells, branch, node } = await unfedShimmer();
+          expect(context.timeouts).toEqual([]);
+
+          cells.setRoomReturn('shimmer', 0);
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+          const teardown = context.timeouts[0];
+
+          cells.setRoomReturn('shimmer', 0.5);
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          context.fireAll();
+          expect(branch.effect).toBe(node);
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('a Return of 0 on an unfed room left to its fire tears the branch down; feeding the room after builds it again', async () => {
+          const { cells, branch, node, build } = await unfedShimmer();
+          cells.setRoomReturn('shimmer', 0);
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+
+          cells.setRoomFed('shimmer', true);
+          expect(build).toHaveBeenCalledTimes(1); // the Return is still 0: dark
+          cells.setRoomReturn('shimmer', 0.8);
+          expect(build).toHaveBeenCalledTimes(2);
+          expect(branch.connected).toBe(true);
+        });
+
+        it('a re-sent dark write keeps a pending teardown as it is, so the wait still runs from the disconnect', async () => {
+          const { cells } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          const teardown = context.timeouts[0];
+
+          cells.writeCellMix('distortion', 0);
+          cells.setRoomFed('grit', false);
+          cells.setRoomFed('grit', true);
+          expect(context.timeouts.map((t) => t.id)).toEqual([teardown.id]);
+          expect(context.cleared).not.toContain(teardown.id);
+        });
+
+        it('a re-sent dark write on a torn-down cell arms nothing', async () => {
+          const { cells } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          context.fireAll();
+          cells.writeCellMix('tremolo', 0);
+          expect(context.timeouts).toEqual([]);
         });
       });
     });
