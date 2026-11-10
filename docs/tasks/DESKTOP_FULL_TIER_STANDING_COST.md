@@ -572,7 +572,7 @@ branch `perf/desktop-full-tier-ab-runs`).
 
   **Estimated scope:** XS (one parameter threaded through)
 
-- [ ] **Task 11: G1's A/B and crossings** (runs 2026-11-10; Crawford's keep or drop pending)
+- [x] **Task 11: G1's A/B and crossings** (runs 2026-11-10; kept, Crawford 2026-11-10)
 
   **As run (2026-11-10, record §6).** The noise band was 0.021 on the mean, 0.033 on the crest and 0.041 on the trough.
   G1 against base: −0.074 / −0.064 on the mean, −0.144 / −0.146 on the trough, and the crest below noise / −0.042. The
@@ -694,7 +694,7 @@ branch `perf/desktop-full-tier-ab-runs`).
 
   **Estimated scope:** S (four files; one node fewer per robot)
 
-- [ ] **Task 14: G2a's A/B and census** (runs 2026-11-10; Crawford's keep or drop pending)
+- [x] **Task 14: G2a's A/B and census** (runs 2026-11-10; kept, Crawford 2026-11-10)
 
   **As run (2026-11-10, record §7).** −0.031 / −0.018 on the mean and −0.055 / −0.032 on the crest: the first cut that
   reaches the crest. The census fell 37 / 56: W2 is exactly four robots × 14, and W1 is two robots plus notes in flight.
@@ -761,7 +761,7 @@ branch `perf/desktop-full-tier-ab-runs`).
 
   **Estimated scope:** S (one module's two functions; three files)
 
-- [ ] **Task 16: G3's A/B and crossings** (runs 2026-11-10; Crawford's keep or drop pending)
+- [x] **Task 16: G3's A/B and crossings** (runs 2026-11-10; kept, Crawford 2026-11-10)
 
   **As run (2026-11-10, record §8).** Arm A was the branch at T17 (f1ffd3d1), so G4 has no A/B of its own in this
   sitting; B8 stays its price.
@@ -918,12 +918,12 @@ branch `perf/desktop-full-tier-ab-runs`).
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (any pre-existing unrelated failure
       named). 2026-11-10 on main 5ca8679f's code: types and build clean; lint 0 errors, 4 warnings; 350 files and 13 515
       tests pass, and the exit 1 is only backlog 66's `onTaskUpdate` timeout.
-- [ ] Every kept cut's A/B and crossing recorded; every dropped cut reverted with its price in the table. (Recorded,
-      record §6–§8; Crawford's keep or drop pending.)
+- [x] Every kept cut's A/B and crossing recorded; every dropped cut reverted with its price in the table. (Record
+      §6–§8; Crawford kept G1, G2a and G3 on 2026-11-10, so nothing is reverted.)
 - [x] One Light run per world reads inside the band against the branch's base (Light did not move the wrong way).
       Light fell 0.055 at G1 and stayed inside the band at G2a and G3 (record §6–§8).
-- [ ] Reviewed with human before the listen. (The listen ran first, at Crawford's word, on 2026-11-10; the review is
-      still open.)
+- [x] Reviewed with human before the listen. (The listen ran first, at Crawford's word; he reviewed and kept all three
+      cuts after it, on 2026-11-10.)
 
 ---
 

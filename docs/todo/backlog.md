@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 72.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 73.
 
 ## Open items
 
@@ -768,8 +768,8 @@ is Crawford's call. Next: his keep or drop on each cut, then the Gate B listen.
 
 **Update 2026-11-10: Gate B passed** (record §10). On W1 at Full, full screen on the 4K, there were 2 underruns, both at
 power-on, over six minutes with the cuts in, against 16 spread through five minutes on the commit before them. Neither
-build was heard to click. Phase B2 is not needed. Next: Crawford's keep or drop and review (Checkpoint B), then T25, the
-pin.
+build was heard to click. Phase B2 is not needed. Crawford kept all three cuts (Checkpoint B closed). Next: T25, the pin,
+then the docs (T26, T27). B9 is spun off as backlog 72.
 
 ### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
 
@@ -826,3 +826,36 @@ this one merges, and may also retire the Companies nav item (not yet planned).
 written the same day ([plan](../tasks/OFF_SCREEN_CONSOLE.md): Tasks 1–11 the console, Checkpoint A, Tasks 12–16 the
 retirement and docs). Module A (`off-screen-console`) built on `feature/off-screen-console`, its docs updated; at
 Checkpoint A, awaiting Crawford's look. First line of plan.md's Stage 1.
+
+### 72. Audio: Dark Effects Leave the Graph — Their Standing Signals Go (B9)
+
+**Raised 2026-11-10**, when backlog 67's Gate B passed without it. Crawford asked for it at once.
+
+**The problem.** A bypass cell whose effect is dark (its own Mix is 0) is disconnected from the cut, the work of 67's
+G3. But the effect object stays built, and its Tone Signals keep rendering: each Signal is a ConstantSource the audio
+thread runs every quantum, whether or not anything hears it. W1 (`ez84fjmr:93:-146`, Wreck) has three such effects
+(Chebyshev, Phaser and Tremolo). W2 (`bravo:-150:90`) has five (Distortion, Chebyshev, BitCrusher, Phaser and Tremolo).
+
+**What the ablation found** ([record §9](scratchy-audio-phones.md), 67's T16b). The test build disposed every dark
+effect 3 s after power-on. The node census fell by 163 nodes on W1 and 196 on W2. The rendering ConstantSources fell from
+185 to 159 on W1 and from 204 to 176 on W2. At Full, against the build with the three kept cuts, the mean fell
+**−0.026 / −0.022** (W1 / W2), and W1's crest fell −0.055. That is the size of G2a, and inaudible if done right.
+
+**The shape** (record §9's recommendation, not yet a spec):
+- A dark effect is torn down after its darken's disconnect.
+- It is rebuilt when it lights, silent under the cell's zero wet, the way `rebuildPhaser` (`globalFx.ts`) already swaps
+  a Phaser.
+- "Dark" means the effect's own Mix is 0: a chain cell's `mix`, or a room branch's `depth`. A branch with a depth whose
+  room is only unfed is not dark, because it lights again when its room is fed. The ablation's first cut got this
+  wrong and pruned W1's Chorus.
+- Proof that a light makes no click: the crossing recipe in record §8 (`DARK_EFFECT_BYPASS` spec §8.2).
+
+**Questions for the interview:**
+- Where do the effect's current options live while it is gone? A setter must not write to a null effect, and the
+  rebuild must take today's settings.
+- What happens to an LFO or the global modulation pedal that targets an effect while it is gone?
+- How long does the teardown wait after the darken?
+- How does it interact with Light's hold-offs, a world change, and a save's load?
+
+**Status:** raised; next is `/interview-me` → spec → plan. The ablation's code lives only in the backlog 67 session's
+scratchpad, not in the repo; record §9 describes it.

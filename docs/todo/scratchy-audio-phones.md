@@ -3041,4 +3041,4 @@ Run the same day as §6–§9, at Crawford's word, ahead of his Checkpoint B rev
 pin. Phase B2 (G5–G7) is not needed. Since Gate B passed without B9, B9 is a backlog entry (the next free number, 72)
 rather than part of this work: Crawford's call.
 
-**Still open:** Crawford's keep or drop for G1, G2a and G3, his review of §6–§10 (Checkpoint B), and his word on B9.
+**Checkpoint B closed (2026-11-10):** Crawford kept G1, G2a and G3, and B9 goes ahead as backlog 72.
