@@ -3042,3 +3042,95 @@ pin. Phase B2 (G5–G7) is not needed. Since Gate B passed without B9, B9 is a b
 rather than part of this work: Crawford's call.
 
 **Checkpoint B closed (2026-11-10):** Crawford kept G1, G2a and G3, and B9 goes ahead as backlog 72.
+
+## Backlog 72, dark effects leave the graph (2026-11-10)
+
+Phase 4 of [specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md](../specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md) (plan
+[tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md](../tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md), T13–T16): the proof that a dark
+effect no longer exists, and that building one at its light makes no click.
+
+**The builds.** Two production builds, `vite build --sourcemap`, served by `vite preview`:
+
+| Arm | Commit | Port | Bundle |
+|---|---|---|---|
+| main | `b79e2f72` (`origin/main`, the branch's merge base), built in a scratch `git worktree` | :4191 | `index-B3YmxZrd.js` |
+| branch | `5b914870` (`perf/dark-effects-leave-the-graph`, Checkpoint C) | :4192 | `index-BemzbYrx.js` |
+| main-copy | A byte copy of main's build, for the noise band | :4193 | `index-B3YmxZrd.js` |
+
+Each port's served bundle was checked with `curl` before the runs. **W1** = `ez84fjmr:93:-146?theme=wreck`, **W2** =
+`bravo:-150:90`, both as in backlog 67. Runs went strictly one at a time, in the foreground. The orphaned-Chrome
+count read 0 before and after every run, and every run exited 0. No browser was open, though Crawford's dev server
+(:5173) was running. Run outputs (`.txt`, `.json`) and the scripts (`serve-all.mjs`, `run.sh`, `who-built-src.mjs`) are
+in this session's scratchpad:
+`C:/Users/Crawford/AppData/Local/Temp/claude/c--Code-Fallboard-Studios-The-Still-Echo-pelagos-7/6313f670-cdf9-4b2f-affb-e05235b79b24/scratchpad/`.
+
+### 1. The censuses, Full and Light (T13)
+
+**Method.** `npm run perf:audio-census`, one run a world a tier an arm, read at the tool's 8 s warm-up (after a forced
+GC), so at Light the hold's 1 s wait (`DARK_TEARDOWN_SECONDS`) has long run. Then `npm run perf:audio-handlers`, 8 s,
+one run a world a tier an arm. Labels `T13-census-<w1|w2|w1l|w2l>-<arm>` and `T13-trace-<w1|w2|w1l|w2l>-<arm>`.
+
+**The census at Full, by class** (`census after warm-up`):
+
+| World | main | branch | Drop | B9's ablation (§9 of backlog 67) |
+|---|---|---|---|---|
+| W1 | 1 091 | 784 | **−307**: Gain −186, ConstantSource −46, WaveShaper −12, AudioBufferSource −12, Oscillator −11, BiquadFilter −10, ChannelSplitter −9, IIRFilter −9, StereoPanner −6, ChannelMerger −4, Delay −2 | −163 |
+| W2 | 1 211 | 960 | **−251**: Gain −152, ConstantSource −36, WaveShaper −12, AudioBufferSource −11, BiquadFilter −10, IIRFilter −9, ChannelSplitter −8, StereoPanner −7, Oscillator −3, ChannelMerger −2, AudioWorklet −1 | −196 |
+
+Main's counts are g3's and b9's base to the node (1 091, 1 211), so the two sittings agree.
+
+**Which effects the branch builds.** Each node built by a light is made by its registration's `build` (`build
+(globalFx.ts)` in the census by maker). `who-built-src.mjs` resolves each node's constructor frame through the source map:
+
+| World | Built (lit) | Not built | `fx in` |
+|---|---|---|---|
+| W1 | Width (85 nodes), AutoWah (62), Vibrato (40), BitCrusher (18, and its worklet's 2), Distortion (15) | Chebyshev, Phaser, Tremolo, Shifter, Chorus | 5/10 |
+| W2 | Width (85), Chorus (69), AutoWah (62), Vibrato (40) | Distortion, Chebyshev, BitCrusher, Phaser, Tremolo, Shifter | 4/10 |
+
+Each effect is built by its own setter in the boot push (through `holdOffs.ts`). The room branches (Distortion,
+BitCrusher, Chorus) are built when the room learns it is fed after the push (T12). On main, the ten effects are 503
+nodes on both worlds: `buildGlobalFxChain`'s 570 less the 144 it still makes on the branch (EQ, rooms, filters,
+Limiter), plus `buildPhaser`'s 76 and `setGlobalAutoWah`'s IIRFilter.
+
+**Why the drop is larger than B9's.** The ablation pruned only effects at Mix 0 (W1: Chebyshev, Phaser, Tremolo; W2:
+those and Distortion and BitCrusher). It kept a room branch whose room was unfed but whose Mix was above 0, because
+such a branch can light during a run. The branch never builds such a branch until its room is fed (spec §1.2, case
+15). So two more effects are absent:
+
+- **the Shifter** on both worlds: Shimmer is unfed from boot;
+- **the Chorus** on W1: the Double room's one feeder is a muted robot that G1 stands down.
+
+The extra drop over B9 is W1 −144 and W2 −55. W2's is the Shifter alone; W1's is the Shifter and the Chorus. The
+started Tone sources (`_start`) fall with them: 66 → 42 on W1, 68 → 66 on W2.
+
+**The rendering nodes at Full** (`perf:audio-handlers`, the class table's instances):
+
+| World | ConstantSource main → branch | Gain main → branch | AudioBufferSource | B9's ConstantSource drop |
+|---|---|---|---|---|
+| W1 | 180 → 134 (**−46**) | 539 → 471 (−68) | 31 → 19 | −26 |
+| W2 | 204 → 168 (**−36**) | 652 → 596 (−56) | 31 → 20 | −28 |
+
+As with the census, the extra over B9 is the Shifter and W1's Chorus, whose Signals rendered while their rooms were
+unfed. Every ConstantSource the census counts renders on both arms (180 and 134, 204 and 168).
+
+**The census at Light:**
+
+| World | main | branch | Drop |
+|---|---|---|---|
+| W1 | 1 078 | 549 | −529 |
+| W2 | 1 196 | 685 | −511 |
+
+On the branch, at Light, the census by maker has **no node from any of the ten effects**: no `build (globalFx.ts)`, no
+`buildPhaser`, no `setGlobalAutoWah`, no BitCrusher worklet (`ToneAudioWorklet`), and no IIRFilter or ChannelMerger at
+all. Main keeps all ten built under the hold (`fx in 0/10` on both arms). Light's drop is Full's plus the effects lit at
+Full (220 nodes on W1, 256 on W2).
+
+**The rendering nodes at Light** (`perf:audio-handlers`): ConstantSources **185 → 102 on W1 and 204 → 121 on W2
+(−83 each)**, and Gains 434 → 323 and 511 → 386. On main, the held effects' Signals still render under the hold; on the
+branch, nothing of theirs exists to render.
+
+**Against T13's bars.**
+- **Full: met, with the difference explained.** The drop is larger than the ablation's (−307 / −251 against −163 /
+  −196), and so is the fall in rendering ConstantSources (−46 / −36 against −26 / −28). The difference is the two
+  unfed-room branches the ablation kept.
+- **Light: met.** None of the ten effects' nodes remain.

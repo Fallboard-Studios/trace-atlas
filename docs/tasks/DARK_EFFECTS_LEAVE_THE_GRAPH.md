@@ -488,7 +488,7 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
 
 ### Phase 4: The proof (runs; measurement hygiene per PERFORMANCE.md, one harness call at a time, foreground)
 
-- [ ] **Task 13: The censuses, Full and Light**
+- [x] **Task 13: The censuses, Full and Light**
 
   **Description:** Production builds of `main` and the branch on two `vite preview` ports. `perf:audio-census` and
   `perf:audio-handlers` (8 s) on W1 and W2 at `load=full`, then at `load=light` (read after the hold's wait has run).
@@ -498,12 +498,16 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
   **Proof:** Run — recorded in the record.
 
   **Acceptance criteria:**
-  - [ ] Full: the node drop is near the ablation's −163 / −196 and the rendering ConstantSources near −26 / −28, or the
+  - [x] Full: the node drop is near the ablation's −163 / −196 and the rendering ConstantSources near −26 / −28, or the
         difference is explained.
-  - [ ] Light: none of the ten effects' nodes remain.
+  - [x] Light: none of the ten effects' nodes remain.
 
   **Verification:**
-  - [ ] The record's tables, commits named; no orphaned Chrome before or after.
+  - [x] The record's tables, commits named; no orphaned Chrome before or after.
+
+  **As run (2026-11-10):** record "Backlog 72" §1. Full: −307 / −251 nodes and −46 / −36 rendering ConstantSources,
+  larger than the ablation's because the branch also never builds the unfed rooms' Shifter (both worlds) and Chorus
+  (W1), which the ablation kept at a Mix above 0. Light: no node of the ten left on either world.
 
   **Dependencies:** Checkpoint C.
 
