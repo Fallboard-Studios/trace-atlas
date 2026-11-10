@@ -5451,6 +5451,79 @@ describe('AudioEngine - per-robot sends (Robot Sends T3, docs/specs/ROBOT_SENDS.
         ]);
         for (const key of ['grit', 'shimmer', 'double'] as const) expect(cells.getRoom(key)!.fed, key).toBe(false);
       });
+
+      // Dark Effects Leave the Graph T12 (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.6, §5.1 case 15): a room learns it
+      // is fed only once start() has pushed the seeded values, so a fed room's branch is built at them, or not at all at
+      // a seeded Return of 0. One feeder too: the post-load pass re-reserves it, and its set goes empty and back.
+      describe('the rooms are told they are fed after the first push (Dark Effects Leave the Graph T12)', () => {
+        const DOUBLE_FEEDERS = {
+          one: [{ id: 'e', grit: 0, shimmer: 0, double: 0.6 }],
+          two: [
+            { id: 'e', grit: 0, shimmer: 0, double: 0.6 },
+            { id: 'f', grit: 0, shimmer: 0, double: 0.2 },
+          ],
+        };
+        async function seedChorus(chorus: Record<string, number>) {
+          const Tone = await import('tone');
+          const { useAudioStore } = await import('../stores/audioStore');
+          // A seed may sync the Rate to a note (resolved to Hz at the tempo): free it, so the Rate given is the Hz built.
+          useAudioStore.setState((s) => ({
+            globalAudio: { ...s.globalAudio, chorus: { ...s.globalAudio.chorus, sync: undefined, ...chorus } },
+          }));
+          vi.mocked(Tone.Chorus).mockClear();
+          return Tone;
+        }
+        /** primedRosterThenStart, with the roster in the active locale the engine reads, so start()'s post-load pass
+         *  re-reserves each robot as the app's does (a lone feeder's set goes empty and back there). */
+        async function primedRosterThenStart(robots: Array<{ id: string; grit: number; shimmer: number; double: number }>) {
+          const { AudioEngine, reserve } = await setup({ start: false });
+          const cells = await import('./audioEngine/bypassCell');
+          const { useLocaleStore } = await import('../stores/localeStore');
+          useLocaleStore.setState({
+            locales: {
+              testLocale: {
+                robots: robots.map((r) => ({
+                  id: r.id, position: { x: 0, y: 0 }, audioMode: 'none', masterVolume: 0.5, panAuto: true,
+                  audioAttributes: { adsr: TEST_ADSR, filterFreq: 0, waveform: 'sine', layers: LAYERS },
+                  reverbSend: 0, delaySend: 0, gritSend: r.grit, shimmerSend: r.shimmer, doubleSend: r.double,
+                })),
+              },
+            },
+          } as any);
+          for (const r of robots) {
+            reserve(r.id);
+            AudioEngine.updateRobotSends(r.id, { grit: r.grit, shimmer: r.shimmer, double: r.double });
+          }
+          const reserved = vi.spyOn(AudioEngine, 'reserveVoice');
+          await AudioEngine.start();
+          // The post-load pass ran over this roster.
+          expect(reserved.mock.calls.map(([id]) => id)).toEqual(robots.map((r) => r.id));
+          return { AudioEngine, cells };
+        }
+
+        it.each(['one', 'two'] as const)('a seeded Double Return of 0 builds no Chorus, with %s feeder(s) primed before start', async (feeders) => {
+          const Tone = await seedChorus({ wet: 0 });
+          const { cells } = await primedRosterThenStart(DOUBLE_FEEDERS[feeders]);
+          expect(cells.getRoom('double')!.fed).toBe(true);
+          expect(Tone.Chorus).not.toHaveBeenCalled();
+          expect(cells.getCell('chorus')!.effect).toBeNull();
+        });
+
+        it.each(['one', 'two'] as const)('a seeded Double Return of 0.4 builds one Chorus, at the seeded settings, with %s feeder(s)', async (feeders) => {
+          const Tone = await seedChorus({ rate: 2.5, delayTime: 6, depth: 0.3, spread: 90, feedback: 0.2, wet: 0.4 });
+          const { cells } = await primedRosterThenStart(DOUBLE_FEEDERS[feeders]);
+          expect(Tone.Chorus).toHaveBeenCalledTimes(1);
+          expect(vi.mocked(Tone.Chorus).mock.calls[0][0]).toStrictEqual({
+            frequency: 2.5,
+            delayTime: 6,
+            depth: 0.3,
+            spread: 90,
+            feedback: 0.2,
+            wet: 1,
+          });
+          expect(cells.getCell('chorus')!.connected).toBe(true);
+        });
+      });
     });
   });
 

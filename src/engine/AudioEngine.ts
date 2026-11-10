@@ -236,6 +236,12 @@ function sendTargetOf(key: SendEngineKey): Tone.ToneAudioNode | null {
  */
 const roomFeeders: Record<RoomKey, Set<string>> = { grit: new Set(), shimmer: new Set(), double: new Set() };
 
+/** Whether the rooms have been told who feeds them: false until start() has pushed the seeded values
+ *  (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.6). Until then a flip only updates its set: the post-load pass
+ *  re-reserves each robot, and a lone feeder's set goes empty and back there, which would light the room's branch, and
+ *  so build its effect, at the defaults. */
+let roomsTold = false;
+
 /** Add or remove `robotId` as a feeder of `key`'s room, telling the room when that flips whether anyone feeds it.
  *  Stays on "now" by decision: a room going light or dark is a room-state change, not a swell value, so the swell
  *  tick's time is not passed here even when a send swell reaches 0 (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §3). */
@@ -245,7 +251,7 @@ function setRoomFeeder(key: RoomKey, robotId: string, feeding: boolean): void {
   if (feeding) feeders.add(robotId);
   else feeders.delete(robotId);
   const now = feeders.size > 0;
-  if (was !== now) setRoomFed(key, now);
+  if (was !== now && roomsTold) setRoomFed(key, now);
 }
 
 /** Tone's raw context for buildBusFilter; undefined where a mocked Tone has no getContext. */
@@ -378,9 +384,7 @@ async function loadInstruments(): Promise<void> {
   // Master compressor + global FX chain construction/wiring lives in
   // src/engine/audioEngine/globalFx.ts.
   buildGlobalFxChain();
-  // The rooms are built unfed, but robots reserved and primed at spawn (before any room existed) are already in the
-  // feeder sets, and a set that never goes empty never flips: tell each new room where its set stands now.
-  for (const key of ROOM_KEYS) setRoomFed(key, roomFeeders[key].size > 0);
+  // The rooms are built unfed and learn whether they are fed only after start()'s first push (roomsTold).
 
   instrumentsLoaded = true;
 
@@ -746,6 +750,12 @@ export const AudioEngine = {
     } catch (err) {
       devWarn('[AudioEngine] priming the LFO bank failed', err);
     }
+    // The rooms are built unfed, and no feeder flip has reached them yet (roomsTold): tell each where its set stands now,
+    // robots reserved and primed at spawn included. Only now, after the push above, so a fed room's branch is built at
+    // the seeded values, or not at all at a seeded Return of 0 (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.6). Outside
+    // the try: a failed push still leaves the rooms told.
+    roomsTold = true;
+    for (const key of ROOM_KEYS) setRoomFed(key, roomFeeders[key].size > 0);
 
     // Robot half of the same priming: a robot that spawned before AudioEngine was initialized
     // already had its composite voice reserved by the post-load reservation pass in
