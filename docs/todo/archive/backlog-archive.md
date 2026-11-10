@@ -1232,6 +1232,32 @@ would reopen it. **The general fix, when wanted:** have the registry hold a paus
 ends, whenever it is played (wrap `play`, or check the world state where those callers play), and drop R26.1's
 camera-only gate. Done when a `'world'` timeline built paused and played during a pause stays still until the resume.
 
+## 44. Sessions: Warn Before the Saves Fill the Browser's Storage
+
+**Closed** 2026-11-10 (nothing built; `docs/plan-update`). The "to work out" question was how big a save is and how many
+fit, so it was measured before the interview: a real `buildSessionPayload` on the 12-robot roster, stored as one
+`SessionEntry`. An untouched world (globalAudio, the LFO Bank and the loading identity, no overrides) is about 2.0 KB;
+the worst case — every robot with every override field changed, ADSR, three layers, filter, all five sends, pan, the
+performance fields, every LFO link and a rename — is about 15 KB, about 1.1 KB per fully tweaked robot. Against
+Chrome's ~5 MB per-origin cap that is roughly 2,600 untouched saves or 345 worst-case ones; a realistically tweaked
+world (4–6 KB) fits 800–1,200 times. Nobody keeps hundreds of named transmissions in one browser, and the full-quota
+case is already handled: Save catches the throw and shows "`{name}` failed to save.", Delete is in the Transmissions
+list. A space-left readout or a low-storage warning would be UI for an event that does not occur, so Crawford closed it.
+The sizes are recorded in [SESSION_STORAGE.md](../../SESSION_STORAGE.md) "The Storage Engine". The original request
+follows.
+
+Requested by Crawford, 2026-11-01, with the off screen's Keep failure line. There is no save-count limit in the app.
+The saves live in `localStorage` (`src/utils/sessionStorageEngine.ts`), which browsers cap per origin, at about 5 MB
+in Chrome. A save that does not fit throws. Keep catches it and shows its failure line in the warning's place (off-screen
+review R20; Crawford's words for it, "storage is already full, cannot save world", land at F3 of
+[OFF_SCREEN_FINAL_FIXES.md](../../tasks/OFF_SCREEN_FINAL_FIXES.md)). Comms' Save shows "<name> failed to save."
+(`session.status.saveFailed`). Neither warns before the limit.
+
+**To work out:** how big a save is (the payload is a diff against the seed, so an untouched world is small and a
+heavily tweaked one is not); how many fit; and whether the off screen and the Sessions panel should show the space
+left, warn as it runs low, or both. Delete is already in the Sessions list. Needs a short interview: where the warning
+lives and what it says are Crawford's.
+
 ## 47. Audio: Seeded Draws Are Welded and Centre-Heavy — Even Draws First
 
 **Closed** 2026-11-02 (merged via PR #596, `fix/even-seeded-draws`, `e333b033`..`2617fd8d`; Crawford passed Classic at Checkpoint D, "i love it"). Every audio draw is even (`getUniformSeededVal`) or centred (`getCentredSeededVal`: the EQ bands, the detunes, a lit detune link's depth folded to its 1 % floor), at the dataId and offset it always had; no key pair correlates above 0.1; every fitted edge became the share it says (spec §1.4). The record, before-and-after tables included, is [docs/tasks/EVEN_SEEDED_DRAWS.md](../../tasks/EVEN_SEEDED_DRAWS.md); its docs tasks T19–T20 landed after the merge on `docs/plan-2026-11-02`. The refinement this was step zero of is roadmap [58](../roadmap.md#58-themes-and-aspects-refinement); the world and visual draws are backlog [46](../backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement). The original request follows.

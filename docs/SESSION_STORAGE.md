@@ -42,6 +42,8 @@ One namespaced `localStorage` key, `STORAGE_KEY = 'trace-atlas.sessions.v1'`, ho
 
 Malformed or missing `localStorage` data fails soft: `listSessions()` returns `[]`, `loadSession()` returns `undefined`, never throwing into the render path. Any leftover keys from an earlier storage shape — this codebase's own now-cut autosave-history fields, or the original 6-slot scheme's `autosave`/`nextRotatingIndex` pair — are silently ignored on read, not migrated.
 
+There is no save-count limit and no low-storage warning (backlog 44, closed 2026-11-10 after measuring). A stored entry is small: an untouched world's payload (globalAudio, the LFO Bank and the loading identity, no overrides) is about 2 KB; the worst case, every robot with every override field changed, is about 15 KB (about 1.1 KB per fully tweaked robot). Against Chrome's ~5 MB per-origin cap that is roughly 2,600 untouched saves or 345 worst-case ones, so the quota is not reached in use. When a write does not fit, `localStorage.setItem` throws and Save shows its failure line ("The off screen" below); Delete frees the space.
+
 ## No Autosave in v1
 
 There is no automatic or background saving of any kind. An earlier iteration of this phase shipped a plain-`setInterval` autosave (first a flat 6-slot scheme, later restructured into a per-session/unsaved-bucket history) — see "Session Autosave History was scoped, built, then cut" below. Both were removed; the only way a session reaches `localStorage` is an explicit Save on the off screen.
