@@ -474,20 +474,6 @@ not `'running'`, tears the paused world down (`tearDownPausedWorld`, worldTransi
 is a user gesture, so `Tone.start()` may unlock the context there; a plain retry of `resume()` inside the gesture is the
 cheaper first try. Done when a 10-minute pause on iOS comes back with sound.
 
-### 44. Sessions: Warn Before the Saves Fill the Browser's Storage
-
-Requested by Crawford, 2026-11-01, with the off screen's Keep failure line. There is no save-count limit in the app.
-The saves live in `localStorage` (`src/utils/sessionStorageEngine.ts`), which browsers cap per origin, at about 5 MB
-in Chrome. A save that does not fit throws. Keep catches it and shows its failure line in the warning's place (off-screen
-review R20; Crawford's words for it, "storage is already full, cannot save world", land at F3 of
-[OFF_SCREEN_FINAL_FIXES.md](../tasks/OFF_SCREEN_FINAL_FIXES.md)). Comms' Save shows "<name> failed to save."
-(`session.status.saveFailed`). Neither warns before the limit.
-
-**To work out:** how big a save is (the payload is a diff against the seed, so an untouched world is small and a
-heavily tweaked one is not); how many fit; and whether the off screen and the Sessions panel should show the space
-left, warn as it runs low, or both. Delete is already in the Sessions list. Needs a short interview: where the warning
-lives and what it says are Crawford's.
-
 ### 45. Off Screen: Crawford's Three Preset Links
 
 Moved here from the off-screen review (Crawford, 2026-11-01). The off screen's three presets
