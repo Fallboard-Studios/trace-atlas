@@ -172,8 +172,10 @@ items 3–4 — pure centralization/robustness, no behavior change). Full suite 
 lint, and type-check all green.
 
 ### 6. `SETTINGS_LEAVES` — two independently-declared arrays for the Settings tab order
-**Status:** ☐ open (found 2026-09-27, adding Session Storage's Task 10 — not fixed here,
-out of that task's scope) · **Confidence:** high — the exact "two literal arrays kept in
+**Status:** ☑ moot (2026-11-09): the Settings branch left the app in backlog 71
+(`docs/tasks/OFF_SCREEN_CONSOLE.md` Task 14), and with it every `SETTINGS_LEAVES` and `SettingsLeaf`; nothing is left
+to desync. The citations below are the files as they stood in 2026-09 (both long gone). Found 2026-09-27, adding
+Session Storage's Task 10 · **Confidence:** high — the exact "two literal arrays kept in
 sync by convention alone" shape this doc tracks.
 
 - [`SettingsContent.tsx:24`](../src/components/panels/screen/nav/content/SettingsContent.tsx#L24)

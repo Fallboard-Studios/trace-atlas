@@ -1009,7 +1009,7 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
 
 ### Phase 6: Docs
 
-- [ ] **Task 16: `docs/` — document the shipped behaviour**
+- [x] **Task 16: `docs/` — document the shipped behaviour**
 
   **Description:** Spec §1.9 (Docs). **The off screen's half is done** (Checkpoint A, 2026-11-09, on
   `feature/off-screen-console`): the off screen section of `UI_SHELL.md` and of `SESSION_STORAGE.md`, the presets'
@@ -1031,18 +1031,30 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every documented name exists in the shipped source; no doc names `SettingsScreen`, `SectorSettingsDrawer`,
+  - [x] Every documented name exists in the shipped source; no doc names `SettingsScreen`, `SectorSettingsDrawer`,
         `SessionsPanel`, `SessionListItem`, Keep or the warning line as current.
 
   **Verification:**
-  - [ ] Manual review, each named identifier grepped in `src/`.
-  - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
+  - [x] Manual review, each named identifier grepped in `src/`.
+  - [x] `npm run build:types`, `npm run lint` clean (docs-only change).
 
   **Dependencies:** Tasks 1–15, 17–18. **Files:** `docs/UI_SHELL.md`, `docs/SESSION_STORAGE.md`,
   `docs/COMPONENT_LIBRARY.md`, `docs/COMPANIES.md`, `docs/ANIMATION_SYSTEM.md`, `CLAUDE.md`,
   `docs/specs/OFF_SCREEN_CONSOLE.md`, `docs/sketches/off-screen.html`
 
   **Estimated scope:** S (docs only, five files)
+
+  **As built (2026-11-09, on `feature/settings-retirement`):** as planned, in the eight named files, plus three
+  findings from checking each line against the source. `COMPANIES.md` said a deleted company falls back to All Probes
+  through `selectEntity('all')`; the Delete calls `selectBranch('probes')` (the board), and a reseed's
+  `selectAllRobots()` is the no-company state, not the All Probes form, so both lines now say what the code does.
+  `UI_SHELL.md`'s Fleet Params row named five tabs where there were seven before Audio Quality; it names all eight.
+  `SESSION_STORAGE.md`'s address-bar line said "four families" where `ASPECT_FAMILY_IDS` has six. Not in the plan:
+  `docs/DUPLICATE_VALUE_AUDIT.md` item 6 (two `SETTINGS_LEAVES` arrays) is marked moot, since neither array exists any
+  more. `docs/reference/layout-updates.md` still names `SectorSettingsDrawer`; it is a dated checklist that says its
+  names were the repo's at writing, so it stays. The spec and the sketch keep their "today" lines as the record of
+  the proposal; the sketch gains a RETIRED note on frames C and D and in its header comment. Types clean; lint 0
+  errors (the same 4 warnings). Proof: Crawford's read.
 
 ### Checkpoint: Complete
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.

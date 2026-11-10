@@ -61,8 +61,7 @@ opportunity. `AudioRigDrawer.tsx` is the confirmed reference implementation: its
 `AudioRigEffectPanel` builds a `fieldOnChange` map (one stable, `useMemo`-cached, pre-bound
 `onChange` per param field, keyed by field name) instead of constructing a fresh arrow per field
 per render — see that file's own comments, or `docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md` Task
-12 for the full derivation. Every other drawer composing these primitives (`SectorSettingsDrawer`,
-`PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer`, `AudioSettingSection`) likely
+12 for the full derivation. Every other drawer composing these primitives (`PingControlsDrawer`, `PingContourDrawer`, `SignatureArrayDrawer`, `AudioSettingSection`) likely
 carries the identical unstabilized-inline-closure pattern `AudioRigDrawer.tsx` had — each needs the
 same treatment in its own follow-up pass before it benefits from this memo boundary.
 
@@ -121,7 +120,7 @@ Full design rationale, including the original `LfoTargetGroup` composability che
 
 ### `Button`'s layout-rework props (docs/specs/LAYOUT_REWORK.md §1.3, §1.8)
 
-`face="single"` draws the human label alone on one line (the lore stays on the control's label row), as `RadioButton`'s options do; the default `'dual'` is lore over human. It is used by Save & Share, the session list's rows and `IntroPanel`'s More / Less. `accessibleName` names a button apart from its face when the face repeats (a list row's "Load" is named "Load Dusk Run"); without it the schema's label names it. `expanded` and `controls` make it a disclosure: they pass straight through to `aria-expanded` and `aria-controls`.
+`face="single"` draws the human label alone on one line (the lore stays on the control's label row), as `RadioButton`'s options do; the default `'dual'` is lore over human. It is used by the off screen's action row and Factory Reset, the New Transmission editor's Scan and `IntroPanel`'s More / Less. `accessibleName` names a button apart from its face when the face repeats (the off screen's "Save" is named after the selected row, "Save Dusk Run"); without it the schema's label names it. `expanded` and `controls` make it a disclosure: they pass straight through to `aria-expanded` and `aria-controls`.
 
 ### `Button`'s `muted` appearance (docs/specs/OFF_SCREEN.md §3, docs/tasks/OFF_SCREEN.md Task 13)
 
@@ -273,7 +272,7 @@ Full design rationale for the superseded `LfoTargetGroup`/`useLfoTargetGroup` de
 
 ### `SectionTabs` (docs/specs/LAYOUT_REWORK.md §1.3)
 
-`src/components/ui/controls/SectionTabs.tsx`. A screen's sections as a row of tabs: Radix `Tabs` whose triggers are `CabinetBox`es, popped while active or hovered and otherwise at `CABINET_REST_POP`, the way `RadioButton`'s options are. Props `{ items, value, onValueChange, label, variant? }`; an item is `{ id, content, label?, trait, render }` — `content` is the section's one content entry (its human name is the tab's text unless `label` overrides it, as Fleet Params' lane tabs do with `laneTitle()`), `trait` its accent, `render` its panel. **One section is in the DOM at a time:** `Tabs.Content` keeps Radix's default unmounting (no `forceMount`) and `render()` runs inside it, so an inactive section's controls never exist. A `value` no item has falls back to the first item. `variant="sub"` is the second row nested inside a section's panel (the same component, compact labels). Arrow keys, Home and End move the active tab. Each trigger registers a pop timeline `section-tab-<instanceId>-<itemId>` (see [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md)). Used by `FleetParamsScreen`, `RobotScreen`, `CompanyScreen` and `SettingsScreen`.
+`src/components/ui/controls/SectionTabs.tsx`. A screen's sections as a row of tabs: Radix `Tabs` whose triggers are `CabinetBox`es, popped while active or hovered and otherwise at `CABINET_REST_POP`, the way `RadioButton`'s options are. Props `{ items, value, onValueChange, label, variant? }`; an item is `{ id, content, label?, trait, render }` — `content` is the section's one content entry (its human name is the tab's text unless `label` overrides it, as Fleet Params' lane tabs do with `laneTitle()`), `trait` its accent, `render` its panel. **One section is in the DOM at a time:** `Tabs.Content` keeps Radix's default unmounting (no `forceMount`) and `render()` runs inside it, so an inactive section's controls never exist. A `value` no item has falls back to the first item. `variant="sub"` is the second row nested inside a section's panel (the same component, compact labels). Arrow keys, Home and End move the active tab. Each trigger registers a pop timeline `section-tab-<instanceId>-<itemId>` (see [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md)). Used by `FleetParamsScreen`, `RobotScreen` and `CompanyScreen`.
 
 ### `HelpPopover` and `ContentEntry.help` (docs/specs/LAYOUT_REWORK.md §1.4)
 

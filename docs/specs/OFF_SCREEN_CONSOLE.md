@@ -292,29 +292,39 @@ src/
 ├── components/ui/controls/
 │   └── TextInput.tsx, CoordsInput.tsx   # as built (Checkpoint A): facade={false}, so the editor draws one panel
 ├── components/panels/screen/nav/
-│   ├── navActions.ts              # Settings tables and branch removed; FLEET_PARAMS_GROUP_CONTENT.quality
+│   ├── navActions.ts              # Settings tables and branch removed; FLEET_PARAMS_GROUP_CONTENT.quality;
+│   │                              #   as built (Phase 5b): a company opens under Probes, the Companies branch gone
 │   ├── navActions.test.ts
-│   └── NavPanel.tsx               # four boxes
+│   ├── NavPanel.tsx               # four boxes; as built (Phase 5b): three, Deck, Fleet Params, Probes
+│   └── NavEntityList.tsx          # as built (Phase 5b): Probes' list only, the Companies list gone
 ├── components/panels/screen/console/
-│   ├── ConsolePanel.tsx           # no settings tile
-│   ├── useShareStatus.ts          # moved (see §1.9) or left; the plan decides
+│   ├── ConsolePanel.tsx           # no settings tile; as built (Phase 5b): no companies tile, ProbesBranch routes a company
 │   └── (SettingsScreen, SectorSettingsDrawer, SessionsPanel, SessionListItem deleted)
+├── hooks/
+│   └── useShareStatus.ts (+ test) # as built: moved here from console/ (Task 15)
+├── types/
+│   └── hub.ts                     # HubTile loses 'settings'; as built (Phase 5b): 'companies' too
 ├── stores/
-│   ├── uiStore.ts                 # FleetParamsGroup + 'quality'; SettingsLeaf and its field removed
+│   ├── uiStore.ts                 # FleetParamsGroup + 'quality'; SettingsLeaf and its field removed; as built:
+│   │                              #   TopLevelBranch is 'fleetParams' | 'probes'
 │   ├── sessionStore.ts            # keepCurrentWorld / detachLoadedSession as they are; keepWorld cut (Checkpoint A)
 │   └── sessionStore.test.ts
 ├── utils/
 │   ├── sessionStorageEngine.ts    # renameNamedSession
-│   └── sessionStorageEngine.test.ts
+│   ├── sessionStorageEngine.test.ts
+│   └── audioBudget.ts             # as built (Task 12): describeLimits reads fleet.quality.limits.*
 ├── data/
 │   ├── transmissionPresets.ts (+ test)  # deleted at Checkpoint A (the presets)
-│   ├── sectorSettingsConfig.ts    # deleted; the two input schemas move to OffScreen's constants
-│   └── sessionConfig.ts           # CLEAR_STORAGE_SCHEMA kept, the rest removed
+│   ├── sectorSettingsConfig.ts    # deleted; the two input schemas move to transmissionEditorSchemas.ts (as built)
+│   ├── sessionConfig.ts           # CLEAR_STORAGE_SCHEMA kept, the rest removed
+│   └── audioRigConfig.ts          # as built (Task 12): the Audio Quality schemas read fleet.quality*
 └── content/copy/
     ├── home.ts                    # §1.8's entries
     ├── fleet.ts                   # fleet.quality*
     ├── sector.ts                  # the four input entries only
-    ├── session.ts                 # clearStorage*, status.linkCopied/copyFailed/saveFailed only
+    ├── session.ts                 # clearStorage*, status.linkCopied/copyFailed/saveFailed only; as built: delete.confirm*
+    │                              #   kept too (the Delete confirm, Checkpoint A)
+    ├── company.ts                 # as built (Phase 5b): company.root gone
     └── settings.ts                # deleted
 docs/
 ├── UI_SHELL.md, SESSION_STORAGE.md, COMPONENT_LIBRARY.md, CLAUDE.md   # §1.9
