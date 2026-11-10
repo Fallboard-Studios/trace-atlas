@@ -2178,7 +2178,7 @@ describe('globalFx', () => {
           globalFx.setGlobalPhaser({ wet: 0 });
           expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
           expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
-          expect(toneFlags.timeouts).toHaveLength(0);
+          expect(darkens()).toHaveLength(0);
         });
 
         it('leaves the gains to the duck when the new node connects: no drop, down to dry and back to the Mix', async () => {
@@ -2701,8 +2701,9 @@ describe('globalFx', () => {
           expect(globalFx.getConnectedEffectCount()).toBe(0);
           globalFx.setGlobalPhaser({ stages: 4 });
           expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
-          expect(toneFlags.timeouts).toHaveLength(1);
-          fireTimeouts();
+          expect(darkens()).toHaveLength(1);
+          // The duck's wait is shorter than the teardown's (DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.5), so it runs first.
+          fireOnly(DUCK_WAIT);
           expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(2);
           expect(ctorOptions()).toMatchObject({ stages: 4 });
           // The live count is 4: asking for 4 again builds nothing.
@@ -4785,6 +4786,111 @@ describe('globalFx', () => {
       expect(failureWarnings()).toHaveLength(1);
       globalFx.setGlobalBitCrusher({ wet: 0.6 });
       expect(live.getCell('bitCrusher')!.connected).toBe(true);
+    });
+  });
+
+  describe('the Phaser leaves and comes back (Dark Effects Leave the Graph T7)', () => {
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.4 (an absent Phaser's Stages are mirror-only), §1.5 (a teardown folds
+    // a pending Stages duck into the mirror), §5.1 cases 11-12.
+    const DUCK_WAIT = 0.1 + 0.02 + 0.01;
+    const DARKEN_WAIT = 0.1 + 0.05 + 0.01;
+    /** Run the one pending timer whose wait is `seconds`, leaving the others. */
+    function fireOnly(seconds: number) {
+      const due = toneFlags.timeouts.find((t) => Math.abs(t.seconds - seconds) < 1e-9)!;
+      expect(due).toBeDefined();
+      toneFlags.timeouts = toneFlags.timeouts.filter((t) => t !== due);
+      due.fn();
+    }
+    const phasersBuilt = () => toneFlags.phaserCtor.mock.calls.length;
+    /** Built, lit at 0.4, darkened and torn down: the cell is empty. */
+    async function tornDown() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalPhaser({ wet: 0.4 });
+      const gone = lastInstance(toneFlags.phaserCtor);
+      globalFx.setGlobalPhaser({ wet: 0 });
+      settle();
+      expect(gone.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('phaser')!.effect).toBeNull();
+      return { globalFx, gone };
+    }
+
+    it('a torn-down Phaser given Stages 6 constructs nothing, and the next light constructs one at 6 stages', async () => {
+      const { globalFx, gone } = await tornDown();
+      const before = phasersBuilt();
+      globalFx.setGlobalPhaser({ stages: 6, rate: 2 });
+      expect(phasersBuilt()).toBe(before);
+      expect(toneFlags.timeouts).toEqual([]);
+      expect(gone.frequency.rampTo).not.toHaveBeenCalled();
+      globalFx.setGlobalPhaser({ wet: 0.3 });
+      expect(phasersBuilt()).toBe(before + 1);
+      expect(toneFlags.phaserCtor.mock.calls.at(-1)?.[0]).toStrictEqual({
+        frequency: 2,
+        octaves: 3,
+        stages: 6,
+        Q: 10,
+        baseFrequency: 350,
+        wet: 1,
+      });
+      expect(live.getCell('phaser')!.effect).toBe(lastInstance(toneFlags.phaserCtor));
+      expect(live.getCell('phaser')!.connected).toBe(true);
+    });
+
+    it('one call lighting an absent Phaser with new Stages and Q builds one node at both and writes nothing more to it', async () => {
+      const { globalFx } = await tornDown();
+      const before = phasersBuilt();
+      globalFx.setGlobalPhaser({ stages: 8, Q: 4, rate: 1.5, octaves: 5, wet: 0.3 });
+      expect(phasersBuilt()).toBe(before + 1);
+      expect(toneFlags.phaserCtor.mock.calls.at(-1)?.[0]).toMatchObject({ stages: 8, Q: 4, frequency: 1.5, octaves: 5 });
+      const fresh = lastInstance(toneFlags.phaserCtor);
+      expect(fresh.Q.rampTo).not.toHaveBeenCalled();
+      expect(fresh.frequency.rampTo).not.toHaveBeenCalled();
+      expect(fresh.dispose).not.toHaveBeenCalled();
+    });
+
+    it('a Phaser torn down with a Stages duck pending is rebuilt at that duck count, and the dropped duck never builds', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalPhaser({ wet: 0.4 });
+      const lit = lastInstance(toneFlags.phaserCtor);
+      globalFx.setGlobalPhaser({ stages: 6 }); // lit: ducked
+      globalFx.setGlobalPhaser({ wet: 0 });
+      fireOnly(DARKEN_WAIT);
+      expect(live.getCell('phaser')!.connected).toBe(false);
+      fireOnly(live.DARK_TEARDOWN_SECONDS);
+      expect(lit.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('phaser')!.effect).toBeNull();
+      const before = phasersBuilt();
+      expect(toneFlags.timeouts.map((t) => t.seconds)).not.toContain(DUCK_WAIT);
+      settle();
+      expect(phasersBuilt()).toBe(before);
+      globalFx.setGlobalPhaser({ wet: 0.3 });
+      expect(phasersBuilt()).toBe(before + 1);
+      expect(toneFlags.phaserCtor.mock.calls.at(-1)?.[0]).toMatchObject({ stages: 6 });
+      // Not ducked any more: the light ramps the cell.
+      expect(live.isDucked('phaser')).toBe(false);
+      expect(mixRampsOf(lastInstance(toneFlags.phaserCtor)).at(-1)).toEqual([expect.closeTo(colourWetGain(0.3), 9), 0.05]);
+    });
+
+    it('a present dark Phaser given Stages rebuilds at once as today, and its teardown still comes', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalPhaser({ wet: 0.4 });
+      const old = lastInstance(toneFlags.phaserCtor);
+      globalFx.setGlobalPhaser({ wet: 0 });
+      fireOnly(DARKEN_WAIT); // in its wait: present, dark, out of the path
+      const before = phasersBuilt();
+      globalFx.setGlobalPhaser({ stages: 12 });
+      expect(phasersBuilt()).toBe(before + 1);
+      expect(toneFlags.phaserCtor.mock.calls.at(-1)?.[0]).toMatchObject({ stages: 12 });
+      expect(old.dispose).toHaveBeenCalledTimes(1);
+      const fresh = lastInstance(toneFlags.phaserCtor);
+      expect(live.getCell('phaser')!.effect).toBe(fresh);
+      settle();
+      expect(fresh.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('phaser')!.effect).toBeNull();
+      globalFx.setGlobalPhaser({ wet: 0.5 });
+      expect(toneFlags.phaserCtor.mock.calls.at(-1)?.[0]).toMatchObject({ stages: 12 });
     });
   });
 

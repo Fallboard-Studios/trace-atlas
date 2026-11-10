@@ -28,6 +28,7 @@ import {
   wireCells,
   type BypassKey,
   type ChainSpan,
+  type EffectRegistration,
   type RoomKey,
 } from './bypassCell';
 import { forgetReverbEdge, holdReverbOff, wireReverbEdge, writeMix, writeReverbAmount } from './holdOffs';
@@ -80,10 +81,9 @@ let _distortionLive: DistortionLive = defaultDistortionLive();
 let _chebyshevLive: ChebyshevLive = defaultChebyshevLive();
 let _bitCrusherLive: BitCrusherLive = defaultBitCrusherLive();
 let _autoWahLive: AutoWahLive = defaultAutoWahLive();
-let _globalPhaser: Tone.Phaser | null = null;
-// Tone's Phaser takes `stages` only in its constructor, so changing it rebuilds the node (spec §1.3). The live stage
-// count, and the last-written values of every other field (`wet` as the slider position, not the tapered gain), are
-// kept here so a rebuild needs no store read. Reset by buildGlobalFxChain.
+// The Phaser's mirror. Tone's Phaser takes `stages` only in its constructor, so changing it rebuilds a present node
+// (spec §1.3). The stage count, and the last-written values of every other field (`wet` as the slider position, not the
+// tapered gain), are kept here so a rebuild, or a build at a light, needs no store read. Reset by buildGlobalFxChain.
 type PhaserLive = Omit<PhaserSettings, 'sync' | 'stages'>;
 let _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
 let _phaserLive: PhaserLive = defaultPhaserLive();
@@ -278,38 +278,50 @@ export function buildGlobalFxChain(): void {
   _chebyshevLive = defaultChebyshevLive();
   _bitCrusherLive = defaultBitCrusherLive();
   _autoWahLive = defaultAutoWahLive();
-  const builders: Partial<Record<BypassKey, () => Tone.ToneAudioNode>> = {
-    distortion:
-      DistortionCtor && (() => new DistortionCtor({ distortion: _distortionLive.amount, oversample: 'none', wet: 1 })),
-    chebyshev: ChebyshevCtor && (() => new ChebyshevCtor({ order: _chebyshevLive.order, oversample: 'none', wet: 1 })),
-    bitCrusher: BitCrusherCtor && (() => new BitCrusherCtor({ bits: _bitCrusherLive.bits, wet: 1 })),
-    autoWah: AutoWahCtor && (() => new AutoWahCtor({ ..._autoWahLive, wet: 1 })),
-  };
-  const distortion = builders.distortion?.() ?? null;
-  const chebyshev = builders.chebyshev?.() ?? null;
+  _phaserDuckStages = null;
+  _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
+  _phaserLive = defaultPhaserLive();
+  const registrations: Partial<Record<BypassKey, EffectRegistration>> = {};
+  if (DistortionCtor) {
+    registrations.distortion = {
+      build: () => new DistortionCtor({ distortion: _distortionLive.amount, oversample: 'none', wet: 1 }),
+    };
+  }
+  if (ChebyshevCtor) {
+    registrations.chebyshev = { build: () => new ChebyshevCtor({ order: _chebyshevLive.order, oversample: 'none', wet: 1 }) };
+  }
+  if (BitCrusherCtor) registrations.bitCrusher = { build: () => new BitCrusherCtor({ bits: _bitCrusherLive.bits, wet: 1 }) };
+  if (AutoWahCtor) registrations.autoWah = { build: () => new AutoWahCtor({ ..._autoWahLive, wet: 1 }) };
+  // The Phaser at its mirror's stages. A Stages duck its teardown drops was heading for a count the mirror must keep
+  // (§1.5): the next light builds at it.
+  if (PhaserCtor) {
+    registrations.phaser = {
+      build: () => buildPhaser(PhaserCtor, _phaserStages, _phaserLive),
+      onTeardown: () => {
+        if (_phaserDuckStages !== null) _phaserStages = _phaserDuckStages;
+        _phaserDuckStages = null;
+      },
+    };
+  }
+  const distortion = registrations.distortion?.build() ?? null;
+  const chebyshev = registrations.chebyshev?.build() ?? null;
   // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
   // promise, so while its cell is dark nothing changes and once lit the crushed share is briefly absent at boot. If the
   // browser refuses worklets the constructor throws, and its cell stays dry until a light builds it.
   let bitCrusher: Tone.ToneAudioNode | null = null;
   try {
-    bitCrusher = builders.bitCrusher?.() ?? null;
+    bitCrusher = registrations.bitCrusher?.build() ?? null;
   } catch (err) {
     devWarn('[AudioEngine] BitCrusher could not be constructed; the colour slot runs without it', err);
   }
-  const autoWah = builders.autoWah?.() ?? null;
-  // The Phaser starts its LFOs in its constructor, so it is built once here and never in the setter's hot path
-  // except for a Stages change. A failed construction leaves the slot empty and the chain whole.
-  _globalPhaser = null;
-  _phaserDuckStages = null;
-  _phaserStages = DEFAULT_GLOBAL_AUDIO_SETTINGS.phaser.stages;
-  _phaserLive = defaultPhaserLive();
-  if (PhaserCtor) {
-    try {
-      _globalPhaser = buildPhaser(PhaserCtor, _phaserStages, _phaserLive);
-    } catch (err) {
-      devWarn('[AudioEngine] Phaser could not be constructed; the modulation slot runs without it', err);
-      _globalPhaser = null;
-    }
+  const autoWah = registrations.autoWah?.build() ?? null;
+  // The Phaser starts its LFOs in its constructor, so it is built here, at a light, and for a Stages change of a present
+  // node only. A failed construction leaves its cell dry and the chain whole.
+  let phaser: Tone.ToneAudioNode | null = null;
+  try {
+    phaser = registrations.phaser?.build() ?? null;
+  } catch (err) {
+    devWarn('[AudioEngine] Phaser could not be constructed; the modulation slot runs without it', err);
   }
   // Global Pedals: built pinned fully wet at the stored defaults, in dark cells that carry the Mix
   // (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). Tone's Chorus and Tremolo do NOT start their LFOs in the
@@ -381,15 +393,15 @@ export function buildGlobalFxChain(): void {
   // A pending disconnect or duck belongs to the cell it was armed on: cancel it with the cell.
   clearCells();
   // Registered before the cells, so a registered key whose effect is absent still gets its (empty) branch.
-  for (const [key, build] of Object.entries(builders) as Array<[BypassKey, (() => Tone.ToneAudioNode) | undefined]>) {
-    if (build) registerEffect(key, { build });
+  for (const [key, registration] of Object.entries(registrations) as Array<[BypassKey, EffectRegistration]>) {
+    registerEffect(key, registration);
   }
   const effects: Array<[BypassKey, unknown, Tone.ToneAudioNode | null]> = [
     ['distortion', DistortionCtor, distortion],
     ['chebyshev', ChebyshevCtor, chebyshev],
     ['bitCrusher', BitCrusherCtor, bitCrusher],
     ['autoWah', AutoWahCtor, autoWah],
-    ['phaser', PhaserCtor, _globalPhaser],
+    ['phaser', PhaserCtor, phaser],
     ['chorus', ChorusCtor, _globalChorus],
     ['tremolo', TremoloCtor, _globalTremolo],
     ['vibrato', VibratoCtor, _globalVibrato],
@@ -417,7 +429,7 @@ export function buildGlobalFxChain(): void {
   }
   // The `_global<Effect>` names of the effects not yet registered stay as aliases of the cells' effects, so a left-out
   // effect's setter no-ops. A registered effect's setter reads its cell.
-  _globalPhaser = cellEffect<Tone.Phaser>('phaser');
+
   _globalChorus = cellEffect<Tone.Chorus>('chorus');
   _globalTremolo = cellEffect<Tone.Tremolo>('tremolo');
   _globalVibrato = cellEffect<Tone.Vibrato>('vibrato');
@@ -949,62 +961,65 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
  * and the new node's are made, the wet gain keeping its value throughout (writePhaserStages calls this for a connected
  * cell only at the bottom of a duck, with that value at 0); a dark cell connects nothing. The chain, the
  * returns and their join are not touched. The new node is built FIRST: if the constructor fails the old node is kept,
- * undisposed and still wired, and the caller carries on with it; the next Stages edit tries again. True on success.
+ * undisposed and still wired, and the caller carries on with it; the next Stages edit tries again. Only a present
+ * Phaser is rebuilt: a torn-down one has nothing to swap (writePhaserStages).
  */
-function rebuildPhaser(stages: number): boolean {
+function rebuildPhaser(stages: number): void {
   const PhaserCtor = getToneCtor<Tone.Phaser>('Phaser');
-  if (!PhaserCtor) return false;
+  const cell = getCell('phaser');
+  const old = cell?.effect ?? null;
+  if (!PhaserCtor || !cell || !old) return;
   let fresh: Tone.Phaser;
   try {
     fresh = buildPhaser(PhaserCtor, stages, _phaserLive);
   } catch (err) {
     devWarn('[AudioEngine] Phaser could not be rebuilt at ' + stages + ' stages; keeping the current one', err);
-    return false;
+    return;
   }
-  const old = _globalPhaser;
-  const cell = getCell('phaser');
-  if (cell) {
-    const lit = cell.connected;
-    if (lit && old) disconnectEffect('phaser', cell, old);
-    // The old node is about to be released, so its edges count as gone even if dropping them failed.
-    cell.connected = false;
-    // The new node's LFOs (Tone's constructor started them) recorded and stopped; the connect below starts them.
-    setCellEffect(cell, fresh);
-    if (lit && !connectEffect('phaser', cell, fresh)) {
-      // The new node is out, so the cell goes fully dry: the wet gain has no input left and is set to 0 at once
-      // (silent), the dry gain ramps up to 1, and the Mix is 0, so the next Mix write lights it from wet 0 like any
-      // other dark cell. A pending darken stays armed; its fire finds the cell unconnected and does nothing.
-      cell.wet.gain.value = 0;
-      // The Phaser is a chain cell, so it always has a dry gain (only a room's branch has none).
-      if (cell.dry) rampOrSet(cell.dry.gain, 1, COLOUR_RAMP_SECONDS);
-      cell.mix = 0;
-    }
+  const lit = cell.connected;
+  if (lit) disconnectEffect('phaser', cell, old);
+  // The old node is about to be released, so its edges count as gone even if dropping them failed.
+  cell.connected = false;
+  // The new node's LFOs (Tone's constructor started them) recorded and stopped; the connect below starts them.
+  setCellEffect(cell, fresh);
+  if (lit && !connectEffect('phaser', cell, fresh)) {
+    // The new node is out, so the cell goes fully dry: the wet gain has no input left and is set to 0 at once
+    // (silent), the dry gain ramps up to 1, and the Mix is 0, so the next Mix write lights it from wet 0 like any
+    // other dark cell. A pending darken stays armed; its fire finds the cell unconnected and does nothing.
+    cell.wet.gain.value = 0;
+    // The Phaser is a chain cell, so it always has a dry gain (only a room's branch has none).
+    if (cell.dry) rampOrSet(cell.dry.gain, 1, COLOUR_RAMP_SECONDS);
+    cell.mix = 0;
   }
-  _globalPhaser = fresh;
   _phaserStages = stages;
   try {
-    old?.dispose();
+    old.dispose();
   } catch (err) {
     devWarn('[AudioEngine] disposing the replaced Phaser failed', err);
   }
-  return true;
 }
 
 /**
  * A Stages change (docs/specs/DARK_EFFECT_BYPASS.md §8.2). The rebuild swaps the node inside its cell, and while the
  * Phaser is in the signal path that swap is a connect at the lit gains: it clicked x2-55 in a real-time context. So it
  * goes through the cell's duck (duckCell), which builds only the last count of a drag, and not even that if the drag came
- * back to the live one. A Phaser out of the signal path is rebuilt at once. True when the node was rebuilt now, so the
- * edit is complete; false when the live node stays for now and takes the rest of the edit.
+ * back to the live one. A Phaser out of the signal path is rebuilt at once. A torn-down Phaser has no node to swap: the
+ * count goes to the mirror only, and the next light builds at it (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.4).
  */
-function writePhaserStages(stages: number): boolean {
-  if (!needsDuck('phaser')) return rebuildPhaser(stages);
+function writePhaserStages(stages: number): void {
+  if (!cellEffect('phaser')) {
+    _phaserStages = stages;
+    return;
+  }
+  if (!needsDuck('phaser')) {
+    rebuildPhaser(stages);
+    return;
+  }
   _phaserDuckStages = stages;
   duckCell('phaser', () => {
     _phaserDuckStages = null;
     if (stages !== _phaserStages) rebuildPhaser(stages);
   });
-  return false;
 }
 
 /** Phaser (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3). The store resolves a synced Rate to Hz first, so `rate` here
@@ -1012,9 +1027,9 @@ function writePhaserStages(stages: number): boolean {
  *  tapered like Colour's and written through the bypass cell (writeCellMix); `stages` is constructor-only, so a changed
  *  count rebuilds the node. */
 export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): void {
-  const phaser = _globalPhaser;
-  if (!phaser) return;
   try {
+    // The node before this call: the only one the field writes below may reach.
+    const phaser = cellEffect<Tone.Phaser>('phaser');
     const rate = clampIfGiven('phaser.rate', params.rate);
     const octaves = clampIfGiven('phaser.octaves', params.octaves);
     const baseFrequency = clampIfGiven('phaser.baseFrequency', params.baseFrequency);
@@ -1031,12 +1046,12 @@ export function setGlobalPhaser(params: Partial<Omit<PhaserSettings, 'sync'>>): 
     // Stages first: a dark Phaser is rebuilt now, so the Mix below lights the new node; a lit one starts (or re-arms)
     // its duck, and the Mix below is then recorded for the duck to return to. A count the node has, or a duck is
     // already heading for, does nothing (a whole-block apply re-sends it).
-    const rebuilt =
-      stages !== undefined && stages !== (_phaserDuckStages ?? _phaserStages) && writePhaserStages(stages);
+    if (stages !== undefined && stages !== (_phaserDuckStages ?? _phaserStages)) writePhaserStages(stages);
     if (wet !== undefined) writeMix('phaser', wet);
 
-    // A rebuilt node comes up at the mirror's values, this edit's included, so there is nothing left to write to it.
-    if (rebuilt) return;
+    // A node rebuilt or built in this call came up at the mirror's values, this edit's included, so there is nothing left
+    // to write to it; a node absent throughout takes nothing. A ducked swap leaves the old node to take the rest.
+    if (!phaser || cellEffect('phaser') !== phaser) return;
 
     if (rate !== undefined) rampOrSet(phaser.frequency as unknown as RampableParam, rate, COLOUR_RAMP_SECONDS);
     if (octaves !== undefined) phaser.octaves = octaves;
