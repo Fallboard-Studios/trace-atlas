@@ -1238,6 +1238,62 @@ describe('bypassCell', () => {
           expect(context.timeouts).toEqual([]);
         });
       });
+
+      describe('a teardown cancels its key duck (Task 4)', () => {
+        /** A lit Tremolo ducked, darkened, its disconnect fired, and the duck re-armed past it: the teardown pending. */
+        async function duckPastDarken() {
+          const tremolo = await emptyTremolo();
+          const { cells } = tremolo;
+          cells.writeCellMix('tremolo', 0.5);
+          cells.duckCell('tremolo', vi.fn());
+          cells.writeCellMix('tremolo', 0);
+          fire(context.timeouts[1]); // the darken's disconnect, the duck's first change still pending
+          expect(tremolo.cell.connected).toBe(false);
+          const apply = vi.fn();
+          expect(cells.needsDuck('tremolo')).toBe(true);
+          cells.duckCell('tremolo', apply); // a drag still re-arming it
+          const [teardown, duck] = context.timeouts;
+          expect(teardown.seconds).toBe(1);
+          return { ...tremolo, apply, teardown, duck };
+        }
+
+        it('the teardown clears the pending duck: its timer is cancelled, its apply never runs, the key is not ducked', async () => {
+          const { cells, cell, built, apply, teardown, duck, onTeardown } = await duckPastDarken();
+
+          fire(teardown);
+
+          expect(context.cleared).toContain(duck.id);
+          expect(cells.isDucked('tremolo')).toBe(false);
+          expect(built[0].dispose).toHaveBeenCalledTimes(1);
+          expect(cell.effect).toBeNull();
+          expect(onTeardown).toHaveBeenCalledTimes(1);
+          expect(context.timeouts).toEqual([]);
+          context.fireAll();
+          expect(apply).not.toHaveBeenCalled();
+        });
+
+        it('a light in the wait keeps the duck, which then runs as before', async () => {
+          const { cells, cell, built, apply } = await duckPastDarken();
+
+          cells.writeCellMix('tremolo', 0.5);
+          context.fireAll();
+
+          expect(apply).toHaveBeenCalledTimes(1);
+          expect(cells.isDucked('tremolo')).toBe(false);
+          expect(cell.effect).toBe(built[0]);
+          expect(cell.connected).toBe(true);
+        });
+
+        it('a duck on a lit registered cell runs as before', async () => {
+          const { cells } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          const apply = vi.fn();
+          cells.duckCell('tremolo', apply);
+          context.fireAll();
+          expect(apply).toHaveBeenCalledTimes(1);
+          expect(cells.isDucked('tremolo')).toBe(false);
+        });
+      });
     });
   });
 });

@@ -199,10 +199,7 @@ export function clearCells(): void {
   for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
   for (const key of Object.keys(_registrations) as BypassKey[]) delete _registrations[key];
   for (const key of Object.keys(_rooms) as RoomKey[]) delete _rooms[key];
-  for (const key of Object.keys(_ducks) as BypassKey[]) {
-    Tone.getContext().clearTimeout(_ducks[key]!.timer);
-    delete _ducks[key];
-  }
+  for (const key of Object.keys(_ducks) as BypassKey[]) cancelDuck(key);
 }
 
 /**
@@ -447,7 +444,8 @@ function cancelTeardown(cell: Cell): void {
 }
 
 /** Arm `key`'s teardown DARK_TEARDOWN_SECONDS out when it is due and none is pending; cancel a pending one when it is
- *  not. The fire checks again, then disposes the effect, empties the cell and tells globalFx.ts. §1.2. */
+ *  not. The fire checks again, drops the key's pending duck (its change is in globalFx.ts's mirror, and its `apply`
+ *  holds the node about to go: §1.5), disposes the effect, empties the cell, then tells globalFx.ts. §1.2. */
 function checkTeardown(key: BypassKey, cell: Cell): void {
   if (!teardownDue(key, cell)) {
     cancelTeardown(cell);
@@ -457,6 +455,7 @@ function checkTeardown(key: BypassKey, cell: Cell): void {
   cell.teardown = Tone.getContext().setTimeout(() => {
     cell.teardown = null;
     if (!teardownDue(key, cell)) return;
+    cancelDuck(key);
     const effect = cell.effect;
     cell.effect = null;
     cell.lfos = [];
@@ -717,6 +716,14 @@ const _ducks: Partial<Record<BypassKey, { apply: () => void; timer: number }>> =
 /** A duck is holding `key`'s cell at dry. */
 export function isDucked(key: BypassKey): boolean {
   return _ducks[key] !== undefined;
+}
+
+/** Drop `key`'s duck in progress, its change never applied: the cell is being cleared or its effect torn down. */
+function cancelDuck(key: BypassKey): void {
+  const pending = _ducks[key];
+  if (!pending) return;
+  Tone.getContext().clearTimeout(pending.timer);
+  delete _ducks[key];
 }
 
 /** `key`'s effect is heard, or about to be again, so a change it cannot make smoothly must go through duckCell. False
