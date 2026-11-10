@@ -45,7 +45,8 @@ interface TransmissionEditorProps {
  * props, and both events bubble). One whose draft equals the last synced identity is dropped here; any other is handed
  * to `onCommit`, and the draft becomes the baseline, so the next identity lands. A coordinate field left blank is drawn
  * with `randomCoordinate()` on the commit, and the drawn value shows in its field (found at the plan's "editor"
- * checkpoint: a field may be emptied, so a sign flip is easy). Scan is the caller's draw; it drops a mid-edit draft
+ * checkpoint: a field may be emptied, so a sign flip is easy). A blank name (trimmed) is no change: the field refills
+ * with the shown name, as Rename treats a blank (Crawford, the console's code review). Scan is the caller's draw; it drops a mid-edit draft
  * first, so the drawn world lands in the inputs.
  */
 export function TransmissionEditor({ identity, selected, onCommit, onScan }: TransmissionEditorProps) {
@@ -63,9 +64,12 @@ export function TransmissionEditor({ identity, selected, onCommit, onScan }: Tra
   const commit = () => {
     if (deepEqual(draft, synced)) return;
     const { x, y } = draft.coordinates;
-    const committed = { ...draft, coordinates: { x: x ?? randomCoordinate(), y: y ?? randomCoordinate() } };
+    const committed = {
+      attenuationStyleName: draft.attenuationStyleName.trim() ? draft.attenuationStyleName : synced.attenuationStyleName,
+      coordinates: { x: x ?? randomCoordinate(), y: y ?? randomCoordinate() },
+    };
     setDraft(committed);
-    // A draw that lands back on the identity is no change.
+    // A draw that lands back on the identity, or a blank name with nothing else moved, is no change.
     if (deepEqual(committed, synced)) return;
     setSynced(committed);
     onCommit(committed);

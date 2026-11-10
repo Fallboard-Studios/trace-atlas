@@ -1445,11 +1445,16 @@ describe('OffScreen — the editor commits a world (console Task 5)', () => {
     expect(editorSelected()).toBe(true);
   });
 
-  it('a blank name commits as blank, as retransmitWorld reads it', () => {
+  // Crawford, the console's code review (2026-11-10; plan Open Question 3): a blank name is no change. It was handed to
+  // retransmitWorld, which kept the old style while the readout named a blank one.
+  it('a blank name is no pick: nothing is retransmitted, Current stays selected and the editor shows the live name', () => {
     render(<OffScreen />);
+    const { attenuationStyleName } = liveIdentity();
     typeName('');
     enter();
-    expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ attenuationStyleName: '', theme: 'classic', aspects: {} }));
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(editorSelected()).toBe(false);
+    expect(editorShows().attenuationStyleName).toBe(attenuationStyleName);
   });
 
   it('a save pick that lands shows the save’s seed and plot in the editor', () => {

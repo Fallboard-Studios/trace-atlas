@@ -316,7 +316,8 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
   synced value (mid-edit); after a commit the draft equals the synced value again, so the next sync lands. In
   `OffScreen.tsx`, `onEditorCommit(identity)` is `pickNew(identity)`: `leaveCurrent()`, the `'new'` intent, the wash
   (joining a waiting intent, the last world click winning; R3), `retransmitWorld({ …identity, …NEW_LOADING })` and
-  `detachLoadedSession()` at the cover. A blank name commits as blank, as `retransmitWorld` reads it. `CoordsInput`'s own
+  `detachLoadedSession()` at the cover. A blank name commits as blank, as `retransmitWorld` reads it (superseded at the code review, 2026-11-10: a blank
+  name is no change; Open Question 3). `CoordsInput`'s own
   guard keeps a non-numeric coordinate out of the draft. A theme or family click with New Transmission selected keeps
   it selected and edits in place, as for any row (already the rule; a case pins it).
 
@@ -1094,4 +1095,6 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
    B on `feature/settings-retirement` after this branch merges (Phase 5's note).
 3. **Does the editor's blank-name commit need a guard?** `retransmitWorld` reads a blank name as none and derives a
    world from it today (Foundry's behaviour), so the plan passes it through (spec §1.2). If the resulting world reads
-   as a mistake in the look, a follow-up pins a minimum length. **Open**, low priority, decided at Checkpoint A.
+   as a mistake in the look, a follow-up pins a minimum length. **Answered 2026-11-10 (code review):** yes. A blank
+   name kept the old style while the readout named a blank one (` · 3, 4`), so a blank name (trimmed) is now no
+   change: the field refills with the shown name, and a moved coordinate commits under it.
