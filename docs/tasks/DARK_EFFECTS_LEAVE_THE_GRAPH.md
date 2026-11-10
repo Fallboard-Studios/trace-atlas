@@ -399,7 +399,7 @@ commit names the existing cases that gained one). Next: Task 11, in a fresh sess
 
 ### Phase 3: Nothing built at chain build
 
-- [ ] **Task 11: `globalFx.ts` — the chain constructs no effect**
+- [x] **Task 11: `globalFx.ts` — the chain constructs no effect**
 
   **Description:** `buildGlobalFxChain()` builds the three rooms and the ten cells with a null effect and registers the
   ten builders; it constructs none of the ten (the `effects` table keeps the constructors only to decide which keys get
@@ -413,14 +413,14 @@ commit names the existing cases that gained one). Next: Task 11, in a fresh sess
   dry and, after one light, reconnects only that one.
 
   **Acceptance criteria:**
-  - [ ] The chain build constructs none of the ten effects; every cell and room exists and the chain is whole.
-  - [ ] Every rewritten case still proves what it proved, against a lit effect; the list of rewrites is in the commit.
-  - [ ] A Decay flip with absent effects wires dry and reconnects the lit ones.
+  - [x] The chain build constructs none of the ten effects; every cell and room exists and the chain is whole.
+  - [x] Every rewritten case still proves what it proved, against a lit effect; the list of rewrites is in the commit.
+  - [x] A Decay flip with absent effects wires dry and reconnects the lit ones.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine src/engine/AudioEngine.test.ts` passes.
-  - [ ] Mutant: build at chain build again (spec §5.1, case 1) fails the case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine src/engine/AudioEngine.test.ts` passes.
+  - [x] Mutant: build at chain build again (spec §5.1, case 1) fails the case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 6–10.
 
@@ -430,7 +430,15 @@ commit names the existing cases that gained one). Next: Task 11, in a fresh sess
   **Estimated scope:** L (one product line, a large mechanical test rewrite; one commit by necessity, see Architecture
   Decisions)
 
-- [ ] **Task 12: `AudioEngine.ts` — the rooms learn they are fed after the first push**
+  **As built (647d9686):** 297 cases failed (globalFx.test.ts 286, AudioEngine.test.ts 11, the headless file none);
+  the commit lists them by group. Besides `lightUp` (the light helper this task names), the setter groups use
+  `darkInWait`: lit, darkened and its disconnect fired, so the effect sits present and unconnected inside its teardown
+  wait, the state every build left all ten in before, and their cases read as before. Constructor-throws cases now throw
+  at the light. Two AudioEngine.test.ts cases that the lazy build made seed-dependent (one AutoWah, one widener at
+  start) now read the seed, and two that would have passed vacuously (`disconnect()` with no argument, the ceiling's
+  one feeder) light every effect first.
+
+- [x] **Task 12: `AudioEngine.ts` — the rooms learn they are fed after the first push**
 
   **Description:** In `loadInstruments`, the `setRoomFed` loop over `ROOM_KEYS` moves after
   `applyGlobalAudioToEngine(globalAudio, bpm)`, so no effect is built before the seeded values are in. Check what sits
@@ -442,12 +450,12 @@ commit names the existing cases that gained one). Next: Task 11, in a fresh sess
   Chorus is constructed, after the push, at the seeded settings.
 
   **Acceptance criteria:**
-  - [ ] No effect is constructed before `applyGlobalAudioToEngine` at start.
-  - [ ] A fed room whose seeded Return is 0 builds no branch; one above 0 builds it once, at the seeded values.
+  - [x] No effect is constructed before `applyGlobalAudioToEngine` at start.
+  - [x] A fed room whose seeded Return is 0 builds no branch; one above 0 builds it once, at the seeded values.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 11.
 
@@ -455,10 +463,25 @@ commit names the existing cases that gained one). Next: Task 11, in a fresh sess
 
   **Estimated scope:** S
 
+  **As built (06f8bbb0):** moving the loop was not enough. `loadInstruments`' post-load pass re-reserves every robot, a
+  replaced voice unfeeds its rooms (`storeVoice`), and a lone feeder's set goes empty and back, so `setRoomFeeder` told
+  the room it was fed before the push and its branch was built at the defaults (at a seeded Return of 0, built to be
+  torn down). So a feeder flip updates its set only until `start()` has told the rooms (`roomsTold`), and `start()`
+  tells each where its set stands once, after the push's `try` (a failed push still leaves the rooms told). The cases
+  run with one feeder and with two, and assert that the post-load pass ran over the roster: the older
+  `primedRosterThenStart` helper writes its roster to a locale the engine never reads, so its cases do not reach that
+  pass. Mutants: telling the rooms right after the chain build fails all four; dropping the `roomsTold` check fails the
+  two one-feeder cases.
+
 ### Checkpoint C: The build
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
-- [ ] Every spec §5.1 case is covered by a named test, and the six mutants were each checked and named in a commit.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
+- [x] Every spec §5.1 case is covered by a named test, and the six mutants were each checked and named in a commit.
 - [ ] Reviewed with Crawford before the runs.
+
+**Status (2026-11-10):** Phase 3 committed (647d9686, 06f8bbb0). Full suite 13609 of 13610 green in 350 files: the one
+failure was the known `sceneToOrbiterLocal` round-trip timing out at 5.7 s under the parallel run (10 of 10 alone), with
+the known `onTaskUpdate` exit; lint has the four existing scenery warnings only; types and the build clean. The six
+mutants are named in the T2, T3, T4, T6, T9 and T11 commits. Next: Crawford's review, then Task 13 in a fresh session.
 
 ---
 
