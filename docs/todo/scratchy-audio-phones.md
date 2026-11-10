@@ -3271,3 +3271,21 @@ The method is §6's:
 
 **Against T15's bar: met.** Every event reads at or under ×1.6 with no gap, over three runs each: the highest is
 ×1.107, against the full-level connect's ×4.7 and more.
+
+### 4. Crawford's ear (T16) — 2026-11-10
+
+**The conditions.** Crawford's desktop. His dev server (`npm run dev`, :5173) serves the branch's code: this session
+changed only docs, so its code is 5b914870's. The world was W1,
+`?debug&seed=ez84fjmr&x=93&y=-146&theme=wreck&load=full`. He was asked to do three things:
+
+1. drag an effect's Mix through 0 and back, once straight back and once after waiting more than a second at 0 (so the
+   effect is torn down and rebuilt);
+2. turn the Audio Load dial down to Light, wait a couple of seconds, and turn it back to Full (the hold-off and its
+   lift);
+3. change the world.
+
+**His words, verbatim:** "it all sounds fine, did all three things".
+
+**Not recorded:** which effect's Mix he dragged, how long he waited at 0, and the overlay's readings.
+
+**Verdict: pass.** No click or gap on any of the three.

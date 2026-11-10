@@ -569,7 +569,7 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
 
   **Estimated scope:** M (the probe's rebuild and seven events)
 
-- [ ] **Task 16: Crawford's ear**
+- [x] **Task 16: Crawford's ear**
 
   **Description:** Crawford's desktop, W1 at Full with `?debug`: a hand drag of a Mix through 0 and back (before and
   after the wait), the Audio Load dial down to Light and back (the hold-off and its lift), and a world change. Any
@@ -578,10 +578,16 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
   **Proof:** Ear — Crawford's.
 
   **Acceptance criteria:**
-  - [ ] Crawford hears no click or gap on any of the three.
+  - [x] Crawford hears no click or gap on any of the three.
 
   **Verification:**
-  - [ ] His verdict in the record.
+  - [x] His verdict in the record.
+
+  **As run (2026-11-10):** record "Backlog 72" §4. On his dev server (5b914870's code): "it all sounds fine, did all
+  three things". Pass.
+
+  **Status (2026-11-10):** Phase 4 done (T13 5b16a3ee, T14 a41fca0e, T15 34b3bcff, T16 here). Next: Task 17, the docs,
+  in a fresh session.
 
   **Dependencies:** Tasks 13–15.
 
