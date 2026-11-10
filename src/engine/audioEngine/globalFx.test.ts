@@ -139,14 +139,28 @@ const toneFlags = vi.hoisted(() => ({
     wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
   })),
   crusherAbsent: false,
-  crusherCtor: vi.fn((opts: { bits?: number; wet?: number } = {}) => ({
-    connect: vi.fn().mockReturnThis(),
-    disconnect: vi.fn(),
-    dispose: vi.fn(),
-    toDestination: vi.fn(),
-    bits: { value: opts.bits ?? 4, rampTo: vi.fn() },
-    wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
-  })),
+  // Dark Effects Leave the Graph T10 (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.7): Tone 15's BitCrusher keeps its
+  // worklet wrapper in `_bitCrusherWorklet`, which makes the AudioWorkletNode `_worklet` in the `then` of the context's
+  // addAudioWorkletModule. By default the node is already made; a test can build a crusher without it (and set it by hand
+  // later), or without the wrapper at all (a Tone that is not the shape this was written against).
+  crusherWorkletMade: true,
+  crusherWrapperAbsent: false,
+  crusherCtor: vi.fn((opts: { bits?: number; wet?: number } = {}) => {
+    const node: Record<string, unknown> = {
+      connect: vi.fn().mockReturnThis(),
+      disconnect: vi.fn(),
+      dispose: vi.fn(),
+      toDestination: vi.fn(),
+      bits: { value: opts.bits ?? 4, rampTo: vi.fn() },
+      wet: { value: opts.wet ?? 1, rampTo: vi.fn() },
+    };
+    if (!toneFlags.crusherWrapperAbsent) {
+      node._bitCrusherWorklet = { _worklet: toneFlags.crusherWorkletMade ? {} : undefined, disposed: false };
+    }
+    return node;
+  }),
+  // What the context's workletsAreReady() returns: settled by default, or a promise a test settles by hand.
+  workletsReady: Promise.resolve() as Promise<void>,
   // Dark-Effect Bypass T2 (docs/specs/DARK_EFFECT_BYPASS.md section 1.1): the bypass cells are three Gains each, so the
   // Gain is hoisted for a switch to hide it. It takes Tone's numeric constructor argument as its gain, and `gain` is a
   // Param with `rampTo`, as the cells' crossfades need.
@@ -298,6 +312,7 @@ vi.mock('tone', () => ({
     rawContext: { createAnalyser: () => createAnalyser() },
     lookAhead: toneFlags.lookAhead,
     now: () => toneFlags.now,
+    workletsAreReady: () => toneFlags.workletsReady,
     setTimeout: (fn: () => void, seconds: number) => {
       toneFlags.nextTimeoutId += 1;
       toneFlags.timeouts.push({ id: toneFlags.nextTimeoutId, fn, seconds });
@@ -319,6 +334,10 @@ function fireTimeouts(): void {
 /** The pending context timers but the teardowns (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2): a registered effect
  *  dark at its own level and out of the path arms one on any write, a room feed or a hold-off included. */
 const darkens = () => toneFlags.timeouts.filter((t) => t.seconds !== live.DARK_TEARDOWN_SECONDS);
+
+/** Let the settled promises' callbacks run: the BitCrusher's worklet check (Dark Effects Leave the Graph T10) settles a
+ *  few microtasks after the crusher enters its cell, and its cell connects it on a light only after that. */
+const flush = () => new Promise((settle) => setTimeout(settle, 0));
 
 /** Fire the context timers until none is pending: a darken's disconnect, then the teardown it arms
  *  (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2). Bounded, so a timer that re-arms itself fails the test. */
@@ -491,6 +510,9 @@ describe('globalFx', () => {
     toneFlags.shaperThrows = false;
     toneFlags.lookAhead = 0.1;
     toneFlags.timeouts = [];
+    toneFlags.crusherWorkletMade = true;
+    toneFlags.crusherWrapperAbsent = false;
+    toneFlags.workletsReady = Promise.resolve();
   });
 
   describe('getGlobalChainEntry', () => {
@@ -1292,6 +1314,7 @@ describe('globalFx', () => {
     it('disconnects the three once per Decay Mode flip, and reconnects each only while lit (its room fed)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await flush();
       const colour = [lastInstance(Tone.Distortion), lastInstance(Tone.Chebyshev), lastInstance(toneFlags.crusherCtor)];
       globalFx.wireGlobalFxChain(true);
       for (const node of colour) {
@@ -1329,6 +1352,7 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       feedRooms('grit');
+      await flush();
       return {
         globalFx,
         dist: lastInstance(Tone.Distortion),
@@ -3944,6 +3968,7 @@ describe('globalFx', () => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
         feedRooms('grit');
+        await flush();
         const effect = effectOf();
         const cell = cellOf(effect);
         const set = globalFx[setterName] as unknown as MixSetter;
@@ -4092,6 +4117,7 @@ describe('globalFx', () => {
     it('is 10 with all ten lit, and 0 again once all ten are dark and their timers have fired', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await flush();
       lightAll(globalFx);
       expect(globalFx.getConnectedEffectCount()).toBe(10);
       for (const setter of [
@@ -4116,6 +4142,7 @@ describe('globalFx', () => {
       toneFlags.vibratoAbsent = true;
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await flush();
       lightAll(globalFx);
       expect(globalFx.getConnectedEffectCount()).toBe(9);
     });
@@ -4505,6 +4532,7 @@ describe('globalFx', () => {
     it('a whole-block apply while held off connects nothing, every room fed', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await flush();
       globalFx.setEffectsHeldOff(true);
       // Every setter's Mix, as applyGlobalAudioToEngine sends them, with every room fed.
       feedRooms();
@@ -4525,6 +4553,8 @@ describe('globalFx', () => {
       fireTimeouts();
       expect(globalFx.getConnectedEffectCount()).toBe(0);
       globalFx.setEffectsHeldOff(false);
+      // The fire tore the ten down; the lift rebuilds them, and a rebuilt BitCrusher lights once its worklet is checked.
+      await flush();
       expect(globalFx.getConnectedEffectCount()).toBe(10);
     });
 
@@ -4586,6 +4616,7 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       feedRooms('grit');
+      await flush();
       return globalFx;
     }
     const constructed = (ctor: unknown) => (ctor as AnyMock).mock.calls.length;
@@ -4658,6 +4689,7 @@ describe('globalFx', () => {
       expect(constructed(ctor())).toBe(before);
       expect(read(gone)).toEqual(goneField);
       set(globalFx, { wet: 0.4 });
+      await flush();
       expect(constructed(ctor())).toBe(before + 1);
       expect(lastInstance(ctor()) as unknown).not.toBe(gone);
       expect(vi.mocked(ctor() as Mock).mock.calls.at(-1)).toEqual([ctorArgs]);
@@ -4757,6 +4789,7 @@ describe('globalFx', () => {
       for (const { key } of cases) expect(live.getCell(key)!.effect).toBeNull();
       const before = cases.map(({ ctor }) => constructed(ctor()));
       globalFx.setEffectsHeldOff(false);
+      await flush();
       expect(cases.map(({ ctor }) => constructed(ctor()))).toEqual([before[0] + 1, before[1], before[2] + 1, before[3] + 1]);
       expect(live.getCell('distortion')!.connected).toBe(true);
       expect(live.getCell('bitCrusher')!.connected).toBe(true);
@@ -4795,6 +4828,7 @@ describe('globalFx', () => {
       expect(live.getCell('bitCrusher')!.connected).toBe(false);
       expect(failureWarnings()).toHaveLength(1);
       globalFx.setGlobalBitCrusher({ wet: 0.6 });
+      await flush();
       expect(live.getCell('bitCrusher')!.connected).toBe(true);
     });
   });
@@ -5093,6 +5127,138 @@ describe('globalFx', () => {
       expect(chorus.dispose).not.toHaveBeenCalled();
       expect(live.getCell('frequencyShifter')!.effect).toBe(shifter);
       expect(live.getCell('chorus')!.effect).toBe(chorus);
+    });
+  });
+
+  describe('the BitCrusher lights once its worklet exists (Dark Effects Leave the Graph T10)', () => {
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.7, §7 Q1, §5.1 case 14. Tone 15.1's BitCrusher constructs
+    // synchronously, but its wrapper (`_bitCrusherWorklet`) makes the AudioWorkletNode (`_worklet`) only in the `then` of
+    // the context's worklet module promise, which workletsAreReady() also waits on. Until the node exists the crushed
+    // path is silent, so a light records its target and keeps the cell dry and unconnected.
+    function deferred() {
+      let resolve!: () => void;
+      let reject!: (err: unknown) => void;
+      const promise = new Promise<void>((res, rej) => {
+        resolve = res;
+        reject = rej;
+      });
+      return { promise, resolve, reject };
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const workletOf = (crusher: any) => crusher._bitCrusherWorklet;
+
+    /** A chain whose BitCrusher, built at a light after a teardown, waits on a module load the test settles by hand. */
+    async function unreadyAtALight() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('grit');
+      await flush();
+      globalFx.setGlobalBitCrusher({ wet: 0.4 });
+      globalFx.setGlobalBitCrusher({ wet: 0 });
+      settle();
+      expect(live.getCell('bitCrusher')!.effect).toBeNull();
+      const load = deferred();
+      toneFlags.workletsReady = load.promise;
+      toneFlags.crusherWorkletMade = false;
+      return { globalFx, load };
+    }
+
+    it('a Mix of 0.5 builds the crusher but leaves its cell unconnected until the worklet node exists, then connects and ramps', async () => {
+      const { globalFx, load } = await unreadyAtALight();
+      fake(live.getCell('bitCrusher')!.wet).gain.rampTo.mockClear();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      const crusher = lastInstance(toneFlags.crusherCtor);
+      const cell = live.getCell('bitCrusher')!;
+      expect(cell.effect).toBe(crusher);
+      expect(cell.connected).toBe(false);
+      expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+      await flush();
+      expect(cell.connected).toBe(false);
+      // Tone makes the node in the module promise's `then`, before workletsAreReady() settles.
+      workletOf(crusher)._worklet = {};
+      load.resolve();
+      await flush();
+      expect(cell.connected).toBe(true);
+      expect(crusher.connect).toHaveBeenCalledWith(cell.wet);
+      expect(mixRampsOf(crusher)).toEqual([[expect.closeTo(colourWetGain(0.5), 9), 0.05]]);
+      expect(failureWarnings()).toEqual([]);
+    });
+
+    it('a darken before the worklet node exists cancels the light: the cell never connects', async () => {
+      const { globalFx, load } = await unreadyAtALight();
+      fake(live.getCell('bitCrusher')!.wet).gain.rampTo.mockClear();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      const crusher = lastInstance(toneFlags.crusherCtor);
+      globalFx.setGlobalBitCrusher({ wet: 0 });
+      workletOf(crusher)._worklet = {};
+      load.resolve();
+      await flush();
+      const cell = live.getCell('bitCrusher')!;
+      expect(cell.connected).toBe(false);
+      expect(crusher.connect).not.toHaveBeenCalled();
+      expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('a crusher built at the chain build waits too, and is ready by a later light', async () => {
+      toneFlags.crusherWorkletMade = false;
+      const load = deferred();
+      toneFlags.workletsReady = load.promise;
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('grit');
+      const crusher = lastInstance(toneFlags.crusherCtor);
+      workletOf(crusher)._worklet = {};
+      load.resolve();
+      await flush();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      expect(live.getCell('bitCrusher')!.connected).toBe(true);
+    });
+
+    it('a crusher whose module promise settles without making the node warns once and lights anyway', async () => {
+      const { globalFx, load } = await unreadyAtALight();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      load.resolve();
+      await flush();
+      expect(live.getCell('bitCrusher')!.connected).toBe(true);
+      expect(failureWarnings()).toHaveLength(1);
+    });
+
+    it('a crusher whose module load fails warns once and lights anyway (bypassCell rule)', async () => {
+      const { globalFx, load } = await unreadyAtALight();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      load.reject(new Error('module load failed'));
+      await flush();
+      expect(live.getCell('bitCrusher')!.connected).toBe(true);
+      expect(failureWarnings()).toHaveLength(1);
+    });
+
+    it('a crusher with no worklet wrapper warns once and lights without waiting for the module', async () => {
+      const { globalFx } = await unreadyAtALight();
+      toneFlags.crusherWrapperAbsent = true;
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      await flush();
+      expect(live.getCell('bitCrusher')!.connected).toBe(true);
+      globalFx.setGlobalBitCrusher({ wet: 0 });
+      settle();
+      globalFx.setGlobalBitCrusher({ wet: 0.6 });
+      await flush();
+      expect(live.getCell('bitCrusher')!.connected).toBe(true);
+      expect(failureWarnings()).toHaveLength(1);
+    });
+
+    it('a crusher torn down before its node exists is left alone and warns nothing', async () => {
+      const { globalFx, load } = await unreadyAtALight();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      const crusher = lastInstance(toneFlags.crusherCtor);
+      globalFx.setGlobalBitCrusher({ wet: 0 });
+      settle();
+      expect(crusher.dispose).toHaveBeenCalledTimes(1);
+      // Tone's wrapper never makes a node once it is disposed.
+      workletOf(crusher).disposed = true;
+      load.resolve();
+      await flush();
+      expect(live.getCell('bitCrusher')!.effect).toBeNull();
+      expect(failureWarnings()).toEqual([]);
     });
   });
 

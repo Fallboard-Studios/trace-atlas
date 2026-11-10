@@ -158,6 +158,37 @@ function defaultAutoWahLive(): AutoWahLive {
   return { baseFrequency, octaves, sensitivity, Q, gain, follower };
 }
 
+/** The Tone 15 BitCrusher internals its readiness reads: the worklet wrapper, which makes the AudioWorkletNode in the
+ *  `then` of the context's addAudioWorkletModule and never once it is disposed (core/worklet/ToneAudioWorklet.js). */
+type CrusherWorklet = { _bitCrusherWorklet?: { _worklet?: unknown; disposed?: boolean } };
+
+/** Set once the BitCrusher has been found without its worklet wrapper, so a Tone of another shape warns once. */
+let warnedNoCrusherWorklet = false;
+
+/**
+ * The BitCrusher's whenReady (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.7, §7 Q1): resolves once the crusher's
+ * AudioWorkletNode exists, so its cell never ramps the wet gain up over a silent path. Tone makes the node in the `then`
+ * of the context's worklet module promise, queued before workletsAreReady()'s own, so it is there once that resolves
+ * (Tone 15.1.22, checked with its own __awaiter: a first load, a settled one, a later crusher). Its fields are protected
+ * in Tone's types, so they are read through a cast, as bypassCell.ts's effectEnds reads Tone's. A crusher with no wrapper
+ * (not the Tone this was written against) is taken as ready, warned once; one disposed while it waited (torn down)
+ * resolves, and its cell has let it go. A load that fails, or settles without a node, rejects: the cell warns once and
+ * lights it anyway.
+ */
+async function bitCrusherReady(crusher: Tone.ToneAudioNode): Promise<void> {
+  const wrapper = (crusher as unknown as CrusherWorklet)._bitCrusherWorklet;
+  if (!wrapper) {
+    if (!warnedNoCrusherWorklet) {
+      warnedNoCrusherWorklet = true;
+      devWarn('[AudioEngine] the BitCrusher has no worklet wrapper to wait for; its cell lights it at once');
+    }
+    return;
+  }
+  // workletsAreReady is the Context's, not the BaseContext's getContext types; a headless stub may not have it.
+  await (Tone.getContext() as unknown as { workletsAreReady?: () => Promise<void> }).workletsAreReady?.();
+  if (!wrapper._worklet && !wrapper.disposed) throw new Error('the BitCrusher worklet node was not made');
+}
+
 function defaultChorusLive(): ChorusLive {
   const { rate, delayTime, depth, feedback } = DEFAULT_GLOBAL_AUDIO_SETTINGS.chorus;
   return { rate, delayTime, depth, feedback };
@@ -322,7 +353,13 @@ export function buildGlobalFxChain(): void {
   if (ChebyshevCtor) {
     registrations.chebyshev = { build: () => new ChebyshevCtor({ order: _chebyshevLive.order, oversample: 'none', wet: 1 }) };
   }
-  if (BitCrusherCtor) registrations.bitCrusher = { build: () => new BitCrusherCtor({ bits: _bitCrusherLive.bits, wet: 1 }) };
+  // The app's one AudioWorklet effect: its cell lights it only once its worklet node exists (bitCrusherReady).
+  if (BitCrusherCtor) {
+    registrations.bitCrusher = {
+      build: () => new BitCrusherCtor({ bits: _bitCrusherLive.bits, wet: 1 }),
+      whenReady: bitCrusherReady,
+    };
+  }
   if (AutoWahCtor) registrations.autoWah = { build: () => new AutoWahCtor({ ..._autoWahLive, wet: 1 }) };
   // The Phaser at its mirror's stages. A Stages duck its teardown drops was heading for a count the mirror must keep
   // (§1.5): the next light builds at it.
@@ -386,9 +423,9 @@ export function buildGlobalFxChain(): void {
   }
   const distortion = registrations.distortion?.build() ?? null;
   const chebyshev = registrations.chebyshev?.build() ?? null;
-  // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
-  // promise, so while its cell is dark nothing changes and once lit the crushed share is briefly absent at boot. If the
-  // browser refuses worklets the constructor throws, and its cell stays dry until a light builds it.
+  // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and makes its worklet node on a promise,
+  // which its cell waits for before a light. If the browser refuses worklets the constructor throws, and its cell stays
+  // dry until a light builds it.
   let bitCrusher: Tone.ToneAudioNode | null = null;
   try {
     bitCrusher = registrations.bitCrusher?.build() ?? null;
