@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 71.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 72.
 
 ## Open items
 
@@ -765,6 +765,11 @@ deltas, W1 / W2: release the docked and muted robots' voices −0.074 / −0.064
 −0.031 / −0.018 (crest −0.055 / −0.032), the cells past Tone's wrapper −0.020 / −0.018. Every crossing is inaudible
 (≤ ×1.02), and Light got cheaper. The dark effects' Signals (B9) price at −0.026 / −0.022; whether that becomes a spec
 is Crawford's call. Next: his keep or drop on each cut, then the Gate B listen.
+
+**Update 2026-11-10: Gate B passed** (record §10). On W1 at Full, full screen on the 4K, there were 2 underruns, both at
+power-on, over six minutes with the cuts in, against 16 spread through five minutes on the commit before them. Neither
+build was heard to click. Phase B2 is not needed. Next: Crawford's keep or drop and review (Checkpoint B), then T25, the
+pin.
 
 ### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
 

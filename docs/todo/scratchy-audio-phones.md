@@ -2983,7 +2983,7 @@ and 0 after every darken, so each graph change happened):
 **Is the fix worth a spec? My recommendation: yes, after Gate B.** It is the size of G2a or G3 and inaudible if done
 right: a dark effect torn down after its darken's disconnect and rebuilt, silent under the cell's zero wet, when it
 lights, as `rebuildPhaser` already swaps a Phaser. The crossing recipe above proves it. It would take the next free
-number (71). If Gate B passes without it, it is a backlog entry rather than part of this work. Crawford's call.
+number (72; 71 is the off-screen console). If Gate B passes without it, it is a backlog entry rather than part of this work. Crawford's call.
 
 **What Phase B adds up to** (a rough reading: arm medians from different pairs, not same-round deltas). Base to g3, with
 G4 in: W1's mean 0.581 → 0.436–0.445 (about −0.14), W2's 0.457 → 0.349–0.351 (about −0.11). The crest goes 0.644 →
@@ -2993,3 +2993,52 @@ crest is still the sounding robots (roadmap 69's G2b) and the music's own floor.
 
 **Next:** Checkpoint B (the suite on the merged code, and Crawford's review of §6–§9 with his keep or drop for G1, G2a
 and G3, and his word on a B9 spec), then Gate B, his ear at full 4K (T19, T20).
+
+### 10. Gate B: Crawford's ear at full 4K (T19, T20) — 2026-11-10
+
+Run the same day as §6–§9, at Crawford's word, ahead of his Checkpoint B review.
+
+- **The builds.** *With the cuts:* the dev server (`npm run dev`, port 5173) on `perf/desktop-full-tier-ab-runs` at
+  bf0fc379, which carries G1, G2a, G4 and G3 (`main` after PR #607). *Without:* a2a400c1's production build, §6's
+  `dist-base`, on `vite preview` port 4181.
+- **Deviations from spec §1.6.**
+  - The protocol pairs "the branch against `main`", but PR #607 had already put the cuts on `main`, so the baseline is
+    the commit before them.
+  - The run with the cuts was on the dev server, not a production build. Dev mode adds main-thread work, not
+    audio-thread work, so it makes the run no easier.
+  - The overlay was read once, at the end of each run, rather than at 1:00, 3:00 and 5:00; `sounding` and `fx in` were
+    not read.
+  - Whether Crawford's own Chrome was open beside it, as on 2026-11-05, was not confirmed.
+  - **Skipped:** the quarter window (full screen did not miss), and the Standard and Light minute. That minute checks
+    that the cuts did not change the sound, not the underruns. Crawford skipped it as not needed, and the risk is low:
+    - G1 touches only silent robots.
+    - G2a's native filter is the same BiquadFilterNode that Tone's Filter wrapped.
+    - G3 changes only the routing, and §8's crossings show no click.
+- **The conditions.** Crawford's 4K desktop, the browser full screen on the 4K monitor, hands off from power-on. W1 is
+  `?debug&seed=ez84fjmr&x=93&y=-146&theme=wreck&load=full`. The same world with `theme=polarLow` was played for three
+  minutes on each build.
+
+| Run | Build | Length | `underruns` | By ear |
+|---|---|---|---|---|
+| W1, Wreck, Full | with the cuts (5173) | 6 min | **2**, both at power-on | clean |
+| W1, Polar Low, Full | with the cuts (5173) | 3 min | **2**, at power-on | clean |
+| W1, Wreck, Full | a2a400c1, without (4181) | 5 min | **16**, spread through the run | clean |
+| W1, Polar Low, Full | a2a400c1, without (4181) | 3 min | **3** | clean |
+
+- **His words, verbatim.**
+  - With the cuts: "working completely fine on my 4k monitor"; "6 minutes in … and there are 2 underruns from the
+    switch on. 3 minutes on polar low has the same results there."
+  - Without: "16 underruns in 5 minutes. 3 underruns on polar low at 3 minutes."
+  - Asked whether he heard any click, crackle or distortion on either: "no".
+  - Asked whether the 16 were bunched: "spread".
+- **What it shows.**
+  - On Wreck, the cuts take the count from 16 spread through the run to 2 at power-on and none after.
+  - Polar Low is near the floor on both builds, so its pair says little.
+  - The machine was far calmer than on 2026-11-05, when the same world counted 2 063 (spec §1.6). Neither build
+    clicked by ear today, so this sitting cannot show the clicks going away. It shows the margin the cuts buy.
+
+**Verdict: pass.** W1 played clean by ear for five minutes and more at full screen, with the cuts in. Next is T25, the
+pin. Phase B2 (G5–G7) is not needed. Since Gate B passed without B9, B9 is a backlog entry (the next free number, 72)
+rather than part of this work: Crawford's call.
+
+**Still open:** Crawford's keep or drop for G1, G2a and G3, his review of §6–§10 (Checkpoint B), and his word on B9.

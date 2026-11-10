@@ -922,13 +922,14 @@ branch `perf/desktop-full-tier-ab-runs`).
       record §6–§8; Crawford's keep or drop pending.)
 - [x] One Light run per world reads inside the band against the branch's base (Light did not move the wrong way).
       Light fell 0.055 at G1 and stayed inside the band at G2a and G3 (record §6–§8).
-- [ ] Reviewed with human before the listen.
+- [ ] Reviewed with human before the listen. (The listen ran first, at Crawford's word, on 2026-11-10; the review is
+      still open.)
 
 ---
 
 ### Gate B: Crawford's ear at full 4K
 
-- [ ] **Task 19: The listen, prepared**
+- [x] **Task 19: The listen, prepared**
 
   **Description:** The branch's and `main`'s production builds served on two ports (`vite preview`, or the LAN as
   backlog 27's sittings did), the links written out (W1 with `&debug` and `&load=full` on each), and a section in the
@@ -936,10 +937,14 @@ branch `perf/desktop-full-tier-ab-runs`).
   2026-11-05, hands off five minutes, the overlay read at 1:00, 3:00 and 5:00, his words verbatim; then `main`; then a
   quarter window if full screen missed; then a Standard and a Light minute) and an empty table to fill.
 
+  **As run (2026-11-10):** prepared in conversation, not ahead in the record. The cuts were already on `main` (PR #607),
+  so the pair was the dev server on the branch (5173) against a2a400c1's production build (4181). The protocol and its
+  deviations are in record §10.
+
   **Proof:** Read — the section and the links.
 
   **Acceptance criteria:**
-  - [ ] Both builds answer on their ports with the pinned world; the table is ready.
+  - [x] Both builds answer on their ports with the pinned world; the table is ready.
 
   **Verification:**
   - [ ] Manual read.
@@ -950,17 +955,26 @@ branch `perf/desktop-full-tier-ab-runs`).
 
   **Estimated scope:** XS (a record)
 
-- [ ] **Task 20: The listen, recorded (Gate B)**
+- [x] **Task 20: The listen, recorded (Gate B)**
 
   **Description:** Crawford runs the protocol; the agent records his words verbatim and the overlay readings
   (`clock`, `underruns`, `sounding`, `fx in`) at the three marks for each run, and the verdict: **pass** (W1 clean by
   ear for five minutes at full screen with his Chrome open; Standard and Light unchanged) → T25; **miss** → Phase B2,
   one candidate at a time, this task re-run after each yes. The quarter-window reading is recorded either way.
 
+  **As run (2026-11-10): pass** (record §10).
+  - On W1 at Full, full screen on the 4K, there were 2 underruns, both at power-on, over six minutes with the cuts in,
+    against 16 spread through five minutes on a2a400c1. Neither build was heard to click.
+  - On Polar Low, the count was 2 against 3 at three minutes.
+  - The overlay was read at the end only, so `underruns` is the only reading.
+  - His Chrome open was not confirmed.
+  - The Standard and Light minute was skipped at Crawford's call, with the reason given in §10.
+  - There was no quarter window, because full screen did not miss.
+
   **Proof:** the listen — Crawford's ear. Read — the section.
 
   **Acceptance criteria:**
-  - [ ] The verdict and every reading in the record, the builds named by commit.
+  - [x] The verdict and every reading in the record, the builds named by commit.
 
   **Verification:**
   - [ ] Manual read.
