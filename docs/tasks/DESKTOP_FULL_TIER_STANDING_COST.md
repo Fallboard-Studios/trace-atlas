@@ -798,7 +798,7 @@ branch `perf/desktop-full-tier-ab-runs`).
   - **The trace:** rendering ConstantSources 185 → 159 and 204 → 176.
   - **Deviation:** "dark" means the effect's own Mix is 0. A first variant pruned every effect unconnected at 3 s,
     which took W1's Chorus, a branch whose room was momentarily unfed.
-  - **Recommendation:** a spec after Gate B (the next free number, 71); Crawford's call.
+  - **Recommendation:** a spec after Gate B (the next free number, 72); Crawford's call.
 
   **Description:** Added at Gate A (Crawford, 2026-11-07) to price §5's "dark Signals" row before any spec is written.
   A variant build (scratch only, nothing committed) takes every dark effect out of the graph after boot (its links
