@@ -7,7 +7,7 @@ import { useUIStore } from '@/stores/uiStore';
 // This test is about ContentPane's own blank-state/active-tile dispatch (spec §7 Q6 —
 // repurposed from Console.tsx, docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 8), not about ConsolePanel's
 // content — same boundary ConsolePanel.test.tsx already draws around
-// RobotsTab/RobotOptionsTab/AudioRigDrawer/SectorSettingsDrawer. Its former close button now
+// RobotsTab/RobotOptionsTab/AudioRigDrawer. Its former close button now
 // lives in NavPanel as "Home" — see NavPanel.test.tsx.
 vi.mock('./ConsolePanel', () => ({
   ConsolePanel: () => <div data-testid="console-panel-stub" />,

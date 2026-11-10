@@ -4,7 +4,7 @@ import type { ContentEntry } from '../types';
  *  removed with the accordion itself. */
 export const home = {
   // The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9). Placeholder copy until Crawford's
-  // review; the preset names are the sketch's stand-ins (src/data/transmissionPresets.ts).
+  // review. (The three presets' names went with the presets at docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A.)
   'home.off.label': {
     human: 'Trace Atlas',
     lore: 'A Meridia Telemetry Group product',
@@ -18,6 +18,9 @@ export const home = {
   // The Current row's eyebrow (docs/specs/OFF_SCREEN.md assumption 8): the row itself is named by describeWorld
   // (the loaded world, or the loaded save's name in front of it) — data, not copy.
   'home.off.current': { human: 'Current' },
+  // Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): it says what the standing warning
+  // line said. Stand-in copy until Crawford's pass (backlog 62).
+  'home.off.unsavedEyebrow': { human: 'Current · unsaved' },
   // The theme row's label (docs/tasks/OFF_SCREEN.md Task 30), with its hint under it. "Drive" (Crawford, 2026-11-01,
   // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F5), then "Trace Type" with "select one" (Crawford, 2026-11-02,
   // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c); the key and the axis's internal name stay "loading".
@@ -26,36 +29,34 @@ export const home = {
   // The title over the aspect family rows, with its hint (Crawford, 2026-11-02, Task 6c).
   'home.off.aspects': { human: 'Trace Aspects' },
   'home.off.aspectsHint': { human: 'select many' },
-  // The Transmission list's section titles over the saves and the presets (Crawford, 2026-11-02, Task 6c). The saves'
-  // shows only while there are saves.
+  // The Transmission list's title over the saves (Crawford, 2026-11-02, Task 6c), shown only while there are saves. The
+  // presets had one too until they went (docs/tasks/OFF_SCREEN_CONSOLE.md, Checkpoint A).
   'home.off.savedTransmissions': { human: 'Saved Transmissions' },
-  'home.off.presetTransmissions': { human: 'Preset Transmissions' },
   // New Transmission: the first row of the list, a world drawn when the off screen opens (a random Attenuation Style and
   // plot, under Classic with no aspects); Scan, the action in its row, draws another and selects it. An action, not a
   // radio. Crawford's words (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.6); Scan replaced Roll.
   'home.off.newTransmission': { human: 'New Transmission' },
   'home.off.scan': { human: 'Scan' },
-  // Keep (spec assumption 14): the one save action on the off screen — the loaded world, under the name Comms would
-  // suggest, no name field. Dims once the world is kept. Crawford's words, 2026-10-31: "Save Last World", his answer to
-  // the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20), after "Save the last session" (revisions
-  // Task 4).
-  'home.off.keep': { human: 'Save Last World' },
-  // Keep's failure line (R20): shown in the unsaved warning's place when the storage refuses the save (a full quota).
-  // Crawford's words, verbatim (2026-11-01, docs/tasks/OFF_SCREEN_FINAL_FIXES.md F3).
-  'home.off.keepFailed': { human: 'storage is already full, cannot save world' },
+  // The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5), each acting on the selected row and named
+  // after it ("Delete Harbour Song"). Save replaced Keep ("Save Last World"). Stand-in copy until Crawford's pass
+  // (backlog 62).
+  'home.off.save': { human: 'Save', template: 'Save {name}' },
+  'home.off.rename': { human: 'Rename', template: 'Rename {name}' },
+  'home.off.delete': { human: 'Delete', template: 'Delete {name}' },
+  // Rename refused (spec assumption 3): another save already has the typed name, so the row keeps its own. In the status
+  // slot under the readout. Stand-in copy until Crawford's pass (backlog 62).
+  'home.off.renameTaken': { human: 'a save already has that name' },
+  // Share, last in the action row (spec §1.6): copies the link for the world the readout names, named after the selected row.
+  // Stand-in copy until Crawford's pass (backlog 62).
+  'home.off.share': { human: 'Share', template: 'Share {name}' },
   // A save row's meta in the Transmission list (revisions Task 4): when it was saved, in the Sessions list's own
   // format (formatSessionTimestamp, "Sep 28, 2:14 PM"). Stand-in copy until Crawford's pass.
   'home.off.savedAt': { human: 'Saved', template: 'saved {time}' },
-  // The one warning worth having, shown under the chooser only while the loaded world is unkept.
-  'home.off.unsavedWarning': { human: 'Picking another transmission discards this world’s unsaved changes.' },
   // The lore footer (spec assumption 18): a prop in tiny etched type, last in the column. The legalese is Crawford's
   // copy; this is the sketch's stand-in (docs/sketches/off-screen.html) until he writes it.
   'home.off.footer': {
     human: 'Meridia Telemetry Group · Trace Atlas receiver firmware · unauthorised retransmission of any trace is an offence under the Deep Charter · no warranty is expressed or implied',
   },
-  'home.off.presets.a': { human: 'Kryndara' },
-  'home.off.presets.b': { human: 'Vessport Null' },
-  'home.off.presets.c': { human: 'Halcyon Drift' },
   // The Loading axis's names and sentences: the fourteen themes and the six aspect families of
   // docs/specs/THEME_AND_ASPECTS_REFINEMENT.md, as shipped (its §1.8; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T12).
   // Each sentence is written from its sheet's Promise line (docs/reference/THEME_AND_ASPECT_SHEETS.md); a theme's may

@@ -50,7 +50,7 @@ import { lfoEngine } from '../engine/lfoEngine';
 
 /** Backfills any lane a payload's lfoBank is missing with DEFAULT_BANK_LFO, so every applySessionPayload
  *  caller gets a whole bank. A world link arrives whole already (worldLink.ts's decodeWorldLink fills every
- *  lane from the seed), but a session loaded from localStorage (SessionListItem.tsx) is never run through
+ *  lane from the seed), but a session loaded from localStorage (the off screen's list) is never run through
  *  the link's decoder at all, so a stale/hand-edited/partial saved entry could otherwise reach AudioEngine.start()'s
  *  primeLfoBank(lfoBank) with a hole and throw reading .rate off `undefined`. */
 function backfillLfoBank(bank: SessionPayload['lfoBank']): Record<LfoLaneId, BankLfoSettings> | undefined {
@@ -491,8 +491,8 @@ export function applySessionPayload(payload: SessionPayload, options?: { skipLoc
   // old entry is removed). Omitting attenuationStyleName when it's unchanged routes through
   // retransmitWorld's coordsOnly branch instead, which explicitly preserves the current
   // Attenuation Style untouched — exactly correct for this case, and the one this codebase's own
-  // UI already relies on (SectorSettingsDrawer only ever sends attenuationStyleName when the
-  // field was actually edited). A payload naming a DIFFERENT Attenuation Style still uses the
+  // UI relied on (Foundry, until docs/tasks/OFF_SCREEN_CONSOLE.md Task 15, only ever sent
+  // attenuationStyleName when the field was actually edited). A payload naming a DIFFERENT Attenuation Style still uses the
   // normal path; the same collision risk could in principle recur if that different name happens
   // to already exist elsewhere in the store, which is not handled here (see docs/specs/
   // SESSION_STORAGE.md §7 item 8's follow-up note).

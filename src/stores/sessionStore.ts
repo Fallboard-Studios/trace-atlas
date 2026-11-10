@@ -57,15 +57,15 @@ export interface SessionStore {
   /** The Session Name input's live value — starts as a generated suggestion the user can accept
    *  or overwrite before clicking Save Session. */
   currentSessionName: string;
-  /** Which named session, if any, is currently loaded — drives SessionListItem.tsx's Load-button
-   *  wiring. Defaults to null on every fresh store creation: nothing ever auto-loads a session on
-   *  boot (docs/specs/SESSION_STORAGE.md §1, §5.3 criterion 5), and this store's own default is
-   *  part of what keeps that true. */
+  /** Which named session, if any, is currently loaded — the off screen's list reads it. Defaults to null on
+   *  every fresh store creation: nothing ever auto-loads a session on boot (docs/specs/SESSION_STORAGE.md §1,
+   *  §5.3 criterion 5), and this store's own default is part of what keeps that true. */
   currentLoadedSessionName: string | null;
   setCurrentSessionName: (name: string) => void;
   setCurrentLoadedSessionName: (name: string | null) => void;
   /**
-   * Keep (docs/specs/OFF_SCREEN.md assumption 14): save the live world with no name field — under the loaded save's
+   * The off screen's Save (Keep until docs/specs/OFF_SCREEN_CONSOLE.md §1.5; docs/specs/OFF_SCREEN.md assumption 14):
+   * save the live world with no name field — under the loaded save's
    * name when one is loaded (overwriting that row, as Comms' Save would), else under the suggestion Comms' Save already
    * proposes — then name the session after it, as a Load does, so a later Save overwrites the same row. A blank
    * suggestion (emptied in Comms) falls back to a fresh generated one: Keep never writes an unnamed row. With nothing
@@ -74,13 +74,7 @@ export interface SessionStore {
    */
   keepCurrentWorld: () => string;
   /**
-   * Keep with a snapshot (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.4): save `payload` under
-   * `loadedName`, overwriting that save, or under a name no save has when it is null or blank. Returns the name. Touches
-   * no session field: those describe the live world, and the off screen's Current is a world the listener has left.
-   */
-  keepWorld: (payload: SessionPayload, loadedName: string | null) => string;
-  /**
-   * The loaded save is no longer the world (the off screen's preset or New Transmission pick, or a Scan): forget it, and if the name
+   * The loaded save is no longer the world (the off screen's editor commit or Scan, or a Delete of that save): forget it, and if the name
    * input still carries that save's name (a Load or a save pick put it there so Save would overwrite the row), suggest
    * afresh, a name no save has (R6) — so the next Keep or Save writes a new row instead of overwriting a save with a
    * different world. A name the user typed is left alone. A no-op when nothing is loaded.
@@ -109,12 +103,6 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     return name;
   },
 
-  keepWorld: (payload, loadedName) => {
-    const name = loadedName?.trim() || unusedSessionName('');
-    saveNamedSession(name, payload);
-    return name;
-  },
-
   detachLoadedSession: () => {
     const { currentLoadedSessionName, currentSessionName } = get();
     if (currentLoadedSessionName === null) return;
@@ -131,9 +119,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
 /**
  * Is there something to keep? True unless the loaded save's stored payload equals the live world now — so a world
- * that came from a seed, a preset or a link (nothing loaded), a loaded save edited since, or a loaded name that is
- * no longer in storage all read dirty. What dims Keep (docs/specs/OFF_SCREEN.md assumption 14; the dim-controls
- * rule). Builds the live payload, so callers compute it at the moments that matter — mount, a pick, a Keep — never
+ * that came from a seed or a link (nothing loaded), a loaded save edited since, or a loaded name that is
+ * no longer in storage all read dirty. What dims the off screen's Save and marks Current "unsaved"
+ * (docs/specs/OFF_SCREEN_CONSOLE.md §1.3, §1.5; the dim-controls rule). Builds the live payload, so callers compute it
+ * at the moments that matter — mount, a pick, a Save — never
  * per render.
  */
 export function isWorldDirty(): boolean {

@@ -38,7 +38,7 @@ import { getRef } from '@/utils/refs';
 import type { HubTile } from '@/types/hub';
 
 const UI_INITIAL_STATE = useUIStore.getState();
-const TILES: HubTile[] = ['robots', 'audioRig', 'settings', 'companies'];
+const TILES: HubTile[] = ['robots', 'audioRig'];
 
 // ========================================
 // TESTS
@@ -93,7 +93,7 @@ describe('WorldView — dims while the content surface is showing', () => {
     render(<WorldView />);
     act(() => useUIStore.getState().setActiveHubTile('audioRig'));
     expect(worldView().hasAttribute('data-dimmed')).toBe(true);
-    act(() => useUIStore.getState().setActiveHubTile('settings'));
+    act(() => useUIStore.getState().setActiveHubTile('robots'));
     expect(worldView().hasAttribute('data-dimmed')).toBe(true);
     act(() => useUIStore.getState().setActiveHubTile(null));
     expect(worldView().hasAttribute('data-dimmed')).toBe(false);

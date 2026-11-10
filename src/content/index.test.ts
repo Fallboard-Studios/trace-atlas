@@ -180,7 +180,7 @@ describe('CONTENT', () => {
   });
 
   it('exposes the closed area list', () => {
-    expect(CONTENT_AREAS).toEqual(['home', 'header', 'nav', 'fleet', 'probe', 'company', 'settings', 'session', 'sector', 'ui']);
+    expect(CONTENT_AREAS).toEqual(['home', 'header', 'nav', 'fleet', 'probe', 'company', 'session', 'sector', 'ui']);
   });
 
   it('the live helpers read CONTENT when no record is passed', () => {

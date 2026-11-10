@@ -45,8 +45,8 @@ describe('Audio Load panel', () => {
   });
 
   const presetRadio = (name: string) => screen.getByRole('radio', { name });
-  const robotSlider = () => screen.getByRole('slider', { name: CONTENT['settings.quality.robotLoad'].human });
-  const effectsSlider = () => screen.getByRole('slider', { name: CONTENT['settings.quality.effectsLoad'].human });
+  const robotSlider = () => screen.getByRole('slider', { name: CONTENT['fleet.quality.robotLoad'].human });
+  const effectsSlider = () => screen.getByRole('slider', { name: CONTENT['fleet.quality.effectsLoad'].human });
   const selectedPresets = () =>
     ['Light', 'Standard', 'Full'].filter((name) => presetRadio(name).getAttribute('aria-checked') === 'true');
 
@@ -55,7 +55,7 @@ describe('Audio Load panel', () => {
     // "Audio Load" is the outer top-level panel's own label; Robot Load/Effects Load now nest one
     // level deeper, in their own shared row (docs/reference/layout-updates.md), so they're checked
     // separately rather than off the outer panel's own closest('.sc-directional-panel').
-    expect(screen.getByText(CONTENT['settings.quality.audioLoad'].human)).toBeTruthy();
+    expect(screen.getByText(CONTENT['fleet.quality.audioLoad'].human)).toBeTruthy();
     const slidersPanel = robotSlider().closest('.sc-directional-panel')!;
     expect(effectsSlider().closest('.sc-directional-panel')).toBe(slidersPanel);
     expect(presetRadio('Light')).toBeTruthy();

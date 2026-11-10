@@ -16,6 +16,10 @@ interface TextInputProps {
    *  of TextInputSchema — the schema still describes generic text entry. */
   numeric?: boolean;
   disabled?: boolean;
+  /** Draws the field's own static CabinetBox facade (the default). False renders the label and the input bare, for a
+   *  caller that frames several fields in one panel of its own (the off screen's New Transmission editor,
+   *  docs/tasks/OFF_SCREEN_CONSOLE.md Checkpoint A). Rendering only, like `numeric`. */
+  facade?: boolean;
 }
 
 /**
@@ -42,7 +46,41 @@ interface TextInputProps {
  * unaffected — no new interaction, no hover/focus/disabled-reactive pop;
  * the box is purely decorative.
  */
-function TextInputInner({ schema, value, onChange, numeric, disabled }: TextInputProps) {
+function TextInputInner({
+  schema,
+  value,
+  onChange,
+  numeric,
+  disabled,
+  facade = true,
+}: TextInputProps) {
+  const field = (
+    <div className="sc-text-input">
+      <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
+      <input
+        type={numeric ? 'number' : 'text'}
+        inputMode={numeric ? 'decimal' : undefined}
+        step={numeric ? 'any' : undefined}
+        className="sc-text-input__el"
+        /* Bugfix, found live via a Chrome console warning on CompanyCrudControls's
+           Create field: a form field with neither id nor name is a real Chrome
+           best-practices flag (autofill/accessibility). schema.id is already the
+           uniqueness boundary every TextInput consumer relies on (see
+           CompanyCrudControls.tsx's own CREATE_NAME_SCHEMA/RENAME_NAME_SCHEMA
+           comment, and CoordsInput's `${schema.id}.x`/`.y`) — reused here rather
+           than inventing a second id scheme. */
+        id={schema.id}
+        name={schema.id}
+        aria-label={resolveAccessibleName(schema)}
+        placeholder={schema.placeholder}
+        maxLength={schema.maxLength}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      />
+    </div>
+  );
+  if (!facade) return field;
   return (
     <div className="sc-text-input-facade">
       <CabinetBox
@@ -51,30 +89,7 @@ function TextInputInner({ schema, value, onChange, numeric, disabled }: TextInpu
         autoHeight
         timelineKey={`cabinet-text-input-facade-${schema.id}`}
       >
-        <div className="sc-text-input">
-          <DualLabel loreLabel={schema.loreLabel} humanLabel={schema.humanLabel} help={schema.help} />
-          <input
-            type={numeric ? 'number' : 'text'}
-            inputMode={numeric ? 'decimal' : undefined}
-            step={numeric ? 'any' : undefined}
-            className="sc-text-input__el"
-            /* Bugfix, found live via a Chrome console warning on CompanyCrudControls's
-               Create field: a form field with neither id nor name is a real Chrome
-               best-practices flag (autofill/accessibility). schema.id is already the
-               uniqueness boundary every TextInput consumer relies on (see
-               CompanyCrudControls.tsx's own CREATE_NAME_SCHEMA/RENAME_NAME_SCHEMA
-               comment, and CoordsInput's `${schema.id}.x`/`.y`) — reused here rather
-               than inventing a second id scheme. */
-            id={schema.id}
-            name={schema.id}
-            aria-label={resolveAccessibleName(schema)}
-            placeholder={schema.placeholder}
-            maxLength={schema.maxLength}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            disabled={disabled}
-          />
-        </div>
+        {field}
       </CabinetBox>
     </div>
   );

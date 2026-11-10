@@ -99,7 +99,7 @@ export function latencyForLoad(audioLoad: number): LoadLatencyHint {
   return robotLoadToLimits(audioLoad).latencyHint;
 }
 
-/** What describeLimits names as switched off: the option keys of `settings.quality.limits.off`. */
+/** What describeLimits names as switched off: the option keys of `fleet.quality.limits.off`. */
 type OffItem = 'drift' | 'filterLfos' | 'robotFilterLfos' | 'pedals' | 'colour' | 'reverb';
 
 // "a or b", "a, b or c": the copy's British English, the conjunction the platform's own.
@@ -107,13 +107,13 @@ const OFF_LIST = new Intl.ListFormat('en-GB', { type: 'disjunction' });
 
 /**
  * One line saying what a dial position means, for the Audio Load readout — e.g. "Up to 4 robots · 8 notes · no drift,
- * filter LFOs, pedals, colour or reverb", every word from `settings.quality.limits.*`. It never names the latency hint:
+ * filter LFOs, pedals, colour or reverb", every word from `fleet.quality.limits.*`. It never names the latency hint:
  * every position boots at playback (backlog 67 T17b). Never prints Infinity or NaN.
  */
 export function describeLimits(limits: LoadLimits): string {
   const parts = [
-    fill('settings.quality.limits.robots', { n: String(limits.maxAudibleRobots) }),
-    fill('settings.quality.limits.notes', { n: String(limits.maxPolyphony) }),
+    fill('fleet.quality.limits.robots', { n: String(limits.maxAudibleRobots) }),
+    fill('fleet.quality.limits.notes', { n: String(limits.maxPolyphony) }),
   ];
   // The bus tier is only named when the global filter tier is on: with it off, "filter LFOs" already covers both.
   const off: OffItem[] = [];
@@ -122,11 +122,11 @@ export function describeLimits(limits: LoadLimits): string {
   else if (!limits.busFilterLfosEnabled) off.push('robotFilterLfos');
   if (!limits.effectsEnabled) off.push('pedals', 'colour');
   if (!limits.reverbEnabled) off.push('reverb');
-  const offNames = optionsRecord('settings.quality.limits.off');
+  const offNames = optionsRecord('fleet.quality.limits.off');
   parts.push(
     off.length === 0
-      ? CONTENT['settings.quality.limits.allOn'].human
-      : fill('settings.quality.limits.off', { list: OFF_LIST.format(off.map((item) => offNames[item].humanLabel)) }),
+      ? CONTENT['fleet.quality.limits.allOn'].human
+      : fill('fleet.quality.limits.off', { list: OFF_LIST.format(off.map((item) => offNames[item].humanLabel)) }),
   );
   return parts.join(' · ');
 }

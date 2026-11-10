@@ -22,5 +22,11 @@
  * (docs/specs/archive/NAV_LAYOUT_REWRITE.md §1.4/Q1) — Companies becomes its own
  * top-level tree branch rather than nesting inside `robots`, keeping
  * ConsolePanel's `Record<HubTile, ...>` exhaustiveness guarantee intact.
+ *
+ * `settings` removed by docs/tasks/OFF_SCREEN_CONSOLE.md Task 14: the off screen makes, loads, saves and
+ * shares a world, and Audio Quality is Fleet Params' last tab.
+ *
+ * `companies` removed by docs/tasks/OFF_SCREEN_CONSOLE.md Task 18: the Companies box left the nav, and a
+ * company's screen opens under `robots` (Probes) from the roster board.
  */
-export type HubTile = 'robots' | 'audioRig' | 'settings' | 'companies';
+export type HubTile = 'robots' | 'audioRig';

@@ -70,6 +70,21 @@ export function deleteNamedSession(name: string): void {
   writeStorage(data);
 }
 
+/** Re-keys the entry named `from` to `to`, keeping its `savedAt` and payload and setting its
+ *  `name` to `to` (the off screen's Rename, docs/specs/OFF_SCREEN_CONSOLE.md §1.5). Returns
+ *  `false` and writes nothing when `from` has no entry or `to` already has one — a rename to a
+ *  taken name is refused, never an overwrite, and `from === to` is that case. */
+export function renameNamedSession(from: string, to: string): boolean {
+  const data = readStorage();
+  // Own keys only: a typed name such as "constructor" must not read Object.prototype.
+  if (!Object.hasOwn(data.named, from) || Object.hasOwn(data.named, to)) return false;
+  const entry = data.named[from];
+  delete data.named[from];
+  data.named[to] = { ...entry, name: to };
+  writeStorage(data);
+  return true;
+}
+
 /** Every named entry, for the "Load Sessions" list. */
 export function listSessions(): SessionEntry[] {
   const data = readStorage();

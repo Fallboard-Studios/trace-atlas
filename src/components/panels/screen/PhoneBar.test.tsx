@@ -111,7 +111,7 @@ describe('PhoneWell', () => {
   });
 
   it('the open sheet’s hint wins over both', () => {
-    useUIStore.setState({ activeHubTile: 'settings', isNavPanelOpen: true });
+    useUIStore.setState({ activeHubTile: 'audioRig', isNavPanelOpen: true });
     renderPieces();
     expect(well().textContent).toBe(MENU_OPEN_HINT);
     expect(crumb()).toBeNull();

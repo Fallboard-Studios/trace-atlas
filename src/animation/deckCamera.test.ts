@@ -1338,14 +1338,14 @@ describe('deckCamera', () => {
     it('triggers nothing while browsing within the hub, with no return to the Deck', () => {
       useUIStore.getState().setActiveHubTile('robots');
       useUIStore.getState().selectRobot('alpha');
-      useUIStore.getState().setActiveHubTile('settings');
+      useUIStore.getState().setActiveHubTile('audioRig');
       useUIStore.getState().selectRobot('beta');
 
       expect(gsap.timeline).not.toHaveBeenCalled();
     });
 
     it('triggers nothing on returning to the Deck when no robot was ever selected', () => {
-      useUIStore.getState().setActiveHubTile('settings');
+      useUIStore.getState().setActiveHubTile('audioRig');
       useUIStore.getState().setActiveHubTile(null);
 
       expect(gsap.timeline).not.toHaveBeenCalled();
@@ -1454,7 +1454,7 @@ describe('deckCamera', () => {
 
     function openCompanyAndReturn(id: string): void {
       useUIStore.getState().selectCompany(id);
-      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().setActiveHubTile('robots');
       useUIStore.getState().setActiveHubTile(null);
     }
 
@@ -1509,7 +1509,7 @@ describe('deckCamera', () => {
     it('acts on the most recently selected company only', () => {
       useUIStore.getState().selectCompany('c1');
       useUIStore.getState().selectCompany('c4');
-      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().setActiveHubTile('robots');
       useUIStore.getState().setActiveHubTile(null);
 
       expect(getFollowedRobotId()).toBe('eta');
@@ -1519,7 +1519,7 @@ describe('deckCamera', () => {
     it('acts on the company when it came after a robot', () => {
       useUIStore.getState().selectRobot('delta');
       useUIStore.getState().selectCompany('c1');
-      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().setActiveHubTile('robots');
       useUIStore.getState().setActiveHubTile(null);
 
       expect(getFollowedRobotId()).toBe('beta');
@@ -1535,7 +1535,7 @@ describe('deckCamera', () => {
     });
 
     it('triggers nothing while browsing within the hub', () => {
-      useUIStore.getState().setActiveHubTile('companies');
+      useUIStore.getState().setActiveHubTile('audioRig');
       useUIStore.getState().selectCompany('c1');
       useUIStore.getState().setActiveHubTile('robots');
 

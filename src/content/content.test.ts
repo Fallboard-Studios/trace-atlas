@@ -15,8 +15,8 @@ import { describe, it, expect } from 'vitest';
 import { CONTENT, CONTENT_AREAS, fill, introProps, labels, optionsRecord, type ContentKey } from './index';
 import type { ContentEntry } from './types';
 import * as audioRigConfig from '@/data/audioRigConfig';
-import * as sectorSettingsConfig from '@/data/sectorSettingsConfig';
 import * as sessionConfig from '@/data/sessionConfig';
+import * as transmissionEditorSchemas from '@/components/panels/screen/screens/transmissionEditorSchemas';
 import * as robotOptionsConfig from '@/data/robotOptionsConfig';
 import { buildCompanyAssignmentSchema, COMPANY_NAME_INPUT_SCHEMA } from '@/data/companyConfig';
 import type { Company } from '@/types/Company';
@@ -142,20 +142,20 @@ function valueControlSchemas(...modules: object[]): ControlSchema[] {
   return found;
 }
 
-/** Fleet Params and Settings controls whose schema a shared primitive builds itself, from its own key. */
+/** Fleet Params and off screen controls whose schema a shared primitive builds itself, from its own key. */
 const PRIMITIVE_OWNED_KEYS: readonly ContentKey[] = ['ui.lfoLane', 'ui.lfo.depth', 'ui.tempoSync'];
 
-describe('help coverage — Fleet Params and Settings', () => {
-  const schemas = valueControlSchemas(audioRigConfig, sectorSettingsConfig, sessionConfig);
+describe('help coverage — Fleet Params and the off screen', () => {
+  const schemas = valueControlSchemas(audioRigConfig, transmissionEditorSchemas, sessionConfig);
 
   it('the walk reaches every config, nested lane schemas included (never passes on an empty list)', () => {
     const ids = schemas.map((s) => s.id);
     for (const id of ['eq3.low', 'compressor.knee', 'audioRig.compressorBeforeDelay', 'audioRig.lfoBank.d.shape', 'audioRig.lfoBank.a.depthDrift',
       'audioRig.bpm', 'audioRig.swellFrequency', 'audioRig.audioLoadPreset', 'audioRig.effectsLoad', 'sectorSettings.planetName',
-      'sectorSettings.coordinates', 'session.name']) {
+      'sectorSettings.coordinates']) {
       expect(ids).toContain(id);
     }
-    expect(ids).not.toContain('session.save'); // a button
+    expect(ids).not.toContain('session.clearStorage'); // a button
     expect(ids).not.toContain('audioRig.eq3'); // a panel
   });
 

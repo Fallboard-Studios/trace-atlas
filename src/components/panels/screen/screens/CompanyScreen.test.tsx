@@ -337,9 +337,9 @@ describe('CompanyScreen', () => {
   });
 
   describe('deleting the company', () => {
-    // Crawford, 2026-10-11: deleting a company leaves you on Companies (ConsolePanel then shows the roster
-    // board, since no company is selected), not on Probes → All Probes.
-    it('leaves you on the Companies page: the company is gone, nothing is selected, and the tile stays Companies', () => {
+    // Crawford, 2026-10-11: deleting a company leaves you on the roster board (Probes' page since
+    // docs/tasks/OFF_SCREEN_CONSOLE.md Task 17), not on Probes → All Probes.
+    it('leaves you on the Probes page: the company is gone, nothing is selected, and the tile is Probes', () => {
       openCompany(RUST.id);
       render(<CompanyScreen />);
 
@@ -349,7 +349,7 @@ describe('CompanyScreen', () => {
       expect(useLocaleStore.getState().getCompanyById(localeId, RUST.id)).toBeUndefined();
       expect(useUIStore.getState().selectedCompanyId).toBeNull();
       expect(useUIStore.getState().allProbesSelected).toBe(false);
-      expect(useUIStore.getState().activeHubTile).toBe('companies');
+      expect(useUIStore.getState().activeHubTile).toBe('robots');
     });
   });
 

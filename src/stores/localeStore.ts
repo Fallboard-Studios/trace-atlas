@@ -66,7 +66,7 @@ function clampToggleValue(v: unknown, min: number, max: number): { active: boole
 // (src/utils/noiseMaps.ts) now hashes (x, y) directly instead of sampling
 // simplex noise at the point, which structurally eliminates that class of
 // bug — no coordinate is unsafe anymore (see docs/specs/archive/LOCALE_SEED_DECOUPLING.md).
-// Still rounded to an integer because CoordsInput.tsx/SectorSettingsDrawer.tsx
+// Still rounded to an integer because CoordsInput.tsx and the New Transmission editor
 // both assume coordinates are integers system-wide (docs/specs/archive/SECTOR_SETTINGS.md)
 // — randomCoordinate() already rounds, so this stays true without extra work.
 //

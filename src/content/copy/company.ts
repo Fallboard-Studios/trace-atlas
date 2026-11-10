@@ -1,22 +1,14 @@
 import type { ContentEntry } from '../types';
 
 /**
- * Companies — the branch, the assignment radio and the CRUD forms. One entry per concept.
+ * Companies — the assignment radio and the CRUD forms. One entry per concept.
  * Transcribed verbatim on 2026-09-30 (Task 4) from navTreeConfig.ts, companyConfig.ts,
  * CompaniesContent.tsx and CompanyCrudControls.tsx. ALL CAPS lore is legacy copy kept verbatim
  * until the review gate (Task 17). `template` carries each button's dynamic accessible name
- * (the slot is the company/draft name — data, not copy).
+ * (the slot is the company/draft name — data, not copy). The branch's own entry, `company.root`, went
+ * with the Companies box (docs/tasks/OFF_SCREEN_CONSOLE.md Task 18).
  */
 export const company = {
-  'company.root': {
-    human: 'Companies',
-    lore: 'Unity & Variety',
-    intro: {
-      lore: 'Companies — organize your fleet into working groups.',
-      loreDescription: 'Meridia recommends grouping probes by company for cleaner reporting and coordinated tasking.',
-      humanDescription: 'A company is a named group of probes you create. Give every probe in a company the same settings at once, the same way All Probes does for your whole fleet — just scoped to one group. Create a company below, or select an existing one to edit it.',
-    },
-  },
   'company.profile': {
     human: 'Company Profile',
     intro: {

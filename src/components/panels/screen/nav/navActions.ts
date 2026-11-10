@@ -5,7 +5,6 @@ import {
   type TopLevelBranch,
   type FleetParamsGroup,
   type SelectedFleetParamsEffect,
-  type SettingsLeaf,
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
 import { ROBOT_SECTIONS_CONFIG, activeRobotSection, sectionTabContent } from '@/data/robotSubsectionConfig';
@@ -30,20 +29,18 @@ export type NavEntity = { robotId: string } | { companyId: string } | 'all';
 
 const BRANCH_TILE: Record<TopLevelBranch, HubTile> = {
   probes: 'robots',
-  companies: 'companies',
   fleetParams: 'audioRig',
-  settings: 'settings',
 };
 
-/** Branches whose entities list in place under their box; Fleet Params and Settings are leaves. */
-export type ExpandingBranch = 'probes' | 'companies';
-const EXPANDS_IN_PLACE: ReadonlySet<NavBranch> = new Set<ExpandingBranch>(['probes', 'companies']);
+/** Branches whose entities list in place under their box; Fleet Params is a leaf. Companies had a list
+ *  too until it left the nav (docs/tasks/OFF_SCREEN_CONSOLE.md Task 18): a company opens from the
+ *  roster board, under Probes. */
+export type ExpandingBranch = 'probes';
+const EXPANDS_IN_PLACE: ReadonlySet<NavBranch> = new Set<ExpandingBranch>(['probes']);
 
 const TILE_CONTENT: Record<HubTile, ContentKey> = {
   robots: 'probe.root',
-  companies: 'company.root',
   audioRig: 'fleet.root',
-  settings: 'settings.root',
 };
 
 /** The parent box a tile belongs to (the one the panel pops) — the Deck when no tile is open. */
@@ -68,7 +65,7 @@ export interface FleetParamsSubTab {
   content: ContentKey;
 }
 
-/** Each Fleet Params section's sub-tabs, in the sketch's order (Task 15). Pacing has none: its four
+/** Each Fleet Params section's sub-tabs, in the sketch's order (Task 15). Pacing and Audio Quality have none: Pacing's four
  *  leaves are one panel of two rows. The screen and the breadcrumb both read this, so they name the
  *  same tab. */
 export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetParamsSubTab[]> = {
@@ -110,6 +107,8 @@ export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetPa
     { id: 'stereoWidener', content: 'fleet.stereoWidener' },
     { id: 'limiter', content: 'fleet.limiter' },
   ],
+  // Audio Quality is one panel, as Pacing is (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12).
+  quality: [],
 };
 
 /** The sub-tab a section shows: the stored one when it is this section's, else the section's first
@@ -130,27 +129,8 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   colour: 'fleet.colour',
   modulation: 'fleet.modulation',
   output: 'fleet.output',
+  quality: 'fleet.quality',
 };
-
-/** Settings' three tabs in the sketch's order (Task 17). The screen and the breadcrumb both read this
- *  and the names below, so they name the same tab; it is the one order there is. */
-export const SETTINGS_LEAVES: readonly SettingsLeaf[] = ['quality', 'sectorSettings', 'sessions'];
-
-/** Each Settings tab's concept: its title on the tab and in the breadcrumb. */
-export const SETTINGS_LEAF_CONTENT: Record<SettingsLeaf, ContentKey> = {
-  quality: 'settings.quality',
-  sectorSettings: 'settings.seeds',
-  sessions: 'settings.sessions',
-};
-
-/** The tab Settings opens on, and every nav pick returns to (cleanSlate stores null). */
-export const DEFAULT_SETTINGS_LEAF: SettingsLeaf = SETTINGS_LEAVES[0];
-
-/** The open Settings tab: the stored one when it is a tab, else Audio Quality — the tab SectionTabs
- *  falls back to, so the breadcrumb never names a tab the screen is not showing. */
-export function activeSettingsLeaf(stored: SettingsLeaf | null): SettingsLeaf {
-  return SETTINGS_LEAVES.find((leaf) => leaf === stored) ?? DEFAULT_SETTINGS_LEAF;
-}
 
 function cleanSlate(): void {
   const s = useUIStore.getState();
@@ -159,17 +139,16 @@ function cleanSlate(): void {
   s.selectAllRobots(); // the "no company" state: selectedCompanyId null, allRobotsSelected true
   s.setAllProbesSelected(false);
   s.setFleetParamsSection(DEFAULT_FLEET_PARAMS_SECTION); // also clears the sub-tab
-  s.setSelectedSettingsLeaf(null); // Settings back on its first tab (Task 17)
 }
 
-/** Opens a branch's tile with its entity list expanded in place (Probes / Companies) or collapsed. */
+/** Opens a branch's tile with its entity list expanded in place (Probes) or collapsed. */
 function open(branch: TopLevelBranch, expand = expandsInPlace(branch)): void {
   const s = useUIStore.getState();
   s.setActiveHubTile(BRANCH_TILE[branch]);
   s.setExpandedTopLevelBranch(expand ? branch : null);
 }
 
-/** A parent box: that branch's own page, Probes / Companies expanded in place, a leaf collapsing
+/** A parent box: that branch's own page, Probes expanded in place, a leaf collapsing
  *  whatever was. `'deck'` is goHome. */
 export function selectBranch(branch: NavBranch): void {
   if (branch === 'deck') {
@@ -180,9 +159,9 @@ export function selectBranch(branch: NavBranch): void {
   open(branch);
 }
 
-/** An entity under Probes or Companies: opens its branch on it, at no section, with the list collapsed
- *  (Crawford, 2026-10-10: "collapse the nav when a probe or company is selected"), so the entity's
- *  screen gets the panel's rest width. The parent box brings the list back (pressBranchBox). */
+/** An entity under Probes (a robot, All Probes or a company): opens Probes on it, at no section, with the
+ *  list collapsed (Crawford, 2026-10-10: "collapse the nav when a probe or company is selected"), so the
+ *  entity's screen gets the panel's rest width. The parent box brings the list back (pressBranchBox). */
 export function selectEntity(entity: NavEntity): void {
   cleanSlate();
   const s = useUIStore.getState();
@@ -193,24 +172,24 @@ export function selectEntity(entity: NavEntity): void {
     s.selectRobot(entity.robotId);
     open('probes', false);
   } else {
+    // A company opens under Probes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 17, Crawford, 2026-11-09).
     s.selectCompany(entity.companyId);
-    open('companies', false);
+    open('probes', false);
   }
 }
 
-/** Only the open branch's own entity counts, as the breadcrumb reads it: a robot picked in the world
- *  is not a Companies entity. */
-function branchHasEntity(s: UIStore, branch: ExpandingBranch): boolean {
-  return branch === 'probes' ? s.selectedRobotId !== null || s.allProbesSelected : s.selectedCompanyId !== null;
+/** Whether Probes is on an entity rather than its own page, as the breadcrumb reads it. */
+function probesHasEntity(s: UIStore): boolean {
+  return s.selectedRobotId !== null || s.selectedCompanyId !== null || s.allProbesSelected;
 }
 
 /** A parent box pressed in the panel (Crawford, 2026-10-09: "back, then collapse"). Anywhere but its
  *  own page it is selectBranch, so on an entity it goes back to the branch's page with the list open.
- *  On Probes' or Companies' own page it toggles the list in place and changes nothing else. Other
+ *  On Probes' own page it toggles the list in place and changes nothing else. Other
  *  callers use selectBranch, which never toggles. */
 export function pressBranchBox(branch: NavBranch): void {
   const s = useUIStore.getState();
-  if (expandsInPlace(branch) && branchOfTile(s.activeHubTile) === branch && !branchHasEntity(s, branch)) {
+  if (expandsInPlace(branch) && branchOfTile(s.activeHubTile) === branch && !probesHasEntity(s)) {
     s.setExpandedTopLevelBranch(s.expandedTopLevelBranch === branch ? null : branch);
     return;
   }
@@ -238,7 +217,6 @@ export type BreadcrumbState = Pick<
   | 'selectedSection'
   | 'fleetParamsSection'
   | 'fleetParamsSubsection'
-  | 'selectedSettingsLeaf'
 >;
 
 interface NamedEntity {
@@ -260,32 +238,32 @@ function nameOf(list: readonly NamedEntity[], id: string): string | null {
   return entity ? (entity.name ?? entity.id) : null;
 }
 
-/** Only the open branch's entity counts; a specific robot wins over All Probes, as ProbesContent routes.
- *  With its name, the entity selectEntity takes to go back to it. */
-function openEntity(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 'companies'): { label: string; entity: NavEntity } | null {
-  if (tile === 'companies') {
-    const id = state.selectedCompanyId;
-    const label = id !== null ? nameOf(roster.companies, id) : null;
-    return id !== null && label !== null ? { label, entity: { companyId: id } } : null;
-  }
+/** Probes' entity: a specific robot wins over a company, and a company over All Probes, as ProbesBranch
+ *  routes. With its name, the entity selectEntity takes to go back to it. */
+function openEntity(state: BreadcrumbState, roster: NavRoster): { label: string; entity: NavEntity } | null {
   if (state.selectedRobotId !== null) {
     const id = state.selectedRobotId;
     const label = nameOf(roster.robots, id);
     return label !== null ? { label, entity: { robotId: id } } : null;
+  }
+  if (state.selectedCompanyId !== null) {
+    const id = state.selectedCompanyId;
+    const label = nameOf(roster.companies, id);
+    return label !== null ? { label, entity: { companyId: id } } : null;
   }
   return state.allProbesSelected ? { label: name('probe.all'), entity: 'all' } : null;
 }
 
 /** One breadcrumb segment: its name and, for Root, the branch, the entity and a Fleet Params section
  *  with a sub-tab after it, the call that goes there (Tasks 8, 15). A robot section, a Fleet Params
- *  sub-tab, Pacing or a Settings leaf has none: it is only ever the current view. */
+ *  sub-tab, Pacing or Audio Quality has none: it is only ever the current view. */
 export interface BreadcrumbSegment {
   label: string;
   go?: () => void;
 }
 
-/** Root / branch / entity / section — `[]` on the Deck. A section shows only under an entity (Probes,
- *  Companies), as Settings' leaf, or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
+/** Root / branch / entity / section — `[]` on the Deck. A section shows only under a Probes entity
+ *  (a robot, a company, All Probes), or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
  *  <section> / <sub-tab>). The branch goes back with selectBranch, which never toggles (pressBranchBox
  *  is the panel's own). */
 export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): BreadcrumbSegment[] {
@@ -311,13 +289,8 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
     trail.push({ label: name(sub.content) });
     return trail;
   }
-  if (tile === 'settings') {
-    // Always a tab open (Task 17): Audio Quality when none is stored.
-    trail.push({ label: name(SETTINGS_LEAF_CONTENT[activeSettingsLeaf(state.selectedSettingsLeaf)]) });
-    return trail;
-  }
 
-  const open = openEntity(state, roster, tile);
+  const open = openEntity(state, roster);
   if (open === null) return trail;
   trail.push({ label: open.label, go: () => selectEntity(open.entity) });
   // A robot's screen is tabs (Task 16), and so are a company's and All Probes' (Task 23: the same

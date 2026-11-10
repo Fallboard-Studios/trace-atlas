@@ -1,6 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 
-import { saveNamedSession, deleteNamedSession, listSessions, loadSession, STORAGE_KEY } from './sessionStorageEngine';
+import {
+  saveNamedSession,
+  deleteNamedSession,
+  listSessions,
+  loadSession,
+  renameNamedSession,
+  STORAGE_KEY,
+} from './sessionStorageEngine';
 import type { SessionPayload } from '../types/session';
 
 function makePayload(overrides: Partial<SessionPayload> = {}): SessionPayload {
@@ -56,6 +63,88 @@ describe('saveNamedSession / loadSession / deleteNamedSession', () => {
 
   it('loadSession returns undefined for a name that was never saved', () => {
     expect(loadSession('never-saved')).toBeUndefined();
+  });
+});
+
+describe('renameNamedSession (off-screen console Task 1)', () => {
+  /** Seeds entries straight into storage with an old `savedAt`, so a rename that stamps
+   *  `Date.now()` shows. */
+  function seed(entries: Record<string, { savedAt: number; payload: SessionPayload }>): void {
+    const named = Object.fromEntries(
+      Object.entries(entries).map(([name, e]) => [name, { name, savedAt: e.savedAt, payload: e.payload }]),
+    );
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ named }));
+  }
+
+  it('re-keys the entry under the new name, keeping savedAt and payload and updating name', () => {
+    const payload = makePayload({ attenuationStyleName: 'Old Style', coordinates: { x: 3, y: -4 } });
+    seed({ old: { savedAt: 1234, payload } });
+
+    expect(renameNamedSession('old', 'new')).toBe(true);
+
+    expect(listSessions()).toEqual([{ name: 'new', savedAt: 1234, payload }]);
+    expect(loadSession('old')).toBeUndefined();
+    expect(loadSession('new')).toEqual(payload);
+  });
+
+  it('leaves every other entry as it was', () => {
+    const other = makePayload({ attenuationStyleName: 'Other' });
+    seed({ old: { savedAt: 1, payload: makePayload() }, other: { savedAt: 2, payload: other } });
+
+    renameNamedSession('old', 'new');
+
+    expect(listSessions().find((e) => e.name === 'other')).toEqual({ name: 'other', savedAt: 2, payload: other });
+    expect(listSessions().map((e) => e.name).sort()).toEqual(['new', 'other']);
+  });
+
+  it('returns false and writes nothing when the old name has no entry', () => {
+    seed({ kept: { savedAt: 5, payload: makePayload() } });
+    const before = localStorage.getItem(STORAGE_KEY);
+
+    expect(renameNamedSession('missing', 'new')).toBe(false);
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(before);
+    expect(loadSession('new')).toBeUndefined();
+  });
+
+  it('returns false and writes nothing when the new name is taken, both entries unchanged', () => {
+    const fromPayload = makePayload({ attenuationStyleName: 'From' });
+    const takenPayload = makePayload({ attenuationStyleName: 'Taken' });
+    seed({ from: { savedAt: 10, payload: fromPayload }, taken: { savedAt: 20, payload: takenPayload } });
+    const before = localStorage.getItem(STORAGE_KEY);
+
+    expect(renameNamedSession('from', 'taken')).toBe(false);
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(before);
+    expect(loadSession('from')).toEqual(fromPayload);
+    expect(loadSession('taken')).toEqual(takenPayload);
+  });
+
+  it('returns false and writes nothing when the new name is the old name', () => {
+    seed({ same: { savedAt: 7, payload: makePayload() } });
+    const before = localStorage.getItem(STORAGE_KEY);
+
+    expect(renameNamedSession('same', 'same')).toBe(false);
+
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(before);
+  });
+
+  it('treats names that match Object prototype keys as plain names', () => {
+    const payload = makePayload();
+    seed({ old: { savedAt: 3, payload } });
+
+    expect(renameNamedSession('constructor', 'other')).toBe(false);
+    expect(renameNamedSession('old', 'toString')).toBe(true);
+
+    expect(listSessions()).toEqual([{ name: 'toString', savedAt: 3, payload }]);
+  });
+
+  it('returns false and leaves corrupted storage alone, never throwing', () => {
+    localStorage.setItem(STORAGE_KEY, '{not valid json');
+
+    expect(() => renameNamedSession('old', 'new')).not.toThrow();
+    expect(renameNamedSession('old', 'new')).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe('{not valid json');
   });
 });
 

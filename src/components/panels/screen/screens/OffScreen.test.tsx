@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 import { render, screen, fireEvent, within, act } from '@testing-library/react';
 
 /*
@@ -10,9 +10,10 @@ import { render, screen, fireEvent, within, act } from '@testing-library/react';
  * docs/tasks/OFF_SCREEN.md Task 10 (spec assumptions 7 and 8): the gate — a device that has never heard a world
  * sees the label and the hint only; one that has sees the chooser — and the Current row on top, selected by
  * default and named by describeWorld (the loaded world, fronted by the loaded save's name when there is one),
- * then the saves, a divider, then the presets. The readout names the pick through the same helper.
+ * then the saves (the presets that followed went at docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A). The readout names
+ * the pick through the same helper.
  */
-// The live world Keep saves and the dirty test compares against (docs/tasks/OFF_SCREEN.md Task 14) — a marker
+// The live world Save saves and the dirty test compares against (docs/tasks/OFF_SCREEN.md Task 14) — a marker
 // payload a test can change to make the world dirty, with the identity every real payload carries so a pick of it
 // can be described. buildSessionPayload hands out a fresh copy every call. The identity is the stores' world, set in the
 // beforeEach, so the off screen's Current snapshot (a built payload) names Current as the live stores do
@@ -39,13 +40,15 @@ vi.mock('@/systems/worldTransition', () => ({
 
 import { OffScreen } from './OffScreen';
 import { applySessionPayload, buildSessionPayload } from '@/utils/sessionDiff';
-import { retransmitWorld } from '@/systems/worldTransition';
+import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
 import * as seedUtils from '@/utils/seedUtils';
 import { AudioEngine } from '@/engine/AudioEngine';
-import { TRANSMISSION_PRESETS, presetPayload } from '@/data/transmissionPresets';
+import { decodeWorldLink } from '@/utils/worldLink';
 import { THEME_IDS } from '@/data/bands/themes';
-import { listSessions, loadSession, saveNamedSession } from '@/utils/sessionStorageEngine';
-import { markHeardWorld } from '@/utils/deviceFlags';
+import { STORAGE_KEY, listSessions, loadSession, saveNamedSession } from '@/utils/sessionStorageEngine';
+import * as sessionStorageEngine from '@/utils/sessionStorageEngine';
+import * as sessionShareUtils from '@/utils/sessionShareUtils';
+import { DEVICE_FLAGS_KEY, markHeardWorld } from '@/utils/deviceFlags';
 import { setWorldState } from '@/systems/worldState';
 import { describeWorld } from '@/utils/describeWorld';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -65,26 +68,75 @@ import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import type { SessionPayload } from '@/types/session';
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
-const presetName = (i: number) => human(TRANSMISSION_PRESETS[i].nameKey);
+/** Three worlds to pick besides Current, as saves: the presets were these (names and links) until they went at
+ *  docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A, and the cases that picked a preset pick one of these. seedWorlds()
+ *  stores them in order, oldest first, so the list shows them newest first. */
+const WORLDS = [
+  { name: 'Kryndara', link: '?seed=kr1nd4ra&x=12&y=68' },
+  { name: 'Vessport Null', link: '?seed=qb9mezm3&x=-84&y=131' },
+  { name: 'Halcyon Drift', link: '?seed=h4lcy0n&x=143&y=-57' },
+];
+const worldName = (i: number) => WORLDS[i].name;
+const worldPayload = (i: number): SessionPayload => decodeWorldLink(WORLDS[i].link)!;
+const seedWorlds = () => WORLDS.forEach((world, i) => saveNamedSession(world.name, worldPayload(i)));
 const picker = () => screen.getByRole('group', { name: human('home.off.transmission') });
-const radioNames = () => within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-label'));
+/** An accessible name with Current's eyebrow read as plain "Current" (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6): the
+ *  eyebrow reads "Current · unsaved" while Current is dirty, and the cases that name Current pin its label, not that;
+ *  the eyebrow's own cases read it from the row (currentEyebrow, below). */
+const plainEyebrow = (name: string) => {
+  const unsaved = `${human('home.off.unsavedEyebrow')}, `;
+  return name.startsWith(unsaved) ? `${human('home.off.current')}, ${name.slice(unsaved.length)}` : name;
+};
+const radioNames = () => within(picker()).getAllByRole('radio').map((r) => plainEyebrow(r.getAttribute('aria-label')!));
 const readout = () => screen.getByTestId('off-screen-readout');
-/** A radio by what fronts its accessible name: the whole name (Current, a theme), a save's or preset's name with its
- *  world after it ("Dusk Run · tr3nch-2 (-30, -30) · Calm"), or a lore label over its label ("New Transmission, …")
- *  (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6b: every row names its world). */
+/** A radio by what fronts its accessible name: the whole name (Current, a theme), a save's name with its
+ *  world after it ("Dusk Run · tr3nch-2 (-30, -30) · Calm"), or a lore label over its label ("Current, …")
+ *  (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6b: every row names its world). Current's eyebrow is read
+ *  plain (plainEyebrow). */
 const row = (name: string) =>
-  screen.getByRole('radio', { name: (accessible) => accessible === name || accessible.startsWith(`${name} · `) || accessible.startsWith(`${name}, `) });
-/** Current's row, by place: the second in the list, under New Transmission, whatever it is named (docs/tasks/
- *  OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 5). */
-const currentRadio = () => within(picker()).getAllByRole('radio')[1];
+  screen.getByRole('radio', {
+    name: (accessible) => {
+      const plain = plainEyebrow(accessible);
+      return plain === name || plain.startsWith(`${name} · `) || plain.startsWith(`${name}, `);
+    },
+  });
+/** Current's row, by place: the first in the list, whatever it is named (New Transmission left the list for the editor,
+ *  docs/tasks/OFF_SCREEN_CONSOLE.md Task 4). */
+const currentRadio = () => within(picker()).getAllByRole('radio')[0];
 /** Current's accessible name, by the same place. */
-const currentRowName = () => radioNames()[1];
+const currentRowName = () => radioNames()[0];
+/** Current's eyebrow, its lore line: "Current" while a save matches it, "Current · unsaved" while none does (console Task
+ *  6). The list must be open. */
+const currentEyebrow = () => currentRadio().querySelector('.sc-radio-button__lore')?.textContent;
+/** The status slot under the readout (console Task 6): always in the DOM, at most one line. */
+const statusSlot = () => document.querySelector('.off-screen__status') as HTMLElement;
+/** The save failure in the slot, for the name the save tried. */
+const saveFailedLine = (name: string) => fill('session.status.saveFailed', { name });
+/** The action row under the list (console Task 7): Save, Rename and Delete, each named after the selected row ("Save
+ *  Dusk Run"). The list must be open. */
+const actionsRow = () => document.querySelector('.off-screen__actions') as HTMLElement;
+const actionButton = (key: 'home.off.save' | 'home.off.rename' | 'home.off.delete' | 'home.off.share') =>
+  within(actionsRow()).getByRole('button', { name: (name) => name.startsWith(`${human(key)} `) }) as HTMLButtonElement;
+const saveButton = () => actionButton('home.off.save');
+/** Which of the three are enabled, as offScreenActions' matrix reads them. */
+const enabledActions = () => ({
+  save: !actionButton('home.off.save').disabled,
+  rename: !actionButton('home.off.rename').disabled,
+  delete: !actionButton('home.off.delete').disabled,
+});
 const newTransmission = () => human('home.off.newTransmission');
-/** New Transmission's accessible name: its lore label, then its world (Task 6b). */
-const asNew = (label: string) => `${newTransmission()}, ${label}`;
-/** A save's and a preset's label: the name fronting the world (Task 6b). */
+/** The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2): a group titled New Transmission. */
+const editor = () => screen.getByRole('group', { name: newTransmission() });
+/** Is New Transmission the shown pick? The editor wears the list row's selected state then, and no row is checked. */
+const editorSelected = () => editor().hasAttribute('data-selected');
+/** The identity in the editor's inputs. */
+const editorShows = () => {
+  const [x, y] = within(editor()).getAllByRole('spinbutton') as HTMLInputElement[];
+  const name = within(editor()).getByRole('textbox') as HTMLInputElement;
+  return { attenuationStyleName: name.value, coordinates: { x: Number(x.value), y: Number(y.value) } };
+};
+/** A save's label: the name fronting the world (Task 6b). */
 const savedLabel = (name: string) => describeWorld(loadSession(name)!, name);
-const presetLabel = (i: number) => describeWorld(presetPayload(TRANSMISSION_PRESETS[i])!, presetName(i));
 const scanButton = () => screen.getByRole('button', { name: human('home.off.scan') });
 
 /** The world the stores hold — what Current names (the stores' module-level defaults, in these tests). */
@@ -94,16 +146,40 @@ function liveIdentity() {
   return { attenuationStyleName: style.name, coordinates: locale.coordinates };
 }
 const currentLabel = (loadedName?: string) => describeWorld(liveIdentity(), loadedName);
+
+// The two stores the live identity is read from, as the module left them, so a case that lands a world in them
+// (landsInStores, below) leaves the next case the same world.
+const STYLES_AT_LOAD = useAttenuationStyleStore.getState().attenuationStyles;
+const LOCALES_AT_LOAD = useLocaleStore.getState().locales;
+/** A retransmitWorld double that does what the real one leaves behind: the seed and the plot in the stores the live
+ *  identity is read from, and the loading in its store (band-table T25). */
+function landsInStores(input: RetransmitInput) {
+  const styleState = useAttenuationStyleStore.getState();
+  const style = selectCurrentAttenuationStyle(styleState)!;
+  if (input.attenuationStyleName !== undefined) {
+    const name = input.attenuationStyleName;
+    useAttenuationStyleStore.setState({ attenuationStyles: styleState.attenuationStyles.map((s) => (s.id === style.id ? { ...s, name } : s)) });
+  }
+  if (input.coordinates) {
+    const { locales } = useLocaleStore.getState();
+    const id = style.currentLocaleId!;
+    useLocaleStore.setState({ locales: { ...locales, [id]: { ...locales[id], coordinates: input.coordinates } } });
+  }
+  const { theme, aspects, setLoading } = useLoadingStore.getState();
+  setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
+}
 /** Current's accessible name: its eyebrow, then its label (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25). */
 const asCurrent = (label: string) => `${human('home.off.current')}, ${label}`;
 const currentName = (loadedName?: string) => asCurrent(currentLabel(loadedName));
 
 // A save is a plain SessionPayload; the off screen only reads its name and hands the payload on.
-const savedPayload = (style: string): SessionPayload => ({ ...presetPayload(TRANSMISSION_PRESETS[0])!, attenuationStyleName: style });
+const savedPayload = (style: string): SessionPayload => ({ ...worldPayload(0), attenuationStyleName: style });
 
 beforeEach(() => {
   localStorage.clear();
   vi.clearAllMocks();
+  useAttenuationStyleStore.setState({ attenuationStyles: STYLES_AT_LOAD });
+  useLocaleStore.setState({ locales: LOCALES_AT_LOAD });
   live.identity = liveIdentity();
   live.payload = live.marker('live');
   useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: 'Quiet Harbour' });
@@ -142,7 +218,7 @@ describe('OffScreen — the gate (spec assumption 7)', () => {
   });
 
   // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R27: the dirty check builds the live payload, and a first visit has no
-  // Keep and no warning to light, so it builds none, even with a save loaded.
+  // Save and no eyebrow to light, so it builds none, even with a save loaded.
   it('a first visit builds no payload on mount, even with a save loaded', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
@@ -321,7 +397,8 @@ describe('OffScreen — the boot theatre', () => {
       expect(getRef('off-screen')).toBe(container.querySelector('.off-screen'));
     });
 
-    it("a power-off still lands the focus on the selected row (R25)", () => {
+    // On the Transmissions header while the list was collapsible (console Task 2 to Checkpoint A).
+    it('a power-off still lands the focus on the selected row (R25)', () => {
       markHeardWorld();
       setWorldState('paused');
       render(<OffScreen />);
@@ -355,8 +432,6 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
   const themeRadio = (id: (typeof THEME_IDS)[number]) => within(themeRow()).getByRole('radio', { name: human(`home.off.theme.${id}`) });
   const checked = (id: (typeof THEME_IDS)[number]) => themeRadio(id).getAttribute('aria-checked');
   const description = () => document.querySelector('.off-screen__description');
-  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
   const calmSave = (): SessionPayload => ({ ...savedPayload('dusk'), theme: 'float' });
 
   it('lists the five themes in order under the Loading heading, Classic selected for a Classic world', () => {
@@ -386,13 +461,14 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
   // docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1: the click re-derives the picked world in place, so the
   // pick stays selected (it used to drop to Current).
   it('a theme pick keeps the picked world row selected, and the theme row shows the theme clicked', () => {
+    seedWorlds();
     render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
-    expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(row(worldName(1)));
+    expect(row(worldName(1)).getAttribute('aria-checked')).toBe('true');
     // The real retransmitWorld writes the loading store first (band-table T25); once, so it outlives nothing.
     vi.mocked(retransmitWorld).mockImplementationOnce((input) => useLoadingStore.getState().setLoading({ theme: input.theme!, aspects: {} }));
     fireEvent.click(themeRadio('anchor'));
-    expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
+    expect(row(worldName(1)).getAttribute('aria-checked')).toBe('true');
     expect(currentRadio().getAttribute('aria-checked')).toBe('false');
     expect(checked('anchor')).toBe('true');
   });
@@ -412,16 +488,16 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(currentRowName()).toBe(currentName('Dusk Run'));
   });
 
-  it('recomputes dirty after a theme pick: Keep lights and the warning shows once the world differs from its save', () => {
+  it('recomputes dirty after a theme pick: Save lights and Current reads unsaved once the world differs from its save', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(saveButton().disabled).toBe(true);
+    expect(currentEyebrow()).toBe(human('home.off.current'));
     live.payload = live.marker('themed'); // what the retransmit does to the live world
     fireEvent.click(themeRadio('float'));
-    expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
+    expect(saveButton().disabled).toBe(false);
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
   });
 
   it('follows the loading store for the loaded world: the row, the Current row and the readout take the store theme', () => {
@@ -455,12 +531,13 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(readout().textContent).toContain(human('home.off.melody.hypnotic') + ' + ' + human('home.off.melody.wandering'));
   });
 
-  it('a preset pick sets the row from its link: the placeholder links carry no theme, so Classic', () => {
+  it('a save pick sets the row from its payload: these worlds (decoded links) carry no theme, so Classic', () => {
+    seedWorlds();
     saveNamedSession('Dusk Run', calmSave());
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
     expect(checked('float')).toBe('true');
-    fireEvent.click(row(presetName(0)));
+    fireEvent.click(row(worldName(0)));
     expect(checked('classic')).toBe('true');
     expect(checked('float')).toBe('false');
   });
@@ -507,7 +584,7 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(sentences.every((s) => s.trim().length > 0)).toBe(true);
   });
 
-  it('lays the two axes in one container, Transmission (with Scan and Keep) first and Loading second, the readout after both', () => {
+  it('lays the two axes in one container, Transmission (with Scan and the action row) first and Loading second, the readout after both', () => {
     const { container } = render(<OffScreen />);
     const axes = container.querySelector('.off-screen__axes')!;
     const columns = Array.from(axes.children) as HTMLElement[];
@@ -515,9 +592,10 @@ describe('OffScreen — the Loading axis: the theme row (docs/tasks/OFF_SCREEN.m
     expect(columns.every((c) => c.classList.contains('off-screen__axis'))).toBe(true);
     expect(within(columns[0]).getByRole('group', { name: human('home.off.transmission') })).toBeTruthy();
     expect(within(columns[0]).getByRole('button', { name: human('home.off.scan') })).toBeTruthy();
-    expect(within(columns[0]).getByRole('button', { name: human('home.off.keep') })).toBeTruthy();
+    expect(columns[0].contains(saveButton())).toBe(true);
     expect(within(columns[1]).getByRole('group', { name: human('home.off.loading') })).toBeTruthy();
     expect(within(columns[1]).getByText(human('home.off.themeDescription.classic'))).toBeTruthy();
+    // The readout stands alone again: Share moved into the action row at Checkpoint A.
     expect(axes.nextElementSibling).toBe(readout());
   });
 
@@ -549,7 +627,6 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
   const melodyDescription = () => document.querySelector('.off-screen__description--melody');
   // An aspect's sentence, or the family's own for a row with nothing on (revisions Task 6: no as-theme member).
   const sentence = (id: AspectIdOf<'melody'> | 'none') => human(`home.off.melodyDescription.${id}`);
-  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
   /** The real retransmitWorld writes the loading store before it rebuilds (band-table T25); this double does that half,
    *  so a second toggle sees the first on the row as it does in the app. */
   const retransmitSetsStore = () =>
@@ -613,25 +690,26 @@ describe('OffScreen — the Loading axis: the Melody row (docs/tasks/OFF_SCREEN.
   });
 
   it('a change keeps the picked world row selected, and the row shows the toggle', () => {
+    seedWorlds();
     retransmitSetsStore();
     render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
-    expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
+    fireEvent.click(row(worldName(1)));
+    expect(row(worldName(1)).getAttribute('aria-checked')).toBe('true');
     fireEvent.click(option(NAME.hypnotic));
-    expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
+    expect(row(worldName(1)).getAttribute('aria-checked')).toBe('true');
     expect(currentRadio().getAttribute('aria-checked')).toBe('false');
     expect(pressed(NAME.hypnotic)).toBe('true');
   });
 
-  it('a change reads dirty again and keeps the loaded save attached: Keep lights, the warning shows', () => {
+  it('a change reads dirty again and keeps the loaded save attached: Save lights, Current reads unsaved', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    expect(keep().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(true);
     live.payload = live.marker('dealt');
     fireEvent.click(option(NAME.mechanical));
-    expect(keep().disabled).toBe(false);
-    expect(screen.queryByText(human('home.off.unsavedWarning'))).not.toBeNull();
+    expect(saveButton().disabled).toBe(false);
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
   });
 
@@ -795,18 +873,21 @@ describe('OffScreen — the family rows (revisions Task 9)', () => {
     expect(pressedIn('melody')).toEqual([human('home.off.melody.wandering')]);
   });
 
-  // The dirty read follows Current since docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6 (spec §1.4): the
-  // toggle edits the preset's world, not Current, which is still its save, so Keep stays dim (it lit before).
-  it('a family change keeps the picked world row selected; Keep stays dim, as Current is still kept', () => {
+  // Current's eyebrow follows Current (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6): the toggle edits
+  // the other save's world, not Current, which is still its save. Save acts on that save since console Task 7, and the
+  // toggle made it differ, so it is lit.
+  it('a family change keeps the picked world row selected; Current reads plain, as it is still kept', () => {
+    seedWorlds();
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
+    fireEvent.click(row(worldName(1)));
     live.payload = live.marker('dealt');
     fireEvent.click(option('envelope', name('envelope', 'held')));
-    expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
+    expect(row(worldName(1)).getAttribute('aria-checked')).toBe('true');
     expect(currentRadio().getAttribute('aria-checked')).toBe('false');
-    expect((screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement).disabled).toBe(true);
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+    expect(saveButton().disabled).toBe(false);
   });
 
   it('a save with Distance halfHeard selects Half-heard, and the readout tail joins the families in family order', () => {
@@ -921,13 +1002,14 @@ describe('OffScreen — a theme or aspect click keeps the selected row', () => {
     expect(pressed('home.off.melody.wandering')).toBe('true');
   });
 
-  it('two clicks on a landed preset keep its row: a theme, then a toggle on top of it', () => {
+  it('two clicks on a landed save keep its row: a theme, then a toggle on top of it', () => {
+    seedWorlds();
     render(<OffScreen />);
-    fireEvent.click(row(presetName(2)));
+    fireEvent.click(row(worldName(2)));
     fireEvent.click(row(theme('shatter')));
     fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
-    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { ...loadingOf(presetPayload(TRANSMISSION_PRESETS[2])!).aspects, envelope: ['held'] } });
-    expect(row(presetName(2)).getAttribute('aria-checked')).toBe('true');
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ aspects: { ...loadingOf(worldPayload(2)).aspects, envelope: ['held'] } });
+    expect(row(worldName(2)).getAttribute('aria-checked')).toBe('true');
     expect(checked(theme('shatter'))).toBe('true');
     expect(pressed('home.off.envelope.held')).toBe('true');
   });
@@ -945,7 +1027,7 @@ describe('OffScreen — a theme or aspect click keeps the selected row', () => {
   it('a theme click on Current keeps Current selected, as it always has', () => {
     render(<OffScreen />);
     fireEvent.click(row(theme('float')));
-    expect(screen.getAllByRole('radio', { checked: true }).map((r) => r.getAttribute('aria-label'))).toContain(
+    expect(screen.getAllByRole('radio', { checked: true }).map((r) => plainEyebrow(r.getAttribute('aria-label')!))).toContain(
       asCurrent(describeWorld({ ...liveIdentity(), theme: 'float' })),
     );
   });
@@ -1014,21 +1096,23 @@ describe('OffScreen — the selected row tail and the readout of the live world'
     expect(labelOf('Calm Run')).toBe(describeWorld(calmRun(), 'Calm Run'));
   });
 
-  it('a preset carries the live loading as a save does', () => {
-    const preset = presetPayload(TRANSMISSION_PRESETS[1])!;
+  it('a second save carries the live loading as the first does', () => {
+    seedWorlds();
+    const preset = worldPayload(1);
     render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
+    fireEvent.click(row(worldName(1)));
     fireEvent.click(row(theme('anchor')));
-    expect(checked(presetName(1))).toBe('true');
-    expect(labelOf(presetName(1))).toBe(`${head(preset, presetName(1))} · ${theme('anchor')}`);
+    expect(checked(worldName(1))).toBe('true');
+    expect(labelOf(worldName(1))).toBe(`${head(preset, worldName(1))} · ${theme('anchor')}`);
   });
 
   it('leaving an edited save and picking it again: it reads as stored, and the save reloads as stored', () => {
+    seedWorlds();
     saveNamedSession('Dusk Run', dusk());
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
     fireEvent.click(row(theme('float')));
-    fireEvent.click(row(presetName(0)));
+    fireEvent.click(row(worldName(0)));
     expect(row('Dusk Run').getAttribute('aria-checked')).toBe('false');
     expect(labelOf('Dusk Run')).toBe(savedLabel('Dusk Run'));
     fireEvent.click(row('Dusk Run'));
@@ -1055,7 +1139,8 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
     render(<OffScreen />);
     const current = row(currentName());
     expect(currentRowName()).toBe(currentName());
-    expect(within(current).getByText(human('home.off.current'))).toBeTruthy();
+    // No save matches the world here, so the eyebrow says so (console Task 6).
+    expect(within(current).getByText(human('home.off.unsavedEyebrow'))).toBeTruthy();
   });
 
   it("is named after the loaded save when one is loaded: '<save> · AS (x, y)'", () => {
@@ -1082,26 +1167,27 @@ describe('OffScreen — the Current row (spec assumption 8)', () => {
     expect(readout().textContent).toBe(currentLabel());
   });
 
-  // docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1: with no wash mounted the preset lands at the click, so
-  // picking Current after it restores the world left (it used to apply nothing, Current being the preset's world).
+  // docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1: with no wash mounted the pick lands at the click, so
+  // picking Current after it restores the world left (it used to apply nothing, Current being the picked world).
   it('picking Current after a landed pick restores the world left, named as before the pick', () => {
+    seedWorlds();
     const prePick = structuredClone(live.payload);
     render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
+    fireEvent.click(row(worldName(0)));
     fireEvent.click(row(currentName()));
     expect(applySessionPayload).toHaveBeenCalledTimes(2);
     expect(vi.mocked(applySessionPayload).mock.lastCall?.[0]).toEqual(prePick);
     expect(row(currentName()).getAttribute('aria-checked')).toBe('true');
-    expect(row(presetName(0)).getAttribute('aria-checked')).toBe('false');
+    expect(row(worldName(0)).getAttribute('aria-checked')).toBe('false');
     expect(readout().textContent).toBe(currentLabel());
   });
 });
 
-// docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 5 (spec §1.1, §1.3, §1.6): New Transmission, first in the
-// list, holds a world drawn on mount; picking it lands that world under Classic with no aspects and detaches the save.
-// Scan, in its row, draws again and does the same. Roll, on Current's row, is gone. The two draws are pinned: the name
-// counts up and the coordinates count up from 101, so the mount's draw is drawn-1 at (101, 102).
-describe('OffScreen — New Transmission and Scan (Current and New Transmission, Task 5)', () => {
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 4 (spec §1.2, §5 cases 1 and 4): the New Transmission editor replaces the row
+// that held a world drawn on mount (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 5). It opens on the live
+// world and draws nothing; Scan, in its title row, is the draw, landing under Classic with no aspects from any row. The
+// draws are pinned: the name counts up and the coordinates count up from 101, so the first Scan is drawn-1 at (101, 102).
+describe('OffScreen — the New Transmission editor and Scan (console Task 4)', () => {
   let nameDraw: ReturnType<typeof vi.spyOn>;
   let coordinateDraw: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
@@ -1120,105 +1206,73 @@ describe('OffScreen — New Transmission and Scan (Current and New Transmission,
   /** What landing draw n sends: its seed and plot, under Classic with no aspects. */
   const landed = (n: number) => ({ ...drawn(n), theme: 'classic', aspects: {} });
   const checked = (name: string) => row(name).getAttribute('aria-checked');
-  const rowOf = (el: Element) => el.closest('.sc-radio-button__row') as HTMLElement;
-  /** The real retransmitWorld writes the loading store first (band-table T25); this double does that half. */
-  const retransmitSetsStore = () =>
-    vi.mocked(retransmitWorld).mockImplementation((input) => {
-      const { theme, aspects, setLoading } = useLoadingStore.getState();
-      setLoading({ theme: input.theme ?? theme, aspects: input.aspects ?? aspects });
-    });
+  const anyRowChecked = () => within(picker()).getAllByRole('radio').some((r) => r.getAttribute('aria-checked') === 'true');
 
-  // Its label is its drawn world under the New Transmission lore label, and every save and preset names its world after
-  // its name (Task 6b; Task 5 had the bare names).
-  it('is the first row, unselected, New Transmission over its drawn world, with Scan in its trailing slot; Current is selected under it', () => {
+  it('on open the editor shows the live world, no row is New Transmission, Current is checked', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    expect(editorShows()).toEqual(liveIdentity());
+    expect(editorSelected()).toBe(false);
+    expect(readout().textContent).toBe(currentLabel());
+    expect(radioNames()).toEqual([currentName(), savedLabel('Dusk Run')]);
+    expect(currentRadio().getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('draws nothing on mount: the seed helpers wait for Scan', () => {
+    render(<OffScreen />);
+    expect(nameDraw).not.toHaveBeenCalled();
+    expect(coordinateDraw).not.toHaveBeenCalled();
+  });
+
+  it('the editor shows the loaded save’s world on open, as Current names it', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(editorShows()).toEqual(liveIdentity());
+  });
+
+  it('Scan sits in the editor’s title row, outside the collapsed section; no row of the list carries a trailing action', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     const { container } = render(<OffScreen />);
-    expect(radioNames()).toEqual([
-      asNew(describeWorld(drawn(1))),
-      currentName(),
-      savedLabel('Dusk Run'),
-      presetLabel(0),
-      presetLabel(1),
-      presetLabel(2),
-    ]);
-    expect(within(row(newTransmission())).getByText(newTransmission())).toBeTruthy();
-    expect(checked(newTransmission())).toBe('false');
-    expect(currentRadio().getAttribute('aria-checked')).toBe('true');
-    // Scan sits on New Transmission's grid line, outside the radio group (R8), and is the only trailing action.
-    const slot = scanButton().closest('.sc-radio-button__trailing') as HTMLElement;
-    expect(slot.style.gridRow).toBe(rowOf(row(newTransmission())).style.gridRow);
+    expect(editor().contains(scanButton())).toBe(true);
     expect(picker().contains(scanButton())).toBe(false);
-    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(1);
-    expect(rowOf(currentRadio()).querySelector('button:not([role])')).toBeNull();
+    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(0);
   });
 
-  it('Scan is a flat, muted button: it does not come off the plate', () => {
-    render(<OffScreen />);
-    expect(scanButton().querySelector('[class*="sc-cabinet-box"]')).toBeNull();
-    expect(scanButton().classList.contains('sc-button--muted')).toBe(true);
-  });
-
-  // Named on its row from the start since Task 6b (Crawford: from the start, not only after a Scan).
-  it('draws its world once, on mount, and names it on its row at once; the readout stays on Current until it is picked', () => {
-    render(<OffScreen />);
-    expect(nameDraw).toHaveBeenCalledTimes(1);
-    expect(coordinateDraw).toHaveBeenCalledTimes(2);
-    expect(readout().textContent).toBe(currentLabel());
-    expect(radioNames()[0]).toBe(asNew(describeWorld(drawn(1))));
-  });
-
-  it('a Scan puts the new draw on the row, and each Scan after it replaces it', () => {
-    render(<OffScreen />);
-    fireEvent.click(scanButton());
-    expect(radioNames()[0]).toBe(asNew(describeWorld(drawn(2))));
-    fireEvent.click(scanButton());
-    expect(radioNames()[0]).toBe(asNew(describeWorld(drawn(3))));
-    expect(radioNames().filter((n) => n!.includes('drawn-2'))).toEqual([]);
-  });
-
-  it('picking it lands the drawn world under Classic with no aspects in one retransmit, and detaches the save', () => {
+  it('Scan from Current draws into both inputs, selects the editor and lands under Classic with no aspects, detaching the save', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
     useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
     // The payload Current's snapshot is built from carries that loading too, as buildSessionPayload's would.
     live.payload = { ...live.marker('live'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
-    retransmitSetsStore();
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
     render(<OffScreen />);
     const current = currentRowName();
-    fireEvent.click(row(newTransmission()));
+    fireEvent.click(scanButton());
+    expect(nameDraw).toHaveBeenCalledTimes(1);
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
     expect(retransmitWorld).toHaveBeenCalledWith(landed(1));
     expect(applySessionPayload).not.toHaveBeenCalled();
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorShows()).toEqual(drawn(1));
+    expect(editorSelected()).toBe(true);
+    expect(anyRowChecked()).toBe(false);
     expect(currentRowName()).toBe(current);
     // The readout names the drawn world with no label.
     expect(readout().textContent).toBe(describeWorld(drawn(1)));
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
-  it('Scan with Current selected draws a second world, selects New Transmission and lands it', () => {
+  it('Scan with the editor already selected draws and lands again, each time', () => {
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
     render(<OffScreen />);
     const current = currentRowName();
     fireEvent.click(scanButton());
-    expect(nameDraw).toHaveBeenCalledTimes(2);
-    expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledWith(landed(2));
-    expect(checked(newTransmission())).toBe('true');
-    expect(currentRadio().getAttribute('aria-checked')).toBe('false');
-    expect(currentRowName()).toBe(current);
-    expect(readout().textContent).toBe(describeWorld(drawn(2)));
-    expect(AudioEngine.start).not.toHaveBeenCalled();
-  });
-
-  it('Scan with New Transmission already selected draws and lands again, each time', () => {
-    render(<OffScreen />);
-    const current = currentRowName();
-    fireEvent.click(row(newTransmission()));
     fireEvent.click(scanButton());
     fireEvent.click(scanButton());
     expect(vi.mocked(retransmitWorld).mock.calls.map(([input]) => input)).toEqual([landed(1), landed(2), landed(3)]);
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorShows()).toEqual(drawn(3));
+    expect(editorSelected()).toBe(true);
     expect(currentRowName()).toBe(current);
     expect(readout().textContent).toBe(describeWorld(drawn(3)));
   });
@@ -1229,80 +1283,373 @@ describe('OffScreen — New Transmission and Scan (Current and New Transmission,
     const current = currentRowName();
     fireEvent.click(row('Dusk Run'));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+    expect(editorSelected()).toBe(false);
     fireEvent.click(scanButton());
-    expect(retransmitWorld).toHaveBeenLastCalledWith(landed(2));
+    expect(retransmitWorld).toHaveBeenLastCalledWith(landed(1));
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
     expect(checked('Dusk Run')).toBe('false');
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorSelected()).toBe(true);
     expect(currentRowName()).toBe(current);
   });
 
-  it('holds the same world on return: picked, left for Current, then picked again, it lands the mount draw both times', () => {
+  it('picking a row after a Scan takes the selection back from the editor', () => {
+    seedWorlds();
     render(<OffScreen />);
-    fireEvent.click(row(newTransmission()));
-    fireEvent.click(currentRadio());
-    fireEvent.click(row(newTransmission()));
-    expect(nameDraw).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledTimes(2);
-    expect(retransmitWorld).toHaveBeenLastCalledWith(landed(1));
+    fireEvent.click(scanButton());
+    fireEvent.click(row(worldName(1)));
+    expect(editorSelected()).toBe(false);
+    expect(checked(worldName(1))).toBe('true');
   });
 
-  it('re-clicking the selected row requests no change', () => {
-    const request = vi.spyOn(worldChange, 'requestWorldChange');
+  it('a theme click with the editor selected keeps it selected, and the readout names the drawn world under the theme', () => {
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
     render(<OffScreen />);
-    fireEvent.click(row(newTransmission()));
-    expect(request).toHaveBeenCalledTimes(1);
-    fireEvent.click(row(newTransmission()));
-    expect(request).toHaveBeenCalledTimes(1);
-    expect(retransmitWorld).toHaveBeenCalledTimes(1);
-    request.mockRestore();
-  });
-
-  it('a theme click on it keeps it selected, tailed with the theme, and the readout names the drawn world under it', () => {
-    retransmitSetsStore();
-    render(<OffScreen />);
-    fireEvent.click(row(newTransmission()));
+    fireEvent.click(scanButton());
     fireEvent.click(row(human('home.off.theme.float')));
     expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'float' });
-    expect(radioNames()[0]).toBe(asNew(`${describeWorld(drawn(1))} · ${human('home.off.theme.float')}`));
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorSelected()).toBe(true);
+    expect(anyRowChecked()).toBe(false);
     expect(readout().textContent).toBe(describeWorld({ ...drawn(1), theme: 'float' }));
+  });
+
+  describe('while the Scan waits under the wash', () => {
+    let detach: () => void;
+    beforeEach(() => {
+      useUIStore.setState({ sceneWash: 'clear' });
+      detach = attachSceneWash();
+    });
+    afterEach(() => detach());
+
+    it('the editor shows the drawn world at the click, before it has landed', () => {
+      render(<OffScreen />);
+      fireEvent.click(scanButton());
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      expect(editorShows()).toEqual(drawn(1));
+      expect(editorSelected()).toBe(true);
+    });
+
+    it('a Current restore waiting shows the world first left, while the live world is still the pick that landed', async () => {
+      seedWorlds();
+      vi.mocked(applySessionPayload).mockImplementation((payload) =>
+        landsInStores({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loadingOf(payload) }),
+      );
+      render(<OffScreen />);
+      const left = liveIdentity();
+      fireEvent.click(row(worldName(0)));
+      await act(async () => useUIStore.getState().setSceneWash('covered'));
+      act(() => useUIStore.getState().setSceneWash('clear'));
+      const { attenuationStyleName, coordinates } = worldPayload(0);
+      expect(editorShows()).toEqual({ attenuationStyleName, coordinates });
+      fireEvent.click(currentRadio());
+      expect(liveIdentity()).toEqual({ attenuationStyleName, coordinates });
+      expect(editorShows()).toEqual(left);
+    });
+
+    it('a save picked while the Scan waits replaces it in the editor too: it shows the save’s world', () => {
+      seedWorlds();
+      render(<OffScreen />);
+      fireEvent.click(scanButton());
+      fireEvent.click(row(worldName(0)));
+      const { attenuationStyleName, coordinates } = worldPayload(0);
+      expect(editorShows()).toEqual({ attenuationStyleName, coordinates });
+      expect(editorSelected()).toBe(false);
+    });
   });
 });
 
-describe('OffScreen — Keep (spec assumption 14)', () => {
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 5 (spec §1.2, §5 cases 2, 3 and 5): a commit in the editor — Enter, or a blur out
+// of it — is a New Transmission pick of the typed world, exactly what picking the row did; an unchanged one is nothing.
+// The editor follows the world that lands, unless the listener is mid-edit.
+describe('OffScreen — the editor commits a world (console Task 5)', () => {
   beforeEach(() => markHeardWorld());
-  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
+  afterEach(() => vi.mocked(retransmitWorld).mockReset());
+  const styleField = () => within(editor()).getByRole('textbox');
+  const typeName = (value: string) => fireEvent.change(styleField(), { target: { value } });
+  const enter = () => fireEvent.keyDown(styleField(), { key: 'Enter' });
+  /** applySessionPayload's double, landing the payload's seed, plot and loading in the stores. */
+  const applyLandsInStores = () =>
+    vi.mocked(applySessionPayload).mockImplementation((payload) =>
+      landsInStores({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates, ...loadingOf(payload) }),
+    );
+  const seedAndPlot = (payload: SessionPayload) => ({ attenuationStyleName: payload.attenuationStyleName, coordinates: payload.coordinates });
 
-  it('is lit, with the warning line under the chooser, when the loaded world is not kept (no save loaded)', () => {
-    const { container } = render(<OffScreen />);
-    expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
-    expect(container.querySelector('.sc-button--muted')).not.toBeNull(); // flat, like Scan: nothing pops
+  it('a typed name and Enter lands that world under Classic with no aspects, detaches the save and selects the editor', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
+    live.payload = { ...live.marker('live'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    render(<OffScreen />);
+    const current = currentRowName();
+    const { coordinates } = liveIdentity();
+    typeName('typed-world');
+    enter();
+    expect(retransmitWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName: 'typed-world', coordinates, theme: 'classic', aspects: {} });
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    expect(editorSelected()).toBe(true);
+    expect(within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-checked'))).not.toContain('true');
+    expect(editorShows()).toEqual({ attenuationStyleName: 'typed-world', coordinates });
+    expect(readout().textContent).toBe(describeWorld({ attenuationStyleName: 'typed-world', coordinates }));
+    // Current still names the world left: the commit took the snapshot, as any pick does.
+    expect(currentRowName()).toBe(current);
+    expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
-  it('is dim, with no warning, when the loaded save equals the live world', () => {
+  it('typed coordinates commit with the name as it stands', () => {
+    render(<OffScreen />);
+    const { attenuationStyleName } = liveIdentity();
+    const [x, y] = within(editor()).getAllByRole('spinbutton');
+    fireEvent.change(x, { target: { value: '-12' } });
+    fireEvent.change(y, { target: { value: '34' } });
+    fireEvent.keyDown(y, { key: 'Enter' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName, coordinates: { x: -12, y: 34 }, theme: 'classic', aspects: {} });
+  });
+
+  // Found at the "editor" checkpoint: a coordinate field may be emptied, and a commit draws the blank axis.
+  it('a blank X commits a drawn X with the typed Y, and the editor shows the world that landed', () => {
+    const draw = vi.spyOn(seedUtils, 'randomCoordinate').mockReturnValue(88);
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    render(<OffScreen />);
+    const { attenuationStyleName } = liveIdentity();
+    const [x, y] = within(editor()).getAllByRole('spinbutton');
+    fireEvent.change(x, { target: { value: '' } });
+    fireEvent.change(y, { target: { value: '-3' } });
+    fireEvent.keyDown(y, { key: 'Enter' });
+    expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName, coordinates: { x: 88, y: -3 }, theme: 'classic', aspects: {} });
+    expect(draw).toHaveBeenCalledTimes(1);
+    expect(editorShows()).toEqual({ attenuationStyleName, coordinates: { x: 88, y: -3 } });
+  });
+
+  it('an unchanged commit requests no world change: Enter, a blur, and a draft typed back to the world', () => {
+    const request = vi.spyOn(worldChange, 'requestWorldChange');
+    render(<OffScreen />);
+    enter();
+    fireEvent.blur(styleField(), { relatedTarget: null });
+    typeName('typed');
+    typeName(liveIdentity().attenuationStyleName);
+    enter();
+    expect(request).not.toHaveBeenCalled();
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(editorSelected()).toBe(false);
+    request.mockRestore();
+  });
+
+  it('a blur out of the editor commits as Enter does', () => {
+    render(<OffScreen />);
+    typeName('blurred');
+    fireEvent.blur(styleField(), { relatedTarget: currentRadio() });
+    expect(retransmitWorld).toHaveBeenCalledTimes(1);
+    expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ attenuationStyleName: 'blurred', theme: 'classic', aspects: {} }));
+    expect(editorSelected()).toBe(true);
+  });
+
+  it('a blank name commits as blank, as retransmitWorld reads it', () => {
+    render(<OffScreen />);
+    typeName('');
+    enter();
+    expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ attenuationStyleName: '', theme: 'classic', aspects: {} }));
+  });
+
+  it('a save pick that lands shows the save’s seed and plot in the editor', () => {
+    applyLandsInStores();
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    fireEvent.click(row('Dusk Run'));
+    expect(editorShows()).toEqual(seedAndPlot(loadSession('Dusk Run')!));
+    expect(editorSelected()).toBe(false);
+  });
+
+  it('mid-edit, a landing pick leaves the draft alone; after a commit, the next landing pick shows', () => {
+    applyLandsInStores();
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    saveNamedSession('Low Tide', savedPayload('tide'));
+    render(<OffScreen />);
+    const { coordinates } = liveIdentity();
+    typeName('half-typed');
+    fireEvent.click(row('Dusk Run'));
+    expect(editorShows()).toEqual({ attenuationStyleName: 'half-typed', coordinates });
+    enter();
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ attenuationStyleName: 'half-typed', coordinates, theme: 'classic', aspects: {} });
+    expect(editorShows()).toEqual({ attenuationStyleName: 'half-typed', coordinates });
+    fireEvent.click(row('Low Tide'));
+    expect(editorShows()).toEqual(seedAndPlot(loadSession('Low Tide')!));
+  });
+
+  it('a theme click after a commit keeps the editor selected and edits the world in place', () => {
+    vi.mocked(retransmitWorld).mockImplementation(landsInStores);
+    render(<OffScreen />);
+    typeName('typed-world');
+    enter();
+    fireEvent.click(row(human('home.off.theme.float')));
+    expect(retransmitWorld).toHaveBeenLastCalledWith({ theme: 'float' });
+    expect(editorSelected()).toBe(true);
+    expect(readout().textContent).toBe(describeWorld({ ...liveIdentity(), theme: 'float' }));
+  });
+
+  describe('while a change waits under the wash', () => {
+    let detach: () => void;
+    beforeEach(() => {
+      useUIStore.setState({ sceneWash: 'clear' });
+      detach = attachSceneWash();
+    });
+    afterEach(() => detach());
+    const land = () => act(async () => useUIStore.getState().setSceneWash('covered'));
+
+    it('a commit while a save pick waits replaces it: the editor’s world lands alone, from the save’s plot', async () => {
+      saveNamedSession('Dusk Run', savedPayload('dusk'));
+      render(<OffScreen />);
+      fireEvent.click(row('Dusk Run'));
+      const dusk = seedAndPlot(loadSession('Dusk Run')!);
+      expect(editorShows()).toEqual(dusk);
+      typeName('typed-over');
+      enter();
+      expect(editorSelected()).toBe(true);
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      await land();
+      expect(applySessionPayload).not.toHaveBeenCalled();
+      expect(retransmitWorld).toHaveBeenCalledTimes(1);
+      expect(retransmitWorld).toHaveBeenCalledWith({ attenuationStyleName: 'typed-over', coordinates: dusk.coordinates, theme: 'classic', aspects: {} });
+      expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    });
+
+    it('a save picked while a commit waits replaces it, the last world click winning', async () => {
+      saveNamedSession('Dusk Run', savedPayload('dusk'));
+      render(<OffScreen />);
+      typeName('typed-first');
+      enter();
+      expect(editorShows().attenuationStyleName).toBe('typed-first');
+      fireEvent.click(row('Dusk Run'));
+      expect(editorShows()).toEqual(seedAndPlot(loadSession('Dusk Run')!));
+      await land();
+      expect(retransmitWorld).not.toHaveBeenCalled();
+      expect(applySessionPayload).toHaveBeenCalledTimes(1);
+      expect(editorSelected()).toBe(false);
+    });
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 6 (spec §1.3 item 1, §1.6, §5 case 12): Current's eyebrow says unsaved, so the
+// standing warning line goes; its place is the status slot, empty but for a failure.
+describe('OffScreen — Current’s eyebrow and the status slot (console Task 6)', () => {
+  beforeEach(() => markHeardWorld());
+
+  it('Current’s eyebrow reads unsaved while no save matches it, and plain Current after a Save', () => {
+    render(<OffScreen />);
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    fireEvent.click(saveButton());
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+  });
+
+  it('a loaded save that matches the world reads plain Current from the start', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+  });
+
+  it('the slot is always in the DOM and empty, dirty or clean: there is no standing warning', () => {
+    const { unmount } = render(<OffScreen />);
+    expect(statusSlot()).not.toBeNull();
+    expect(statusSlot().textContent).toBe('');
+    unmount();
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(statusSlot()).not.toBeNull();
+    expect(statusSlot().textContent).toBe('');
+  });
+
+  it('the slot sits under the readout, in the picker', () => {
+    render(<OffScreen />);
+    expect(readout().nextElementSibling).toBe(statusSlot());
+  });
+
+  describe('a refused Save', () => {
+    let setItem: ReturnType<typeof vi.spyOn> | undefined;
+    let logged: ReturnType<typeof vi.spyOn>;
+    /** From here on the storage refuses every write (a full quota). Called after a case has seeded its saves. */
+    const refuseStorage = () => {
+      setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+    };
+    beforeEach(() => {
+      logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      setItem?.mockRestore();
+      setItem = undefined;
+      logged.mockRestore();
+    });
+
+    // The session name differs from the loaded save's (a name typed since), and keepCurrentWorld writes the loaded one.
+    it('names the loaded save it tried to overwrite, as an alert', () => {
+      saveNamedSession('Dusk Run', live.marker('older'));
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Typed Since' });
+      refuseStorage();
+      render(<OffScreen />);
+      fireEvent.click(saveButton());
+      expect(within(statusSlot()).getByRole('alert').textContent).toBe(saveFailedLine('Dusk Run'));
+    });
+
+    // Save acts on the selected row since console Task 7: on a save, it names that save, which it tried to overwrite.
+    // It used to name Current's snapshot's save, which Keep saved from any row.
+    it('names the selected save when Save tried to overwrite it', () => {
+      saveNamedSession('Old Run', live.marker('older'));
+      refuseStorage();
+      render(<OffScreen />);
+      fireEvent.click(row('Old Run'));
+      fireEvent.click(saveButton());
+      expect(within(statusSlot()).getByRole('alert').textContent).toBe(saveFailedLine('Old Run'));
+    });
+
+    it('a later Save that succeeds empties the slot', () => {
+      refuseStorage();
+      render(<OffScreen />);
+      fireEvent.click(saveButton());
+      expect(statusSlot().textContent).not.toBe('');
+      setItem!.mockRestore();
+      fireEvent.click(saveButton());
+      expect(statusSlot().textContent).toBe('');
+      expect(currentEyebrow()).toBe(human('home.off.current'));
+    });
+  });
+});
+
+describe('OffScreen — Save on Current (spec assumption 14; Keep until console Task 7)', () => {
+  beforeEach(() => markHeardWorld());
+
+  it('is lit, Current reading unsaved, when the loaded world is not kept (no save loaded)', () => {
+    const { container } = render(<OffScreen />);
+    expect(saveButton().disabled).toBe(false);
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    expect(container.querySelector('.sc-button--muted')).not.toBeNull(); // flat, like Scan: nothing pops
+  });
+
+  it('is dim, Current reading plain, when the loaded save equals the live world', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    expect(saveButton().disabled).toBe(true);
+    expect(currentEyebrow()).toBe(human('home.off.current'));
   });
 
   it('is lit when the loaded save differs from the live world', () => {
     saveNamedSession('Dusk Run', live.marker('older'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
+    expect(saveButton().disabled).toBe(false);
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
   });
 
-  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20: a Keep the storage refuses (a full quota) is a line under the
-  // chooser, not a throw into the click. It takes the unsaved warning's place, so nothing moves; the screen stays up
-  // and Keep stays lit, to try again.
-  describe('a Keep the storage refuses (review R20)', () => {
-    const failed = () => screen.queryByText(human('home.off.keepFailed'));
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20: a Save the storage refuses (a full quota) is a line under the
+  // chooser, not a throw into the click; the screen stays up and Save stays lit, to try again. The line is the status
+  // slot's since console Task 6, naming the save it tried, and Current's eyebrow still says unsaved.
+  describe('a Save the storage refuses (review R20)', () => {
+    const failed = () => within(statusSlot()).queryByRole('alert');
     let setItem: ReturnType<typeof vi.spyOn>;
     let logged: ReturnType<typeof vi.spyOn>;
     beforeEach(() => {
@@ -1316,95 +1663,96 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       logged.mockRestore();
     });
 
-    it("shows the failure line in the warning's place, logs the error, and leaves the screen up with Keep lit", () => {
+    it('shows the failure line in the slot, naming the save it tried, logs the error, and leaves the screen up with Save lit', () => {
       render(<OffScreen />);
       expect(failed()).toBeNull();
-      fireEvent.click(keep());
-      expect(failed()).not.toBeNull();
-      expect(failed()!.getAttribute('role')).toBe('alert');
-      expect(warning()).toBeNull();
+      fireEvent.click(saveButton());
+      expect(failed()!.textContent).toBe(saveFailedLine('Quiet Harbour'));
+      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
       expect(logged).toHaveBeenCalled();
-      expect(keep().disabled).toBe(false);
+      expect(saveButton().disabled).toBe(false);
       expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
       expect(row(currentName()).getAttribute('aria-checked')).toBe('true');
     });
 
-    it('goes when a later Keep succeeds', () => {
+    it('goes when a later Save succeeds', () => {
       render(<OffScreen />);
-      fireEvent.click(keep());
+      fireEvent.click(saveButton());
       expect(failed()).not.toBeNull();
       setItem.mockRestore();
-      fireEvent.click(keep());
+      fireEvent.click(saveButton());
       expect(failed()).toBeNull();
       expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
     });
 
     it('goes when the world changes, since the world it names is no longer shown: a family toggle', () => {
       render(<OffScreen />);
-      fireEvent.click(keep());
+      fireEvent.click(saveButton());
       expect(failed()).not.toBeNull();
       fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
       expect(failed()).toBeNull();
-      expect(warning()).not.toBeNull();
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     });
 
     // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F14: the second review's surviving mutant, onThemeChange's setKeepFailed(false).
     it('goes when the world changes: a theme pick, applied at the click', () => {
       render(<OffScreen />);
-      fireEvent.click(keep());
+      fireEvent.click(saveButton());
       expect(failed()).not.toBeNull();
       fireEvent.click(row(human('home.off.theme.float')));
       expect(failed()).toBeNull();
-      expect(warning()).not.toBeNull();
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     });
 
-    it('goes when the world changes: a preset pick, realised at once with no wash mounted', () => {
+    // A preset pick until the presets went (Checkpoint A); the storage refuses every write here, so no save can be
+    // seeded to pick, and a Scan is the world change.
+    it('goes when the world changes: a Scan, realised at once with no wash mounted', () => {
       render(<OffScreen />);
-      fireEvent.click(keep());
+      fireEvent.click(saveButton());
       expect(failed()).not.toBeNull();
-      fireEvent.click(row(presetName(1)));
-      expect(applySessionPayload).toHaveBeenCalledTimes(1);
+      fireEvent.click(scanButton());
+      expect(retransmitWorld).toHaveBeenCalledTimes(1);
       expect(failed()).toBeNull();
     });
   });
 
-  it('clicking Keep saves under the suggested name, lists the new row at once, names Current after it, and dims', () => {
+  it('clicking Save saves under the suggested name, lists the new row at once, names Current after it, and dims', () => {
     render(<OffScreen />);
-    fireEvent.click(keep());
+    fireEvent.click(saveButton());
     expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
     expect(row('Quiet Harbour')).toBeTruthy();
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
     expect(currentRowName()).toBe(currentName('Quiet Harbour'));
     expect(row(currentName('Quiet Harbour')).getAttribute('aria-checked')).toBe('true');
-    expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
+    expect(saveButton().disabled).toBe(true);
+    expect(currentEyebrow()).toBe(human('home.off.current'));
   });
 
   it('keeps under the loaded name, overwriting that row rather than adding one', () => {
     saveNamedSession('Dusk Run', live.marker('older'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    fireEvent.click(keep());
+    fireEvent.click(saveButton());
     expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
     expect(radioNames().filter((n) => n === savedLabel('Dusk Run'))).toHaveLength(1);
-    expect(keep().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(true);
   });
 
-  // Keep saves Current since docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6 (spec §1.4), so a Scan (it
-  // leaves Current) no longer re-lights it: that is Task 6's "a Scan after a Keep of Current" case. What still re-lights
-  // it is a change to Current itself, an in-place theme pick, and keeping then overwrites Current's own row.
-  it('re-lights after a change to Current itself, and dims again after keeping — overwriting the row it kept', () => {
+  // What re-lights Save on Current is a change to Current itself, an in-place theme pick, and saving then overwrites
+  // Current's own row.
+  it('re-lights after a change to Current itself, and dims again after saving — overwriting the row it saved', () => {
     vi.mocked(retransmitWorld).mockImplementationOnce(() => {
       live.payload = live.marker('themed');
     });
     render(<OffScreen />);
-    fireEvent.click(keep());
-    expect(keep().disabled).toBe(true);
+    fireEvent.click(saveButton());
+    expect(saveButton().disabled).toBe(true);
     fireEvent.click(row(human('home.off.theme.float')));
-    expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
-    fireEvent.click(keep());
-    expect(keep().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(false);
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    fireEvent.click(saveButton());
+    expect(saveButton().disabled).toBe(true);
     expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
     expect(loadSession('Quiet Harbour')).toEqual(live.marker('themed'));
   });
@@ -1414,7 +1762,7 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     saveNamedSession('Other', live.marker('other'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    expect(keep().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(true);
     const onMount = vi.mocked(buildSessionPayload).mock.calls.length;
     expect(onMount).toBeGreaterThan(0);
     // A re-render from a store change does not rebuild the payload.
@@ -1425,27 +1773,29 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
       });
     });
     expect(vi.mocked(buildSessionPayload).mock.calls.length).toBe(onMount);
-    // A pick does: it takes Current's snapshot. The dirty read then follows Current (docs/tasks/
-    // OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6), still Dusk Run as saved, so Keep stays dim; before, it read
-    // the live world against Other and lit.
+    // A pick does: it takes Current's snapshot, and reads both dirty flags again. Current's eyebrow follows Current, still
+    // Dusk Run as saved; Save follows the row, Other, which the live world (this double applies nothing) differs from.
     fireEvent.click(row('Other'));
     expect(vi.mocked(buildSessionPayload).mock.calls.length).toBeGreaterThan(onMount);
-    expect(keep().disabled).toBe(true);
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+    expect(saveButton().disabled).toBe(false);
   });
 
   // A world that is no longer a save must not keep the save's name, or a Save from the Sessions panel would overwrite the
   // save with a different world. Current keeps the name of the world left (docs/specs/
   // OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.3); it used to be renamed by its identity alone once the save was
-  // detached. And Keep saves Current (Task 6, spec §1.4), still Dusk Run as saved, so it stays dim; it used to light and
-  // write the scanned world as a new row.
-  it('a preset pick or a Scan clears the loaded save name; Current keeps the name of the world left, and Keep, saving it, stays dim', () => {
+  // detached. Current's eyebrow follows Current, still Dusk Run as saved; Save acts on New Transmission since console Task 7, so
+  // it is lit, and nothing is written until it is clicked.
+  // A preset pick detached the save too, until the presets went (Checkpoint A); another save's pick loads that save.
+  it('a Scan clears the loaded save name; Current keeps the name of the world left and reads plain', () => {
+    seedWorlds();
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     expect(currentRowName()).toBe(currentName('Dusk Run'));
 
-    fireEvent.click(row(presetName(0)));
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    fireEvent.click(row(worldName(0)));
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe(worldName(0));
     expect(currentRowName()).toBe(currentName('Dusk Run'));
 
     fireEvent.click(row('Dusk Run'));
@@ -1456,155 +1806,911 @@ describe('OffScreen — Keep (spec assumption 14)', () => {
     // The name input no longer names the save, so a Save from the Sessions panel writes a new row.
     expect(useSessionStore.getState().currentSessionName).not.toBe('Dusk Run');
     expect(currentRowName()).toBe(currentName('Dusk Run'));
-    expect(keep().disabled).toBe(true);
-    expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+    expect(saveButton().disabled).toBe(false);
+    expect(listSessions().map((s) => s.name).sort()).toEqual(['Dusk Run', ...WORLDS.map((w) => w.name)].sort());
   });
 
   it('never starts the AudioEngine', () => {
     render(<OffScreen />);
-    fireEvent.click(keep());
+    fireEvent.click(saveButton());
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 });
 
-// docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6 (spec §1.4): once the listener has left Current, Keep saves
-// Current's snapshot, not the live world, under the snapshot's save name (or a fresh one), and touches no session field;
-// the dirty read that dims Keep and shows the warning describes the snapshot too. No wash is mounted, so a pick lands at
-// the click.
-describe('OffScreen — Keep follows Current (Current and New Transmission, Task 6)', () => {
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 7 (spec §1.5, §5 cases 7 and 8): Save, Rename and Delete replace Keep, each
+// acting on the selected row, dimmed in place where inert (offScreenActions.ts). Save on Current saves the live world,
+// as Keep did; on a save it overwrites that save with the live world; on New Transmission it writes the
+// live world under a fresh name and the selection moves to the new row. Current's eyebrow still reads Current's own
+// dirty read, while Save reads the selected row's. Keep used to save Current's snapshot from any row (docs/tasks/
+// OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6); those cases are rewritten here. No wash is mounted unless a case
+// attaches one, so a pick lands at the click.
+describe('OffScreen — the action row (console Task 7)', () => {
   beforeEach(() => markHeardWorld());
   afterEach(() => vi.mocked(retransmitWorld).mockReset());
-  const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-  const warning = () => screen.queryByText(human('home.off.unsavedWarning'));
-  const failed = () => screen.queryByText(human('home.off.keepFailed'));
+  const failed = () => within(statusSlot()).queryByRole('alert');
   const session = () => useSessionStore.getState();
-  /** A pick lands a different world, what buildSessionPayload builds from then on; a Current restore (a built payload,
-   *  carrying a marker) lands as itself, as a Load of it would. */
-  const landsAs = (marker: string) =>
+  const NONE = { save: false, rename: false, delete: false };
+  const SAVE_ONLY = { save: true, rename: false, delete: false };
+  /** A pick lands as itself: what buildSessionPayload builds from then on is the applied payload, as in the app. */
+  const landsAsItself = () =>
     vi.mocked(applySessionPayload).mockImplementation((payload) => {
       useLoadingStore.getState().setLoading(loadingOf(payload));
-      live.payload = 'marker' in payload ? structuredClone(payload) : live.marker(marker);
+      live.payload = structuredClone(payload);
+    });
+  /** An in-place theme pick moves the live world's theme, and the loading store's, as the real retransmit does. */
+  const themeMovesLive = () =>
+    vi.mocked(retransmitWorld).mockImplementation((input) => {
+      if (input.theme) live.payload = { ...live.payload, theme: input.theme };
+      landsInStores(input);
+    });
+  const asStored = (payload: SessionPayload) => JSON.parse(JSON.stringify(payload)) as SessionPayload;
+  const named = (key: 'home.off.save' | 'home.off.rename' | 'home.off.delete', name: string) =>
+    actionButton(key).getAttribute('aria-label') === fill(key, { name });
+
+  it('the three are muted, flat like the list', () => {
+    render(<OffScreen />);
+    expect(within(actionsRow()).getAllByRole('button').every((b) => b.classList.contains('sc-button--muted'))).toBe(true);
+  });
+
+  describe('the dim matrix (spec §5 case 7)', () => {
+    it('a clean Current: all three dimmed, each named after Current', () => {
+      saveNamedSession('Dusk Run', structuredClone(live.payload));
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+      render(<OffScreen />);
+      expect(enabledActions()).toEqual(NONE);
+      const current = human('home.off.current');
+      expect([named('home.off.save', current), named('home.off.rename', current), named('home.off.delete', current)]).toEqual([
+        true,
+        true,
+        true,
+      ]);
     });
 
-  it('Current unsaved, a save lands, then Keep: a new row holds the pre-pick world, the picked save is untouched and stays loaded, and Keep dims', () => {
+    it('an unsaved Current: Save alone', () => {
+      render(<OffScreen />);
+      expect(enabledActions()).toEqual(SAVE_ONLY);
+    });
+
+    it('a save: Rename and Delete, named after it, and Save once the live world differs from it', () => {
+      saveNamedSession('Dusk Run', savedPayload('dusk'));
+      landsAsItself();
+      themeMovesLive();
+      render(<OffScreen />);
+      fireEvent.click(row('Dusk Run'));
+      expect(enabledActions()).toEqual({ save: false, rename: true, delete: true });
+      expect([named('home.off.save', 'Dusk Run'), named('home.off.rename', 'Dusk Run'), named('home.off.delete', 'Dusk Run')]).toEqual([
+        true,
+        true,
+        true,
+      ]);
+      fireEvent.click(row(human('home.off.theme.anchor')));
+      expect(enabledActions()).toEqual({ save: true, rename: true, delete: true });
+    });
+
+    it('New Transmission (a Scan): Save alone, always, named after New Transmission', () => {
+      render(<OffScreen />);
+      fireEvent.click(scanButton());
+      expect(enabledActions()).toEqual(SAVE_ONLY);
+      expect(named('home.off.save', newTransmission())).toBe(true);
+    });
+
+    describe('while a change waits under the wash', () => {
+      let detach: () => void;
+      beforeEach(() => {
+        useUIStore.setState({ sceneWash: 'clear' });
+        detach = attachSceneWash();
+      });
+      afterEach(() => detach());
+      const land = () =>
+        act(async () => {
+          useUIStore.getState().setSceneWash('covered');
+        });
+
+      it('all three are dimmed, whatever the row, and follow the row once it lands', async () => {
+        saveNamedSession('Dusk Run', savedPayload('dusk'));
+        landsAsItself();
+        render(<OffScreen />);
+        expect(enabledActions()).toEqual(SAVE_ONLY); // precondition: the unsaved Current lights Save
+        fireEvent.click(row('Dusk Run'));
+        expect(enabledActions()).toEqual(NONE);
+        await land();
+        expect(enabledActions()).toEqual({ save: false, rename: true, delete: true });
+        fireEvent.click(scanButton());
+        expect(enabledActions()).toEqual(NONE);
+      });
+    });
+  });
+
+  describe('Save (spec §5 case 8)', () => {
+    it('an edited save: overwritten with the live world, no new row, the row checked under its name with no tail, and Save dims', () => {
+      saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'float' });
+      landsAsItself();
+      themeMovesLive();
+      render(<OffScreen />);
+      fireEvent.click(row('Dusk Run'));
+      fireEvent.click(row(human('home.off.theme.classic')));
+      const editedLabel = radioNames()[1];
+      expect(editedLabel).not.toBe(savedLabel('Dusk Run')); // the row names the live loading in place of its own
+      fireEvent.click(saveButton());
+      expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+      expect(loadSession('Dusk Run')).toEqual(asStored(live.payload));
+      expect(loadSession('Dusk Run')!.theme).toBe('classic');
+      expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+      expect(radioNames()[1]).toBe(savedLabel('Dusk Run'));
+      expect(session().currentLoadedSessionName).toBe('Dusk Run');
+      expect(enabledActions()).toEqual({ save: false, rename: true, delete: true });
+      // Current is the world left, never saved: its eyebrow is its own, untouched by a Save on another row.
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    });
+
+    it('New Transmission: the typed world, not Current’s snapshot, and the selection moves off the editor to the new row', () => {
+      vi.mocked(retransmitWorld).mockImplementation((input) => {
+        if (input.attenuationStyleName !== undefined) live.payload = live.marker('scanned');
+        landsInStores(input);
+      });
+      render(<OffScreen />);
+      fireEvent.click(scanButton());
+      expect(editorSelected()).toBe(true);
+      fireEvent.click(saveButton());
+      expect(listSessions()).toHaveLength(1);
+      const added = listSessions()[0].name;
+      expect(loadSession(added)).toEqual(live.marker('scanned'));
+      expect(editorSelected()).toBe(false);
+      expect(row(added).getAttribute('aria-checked')).toBe('true');
+      expect(session().currentLoadedSessionName).toBe(added);
+    });
+
+    // On a preset until the presets went (Checkpoint A): New Transmission is the other row a Save writes a fresh name from.
+    it('a Save the storage refuses on New Transmission: the failure line names the name it tried; no row, the editor still selected', () => {
+      const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      render(<OffScreen />);
+      fireEvent.click(scanButton());
+      const tried = session().currentSessionName;
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+      fireEvent.click(saveButton());
+      setItem.mockRestore();
+      logged.mockRestore();
+      expect(failed()!.textContent).toBe(saveFailedLine(tried));
+      expect(listSessions()).toHaveLength(0);
+      expect(editorSelected()).toBe(true);
+      expect(enabledActions()).toEqual(SAVE_ONLY);
+    });
+
+    it('Current saved, then left, then restored: the restore attaches the saved name, and Save dims', () => {
+      seedWorlds();
+      landsAsItself();
+      render(<OffScreen />);
+      fireEvent.click(saveButton());
+      const kept = session().currentLoadedSessionName!;
+      fireEvent.click(row(worldName(0)));
+      expect(currentRowName()).toBe(currentName(kept));
+      fireEvent.click(currentRadio());
+      expect(session()).toMatchObject({ currentLoadedSessionName: kept, currentSessionName: kept });
+      expect(currentRadio().getAttribute('aria-checked')).toBe('true');
+      expect(enabledActions()).toEqual(NONE);
+    });
+  });
+
+  // Current's eyebrow reads Current (its snapshot once left); Save reads the selected row. The two differ once Current
+  // is left.
+  describe('the eyebrow and Save read different worlds', () => {
+    it('a clean Current, then an edited save: Current reads plain, Save on the save lights', () => {
+      saveNamedSession('Dusk Run', structuredClone(live.payload));
+      saveNamedSession('Other', savedPayload('other'));
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+      landsAsItself();
+      themeMovesLive();
+      render(<OffScreen />);
+      fireEvent.click(row('Other'));
+      expect(enabledActions().save).toBe(false);
+      fireEvent.click(row(human('home.off.theme.anchor')));
+      expect(enabledActions().save).toBe(true);
+      expect(currentEyebrow()).toBe(human('home.off.current'));
+    });
+
+    it('an unsaved Current, then a clean save: Current reads unsaved, Save on the save is dim', () => {
+      saveNamedSession('Dusk Run', savedPayload('dusk'));
+      landsAsItself();
+      render(<OffScreen />);
+      fireEvent.click(row('Dusk Run'));
+      expect(enabledActions().save).toBe(false);
+      expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    });
+
+    it('a saved Current, then a Scan: Current stays saved and named after its save, Save on New Transmission lights, nothing written', () => {
+      render(<OffScreen />);
+      fireEvent.click(saveButton());
+      const kept = listSessions()[0].name;
+      fireEvent.click(scanButton());
+      expect(currentEyebrow()).toBe(human('home.off.current'));
+      expect(currentRowName()).toBe(currentName(kept));
+      expect(enabledActions()).toEqual(SAVE_ONLY);
+      expect(listSessions()).toHaveLength(1);
+    });
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 8 (spec §1.5, assumption 3, §5 case 9): Rename turns the selected save's
+// trailing slot into an input, prefilled, focused and selected. Enter or a blur out of it commits through
+// renameNamedSession; Escape, a blank or an unchanged name revert with no engine call; a name another save has is
+// refused, the slot saying so. The loaded name and Current's snapshot name follow, and the row stays selected under its
+// new name.
+describe('OffScreen — Rename (console Task 8)', () => {
+  beforeEach(() => {
+    markHeardWorld();
+    // A pick lands as itself, so a landed save reads clean, as in the app.
+    vi.mocked(applySessionPayload).mockImplementation((payload) => {
+      useLoadingStore.getState().setLoading(loadingOf(payload));
+      live.payload = structuredClone(payload);
+    });
+  });
+  const session = () => useSessionStore.getState();
+  const renameInput = () => screen.queryByRole('textbox', { name: human('home.off.rename') }) as HTMLInputElement | null;
+  const startRename = () => fireEvent.click(actionButton('home.off.rename'));
+  const typeName = (name: string) => fireEvent.change(renameInput()!, { target: { value: name } });
+  const enter = () => fireEvent.keyDown(renameInput()!, { key: 'Enter' });
+  const refusal = () => within(statusSlot()).queryByRole('alert');
+  /** Dusk Run saved and picked, landed: the row Rename acts on. */
+  const pickDuskRun = () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
-    const prePick = structuredClone(live.payload);
-    landsAs('dusk-world');
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    expect(session().currentLoadedSessionName).toBe('Dusk Run');
-    expect(keep().disabled).toBe(false); // Current was never saved
-    fireEvent.click(keep());
-    const kept = listSessions().map((s) => s.name).find((n) => n !== 'Dusk Run')!;
-    expect(listSessions()).toHaveLength(2);
-    expect(loadSession(kept)).toEqual(prePick);
-    expect(loadSession('Dusk Run')).toEqual(savedPayload('dusk'));
-    expect(session()).toMatchObject({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
-    expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
-    // Current is named after the save it now is; the new row is listed at once.
-    expect(currentRowName()).toBe(currentName(kept));
-    expect(row(kept)).toBeTruthy();
+  };
+
+  // Crawford, Checkpoint A: the input sits in the row bare, with no cabinet box of its own.
+  it('the input draws no cabinet box: a bare field in the row', () => {
+    pickDuskRun();
+    startRename();
+    const field = renameInput()!.closest('.off-screen__rename')!;
+    expect(field.querySelector('.sc-cabinet-box')).toBeNull();
+    expect(field.querySelector('.sc-text-input-facade')).toBeNull();
+  });
+
+  it('turns the selected save’s trailing slot into an input, prefilled, focused and selected, the radio still checked', () => {
+    pickDuskRun();
+    expect(renameInput()).toBeNull();
+    startRename();
+    const input = renameInput()!;
+    expect(input.value).toBe('Dusk Run');
+    expect(document.activeElement).toBe(input);
+    expect([input.selectionStart, input.selectionEnd]).toEqual([0, 'Dusk Run'.length]);
+    // In the save's own row, beside its radio (RadioButton's trailing slot, outside the radio: review R8).
+    const slots = document.querySelectorAll('.sc-radio-button__trailing');
+    expect(slots).toHaveLength(1);
+    expect(slots[0].contains(input)).toBe(true);
+    expect((slots[0] as HTMLElement).style.gridRow).toBe((row('Dusk Run').closest('.sc-radio-button__row') as HTMLElement).style.gridRow);
+    expect(row('Dusk Run').contains(input)).toBe(false);
     expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
   });
 
-  it('Current was a save, then a preset lands, then Keep: that save is overwritten with Current, not the preset world', () => {
-    saveNamedSession('Old Run', live.marker('older'));
-    useSessionStore.setState({ currentLoadedSessionName: 'Old Run', currentSessionName: 'Old Run' });
-    const prePick = structuredClone(live.payload);
-    landsAs('preset-world');
-    render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
-    expect(session().currentLoadedSessionName).toBeNull(); // the preset detached the live world
-    expect(keep().disabled).toBe(false);
-    fireEvent.click(keep());
-    expect(listSessions().map((s) => s.name)).toEqual(['Old Run']);
-    expect(loadSession('Old Run')).toEqual(prePick);
-    expect(session().currentLoadedSessionName).toBeNull();
-    expect(keep().disabled).toBe(true);
+  it('Enter re-keys the save, its savedAt and payload kept; the row stays checked under the new name', () => {
+    pickDuskRun();
+    const before = listSessions()[0];
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(listSessions()).toEqual([{ ...before, name: 'Dawn Run' }]);
+    expect(renameInput()).toBeNull();
+    expect(row('Dawn Run').getAttribute('aria-checked')).toBe('true');
+    expect(enabledActions()).toEqual({ save: false, rename: true, delete: true });
   });
 
-  it('a clean Current, then a save lands and is edited: Keep stays dim, with no warning, because the dirty read follows Current', () => {
+  it('the loaded save’s name follows, the session name with it, so a later Save overwrites the renamed row', () => {
+    pickDuskRun();
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Dawn Run', currentSessionName: 'Dawn Run' });
+    fireEvent.click(row(human('home.off.theme.anchor')));
+    fireEvent.click(saveButton());
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+  });
+
+  it('the session names are left alone when the renamed save is not the loaded one', () => {
+    pickDuskRun();
+    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other', currentSessionName: 'Typed Since' }));
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Other', currentSessionName: 'Typed Since' });
+  });
+
+  it('Current’s snapshot follows: Current, left from the save, is named after the new name, and a restore attaches it', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
-    saveNamedSession('Other', live.marker('other'));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
-    landsAs('other');
-    vi.mocked(retransmitWorld).mockImplementation(() => {
-      live.payload = live.marker('other-edited');
-    });
     render(<OffScreen />);
-    expect(keep().disabled).toBe(true);
-    fireEvent.click(row('Other'));
-    expect(keep().disabled).toBe(true);
-    fireEvent.click(row(human('home.off.theme.float')));
-    expect(keep().disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
-    expect(keep().disabled).toBe(true);
-    expect(warning()).toBeNull();
-  });
-
-  it('a dirty Current stays lit through a pick of a clean save', () => {
-    saveNamedSession('Dusk Run', structuredClone(live.payload));
-    landsAs('dusk');
-    render(<OffScreen />);
-    expect(keep().disabled).toBe(false); // no save loaded: Current is unsaved
     fireEvent.click(row('Dusk Run'));
-    expect(keep().disabled).toBe(false);
-    expect(warning()).not.toBeNull();
-  });
-
-  it('Current kept, then restored: the restore attaches the kept name, and Keep stays dim', () => {
-    landsAs('preset-world');
-    render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
-    fireEvent.click(keep());
-    const kept = listSessions()[0].name;
-    expect(currentRowName()).toBe(currentName(kept));
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(currentRowName()).toBe(currentName('Dawn Run'));
+    expect(currentEyebrow()).toBe(human('home.off.current'));
     fireEvent.click(currentRadio());
-    expect(session()).toMatchObject({ currentLoadedSessionName: kept, currentSessionName: kept });
-    expect(currentRadio().getAttribute('aria-checked')).toBe('true');
-    expect(keep().disabled).toBe(true);
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Dawn Run', currentSessionName: 'Dawn Run' });
   });
 
-  it('a Scan after a Keep of Current leaves Current kept: the snapshot stays, Keep stays dim', () => {
-    landsAs('preset-world');
-    render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
-    fireEvent.click(keep());
-    const kept = listSessions()[0].name;
-    fireEvent.click(scanButton());
-    expect(keep().disabled).toBe(true);
-    expect(currentRowName()).toBe(currentName(kept));
-    expect(listSessions()).toHaveLength(1);
+  it('a blur out of the input commits, as Enter does', () => {
+    pickDuskRun();
+    startRename();
+    typeName('Dawn Run');
+    fireEvent.blur(renameInput()!, { relatedTarget: document.body });
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+    expect(renameInput()).toBeNull();
   });
 
-  it('a Keep of Current the storage refuses shows the failure line, and leaves Current unsaved and unrenamed', () => {
-    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
-    landsAs('preset-world');
-    render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
-    const before = currentRowName();
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('quota exceeded');
+  // A browser may blur the input as the commit removes it: that blur is no second commit, which would find the old name
+  // gone and read as a refusal.
+  it('Enter and a blur in the same tick commit once: no refusal', () => {
+    pickDuskRun();
+    startRename();
+    typeName('Dawn Run');
+    const input = renameInput()!;
+    act(() => {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+      input.dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
     });
-    fireEvent.click(keep());
-    setItem.mockRestore();
-    logged.mockRestore();
-    expect(failed()).not.toBeNull();
-    expect(keep().disabled).toBe(false);
-    expect(currentRowName()).toBe(before);
-    expect(listSessions()).toHaveLength(0);
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+    expect(refusal()).toBeNull();
+  });
+
+  it('a name is trimmed: the spaces round it are not part of the save’s name', () => {
+    pickDuskRun();
+    startRename();
+    typeName('  Dawn Run  ');
+    enter();
+    expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
+  });
+
+  describe('reverting, with no engine call', () => {
+    let rename: MockInstance<typeof sessionStorageEngine.renameNamedSession>;
+    beforeEach(() => {
+      rename = vi.spyOn(sessionStorageEngine, 'renameNamedSession');
+    });
+    afterEach(() => rename.mockRestore());
+    const reverted = () => {
+      expect(rename).not.toHaveBeenCalled();
+      expect(renameInput()).toBeNull();
+      expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+      expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+    };
+
+    it('Escape', () => {
+      pickDuskRun();
+      startRename();
+      typeName('Dawn Run');
+      fireEvent.keyDown(renameInput()!, { key: 'Escape' });
+      reverted();
+    });
+
+    it('a blank name', () => {
+      pickDuskRun();
+      startRename();
+      typeName('   ');
+      enter();
+      reverted();
+    });
+
+    it('an unchanged name, by Enter or by blur', () => {
+      pickDuskRun();
+      startRename();
+      enter();
+      reverted();
+      startRename();
+      fireEvent.blur(renameInput()!, { relatedTarget: null });
+      reverted();
+    });
+  });
+
+  it('a name another save has is refused: the input reverts and the slot says so, as an alert, until a Rename succeeds', () => {
+    saveNamedSession('Low Tide', savedPayload('tide'));
+    pickDuskRun();
+    startRename();
+    typeName('Low Tide');
+    enter();
+    expect(listSessions().map((s) => s.name).sort()).toEqual(['Dusk Run', 'Low Tide']);
+    expect(loadSession('Low Tide')).toEqual(savedPayload('tide'));
+    expect(renameInput()).toBeNull();
+    expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+    expect(refusal()!.textContent).toBe(human('home.off.renameTaken'));
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    startRename();
+    typeName('Dawn Run');
+    enter();
+    expect(refusal()).toBeNull();
+    expect(statusSlot().textContent).toBe('');
+  });
+
+  it('the refusal goes with a successful Save, or a world change', () => {
+    saveNamedSession('Low Tide', savedPayload('tide'));
+    pickDuskRun();
+    startRename();
+    typeName('Low Tide');
+    enter();
+    // The theme pick moves the live world, so Save on the save is lit afterwards.
+    vi.mocked(retransmitWorld).mockImplementationOnce(() => {
+      live.payload = live.marker('themed');
+    });
+    fireEvent.click(row(human('home.off.theme.anchor')));
+    expect(refusal()).toBeNull();
+    startRename();
+    typeName('Low Tide');
+    enter();
+    expect(refusal()).not.toBeNull();
+    expect(saveButton().disabled).toBe(false);
+    fireEvent.click(saveButton());
+    expect(refusal()).toBeNull();
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 9 (spec §1.5, assumption 2, §5 case 10): Delete removes the selected save once
+// confirmed — a modal confirm since Checkpoint A (Crawford; it was at once, with none). The live world stands: no world
+// change, no wash. The loaded save detaches and Current's snapshot forgets the name; the selection, matching no row,
+// falls to New Transmission holding the live identity whole, so the editor reads as the deleted save's world, selected,
+// and the readout names it with no tail.
+describe('OffScreen — Delete (console Task 9)', () => {
+  beforeEach(() => {
+    markHeardWorld();
+    // A pick lands as itself, so a landed save reads clean, as in the app.
+    vi.mocked(applySessionPayload).mockImplementation((payload) => {
+      useLoadingStore.getState().setLoading(loadingOf(payload));
+      live.payload = structuredClone(payload);
+    });
+  });
+  const session = () => useSessionStore.getState();
+  const deleteButton = () => actionButton('home.off.delete');
+  const dialog = () => screen.queryByRole('alertdialog');
+  /** Delete, then the confirm's Delete. */
+  const deleteSave = () => {
+    fireEvent.click(deleteButton());
+    fireEvent.click(within(dialog()!).getByRole('button', { name: human('home.off.delete') }));
+  };
+  /** Dusk Run, under Float, saved and picked, landed: the row Delete acts on. */
+  const pickDuskRun = () => {
+    saveNamedSession('Dusk Run', { ...savedPayload('dusk'), theme: 'float' });
+    render(<OffScreen />);
+    fireEvent.click(row('Dusk Run'));
+  };
+  /** Nothing deleted: the save stored and listed, still selected and loaded. */
+  const untouched = () => {
+    expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+    expect(row('Dusk Run').getAttribute('aria-checked')).toBe('true');
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+  };
+
+  describe('the confirm (Checkpoint A)', () => {
+    afterEach(() => document.getElementById('screen-viewport')?.remove());
+    const flush = () => act(() => new Promise((r) => setTimeout(r, 0)));
+
+    it('Delete opens a modal confirm naming the save, and deletes nothing yet', () => {
+      pickDuskRun();
+      fireEvent.click(deleteButton());
+      expect(dialog()).not.toBeNull();
+      expect(dialog()!.textContent).toContain(fill('session.delete.confirmTitle', { session: 'Dusk Run' }));
+      expect(dialog()!.textContent).toContain(human('session.delete.confirmBody'));
+      // The modal hides the screen behind it from the accessibility tree, so the rows are read once it closes.
+      expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
+      expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    });
+
+    it('Cancel closes it, deletes nothing, and gives the focus back to Delete', async () => {
+      pickDuskRun();
+      act(() => deleteButton().focus());
+      fireEvent.click(deleteButton());
+      await flush();
+      fireEvent.click(within(dialog()!).getByRole('button', { name: human('ui.cancel') }));
+      await flush();
+      expect(dialog()).toBeNull();
+      untouched();
+      expect(document.activeElement).toBe(deleteButton());
+    });
+
+    it('Escape closes it and deletes nothing', async () => {
+      pickDuskRun();
+      fireEvent.click(deleteButton());
+      await flush();
+      fireEvent.keyDown(dialog()!, { key: 'Escape' });
+      await flush();
+      expect(dialog()).toBeNull();
+      untouched();
+    });
+
+    // On the Transmissions header while there was one (until Checkpoint A dropped the toggle).
+    it('confirmed, the dialog closes and the focus lands on Save beside it, Delete being dimmed now', async () => {
+      pickDuskRun();
+      act(() => deleteButton().focus());
+      deleteSave();
+      await flush();
+      expect(dialog()).toBeNull();
+      expect(deleteButton().disabled).toBe(true);
+      expect(document.activeElement).toBe(saveButton());
+    });
+
+    it('portals into #screen-viewport when the screen exists', () => {
+      const viewport = document.createElement('div');
+      viewport.id = 'screen-viewport';
+      document.body.appendChild(viewport);
+      pickDuskRun();
+      fireEvent.click(deleteButton());
+      expect(viewport.contains(dialog())).toBe(true);
+    });
+  });
+
+  it('confirmed, removes the save from storage and from the list', () => {
+    pickDuskRun();
+    deleteSave();
+    expect(listSessions()).toEqual([]);
+    expect(radioNames().some((name) => name.startsWith('Dusk Run'))).toBe(false);
+  });
+
+  it('falls to New Transmission holding the live world: the editor selected, no row checked, the readout with no tail', () => {
+    pickDuskRun();
+    deleteSave();
+    expect(editorSelected()).toBe(true);
+    expect(editorShows()).toEqual(liveIdentity());
+    expect(within(picker()).getAllByRole('radio').every((r) => r.getAttribute('aria-checked') === 'false')).toBe(true);
+    // The live loading is the save's own (Float), so it is the world's, not a tail on it.
+    expect(readout().textContent).toBe(describeWorld({ ...liveIdentity(), theme: 'float', aspects: {} }));
+    expect(enabledActions()).toEqual({ save: true, rename: false, delete: false });
+    expect(actionButton('home.off.save').getAttribute('aria-label')).toBe(fill('home.off.save', { name: newTransmission() }));
+  });
+
+  it('is no world change: nothing requested, applied or retransmitted, and the Loading rows stay', () => {
+    const request = vi.spyOn(worldChange, 'requestWorldChange');
+    pickDuskRun();
+    const applied = vi.mocked(applySessionPayload).mock.calls.length;
+    request.mockClear();
+    deleteSave();
+    expect(request).not.toHaveBeenCalled();
+    expect(applySessionPayload).toHaveBeenCalledTimes(applied);
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(useLoadingStore.getState().theme).toBe('float');
+    request.mockRestore();
+  });
+
+  it('the loaded save detaches, the session name suggested afresh', () => {
+    pickDuskRun();
+    expect(session().currentLoadedSessionName).toBe('Dusk Run');
+    deleteSave();
+    expect(session().currentLoadedSessionName).toBeNull();
+    expect(session().currentSessionName).not.toBe('Dusk Run');
+  });
+
+  it('a save that is not the loaded one leaves the loaded name alone', () => {
+    pickDuskRun();
+    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' }));
+    deleteSave();
+    expect(session()).toMatchObject({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' });
+  });
+
+  it('Current’s snapshot forgets the name: Current, left from the save, reads unsaved and unnamed, and a restore detaches', () => {
+    saveNamedSession('Dusk Run', structuredClone(live.payload));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    fireEvent.click(row('Dusk Run'));
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+    deleteSave();
+    expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
+    expect(currentRowName()).toBe(currentName());
+    fireEvent.click(currentRadio());
+    expect(session().currentLoadedSessionName).toBeNull();
+  });
+
+  it('Save from there writes the deleted world back under a fresh name, and the selection moves to it', () => {
+    pickDuskRun();
+    const world = structuredClone(live.payload);
+    deleteSave();
+    fireEvent.click(saveButton());
+    expect(listSessions()).toHaveLength(1);
+    const added = listSessions()[0].name;
+    expect(added).not.toBe('Dusk Run');
+    expect(loadSession(added)).toEqual(JSON.parse(JSON.stringify(world)));
+    expect(row(added).getAttribute('aria-checked')).toBe('true');
+    expect(editorSelected()).toBe(false);
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 10 (spec §1.6, §5 case 11): Share sits beside the readout and copies the link for
+// what the readout names, through useShareStatus and copySessionLink: the live world (Current is shown only with no
+// snapshot, as Task 7 found, so that is every case). "Copied" shows in the status slot until the hook's dismiss, a failed
+// copy as an alert; the slot holds one line, the latest event's. Dimmed while a change waits.
+describe('OffScreen — Share on the readout (console Task 10)', () => {
+  let copy: MockInstance<typeof sessionShareUtils.copySessionLink>;
+  beforeEach(() => {
+    markHeardWorld();
+    copy = vi.spyOn(sessionShareUtils, 'copySessionLink').mockResolvedValue(true);
+    // A pick lands as itself, so the live world is what was picked, as in the app.
+    vi.mocked(applySessionPayload).mockImplementation((payload) => {
+      useLoadingStore.getState().setLoading(loadingOf(payload));
+      live.payload = structuredClone(payload);
+    });
+  });
+  let detachWash: (() => void) | undefined;
+  afterEach(() => {
+    copy.mockRestore();
+    vi.useRealTimers();
+    detachWash?.();
+    detachWash = undefined;
+  });
+  /** Share, in the action row since Checkpoint A: the Transmissions section is opened to reach it. */
+  const shareButton = () => {
+    return actionButton('home.off.share');
+  };
+  /** A click on Share, its copy resolved. The button is found (and the section opened) before the act. */
+  const share = async () => {
+    const button = shareButton();
+    await act(async () => {
+      fireEvent.click(button);
+    });
+  };
+  const copiedLine = () => within(statusSlot()).queryByRole('status');
+  const failedLine = () => within(statusSlot()).queryByRole('alert');
+
+  // Beside the readout until Checkpoint A (Crawford): now last in the action row, after Delete.
+  it('sits last in the action row, flat, named after the shown row; the readout stands alone', () => {
+    render(<OffScreen />);
+    const button = shareButton();
+    expect(within(actionsRow()).getAllByRole('button').at(-1)).toBe(button);
+    expect(shareButton().classList.contains('sc-button--muted')).toBe(true);
+    expect(shareButton().getAttribute('aria-label')).toBe(fill('home.off.share', { name: human('home.off.current') }));
+    expect(readout().parentElement!.classList.contains('off-screen__picker')).toBe(true);
+  });
+
+  it('on Current, copies the live world', async () => {
+    render(<OffScreen />);
+    await share();
+    expect(copy).toHaveBeenCalledTimes(1);
+    expect(copy).toHaveBeenCalledWith(live.marker('live'));
+  });
+
+  it('on a save, a second save and New Transmission, copies the live world: what landed, with any edit since', async () => {
+    seedWorlds();
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    vi.mocked(retransmitWorld).mockImplementation((input) => {
+      live.payload = input.attenuationStyleName !== undefined ? live.marker('scanned') : { ...live.payload, theme: input.theme };
+      landsInStores(input);
+    });
+    render(<OffScreen />);
+    fireEvent.click(row('Dusk Run'));
+    fireEvent.click(row(human('home.off.theme.anchor')));
+    await share();
+    expect(copy).toHaveBeenLastCalledWith({ ...savedPayload('dusk'), theme: 'anchor' });
+    fireEvent.click(row(worldName(1)));
+    await share();
+    expect(copy).toHaveBeenLastCalledWith(worldPayload(1));
+    fireEvent.click(scanButton());
+    await share();
+    expect(copy).toHaveBeenLastCalledWith(live.marker('scanned'));
+    vi.mocked(retransmitWorld).mockReset();
+  });
+
+  it('“copied” shows in the slot as a status, and is gone after the dismiss', async () => {
+    vi.useFakeTimers();
+    render(<OffScreen />);
+    await share();
+    expect(copiedLine()!.textContent).toBe(human('session.status.linkCopied'));
+    expect(failedLine()).toBeNull();
+    act(() => vi.advanceTimersByTime(5000));
+    expect(statusSlot().textContent).toBe('');
+  });
+
+  it('a failed copy shows the failure as an alert', async () => {
+    copy.mockResolvedValue(false);
+    render(<OffScreen />);
+    await share();
+    expect(failedLine()!.textContent).toBe(human('session.status.copyFailed'));
+    expect(copiedLine()).toBeNull();
+  });
+
+  it('is dimmed while a change waits, and lit once it lands', async () => {
+    seedWorlds();
+    useUIStore.setState({ sceneWash: 'clear' });
+    detachWash = attachSceneWash();
+    render(<OffScreen />);
+    expect(shareButton().disabled).toBe(false);
+    fireEvent.click(row(worldName(0)));
+    expect(shareButton().disabled).toBe(true);
+    await act(async () => {
+      useUIStore.getState().setSceneWash('covered');
+    });
+    expect(shareButton().disabled).toBe(false);
+  });
+
+  describe('one line at a time, the latest event’s', () => {
+    let logged: ReturnType<typeof vi.spyOn>;
+    beforeEach(() => {
+      logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+    afterEach(() => logged.mockRestore());
+    const refuseSave = () => {
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        throw new Error('quota exceeded');
+      });
+      fireEvent.click(saveButton());
+      setItem.mockRestore();
+    };
+
+    it('a refused Save after a copy replaces “copied”', async () => {
+      render(<OffScreen />);
+      await share();
+      refuseSave();
+      expect(copiedLine()).toBeNull();
+      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+    });
+
+    it('a copy after a refused Save replaces the failure, and the dismiss leaves the slot empty', async () => {
+      vi.useFakeTimers();
+      render(<OffScreen />);
+      refuseSave();
+      await share();
+      expect(statusSlot().textContent).toBe(human('session.status.linkCopied'));
+      act(() => vi.advanceTimersByTime(5000));
+      expect(statusSlot().textContent).toBe('');
+    });
+
+    it('a second copy after a refused Save shows “copied” again', async () => {
+      render(<OffScreen />);
+      await share();
+      refuseSave();
+      await share();
+      expect(statusSlot().textContent).toBe(human('session.status.linkCopied'));
+    });
+
+    it('the dismiss of an earlier copy leaves a later failure standing', async () => {
+      vi.useFakeTimers();
+      render(<OffScreen />);
+      await share();
+      refuseSave();
+      act(() => vi.advanceTimersByTime(5000));
+      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+    });
   });
 });
 
 // docs/tasks/OFF_SCREEN_REVISIONS.md Task 4 (Crawford's notes 1 and 2, 2026-10-31): the Transmission row is a list —
-// New Transmission, Current, the saves with when they were saved, a rule, the presets — and Scan rides on New
-// Transmission's row, beside its radio, so what Scan does is plain (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md
-// Task 5; Roll rode on Current's before). Keep stays under the list, alone, as "Save Last World" (review R20).
-describe('OffScreen — the Transmission list and Scan on New Transmission', () => {
+// New Transmission, Current, the saves with when they were saved (a rule and the presets until Checkpoint A) — and
+// Scan rides on New Transmission's row, beside its radio, so what Scan does is plain (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md
+// Task 5; Roll rode on Current's before). The action row stays under the list (console Task 7; Keep before).
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 2 (spec §1.4) put the list and its action row in a section that started collapsed
+// under a header naming the selected row and the count of saves. Checkpoint A (Crawford, 2026-11-09: "we no longer need
+// to show/hide the sessions") dropped the toggle: the list, its action row and Factory Reset show on every mount, with
+// no header over them; the list's own label and the checked row say what is selected.
+describe('OffScreen — the list is always shown (Checkpoint A: no toggle)', () => {
+  beforeEach(() => markHeardWorld());
+  const list = () => screen.queryByRole('group', { name: human('home.off.transmission') });
+
+  // Scan stays out of it, in the editor's title row (console Task 4).
+  it('on open, with no click, the list, its action row and Factory Reset are shown, Current checked', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    render(<OffScreen />);
+    expect(list()).not.toBeNull();
+    expect(radioNames()).toEqual([currentName(), savedLabel('Dusk Run')]);
+    expect(currentRadio().getAttribute('aria-checked')).toBe('true');
+    expect(actionsRow()).not.toBeNull();
+    expect(actionsRow().contains(scanButton())).toBe(false);
+    expect(screen.queryByRole('button', { name: human('session.clearStorage.action') })).not.toBeNull();
+  });
+
+  it('there is no Transmissions header and nothing collapses', () => {
+    const { container } = render(<OffScreen />);
+    // The header was the section's expander; the help icons' popovers are the only ones left.
+    expect(container.querySelector('[aria-expanded]:not(.sc-help__trigger)')).toBeNull();
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 3 (spec §1.4, assumption 4, §5 case 13): Factory Reset, behind its confirm.
+// Confirming clears every key, detaches the loaded save, and the screen gives way to the first-visit view at once: the
+// device flag went with the rest of storage. It sat in its own Device section until Checkpoint A (Crawford: nothing
+// else would go there, and it deletes the saves), so now it is with the saves, at the foot of the Transmissions section.
+describe('OffScreen — Factory Reset, with the saves (console Task 3; Checkpoint A)', () => {
+  beforeEach(() => markHeardWorld());
+  afterEach(() => document.getElementById('screen-viewport')?.remove());
+  const reset = () => screen.queryByRole('button', { name: human('session.clearStorage.action') });
+  const dialog = () => screen.queryByRole('alertdialog');
+  const confirm = () => fireEvent.click(within(dialog()!).getByRole('button', { name: human('session.clearStorage') }));
+  const cancel = () => fireEvent.click(within(dialog()!).getByRole('button', { name: human('ui.cancel') }));
+  const stored = () => [localStorage.getItem(STORAGE_KEY), localStorage.getItem(DEVICE_FLAGS_KEY)];
+
+  // Hidden while the Transmissions section was collapsed, until Checkpoint A dropped the toggle.
+  it('Reset sits in the Transmissions section, after the action row, under its label row', () => {
+    render(<OffScreen />);
+    expect(reset()!.closest('.off-screen__transmissions')).toBe(actionsRow().closest('.off-screen__transmissions'));
+    expect(actionsRow().compareDocumentPosition(reset()!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const label = reset()!.closest('.off-screen__reset')!.querySelector('.sc-dual-label')!;
+    expect(label.textContent).toContain(CONTENT['session.clearStorage'].lore);
+    expect(label.textContent).toContain(human('session.clearStorage'));
+  });
+
+  it('Reset opens the confirm and clears nothing', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    const before = stored();
+    fireEvent.click(reset()!);
+    expect(dialog()).not.toBeNull();
+    expect(dialog()!.textContent).toContain(human('session.clearStorage.confirmTitle'));
+    expect(dialog()!.textContent).toContain(human('session.clearStorage.confirmBody'));
+    expect(stored()).toEqual(before);
+    expect(before.every((v) => v !== null)).toBe(true);
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+  });
+
+  it('confirming clears storage, detaches the loaded save, and shows the first-visit view at once', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    localStorage.setItem('trace-atlas.other', 'kept until now');
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    fireEvent.click(reset()!);
+    confirm();
+    expect(localStorage.length).toBe(0);
+    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    expect(dialog()).toBeNull();
+    // The first-visit view: the label and the hint, and nothing answerable.
+    expect(screen.getByText(human('home.off.powerHint'))).toBeTruthy();
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.queryByRole('radio')).toBeNull();
+    expect(screen.queryByTestId('off-screen-readout')).toBeNull();
+  });
+
+  it('confirming requests no world change and applies nothing: the paused world stands', () => {
+    const request = vi.spyOn(worldChange, 'requestWorldChange');
+    render(<OffScreen />);
+    fireEvent.click(reset()!);
+    confirm();
+    expect(request).not.toHaveBeenCalled();
+    expect(applySessionPayload).not.toHaveBeenCalled();
+    expect(retransmitWorld).not.toHaveBeenCalled();
+    request.mockRestore();
+  });
+
+  it('cancelling leaves storage, the loaded save and the picker', () => {
+    saveNamedSession('Dusk Run', savedPayload('dusk'));
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    render(<OffScreen />);
+    const before = stored();
+    fireEvent.click(reset()!);
+    cancel();
+    expect(dialog()).toBeNull();
+    expect(stored()).toEqual(before);
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
+    expect(reset()).not.toBeNull();
+  });
+
+  it('the confirm portals into #screen-viewport when the screen exists', () => {
+    const viewport = document.createElement('div');
+    viewport.id = 'screen-viewport';
+    document.body.appendChild(viewport);
+    render(<OffScreen />);
+    fireEvent.click(reset()!);
+    expect(viewport.contains(dialog())).toBe(true);
+  });
+
+  it('with no screen the confirm opens in place, never as a child of <body>', () => {
+    const { container } = render(<OffScreen />);
+    fireEvent.click(reset()!);
+    expect(container.contains(dialog())).toBe(true);
+  });
+
+  it('Escape closes the confirm and gives focus back to Reset', async () => {
+    render(<OffScreen />);
+    const opener = reset()!;
+    act(() => opener.focus());
+    fireEvent.click(opener);
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    fireEvent.keyDown(dialog()!, { key: 'Escape' });
+    await act(() => new Promise((r) => setTimeout(r, 0)));
+    expect(dialog()).toBeNull();
+    expect(document.activeElement).toBe(opener);
+    expect(localStorage.getItem(DEVICE_FLAGS_KEY)).not.toBeNull();
+  });
+});
+
+describe('OffScreen — the Transmission list, and Scan in the editor', () => {
   beforeEach(() => markHeardWorld());
   const scan = scanButton;
-  const rowOf = (el: Element) => el.closest('.sc-radio-button__row');
   const savedMeta = (name: string) => {
     const entry = listSessions().find((s) => s.name === name)!;
     return fill('home.off.savedAt', { time: formatSessionTimestamp(entry.savedAt) });
@@ -1616,41 +2722,31 @@ describe('OffScreen — the Transmission list and Scan on New Transmission', () 
     const root = picker().closest('.sc-radio-button')!;
     expect(root.classList.contains('sc-radio-button--list')).toBe(true);
     expect(root.classList.contains('sc-radio-button--muted')).toBe(false);
-    expect(root.querySelectorAll('.sc-radio-button__row')).toHaveLength(6);
+    expect(root.querySelectorAll('.sc-radio-button__row')).toHaveLength(2); // Current and Dusk Run: no presets since Checkpoint A
     expect(root.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
   });
 
-  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8: the trailing action follows the radio group, outside its roving focus,
-  // so Shift+Tab from Keep never loops between it and the selected row; Scan sits on New Transmission's grid line.
-  it('puts Scan on the New Transmission row, after the radio group and outside it', () => {
-    render(<OffScreen />);
-    const newRow = row(newTransmission());
-    const slot = scan().closest('.sc-radio-button__trailing') as HTMLElement;
-    expect(slot.style.gridRow).toBe((rowOf(newRow) as HTMLElement).style.gridRow);
-    expect(newRow.contains(scan())).toBe(false);
-    expect(picker().contains(scan())).toBe(false);
-    expect(within(picker()).queryAllByRole('button')).toEqual([]);
-  });
-
-  it('gives no other row a trailing action, Current included', () => {
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R8 kept Scan outside the radio group's roving focus from the trailing slot;
+  // in the editor's title row (console Task 4) it is outside the list altogether, and the slot is unused.
+  it('the list holds no button and no row carries a trailing action: Scan is in the editor', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     const { container } = render(<OffScreen />);
-    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(1);
-    expect(rowOf(row('Dusk Run'))!.querySelector('button:not([role])')).toBeNull();
-    expect(rowOf(row(currentName()))!.querySelector('button:not([role])')).toBeNull();
+    expect(within(picker()).queryAllByRole('button')).toEqual([]);
+    expect(container.querySelectorAll('.sc-radio-button__trailing')).toHaveLength(0);
+    expect(editor().contains(scan())).toBe(true);
   });
 
-  // Roll was never a pick; Scan is not a radio either, but it does select New Transmission, the row its world lands in.
-  it('a click on Scan is one retransmit, nothing applied, and selects New Transmission rather than being a row itself', () => {
+  // Roll was never a pick; Scan is not a radio either, but it does select New Transmission, which no row carries.
+  it('a click on Scan is one retransmit, nothing applied, and selects the editor, leaving no row checked', () => {
     render(<OffScreen />);
     fireEvent.click(scan());
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
     expect(applySessionPayload).not.toHaveBeenCalled();
-    expect(row(newTransmission()).getAttribute('aria-checked')).toBe('true');
-    expect(row(currentName()).getAttribute('aria-checked')).toBe('false');
+    expect(editorSelected()).toBe(true);
+    expect(within(picker()).getAllByRole('radio').map((r) => r.getAttribute('aria-checked'))).not.toContain('true');
   });
 
-  it('shows each save with when it was saved, newest first; Current and the presets carry no meta', () => {
+  it('shows each save with when it was saved, newest first; Current carries no meta', () => {
     const now = vi.spyOn(Date, 'now').mockReturnValueOnce(Date.UTC(2026, 9, 28, 14, 14)).mockReturnValueOnce(Date.UTC(2026, 9, 30, 9, 5));
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     saveNamedSession('Night Run', savedPayload('night'));
@@ -1660,7 +2756,6 @@ describe('OffScreen — the Transmission list and Scan on New Transmission', () 
     expect(metas).toEqual([savedMeta('Night Run'), savedMeta('Dusk Run')]);
     expect(within(row('Night Run')).getByText(savedMeta('Night Run'))).toBeTruthy();
     expect(row(currentName()).querySelector('.sc-radio-button__meta')).toBeNull();
-    for (const i of [0, 1, 2]) expect(row(presetName(i)).querySelector('.sc-radio-button__meta')).toBeNull();
   });
 
   it("the meta reads 'saved' and the time the Sessions list shows for the same save", () => {
@@ -1674,36 +2769,45 @@ describe('OffScreen — the Transmission list and Scan on New Transmission', () 
 
   it('a save kept from this screen appears with its meta at once', () => {
     render(<OffScreen />);
-    fireEvent.click(screen.getByRole('button', { name: human('home.off.keep') }));
+    fireEvent.click(saveButton());
     const kept = useSessionStore.getState().currentLoadedSessionName!;
     expect(row(kept).querySelector('.sc-radio-button__meta')?.textContent).toBe(savedMeta(kept));
   });
 
-  it('keeps Keep alone in the actions row under the list, as Save Last World', () => {
-    const { container } = render(<OffScreen />);
-    const actions = container.querySelector('.off-screen__actions')!;
-    expect(within(actions as HTMLElement).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
-      human('home.off.keep'),
+  // Keep, alone, until console Task 7 (spec §1.5): now Save, Rename and Delete, each named after the selected row.
+  it('holds Save, Rename, Delete and Share in the actions row under the list, each named after the selected row', () => {
+    render(<OffScreen />);
+    const current = human('home.off.current');
+    expect(within(actionsRow()).getAllByRole('button').map((b) => b.getAttribute('aria-label'))).toEqual([
+      fill('home.off.save', { name: current }),
+      fill('home.off.rename', { name: current }),
+      fill('home.off.delete', { name: current }),
+      fill('home.off.share', { name: current }),
     ]);
-    // Crawford's answer to the review's Open Question 6 (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R20).
-    expect(human('home.off.keep')).toBe('Save Last World');
-    expect(picker().closest('.sc-radio-button')!.nextElementSibling).toBe(actions);
+    expect(within(actionsRow()).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      human('home.off.save'),
+      human('home.off.rename'),
+      human('home.off.delete'),
+      human('home.off.share'),
+    ]);
+    expect(picker().closest('.sc-radio-button')!.nextElementSibling).toBe(actionsRow());
   });
 });
 
 describe('OffScreen — the Transmission row', () => {
   beforeEach(() => markHeardWorld());
 
-  it('lists New Transmission, Current, then the three presets in order, under the Transmission label, with no divider when there are no saves', () => {
+  // New Transmission left the list for the editor (console Task 4): Current is first.
+  // The presets followed the saves, under their own title and a rule, until Checkpoint A (Crawford: "we don't need
+  // them" for now).
+  it('with no saves, lists Current alone, under the Transmission label: no presets, no title, no divider', () => {
     const { container } = render(<OffScreen />);
-    // Every row names its world (Task 6b); New Transmission's is a random draw here, so only its lore label is pinned.
-    const names = radioNames();
-    expect(names[0]!.startsWith(asNew(''))).toBe(true);
-    expect(names.slice(1)).toEqual([currentName(), presetLabel(0), presetLabel(1), presetLabel(2)]);
+    expect(radioNames()).toEqual([currentName()]);
     expect(container.querySelector('.sc-radio-button__divider')).toBeNull();
+    expect(container.querySelector('.sc-radio-button__heading')).toBeNull();
   });
 
-  it("lists the user's saves between Current and the presets, newest first, with exactly one divider ahead of the presets", () => {
+  it("lists the user's saves after Current, newest first, and nothing after them: no divider", () => {
     // Two saves in one millisecond would tie on savedAt; give the second a later clock so "newest first" is testable.
     const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(2_000);
     saveNamedSession('Dusk Run', savedPayload('dusk'));
@@ -1711,17 +2815,9 @@ describe('OffScreen — the Transmission row', () => {
     now.mockRestore();
     const { container } = render(<OffScreen />);
     const names = radioNames();
-    expect(names[0]!.startsWith(asNew(''))).toBe(true);
-    expect(names[1]).toBe(currentName());
-    expect(names.slice(2, 4)).toEqual([savedLabel('Night, all freelance'), savedLabel('Dusk Run')]);
-    expect(names.slice(4)).toEqual([presetLabel(0), presetLabel(1), presetLabel(2)]);
-    const dividers = container.querySelectorAll('.sc-radio-button__divider');
-    expect(dividers).toHaveLength(1);
-    // The list (revisions Task 4) draws each option in a row, so the rule sits ahead of the first preset's row, with the
-    // presets' title between them since Task 6c.
-    const presetTitle = dividers[0].nextElementSibling!;
-    expect(presetTitle.textContent).toBe(human('home.off.presetTransmissions'));
-    expect(presetTitle.nextElementSibling).toBe(row(presetName(0)).closest('.sc-radio-button__row'));
+    expect(names[0]).toBe(currentName());
+    expect(names.slice(1)).toEqual([savedLabel('Night, all freelance'), savedLabel('Dusk Run')]);
+    expect(container.querySelector('.sc-radio-button__divider')).toBeNull();
   });
 
   it('has Current selected before a pick, and nothing else in the world row', () => {
@@ -1729,54 +2825,29 @@ describe('OffScreen — the Transmission row', () => {
     render(<OffScreen />);
     // Scoped to the Transmission group: the Loading axis (Task 30) is a second radio group with its own selection.
     for (const radio of within(picker()).getAllByRole('radio')) {
-      expect(radio.getAttribute('aria-checked')).toBe(radio.getAttribute('aria-label') === currentName() ? 'true' : 'false');
+      expect(radio.getAttribute('aria-checked')).toBe(plainEyebrow(radio.getAttribute('aria-label')!) === currentName() ? 'true' : 'false');
     }
   });
 
-  it("keeps a save that shares a preset's name apart from it: both render, and picking the save applies the save", () => {
-    const save = savedPayload('same-name');
-    saveNamedSession(presetName(0), save);
-    render(<OffScreen />);
-    const radios = screen.getAllByRole('radio').filter((r) => r.getAttribute('aria-label')!.startsWith(`${presetName(0)} · `));
-    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([describeWorld(save, presetName(0)), presetLabel(0)]);
-    fireEvent.click(radios[0]); // the save sits ahead of the presets now
-    expect(applySessionPayload).toHaveBeenCalledWith(save);
-  });
-
-  it('keeps a save named New Transmission apart from the row: picking the save applies the save, and draws nothing', () => {
+  // With no New Transmission row (console Task 4), a save of that name is the only radio so named, and picking it is a
+  // save pick: the editor is not selected by it.
+  it('keeps a save named New Transmission apart from the editor: picking the save applies the save, and draws nothing', () => {
     const save = savedPayload('new-name');
     saveNamedSession(newTransmission(), save);
     render(<OffScreen />);
-    // The row is "New Transmission, <its draw>"; the save is "New Transmission · <its world>" (Task 6b).
     const radios = screen.getAllByRole('radio').filter((r) => r.getAttribute('aria-label')!.startsWith(newTransmission()));
-    expect(radios).toHaveLength(2);
-    expect(radios[0].getAttribute('aria-label')!.startsWith(asNew(''))).toBe(true);
-    expect(radios[1].getAttribute('aria-label')).toBe(describeWorld(save, newTransmission()));
-    fireEvent.click(radios[1]); // the save sits under Current
+    expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual([describeWorld(save, newTransmission())]);
+    fireEvent.click(radios[0]);
     expect(applySessionPayload).toHaveBeenCalledWith(save);
     expect(retransmitWorld).not.toHaveBeenCalled();
+    expect(radios[0].getAttribute('aria-checked')).toBe('true');
+    expect(editorSelected()).toBe(false);
   });
 
-  it('keeps a save named like a preset id apart from the preset', () => {
-    const save = savedPayload('id-clash');
-    saveNamedSession(TRANSMISSION_PRESETS[0].id, save);
-    render(<OffScreen />);
-    fireEvent.click(row(TRANSMISSION_PRESETS[0].id));
-    expect(applySessionPayload).toHaveBeenCalledTimes(1);
-    expect(applySessionPayload).toHaveBeenCalledWith(save);
-  });
 });
 
 describe('OffScreen — picking', () => {
   beforeEach(() => markHeardWorld());
-
-  // docs/tasks/OFF_SCREEN.md Task 11 (spec assumption 13): a preset is a link; the pick applies what it decodes to.
-  it("applies the payload the preset's link decodes to, once, on picking a preset", () => {
-    render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
-    expect(applySessionPayload).toHaveBeenCalledTimes(1);
-    expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[1]));
-  });
 
   it("applies the saved session's payload on picking a save", () => {
     const save = savedPayload('dusk');
@@ -1797,40 +2868,35 @@ describe('OffScreen — picking', () => {
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
   });
 
-  it('picking a preset leaves the session name alone: a preset is not a save to overwrite', () => {
-    const before = useSessionStore.getState().currentSessionName;
-    render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
-    expect(useSessionStore.getState().currentSessionName).toBe(before);
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-  });
-
   it('never starts the AudioEngine: only the power switch starts sound', () => {
+    seedWorlds();
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
+    fireEvent.click(row(worldName(0)));
     fireEvent.click(row('Dusk Run'));
     fireEvent.click(currentRadio());
     expect(AudioEngine.start).not.toHaveBeenCalled();
   });
 
   it('marks the picked option selected, and only it — Current included', () => {
+    seedWorlds();
     render(<OffScreen />);
-    fireEvent.click(row(presetName(2)));
-    expect(row(presetName(2)).getAttribute('aria-checked')).toBe('true');
-    expect(row(presetName(0)).getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(row(worldName(2)));
+    expect(row(worldName(2)).getAttribute('aria-checked')).toBe('true');
+    expect(row(worldName(0)).getAttribute('aria-checked')).toBe('false');
     expect(row(currentName()).getAttribute('aria-checked')).toBe('false');
-    fireEvent.click(row(presetName(0)));
-    expect(row(presetName(2)).getAttribute('aria-checked')).toBe('false');
+    fireEvent.click(row(worldName(0)));
+    expect(row(worldName(2)).getAttribute('aria-checked')).toBe('false');
     expect(applySessionPayload).toHaveBeenCalledTimes(2);
   });
 
   it('re-clicking the picked option does not retransmit', () => {
+    seedWorlds();
     render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
-    fireEvent.click(row(presetName(0)));
+    fireEvent.click(row(worldName(0)));
+    fireEvent.click(row(worldName(0)));
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
-    expect(row(presetName(0)).getAttribute('aria-checked')).toBe('true');
+    expect(row(worldName(0)).getAttribute('aria-checked')).toBe('true');
   });
 
   it('a save deleted since the screen mounted applies nothing and does not claim the pick', () => {
@@ -1856,12 +2922,6 @@ describe('OffScreen — the well naming the pick', () => {
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     expect(readout().textContent).toBe(currentLabel('Dusk Run'));
-  });
-
-  it("names a preset by its copy and its world: '<name> · AS (x, y)'", () => {
-    render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
-    expect(readout().textContent).toBe(describeWorld(presetPayload(TRANSMISSION_PRESETS[1])!, presetName(1)));
   });
 
   it("names a save by its own name and its world: '<save> · AS (x, y)'", () => {
@@ -1897,6 +2957,8 @@ describe('OffScreen — the well naming the pick', () => {
 // filled, so nothing announces the chooser. After a power-off - the world 'paused', written in the same call that flips
 // the power flag, before this screen mounts - focus moves to the Transmission list's selected row, which is named with
 // its eyebrow. A fresh page ('cold') and a first visit (the hint only, no rows) move no focus.
+// From docs/tasks/OFF_SCREEN_CONSOLE.md Task 2 to Checkpoint A the list started collapsed and the Transmissions header
+// took the focus; with the toggle gone the selected row takes it again.
 describe('OffScreen — focus on the selected row after a power-off (review R25)', () => {
   let outside: HTMLButtonElement;
   beforeEach(() => {
@@ -1965,23 +3027,25 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
   const checked = (name: string) => row(name).getAttribute('aria-checked');
 
   // The pick shows at the click since docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3 (the rows draw from the intent).
-  it('a preset pick applies its payload only once the wash has covered the world, and the pick shows at the click', async () => {
+  it('a save pick applies its payload only once the wash has covered the world, and the pick shows at the click', async () => {
+    seedWorlds();
     render(<OffScreen />);
-    fireEvent.click(row(presetName(1)));
+    fireEvent.click(row(worldName(1)));
     expect(wash()).toBe('covering');
     expect(applySessionPayload).not.toHaveBeenCalled();
-    expect(checked(presetName(1))).toBe('true');
+    expect(checked(worldName(1))).toBe('true');
     await land();
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
-    expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[1]));
-    expect(checked(presetName(1))).toBe('true');
+    expect(applySessionPayload).toHaveBeenCalledWith(worldPayload(1));
+    expect(checked(worldName(1))).toBe('true');
     expect(wash()).toBe('uncovering');
   });
 
   it('two picks before the cover lands: only the last is applied', async () => {
+    seedWorlds();
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
+    fireEvent.click(row(worldName(0)));
     fireEvent.click(row('Dusk Run'));
     await land();
     expect(applySessionPayload).toHaveBeenCalledTimes(1);
@@ -1993,24 +3057,26 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
   // Roll's case rewritten for Scan (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 5): Scan's world lands
   // once covered, and New Transmission is selected at the click.
   it('Scan lands its world once covered; New Transmission is selected at the click (R3)', async () => {
+    seedWorlds();
     render(<OffScreen />);
-    fireEvent.click(row(presetName(2)));
+    fireEvent.click(row(worldName(2)));
     await land();
     act(() => useUIStore.getState().setSceneWash('clear'));
     fireEvent.click(scanButton());
     expect(retransmitWorld).not.toHaveBeenCalled();
-    expect(checked(newTransmission())).toBe('true');
-    expect(checked(presetName(2))).toBe('false');
+    expect(editorSelected()).toBe(true);
+    expect(checked(worldName(2))).toBe('false');
     await land();
     expect(retransmitWorld).toHaveBeenCalledTimes(1);
     expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ theme: 'classic', aspects: {} }));
-    expect(checked(newTransmission())).toBe('true');
+    expect(editorSelected()).toBe(true);
   });
 
-  it('a New Transmission pick waiting, then Current: the change is cancelled and nothing is drawn into the world', async () => {
+  // A New Transmission pick is a Scan since console Task 4 (the row is gone).
+  it('a Scan waiting, then Current: the change is cancelled and nothing is drawn into the world', async () => {
     const cancel = vi.spyOn(worldChange, 'cancelWorldChange');
     render(<OffScreen />);
-    fireEvent.click(row(newTransmission()));
+    fireEvent.click(scanButton());
     fireEvent.click(currentRadio());
     expect(cancel).toHaveBeenCalledTimes(1);
     await land();
@@ -2065,10 +3131,11 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
   describe('every click made while a change waits counts (review R3)', () => {
     const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0];
 
-    it('a preset, a theme pick, then a toggle: one request at the cover carrying both, and no retransmit before it', async () => {
-      const preset = presetPayload(TRANSMISSION_PRESETS[0])!;
+    it('a save, a theme pick, then a toggle: one request at the cover carrying both, and no retransmit before it', async () => {
+      seedWorlds();
+      const preset = worldPayload(0);
       render(<OffScreen />);
-      fireEvent.click(row(presetName(0)));
+      fireEvent.click(row(worldName(0)));
       fireEvent.click(row(human('home.off.theme.float')));
       fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
       expect(retransmitWorld).not.toHaveBeenCalled();
@@ -2077,10 +3144,11 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float', aspects: { ...loadingOf(preset).aspects, envelope: ['held'] } });
     });
 
-    it('a preset then Current applies nothing: the cover lands and lifts with no change, and Current stays picked', async () => {
+    it('a save then Current applies nothing: the cover lands and lifts with no change, and Current stays picked', async () => {
+      seedWorlds();
       const cancel = vi.spyOn(worldChange, 'cancelWorldChange');
       render(<OffScreen />);
-      fireEvent.click(row(presetName(1)));
+      fireEvent.click(row(worldName(1)));
       expect(cancel).not.toHaveBeenCalled();
       fireEvent.click(row(currentName()));
       expect(cancel).toHaveBeenCalledTimes(1); // the waiting change is dropped, not left to run as a no-op
@@ -2093,10 +3161,11 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       cancel.mockRestore();
     });
 
-    it("a preset then a toggle leaves the preset's world with the toggle: the apply, then one aspects retransmit", async () => {
-      const preset = presetPayload(TRANSMISSION_PRESETS[0])!;
+    it("a save then a toggle leaves the save's world with the toggle: the apply, then one aspects retransmit", async () => {
+      seedWorlds();
+      const preset = worldPayload(0);
       render(<OffScreen />);
-      fireEvent.click(row(presetName(0)));
+      fireEvent.click(row(worldName(0)));
       fireEvent.click(screen.getByRole('button', { name: human('home.off.envelope.held') }));
       expect(applySessionPayload).not.toHaveBeenCalled();
       expect(retransmitWorld).not.toHaveBeenCalled();
@@ -2106,16 +3175,17 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).toHaveBeenCalledWith({ aspects: { ...loadingOf(preset).aspects, envelope: ['held'] } });
       expect(order(vi.mocked(applySessionPayload))).toBeLessThan(order(vi.mocked(retransmitWorld)));
-      expect(checked(presetName(0))).toBe('true'); // the toggle laid over the preset keeps its row (spec §1.5)
+      expect(checked(worldName(0))).toBe('true'); // the toggle laid over the save keeps its row (spec §1.5)
     });
 
-    it("a preset then a theme pick leaves the preset's world under that theme: the apply, then one theme retransmit", async () => {
+    it("a save then a theme pick leaves the save's world under that theme: the apply, then one theme retransmit", async () => {
+      seedWorlds();
       render(<OffScreen />);
-      fireEvent.click(row(presetName(0)));
+      fireEvent.click(row(worldName(0)));
       fireEvent.click(row(human('home.off.theme.float')));
       await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
-      expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[0]));
+      expect(applySessionPayload).toHaveBeenCalledWith(worldPayload(0));
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).toHaveBeenCalledWith({ theme: 'float' });
       expect(order(vi.mocked(applySessionPayload))).toBeLessThan(order(vi.mocked(retransmitWorld)));
@@ -2133,7 +3203,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
       expect(retransmitWorld).toHaveBeenCalledWith(expect.objectContaining({ theme: 'classic', aspects: {} }));
       expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-      expect(checked(newTransmission())).toBe('true');
+      expect(editorSelected()).toBe(true);
     });
 
     it('a Scan then a theme pick: the scanned world lands, then the theme is laid over it, and the row keeps it', async () => {
@@ -2148,43 +3218,45 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(retransmitWorld).toHaveBeenCalledTimes(2);
       expect(vi.mocked(retransmitWorld).mock.calls[0][0]).toMatchObject({ theme: 'classic', aspects: {} });
       expect(vi.mocked(retransmitWorld).mock.calls[1][0]).toEqual({ theme: 'float' });
-      expect(checked(newTransmission())).toBe('true');
-      expect(radioNames()[0]!.endsWith(` · ${human('home.off.theme.float')}`)).toBe(true);
+      expect(editorSelected()).toBe(true);
+      expect(readout().textContent!.endsWith(` · ${human('home.off.theme.float')}`)).toBe(true);
     });
 
     it('shows each click at once: the picked row, the theme row, its line and the readout follow the click, not the world', () => {
-      const preset = presetPayload(TRANSMISSION_PRESETS[1])!;
+      seedWorlds();
+      const preset = worldPayload(1);
       render(<OffScreen />);
-      fireEvent.click(row(presetName(1)));
-      expect(checked(presetName(1))).toBe('true');
-      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset) }, presetName(1)));
+      fireEvent.click(row(worldName(1)));
+      expect(checked(worldName(1))).toBe('true');
+      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset) }, worldName(1)));
       fireEvent.click(row(human('home.off.theme.float')));
-      // A theme pick while the preset waits keeps the preset's row (final fixes F12); the readout names the world to come.
-      expect(row(presetName(1)).getAttribute('aria-checked')).toBe('true');
+      // A theme pick while the save waits keeps the save's row (final fixes F12); the readout names the world to come.
+      expect(row(worldName(1)).getAttribute('aria-checked')).toBe('true');
       expect(checked(human('home.off.theme.float'))).toBe('true');
       expect(document.querySelector('.off-screen__description--theme')?.textContent).toBe(human('home.off.themeDescription.float'));
-      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset), theme: 'float' }, presetName(1)));
+      expect(readout().textContent).toBe(describeWorld({ ...preset, ...loadingOf(preset), theme: 'float' }, worldName(1)));
       expect(applySessionPayload).not.toHaveBeenCalled();
     });
 
-    it('dims Keep between a click and the cover landing: it would save a world the rows no longer show', async () => {
+    it('dims Save between a click and the cover landing: it would save a world the rows no longer show', async () => {
+      seedWorlds();
       render(<OffScreen />);
-      const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-      expect(keep().disabled).toBe(false); // precondition: the unsaved live world lights it
-      fireEvent.click(row(presetName(0)));
-      expect(keep().disabled).toBe(true);
+      expect(saveButton().disabled).toBe(false); // precondition: the unsaved live world lights it
+      fireEvent.click(row(worldName(0)));
+      expect(saveButton().disabled).toBe(true);
       await land();
-      expect(keep().disabled).toBe(false);
+      expect(saveButton().disabled).toBe(false);
     });
 
-    it("a theme pick then a preset: the theme applies at the click, then the preset's own loading wins, so nothing is laid over it", async () => {
+    it("a theme pick then a save: the theme applies at the click, then the save's own loading wins, so nothing is laid over it", async () => {
+      seedWorlds();
       render(<OffScreen />);
       fireEvent.click(row(human('home.off.theme.float')));
       expect(retransmitWorld).toHaveBeenCalledTimes(1); // the theme, at once (F8)
-      fireEvent.click(row(presetName(0)));
-      expect(checked(human('home.off.theme.classic'))).toBe('true'); // the preset's own theme, shown at the click
+      fireEvent.click(row(worldName(0)));
+      expect(checked(human('home.off.theme.classic'))).toBe('true'); // the save's own theme, shown at the click
       await land();
-      expect(applySessionPayload).toHaveBeenCalledWith(presetPayload(TRANSMISSION_PRESETS[0]));
+      expect(applySessionPayload).toHaveBeenCalledWith(worldPayload(0));
       expect(retransmitWorld).toHaveBeenCalledTimes(1);
     });
 
@@ -2283,13 +3355,14 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
 
     it('two world picks still keep only the last, with the pick shown at each click', async () => {
+      seedWorlds();
       saveNamedSession('Dusk Run', savedPayload('dusk'));
       render(<OffScreen />);
-      fireEvent.click(row(presetName(0)));
-      expect(checked(presetName(0))).toBe('true');
+      fireEvent.click(row(worldName(0)));
+      expect(checked(worldName(0))).toBe('true');
       fireEvent.click(row('Dusk Run'));
       expect(checked('Dusk Run')).toBe('true');
-      expect(checked(presetName(0))).toBe('false');
+      expect(checked(worldName(0))).toBe('false');
       await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(1);
       expect(applySessionPayload).toHaveBeenCalledWith(savedPayload('dusk'));
@@ -2337,47 +3410,44 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
   });
 
-  // The dirty read follows Current since docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6 (spec §1.4), so a
-  // Scan from a kept Current no longer lights Keep at the cover (the scanned world is not Current). This case starts on
-  // an unsaved Current instead: Keep dims while the change waits and lights again once it lands, Current still unsaved.
-  it('dirty is read after the change: Keep dims while it waits and lights once the cover has landed', async () => {
+  // Save dims while the change waits and lights again once it lands: New Transmission is always savable (console Task 7).
+  it('Save dims while a Scan waits and lights once the cover has landed', async () => {
     render(<OffScreen />);
-    const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-    expect(keep().disabled).toBe(false);
+    expect(saveButton().disabled).toBe(false);
     vi.mocked(retransmitWorld).mockImplementation(() => {
       live.payload = live.marker('scanned');
     });
     fireEvent.click(scanButton());
-    expect(keep().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(true);
     await land();
-    expect(keep().disabled).toBe(false);
+    expect(saveButton().disabled).toBe(false);
   });
 
-  it('a kept Current stays kept through a Scan landing: Keep stays dim at the cover', async () => {
+  // Current's eyebrow follows Current; Save follows the row, New Transmission, which is always savable (console Task 7).
+  it('a kept Current stays kept through a Scan landing: Current reads plain at the cover, and Save lights', async () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-    expect(keep().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(true);
     vi.mocked(retransmitWorld).mockImplementation(() => {
       live.payload = live.marker('scanned');
     });
     fireEvent.click(scanButton());
     await land();
-    expect(keep().disabled).toBe(true);
+    expect(currentEyebrow()).toBe(human('home.off.current'));
+    expect(saveButton().disabled).toBe(false);
   });
 
-  it('a theme pick reads dirty at the click: no cover to wait for, so Keep lights at once (final fixes F8)', () => {
+  it('a theme pick reads dirty at the click: no cover to wait for, so Save lights at once (final fixes F8)', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
-    const keep = () => screen.getByRole('button', { name: human('home.off.keep') }) as HTMLButtonElement;
-    expect(keep().disabled).toBe(true);
+    expect(saveButton().disabled).toBe(true);
     vi.mocked(retransmitWorld).mockImplementation(() => {
       live.payload = live.marker('themed');
     });
     fireEvent.click(row(human('home.off.theme.anchor')));
-    expect(keep().disabled).toBe(false);
+    expect(saveButton().disabled).toBe(false);
   });
 
   // docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 3 (spec §1.1, §1.2, §1.5): Current is a snapshot of the
@@ -2477,7 +3547,8 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       expect(lastApplied()).toMatchObject({ theme: 'float' });
     });
 
-    it('a save lands, Current waits, then a preset: only the preset lands, Current still names the snapshot, and Current then restores it', async () => {
+    it('a save lands, Current waits, then another save: only that one lands, Current still names the snapshot, and Current then restores it', async () => {
+      seedWorlds();
       saveNamedSession('Calm Run', calmRun());
       const prePick = structuredClone(live.payload);
       render(<OffScreen />);
@@ -2486,11 +3557,11 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       await land();
       clear();
       fireEvent.click(currentRadio());
-      fireEvent.click(row(presetName(1)));
+      fireEvent.click(row(worldName(1)));
       await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(2);
-      expect(lastApplied()).toEqual(presetPayload(TRANSMISSION_PRESETS[1]));
-      expect(checked(presetName(1))).toBe('true');
+      expect(lastApplied()).toEqual(worldPayload(1));
+      expect(checked(worldName(1))).toBe('true');
       expect(currentRowName()).toBe(name);
       clear();
       fireEvent.click(currentRadio());
@@ -2515,6 +3586,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
 
     it('Current restored is the live world again: a new pick takes a fresh snapshot', async () => {
+      seedWorlds();
       saveNamedSession('Calm Run', calmRun());
       render(<OffScreen />);
       fireEvent.click(row('Calm Run'));
@@ -2524,7 +3596,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       await land();
       clear();
       live.payload = live.marker('after-restore');
-      fireEvent.click(row(presetName(0)));
+      fireEvent.click(row(worldName(0)));
       await land();
       clear();
       fireEvent.click(currentRadio());
@@ -2533,9 +3605,9 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
     });
   });
 
-  it('Keep and picking Current are not world changes: no cover, at once', () => {
+  it('Save and picking Current are not world changes: no cover, at once', () => {
     render(<OffScreen />);
-    fireEvent.click(screen.getByRole('button', { name: human('home.off.keep') }));
+    fireEvent.click(saveButton());
     expect(wash()).toBe('clear');
     expect(listSessions()).toHaveLength(1);
     fireEvent.click(row(currentName(listSessions()[0].name)));
@@ -2543,7 +3615,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
   });
 });
 
-// docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c (Crawford, 2026-11-02): the list's saves and presets sit
+// docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c (Crawford, 2026-11-02): the list's saves (and the presets, until Checkpoint A) sit
 // under titles, and the Loading column's two parts are titled, each with how many it takes.
 describe('OffScreen — the section titles (Current and New Transmission, Task 6c)', () => {
   beforeEach(() => markHeardWorld());
@@ -2551,28 +3623,26 @@ describe('OffScreen — the section titles (Current and New Transmission, Task 6
     Array.from(container.querySelectorAll('.sc-radio-button__heading')).map((h) => h.textContent);
   const rowEl = (name: string) => row(name).closest('.sc-radio-button__row');
 
-  it('with no saves, titles the presets only, directly over the first preset', () => {
+  // The presets had their own title, under a rule, until Checkpoint A.
+  it('with no saves, there is no title', () => {
     const { container } = render(<OffScreen />);
-    expect(titles(container)).toEqual([human('home.off.presetTransmissions')]);
-    expect(container.querySelector('.sc-radio-button__heading')!.nextElementSibling).toBe(rowEl(presetName(0)));
+    expect(titles(container)).toEqual([]);
   });
 
-  it('with saves, titles them over the newest, and the presets under the rule', () => {
+  it('with saves, titles them over the newest, and nothing else: no rule', () => {
     const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValueOnce(2_000);
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     saveNamedSession('Night Run', savedPayload('night'));
     now.mockRestore();
     const { container } = render(<OffScreen />);
-    expect(titles(container)).toEqual([human('home.off.savedTransmissions'), human('home.off.presetTransmissions')]);
-    const [saved, presets] = Array.from(container.querySelectorAll('.sc-radio-button__heading'));
-    expect(saved.nextElementSibling).toBe(rowEl('Night Run'));
-    expect(presets.nextElementSibling).toBe(rowEl(presetName(0)));
-    expect(presets.previousElementSibling!.classList.contains('sc-radio-button__divider')).toBe(true);
+    expect(titles(container)).toEqual([human('home.off.savedTransmissions')]);
+    expect(container.querySelector('.sc-radio-button__heading')!.nextElementSibling).toBe(rowEl('Night Run'));
+    expect(container.querySelector('.sc-radio-button__divider')).toBeNull();
   });
 
   it('titles a save kept from this screen at once, the first save', () => {
     const { container } = render(<OffScreen />);
-    fireEvent.click(screen.getByRole('button', { name: human('home.off.keep') }));
+    fireEvent.click(saveButton());
     expect(titles(container)[0]).toBe(human('home.off.savedTransmissions'));
   });
 
@@ -2596,19 +3666,20 @@ describe('OffScreen — the section titles (Current and New Transmission, Task 6
 });
 
 // Crawford's note 5 (docs/tasks/OFF_SCREEN_REVISIONS.md Task 9): the aspect rows pop on hover and select; everything else
-// on the off screen stays flat — the Transmission list, the theme row, Scan (Roll's place) and Keep (his answer 5).
+// on the off screen stays flat — the Transmission list, the theme row, Scan (Roll's place) and the action row (Keep's place, his answer 5).
 describe('OffScreen — only the aspect rows come off the plate', () => {
   beforeEach(() => markHeardWorld());
 
-  it('the Transmission list, the theme row, Scan and Keep carry no cabinet box, wall or popped class, picked or not', () => {
+  it('the Transmission list, the theme row, Scan and the action row carry no cabinet box, wall or popped class, picked or not', () => {
+    seedWorlds();
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
-    fireEvent.click(row(presetName(0)));
+    fireEvent.click(row(worldName(0)));
     const flat = [
       picker().closest('.sc-radio-button')!,
       screen.getByRole('group', { name: human('home.off.loading') }).closest('.sc-radio-button')!,
       scanButton(),
-      screen.getByRole('button', { name: human('home.off.keep') }),
+      actionsRow(),
     ];
     for (const part of flat) {
       expect(part.querySelector('[class*="sc-cabinet-box"]')).toBeNull();
@@ -2616,14 +3687,25 @@ describe('OffScreen — only the aspect rows come off the plate', () => {
     }
   });
 
-  it('every cabinet box on the screen belongs to an aspect row', () => {
+  // The editor's three inputs (console Task 4) share one static panel facade since Checkpoint A (each drew its own
+  // before). Factory Reset's button keeps its cabinet face, and shows on mount since the list's toggle went (Checkpoint
+  // A); those two are the only boxes besides the aspect rows'.
+  it('every cabinet box on the screen belongs to an aspect row, the editor’s one panel or Factory Reset', () => {
     const { container } = render(<OffScreen />);
     const boxes = Array.from(container.querySelectorAll('.sc-cabinet-box'));
-    expect(boxes.length).toBe(ASPECT_FAMILY_IDS.reduce((n, family) => n + ASPECT_IDS_BY_FAMILY[family].length, 0));
+    const aspectBoxes = ASPECT_FAMILY_IDS.reduce((n, family) => n + ASPECT_IDS_BY_FAMILY[family].length, 0);
+    expect(boxes.length).toBe(aspectBoxes + 2);
     const familyRoots = ASPECT_FAMILY_IDS.map((family) =>
       screen.getByRole('group', { name: human(`home.off.${family}`) }).closest('.sc-radio-button'),
     );
-    for (const box of boxes) expect(familyRoots).toContain(box.closest('.sc-radio-button'));
+    const panel = editor().querySelector('.transmission-editor__panel');
+    const reset = container.querySelector('.off-screen__reset');
+    for (const box of boxes) {
+      if (panel?.contains(box) || reset?.contains(box)) continue;
+      expect(familyRoots).toContain(box.closest('.sc-radio-button'));
+    }
+    expect(boxes.filter((box) => panel?.contains(box))).toHaveLength(1);
+    expect(boxes.filter((box) => reset?.contains(box))).toHaveLength(1);
   });
 });
 
@@ -2631,7 +3713,7 @@ describe('OffScreen — on the phone shell (Task 28)', () => {
   beforeEach(() => markHeardWorld());
 
   // jsdom computes no layout, so "no horizontal overflow" is not checked here; the phone shell's DOM is: ScreenViewport marks
-  // itself with data-shell, and Current, every preset, and a save with the longest legal name, is still in the picker.
+  // itself with data-shell, and Current and a save with the longest legal name are still in the picker.
   const renderOnPhone = () =>
     render(
       <main id="screen-viewport" data-shell="phone">
@@ -2639,12 +3721,11 @@ describe('OffScreen — on the phone shell (Task 28)', () => {
       </main>,
     );
 
-  it('renders New Transmission, Current and all three presets in the picker, with Scan on New Transmission', () => {
+  it('renders the editor with Scan, and Current in the picker', () => {
     renderOnPhone();
-    const names = radioNames();
-    expect(names[0]!.startsWith(asNew(''))).toBe(true);
-    expect(names.slice(1)).toEqual([currentName(), presetLabel(0), presetLabel(1), presetLabel(2)]);
-    expect(scanButton().closest('.sc-radio-button__trailing')).not.toBeNull();
+    expect(editorShows()).toEqual(liveIdentity());
+    expect(editor().contains(scanButton())).toBe(true);
+    expect(radioNames()).toEqual([currentName()]);
   });
 
   it('keeps a 128-character save name whole in its accessible name, drawn in the single-line label that ends in an ellipsis', () => {

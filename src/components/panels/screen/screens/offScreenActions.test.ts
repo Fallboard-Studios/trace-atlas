@@ -1,0 +1,73 @@
+import { describe, it, expect } from 'vitest';
+
+/*
+ * docs/tasks/OFF_SCREEN_CONSOLE.md Task 7 (spec §1.5, §4): the action row's dim matrix — which of Save, Rename and
+ * Delete act on the selected row, as one pure function, so the table is pinned here row by row. (Share sat in the row
+ * for a while at Checkpoint A, then moved under the readout.)
+ */
+import { actionRow, type ActionRowKind } from './offScreenActions';
+
+const KINDS: ActionRowKind[] = ['current', 'save', 'new'];
+/** Share copies the live world, so it is lit on every row; dimmed only while a change waits (in the row again since
+ *  Checkpoint A, after the presets went). */
+const SHARE = true;
+
+describe('actionRow (spec §1.5)', () => {
+  it('Current: Save while it is unsaved, never Rename or Delete', () => {
+    expect(actionRow('current', true, false)).toEqual({
+      save: true,
+      rename: false,
+      delete: false,
+      share: SHARE,
+    });
+    expect(actionRow('current', false, false)).toEqual({
+      save: false,
+      rename: false,
+      delete: false,
+      share: SHARE,
+    });
+  });
+
+  it('a save: Save while the live world differs from it; Rename and Delete always', () => {
+    expect(actionRow('save', true, false)).toEqual({
+      save: true,
+      rename: true,
+      delete: true,
+      share: SHARE,
+    });
+    expect(actionRow('save', false, false)).toEqual({
+      save: false,
+      rename: true,
+      delete: true,
+      share: SHARE,
+    });
+  });
+
+  it('New Transmission: Save always, as a fresh save; no Rename or Delete', () => {
+    expect(actionRow('new', true, false)).toEqual({
+      save: true,
+      rename: false,
+      delete: false,
+      share: SHARE,
+    });
+    expect(actionRow('new', false, false)).toEqual({
+      save: true,
+      rename: false,
+      delete: false,
+      share: SHARE,
+    });
+  });
+
+  it('while a change waits under the wash, all four are dimmed, whatever the row and the dirty read', () => {
+    for (const kind of KINDS) {
+      for (const dirty of [true, false]) {
+        expect(actionRow(kind, dirty, true)).toEqual({
+          save: false,
+          rename: false,
+          delete: false,
+          share: false,
+        });
+      }
+    }
+  });
+});

@@ -11,15 +11,11 @@ import {
   FLEET_PARAMS_SUBSECTIONS,
   FLEET_PARAMS_GROUP_CONTENT,
   activeFleetParamsSubsection,
-  SETTINGS_LEAVES,
-  SETTINGS_LEAF_CONTENT,
-  DEFAULT_SETTINGS_LEAF,
-  activeSettingsLeaf,
   type NavBranch,
   type BreadcrumbState,
   type NavRoster,
 } from './navActions';
-import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup, type SelectedFleetParamsEffect, type SettingsLeaf } from '@/stores/uiStore';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { AUDIO_RIG_CONFIG, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { CONTENT, labels } from '@/content';
@@ -42,7 +38,6 @@ function dirtyStore(overrides: Partial<UIStore> = {}) {
     selectedSubsection: 'coaxialOscillator',
     fleetParamsSection: 'output',
     fleetParamsSubsection: 'limiter',
-    selectedSettingsLeaf: 'sessions',
     ...overrides,
   });
 }
@@ -63,8 +58,6 @@ function expectNoEntityAndNoSection() {
     // Fleet Params' tab is a section field too: every pick lands on its default (Task 15).
     fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
     fleetParamsSubsection: null,
-    // Settings' tab too: null reads as its first, Audio Quality (Task 17).
-    selectedSettingsLeaf: null,
   });
   expectCompanyInvariant();
 }
@@ -76,25 +69,23 @@ beforeEach(() => {
 describe('selectBranch', () => {
   it.each([
     ['probes', 'robots', 'probes'],
-    ['companies', 'companies', 'companies'],
     ['fleetParams', 'audioRig', null],
-    ['settings', 'settings', null],
   ] as const)('%s opens the %s tile and expands %s in place', (branch, tile, expanded) => {
     selectBranch(branch);
     expect(ui().activeHubTile).toBe(tile);
     expect(ui().expandedTopLevelBranch).toBe(expanded);
   });
 
-  it('a leaf (Fleet Params, Settings) collapses whichever branch was expanded', () => {
-    dirtyStore({ expandedTopLevelBranch: 'companies' });
-    selectBranch('settings');
+  it('a leaf (Fleet Params) collapses whichever branch was expanded', () => {
+    dirtyStore({ expandedTopLevelBranch: 'probes' });
+    selectBranch('fleetParams');
     expect(ui().expandedTopLevelBranch).toBeNull();
   });
 
   // Crawford, 2026-10-09: picking a parent opens that branch's own page — the robot / company / All
   // and every section are cleared, so the Probes box and the breadcrumb's "Probes" segment return to
   // the list rather than reopening the last robot.
-  it.each(['probes', 'companies', 'fleetParams', 'settings', 'deck'] as const)(
+  it.each(['probes', 'fleetParams', 'deck'] as const)(
     '%s clears the entity and every section, from a robot with sections open',
     (branch: NavBranch) => {
       dirtyStore();
@@ -112,7 +103,7 @@ describe('selectBranch', () => {
 
   it('clears a selected company and All Probes too', () => {
     dirtyStore({ selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false });
-    selectBranch('companies');
+    selectBranch('probes');
     expect(ui().selectedCompanyId).toBeNull();
     expectCompanyInvariant();
 
@@ -131,7 +122,7 @@ describe('selectBranch', () => {
   // The phone sheet flag is no longer left alone: a pick closes the sheet (Task 5, below).
   it('leaves power alone', () => {
     useUIStore.setState({ isPoweredOn: true });
-    selectBranch('settings');
+    selectBranch('fleetParams');
     expect(ui().isPoweredOn).toBe(true);
   });
 });
@@ -139,7 +130,7 @@ describe('selectBranch', () => {
 describe('selectEntity', () => {
   // Crawford, 2026-10-10: an entity pick collapses the list, so the screen gets the panel's rest width.
   it('a robot: opens Probes on it with the list collapsed, clearing the company, All Probes and any section', () => {
-    dirtyStore({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies', selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
+    dirtyStore({ activeHubTile: 'audioRig', expandedTopLevelBranch: null, selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
     selectEntity({ robotId: 'r2' });
     expect(ui()).toMatchObject({
       activeHubTile: 'robots',
@@ -167,11 +158,12 @@ describe('selectEntity', () => {
     expectCompanyInvariant();
   });
 
-  it('a company: opens Companies on it with the list collapsed, clearing the robot and All Probes', () => {
+  // docs/tasks/OFF_SCREEN_CONSOLE.md Task 17 (Crawford, 2026-11-09): a company opens under Probes.
+  it('a company: opens Probes on it with the list collapsed, clearing the robot and All Probes', () => {
     dirtyStore({ allProbesSelected: true });
     selectEntity({ companyId: 'c1' });
     expect(ui()).toMatchObject({
-      activeHubTile: 'companies',
+      activeHubTile: 'robots',
       expandedTopLevelBranch: null,
       selectedCompanyId: 'c1',
       selectedRobotId: null,
@@ -202,21 +194,21 @@ describe('goHome', () => {
 });
 
 // Crawford, 2026-10-09 ("back, then collapse"): the panel's parent box. On an entity it is
-// selectBranch — back to the branch's page, list open; on that page already, Probes and Companies
-// toggle their list in place. selectBranch itself never toggles.
+// selectBranch — back to the branch's page, list open; on that page already, Probes toggles its list
+// in place. selectBranch itself never toggles.
 describe('pressBranchBox', () => {
   /** On the Probes page with the list open and nothing selected. */
   function onProbesPage(overrides: Partial<UIStore> = {}) {
     useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', ...overrides });
   }
 
-  it.each(['probes', 'companies', 'fleetParams', 'settings', 'deck'] as const)(
+  it.each(['probes', 'fleetParams', 'deck'] as const)(
     'from another branch, %s does what selectBranch does',
     (branch: NavBranch) => {
-      dirtyStore({ activeHubTile: branch === 'settings' ? 'audioRig' : 'settings', expandedTopLevelBranch: null });
+      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'robots' : 'audioRig', expandedTopLevelBranch: null });
       pressBranchBox(branch);
       const pressed = { ...ui() };
-      dirtyStore({ activeHubTile: branch === 'settings' ? 'audioRig' : 'settings', expandedTopLevelBranch: null });
+      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'robots' : 'audioRig', expandedTopLevelBranch: null });
       selectBranch(branch);
       expect(pressed).toEqual({ ...ui() });
     },
@@ -266,16 +258,16 @@ describe('pressBranchBox', () => {
   });
 
   // Crawford, 2026-10-10: a pick from the list collapses it; the parent box brings it back.
-  it.each<[string, Parameters<typeof selectEntity>[0], 'probes' | 'companies']>([
-    ['a robot', { robotId: 'r2' }, 'probes'],
-    ['All Probes', 'all', 'probes'],
-    ['a company', { companyId: 'c1' }, 'companies'],
-  ])('list page -> pick %s (list collapses) -> its box goes back to the page with the list open', (_case, entity, branch) => {
-    useUIStore.setState({ activeHubTile: branch === 'probes' ? 'robots' : 'companies', expandedTopLevelBranch: branch });
+  it.each<[string, Parameters<typeof selectEntity>[0]]>([
+    ['a robot', { robotId: 'r2' }],
+    ['All Probes', 'all'],
+    ['a company', { companyId: 'c1' }],
+  ])('list page -> pick %s (list collapses) -> the Probes box goes back to the page with the list open', (_case, entity) => {
+    onProbesPage();
     selectEntity(entity);
     expect(ui().expandedTopLevelBranch).toBeNull();
-    pressBranchBox(branch);
-    expect(ui().expandedTopLevelBranch).toBe(branch);
+    pressBranchBox('probes');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
     expectNoEntityAndNoSection();
   });
 
@@ -286,33 +278,25 @@ describe('pressBranchBox', () => {
     expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 
-  it('Companies: on a company, back to the Companies page; then collapse; then open', () => {
-    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+  it('Probes: on a company, back to the Probes page; then collapse; then open', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
     useUIStore.getState().selectCompany('c1');
 
-    pressBranchBox('companies');
+    pressBranchBox('probes');
     expect(ui().selectedCompanyId).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBe('companies');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
     expectCompanyInvariant();
 
-    pressBranchBox('companies');
+    pressBranchBox('probes');
     expect(ui().expandedTopLevelBranch).toBeNull();
-    expect(ui().activeHubTile).toBe('companies');
+    expect(ui().activeHubTile).toBe('robots');
 
-    pressBranchBox('companies');
-    expect(ui().expandedTopLevelBranch).toBe('companies');
-  });
-
-  it("only the open branch's entity counts: a world-selected robot on the Companies page does not stop the collapse", () => {
-    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies', selectedRobotId: 'r1' });
-    pressBranchBox('companies');
-    expect(ui().expandedTopLevelBranch).toBeNull();
-    expect(ui().selectedRobotId).toBe('r1');
+    pressBranchBox('probes');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 
   it.each([
     ['fleetParams', 'audioRig'],
-    ['settings', 'settings'],
   ] as const)('a leaf (%s) never toggles: pressing it again is selectBranch', (branch, tile) => {
     dirtyStore({ activeHubTile: tile, expandedTopLevelBranch: null, selectedRobotId: null });
     pressBranchBox(branch);
@@ -338,7 +322,7 @@ describe('pressBranchBox', () => {
 // closes it. A pick is anything that moves the selection; a collapse in place is not one (pressBranchBox's
 // "changes nothing else" test above holds the flag open).
 describe('a pick closes the phone nav sheet', () => {
-  it.each(['probes', 'companies', 'fleetParams', 'settings', 'deck'] as const)('selectBranch(%s)', (branch: NavBranch) => {
+  it.each(['probes', 'fleetParams', 'deck'] as const)('selectBranch(%s)', (branch: NavBranch) => {
     dirtyStore({ isNavPanelOpen: true });
     selectBranch(branch);
     expect(ui().isNavPanelOpen).toBe(false);
@@ -357,7 +341,7 @@ describe('a pick closes the phone nav sheet', () => {
   });
 
   it('pressBranchBox from another branch, or back from an entity', () => {
-    dirtyStore({ isNavPanelOpen: true, activeHubTile: 'settings', expandedTopLevelBranch: null });
+    dirtyStore({ isNavPanelOpen: true, activeHubTile: 'audioRig', expandedTopLevelBranch: null });
     pressBranchBox('probes');
     expect(ui().isNavPanelOpen).toBe(false);
 
@@ -368,7 +352,7 @@ describe('a pick closes the phone nav sheet', () => {
 
   it('a pick never opens the sheet', () => {
     selectEntity({ robotId: 'r1' });
-    selectBranch('companies');
+    selectBranch('fleetParams');
     goHome();
     expect(ui().isNavPanelOpen).toBe(false);
   });
@@ -380,35 +364,30 @@ describe('the parent-box tables the panel reads', () => {
   it.each([
     [null, 'deck'],
     ['robots', 'probes'],
-    ['companies', 'companies'],
     ['audioRig', 'fleetParams'],
-    ['settings', 'settings'],
   ] as const)('branchOfTile(%s) is %s', (tile, branch) => {
     expect(branchOfTile(tile)).toBe(branch);
   });
 
   it('branchOfTile inverts what selectBranch opens, for every branch', () => {
-    for (const branch of ['deck', 'probes', 'companies', 'fleetParams', 'settings'] as const) {
+    for (const branch of ['deck', 'probes', 'fleetParams'] as const) {
       selectBranch(branch);
       expect(branchOfTile(ui().activeHubTile)).toBe(branch);
     }
   });
 
-  it('only Probes and Companies expand in place, the same branches selectBranch expands', () => {
-    for (const branch of ['deck', 'probes', 'companies', 'fleetParams', 'settings'] as const) {
+  it('only Probes expands in place, the same branch selectBranch expands', () => {
+    for (const branch of ['deck', 'probes', 'fleetParams'] as const) {
       selectBranch(branch);
       expect(expandsInPlace(branch)).toBe(ui().expandedTopLevelBranch === branch);
     }
     expect(expandsInPlace('probes')).toBe(true);
-    expect(expandsInPlace('companies')).toBe(true);
   });
 
   it.each([
     ['deck', 'nav.home'],
     ['fleetParams', 'fleet.root'],
     ['probes', 'probe.root'],
-    ['companies', 'company.root'],
-    ['settings', 'settings.root'],
   ] as const)('branchContent(%s) is %s, the same name the breadcrumb shows for the branch', (branch, key) => {
     expect(branchContent(branch)).toBe(key);
     if (branch !== 'deck') {
@@ -421,9 +400,7 @@ describe('the parent-box tables the panel reads', () => {
 describe('breadcrumbPath', () => {
   const ROOT = CONTENT['nav.root'].human;
   const PROBES = CONTENT['probe.root'].human;
-  const COMPANIES = CONTENT['company.root'].human;
   const FLEET = CONTENT['fleet.root'].human;
-  const SETTINGS = CONTENT['settings.root'].human;
 
   const roster: NavRoster = {
     robots: [{ id: 'r1', name: 'Tidal Wisp' }, { id: 'r2' }],
@@ -438,13 +415,12 @@ describe('breadcrumbPath', () => {
     selectedSection: null,
     fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
     fleetParamsSubsection: null,
-    selectedSettingsLeaf: null,
   };
   const path = (s: Partial<BreadcrumbState>) => breadcrumbPath({ ...blank, ...s }, roster);
 
   it('is empty on the Deck, even with a stale entity and sections in the store', () => {
     expect(path({})).toEqual([]);
-    expect(path({ selectedRobotId: 'r1', selectedSection: 'source', fleetParamsSection: 'output', fleetParamsSubsection: 'limiter', selectedSettingsLeaf: 'quality' })).toEqual([]);
+    expect(path({ selectedRobotId: 'r1', selectedSection: 'source', fleetParamsSection: 'output', fleetParamsSubsection: 'limiter' })).toEqual([]);
   });
 
   // Task 15: Fleet Params is tabs, so one tab is always open — the default is LFO Bank at lane A.
@@ -458,7 +434,6 @@ describe('breadcrumbPath', () => {
 
   it('names the branch alone when no entity is selected', () => {
     expect(path({ activeHubTile: 'robots' })).toEqual([ROOT, PROBES]);
-    expect(path({ activeHubTile: 'companies' })).toEqual([ROOT, COMPANIES]);
   });
 
   it.each<[FleetParamsGroup, BreadcrumbState['fleetParamsSubsection'], string[]]>([
@@ -487,25 +462,12 @@ describe('breadcrumbPath', () => {
     ['colour', 'phaser', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
     // A sub-tab left over from another group reads as the group's first, which is what the screen shows.
     ['output', 'laneC', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
+    // Audio Quality is one panel, like Pacing (off-screen console Task 12): no sub-tab segment, whatever is stored.
+    ['quality', null, [CONTENT['fleet.quality'].human]],
+    ['quality', 'compressor', [CONTENT['fleet.quality'].human]],
+    ['quality', 'tempo', [CONTENT['fleet.quality'].human]],
   ])('Fleet Params on %s / %s names %j', (section, subsection, tail) => {
     expect(path({ activeHubTile: 'audioRig', fleetParamsSection: section, fleetParamsSubsection: subsection })).toEqual([ROOT, FLEET, ...tail]);
-  });
-
-  it('a Settings leaf names its own concept (sectorSettings reads settings.seeds)', () => {
-    expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'sectorSettings' })).toEqual([ROOT, SETTINGS, CONTENT['settings.seeds'].human]);
-    expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'quality' })).toEqual([ROOT, SETTINGS, CONTENT['settings.quality'].human]);
-    expect(path({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' })).toEqual([ROOT, SETTINGS, CONTENT['settings.sessions'].human]);
-  });
-
-  // Task 17: Settings is tabs, so one is always open — Audio Quality when none is stored, the tab the
-  // screen shows. (The old stacked screen's scrollspy wrote it on mount, so the crumb read the same.)
-  it('reads Root / Settings / Audio Quality with no leaf stored', () => {
-    expect(path({ activeHubTile: 'settings' })).toEqual([ROOT, SETTINGS, CONTENT['settings.quality'].human]);
-  });
-
-  it('a leaf stored for Settings never shows on another branch', () => {
-    expect(path({ activeHubTile: 'audioRig', fleetParamsSection: 'pacing', selectedSettingsLeaf: 'sessions' })).toEqual([ROOT, FLEET, CONTENT['fleet.pacing'].human]);
-    expect(path({ activeHubTile: 'robots', selectedSettingsLeaf: 'sessions' })).toEqual([ROOT, PROBES]);
   });
 
   // Task 16: the robot screen is tabs, so a robot always has one open — Source when none is stored.
@@ -533,16 +495,21 @@ describe('breadcrumbPath', () => {
   // always have a section open — Source when none is stored.
   it('All Probes and a company always name a section, Source when none is stored (their screen is tabs)', () => {
     expect(path({ activeHubTile: 'robots', allProbesSelected: true })).toEqual([ROOT, PROBES, CONTENT['probe.all'].human, CONTENT['probe.source'].human]);
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.source'].human]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1' })).toEqual([ROOT, PROBES, 'Rust Syndicate', CONTENT['probe.source'].human]);
   });
 
   it("adds a company's stored section, named by its tab", () => {
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, PROBES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
   });
 
   it('drops the entity and its section when the id is not in the roster (a stale or deleted id)', () => {
     expect(path({ activeHubTile: 'robots', selectedRobotId: 'gone', selectedSection: 'source' })).toEqual([ROOT, PROBES]);
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'gone', selectedSection: 'source' })).toEqual([ROOT, COMPANIES]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'gone', selectedSection: 'source' })).toEqual([ROOT, PROBES]);
+  });
+
+  it('a specific robot wins over a company, and a company over All Probes (ProbesBranch routes the same way)', () => {
+    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedCompanyId: 'c1' })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.source'].human]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1', allProbesSelected: true })).toEqual([ROOT, PROBES, 'Rust Syndicate', CONTENT['probe.source'].human]);
   });
 
   it('ignores a section with no entity', () => {
@@ -555,16 +522,6 @@ describe('breadcrumbPath', () => {
 
   it('a specific robot wins over All Probes when both are set (ProbesContent routes the same way)', () => {
     expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', allProbesSelected: true })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.source'].human]);
-  });
-
-  it('reads Root / Companies / <company name> / <section>', () => {
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.source'].human]);
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
-  });
-
-  it("only the open branch's entity counts: a world-selected robot does not appear under Companies", () => {
-    expect(path({ activeHubTile: 'companies', selectedRobotId: 'r1' })).toEqual([ROOT, COMPANIES]);
-    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1' })).toEqual([ROOT, PROBES]);
   });
 });
 
@@ -647,14 +604,14 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
   });
 
   it('a company goes back to the company at no section', () => {
-    useUIStore.setState({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' });
+    useUIStore.setState({ activeHubTile: 'robots', selectedCompanyId: 'c1', selectedSection: 'envelope' });
     go(2);
     expect(ui().selectedCompanyId).toBe('c1');
     expect(ui().selectedSection).toBeNull();
-    expect(ui().activeHubTile).toBe('companies');
+    expect(ui().activeHubTile).toBe('robots');
   });
 
-  it('a section, a Fleet Params sub-tab, Pacing or a Settings leaf goes nowhere: it is only ever the current view', () => {
+  it('a section, a Fleet Params sub-tab, Pacing or Audio Quality goes nowhere: it is only ever the current view', () => {
     useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     expect(trail()[3]?.go).toBeUndefined();
     useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
@@ -663,7 +620,8 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
     useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'pacing', fleetParamsSubsection: null });
     expect(trail()).toHaveLength(3);
     expect(trail()[2]?.go).toBeUndefined();
-    useUIStore.setState({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' });
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'quality', fleetParamsSubsection: null });
+    expect(trail()).toHaveLength(3);
     expect(trail()[2]?.go).toBeUndefined();
   });
 });
@@ -691,9 +649,15 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(FLEET_PARAMS_SUBSECTIONS.colour.map((sub) => sub.id as string)).not.toContain('colourRoom');
   });
 
-  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output', () => {
-    expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output']);
-    expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output']);
+  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output, Audio Quality', () => {
+    const order = ['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output', 'quality'];
+    expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(order);
+    expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(order);
+  });
+
+  it('names the Audio Quality group from fleet.quality, with no sub-tabs (one panel, like Pacing)', () => {
+    expect(FLEET_PARAMS_GROUP_CONTENT.quality).toBe('fleet.quality');
+    expect(ids('quality')).toEqual([]);
   });
 
   it('names the Colour group from fleet.colour', () => {
@@ -764,56 +728,11 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['pacing', null, null],
     ['pacing', 'tempo', null],
     ['pacing', 'laneB', null],
+    // Nor has Audio Quality.
+    ['quality', null, null],
+    ['quality', 'compressor', null],
+    ['quality', 'laneA', null],
   ])('on %s with %s stored, the open sub-tab is %s', (section, stored, expected) => {
     expect(activeFleetParamsSubsection(section, stored)).toBe(expected);
-  });
-});
-
-// docs/tasks/LAYOUT_REWORK.md Task 17: the Settings screen's three tabs, read by the screen and the
-// breadcrumb alike, so the two always name the same tab.
-describe('SETTINGS_LEAVES and activeSettingsLeaf', () => {
-  it('lists the three leaves in the sketch\'s order, each once', () => {
-    expect(SETTINGS_LEAVES).toEqual(['quality', 'sectorSettings', 'sessions']);
-  });
-
-  it('names every leaf it lists, and lists every leaf it names', () => {
-    expect(Object.keys(SETTINGS_LEAF_CONTENT).sort()).toEqual([...SETTINGS_LEAVES].sort());
-    expect(SETTINGS_LEAVES.map((leaf) => SETTINGS_LEAF_CONTENT[leaf])).toEqual(['settings.quality', 'settings.seeds', 'settings.sessions']);
-  });
-
-  it('opens on Audio Quality, the first tab', () => {
-    expect(DEFAULT_SETTINGS_LEAF).toBe('quality');
-    expect(DEFAULT_SETTINGS_LEAF).toBe(SETTINGS_LEAVES[0]);
-  });
-
-  it.each<[BreadcrumbState['selectedSettingsLeaf'], string]>([
-    [null, 'quality'],
-    ['quality', 'quality'],
-    ['sectorSettings', 'sectorSettings'],
-    ['sessions', 'sessions'],
-    // Not a tab (a value from before the store type changed): the first, as SectionTabs falls back.
-    ['robotLoad' as SettingsLeaf, 'quality'],
-  ])('with %s stored, the open tab is %s', (stored, expected) => {
-    expect(activeSettingsLeaf(stored)).toBe(expected);
-  });
-
-  it('a stored value that is not a tab reads as Audio Quality in the breadcrumb too, as the screen shows', () => {
-    const state: BreadcrumbState = {
-      activeHubTile: 'settings',
-      selectedRobotId: null,
-      selectedCompanyId: null,
-      allProbesSelected: false,
-      selectedSection: null,
-      fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
-      fleetParamsSubsection: null,
-      selectedSettingsLeaf: 'coordinates' as SettingsLeaf,
-    };
-    expect(breadcrumbPath(state, { robots: [], companies: [] })).toEqual([CONTENT['nav.root'].human, CONTENT['settings.root'].human, CONTENT['settings.quality'].human]);
-  });
-
-  it('every nav pick lands Settings back on its first tab', () => {
-    useUIStore.setState({ activeHubTile: 'settings', selectedSettingsLeaf: 'sessions' });
-    selectBranch('settings');
-    expect(activeSettingsLeaf(ui().selectedSettingsLeaf)).toBe('quality');
   });
 });

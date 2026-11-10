@@ -39,6 +39,19 @@
      everything else — theme names beyond Classic, every aspect family and option except Hypnotic / Mechanical, the
      description lines, the footer — is a STAND-IN. Names are copy and live in src/content/ when built.
 
+     FRAME F ADDED 2026-11-08 for backlog 71 (docs/intent/off-screen-console.md, docs/specs/OFF_SCREEN_CONSOLE.md):
+     the off screen as the console. The left column re-aimed — a New Transmission EDITOR (name, x, y, Scan; a commit is a
+     pick), a collapsible TRANSMISSIONS list (Current with an "unsaved" eyebrow, the saves, the presets; no Load) with one
+     SAVE / RENAME / DELETE row acting on the selected row, a collapsed DEVICE section holding Factory Reset — and Share
+     beside the readout over a held status slot. Frames C and D draw what this retires. Pieces 28–35; stand-in copy.
+     BUILT 2026-11-09, differing from the drawing (Checkpoint A): no presets, no Device section (Factory Reset at the
+     Transmissions section's foot), a confirm on Delete, Share fourth in the action row, the editor in one panel, and no
+     show/hide on the list (always shown, no header).
+     Frame F's own note lists it.
+     RETIRED 2026-11-09 (backlog 71's second module, feature/settings-retirement): the Settings branch is gone, so
+     frames C (Foundry) and D (Save & Share) draw screens that no longer exist; Audio Quality is Fleet Params' last tab,
+     and the Companies box left the nav too, so the nav the frames draw has three boxes now (Deck, Fleet, Probes).
+
      Page rules (memory: sketch-toggles-sticky-bar): each frame is section.frame whose first child is the sticky div.bar
      holding the h2 and that frame's own options; page-wide options live in the fixed panel, bottom-right. -->
 <html lang="en">
@@ -183,6 +196,32 @@
   .phone .chooser { max-width: none; }
   .phone .r { font-size: 13px; min-height: 32px; }
   .phone .fam .famname { width: 100%; }
+
+  /* ---------- F · the console (backlog 71): the editor, the disclosure headers, the action row, Share + the slot ---------- */
+  .ed { border: 1px dashed var(--wire2); border-radius: 4px; padding: 8px 12px 12px; gap: 8px; }
+  .ed.on { border-style: solid; border-color: var(--wire); background: rgba(255, 255, 255, .03); }
+  .ed .head { display: flex; align-items: center; margin: 0; }
+  .ed .head .roll { margin-left: auto; border: 1px dashed var(--wire); background: transparent; color: #aab4bd; font: 600 12px var(--fc); padding: 3px 10px; border-radius: 4px; position: relative; letter-spacing: 0; text-transform: none; }
+  .ed .head .roll .co { position: absolute; right: -28px; top: 50%; transform: translateY(-50%); }
+  .ed .inrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ed .input { border: 1px solid var(--wire2); background: rgba(0, 0, 0, .35); padding: 6px 10px; border-radius: 4px; font-size: 13px; color: var(--txt); min-width: 64px; box-sizing: border-box; }
+  .ed .input.wide { flex: 1; min-width: 150px; }
+  .ed .input .ph { color: #5f6a74; font-size: 10px; letter-spacing: .14em; text-transform: uppercase; margin-right: 8px; }
+  .dh { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 12px; border: 1px dashed var(--wire2); border-radius: 4px; color: #aab4bd; font-size: 13px; letter-spacing: .04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dh .tri { color: #6b7680; flex: none; }
+  .dh .nm { color: var(--txt); }
+  .r .lab .eb { display: block; font-size: 9.5px; letter-spacing: .16em; text-transform: uppercase; color: #6b7680; line-height: 1.2; margin-top: 4px; }
+  .r.tall { min-height: 44px; }
+  .acts2 { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; align-items: center; margin-top: 4px; }
+  .acts2 .btn { border: 1px dashed var(--wire); padding: 4px 12px; border-radius: 4px; font-size: 13px; color: #aab4bd; }
+  .acts2 .btn.dim { opacity: .35; }
+  .acts2 .mut { color: #6b7680; font-size: 12px; font-style: italic; }
+  .wellrow { grid-column: 1 / -1; display: flex; gap: 10px; align-items: stretch; }
+  .wellrow .well { flex: 1; }
+  .wellrow .btn { border: 1px dashed var(--wire); padding: 4px 14px; border-radius: 4px; font-size: 13px; color: #aab4bd; display: flex; align-items: center; position: relative; }
+  .wellrow .btn .co { position: absolute; right: -28px; top: 50%; transform: translateY(-50%); }
+  .slot { grid-column: 1 / -1; min-height: 1.5em; text-align: center; font-size: 12.5px; font-style: italic; color: #7c8893; }
+  .phone .wellrow { flex-wrap: wrap; }
 
   /* ---------- the powered-on chrome, as wire boxes only ---------- */
   .hdr { position: absolute; top: var(--st); left: 0; right: 170px; height: 44px; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 0 20px; color: #7c8893; font-size: 12px; }
@@ -347,6 +386,7 @@
     <div><div class="desk" id="foundry-desk"></div></div>
   </div>
   <ol class="legend" id="foundry-legend"></ol>
+  <p class="note"><span class="st changed">RETIRED</span> 2026-11-09 on <code>feature/settings-retirement</code>: Foundry and the whole Settings branch left the app (backlog 71). The New Transmission editor on the off screen (frame F) does its job.</p>
 </section>
 
 <!-- ================= D · COMMS ================= -->
@@ -359,6 +399,7 @@
   </div>
   <div class="curation" id="curation"></div>
   <ol class="legend" id="comms-legend"></ol>
+  <p class="note"><span class="st changed">RETIRED</span> 2026-11-09 on <code>feature/settings-retirement</code>: Save &amp; Share left with the Settings branch (backlog 71). The off screen's Transmissions list and action row (frame F) save, rename, delete and share; there are no presets.</p>
 </section>
 
 <!-- ================= E · THE GATE AND THE RULES ================= -->
@@ -384,6 +425,18 @@
   <p class="note">Every row above is a silent retransmit of the faint world. Nothing on this screen plays sound; the rocker does.</p>
 </section>
 
+<!-- ================= F · THE CONSOLE (backlog 71) ================= -->
+<section class="frame" id="f-console">
+  <div class="bar"><h2>F · The console <small>backlog 71, drafted 2026-11-08 — the returning visit with the left column re-aimed; the right column as built. Frames C and D are what it retires.</small></h2>
+    <div class="controls"><span class="lbl">Selection:</span><span class="grp"><button data-radio="cSel" data-val="current" class="on">Current</button><button data-radio="cSel" data-val="save">a save</button><button data-radio="cSel" data-val="preset">a preset</button><button data-radio="cSel" data-val="new">New Transmission (after a commit or Scan)</button></span></div>
+    <div class="controls"><button data-opt="cOpen" class="on">Transmissions open</button><button data-opt="cDev">Device open</button><button data-opt="cDirty" class="on">Current unsaved</button><button data-opt="cSlot">“copied” in the slot</button><span class="none">both sections start collapsed in the app; open here so the list shows</span></div>
+  </div>
+  <div class="pair"><div><div class="desk" id="console-desk"></div></div><div><div class="phone" id="console-phone"></div></div></div>
+  <p class="note">The common case never opens the list: type or Scan, pick a theme, flip. The editor mirrors the live world (no draw on mount), so after a pick it reads as the picked world's seed; typing from there is picking. The header holds one line and names the selected row, so a collapsed list still says what will play.</p>
+  <p class="note"><span class="st built">BUILT</span> 2026-11-09 on <code>feature/off-screen-console</code>; the drawing above is the draft, and the build differs (Crawford at Checkpoint A; <code>docs/UI_SHELL.md</code>'s "The off screen" is the record): <b>no presets</b> (the list is Current and the saves; the Selection toggle's "a preset" and the Device toggle draw what went); <b>no Device section</b> (Factory Reset sits at the Transmissions section's foot, under a rule); <b>Delete asks first</b>, in a modal confirm; <b>Share is the fourth button in the action row</b> (one row on the desk, two by two on the phone), not beside the readout; the <b>editor's three fields share one panel</b>, labelled by their names alone, X and Y under the name when the panel is narrow; on the phone <b>Rename's input drops under the row's name</b>, over the rows below; and <b>no show/hide</b>: the list, the action row and Factory Reset always show, with no Transmissions header (the "Transmissions open" toggle draws the only state there is).</p>
+  <ol class="legend" id="console-legend"></ol>
+</section>
+
 <div class="fixedpanel"><div class="ttl">Page-wide · defaults = the 2026-10-30 decisions; alternatives kept for comparison</div>
   <div class="controls"><span class="lbl">Themes:</span><span class="grp"><button data-radio="themes" data-val="5" class="on">five (Crawford)</button><button data-radio="themes" data-val="3">three (themes.md)</button></span></div>
   <div class="controls"><span class="lbl">Aspects:</span><span class="grp"><button data-radio="aspects" data-val="flat" class="on">flat rows</button><button data-radio="aspects" data-val="disc">behind a disclosure</button></span></div>
@@ -393,7 +446,7 @@
 
 <script>
 // ---------- state: page-wide, plus a selection per story ----------
-const S = { themes: '5', aspects: 'flat', layout: 'two', roll: true, veil: true, footer: true, callouts: true, copy: 'app', foundry: 'after', commsSaves: 3 };
+const S = { themes: '5', aspects: 'flat', layout: 'two', roll: true, veil: true, footer: true, callouts: true, copy: 'app', foundry: 'after', commsSaves: 3, cSel: 'current', cOpen: true, cDev: false, cDirty: true, cSlot: false };
 const ST = { 1: {}, 2: { sel: 'current' }, 3: { sel: 'current', saves: 3 }, 4: {}, 5: { sel: 'current' }, 6: { sel: 'current', saves: 3 } };
 const $ = (s) => document.querySelector(s);
 const co = (n) => `<i class="co">${n}</i>`;
@@ -545,6 +598,14 @@ const P = {
   25: ['Factory reset', 'changed', 'localStorage.clear() — now also clears the heard-a-world flag, returning the device to a first visit.'],
   26: ['Heard-a-world flag', 'proposed', 'one boolean, written at the first power-on.'],
   27: ['Curation flow', 'proposed', 'how a preset gets made — no tooling, just the existing Share.'],
+  28: ['New Transmission editor', 'proposed', 'spec §1.2: a style-name input and x / y, mirroring the live world (no draw on mount). Enter or blur with a change commits = picks: the wash, Classic with no aspects, the save detached. Unchanged commits do nothing. Replaces the New Transmission row and Foundry’s inputs + Retransmit.'],
+  29: ['Scan', 'proposed', 'draws a name and coordinates into the inputs and commits in one go, from any selected row. In the editor’s title row, no longer in a list row.'],
+  30: ['Transmissions header', 'proposed', 'spec §1.4: a muted button, aria-expanded, one held line — title · the selected row’s name · the count of saves + presets. Starts collapsed; the body mounts only while open. Focus after a power-off lands here when collapsed.'],
+  31: ['Unsaved eyebrow', 'proposed', 'spec §1.3: Current’s lore label reads “Current · unsaved” while no save matches it, plain “Current” once one does. It replaces the standing warning line. Edited saves are not marked.'],
+  32: ['Action row', 'proposed', 'spec §1.5: Save / Rename / Delete acting on the selected row, at the list’s foot where Keep sat. Dimmed where inert (Rename + Delete on Current, a preset, New Transmission; Save on a clean Current; all three while a change waits). Rename is an inline input in the row; Delete has no confirm. No Load (the pick is the load), no per-row buttons.'],
+  33: ['Share', 'proposed', 'spec §1.6: beside the readout, copies the link for whatever the readout names — the snapshot on Current, else the live world. Share live, Share save and Copy link in one button. Dimmed while a change waits.'],
+  34: ['Status slot', 'proposed', 'one held line under the readout (two on the phone): “copied” for 5 s, or a save / copy / rename failure. Empty otherwise; nothing moves when it fills.'],
+  35: ['Device', 'proposed', 'spec §1.4: a second collapsed header holding Factory Reset behind its confirm. Clearing storage drops the heard-a-world flag, so the screen shows the first-visit view at once. Audio Quality, Settings’ other tab, moves to Fleet Params; the Settings branch leaves the nav.'],
 };
 const STATUS = { built: 'built', changed: 'built → changed', decided: 'decided 2026-10-30', proposed: 'proposed', open: 'open' };
 const legend = (nums) => `<ol class="legend">${nums.map((n) => { const [t, s, w] = P[n]; return `<li>${co(n)}<b>${t}</b><span class="st ${s}">${STATUS[s]}</span><span class="why">${w}</span></li>`; }).join('')}</ol>`;
@@ -621,8 +682,50 @@ function curation() {
     <div class="step"><b>5 · It is a preset row</b>decoded on pick by <code>decodeWorldLink</code> and applied by <code>applySessionPayload</code> — the path a shared link already takes</div>`;
 }
 
+// ---------- F · the console (backlog 71) ----------
+const C_WORLDS = {
+  current: { name: 'Current', as: 'q7-sh0al', x: '3', y: '−41', theme: 'Classic', asp: '' },
+  save: { name: 'Dusk run', as: 'tr3nch-2', x: '−30', y: '−30', theme: 'Calm', asp: ' · Hypnotic' },
+  preset: { name: 'Vessport Null', as: 'v3ssp0rt', x: '−4', y: '21', theme: 'Bold', asp: '' },
+  new: { name: 'New Transmission', as: 'm4r1ana-9', x: '58', y: '−9', theme: 'Classic', asp: '' },
+};
+const C_FAMILIES = [['Melody', ['Hypnotic', 'Mechanical', 'Wandering', 'Chanting', 'Tumbling', 'Telegraph']], ['Envelope', ['Plucked', 'Swelling', 'Held', 'Bowed', 'Hammered', 'Breathing']], ['Distance', ['Near', 'Echoing', 'Half-heard']], ['Voice', ['Glassy', 'Woody', 'Hollow', 'Brassy', 'Muted', 'Chiming']], ['Motion', ['Gliding', 'Trembling', 'Sweeping']], ['Performance', ['Steady', 'Dramatic', 'Halting']]];
+function consoleChooser(phone) {
+  const sel = S.cSel;
+  const w = C_WORLDS[sel];
+  const dirty = S.cDirty;
+  const count = 3 + PRESETS.length;
+  const editor = `<div class="grp ed piece${sel === 'new' ? ' on' : ''}">${co(28)}<div class="head">New Transmission<span class="sub">type, or Scan</span><button class="roll">⟳ Scan${co(29)}</button></div>
+    <div class="inrow"><span class="input wide"><span class="ph">Style</span>${w.as}</span><span class="input"><span class="ph">x</span>${w.x}</span><span class="input"><span class="ph">y</span>${w.y}</span></div></div>`;
+  const header = `<div class="dh piece">${co(30)}<span class="tri">${S.cOpen ? '▾' : '▸'}</span>Transmissions · <span class="nm">${w.name}</span> · ${count}</div>`;
+  const curLab = `<span class="lab">q7-sh0al · (3, −41)<small class="eb piece">${dirty ? co(31) : ''}${dirty ? 'Current · unsaved' : 'Current'}</small></span>`;
+  const rows = `<div class="r tall piece${sel === 'current' ? ' on' : ''}">${co(8)}<span class="dot"></span>${curLab}</div>
+    <div class="head" style="margin-top:6px">Saved Transmissions</div>
+    ${SAVES.slice(0, 3).map(([n, d], i) => radio(`${n} · ${i ? 'k7-r1dge (12, 4)' : 'tr3nch-2 (−30, −30)'}${i === 0 && sel === 'save' ? ' · Calm · Hypnotic' : ''}`, sel === 'save' && i === 0, `<span class="meta">saved ${d}</span>`, i === 0 ? co(10) : '')).join('')}
+    <div class="divider piece">${co(11)}</div><div class="head">Preset Transmissions</div>
+    ${PRESETS.map(([n, c], i) => radio(`${n} · ${c}`, sel === 'preset' && i === 1, '', i === 0 ? co(12) : '')).join('')}`;
+  const saveDim = sel === 'current' && !dirty;
+  const rowDim = sel !== 'save';
+  const acts = `<div class="acts2 piece">${co(32)}<span class="btn${saveDim ? ' dim' : ''}">Save</span><span class="btn${rowDim ? ' dim' : ''}">Rename</span><span class="btn${rowDim ? ' dim' : ''}">Delete</span></div>`;
+  const trans = `<div class="grp">${header}${S.cOpen ? rows + acts : ''}</div>`;
+  const device = `<div class="grp"><div class="dh piece">${co(35)}<span class="tri">${S.cDev ? '▾' : '▸'}</span>Device</div>${S.cDev ? '<div class="acts2"><span class="btn">Factory Reset</span><span class="mut">behind its confirm; clears every save and the heard-a-world flag</span></div>' : ''}</div>`;
+  const left = `<div class="grp" style="gap:14px">${editor}${trans}${device}</div>`;
+  const themeRow = `<div class="line piece">${co(14)}${THEMES5.map(([n]) => chip(n, n === w.theme)).join('')}</div>`;
+  const desc = `<div class="desc piece">${co(15)}${w.theme} — ${(THEMES5.find(([n]) => n === w.theme) || THEMES5[0])[1]}</div>`;
+  const aspects = C_FAMILIES.map(([f, opts], i) => `<div class="fam piece">${i === 0 ? co(16) : ''}<span class="famname">${f}</span>${opts.map((o) => chip(o, w.asp.includes(o))).join('')}</div>`).join('');
+  const right = `<div class="grp"><div class="head piece">${co(13)}Trace Type<span class="sub">select one</span></div>${themeRow}${desc}<div class="head">Trace Aspects<span class="sub">select many</span></div>${aspects}</div>`;
+  const readout = `${sel === 'current' || sel === 'new' ? '' : w.name + ' · '}${w.as} · (${w.x}, ${w.y}) · ${w.theme}${w.asp}`;
+  const wellrow = `<div class="wellrow"><div class="well piece">${co(17)}<span class="lbl">Selected transmission</span>${readout}</div><span class="btn">Share${co(33)}</span></div>`;
+  const slot = `<div class="slot piece">${co(34)}${S.cSlot ? 'link copied' : ''}</div>`;
+  return `<div class="chooser ${phone ? 'one' : 'two'}">${left}${right}${wellrow}${slot}${footer()}</div>`;
+}
+const consoleScreen = (phone) => `${shell()}${world('off')}${veil()}${power(false)}<div class="screen">${etch()}${consoleChooser(phone)}</div>`;
+
 // ---------- render + wiring (one delegated click handler: page-wide keys on S, per-story keys on ST[n]) ----------
 function render() {
+  $('#console-desk').innerHTML = consoleScreen(false);
+  $('#console-phone').innerHTML = consoleScreen(true);
+  $('#console-legend').innerHTML = legend([28, 29, 30, 31, 32, 33, 34, 35, 8, 10, 11, 12, 17]).replace(/^<ol class="legend">|<\/ol>$/g, '');
   document.body.classList.toggle('nocall', !S.callouts);
   STORIES.forEach((story) => { $(`#s${story.n}`).innerHTML = storyHtml(story); });
   $('#off-desk').innerHTML = offDesk();

@@ -131,6 +131,32 @@ describe('TextInput', () => {
     expect(screen.getByTestId('cabinet-box').getAttribute('data-popped')).toBe('true');
   });
 
+  // docs/tasks/OFF_SCREEN_CONSOLE.md, Checkpoint A (Crawford): a caller framing several fields in one panel — the off
+  // screen's New Transmission editor — draws the panel's facade itself, so each field opts out of its own.
+  describe('facade={false}', () => {
+    const named: TextInputSchema = { id: 'robotName', type: 'textInput', loreLabel: 'DESIGNATION', humanLabel: 'Name' };
+
+    it('renders no CabinetBox and no facade wrapper: the label and the input sit bare', () => {
+      const { container } = render(<TextInput schema={named} value="Kryndara" onChange={() => {}} facade={false} />);
+      expect(screen.queryByTestId('cabinet-box')).toBeNull();
+      expect(container.querySelector('.sc-text-input-facade')).toBeNull();
+      expect(container.querySelector('.sc-text-input .sc-dual-label')?.textContent).toContain('Name');
+      expect((screen.getByRole('textbox', { name: 'Name' }) as HTMLInputElement).value).toBe('Kryndara');
+    });
+
+    it('still edits as the faced one does', () => {
+      const onChange = vi.fn();
+      render(<TextInput schema={named} value="" onChange={onChange} facade={false} />);
+      fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), { target: { value: 'Vessport' } });
+      expect(onChange).toHaveBeenCalledWith('Vessport');
+    });
+
+    it('facade={true} is the default facade', () => {
+      render(<TextInput schema={named} value="" onChange={() => {}} facade />);
+      expect(screen.getByTestId('cabinet-box')).toBeTruthy();
+    });
+  });
+
   it('renders both the input and its DualLabel inside the facade, label inside not beside the box', () => {
     const schema: TextInputSchema = { id: 'robotName', type: 'textInput', humanLabel: 'Robot Name' };
     render(<TextInput schema={schema} value="" onChange={() => {}} />);

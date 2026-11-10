@@ -51,6 +51,9 @@ vi.mock('../console/AudioRigDrawer', () => ({
 vi.mock('../console/LfoBankLanePanel', () => ({
   LfoBankLanePanel: ({ lane }: { lane: string }) => <div data-testid="lfo-bank-lane-panel-stub" data-lane={lane} />,
 }));
+vi.mock('../console/AudioLoadPanel', () => ({
+  AudioLoadPanel: () => <div data-testid="audio-load-panel-stub" />,
+}));
 
 const UI_INITIAL = useUIStore.getInitialState();
 const AUDIO_INITIAL = useAudioStore.getState();
@@ -64,6 +67,7 @@ const GROUPS: readonly [FleetParamsGroup, keyof typeof CONTENT, Trait][] = [
   ['colour', 'fleet.colour', 'colour'],
   ['modulation', 'fleet.modulation', 'spectral'],
   ['output', 'fleet.output', 'output'],
+  ['quality', 'fleet.quality', 'seed'],
 ];
 const LANES: readonly LfoLaneId[] = ['a', 'b', 'c', 'd'];
 
@@ -75,8 +79,9 @@ const pick = (name: string) => fireEvent.mouseDown(screen.getByRole('tab', { nam
 
 const lanePanels = () => screen.queryAllByTestId('lfo-bank-lane-panel-stub');
 const effectPanels = () => screen.queryAllByTestId('audio-rig-effect-panel-stub');
+const audioLoadPanels = () => screen.queryAllByTestId('audio-load-panel-stub');
 /** Every panel the screen can mount, whatever its kind. */
-const mountedPanels = () => [...lanePanels(), ...effectPanels(), ...screen.queryAllByTestId('audio-rig-drawer-stub')];
+const mountedPanels = () => [...lanePanels(), ...effectPanels(), ...screen.queryAllByTestId('audio-rig-drawer-stub'), ...audioLoadPanels()];
 
 beforeEach(() => {
   shell.set('desk');
@@ -95,12 +100,13 @@ describe('FleetParamsScreen — the default view', () => {
     expect(screen.queryByRole('slider')).toBeNull();
   });
 
-  it('the section row is the seven groups in order, Colour then Modulation between Time & Space and Output, each trigger in its trait colour', () => {
+  it('the section row is the eight groups in order, Colour then Modulation between Time & Space and Output, Audio Quality last, each trigger in its trait colour', () => {
     render(<FleetParamsScreen />);
     expect(tabNames(sectionRow())).toEqual(GROUPS.map(([, key]) => human(key)));
-    expect(tabNames(sectionRow())).toHaveLength(7);
+    expect(tabNames(sectionRow())).toHaveLength(8);
     expect(tabNames(sectionRow()).indexOf(human('fleet.colour'))).toBe(4);
     expect(tabNames(sectionRow()).indexOf(human('fleet.modulation'))).toBe(5);
+    expect(tabNames(sectionRow()).indexOf(human('fleet.quality'))).toBe(7);
     const tabs = within(sectionRow()).getAllByRole('tab');
     GROUPS.forEach(([, , trait], i) => {
       const expected = getTraitColorStyle(trait) as Record<string, string>;
@@ -185,7 +191,7 @@ describe('FleetParamsScreen — switching tabs', () => {
 
   it('the sub-tab rows name each tab after its entry, in the table\'s order', () => {
     for (const [group, key] of GROUPS) {
-      if (group === 'pacing' || group === 'lfoBank') continue;
+      if (group === 'pacing' || group === 'lfoBank' || group === 'quality') continue;
       useUIStore.setState({ fleetParamsSection: group, fleetParamsSubsection: null });
       const { unmount } = render(<FleetParamsScreen />);
       expect(tabNames(subRow(key))).toEqual(FLEET_PARAMS_SUBSECTIONS[group].map((sub) => labels(sub.content).humanLabel));
@@ -290,6 +296,46 @@ describe('FleetParamsScreen — Pacing, one panel of five controls with no sub-t
 });
 
 // docs/specs/ROBOT_PERFORMANCE.md §1.6 (docs/tasks/ROBOT_PERFORMANCE.md Task 13) — Humanize, the third control of the top row.
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 12 (spec §1.9): Audio Quality leaves Settings for Fleet Params' last tab.
+describe('FleetParamsScreen — Audio Quality, one panel with no sub-tabs', () => {
+  const crumb = () => screen.getByRole('navigation', { name: human('nav.breadcrumb') }).textContent;
+
+  it('picking the tab mounts the Audio Load panel alone, with no sub-tab row', () => {
+    render(<FleetParamsScreen />);
+    pick(human('fleet.quality'));
+    expect(useUIStore.getState().fleetParamsSection).toBe('quality');
+    expect(screen.getAllByRole('tablist')).toHaveLength(1);
+    expect(mountedPanels()).toHaveLength(1);
+    expect(audioLoadPanels()).toHaveLength(1);
+  });
+
+  it('a stored sub-tab does not give it a sub-tab row or another panel', () => {
+    useUIStore.setState({ fleetParamsSection: 'quality', fleetParamsSubsection: 'compressor' });
+    render(<FleetParamsScreen />);
+    expect(screen.getAllByRole('tablist')).toHaveLength(1);
+    expect(mountedPanels()).toHaveLength(1);
+    expect(audioLoadPanels()).toHaveLength(1);
+  });
+
+  it('leaving it unmounts the panel', () => {
+    useUIStore.setState({ fleetParamsSection: 'quality' });
+    render(<FleetParamsScreen />);
+    pick(human('fleet.output'));
+    expect(audioLoadPanels()).toHaveLength(0);
+  });
+
+  it('the breadcrumb reads Root / Fleet Params / Audio Quality', () => {
+    render(
+      <>
+        <FleetParamsScreen />
+        <NavBreadcrumb />
+      </>,
+    );
+    pick(human('fleet.quality'));
+    expect(crumb()).toBe([human('nav.root'), human('fleet.root'), human('fleet.quality')].join(' / '));
+  });
+});
+
 describe('FleetParamsScreen — Pacing: Humanize (Robot Performance Task 13)', () => {
   beforeEach(() => {
     useUIStore.setState({ fleetParamsSection: 'pacing' });
@@ -396,7 +442,7 @@ describe('FleetParamsScreen — trait colours', () => {
     expect(section.contains(mountedPanels()[0])).toBe(true);
   });
 
-  it.each(GROUPS.filter(([group]) => group !== 'pacing'))("%s: every sub-tab trigger wears its section's trait (%s, %s)", (group, key, trait) => {
+  it.each(GROUPS.filter(([group]) => group !== 'pacing' && group !== 'quality'))("%s: every sub-tab trigger wears its section's trait (%s, %s)", (group, key, trait) => {
     useUIStore.setState({ fleetParamsSection: group });
     render(<FleetParamsScreen />);
     const expected = getTraitColorStyle(trait) as Record<string, string>;
