@@ -476,12 +476,13 @@ commit names the existing cases that gained one). Next: Task 11, in a fresh sess
 ### Checkpoint C: The build
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
 - [x] Every spec §5.1 case is covered by a named test, and the six mutants were each checked and named in a commit.
-- [ ] Reviewed with Crawford before the runs.
+- [x] Reviewed with Crawford before the runs.
 
 **Status (2026-11-10):** Phase 3 committed (647d9686, 06f8bbb0). Full suite 13609 of 13610 green in 350 files: the one
 failure was the known `sceneToOrbiterLocal` round-trip timing out at 5.7 s under the parallel run (10 of 10 alone), with
 the known `onTaskUpdate` exit; lint has the four existing scenery warnings only; types and the build clean. The six
-mutants are named in the T2, T3, T4, T6, T9 and T11 commits. Next: Crawford's review, then Task 13 in a fresh session.
+mutants are named in the T2, T3, T4, T6, T9 and T11 commits. Checkpoint C passed: reviewed by Crawford, who listened in the
+dev server to effects lit and darkened ("everything sounds good"). Next: Task 13, in a fresh session.
 
 ---
 
