@@ -25,7 +25,7 @@ import { deepEqual } from '@/utils/math';
 import { retransmitWorld, type RetransmitInput } from '@/systems/worldTransition';
 import { cancelWorldChange, requestWorldChange } from '@/systems/worldChange';
 import { getWorldState } from '@/systems/worldState';
-import { useSessionStore, isPayloadDirty, isWorldDirty } from '@/stores/sessionStore';
+import { useSessionStore, isPayloadDirty, isWorldDirty, nextSaveName } from '@/stores/sessionStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
@@ -302,11 +302,11 @@ interface Intent {
  * the label and the hint only — the first flip writes the flag, so the chooser waits behind the first power-off.
  *
  * Picking a save retransmits the faint world through applySessionPayload, the same path a Load does,
- * and never starts audio: only the power switch does (powerController). A save pick also names the session after the
- * save, as loading it from the Sessions list does, so a later Save overwrites it. A save that has since vanished from
+ * and never starts audio: only the power switch does (powerController). A save pick also makes the save the loaded
+ * one, so a later Save overwrites it. A save that has since vanished from
  * storage applies nothing and is not claimed as the pick. Scan draws a world and picks it as New Transmission, from any
  * row, landing it under Classic with no aspects (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1). A Scan
- * or an editor commit detaches the loaded save (sessionStore.detachLoadedSession): that world is no longer the save.
+ * or an editor commit detaches the loaded save (no save is loaded after it): that world is no longer the save.
  *
  * Current is an anchor (spec §1.2): the first pick that leaves it takes a snapshot (CurrentSnapshot, above: the payload
  * and the loaded save's name, runtime only), and Current is named from the snapshot while there is one, so no pick
@@ -488,29 +488,23 @@ export function OffScreen() {
     const intended = intentRef.current!;
     setIntent(null);
     let left: LoadingIdentity;
-    const { setCurrentSessionName, setCurrentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
+    const { setCurrentLoadedSessionName } = useSessionStore.getState();
     if (intended.world.kind === 'current') {
       const { payload, loadedName } = intended.world.snapshot;
       applySessionPayload(payload);
-      if (loadedName) {
-        setCurrentSessionName(loadedName);
-        setCurrentLoadedSessionName(loadedName);
-      } else {
-        detachLoadedSession();
-      }
+      setCurrentLoadedSessionName(loadedName);
       setSnapshot(null);
       left = loadingOf(payload);
     } else if (intended.world.kind === 'payload') {
       const { name, payload } = intended.world;
       applySessionPayload(payload);
-      setCurrentSessionName(name);
       setCurrentLoadedSessionName(name);
       left = loadingOf(payload);
     } else {
       // New Transmission's world, whole: its seed and plot under Classic with no aspects, and no save attached (spec §1.1).
       const { attenuationStyleName, coordinates } = intended.world;
       retransmitWorld({ attenuationStyleName, coordinates, ...NEW_LOADING });
-      detachLoadedSession();
+      setCurrentLoadedSessionName(null);
       left = NEW_LOADING;
     }
     const loading: RetransmitInput = {};
@@ -717,24 +711,21 @@ export function OffScreen() {
     });
   }, [pickNew]);
 
-  // Save (docs/specs/OFF_SCREEN_CONSOLE.md §1.5) writes the live world through keepCurrentWorld, whichever row is selected:
-  // on Current, under its loaded save's name or a fresh one, as Keep did; on a save, over that save, the loaded one; on
-  // New Transmission, under a fresh name, since nothing is loaded. Current is selected only with no snapshot —
+  // Save (docs/specs/OFF_SCREEN_CONSOLE.md §1.5) writes the live world under nextSaveName(), whichever row is selected:
+  // on Current, under its loaded save's name or a fresh one; on a save, over that save, the loaded one; on New
+  // Transmission, under a fresh name, since nothing is loaded. Current is selected only with no snapshot —
   // picking it cancels the change that left it or restores the snapshot, and both drop it — so Current's Save is the live
   // world. Off Current the selection moves to the save just written, its identity the live world's, so the row reads as
   // stored with no tail. Only enabled with no change waiting (actionRow), so the pick is the shown one.
   const onSave = useCallback(() => {
-    // A save the storage refuses (a full quota) is a line in the status slot, never a throw into the click (R20). It
-    // names the save it tried, read before the attempt: the loaded save, else the session name keepCurrentWorld would
-    // try first (docs/tasks/OFF_SCREEN_CONSOLE.md Task 6).
-    const { currentLoadedSessionName, currentSessionName, keepCurrentWorld } = useSessionStore.getState();
-    const tried = currentLoadedSessionName ?? currentSessionName;
-    let name: string;
+    // A save the storage refuses (a full quota) is a line in the status slot naming the save it tried, never a throw
+    // into the click (R20).
+    const name = nextSaveName();
     try {
-      name = keepCurrentWorld();
+      useSessionStore.getState().keepCurrentWorld(name);
     } catch (err) {
       console.error('[OffScreen] Save could not save', err);
-      setSlot({ kind: 'saveFailed', name: tried });
+      setSlot({ kind: 'saveFailed', name });
       return;
     }
     setSlot(null);
@@ -749,16 +740,13 @@ export function OffScreen() {
     if ('name' in pick && pick.value.startsWith(SAVE_PREFIX)) setRenaming(pick.name);
   }, [pick]);
 
-  // A save renamed: the names that point at it follow — the loaded save's (and the session name with it, so a later Save
-  // overwrites the renamed row) and Current's snapshot's, so Current is named after it and a restore attaches it
-  // (spec §7 risk 4). Neither is left naming a save that is gone.
+  // A save renamed: the names that point at it follow — the loaded save's, so a later Save overwrites the renamed row,
+  // and Current's snapshot's, so Current is named after it and a restore attaches it (spec §7 risk 4). Neither is left
+  // naming a save that is gone.
   const renameFollowers = useCallback(
     (from: string, to: string) => {
-      const { currentLoadedSessionName, setCurrentLoadedSessionName, setCurrentSessionName } = useSessionStore.getState();
-      if (currentLoadedSessionName === from) {
-        setCurrentLoadedSessionName(to);
-        setCurrentSessionName(to);
-      }
+      const { currentLoadedSessionName, setCurrentLoadedSessionName } = useSessionStore.getState();
+      if (currentLoadedSessionName === from) setCurrentLoadedSessionName(to);
       const held = snapshotRef.current;
       if (held?.loadedName === from) setSnapshot({ ...held, loadedName: to });
     },
@@ -795,13 +783,13 @@ export function OffScreen() {
   }, [pick]);
 
   // Confirmed, the save goes, and the live world stands — no world change, no wash. The names that pointed at it let go:
-  // the loaded save detaches (a fresh name suggested), and Current's snapshot forgets it, so Current reads unsaved. The
+  // the loaded save detaches, and Current's snapshot forgets it, so Current reads unsaved. The
   // selection, matching no row now, falls to New Transmission holding the live identity whole — the editor already shows
   // its seed and plot, and the live loading is its own, so the readout names the deleted save's world with no tail.
   const deleteSave = useCallback((name: string) => {
     deleteNamedSession(name);
-    const { currentLoadedSessionName, detachLoadedSession } = useSessionStore.getState();
-    if (currentLoadedSessionName === name) detachLoadedSession();
+    const { currentLoadedSessionName, setCurrentLoadedSessionName } = useSessionStore.getState();
+    if (currentLoadedSessionName === name) setCurrentLoadedSessionName(null);
     const held = snapshotRef.current;
     if (held?.loadedName === name) setSnapshot({ ...held, loadedName: null });
     setSaves(sortedSaves());

@@ -52,6 +52,7 @@ import { DEVICE_FLAGS_KEY, markHeardWorld } from '@/utils/deviceFlags';
 import { setWorldState } from '@/systems/worldState';
 import { describeWorld } from '@/utils/describeWorld';
 import { useSessionStore } from '@/stores/sessionStore';
+import { generateCompanyName } from '@/systems/spawnSystem';
 import { useLoadingStore } from '@/stores/loadingStore';
 import { useUIStore } from '@/stores/uiStore';
 import { attachSceneWash } from '@/systems/worldChange';
@@ -112,6 +113,10 @@ const currentEyebrow = () => currentRadio().querySelector('.sc-radio-button__lor
 const statusSlot = () => document.querySelector('.off-screen__status') as HTMLElement;
 /** The save failure in the slot, for the name the save tried. */
 const saveFailedLine = (name: string) => fill('session.status.saveFailed', { name });
+/** Holds Math.random at 0, so every fresh save name (sessionStore's nextSaveName) is FRESH_NAME. Restored by the
+ *  caller's vi.restoreAllMocks or the returned spy. */
+const holdFreshName = () => vi.spyOn(Math, 'random').mockReturnValue(0);
+const FRESH_NAME = generateCompanyName(() => -1, 0);
 /** The action row under the list (console Task 7): Save, Rename and Delete, each named after the selected row ("Save
  *  Dusk Run"). The list must be open. */
 const actionsRow = () => document.querySelector('.off-screen__actions') as HTMLElement;
@@ -182,7 +187,7 @@ beforeEach(() => {
   useLocaleStore.setState({ locales: LOCALES_AT_LOAD });
   live.identity = liveIdentity();
   live.payload = live.marker('live');
-  useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: 'Quiet Harbour' });
+  useSessionStore.setState({ currentLoadedSessionName: null });
   // The loaded world's loading (Task 30): Classic, nothing dealt, unless a test moves it.
   useLoadingStore.setState({ theme: 'classic', aspects: {} });
   // The real applySessionPayload hands the payload's loading to retransmitWorld, which writes the loading store first
@@ -1241,7 +1246,7 @@ describe('OffScreen — the New Transmission editor and Scan (console Task 4)', 
 
   it('Scan from Current draws into both inputs, selects the editor and lands under Classic with no aspects, detaching the save', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
-    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
     // The payload Current's snapshot is built from carries that loading too, as buildSessionPayload's would.
     live.payload = { ...live.marker('live'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
@@ -1375,7 +1380,7 @@ describe('OffScreen — the editor commits a world (console Task 5)', () => {
 
   it('a typed name and Enter lands that world under Classic with no aspects, detaches the save and selects the editor', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
-    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     useLoadingStore.setState({ theme: 'float', aspects: { melody: ['hypnotic'] } });
     live.payload = { ...live.marker('live'), theme: 'float', aspects: { melody: ['hypnotic'] } } as SessionPayload;
     vi.mocked(retransmitWorld).mockImplementation(landsInStores);
@@ -1590,10 +1595,9 @@ describe('OffScreen — Current’s eyebrow and the status slot (console Task 6)
       logged.mockRestore();
     });
 
-    // The session name differs from the loaded save's (a name typed since), and keepCurrentWorld writes the loaded one.
     it('names the loaded save it tried to overwrite, as an alert', () => {
       saveNamedSession('Dusk Run', live.marker('older'));
-      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Typed Since' });
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
       refuseStorage();
       render(<OffScreen />);
       fireEvent.click(saveButton());
@@ -1625,7 +1629,12 @@ describe('OffScreen — Current’s eyebrow and the status slot (console Task 6)
 });
 
 describe('OffScreen — Save on Current (spec assumption 14; Keep until console Task 7)', () => {
-  beforeEach(() => markHeardWorld());
+  let fresh: MockInstance;
+  beforeEach(() => {
+    markHeardWorld();
+    fresh = holdFreshName();
+  });
+  afterEach(() => fresh.mockRestore());
 
   it('is lit, Current reading unsaved, when the loaded world is not kept (no save loaded)', () => {
     const { container } = render(<OffScreen />);
@@ -1672,8 +1681,8 @@ describe('OffScreen — Save on Current (spec assumption 14; Keep until console 
       render(<OffScreen />);
       expect(failed()).toBeNull();
       fireEvent.click(saveButton());
-      expect(failed()!.textContent).toBe(saveFailedLine('Quiet Harbour'));
-      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+      expect(failed()!.textContent).toBe(saveFailedLine(FRESH_NAME));
+      expect(statusSlot().textContent).toBe(saveFailedLine(FRESH_NAME));
       expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
       expect(logged).toHaveBeenCalled();
       expect(saveButton().disabled).toBe(false);
@@ -1688,7 +1697,7 @@ describe('OffScreen — Save on Current (spec assumption 14; Keep until console 
       setItem.mockRestore();
       fireEvent.click(saveButton());
       expect(failed()).toBeNull();
-      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe(FRESH_NAME);
     });
 
     it('goes when the world changes, since the world it names is no longer shown: a family toggle', () => {
@@ -1725,11 +1734,11 @@ describe('OffScreen — Save on Current (spec assumption 14; Keep until console 
   it('clicking Save saves under the suggested name, lists the new row at once, names Current after it, and dims', () => {
     render(<OffScreen />);
     fireEvent.click(saveButton());
-    expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
-    expect(row('Quiet Harbour')).toBeTruthy();
-    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
-    expect(currentRowName()).toBe(currentName('Quiet Harbour'));
-    expect(row(currentName('Quiet Harbour')).getAttribute('aria-checked')).toBe('true');
+    expect(listSessions().map((s) => s.name)).toEqual([FRESH_NAME]);
+    expect(row(FRESH_NAME)).toBeTruthy();
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe(FRESH_NAME);
+    expect(currentRowName()).toBe(currentName(FRESH_NAME));
+    expect(row(currentName(FRESH_NAME)).getAttribute('aria-checked')).toBe('true');
     expect(saveButton().disabled).toBe(true);
     expect(currentEyebrow()).toBe(human('home.off.current'));
   });
@@ -1758,8 +1767,8 @@ describe('OffScreen — Save on Current (spec assumption 14; Keep until console 
     expect(currentEyebrow()).toBe(human('home.off.unsavedEyebrow'));
     fireEvent.click(saveButton());
     expect(saveButton().disabled).toBe(true);
-    expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
-    expect(loadSession('Quiet Harbour')).toEqual(live.marker('themed'));
+    expect(listSessions().map((s) => s.name)).toEqual([FRESH_NAME]);
+    expect(loadSession(FRESH_NAME)).toEqual(live.marker('themed'));
   });
 
   it('recomputes dirty after a pick, not on every render', () => {
@@ -1805,11 +1814,8 @@ describe('OffScreen — Save on Current (spec assumption 14; Keep until console 
 
     fireEvent.click(row('Dusk Run'));
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
-    expect(useSessionStore.getState().currentSessionName).toBe('Dusk Run'); // the save pick names the session, as a Load does
     fireEvent.click(scanButton());
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    // The name input no longer names the save, so a Save from the Sessions panel writes a new row.
-    expect(useSessionStore.getState().currentSessionName).not.toBe('Dusk Run');
     expect(currentRowName()).toBe(currentName('Dusk Run'));
     expect(currentEyebrow()).toBe(human('home.off.current'));
     expect(saveButton().disabled).toBe(false);
@@ -1971,12 +1977,14 @@ describe('OffScreen — the action row (console Task 7)', () => {
       const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
       render(<OffScreen />);
       fireEvent.click(scanButton());
-      const tried = session().currentSessionName;
+      const random = holdFreshName();
+      const tried = FRESH_NAME;
       const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         throw new Error('quota exceeded');
       });
       fireEvent.click(saveButton());
       setItem.mockRestore();
+      random.mockRestore();
       logged.mockRestore();
       expect(failed()!.textContent).toBe(saveFailedLine(tried));
       expect(listSessions()).toHaveLength(0);
@@ -1993,7 +2001,7 @@ describe('OffScreen — the action row (console Task 7)', () => {
       fireEvent.click(row(worldName(0)));
       expect(currentRowName()).toBe(currentName(kept));
       fireEvent.click(currentRadio());
-      expect(session()).toMatchObject({ currentLoadedSessionName: kept, currentSessionName: kept });
+      expect(session().currentLoadedSessionName).toBe(kept);
       expect(currentRadio().getAttribute('aria-checked')).toBe('true');
       expect(enabledActions()).toEqual(NONE);
     });
@@ -2005,7 +2013,7 @@ describe('OffScreen — the action row (console Task 7)', () => {
     it('a clean Current, then an edited save: Current reads plain, Save on the save lights', () => {
       saveNamedSession('Dusk Run', structuredClone(live.payload));
       saveNamedSession('Other', savedPayload('other'));
-      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
       landsAsItself();
       themeMovesLive();
       render(<OffScreen />);
@@ -2103,30 +2111,30 @@ describe('OffScreen — Rename (console Task 8)', () => {
     expect(enabledActions()).toEqual({ save: false, rename: true, delete: true });
   });
 
-  it('the loaded save’s name follows, the session name with it, so a later Save overwrites the renamed row', () => {
+  it('the loaded save’s name follows, so a later Save overwrites the renamed row', () => {
     pickDuskRun();
     expect(session().currentLoadedSessionName).toBe('Dusk Run');
     startRename();
     typeName('Dawn Run');
     enter();
-    expect(session()).toMatchObject({ currentLoadedSessionName: 'Dawn Run', currentSessionName: 'Dawn Run' });
+    expect(session().currentLoadedSessionName).toBe('Dawn Run');
     fireEvent.click(row(human('home.off.theme.anchor')));
     fireEvent.click(saveButton());
     expect(listSessions().map((s) => s.name)).toEqual(['Dawn Run']);
   });
 
-  it('the session names are left alone when the renamed save is not the loaded one', () => {
+  it('the loaded name is left alone when the renamed save is not the loaded one', () => {
     pickDuskRun();
-    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other', currentSessionName: 'Typed Since' }));
+    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other' }));
     startRename();
     typeName('Dawn Run');
     enter();
-    expect(session()).toMatchObject({ currentLoadedSessionName: 'Other', currentSessionName: 'Typed Since' });
+    expect(session().currentLoadedSessionName).toBe('Other');
   });
 
   it('Current’s snapshot follows: Current, left from the save, is named after the new name, and a restore attaches it', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
-    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
     startRename();
@@ -2135,7 +2143,7 @@ describe('OffScreen — Rename (console Task 8)', () => {
     expect(currentRowName()).toBe(currentName('Dawn Run'));
     expect(currentEyebrow()).toBe(human('home.off.current'));
     fireEvent.click(currentRadio());
-    expect(session()).toMatchObject({ currentLoadedSessionName: 'Dawn Run', currentSessionName: 'Dawn Run' });
+    expect(session().currentLoadedSessionName).toBe('Dawn Run');
   });
 
   it('a blur out of the input commits, as Enter does', () => {
@@ -2376,24 +2384,23 @@ describe('OffScreen — Delete (console Task 9)', () => {
     request.mockRestore();
   });
 
-  it('the loaded save detaches, the session name suggested afresh', () => {
+  it('the loaded save detaches', () => {
     pickDuskRun();
     expect(session().currentLoadedSessionName).toBe('Dusk Run');
     deleteSave();
     expect(session().currentLoadedSessionName).toBeNull();
-    expect(session().currentSessionName).not.toBe('Dusk Run');
   });
 
   it('a save that is not the loaded one leaves the loaded name alone', () => {
     pickDuskRun();
-    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' }));
+    act(() => useSessionStore.setState({ currentLoadedSessionName: 'Other' }));
     deleteSave();
-    expect(session()).toMatchObject({ currentLoadedSessionName: 'Other', currentSessionName: 'Other' });
+    expect(session().currentLoadedSessionName).toBe('Other');
   });
 
   it('Current’s snapshot forgets the name: Current, left from the save, reads unsaved and unnamed, and a restore detaches', () => {
     saveNamedSession('Dusk Run', structuredClone(live.payload));
-    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run', currentSessionName: 'Dusk Run' });
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
     expect(currentEyebrow()).toBe(human('home.off.current'));
@@ -2526,10 +2533,15 @@ describe('OffScreen — Share on the readout (console Task 10)', () => {
 
   describe('one line at a time, the latest event’s', () => {
     let logged: ReturnType<typeof vi.spyOn>;
+    let fresh: MockInstance;
     beforeEach(() => {
       logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+      fresh = holdFreshName();
     });
-    afterEach(() => logged.mockRestore());
+    afterEach(() => {
+      logged.mockRestore();
+      fresh.mockRestore();
+    });
     const refuseSave = () => {
       const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
         throw new Error('quota exceeded');
@@ -2543,7 +2555,7 @@ describe('OffScreen — Share on the readout (console Task 10)', () => {
       await share();
       refuseSave();
       expect(copiedLine()).toBeNull();
-      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+      expect(statusSlot().textContent).toBe(saveFailedLine(FRESH_NAME));
     });
 
     it('a copy after a refused Save replaces the failure, and the dismiss leaves the slot empty', async () => {
@@ -2570,7 +2582,7 @@ describe('OffScreen — Share on the readout (console Task 10)', () => {
       await share();
       refuseSave();
       act(() => vi.advanceTimersByTime(5000));
-      expect(statusSlot().textContent).toBe(saveFailedLine('Quiet Harbour'));
+      expect(statusSlot().textContent).toBe(saveFailedLine(FRESH_NAME));
     });
   });
 });
@@ -2863,13 +2875,12 @@ describe('OffScreen — picking', () => {
     expect(applySessionPayload).toHaveBeenCalledWith(save);
   });
 
-  // Code review 2026-10-11: the Sessions list names the loaded save so a later Save overwrites it; the
-  // off screen's pick must too, or powering on and pressing Save writes a second entry.
-  it('picking a save names the session after it, as loading it from the Sessions list does', () => {
+  // Code review 2026-10-11: a save pick makes it the loaded save so a later Save overwrites it, or powering on and
+  // pressing Save writes a second entry.
+  it('picking a save makes it the loaded one', () => {
     saveNamedSession('Dusk Run', savedPayload('dusk'));
     render(<OffScreen />);
     fireEvent.click(row('Dusk Run'));
-    expect(useSessionStore.getState().currentSessionName).toBe('Dusk Run');
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
   });
 
@@ -3478,7 +3489,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
 
     it('a save lands, then Current: the pre-pick world is applied at the cover, Current checked, the pre-pick save attached again', async () => {
       saveNamedSession('Old Run', structuredClone(live.payload));
-      useSessionStore.setState({ currentLoadedSessionName: 'Old Run', currentSessionName: 'Old Run' });
+      useSessionStore.setState({ currentLoadedSessionName: 'Old Run' });
       saveNamedSession('Calm Run', calmRun());
       const prePick = structuredClone(live.payload);
       render(<OffScreen />);
@@ -3493,7 +3504,7 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       await land();
       expect(applySessionPayload).toHaveBeenCalledTimes(2);
       expect(lastApplied()).toEqual(prePick);
-      expect(useSessionStore.getState()).toMatchObject({ currentLoadedSessionName: 'Old Run', currentSessionName: 'Old Run' });
+      expect(useSessionStore.getState().currentLoadedSessionName).toBe('Old Run');
       expect(checked(currentName('Old Run'))).toBe('true');
       // The Loading rows are the restored world's again.
       expect(checked(human('home.off.theme.classic'))).toBe('true');
@@ -3509,7 +3520,6 @@ describe('OffScreen — world changes wait under the scene wash (revisions Task 
       fireEvent.click(row(currentName()));
       await land();
       expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-      expect(useSessionStore.getState().currentSessionName).not.toBe('Calm Run');
       expect(checked(currentName())).toBe('true');
     });
 

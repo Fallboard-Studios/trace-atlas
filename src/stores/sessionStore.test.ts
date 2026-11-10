@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
-import { useSessionStore, isWorldDirty, isPayloadDirty } from './sessionStore';
+import { useSessionStore, isWorldDirty, isPayloadDirty, nextSaveName } from './sessionStore';
 import { useAudioStore } from './audioStore';
 import { listSessions, loadSession, saveNamedSession } from '../utils/sessionStorageEngine';
 import { buildSessionPayload } from '../utils/sessionDiff';
@@ -19,31 +19,13 @@ describe('sessionStore', () => {
     expect(useSessionStore.getState()).not.toHaveProperty('setViewingUnsavedHistory');
   });
 
-  it('currentSessionName is a non-empty generated name on store creation', () => {
-    expect(useSessionStore.getState().currentSessionName).toEqual(expect.any(String));
-    expect(useSessionStore.getState().currentSessionName.length).toBeGreaterThan(0);
-  });
-
-  it('currentSessionName looks like the "Adjective Noun" word-list shape (two capitalized words)', () => {
-    expect(useSessionStore.getState().currentSessionName).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
-  });
-
   it('currentLoadedSessionName defaults to null on every fresh store creation', () => {
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
   });
 
-  it('setCurrentSessionName updates only currentSessionName', () => {
-    const before = useSessionStore.getState().currentLoadedSessionName;
-    useSessionStore.getState().setCurrentSessionName('My Custom Name');
-    expect(useSessionStore.getState().currentSessionName).toBe('My Custom Name');
-    expect(useSessionStore.getState().currentLoadedSessionName).toBe(before);
-  });
-
-  it('setCurrentLoadedSessionName updates only currentLoadedSessionName', () => {
-    const before = useSessionStore.getState().currentSessionName;
+  it('setCurrentLoadedSessionName sets the loaded name', () => {
     useSessionStore.getState().setCurrentLoadedSessionName('some-saved-session');
     expect(useSessionStore.getState().currentLoadedSessionName).toBe('some-saved-session');
-    expect(useSessionStore.getState().currentSessionName).toBe(before);
   });
 
   it('setCurrentLoadedSessionName accepts null to clear it back to unloaded', () => {
@@ -52,165 +34,110 @@ describe('sessionStore', () => {
     expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
   });
 
-  it('the two setters have no side effects beyond the store\'s own state (no AudioEngine or storage calls)', () => {
-    // Nothing to spy on directly: calling the setters doesn't throw or touch anything requiring a
-    // browser API this test environment lacks, and storage stays as it was.
+  it('the setter has no side effects beyond the store\'s own state (no AudioEngine or storage calls)', () => {
     localStorage.clear();
-    expect(() => {
-      useSessionStore.getState().setCurrentSessionName('Another Name');
-      useSessionStore.getState().setCurrentLoadedSessionName('another-loaded');
-    }).not.toThrow();
+    expect(() => useSessionStore.getState().setCurrentLoadedSessionName('another-loaded')).not.toThrow();
     expect(listSessions()).toEqual([]);
   });
 });
 
 /*
- * Keep (docs/tasks/OFF_SCREEN.md Task 14, spec assumption 14): one button, no name field. keepCurrentWorld saves the
- * live world under the loaded save's name when one is loaded, else under the suggestion the Comms Save already
- * proposes, marks it loaded and returns the name. isWorldDirty is what dims Keep: false only when the loaded save's
- * stored payload equals the live world now — both sides normalised, so an untouched reload reads clean.
+ * The off screen's Save (docs/specs/OFF_SCREEN_CONSOLE.md §1.5): one button, no name field. nextSaveName is the name it
+ * writes: the loaded save's when one is loaded, else a fresh "Adjective Noun" no save has. keepCurrentWorld(name) saves
+ * the live world under it and marks it loaded. The session name the deleted name input held went at the console's code
+ * review (2026-11-10): with no input, it only ever mirrored the loaded name or held a suggestion.
  */
-describe('keepCurrentWorld', () => {
+describe('nextSaveName', () => {
   beforeEach(() => {
     localStorage.clear();
-    useSessionStore.setState({ currentSessionName: 'Quiet Harbour', currentLoadedSessionName: null });
+    useSessionStore.setState({ currentLoadedSessionName: null });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('is the loaded save’s name when one is loaded, trimmed', () => {
+    useSessionStore.setState({ currentLoadedSessionName: '  Dusk Run  ' });
+    expect(nextSaveName()).toBe('Dusk Run');
   });
 
-  it('saves the live world under the suggested name when no save is loaded, marks it loaded, and returns the name', () => {
-    const name = useSessionStore.getState().keepCurrentWorld();
-    expect(name).toBe('Quiet Harbour');
-    expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
-    expect(loadSession('Quiet Harbour')).toEqual(JSON.parse(JSON.stringify(buildSessionPayload())));
-    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
-    expect(useSessionStore.getState().currentSessionName).toBe('Quiet Harbour');
+  it('with nothing loaded, is a fresh "Adjective Noun" (two capitalised words)', () => {
+    expect(nextSaveName()).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
   });
 
-  it('saves under the loaded name when one is loaded — overwriting that row, not adding one — and ignores the suggestion', () => {
-    saveNamedSession('Dusk Run', { ...buildSessionPayload(), swellFrequency: 1 });
+  it('a blank loaded name falls back to a fresh one: never an unnamed row', () => {
+    useSessionStore.setState({ currentLoadedSessionName: '   ' });
+    expect(nextSaveName()).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
+  });
+
+  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R6: with nothing loaded, Save writes a new row, never over another save.
+  it('skips a suggestion that names a save: the next one that names none is used', () => {
+    const taken = suggestionAt(0);
+    const free = suggestionAt(0.99);
+    expect(free).not.toBe(taken); // precondition
+    saveNamedSession(taken, buildSessionPayload());
+    vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(0.99);
+    expect(nextSaveName()).toBe(free);
+  });
+
+  it('when every draw names a save, the suggestion is numbered: " 2", then " 3"', () => {
+    const taken = suggestionAt(0);
+    saveNamedSession(taken, buildSessionPayload());
+    vi.spyOn(Math, 'random').mockReturnValue(0); // every suggestion is the taken name
+    expect(nextSaveName()).toBe(taken + ' 2');
+    saveNamedSession(taken + ' 2', buildSessionPayload());
+    expect(nextSaveName()).toBe(taken + ' 3');
+  });
+
+  it('with a save loaded, is that save’s name even when other saves exist', () => {
+    saveNamedSession('Dusk Run', buildSessionPayload());
+    saveNamedSession('Quiet Harbour', buildSessionPayload());
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
-    const name = useSessionStore.getState().keepCurrentWorld();
-    expect(name).toBe('Dusk Run');
-    expect(listSessions().map((s) => s.name)).toEqual(['Dusk Run']);
-    expect(loadSession('Dusk Run')?.swellFrequency).toBe(buildSessionPayload().swellFrequency);
-    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Dusk Run');
-  });
-
-  it('keeping twice writes one row, not two', () => {
-    useSessionStore.getState().keepCurrentWorld();
-    useSessionStore.getState().keepCurrentWorld();
-    expect(listSessions()).toHaveLength(1);
-  });
-
-  it('trims the name, and a blank suggestion (emptied in Comms) falls back to a fresh generated one — never an unnamed row', () => {
-    useSessionStore.setState({ currentSessionName: '  Quiet Harbour  ' });
-    expect(useSessionStore.getState().keepCurrentWorld()).toBe('Quiet Harbour');
-    localStorage.clear();
-    useSessionStore.setState({ currentSessionName: '   ', currentLoadedSessionName: null });
-    const name = useSessionStore.getState().keepCurrentWorld();
-    expect(name).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
-    expect(listSessions().map((s) => s.name)).toEqual([name]);
-  });
-
-  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R6: with nothing loaded, Keep writes a new row. The name the session carries
-  // (a suggestion, or a name typed in Comms) can already belong to a save, and that save is never overwritten.
-  describe('never overwrites a save that is not the loaded one (review R6)', () => {
-    afterEach(() => vi.restoreAllMocks());
-
-    it('with a save already named as the session and nothing loaded, Keep writes a new row and leaves that save untouched', () => {
-      const other = { ...buildSessionPayload(), swellFrequency: 1 };
-      saveNamedSession('Quiet Harbour', other);
-      const savedAt = listSessions()[0].savedAt;
-
-      const name = useSessionStore.getState().keepCurrentWorld();
-
-      expect(name).not.toBe('Quiet Harbour');
-      expect(loadSession('Quiet Harbour')).toEqual(JSON.parse(JSON.stringify(other)));
-      expect(listSessions().find((s) => s.name === 'Quiet Harbour')?.savedAt).toBe(savedAt);
-      expect(listSessions().map((s) => s.name).sort()).toEqual(['Quiet Harbour', name].sort());
-      expect(useSessionStore.getState()).toMatchObject({ currentLoadedSessionName: name, currentSessionName: name });
-    });
-
-    it('skips a suggestion that names a save: the next one that names none is used', () => {
-      const taken = suggestionAt(0);
-      const free = suggestionAt(0.99);
-      expect(free).not.toBe(taken); // precondition
-      saveNamedSession(taken, buildSessionPayload());
-      useSessionStore.setState({ currentSessionName: '' }); // blank: Keep draws a suggestion
-      vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(0.99);
-
-      expect(useSessionStore.getState().keepCurrentWorld()).toBe(free);
-      expect(listSessions()).toHaveLength(2);
-    });
-
-    it('when every draw names a save, the suggestion is numbered: " 2", then " 3"', () => {
-      const taken = suggestionAt(0);
-      saveNamedSession(taken, buildSessionPayload());
-      useSessionStore.setState({ currentSessionName: taken });
-      vi.spyOn(Math, 'random').mockReturnValue(0); // every suggestion is the taken name
-
-      expect(useSessionStore.getState().keepCurrentWorld()).toBe(taken + ' 2');
-      useSessionStore.setState({ currentLoadedSessionName: null, currentSessionName: taken });
-      expect(useSessionStore.getState().keepCurrentWorld()).toBe(taken + ' 3');
-      expect(listSessions()).toHaveLength(3);
-    });
-
-    it('with a save loaded, Keep still overwrites that save, whatever the session is named', () => {
-      saveNamedSession('Dusk Run', { ...buildSessionPayload(), swellFrequency: 1 });
-      saveNamedSession('Quiet Harbour', { ...buildSessionPayload(), swellFrequency: 2 });
-      useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
-
-      expect(useSessionStore.getState().keepCurrentWorld()).toBe('Dusk Run');
-      expect(loadSession('Dusk Run')?.swellFrequency).toBe(buildSessionPayload().swellFrequency);
-      expect(loadSession('Quiet Harbour')?.swellFrequency).toBe(2);
-      expect(listSessions()).toHaveLength(2);
-    });
+    expect(nextSaveName()).toBe('Dusk Run');
   });
 });
 
-describe('detachLoadedSession', () => {
+describe('keepCurrentWorld', () => {
   beforeEach(() => {
-    useSessionStore.setState({ currentSessionName: 'Dusk Run', currentLoadedSessionName: 'Dusk Run' });
-  });
-
-  it("forgets the loaded save and, when the name input still carries that save's name, suggests afresh", () => {
-    useSessionStore.getState().detachLoadedSession();
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(useSessionStore.getState().currentSessionName).not.toBe('Dusk Run');
-    expect(useSessionStore.getState().currentSessionName).toMatch(/^[A-Z][a-z]+ [A-Z][a-z]+$/);
-  });
-
-  it('leaves a name the user typed alone', () => {
-    useSessionStore.setState({ currentSessionName: 'My Own Name' });
-    useSessionStore.getState().detachLoadedSession();
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-    expect(useSessionStore.getState().currentSessionName).toBe('My Own Name');
-  });
-
-  it('is a no-op when nothing is loaded', () => {
-    useSessionStore.setState({ currentSessionName: 'Quiet Harbour', currentLoadedSessionName: null });
-    useSessionStore.getState().detachLoadedSession();
-    expect(useSessionStore.getState().currentSessionName).toBe('Quiet Harbour');
-    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
-  });
-
-  // docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R6: the fresh suggestion is the next Keep's name, so it names no save either.
-  it('suggests a name no save holds: a suggestion that names a save is skipped (review R6)', () => {
     localStorage.clear();
-    const taken = suggestionAt(0);
-    saveNamedSession(taken, { ...buildSessionPayload(), swellFrequency: 1 });
-    const spy = vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(0.99);
+    useSessionStore.setState({ currentLoadedSessionName: null });
+  });
 
-    useSessionStore.getState().detachLoadedSession();
+  it('saves the live world under the name it is given and marks it loaded', () => {
+    useSessionStore.getState().keepCurrentWorld('Quiet Harbour');
+    expect(listSessions().map((s) => s.name)).toEqual(['Quiet Harbour']);
+    expect(loadSession('Quiet Harbour')).toEqual(JSON.parse(JSON.stringify(buildSessionPayload())));
+    expect(useSessionStore.getState().currentLoadedSessionName).toBe('Quiet Harbour');
+  });
 
-    expect(useSessionStore.getState().currentSessionName).toBe(suggestionAt(0.99));
-    spy.mockRestore();
+  it('over the loaded save, overwrites that row rather than adding one, leaving other saves alone', () => {
+    saveNamedSession('Dusk Run', { ...buildSessionPayload(), swellFrequency: 1 });
+    saveNamedSession('Quiet Harbour', { ...buildSessionPayload(), swellFrequency: 2 });
+    useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
+    useSessionStore.getState().keepCurrentWorld(nextSaveName());
+    expect(loadSession('Dusk Run')?.swellFrequency).toBe(buildSessionPayload().swellFrequency);
+    expect(loadSession('Quiet Harbour')?.swellFrequency).toBe(2);
+    expect(listSessions()).toHaveLength(2);
+  });
+
+  it('saving twice with nothing loaded at first writes one row, not two', () => {
+    useSessionStore.getState().keepCurrentWorld(nextSaveName());
+    useSessionStore.getState().keepCurrentWorld(nextSaveName());
+    expect(listSessions()).toHaveLength(1);
+  });
+
+  it('a storage that refuses the write throws, and the loaded name stays as it was', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new DOMException('full', 'QuotaExceededError');
+    });
+    expect(() => useSessionStore.getState().keepCurrentWorld('Quiet Harbour')).toThrow();
+    expect(useSessionStore.getState().currentLoadedSessionName).toBeNull();
+    vi.restoreAllMocks();
   });
 });
 
 describe('isWorldDirty', () => {
   beforeEach(() => {
     localStorage.clear();
-    useSessionStore.setState({ currentSessionName: 'Quiet Harbour', currentLoadedSessionName: null });
+    useSessionStore.setState({ currentLoadedSessionName: null });
   });
 
   it('is true when no save is loaded: a world that came from a seed, a preset or a link is not kept yet', () => {
@@ -218,19 +145,19 @@ describe('isWorldDirty', () => {
   });
 
   it('is false right after a keep — the stored payload equals the live world after both sides are normalised', () => {
-    useSessionStore.getState().keepCurrentWorld();
+    useSessionStore.getState().keepCurrentWorld(nextSaveName());
     expect(isWorldDirty()).toBe(false);
   });
 
   it('is true once the world changes after a keep, and false again after keeping again', () => {
-    useSessionStore.getState().keepCurrentWorld();
+    useSessionStore.getState().keepCurrentWorld(nextSaveName());
     useAudioStore.setState({ swellFrequency: useAudioStore.getState().swellFrequency + 1 });
     expect(isWorldDirty()).toBe(true);
-    useSessionStore.getState().keepCurrentWorld();
+    useSessionStore.getState().keepCurrentWorld(nextSaveName());
     expect(isWorldDirty()).toBe(false);
   });
 
-  it('is false for a loaded save that equals the live world, even one written by the Comms Save path', () => {
+  it('is false for a loaded save that equals the live world, whoever wrote it', () => {
     saveNamedSession('Dusk Run', buildSessionPayload());
     useSessionStore.setState({ currentLoadedSessionName: 'Dusk Run' });
     expect(isWorldDirty()).toBe(false);
@@ -242,7 +169,7 @@ describe('isWorldDirty', () => {
     expect(isWorldDirty()).toBe(true);
   });
 
-  it('is true when the loaded name no longer exists in storage (deleted in Comms, or a Factory Reset)', () => {
+  it('is true when the loaded name no longer exists in storage (a Factory Reset)', () => {
     useSessionStore.setState({ currentLoadedSessionName: 'Ghost' });
     expect(isWorldDirty()).toBe(true);
   });
@@ -252,7 +179,7 @@ describe('isWorldDirty', () => {
 describe('isPayloadDirty', () => {
   beforeEach(() => {
     localStorage.clear();
-    useSessionStore.setState({ currentSessionName: 'Quiet Harbour', currentLoadedSessionName: null });
+    useSessionStore.setState({ currentLoadedSessionName: null });
   });
 
   it('is false for a payload equal to its stored save, after both sides are normalised', () => {
