@@ -540,7 +540,7 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
 
   **Estimated scope:** S
 
-- [ ] **Task 15: The crossings**
+- [x] **Task 15: The crossings**
 
   **Description:** The crossing probe rebuilt in the scratchpad from the backlog 67 record's recipe (the G1 section's
   "The crossings": the Vite page on the branch's `src/`, the 440 Hz + 1 kHz stereo pair into `getGlobalChainEntry()`,
@@ -553,10 +553,15 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
   **Proof:** Run — recorded in the record, with the main-thread time of each build.
 
   **Acceptance criteria:**
-  - [ ] Every event's ratio is at or under ×1.6 with no gap, or the failure is reported to Crawford before anything else.
+  - [x] Every event's ratio is at or under ×1.6 with no gap, or the failure is reported to Crawford before anything else.
 
   **Verification:**
-  - [ ] The record's table, three runs each, the probe's location named.
+  - [x] The record's table, three runs each, the probe's location named.
+
+  **As run (2026-11-10):** record "Backlog 72" §3. Every event is at or under ×1.107 with no gap, over three runs; the
+  checks read around each call confirm each light really built from absent (and the inside-the-wait light kept its
+  node). Builds cost 3–25 ms of main thread; the hold-off lift's six, 60–62 ms. One deviation: the abrupt step ran
+  twice on the `t72` page and twice on each of the three BitCrusher pages (eight in all), not three times.
 
   **Dependencies:** Checkpoint C.
 

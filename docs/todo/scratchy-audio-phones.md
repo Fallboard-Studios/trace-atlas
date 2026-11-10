@@ -3198,3 +3198,76 @@ and 67's band:
 **Against T14's bar: met.** The mean, crest and trough deltas on W1 and W2 are recorded above, with their bands. The
 mean moved beyond every band, so PERFORMANCE.md's running table gets a new row: the branch's W1 Full mean in this
 sitting, beside main's.
+
+### 3. The crossings (T15)
+
+**The probe.** It was rebuilt in this session's scratchpad (`probe/`) from §6 of backlog 67 above, whose probe lives in
+that session's scratchpad (`02308205…/scratchpad/probe/`). The recorder worklet and `index.html` are copied unchanged.
+`site/probe.js` adds the scenarios `t72` and `bitcrusher`. `drive.mjs` adds the `flags` and `readyMs` columns, and
+`vite.config.mjs` adds its own `cacheDir`. The page imports the branch's own `src/` through `@`, from a scratch `git
+worktree` at 5b914870 (`ARM=branch npx vite --config probe/vite.config.mjs --port 5199`). Results are in `probe/out/`:
+`t72.json`, `bc-r1.json`, `bc-r2.json` and `bc-r3.json`, plus the two smoke runs `smoke-t72.json` and `smoke-bc.json`.
+
+The method is §6's:
+
+- **Signal:** Tone on a native `AudioContext` (48 kHz, `baseLatency` 0.0107, `lookAhead` 0.1) in headless Chrome. The
+  440 Hz + 1 kHz stereo pair goes into `getGlobalChainEntry()`, and at half level into the room the event needs
+  (Double, or Grit for the BitCrusher).
+- **Recording:** a worklet recorder on the destination, every chunk stamped with `currentFrame`, and every
+  context-timer fire stamped too.
+- **Metric:** the peak |second difference| in the event's window over the larger of the 400 ms before and after it,
+  against the bar of ×1.6. A gap is ≥ 64 samples under 10⁻⁴.
+- **Window:** from 20 ms before the call to 150 ms after the latest of these: the ramp's end, the last timer fire,
+  and (new) the moment a deferred light connected (the BitCrusher's, polled every 5 ms).
+- **Order:** events 1.2 s apart. Every effect starts dark at its own level, so `buildGlobalFxChain` builds none
+  (`builtAtStart` read `[]` in every run).
+
+**The checks the probe reads around each call** (`flags`), true in every run:
+
+- Each "from absent" light found the cell's `effect` null before the call and built after it.
+- Each "inside the wait" light kept the very node it found (`sameNode`).
+- Each Phaser and Width darken was torn down after the wait.
+- A Chorus darkened by its room's feed was kept while unfed. It was torn down once its Return was written to 0 while
+  unfed (the re-send path).
+- Each hold tore all six lit effects down (`builtAfterWait: []`). Each lift built all six from absent (`absentBefore`:
+  10).
+- Each world-change push found the effect it lights absent, and built it.
+
+| Event (three runs each) | Ratio, r1 · r2 · r3 (bar ≤ ×1.6) | Gap | Main thread of the call |
+|---|---|---|---|
+| Phaser light from absent (Mix 0 → 0.3, after the wait) | ×0.865 · ×0.876 · ×0.869 | none | 19.8 · 13.4 · 16.0 ms (the build) |
+| Phaser darken (0.3 → 0), record only | ×0.798 · ×0.796 · ×0.797 | none | 0.1–0.2 ms |
+| Phaser light inside the wait (0.8 s after the darken) | ×0.865 · ×0.879 · ×0.869 | none | 0.5–0.9 ms (no build) |
+| Chorus light from absent by its room's feed (Return 0.3) | ×1.011 · ×1.005 · ×1.010 | none | 24.6 · 24.0 · 23.4 ms |
+| Chorus darken by its room's feed, record only | ×0.981 · ×0.981 · ×0.976 | none | 0.1 ms |
+| Width light from absent (0.5 → 0.8) | ×1.000 · ×1.000 · ×1.000 | none | 3.2 · 3.4 · 3.6 ms |
+| Width darken (0.8 → 0.5), record only | ×1.000 · ×1.000 · ×1.000 | none | 0.1–0.2 ms |
+| BitCrusher's first light in a fresh context (Grit fed, Mix 0.5), one page each | ×1.000 · ×1.000 · ×1.000 | none | 2.8 · 2.7 · 2.6 ms; connected +10.7 · +0 · +10.7 ms |
+| Hold-off, six lit, record only | ×1.000 · ×1.000 · ×1.000 | none (longest quiet 1–4 samples) | 0.1–0.2 ms |
+| Hold-off lift, six to build (AutoWah, Phaser, Chorus, Tremolo, Vibrato, Width) | ×1.000 · ×1.000 · ×1.000 | none | **61.1 · 61.7 · 60.3 ms** |
+| World change: Tremolo lights from absent, Phaser darkens | ×1.012 · ×0.995 · ×1.048 | none | 21.7 · 17.7 · 18.4 ms (the whole push) |
+| World change: Phaser lights from absent, Tremolo darkens | ×1.107 · ×1.009 · ×1.082 | none | 11.5 · 13.2 · 10.7 ms (the whole push) |
+| Control: no change | ×1.000 · ×1.000 · ×1.000 | none | — |
+| Control: a bare full-level connect (the metric's check) | t72 ×5.37 · ×4.69; BitCrusher pages ×5.3–×6.1 | — | — |
+
+- **The world change** is a real `applyGlobalAudioToEngine` push of the store's seeded `globalAudio`. Two settings
+  alternate: A has Phaser 0.3 and Tremolo 0, B has Phaser 0 and Tremolo 0.3. The first push of A, unmarked, built the
+  Phaser, Chorus, Vibrato and Width. In each marked push, the Phaser's or Tremolo's teardown fires about 1.2 s after
+  the call, inside its window. The smoke pass (one run) read ×1.400 on "Tremolo lights", under the bar; the three
+  runs read ×0.995–×1.048.
+- **The BitCrusher's deferred light.** The call builds the node and leaves the cell dry. The cell connects when
+  the worklet reports ready: 10.7 ms later in two pages, and in the third before the context clock's next step (the
+  probe reads `currentTime`, which moves in 10.7 ms steps here). The light then ramps from 0 as any other.
+- **A ratio of exactly ×1.000** (the Width, the BitCrusher, the hold-off lift) means the window's peak equals the
+  steady sound's peak on one side: the lit effect's own signal (the crushed steps, the widened side) sets both. A click
+  smaller than that steady peak could hide there. The full-level connect still reads ×4.7–×6.1 with those effects lit,
+  so the metric sees a real step.
+- **Main-thread time.** A build costs 3–25 ms on this desktop: Width 3 ms, BitCrusher 3 ms, the Phaser 13–20 ms (its
+  stages) and the Chorus 23–25 ms. The hold-off lift's six builds take 60–62 ms in one call, inside Tone's 100 ms
+  lookahead on this machine. A phone runs the main thread several times slower, so the same lift could exceed the
+  lookahead there, which risks a late note rather than a click. The plan's risk table names this. Staggering stays
+  an "ask first" change (spec §3), and nothing measured here asks for it.
+- The console was clean in every run.
+
+**Against T15's bar: met.** Every event reads at or under ×1.6 with no gap, over three runs each: the highest is
+×1.107, against the full-level connect's ×4.7 and more.
