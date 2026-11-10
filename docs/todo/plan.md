@@ -16,25 +16,15 @@ the item's own measure-first check runs, and the item archives if the check find
 - Backlog [72](backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9) **Dark effects leave the
   graph** — 67's B9, priced −0.026 / −0.022 at Full; interviewed 2026-11-10
   ([intent](../intent/dark-effects-leave-the-graph.md)), then spec → plan → build.
-- Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
-  view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
-  lag line read beside the pops now that 37 and 38 are in.
 
 ## Stage 2 — Bugs and quality of life
 
-- Backlog [43](backlog.md#43-animation-the-world-pause-misses-timelines-built-paused-and-played-later) **The world pause
-  and timelines built paused** — if needed, else archive.
 - Backlog [44](backlog.md#44-sessions-warn-before-the-saves-fill-the-browsers-storage) **Warn before the saves fill the
   browser's storage** — a short interview first.
 - Backlog [66](backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) **The full test run's
   unhandled timeout** — find the test that never yields, then yield or split it.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes with DevTools open.
-- Backlog [31](backlog.md#31-tooling-profilemjs-against-the-layout-rework) **`profile.mjs` re-aimed at section tabs** —
-  option (B), if needed, else archive.
-- Backlog [42](backlog.md#42-audio-does-a-long-pause-on-ios-safari-come-back-measure-first) **Does a long pause on iOS
-  Safari come back?** — together with roadmap [53](roadmap.md#53-per-mover-compositor-layers)'s Safari look (spec §5.3's
-  manual list), whenever a Mac or iPhone is to hand.
 
 ## Stage 3 — Audio refinement
 
@@ -93,8 +83,9 @@ the item's own measure-first check runs, and the item archives if the check find
 
 - Roadmap [69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes) **The leaner synth layer** — 67's
   G2b, spun off at its Gate A; 67's Gate B passed without it (2026-11-10), so it waits on a need.
-- Backlog [68](backlog.md#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph) **Automatic
-  tier choice for weaker desktops** — 67's lean graph has landed; the first question is whether any desktop still needs it.
+- Backlog [42](backlog.md#42-audio-does-a-long-pause-on-ios-safari-come-back-measure-first) **Does a long pause on iOS
+  Safari come back?** — together with roadmap [53](roadmap.md#53-per-mover-compositor-layers)'s Safari look (spec §5.3's
+  manual list); both wait on a Mac or iPhone being to hand, so neither sits in a stage.
 - Backlog [34](backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch) **The Tone
   upgrade** — waits for a Tone with the leak fix to be npm's `latest`; it then deletes `tonePatches.ts`.
 - Decisions, not work, left on three stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below

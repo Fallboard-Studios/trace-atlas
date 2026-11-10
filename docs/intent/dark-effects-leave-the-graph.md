@@ -62,7 +62,7 @@ with the Light tier's hold-off included, the saving there is larger. The change 
   gone; the backlog entry's question about it is moot. The global modulation pedal is itself one of the ten effects,
   not something aimed at them.
 - **Roadmap [69](../todo/roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes)** (the leaner synth layer)
-  and **backlog [68](../todo/backlog.md#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph)**
+  and **backlog [68](../todo/archive/backlog-archive.md#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph)**
   (automatic tier choice). Separate items.
 - **Any UI change**, including the `?debug` overlay's readouts.
 - **A Pixel listen as a gate.**

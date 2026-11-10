@@ -50,7 +50,7 @@ sounds), not by removing audio features. Full and Standard both get the lower fl
   population paying the 4K raster cost is the high-DPI laptop, not the 4K tower.
 - **Any automatic tier choice** (the backlog entry's direction 2, and the two shapes assessed at the interview: a
   static node-census estimate at boot, and a one-way reactive step-down on sustained underruns). Recorded as backlog
-  [68](../todo/backlog.md#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph) to revisit
+  [68](../todo/archive/backlog-archive.md#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph) to revisit
   with the lean graph in hand; its case gets weaker the leaner the graph is. The Audio Load dial as it stands remains
   the answer for weaker machines meanwhile.
 - **Removing features from the product.** Not this work.
