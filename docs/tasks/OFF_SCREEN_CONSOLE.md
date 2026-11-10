@@ -736,7 +736,7 @@ src/components/panels/screen/console src/stores/uiStore.test.ts`.
 `feature/off-screen-console` merges. Crawford expects it to retire the Companies nav item too, which Tasks 12–16 do not
 cover yet: plan that before Task 12 starts. **Built 2026-11-09, Crawford's call that day:** stacked on
 `feature/off-screen-console` (not merged yet; rebase onto `main` after it), and Tasks 12–15 as written, the nav at four
-boxes with Companies kept; the Companies retirement is a follow-up to plan on its own.
+boxes with Companies kept; the Companies retirement is a follow-up to plan on its own (planned 2026-11-09: Phase 5b).
 
 - [x] **Task 12: Fleet Params gains Audio Quality; `settings.quality*` becomes `fleet.quality*`**
 
@@ -911,6 +911,85 @@ boxes with Companies kept; the Companies retirement is a follow-up to plan on it
 
 ---
 
+### Phase 5b: Companies leaves the nav
+
+**Crawford, 2026-11-09:** after Checkpoint B, the Companies box goes too, on this branch. The Probes page (the roster
+board) already carries everything the Companies branch offered: + New Company, and a button on each company's name.
+**His call on where a company's screen opens: under Probes.** The `'companies'` tile and branch go entirely; a
+company opens from the roster board with the Probes box popped, breadcrumb Root / Probes / <Company> / <section>; the
+nav's Probes list stays robots only (All Probes, then the twelve). The nav ends at three boxes: Deck, Fleet Params,
+Probes. Nothing about companies themselves changes (the deal, bulk edit, create, rename, delete).
+
+- [ ] **Task 17: A company opens under Probes**
+
+  **Description:** `navActions.ts`: `selectEntity({ companyId })` selects the company and opens `'probes'` collapsed (was
+  `'companies'`); `branchHasEntity(s, 'probes')` counts `selectedCompanyId`, so the Probes box pressed on a company's
+  screen goes back to the board rather than toggling the list; the breadcrumb's `openEntity` under `'robots'` reads a
+  robot first, then a company, then All Probes. `ConsolePanel.tsx`'s `ProbesBranch` renders `CompanyScreen` for a
+  selected company (robot first, then company, then All Probes, then the board). `CompanyCrudControls.tsx`'s confirmed
+  Delete returns to `selectBranch('probes')`. The Companies box still exists after this task but nothing else leads to
+  it; Task 18 removes it.
+
+  **Proof:** RED test — `navActions.test.ts` (`selectEntity({ companyId })` leaves the `'robots'` tile open with the
+  list collapsed and the company selected; the breadcrumb for the `'robots'` tile with a company selected reads Root /
+  Probes / <Company> / Source; `pressBranchBox('probes')` on a company's screen goes back to the board with the list
+  open, the company cleared), `ConsolePanel.test.tsx` (the `'robots'` tile with a company selected renders the company's
+  screen) and `CompanyCrudControls.test.tsx` (a confirmed Delete lands on the `'robots'` tile).
+
+  **Acceptance criteria:**
+  - [ ] A company's name on the roster board opens its screen under Probes, the Probes box popped.
+
+  **Verification:**
+  - [ ] `npx vitest run src/components/panels/screen src/components/company` passes.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Checkpoint B. **Files:** `src/components/panels/screen/nav/navActions.ts`, `navActions.test.ts`,
+  `src/components/panels/screen/console/ConsolePanel.tsx`, `ConsolePanel.test.tsx`,
+  `src/components/company/CompanyCrudControls.tsx`, `CompanyCrudControls.test.tsx`
+
+  **Estimated scope:** S (three source files, a handful of lines each)
+
+- [ ] **Task 18: The Companies box and branch go**
+
+  **Description:** `'companies'` leaves `HubTile` (`src/types/hub.ts`) and `TopLevelBranch` (`uiStore.ts`);
+  `navActions.ts` loses `BRANCH_TILE.companies`, `TILE_CONTENT.companies`, `'companies'` from `ExpandingBranch` and
+  `EXPANDS_IN_PLACE`, and `openEntity`'s companies arm (its `tile` parameter goes). `NavPanel.tsx`'s `PARENT_BOXES` loses
+  the Companies row. `NavEntityList.tsx` loses `CompanyEntities`, its `CompanyCreateForm` import and its `branch` prop
+  (only Probes lists in place now); `NavEntityList.css` loses `__create`. `ConsolePanel.tsx` loses `CompaniesBranch` and
+  the record's `companies` entry. `company.root` (`src/content/copy/company.ts`) loses its last reader and goes.
+  Comments naming the Companies branch in these files are reworded. Tests: `NavPanel.test.tsx` (three boxes),
+  `NavEntityList.test.tsx` (the Companies list cases go), `navActions.test.ts` (the Companies branch cases go or move to
+  Probes), and `'companies'` as a stand-in tile in `deckCamera.test.ts`, `uiStore.test.ts`, `WorldView.test.tsx`,
+  `MetaBox.test.tsx`, `NavBreadcrumb.test.tsx`, `RosterBoard.test.tsx`, `CompanyScreen.test.tsx`,
+  `ConsolePanel.test.tsx` and `CompanyCrudControls.test.tsx` becomes `'robots'` or `'audioRig'`.
+
+  **Proof:** RED test — `NavPanel.test.tsx` (three parent boxes, Deck, Fleet Params, Probes, in order; no box named
+  Companies).
+
+  **Acceptance criteria:**
+  - [ ] `npm run build:types` passes with `'companies'` gone from both unions: `ConsolePanel`'s record and
+        `BRANCH_TILE` make any leftover a compile error.
+  - [ ] `content.test.ts` passes without `company.root`.
+
+  **Verification:**
+  - [ ] `npm test` passes.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 17. **Files:** `src/types/hub.ts`, `src/stores/uiStore.ts`, `navActions.ts`, `NavPanel.tsx`,
+  `NavEntityList.tsx`, `NavEntityList.css`, `ConsolePanel.tsx`, `src/content/copy/company.ts`, and the test files above
+
+  **Estimated scope:** M (the unions must change with their records in one commit; most edits are deletions)
+
+### Checkpoint C: Companies off the nav
+- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [ ] In the browser: the nav shows three boxes (Deck, Fleet Params, Probes); a company's name on the Probes page opens
+      its screen with the Probes box popped and the breadcrumb Root / Probes / <Company> / <section>; the Probes box or
+      the breadcrumb's Probes goes back to the board; + New Company still works from the board; deleting a company
+      lands on the board.
+- [ ] Reviewed with Crawford before Phase 6.
+
+---
+
 ### Phase 6: Docs
 
 - [ ] **Task 16: `docs/` — document the shipped behaviour**
@@ -927,8 +1006,10 @@ boxes with Companies kept; the Companies retirement is a follow-up to plan on it
   Delete, Share and Factory Reset), and the "three buttons, one encoder" bullet becomes one button.
   `COMPONENT_LIBRARY.md`: the consumers it names (`SectorSettingsDrawer`, Save & Share, the session list's rows,
   `SettingsScreen`) go. `CLAUDE.md`: SESSION_STORAGE's line loses the "Sessions" Settings accordion.
-  `docs/specs/OFF_SCREEN_CONSOLE.md` §2 gains the readers Task 12 found. Plus whatever the Companies nav item's
-  retirement needs, once planned. Spot-check every identifier against the shipped source, not this plan.
+  `docs/specs/OFF_SCREEN_CONSOLE.md` §2 gains the readers Task 12 found. Phase 5b's half: `UI_SHELL.md`'s nav panel is
+  three boxes, the Companies branch, its entity list and its breadcrumb go, and a company's screen opens under Probes
+  from the roster board; `COMPANIES.md` and `ANIMATION_SYSTEM.md` (the deck camera's company pick) are read for any
+  line naming the Companies branch. Spot-check every identifier against the shipped source, not this plan.
 
   **Proof:** Read — human review. No test file.
 
@@ -940,8 +1021,9 @@ boxes with Companies kept; the Companies retirement is a follow-up to plan on it
   - [ ] Manual review, each named identifier grepped in `src/`.
   - [ ] `npm run build:types`, `npm run lint` clean (docs-only change).
 
-  **Dependencies:** Tasks 1–15. **Files:** `docs/UI_SHELL.md`, `docs/SESSION_STORAGE.md`, `docs/COMPONENT_LIBRARY.md`,
-  `CLAUDE.md`, `docs/specs/OFF_SCREEN_CONSOLE.md`, `docs/sketches/off-screen.html`
+  **Dependencies:** Tasks 1–15, 17–18. **Files:** `docs/UI_SHELL.md`, `docs/SESSION_STORAGE.md`,
+  `docs/COMPONENT_LIBRARY.md`, `docs/COMPANIES.md`, `docs/ANIMATION_SYSTEM.md`, `CLAUDE.md`,
+  `docs/specs/OFF_SCREEN_CONSOLE.md`, `docs/sketches/off-screen.html`
 
   **Estimated scope:** S (docs only, five files)
 
