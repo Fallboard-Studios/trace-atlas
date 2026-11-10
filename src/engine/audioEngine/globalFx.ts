@@ -101,8 +101,9 @@ let _chorusLive: ChorusLive = defaultChorusLive();
 let _tremoloLive: TremoloLive = defaultTremoloLive();
 let _vibratoLive: VibratoLive = defaultVibratoLive();
 let _frequencyShifterLive: FrequencyShifterLive = defaultFrequencyShifterLive();
-// The Width stage, between the Compressor and the Limiter: after the rooms' join in both Decay Modes (GLOBAL_PEDALS.md §1.3).
-let _globalStereoWidener: Tone.StereoWidener | null = null;
+// The Width stage's mirror, the width last written (0.5 is unity). The Width stage sits between the Compressor and the
+// Limiter: after the rooms' join in both Decay Modes (GLOBAL_PEDALS.md §1.3).
+let _stereoWidenerLive: StereoWidenerSettings = { ...DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener };
 // The cycle-search cuts: zero-delay DelayNodes at the chain entry and after the High-Pass Filter (see CHAIN_CUT_OPTIONS).
 let _entryCut: Tone.Delay | null = null;
 let _filterCut: Tone.Delay | null = null;
@@ -310,6 +311,7 @@ export function buildGlobalFxChain(): void {
   _tremoloLive = defaultTremoloLive();
   _vibratoLive = defaultVibratoLive();
   _frequencyShifterLive = defaultFrequencyShifterLive();
+  _stereoWidenerLive = { ...DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener };
   resetSpreadTargets();
   const registrations: Partial<Record<BypassKey, EffectRegistration>> = {};
   if (DistortionCtor) {
@@ -369,6 +371,19 @@ export function buildGlobalFxChain(): void {
       build: () => new FrequencyShifterCtor({ frequency: _frequencyShifterLive.shift, wet: 1 }),
     };
   }
+  // Width is built at unity (0.5) and held fully wet, whatever its mirror holds: Width itself is the control, and exactly
+  // 0.5 is its dark state. Its width ramps to the mirror's from there as the cell lights, so a light from absent sounds as
+  // a light from built (the cell first, the width ramp concurrent, docs/specs/DARK_EFFECT_BYPASS.md assumption 5), the
+  // hold-off's lift included, which lights the cell without the setter (§1.4).
+  if (StereoWidenerCtor) {
+    registrations.stereoWidener = {
+      build: () => {
+        const widener = new StereoWidenerCtor({ width: 0.5, wet: 1 });
+        if (_stereoWidenerLive.width !== 0.5) rampOrSet(widener.width, _stereoWidenerLive.width, COLOUR_RAMP_SECONDS);
+        return widener;
+      },
+    };
+  }
   const distortion = registrations.distortion?.build() ?? null;
   const chebyshev = registrations.chebyshev?.build() ?? null;
   // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
@@ -402,15 +417,11 @@ export function buildGlobalFxChain(): void {
   const tremolo = pedal('tremolo', 'Tremolo');
   const vibrato = pedal('vibrato', 'Vibrato');
   const frequencyShifter = pedal('frequencyShifter', 'FrequencyShifter');
-  // Width: built at unity (0.5) and held fully wet - Width itself is the control, and exactly 0.5 is its dark state.
-  _globalStereoWidener = null;
-  if (StereoWidenerCtor) {
-    try {
-      _globalStereoWidener = new StereoWidenerCtor({ width: DEFAULT_GLOBAL_AUDIO_SETTINGS.stereoWidener.width, wet: 1 });
-    } catch (err) {
-      devWarn('[AudioEngine] StereoWidener could not be constructed; the chain runs without the Width stage', err);
-      _globalStereoWidener = null;
-    }
+  let stereoWidener: Tone.ToneAudioNode | null = null;
+  try {
+    stereoWidener = registrations.stereoWidener?.build() ?? null;
+  } catch (err) {
+    devWarn('[AudioEngine] StereoWidener could not be constructed; the chain runs without the Width stage', err);
   }
   // The bypass cells (docs/specs/DARK_EFFECT_BYPASS.md section 1.3), one per effect whose constructor exists, built
   // before the returns and the master so the master stays the last Gain made. Without a Gain or a Delay constructor no
@@ -431,7 +442,7 @@ export function buildGlobalFxChain(): void {
     ['tremolo', TremoloCtor, tremolo],
     ['vibrato', VibratoCtor, vibrato],
     ['frequencyShifter', FrequencyShifterCtor, frequencyShifter],
-    ['stereoWidener', StereoWidenerCtor, _globalStereoWidener],
+    ['stereoWidener', StereoWidenerCtor, stereoWidener],
   ];
   if (GainCtorFX && ChainCutCtor) {
     // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.3): the three rooms first, then each effect as a branch of
@@ -452,11 +463,6 @@ export function buildGlobalFxChain(): void {
     );
     for (const [, , effect] of effects) disposeQuietly(effect);
   }
-  // The `_global<Effect>` names of the effects not yet registered stay as aliases of the cells' effects, so a left-out
-  // effect's setter no-ops. A registered effect's setter reads its cell.
-
-
-  _globalStereoWidener = cellEffect<Tone.StereoWidener>('stereoWidener');
 
   if (GainCtorFX) {
     // Unity until setGlobalReverb / setGlobalDelay writes the sliders' wet. A failed construction leaves
@@ -1262,13 +1268,14 @@ export function setGlobalFrequencyShifter(params: Partial<FrequencyShifterSettin
  *  goes; anything else lights it, the cell first (so a reconnect is silent), the width ramp concurrent
  *  (docs/specs/DARK_EFFECT_BYPASS.md assumption 5). */
 export function setGlobalStereoWidener(params: Partial<StereoWidenerSettings>): void {
-  const widener = _globalStereoWidener;
-  if (!widener) return;
   try {
     const width = clampIfGiven('stereoWidener.width', params.width);
     if (width === undefined) return;
+    _stereoWidenerLive.width = width;
+    // A widener the Mix builds ramps to the mirror's width itself (its builder); one present before takes the ramp here.
+    const widener = cellEffect<Tone.StereoWidener>('stereoWidener');
     writeMix('stereoWidener', width);
-    rampOrSet(widener.width, width, COLOUR_RAMP_SECONDS);
+    if (widener) rampOrSet(widener.width, width, COLOUR_RAMP_SECONDS);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalStereoWidener failed', err);
   }

@@ -3314,7 +3314,7 @@ describe('globalFx', () => {
         expect(widener.connect).not.toHaveBeenCalled();
         expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
         expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
-        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(darkens()).toHaveLength(0);
 
         globalFx.setGlobalStereoWidener({ width: 0.7 });
         globalFx.setGlobalStereoWidener({ width: 0.5 });
@@ -3322,7 +3322,7 @@ describe('globalFx', () => {
         globalFx.setGlobalStereoWidener({ width: 0.5 });
         expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
         expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
-        expect(toneFlags.timeouts).toHaveLength(1);
+        expect(darkens()).toHaveLength(1);
       });
 
       it('re-lit before the timer fires: cancels it, ramps back to the widener without a second connect', async () => {
@@ -5093,6 +5093,69 @@ describe('globalFx', () => {
       expect(chorus.dispose).not.toHaveBeenCalled();
       expect(live.getCell('frequencyShifter')!.effect).toBe(shifter);
       expect(live.getCell('chorus')!.effect).toBe(chorus);
+    });
+  });
+
+  describe('Width leaves at 0.5 and comes back at 0.5 (Dark Effects Leave the Graph T9)', () => {
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.4 (Width is built at 0.5, its unity, and its width ramps from there
+    // as the cell lights), §5.1 case 9. A light from absent sounds as a light from built: the cell fades in linearly while
+    // the width ramps from 0.5 (docs/specs/DARK_EFFECT_BYPASS.md assumption 5).
+    const widenersBuilt = () => toneFlags.widenerCtor.mock.calls.length;
+    async function tornDown() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      const gone = lastInstance(toneFlags.widenerCtor);
+      globalFx.setGlobalStereoWidener({ width: 0.5 });
+      settle();
+      return { globalFx, gone };
+    }
+
+    it('Width at exactly 0.5 and the timers fired disposes the widener, its cell emptied', async () => {
+      const { gone } = await tornDown();
+      expect(gone.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('stereoWidener')!.effect).toBeNull();
+    });
+
+    it('Width 0.7 then constructs one widener at width 0.5 and ramps its width to 0.7 over COLOUR_RAMP_SECONDS, once', async () => {
+      const { globalFx, gone } = await tornDown();
+      const before = widenersBuilt();
+      gone.width.rampTo.mockClear();
+      globalFx.setGlobalStereoWidener({ width: 0.7 });
+      expect(widenersBuilt()).toBe(before + 1);
+      expect(toneFlags.widenerCtor.mock.calls.at(-1)?.[0]).toStrictEqual({ width: 0.5, wet: 1 });
+      const fresh = lastInstance(toneFlags.widenerCtor);
+      expect(fresh.width.rampTo.mock.calls).toEqual([[0.7, live.COLOUR_RAMP_SECONDS]]);
+      expect(gone.width.rampTo).not.toHaveBeenCalled();
+      expect(live.getCell('stereoWidener')!.effect).toBe(fresh);
+      expect(live.getCell('stereoWidener')!.connected).toBe(true);
+      expect(live.getCell('stereoWidener')!.mix).toBe(1);
+    });
+
+    it('a widener torn down by the hold-off is built at 0.5 at the lift and ramps to the width written last', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      globalFx.setGlobalStereoWidener({ width: 0.8 });
+      const gone = lastInstance(toneFlags.widenerCtor);
+      globalFx.setEffectsHeldOff(true);
+      settle();
+      expect(gone.dispose).toHaveBeenCalledTimes(1);
+      globalFx.setGlobalStereoWidener({ width: 0.25 });
+      expect(live.getCell('stereoWidener')!.effect).toBeNull();
+      globalFx.setEffectsHeldOff(false);
+      expect(toneFlags.widenerCtor.mock.calls.at(-1)?.[0]).toStrictEqual({ width: 0.5, wet: 1 });
+      const fresh = lastInstance(toneFlags.widenerCtor);
+      expect(fresh.width.rampTo.mock.calls).toEqual([[0.25, live.COLOUR_RAMP_SECONDS]]);
+      expect(live.getCell('stereoWidener')!.connected).toBe(true);
+    });
+
+    it('a widener present before the call still takes the ramp to the written width', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const widener = lastInstance(toneFlags.widenerCtor);
+      globalFx.setGlobalStereoWidener({ width: 0.3 });
+      expect(widener.width.rampTo.mock.calls).toEqual([[0.3, live.COLOUR_RAMP_SECONDS]]);
+      expect(widenersBuilt()).toBe(1);
     });
   });
 
