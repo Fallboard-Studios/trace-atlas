@@ -101,7 +101,7 @@ three, else X and Y in one row under the name.
   the editor opens on the live world, and Scan is the draw. (Assumption 1; the mount draw was only there because a
   row needs a label.)
 - **A commit is a pick.** Enter in either input, or blur out of the editor group, commits the draft. A commit whose
-  identity equals what the editor last synced to does nothing (Foundry's `retransmitChangesWorld` guard). A commit
+  identity equals what the editor last synced to does nothing (the editor's own guard). A commit
   that differs selects New Transmission and does exactly what picking the New Transmission row does today: the
   snapshot is taken if there is none (§1.3), the change waits under the wash, then
   `retransmitWorld({ attenuationStyleName, coordinates, theme: 'classic', aspects: {} })` and
