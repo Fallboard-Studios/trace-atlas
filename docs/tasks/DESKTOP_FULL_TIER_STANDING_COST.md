@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md](../specs/DESKTOP_FULL_TIER_STANDING_COST.md). Source
 intent: [docs/intent/desktop-full-tier-standing-cost.md](../intent/desktop-full-tier-standing-cost.md). Backlog slot:
-this is backlog [67](../todo/backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom)'s
+this is backlog [67](../todo/archive/backlog-archive.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom)'s
 own fix (spec §7 Q7), plan.md Stage 1. Docs branch `docs/intent-desktop-full-tier-67` (the intent, the spec, this
 file); build branch `perf/desktop-full-tier-standing-cost` off `main` once the docs merge, else off the docs branch.
 
@@ -1082,7 +1082,7 @@ branch `perf/desktop-full-tier-ab-runs`).
 
 ### Phase C: The pin
 
-- [ ] **Task 25: `docs/PERFORMANCE.md`, the spec §8 — the regression line**
+- [x] **Task 25: `docs/PERFORMANCE.md`, the spec §8 — the regression line** (2026-11-10)
 
   **Description:** Gate B's passing build, `npm run perf:audio` on W1 at Full, 120 s, three rounds in one sitting
   beside a byte-identical copy (the noise band): the mean capacity and the crest bucket, with the commit, go in
@@ -1090,13 +1090,18 @@ branch `perf/desktop-full-tier-ab-runs`).
   rule: a later change that reads above the pin by more than that sitting's band on a same-session A/B against the
   pinned commit is a regression to explain in its PR.
 
+  **As run (2026-11-10).** The pin was taken on 5ca8679f's code, the morning after Gate B, because `main` had moved past
+  the build measured in §6–§9. Mean 0.473, crest 0.547, trough 0.370; the band was 0.015 / 0.018 / 0.040. The six runs
+  are quoted in PERFORMANCE.md, "The audio pin at Full", and spec §8. There is no running table in PERFORMANCE.md, so
+  the row is a dated section of its own.
+
   **Proof:** a run. Read — the row and §8.
 
   **Acceptance criteria:**
-  - [ ] The row names the world, the tier, the commit, the mean, the crest and the band.
+  - [x] The row names the world, the tier, the commit, the mean, the crest and the band.
 
   **Verification:**
-  - [ ] Runs kept and quoted; manual read.
+  - [x] Runs kept and quoted; manual read.
 
   **Dependencies:** Task 20 (a pass).
 
@@ -1108,7 +1113,7 @@ branch `perf/desktop-full-tier-ab-runs`).
 
 ### Phase D: Docs
 
-- [ ] **Task 26: `docs/AUDIO_SYSTEM.md`, `docs/ROBOT_LIFECYCLE.md`, `docs/PERFORMANCE.md` — document the shipped behaviour**
+- [x] **Task 26: `docs/AUDIO_SYSTEM.md`, `docs/ROBOT_LIFECYCLE.md`, `docs/PERFORMANCE.md` — document the shipped behaviour** (2026-11-10)
 
   **Part brought forward (Crawford, 2026-11-07, before Phase B's code merged).** The statements that code made false
   are corrected: AUDIO_SYSTEM.md's who-stands-by rule (muted robots, the expected admission warning), the latency hint
@@ -1127,13 +1132,19 @@ branch `perf/desktop-full-tier-ab-runs`).
   use), the forced GC before the census line, the pin row (T25). Every named identifier spot-checked against the
   shipped source.
 
+  **As run (2026-11-10).** AUDIO_SYSTEM.md gains "The bus filter is the context's own biquad" under the graph
+  diagram. The composite `out` Gain is not mentioned, since T13 was dropped. PERFORMANCE.md gains the forced GC on the
+  census line, the `--no-gc` flag, a "Census by maker" section, and the pin. The brought-forward part was re-checked and
+  holds. Names spot-checked: `buildBusFilter`, `glideBusFilter`, `isNativeBusFilter`, `updateRobotBusFilter`,
+  `FILTER_RAMP_SECONDS`, `effectEnds`, and the census tool's flags.
+
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every documented name and behaviour matches the shipped code; dropped cuts are not documented as shipped.
+  - [x] Every documented name and behaviour matches the shipped code; dropped cuts are not documented as shipped.
 
   **Verification:**
-  - [ ] Manual review against source; `npm run lint` clean.
+  - [x] Manual review against source; `npm run lint` clean.
 
   **Dependencies:** Task 25.
 
@@ -1141,7 +1152,7 @@ branch `perf/desktop-full-tier-ab-runs`).
 
   **Estimated scope:** XS (docs only)
 
-- [ ] **Task 27: `docs/todo/backlog.md`, `docs/todo/plan.md`, the spec §8 — the Built line and the archive**
+- [x] **Task 27: `docs/todo/backlog.md`, `docs/todo/plan.md`, the spec §8 — the Built line and the archive** (2026-11-10)
 
   **Description:** Backlog 67 gets its **Built** line (the cuts kept, Gate B's verdict and date, the pin, the PR) and
   moves to the archive at merge with its links rebased; plan.md's Stage 1 line is deleted; backlog 68's note gains one
@@ -1149,13 +1160,17 @@ branch `perf/desktop-full-tier-ab-runs`).
   shapes and the Gate B record; if G2b or the native pedals were spun off, their new number and intent pointer are
   written in the roadmap or backlog.
 
+  **As run (2026-11-10).** 67 was archived before the merge rather than after, because Crawford merges this branch
+  straight away. Its links are rebased in the intent, spec, plan and roadmap 69. B9 was spun off as backlog 72, and the
+  counter now reads 73.
+
   **Proof:** Read — human review.
 
   **Acceptance criteria:**
-  - [ ] The three todo files agree on 67's state; the counter in the backlog header is right.
+  - [x] The three todo files agree on 67's state; the counter in the backlog header is right.
 
   **Verification:**
-  - [ ] Manual read; `npm run lint` clean.
+  - [x] Manual read; `npm run lint` clean.
 
   **Dependencies:** Task 26.
 
@@ -1165,13 +1180,16 @@ branch `perf/desktop-full-tier-ab-runs`).
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every kept cut has its RED test, its A/B and (where it has one) its crossing in the record; every dropped cut its
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. (2026-11-10: types and build
+      clean; lint 0 errors and 4 warnings; 350 files and 13 515 tests pass. The exit 1 is only backlog 66's
+      `onTaskUpdate` timeout.)
+- [x] Every kept cut has its RED test, its A/B and (where it has one) its crossing in the record; every dropped cut its
       price.
-- [ ] Gate B passed (or the closing section states why not and what was spun off); the pin recorded.
-- [ ] Docs reflect the shipped code — every documented name spot-checked.
-- [ ] Any outstanding manual check flagged here, never silently skipped.
-- [ ] Ready for Crawford's PR.
+- [x] Gate B passed (or the closing section states why not and what was spun off); the pin recorded.
+- [x] Docs reflect the shipped code — every documented name spot-checked.
+- [x] Any outstanding manual check flagged here, never silently skipped. Gate B's Standard and Light minute was
+      skipped, at Crawford's call (record §10).
+- [x] Ready for Crawford's PR.
 
 ## Risks and Mitigations
 

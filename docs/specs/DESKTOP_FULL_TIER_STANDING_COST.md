@@ -17,7 +17,7 @@
 **Status:** spec written 2026-11-06 from the confirmed intent
 [docs/intent/desktop-full-tier-standing-cost.md](../intent/desktop-full-tier-standing-cost.md) (interview 2026-11-06,
 five questions, every guess confirmed) and the measurements on backlog
-[67](../todo/backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) (the clean
+[67](../todo/archive/backlog-archive.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) (the clean
 Full/Standard/Light A/B of 2026-11-05). Approved for building 2026-11-06 (Crawford's word to implement the plan's
 Phase A); Phase A done 2026-11-07. **Gate A (Crawford, 2026-11-07):** Q1 muted robots only (the docked and the
 user-muted; solo-silenced robots keep their voices); Q2 G2b later, as roadmap
@@ -538,4 +538,43 @@ Every task: types, lint, tests, build clean. Docs tasks: a read.
 
 ## 8. As built
 
-(Empty until Phase C.)
+Shipped in PR #607 (2026-11-07). Measured, heard and pinned on 2026-11-10. The record is
+[todo/scratchy-audio-phones.md](../todo/scratchy-audio-phones.md), "Backlog 67, the decomposition at Full", §1–§10.
+
+**The cuts kept** (Crawford, 2026-11-10). Each figure is the same-round mean delta at Full, W1 / W2, against the build
+before it, with a noise band of 0.021:
+
+| Cut | Commit | Mean | Where it differs from §1.3 |
+|---|---|---|---|
+| **G1**: muted and docked robots stand down | 135d09f9 | −0.074 / −0.064 (trough −0.14) | Muted robots only: solo-silenced robots keep their voices (§7 Q1). The sends-ramp wart stays (T10 dropped): an admitted robot's sends keep their 50 ms fade from `now()`, and Tone's once-per-page warning on an admission is expected. |
+| **G2a**: a native bus filter | a0bc52db | −0.031 / −0.018 (crest −0.055 / −0.032) | The bus filter only. The composite `out` Gain stays, since B7 priced it below noise (T13 dropped at Gate A). |
+| **G4**: Full at `playback` | f1ffd3d1 | priced in Phase A (B8) | As proposed. The Audio Load readout no longer names the hint (T17b). |
+| **G3**: the cells skip Tone's `Effect` wrapper | 7901cfd5 | −0.020 / −0.018 | A cell connects to the effect's `effectSend` / `effectReturn` (Tone's protected fields), or to a StereoEffect's `_split` / `_merge`. Both are feature-detected (`effectEnds` in `bypassCell.ts`); an effect with neither keeps the edges into and out of the effect itself, warned once. There is no `tonePatches.ts` wrapper. `wireCells` changed with it (amended at Gate A). |
+
+Every crossing is inaudible (≤ ×1.02 against the ×1.6 bar), and admitted robots' first notes are on time. Light did not
+move the wrong way: G1 made it 0.055 cheaper, and G2a and G3 left it inside the band. Taken together, W1's mean at Full
+went from about 0.58 to about 0.44, and its crest from 0.64 to 0.53 (§9 of the record, across pairs).
+
+**Not built here.** G2b, the leaner synth layer, was spun off at Gate A as roadmap 69. G5–G8 were not needed, since
+Gate B passed. B9, the dark effects' standing Signals, was priced at −0.026 / −0.022 and spun off as backlog 72.
+
+**Gate B: passed by ear on 2026-11-10** (record §10). The listen was on W1 at Full, full screen on the 4K. With the cuts
+in, the overlay counted 2 underruns, both at power-on, over six minutes. On a2a400c1, the commit before the cuts, it
+counted 16, spread through five minutes. Neither build was heard to click.
+
+The protocol differed from §1.6 in four ways, all recorded in §10:
+- The baseline was the pre-cut commit, not `main`, because PR #607 had already merged the cuts.
+- The run with the cuts was on the dev server, not a production build.
+- The overlay was read only at the end of each run.
+- The Standard and Light minute was skipped, at Crawford's call.
+
+**The pin** (§5.4; [PERFORMANCE.md](../PERFORMANCE.md), "The audio pin at Full"). This is 5ca8679f's code on W1 at
+Full, three rounds beside a byte copy:
+
+| Mean | Crest | Trough | Band (mean / crest / trough) |
+|---|---|---|---|
+| **0.473** | **0.547** | 0.370 | 0.015 / 0.018 / 0.040 |
+
+A later change that reads above the pin by more than its own sitting's band, on a same-session A/B against 5ca8679f's
+code, is a regression to explain in its PR. The absolute figure moves between sittings: the same graph read about 0.03
+lower the night before.
