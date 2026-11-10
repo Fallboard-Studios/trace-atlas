@@ -826,21 +826,37 @@ describe('bypassCell', () => {
       async function emptyGrit(register = true) {
         const { cells, devWarn } = await setup();
         const stub = stubBuilder('distortion');
-        if (register) cells.registerEffect('distortion', { build: stub.build });
+        const onTeardown = vi.fn();
+        if (register) cells.registerEffect('distortion', { build: stub.build, onTeardown });
         cells.buildRoom('grit', GainCtor, DelayCtor);
         cells.buildBranch('distortion', 'grit', null, GainCtor);
         cells.wireCells();
-        return { cells, devWarn, room: cells.getRoom('grit')!, branch: cells.getCell('distortion')!, ...stub };
+        return { cells, devWarn, onTeardown, room: cells.getRoom('grit')!, branch: cells.getCell('distortion')!, ...stub };
       }
 
       /** An empty Tremolo chain cell, registered. */
       async function emptyTremolo() {
         const { cells, devWarn } = await setup();
         const stub = stubBuilder('tremolo');
-        cells.registerEffect('tremolo', { build: stub.build });
+        const onTeardown = vi.fn();
+        cells.registerEffect('tremolo', { build: stub.build, onTeardown });
         cells.buildCell('tremolo', null, GainCtor, DelayCtor);
         cells.wireCells();
-        return { cells, devWarn, cell: cells.getCell('tremolo')!, ...stub };
+        return { cells, devWarn, onTeardown, cell: cells.getCell('tremolo')!, ...stub };
+      }
+
+      /** Fire one pending context timer by hand, leaving the others pending. */
+      const fire = (timer: { id: number; fn: () => void }) => {
+        context.timeouts = context.timeouts.filter((t) => t.id !== timer.id);
+        timer.fn();
+      };
+
+      /** The Distortion branch built and lit at a depth of 0.3 in its fed Grit room. */
+      async function litGrit() {
+        const grit = await emptyGrit();
+        grit.cells.setRoomFed('grit', true);
+        grit.cells.writeCellMix('distortion', 0.3);
+        return { ...grit, node: grit.built[0] };
       }
 
       describe('built at a light (Task 1)', () => {
@@ -987,6 +1003,141 @@ describe('bypassCell', () => {
           cells.buildRoom('grit', GainCtor, DelayCtor);
           cells.buildBranch('distortion', 'grit', null, GainCtor);
           expect(cells.getCell('distortion')).toBeUndefined();
+        });
+      });
+
+      describe('torn down after a darken (Task 2)', () => {
+        it('exports the wait, 1 s on the context timer', async () => {
+          const { DARK_TEARDOWN_SECONDS } = await import('./bypassCell');
+          expect(DARK_TEARDOWN_SECONDS).toBe(1);
+        });
+
+        it('a branch darkened by its depth disconnects at the first fire, arms one teardown, and is disposed at the second', async () => {
+          const { cells, branch, node, onTeardown } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          expect(context.timeouts).toHaveLength(1); // the darken's disconnect only
+
+          context.fireAll();
+          expect(branch.connected).toBe(false);
+          expect(branch.effect).toBe(node);
+          expect(context.timeouts).toHaveLength(1);
+          expect(context.timeouts[0].seconds).toBe(1);
+          expect(node.dispose).not.toHaveBeenCalled();
+          expect(onTeardown).not.toHaveBeenCalled();
+
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+          expect(branch.lfos).toEqual([]);
+          expect(onTeardown).toHaveBeenCalledTimes(1);
+          expect(order(onTeardown)).toBeGreaterThan(order(node.dispose));
+          expect(context.timeouts).toEqual([]);
+          expect(cells.getConnectedEffectCount()).toBe(0);
+          expect(cells.roomNodes('grit')).not.toContain(node);
+        });
+
+        it('the next light after a teardown builds a fresh effect and lights it', async () => {
+          const { cells, branch, build, built } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          context.fireAll();
+
+          cells.writeCellMix('distortion', 0.5);
+          expect(build).toHaveBeenCalledTimes(2);
+          expect(branch.effect).toBe(built[1]);
+          expect(branch.connected).toBe(true);
+          expect(wetRamps(branch).at(-1)).toBeCloseTo(colourWetGainOf(0.5), 12);
+        });
+
+        it('a light inside the wait cancels the teardown and lights the same node, building nothing', async () => {
+          const { cells, branch, node, build } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          const teardown = context.timeouts[0];
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBe(node);
+          expect(branch.connected).toBe(true);
+          context.fireAll();
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('a branch darkened only by its room going unfed keeps its effect: no teardown, and a re-feed lights the same node', async () => {
+          const { cells, branch, node, build } = await litGrit();
+          cells.setRoomFed('grit', false);
+          context.fireAll();
+          expect(branch.connected).toBe(false);
+          expect(context.timeouts).toEqual([]);
+          expect(branch.effect).toBe(node);
+          expect(node.dispose).not.toHaveBeenCalled();
+
+          cells.setRoomFed('grit', true);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBe(node);
+          expect(branch.connected).toBe(true);
+        });
+
+        it('a branch darkened by a Return of 0 on its fed room is torn down', async () => {
+          const { cells, branch, node } = await litGrit();
+          cells.setRoomReturn('grit', 0);
+          context.fireAll();
+          expect(context.timeouts).toHaveLength(1);
+          context.fireAll();
+          expect(node.dispose).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBeNull();
+        });
+
+        it('a chain cell darkened by a Mix of 0 is torn down', async () => {
+          const { cells, cell, built, onTeardown } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0.5);
+          cells.writeCellMix('tremolo', 0);
+          context.fireAll();
+          expect(context.timeouts.map((t) => t.seconds)).toEqual([1]);
+          context.fireAll();
+          expect(built[0].dispose).toHaveBeenCalledTimes(1);
+          expect(cell.effect).toBeNull();
+          expect(onTeardown).toHaveBeenCalledTimes(1);
+        });
+
+        it('a darken whose disconnect Tone refuses leaves the effect in the path: no teardown', async () => {
+          const { cells, branch, room, node } = await litGrit();
+          fake(room.in).disconnect.mockImplementationOnce(() => {
+            throw new Error('refused');
+          });
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          expect(branch.connected).toBe(true);
+          expect(context.timeouts).toEqual([]);
+          expect(node.dispose).not.toHaveBeenCalled();
+        });
+
+        it('an unregistered cell darkened keeps its effect for good', async () => {
+          const { cells } = await setup();
+          const wah = fakeNode('autoWah');
+          cells.buildCell('autoWah', wah as unknown as Tone.ToneAudioNode, GainCtor, DelayCtor);
+          cells.wireCells();
+          cells.writeCellMix('autoWah', 0.5);
+          cells.writeCellMix('autoWah', 0);
+          context.fireAll();
+          expect(context.timeouts).toEqual([]);
+          context.fireAll();
+          expect(wah.dispose).not.toHaveBeenCalled();
+          expect(cells.getCell('autoWah')!.effect).toBe(wah);
+        });
+
+        it('clearCells cancels a pending teardown', async () => {
+          const { cells, node } = await litGrit();
+          cells.writeCellMix('distortion', 0);
+          context.fireAll();
+          const teardown = context.timeouts[0];
+          cells.clearCells();
+          expect(context.cleared).toContain(teardown.id);
+          expect(context.timeouts).toEqual([]);
+          fire(teardown); // a fire that slipped past the cancel finds its cell gone
+          expect(node.dispose).not.toHaveBeenCalled();
         });
       });
     });

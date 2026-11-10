@@ -59,6 +59,8 @@ export type Cell = {
   mix: number;
   /** The pending Tone.getContext().setTimeout id of a darken's disconnect. */
   darken: number | null;
+  /** The pending Tone.getContext().setTimeout id of the effect's teardown (checkTeardown). */
+  teardown: number | null;
   /** The room this cell is a branch of; null for a chain cell. */
   room: RoomKey | null;
   /** A branch's own Mix, the law input while its room is live (recorded on every write, lit or not). 0 on a chain cell. */
@@ -106,12 +108,14 @@ const _cells: Partial<Record<BypassKey, Cell>> = {};
 
 /**
  * How globalFx.ts makes a key's effect (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2): `build` returns a fresh effect
- * from that key's settings mirror, pinned fully wet, or throws. A registered key's effect exists only between its cell's
- * first light and the teardown after it goes dark at its own level. A key with no registration (a headless chain, or a
- * key globalFx.ts has not moved yet) is never built at a light, so its cell behaves as before.
+ * from that key's settings mirror, pinned fully wet, or throws; `onTeardown` runs after a teardown has disposed it. A
+ * registered key's effect exists only between its cell's first light and the teardown after it goes dark at its own
+ * level. A key with no registration (a headless chain, or a key globalFx.ts has not moved yet) is never built at a light
+ * and never torn down, so its cell behaves as before.
  */
 export type EffectRegistration = {
   build: () => Tone.ToneAudioNode;
+  onTeardown?: () => void;
 };
 
 /** The registrations, dropped with the cells by clearCells: buildGlobalFxChain registers its keys again. */
@@ -190,6 +194,7 @@ export function clearCells(): void {
   // The context is read only for a timer to cancel: a headless build with no context has none.
   for (const cell of Object.values(_cells)) {
     if (cell.darken !== null) Tone.getContext().clearTimeout(cell.darken);
+    cancelTeardown(cell);
   }
   for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
   for (const key of Object.keys(_registrations) as BypassKey[]) delete _registrations[key];
@@ -229,6 +234,7 @@ export function buildCell(
       connected: false,
       mix: 0,
       darken: null,
+      teardown: null,
       room: null,
       depth: 0,
       lfos: effectLfos(effect),
@@ -415,6 +421,50 @@ export function disconnectEffect(key: BypassKey, cell: Cell, effect: Tone.ToneAu
  *  reached zero on the audio thread first (the duck's margin, for the same reason). Dark-Effect Bypass §1.2. */
 export const BYPASS_DISCONNECT_MARGIN_SECONDS = 0.01;
 
+/** How long a registered effect stays built once it is dark at its own level and out of the signal path: longer than a
+ *  slider's drag through 0 and than a darken's disconnect, so a crossing never constructs and disposes. On Tone's context
+ *  timer, so a power-off pause freezes it. docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.3. */
+export const DARK_TEARDOWN_SECONDS = 1;
+
+/** The cell is dark by its own level, not just by its room's feed (§1.2): a chain cell whose target is 0 (a Mix of 0,
+ *  Width at exactly 0.5), a branch whose depth or room Return is 0. A branch whose room is only unfed is not. */
+function darkAtOwnLevel(cell: Cell): boolean {
+  if (cell.room === null) return cell.mix === 0;
+  const room = _rooms[cell.room];
+  return colourWetGain(cell.depth) === 0 || !(room && room.returnLevel > 0);
+}
+
+/** Whether `key`'s effect is due its teardown: registered (so it can come back), holding an effect, out of the path and
+ *  dark at its own level. */
+function teardownDue(key: BypassKey, cell: Cell): boolean {
+  return _registrations[key] !== undefined && cell.effect !== null && !cell.connected && darkAtOwnLevel(cell);
+}
+
+function cancelTeardown(cell: Cell): void {
+  if (cell.teardown === null) return;
+  Tone.getContext().clearTimeout(cell.teardown);
+  cell.teardown = null;
+}
+
+/** Arm `key`'s teardown DARK_TEARDOWN_SECONDS out when it is due and none is pending; cancel a pending one when it is
+ *  not. The fire checks again, then disposes the effect, empties the cell and tells globalFx.ts. §1.2. */
+function checkTeardown(key: BypassKey, cell: Cell): void {
+  if (!teardownDue(key, cell)) {
+    cancelTeardown(cell);
+    return;
+  }
+  if (cell.teardown !== null) return;
+  cell.teardown = Tone.getContext().setTimeout(() => {
+    cell.teardown = null;
+    if (!teardownDue(key, cell)) return;
+    const effect = cell.effect;
+    cell.effect = null;
+    cell.lfos = [];
+    disposeQuietly(effect);
+    _registrations[key]?.onTeardown?.();
+  }, DARK_TEARDOWN_SECONDS);
+}
+
 /**
  * A Mix write through `key`'s cell (docs/specs/DARK_EFFECT_BYPASS.md section 1.2, assumption 4). `mix` is the stored,
  * clamped Mix; the cell runs the tapered `w = colourWetGain(mix)`, or for the widener `mix` is its width and `w` its fade
@@ -442,6 +492,8 @@ export function writeCellMix(key: BypassKey, mix: number): void {
       context.clearTimeout(cell.darken);
       cell.darken = null;
     }
+    // A light in the teardown's wait finds the effect still there.
+    cancelTeardown(cell);
     // A failed build returns before the target is recorded, so the next light tries again.
     if (!cell.effect && !buildEffect(key, cell)) return;
     if (!cell.connected && !connectEffect(key, cell, cell.effect!)) return;
@@ -456,6 +508,8 @@ export function writeCellMix(key: BypassKey, mix: number): void {
       cell.darken = null;
       // The cell's effect at the fire, not at the arm: a Phaser Stages change in between puts a new node in the cell.
       if (cell.mix === 0 && cell.connected && cell.effect) disconnectEffect(key, cell, cell.effect);
+      // The wait is counted from the moment the effect left the path.
+      checkTeardown(key, cell);
     },
     context.lookAhead + COLOUR_RAMP_SECONDS + BYPASS_DISCONNECT_MARGIN_SECONDS,
   );
@@ -568,6 +622,7 @@ export function buildBranch(
       connected: false,
       mix: 0,
       darken: null,
+      teardown: null,
       room,
       depth: 0,
       lfos: effectLfos(effect),
