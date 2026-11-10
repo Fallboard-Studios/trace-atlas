@@ -999,11 +999,11 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. 2026-11-09, at Task 18: types
       clean; lint 0 errors (the same 4 warnings); full suite 350 files, 13,517 pass, with the known
       `[vitest-worker] Timeout calling "onTaskUpdate"` exit; vite build clean.
-- [ ] In the browser: the nav shows three boxes (Deck, Fleet Params, Probes); a company's name on the Probes page opens
+- [x] In the browser: the nav shows three boxes (Deck, Fleet Params, Probes); a company's name on the Probes page opens
       its screen with the Probes box popped and the breadcrumb Root / Probes / <Company> / <section>; the Probes box or
       the breadcrumb's Probes goes back to the board; + New Company still works from the board; deleting a company
       lands on the board.
-- [ ] Reviewed with Crawford before Phase 6.
+- [x] Reviewed with Crawford before Phase 6. Passed 2026-11-09 (Crawford).
 
 ---
 
