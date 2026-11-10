@@ -1153,6 +1153,35 @@ Spec: [OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../../specs/OFF_SCREEN_CURREN
 [OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan.md Stage 1,
 ahead of roadmap 58.
 
+## 67. Audio: The Desktop Crackles at Full — the Graph's Standing Cost Leaves No Headroom
+
+**Closed** 2026-11-10. The four cuts were merged in PR #607 (2026-11-07). Their A/B runs, Gate B and the pin were done
+on `perf/desktop-full-tier-ab-runs`. Crawford kept four inaudible cuts: docked and muted robots release their voices
+(G1), a native bus filter (G2a), Full at `playback` (G4), and the effect cells wired past Tone's wrapper (G3). At Full,
+W1's mean render capacity fell from about 0.58 to about 0.44, and its crest from 0.64 to 0.53.
+
+**Gate B passed by ear on 2026-11-10.** On W1 at Full, full screen on the 4K, the build with the cuts counted 2
+underruns, both at power-on, over six minutes. The commit before the cuts counted 16, spread through five minutes.
+Neither build was heard to click.
+
+**The pin** is 0.473 mean and 0.547 crest on W1 at Full, from 5ca8679f's code, with a band of 0.015 / 0.018
+([PERFORMANCE.md](../../PERFORMANCE.md), "The audio pin at Full").
+
+**Spun off:** the leaner synth layer (G2b), as roadmap [69](../roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes);
+the dark effects' standing Signals (B9), as backlog [72](../backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9).
+The audible candidates (G5–G8) were not needed.
+
+**Found 2026-11-05** on Crawford's desktop (4K monitor, Balanced power plan) on the live site, at
+`?seed=ez84fjmr&x=93&y=-146&theme=wreck&debug`. It clicked from about 0:20 on every trial, and worse at full screen.
+The overlay read `clock x0.62` and `underruns 2063` at 1:22: the audio thread was overloaded for seconds at a time. A
+clean `perf:audio` A/B read 0.61 at Full, 0.56 at Standard and 0.29 at Light. The cause was the standing graph (about
+1 800 nodes, Gains and Tone's Signals), not the number of robots.
+
+Intent: [desktop-full-tier-standing-cost.md](../../intent/desktop-full-tier-standing-cost.md). Spec:
+[DESKTOP_FULL_TIER_STANDING_COST.md](../../specs/DESKTOP_FULL_TIER_STANDING_COST.md) (§8 is as built). Plan:
+[DESKTOP_FULL_TIER_STANDING_COST.md](../../tasks/DESKTOP_FULL_TIER_STANDING_COST.md). Record:
+[scratchy-audio-phones.md](../scratchy-audio-phones.md#backlog-67-the-decomposition-at-full-2026-11-06) §1–§10.
+
 ## 70. Tests: The Full Run Takes Too Long — Speed the Run, Don't Thin the Suite
 
 **Closed** 2026-11-07 (`tests/pruning`, at the plan's Gate A; `8f51a83c` the baseline, the Node project and the

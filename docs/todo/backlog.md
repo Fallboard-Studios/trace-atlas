@@ -689,88 +689,6 @@ under a full parallel load.
 **To do:** find the file (run the suite by directory, or with `--reporter=verbose`, until the error follows one file),
 then let its loop yield or split the case. Done when a full run reports no errors.
 
-### 67. Audio: The Desktop Crackles at Full — the Graph's Standing Cost Leaves No Headroom
-
-**Found 2026-11-05** on Crawford's desktop (4K monitor, Balanced power plan), on the live site:
-`?seed=ez84fjmr&x=93&y=-146&theme=wreck&debug`. Clicking from about 0:20 on every trial, worse at full screen on the
-4K monitor (a quarter-size window helps a lot; on the laptop panel the window size barely matters), and any jump in
-the machine's CPU use clicks too. Not loudness.
-
-**What the overlay said** (full 4K, `&latency=playback`, 1:22 in): `clock x0.62`, `underruns 2063 (27653ms)`,
-`lag 0ms`, fps 42, `load 100%·fx 100% · sounding 9/12 · fx in 6/10`, `bank 4/4`, `base 20ms`. A clock this far below 1
-with the lag line quiet is the audio thread overloaded for seconds at a time, not the main thread and not missed
-deadlines here and there; `playback` only took the buffer from 10 to 20 ms, which absorbs a spike and not this.
-
-**What `perf:audio` measured** (headless on the same desktop, Full, one run each, Crawford's Chrome open alongside, so
-read the ranking and not the decimals): ez84fjmr mean capacity 0.90 over 150 s, already 0.90–0.99 with 2–5 robots
-sounding, r(audible, capacity) 0.04; the control `bravo:-150:90` mean 0.67, peak window 0.81, with up to 12 sounding.
-`perf:audio-handlers` (8 s, shares) splits both worlds alike: GainNode ~58 % (~950 nodes), ConstantSourceNode ~14 %
-(~340, Tone's Signals), Biquad ~4 %, Convolver 2–4 %, every other class under 4 %. Census ~1,800 nodes. No one node
-is the cost; the size of the graph is.
-
-**Confirmed by ear:** `&load=light` on the same link made "a very noticeable difference" (Crawford). Light is four
-sounding robots, eight voices, `playback`, no pedals, no Reverb, no drift, no filter LFOs (backlog 27's cuts,
-[archive](archive/backlog-archive.md#27-audio-phone-playback-underruns-at-light-load-main-included)). Standard was not
-tried.
-
-**Reading.** At Full the desktop's audio thread stands at 70–95 % of its budget on a heavy world before anything else
-runs; robots joining on the battery cycle (the 0:20 onset), the GPU and CPU work of drawing the scene at 4K, or any
-other program take the rest, and the clock falls behind. Backlog 27 cut the standing graph at Light only; Full and
-Standard carry all of it, and a desktop boots at Full (`resolveInitialAudioLoad`: no coarse pointer → Full).
-
-**Directions, none chosen** (each changes the audio architecture, so interview → spec first):
-
-1. **Shrink the standing graph at every tier.** Decompose where the ~950 Gains and ~340 ConstantSources come from (per
-   robot chains, the send table, bypass cells, the bank's links, Tone's Param plumbing) with backlog 27's method
-   (ablations through `perf:audio`, shares through `perf:audio-handlers`), then cut what is inaudible.
-2. **Let the budget step down by itself** when the measured render capacity stays high, or boot a desktop at Standard.
-3. **Draw less at large viewports** (what still re-rasters per frame at 4K; the harness `scripts/perf/idle-paint.mjs`
-   needs height and DPR flags to emulate it). Buys margin; does not fix the cause.
-
-**Update 2026-11-05, later: the clean A/B.** Same desktop with nothing but VS Code open, `perf:audio` headless on the
-live site, 120 s per run, 15 s buckets, three rounds with the order rotated (mean capacity per run):
-
-| Tier | Round 1 | Round 2 | Round 3 | Mean | Max sounding | Pedals lit |
-|---|---|---|---|---|---|---|
-| Full | 0.659 | 0.585 | 0.596 | 0.61 | 9 | 6/10 |
-| Standard | 0.560 | 0.571 | 0.539 | 0.56 | 8 | 6/10 |
-| Light | 0.292 | 0.302 | 0.287 | 0.29 | 4 | 0/10 |
-
-The contaminated first reading (0.90 at Full) was a third too high, so the decimals above replace it. Within a Full
-run, capacity climbs from 0.50–0.59 at about 2.6 sounding robots to 0.62–0.73 at about 8.5: roughly 0.02 per robot,
-and a standing floor near 0.5 before the robots. Standard saves only 0.05 here, because this world's robots never pass
-Standard's cap of 8 and Standard keeps the pedals, Reverb, drift and filter LFOs. Light halves the load, and most of
-that is the effects and LFOs Light turns off, not the robot cap. So Standard would not fix this desktop, and the
-cause sits in the standing floor (the graph plus what is lit on it), not in the number of robots. The ~0.6 the
-headless run reads is not over budget by itself; the headed browser drawing at 4K takes the rest (clock x0.62 live).
-Crawford's ear on Standard at full 4K was not taken. Next: interview → spec.
-
-**Update 2026-11-06: interviewed.** Intent confirmed in
-[docs/intent/desktop-full-tier-standing-cost.md](../intent/desktop-full-tier-standing-cost.md): direction 1, the
-graph's standing cost shrunk at every tier with backlog 27's method, inaudible plumbing first and any audible trade
-heard one at a time; the bar is Crawford's ear at full 4K, then a harness pin. Direction 2 is backlog
-[68](#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph); direction 3 waits for the lean
-graph. Spec and plan written 2026-11-06: [spec](../specs/DESKTOP_FULL_TIER_STANDING_COST.md),
-[plan](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md).
-
-**Update 2026-11-07: Phase A done, Gate A answered.** The decomposition is in
-[scratchy-audio-phones.md](scratchy-audio-phones.md#backlog-67-the-decomposition-at-full-2026-11-06) §1–§5. Crawford
-kept four inaudible cuts, built in this order: release the docked and muted robots' voices, a native bus filter, Full
-at `playback`, then the effects' cells wired past Tone's wrapper. The leaner synth layer is spun off as roadmap
-[69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes). The four cuts were built the same day and merged
-(PR #607, `perf/desktop-full-tier-standing-cost`).
-
-**Update 2026-11-10: the A/B runs are done** (record §6–§9, branch `perf/desktop-full-tier-ab-runs`). Same-round mean
-deltas, W1 / W2: release the docked and muted robots' voices −0.074 / −0.064 (trough −0.14), the native bus filter
-−0.031 / −0.018 (crest −0.055 / −0.032), the cells past Tone's wrapper −0.020 / −0.018. Every crossing is inaudible
-(≤ ×1.02), and Light got cheaper. The dark effects' Signals (B9) price at −0.026 / −0.022; whether that becomes a spec
-is Crawford's call. Next: his keep or drop on each cut, then the Gate B listen.
-
-**Update 2026-11-10: Gate B passed** (record §10). On W1 at Full, full screen on the 4K, there were 2 underruns, both at
-power-on, over six minutes with the cuts in, against 16 spread through five minutes on the commit before them. Neither
-build was heard to click. Phase B2 is not needed. Crawford kept all three cuts (Checkpoint B closed). Next: T25, the pin,
-then the docs (T26, T27). B9 is spun off as backlog 72.
-
 ### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
 
 **Raised 2026-11-06** at backlog 67's interview, as the question 67 set aside. A desktop boots at Full
@@ -788,6 +706,10 @@ Crawford's gets the same graph and the same clicks. Two shapes were assessed and
 **Decision (Crawford, 2026-11-06):** not in 67; revisit once the graph is lean, since every node 67 removes weakens the
 case for either shape. The Audio Load dial stays the answer for weaker machines meanwhile. If it is picked up, the
 first question is whether the lean graph leaves any desktop that needs it.
+
+**What 67 left for it (2026-11-10).** On Crawford's desktop, Full now reads 0.47 mean and 0.55 crest on W1, and plays
+clean by ear at full 4K. No weaker desktop has been measured, so whether one still needs this is open. Backlog 72 and
+roadmap 69 would lower the floor further.
 
 ### 71. Off Screen: The Console — the One Place a World Is Made, Loaded, Kept, Shared or Deleted
 

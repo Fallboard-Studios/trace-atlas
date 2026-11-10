@@ -19,12 +19,6 @@ the item's own measure-first check runs, and the item archives if the check find
   (Save, Rename, Delete, Share), Factory Reset at its foot, no presets; then, on its own branch, Audio Quality to Fleet
   Params and the Settings branch gone. Plan written 2026-11-08 ([plan](../tasks/OFF_SCREEN_CONSOLE.md)); the console
   built on `feature/off-screen-console`, at Checkpoint A (Crawford's look).
-- Backlog [67](backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom) **The
-  desktop crackles at Full** — interviewed 2026-11-06 ([intent](../intent/desktop-full-tier-standing-cost.md)):
-  shrink the graph's standing cost at every tier, Crawford's ear at 4K the bar; spec written 2026-11-06
-  ([spec](../specs/DESKTOP_FULL_TIER_STANDING_COST.md), [plan](../tasks/DESKTOP_FULL_TIER_STANDING_COST.md)); Phase A
-  measured and Gate A answered 2026-11-07; Phase B's four inaudible cuts built and merged 2026-11-07 (PR #607), their A/B
-  runs done, all three cuts kept, and Gate B passed by ear 2026-11-10 (record §6–§10); next the pin (T25) and the docs.
 - Backlog [72](backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9) **Dark effects leave the
   graph** — 67's B9, priced −0.026 / −0.022 at Full; interview → spec → plan, then build.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
@@ -103,9 +97,9 @@ the item's own measure-first check runs, and the item archives if the check find
 ## Parked (not sequenced)
 
 - Roadmap [69](roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes) **The leaner synth layer** — 67's
-  G2b, spun off at its Gate A; sequenced once 67's Gate B says how much it is needed.
+  G2b, spun off at its Gate A; 67's Gate B passed without it (2026-11-10), so it waits on a need.
 - Backlog [68](backlog.md#68-audio-automatic-tier-choice-for-weaker-desktops-revisit-with-the-lean-graph) **Automatic
-  tier choice for weaker desktops** — waits for 67's lean graph; first question then is whether any desktop still needs it.
+  tier choice for weaker desktops** — 67's lean graph has landed; the first question is whether any desktop still needs it.
 - Backlog [34](backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch) **The Tone
   upgrade** — waits for a Tone with the leak fix to be npm's `latest`; it then deletes `tonePatches.ts`.
 - Decisions, not work, left on three stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below
