@@ -239,7 +239,7 @@ noted). Next: Task 6, in a fresh session.
 
 ### Phase 2: `globalFx.ts` registers its effects (still built at chain build)
 
-- [ ] **Task 6: `globalFx.ts` — the colour trio and the AutoWah leave and come back**
+- [x] **Task 6: `globalFx.ts` — the colour trio and the AutoWah leave and come back**
 
   **Description:** Mirrors for the Distortion (`amount`), Chebyshev (`order`), BitCrusher (`bits`) and AutoWah (its six
   non-Mix fields); a builder per key from its mirror, pinned wet 1 (`oversample: 'none'` on the two shapers, the
@@ -255,14 +255,14 @@ noted). Next: Task 6, in a fresh session.
   at a Mix above 0 (the branches with their Colour room fed).
 
   **Acceptance criteria:**
-  - [ ] The four are torn down when dark at their own level and rebuilt at a light with every value written while absent.
-  - [ ] A setter call that builds its node writes nothing further to it; an absent node is never written.
-  - [ ] The hold-off tears them down and its lift rebuilds them; every other existing case passes unmodified.
+  - [x] The four are torn down when dark at their own level and rebuilt at a light with every value written while absent.
+  - [x] A setter call that builds its node writes nothing further to it; an absent node is never written.
+  - [x] The hold-off tears them down and its lift rebuilds them; every other existing case passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/bypassCell.test.ts` passes.
-  - [ ] Mutant: skip the mirror write on an absent effect (spec §5.1, case 3) fails the amount case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts src/engine/audioEngine/bypassCell.test.ts` passes.
+  - [x] Mutant: skip the mirror write on an absent effect (spec §5.1, case 3) fails the amount case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1–4.
 
@@ -270,7 +270,7 @@ noted). Next: Task 6, in a fresh session.
 
   **Estimated scope:** M (one module and its large test file; four setters)
 
-- [ ] **Task 7: `globalFx.ts` — the Phaser leaves and comes back**
+- [x] **Task 7: `globalFx.ts` — the Phaser leaves and comes back**
 
   **Description:** `_phaserLive` and `_phaserStages` become the Phaser's mirror and builder (`buildPhaser` at the
   mirror's stages). `writePhaserStages` on an absent Phaser records the count only (no rebuild, no duck); a present
@@ -283,13 +283,13 @@ noted). Next: Task 6, in a fresh session.
   rebuilt at that duck's count; a present dark Phaser given Stages rebuilds as today.
 
   **Acceptance criteria:**
-  - [ ] Stages on an absent Phaser are mirror-only; the next light builds at that count.
-  - [ ] A teardown with a pending Stages duck keeps the duck's count.
-  - [ ] The Stages duck and the dark rebuild of a present Phaser are unchanged.
+  - [x] Stages on an absent Phaser are mirror-only; the next light builds at that count.
+  - [x] A teardown with a pending Stages duck keeps the duck's count.
+  - [x] The Stages duck and the dark rebuild of a present Phaser are unchanged.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6 (the registration pattern), Task 4.
 
@@ -297,7 +297,7 @@ noted). Next: Task 6, in a fresh session.
 
   **Estimated scope:** S
 
-- [ ] **Task 8: `globalFx.ts` — the Chorus, Tremolo, Vibrato and Shifter leave and come back**
+- [x] **Task 8: `globalFx.ts` — the Chorus, Tremolo, Vibrato and Shifter leave and come back**
 
   **Description:** Mirrors for the four pedals' non-Mix fields (the Chorus's Delay in ms and Depth as written, Rate in
   Hz as resolved, Feedback; the Tremolo's Rate and Depth; the Vibrato's Rate and Depth; the Shifter's shift), with
@@ -312,13 +312,13 @@ noted). Next: Task 6, in a fresh session.
   Shifter with its room unfed and its Return above 0 is never torn down.
 
   **Acceptance criteria:**
-  - [ ] Each of the four is torn down when dark at its own level and rebuilt with every value written while absent.
-  - [ ] A rebuilt Chorus or Tremolo is started and carries the last Spread, a pending duck's included.
-  - [ ] An unfed Shimmer or Double room with its Return above 0 keeps its effect.
+  - [x] Each of the four is torn down when dark at its own level and rebuilt with every value written while absent.
+  - [x] A rebuilt Chorus or Tremolo is started and carries the last Spread, a pending duck's included.
+  - [x] An unfed Shimmer or Double room with its Return above 0 keeps its effect.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6, Task 4.
 
@@ -326,7 +326,7 @@ noted). Next: Task 6, in a fresh session.
 
   **Estimated scope:** M (four setters)
 
-- [ ] **Task 9: `globalFx.ts` — Width leaves at 0.5 and comes back at 0.5**
+- [x] **Task 9: `globalFx.ts` — Width leaves at 0.5 and comes back at 0.5**
 
   **Description:** The widener's builder constructs at width 0.5 (unity) whatever its mirror holds; `setGlobalStereoWidener`
   records the width, writes the Mix (which lights and may build), then ramps `width` to the written value on the node
@@ -337,13 +337,13 @@ noted). Next: Task 6, in a fresh session.
   Width 0.7 then constructs one at width 0.5 and ramps its `width` to 0.7 over `COLOUR_RAMP_SECONDS`.
 
   **Acceptance criteria:**
-  - [ ] A widener built at a light is constructed at 0.5 and ramps to the written width.
-  - [ ] Width at exactly 0.5 tears it down after the wait.
+  - [x] A widener built at a light is constructed at 0.5 and ramps to the written width.
+  - [x] Width at exactly 0.5 tears it down after the wait.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] Mutant: build Width at the mirror's width (spec §5.1, case 9) fails the case.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] Mutant: build Width at the mirror's width (spec §5.1, case 9) fails the case.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6.
 
@@ -351,7 +351,13 @@ noted). Next: Task 6, in a fresh session.
 
   **Estimated scope:** XS
 
-- [ ] **Task 10: `globalFx.ts` — the BitCrusher lights once its worklet exists**
+  **As built (18a2c8fb):** the width ramp is in the widener's builder, not the setter. The hold-off's lift lights Width
+  through `writeCellMix` without the setter, so a widener torn down while held would have come back at 0.5 and stayed at
+  unity. The builder constructs at 0.5 and ramps to the mirror's width, which covers every light (spec §1.4, "its width
+  ramps from there as the cell lights"); the setter ramps only a widener present before the call, as the other nine
+  setters write only a node present before theirs. A test case covers the lift.
+
+- [x] **Task 10: `globalFx.ts` — the BitCrusher lights once its worklet exists**
 
   **Description:** The BitCrusher's registration gains `whenReady(node)`: it resolves once the wrapper's worklet node
   exists (Tone makes it in the `then` of `addAudioWorkletModule`; the field is read through a cast, as `effectEnds`
@@ -364,12 +370,12 @@ noted). Next: Task 6, in a fresh session.
   unconnected; after the worklet field is set and the promise resolves, it connects and ramps.
 
   **Acceptance criteria:**
-  - [ ] A BitCrusher built at a light connects only once its worklet node exists.
-  - [ ] A darken before that leaves it unconnected; a crusher with no worklet field warns once and lights at once.
+  - [x] A BitCrusher built at a light connects only once its worklet node exists.
+  - [x] A darken before that leaves it unconnected; a crusher with no worklet field warns once and lights at once.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine/globalFx.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 5 and 6.
 
@@ -378,10 +384,16 @@ noted). Next: Task 6, in a fresh session.
   **Estimated scope:** S
 
 ### Checkpoint B: Every effect has a lifetime
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted).
-- [ ] No `_global<Effect>` alias is left for the ten; every setter reads its cell.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (the known `onTaskUpdate` exit noted).
+- [x] No `_global<Effect>` alias is left for the ten; every setter reads its cell.
 - [ ] Optional early listen, at Crawford's word: the dev server, W1, a Mix dragged through 0 and back after a second.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3.
+
+**Status (2026-11-10):** Phase 2 committed (b7f61474..1cec48f4); Checkpoint B passed (full suite 13602 tests in 350
+files green, the onTaskUpdate exit noted; reviewed by Crawford; the optional listen not taken). Two notes for Task 11:
+Task 9 is as built below, and a BitCrusher light now waits on its worklet check, which settles a few microtasks later
+even when the node exists, so the test helper that lights an effect must `await flush()` for the crusher (Task 10's
+commit names the existing cases that gained one). Next: Task 11, in a fresh session.
 
 ---
 
