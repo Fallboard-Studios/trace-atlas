@@ -440,36 +440,6 @@ and give the Settings → Seeds coordinates a reason to be stepped rather than t
   only, until measured otherwise.
 - **Colouring the map by district before the field is coherent** — it would look like a bug.
 
-### 31. Tooling: `profile.mjs` Against the Layout Rework
-
-**Found 2026-10-23** while proving backlog 30 ([archive](archive/backlog-archive.md#30-tooling-one-shared-cdp-helper-for-the-perf-scripts)):
-`npm run perf` (`scripts/perf/profile.mjs`, [PERFORMANCE.md](../PERFORMANCE.md)) threw on `main` after Fleet Params. The
-layout rework (roadmap [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen)) had moved everything
-it drives: Task 21 (`4ba12cae`) replaced the Probes list's `.robot-selection-card__top` with the roster tile; the header
-nav became the nav panel (no "back" button, no `role="radio"`, the Settings tile no longer "Nav & Comms", `.console` now
-`.console-panel`); and the accordions became section tabs, so no `.sc-accordion` exists in the app at all.
-
-**(A) Unbreak — built 2026-10-23 on `fix/profile-step-table`.** The robot opens through `.roster-tile__face`; "back to
-the roster" is the nav panel's Probes box (`navActions.pressBranchBox` → `selectBranch` when a robot is open); the
-capture windows return to the Deck through its box and check `.console-panel` is gone; the `TILE_*` labels are the
-`human` of the content layer's `*.root` entries. The per-section rows (`fleet › …`, `detail › …`) and `--smoothness`
-find no accordions and say so once instead of failing: dormant, not broken. PERFORMANCE.md's 17.2.x tables stay as the
-history of the accordion screens, marked so.
-
-**Proof for (A), 2026-10-23** (a run, not a test: nothing imports the script): against a production build on :4173 at
-1×, the step table, `--profile` and `--smoothness` each ran to the end, exit 0; the two dormant paths printed their
-note; `--profile`'s capture windows returned to the Deck both times; the orphan check read the same `trace-atlas-perf-*`
-count before and after. The table, for the record (desktop 1280, tasks ≥ 100 ms / longest ms / cabinet boxes): power on
-2 / 325 / 12 · open Fleet Params 0 / 53 / 58 · switch to Probes 1 / 202 / 175 · open first robot 1 / 113 / 93 · back
-to the roster 1 / 177 / 175 · switch to Settings 0 / 59 / 39 · back to Fleet Params 0 / 0 / 58. A second run read the
-same within noise. Not a baseline (one run each, `main`'s desktop); PERFORMANCE.md's 17.2.x tables are the accordion
-screens' and are not comparable.
-
-**(B) Re-aim — open, unsequenced.** The section rows become a first click of each `.section-tabs__trigger` (Fleet
-Params' five with its sub-tab row; the robot screen's), and `--smoothness` goes with its PERFORMANCE.md section: tabs do
-not tween height, so the empty-open flash and the height snap it measured cannot happen. Then a fresh baseline table.
-Half a day with a Look; only when a main-thread question needs per-section numbers.
-
 ### 34. Audio: Upgrade Tone Once the Leak Fix Is `latest`, Then Delete the Patch
 
 **Split out 2026-10-26** from [32](archive/backlog-archive.md#32-audio-oscillator-leak-fix--disconnecting-the-dead-notes-params)
@@ -485,40 +455,6 @@ patch is safe on a fixed Tone too (its repeated disconnects are swallowed), so t
 full suite, listen, and run the perf runs against the old version. In the same change, delete
 `src/engine/tonePatches.ts`, its test, its call in `src/engine/audioContextSetup.ts` and `oscillatorLeakPatched`, and
 the "Tone patch: the per-note oscillator leak" section of [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md).
-
-### 39. Main Thread: Recurring Store Writes Fan Out to the World View (Measure First)
-
-**Found 2026-10-26** by the steady-state review
-([PERFORMANCE.md](../PERFORMANCE.md#steady-state-review--what-runs-continuously-and-which-of-it-can-pop-2026-10-26)).
-Not built until the `?debug` overlay shows lag spikes beside the pops; if the pops survive 37 and 38 with the lag line
-quiet, this item does not help and stays parked.
-
-**What runs.** Three recurring writers each re-render far more than they change:
-
-- **The swell tick** (25–65 store writes a second with both pools full). `updateRobot` rebuilds the locale, so every robot
-  swell write re-renders that robot's Robot → RobotBody → RobotGem chain (RobotGem is memo'd, but RobotBody hands it
-  new `palette`, `orbiters` and `halo` objects every render, `src/components/robot/RobotBody.tsx`), LightShafts and both
-  TerrainLayers (`s.locales[localeId]`, the whole locale; TerrainLayer recomputes the terrain outline and facets), and
-  the audio budget's `signature()` string (`src/systems/audioBudgetSystem.ts`). A `layer1.gain` or `layer2.gain` swell
-  also rebuilds that robot's strip-flicker timeline every tick, because the gain sits in the flicker trigger tuple.
-  EQ/filter swells re-render 6–9 ChargingStation fragments (they select the swelled fields). Zustand renders at React's
-  blocking lane, inside the Tone clock callback; Task 12 measured the store half under 1 % and React about a third of
-  the 61–185 ms tasks it sat in (4× throttle).
-- **The 1 Hz clock tick** (`AttenuationStyleView`, `setInterval` → `activeLocaleLocalTime`, a float that changes every
-  second, running powered off too). About 60 Factories recompute fills, facets and window grids; every scenery actor,
-  the 12 world robots, WaterColumn, LightShafts and TerrainLayer subscribe; LocaleView → OceanScene (neither memo'd)
-  cascades to every non-memo child. One burst a second; whether it exceeds 100 ms is unmeasured.
-- **The battery tick** (`tickRobotLifecycle`): 10–12 separate `updateRobot` sets per measure, each carrying the fan-out
-  above, for a dimming overlay that is a step function.
-
-**To check first:** one `npm run perf -- --profile` idle window with swells on, read for long tasks attributed to
-`performWorkOnRoot` under the clock tick and under the swell tick, before any edit.
-
-**Fix (behaviour, RED first), if the measurement says so:** RobotBody memoises the three objects it hands RobotGem;
-LightShafts and TerrainLayer select only what they draw; the flicker trigger tuples lose the layer gains (a swell is not
-an edit); the lifecycle tick writes its batteries in one store set; and the Factories subscribe to a quantised hour.
-Done when the same profile window shows the two ticks' React share gone from the long tasks, with the world looking the
-same.
 
 ### 42. Audio: Does a Long Pause on iOS Safari Come Back? (Measure First)
 
@@ -537,21 +473,6 @@ and listen.
 not `'running'`, tears the paused world down (`tearDownPausedWorld`, worldTransition.ts) and starts cold. The power-on
 is a user gesture, so `Tone.start()` may unlock the context there; a plain retry of `resume()` inside the gesture is the
 cheaper first try. Done when a 10-minute pause on iOS comes back with sound.
-
-### 43. Animation: The World Pause Misses Timelines Built Paused and Played Later
-
-**Found 2026-10-31** by the off-screen review ([OFF_SCREEN_REVIEW_FOLLOWUPS.md](../tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md)
-R26, item 1); **recorded, not fixed** (Crawford, 2026-11-01). Power is a pause: `pauseWorldTimelines()` pauses every
-`'world'` timeline that is playing, and a `'world'` timeline registered during the pause is paused on arrival
-(`setTimeline`, `src/animation/timelineMap.ts`). The arrival guard only pauses a timeline that is already playing, so a
-timeline built `{ paused: true }` and played after `setTimeline` slips through and runs under the pause. That is how the
-deck camera's float moved behind the off screen, and R26.1 gated the camera's tick on the world state.
-
-**Still open:** the same pattern builds the robots' swims, the work loop's dissolve and work moves, and the station
-ripples. Nothing starts those while the world is paused today, so nothing visible is wrong. A future change that does
-would reopen it. **The general fix, when wanted:** have the registry hold a paused-span timeline paused until the span
-ends, whenever it is played (wrap `play`, or check the world state where those callers play), and drop R26.1's
-camera-only gate. Done when a `'world'` timeline built paused and played during a pause stays still until the resume.
 
 ### 44. Sessions: Warn Before the Saves Fill the Browser's Storage
 
@@ -688,28 +609,6 @@ under a full parallel load.
 
 **To do:** find the file (run the suite by directory, or with `--reporter=verbose`, until the error follows one file),
 then let its loop yield or split the case. Done when a full run reports no errors.
-
-### 68. Audio: Automatic Tier Choice for Weaker Desktops (Revisit with the Lean Graph)
-
-**Raised 2026-11-06** at backlog 67's interview, as the question 67 set aside. A desktop boots at Full
-(`resolveInitialAudioLoad`: no coarse pointer → Full) and nothing moves the dial for it; a machine weaker than
-Crawford's gets the same graph and the same clicks. Two shapes were assessed and neither is 67's work:
-
-- **A static estimate at boot.** Cost tracks graph size and barely tracks sounding robots (r 0.04 on ez84fjmr), so a
-  node census at load time could pick the default tier before the first note, with no mid-session change. It knows the
-  graph and not the machine.
-- **A reactive step-down.** The page already samples `AudioContext.playbackStats` every 500 ms (`?debug`); a one-way
-  ratchet on a sustained underrun rate could drop the tier. It is after the fact (the first clicks are heard before it
-  knows; Chrome has no render-capacity API a page can read), Standard saves only ~0.05 so the step would have to be
-  Light-like and audible mid-session, and a graph change under the lock can click by itself. A safety net at best.
-
-**Decision (Crawford, 2026-11-06):** not in 67; revisit once the graph is lean, since every node 67 removes weakens the
-case for either shape. The Audio Load dial stays the answer for weaker machines meanwhile. If it is picked up, the
-first question is whether the lean graph leaves any desktop that needs it.
-
-**What 67 left for it (2026-11-10).** On Crawford's desktop, Full now reads 0.47 mean and 0.55 crest on W1, and plays
-clean by ear at full 4K. No weaker desktop has been measured, so whether one still needs this is open. Backlog 72 and
-roadmap 69 would lower the floor further.
 
 ### 72. Audio: Dark Effects Leave the Graph — Their Standing Signals Go (B9)
 
