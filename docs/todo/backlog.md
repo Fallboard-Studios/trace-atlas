@@ -651,5 +651,8 @@ effect 3 s after power-on. The node census fell by 163 nodes on W1 and 196 on W2
 **Status:** intent confirmed 2026-11-10 ([intent](../intent/dark-effects-leave-the-graph.md)), which answers the
 questions above or hands them to the spec; spec approved the same day ([spec](../specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md),
 its two open questions at their defaults) and the plan written ([plan](../tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md),
-seventeen tasks). Next: Crawford's review of the plan, then the build. The ablation's code lives only in the backlog 67
-session's scratchpad, not in the repo; record §9 describes it.
+seventeen tasks). **Built** 2026-11-10 on `perf/dark-effects-leave-the-graph` (the spec's §8, "As built"): a dark
+effect is torn down a second after its disconnect and rebuilt at its next light. At Full the census fell 307 / 251 nodes
+and the mean 0.050 / 0.032 (W1 / W2); at Light none of the ten exists; every crossing ≤ ×1.107 with no gap, and
+Crawford heard no click (record "Backlog 72", §1–§4). Next: Crawford's PR; archive after the merge. The ablation's code
+lives only in the backlog 67 session's scratchpad, not in the repo; record §9 describes it.

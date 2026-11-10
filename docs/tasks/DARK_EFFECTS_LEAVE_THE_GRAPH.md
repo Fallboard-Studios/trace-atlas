@@ -599,7 +599,7 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
 
 ### Phase 5: Docs
 
-- [ ] **Task 17: The docs, the spec's As built, backlog 72**
+- [x] **Task 17: The docs, the spec's As built, backlog 72**
 
   **Description:** `docs/AUDIO_SYSTEM.md`: "The bypass cells" says a dark effect is not built and when it is torn down
   and rebuilt; the Phaser's "Boot builds the Phaser twice" line is corrected; the effects-tiers paragraph says a hold
@@ -609,17 +609,26 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
   **Proof:** Read — Crawford's review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every documented name and behaviour matches the shipped code.
+  - [x] Every documented name and behaviour matches the shipped code.
 
   **Verification:**
-  - [ ] Manual read; every identifier grepped in `src/`.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual read; every identifier grepped in `src/`.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1–16.
 
   **Files:** `docs/AUDIO_SYSTEM.md`, `docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md`, `docs/todo/backlog.md`
 
   **Estimated scope:** S (docs only)
+
+  **As built (2026-11-10):** AUDIO_SYSTEM.md: **The bypass cells** gains "A dark effect is not built" (the registration,
+  dark at its own level, the teardown, the mirrors, where the build lands) and the backlog 72 measurements; the Phaser's
+  "Boot builds the Phaser twice" line now says boot builds none and a seeded lit one is built once at its seeded count;
+  the effects tiers paragraph says a hold tears the ten down and the lift builds them; and four lines the build made
+  stale are corrected (the Colour setters' "no-op when its node was not built", the BitCrusher's worklet, the rooms'
+  feed told by `start()` after the push, the LFOs recorded by `setCellEffect`). The spec gains §8, "As built", and a
+  status line; backlog 72's status and plan.md's line say built. Every identifier named was grepped in `src/` (45, all
+  present); types clean, lint the four existing scenery warnings.
 
 ### Checkpoint: Complete
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
