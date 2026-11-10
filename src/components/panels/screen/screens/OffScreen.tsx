@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FocusEvent, type KeyboardEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useGSAP } from '@gsap/react';
-import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import { TransmissionEditor, type EditorIdentity } from './TransmissionEditor';
+import { OffScreenConfirm } from './OffScreenConfirm';
+import { RenameField } from './RenameField';
 import { actionRow, type ActionRowKind } from './offScreenActions';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { Button } from '@/components/ui/controls/Button';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
-import { TextInput } from '@/components/ui/controls/TextInput';
 import { useShareStatus } from '@/hooks/useShareStatus';
 import { loadingOf, type LoadingIdentity } from '@/data/bands/loadingIdentity';
 import { THEME_IDS, isThemeId, type ThemeId } from '@/data/bands/themes';
@@ -31,7 +31,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useLoadingStore } from '@/stores/loadingStore';
 import { deleteNamedSession, listSessions, loadSession, renameNamedSession } from '@/utils/sessionStorageEngine';
 import { hasHeardWorld } from '@/utils/deviceFlags';
-import { formatSessionTimestamp, getScreenViewportDomNode } from '@/utils/helpers';
+import { formatSessionTimestamp } from '@/utils/helpers';
 import { CLEAR_STORAGE_SCHEMA } from '@/data/sessionConfig';
 import { generateRandomAttenuationStyleName, randomCoordinate } from '@/utils/seedUtils';
 import { describeLoading, describeWorld, withTail } from '@/utils/describeWorld';
@@ -46,7 +46,7 @@ import {
   startOffScreenBoot,
 } from '@/animation/offScreenTheatre';
 import { fill, labels } from '@/content';
-import type { ButtonSchema, RadioButtonSchema, TextInputSchema } from '@/types/controls';
+import type { ButtonSchema, RadioButtonSchema } from '@/types/controls';
 import type { SessionPayload } from '@/types/session';
 import type { WorldIdentity } from '@/utils/seedBaseline';
 import './OffScreen.css';
@@ -55,8 +55,7 @@ import './OffScreen.css';
 // CONSTANTS
 // ========================================
 
-// Option values carry their source, so a save named Current or New Transmission never collides with either. (The
-// presets, a third source, went at docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A; Crawford may bring them back.)
+// Option values carry their source, so a save named Current or New Transmission never collides with either.
 const NEW_VALUE = 'new';
 const CURRENT_VALUE = 'current';
 const SAVE_PREFIX = 'save:';
@@ -72,39 +71,27 @@ const ASPECTS_TITLE = labels('home.off.aspects').humanLabel;
 const ASPECTS_HINT = labels('home.off.aspectsHint').humanLabel;
 const READOUT_LABEL = labels('home.off.readout').humanLabel;
 
-/** The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5): Save, Rename and Delete, muted — flat, like the
- *  theme row and the list; only the aspect rows pop (Crawford's note 5). Each acts on the selected row and is named after
- *  it through its template. Scan is the New Transmission editor's (TransmissionEditor.tsx). */
+/** The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5): Save, Rename, Delete and Share, muted — flat,
+ *  like the theme row and the list; only the aspect rows pop (Crawford's note 5). Each acts on the selected row and is
+ *  named after it through its template. Scan is the New Transmission editor's (TransmissionEditor.tsx). */
 const SAVE_SCHEMA: ButtonSchema = { id: 'offSave', type: 'button', ...labels('home.off.save'), appearance: 'muted' };
 const RENAME_SCHEMA: ButtonSchema = { id: 'offRename', type: 'button', ...labels('home.off.rename'), appearance: 'muted' };
 const DELETE_SCHEMA: ButtonSchema = { id: 'offDelete', type: 'button', ...labels('home.off.delete'), appearance: 'muted' };
-/** Rename's inline input (spec §1.5), in the selected save's row: the save's name, as long as the Sessions panel's name
- *  field allows. */
-const RENAME_INPUT_SCHEMA: TextInputSchema = {
-  id: 'offRenameInput',
-  type: 'textInput',
-  ...labels('home.off.rename'),
-  maxLength: 128,
-};
-/** Rename refused: another save has the typed name (spec assumption 3). */
-const RENAME_TAKEN = labels('home.off.renameTaken').humanLabel;
-/** Share (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), last in the action row since the presets went at Checkpoint A (beside
- *  the readout, then under it, before), muted like the rest of it, and the two lines its copy writes into the status slot, read from the Sessions panel's
- *  content. */
 const SHARE_SCHEMA: ButtonSchema = { id: 'offShare', type: 'button', ...labels('home.off.share'), appearance: 'muted' };
+/** The status slot's lines (spec §1.6): Rename refused for a taken name (assumption 3), and Share's two. */
+const RENAME_TAKEN = labels('home.off.renameTaken').humanLabel;
 const LINK_COPIED = labels('session.status.linkCopied').humanLabel;
 const COPY_FAILED = labels('session.status.copyFailed').humanLabel;
-/** Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3): what the standing warning said. */
+/** Current's eyebrow while no save matches it (docs/specs/OFF_SCREEN_CONSOLE.md §1.3). */
 const UNSAVED_EYEBROW = labels('home.off.unsavedEyebrow').humanLabel;
 const FOOTER = labels('home.off.footer').humanLabel;
 
-/** Factory Reset (spec §1.4): under its label row, behind the Save & Share tab's confirm, from the same content. At the
- *  foot of the Transmissions section, with the saves it deletes (Checkpoint A: the Device section it had is gone). */
+/** Factory Reset (spec §1.4), at the foot of the Transmissions section with the saves it deletes: its label row, its
+ *  button and its confirm. */
 const RESET_LABELS = labels('session.clearStorage');
 const RESET_CONFIRM_TITLE = labels('session.clearStorage.confirmTitle').humanLabel;
 const RESET_CONFIRM_BODY = labels('session.clearStorage.confirmBody').humanLabel;
-const CANCEL = labels('ui.cancel').humanLabel;
-/** Delete's confirm (Checkpoint A): the Sessions list's delete confirm, read from the same content. */
+/** Delete's confirm (spec §1.5). */
 const DELETE_CONFIRM_BODY = labels('session.delete.confirmBody').humanLabel;
 const DELETE = labels('home.off.delete').humanLabel;
 
@@ -164,40 +151,7 @@ function AspectFamilyRow({
   );
 }
 
-/** Rename's input (docs/specs/OFF_SCREEN_CONSOLE.md §1.5), in RadioButton's trailing slot on the save's row: prefilled,
- *  focused and selected on mount. Enter commits, Escape cancels (null), and a blur out of it commits, caught on the
- *  wrapper as the New Transmission editor catches its own (TextInput takes no key or blur props, and both bubble). It
- *  reports once: the input unmounting after a commit is no second one. */
-function RenameField({ name, onDone }: { name: string; onDone: (from: string, to: string | null) => void }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const [draft, setDraft] = useState(name);
-  const done = useRef(false);
-  const finish = (to: string | null) => {
-    if (done.current) return;
-    done.current = true;
-    onDone(name, to);
-  };
-  useEffect(() => {
-    const input = ref.current?.querySelector('input');
-    input?.focus();
-    input?.select();
-  }, []);
-  const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === 'Enter') finish(draft);
-    else if (e.key === 'Escape') finish(null);
-  };
-  const onBlur = (e: FocusEvent<HTMLDivElement>) => {
-    if (!(e.relatedTarget instanceof Node && e.currentTarget.contains(e.relatedTarget))) finish(draft);
-  };
-  return (
-    <div className="off-screen__rename" ref={ref} onKeyDown={onKeyDown} onBlur={onBlur}>
-      {/* Bare in the row: no cabinet box of its own (Crawford, Checkpoint A). */}
-      <TextInput schema={RENAME_INPUT_SCHEMA} value={draft} onChange={setDraft} facade={false} />
-    </div>
-  );
-}
-
-/** The saves, newest first, as the Save & Share tab listed them. */
+/** The saves, newest first. */
 const sortedSaves = () => listSessions().sort((a, b) => b.savedAt - a.savedAt);
 
 /** What a pick is: Current — the loaded world, described live from the stores — or a save / New Transmission, described from its own world under its name (none for New Transmission), so the well names what was
@@ -277,107 +231,37 @@ interface Intent {
 }
 
 /**
- * The powered-off screen (docs/specs/LAYOUT_REWORK.md §1.9; docs/specs/OFF_SCREEN.md §1.1, assumptions 7 and 8):
- * the etched label and the power hint over the dimmed, still world (WorldView stays mounted behind it —
- * ScreenViewport), and — once this device has heard a world — the Transmission row: Current (the world the listener
- * powered off on), then the user's saves newest first under "Saved Transmissions", each with when it was saved (the
- * three presets that followed went at docs/tasks/OFF_SCREEN_CONSOLE.md's Checkpoint A), as a RadioButton in the `list`
- * appearance — rows, nothing coming off the plate while the power is off (docs/tasks/OFF_SCREEN_REVISIONS.md Task 4, Crawford's note 1) — every row
- * naming its world through describeWorld (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Tasks 6b and 6c), with a
- * well naming the pick through the same helper.
+ * The powered-off screen, the console where a world is made, loaded, saved, shared and deleted
+ * (docs/specs/OFF_SCREEN_CONSOLE.md; its forerunners docs/specs/OFF_SCREEN.md and
+ * docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). The etched label and the power hint sit over the dimmed, still
+ * world (WorldView stays mounted behind it). The gate (assumption 7) is read on mount: a device that has never heard a
+ * world sees the label and the hint only, and the lore footer is last in both gate states.
  *
- * The New Transmission editor (docs/specs/OFF_SCREEN_CONSOLE.md §1.2; TransmissionEditor.tsx) sits over the list in
- * place of the row that held a world drawn on mount: it shows the live world's seed and plot, or a waiting change's, and
- * draws nothing on mount (assumption 1). A commit — Enter, or a blur out of it — of a draft that differs is a New
- * Transmission pick of the typed world; Scan, in its title row, draws one and picks it the same way. No row carries New
- * Transmission, so while it is the shown pick no row is checked and the editor wears the selected state.
+ * Once it has, two axes, side by side on the desk and stacked on the phone (OffScreen.css):
+ * - Transmission: the New Transmission editor (TransmissionEditor.tsx; a commit or a Scan is a New Transmission pick,
+ *   landing under Classic with no aspects), then the list — Current, then the saves newest first, every row named
+ *   through describeWorld — the action row (Save, Rename, Delete, Share, dimmed by offScreenActions.ts) and Factory
+ *   Reset at the foot, with the saves it deletes.
+ * - Loading: the theme row and the four family rows. A theme or aspect click applies at once through retransmitWorld,
+ *   under no wash, re-deriving the live world in place; the selected row stays and the loaded save stays attached.
  *
- * The Transmissions section (docs/specs/OFF_SCREEN_CONSOLE.md §1.4): the list and its action row, always shown (they sat
- * in a collapsible section under a header naming the shown row until Checkpoint A dropped the toggle). At the
- * section's foot, with the saves it deletes, Factory Reset behind the Save & Share tab's confirm, portalled into the screen
- * (it had a Device section of its own until Checkpoint A: nothing else was ever going in it). Confirmed, it clears all of localStorage and detaches the loaded save, and the gate is read again, so the
- * chooser gives way to the first-visit view at once (assumption 4).
+ * Under both, the readout names the shown pick, and the status slot holds one line at a time: a refused Save or Rename,
+ * or Share's.
  *
- * The gate (assumption 7) is read once on mount, as the saves are: a device that has never heard a world sees
- * the label and the hint only — the first flip writes the flag, so the chooser waits behind the first power-off.
+ * A world pick (a save, New Transmission, or Current's restore) waits under the scene wash and never starts audio: only
+ * the power switch does. Every click made while it waits joins its Intent, which realise() applies at the cover, the
+ * last world click winning (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3); the rows and the readout draw from the intent,
+ * so a click shows at once, and the action row dims until the change has run.
  *
- * Picking a save retransmits the faint world through applySessionPayload, the same path a Load does,
- * and never starts audio: only the power switch does (powerController). A save pick also makes the save the loaded
- * one, so a later Save overwrites it. A save that has since vanished from
- * storage applies nothing and is not claimed as the pick. Scan draws a world and picks it as New Transmission, from any
- * row, landing it under Classic with no aspects (docs/specs/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md §1.1). A Scan
- * or an editor commit detaches the loaded save (no save is loaded after it): that world is no longer the save.
+ * Current is an anchor: the first pick that leaves it takes a snapshot (CurrentSnapshot), which names Current until it is
+ * live again. Picking Current before the change that left it has landed cancels that change; after another world has
+ * landed, it restores the snapshot under the wash and re-attaches its save. So Current is selected only with no
+ * snapshot, and Save and Share always act on the live world.
  *
- * Current is an anchor (spec §1.2): the first pick that leaves it takes a snapshot (CurrentSnapshot, above: the payload
- * and the loaded save's name, runtime only), and Current is named from the snapshot while there is one, so no pick
- * renames it; with none, it is the live world. Picking Current before the change that left it has landed cancels that
- * change (worldChange.ts's cancelWorldChange) and drops the snapshot, so the paused world stands; after another world
- * has landed, it restores the snapshot under the wash through applySessionPayload, re-attaches its save (or detaches),
- * and drops it. Re-clicking the selected row does nothing. A theme or aspect click keeps the selected row; on a row
- * other than Current, the row's label names the live loading in place of its own until the row is left (§1.3).
- *
- * The action row under the list (docs/specs/OFF_SCREEN_CONSOLE.md §1.5; Keep's place, review R20): Save, Rename,
- * Delete and Share, each acting on the selected row and named after it, an inert one dimmed in place by the pure matrix
- * in offScreenActions.ts, all four while a change waits. Save writes the live world through sessionStore.keepCurrentWorld —
- * no name field — and the new row appears at once: on Current, under its loaded save's name or a fresh one, lit while
- * Current is unsaved; on a save, over that save, lit while the live world differs from it; on New Transmission,
- * under a fresh name, always lit, and the selection moves to the new row. Current's eyebrow reads
- * "Current · unsaved" only while no save matches Current (DirtyReads, above; spec §1.3; the standing warning line it
- * replaced is gone). A Save the storage refuses shows its failure line, naming the save it tried, in the status slot
- * under the readout until a Save succeeds or the world changes (R20, spec §1.6). Rename puts an input in the selected
- * save's trailing slot (RenameField, above): its commit re-keys the save, and the loaded name and Current's snapshot
- * name follow; a taken name is refused in the same slot, one line at a time. Delete asks first, a modal confirm naming the
- * save (Checkpoint A); confirmed, it removes the save with no world change, and the selection falls to New Transmission
- * holding the live world (deleteSave). Share copies the live world's link, its line in the same slot. Dirty is read on mount, after a landed
- * change, after an in-place edit and after a Save — never per render (it builds the live payload). The veil
- * (assumption 18) is the screen's own backdrop — the
- * blur and dim over the still world, under everything else here — and the lore footer is the last thing in the
- * column in both gate states. The column is the root's third child, `.off-screen__scroll`, after the veil and the
- * dark layer (docs/tasks/OFF_SCREEN_REVISIONS.md Task 2): it is what scrolls on the phone, so the veil stays put.
- *
- * The boot theatre (assumption 18, animation/offScreenTheatre.ts): on mount the dark layer over the content holds
- * for half a second, then flickers off — a 'ui' timeline in timelineMap, so it runs over the paused world; a tap
- * anywhere on the screen skips it, reduced motion skips it outright, and the rocker outside the screen works
- * throughout. That is a fresh page's: after a power-off (the world 'paused') the screen fades in over the world just
- * frozen instead, the reverse of the power-on fade (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F6). The screen registers its root under the off-screen ref so powerController's power-on can await
- * fadeOffScreen() — the screen and its veil to transparent — before the power flag flips and ScreenViewport
- * unmounts it. Both timelines are killed, and the ref dropped, on unmount.
- *
- * The Loading axis (docs/tasks/OFF_SCREEN.md Task 30; spec assumptions 9 and 17, §1.6): the second column, under the
- * Loading heading ("Trace Type", hinted "select one") — the theme row, a muted RadioButton of the five themes, and one
- * muted sentence under it describing the shown theme (the Guide's small part: the same content entry the Guide will
- * read). The row shows a waiting change's theme while one waits, else the live loading store's, whichever row is
- * selected (a landed pick's stored loading goes stale at the first edit in place; spec §1.3). A theme pick is
- * `retransmitWorld({ theme })`, at the click and under no wash: the seed, the plot and the live world stay, only
- * the seeded fields the theme moves are re-derived in place (a tweak on one of them goes; docs/tasks/
- * OFF_SCREEN_FINAL_FIXES.md F7–F8), the world row stays where it is (spec §1.1), the loaded save stays attached — the
- * seed is still the save's, under another theme — and dirty is read again. The readout carries describeWorld's
- * tail, so the three readers of the helper agree. Desktop: the two axes side by side, the readout spanning under
- * both; the phone shell stacks them (OffScreen.css).
- *
- * The family rows (Task 31's Melody row, one per family since docs/tasks/OFF_SCREEN_REVISIONS.md Task 9; assumptions
- * 17 and 21) sit under the theme row's line and a "Trace Aspects" title (hinted "select many"), in ASPECT_FAMILY_IDS
- * order — Melody, Envelope, Distance, Voice: each a
- * multiple RadioButton in the cabinet appearance, the only thing on this screen that pops (Crawford's note 5; the theme
- * row, the list, Scan and the action row stay flat), its options in canonical order with no "As theme" (revisions Task 6), showing the
- * waiting change's picks or the live world's, as the theme row does. A change
- * sends the whole loading, `retransmitWorld({ aspects })`, with the changed family's set canonical (an empty list when
- * its row is cleared — every robot as theme for that family) and every other family's carried as shown; the live roster
- * is re-dealt in place, at the click and under no wash (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R33: an aspect is no
- * world change), with the same row kept, the same attached save and the same dirty read as a theme pick. Each
- * row's description line names the aspect toggled on last in that family while it is still on, else
- * the last of its set in canonical order, else the family's own `none` sentence; a world pick resets every family's
- * toggle memory, so a save reads as its own sets. New Transmission's world lands under Classic with no aspects, so a
- * Scan clears every row.
- *
- * While a world change waits under the wash, every click joins it (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R3). The
- * screen keeps the clicks' intent (Intent, above), and the one request realises all of it at the cover: the world part,
- * then the loading where it differs from the one the world part leaves. The rows, the description lines and the readout
- * draw from the intent, so a click shows at once. A theme pick or a family toggle made then joins the intent instead of
- * re-deriving a world about to go, and the waiting row stays selected, the readout naming it under the loading clicked
- * (docs/tasks/OFF_SCREEN_FINAL_FIXES.md F12); the loading is laid over its world at the cover, and the row stays the
- * intended pick, always (spec §1.5). The last world click wins, a Current restore included. Picking Current before the
- * change has landed cancels it instead (above); the action row dims until the change has run.
+ * Dirty (DirtyReads) is read on mount, after a landed change, an edit in place and a Save, never per render: it builds
+ * the live payload. The boot theatre (animation/offScreenTheatre.ts) runs on a fresh page; after a power-off the screen
+ * fades in over the frozen world instead. The root is registered under the off-screen ref so powerController's power-on
+ * can await fadeOffScreen(); both timelines are killed, and the ref dropped, on unmount.
  */
 export function OffScreen() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -412,19 +296,17 @@ export function OffScreen() {
   const [slot, setSlot] = useState<SlotLine | null>(null);
   // The save whose row holds Rename's input, while one does (spec §1.5).
   const [renaming, setRenaming] = useState<string | null>(null);
-  // Share's copy and its auto-dismissing status (spec §1.6), the Sessions panel's hook.
+  // Share's copy and its auto-dismissing status (spec §1.6).
   const { shareStatus, share } = useShareStatus();
-  // Factory Reset's confirm.
+  // Factory Reset's confirm, and the button that opened it, focused again on close (OffScreenConfirm's onCloseAutoFocus).
   const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
-  // A modal Radix dialog gives focus back only to its own Trigger, and Reset is not one, so the button that opened it
-  // is kept and focused again on close (the Save & Share tab's way).
   const resetOpenerRef = useRef<HTMLElement | null>(null);
-  // The save Delete's confirm asks about while it is open, and the button that opened it (Checkpoint A).
+  // The save Delete's confirm asks about while it is open, and the button that opened it.
   const [deleting, setDeleting] = useState<string | null>(null);
   const deleteOpenerRef = useRef<HTMLElement | null>(null);
 
   // The loaded world, for the Current row and the readout. Narrow selectors (the name, the coordinates
-  // object) as Foundry read them, so a robot write elsewhere in the locale never re-renders this.
+  // object), so a robot write elsewhere in the locale never re-renders this.
   const currentAttenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);
   const currentLocaleId = currentAttenuationStyle?.currentLocaleId;
   const coordinates = useLocaleStore((s) => (currentLocaleId ? s.locales[currentLocaleId]?.coordinates : undefined));
@@ -692,7 +574,7 @@ export function OffScreen() {
 
   // After a power-off the chooser takes the focus, so keyboard and screen-reader users land in it rather than on a
   // readout that mounted already filled (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R25; Crawford, its Open Question 5):
-  // on the list's selected row (the Transmissions header took it while the list was collapsible, until Checkpoint A).
+  // on the list's selected row.
   // The world tells a power-off from a fresh page: pause() writes 'paused' in the same call that flips the power flag,
   // before this mounts, and a fresh page is 'cold', which leaves the focus where it is. A first visit renders no rows,
   // so nothing is found to take it.
@@ -831,7 +713,7 @@ export function OffScreen() {
   }, []);
   const returnResetFocus = useCallback(() => resetOpenerRef.current?.focus(), []);
 
-  // Confirmed, it wipes all of localStorage, as the Save & Share tab's did — the device flag with it — and drops the loaded
+  // Confirmed, it wipes all of localStorage — the device flag with it — and drops the loaded
   // save's name, which no entry backs any more. The gate is read again at once, so the chooser gives way to the
   // first-visit view with no reload (assumption 4). The saves are not re-read: the chooser that lists them is gone for
   // this mount, and the next mount reads them afresh. The paused world stands: nothing here is a world change.
@@ -876,41 +758,6 @@ export function OffScreen() {
     [shownAspects, setIntent],
   );
 
-  // Factory Reset's confirm, the Save & Share tab's dialog read from the same content (spec §1.4), and Delete's, in its look.
-  const screenNode = resetConfirmOpen || deleting !== null ? getScreenViewportDomNode() : null;
-  const deleteConfirm = (
-    <>
-      <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
-      <AlertDialog.Content className="clear-storage-confirm__content" onCloseAutoFocus={returnDeleteFocus}>
-        <AlertDialog.Title className="clear-storage-confirm__title">
-          {fill('session.delete.confirmTitle', { session: deleting ?? '' })}
-        </AlertDialog.Title>
-        <AlertDialog.Description className="clear-storage-confirm__description">{DELETE_CONFIRM_BODY}</AlertDialog.Description>
-        <div className="clear-storage-confirm__actions">
-          <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CANCEL}</AlertDialog.Cancel>
-          <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={onConfirmDelete}>
-            {DELETE}
-          </AlertDialog.Action>
-        </div>
-      </AlertDialog.Content>
-    </>
-  );
-  const resetConfirm = (
-    <>
-      <AlertDialog.Overlay className="clear-storage-confirm__overlay" />
-      <AlertDialog.Content className="clear-storage-confirm__content" onCloseAutoFocus={returnResetFocus}>
-        <AlertDialog.Title className="clear-storage-confirm__title">{RESET_CONFIRM_TITLE}</AlertDialog.Title>
-        <AlertDialog.Description className="clear-storage-confirm__description">{RESET_CONFIRM_BODY}</AlertDialog.Description>
-        <div className="clear-storage-confirm__actions">
-          <AlertDialog.Cancel className="clear-storage-confirm__cancel">{CANCEL}</AlertDialog.Cancel>
-          <AlertDialog.Action className="clear-storage-confirm__confirm" onClick={onConfirmReset}>
-            {RESET_LABELS.humanLabel}
-          </AlertDialog.Action>
-        </div>
-      </AlertDialog.Content>
-    </>
-  );
-
   return (
     <div className="off-screen" ref={rootRef} onPointerDown={skipOffScreenBoot}>
       <div className="off-screen__veil" aria-hidden="true" />
@@ -937,8 +784,7 @@ export function OffScreen() {
                   onCommit={pickNew}
                   onScan={onScan}
                 />
-                {/* The Transmissions section (spec §1.4): the list, its actions and Factory Reset, always shown (no
-                    toggle since Checkpoint A). */}
+                {/* The Transmissions section (spec §1.4): the list, its actions and Factory Reset. */}
                 <div className="off-screen__transmissions">
                   <RadioButton schema={schema} value={shownPick.value} onChange={onChange} trailing={trailing} />
                   <div className="off-screen__actions">
@@ -963,7 +809,6 @@ export function OffScreen() {
                       onClick={openDeleteConfirm}
                       disabled={!actions.delete}
                     />
-                    {/* Share (spec §1.6), last in the row: with the saves, since the presets went (Checkpoint A). */}
                     <Button
                       schema={SHARE_SCHEMA}
                       face="single"
@@ -1001,25 +846,33 @@ export function OffScreen() {
             <p className="off-screen__readout" role="status" aria-label={READOUT_LABEL} data-testid="off-screen-readout">
               {readout}
             </p>
-            {/* The status slot (docs/specs/OFF_SCREEN_CONSOLE.md §1.6), where the unsaved warning was: always there,
-                empty but for one line, so a line coming and going never moves the column (docs/tasks/
-                OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). Current's eyebrow says unsaved now. A failure is an alert; "copied"
-                a status, gone at the hook's dismiss. */}
+            {/* The status slot (docs/specs/OFF_SCREEN_CONSOLE.md §1.6): always there, empty but for one line, so a line
+                coming and going never moves the column (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R26). A failure is an
+                alert; "copied" a status, gone at the hook's dismiss. */}
             <p className="off-screen__status">
               {slot?.kind === 'saveFailed' && <span role="alert">{fill('session.status.saveFailed', { name: slot.name })}</span>}
               {slot?.kind === 'renameTaken' && <span role="alert">{RENAME_TAKEN}</span>}
               {slot?.kind === 'share' && shareStatus === 'copied' && <span role="status">{LINK_COPIED}</span>}
               {slot?.kind === 'share' && shareStatus === 'error' && <span role="alert">{COPY_FAILED}</span>}
             </p>
-            {/* Factory Reset's confirm: into the screen, never <body> (the UI Shell guardrail), or in place when there
-                is no screen (a component test). */}
-            <AlertDialog.Root open={resetConfirmOpen} onOpenChange={setResetConfirmOpen}>
-              {screenNode ? <AlertDialog.Portal container={screenNode}>{resetConfirm}</AlertDialog.Portal> : resetConfirm}
-            </AlertDialog.Root>
-            {/* Delete's confirm (Checkpoint A), placed as Factory Reset's is. */}
-            <AlertDialog.Root open={deleting !== null} onOpenChange={(open) => !open && setDeleting(null)}>
-              {screenNode ? <AlertDialog.Portal container={screenNode}>{deleteConfirm}</AlertDialog.Portal> : deleteConfirm}
-            </AlertDialog.Root>
+            <OffScreenConfirm
+              open={resetConfirmOpen}
+              onOpenChange={setResetConfirmOpen}
+              title={RESET_CONFIRM_TITLE}
+              body={RESET_CONFIRM_BODY}
+              action={RESET_LABELS.humanLabel}
+              onAction={onConfirmReset}
+              onCloseAutoFocus={returnResetFocus}
+            />
+            <OffScreenConfirm
+              open={deleting !== null}
+              onOpenChange={(open) => !open && setDeleting(null)}
+              title={fill('session.delete.confirmTitle', { session: deleting ?? '' })}
+              body={DELETE_CONFIRM_BODY}
+              action={DELETE}
+              onAction={onConfirmDelete}
+              onCloseAutoFocus={returnDeleteFocus}
+            />
           </div>
         )}
         <p className="off-screen__footer">{FOOTER}</p>
