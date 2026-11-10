@@ -515,7 +515,7 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
 
   **Estimated scope:** S (runs and a record section)
 
-- [ ] **Task 14: The A/B at Full**
+- [x] **Task 14: The A/B at Full**
 
   **Description:** `perf:audio` on W1 and W2 at Full, same session, interleaved, `main` against the branch, the
   rotation and seconds of the execution commands. Deltas and noise bands recorded beside 67's. It ships even if the
@@ -524,10 +524,15 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
   **Proof:** Run — recorded in the record.
 
   **Acceptance criteria:**
-  - [ ] Mean, crest and trough deltas on W1 and W2, with their bands, in the record.
+  - [x] Mean, crest and trough deltas on W1 and W2, with their bands, in the record.
 
   **Verification:**
-  - [ ] The record's table, commits named.
+  - [x] The record's table, commits named.
+
+  **As run (2026-11-10):** record "Backlog 72" §2. 18 runs, three arms a round (main, the branch, main's byte copy),
+  rotated. The mean fell −0.050 / −0.032 against main and −0.047 / −0.032 against its copy, in every round, about twice
+  B9's ablation. Two of main's W1 runs stalled (56 and 99 underruns; the copy never did), so W1's band is taken from the
+  unstalled round. The W1 mean moved, so PERFORMANCE.md's pin section has the backlog 72 rows.
 
   **Dependencies:** Task 13.
 

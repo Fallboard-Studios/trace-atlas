@@ -3134,3 +3134,67 @@ branch, nothing of theirs exists to render.
   −196), and so is the fall in rendering ConstantSources (−46 / −36 against −26 / −28). The difference is the two
   unfed-room branches the ablation kept.
 - **Light: met.** None of the ten effects' nodes remain.
+
+### 2. The A/B at Full (T14) — `npm run perf:audio`, 120 s, W1 and W2
+
+**Method.** As backlog 67's §6: 120 s, 15 s buckets, 8 s warm-up, at Full. There were three rounds, each with all three
+arms on W1 and then on W2, and the order rotated each round: r1 main, branch, main-copy; r2 branch, main-copy, main;
+r3 main-copy, main, branch. The 18 runs went from 13:52 to 14:34 on 2026-11-10, with the conditions of §1. Labels
+`T14-r<round>-<w1|w2>-<arm>`. Per-round tables, from the scratchpad's `agg.mjs`, are in `agg-T14.md`. Each delta is
+read against the same round's arm.
+
+**Per arm** (mean, crest and trough are the three runs' medians):
+
+| World | Arm | Mean (r1, r2, r3) | Crest | Trough | Underruns at end | Max lag |
+|---|---|---|---|---|---|---|
+| W1 | main | 0.512 (0.512, 0.496, 0.580) | 0.655 | 0.401 | **56**, 2, **99** | 76, 24, 52 ms |
+| W1 | main-copy | 0.521 (0.521, 0.489, 0.523) | 0.608 | 0.421 | 2, 2, 2 | 21, 26, 20 ms |
+| W1 | branch | **0.461** (0.461, 0.460, 0.476) | 0.573 | 0.350 | 2, 2, 2 | 26, 34, 25 ms |
+| W2 | main | 0.410 (0.404, 0.410, 0.411) | 0.533 | 0.205 | 2, 2, 2 | 30, 22, 18 ms |
+| W2 | main-copy | 0.403 (0.404, 0.402, 0.403) | 0.513 | 0.212 | 2, 2, 2 | 27, 25, 24 ms |
+| W2 | branch | **0.372** (0.372, 0.351, 0.381) | 0.476 | 0.178 | 1, 1, 1 | 25, 20, 21 ms |
+
+- **Two of main's W1 runs stalled.** r1 ended with 56 underruns (1 145 ms) and r3 with 99 (1 385 ms), each with a
+  main-thread lag of 52–76 ms, and r3's crest bucket read 0.815. Main-copy is the same bundle byte for byte and never
+  stalled, and neither did the branch. So the stalls are the machine, not the build. They inflate main's r1 and r3 on
+  W1, and the deltas against main-copy are given beside them for that reason.
+- Every run logged one warning, the same on every arm: Tone's "Events scheduled inside of scheduled callbacks…", the
+  admission's, expected since backlog 67's T10 was dropped.
+- On W1, `fx in` went from 5/10 to 6/10 during every run, on all three arms: the Chorus lights when its Double room's
+  feeder comes back. On the branch, that is a Chorus built from absent in the running app; no run stalled or logged
+  anything for it.
+
+**The noise band** (main-copy against main, the largest same-round difference):
+
+| World | Mean | Crest | Trough |
+|---|---|---|---|
+| W1, all three rounds | 0.057 | 0.190 | 0.026 |
+| W1, r2 only (no stall) | 0.006 | 0.047 | 0.027 |
+| W2 | 0.008 | 0.029 | 0.022 |
+| Backlog 67's §6 sitting, for reference | 0.021 | 0.033 | 0.041 |
+
+W1's three-round band is main's stalls. Read W1 against r2's band and 67's.
+
+**The deltas** (median over the three rounds, range in brackets). Bold where clear of the band; W1 is read against r2's
+and 67's band:
+
+| World | Against | Mean delta | Crest delta | Trough delta | Census |
+|---|---|---|---|---|---|
+| W1 | main | **−0.050** (−0.104 to −0.036) | **−0.082** (−0.203 to −0.059) | **−0.043** (−0.056 to −0.030) | 1 088–1 091 → 784 |
+| W1 | main-copy | **−0.047** (−0.059 to −0.029) | −0.035 (−0.045 to −0.014), at the band | **−0.067** (−0.076 to −0.056) | 1 082–1 088 → 784 |
+| W2 | main | **−0.032** (−0.058 to −0.030) | **−0.057** (−0.076 to +0.004) | −0.028 (−0.032 to +0.034), at the band | 1 211 → 960 |
+| W2 | main-copy | **−0.032** (−0.050 to −0.022) | −0.027 (−0.075 to −0.005), at the band | −0.020 (−0.035 to +0.012), below noise | 1 211 → 960 |
+
+- **The mean falls 0.047–0.050 on W1 and 0.032 on W2**, against either copy of main, in every round.
+  That is about twice B9's ablation (−0.026 / −0.022), as the census's larger drop predicts (§1). Main builds five
+  effects on W1 and six on W2 that the branch never builds. That comes to about 0.010 an absent effect on W1 and 0.005
+  on W2, close to B9's own rates (0.009 and 0.004).
+- **The crest** falls clearly against main and at the band against main-copy. Main's W1 r3 crest is the stall. The
+  crest stays with the sounding robots (roadmap 69's G2b), as 67 found.
+- **The trough** falls on W1 against both copies, and is at or below the band on W2.
+- **Underruns at the end:** the branch read 2 on W1 and 1 on W2 in every run, against 2 for the non-stalled main
+  runs.
+
+**Against T14's bar: met.** The mean, crest and trough deltas on W1 and W2 are recorded above, with their bands. The
+mean moved beyond every band, so PERFORMANCE.md's running table gets a new row: the branch's W1 Full mean in this
+sitting, beside main's.
