@@ -2,8 +2,8 @@
 
 Source spec: [docs/specs/OFF_SCREEN_CONSOLE.md](../specs/OFF_SCREEN_CONSOLE.md). Source intent:
 [docs/intent/off-screen-console.md](../intent/off-screen-console.md). Backlog
-[71](../todo/backlog.md#71-off-screen-the-console--the-one-place-a-world-is-made-loaded-kept-shared-or-deleted), first
-line of plan.md's Stage 1. Sketch: `docs/sketches/off-screen.html`, frame F (drafted 2026-11-08).
+[71](../todo/archive/backlog-archive.md#71-off-screen-the-console--the-one-place-a-world-is-made-loaded-kept-shared-or-deleted),
+closed and archived 2026-11-10 (merged in PRs #611 and #612). Sketch: `docs/sketches/off-screen.html`, frame F (drafted 2026-11-08).
 
 Written for: Crawford, and the agent that builds it.
 
