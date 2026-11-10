@@ -431,10 +431,78 @@ function cellOf(effect: any): any {
 /** A live cell, room or node as the mock it is (bypassCell types them as Tone nodes). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const fake = (node: unknown) => node as any;
+/** The five chain cells in chain order (the four Mix cells, then Width past the Compressor) and the five room branches,
+ *  read from the live cells: a cell exists from the build, its effect only from a light (Dark Effects Leave the Graph T11). */
+const liveChainCells = () => (['autoWah', 'phaser', 'tremolo', 'vibrato', 'stereoWidener'] as const).map((key) => fake(live.getCell(key)!));
+const liveBranchCells = () =>
+  (['distortion', 'chebyshev', 'bitCrusher', 'chorus', 'frequencyShifter'] as const).map((key) => fake(live.getCell(key)!));
 /** Robot Effect Sends T4: feed the named rooms (all three by default), as the engine does once a reserved robot's send
  *  into a room is above 0, so a branch at a depth above 0 lights. */
 function feedRooms(...rooms: Array<'grit' | 'shimmer' | 'double'>) {
   for (const room of rooms.length ? rooms : live.ROOM_KEYS) live.setRoomFed(room, true);
+}
+type Fx = typeof import('./globalFx');
+type Key = import('./bypassCell').BypassKey;
+/** Each key's light through its own setter: its Mix (the Shimmer and Double Returns are the Shifter's and the Chorus's
+ *  Mix), or Width's width. */
+const LIGHTS: Record<Key, (fx: Fx, mix: number) => void> = {
+  distortion: (fx, wet) => fx.setGlobalDistortion({ wet }),
+  chebyshev: (fx, wet) => fx.setGlobalChebyshev({ wet }),
+  bitCrusher: (fx, wet) => fx.setGlobalBitCrusher({ wet }),
+  autoWah: (fx, wet) => fx.setGlobalAutoWah({ wet }),
+  phaser: (fx, wet) => fx.setGlobalPhaser({ wet }),
+  chorus: (fx, wet) => fx.setGlobalChorus({ wet }),
+  tremolo: (fx, wet) => fx.setGlobalTremolo({ wet }),
+  vibrato: (fx, wet) => fx.setGlobalVibrato({ wet }),
+  frequencyShifter: (fx, wet) => fx.setGlobalFrequencyShifter({ wet }),
+  stereoWidener: (fx, width) => fx.setGlobalStereoWidener({ width }),
+};
+/** Dark Effects Leave the Graph T11 (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2): the chain builds no effect, and a
+ *  cell builds its effect at its first light. Light `key` through its setter at `mix` (0.5; Width at 0.8 unless given),
+ *  its room fed for a branch, let the BitCrusher's worklet check settle, and return the node its cell holds. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function lightUp(fx: Fx, key: Key, mix?: number): Promise<any> {
+  LIGHTS[key](fx, mix ?? (key === 'stereoWidener' ? 0.8 : 0.5));
+  const room = live.ROOM_KEYS.find((r) => live.ROOM_BRANCHES[r].includes(key));
+  if (room) live.setRoomFed(room, true);
+  await flush();
+  return live.getCell(key)?.effect;
+}
+/** Darken `key` through its setter (Mix 0; Width 0.5) and fire only the non-teardown timers: its cell still holds its
+ *  effect, unconnected, inside the teardown wait (a dark effect as every build left it before T11). */
+function darkenInWait(fx: Fx, key: Key): void {
+  LIGHTS[key](fx, key === 'stereoWidener' ? 0.5 : 0);
+  for (const t of darkens()) {
+    toneFlags.timeouts = toneFlags.timeouts.filter((pending) => pending !== t);
+    t.fn();
+  }
+}
+/** Forget a mock node's call history: its own spies and those of its Signals and LFOs, one level down. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function forgetCalls(node: any): void {
+  for (const value of Object.values(node ?? {})) {
+    if (vi.isMockFunction(value)) value.mockClear();
+    else if (value && typeof value === 'object') {
+      for (const inner of Object.values(value)) if (vi.isMockFunction(inner)) inner.mockClear();
+    }
+  }
+}
+/** A built effect in a dark cell, as every chain build left all ten before T11: lit once (`lightUp`), darkened, its
+ *  disconnect fired, so it sits unconnected inside its teardown wait; its own and its cell's call history forgotten,
+ *  so a case reads only what it does next. The teardown stays pending, as it would. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function darkInWait(fx: Fx, key: Key): Promise<any> {
+  const effect = await lightUp(fx, key);
+  darkenInWait(fx, key);
+  const cell = live.getCell(key)!;
+  for (const node of [effect, cell.in, cell.dry, cell.wet, cell.cut]) forgetCalls(node);
+  return effect;
+}
+/** Light every key whose cell exists, in BYPASS_KEYS order, and return tenEffects(). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function litAll(fx: Fx): Promise<any[]> {
+  for (const key of live.BYPASS_KEYS) if (live.getCell(key)) await lightUp(fx, key);
+  return tenEffects();
 }
 /** The cell law (Tone's CrossFade, docs/specs/DARK_EFFECT_BYPASS.md section 1.1): dry and wet gains for a tapered Mix. */
 const lawDry = (w: number) => Math.cos((w * Math.PI) / 2);
@@ -447,9 +515,7 @@ const mixRampsOf = (effect: any): Array<[number, number]> => {
   const law = cell.dry === null ? (gain: number) => gain : (gain: number) => (2 * Math.asin(gain)) / Math.PI;
   return cell.wet.gain.rampTo.mock.calls.map(([gain, seconds]: [number, number]) => [law(gain), seconds]);
 };
-/** Where the chain enters an effect's cell, and where it leaves it. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const inOf = (effect: any) => cellOf(effect).in;
+/** Where the chain leaves an effect's cell. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const cutOf = (effect: any) => cellOf(effect).cut;
 /** The empty cell (an effect whose constructor threw) the chain enters from `prevCut`: in -> dry -> cut, no effect. */
@@ -473,6 +539,20 @@ const tenEffects = () => [
   toneFlags.shifterAbsent ? undefined : lastInstance(toneFlags.shifterCtor),
   toneFlags.widenerAbsent ? undefined : lastInstance(toneFlags.widenerCtor),
 ];
+/** How many times each of the ten effect constructors has run, in chain order (Dark Effects Leave the Graph T11). */
+const constructedEach = () =>
+  [
+    Tone.Distortion,
+    Tone.Chebyshev,
+    toneFlags.crusherCtor,
+    toneFlags.wahCtor,
+    toneFlags.phaserCtor,
+    toneFlags.chorusCtor,
+    toneFlags.tremoloCtor,
+    toneFlags.vibratoCtor,
+    toneFlags.shifterCtor,
+    toneFlags.widenerCtor,
+  ].map((ctor) => (ctor as unknown as AnyMock).mock.calls.length);
 /** Robot Effect Sends T4: the four Mix effects still in the dry chain, in chain order (the Width cell comes after the
  *  Compressor). The other five are branches of the three rooms. */
 const chainEffects = () => [
@@ -480,14 +560,6 @@ const chainEffects = () => [
   toneFlags.phaserAbsent ? undefined : lastInstance(toneFlags.phaserCtor),
   toneFlags.tremoloAbsent ? undefined : lastInstance(toneFlags.tremoloCtor),
   toneFlags.vibratoAbsent ? undefined : lastInstance(toneFlags.vibratoCtor),
-];
-/** The five room branches' effects: the Colour trio (grit), the Chorus (double), the FrequencyShifter (shimmer). */
-const branchEffects = () => [
-  lastInstance(Tone.Distortion),
-  lastInstance(Tone.Chebyshev),
-  toneFlags.crusherAbsent ? undefined : lastInstance(toneFlags.crusherCtor),
-  toneFlags.chorusAbsent ? undefined : lastInstance(toneFlags.chorusCtor),
-  toneFlags.shifterAbsent ? undefined : lastInstance(toneFlags.shifterCtor),
 ];
 
 describe('globalFx', () => {
@@ -570,7 +642,7 @@ describe('globalFx', () => {
 
       expect(entryCut.connect.mock.calls).toEqual([[lastInstance(Tone.EQ3)]]);
       expect(hpf.connect.mock.calls).toEqual([[filterCut]]);
-      expect(filterCut.connect.mock.calls).toEqual([[inOf(lastInstance(toneFlags.wahCtor))]]);
+      expect(filterCut.connect.mock.calls).toEqual([[live.getCell('autoWah')!.in]]);
     });
 
     it('keeps the cuts across a rewire: never rebuilt', async () => {
@@ -599,7 +671,9 @@ describe('globalFx', () => {
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('cut'), expect.any(Error));
         expect(globalFx.getGlobalChainEntry()).toBe(lastInstance(Tone.EQ3));
         expect(lastInstance(Tone.Filter).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
-        expect(lastInstance(Tone.Distortion).connect).not.toHaveBeenCalled();
+        // No cell, so a light builds nothing.
+        globalFx.setGlobalDistortion({ wet: 0.5 });
+        expect(Tone.Distortion).not.toHaveBeenCalled();
       } finally {
         toneFlags.cutCtor.mockReset();
         toneFlags.cutCtor.mockImplementation((opts: { delayTime?: number; maxDelay?: number } = {}) => ({
@@ -616,6 +690,7 @@ describe('globalFx', () => {
     it('disconnects the chain downstream first on a rewire: master, ceiling, Limiter, Width cell, ..., EQ3, entry cut', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await litAll(globalFx);
       const [entryCut, filterCut] = toneFlags.cutCtor.mock.results.map((r) => r.value);
       // Each bypass cell in signal order: in, dry, effect, wet, cut (Dark-Effect Bypass T2).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -662,6 +737,7 @@ describe('globalFx', () => {
     it('disconnects each effect room downstream first, after the master: return, cut, branch wet, branch effect, in', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await litAll(globalFx);
       const at = (node: { disconnect: ReturnType<typeof vi.fn> }) => node.disconnect.mock.invocationCallOrder.at(-1) ?? 0;
       globalFx.wireGlobalFxChain(true);
       for (const key of live.ROOM_KEYS) {
@@ -704,16 +780,17 @@ describe('globalFx', () => {
       ['FrequencyShifter', 8, 'shimmer'],
     ] as const;
 
+    // Dark Effects Leave the Graph T11: the branch is built empty, and its first light builds the effect into it.
     it.each(BRANCHES)(
-      'builds the %s as a dark branch of its room: pinned at wet 1, unconnected, no dry gain, wet 0, the room in and cut shared',
+      'builds the %s branch of its room empty and dark: no dry gain, wet 0, the room in and cut shared; its first light pins it at wet 1',
       async (_name, index, roomKey) => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        const effect = tenEffects()[index];
-        const cell = cellOf(effect);
+        const key = live.BYPASS_KEYS[index];
+        const cell = fake(live.getCell(key)!);
         const room = live.getRoom(roomKey)!;
 
-        expect(effect.wet.value).toBe(1);
+        expect(cell.effect).toBeNull();
         expect(cell.room).toBe(roomKey);
         expect(cell.dry).toBeNull();
         expect(cell.in).toBe(room.in);
@@ -721,12 +798,15 @@ describe('globalFx', () => {
         expect(toneFlags.gainCtor.mock.results.map((r) => r.value)).toContain(cell.wet);
         expect(cell.wet.connect.mock.calls).toEqual([[room.cut]]);
         expect(cell.wet.gain.value).toBe(0);
-        expect(effect.connect).not.toHaveBeenCalled();
-        expect(fake(room.in).connect).not.toHaveBeenCalledWith(effect);
-        // A Decay flip restores exactly what was connected: still nothing to or from the effect.
+        expect(fake(room.in).connect).not.toHaveBeenCalled();
+        // A Decay flip restores exactly what was connected: still nothing from the room in.
         globalFx.wireGlobalFxChain(true);
-        expect(fake(room.in).connect).not.toHaveBeenCalledWith(effect);
-        expect(effect.connect).not.toHaveBeenCalled();
+        expect(fake(room.in).connect).not.toHaveBeenCalled();
+
+        const effect = await lightUp(globalFx, key);
+        expect(cell.effect).toBe(effect);
+        expect(effect.wet.value).toBe(1);
+        expect(fake(room.in).connect.mock.calls).toEqual([[effect]]);
       },
     );
 
@@ -754,7 +834,7 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       globalFx.wireGlobalFxChain(controlled);
-      const join = controlled ? cellOf(lastInstance(toneFlags.widenerCtor)).in : lastInstance(Tone.Compressor);
+      const join = controlled ? live.getCell('stereoWidener')!.in : lastInstance(Tone.Compressor);
       for (const key of live.ROOM_KEYS) {
         const ret = fake(live.getRoom(key)!.return);
         expect(ret.connect, key).toHaveBeenLastCalledWith(join);
@@ -784,16 +864,17 @@ describe('globalFx', () => {
       feedRooms('grit');
       const room = live.getRoom('grit')!;
       const dist = lastInstance(Tone.Distortion);
-      const cheb = lastInstance(Tone.Chebyshev);
       const wet = cellOf(dist).wet;
-      for (const node of [room.in, room.cut, room.return, dist, wet, cheb].map(fake)) node.connect.mockClear();
+      for (const node of [room.in, room.cut, room.return, dist, wet].map(fake)) node.connect.mockClear();
       globalFx.wireGlobalFxChain(true);
       expect(fake(room.in).connect.mock.calls).toEqual([[dist]]);
       expect(dist.connect.mock.calls).toEqual([[wet]]);
       expect(wet.connect.mock.calls).toEqual([[room.cut]]);
       expect(fake(room.cut).connect.mock.calls).toEqual([[room.return]]);
       expect(fake(room.return).connect).toHaveBeenCalledTimes(1);
-      expect(cheb.connect).not.toHaveBeenCalled();
+      // The dark branches were never built (Dark Effects Leave the Graph T11).
+      expect(Tone.Chebyshev).not.toHaveBeenCalled();
+      expect(live.getCell('chebyshev')!.effect).toBeNull();
     });
     // Robot Effect Sends T4: five chain cells (three Gains and a cut each), three rooms (in, return and a cut each) and five
     // branches (a wet Gain each, sharing their room's in and cut), then the two returns and the master.
@@ -806,15 +887,15 @@ describe('globalFx', () => {
     });
 
     it.each(EFFECT_NAMES.map((name, i) => [name, i] as const).filter(([name]) => CHAIN_CELL_NAMES.includes(name)))(
-      'builds the %s dark: pinned at wet 1, unconnected, its cell in -> dry -> cut and wet -> cut at dry 1, wet 0',
+      'builds the %s cell empty and dark: in -> dry -> cut and wet -> cut at dry 1, wet 0; its first light pins it at wet 1',
       async (_name, index) => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        const effect = tenEffects()[index];
-        const cell = cellOf(effect);
+        const key = live.BYPASS_KEYS[index];
+        const cell = fake(live.getCell(key)!);
         const gains = toneFlags.gainCtor.mock.results.map((r) => r.value);
 
-        expect(effect.wet.value).toBe(1);
+        expect(cell.effect).toBeNull();
         expect(gains).toContain(cell.in);
         expect(gains).toContain(cell.dry);
         expect(gains).toContain(cell.wet);
@@ -823,31 +904,39 @@ describe('globalFx', () => {
         expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
         expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
         expect(cell.wet.connect.mock.calls).toEqual([[cell.cut]]);
-        expect(effect.connect).not.toHaveBeenCalled();
         expect(cell.dry.gain.value).toBe(1);
         expect(cell.wet.gain.value).toBe(0);
 
-        // A Decay flip restores exactly what was connected: still nothing to or from the effect.
+        // A Decay flip restores exactly what was connected: still the dry path alone.
+        cell.in.connect.mockClear();
         globalFx.wireGlobalFxChain(true);
-        expect(cell.in.connect).not.toHaveBeenCalledWith(effect);
-        expect(effect.connect).not.toHaveBeenCalled();
+        expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+
+        const effect = await lightUp(globalFx, key);
+        expect(cell.effect).toBe(effect);
+        expect(effect.wet.value).toBe(1);
+        expect(effect.connect.mock.calls).toEqual([[cell.wet]]);
       },
     );
 
+    // Dark Effects Leave the Graph T11: every cell is built, empty; each lights to hold its effect.
     it('builds a cell for every BYPASS_KEYS entry, so the HUD denominator counts the cells there are', async () => {
       const globalFx = await import('./globalFx');
       const { BYPASS_KEYS, getCell } = await import('./bypassCell');
       globalFx.buildGlobalFxChain();
-      for (const key of BYPASS_KEYS) expect(getCell(key)?.effect, key).toBeTruthy();
+      for (const key of BYPASS_KEYS) expect(getCell(key), key).toBeDefined();
+      for (const key of BYPASS_KEYS) expect(getCell(key)!.effect, key).toBeNull();
+      await litAll(globalFx);
+      for (const key of BYPASS_KEYS) expect(getCell(key)!.effect, key).toBeTruthy();
     });
 
     it('gives each chain effect its own cell, and each branch its own wet gain inside its room', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const chain = [...chainEffects(), lastInstance(toneFlags.widenerCtor)];
-      expect(new Set(chain.map((effect) => cellOf(effect).in)).size).toBe(5);
-      expect(new Set(chain.map((effect) => cellOf(effect).cut)).size).toBe(5);
-      const branches = branchEffects().map(cellOf);
+      const chain = liveChainCells();
+      expect(new Set(chain.map((cell) => cell.in)).size).toBe(5);
+      expect(new Set(chain.map((cell) => cell.cut)).size).toBe(5);
+      const branches = liveBranchCells();
       expect(new Set(branches.map((cell) => cell.wet)).size).toBe(5);
       expect(new Set(branches.map((cell) => cell.in)).size).toBe(3);
     });
@@ -857,7 +946,7 @@ describe('globalFx', () => {
       async (controlled) => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        const cells = [...chainEffects(), lastInstance(toneFlags.widenerCtor)].map(cellOf);
+        const cells = liveChainCells();
         const compressor = lastInstance(Tone.Compressor);
         const limiter = lastInstance(Tone.Limiter);
         const ceiling = ceilingOf();
@@ -896,12 +985,13 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const returns = [returnOf(lastInstance(Tone.Reverb)), returnOf(lastInstance(Tone.FeedbackDelay))];
-      const widthIn = cellOf(lastInstance(toneFlags.widenerCtor)).in;
+      const widener = await lightUp(globalFx, 'stereoWidener');
+      const widthIn = live.getCell('stereoWidener')!.in;
       for (const ret of returns) expect(ret.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
 
       globalFx.wireGlobalFxChain(true);
       for (const ret of returns) expect(ret.connect).toHaveBeenLastCalledWith(widthIn);
-      for (const ret of returns) expect(ret.connect).not.toHaveBeenCalledWith(lastInstance(toneFlags.widenerCtor));
+      for (const ret of returns) expect(ret.connect).not.toHaveBeenCalledWith(widener);
     });
 
     it('falls the Controlled join back to the Limiter when there is no Width cell, and runs Compressor -> Limiter', async () => {
@@ -920,7 +1010,7 @@ describe('globalFx', () => {
       toneFlags.limiterAbsent = true;
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const cell = cellOf(lastInstance(toneFlags.widenerCtor));
+      const cell = fake(live.getCell('stereoWidener')!);
       expect(cell.cut.connect).toHaveBeenLastCalledWith(ceilingOf());
       expect(ceilingOf().connect).toHaveBeenLastCalledWith(lastInstance(Tone.Gain));
       expect(cell.in.connect).not.toHaveBeenCalledWith(lastInstance(Tone.Gain));
@@ -930,12 +1020,16 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       // Two lit (one Mix law, one Width), three dark: a flip re-makes the lit effects' edges and only theirs. (The room
-      // branches have no dry path; their flip is the fed-room test above.)
+      // branches have no dry path; their flip is the fed-room test above.) Every one lit once, the first three darkened
+      // and their disconnects fired, so each dark cell still holds its effect inside its teardown wait.
+      await litAll(globalFx);
+      const effects = [...chainEffects(), lastInstance(toneFlags.widenerCtor)];
+      for (const key of ['autoWah', 'phaser', 'tremolo'] as const) darkenInWait(globalFx, key);
       globalFx.setGlobalVibrato({ wet: 0.3 });
       globalFx.setGlobalStereoWidener({ width: 0.7 });
-      const effects = [...chainEffects(), lastInstance(toneFlags.widenerCtor)];
       const isLit = (index: number) => index >= 3;
       const cells = effects.map(cellOf);
+      for (const [i, cell] of cells.entries()) expect(cell.connected, String(i)).toBe(isLit(i));
       const nodes = [...effects, ...cells.flatMap((c) => [c.in, c.dry, c.wet, c.cut])];
       for (const flip of [true, false]) {
         for (const node of nodes) {
@@ -965,6 +1059,7 @@ describe('globalFx', () => {
     it('disconnects each chain cell downstream first: cut, wet, effect, dry, in', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await litAll(globalFx);
       for (const effect of [...chainEffects(), lastInstance(toneFlags.widenerCtor)]) {
         const cell = cellOf(effect);
         const at = (node: { disconnect: ReturnType<typeof vi.fn> }) => node.disconnect.mock.invocationCallOrder.at(-1);
@@ -989,7 +1084,7 @@ describe('globalFx', () => {
       const firstGrit = live.getRoom('grit');
       globalFx.buildGlobalFxChain();
       expect(toneFlags.cutCtor).toHaveBeenCalledTimes(20);
-      const cell = cellOf(lastInstance(toneFlags.wahCtor));
+      const cell = live.getCell('autoWah')!;
       // The second build's filter cut (its 2nd Delay) feeds the new AutoWah cell.
       expect(toneFlags.cutCtor.mock.results[11].value.connect).toHaveBeenLastCalledWith(cell.in);
       expect(live.getRoom('grit')).not.toBe(firstGrit);
@@ -1000,7 +1095,7 @@ describe('globalFx', () => {
       it.each([
         ['Gain', () => (toneFlags.gainAbsent = true)],
         ['Delay', () => (toneFlags.cutAbsent = true)],
-      ])('with no %s constructor builds no cells, leaves the ten effects out with one warning, and every setter no-ops', async (_name, hide) => {
+      ])('with no %s constructor builds no cells, leaves the ten effects out with one warning, and every setter builds nothing', async (_name, hide) => {
         hide();
         const globalFx = await import('./globalFx');
         expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
@@ -1011,9 +1106,7 @@ describe('globalFx', () => {
         );
         if (!toneFlags.cutAbsent) expect(filterCutOf().connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
         expect(lastInstance(Tone.Compressor).connect).toHaveBeenLastCalledWith(lastInstance(Tone.Limiter));
-        for (const effect of tenEffects()) {
-          expect(effect.connect).not.toHaveBeenCalled();
-        }
+        feedRooms();
 
         globalFx.setGlobalDistortion({ wet: 0.5 });
         globalFx.setGlobalChebyshev({ wet: 0.5 });
@@ -1025,8 +1118,7 @@ describe('globalFx', () => {
         globalFx.setGlobalVibrato({ wet: 0.5 });
         globalFx.setGlobalFrequencyShifter({ wet: 0.5 });
         globalFx.setGlobalStereoWidener({ width: 0.8 });
-        for (const effect of tenEffects().slice(0, 9)) expect(effect.wet.rampTo).not.toHaveBeenCalled();
-        expect(lastInstance(toneFlags.widenerCtor).width.rampTo).not.toHaveBeenCalled();
+        expect(constructedEach()).toEqual(Array(10).fill(0));
         // Robot Effect Sends T4: the three effect rooms are left out with the cells (they need the same constructors).
         for (const key of live.ROOM_KEYS) {
           expect(live.getRoom(key), key).toBeUndefined();
@@ -1037,20 +1129,23 @@ describe('globalFx', () => {
       it('drops a cell from the chain on a rebuild whose effect constructor has gone', async () => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        const oldPhaserIn = inOf(lastInstance(toneFlags.phaserCtor));
+        const oldPhaserIn = fake(live.getCell('phaser')!.in);
         toneFlags.phaserAbsent = true;
         globalFx.buildGlobalFxChain();
-        expect(cutOf(lastInstance(toneFlags.wahCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
+        expect(live.getCell('phaser')).toBeUndefined();
+        expect(fake(live.getCell('autoWah')!.cut).connect).toHaveBeenLastCalledWith(live.getCell('tremolo')!.in);
         oldPhaserIn.connect.mockClear();
         globalFx.wireGlobalFxChain(true);
         expect(oldPhaserIn.connect).not.toHaveBeenCalled();
       });
 
-      it('releases an effect it could not put in a cell, so its LFOs do not run on unheard', async () => {
+      // Dark Effects Leave the Graph T11: with no cell to hold one, no effect is ever built, so none runs its LFOs unheard.
+      it('constructs no effect when no cell can hold one, at the build or at a light', async () => {
         toneFlags.cutAbsent = true;
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        expect(lastInstance(toneFlags.phaserCtor).dispose).toHaveBeenCalledTimes(1);
+        globalFx.setGlobalPhaser({ wet: 0.5 });
+        expect(toneFlags.phaserCtor).not.toHaveBeenCalled();
       });
 
       it('leaves one effect out with one warning when its cell constructor throws, and its setter no-ops', async () => {
@@ -1063,19 +1158,17 @@ describe('globalFx', () => {
         const globalFx = await import('./globalFx');
         expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
-        const wah = lastInstance(toneFlags.wahCtor);
-        expect(wah.connect).not.toHaveBeenCalled();
+        expect(live.getCell('autoWah')).toBeUndefined();
         expect(devWarn).toHaveBeenCalledTimes(1);
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('autoWah'), expect.any(Error));
-        expect(filterCutOf().connect).toHaveBeenLastCalledWith(cellOf(lastInstance(toneFlags.phaserCtor)).in);
+        expect(filterCutOf().connect).toHaveBeenLastCalledWith(live.getCell('phaser')!.in);
         globalFx.setGlobalAutoWah({ wet: 0.5 });
-        expect(wah.wet.rampTo).not.toHaveBeenCalled();
-        expect(wah.connect).not.toHaveBeenCalled();
+        expect(toneFlags.wahCtor).not.toHaveBeenCalled();
       });
 
       // Robot Effect Sends T4: a room that cannot be built leaves its branches out (their effects released), and the
       // chain and the other rooms build and wire on.
-      it('leaves a room out with one warning when its cut throws, releases its branch effects, and wires on', async () => {
+      it('leaves a room out with one warning when its cut throws, builds none of its branch effects, and wires on', async () => {
         const real = toneFlags.cutCtor.getMockImplementation()!;
         // The two cycle-search cuts; the Colour room's cut is the 3rd Delay.
         for (let i = 0; i < 2; i++) toneFlags.cutCtor.mockImplementationOnce(real);
@@ -1089,16 +1182,15 @@ describe('globalFx', () => {
         expect(globalFx.getGlobalRoomInput('grit')).toBeNull();
         expect(devWarn).toHaveBeenCalledTimes(1);
         expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('grit'), expect.any(Error));
-        for (const effect of [lastInstance(Tone.Distortion), lastInstance(Tone.Chebyshev), lastInstance(toneFlags.crusherCtor)]) {
-          expect(effect.dispose).toHaveBeenCalledTimes(1);
-          expect(effect.connect).not.toHaveBeenCalled();
-        }
         expect(live.getRoom('shimmer')).toBeDefined();
-        expect(filterCutOf().connect).toHaveBeenLastCalledWith(cellOf(lastInstance(toneFlags.wahCtor)).in);
+        expect(filterCutOf().connect).toHaveBeenLastCalledWith(live.getCell('autoWah')!.in);
         expect(() => globalFx.setGlobalDistortion({ amount: 0.5, wet: 0.5 })).not.toThrow();
+        expect(Tone.Distortion).not.toHaveBeenCalled();
+        expect(Tone.Chebyshev).not.toHaveBeenCalled();
+        expect(toneFlags.crusherCtor).not.toHaveBeenCalled();
       });
 
-      it('releases the effect whose cell could not be built', async () => {
+      it('builds no effect for a cell that could not be built', async () => {
         const real = toneFlags.cutCtor.getMockImplementation()!;
         // The two cycle-search cuts, the three rooms' cuts and the AutoWah cell's; the Phaser's is 7th.
         for (let i = 0; i < 6; i++) toneFlags.cutCtor.mockImplementationOnce(real);
@@ -1107,12 +1199,10 @@ describe('globalFx', () => {
         });
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        const phaser = lastInstance(toneFlags.phaserCtor);
-        expect(phaser.dispose).toHaveBeenCalledTimes(1);
-        expect(phaser.connect).not.toHaveBeenCalled();
-        expect(cutOf(lastInstance(toneFlags.wahCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
+        expect(live.getCell('phaser')).toBeUndefined();
+        expect(fake(live.getCell('autoWah')!.cut).connect).toHaveBeenLastCalledWith(live.getCell('tremolo')!.in);
         globalFx.setGlobalPhaser({ stages: 4, wet: 0.5 });
-        expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
+        expect(toneFlags.phaserCtor).not.toHaveBeenCalled();
       });
 
       it('releases the Gains a half-built cell already made, so a failed cut leaks none of its nodes', async () => {
@@ -1129,28 +1219,28 @@ describe('globalFx', () => {
         expect(built).toHaveLength(3);
         for (const gain of built) expect(gain.dispose).toHaveBeenCalledTimes(1);
         // The neighbouring cells' Gains are kept.
-        expect(inOf(lastInstance(toneFlags.chorusCtor)).dispose).not.toHaveBeenCalled();
+        expect(fake(live.getCell('tremolo')!.in).dispose).not.toHaveBeenCalled();
+        expect(fake(live.getCell('chorus')!.in).dispose).not.toHaveBeenCalled();
       });
 
-      it('wires an empty cell dry when an effect constructor throws: in -> dry -> cut at dry 1, wet 0', async () => {
+      // Dark Effects Leave the Graph T11: the constructor runs at the light, so that is where it throws.
+      it('keeps a cell empty and dry when its effect constructor throws at the light: in -> dry -> cut at dry 1, wet 0', async () => {
         toneFlags.vibratoCtor.mockImplementationOnce(() => {
           throw new Error('no vibrato');
         });
         const globalFx = await import('./globalFx');
         expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-
-        const empty = cellOf(lastInstance(toneFlags.tremoloCtor)).cut.connect.mock.calls.at(-1)[0];
-        const dry = empty.connect.mock.calls.at(-1)[0];
-        const cut = dry.connect.mock.calls.at(-1)[0];
-        expect(empty.connect.mock.calls).toEqual([[dry]]);
-        expect(dry.gain.value).toBe(1);
-        expect(delaysBuilt()).toContain(cut);
-        expect(cut.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
-        const wet = toneFlags.gainCtor.mock.results
-          .map((r) => r.value)
-          .find((g) => g !== dry && g.connect.mock.calls.some(([target]: unknown[]) => target === cut));
-        expect(wet.gain.value).toBe(0);
         expect(() => globalFx.setGlobalVibrato({ rate: 3, depth: 0.2, wet: 0.5 })).not.toThrow();
+
+        const cell = fake(live.getCell('vibrato')!);
+        expect(cell.effect).toBeNull();
+        expect(cell.connected).toBe(false);
+        expect(fake(live.getCell('tremolo')!.cut).connect).toHaveBeenLastCalledWith(cell.in);
+        expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+        expect(cell.dry.gain.value).toBe(1);
+        expect(cell.wet.gain.value).toBe(0);
+        expect(cell.cut.connect).toHaveBeenLastCalledWith(lastInstance(Tone.Compressor));
+        expect(failureWarnings()).toHaveLength(1);
       });
 
       it('keeps the entry cut as the chain entry with every cell built', async () => {
@@ -1232,17 +1322,22 @@ describe('globalFx', () => {
   // chain between the High-Pass Filter and the Compressor. They are not rooms: nothing about a send or a return
   // touches them.
   describe('buildGlobalFxChain - the colour slot (Global Colour)', () => {
-    it('constructs exactly one Distortion, one Chebyshev and one BitCrusher', async () => {
+    // Dark Effects Leave the Graph T11: none at the build, one of each at its first light, none at a second.
+    it('constructs no Distortion, Chebyshev or BitCrusher at the build, and exactly one of each at its first light', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      expect(constructedEach().slice(0, 3)).toEqual([0, 0, 0]);
+      for (const key of ['distortion', 'chebyshev', 'bitCrusher'] as const) await lightUp(globalFx, key);
+      for (const key of ['distortion', 'chebyshev', 'bitCrusher'] as const) await lightUp(globalFx, key, 0.7);
       expect(Tone.Distortion).toHaveBeenCalledTimes(1);
       expect(Tone.Chebyshev).toHaveBeenCalledTimes(1);
       expect(toneFlags.crusherCtor).toHaveBeenCalledTimes(1);
     });
 
-    it('builds each pinned fully wet (its dark cell carries the Mix) with no oversampling and the spec shape defaults', async () => {
+    it('builds each at its first light pinned fully wet (its cell carries the Mix) with no oversampling and the spec shape defaults', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      for (const key of ['distortion', 'chebyshev', 'bitCrusher'] as const) await lightUp(globalFx, key);
       expect(Tone.Distortion).toHaveBeenCalledWith({ distortion: 0.3, oversample: 'none', wet: 1 });
       expect(Tone.Chebyshev).toHaveBeenCalledWith({ order: 2, oversample: 'none', wet: 1 });
       expect(toneFlags.crusherCtor).toHaveBeenCalledWith({ bits: 8, wet: 1 });
@@ -1255,12 +1350,11 @@ describe('globalFx', () => {
       globalFx.buildGlobalFxChain();
       globalFx.wireGlobalFxChain(controlled);
       const room = live.getRoom('grit')!;
-      const colour = [lastInstance(Tone.Distortion), lastInstance(Tone.Chebyshev), lastInstance(toneFlags.crusherCtor)];
 
       expect(lastInstance(Tone.Filter).connect).toHaveBeenLastCalledWith(filterCutOf());
-      expect(filterCutOf().connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.wahCtor)));
-      for (const node of colour) {
-        const cell = cellOf(node);
+      expect(filterCutOf().connect).toHaveBeenLastCalledWith(live.getCell('autoWah')!.in);
+      for (const cell of liveBranchCells().slice(0, 3)) {
+        expect(cell.room).toBe('grit');
         expect(cell.in).toBe(room.in);
         expect(cell.cut).toBe(room.cut);
         expect(fake(cell.wet).connect).toHaveBeenLastCalledWith(room.cut);
@@ -1273,7 +1367,9 @@ describe('globalFx', () => {
       globalFx.buildGlobalFxChain();
       const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
       const returns = rooms.map(returnOf);
-      const colour = [lastInstance(Tone.Distortion), lastInstance(Tone.Chebyshev), lastInstance(toneFlags.crusherCtor)];
+      const colour = [];
+      for (const key of ['distortion', 'chebyshev', 'bitCrusher'] as const) colour.push(await lightUp(globalFx, key));
+      globalFx.wireGlobalFxChain(true);
 
       for (const node of colour) {
         for (const other of [...rooms, ...returns]) expect(node.connect).not.toHaveBeenCalledWith(other);
@@ -1284,21 +1380,25 @@ describe('globalFx', () => {
     });
 
     // Robot Effect Sends T4: a branch whose effect constructor throws is simply not built (a room has no dry path to
-    // keep), and the room carries the other two.
-    it('builds the Colour room with two branches and does not throw when the BitCrusher constructor throws', async () => {
+    // keep), and the room carries the other two. Dark Effects Leave the Graph T11: the constructor runs at the light.
+    it('keeps the BitCrusher branch empty and does not throw when its constructor throws at the light', async () => {
       toneFlags.crusherCtor.mockImplementationOnce(() => {
         throw new Error('AudioWorklet is not supported');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
+      feedRooms('grit');
+      expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 1 })).not.toThrow();
+      await flush();
 
       // Dark Effects Leave the Graph T6: a registered key keeps an empty, dry branch, and its next light builds again.
+      expect(toneFlags.crusherCtor).toHaveBeenCalledTimes(1);
       expect(live.getCell('bitCrusher')!.effect).toBeNull();
       expect(live.getCell('bitCrusher')!.connected).toBe(false);
       expect(live.getCell('distortion')!.room).toBe('grit');
       expect(live.getCell('chebyshev')!.room).toBe('grit');
-      expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.wahCtor)));
-      expect(() => globalFx.setGlobalBitCrusher({ bits: 4, wet: 1 })).not.toThrow();
+      expect(filterCutOf().connect).toHaveBeenCalledWith(live.getCell('autoWah')!.in);
+      expect(failureWarnings()).toHaveLength(1);
     });
 
     it('builds no BitCrusher branch when its constructor is absent altogether', async () => {
@@ -1314,11 +1414,13 @@ describe('globalFx', () => {
     it('disconnects the three once per Decay Mode flip, and reconnects each only while lit (its room fed)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      await flush();
-      const colour = [lastInstance(Tone.Distortion), lastInstance(Tone.Chebyshev), lastInstance(toneFlags.crusherCtor)];
+      // Each built and dark inside its wait, then the room unfed: a Mix above 0 no longer darkens it at its own level.
+      const colour = [];
+      for (const key of ['distortion', 'chebyshev', 'bitCrusher'] as const) colour.push(await darkInWait(globalFx, key));
+      live.setRoomFed('grit', false);
       globalFx.wireGlobalFxChain(true);
       for (const node of colour) {
-        expect(node.disconnect).toHaveBeenCalledTimes(2);
+        expect(node.disconnect).toHaveBeenCalledTimes(1);
         expect(node.connect).not.toHaveBeenCalled();
       }
 
@@ -1351,13 +1453,12 @@ describe('globalFx', () => {
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      feedRooms('grit');
-      await flush();
+      // Dark Effects Leave the Graph T11: each built by a light and dark again inside its wait, the room still fed.
       return {
         globalFx,
-        dist: lastInstance(Tone.Distortion),
-        cheb: lastInstance(Tone.Chebyshev),
-        crush: lastInstance(toneFlags.crusherCtor),
+        dist: await darkInWait(globalFx, 'distortion'),
+        cheb: await darkInWait(globalFx, 'chebyshev'),
+        crush: await darkInWait(globalFx, 'bitCrusher'),
       };
     }
 
@@ -1395,18 +1496,19 @@ describe('globalFx', () => {
       expect(live.getRoom('grit')!.returnLevel).toBe(1);
     });
 
-    it('a colour Mix on an unfed Colour room records the depth and lights nothing until a robot feeds it', async () => {
+    it('a colour Mix on an unfed Colour room records the depth and builds and lights nothing until a robot feeds it', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const cheb = lastInstance(Tone.Chebyshev);
       globalFx.setGlobalChebyshev({ wet: 0.2 });
-      expect(cheb.connect).not.toHaveBeenCalled();
-      expect(mixRampsOf(cheb)).toEqual([]);
+      expect(Tone.Chebyshev).not.toHaveBeenCalled();
+      expect(fake(live.getCell('chebyshev')!.wet).gain.rampTo).not.toHaveBeenCalled();
       expect(live.getCell('chebyshev')!.depth).toBe(0.2);
       feedRooms('grit');
+      expect(Tone.Chebyshev).toHaveBeenCalledTimes(1);
+      const cheb = lastInstance(Tone.Chebyshev);
       expect(cheb.connect).toHaveBeenCalledTimes(1);
       expect(mixRampsOf(cheb)).toEqual([[expect.closeTo(0.04, 9), 0.05]]);
-      expect(lastInstance(Tone.Distortion).connect).not.toHaveBeenCalled();
+      expect(Tone.Distortion).not.toHaveBeenCalled();
     });
 
     it('no-ops without throwing before the chain is built', async () => {
@@ -1607,15 +1709,20 @@ describe('globalFx', () => {
   // Global Modulation T4 (docs/specs/GLOBAL_MODULATION_COLOUR.md section 1.3): the AutoWah sits between the
   // BitCrusher and the Compressor, in both Decay Modes, with the returns joining after it.
   describe('buildGlobalFxChain - the modulation slot (Global Modulation)', () => {
-    it('constructs exactly one AutoWah', async () => {
+    // Dark Effects Leave the Graph T11: none at the build, one at its first light, none at a second.
+    it('constructs no AutoWah at the build, and exactly one at its first light', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      expect(toneFlags.wahCtor).not.toHaveBeenCalled();
+      await lightUp(globalFx, 'autoWah');
+      await lightUp(globalFx, 'autoWah', 0.7);
       expect(toneFlags.wahCtor).toHaveBeenCalledTimes(1);
     });
 
-    it('builds it pinned fully wet (its dark cell carries the Mix) at Tone defaults, matching DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah', async () => {
+    it('builds it at its first light pinned fully wet (its cell carries the Mix) at Tone defaults, matching DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await lightUp(globalFx, 'autoWah');
       expect(toneFlags.wahCtor).toHaveBeenCalledWith({
         baseFrequency: 100,
         octaves: 6,
@@ -1632,44 +1739,38 @@ describe('globalFx', () => {
     it('wires filter cut -> AutoWah -> Phaser -> Tremolo in Natural Decay, each pedal wired to nothing else', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const wah = lastInstance(toneFlags.wahCtor);
-      const phaser = lastInstance(toneFlags.phaserCtor);
-      const tremolo = lastInstance(toneFlags.tremoloCtor);
+      const [wahCell, phaserCell, tremoloCell] = liveChainCells();
 
-      // Dark-Effect Bypass T2: cell to cell. T4: both pedals are built dark, so neither feeds anything; lit, each feeds
-      // only its own cell's wet gain.
-      expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(wah));
-      expect(wah.connect).not.toHaveBeenCalled();
-      expect(cutOf(wah).connect.mock.calls).toEqual([[inOf(phaser)]]);
-      expect(phaser.connect).not.toHaveBeenCalled();
-      expect(cutOf(phaser).connect.mock.calls).toEqual([[inOf(tremolo)]]);
-      globalFx.setGlobalAutoWah({ wet: 0.5 });
-      globalFx.setGlobalPhaser({ wet: 0.5 });
-      expect(wah.connect.mock.calls).toEqual([[cellOf(wah).wet]]);
-      expect(phaser.connect.mock.calls).toEqual([[cellOf(phaser).wet]]);
+      // Dark-Effect Bypass T2: cell to cell. T4: both cells are built dark (T11: empty), so neither pedal feeds anything;
+      // lit, each feeds only its own cell's wet gain.
+      expect(filterCutOf().connect).toHaveBeenCalledWith(wahCell.in);
+      expect(wahCell.cut.connect.mock.calls).toEqual([[phaserCell.in]]);
+      expect(phaserCell.cut.connect.mock.calls).toEqual([[tremoloCell.in]]);
+      const wah = await lightUp(globalFx, 'autoWah');
+      const phaser = await lightUp(globalFx, 'phaser');
+      expect(wah.connect.mock.calls).toEqual([[wahCell.wet]]);
+      expect(phaser.connect.mock.calls).toEqual([[phaserCell.wet]]);
     });
 
     it('keeps the same slot in Controlled Decay, with the returns joining after it at the Width stage (Global Pedals T6)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const wah = lastInstance(toneFlags.wahCtor);
-      const phaser = lastInstance(toneFlags.phaserCtor);
-      const tremolo = lastInstance(toneFlags.tremoloCtor);
-      const widener = lastInstance(toneFlags.widenerCtor);
+      const [wah, phaser, tremolo, , widener] = liveChainCells();
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
 
       globalFx.wireGlobalFxChain(true);
 
-      expect(filterCutOf().connect).toHaveBeenLastCalledWith(inOf(wah));
-      expect(cutOf(wah).connect).toHaveBeenLastCalledWith(inOf(phaser));
-      expect(cutOf(phaser).connect).toHaveBeenLastCalledWith(inOf(tremolo));
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
+      expect(filterCutOf().connect).toHaveBeenLastCalledWith(wah.in);
+      expect(wah.cut.connect).toHaveBeenLastCalledWith(phaser.in);
+      expect(phaser.cut.connect).toHaveBeenLastCalledWith(tremolo.in);
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(widener.in);
     });
 
     it('connects neither pedal to a room or a return, and no room or return to either pedal', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const pedals = [lastInstance(toneFlags.wahCtor), lastInstance(toneFlags.phaserCtor)];
+      const pedals = [await lightUp(globalFx, 'autoWah'), await lightUp(globalFx, 'phaser')];
+      globalFx.wireGlobalFxChain(true);
       const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
       const returns = rooms.map(returnOf);
 
@@ -1687,7 +1788,7 @@ describe('globalFx', () => {
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
       expect(toneFlags.wahCtor).not.toHaveBeenCalled();
-      expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.phaserCtor)));
+      expect(filterCutOf().connect).toHaveBeenCalledWith(live.getCell('phaser')!.in);
       expect(() => globalFx.setGlobalAutoWah({ baseFrequency: 200, wet: 1 })).not.toThrow();
     });
 
@@ -1707,10 +1808,10 @@ describe('globalFx', () => {
     it('disconnects each pedal once per Decay Mode flip, and reconnects it only while lit', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const pedals = [lastInstance(toneFlags.wahCtor), lastInstance(toneFlags.phaserCtor)];
+      const pedals = [await darkInWait(globalFx, 'autoWah'), await darkInWait(globalFx, 'phaser')];
       globalFx.wireGlobalFxChain(true);
       for (const pedal of pedals) {
-        expect(pedal.disconnect).toHaveBeenCalledTimes(2);
+        expect(pedal.disconnect).toHaveBeenCalledTimes(1);
         expect(pedal.connect).not.toHaveBeenCalled();
       }
 
@@ -1733,9 +1834,11 @@ describe('globalFx', () => {
       }
     });
 
-    it('constructs exactly one Phaser, pinned fully wet (its dark cell carries the Mix) at Tone defaults with 10 stages', async () => {
+    it('constructs no Phaser at the build, and one at its first light, pinned fully wet (its cell carries the Mix) at Tone defaults with 10 stages', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      expect(toneFlags.phaserCtor).not.toHaveBeenCalled();
+      await lightUp(globalFx, 'phaser');
       expect(toneFlags.phaserCtor).toHaveBeenCalledTimes(1);
       expect(toneFlags.phaserCtor).toHaveBeenCalledWith({
         frequency: 0.5,
@@ -1747,17 +1850,19 @@ describe('globalFx', () => {
       });
     });
 
-    it('builds and wires on when the Phaser constructor throws: the AutoWah hands through an empty cell to the Tremolo and its setter still works', async () => {
+    // Dark Effects Leave the Graph T11: the constructor runs at the light, so that is where it throws.
+    it('wires on when the Phaser constructor throws at its light: the AutoWah hands through an empty cell to the Tremolo and its setter still works', async () => {
       toneFlags.phaserCtor.mockImplementationOnce(() => {
         throw new Error('no phaser');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-
-      const wah = lastInstance(toneFlags.wahCtor);
-      expect(emptyCellAfter(cutOf(wah)).cut.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
-      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Phaser'), expect.any(Error));
+      const wah = await lightUp(globalFx, 'autoWah');
       expect(() => globalFx.setGlobalPhaser({ rate: 2, stages: 4, wet: 1 })).not.toThrow();
+
+      expect(live.getCell('phaser')!.effect).toBeNull();
+      expect(emptyCellAfter(cutOf(wah)).cut.connect).toHaveBeenCalledWith(live.getCell('tremolo')!.in);
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('phaser'), expect.any(Error));
       globalFx.setGlobalAutoWah({ Q: 5 });
       expect(wah.Q.rampTo).toHaveBeenCalledWith(5, 0.05);
     });
@@ -1767,7 +1872,7 @@ describe('globalFx', () => {
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      return { globalFx, wah: lastInstance(toneFlags.wahCtor) };
+      return { globalFx, wah: await darkInWait(globalFx, 'autoWah') };
     }
 
     it('is exported', async () => {
@@ -1886,10 +1991,11 @@ describe('globalFx', () => {
   });
 
   describe('setGlobalPhaser (Global Modulation)', () => {
+    // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      return { globalFx, phaser: lastInstance(toneFlags.phaserCtor) };
+      return { globalFx, phaser: await darkInWait(globalFx, 'phaser') };
     }
 
     it('is exported', async () => {
@@ -2231,7 +2337,7 @@ describe('globalFx', () => {
           cell.dry.gain.rampTo.mockClear();
           globalFx.setGlobalPhaser({ stages: 6 });
           expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
-          expect(devWarn).not.toHaveBeenCalled();
+          expect(failureWarnings()).toEqual([]);
         });
       });
 
@@ -2388,10 +2494,13 @@ describe('globalFx', () => {
         expect(fresh.connect.mock.calls).toEqual([[cell.wet]]);
       });
 
-      it('treats a fresh build as ten stages again: rebuilding at 6, building the chain anew, then asking for 6 rebuilds', async () => {
+      // Dark Effects Leave the Graph T11: the new chain has no Phaser until a light, which builds at ten.
+      it('treats a fresh build as ten stages again: rebuilding at 6, building the chain anew, its light builds at 10, then asking for 6 rebuilds', async () => {
         const { globalFx } = await built();
         globalFx.setGlobalPhaser({ stages: 6 });
         globalFx.buildGlobalFxChain();
+        await darkInWait(globalFx, 'phaser');
+        expect(ctorOptions()).toMatchObject({ stages: 10 });
         const constructed = toneFlags.phaserCtor.mock.calls.length;
         globalFx.setGlobalPhaser({ stages: 6 });
         expect(toneFlags.phaserCtor.mock.calls.length).toBe(constructed + 1);
@@ -2450,8 +2559,7 @@ describe('globalFx', () => {
         globalFx.setGlobalPhaser({ wet: 0.5 });
         const reverbReturn = returnOf(lastInstance(Tone.Reverb));
         const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
-        const widener = lastInstance(toneFlags.widenerCtor);
-        expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(widener));
+        expect(reverbReturn.connect).toHaveBeenLastCalledWith(live.getCell('stereoWidener')!.in);
 
         for (const [width, stages] of [
           [0.5, 6],
@@ -2550,6 +2658,8 @@ describe('globalFx', () => {
         globalFx.setGlobalPhaser({ stages: 6 });
         globalFx.buildGlobalFxChain();
         globalFx.setGlobalPhaser({ stages: 8 });
+        // Dark Effects Leave the Graph T11: the new chain's Phaser is built at its light, from the reset mirror.
+        await lightUp(globalFx, 'phaser');
         expect(ctorOptions()).toStrictEqual({ frequency: 0.5, octaves: 3, stages: 8, Q: 10, baseFrequency: 350, wet: 1 });
       });
 
@@ -2807,10 +2917,14 @@ describe('globalFx', () => {
           globalFx.buildGlobalFxChain();
           const constructed = toneFlags.phaserCtor.mock.calls.length;
           expect(toneFlags.timeouts).toHaveLength(0);
-          // The new chain is at ten stages with no duck pending: a dark Stages change rebuilds at once.
+          // The new chain has no Phaser and no duck pending (Dark Effects Leave the Graph T11): a Stages change is
+          // recorded, and the light builds at it.
           globalFx.setGlobalPhaser({ stages: 6 });
-          expect(toneFlags.phaserCtor.mock.calls.length).toBe(constructed + 1);
+          expect(toneFlags.phaserCtor.mock.calls.length).toBe(constructed);
           expect(toneFlags.timeouts).toHaveLength(0);
+          await lightUp(globalFx, 'phaser');
+          expect(toneFlags.phaserCtor.mock.calls.length).toBe(constructed + 1);
+          expect(ctorOptions()).toMatchObject({ stages: 6 });
         });
       });
     });
@@ -2820,9 +2934,14 @@ describe('globalFx', () => {
   // Global Pedals T4 (docs/specs/GLOBAL_PEDALS.md §1.3): the Chorus and the Tremolo after the Phaser.
   // ========================================
   describe('buildGlobalFxChain - the Chorus and the Tremolo (Global Pedals)', () => {
-    it('constructs exactly one of each, pinned fully wet (their dark cells carry the Mix) at Tone defaults', async () => {
+    // Dark Effects Leave the Graph T11: none at the build, one of each at its first light.
+    it('constructs neither at the build, and one of each at its first light, pinned fully wet (their cells carry the Mix) at Tone defaults', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      expect(toneFlags.chorusCtor).not.toHaveBeenCalled();
+      expect(toneFlags.tremoloCtor).not.toHaveBeenCalled();
+      await lightUp(globalFx, 'chorus');
+      await lightUp(globalFx, 'tremolo');
       expect(toneFlags.chorusCtor).toHaveBeenCalledTimes(1);
       expect(toneFlags.chorusCtor).toHaveBeenCalledWith({
         frequency: 1.5,
@@ -2841,6 +2960,8 @@ describe('globalFx', () => {
     it('starts each LFO exactly once at construction', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await lightUp(globalFx, 'chorus');
+      await lightUp(globalFx, 'tremolo');
       expect(lastInstance(toneFlags.chorusCtor).start).toHaveBeenCalledTimes(1);
       expect(lastInstance(toneFlags.tremoloCtor).start).toHaveBeenCalledTimes(1);
     });
@@ -2848,6 +2969,8 @@ describe('globalFx', () => {
     it('does not start them again on a Decay Mode flip', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      await lightUp(globalFx, 'chorus');
+      await lightUp(globalFx, 'tremolo');
       globalFx.wireGlobalFxChain(true);
       globalFx.wireGlobalFxChain(false);
       expect(lastInstance(toneFlags.chorusCtor).start).toHaveBeenCalledTimes(1);
@@ -2859,20 +2982,19 @@ describe('globalFx', () => {
     it.each([false, true])('wires Phaser -> Tremolo -> Vibrato -> Compressor with controlledDecay=%s, each wired to one node', async (controlled) => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const phaser = lastInstance(toneFlags.phaserCtor);
-      const tremolo = lastInstance(toneFlags.tremoloCtor);
-      const vibrato = lastInstance(toneFlags.vibratoCtor);
       const comp = lastInstance(Tone.Compressor);
-      const pedals = [phaser, tremolo, vibrato];
-      const cells = pedals.map(cellOf);
-      for (const node of [...pedals, ...cells.map((c) => c.cut)]) node.connect.mockClear();
+      const cells = liveChainCells().slice(1, 4);
+      for (const cell of cells) {
+        cell.in.connect.mockClear();
+        cell.cut.connect.mockClear();
+      }
 
       globalFx.wireGlobalFxChain(controlled);
 
-      // Dark-Effect Bypass T2: the cells chain cut to in. T3-T5: the pedals are built dark, so they feed nothing.
-      for (const pedal of pedals) expect(pedal.connect).not.toHaveBeenCalled();
-      expect(cells[0].cut.connect.mock.calls).toEqual([[inOf(tremolo)]]);
-      expect(cells[1].cut.connect.mock.calls).toEqual([[inOf(vibrato)]]);
+      // Dark-Effect Bypass T2: the cells chain cut to in. T11: the cells are built empty, so each runs dry.
+      for (const cell of cells) expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+      expect(cells[0].cut.connect.mock.calls).toEqual([[cells[1].in]]);
+      expect(cells[1].cut.connect.mock.calls).toEqual([[cells[2].in]]);
       expect(cells[2].cut.connect.mock.calls).toEqual([[comp]]);
       for (const cell of cells) expect(cell.cut.connect).not.toHaveBeenCalledWith(live.getRoom('double')!.in);
     });
@@ -2880,8 +3002,8 @@ describe('globalFx', () => {
     it('keeps the rooms off both pedals: no room or return connects to either, nor either to a room or return', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      const pedals = [await lightUp(globalFx, 'chorus'), await lightUp(globalFx, 'tremolo')];
       globalFx.wireGlobalFxChain(true);
-      const pedals = [lastInstance(toneFlags.chorusCtor), lastInstance(toneFlags.tremoloCtor)];
       const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
       const returns = rooms.map(returnOf);
       for (const pedal of pedals) {
@@ -2895,7 +3017,7 @@ describe('globalFx', () => {
     it('disconnects each pedal once per rewire, so a Decay flip never doubles an edge', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const pedals = [lastInstance(toneFlags.chorusCtor), lastInstance(toneFlags.tremoloCtor)];
+      const pedals = [await lightUp(globalFx, 'chorus'), await lightUp(globalFx, 'tremolo')];
       for (const pedal of pedals) pedal.disconnect.mockClear();
       globalFx.wireGlobalFxChain(true);
       for (const pedal of pedals) expect(pedal.disconnect).toHaveBeenCalledTimes(1);
@@ -2905,7 +3027,7 @@ describe('globalFx', () => {
       toneFlags.chorusAbsent = true;
       let globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
+      expect(fake(live.getCell('phaser')!.cut).connect).toHaveBeenCalledWith(live.getCell('tremolo')!.in);
       expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
 
       vi.resetModules();
@@ -2913,35 +3035,40 @@ describe('globalFx', () => {
       toneFlags.tremoloAbsent = true;
       globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.vibratoCtor)));
+      expect(fake(live.getCell('phaser')!.cut).connect).toHaveBeenCalledWith(live.getCell('vibrato')!.in);
       expect(() => globalFx.setGlobalTremolo({ rate: 2, wet: 1 })).not.toThrow();
     });
 
     // Robot Effect Sends T4: a Chorus that cannot be built leaves the Double room without a branch; the chain does not
     // notice (the Chorus is no stage of it).
-    it('builds and wires on when the Chorus constructor throws: the Double room has no branch, the Phaser still feeds the Tremolo', async () => {
+    // Dark Effects Leave the Graph T11: each constructor runs at its light, so that is where it throws.
+    it('wires on when the Chorus constructor throws at its light: the Double room keeps an empty branch, the Phaser still feeds the Tremolo', async () => {
       toneFlags.chorusCtor.mockImplementationOnce(() => {
         throw new Error('no chorus');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Chorus'), expect.any(Error));
+      expect(await lightUp(globalFx, 'chorus')).toBeNull();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('chorus'), expect.any(Error));
       // Dark Effects Leave the Graph T8: a registered key keeps an empty branch, and its next light builds again.
       expect(live.getCell('chorus')!.effect).toBeNull();
       expect(live.getRoom('double')).toBeDefined();
-      expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
+      expect(fake(live.getCell('phaser')!.cut).connect).toHaveBeenCalledWith(live.getCell('tremolo')!.in);
       expect(() => globalFx.setGlobalChorus({ rate: 2, wet: 1 })).not.toThrow();
     });
 
-    it('builds and wires on when the Tremolo constructor throws: the Phaser hands through an empty cell to the Vibrato', async () => {
+    it('wires on when the Tremolo constructor throws at its light: the Phaser hands through an empty cell to the Vibrato', async () => {
       toneFlags.tremoloCtor.mockImplementationOnce(() => {
         throw new Error('no tremolo');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Tremolo'), expect.any(Error));
-      const empty = emptyCellAfter(cutOf(lastInstance(toneFlags.phaserCtor)));
-      expect(empty.cut.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.vibratoCtor)));
+      expect(await lightUp(globalFx, 'tremolo')).toBeNull();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('tremolo'), expect.any(Error));
+      const [, phaser, tremolo, vibrato] = liveChainCells();
+      expect(phaser.cut.connect).toHaveBeenCalledWith(tremolo.in);
+      expect(tremolo.in.connect.mock.calls).toEqual([[tremolo.dry]]);
+      expect(tremolo.cut.connect).toHaveBeenCalledWith(vibrato.in);
     });
   });
 
@@ -2950,9 +3077,13 @@ describe('globalFx', () => {
   // after the Tremolo and before the Compressor.
   // ========================================
   describe('buildGlobalFxChain - the Vibrato and the FrequencyShifter (Global Pedals)', () => {
-    it('constructs exactly one of each at Tone defaults, both pinned wet (their cells carry the Mix), the Vibrato at Tone\'s own maxDelay', async () => {
+    it('constructs neither at the build, and one of each at its first light at Tone defaults, both pinned wet (their cells carry the Mix), the Vibrato at Tone\'s own maxDelay', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      expect(toneFlags.vibratoCtor).not.toHaveBeenCalled();
+      expect(toneFlags.shifterCtor).not.toHaveBeenCalled();
+      await lightUp(globalFx, 'vibrato');
+      await lightUp(globalFx, 'frequencyShifter');
       expect(toneFlags.vibratoCtor).toHaveBeenCalledTimes(1);
       // No maxDelay key: Tone's 0.005 s default is the Depth ceiling the full range is written against.
       expect(toneFlags.vibratoCtor).toHaveBeenCalledWith({ frequency: 5, depth: 0.1, wet: 1 });
@@ -2973,7 +3104,7 @@ describe('globalFx', () => {
       toneFlags.vibratoAbsent = true;
       let globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(cutOf(lastInstance(toneFlags.tremoloCtor)).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(fake(live.getCell('tremolo')!.cut).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
       expect(() => globalFx.setGlobalVibrato({ rate: 3, wet: 1 })).not.toThrow();
 
       vi.resetModules();
@@ -2983,11 +3114,12 @@ describe('globalFx', () => {
       toneFlags.shifterAbsent = true;
       globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(cutOf(lastInstance(toneFlags.vibratoCtor)).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(fake(live.getCell('vibrato')!.cut).connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
       expect(() => globalFx.setGlobalFrequencyShifter({ shift: 10, wet: 1 })).not.toThrow();
     });
 
-    it('builds and wires on through an empty Vibrato cell and a branchless Shimmer room when either constructor throws', async () => {
+    // Dark Effects Leave the Graph T11: each constructor runs at its light, so that is where it throws.
+    it('wires on through an empty Vibrato cell and a branchless Shimmer room when either constructor throws at its light', async () => {
       toneFlags.vibratoCtor.mockImplementationOnce(() => {
         throw new Error('no vibrato');
       });
@@ -2996,9 +3128,13 @@ describe('globalFx', () => {
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Vibrato'), expect.any(Error));
-      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('FrequencyShifter'), expect.any(Error));
-      const vibratoCell = emptyCellAfter(cutOf(lastInstance(toneFlags.tremoloCtor)));
+      expect(await lightUp(globalFx, 'vibrato')).toBeNull();
+      expect(await lightUp(globalFx, 'frequencyShifter')).toBeNull();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('vibrato'), expect.any(Error));
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('frequencyShifter'), expect.any(Error));
+      const vibratoCell = fake(live.getCell('vibrato')!);
+      expect(fake(live.getCell('tremolo')!.cut).connect).toHaveBeenCalledWith(vibratoCell.in);
+      expect(vibratoCell.in.connect.mock.calls).toEqual([[vibratoCell.dry]]);
       expect(vibratoCell.cut.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
       // Dark Effects Leave the Graph T8: a registered key keeps an empty branch, and its next light builds again.
       expect(live.getCell('frequencyShifter')!.effect).toBeNull();
@@ -3007,7 +3143,7 @@ describe('globalFx', () => {
     it('disconnects each once per rewire and connects neither to a room or a return', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const pedals = [lastInstance(toneFlags.vibratoCtor), lastInstance(toneFlags.shifterCtor)];
+      const pedals = [await lightUp(globalFx, 'vibrato'), await lightUp(globalFx, 'frequencyShifter')];
       for (const pedal of pedals) pedal.disconnect.mockClear();
       globalFx.wireGlobalFxChain(true);
       const rooms = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)];
@@ -3028,9 +3164,11 @@ describe('globalFx', () => {
   // widener hears the rooms in both modes (Width 0 folds the echoes too).
   // ========================================
   describe('buildGlobalFxChain - the StereoWidener and the Controlled-Decay join (Global Pedals)', () => {
-    it('constructs exactly one, at unity width (0.5) and fully wet', async () => {
+    it('constructs none at the build, and one at its first light, at unity width (0.5) and fully wet', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      expect(toneFlags.widenerCtor).not.toHaveBeenCalled();
+      await lightUp(globalFx, 'stereoWidener');
       expect(toneFlags.widenerCtor).toHaveBeenCalledTimes(1);
       expect(toneFlags.widenerCtor).toHaveBeenCalledWith({ width: 0.5, wet: 1 });
     });
@@ -3058,18 +3196,19 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       const comp = lastInstance(Tone.Compressor);
-      const widener = lastInstance(toneFlags.widenerCtor);
+      const widener = await lightUp(globalFx, 'stereoWidener');
+      globalFx.wireGlobalFxChain(false);
       for (const room of [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)]) {
         expect(returnOf(room).connect).toHaveBeenLastCalledWith(comp);
         expect(returnOf(room).connect).not.toHaveBeenCalledWith(widener);
-        expect(returnOf(room).connect).not.toHaveBeenCalledWith(inOf(widener));
+        expect(returnOf(room).connect).not.toHaveBeenCalledWith(live.getCell('stereoWidener')!.in);
       }
     });
 
     it('joins both returns at the Width cell under Controlled Decay, not at the widener itself nor the Limiter', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const widener = lastInstance(toneFlags.widenerCtor);
+      const widener = await lightUp(globalFx, 'stereoWidener');
       const limiter = lastInstance(Tone.Limiter);
       const returns = [lastInstance(Tone.Reverb), lastInstance(Tone.FeedbackDelay)].map(returnOf);
       for (const ret of returns) ret.connect.mockClear();
@@ -3077,7 +3216,7 @@ describe('globalFx', () => {
       globalFx.wireGlobalFxChain(true);
 
       for (const ret of returns) {
-        expect(ret.connect.mock.calls).toEqual([[inOf(widener)]]);
+        expect(ret.connect.mock.calls).toEqual([[live.getCell('stereoWidener')!.in]]);
         expect(ret.connect).not.toHaveBeenCalledWith(widener);
         expect(ret.connect).not.toHaveBeenCalledWith(limiter);
       }
@@ -3099,13 +3238,15 @@ describe('globalFx', () => {
 
     // Dark-Effect Bypass T2: a widener that failed to build leaves an empty Width cell, which runs dry to the Limiter, so
     // the Controlled join at its in sounds as the Limiter fallback did.
-    it('builds and wires on when the widener constructor throws: the Controlled join is the empty Width cell, dry into the Limiter', async () => {
+    // Dark Effects Leave the Graph T11: the constructor runs at the light, so that is where it throws.
+    it('wires on when the widener constructor throws at its light: the Controlled join is the empty Width cell, dry into the Limiter', async () => {
       toneFlags.widenerCtor.mockImplementationOnce(() => {
         throw new Error('no widener');
       });
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
-      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('StereoWidener'), expect.any(Error));
+      expect(await lightUp(globalFx, 'stereoWidener')).toBeNull();
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('stereoWidener'), expect.any(Error));
       globalFx.wireGlobalFxChain(true);
       const empty = emptyCellAfter(lastInstance(Tone.Compressor));
       expect(returnOf(lastInstance(Tone.Reverb)).connect).toHaveBeenLastCalledWith(empty.in);
@@ -3116,22 +3257,24 @@ describe('globalFx', () => {
     it('keeps the width across a Decay flip: the node is rewired, never rebuilt', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const widener = lastInstance(toneFlags.widenerCtor);
       globalFx.setGlobalStereoWidener({ width: 0.2 });
+      const widener = lastInstance(toneFlags.widenerCtor);
       widener.width.rampTo.mockClear();
       globalFx.wireGlobalFxChain(true);
       globalFx.wireGlobalFxChain(false);
       expect(toneFlags.widenerCtor).toHaveBeenCalledTimes(1);
       expect(widener.width.rampTo).not.toHaveBeenCalled();
-      expect(widener.disconnect).toHaveBeenCalledTimes(3);
+      // Built at its light, after the build's own wiring: one disconnect per flip.
+      expect(widener.disconnect).toHaveBeenCalledTimes(2);
     });
   });
 
   describe('setGlobalStereoWidener (Global Pedals)', () => {
+    // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      return { globalFx, widener: lastInstance(toneFlags.widenerCtor) };
+      return { globalFx, widener: await darkInWait(globalFx, 'stereoWidener') };
     }
 
     it('no-ops silently before the chain is built', async () => {
@@ -3189,10 +3332,11 @@ describe('globalFx', () => {
   // stays at the cell's in, lit or dark.
   // ========================================
   describe('Width rides its cell (Dark-Effect Bypass T6)', () => {
+    // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
     async function dark() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const widener = lastInstance(toneFlags.widenerCtor);
+      const widener = await darkInWait(globalFx, 'stereoWidener');
       return { globalFx, widener, cell: cellOf(widener) };
     }
     async function lit(width = 0.7) {
@@ -3217,7 +3361,7 @@ describe('globalFx', () => {
     const cutsFromIn = (cell: any, widener: any) =>
       cell.in.disconnect.mock.calls.filter(([target]: unknown[]) => target === widener);
 
-    it('builds the widener dark: at width 0.5, wet 1, unconnected, its cell at dry 1, wet 0', async () => {
+    it('keeps a darkened widener at its built width 0.5 and wet 1, unconnected, its cell at dry 1, wet 0', async () => {
       const { widener, cell } = await dark();
       expect(widener.width.value).toBe(0.5);
       expect(widener.wet.value).toBe(1);
@@ -3287,7 +3431,7 @@ describe('globalFx', () => {
           throw new Error('connect failed');
         });
         expect(() => globalFx.setGlobalStereoWidener({ width: 0.7 })).not.toThrow();
-        expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('stereoWidener'), expect.any(Error));
+        expect(failureWarnings()).toEqual([[expect.stringContaining('stereoWidener'), expect.any(Error)]]);
         expect(cell.dry.gain.rampTo).not.toHaveBeenCalled();
         expect(cell.wet.gain.rampTo).not.toHaveBeenCalled();
 
@@ -3427,10 +3571,11 @@ describe('globalFx', () => {
   });
 
   describe('setGlobalVibrato (Global Pedals)', () => {
+    // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      return { globalFx, vibrato: lastInstance(toneFlags.vibratoCtor) };
+      return { globalFx, vibrato: await darkInWait(globalFx, 'vibrato') };
     }
 
     it('no-ops silently before the chain is built', async () => {
@@ -3501,10 +3646,11 @@ describe('globalFx', () => {
   describe('the crossing protocol, on the Vibrato (Dark-Effect Bypass T3)', () => {
     const DISCONNECT_AFTER = 0.1 + 0.05 + 0.01;
 
+    // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
     async function dark() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      const vibrato = await darkInWait(globalFx, 'vibrato');
       return { globalFx, vibrato, cell: cellOf(vibrato) };
     }
     async function lit(mix = 0.3) {
@@ -3797,19 +3943,19 @@ describe('globalFx', () => {
         expect(toneFlags.timeouts).toHaveLength(0);
       });
 
-      it('leaves the empty cell dry when the Vibrato constructor threw', async () => {
-        // Dark Effects Leave the Graph T8: a light builds an absent Vibrato, so the constructor throws there too.
-        for (let n = 0; n < 2; n++) {
-          toneFlags.vibratoCtor.mockImplementationOnce(() => {
-            throw new Error('no vibrato');
-          });
-        }
+      it('leaves the empty cell dry when the Vibrato constructor throws at its light', async () => {
+        // Dark Effects Leave the Graph T11: the chain builds no Vibrato, so the constructor runs (and throws) at the light.
+        toneFlags.vibratoCtor.mockImplementationOnce(() => {
+          throw new Error('no vibrato');
+        });
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        const empty = emptyCellAfter(cutOf(lastInstance(toneFlags.tremoloCtor)));
+        const empty = fake(live.getCell('vibrato')!);
         empty.dry.gain.rampTo.mockClear();
         globalFx.setGlobalVibrato({ wet: 0.5 });
         globalFx.setGlobalVibrato({ wet: 0 });
+        expect(toneFlags.vibratoCtor).toHaveBeenCalledTimes(1);
+        expect(empty.effect).toBeNull();
         expect(empty.dry.gain.value).toBe(1);
         expect(empty.dry.gain.rampTo).not.toHaveBeenCalled();
         expect(toneFlags.timeouts).toHaveLength(0);
@@ -3836,7 +3982,8 @@ describe('globalFx', () => {
     async function vibratoAt(mix: number) {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const vibrato = lastInstance(toneFlags.vibratoCtor);
+      // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
+      const vibrato = await darkInWait(globalFx, 'vibrato');
       if (mix > 0) globalFx.setGlobalVibrato({ wet: mix });
       segmented(cellOf(vibrato));
       return { globalFx, vibrato, cell: cellOf(vibrato) };
@@ -3894,9 +4041,8 @@ describe('globalFx', () => {
     it('splits a duck the same way: a lit Tremolo at Mix 1 goes to dry in four chords over the 20 ms', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const tremolo = lastInstance(toneFlags.tremoloCtor);
       globalFx.setGlobalTremolo({ wet: 1 });
-      const cell = cellOf(tremolo);
+      const cell = cellOf(lastInstance(toneFlags.tremoloCtor));
       segmented(cell);
       globalFx.setGlobalTremolo({ spread: 90 });
       expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(lawWet(0.75), 9), 0.005, NOW]]);
@@ -3927,7 +4073,7 @@ describe('globalFx', () => {
     it('leaves Width one ramp at any jump: its law is linear, so the chord is the law', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const cell = cellOf(lastInstance(toneFlags.widenerCtor));
+      const cell = fake(live.getCell('stereoWidener')!);
       segmented(cell);
       globalFx.setGlobalStereoWidener({ width: 1 });
       expect(cell.wet.gain.rampTo.mock.calls).toEqual([[1, 0.05]]);
@@ -3937,9 +4083,8 @@ describe('globalFx', () => {
     it('falls back to one ramp to the target on a gain that cannot schedule a linear ramp (a headless stub)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const vibrato = lastInstance(toneFlags.vibratoCtor);
       globalFx.setGlobalVibrato({ wet: 1 });
-      expect(cellOf(vibrato).wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(1, 9), 0.05]]);
+      expect(fake(live.getCell('vibrato')!.wet).gain.rampTo.mock.calls).toEqual([[expect.closeTo(1, 9), 0.05]]);
     });
   });
 
@@ -3952,24 +4097,23 @@ describe('globalFx', () => {
   // the Colour room (below) and the FrequencyShifter's `wet` is now its room's Return (setGlobalFrequencyShifter).
   describe('the plain Mix effects ride their cells (Dark-Effect Bypass T4)', () => {
     type MixSetter = (params: { wet: number }) => void;
+    // Dark Effects Leave the Graph T11: each built by a light and dark again inside its wait, as every build left it.
     const SIX = [
-      ['AutoWah', 'setGlobalAutoWah', () => lastInstance(toneFlags.wahCtor)],
-      ['Phaser', 'setGlobalPhaser', () => lastInstance(toneFlags.phaserCtor)],
+      ['AutoWah', 'setGlobalAutoWah', 'autoWah'],
+      ['Phaser', 'setGlobalPhaser', 'phaser'],
     ] as const;
     const COLOUR_BRANCHES = [
-      ['Distortion', 'setGlobalDistortion', () => lastInstance(Tone.Distortion)],
-      ['Chebyshev', 'setGlobalChebyshev', () => lastInstance(Tone.Chebyshev)],
-      ['BitCrusher', 'setGlobalBitCrusher', () => lastInstance(toneFlags.crusherCtor)],
+      ['Distortion', 'setGlobalDistortion', 'distortion'],
+      ['Chebyshev', 'setGlobalChebyshev', 'chebyshev'],
+      ['BitCrusher', 'setGlobalBitCrusher', 'bitCrusher'],
     ] as const;
 
     it.each(COLOUR_BRANCHES)(
       '%s (a Colour room branch, the room fed): lights at 0.3 on the wet gain alone, does nothing for a re-sent 0.3, darkens at 0 and disconnects when the timer fires',
-      async (_name, setterName, effectOf) => {
+      async (_name, setterName, key) => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        feedRooms('grit');
-        await flush();
-        const effect = effectOf();
+        const effect = await darkInWait(globalFx, key);
         const cell = cellOf(effect);
         const set = globalFx[setterName] as unknown as MixSetter;
         const edgesFromIn = () => cell.in.connect.mock.calls.filter(([target]: unknown[]) => target === effect);
@@ -4003,10 +4147,10 @@ describe('globalFx', () => {
 
     it.each(SIX)(
       '%s: lights at 0.3, does nothing for a re-sent 0.3, darkens at 0 and disconnects when the timer fires',
-      async (_name, setterName, effectOf) => {
+      async (_name, setterName, key) => {
         const globalFx = await import('./globalFx');
         globalFx.buildGlobalFxChain();
-        const effect = effectOf();
+        const effect = await darkInWait(globalFx, key);
         const cell = cellOf(effect);
         const set = globalFx[setterName] as unknown as MixSetter;
         const edgesFromIn = () => cell.in.connect.mock.calls.filter(([target]: unknown[]) => target === effect);
@@ -4117,8 +4261,9 @@ describe('globalFx', () => {
     it('is 10 with all ten lit, and 0 again once all ten are dark and their timers have fired', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      await flush();
       lightAll(globalFx);
+      // The BitCrusher built at its light connects once its worklet check settles (Dark Effects Leave the Graph T10).
+      await flush();
       expect(globalFx.getConnectedEffectCount()).toBe(10);
       for (const setter of [
         'setGlobalDistortion',
@@ -4142,15 +4287,15 @@ describe('globalFx', () => {
       toneFlags.vibratoAbsent = true;
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      await flush();
       lightAll(globalFx);
+      await flush();
       expect(globalFx.getConnectedEffectCount()).toBe(9);
     });
 
     it('does not count a light whose connect threw', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const cell = cellOf(lastInstance(toneFlags.vibratoCtor));
+      const cell = fake(live.getCell('vibrato')!);
       cell.in.connect.mockImplementationOnce(() => {
         throw new Error('connect failed');
       });
@@ -4448,12 +4593,13 @@ describe('globalFx', () => {
       globalFx.buildGlobalFxChain();
       feedRooms('grit');
       globalFx.setEffectsHeldOff(true);
-      const vibrato = lastInstance(toneFlags.vibratoCtor);
       globalFx.setGlobalVibrato({ wet: 0.4 });
       globalFx.setGlobalDistortion({ wet: 0.3 });
       globalFx.setGlobalStereoWidener({ width: 0.8 });
       expect(globalFx.getConnectedEffectCount()).toBe(0);
-      expect(wetRampCount(vibrato)).toBe(0);
+      // Dark Effects Leave the Graph T11: nothing lights, so nothing is built either.
+      expect(constructedEach()).toEqual(Array(10).fill(0));
+      expect(fake(live.getCell('vibrato')!.wet).gain.rampTo).not.toHaveBeenCalled();
       expect(darkens()).toHaveLength(0);
     });
 
@@ -4664,8 +4810,11 @@ describe('globalFx', () => {
     it.each(cases)('the $key darkened (Mix 0) is disposed DARK_TEARDOWN_SECONDS after its disconnect, its cell emptied', async ({ key, ctor, set }) => {
       const globalFx = await built();
       set(globalFx, { wet: 0.4 });
+      // The BitCrusher built at this light connects once its worklet check settles (T10).
+      await flush();
       const node = lastInstance(ctor());
       expect(live.getCell(key)!.effect).toBe(node);
+      expect(live.getCell(key)!.connected).toBe(true);
       set(globalFx, { wet: 0 });
       fireTimeouts();
       expect(live.getCell(key)!.connected).toBe(false);
@@ -4745,7 +4894,7 @@ describe('globalFx', () => {
 
     it('a present AutoWah still takes a ramped Q while its Mix stays 0', async () => {
       const globalFx = await built();
-      const wah = lastInstance(toneFlags.wahCtor);
+      const wah = await darkInWait(globalFx, 'autoWah');
       globalFx.setGlobalAutoWah({ Q: 4 });
       expect(wah.Q.rampTo).toHaveBeenCalledWith(4, 0.05);
     });
@@ -4753,7 +4902,12 @@ describe('globalFx', () => {
     it('a Colour Mix of 0 written while the room is unfed tears the built branch down after the wait (re-send path)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const cheb = lastInstance(Tone.Chebyshev);
+      // Built by a light, then its room unfed: disconnected, but not dark at its own level, so it is kept (§1.2).
+      const cheb = await lightUp(globalFx, 'chebyshev');
+      live.setRoomFed('grit', false);
+      settle();
+      expect(cheb.dispose).not.toHaveBeenCalled();
+      expect(live.getCell('chebyshev')!.connected).toBe(false);
       globalFx.setGlobalChebyshev({ wet: 0 });
       expect(toneFlags.timeouts.map((t) => t.seconds)).toEqual([live.DARK_TEARDOWN_SECONDS]);
       fireTimeouts();
@@ -4782,7 +4936,10 @@ describe('globalFx', () => {
       globalFx.setGlobalBitCrusher({ wet: 0.5 });
       globalFx.setGlobalAutoWah({ wet: 0.6 });
       globalFx.setGlobalChebyshev({ wet: 0 });
-      const old = cases.map(({ ctor }) => lastInstance(ctor()));
+      await flush();
+      // Dark Effects Leave the Graph T11: the Chebyshev at a Mix of 0 was never built.
+      expect(constructed(Tone.Chebyshev)).toBe(0);
+      const old = cases.filter(({ key }) => key !== 'chebyshev').map(({ ctor }) => lastInstance(ctor()));
       globalFx.setEffectsHeldOff(true);
       settle();
       for (const node of old) expect(node.dispose).toHaveBeenCalledTimes(1);
@@ -5083,7 +5240,10 @@ describe('globalFx', () => {
     it('a Shimmer Return of 0 on the unfed room arms the teardown, and raising it again before the fire cancels it', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const shifter = lastInstance(toneFlags.shifterCtor);
+      // Built by a light, then its room unfed: disconnected and kept (Dark Effects Leave the Graph T11).
+      const shifter = await lightUp(globalFx, 'frequencyShifter');
+      live.setRoomFed('shimmer', false);
+      settle();
       globalFx.setGlobalFrequencyShifter({ wet: 0 });
       expect(toneFlags.timeouts.map((t) => t.seconds)).toEqual([live.DARK_TEARDOWN_SECONDS]);
       globalFx.setGlobalFrequencyShifter({ wet: 0.5 });
@@ -5096,7 +5256,10 @@ describe('globalFx', () => {
     it('the Shifter torn down at a Return of 0 takes a shift while absent, and is built at it when the fed room has a Return again', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const gone = lastInstance(toneFlags.shifterCtor);
+      // Built by a light, then its room unfed and its Return written to 0 (Dark Effects Leave the Graph T11).
+      const gone = await lightUp(globalFx, 'frequencyShifter');
+      live.setRoomFed('shimmer', false);
+      settle();
       globalFx.setGlobalFrequencyShifter({ wet: 0 });
       settle();
       expect(gone.dispose).toHaveBeenCalledTimes(1);
@@ -5115,11 +5278,13 @@ describe('globalFx', () => {
     it('an unfed Shimmer or Double room with its Return above 0 keeps its effect', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const shifter = lastInstance(toneFlags.shifterCtor);
-      const chorus = lastInstance(toneFlags.chorusCtor);
       globalFx.setGlobalFrequencyShifter({ wet: 0.7, shift: 100 });
       globalFx.setGlobalChorus({ wet: 0.4, rate: 2 });
+      // Dark Effects Leave the Graph T11: the feed lights, and so builds, both.
       feedRooms('shimmer', 'double');
+      const shifter = lastInstance(toneFlags.shifterCtor);
+      const chorus = lastInstance(toneFlags.chorusCtor);
+      expect([shifter, chorus].map((node) => node === undefined)).toEqual([false, false]);
       live.setRoomFed('shimmer', false);
       live.setRoomFed('double', false);
       settle();
@@ -5199,18 +5364,22 @@ describe('globalFx', () => {
       expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
     });
 
-    it('a crusher built at the chain build waits too, and is ready by a later light', async () => {
+    // Dark Effects Leave the Graph T11: the chain builds no crusher, so its first light is the one that waits.
+    it('builds no crusher at the chain build: the first light builds it and waits for its worklet', async () => {
       toneFlags.crusherWorkletMade = false;
       const load = deferred();
       toneFlags.workletsReady = load.promise;
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       feedRooms('grit');
+      expect(toneFlags.crusherCtor).not.toHaveBeenCalled();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
       const crusher = lastInstance(toneFlags.crusherCtor);
+      await flush();
+      expect(live.getCell('bitCrusher')!.connected).toBe(false);
       workletOf(crusher)._worklet = {};
       load.resolve();
       await flush();
-      globalFx.setGlobalBitCrusher({ wet: 0.5 });
       expect(live.getCell('bitCrusher')!.connected).toBe(true);
     });
 
@@ -5318,18 +5487,102 @@ describe('globalFx', () => {
     it('a widener present before the call still takes the ramp to the written width', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      const widener = lastInstance(toneFlags.widenerCtor);
+      const widener = await darkInWait(globalFx, 'stereoWidener');
       globalFx.setGlobalStereoWidener({ width: 0.3 });
       expect(widener.width.rampTo.mock.calls).toEqual([[0.3, live.COLOUR_RAMP_SECONDS]]);
       expect(widenersBuilt()).toBe(1);
     });
   });
 
+  describe('nothing built at chain build (Dark Effects Leave the Graph T11)', () => {
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2 (the chain builds the rooms and the cells with no effect in them),
+    // §1.5 (a Decay flip with absent effects wires every cell dry), §5.1 cases 1 and 16.
+    const CHAIN_KEYS = ['autoWah', 'phaser', 'tremolo', 'vibrato', 'stereoWidener'] as const;
+    const chainCells = () => CHAIN_KEYS.map((key) => fake(live.getCell(key)!));
+    /** Forget every edge the cells' ins and the rooms' ins have made so far, so a flip's own edges can be read. */
+    function forgetEdges() {
+      for (const cell of chainCells()) cell.in.connect.mockClear();
+      for (const key of live.ROOM_KEYS) fake(live.getRoom(key)!.in).connect.mockClear();
+    }
+
+    it('buildGlobalFxChain() constructs none of the ten, yet every cell and room exists and the chain is whole and dry', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      expect(constructedEach()).toEqual(Array(10).fill(0));
+      for (const key of live.BYPASS_KEYS) {
+        expect(live.getCell(key), key).toBeDefined();
+        expect(live.getCell(key)!.effect, key).toBeNull();
+        expect(live.getCell(key)!.connected, key).toBe(false);
+      }
+      // filter cut -> AutoWah -> Phaser -> Tremolo -> Vibrato -> Compressor -> Width -> Limiter, each cell in -> dry -> cut.
+      const [wah, phaser, tremolo, vibrato, width] = chainCells();
+      expect(filterCutOf().connect).toHaveBeenCalledWith(wah.in);
+      expect(wah.cut.connect).toHaveBeenCalledWith(phaser.in);
+      expect(phaser.cut.connect).toHaveBeenCalledWith(tremolo.in);
+      expect(tremolo.cut.connect).toHaveBeenCalledWith(vibrato.in);
+      expect(vibrato.cut.connect).toHaveBeenCalledWith(lastInstance(Tone.Compressor));
+      expect(lastInstance(Tone.Compressor).connect).toHaveBeenCalledWith(width.in);
+      expect(width.cut.connect).toHaveBeenCalledWith(lastInstance(Tone.Limiter));
+      for (const cell of chainCells()) {
+        expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+        expect(cell.dry.connect.mock.calls).toEqual([[cell.cut]]);
+      }
+      for (const key of live.ROOM_KEYS) {
+        const room = live.getRoom(key)!;
+        expect(fake(room.in).connect, key).not.toHaveBeenCalled();
+        expect(fake(room.cut).connect.mock.calls, key).toEqual([[room.return]]);
+      }
+    });
+
+    it.each([true, false])('a Decay flip (controlledDecay=%s) with every effect absent wires every cell dry and constructs nothing', async (controlled) => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      // Every room fed, each branch dark at its own level: the Shimmer and Double Returns at 0, the colour Mixes at 0.
+      globalFx.setGlobalChorus({ wet: 0 });
+      globalFx.setGlobalFrequencyShifter({ wet: 0 });
+      feedRooms();
+      forgetEdges();
+      globalFx.wireGlobalFxChain(controlled);
+      expect(constructedEach()).toEqual(Array(10).fill(0));
+      for (const cell of chainCells()) expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+      for (const key of live.ROOM_KEYS) expect(fake(live.getRoom(key)!.in).connect, key).not.toHaveBeenCalled();
+    });
+
+    it('after one chain light and one branch light, a Decay flip reconnects only those two and constructs nothing more', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('grit');
+      globalFx.setGlobalAutoWah({ wet: 0.5 });
+      globalFx.setGlobalDistortion({ wet: 0.5 });
+      const wah = lastInstance(toneFlags.wahCtor);
+      const distortion = lastInstance(Tone.Distortion);
+      expect(constructedEach()).toEqual([1, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
+      forgetEdges();
+      wah.connect.mockClear();
+      globalFx.wireGlobalFxChain(true);
+      const [wahCell, ...others] = chainCells();
+      expect(wahCell.in.connect.mock.calls).toEqual([[wahCell.dry], [wah]]);
+      expect(wah.connect.mock.calls).toEqual([[wahCell.wet]]);
+      for (const cell of others) expect(cell.in.connect.mock.calls).toEqual([[cell.dry]]);
+      expect(fake(live.getRoom('grit')!.in).connect.mock.calls).toEqual([[distortion]]);
+      expect(fake(live.getRoom('shimmer')!.in).connect).not.toHaveBeenCalled();
+      expect(fake(live.getRoom('double')!.in).connect).not.toHaveBeenCalled();
+      expect(constructedEach()).toEqual([1, 0, 0, 1, 0, 0, 0, 0, 0, 0]);
+    });
+  });
+
   describe('setGlobalFrequencyShifter (Global Pedals)', () => {
+    // Dark Effects Leave the Graph T11: built by a light, then its room unfed at a Return of 1, as every build left it
+    // before: present, unconnected, nothing pending.
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      return { globalFx, shifter: lastInstance(toneFlags.shifterCtor) };
+      const shifter = await darkInWait(globalFx, 'frequencyShifter');
+      live.setRoomFed('shimmer', false);
+      globalFx.setGlobalFrequencyShifter({ wet: 1 });
+      forgetCalls(live.getRoom('shimmer')!.return);
+      expect(toneFlags.timeouts).toEqual([]);
+      return { globalFx, shifter };
     }
 
     it('no-ops silently before the chain is built', async () => {
@@ -5405,10 +5658,17 @@ describe('globalFx', () => {
   });
 
   describe('setGlobalChorus (Global Pedals)', () => {
+    // Dark Effects Leave the Graph T11: built by a light, then its room unfed at a Return of 1, as every build left it
+    // before: present, unconnected, nothing pending.
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      return { globalFx, chorus: lastInstance(toneFlags.chorusCtor) };
+      const chorus = await darkInWait(globalFx, 'chorus');
+      live.setRoomFed('double', false);
+      globalFx.setGlobalChorus({ wet: 1 });
+      forgetCalls(live.getRoom('double')!.return);
+      expect(toneFlags.timeouts).toEqual([]);
+      return { globalFx, chorus };
     }
 
     it('no-ops silently before the chain is built', async () => {
@@ -5604,10 +5864,11 @@ describe('globalFx', () => {
   });
 
   describe('setGlobalTremolo (Global Pedals)', () => {
+    // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
     async function built() {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
-      return { globalFx, tremolo: lastInstance(toneFlags.tremoloCtor) };
+      return { globalFx, tremolo: await darkInWait(globalFx, 'tremolo') };
     }
 
     it('no-ops silently before the chain is built', async () => {
@@ -5708,6 +5969,8 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
       prime(globalFx);
+      // Dark Effects Leave the Graph T11: built by a light and dark again inside its wait, as every build left it before.
+      await darkInWait(globalFx, pedal);
       return globalFx;
     }
     async function lit(mix = 0.5) {
@@ -5921,17 +6184,19 @@ describe('globalFx', () => {
       expect(edgeCuts(n, cell)).toEqual([[n], [cell.wet]]);
     });
 
-    it('a chain rebuilt during the duck drops the pending write and starts the new node dry', async () => {
+    // Dark Effects Leave the Graph T11: the new chain builds no pedal until a light.
+    it('a chain rebuilt during the duck drops the pending write, and the new chain builds its pedal at the default Spread', async () => {
       const { globalFx, n } = await lit(0.5);
       set(globalFx, { spread: 90 });
       globalFx.buildGlobalFxChain();
-      const fresh = node();
-      expect(fresh).not.toBe(n);
+      expect(node()).toBe(n);
       fireTimeouts();
       expect(n.spread).toBe(180);
-      // The fresh node is at the default again, so the same 90 is a real change for it, written at once (it is dry).
-      set(globalFx, { spread: 90 });
-      expect(fresh.spread).toBe(90);
+      prime(globalFx);
+      set(globalFx, { wet: 0.5 });
+      const fresh = node();
+      expect(fresh).not.toBe(n);
+      expect(fresh.spread).toBe(180);
     });
 
     // The old duck's timer must die with the old chain: left to fire, it would take the new duck's Spread to the old node.
@@ -5939,9 +6204,10 @@ describe('globalFx', () => {
       const { globalFx, n } = await lit(0.5);
       set(globalFx, { spread: 90 });
       globalFx.buildGlobalFxChain();
-      const fresh = node();
       prime(globalFx);
       set(globalFx, { wet: 0.5 });
+      const fresh = node();
+      expect(fresh).not.toBe(n);
       set(globalFx, { spread: 70 });
       fireTimeouts();
       expect(fresh.spread).toBe(70);
@@ -5969,10 +6235,8 @@ describe('globalFx', () => {
       const eqNode = lastInstance(Tone.EQ3);
       const hpfNode = lastInstance(Tone.Filter);
       const lpfNode = secondLastInstance(Tone.Filter);
-      const wahNode = lastInstance(toneFlags.wahCtor);
-      const phaserNode = lastInstance(toneFlags.phaserCtor);
-      const tremoloNode = lastInstance(toneFlags.tremoloCtor);
-      const vibratoNode = lastInstance(toneFlags.vibratoCtor);
+      // Dark Effects Leave the Graph T11: the cells exist from the build, their effects only from a light.
+      const [wah, phaser, tremolo, vibrato, width] = liveChainCells();
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -5981,22 +6245,22 @@ describe('globalFx', () => {
       expect(lpfNode.connect).toHaveBeenCalledWith(hpfNode);
       expect(hpfNode.connect).toHaveBeenCalledWith(filterCutOf());
       // Dark-Effect Bypass T2: each effect sits in its cell; the chain runs filter cut -> cell in ... cell cut -> next.
-      expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(wahNode));
+      expect(filterCutOf().connect).toHaveBeenCalledWith(wah.in);
       expect(hpfNode.connect).not.toHaveBeenCalledWith(compNode);
-      expect(cutOf(wahNode).connect).toHaveBeenCalledWith(inOf(phaserNode));
-      expect(cutOf(wahNode).connect).not.toHaveBeenCalledWith(compNode);
-      expect(cutOf(phaserNode).connect).toHaveBeenCalledWith(inOf(tremoloNode));
-      expect(cutOf(phaserNode).connect).not.toHaveBeenCalledWith(compNode);
-      expect(cutOf(tremoloNode).connect).toHaveBeenCalledWith(inOf(vibratoNode));
-      expect(cutOf(vibratoNode).connect).toHaveBeenCalledWith(compNode);
+      expect(wah.cut.connect).toHaveBeenCalledWith(phaser.in);
+      expect(wah.cut.connect).not.toHaveBeenCalledWith(compNode);
+      expect(phaser.cut.connect).toHaveBeenCalledWith(tremolo.in);
+      expect(phaser.cut.connect).not.toHaveBeenCalledWith(compNode);
+      expect(tremolo.cut.connect).toHaveBeenCalledWith(vibrato.in);
+      expect(vibrato.cut.connect).toHaveBeenCalledWith(compNode);
       // No stage of the chain enters an effect room.
       for (const key of live.ROOM_KEYS) {
-        for (const node of [filterCutOf(), ...[wahNode, phaserNode, tremoloNode, vibratoNode].map(cutOf)]) {
+        for (const node of [filterCutOf(), ...[wah, phaser, tremolo, vibrato].map((cell) => cell.cut)]) {
           expect(node.connect).not.toHaveBeenCalledWith(live.getRoom(key)!.in);
         }
       }
-      expect(compNode.connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
-      expect(cutOf(lastInstance(toneFlags.widenerCtor)).connect).toHaveBeenCalledWith(limiterNode);
+      expect(compNode.connect).toHaveBeenCalledWith(width.in);
+      expect(width.cut.connect).toHaveBeenCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenCalledWith(ceilingOf());
       expect(limiterNode.connect).not.toHaveBeenCalledWith(gainNode);
       expect(ceilingOf().connect).toHaveBeenCalledWith(gainNode);
@@ -6049,10 +6313,8 @@ describe('globalFx', () => {
       const eqNode = lastInstance(Tone.EQ3);
       const hpfNode = lastInstance(Tone.Filter);
       const lpfNode = secondLastInstance(Tone.Filter);
-      const wahNode = lastInstance(toneFlags.wahCtor);
-      const phaserNode = lastInstance(toneFlags.phaserCtor);
-      const tremoloNode = lastInstance(toneFlags.tremoloCtor);
-      const vibratoNode = lastInstance(toneFlags.vibratoCtor);
+      // Dark Effects Leave the Graph T11: the cells exist from the build, their effects only from a light.
+      const [wah, phaser, tremolo, vibrato, width] = liveChainCells();
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
       const gainNode = lastInstance(Tone.Gain);
@@ -6063,13 +6325,13 @@ describe('globalFx', () => {
       expect(lpfNode.connect).toHaveBeenLastCalledWith(hpfNode);
       expect(hpfNode.connect).toHaveBeenLastCalledWith(filterCutOf());
       // Dark-Effect Bypass T2: cell to cell, as in Natural Decay.
-      expect(filterCutOf().connect).toHaveBeenLastCalledWith(inOf(wahNode));
-      expect(cutOf(wahNode).connect).toHaveBeenLastCalledWith(inOf(phaserNode));
-      expect(cutOf(phaserNode).connect).toHaveBeenLastCalledWith(inOf(tremoloNode));
-      expect(cutOf(tremoloNode).connect).toHaveBeenLastCalledWith(inOf(vibratoNode));
-      expect(cutOf(vibratoNode).connect).toHaveBeenLastCalledWith(compNode);
-      expect(compNode.connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
-      expect(cutOf(lastInstance(toneFlags.widenerCtor)).connect).toHaveBeenLastCalledWith(limiterNode);
+      expect(filterCutOf().connect).toHaveBeenLastCalledWith(wah.in);
+      expect(wah.cut.connect).toHaveBeenLastCalledWith(phaser.in);
+      expect(phaser.cut.connect).toHaveBeenLastCalledWith(tremolo.in);
+      expect(tremolo.cut.connect).toHaveBeenLastCalledWith(vibrato.in);
+      expect(vibrato.cut.connect).toHaveBeenLastCalledWith(compNode);
+      expect(compNode.connect).toHaveBeenLastCalledWith(width.in);
+      expect(width.cut.connect).toHaveBeenLastCalledWith(limiterNode);
       expect(limiterNode.connect).toHaveBeenLastCalledWith(ceilingOf());
       expect(ceilingOf().connect).toHaveBeenLastCalledWith(gainNode);
     });
@@ -6083,7 +6345,7 @@ describe('globalFx', () => {
       const reverbNode = lastInstance(Tone.Reverb);
       const compNode = lastInstance(Tone.Compressor);
       const limiterNode = lastInstance(Tone.Limiter);
-      const widenerNode = lastInstance(toneFlags.widenerCtor);
+      const widthIn = live.getCell('stereoWidener')!.in;
       const reverbReturn = returnOf(reverbNode);
       const delayReturn = returnOf(delayNode);
       for (const ret of [reverbReturn, delayReturn]) ret.connect.mockClear();
@@ -6097,7 +6359,7 @@ describe('globalFx', () => {
       expect(delayNode.connect).toHaveBeenCalledWith(delayReturn);
       for (const ret of [reverbReturn, delayReturn]) {
         expect(ret.connect).toHaveBeenCalledTimes(1);
-        expect(ret.connect).toHaveBeenCalledWith(inOf(widenerNode));
+        expect(ret.connect).toHaveBeenCalledWith(widthIn);
         expect(ret.connect).not.toHaveBeenCalledWith(limiterNode);
         expect(ret.connect).not.toHaveBeenCalledWith(compNode);
         expect(ret.connect).not.toHaveBeenCalledWith(ceilingOf());
@@ -6107,6 +6369,8 @@ describe('globalFx', () => {
     it('disconnects every real node before reconnecting the new topology (no dual-routing after a toggle flip)', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain(); // wires Natural Decay once already
+      // Dark Effects Leave the Graph T11: lit, so the effects exist to be disconnected.
+      await litAll(globalFx);
 
       const eqNode = lastInstance(Tone.EQ3);
       const hpfNode = lastInstance(Tone.Filter);
@@ -6139,19 +6403,21 @@ describe('globalFx', () => {
       const compNode = lastInstance(Tone.Compressor);
       const reverbReturn = returnOf(lastInstance(Tone.Reverb));
       const delayReturn = returnOf(lastInstance(Tone.FeedbackDelay));
-      expect(reverbReturn.connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.widenerCtor)));
+      expect(reverbReturn.connect).toHaveBeenLastCalledWith(live.getCell('stereoWidener')!.in);
 
       globalFx.wireGlobalFxChain(false);
 
       // The dry chain is the same either way; only where the returns rejoin moves.
       expect(reverbReturn.connect).toHaveBeenLastCalledWith(compNode);
       expect(delayReturn.connect).toHaveBeenLastCalledWith(compNode);
-      expect(cutOf(lastInstance(toneFlags.phaserCtor)).connect).toHaveBeenLastCalledWith(inOf(lastInstance(toneFlags.tremoloCtor)));
+      expect(fake(live.getCell('phaser')!.cut).connect).toHaveBeenLastCalledWith(live.getCell('tremolo')!.in);
     });
 
     it('only ever calls disconnect() with no arguments, so a robot send into a room survives every flip', async () => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      // Dark Effects Leave the Graph T11: lit, so the effects exist to be disconnected.
+      await litAll(globalFx);
       globalFx.wireGlobalFxChain(true);
       globalFx.wireGlobalFxChain(false);
       globalFx.wireGlobalFxChain(true);
@@ -6260,6 +6526,8 @@ describe('globalFx', () => {
     it.each([false, true])('is fed by the Limiter and nothing else, controlledDecay=%s', async (controlled) => {
       const globalFx = await import('./globalFx');
       globalFx.buildGlobalFxChain();
+      // Dark Effects Leave the Graph T11: lit, so every effect exists to be ruled out as a feeder.
+      await litAll(globalFx);
       const ceiling = ceilingOf();
       for (const node of everyNode()) node.connect.mockClear();
 

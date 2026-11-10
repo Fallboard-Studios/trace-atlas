@@ -16,7 +16,6 @@ import {
   clearCells,
   connectEffect,
   disconnectEffect,
-  disposeQuietly,
   duckCell,
   getCell,
   getRoom,
@@ -328,7 +327,8 @@ export function buildGlobalFxChain(): void {
   }
   // The builders (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2, §1.4): each constructs its effect from its mirror,
   // pinned fully wet in a dark cell, which carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). The cell
-  // calls one at the light that finds its effect torn down; the store pushes the seeded values once the chain exists.
+  // calls one at its first light and at each light after a teardown; the store pushes the seeded values into the
+  // mirrors once the chain exists. A builder that throws leaves its cell dry, warned once per key.
   // `oversample` is 'none' on both shapers and is never read from state (docs/specs/GLOBAL_COLOUR.md §1.3). A missing
   // constructor (headless) has no builder, and its slot stays empty with the chain whole.
   _distortionLive = defaultDistortionLive();
@@ -353,7 +353,8 @@ export function buildGlobalFxChain(): void {
   if (ChebyshevCtor) {
     registrations.chebyshev = { build: () => new ChebyshevCtor({ order: _chebyshevLive.order, oversample: 'none', wet: 1 }) };
   }
-  // The app's one AudioWorklet effect: its cell lights it only once its worklet node exists (bitCrusherReady).
+  // The app's one AudioWorklet effect: its cell lights it only once its worklet node exists (bitCrusherReady). A browser
+  // that refuses worklets throws in the constructor, and the cell stays dry.
   if (BitCrusherCtor) {
     registrations.bitCrusher = {
       build: () => new BitCrusherCtor({ bits: _bitCrusherLive.bits, wet: 1 }),
@@ -421,84 +422,46 @@ export function buildGlobalFxChain(): void {
       },
     };
   }
-  const distortion = registrations.distortion?.build() ?? null;
-  const chebyshev = registrations.chebyshev?.build() ?? null;
-  // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and makes its worklet node on a promise,
-  // which its cell waits for before a light. If the browser refuses worklets the constructor throws, and its cell stays
-  // dry until a light builds it.
-  let bitCrusher: Tone.ToneAudioNode | null = null;
-  try {
-    bitCrusher = registrations.bitCrusher?.build() ?? null;
-  } catch (err) {
-    devWarn('[AudioEngine] BitCrusher could not be constructed; the colour slot runs without it', err);
-  }
-  const autoWah = registrations.autoWah?.build() ?? null;
-  // The Phaser starts its LFOs in its constructor, so it is built here, at a light, and for a Stages change of a present
-  // node only. A failed construction leaves its cell dry and the chain whole.
-  let phaser: Tone.ToneAudioNode | null = null;
-  try {
-    phaser = registrations.phaser?.build() ?? null;
-  } catch (err) {
-    devWarn('[AudioEngine] Phaser could not be constructed; the modulation slot runs without it', err);
-  }
-  // Global Pedals, each built at its mirror's defaults. A failed construction leaves its cell dry and the chain whole.
-  const pedal = (key: BypassKey, name: string): Tone.ToneAudioNode | null => {
-    try {
-      return registrations[key]?.build() ?? null;
-    } catch (err) {
-      devWarn('[AudioEngine] ' + name + ' could not be constructed; the pedal slot runs without it', err);
-      return null;
-    }
-  };
-  const chorus = pedal('chorus', 'Chorus');
-  const tremolo = pedal('tremolo', 'Tremolo');
-  const vibrato = pedal('vibrato', 'Vibrato');
-  const frequencyShifter = pedal('frequencyShifter', 'FrequencyShifter');
-  let stereoWidener: Tone.ToneAudioNode | null = null;
-  try {
-    stereoWidener = registrations.stereoWidener?.build() ?? null;
-  } catch (err) {
-    devWarn('[AudioEngine] StereoWidener could not be constructed; the chain runs without the Width stage', err);
-  }
   // The bypass cells (docs/specs/DARK_EFFECT_BYPASS.md section 1.3), one per effect whose constructor exists, built
-  // before the returns and the master so the master stays the last Gain made. Without a Gain or a Delay constructor no
-  // cell can exist, and the ten effects are released and left out of the chain.
+  // before the returns and the master so the master stays the last Gain made. The chain constructs none of the ten
+  // (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2): each cell is built empty and dark, and its first light builds its
+  // effect from the registration. The constructors only decide which keys get a cell. Without a Gain or a Delay
+  // constructor no cell can exist, and the ten effects are left out of the chain.
   // A pending disconnect or duck belongs to the cell it was armed on: cancel it with the cell.
   clearCells();
-  // Registered before the cells, so a registered key whose effect is absent still gets its (empty) branch.
+  // Registered before the cells, so a registered key gets its (empty) branch.
   for (const [key, registration] of Object.entries(registrations) as Array<[BypassKey, EffectRegistration]>) {
     registerEffect(key, registration);
   }
-  const effects: Array<[BypassKey, unknown, Tone.ToneAudioNode | null]> = [
-    ['distortion', DistortionCtor, distortion],
-    ['chebyshev', ChebyshevCtor, chebyshev],
-    ['bitCrusher', BitCrusherCtor, bitCrusher],
-    ['autoWah', AutoWahCtor, autoWah],
-    ['phaser', PhaserCtor, phaser],
-    ['chorus', ChorusCtor, chorus],
-    ['tremolo', TremoloCtor, tremolo],
-    ['vibrato', VibratoCtor, vibrato],
-    ['frequencyShifter', FrequencyShifterCtor, frequencyShifter],
-    ['stereoWidener', StereoWidenerCtor, stereoWidener],
+  const effects: Array<[BypassKey, unknown]> = [
+    ['distortion', DistortionCtor],
+    ['chebyshev', ChebyshevCtor],
+    ['bitCrusher', BitCrusherCtor],
+    ['autoWah', AutoWahCtor],
+    ['phaser', PhaserCtor],
+    ['chorus', ChorusCtor],
+    ['tremolo', TremoloCtor],
+    ['vibrato', VibratoCtor],
+    ['frequencyShifter', FrequencyShifterCtor],
+    ['stereoWidener', StereoWidenerCtor],
   ];
   if (GainCtorFX && ChainCutCtor) {
     // Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.3): the three rooms first, then each effect as a branch of
     // its room (the Colour trio, the Shifter, the Chorus) or as a cell of the dry chain (the other five). The Shimmer and
     // Double branches are pinned at depth 1, so their Return is their only level; the colour depths are the Mixes.
     for (const room of ROOM_KEYS) buildRoom(room, GainCtorFX, ChainCutCtor);
-    for (const [key, ctor, effect] of effects) {
+    for (const [key, ctor] of effects) {
       if (!ctor) continue;
       const room = roomOfBranch(key);
-      if (room) buildBranch(key, room, effect, GainCtorFX);
-      else buildCell(key, effect, GainCtorFX, ChainCutCtor);
+      if (room) buildBranch(key, room, null, GainCtorFX);
+      else buildCell(key, null, GainCtorFX, ChainCutCtor);
     }
     writeMix('frequencyShifter', 1);
     writeMix('chorus', 1);
-  } else if (effects.some(([, , effect]) => effect)) {
+  } else if (effects.some(([, ctor]) => ctor)) {
     devWarn(
       '[AudioEngine] no Gain or Delay constructor for the bypass cells; the ten global effects are left out of the chain',
     );
-    for (const [, , effect] of effects) disposeQuietly(effect);
   }
 
   if (GainCtorFX) {
