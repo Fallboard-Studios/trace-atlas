@@ -17,7 +17,7 @@ import { currentWorldIdentity } from '../utils/worldIdentity';
  * tested without the scene and so none of those three has to import the others.
  *
  * Build the active locale first — guarded factory placement and the fixed roster through the same initializeLocale
- * Foundry's Retransmit uses, its systems started only if the tablet is already on (otherwise powerController's
+ * a retransmit uses, its systems started only if the tablet is already on (otherwise powerController's
  * powerOnSequence starts them on the rocker). Then one of two things, never both:
  *
  * - **A link arrival.** The address bar held a world link (`?seed=&x=&y=`, plus `s=` for a tweaked world,

@@ -113,7 +113,7 @@ const INTEGER = /^-?\d+$/;
 /** One axis, or the random a fresh world would get for that axis alone (spec assumption 6). `-0` reads as 0. A
  *  coordinate must also be a safe integer: a longer digit string reads as absent, like any malformed part, since
  *  `Number('9'.repeat(400))` is Infinity and makes a NaN day (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R23). Every
- *  coordinate the app writes is one; Foundry's input rounds to an integer but sets no bound of its own. */
+ *  coordinate the app writes is one: CoordsInput rounds an entry and refuses one past the safe integers. */
 function readCoordinate(raw: string | null): number {
   if (raw === null || !INTEGER.test(raw)) return randomCoordinate();
   const value = Number(raw) + 0;

@@ -7,7 +7,7 @@ import { labels } from '@/content';
 import './CoordsInput.css';
 
 /** The two fields' entries. A null axis is a field left blank: the caller decides what a blank means (the off screen's
- *  editor and Foundry draw it at random on a commit). */
+ *  editor draws it at random on a commit). */
 export interface CoordsValue {
   x: number | null;
   y: number | null;

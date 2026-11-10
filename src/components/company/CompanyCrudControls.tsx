@@ -29,9 +29,9 @@ const RENAME_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.ren
 /**
  * A fresh "Adjective Noun" suggestion, reusing generateCompanyName's exact word-list logic
  * (Roadmap Phase 10 spawn generation) but fed by Math.random() instead of a seeded noise map —
- * this is a live, user-triggered suggestion, not part of replayable world generation, the same
- * "Random" precedent Foundry's coordinate presets established (Math.random(),
- * not getSeededVal, for a one-off UI convenience roll rather than reproducible world state).
+ * this is a live, user-triggered suggestion, not part of replayable world generation (Math.random(),
+ * not getSeededVal, for a one-off UI convenience roll rather than reproducible world state), as the
+ * off screen's Scan and new save names are.
  */
 function suggestCompanyName(): string {
   return generateCompanyName(() => Math.random() * 2 - 1, 0);

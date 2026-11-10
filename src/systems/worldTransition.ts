@@ -433,8 +433,7 @@ function retransmitBoth(oldAttenuationStyle: AttenuationStyle, oldLocaleId: stri
  *
  * Every branch that changes the world ends by mirroring the new identity into
  * the address bar (docs/specs/OFF_SCREEN.md assumption 12) — a pick on the off
- * screen, a Load in Comms, Scan and Foundry's Retransmit all come through here,
- * so a reload brings back the world that was loaded, untweaked. The no-op
+ * screen, an editor commit and Scan all come through here, so a reload brings back the world that was loaded, untweaked. The no-op
  * branch touches nothing, so a link arrival's URL stands until the world moves.
  */
 export function retransmitWorld(input: RetransmitInput): void {

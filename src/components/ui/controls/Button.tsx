@@ -14,10 +14,10 @@ interface ButtonProps {
   disabled?: boolean;
   /** 'single' draws the human label alone on one line, the lore left to the control's label row, as
    *  RadioButton's options do (docs/tasks/LAYOUT_REWORK.md Task 17 follow-up). Used where the control's
-   *  label row already carries the lore: Save & Share, the session list's rows and IntroPanel's More /
+   *  label row already carries the lore, or none is wanted: the off screen's buttons and IntroPanel's More /
    *  Less. 'dual' (the default) is lore over human. */
   face?: 'dual' | 'single';
-  /** Names the button apart from its face — a list row's "Load" named "Load Dusk Run". The schema's
+  /** Names the button apart from its face — the off screen's "Save" named "Save Dusk Run". The schema's
    *  label otherwise (resolveAccessibleName). */
   accessibleName?: string;
   /** A disclosure button (IntroPanel's More / Less): whether the region it controls is open, carried
