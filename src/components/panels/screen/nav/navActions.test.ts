@@ -159,11 +159,12 @@ describe('selectEntity', () => {
     expectCompanyInvariant();
   });
 
-  it('a company: opens Companies on it with the list collapsed, clearing the robot and All Probes', () => {
+  // docs/tasks/OFF_SCREEN_CONSOLE.md Task 17 (Crawford, 2026-11-09): a company opens under Probes.
+  it('a company: opens Probes on it with the list collapsed, clearing the robot and All Probes', () => {
     dirtyStore({ allProbesSelected: true });
     selectEntity({ companyId: 'c1' });
     expect(ui()).toMatchObject({
-      activeHubTile: 'companies',
+      activeHubTile: 'robots',
       expandedTopLevelBranch: null,
       selectedCompanyId: 'c1',
       selectedRobotId: null,
@@ -261,7 +262,7 @@ describe('pressBranchBox', () => {
   it.each<[string, Parameters<typeof selectEntity>[0], 'probes' | 'companies']>([
     ['a robot', { robotId: 'r2' }, 'probes'],
     ['All Probes', 'all', 'probes'],
-    ['a company', { companyId: 'c1' }, 'companies'],
+    ['a company', { companyId: 'c1' }, 'probes'],
   ])('list page -> pick %s (list collapses) -> its box goes back to the page with the list open', (_case, entity, branch) => {
     useUIStore.setState({ activeHubTile: branch === 'probes' ? 'robots' : 'companies', expandedTopLevelBranch: branch });
     selectEntity(entity);
@@ -278,21 +279,21 @@ describe('pressBranchBox', () => {
     expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 
-  it('Companies: on a company, back to the Companies page; then collapse; then open', () => {
-    useUIStore.setState({ activeHubTile: 'companies', expandedTopLevelBranch: 'companies' });
+  it('Probes: on a company, back to the Probes page; then collapse; then open', () => {
+    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
     useUIStore.getState().selectCompany('c1');
 
-    pressBranchBox('companies');
+    pressBranchBox('probes');
     expect(ui().selectedCompanyId).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBe('companies');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
     expectCompanyInvariant();
 
-    pressBranchBox('companies');
+    pressBranchBox('probes');
     expect(ui().expandedTopLevelBranch).toBeNull();
-    expect(ui().activeHubTile).toBe('companies');
+    expect(ui().activeHubTile).toBe('robots');
 
-    pressBranchBox('companies');
-    expect(ui().expandedTopLevelBranch).toBe('companies');
+    pressBranchBox('probes');
+    expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 
   it("only the open branch's entity counts: a world-selected robot on the Companies page does not stop the collapse", () => {
@@ -507,16 +508,21 @@ describe('breadcrumbPath', () => {
   // always have a section open — Source when none is stored.
   it('All Probes and a company always name a section, Source when none is stored (their screen is tabs)', () => {
     expect(path({ activeHubTile: 'robots', allProbesSelected: true })).toEqual([ROOT, PROBES, CONTENT['probe.all'].human, CONTENT['probe.source'].human]);
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.source'].human]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1' })).toEqual([ROOT, PROBES, 'Rust Syndicate', CONTENT['probe.source'].human]);
   });
 
   it("adds a company's stored section, named by its tab", () => {
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, COMPANIES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1', selectedSection: 'envelope' })).toEqual([ROOT, PROBES, 'Rust Syndicate', CONTENT['probe.envelope'].human]);
   });
 
   it('drops the entity and its section when the id is not in the roster (a stale or deleted id)', () => {
     expect(path({ activeHubTile: 'robots', selectedRobotId: 'gone', selectedSection: 'source' })).toEqual([ROOT, PROBES]);
-    expect(path({ activeHubTile: 'companies', selectedCompanyId: 'gone', selectedSection: 'source' })).toEqual([ROOT, COMPANIES]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'gone', selectedSection: 'source' })).toEqual([ROOT, PROBES]);
+  });
+
+  it('a specific robot wins over a company, and a company over All Probes (ProbesBranch routes the same way)', () => {
+    expect(path({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedCompanyId: 'c1' })).toEqual([ROOT, PROBES, 'Tidal Wisp', CONTENT['probe.source'].human]);
+    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1', allProbesSelected: true })).toEqual([ROOT, PROBES, 'Rust Syndicate', CONTENT['probe.source'].human]);
   });
 
   it('ignores a section with no entity', () => {
@@ -538,7 +544,6 @@ describe('breadcrumbPath', () => {
 
   it("only the open branch's entity counts: a world-selected robot does not appear under Companies", () => {
     expect(path({ activeHubTile: 'companies', selectedRobotId: 'r1' })).toEqual([ROOT, COMPANIES]);
-    expect(path({ activeHubTile: 'robots', selectedCompanyId: 'c1' })).toEqual([ROOT, PROBES]);
   });
 });
 
@@ -621,11 +626,11 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
   });
 
   it('a company goes back to the company at no section', () => {
-    useUIStore.setState({ activeHubTile: 'companies', selectedCompanyId: 'c1', selectedSection: 'envelope' });
+    useUIStore.setState({ activeHubTile: 'robots', selectedCompanyId: 'c1', selectedSection: 'envelope' });
     go(2);
     expect(ui().selectedCompanyId).toBe('c1');
     expect(ui().selectedSection).toBeNull();
-    expect(ui().activeHubTile).toBe('companies');
+    expect(ui().activeHubTile).toBe('robots');
   });
 
   it('a section, a Fleet Params sub-tab, Pacing or Audio Quality goes nowhere: it is only ever the current view', () => {

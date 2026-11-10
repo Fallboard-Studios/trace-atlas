@@ -175,7 +175,7 @@ describe('RosterBoard — the leading cell', () => {
     fireEvent.click(within(rowNamed('Rust Syndicate')).getByRole('button', { name: 'Rust Syndicate' }));
     const s = useUIStore.getState();
     expect(s.selectedCompanyId).toBe('rust');
-    expect(s.activeHubTile).toBe('companies');
+    expect(s.activeHubTile).toBe('robots');
     expect(s.selectedRobotId).toBeNull();
   });
 

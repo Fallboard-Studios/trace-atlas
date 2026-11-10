@@ -181,9 +181,9 @@ export function CompanyRenameDeleteForm() {
   const handleConfirmDelete = () => {
     if (!selectedCompany) return;
     useLocaleStore.getState().removeCompany(localeId, selectedCompany.id);
-    // Back to the Companies page (the roster board), where the company's row is now gone (Crawford,
+    // Back to the Probes page (the roster board), where the company's row is now gone (Crawford,
     // 2026-10-11). The company's own screen no longer has anything to show.
-    selectBranch('companies');
+    selectBranch('probes');
     setConfirmOpen(false);
   };
 

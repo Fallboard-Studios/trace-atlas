@@ -465,10 +465,11 @@ describe('CompanyRenameDeleteForm (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task
         expect(screen.queryByRole('alertdialog')).toBeNull();
       });
 
-      it('after confirming, no company is selected and you stay on Companies (Crawford, 2026-10-11)', () => {
+      // Crawford, 2026-10-11; the board is Probes' page since docs/tasks/OFF_SCREEN_CONSOLE.md Task 17.
+      it('after confirming, no company is selected and you land on the Probes page (the roster board)', () => {
         useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
         useUIStore.getState().selectCompany('c1');
-        useUIStore.getState().setActiveHubTile('companies');
+        useUIStore.getState().setActiveHubTile('audioRig');
         render(<CompanyRenameDeleteForm />);
 
         act(() => fireEvent.click(screen.getByRole('button', { name: /^delete\b/i })));
@@ -476,7 +477,7 @@ describe('CompanyRenameDeleteForm (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task
 
         expect(useUIStore.getState().allRobotsSelected).toBe(true);
         expect(useUIStore.getState().selectedCompanyId).toBeNull();
-        expect(useUIStore.getState().activeHubTile).toBe('companies');
+        expect(useUIStore.getState().activeHubTile).toBe('robots');
       });
     });
   });

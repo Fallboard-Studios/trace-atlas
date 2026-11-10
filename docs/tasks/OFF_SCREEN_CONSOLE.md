@@ -920,7 +920,7 @@ company opens from the roster board with the Probes box popped, breadcrumb Root 
 nav's Probes list stays robots only (All Probes, then the twelve). The nav ends at three boxes: Deck, Fleet Params,
 Probes. Nothing about companies themselves changes (the deal, bulk edit, create, rename, delete).
 
-- [ ] **Task 17: A company opens under Probes**
+- [x] **Task 17: A company opens under Probes**
 
   **Description:** `navActions.ts`: `selectEntity({ companyId })` selects the company and opens `'probes'` collapsed (was
   `'companies'`); `branchHasEntity(s, 'probes')` counts `selectedCompanyId`, so the Probes box pressed on a company's
@@ -937,17 +937,24 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
   screen) and `CompanyCrudControls.test.tsx` (a confirmed Delete lands on the `'robots'` tile).
 
   **Acceptance criteria:**
-  - [ ] A company's name on the roster board opens its screen under Probes, the Probes box popped.
+  - [x] A company's name on the roster board opens its screen under Probes, the Probes box popped.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen src/components/company` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen src/components/company` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint B. **Files:** `src/components/panels/screen/nav/navActions.ts`, `navActions.test.ts`,
   `src/components/panels/screen/console/ConsolePanel.tsx`, `ConsolePanel.test.tsx`,
   `src/components/company/CompanyCrudControls.tsx`, `CompanyCrudControls.test.tsx`
 
   **Estimated scope:** S (three source files, a handful of lines each)
+
+  **As built (2026-11-09):** as planned. Five older cases expected the Companies branch after a company pick or a
+  company Delete (`RosterBoard`, `NavEntityList`'s Companies list, `CompanyScreen`'s Delete, two `navActions`
+  breadcrumb cases) and now expect `'robots'`; the `navActions` case "a company selected under Probes is not an entity"
+  lost its Probes line, now the opposite rule. The Companies-tile cases stay for Task 18. Mutants killed: `selectEntity`
+  opening Companies (RED), `branchHasEntity` ignoring the company (RED), `ProbesBranch` ignoring the company (RED), a
+  company before a robot in `ProbesBranch` (1 case) and in the breadcrumb (1 case).
 
 - [ ] **Task 18: The Companies box and branch go**
 

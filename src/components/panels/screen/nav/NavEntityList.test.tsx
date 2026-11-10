@@ -186,12 +186,12 @@ describe('NavEntityList — Companies', () => {
     expect(accentOf(newCompany())).toBe(TRAIT_COLORS.company[0]);
   });
 
-  it('clicking a company selects it through navActions: Companies open on that company with the list collapsed', () => {
+  it('clicking a company selects it through navActions: Probes open on that company with the list collapsed', () => {
     useUIStore.setState({ selectedRobotId: 'r1' });
     render(<NavEntityList branch="companies" />);
     fireEvent.click(entity('Neon Division'));
     expect(useUIStore.getState()).toMatchObject({
-      activeHubTile: 'companies',
+      activeHubTile: 'robots',
       expandedTopLevelBranch: null, // a pick collapses the list (Crawford, 2026-10-10)
       selectedCompanyId: 'c2',
       allRobotsSelected: false,

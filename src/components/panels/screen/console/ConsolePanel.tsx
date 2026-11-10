@@ -9,14 +9,16 @@ import { CONTENT } from '@/content';
 import './ConsolePanel.css';
 
 /**
- * The Probes branch (docs/specs/LAYOUT_REWORK.md §1.4–§1.6): a selected robot's screen wins, then the
- * All Probes form (the company screen for the whole fleet), then the roster board.
+ * The Probes branch (docs/specs/LAYOUT_REWORK.md §1.4–§1.6): a selected robot's screen wins, then a
+ * selected company's screen (docs/tasks/OFF_SCREEN_CONSOLE.md Task 17), then the All Probes form (the
+ * company screen for the whole fleet), then the roster board.
  */
 function ProbesBranch() {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
+  const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const allProbesSelected = useUIStore((s) => s.allProbesSelected);
   if (selectedRobotId) return <RobotScreen />;
-  if (allProbesSelected) return <CompanyScreen />;
+  if (selectedCompanyId || allProbesSelected) return <CompanyScreen />;
   return <RosterBoard />;
 }
 

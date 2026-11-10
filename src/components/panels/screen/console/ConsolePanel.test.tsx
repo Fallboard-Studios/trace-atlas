@@ -77,6 +77,20 @@ describe('ConsolePanel — the Probes branch', () => {
     render(<ConsolePanel />);
     expect(shown()).toEqual(['robot-screen-stub']);
   });
+
+  // docs/tasks/OFF_SCREEN_CONSOLE.md Task 17 (Crawford, 2026-11-09): a company opens under Probes.
+  it('shows the company screen when a company is selected', () => {
+    useUIStore.getState().selectCompany('c1');
+    render(<ConsolePanel />);
+    expect(shown()).toEqual(['company-screen-stub']);
+  });
+
+  it('prefers a selected robot over a company', () => {
+    useUIStore.getState().selectCompany('c1');
+    useUIStore.getState().selectRobot('r1');
+    render(<ConsolePanel />);
+    expect(shown()).toEqual(['robot-screen-stub']);
+  });
 });
 
 describe('ConsolePanel — the Companies branch', () => {

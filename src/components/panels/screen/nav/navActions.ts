@@ -172,15 +172,18 @@ export function selectEntity(entity: NavEntity): void {
     s.selectRobot(entity.robotId);
     open('probes', false);
   } else {
+    // A company opens under Probes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 17, Crawford, 2026-11-09).
     s.selectCompany(entity.companyId);
-    open('companies', false);
+    open('probes', false);
   }
 }
 
 /** Only the open branch's own entity counts, as the breadcrumb reads it: a robot picked in the world
  *  is not a Companies entity. */
 function branchHasEntity(s: UIStore, branch: ExpandingBranch): boolean {
-  return branch === 'probes' ? s.selectedRobotId !== null || s.allProbesSelected : s.selectedCompanyId !== null;
+  return branch === 'probes'
+    ? s.selectedRobotId !== null || s.selectedCompanyId !== null || s.allProbesSelected
+    : s.selectedCompanyId !== null;
 }
 
 /** A parent box pressed in the panel (Crawford, 2026-10-09: "back, then collapse"). Anywhere but its
@@ -238,20 +241,20 @@ function nameOf(list: readonly NamedEntity[], id: string): string | null {
   return entity ? (entity.name ?? entity.id) : null;
 }
 
-/** Only the open branch's entity counts; a specific robot wins over All Probes, as ProbesContent routes.
- *  With its name, the entity selectEntity takes to go back to it. */
+/** Only the open branch's entity counts; a specific robot wins over a company, and a company over All
+ *  Probes, as ProbesBranch routes. With its name, the entity selectEntity takes to go back to it. */
 function openEntity(state: BreadcrumbState, roster: NavRoster, tile: 'robots' | 'companies'): { label: string; entity: NavEntity } | null {
-  if (tile === 'companies') {
-    const id = state.selectedCompanyId;
-    const label = id !== null ? nameOf(roster.companies, id) : null;
-    return id !== null && label !== null ? { label, entity: { companyId: id } } : null;
-  }
-  if (state.selectedRobotId !== null) {
+  if (tile === 'robots' && state.selectedRobotId !== null) {
     const id = state.selectedRobotId;
     const label = nameOf(roster.robots, id);
     return label !== null ? { label, entity: { robotId: id } } : null;
   }
-  return state.allProbesSelected ? { label: name('probe.all'), entity: 'all' } : null;
+  if (state.selectedCompanyId !== null) {
+    const id = state.selectedCompanyId;
+    const label = nameOf(roster.companies, id);
+    return label !== null ? { label, entity: { companyId: id } } : null;
+  }
+  return tile === 'robots' && state.allProbesSelected ? { label: name('probe.all'), entity: 'all' } : null;
 }
 
 /** One breadcrumb segment: its name and, for Root, the branch, the entity and a Fleet Params section
