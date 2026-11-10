@@ -104,6 +104,46 @@ export function setCellEffect(cell: Cell, effect: Tone.ToneAudioNode): void {
  *  constructor is missing, its cell could not be built, or the Gain / Delay constructors are missing altogether. */
 const _cells: Partial<Record<BypassKey, Cell>> = {};
 
+/**
+ * How globalFx.ts makes a key's effect (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2): `build` returns a fresh effect
+ * from that key's settings mirror, pinned fully wet, or throws. A registered key's effect exists only between its cell's
+ * first light and the teardown after it goes dark at its own level. A key with no registration (a headless chain, or a
+ * key globalFx.ts has not moved yet) is never built at a light, so its cell behaves as before.
+ */
+export type EffectRegistration = {
+  build: () => Tone.ToneAudioNode;
+};
+
+/** The registrations, dropped with the cells by clearCells: buildGlobalFxChain registers its keys again. */
+const _registrations: Partial<Record<BypassKey, EffectRegistration>> = {};
+
+/** Register `key`'s builder. Call it before the key's cell is built, so an empty branch gets its cell. */
+export function registerEffect(key: BypassKey, registration: EffectRegistration): void {
+  _registrations[key] = registration;
+}
+
+/** The bypass keys already warned about by buildEffect, so a builder that throws at every light warns once. */
+const warnedBuildFailed = new Set<BypassKey>();
+
+/** Build `key`'s absent effect into its lighting cell (wet still 0), LFOs recorded and stopped. False, warned once per
+ *  key, when the key has no registration or its builder throws: the cell stays empty, dry and unconnected. §1.2. */
+function buildEffect(key: BypassKey, cell: Cell): boolean {
+  const registration = _registrations[key];
+  if (!registration) return false;
+  let effect: Tone.ToneAudioNode;
+  try {
+    effect = registration.build();
+  } catch (err) {
+    if (!warnedBuildFailed.has(key)) {
+      warnedBuildFailed.add(key);
+      devWarn('[AudioEngine] the ' + key + ' effect could not be built at its light; its cell stays dry', err);
+    }
+    return false;
+  }
+  setCellEffect(cell, effect);
+  return true;
+}
+
 /** A Mix effect's cell gains for a tapered wet `w` (0-1): Tone's own CrossFade law, so an effect pinned at wet 1 inside
  *  a cell at cellGains(w) sounds as the bare effect at wet w from Mix 0.04 up (below that Tone's law keeps a −56 dB wet
  *  floor the cell does not; docs/specs/DARK_EFFECT_BYPASS.md §8.1). Tone 15's CrossFade (component/channel/CrossFade.js)
@@ -144,14 +184,15 @@ export function disposeQuietly(node: Tone.ToneAudioNode | null): void {
   }
 }
 
-/** Drop every cell and room, with its pending disconnect and any duck in progress: buildGlobalFxChain is building new
- *  ones. */
+/** Drop every cell, registration and room, with its pending disconnect and any duck in progress: buildGlobalFxChain is
+ *  building new ones. */
 export function clearCells(): void {
   // The context is read only for a timer to cancel: a headless build with no context has none.
   for (const cell of Object.values(_cells)) {
     if (cell.darken !== null) Tone.getContext().clearTimeout(cell.darken);
   }
   for (const key of Object.keys(_cells) as BypassKey[]) delete _cells[key];
+  for (const key of Object.keys(_registrations) as BypassKey[]) delete _registrations[key];
   for (const key of Object.keys(_rooms) as RoomKey[]) delete _rooms[key];
   for (const key of Object.keys(_ducks) as BypassKey[]) {
     Tone.getContext().clearTimeout(_ducks[key]!.timer);
@@ -383,12 +424,13 @@ export const BYPASS_DISCONNECT_MARGIN_SECONDS = 0.01;
  * where it goes only if the cell is still dark. A re-sent value with nothing left to do writes nothing, so a whole-block
  * apply does not re-ramp or re-arm. While a duck holds the cell at dry it is lit or darkened all the same but its gains
  * are left alone: the duck returns them to the new Mix. On a room's branch `mix` is recorded as the branch's depth and
- * the target is colourWetGain(mix) only while the room is live (fed and its Return above 0), 0 otherwise.
+ * the target is colourWetGain(mix) only while the room is live (fed and its Return above 0), 0 otherwise. A registered
+ * key's absent effect is built by its light, and only there (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2); an
+ * unregistered empty cell ignores the write.
  */
 export function writeCellMix(key: BypassKey, mix: number): void {
   const cell = _cells[key];
-  const effect = cell?.effect;
-  if (!cell || !effect) return;
+  if (!cell) return;
   if (cell.room !== null) cell.depth = mix;
   const w = cellTarget(key, cell, mix);
   if (w === cell.mix && (cell.darken !== null || w > 0 === cell.connected)) return;
@@ -400,7 +442,9 @@ export function writeCellMix(key: BypassKey, mix: number): void {
       context.clearTimeout(cell.darken);
       cell.darken = null;
     }
-    if (!cell.connected && !connectEffect(key, cell, effect)) return;
+    // A failed build returns before the target is recorded, so the next light tries again.
+    if (!cell.effect && !buildEffect(key, cell)) return;
+    if (!cell.connected && !connectEffect(key, cell, cell.effect!)) return;
     cell.mix = w;
     if (ramp) rampCell(key, cell, from, w, COLOUR_RAMP_SECONDS);
     return;
@@ -500,8 +544,9 @@ export function buildRoom(
 }
 
 /** Builds `key`'s branch of `room` around `effect`: a cell sharing the room's `in` and `cut`, with no dry gain and a wet
- *  gain at 0, built dark (unconnected, depth 0). The effect must already be pinned fully wet. Without the room, without
- *  an effect, or if the wet gain cannot be built, there is no branch and the effect is released. */
+ *  gain at 0, built dark (unconnected, depth 0). The effect must already be pinned fully wet. A registered key's branch
+ *  may start empty (its effect is built at its first light). Without the room, without an effect for an unregistered
+ *  key, or if the wet gain cannot be built, there is no branch and the effect is released. */
 export function buildBranch(
   key: BypassKey,
   room: RoomKey,
@@ -509,7 +554,7 @@ export function buildBranch(
   GainCtor: new (...args: unknown[]) => Tone.Gain,
 ): void {
   const host = _rooms[room];
-  if (!host || !effect) {
+  if (!host || (!effect && !_registrations[key])) {
     disposeQuietly(effect);
     return;
   }

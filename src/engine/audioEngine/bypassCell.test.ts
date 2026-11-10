@@ -790,5 +790,205 @@ describe('bypassCell', () => {
         expect(String(devWarn.mock.calls[0][0])).toContain('autoWah');
       });
     });
+
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2: a registered key's effect exists only between its cell's first
+    // light and the teardown after it goes dark at its own level. Stub builders stand in for globalFx.ts's; a cell with
+    // no registration keeps today's behaviour.
+    describe('the effect lifetime (backlog 72)', () => {
+      type FakeLfo = { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
+      type StubEffect = FakeNode & { effectSend: FakeNode; effectReturn: FakeNode; _lfoL: FakeLfo; _lfoR: FakeLfo };
+      const lfo = (): FakeLfo => ({ start: vi.fn(), stop: vi.fn() });
+      /** A fresh effect per build, with its send and return (no ends warning) and two LFOs. */
+      const stubBuilder = (name: string) => {
+        const built: StubEffect[] = [];
+        const build = vi.fn(() => {
+          const node = Object.assign(fakeNode(name), {
+            effectSend: fakeNode(`${name}.send`),
+            effectReturn: fakeNode(`${name}.return`),
+            _lfoL: lfo(),
+            _lfoR: lfo(),
+          });
+          built.push(node);
+          return node as unknown as Tone.ToneAudioNode;
+        });
+        return { build, built };
+      };
+      const order = (fn: ReturnType<typeof vi.fn>, k = 0) => fn.mock.invocationCallOrder[k];
+
+      async function setup() {
+        const cells = await import('./bypassCell');
+        const { devWarn } = await import('@/utils/helpers');
+        vi.mocked(devWarn).mockClear(); // the mock keeps its calls across resetModules
+        return { cells, devWarn: vi.mocked(devWarn) };
+      }
+
+      /** The Grit room with an empty Distortion branch, registered unless `register` is false. */
+      async function emptyGrit(register = true) {
+        const { cells, devWarn } = await setup();
+        const stub = stubBuilder('distortion');
+        if (register) cells.registerEffect('distortion', { build: stub.build });
+        cells.buildRoom('grit', GainCtor, DelayCtor);
+        cells.buildBranch('distortion', 'grit', null, GainCtor);
+        cells.wireCells();
+        return { cells, devWarn, room: cells.getRoom('grit')!, branch: cells.getCell('distortion')!, ...stub };
+      }
+
+      /** An empty Tremolo chain cell, registered. */
+      async function emptyTremolo() {
+        const { cells, devWarn } = await setup();
+        const stub = stubBuilder('tremolo');
+        cells.registerEffect('tremolo', { build: stub.build });
+        cells.buildCell('tremolo', null, GainCtor, DelayCtor);
+        cells.wireCells();
+        return { cells, devWarn, cell: cells.getCell('tremolo')!, ...stub };
+      }
+
+      describe('built at a light (Task 1)', () => {
+        it('a registered empty branch builds its effect at its first light, connects it under a wet of 0, then ramps', async () => {
+          const { cells, room, branch, build, built } = await emptyGrit();
+          cells.setRoomFed('grit', true);
+          expect(build).not.toHaveBeenCalled(); // fed, but its depth is 0: dark
+
+          cells.writeCellMix('distortion', 0.3);
+
+          expect(build).toHaveBeenCalledTimes(1);
+          const node = built[0];
+          expect(branch.effect).toBe(node);
+          expect(branch.connected).toBe(true);
+          expect(edgesFrom(room.in)).toContain(node.effectSend);
+          expect(edgesFrom(node.effectReturn)).toEqual([branch.wet]);
+          expect(fake(branch.wet).gain.value).toBe(0);
+          const wetRamp = fake(branch.wet).gain.rampTo;
+          expect(wetRamps(branch)).toEqual([expect.closeTo(colourWetGainOf(0.3), 12)]);
+          expect(order(wetRamp)).toBeGreaterThan(order(node.effectReturn.connect));
+          expect(context.timeouts).toEqual([]);
+        });
+
+        it('records the built effect LFOs and stops them before the connect starts them', async () => {
+          const { cells, branch, built } = await emptyGrit();
+          cells.setRoomFed('grit', true);
+          cells.writeCellMix('distortion', 0.3);
+          const node = built[0];
+          expect(branch.lfos).toEqual([node._lfoL, node._lfoR]);
+          for (const l of [node._lfoL, node._lfoR]) {
+            expect(l.stop).toHaveBeenCalledTimes(1);
+            expect(l.start).toHaveBeenCalledTimes(1);
+            expect(order(l.stop)).toBeLessThan(order(l.start));
+          }
+        });
+
+        it('a second light and a depth change while lit build nothing more', async () => {
+          const { cells, branch, build, built } = await emptyGrit();
+          cells.setRoomFed('grit', true);
+          cells.writeCellMix('distortion', 0.3);
+          cells.writeCellMix('distortion', 0.3);
+          cells.writeCellMix('distortion', 0.6);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.effect).toBe(built[0]);
+          expect(wetRamps(branch).at(-1)).toBeCloseTo(colourWetGainOf(0.6), 12);
+        });
+
+        it('a depth written while the room is unfed builds nothing; the feed then lights it and builds once', async () => {
+          const { cells, branch, build } = await emptyGrit();
+          cells.writeCellMix('distortion', 0.3);
+          expect(build).not.toHaveBeenCalled();
+          expect(branch.depth).toBe(0.3);
+          expect(branch.connected).toBe(false);
+          expect(context.timeouts).toEqual([]);
+
+          cells.setRoomFed('grit', true);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(branch.connected).toBe(true);
+        });
+
+        it('a registered empty chain cell builds at a Mix above 0 and ramps both gains; a Mix of 0 builds nothing', async () => {
+          const { cells, cell, build, built } = await emptyTremolo();
+          cells.writeCellMix('tremolo', 0);
+          expect(build).not.toHaveBeenCalled();
+          expect(context.timeouts).toEqual([]);
+
+          cells.writeCellMix('tremolo', 0.5);
+          expect(build).toHaveBeenCalledTimes(1);
+          expect(cell.effect).toBe(built[0]);
+          expect(cell.connected).toBe(true);
+          expect(edgesFrom(cell.in)).toContain(built[0].effectSend);
+          expect(fake(cell.dry).gain.rampTo).toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).toHaveBeenCalled();
+          expect(cells.getConnectedEffectCount()).toBe(1);
+        });
+
+        it('a throwing builder warns once over two lights, leaves the cell dry and unconnected each time, and the next light tries again', async () => {
+          const { cells, devWarn, branch, build, built } = await emptyGrit();
+          const fails = () => {
+            throw new Error('no constructor today');
+          };
+          build.mockImplementationOnce(fails).mockImplementationOnce(fails);
+          cells.setRoomFed('grit', true);
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(branch.effect).toBeNull();
+          expect(branch.connected).toBe(false);
+          expect(branch.mix).toBe(0);
+          expect(wetRamps(branch)).toEqual([]);
+          expect(context.timeouts).toEqual([]);
+
+          cells.writeCellMix('distortion', 0.3); // the same value: a retry, not a re-send
+          expect(build).toHaveBeenCalledTimes(2);
+          expect(branch.effect).toBeNull();
+          expect(wetRamps(branch)).toEqual([]);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+          expect(String(devWarn.mock.calls[0][0])).toContain('distortion');
+
+          cells.writeCellMix('distortion', 0.3);
+          expect(build).toHaveBeenCalledTimes(3);
+          expect(branch.effect).toBe(built[0]);
+          expect(branch.connected).toBe(true);
+          expect(devWarn).toHaveBeenCalledTimes(1);
+        });
+
+        it('a throwing builder on a chain cell writes neither gain', async () => {
+          const { cells, cell, build } = await emptyTremolo();
+          build.mockImplementation(() => {
+            throw new Error('no constructor today');
+          });
+          cells.writeCellMix('tremolo', 0.5);
+          expect(cell.connected).toBe(false);
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+        });
+
+        it('an unregistered empty chain cell ignores every write, as today', async () => {
+          const { cells } = await setup();
+          cells.buildCell('autoWah', null, GainCtor, DelayCtor);
+          cells.wireCells();
+          const cell = cells.getCell('autoWah')!;
+          cells.writeCellMix('autoWah', 0.5);
+          cells.writeCellMix('autoWah', 0);
+          expect(cell.effect).toBeNull();
+          expect(cell.connected).toBe(false);
+          expect(cell.mix).toBe(0);
+          expect(fake(cell.dry).gain.rampTo).not.toHaveBeenCalled();
+          expect(fake(cell.wet).gain.rampTo).not.toHaveBeenCalled();
+          expect(context.timeouts).toEqual([]);
+        });
+
+        it('an unregistered key with no effect gets no branch, as today', async () => {
+          const { cells } = await emptyGrit(false);
+          expect(cells.getCell('distortion')).toBeUndefined();
+        });
+
+        it('clearCells drops the registrations with the cells', async () => {
+          const { cells, build } = await emptyTremolo();
+          cells.clearCells();
+          cells.buildCell('tremolo', null, GainCtor, DelayCtor);
+          cells.writeCellMix('tremolo', 0.5);
+          expect(build).not.toHaveBeenCalled();
+          expect(cells.getCell('tremolo')!.connected).toBe(false);
+          cells.buildRoom('grit', GainCtor, DelayCtor);
+          cells.buildBranch('distortion', 'grit', null, GainCtor);
+          expect(cells.getCell('distortion')).toBeUndefined();
+        });
+      });
+    });
   });
 });
