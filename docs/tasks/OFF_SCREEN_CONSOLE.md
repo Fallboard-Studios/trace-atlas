@@ -903,10 +903,10 @@ boxes with Companies kept; the Companies retirement is a follow-up to plan on it
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. 2026-11-09, at Task 15: types
       clean; lint 0 errors (the same 4 warnings in `src/components/actors/scenery`); full suite 350 files, 13,549 pass,
       with the known `[vitest-worker] Timeout calling "onTaskUpdate"` exit; vite build clean.
-- [ ] In the browser: the nav shows four boxes; Fleet Params' last tab is Audio Quality with its sliders and intro,
+- [x] In the browser: the nav shows four boxes; Fleet Params' last tab is Audio Quality with its sliders and intro,
       breadcrumb Root / Fleet Params / Audio Quality; nothing in the powered-on app makes, loads, saves or shares a
       world.
-- [ ] Reviewed with Crawford before Phase 6.
+- [x] Reviewed with Crawford before Phase 6. Passed 2026-11-09 (Crawford).
 
 ---
 
