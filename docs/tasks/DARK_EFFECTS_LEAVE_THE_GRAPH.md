@@ -631,11 +631,17 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
   present); types clean, lint the four existing scenery warnings.
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
-- [ ] Every automated acceptance criterion met; the six mutants named in their commits.
-- [ ] The runs recorded (Tasks 13–15) and Crawford's ear passed (Task 16), or any not done flagged here, never skipped.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
+- [x] Every automated acceptance criterion met; the six mutants named in their commits.
+- [x] The runs recorded (Tasks 13–15) and Crawford's ear passed (Task 16), or any not done flagged here, never skipped.
 - [ ] Docs match the shipped code.
 - [ ] Ready for Crawford's PR. Archiving backlog 72 and the plan.md line wait for the merge.
+
+**Status (2026-11-10):** Task 17 committed (52825193). Types and lint re-run after it (clean; lint the four existing
+scenery warnings). `npm test` and `npm run build` were not re-run: nothing outside `docs/` has changed since Checkpoint
+C's run at 097a76ca (13609 of 13610, the one failure the known `sceneToOrbiterLocal` timeout, passing alone; the build
+clean), so that run stands for this code. The six mutants are named in the T2, T3, T4, T6, T9 and T11 commits (the spec's
+§8 lists them). Open: Crawford's read of the docs (Task 17's Proof), then his PR.
 
 ## Risks and Mitigations
 
