@@ -1271,7 +1271,7 @@ Neither build was heard to click.
 ([PERFORMANCE.md](../../PERFORMANCE.md), "The audio pin at Full").
 
 **Spun off:** the leaner synth layer (G2b), as roadmap [69](../roadmap.md#69-the-leaner-synth-layer-robot-voices-on-native-nodes);
-the dark effects' standing Signals (B9), as backlog [72](../backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9).
+the dark effects' standing Signals (B9), as backlog [72](#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9).
 The audible candidates (G5–G8) were not needed.
 
 **Found 2026-11-05** on Crawford's desktop (4K monitor, Balanced power plan) on the live site, at
@@ -1400,3 +1400,50 @@ this one merges, and may also retire the Companies nav item (not yet planned).
 written the same day ([plan](../../tasks/OFF_SCREEN_CONSOLE.md): Tasks 1–11 the console, Checkpoint A, Tasks 12–16 the
 retirement and docs). Module A (`off-screen-console`) built on `feature/off-screen-console`, its docs updated; at
 Checkpoint A, awaiting Crawford's look. First line of plan.md's Stage 1.
+
+## 72. Audio: Dark Effects Leave the Graph — Their Standing Signals Go (B9)
+
+**Closed** 2026-11-10 (merged in PR #617, `perf/dark-effects-leave-the-graph`; T1–T12 `86898863`..`06f8bbb0`,
+the docs `52825193`). Crawford passed Checkpoints A, B, C and Complete and the ear (T16) on 2026-11-10. A dark
+bypass-cell effect no longer exists: it is built at its cell's first light from a settings mirror and torn down
+`DARK_TEARDOWN_SECONDS` (1 s) after it goes dark at its own level. At Full the census fell 307 / 251 nodes and the
+`perf:audio` mean 0.050 / 0.032 (W1 / W2); at Light none of the ten exists; every crossing ≤ ×1.107 with no gap
+([spec](../../specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md) §8, "As built"; [record](../scratchy-audio-phones.md),
+"Backlog 72"). The original request follows.
+
+**Raised 2026-11-10**, when backlog 67's Gate B passed without it. Crawford asked for it at once.
+
+**The problem.** A bypass cell whose effect is dark (its own Mix is 0) is disconnected from the cut, the work of 67's
+G3. But the effect object stays built, and its Tone Signals keep rendering: each Signal is a ConstantSource the audio
+thread runs every quantum, whether or not anything hears it. W1 (`ez84fjmr:93:-146`, Wreck) has three such effects
+(Chebyshev, Phaser and Tremolo). W2 (`bravo:-150:90`) has five (Distortion, Chebyshev, BitCrusher, Phaser and Tremolo).
+
+**What the ablation found** ([record §9](../scratchy-audio-phones.md), 67's T16b). The test build disposed every dark
+effect 3 s after power-on. The node census fell by 163 nodes on W1 and 196 on W2. The rendering ConstantSources fell from
+185 to 159 on W1 and from 204 to 176 on W2. At Full, against the build with the three kept cuts, the mean fell
+**−0.026 / −0.022** (W1 / W2), and W1's crest fell −0.055. That is the size of G2a, and inaudible if done right.
+
+**The shape** (record §9's recommendation, not yet a spec):
+- A dark effect is torn down after its darken's disconnect.
+- It is rebuilt when it lights, silent under the cell's zero wet, the way `rebuildPhaser` (`globalFx.ts`) already swaps
+  a Phaser.
+- "Dark" means the effect's own Mix is 0: a chain cell's `mix`, or a room branch's `depth`. A branch with a depth whose
+  room is only unfed is not dark, because it lights again when its room is fed. The ablation's first cut got this
+  wrong and pruned W1's Chorus.
+- Proof that a light makes no click: the crossing recipe in record §8 (`DARK_EFFECT_BYPASS` spec §8.2).
+
+**Questions for the interview:**
+- Where do the effect's current options live while it is gone? A setter must not write to a null effect, and the
+  rebuild must take today's settings.
+- What happens to an LFO or the global modulation pedal that targets an effect while it is gone?
+- How long does the teardown wait after the darken?
+- How does it interact with Light's hold-offs, a world change, and a save's load?
+
+**Status:** intent confirmed 2026-11-10 ([intent](../../intent/dark-effects-leave-the-graph.md)), which answers the
+questions above or hands them to the spec; spec approved the same day ([spec](../../specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md),
+its two open questions at their defaults) and the plan written ([plan](../../tasks/DARK_EFFECTS_LEAVE_THE_GRAPH.md),
+seventeen tasks). **Built** 2026-11-10 on `perf/dark-effects-leave-the-graph` (the spec's §8, "As built"): a dark
+effect is torn down a second after its disconnect and rebuilt at its next light. At Full the census fell 307 / 251 nodes
+and the mean 0.050 / 0.032 (W1 / W2); at Light none of the ten exists; every crossing ≤ ×1.107 with no gap, and
+Crawford heard no click (record "Backlog 72", §1–§4). Next: Crawford's PR; archive after the merge. The ablation's code
+lives only in the backlog 67 session's scratchpad, not in the repo; record §9 describes it.

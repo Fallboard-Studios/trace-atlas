@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md](../specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md). Source intent:
 [docs/intent/dark-effects-leave-the-graph.md](../intent/dark-effects-leave-the-graph.md). Backlog
-[72](../todo/backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9), first line of plan.md's
+[72](../todo/archive/backlog-archive.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9), first line of plan.md's
 Stage 1.
 
 Written for: Crawford, and the agent that builds it.
@@ -634,8 +634,8 @@ dev server to effects lit and darkened ("everything sounds good"). Next: Task 13
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the known `onTaskUpdate` exit noted).
 - [x] Every automated acceptance criterion met; the six mutants named in their commits.
 - [x] The runs recorded (Tasks 13–15) and Crawford's ear passed (Task 16), or any not done flagged here, never skipped.
-- [ ] Docs match the shipped code.
-- [ ] Ready for Crawford's PR. Archiving backlog 72 and the plan.md line wait for the merge.
+- [x] Docs match the shipped code.
+- [x] Ready for Crawford's PR. Merged in PR #617 (2026-11-10); backlog 72 archived and its plan.md line removed.
 
 **Status (2026-11-10):** Task 17 committed (52825193). Types and lint re-run after it (clean; lint the four existing
 scenery warnings). `npm test` and `npm run build` were not re-run: nothing outside `docs/` has changed since Checkpoint
