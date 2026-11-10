@@ -41,6 +41,9 @@ export const company = {
     human: 'Rename Company',
     help: { human: 'A new name for the selected company. Press Rename to apply it; its probes and settings stay as they are.' },
   },
+  /** The roster head's New Company button (docs/specs/LAYOUT_REWORK.md §1.5); `short` is its phone form. `[c]` =
+   *  placeholder lore (spec Assumption 9). It was `nav.entity.newCompany` while the nav's Companies list held it. */
+  'company.new': { human: '+ New Company', lore: 'New Consortium [c]', short: '+' },
   'company.create': { human: 'Create', lore: 'COMMISSION UNIT', template: 'Create {name}' },
   'company.rename': { human: 'Rename', lore: 'REDESIGNATE UNIT', template: 'Rename {company} > {name}' },
   'company.delete': { human: 'Delete', lore: 'DECOMMISSION UNIT', template: 'Delete {company}' },

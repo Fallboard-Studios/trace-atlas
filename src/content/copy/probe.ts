@@ -66,7 +66,7 @@ export const probe = {
 
   // ---------------------------------------------------------------- roster board
   // docs/specs/LAYOUT_REWORK.md §1.5, copy from the approved sketch. The head reuses `probe.all` and
-  // `nav.entity.newCompany`, the Freelance group `company.assign`'s option, and the Move panel's title
+  // `company.new`, the Freelance group `company.assign`'s option, and the Move panel's title
   // `company.assign`'s template — one entry per concept.
   /** A group's count beside its name box. One probe has its own form (as `ui.noteValue.bar` does). */
   'probe.roster.count': { human: 'Probes', template: '{n} probes' },

@@ -34,7 +34,7 @@ const COMPANY_TRAIT_ACCENT = getTraitColorStyle('company');
 const FREELANCE = CONTENT['company.assign'].options.freelance.human;
 
 const ALL_PROBES = labels('probe.all');
-const NEW_COMPANY = labels('nav.entity.newCompany');
+const NEW_COMPANY = labels('company.new');
 // The phone head's faces are the entries' short forms, alone: the sketch's "All" and "+".
 const HEAD_SCHEMAS = {
   desk: {
@@ -43,7 +43,7 @@ const HEAD_SCHEMAS = {
   },
   phone: {
     all: { id: 'roster.allProbes', type: 'button', humanLabel: CONTENT['probe.all'].short },
-    create: { id: 'roster.newCompany', type: 'button', humanLabel: CONTENT['nav.entity.newCompany'].short },
+    create: { id: 'roster.newCompany', type: 'button', humanLabel: CONTENT['company.new'].short },
   },
 } satisfies Record<'desk' | 'phone', Record<'all' | 'create', ButtonSchema>>;
 

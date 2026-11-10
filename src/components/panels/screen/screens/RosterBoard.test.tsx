@@ -77,7 +77,7 @@ import type { Locale } from '@/types/locale';
 const localeId = getActiveLocaleId();
 const FREELANCE = CONTENT['company.assign'].options.freelance.human;
 const ALL_PROBES = CONTENT['probe.all'].human;
-const NEW_COMPANY = CONTENT['nav.entity.newCompany'].human;
+const NEW_COMPANY = CONTENT['company.new'].human;
 
 function makeRobot(id: string, companyId?: string): Robot {
   return {
@@ -248,7 +248,7 @@ describe('RosterBoard — the head', () => {
     const create = screen.getByRole('button', { name: NEW_COMPANY });
     expect(all.textContent).toContain(CONTENT['probe.all'].short);
     expect(all.textContent).not.toContain(ALL_PROBES);
-    expect(create.textContent).toContain(CONTENT['nav.entity.newCompany'].short);
+    expect(create.textContent).toContain(CONTENT['company.new'].short);
     expect(container.querySelector('.roster-board--phone')).toBeTruthy();
   });
 
