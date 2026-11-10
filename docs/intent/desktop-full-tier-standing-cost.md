@@ -2,7 +2,7 @@
 
 Confirmed via `interview-me` on 2026-11-06 (5 questions; one pre-interview remark withdrawn: "we're likely cutting
 stuff" was said before the plan was clear and is not the direction), ahead of a `spec-driven-development` pass. Backlog
-[67](../todo/backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom), first
+[67](../todo/archive/backlog-archive.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom), first
 item of plan.md's Stage 1. The clean Full/Standard/Light A/B of 2026-11-05 (recorded on the backlog entry) is its step
 zero: the cause is the standing floor, not the robot count.
 

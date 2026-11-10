@@ -378,7 +378,7 @@ npm run perf:audio -- --world charlie:200:-30 --seconds 240 --bucket 15       # 
 
 One row per time bucket — mean and max capacity, mean callback interval, and the overlay's audible-robot count — then the **peak window** (the highest bucket mean; the number the Audio Load gates compare), the overall mean and max, and `r(audible, capacity)`, the Pearson correlation between the per-bucket audible count and capacity (`-` when either is constant).
 
-**The long-run columns (backlog 27, 2026-10-23).** Three more per-bucket means, for a run long enough to catch load that grows: `nodes`, the live `AudioNode`s of the polled context, tallied from the DevTools `WebAudio.audioNodeCreated` / `audioNodeWillBeDestroyed` events (counted from `WebAudio.enable`, before the page loads); `heap (MB)`, the renderer's used JS heap (`Performance.getMetrics`, `JSHeapUsedSize`); and `events`, the overlay's pending-Transport-event count (above); plus `max lag`, the largest main-thread lag the overlay's 500 ms sampler reported in the bucket (a stall is a maximum, not a mean). The summary's last line gives each as *first bucket → last bucket (delta)*, and a further line breaks the node change down by type (`Oscillator +198   Gain +31`), from the created event's `nodeType`; on a steady world every delta should sit near zero once the roster has spawned, and a steady climb names the leak. Read `nodes` as *not yet destroyed*: Chrome destroys a node's handler when its wrapper is garbage-collected (an ended source included), so a climbing count is either collection lag or a retained reference, and only a forced GC (`HeapProfiler.collectGarbage` over CDP, then a recount) tells which. The first use, 2026-10-23, found the latter: see [todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md), "Backlog 27, desktop step 1". Before the table the script prints the overlay's lines once, as they read after the warm-up (`carried after warm-up:`), so the record says what the world carried — the tier, the sounding cap, `fx in`, the bank and the tiers. **The census line** (backlog 27, 2026-10-27) follows it: the live nodes by type at that moment, largest first, the total in brackets (`census after warm-up (1812): Gain 611 · ConstantSource 290 · …`, `formatCensus` in `audio-load-lib.mjs`), so an A/B can say which nodes a change removed. The long run is the ordinary command with a longer series and wider buckets, e.g. `--seconds 900 --bucket 60`; the 10-minute tool limit on an agent's shell does not apply to a terminal.
+**The long-run columns (backlog 27, 2026-10-23).** Three more per-bucket means, for a run long enough to catch load that grows: `nodes`, the live `AudioNode`s of the polled context, tallied from the DevTools `WebAudio.audioNodeCreated` / `audioNodeWillBeDestroyed` events (counted from `WebAudio.enable`, before the page loads); `heap (MB)`, the renderer's used JS heap (`Performance.getMetrics`, `JSHeapUsedSize`); and `events`, the overlay's pending-Transport-event count (above); plus `max lag`, the largest main-thread lag the overlay's 500 ms sampler reported in the bucket (a stall is a maximum, not a mean). The summary's last line gives each as *first bucket → last bucket (delta)*, and a further line breaks the node change down by type (`Oscillator +198   Gain +31`), from the created event's `nodeType`; on a steady world every delta should sit near zero once the roster has spawned, and a steady climb names the leak. Read `nodes` as *not yet destroyed*: Chrome destroys a node's handler when its wrapper is garbage-collected (an ended source included), so a climbing count is either collection lag or a retained reference, and only a forced GC (`HeapProfiler.collectGarbage` over CDP, then a recount) tells which. The first use, 2026-10-23, found the latter: see [todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md), "Backlog 27, desktop step 1". Before the table the script prints the overlay's lines once, as they read after the warm-up (`carried after warm-up:`), so the record says what the world carried — the tier, the sounding cap, `fx in`, the bank and the tiers. **The census line** (backlog 27, 2026-10-27) follows it: the live nodes by type at that moment, largest first, the total in brackets (`census after warm-up (1812): Gain 611 · ConstantSource 290 · …`, `formatCensus` in `audio-load-lib.mjs`), so an A/B can say which nodes a change removed. Since backlog 67's T3 it is read after a forced GC (`HeapProfiler.collectGarbage`) and a 1 s settle, so voices already disposed but not yet collected are not counted; `--no-gc` reads it as before. The long run is the ordinary command with a longer series and wider buckets, e.g. `--seconds 900 --bucket 60`; the 10-minute tool limit on an agent's shell does not apply to a terminal.
 
 `--help` documents every flag:
 
@@ -390,6 +390,7 @@ One row per time bucket — mean and max capacity, mean callback interval, and t
 | `--seconds` / `--bucket` / `--warmup` | Series length (240), bucket width (15), warm-up after power-on (8) — all seconds. |
 | `--url` | Base URL of the served build (default `http://localhost:4173/trace-atlas/`). A LAN address works too — the insecure-context case a phone hits. Any query on it is replaced. |
 | `--no-debug` | Leave `?debug` off: no overlay, so no audible column. (The overlay's own cost is one 500 ms timer and one GSAP ticker callback.) |
+| `--no-gc` | Take the census line without the forced GC first. |
 | `--json path` | Also write each run's buckets and summary to a file, e.g. to pool the correlation across runs. |
 
 Only the bucketing, statistics and URL/world handling are unit-tested (`scripts/perf/audio-load-lib.mjs`); the Chrome plumbing is verified by real runs. Opening the world is one helper shared with `perf:audio-handlers` (below): `withPoweredWorld` in `scripts/perf/powered-world.mjs` starts a fresh Chrome (cdp-lib.mjs's `withChrome`), enables `WebAudio` before navigating, loads the world with `?debug`, powers on, waits out the warm-up and runs the pin check. The audio context polled is the most recently created, not-yet-destroyed *realtime* one, so `?latency=` (which replaces Tone's default context with a second one) polls the right context.
@@ -416,6 +417,29 @@ npm run perf:audio-handlers -- --world "56c2t2t8:-116:-2?load=light&s=<blob>" --
 | `--chrome` / `--port` | Chrome executable (else `$CHROME_PATH`, else a platform default) and remote-debugging port (9335). |
 
 The tally is pure and unit-tested (`scripts/perf/audio-handlers-lib.mjs`); the Chrome plumbing is verified by real runs. First use: [todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md), the decomposition's §1.
+
+### Census by maker — `npm run perf:audio-census`
+
+Which code made the live graph's nodes (backlog 67, T2; [specs/DESKTOP_FULL_TIER_STANDING_COST.md](specs/DESKTOP_FULL_TIER_STANDING_COST.md) §1.2), so the census line's total can be read as "reserveVoice made 540, the bank 120…". It opens one world as `perf:audio` does. Before navigation it installs a hook over `BaseAudioContext.prototype`'s `create*` methods and the AudioNode constructors, which records every node with its class, its context and its creation stack, held only by a `WeakRef`. After the warm-up it forces a GC and keeps the nodes still alive in the realtime context. It resolves their stacks against the served build's source maps and prints the tally by maker: the first app frame under Tone's. It prints `perf:audio`'s census line and the hook's own count by class beside the tally, for the same moment.
+
+```
+npx vite build --sourcemap --outDir <scratch>/build-map                 # a throwaway build with source maps
+npx vite preview --outDir <scratch>/build-map --port 4174               # terminal 1
+npm run perf:audio-census -- --world "ez84fjmr:93:-146?theme=wreck&load=full" --url http://localhost:4174/trace-atlas/   # terminal 2
+```
+
+- **Source maps make it readable.** Without them the run still works, but the frames stay minified, and the run says so. A `--sourcemap` build differs from stock only by the maps and their comment, so its `perf:audio` numbers stand beside a stock build's.
+- **The maker is the app function**, by design. Tone's own plumbing is counted under whichever app frame called into Tone; the top Tone frame is kept beside it in the JSON for a second reading.
+
+| Flag | Meaning |
+|---|---|
+| `--world <spec>` | One world, as `perf:audio`'s `--world`. The pin check aborts the run if the overlay lands anywhere else. Required. |
+| `--warmup` | Seconds after power-on before the census (8). |
+| `--url` | Base URL of the served build (default `http://localhost:4173/trace-atlas/`). |
+| `--json path` | Also write both censuses, the tally, and every live stack with its maker. |
+| `--chrome` / `--port` | Chrome executable (else `$CHROME_PATH`, else a platform default) and remote-debugging port (9336). |
+
+The tally is pure and unit-tested (`scripts/perf/audio-census-lib.mjs`); the hook, the GC and the map lookup are verified by real runs. First use: [todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md), "Backlog 67, the decomposition at Full" §2.
 
 ### Measurement hygiene
 
@@ -2864,6 +2888,30 @@ contention), so quote a per-file cost only from `npx vitest run --reporter=json 
 `endTime - startTime`; quote the full run's wall-clock from the same report's `startTime` to the last file's `endTime`.
 The JSON reporter prints no unhandled-error line, so an exit code of 1 with zero failures is backlog 66's timeout, read
 from a default-reporter run.
+
+## The audio pin at Full — backlog 67 (2026-11-10)
+
+The regression line for the audio graph's standing cost at Full, after backlog 67's cuts G1, G2a, G3 and G4
+([specs/DESKTOP_FULL_TIER_STANDING_COST.md](specs/DESKTOP_FULL_TIER_STANDING_COST.md) §5.4; the record is
+[todo/scratchy-audio-phones.md](todo/scratchy-audio-phones.md), "Backlog 67, the decomposition at Full" §6–§10).
+
+**What was run.** `main` 5ca8679f's code, which is Gate B's passing build. It was served as a `vite build --sourcemap`
+production build beside a byte-identical copy (the noise band), each on its own `vite preview` port. `npm run
+perf:audio`, W1 = `ez84fjmr:93:-146?theme=wreck&load=full`, 120 s, 15 s buckets, 8 s warm-up. Three interleaved rounds
+in one sitting (build first in odd rounds), headless Chrome, only VS Code open, no orphaned Chrome before or after any
+run.
+
+| Date | World | Tier | Code | Mean (median, runs) | Crest (median) | Trough (median) | Band (mean / crest / trough) | Census | Underruns at end |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-11-10 | W1 | Full | 5ca8679f | **0.473** (0.477, 0.470, 0.473) | **0.547** | 0.370 | 0.015 / 0.018 / 0.040 | 1 082–1 091 | 2 in every run |
+
+The copy read 0.466, 0.463 and 0.458 on the mean, and 0.561, 0.542 and 0.547 on the crest. The band is the largest
+same-round difference between the build and its copy.
+
+**The rule.** A later change that reads above the pin by more than its own sitting's band, on a same-session A/B
+against 5ca8679f's code, is a regression to explain in its PR. Compare within a sitting, never across sittings: the
+same graph read 0.436–0.445 on W1 the night before (record §8–§9, the g3 arm, census 1 091), about 0.03 lower than
+this sitting. The absolute figure moves with the machine's state; the same-session delta does not.
 
 ## Recording a new baseline
 

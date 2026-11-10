@@ -528,7 +528,7 @@ when the stage opens (the shipping-and-launch workflow skill), so the About belo
 
 ## 69. The Leaner Synth Layer: Robot Voices on Native Nodes
 
-Spun off from backlog [67](backlog.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom)
+Spun off from backlog [67](archive/backlog-archive.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom)
 at its Gate A (Crawford, 2026-11-07: "later"), where it was hypothesis G2b. Not yet interviewed or specced.
 
 ### About
