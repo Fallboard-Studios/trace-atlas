@@ -529,6 +529,14 @@ the fixed 12-robot roster, flat drain and recharge on the measure tick) decides 
 robots per tier, so a floor beside the cap is the natural pair. Needs a short interview before a spec: a floor means
 either a robot stays up past empty (which bends the battery rule) or the drains are staggered so the fleet never empties
 together, and whichever it is must keep the lifecycle a pure function of seed and measures (roadmap 20.5's replay).
+
+**Complementary audio policy: fade-in/fade-out on station arcs.** As robots exit and enter stations, their audio presence
+should fade in and out to mirror their visual presence — *Semantic Fade on Lifecycle Change* policy: when `onLifecycleChange`
+fires, queue audio envelope fades through `AudioEngine` (never from GSAP timeline callbacks; respects Strict Separation):
+`'active'` → linear fade-in envelope (0 → full gain, 1s duration matching the exit arc), `'docked'` → linear fade-out
+envelope (full → 0, same duration). The fade respects existing `audioMode` and load-budget standing. This creates audio/visual
+coherence without adding scheduling logic to the lifecycle — a robot's sonic presence mirrors when it materializes and vanishes.
+
 Plan.md Stage 3.
 
 ### 61. Accessibility Review
