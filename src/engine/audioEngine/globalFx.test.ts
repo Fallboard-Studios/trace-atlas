@@ -45,6 +45,7 @@ const toneFlags = vi.hoisted(() => ({
     (opts: { baseFrequency?: number; octaves?: number; sensitivity?: number; follower?: number; Q?: number; gain?: number; wet?: number } = {}) => ({
       connect: vi.fn().mockReturnThis(),
       disconnect: vi.fn(),
+      dispose: vi.fn(),
       toDestination: vi.fn(),
       baseFrequency: opts.baseFrequency ?? 100,
       octaves: opts.octaves ?? 2.6,
@@ -308,6 +309,17 @@ function fireTimeouts(): void {
   const due = toneFlags.timeouts;
   toneFlags.timeouts = [];
   for (const t of due) t.fn();
+}
+
+/** The pending context timers but the teardowns (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2): a registered effect
+ *  dark at its own level and out of the path arms one on any write, a room feed or a hold-off included. */
+const darkens = () => toneFlags.timeouts.filter((t) => t.seconds !== live.DARK_TEARDOWN_SECONDS);
+
+/** Fire the context timers until none is pending: a darken's disconnect, then the teardown it arms
+ *  (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2). Bounded, so a timer that re-arms itself fails the test. */
+function settle(): void {
+  for (let round = 0; round < 10 && toneFlags.timeouts.length > 0; round++) fireTimeouts();
+  expect(toneFlags.timeouts).toEqual([]);
 }
 
 /** A native AnalyserNode stand-in that enforces the real API's fftSize limit (a power of two, 32..32768). */
@@ -1253,7 +1265,9 @@ describe('globalFx', () => {
       const globalFx = await import('./globalFx');
       expect(() => globalFx.buildGlobalFxChain()).not.toThrow();
 
-      expect(live.getCell('bitCrusher')).toBeUndefined();
+      // Dark Effects Leave the Graph T6: a registered key keeps an empty, dry branch, and its next light builds again.
+      expect(live.getCell('bitCrusher')!.effect).toBeNull();
+      expect(live.getCell('bitCrusher')!.connected).toBe(false);
       expect(live.getCell('distortion')!.room).toBe('grit');
       expect(live.getCell('chebyshev')!.room).toBe('grit');
       expect(filterCutOf().connect).toHaveBeenCalledWith(inOf(lastInstance(toneFlags.wahCtor)));
@@ -3933,17 +3947,17 @@ describe('globalFx', () => {
         expect(cell.wet.gain.rampTo.mock.calls).toEqual([[expect.closeTo(0.09, 9), 0.05]]);
         expect(effect.wet.rampTo).not.toHaveBeenCalled();
         expect(effect.wet.value).toBe(1);
-        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(darkens()).toHaveLength(0);
 
         set({ wet: 0.3 });
         expect(edgesFromIn()).toHaveLength(1);
         expect(cell.wet.gain.rampTo).toHaveBeenCalledTimes(1);
-        expect(toneFlags.timeouts).toHaveLength(0);
+        expect(darkens()).toHaveLength(0);
 
         set({ wet: 0 });
         expect(cell.wet.gain.rampTo).toHaveBeenLastCalledWith(0, 0.05);
-        expect(toneFlags.timeouts).toHaveLength(1);
-        expect(toneFlags.timeouts[0].seconds).toBeCloseTo(0.16, 9);
+        expect(darkens()).toHaveLength(1);
+        expect(darkens()[0].seconds).toBeCloseTo(0.16, 9);
         expect(cutsFromIn()).toHaveLength(0);
         fireTimeouts();
         expect(cutsFromIn()).toHaveLength(1);
@@ -4402,7 +4416,7 @@ describe('globalFx', () => {
       globalFx.setGlobalStereoWidener({ width: 0.8 });
       expect(globalFx.getConnectedEffectCount()).toBe(0);
       expect(wetRampCount(vibrato)).toBe(0);
-      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(darkens()).toHaveLength(0);
     });
 
     it('lights exactly the recorded Mixes when lifted, the last write while held off winning, and nothing never lit', async () => {
@@ -4454,13 +4468,13 @@ describe('globalFx', () => {
       const vibrato = lastInstance(toneFlags.vibratoCtor);
       globalFx.setEffectsHeldOff(false);
       expect(wetRampCount(vibrato)).toBe(1);
-      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(darkens()).toHaveLength(0);
       globalFx.setEffectsHeldOff(true);
       fireTimeouts();
       const ramps = wetRampCount(vibrato);
       globalFx.setEffectsHeldOff(true);
       expect(wetRampCount(vibrato)).toBe(ramps);
-      expect(toneFlags.timeouts).toHaveLength(0);
+      expect(darkens()).toHaveLength(0);
     });
 
     it('a Decay flip while held off connects no effect', async () => {
@@ -4550,6 +4564,227 @@ describe('globalFx', () => {
       globalFx.setEffectsHeldOff(false);
       expect(live.getCell('phaser')!.effect).toBe(lastInstance(toneFlags.phaserCtor));
       expect(live.getCell('phaser')!.mix).toBe(colourWetGain(0.4));
+    });
+  });
+
+  describe('the colour trio and the AutoWah leave and come back (Dark Effects Leave the Graph T6)', () => {
+    // docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2, §1.4, §5.1 cases 2-5 and 10. The chain still constructs all four
+    // at build (Phase 2); a darken tears each down DARK_TEARDOWN_SECONDS after its disconnect, and the next light builds
+    // a fresh one from its mirror.
+    async function built() {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      feedRooms('grit');
+      return globalFx;
+    }
+    const constructed = (ctor: unknown) => (ctor as AnyMock).mock.calls.length;
+
+    // Each key's setter, the field it mirrors, a value away from its default, and how a built node shows that field.
+    const cases = [
+      {
+        key: 'distortion' as const,
+        ctor: () => Tone.Distortion,
+        set: (fx: typeof import('./globalFx'), p: object) => fx.setGlobalDistortion(p),
+        field: { amount: 0.8 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        read: (node: any) => node.distortion,
+        ctorArgs: { distortion: 0.8, oversample: 'none', wet: 1 },
+      },
+      {
+        key: 'chebyshev' as const,
+        ctor: () => Tone.Chebyshev,
+        set: (fx: typeof import('./globalFx'), p: object) => fx.setGlobalChebyshev(p),
+        field: { order: 7 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        read: (node: any) => node.order,
+        ctorArgs: { order: 7, oversample: 'none', wet: 1 },
+      },
+      {
+        key: 'bitCrusher' as const,
+        ctor: () => toneFlags.crusherCtor,
+        set: (fx: typeof import('./globalFx'), p: object) => fx.setGlobalBitCrusher(p),
+        field: { bits: 3 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        read: (node: any) => [node.bits.value, node.bits.rampTo.mock.calls.length],
+        ctorArgs: { bits: 3, wet: 1 },
+      },
+      {
+        key: 'autoWah' as const,
+        ctor: () => toneFlags.wahCtor,
+        set: (fx: typeof import('./globalFx'), p: object) => fx.setGlobalAutoWah(p),
+        field: { octaves: 4 },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        read: (node: any) => node.octaves,
+        ctorArgs: { baseFrequency: 100, octaves: 4, sensitivity: 0, Q: 2, gain: 2, follower: 0.2, wet: 1 },
+      },
+    ];
+
+    it.each(cases)('the $key darkened (Mix 0) is disposed DARK_TEARDOWN_SECONDS after its disconnect, its cell emptied', async ({ key, ctor, set }) => {
+      const globalFx = await built();
+      set(globalFx, { wet: 0.4 });
+      const node = lastInstance(ctor());
+      expect(live.getCell(key)!.effect).toBe(node);
+      set(globalFx, { wet: 0 });
+      fireTimeouts();
+      expect(live.getCell(key)!.connected).toBe(false);
+      expect(node.dispose).not.toHaveBeenCalled();
+      expect(toneFlags.timeouts.map((t) => t.seconds)).toEqual([live.DARK_TEARDOWN_SECONDS]);
+      fireTimeouts();
+      expect(node.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell(key)!.effect).toBeNull();
+      expect(live.getCell(key)!.lfos).toEqual([]);
+    });
+
+    it.each(cases)('a $key field written while absent touches no node and reaches the one the next light builds', async ({ key, ctor, set, field, read, ctorArgs }) => {
+      const globalFx = await built();
+      set(globalFx, { wet: 0.4 });
+      set(globalFx, { wet: 0 });
+      settle();
+      const before = constructed(ctor());
+      const gone = lastInstance(ctor());
+      const goneField = read(gone);
+      set(globalFx, field);
+      expect(constructed(ctor())).toBe(before);
+      expect(read(gone)).toEqual(goneField);
+      set(globalFx, { wet: 0.4 });
+      expect(constructed(ctor())).toBe(before + 1);
+      expect(lastInstance(ctor()) as unknown).not.toBe(gone);
+      expect(vi.mocked(ctor() as Mock).mock.calls.at(-1)).toEqual([ctorArgs]);
+      const cell = live.getCell(key)!;
+      expect(cell.effect).toBe(lastInstance(ctor()));
+      expect(cell.connected).toBe(true);
+      expect(cell.mix).toBe(colourWetGain(0.4));
+    });
+
+    it.each(cases)('a second light of a lit $key constructs nothing', async ({ ctor, set }) => {
+      const globalFx = await built();
+      set(globalFx, { wet: 0.4 });
+      const before = constructed(ctor());
+      set(globalFx, { wet: 0.6 });
+      expect(constructed(ctor())).toBe(before);
+    });
+
+    it('a light inside the wait cancels the teardown and keeps the same Distortion', async () => {
+      const globalFx = await built();
+      globalFx.setGlobalDistortion({ wet: 0.4 });
+      const dist = lastInstance(Tone.Distortion);
+      globalFx.setGlobalDistortion({ wet: 0 });
+      fireTimeouts();
+      globalFx.setGlobalDistortion({ amount: 0.55, wet: 0.3 });
+      settle();
+      expect(dist.dispose).not.toHaveBeenCalled();
+      expect(live.getCell('distortion')!.effect).toBe(dist);
+      expect(dist.distortion).toBe(0.55);
+    });
+
+    it('a call that lights an absent AutoWah with a new Q builds it at that Q and never ramps its Q or gain', async () => {
+      const globalFx = await built();
+      globalFx.setGlobalAutoWah({ wet: 0.4 });
+      globalFx.setGlobalAutoWah({ wet: 0 });
+      settle();
+      globalFx.setGlobalAutoWah({ Q: 5, gain: 9, baseFrequency: 300, wet: 0.5 });
+      const wah = lastInstance(toneFlags.wahCtor);
+      expect(toneFlags.wahCtor).toHaveBeenLastCalledWith(expect.objectContaining({ Q: 5, gain: 9, baseFrequency: 300, wet: 1 }));
+      expect(wah.Q.rampTo).not.toHaveBeenCalled();
+      expect(wah.gain.rampTo).not.toHaveBeenCalled();
+      expect(live.getCell('autoWah')!.connected).toBe(true);
+    });
+
+    it('a call that lights an absent BitCrusher with new bits builds it at those bits and never ramps them', async () => {
+      const globalFx = await built();
+      globalFx.setGlobalBitCrusher({ wet: 0.4 });
+      globalFx.setGlobalBitCrusher({ wet: 0 });
+      settle();
+      globalFx.setGlobalBitCrusher({ bits: 5, wet: 0.5 });
+      expect(toneFlags.crusherCtor).toHaveBeenLastCalledWith({ bits: 5, wet: 1 });
+      expect(lastInstance(toneFlags.crusherCtor).bits.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('a present AutoWah still takes a ramped Q while its Mix stays 0', async () => {
+      const globalFx = await built();
+      const wah = lastInstance(toneFlags.wahCtor);
+      globalFx.setGlobalAutoWah({ Q: 4 });
+      expect(wah.Q.rampTo).toHaveBeenCalledWith(4, 0.05);
+    });
+
+    it('a Colour Mix of 0 written while the room is unfed tears the built branch down after the wait (re-send path)', async () => {
+      const globalFx = await import('./globalFx');
+      globalFx.buildGlobalFxChain();
+      const cheb = lastInstance(Tone.Chebyshev);
+      globalFx.setGlobalChebyshev({ wet: 0 });
+      expect(toneFlags.timeouts.map((t) => t.seconds)).toEqual([live.DARK_TEARDOWN_SECONDS]);
+      fireTimeouts();
+      expect(cheb.dispose).toHaveBeenCalledTimes(1);
+      expect(live.getCell('chebyshev')!.effect).toBeNull();
+    });
+
+    it('a Colour branch whose room is only unfed keeps its effect, and feeding the room lights the same node', async () => {
+      const globalFx = await built();
+      globalFx.setGlobalDistortion({ wet: 0.4 });
+      const dist = lastInstance(Tone.Distortion);
+      live.setRoomFed('grit', false);
+      settle();
+      expect(live.getCell('distortion')!.connected).toBe(false);
+      expect(dist.dispose).not.toHaveBeenCalled();
+      const before = constructed(Tone.Distortion);
+      live.setRoomFed('grit', true);
+      expect(live.getCell('distortion')!.effect).toBe(dist);
+      expect(live.getCell('distortion')!.connected).toBe(true);
+      expect(constructed(Tone.Distortion)).toBe(before);
+    });
+
+    it('the hold-off tears all four down after the wait and its lift rebuilds those at a Mix above 0', async () => {
+      const globalFx = await built();
+      globalFx.setGlobalDistortion({ wet: 0.4 });
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      globalFx.setGlobalAutoWah({ wet: 0.6 });
+      globalFx.setGlobalChebyshev({ wet: 0 });
+      const old = cases.map(({ ctor }) => lastInstance(ctor()));
+      globalFx.setEffectsHeldOff(true);
+      settle();
+      for (const node of old) expect(node.dispose).toHaveBeenCalledTimes(1);
+      for (const { key } of cases) expect(live.getCell(key)!.effect).toBeNull();
+      const before = cases.map(({ ctor }) => constructed(ctor()));
+      globalFx.setEffectsHeldOff(false);
+      expect(cases.map(({ ctor }) => constructed(ctor()))).toEqual([before[0] + 1, before[1], before[2] + 1, before[3] + 1]);
+      expect(live.getCell('distortion')!.connected).toBe(true);
+      expect(live.getCell('bitCrusher')!.connected).toBe(true);
+      expect(live.getCell('autoWah')!.connected).toBe(true);
+      expect(live.getCell('chebyshev')!.effect).toBeNull();
+    });
+
+    it('a lift with the Colour room unfed builds the AutoWah only; feeding the room then builds the lit branches', async () => {
+      const globalFx = await built();
+      globalFx.setGlobalDistortion({ wet: 0.4 });
+      globalFx.setGlobalAutoWah({ wet: 0.6 });
+      globalFx.setEffectsHeldOff(true);
+      settle();
+      live.setRoomFed('grit', false);
+      const distBefore = constructed(Tone.Distortion);
+      globalFx.setEffectsHeldOff(false);
+      expect(constructed(Tone.Distortion)).toBe(distBefore);
+      expect(live.getCell('distortion')!.effect).toBeNull();
+      expect(live.getCell('autoWah')!.connected).toBe(true);
+      live.setRoomFed('grit', true);
+      expect(constructed(Tone.Distortion)).toBe(distBefore + 1);
+      expect(live.getCell('distortion')!.connected).toBe(true);
+    });
+
+    it('a BitCrusher constructor that throws at a light warns once and leaves its cell dry, and the next light tries again', async () => {
+      const globalFx = await built();
+      globalFx.setGlobalBitCrusher({ wet: 0.4 });
+      globalFx.setGlobalBitCrusher({ wet: 0 });
+      settle();
+      toneFlags.crusherCtor.mockImplementationOnce(() => {
+        throw new Error('no worklets');
+      });
+      vi.mocked(devWarn).mockClear();
+      globalFx.setGlobalBitCrusher({ wet: 0.5 });
+      expect(live.getCell('bitCrusher')!.effect).toBeNull();
+      expect(live.getCell('bitCrusher')!.connected).toBe(false);
+      expect(failureWarnings()).toHaveLength(1);
+      globalFx.setGlobalBitCrusher({ wet: 0.6 });
+      expect(live.getCell('bitCrusher')!.connected).toBe(true);
     });
   });
 

@@ -21,6 +21,7 @@ import {
   getCell,
   getRoom,
   needsDuck,
+  registerEffect,
   roomNodes,
   setCellEffect,
   setRoomReturn,
@@ -66,12 +67,19 @@ let _globalHPF: Tone.Filter | null = null;
 let _globalLimiter: Tone.Limiter | null = null;
 // The output ceiling, after the Limiter and before the master gain (docs/specs/OUTPUT_HEADROOM.md §1.3).
 let _ceiling: Tone.WaveShaper | null = null;
-// The colour slot, in chain order between the High-Pass Filter and the Compressor (docs/specs/GLOBAL_COLOUR.md §1.3).
-let _globalDistortion: Tone.Distortion | null = null;
-let _globalChebyshev: Tone.Chebyshev | null = null;
-let _globalBitCrusher: Tone.BitCrusher | null = null;
-// The modulation slot, in chain order between the colour slot and the Compressor (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3).
-let _globalAutoWah: Tone.AutoWah | null = null;
+// The settings mirrors (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.4). A registered effect exists only between its
+// cell's first light and the teardown after it goes dark, so each keeps its last clamped values here, all but the Mix
+// (holdOffs.ts records that): a setter records first, before its Mix, and the light that builds the effect builds it from
+// them. Reset by buildGlobalFxChain. The colour slot's three sit in the Colour room (docs/specs/GLOBAL_COLOUR.md §1.3), the
+// AutoWah in the modulation slot (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.3).
+type DistortionLive = Omit<DistortionSettings, 'wet'>;
+type ChebyshevLive = Omit<ChebyshevSettings, 'wet'>;
+type BitCrusherLive = Omit<BitCrusherSettings, 'wet'>;
+type AutoWahLive = Omit<AutoWahSettings, 'wet'>;
+let _distortionLive: DistortionLive = defaultDistortionLive();
+let _chebyshevLive: ChebyshevLive = defaultChebyshevLive();
+let _bitCrusherLive: BitCrusherLive = defaultBitCrusherLive();
+let _autoWahLive: AutoWahLive = defaultAutoWahLive();
 let _globalPhaser: Tone.Phaser | null = null;
 // Tone's Phaser takes `stages` only in its constructor, so changing it rebuilds the node (spec §1.3). The live stage
 // count, and the last-written values of every other field (`wet` as the slider position, not the tapered gain), are
@@ -122,6 +130,26 @@ function clampColour(key: GlobalAudioSeedFieldKey, value: number): number | unde
   if (!Number.isFinite(value)) return undefined;
   const { min, max } = GLOBAL_AUDIO_SEED_RANGES[key];
   return Math.min(max, Math.max(min, value));
+}
+
+function defaultDistortionLive(): DistortionLive {
+  const { amount } = DEFAULT_GLOBAL_AUDIO_SETTINGS.distortion;
+  return { amount };
+}
+
+function defaultChebyshevLive(): ChebyshevLive {
+  const { order } = DEFAULT_GLOBAL_AUDIO_SETTINGS.chebyshev;
+  return { order };
+}
+
+function defaultBitCrusherLive(): BitCrusherLive {
+  const { bits } = DEFAULT_GLOBAL_AUDIO_SETTINGS.bitCrusher;
+  return { bits };
+}
+
+function defaultAutoWahLive(): AutoWahLive {
+  const { baseFrequency, octaves, sensitivity, Q, gain, follower } = DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah;
+  return { baseFrequency, octaves, sensitivity, Q, gain, follower };
 }
 
 function defaultPhaserLive(): PhaserLive {
@@ -241,32 +269,34 @@ export function buildGlobalFxChain(): void {
       devWarn('[AudioEngine] the output ceiling could not be constructed; the chain runs without it', err);
     }
   }
-  // Built pinned fully wet in a dark cell, which carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9); the
-  // store pushes the seeded values once the chain exists. `oversample` is 'none' on both shapers and is never read from
-  // state (docs/specs/GLOBAL_COLOUR.md §1.3).
-  if (DistortionCtor) {
-    _globalDistortion = new DistortionCtor({ distortion: 0.3, oversample: 'none', wet: 1 });
-  }
-  if (ChebyshevCtor) {
-    _globalChebyshev = new ChebyshevCtor({ order: 2, oversample: 'none', wet: 1 });
-  }
+  // The builders (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.2, §1.4): each constructs its effect from its mirror,
+  // pinned fully wet in a dark cell, which carries the Mix (docs/specs/DARK_EFFECT_BYPASS.md assumption 9). The cell
+  // calls one at the light that finds its effect torn down; the store pushes the seeded values once the chain exists.
+  // `oversample` is 'none' on both shapers and is never read from state (docs/specs/GLOBAL_COLOUR.md §1.3). A missing
+  // constructor (headless) has no builder, and its slot stays empty with the chain whole.
+  _distortionLive = defaultDistortionLive();
+  _chebyshevLive = defaultChebyshevLive();
+  _bitCrusherLive = defaultBitCrusherLive();
+  _autoWahLive = defaultAutoWahLive();
+  const builders: Partial<Record<BypassKey, () => Tone.ToneAudioNode>> = {
+    distortion:
+      DistortionCtor && (() => new DistortionCtor({ distortion: _distortionLive.amount, oversample: 'none', wet: 1 })),
+    chebyshev: ChebyshevCtor && (() => new ChebyshevCtor({ order: _chebyshevLive.order, oversample: 'none', wet: 1 })),
+    bitCrusher: BitCrusherCtor && (() => new BitCrusherCtor({ bits: _bitCrusherLive.bits, wet: 1 })),
+    autoWah: AutoWahCtor && (() => new AutoWahCtor({ ..._autoWahLive, wet: 1 })),
+  };
+  const distortion = builders.distortion?.() ?? null;
+  const chebyshev = builders.chebyshev?.() ?? null;
   // The first AudioWorklet in the app: Tone.BitCrusher constructs synchronously and registers its processor on a
   // promise, so while its cell is dark nothing changes and once lit the crushed share is briefly absent at boot. If the
-  // browser refuses worklets the constructor throws, and the slot is simply skipped.
-  _globalBitCrusher = null;
-  if (BitCrusherCtor) {
-    try {
-      _globalBitCrusher = new BitCrusherCtor({ bits: 8, wet: 1 });
-    } catch (err) {
-      devWarn('[AudioEngine] BitCrusher could not be constructed; the colour slot runs without it', err);
-      _globalBitCrusher = null;
-    }
+  // browser refuses worklets the constructor throws, and its cell stays dry until a light builds it.
+  let bitCrusher: Tone.ToneAudioNode | null = null;
+  try {
+    bitCrusher = builders.bitCrusher?.() ?? null;
+  } catch (err) {
+    devWarn('[AudioEngine] BitCrusher could not be constructed; the colour slot runs without it', err);
   }
-  // Built pinned fully wet at the stored defaults in a dark cell, like the colour nodes; the store pushes the seeded
-  // values once the chain exists. A missing constructor (headless) leaves the slot empty and the chain whole.
-  if (AutoWahCtor) {
-    _globalAutoWah = new AutoWahCtor({ ...DEFAULT_GLOBAL_AUDIO_SETTINGS.autoWah, wet: 1 });
-  }
+  const autoWah = builders.autoWah?.() ?? null;
   // The Phaser starts its LFOs in its constructor, so it is built once here and never in the setter's hot path
   // except for a Stages change. A failed construction leaves the slot empty and the chain whole.
   _globalPhaser = null;
@@ -350,11 +380,15 @@ export function buildGlobalFxChain(): void {
   // cell can exist, and the ten effects are released and left out of the chain.
   // A pending disconnect or duck belongs to the cell it was armed on: cancel it with the cell.
   clearCells();
+  // Registered before the cells, so a registered key whose effect is absent still gets its (empty) branch.
+  for (const [key, build] of Object.entries(builders) as Array<[BypassKey, (() => Tone.ToneAudioNode) | undefined]>) {
+    if (build) registerEffect(key, { build });
+  }
   const effects: Array<[BypassKey, unknown, Tone.ToneAudioNode | null]> = [
-    ['distortion', DistortionCtor, _globalDistortion],
-    ['chebyshev', ChebyshevCtor, _globalChebyshev],
-    ['bitCrusher', BitCrusherCtor, _globalBitCrusher],
-    ['autoWah', AutoWahCtor, _globalAutoWah],
+    ['distortion', DistortionCtor, distortion],
+    ['chebyshev', ChebyshevCtor, chebyshev],
+    ['bitCrusher', BitCrusherCtor, bitCrusher],
+    ['autoWah', AutoWahCtor, autoWah],
     ['phaser', PhaserCtor, _globalPhaser],
     ['chorus', ChorusCtor, _globalChorus],
     ['tremolo', TremoloCtor, _globalTremolo],
@@ -381,11 +415,8 @@ export function buildGlobalFxChain(): void {
     );
     for (const [, , effect] of effects) disposeQuietly(effect);
   }
-  // The `_global<Effect>` names stay as aliases of the cells' effects, so a left-out effect's setter no-ops.
-  _globalDistortion = cellEffect<Tone.Distortion>('distortion');
-  _globalChebyshev = cellEffect<Tone.Chebyshev>('chebyshev');
-  _globalBitCrusher = cellEffect<Tone.BitCrusher>('bitCrusher');
-  _globalAutoWah = cellEffect<Tone.AutoWah>('autoWah');
+  // The `_global<Effect>` names of the effects not yet registered stay as aliases of the cells' effects, so a left-out
+  // effect's setter no-ops. A registered effect's setter reads its cell.
   _globalPhaser = cellEffect<Tone.Phaser>('phaser');
   _globalChorus = cellEffect<Tone.Chorus>('chorus');
   _globalTremolo = cellEffect<Tone.Tremolo>('tremolo');
@@ -833,13 +864,17 @@ export function setGlobalFilterHPF(params: Partial<FilterSettings>, time?: numbe
   }
 }
 
+// A registered effect's setter (docs/specs/DARK_EFFECTS_LEAVE_THE_GRAPH.md §1.4) records its mirror first, then writes
+// the node only if the cell held one before the call, then the Mix. A node the Mix builds came up at the mirror, this
+// call's values included, so it takes nothing more; an absent node that stays absent takes nothing at all.
+
 export function setGlobalDistortion(params: Partial<DistortionSettings>): void {
-  const distortion = _globalDistortion;
-  if (!distortion) return;
   try {
-    const amount = params.amount === undefined ? undefined : clampColour('distortion.amount', params.amount);
-    const wet = params.wet === undefined ? undefined : clampColour('distortion.wet', params.wet);
-    if (amount !== undefined) distortion.distortion = amount;
+    const amount = clampIfGiven('distortion.amount', params.amount);
+    const wet = clampIfGiven('distortion.wet', params.wet);
+    if (amount !== undefined) _distortionLive.amount = amount;
+    const distortion = cellEffect<Tone.Distortion>('distortion');
+    if (distortion && amount !== undefined) distortion.distortion = amount;
     if (wet !== undefined) writeMix('distortion', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalDistortion failed', err);
@@ -847,12 +882,12 @@ export function setGlobalDistortion(params: Partial<DistortionSettings>): void {
 }
 
 export function setGlobalChebyshev(params: Partial<ChebyshevSettings>): void {
-  const chebyshev = _globalChebyshev;
-  if (!chebyshev) return;
   try {
-    const order = params.order === undefined ? undefined : clampColour('chebyshev.order', Math.round(params.order));
-    const wet = params.wet === undefined ? undefined : clampColour('chebyshev.wet', params.wet);
-    if (order !== undefined) chebyshev.order = order;
+    const order = clampIfGiven('chebyshev.order', params.order === undefined ? undefined : Math.round(params.order));
+    const wet = clampIfGiven('chebyshev.wet', params.wet);
+    if (order !== undefined) _chebyshevLive.order = order;
+    const chebyshev = cellEffect<Tone.Chebyshev>('chebyshev');
+    if (chebyshev && order !== undefined) chebyshev.order = order;
     if (wet !== undefined) writeMix('chebyshev', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalChebyshev failed', err);
@@ -860,12 +895,12 @@ export function setGlobalChebyshev(params: Partial<ChebyshevSettings>): void {
 }
 
 export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
-  const crusher = _globalBitCrusher;
-  if (!crusher) return;
   try {
-    const bits = params.bits === undefined ? undefined : clampColour('bitCrusher.bits', params.bits);
-    const wet = params.wet === undefined ? undefined : clampColour('bitCrusher.wet', params.wet);
-    if (bits !== undefined) rampOrSet(crusher.bits, bits, COLOUR_RAMP_SECONDS);
+    const bits = clampIfGiven('bitCrusher.bits', params.bits);
+    const wet = clampIfGiven('bitCrusher.wet', params.wet);
+    if (bits !== undefined) _bitCrusherLive.bits = bits;
+    const crusher = cellEffect<Tone.BitCrusher>('bitCrusher');
+    if (crusher && bits !== undefined) rampOrSet(crusher.bits, bits, COLOUR_RAMP_SECONDS);
     if (wet !== undefined) writeMix('bitCrusher', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalBitCrusher failed', err);
@@ -879,8 +914,6 @@ export function setGlobalBitCrusher(params: Partial<BitCrusherSettings>): void {
  *  plain properties in Tone 15; Q and gain are Signals; the Mix is tapered like Colour's and written through the bypass
  *  cell (writeCellMix). */
 export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
-  const wah = _globalAutoWah;
-  if (!wah) return;
   try {
     const baseFrequency = clampIfGiven('autoWah.baseFrequency', params.baseFrequency);
     const octaves = clampIfGiven('autoWah.octaves', params.octaves);
@@ -889,12 +922,21 @@ export function setGlobalAutoWah(params: Partial<AutoWahSettings>): void {
     const Q = clampIfGiven('autoWah.Q', params.Q);
     const gain = clampIfGiven('autoWah.gain', params.gain);
     const wet = clampIfGiven('autoWah.wet', params.wet);
-    if (baseFrequency !== undefined) wah.baseFrequency = baseFrequency;
-    if (octaves !== undefined) wah.octaves = octaves;
-    if (sensitivity !== undefined) wah.sensitivity = sensitivity;
-    if (follower !== undefined) wah.follower = follower;
-    if (Q !== undefined) rampOrSet(wah.Q, Q, COLOUR_RAMP_SECONDS);
-    if (gain !== undefined) rampOrSet(wah.gain, gain, COLOUR_RAMP_SECONDS);
+    if (baseFrequency !== undefined) _autoWahLive.baseFrequency = baseFrequency;
+    if (octaves !== undefined) _autoWahLive.octaves = octaves;
+    if (sensitivity !== undefined) _autoWahLive.sensitivity = sensitivity;
+    if (follower !== undefined) _autoWahLive.follower = follower;
+    if (Q !== undefined) _autoWahLive.Q = Q;
+    if (gain !== undefined) _autoWahLive.gain = gain;
+    const wah = cellEffect<Tone.AutoWah>('autoWah');
+    if (wah) {
+      if (baseFrequency !== undefined) wah.baseFrequency = baseFrequency;
+      if (octaves !== undefined) wah.octaves = octaves;
+      if (sensitivity !== undefined) wah.sensitivity = sensitivity;
+      if (follower !== undefined) wah.follower = follower;
+      if (Q !== undefined) rampOrSet(wah.Q, Q, COLOUR_RAMP_SECONDS);
+      if (gain !== undefined) rampOrSet(wah.gain, gain, COLOUR_RAMP_SECONDS);
+    }
     if (wet !== undefined) writeMix('autoWah', wet);
   } catch (err) {
     devWarn('[AudioEngine] setGlobalAutoWah failed', err);
