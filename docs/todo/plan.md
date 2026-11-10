@@ -14,7 +14,8 @@ the item's own measure-first check runs, and the item archives if the check find
 ## Stage 1 — Feature wrap-up
 
 - Backlog [72](backlog.md#72-audio-dark-effects-leave-the-graph--their-standing-signals-go-b9) **Dark effects leave the
-  graph** — 67's B9, priced −0.026 / −0.022 at Full; interview → spec → plan, then build.
+  graph** — 67's B9, priced −0.026 / −0.022 at Full; interviewed 2026-11-10
+  ([intent](../intent/dark-effects-leave-the-graph.md)), then spec → plan → build.
 - Backlog [39](backlog.md#39-main-thread-recurring-store-writes-fan-out-to-the-world-view-measure-first) **The world
   view's re-renders per tick** — if needed, else archive: one profile window with swells on, and the `?debug` overlay's
   lag line read beside the pops now that 37 and 38 are in.
