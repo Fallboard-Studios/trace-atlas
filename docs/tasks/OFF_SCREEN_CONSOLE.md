@@ -1057,12 +1057,16 @@ Probes. Nothing about companies themselves changes (the deal, bulk edit, create,
   errors (the same 4 warnings). Proof: Crawford's read.
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every automated acceptance criterion across Tasks 1–15 met; spec §5's seven mutants each checked by hand and
-      named in their task's commit.
-- [ ] Docs reflect the shipped API, every name spot-checked.
-- [ ] Any Look not done this session flagged here, never silently skipped.
-- [ ] Ready for Crawford's PR. Archiving backlog 71 and the spec's status line wait for the merge (the todo
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. 2026-11-09, after Task 16: types
+      clean; lint 0 errors (the same 4 warnings); full suite 350 files, 13,517 pass, with the known
+      `[vitest-worker] Timeout calling "onTaskUpdate"` exit (twice this run); vite build clean.
+- [x] Every automated acceptance criterion across Tasks 1–15 met; spec §5's seven mutants each checked by hand and
+      named in their task's ticked **Mutant** box (case 6's header mutant was killed against the Transmissions header,
+      which Checkpoint A later deleted with its toggle).
+- [x] Docs reflect the shipped API, every name spot-checked (Task 16).
+- [x] Any Look not done this session flagged here, never silently skipped. None outstanding: Crawford's looks passed
+      at Checkpoints A, B and C.
+- [x] Ready for Crawford's PR. Passed 2026-11-09 (Crawford). Archiving backlog 71 and the spec's status line wait for the merge (the todo
       conventions).
 
 ## Risks and Mitigations
