@@ -64,6 +64,16 @@ describe('saveNamedSession / loadSession / deleteNamedSession', () => {
   it('loadSession returns undefined for a name that was never saved', () => {
     expect(loadSession('never-saved')).toBeUndefined();
   });
+
+  it('a name matching an Object prototype key is a plain name: saved, listed, loaded and deleted', () => {
+    expect(loadSession('__proto__')).toBeUndefined();
+    saveNamedSession('__proto__', makePayload());
+
+    expect(listSessions().map((e) => e.name)).toEqual(['__proto__']);
+    expect(loadSession('__proto__')).toEqual(makePayload());
+    deleteNamedSession('__proto__');
+    expect(listSessions()).toEqual([]);
+  });
 });
 
 describe('renameNamedSession (off-screen console Task 1)', () => {
@@ -137,6 +147,18 @@ describe('renameNamedSession (off-screen console Task 1)', () => {
     expect(renameNamedSession('old', 'toString')).toBe(true);
 
     expect(listSessions()).toEqual([{ name: 'toString', savedAt: 3, payload }]);
+  });
+
+  // Found in the console's code review (2026-11-10): assigning `named['__proto__']` on a parsed object set its
+  // prototype, so the rename reported true and the save vanished from storage.
+  it('keeps a save renamed to __proto__, under that name', () => {
+    const payload = makePayload();
+    seed({ old: { savedAt: 3, payload } });
+
+    expect(renameNamedSession('old', '__proto__')).toBe(true);
+
+    expect(listSessions()).toEqual([{ name: '__proto__', savedAt: 3, payload }]);
+    expect(loadSession('__proto__')).toEqual(payload);
   });
 
   it('returns false and leaves corrupted storage alone, never throwing', () => {

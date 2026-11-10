@@ -18,8 +18,14 @@ interface SessionsStorageShape {
 
 export const STORAGE_KEY = 'trace-atlas.sessions.v1';
 
+/** The entries keyed by name on an object with no prototype, so a name such as "__proto__" is a plain key: on a
+ *  plain object, assigning it sets the prototype and the entry never reaches storage. */
+function namedOf(entries: Record<string, SessionEntry> = {}): Record<string, SessionEntry> {
+  return Object.assign(Object.create(null) as Record<string, SessionEntry>, entries);
+}
+
 function emptyStorage(): SessionsStorageShape {
-  return { named: {} };
+  return { named: namedOf() };
 }
 
 // ========================================
@@ -40,7 +46,7 @@ function readStorage(): SessionsStorageShape {
     if (!parsed || typeof parsed !== 'object' || typeof parsed.named !== 'object') {
       return emptyStorage();
     }
-    return { named: parsed.named ?? {} };
+    return { named: namedOf(parsed.named ?? {}) };
   } catch (err) {
     devWarn('[sessionStorageEngine] corrupted session storage, starting fresh', err);
     return emptyStorage();
@@ -85,7 +91,7 @@ export function renameNamedSession(from: string, to: string): boolean {
   return true;
 }
 
-/** Every named entry, for the "Load Sessions" list. */
+/** Every named entry, for the off screen's list. */
 export function listSessions(): SessionEntry[] {
   const data = readStorage();
   return Object.values(data.named);
