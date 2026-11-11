@@ -21,8 +21,6 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Backlog [74](backlog.md#74-audio-fade-a-robot-in-and-out-on-its-station-arcs) **Fade a robot in and out on its
-  station arcs** — moved out of 60; a short interview first.
 - Backlog [17](backlog.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings) **The replayability
   audit** — read it against the code, then do what it points at or archive it.
 

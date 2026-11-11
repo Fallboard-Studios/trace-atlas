@@ -550,6 +550,9 @@ read-only strip first, or the editor with it. Plan.md Post-launch.
 
 ### 74. Audio: Fade a Robot In and Out on Its Station Arcs
 
+**Status (2026-11-11): off plan.md, not sequenced.** Crawford: no longer needed after backlog 60's changes (the last
+robot stays up, battery sizes); possibly folded into the composition feature later.
+
 Moved out of backlog [60](archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging) on 2026-11-11 (spec open
 question A4), where it sat as a complementary note; 60's build did not touch it. As robots exit and enter stations,
 their audio presence should fade in and out to mirror their visual presence — *Semantic Fade on Lifecycle Change*
