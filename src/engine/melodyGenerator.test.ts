@@ -833,13 +833,28 @@ describe('buildSeededRhythm', () => {
   });
 
   it('a motif length change gives a different stream', () => {
-    // 4 of 8 and 2 of 4: the same fill, a different shape.
+    // 4 of 8 and 2 of 4: the same fill, a different shape (the onset count differs too).
     const changed = { ...fullAttrs, rhythmicMotifLength: { active: true, value: 4 } };
     expect(drawSequence(buildSeededRhythm(WORLD, changed))).not.toEqual(base());
   });
 
   it('turning motif tiling off gives a different stream (same length value)', () => {
     const changed = { ...fullAttrs, rhythmicMotifLength: { active: false, value: 8 } };
+    expect(drawSequence(buildSeededRhythm(WORLD, changed))).not.toEqual(base());
+  });
+
+  // The two cases above also change the onset count; these hold it, so only the cell length tells them apart.
+  it('the same onset count in another cell length gives a different stream', () => {
+    // 4 of 8 at 50 % and 4 of 7 at 57 %.
+    const changed = { ...fullAttrs, rhythmicDensity: 57, rhythmicMotifLength: { active: true, value: 7 } };
+    expect(rhythmShape(57, changed.rhythmicMotifLength).onsets).toBe(rhythmShape(50, fullAttrs.rhythmicMotifLength).onsets);
+    expect(drawSequence(buildSeededRhythm(WORLD, changed))).not.toEqual(base());
+  });
+
+  it('the same onset count with tiling off gives a different stream', () => {
+    // 4 of 8 at 50 %, and 4 in the measure at 25 % with tiling off.
+    const changed = { ...fullAttrs, rhythmicDensity: 25, rhythmicMotifLength: { active: false, value: 8 } };
+    expect(rhythmShape(25, changed.rhythmicMotifLength).onsets).toBe(rhythmShape(50, fullAttrs.rhythmicMotifLength).onsets);
     expect(drawSequence(buildSeededRhythm(WORLD, changed))).not.toEqual(base());
   });
 
@@ -1475,6 +1490,13 @@ describe('buildSeededPerformance', () => {
   it('a different world or shape gives a different sequence', () => {
     expect(draws(buildSeededPerformance('7:12', attrs))).not.toEqual(draws(buildSeededPerformance('7:11', attrs)));
     expect(draws(buildSeededPerformance('7:11', { ...attrs, rhythmicDensity: 75 }))).not.toEqual(draws(buildSeededPerformance('7:11', attrs)));
+  });
+
+  it('the same onset count in another cell length, or with tiling off, gives a different sequence', () => {
+    // 4 onsets each: 4 of 8 at 50 %, 4 of 7 at 57 %, 4 in the measure at 25 % with tiling off.
+    const base = draws(buildSeededPerformance('7:11', attrs));
+    expect(draws(buildSeededPerformance('7:11', { rhythmicDensity: 57, rhythmicMotifLength: { active: true, value: 7 } }))).not.toEqual(base);
+    expect(draws(buildSeededPerformance('7:11', { rhythmicDensity: 25, rhythmicMotifLength: { active: false, value: 8 } }))).not.toEqual(base);
   });
 
   it('is its own stream: it differs from buildSeededRhythm on the same world and shape', () => {
