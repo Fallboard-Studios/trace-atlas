@@ -178,7 +178,7 @@ export interface Robot {
    * Seed for the robot's gem-polygon body (docs/specs/GEM_POLYGON_ROBOTS.md §1.1). The geometry
    * is derived — `getRobotGem(gemSeed)` in components/robot/gem/polygon.ts, cached per seed — and
    * never stored here. Drawn once at spawn ('robot.gem.seed'), never user-edited, never inherited
-   * on the copy path, never diffed into a session — regenerated identically from the world seed.
+   * from a company founder, never diffed into a session — regenerated identically from the world seed.
    */
   gemSeed: number;
   /**

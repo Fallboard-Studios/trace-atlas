@@ -64,6 +64,7 @@ import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
+import { SIM_SEED_COORDS } from '../systems/lifecycleSim';
 import { applyAspectDeal, rederiveLoading } from '../systems/aspectDeal';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
@@ -747,6 +748,24 @@ describe('buildSessionPayload', () => {
     const payload = buildSessionPayload();
     expect(Object.keys(payload.companyDiffs)).toEqual([]);
     expect(payload.userCreatedCompanies).toEqual([]);
+  });
+
+  // Company Families Task 5 (case 9): members spawn from their founders and the baselines mirror it, so an untouched
+  // world still saves nothing, on every grid world (the cap of Task 4 included: 34 of them).
+  it('an untouched world saves robotOverrides {} and no company diffs on every one of the 121 grid worlds', () => {
+    for (const { x, y } of SIM_SEED_COORDS) {
+      const localeId = setupWorld();
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...state.locales[localeId], coordinates: { x, y } } },
+      }));
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots.some((r) => r.lineage !== undefined), `${x}:${y} has members`).toBe(true);
+      const payload = buildSessionPayload();
+      expect(payload.robotOverrides, `${x}:${y}`).toEqual({});
+      expect(payload.companyDiffs, `${x}:${y}`).toEqual({});
+    }
   });
 
   it('includes only the one company that was renamed, with only its changed field', () => {

@@ -11,7 +11,7 @@ stands. **Phase 1 (Tasks 1–3) built 2026-11-11; at its checkpoint Crawford rev
 the same settings in one world make the same rhythm, and the moved onsets go. Tasks 3a and 3b reworked Phase 1 to
 that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). Stopped at the rhythm-stream
 checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Task 4 built 2026-11-11 (the cap touches 34
-of 121 grid worlds). Next is Task 5.**
+of 121 grid worlds); Task 5 built the same day. Next is Task 6.**
 
 ## Overview
 
@@ -329,7 +329,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** S
 
-- [ ] **Task 5: members inherit at spawn, the baselines mirror it, and the copy roll goes**
+- [x] **Task 5: members inherit at spawn, the baselines mirror it, and the copy roll goes**
 
   **Description:** `spawnInitialRoster` computes the membership first and passes each member its founder (the
   company's lowest index, B6). `spawnRobot` copies the founder's inherited fields (spec §1.9) and its five sends from
@@ -344,17 +344,42 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Proof:** RED test — `src/systems/spawnSystem.test.ts`, `src/utils/sessionDiff.test.ts`: cases 6, 7, 9 and 10.
 
   **Acceptance criteria:**
-  - [ ] Over the grid: every member's inherited fields and sends equal its founder's; its onsets and lengths equal the
+  - [x] Over the grid: every member's inherited fields and sends equal its founder's; its onsets and lengths equal the
         founder's exactly; its notes are its own in most members; founders and freelancers carry no lineage.
-  - [ ] No spawn draws `'robot.copyChance'` or `'robot.copySource'` (a spy on the draw).
-  - [ ] An untouched world saves `robotOverrides: {}` on every grid world; a member moved by hand keeps its lineage,
+  - [x] No spawn draws `'robot.copyChance'` or `'robot.copySource'` (a spy on the draw).
+  - [x] An untouched world saves `robotOverrides: {}` on every grid world; a member moved by hand keeps its lineage,
         and its melody does not change.
-  - [ ] `buildSimRoster` still matches spawn (`lifecycleSim.test.ts` passes unmodified).
-  - [ ] Mutants, killed: the founder taken as the highest index; the sends left fresh.
+  - [x] `buildSimRoster` still matches spawn (`lifecycleSim.test.ts` passes unmodified).
+  - [x] Mutants, killed: the founder taken as the highest index; the sends left fresh.
+
+  **As built:** `spawnRobot(localeId, { …, founderIndex })` reads the founder from the store at that index and takes
+  the copy branch's fields plus the five sends; with no robot there it spawns an original. `companyFounders(membership)`
+  (member index → founder, the lowest index) is the one reading of the membership for `spawnInitialRoster` and
+  `generateRobotRosterBaseline`, whose private `memberBaseline` is the founder's baseline with the member's own name and
+  volume. `generateRobotAudioBaseline` is now an original's only. Cases 6, 7 and the hand move are in a new file,
+  `src/systems/spawnSystem.families.test.ts` (its grid spawns 121 rosters, so it runs beside the big file in parallel);
+  case 9's grid half is in `sessionDiff.test.ts` (1.7 s). A consequence the plan did not name: a roster baseline of
+  any length now draws companies over that length, so a run of robots spawned alone (always originals) matches the
+  chain of original baselines, not `generateRobotRosterBaseline`; three tests that compared the two were re-aimed to
+  the chain. Mutants, killed: the founder as the highest index (328 tests); the sends left fresh at spawn (26) and in
+  the baseline (28); extras: no lineage set (10); `spawnInitialRoster` passing no founders (42).
+
+  Re-aimed, named in the commit: the copy-branch tests in `spawnSystem.test.ts` became member tests (spawned with
+  `founderIndex`, or a real roster's membership); the B5 send cases were inverted (a member takes its founder's
+  sends), and three copy-branch twins of roster cases were removed (a real roster now holds members, and those cases
+  gained a "the roster has members" precondition); the deal tests that used a copy now use a
+  member and still expect its own index (Task 6 flips them), and two deal loops skip members where the interim deal
+  splits them from their founder. Re-pinned from the generator: the Classic parity roster's robot 1 and the three
+  spawned robots' 1 and 2 (copies of robot 0 before, originals now), and the tiers (robot 4 now an original, robot 11 a
+  member, so its tiers moved to originals 13 and 14; robot 50 one LFO lane). Value pins that recorded each index's own
+  send draw (`generateRobotSends` parity, `robotSendsParity` (a)) now read the draw itself; no recording changed. The
+  send-parity (b) cases expect each member's row to be its founder's recorded row, and the swell case sets robot 11 (a
+  member) back to its own recorded sends first. `spawnSystem.evenCopies.test.ts` lost its 30 % copy-share case, and its
+  two path cases read membership and the original chain.
 
   **Verification:**
-  - [ ] `npm test` passes (spawn changes every world's roster).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` passes (352 files; 13,768 passed, 2 skipped; 263 s).
+  - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** Task 4.
 
