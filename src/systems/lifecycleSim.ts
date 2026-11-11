@@ -359,16 +359,28 @@ export interface CoverSimRow {
   worstWorlds: CoverSimWorld[];
 }
 
+/** One row the cover sim is asked for: its label, and the battery-size band its rosters carry (the shipped one if
+ *  omitted; 'flat' for none). */
+export interface CoverSimRowSpec {
+  label: string;
+  band?: SimBand;
+}
+
 /**
- * The cover sim (spec §1.5): every world's buildSimRoster stepped through the real stepRobotLifecycle
- * for `measures`, fed to a cover tally, then pooled into one row. Pure: no store, no BeatClock.
+ * The cover sim (spec §1.5): for each row asked, every world's buildSimRoster on that row's band stepped through the
+ * real stepRobotLifecycle for `measures`, fed to a cover tally, then pooled into one row. Rows come back in the order
+ * asked; with none asked, one row on the shipped band. Pure: no store, no BeatClock.
  */
 export function runCoverSim(options: {
   coords?: ReadonlyArray<{ x: number; y: number }>;
   measures?: number;
-  label?: string;
-} = {}): CoverSimRow {
-  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, label = 'shipped' } = options;
+  rows?: readonly CoverSimRowSpec[];
+} = {}): CoverSimRow[] {
+  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, rows = [{ label: 'shipped' }] } = options;
+  return rows.map(({ label, band }) => coverSimRow(coords, measures, label, band));
+}
+
+function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: number, label: string, band: SimBand | undefined): CoverSimRow {
   const sounding: number[] = [];
   const stays: number[] = [];
   const cycles: number[] = [];
@@ -381,7 +393,7 @@ export function runCoverSim(options: {
 
   for (const { x, y } of coords) {
     const noiseMap = simNoiseMap(x, y);
-    let roster = buildSimRoster(noiseMap);
+    let roster = buildSimRoster(noiseMap, band);
     const tally = createCoverTally(roster);
     for (let measure = 1; measure <= measures; measure++) {
       roster = stepRobotLifecycle(roster, measure, noiseMap);
@@ -891,18 +903,20 @@ export interface ReadinessSeedRow {
 /**
  * Every candidate × tempo over every placed world, `seconds` each, on the real roster, lifecycle,
  * sites and stations. Each world's rand is seeded by coordinates and tempo, so candidates are
- * compared on the same draws. Store-free once the worlds are placed.
+ * compared on the same draws. The rosters carry battery sizes on `band` (the shipped one if omitted;
+ * 'flat' for none, no-silence spec §1.6). Store-free once the worlds are placed.
  */
 export function runReadinessSim(options: {
   worlds: ReadonlyArray<{ x: number; y: number; actors: Actor[] }>;
   seconds?: number;
   bpms?: readonly number[];
   candidates?: readonly CooldownCandidate[];
+  band?: SimBand;
 }): { rows: ReadinessRow[]; seeds: ReadinessSeedRow[] } {
-  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES } = options;
+  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES, band } = options;
   const prepared = worlds.map(({ x, y, actors }) => {
     const noiseMap = simNoiseMap(x, y);
-    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap) };
+    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap, band) };
   });
 
   const rows: ReadinessRow[] = [];

@@ -42,6 +42,7 @@ import {
   type LoopSimWorld,
   type ReadinessRow,
   type ReadinessSeedRow,
+  type SimBand,
 } from './lifecycleSim';
 import { activeDrain, stepRobotLifecycle, type RobotLifecycleSnapshot } from './robotSystems';
 import { generateBatterySize, spawnInitialRoster } from './spawnSystem';
@@ -66,6 +67,8 @@ import {
   BEATS_PER_MEASURE,
   BACK_HOSTS_ENABLED,
   BATTERY_CRITICAL_THRESHOLD,
+  BATTERY_SIZE_MIN,
+  BATTERY_SIZE_MAX,
 } from '../constants';
 
 // ========================================
@@ -488,10 +491,18 @@ describe('createCoverTally (no-silence Task 1)', () => {
 /** The cover report's run length (spec §5.3): 6,000 measures a world, under LIFECYCLE_SIM_REPORT only. */
 const COVER_REPORT_MEASURES = 6000;
 
+/** The rows the reports print (plan Tasks 10 and 13): today's flat fleet and the three candidate bands. */
+const REPORT_BANDS: ReadonlyArray<{ label: string; band: SimBand }> = [
+  { label: 'flat', band: 'flat' },
+  { label: '0.9–1.1', band: [0.9, 1.1] },
+  { label: '0.8–1.25', band: [0.8, 1.25] },
+  { label: '0.67–1.5', band: [0.67, 1.5] },
+];
+
 describe('runCoverSim (no-silence Task 2)', () => {
   it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and at most five worst worlds, longest silence first', () => {
     // The whole grid, but short: enough silent worlds, of more than one length, to test the cap and the order.
-    const row = runCoverSim({ measures: 300 });
+    const [row] = runCoverSim({ measures: 300 });
     expect(row.worldsWithSilence).toBeGreaterThan(5);
     expect(new Set(row.worstWorlds.map((w) => w.length)).size).toBeGreaterThan(1);
     expect(row.worlds).toBe(SIM_SEED_COORDS.length);
@@ -537,7 +548,7 @@ describe('runCoverSim (no-silence Task 2)', () => {
         if (sounding === 0) silent++;
         longest = Math.max(longest, run);
       }
-      const row = runCoverSim({ coords: [{ x, y }], measures: 300 });
+      const [row] = runCoverSim({ coords: [{ x, y }], measures: 300 });
       expect(row.silentShare * 300).toBeCloseTo(silent, 9);
       expect(row.worldsWithSilence).toBe(silent > 0 ? 1 : 0);
       expect(row.sounding.mean).toBeCloseTo(soundingTotal / 300, 9);
@@ -549,8 +560,8 @@ describe('runCoverSim (no-silence Task 2)', () => {
   });
 
   it('pools the tally over worlds: staysPer1000 and the shares are per measure per world', () => {
-    const one = runCoverSim({ coords: [FEW_COORDS[0]], measures: 300 });
-    const two = runCoverSim({ coords: [FEW_COORDS[0], FEW_COORDS[0]], measures: 300 });
+    const [one] = runCoverSim({ coords: [FEW_COORDS[0]], measures: 300 });
+    const [two] = runCoverSim({ coords: [FEW_COORDS[0], FEW_COORDS[0]], measures: 300 });
     expect(two.silentShare).toBeCloseTo(one.silentShare, 12);
     expect(two.staysPer1000).toBeCloseTo(one.staysPer1000, 12);
     expect(two.stayShare).toBeCloseTo(one.stayShare, 12);
@@ -558,8 +569,40 @@ describe('runCoverSim (no-silence Task 2)', () => {
     expect(two.worldsWithSilence).toBe(2 * one.worldsWithSilence);
   });
 
-  it('is deterministic — the same row twice', () => {
-    expect(runCoverSim({ coords: FEW_COORDS, measures: 200 })).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 200 }));
+  it('is deterministic — the same rows twice', () => {
+    const rows = [{ label: 'flat', band: 'flat' as const }, { label: 'wide', band: [0.67, 1.5] as const }];
+    expect(runCoverSim({ coords: FEW_COORDS, measures: 200, rows })).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 200, rows }));
+  });
+
+  describe('rows on a band each (no-silence Task 9)', () => {
+    const rows = [
+      { label: 'flat', band: 'flat' as const },
+      { label: '0.9-1.1', band: [0.9, 1.1] as const },
+      { label: '0.67-1.5', band: [0.67, 1.5] as const },
+    ];
+
+    it('come back in the order asked, labelled, each built on its own band', () => {
+      const result = runCoverSim({ coords: FEW_COORDS, measures: 300, rows });
+      expect(result.map((r) => r.label)).toEqual(['flat', '0.9-1.1', '0.67-1.5']);
+      rows.forEach((spec, i) => expect(result[i]).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 300, rows: [spec] })[0]));
+      expect(result[1]).not.toEqual({ ...result[2], label: result[1].label });
+    });
+
+    it('with no rows asked, one row labelled shipped on the shipped band', () => {
+      const result = runCoverSim({ coords: FEW_COORDS, measures: 300 });
+      expect(result).toHaveLength(1);
+      const shipped = runCoverSim({ coords: FEW_COORDS, measures: 300, rows: [{ label: 'shipped', band: [BATTERY_SIZE_MIN, BATTERY_SIZE_MAX] }] });
+      expect(result).toEqual(shipped);
+    });
+
+    it("the 'flat' row has one cycle length, every robot's 35 measures; a banded row has several", () => {
+      const [flat, narrow, wide] = runCoverSim({ coords: FEW_COORDS, measures: 300, rows });
+      expect(flat.cycles).toEqual({ shortest: 35, longest: 35, distinct: 1 });
+      expect(narrow.cycles.distinct).toBeGreaterThan(1);
+      expect(wide.cycles.distinct).toBeGreaterThan(narrow.cycles.distinct);
+      expect(wide.cycles.shortest).toBeLessThan(35);
+      expect(wide.cycles.longest).toBeGreaterThan(35);
+    });
   });
 
   it('touches no store and no BeatClock', () => {
@@ -573,8 +616,8 @@ describe('runCoverSim (no-silence Task 2)', () => {
   });
 
   it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)(`the report: the full grid at ${COVER_REPORT_MEASURES} measures a world`, () => {
-    const row = runCoverSim({ measures: COVER_REPORT_MEASURES });
-    console.log(`\n${formatCoverReport([row])}`);
+    const rows = runCoverSim({ measures: COVER_REPORT_MEASURES, rows: REPORT_BANDS });
+    console.log(`\n${formatCoverReport(rows)}`);
   }, 300_000);
 });
 
@@ -1022,6 +1065,19 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(b).toEqual(a);
     });
 
+    it('runs on the band it is given, and with none on the shipped one (no-silence Task 9)', () => {
+      const candidates = COOLDOWN_CANDIDATES.slice(0, 1);
+      const run = (band?: SimBand) => runReadinessSim({ worlds, seconds: 600, bpms: [200], candidates, band });
+      const byDefault = run();
+      expect(byDefault).toEqual(run([BATTERY_SIZE_MIN, BATTERY_SIZE_MAX]));
+      // A different roster moves the loop: 'flat' and a wide band each differ from the shipped band and from each other.
+      const flat = run('flat');
+      const wide = run([0.67, 1.5]);
+      expect(flat.seeds).not.toEqual(byDefault.seeds);
+      expect(wide.seeds).not.toEqual(byDefault.seeds);
+      expect(wide.seeds).not.toEqual(flat.seeds);
+    }, 30_000);
+
     it('at 200 BPM the lifecycle docks a recalled robot sooner, so it is visible-while-Docked longer than at 20 BPM', () => {
       // Turn-backs are not compared: with recharge 5/measure the shortest Docked stay (~20 measures,
       // 24 s at 200 BPM) outlasts the longest walk home, so both tempos measure 0 (Task 15 report).
@@ -1037,6 +1093,15 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       for (const r of rows) expect(r.chargingWhileVisible).toBe(0);
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatReadinessReport(rows, seeds)}`);
     }, 120_000);
+
+    it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)('the report: the full grid at 20, 110 and 200 BPM for 10 minutes on each band', () => {
+      const grid = SIM_SEED_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
+      const candidates = COOLDOWN_CANDIDATES.slice(0, 1);
+      for (const { label, band } of REPORT_BANDS) {
+        const { rows, seeds } = runReadinessSim({ worlds: grid, candidates, band });
+        console.log(`\n### Band ${label}\n\n${formatReadinessReport(rows, seeds)}`);
+      }
+    }, 600_000);
   });
 
   describe('formatReadinessReport', () => {

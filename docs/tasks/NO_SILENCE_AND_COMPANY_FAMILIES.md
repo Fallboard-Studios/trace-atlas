@@ -353,7 +353,7 @@ task.
 
   **Estimated scope:** S (one function's signature, one pin)
 
-- [ ] **Task 9: `lifecycleSim.ts` — the cover sim and the loop sim take a band**
+- [x] **Task 9: `lifecycleSim.ts` — the cover sim and the loop sim take a band**
 
   **Description:** `runCoverSim` gains `rows`, a list of `{ label, band }` handed to `buildSimRoster`, defaulting to
   one row on the shipped band. `runReadinessSim` gains a `band` option handed on the same way. The report-only cases
@@ -363,16 +363,19 @@ task.
   a banded row has more than one.
 
   **Acceptance criteria:**
-  - [ ] Rows come back in the order asked, labelled, each built on its own band; with no `rows`, one row on the
-        shipped band.
-  - [ ] The `'flat'` row has one distinct cycle length; a banded row has several.
-  - [ ] `runReadinessSim` runs on the band it is given (a `'flat'` run and a banded run are on different rosters), and
+  - [x] Rows come back in the order asked, labelled, each built on its own band; with no `rows`, one row on the
+        shipped band. *As built:* `runCoverSim` now returns `CoverSimRow[]` (its `label` option became `rows`), so
+        the Task 2 cases read `const [row] = …`.
+  - [x] The `'flat'` row has one distinct cycle length; a banded row has several.
+  - [x] `runReadinessSim` runs on the band it is given (a `'flat'` run and a banded run are on different rosters), and
         with no band on the shipped one.
-  - [ ] Deterministic, no store, no BeatClock, no GSAP.
+  - [x] Deterministic, no store, no BeatClock, no GSAP.
+  - *As built:* the report-only cases print four rows (`'flat'`, 0.9–1.1, 0.8–1.25, 0.67–1.5): the cover report in
+    one table, and a new loop-sim report case that runs the shipped cooldown on each band at 20, 110 and 200 BPM.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/lifecycleSim.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/lifecycleSim.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 2 and 8.
 
