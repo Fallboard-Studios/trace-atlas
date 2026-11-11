@@ -26,7 +26,7 @@ type StubNode = {
   detune: StubParam;
   onended: ((...args: unknown[]) => void) | undefined;
 };
-type StubSignal = { disconnect: ReturnType<typeof vi.fn> };
+type StubSignal = { connect: ReturnType<typeof vi.fn>; disconnect: ReturnType<typeof vi.fn> };
 type StubOscillator = {
   _oscillator: StubNode | null | undefined;
   frequency: StubSignal;
@@ -55,9 +55,25 @@ function makePrototype(nodes: Array<StubNode | null | undefined>) {
 function makeOscillator(prototype: object, calls: string[] = []): StubOscillator {
   const oscillator = Object.create(prototype) as StubOscillator;
   oscillator._oscillator = null;
-  oscillator.frequency = { disconnect: vi.fn(() => calls.push('frequency.disconnect')) };
-  oscillator.detune = { disconnect: vi.fn(() => calls.push('detune.disconnect')) };
+  oscillator.frequency = {
+    connect: vi.fn(() => calls.push('frequency.connect')),
+    disconnect: vi.fn(() => calls.push('frequency.disconnect')),
+  };
+  oscillator.detune = {
+    connect: vi.fn(() => calls.push('detune.connect')),
+    disconnect: vi.fn(() => calls.push('detune.disconnect')),
+  };
   return oscillator;
+}
+
+/** Give a stub Signal the wiring Tone 15.1.22 has through standardized-audio-context, measured in headless Chrome
+ *  (backlog 80, 2026-11-11): disconnecting it from one AudioParam drops its connections to every param. Returns the
+ *  live set of params it feeds. */
+function wireLikeTheWrapper(signal: StubSignal): Set<unknown> {
+  const feeds = new Set<unknown>();
+  signal.connect.mockImplementation((param: unknown) => feeds.add(param));
+  signal.disconnect.mockImplementation(() => feeds.clear());
+  return feeds;
 }
 
 // ========================================
@@ -120,6 +136,83 @@ describe('patchOscillatorEndedDisconnect', () => {
       [first.frequency],
     ]);
     expect(oscillator.detune.disconnect.mock.calls).toEqual([[second.detune], [first.detune]]);
+  });
+
+  describe('a note started from the stopped state before the previous node ends (backlog 80)', () => {
+    // Tone wires a new node ~150 ms ahead of its start, so a short rest or a cut note gives the Oscillator two nodes
+    // at once: the old one still fading out, the new one waiting to sound. Like Tone's own `_start`, this stub's
+    // connects the Oscillator's Signals into each new node's params.
+    function setUp() {
+      const first = makeNode();
+      const second = makeNode();
+      const nodes = [first, second];
+      let index = 0;
+      const prototype = {
+        _start(this: StubOscillator) {
+          const node = nodes[index++];
+          this._oscillator = node;
+          this.frequency.connect(node.frequency);
+          this.detune.connect(node.detune);
+        },
+      };
+      patchOscillatorEndedDisconnect(prototype);
+      const oscillator = makeOscillator(prototype);
+      const frequencyFeeds = wireLikeTheWrapper(oscillator.frequency);
+      const detuneFeeds = wireLikeTheWrapper(oscillator.detune);
+      oscillator._start(0);
+      oscillator._start(1);
+      return { oscillator, first, second, frequencyFeeds, detuneFeeds };
+    }
+
+    it('keeps the new node fed when the old one ends, so its oscillator never sits at 0 Hz', () => {
+      const { first, second, frequencyFeeds, detuneFeeds } = setUp();
+
+      first.onended?.();
+
+      expect([...frequencyFeeds]).toEqual([second.frequency]);
+      expect([...detuneFeeds]).toEqual([second.detune]);
+    });
+
+    it.each([
+      ['the old node first', ['first', 'second']],
+      ['the new node first', ['second', 'first']],
+    ] as const)('leaves nothing connected once both have ended, %s', (_label, order) => {
+      const nodes = setUp();
+
+      for (const which of order) nodes[which].onended?.();
+
+      expect(nodes.frequencyFeeds.size).toBe(0);
+      expect(nodes.detuneFeeds.size).toBe(0);
+    });
+
+    it("never feeds one Oscillator into another's node, on the same prototype", () => {
+      const ownOld = makeNode();
+      const otherLive = makeNode();
+      const ownNew = makeNode();
+      const { prototype } = makePrototype([ownOld, otherLive, ownNew]);
+      patchOscillatorEndedDisconnect(prototype);
+      const own = makeOscillator(prototype);
+      const other = makeOscillator(prototype);
+      own._start(0);
+      other._start(0);
+      own._start(1);
+
+      ownOld.onended?.();
+
+      expect(own.frequency.connect.mock.calls).toEqual([[ownNew.frequency]]);
+      expect(own.detune.connect.mock.calls).toEqual([[ownNew.detune]]);
+    });
+
+    it('swallows and devWarns a reconnect that throws, and still reconnects detune', () => {
+      const { oscillator, first, second, detuneFeeds } = setUp();
+      oscillator.frequency.connect.mockImplementation(() => {
+        throw new Error('InvalidStateError: the node is disposed');
+      });
+
+      expect(() => first.onended?.()).not.toThrow();
+      expect([...detuneFeeds]).toEqual([second.detune]);
+      expect(devWarn).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('still disconnects when the original start installed no onended', () => {
