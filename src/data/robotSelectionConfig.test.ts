@@ -5,8 +5,8 @@ import {
   JOB_TYPE_LABELS,
   UNASSIGNED_JOB_LABEL,
   DOCKING_STATE_LABELS,
-  AUDIBILITY_LABELS,
   ACTIVITY_LABELS,
+  MODE_LABELS,
 } from './robotSelectionConfig';
 import { CONTENT } from '@/content';
 
@@ -49,30 +49,19 @@ describe('robotSelectionConfig', () => {
     });
   });
 
-  describe('AUDIBILITY_LABELS', () => {
-    it('covers both emitting and disabled with a loreLabel and humanLabel', () => {
-      expect(AUDIBILITY_LABELS.emitting.loreLabel).toBeTruthy();
-      expect(AUDIBILITY_LABELS.emitting.humanLabel).toBeTruthy();
-      expect(AUDIBILITY_LABELS.disabled.loreLabel).toBeTruthy();
-      expect(AUDIBILITY_LABELS.disabled.humanLabel).toBeTruthy();
+  describe('MODE_LABELS (monitor mode spec §1.5)', () => {
+    it('is the probe.monitorMode options record: the four modes, keyed by audioMode', () => {
+      expect(Object.keys(MODE_LABELS).sort()).toEqual(['highlight', 'mute', 'none', 'solo']);
+      for (const mode of ['none', 'mute', 'solo', 'highlight'] as const) {
+        expect(MODE_LABELS[mode].humanLabel).toBe(CONTENT['probe.monitorMode'].options[mode].human);
+        expect(MODE_LABELS[mode].loreLabel).toBe(CONTENT['probe.monitorMode'].options[mode].lore);
+      }
     });
 
-    it("labels read 'Emitting'/'Disabled', per the confirmed intent", () => {
-      expect(AUDIBILITY_LABELS.emitting.humanLabel).toBe(CONTENT['probe.status'].options.emitting.human);
-      expect(AUDIBILITY_LABELS.disabled.humanLabel).toBe(CONTENT['probe.status'].options.disabled.human);
-    });
-
-    it("has a third state, 'Standing by', for a robot the Audio Load budget is holding back", () => {
-      expect(AUDIBILITY_LABELS.limited.humanLabel).toBe(CONTENT['probe.status'].options.limited.human);
-      expect(AUDIBILITY_LABELS.limited.loreLabel).toBeTruthy();
-    });
-
-    it('covers exactly the three audibility states, each with distinct labels', () => {
-      expect(Object.keys(AUDIBILITY_LABELS).sort()).toEqual(['disabled', 'emitting', 'limited']);
-      const human = Object.values(AUDIBILITY_LABELS).map((l) => l.humanLabel);
-      const lore = Object.values(AUDIBILITY_LABELS).map((l) => l.loreLabel);
-      expect(new Set(human).size).toBe(3);
-      expect(new Set(lore).size).toBe(3);
+    it('reads Auto, Mute, Solo and Highlight, each lore word distinct', () => {
+      expect([MODE_LABELS.none, MODE_LABELS.mute, MODE_LABELS.solo, MODE_LABELS.highlight].map((l) => l.humanLabel))
+        .toEqual(['Auto', 'Mute', 'Solo', 'Highlight']);
+      expect(new Set(Object.values(MODE_LABELS).map((l) => l.loreLabel)).size).toBe(4);
     });
   });
 
@@ -150,7 +139,7 @@ describe('robotSelectionConfig reads its copy from src/content (docs/specs/CONTE
     expect(Object.keys(JOB_TYPE_LABELS)).toEqual(Object.keys(CONTENT['probe.job'].options));
     expect(JOB_TYPE_LABELS.ventExtraction.humanLabel).toBe(CONTENT['probe.job'].options.ventExtraction.human);
     expect(DOCKING_STATE_LABELS.docked.loreLabel).toBe(CONTENT['probe.status.docking'].options.docked.lore);
-    expect(AUDIBILITY_LABELS.limited.humanLabel).toBe(CONTENT['probe.status'].options.limited.human);
+    expect(MODE_LABELS.highlight.loreLabel).toBe(CONTENT['probe.monitorMode'].options.highlight.lore);
     expect(UNASSIGNED_JOB_LABEL.humanLabel).toBe(CONTENT['probe.job.unassigned'].human);
     expect(ROBOT_SELECTION_ROW_SCHEMAS.name.humanLabel).toBe(CONTENT['probe.name'].human);
     expect(BATTERY_READOUT_SCHEMA.unit).toBe(CONTENT['probe.battery'].unit);

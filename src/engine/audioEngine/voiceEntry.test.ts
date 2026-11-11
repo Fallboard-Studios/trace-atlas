@@ -33,6 +33,7 @@ function loggingEntry() {
     composite: { dispose: vi.fn(() => { log.push('composite.dispose'); }) } as unknown as CompositeVoice,
     panner: node('panner') as unknown as Tone.Panner,
     busGain: node('busGain') as unknown as Tone.Gain,
+    masterVolume: 1,
     busFilter: node('busFilter') as unknown as Tone.Filter,
     sends,
   };

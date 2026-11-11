@@ -39,6 +39,8 @@ let arrivalOrder: readonly string[] = [];
 let sounding: readonly string[] = [];
 /** The standing-by robots last pushed to the engine (docs/specs/LIGHT_TIER_STANDING_COST.md H2), joined. */
 let pushedStandingBy = '';
+/** The live Highlight set last pushed to the engine (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.3), joined. */
+let pushedHighlighted = '';
 let pushedPolyphony: number | null = null;
 /** URL mirror (decision H), one pair per axis: the load the device would default to, and whether a valid
  *  ?load=/?fxLoad= was in the URL at boot. */
@@ -95,12 +97,22 @@ function applyStandingBy(next: readonly string[], force: boolean): void {
   AudioEngine.setStandingByRobots(next);
 }
 
+/** The live Highlight set: the highlighted robots that are sounding (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.3).
+ *  Pushed only when it changes, and before `applySet`, so a voice the admission rebuilds is built at the right dip. */
+function applyHighlighted(next: readonly string[], force: boolean): void {
+  const key = next.join(',');
+  if (!force && key === pushedHighlighted) return;
+  pushedHighlighted = key;
+  AudioEngine.setHighlightedRobots(next);
+}
+
 /** Recompute the sounding set and the ceiling from the current roster and dial; push only what changed. */
 function reconcile(force = false): void {
   const robots = activeRobots();
   const anySolo = robots.some((r) => r.audioMode === 'solo');
   const eligible = robots.filter((r) => isRobotAudible(r.audioMode, anySolo, r.docking)).map((r) => r.id);
   const soloIds = robots.filter((r) => r.audioMode === 'solo').map((r) => r.id);
+  const highlighted = new Set(robots.filter((r) => r.audioMode === 'highlight').map((r) => r.id));
   // G1: a muted robot triggers nothing, so it stands by at every tier — muted by the user, or by the dock unless it is
   // soloed (Solo beats the dock). A solo-silenced one keeps its voice, since an un-solo would readmit eleven at once.
   const mutedIds = robots
@@ -110,7 +122,8 @@ function reconcile(force = false): void {
   const limits: LoadLimits = { ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) };
 
   arrivalOrder = orderByArrival(arrivalOrder, eligible);
-  const next = reconcileSounding(sounding, arrivalOrder, soloIds, limits.maxAudibleRobots);
+  const next = reconcileSounding(sounding, arrivalOrder, { soloIds, highlightIds: [...highlighted] }, limits.maxAudibleRobots);
+  applyHighlighted(next.filter((id) => highlighted.has(id)), force);
   if (force || next !== sounding) applySet(next);
   const soundingNow = new Set(next);
   applyStandingBy([...arrivalOrder.filter((id) => !soundingNow.has(id)), ...mutedIds], force);
@@ -238,6 +251,9 @@ export function stopAudioBudget(): void {
   pushedPolyphony = null;
   appliedTierKey = '';
   lastSignature = '';
+  // No Highlight is live without the budget; released first, so a voice rebuilt below comes up undipped. The pushed key
+  // may go stale: a restart's reconcile is forced.
+  AudioEngine.setHighlightedRobots([]);
   // null also stands nobody by; every robot the budget released is rebuilt, and primed here.
   primeRebuilt(AudioEngine.setSoundingRobots(null));
   AudioEngine.setPolyphonyCap(MAX_POLYPHONY);

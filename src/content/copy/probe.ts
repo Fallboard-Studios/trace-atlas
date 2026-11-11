@@ -71,16 +71,17 @@ export const probe = {
   /** A group's count beside its name box. One probe has its own form (as `ui.noteValue.bar` does). */
   'probe.roster.count': { human: 'Probes', template: '{n} probes' },
   'probe.roster.count.one': { human: '1 probe' },
-  /** A tile's one status line: the job, then the docking, activity and emission states. */
-  'probe.roster.statusLine': { human: 'Status line', template: '{job} · {dockingState} · {activity} · {status}' },
+  /** A tile's one status line: the robot's own Monitor Mode first, then the job, docking and activity. */
+  'probe.roster.statusLine': { human: 'Status line', template: '{status} · {job} · {dockingState} · {activity}' },
   /** The tile's reassignment chip: the glyph alone on the phone; the robot in its accessible name. */
   'probe.roster.move': { human: '⇄ Move', short: '⇄', template: 'Move {name}' },
 
   // ---------------------------------------------------------------- selection card / display rows
   'probe.name': { human: 'Robot Name', lore: 'ROBOT IDENTIFIER' },
   // The robot screen's phone band (docs/specs/LAYOUT_REWORK.md §1.4): the avatar column's meta and
-  // battery on one line, as the sketch draws it ("Salvage · Docked · Charging · Disabled · 85%").
-  'probe.band.statusLine': { human: 'Status line', template: '{job} · {dockingState} · {activity} · {status} · {battery}' },
+  // battery on one line, the robot's own Monitor Mode first (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.6):
+  // "Auto · Salvage · Docked · Charging · 85%".
+  'probe.band.statusLine': { human: 'Status line', template: '{status} · {job} · {dockingState} · {activity} · {battery}' },
   'probe.job': {
     human: 'Job Data',
     lore: 'ASSIGNED PROTOCOL',
@@ -129,12 +130,7 @@ export const probe = {
   },
   'probe.status': {
     human: 'Status',
-    lore: 'ACOUSTIC EMISSION STATE',
-    options: {
-      emitting: { human: 'Emitting', lore: 'ACOUSTIC EMISSION ACTIVE' },
-      limited: { human: 'Standing by', lore: 'ACOUSTIC EMISSION HELD IN RESERVE' },
-      disabled: { human: 'Disabled', lore: 'ACOUSTIC EMISSION SUPPRESSED' },
-    },
+    lore: 'DIAGNOSTIC FEED STATE',
   },
 
   // ---------------------------------------------------------------- Dynamics / Levels

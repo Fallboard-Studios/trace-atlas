@@ -10,13 +10,17 @@
 import colorTheme from '@/constants/colorTheme.json';
 import { hslToString, type HSL } from '@/utils/colorUtils';
 
-export type StatusLightState = 'purple' | 'red' | 'green' | 'amber';
+export type StatusLightState = 'purple' | 'red' | 'green' | 'amber' | 'yellow' | 'blue';
 
 const STATUS_LIGHT_SOURCE: Record<StatusLightState, HSL> = {
   purple: colorTheme.vent.base,
   red: colorTheme.alert.powered,
   green: colorTheme.indicator.powered,
   amber: colorTheme.strut.base,
+  // The mode light's Solo and Highlight (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §7.1 B1): the app's yellow (the
+  // wire) and its blue (the lit porthole's cyan glass).
+  yellow: colorTheme.wire.base,
+  blue: colorTheme.glass.base,
 };
 
 /**

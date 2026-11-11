@@ -317,7 +317,7 @@ vi.mock('../systems/robotLfoLinks', () => ({
 import { AudioEngine } from './AudioEngine';
 import { useLocaleStore } from '../stores/localeStore';
 import { volumePositionToGain } from './audioEngine/volumeTaper';
-import { HEADROOM_TRIM_GAIN, robotBusGain } from './audioEngine/headroom';
+import { HEADROOM_TRIM_GAIN, HIGHLIGHT_DIP_GAIN, robotBusGain } from './audioEngine/headroom';
 import { precomputeDataX } from '../utils/getSeededVal';
 import { robotSendLevels } from '../data/robotSends';
 
@@ -1400,7 +1400,9 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
     expect(foundSolo).toBe(true);
   });
 
-  it('applies ~50% attenuation to non-highlighted robots when one is highlighted', async () => {
+  // docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2: the Highlight is a bus-gain dip (setHighlightedRobots); velocity is the
+  // Dynamics roll's and the accents' alone, so a highlighted robot changes no other robot's note velocity.
+  it('a highlighted robot leaves a non-highlighted robot\'s note velocity as given', async () => {
     const Tone = await import('tone');
     const { AudioEngine } = await import('./AudioEngine');
     const helpers = await import('../utils/localeHelpers');
@@ -1423,31 +1425,20 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
     const synthResults = (Tone.Synth as unknown as any).mock.results;
     synthResults.forEach((r: any) => r.value?.triggerAttackRelease?.mockClear());
 
-    // Schedule note for non-highlighted robot with a unique note. Pass an
-    // explicit velocity (0.8) so this test isolates the highlight-attenuation
-    // step (scheduleNote's audioMode logic unconditionally applies × 0.5,
-    // whether velocity came from the caller or from computeNoteVelocitySeeded)
-    // rather than depending on the active locale's seeded noise map landing in
-    // its "no variance" branch — that incidental coupling is exactly what
-    // broke when the default locale's noise-map coordinates were fixed off
-    // their (0, 0) dead zone (docs/todo/roadmap.md § 5 "Known Issue").
+    // An explicit velocity (0.8), so the assertion does not depend on the locale's seeded velocity roll.
     const targetNote = 'G5';
     AudioEngine.scheduleNote({ robotId: 'r-nh', note: targetNote, duration: '4n', time: 0, velocity: 0.8 });
+    AudioEngine.scheduleNote({ robotId: 'r-h', note: 'A5', duration: '4n', time: 0, velocity: 0.8 });
 
-    // Find the call for our unique note and assert velocity ≈ 0.4
-    let found = false;
-    synthResults.forEach((r: any) => {
-      const inst = r.value;
-      inst?.triggerAttackRelease?.mock?.calls?.forEach((c: any) => {
-        if (c[0] === targetNote) {
-          const vel = c[3];
-          expect(typeof vel).toBe('number');
-          expect(Math.abs(vel - 0.4)).toBeLessThan(0.05);
-          found = true;
-        }
-      });
-    });
-    expect(found).toBe(true);
+    const velocityOf = (note: string): number | undefined => {
+      let vel: number | undefined;
+      synthResults.forEach((r: any) => r.value?.triggerAttackRelease?.mock?.calls?.forEach((c: any) => {
+        if (c[0] === note) vel = c[3];
+      }));
+      return vel;
+    };
+    expect(velocityOf(targetNote)).toBe(0.8);
+    expect(velocityOf('A5')).toBe(0.8);
   });
 
   // The dock mutes through the docking state, not audioMode, and a Solo beats it (Crawford, 2026-11-11).
@@ -1497,17 +1488,44 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
       expect(other).toBeUndefined();
     });
 
-    it('a highlighted robot in the station attenuates nobody; one out of it still does', async () => {
+    it('a highlighted robot, in the station or out of it, changes no other robot\'s velocity', async () => {
       const [whileDocked] = await velocities(
         [robotAt('h', 'highlight', 'docked'), robotAt('o', 'none', 'active')],
         [{ robotId: 'o', note: 'C7' }],
       );
-      expect(whileDocked).toBeCloseTo(0.8, 5);
+      expect(whileDocked).toBe(0.8);
       const [whileOut] = await velocities(
         [robotAt('h2', 'highlight', 'recalled'), robotAt('o2', 'none', 'active')],
         [{ robotId: 'o2', note: 'D7' }],
       );
-      expect(whileOut).toBeCloseTo(0.4, 5);
+      expect(whileOut).toBe(0.8);
+      const [whileActive] = await velocities(
+        [robotAt('h3', 'highlight', 'active'), robotAt('o3', 'none', 'active')],
+        [{ robotId: 'o3', note: 'E7' }],
+      );
+      expect(whileActive).toBe(0.8);
+    });
+
+    it('a non-highlighted robot\'s seeded velocity is the same with or without a highlighted robot out', async () => {
+      const seeded = async (otherMode: string, note: string) => {
+        const Tone = await import('tone');
+        const { AudioEngine } = await import('./AudioEngine');
+        const helpers = await import('../utils/localeHelpers');
+        (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(merged_DEFAULT_LOCALE_ID);
+        const robots = [robotAt('o', 'none', 'active'), robotAt('x', otherMode, 'active')];
+        merged_useLocaleStore.getState().setLocaleData(merged_DEFAULT_LOCALE_ID, { robots: robots as any });
+        await AudioEngine.start();
+        AudioEngine.reserveVoice('o', [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any, TEST_ADSR);
+        const synthResults = (Tone.Synth as unknown as any).mock.results;
+        AudioEngine.scheduleNote({ robotId: 'o', note, duration: '4n', time: 0, position: 3 });
+        let vel: number | undefined;
+        synthResults.forEach((r: any) => r.value?.triggerAttackRelease?.mock?.calls?.forEach((c: any) => { if (c[0] === note) vel = c[3]; }));
+        return vel;
+      };
+      const plain = await seeded('none', 'F7');
+      const highlighted = await seeded('highlight', 'G7');
+      expect(plain).toBeDefined();
+      expect(highlighted).toBe(plain);
     });
   });
 });
@@ -2228,6 +2246,179 @@ describe('AudioEngine.updateRobotMasterVolume', () => {
   it('is a safe no-op (no throw) when the robot has never had a note scheduled yet', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     expect(() => AudioEngine.updateRobotMasterVolume('never-scheduled-robot', 0.5)).not.toThrow();
+  });
+});
+
+// docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2, §1.3 (Task 2): while the live Highlight set is non-empty, every voice
+// outside it sits at robotBusGain(volume) × HIGHLIGHT_DIP_GAIN; a voice in it at robotBusGain(volume).
+describe('AudioEngine.setHighlightedRobots — the Highlight dip is one bus-gain target', () => {
+  type BusGain = { gain: { value: number; rampTo?: ReturnType<typeof vi.fn> } };
+  const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  /** Reserve a voice and return its bus gain instance (the mock Gain the engine built for the bus). */
+  async function reserveWithBus(AudioEngine: any, robotId: string, volume: number): Promise<BusGain> {
+    const Tone = await import('tone');
+    AudioEngine.reserveVoice(robotId, layered, TEST_ADSR, undefined, undefined, undefined, volume);
+    const results = (Tone.Gain as unknown as { mock: { results: { value: BusGain }[] } }).mock.results;
+    return results[results.length - BUS_GAIN_FROM_END].value;
+  }
+
+  it('a Volume edit lands dipped on a robot outside the live set and at full on the highlighted one', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+    const highlighted = await reserveWithBus(AudioEngine, 'h', 0.55);
+
+    AudioEngine.setHighlightedRobots(['h']);
+    AudioEngine.updateRobotMasterVolume('other', 0.4);
+    AudioEngine.updateRobotMasterVolume('h', 0.4);
+
+    expect(other.gain.value).toBeCloseTo(robotBusGain(0.4) * HIGHLIGHT_DIP_GAIN, 12);
+    expect(highlighted.gain.value).toBe(robotBusGain(0.4));
+  });
+
+  it('a voice reserved while the set is live is built at the dipped gain; a highlighted one at full', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setHighlightedRobots(['h']);
+    const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+
+    AudioEngine.reserveVoice('late', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(gainCalls[gainCalls.length - BUS_GAIN_FROM_END][0]).toBeCloseTo(robotBusGain(0.8) * HIGHLIGHT_DIP_GAIN, 12);
+
+    AudioEngine.reserveVoice('h', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(gainCalls[gainCalls.length - BUS_GAIN_FROM_END][0]).toBe(robotBusGain(0.8));
+  });
+
+  it('the stub-fallback bus (composite construction throws) is built dipped too', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const helpers = await import('./audioEngine/toneHelpers');
+    const stubGain = vi.spyOn(helpers, 'makeStubGain');
+    vi.spyOn(AudioEngine, 'createCompositeVoice').mockImplementation(() => { throw new Error('boom'); });
+    AudioEngine.setHighlightedRobots(['h']);
+
+    AudioEngine.reserveVoice('fallback', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    const busValues = stubGain.mock.calls.map(([value]) => value).filter((value) => value !== 0);
+    expect(busValues).toHaveLength(1);
+    expect(busValues[0]).toBeCloseTo(robotBusGain(0.8) * HIGHLIGHT_DIP_GAIN, 12);
+  });
+
+  it('ramps every reserved voice to its target over the 150 ms Highlight ramp', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+    const highlighted = await reserveWithBus(AudioEngine, 'h', 0.7);
+    other.gain.rampTo = vi.fn();
+    highlighted.gain.rampTo = vi.fn();
+
+    AudioEngine.setHighlightedRobots(['h']);
+
+    // 0.15 s is AudioEngine.ts's HIGHLIGHT_RAMP_SECONDS.
+    expect(other.gain.rampTo.mock.calls).toHaveLength(1);
+    expect(other.gain.rampTo.mock.calls[0][0]).toBeCloseTo(robotBusGain(0.55) * HIGHLIGHT_DIP_GAIN, 12);
+    expect(other.gain.rampTo.mock.calls[0].slice(1)).toEqual([0.15]);
+    expect(highlighted.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.7), 0.15]]);
+  });
+
+  it('the same set again, in any order, writes nothing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+    AudioEngine.setHighlightedRobots(['h', 'k']);
+    other.gain.rampTo = vi.fn();
+
+    AudioEngine.setHighlightedRobots(['k', 'h']);
+    AudioEngine.setHighlightedRobots(new Set(['h', 'k', 'h']));
+
+    expect(other.gain.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('moving the Highlight to another robot swaps the two: the new one rises, the old one dips', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const first = await reserveWithBus(AudioEngine, 'first', 0.55);
+    const second = await reserveWithBus(AudioEngine, 'second', 0.7);
+    AudioEngine.setHighlightedRobots(['first']);
+    first.gain.rampTo = vi.fn();
+    second.gain.rampTo = vi.fn();
+
+    AudioEngine.setHighlightedRobots(['second']);
+
+    expect(first.gain.rampTo.mock.calls).toHaveLength(1);
+    expect(first.gain.rampTo.mock.calls[0][0]).toBeCloseTo(robotBusGain(0.55) * HIGHLIGHT_DIP_GAIN, 12);
+    expect(second.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.7), 0.15]]);
+  });
+
+  it('the empty set ramps every voice back to its Volume, the one it was last given', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+    const highlighted = await reserveWithBus(AudioEngine, 'h', 0.7);
+    AudioEngine.setHighlightedRobots(['h']);
+    AudioEngine.updateRobotMasterVolume('other', 0.3); // edited while dipped: the release returns to 0.3, not 0.55
+    other.gain.rampTo = vi.fn();
+    highlighted.gain.rampTo = vi.fn();
+
+    AudioEngine.setHighlightedRobots([]);
+
+    expect(other.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.3), 0.15]]);
+    expect(highlighted.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.7), 0.15]]);
+  });
+
+  it('with no live set every gain is today\'s: the empty set from the start writes nothing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+    other.gain.rampTo = vi.fn();
+
+    AudioEngine.setHighlightedRobots([]);
+    AudioEngine.updateRobotMasterVolume('other', 0.4);
+
+    expect(other.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), 0.05]]);
+  });
+
+  it('copies the ids: mutating the caller\'s array later changes nothing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const ids = ['h'];
+    AudioEngine.setHighlightedRobots(ids);
+    ids.push('other');
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+
+    AudioEngine.updateRobotMasterVolume('other', 0.5);
+
+    expect(other.gain.value).toBeCloseTo(robotBusGain(0.5) * HIGHLIGHT_DIP_GAIN, 12);
+  });
+
+  it('killAll leaves the set alone: a voice built after it still comes up dipped', async () => {
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.setHighlightedRobots(['h']);
+
+    AudioEngine.killAll();
+    AudioEngine.reserveVoice('after-kill', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    expect(gainCalls[gainCalls.length - BUS_GAIN_FROM_END][0]).toBeCloseTo(robotBusGain(0.8) * HIGHLIGHT_DIP_GAIN, 12);
+  });
+
+  it('a released robot is skipped: the ramp touches only reserved voices', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const gone = await reserveWithBus(AudioEngine, 'gone', 0.55);
+    gone.gain.rampTo = vi.fn();
+    AudioEngine.releaseVoice('gone');
+
+    expect(() => AudioEngine.setHighlightedRobots(['h'])).not.toThrow();
+    expect(gone.gain.rampTo).not.toHaveBeenCalled();
   });
 });
 

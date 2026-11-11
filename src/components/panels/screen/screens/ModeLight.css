@@ -1,0 +1,23 @@
+/* The mode light (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §7.1 B2–B3). Colour and glow are JS-owned (ModeLight.tsx,
+   via statusLightColors.ts) and arrive as --mode-light-color / --mode-light-glow; this file owns the shape and the
+   lit / dim treatment. One em-relative size, so it sits in the well's value line and the tile's status line alike. */
+.mode-light {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 0.6em;
+  height: 0.6em;
+  margin-inline-end: 0.4em;
+  border-radius: 50%;
+  vertical-align: 0.05em;
+  background: var(--mode-light-color);
+}
+
+/* Lit: heard right now — the colour with the rocker light's glow idiom. */
+.mode-light[data-lit='true'] {
+  box-shadow: 0 0 6px 2px var(--mode-light-glow);
+}
+
+/* Dim: silent for any reason — the same colour at low alpha, no glow, so the mode still reads (B3). */
+.mode-light[data-lit='false'] {
+  opacity: 0.3;
+}

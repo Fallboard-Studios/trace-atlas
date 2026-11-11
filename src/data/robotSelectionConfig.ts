@@ -8,8 +8,7 @@
  * review (see docs/tasks/archive/ROBOT_SELECTION.md Task 12).
  */
 import type { DualLabelSchema, SliderLinearSchema } from '@/types/controls';
-import type { JobType, DockingState, RobotActivity } from '@/types/Robot';
-import type { AudibilityState } from '@/utils/robotAudibility';
+import type { JobType, DockingState, Robot, RobotActivity } from '@/types/Robot';
 import { labels, optionsRecord } from '@/content';
 
 // ========================================
@@ -22,16 +21,14 @@ export const ROBOT_SELECTION_ROW_SCHEMAS = {
   docking: { id: 'robotSelection.docking', type: 'dualLabel', ...labels('probe.status.docking') },
   // activity: RobotDisplaySection's row after Docked Status (Phase 43 spec §1.11).
   activity: { id: 'robotSelection.activity', type: 'dualLabel', ...labels('probe.status.activity') },
-  // status: new field-level DualLabel (Roadmap 15.3) — the Status VALUE labels (AUDIBILITY_LABELS,
-  // below) already existed from Roadmap 15.2, but that card never wrapped Status in a DualLabel of
-  // its own (it renders bare, combined with Docking into one line) — this is the first FIELD-level
-  // lore/human pair for Status. Best-guess draft, pending review, same as AUDIBILITY_LABELS itself.
+  // status: the field-level DualLabel (Roadmap 15.3); its VALUE words are the robot's own Monitor Mode
+  // (MODE_LABELS, below; docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.5).
   status: { id: 'robotSelection.status', type: 'dualLabel', ...labels('probe.status') },
   // .battery and .audio removed (Roadmap 15.2, docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.5 item 1) —
   // genuinely dead once RobotSelectionCard stopped referencing them: Battery moved to
   // BATTERY_READOUT_SCHEMA (Roadmap 15.1) via RobotDisplaySection first, then RobotSelectionCard
   // itself; Audio Setting's card-level dot (AudioStatusBadge) was replaced by the combined
-  // Docking/Status text (AUDIBILITY_LABELS, below), which never used a DualLabel row of its own.
+  // Docking/Status text, which never used a DualLabel row of its own.
 } satisfies Record<string, DualLabelSchema>;
 
 /**
@@ -79,10 +76,7 @@ export const DOCKING_STATE_LABELS: Record<DockingState, ValueLabel> = optionsRec
 export const ACTIVITY_LABELS: Record<RobotActivity, ValueLabel> = optionsRecord('probe.status.activity');
 
 /**
- * Roadmap 15.2 (docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.3) — Status, half of RobotSelectionCard's
- * combined "Docking · Status" line. Reflects true audibility (isRobotAudible, src/utils/
- * robotAudibility.ts), not just this robot's own audioMode. Same loreLabel/humanLabel shape as
- * every other value-label map in this file for consistency, even though only humanLabel is ever
- * rendered — best-guess drafts, pending review (see docs/reference/ROBOT_DATA_GRID.md).
+ * The Status field's words (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.5): the robot's own Monitor Mode, keyed by
+ * `audioMode`, from the same `probe.monitorMode` options the editor's radio reads (one entry per concept).
  */
-export const AUDIBILITY_LABELS: Record<AudibilityState, ValueLabel> = optionsRecord('probe.status');
+export const MODE_LABELS: Record<NonNullable<Robot['audioMode']>, ValueLabel> = optionsRecord('probe.monitorMode');

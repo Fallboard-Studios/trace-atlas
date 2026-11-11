@@ -24,7 +24,7 @@ import { precomputeDataX } from '../utils/getSeededVal';
 import { tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { devWarn } from '../utils/helpers';
 import { clampSend } from '../utils/clampSend';
-import { isDockMuted, isRobotAudible } from '../utils/robotAudibility';
+import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { lfoEngine } from './lfoEngine';
 import { calculatePanFromPosition } from './audioEngine/panning';
@@ -38,7 +38,7 @@ import {
   type BusFilter,
   type BusFilterContext,
 } from './audioEngine/busFilter';
-import { robotBusGain } from './audioEngine/headroom';
+import { HIGHLIGHT_DIP_GAIN, robotBusGain } from './audioEngine/headroom';
 import { getToneCtor, toneHasWebAudio, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
@@ -137,6 +137,9 @@ const GROUP_ACCENT_MULTIPLIER = 1.25;
 /** Ramp duration for a live updateRobotMasterVolume change — short enough to feel instant, long
  *  enough to avoid an audible click on the underlying AudioParam. */
 const VOLUME_RAMP_SECONDS = 0.05;
+/** Ramp duration for the Highlight dip and its release (docs/specs/MONITOR_MODE_TRUSTWORTHY.md assumption A2): longer
+ *  than a Volume edit's, since every bus moves at once and a slower glide reads as a mix move. The ear gate names it. */
+const HIGHLIGHT_RAMP_SECONDS = 0.15;
 /** Ramp duration for a live updateRobotPan change (a slider edit or Auto switching either way) —
  *  the same short glide as VOLUME_RAMP_SECONDS, in a constant of its own so the two can be tuned
  *  apart. docs/specs/ROBOT_PAN.md §1.3. Auto's per-tick write glides one tick instead, and uses this
@@ -186,6 +189,9 @@ let activeVoices = 0;
 let soundingRobots: ReadonlySet<string> | null = null;
 // Simultaneous-note ceiling; MAX_POLYPHONY = Full.
 let polyphonyCap = MAX_POLYPHONY;
+// The live Highlight set (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.3): the highlighted robots that are sounding,
+// pushed by audioBudgetSystem. Non-empty, it dips every other bus (busGainTarget). Survives killAll().
+let highlightedLive: ReadonlySet<string> = new Set();
 // Humanize (docs/specs/ROBOT_PERFORMANCE.md assumption 9): how far, in ms, a note may land off the grid. Pushed in
 // by audioStore like the two values above, never read from a store on the tick (audioStore imports this module).
 // 0 = machine-exact, which is also the state until something pushes a value.
@@ -204,6 +210,13 @@ let scheduledTickId: number | null = null;
 let _transport: ReturnType<typeof Tone.getTransport> | null = null;
 // Composite voices (created from LayeredWave descriptors, src/engine/audioEngine/compositeVoice.ts) stored separately
 const compositeVoices: Map<string, VoiceEntry> = new Map();
+
+/** A robot's bus gain target: its Volume through `robotBusGain`, dipped by `HIGHLIGHT_DIP_GAIN` while a Highlight is
+ *  live and this robot is not one (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2). Every bus-gain write goes through it. */
+function busGainTarget(robotId: string, masterVolume: number): number {
+  const dipped = highlightedLive.size > 0 && !highlightedLive.has(robotId);
+  return robotBusGain(masterVolume) * (dipped ? HIGHLIGHT_DIP_GAIN : 1);
+}
 
 /** Store a robot's new voice, tearing down the one it replaces so a second reservation never orphans a live graph. */
 function storeVoice(robotId: string, entry: VoiceEntry): void {
@@ -787,7 +800,7 @@ export const AudioEngine = {
     let effectiveVelocity = params.velocity;
 
     // The active locale's robots, looked up once per note: the velocity roll reads this robot's
-    // compositionSeed and Dynamics, and the audioMode policy below reads the whole roster.
+    // compositionSeed and Dynamics.
     let localeRobots: Robot[] = [];
     try {
       localeRobots = getActiveLocaleRobots();
@@ -806,18 +819,8 @@ export const AudioEngine = {
       effectiveVelocity = Math.min(1, effectiveVelocity * params.accentMultiplier);
     }
 
-    // Enforce audioMode policies (mute/solo/highlight) at schedule time. A highlighted robot in the station is silent,
-    // so it highlights nothing until it comes back out.
-    try {
-      const anyHighlight = localeRobots.some((r) => r.audioMode === 'highlight' && !isDockMuted(r.docking));
-      if (anyHighlight && robotFromStore?.audioMode !== 'highlight') {
-        // Apply ~50% attenuation (~-6dB) to non-highlighted robots
-        effectiveVelocity = (effectiveVelocity ?? 1) * 0.5;
-      }
-    } catch (err) {
-      devWarn('[AudioEngine] scheduleNote.audioMode failed', err);
-    }
-
+    // Mute and Solo are enforced in triggerWithCap; Highlight is a bus-gain dip (setHighlightedRobots), never a velocity
+    // change (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2).
     triggerWithCap({ robotId, note, duration, time, velocity: effectiveVelocity, release: params.release });
   },
 
@@ -878,7 +881,8 @@ export const AudioEngine = {
       const PannerCtor = getToneCtor<Tone.Panner>('Panner');
       const GainCtorLocal = getToneCtor<Tone.Gain>('Gain');
 
-      const initialBusGain = robotBusGain(masterVolume ?? 1);
+      const volume = masterVolume ?? 1;
+      const initialBusGain = busGainTarget(robotId, volume);
       const busCutoff = resolveBusFilterCutoff(filterFreq);
       const panner = PannerCtor ? new PannerCtor({ pan: 0 }) : makeStubPanner() as unknown as Tone.Panner;
       const busGain = GainCtorLocal ? new GainCtorLocal(initialBusGain) : makeStubGain(initialBusGain) as unknown as Tone.Gain;
@@ -923,7 +927,7 @@ export const AudioEngine = {
         devWarn('[AudioEngine] send connection failed', e);
       }
 
-      storeVoice(robotId, { composite, panner, busGain, busFilter, sends });
+      storeVoice(robotId, { composite, panner, busGain, masterVolume: volume, busFilter, sends });
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
@@ -961,9 +965,12 @@ export const AudioEngine = {
         dispose: () => { },
       } as unknown as CompositeVoice;
       const panner = makeStubPanner() as unknown as Tone.Panner;
-      const busGain = makeStubGain(robotBusGain(masterVolume ?? 1)) as unknown as Tone.Gain;
+      const volume = masterVolume ?? 1;
+      const busGain = makeStubGain(busGainTarget(robotId, volume)) as unknown as Tone.Gain;
       const busFilter = makeStubFilter() as unknown as Tone.Filter;
-      storeVoice(robotId, { composite: stubComposite, panner, busGain, busFilter, sends: buildSendGains(undefined) });
+      storeVoice(robotId, {
+        composite: stubComposite, panner, busGain, masterVolume: volume, busFilter, sends: buildSendGains(undefined),
+      });
       return false;
     }
   },
@@ -1212,7 +1219,8 @@ export const AudioEngine = {
       return;
     }
     try {
-      const targetGain = robotBusGain(masterVolume);
+      entry.masterVolume = masterVolume;
+      const targetGain = busGainTarget(robotId, masterVolume);
       rampOrSet(entry.busGain.gain as unknown as RampableParam, targetGain, VOLUME_RAMP_SECONDS, time);
     } catch (err) {
       devWarn('[AudioEngine] updateRobotMasterVolume failed', err);
@@ -1507,6 +1515,27 @@ export const AudioEngine = {
    */
   setStandingByRobots(ids: Iterable<string>): void {
     standingBy.setStandingBy(ids);
+  },
+
+  /**
+   * The live Highlight set (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2–§1.3): the highlighted robots that are sounding,
+   * pushed by audioBudgetSystem before the sounding set. While it is non-empty every other bus sits at its Volume times
+   * `HIGHLIGHT_DIP_GAIN`; each reserved voice ramps to its new target over `HIGHLIGHT_RAMP_SECONDS`, and a voice built
+   * later starts there (`busGainTarget`). Copies the ids; the same set again writes nothing; the empty set releases the
+   * dip. Survives killAll(), like the polyphony cap.
+   */
+  setHighlightedRobots(ids: Iterable<string>): void {
+    const next = new Set(ids);
+    if (next.size === highlightedLive.size && [...next].every((id) => highlightedLive.has(id))) return;
+    highlightedLive = next;
+    for (const [robotId, entry] of compositeVoices) {
+      try {
+        const target = busGainTarget(robotId, entry.masterVolume);
+        rampOrSet(entry.busGain.gain as unknown as RampableParam, target, HIGHLIGHT_RAMP_SECONDS);
+      } catch (err) {
+        devWarn('[AudioEngine] setHighlightedRobots failed', err);
+      }
+    }
   },
 
   /**

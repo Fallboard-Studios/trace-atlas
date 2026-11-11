@@ -13,6 +13,12 @@ import { volumePositionToGain } from './volumeTaper';
 export const HEADROOM_TRIM_DB = -12;
 export const HEADROOM_TRIM_GAIN = 10 ** (HEADROOM_TRIM_DB / 20);
 
+/** Monitor Mode's Highlight (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2, assumption A1): while a highlighted robot
+ *  is sounding, every other robot's bus gain is multiplied by this, one dip whatever the count. Crawford's ear gate
+ *  names the number. */
+export const HIGHLIGHT_DIP_DB = -10;
+export const HIGHLIGHT_DIP_GAIN = 10 ** (HIGHLIGHT_DIP_DB / 20);
+
 /** A robot's live bus gain for a Volume slider position: the shared taper, then the trim. The master slider uses
  *  the taper alone and keeps unity at 1. */
 export function robotBusGain(position: number): number {

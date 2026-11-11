@@ -31,6 +31,7 @@ import {
   resolveInitialEffectsLoad,
   robotLoadToLimits,
   withParam,
+  type AdmissionRanks,
 } from './audioBudget';
 
 // ========================================
@@ -638,121 +639,204 @@ describe('orderByArrival', () => {
 describe('reconcileSounding', () => {
   // `eligible` is in ARRIVAL order (see orderByArrival) — that order is what makes admission first-come-first-served.
   const none: string[] = [];
+  const noRanks: AdmissionRanks = { soloIds: none, highlightIds: none };
+  const solos = (...soloIds: string[]): AdmissionRanks => ({ soloIds, highlightIds: none });
+  const highlights = (...highlightIds: string[]): AdmissionRanks => ({ soloIds: none, highlightIds });
 
   describe('first come, first served', () => {
     it('admits eligible robots in order up to the cap and leaves the rest waiting', () => {
-      expect(reconcileSounding(none, ['a', 'b', 'c', 'd', 'e'], none, 3)).toEqual(['a', 'b', 'c']);
+      expect(reconcileSounding(none, ['a', 'b', 'c', 'd', 'e'], noRanks,3)).toEqual(['a', 'b', 'c']);
     });
 
     it('admits everyone when the cap is not reached', () => {
-      expect(reconcileSounding(none, ['a', 'b'], none, 4)).toEqual(['a', 'b']);
+      expect(reconcileSounding(none, ['a', 'b'], noRanks,4)).toEqual(['a', 'b']);
     });
 
     it('lets incumbents keep their slot even when earlier-arrived robots are waiting', () => {
       // c is sounding; a and b arrived (waited) earlier in the list but c holds a slot.
-      expect(reconcileSounding(['c'], ['a', 'b', 'c', 'd'], none, 2)).toEqual(['c', 'a']);
+      expect(reconcileSounding(['c'], ['a', 'b', 'c', 'd'], noRanks,2)).toEqual(['c', 'a']);
     });
 
     it('gives a freed slot to the earliest waiter, not to roster (alphabetical) order', () => {
       // a, b sounding at cap 2; q then p arrived and wait. a leaves — q (earliest waiter) gets the slot, not p.
-      const afterDeparture = reconcileSounding(['a', 'b'], ['b', 'q', 'p'], none, 2);
+      const afterDeparture = reconcileSounding(['a', 'b'], ['b', 'q', 'p'], noRanks,2);
       expect(afterDeparture).toEqual(['b', 'q']);
     });
 
     it('does not let an explicit unmute jump the queue: a robot that just became eligible waits behind earlier waiters', () => {
       const arrival = orderByArrival(['a', 'b', 'c'], ['a', 'b', 'c', 'z']); // z just un-docked
-      expect(reconcileSounding(['a', 'b'], arrival, none, 2)).toEqual(['a', 'b']);
+      expect(reconcileSounding(['a', 'b'], arrival, noRanks,2)).toEqual(['a', 'b']);
     });
 
     it('drops robots that are no longer eligible and hands their slots to waiters', () => {
-      expect(reconcileSounding(['a', 'b', 'c'], ['a', 'c', 'd', 'e'], none, 3)).toEqual(['a', 'c', 'd']);
+      expect(reconcileSounding(['a', 'b', 'c'], ['a', 'c', 'd', 'e'], noRanks,3)).toEqual(['a', 'c', 'd']);
     });
 
     it('drops everyone when nobody is eligible', () => {
-      expect(reconcileSounding(['a', 'b'], none, none, 4)).toEqual([]);
+      expect(reconcileSounding(['a', 'b'], none, noRanks,4)).toEqual([]);
     });
   });
 
   describe('changing the cap', () => {
     it('evicts last-in, first-out when the cap is lowered', () => {
-      expect(reconcileSounding(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd'], none, 2)).toEqual(['a', 'b']);
+      expect(reconcileSounding(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd'], noRanks,2)).toEqual(['a', 'b']);
     });
 
     it('admits waiters, in order, when the cap is raised', () => {
-      expect(reconcileSounding(['a', 'b'], ['a', 'b', 'c', 'd', 'e'], none, 4)).toEqual(['a', 'b', 'c', 'd']);
+      expect(reconcileSounding(['a', 'b'], ['a', 'b', 'c', 'd', 'e'], noRanks,4)).toEqual(['a', 'b', 'c', 'd']);
     });
 
     it('a cap of 0 silences everyone', () => {
-      expect(reconcileSounding(['a', 'b'], ['a', 'b', 'c'], none, 0)).toEqual([]);
+      expect(reconcileSounding(['a', 'b'], ['a', 'b', 'c'], noRanks,0)).toEqual([]);
     });
 
     it('treats a fractional cap as its floor and a NaN cap as no cap', () => {
-      expect(reconcileSounding(none, ['a', 'b', 'c'], none, 2.9)).toEqual(['a', 'b']);
-      expect(reconcileSounding(none, ['a', 'b', 'c'], none, NaN)).toEqual(['a', 'b', 'c']);
-      expect(reconcileSounding(none, ['a', 'b', 'c'], none, Infinity)).toEqual(['a', 'b', 'c']);
+      expect(reconcileSounding(none, ['a', 'b', 'c'], noRanks,2.9)).toEqual(['a', 'b']);
+      expect(reconcileSounding(none, ['a', 'b', 'c'], noRanks,NaN)).toEqual(['a', 'b', 'c']);
+      expect(reconcileSounding(none, ['a', 'b', 'c'], noRanks,Infinity)).toEqual(['a', 'b', 'c']);
     });
   });
 
   describe('solo always sounds', () => {
     it('admits a soloed robot immediately and evicts the newest non-solo robot when full', () => {
-      expect(reconcileSounding(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd', 's'], ['s'], 4)).toEqual(['a', 'b', 'c', 's']);
+      expect(reconcileSounding(['a', 'b', 'c', 'd'], ['a', 'b', 'c', 'd', 's'], solos('s'), 4)).toEqual(['a', 'b', 'c', 's']);
     });
 
     it('admits a solo into a free slot without evicting anyone', () => {
-      expect(reconcileSounding(['a'], ['a', 's'], ['s'], 4)).toEqual(['a', 's']);
+      expect(reconcileSounding(['a'], ['a', 's'], solos('s'), 4)).toEqual(['a', 's']);
     });
 
     it('never lets a later solo evict an earlier solo', () => {
       // s1 and s2 are soloed; the newest NON-solo (b) goes, not s2.
-      expect(reconcileSounding(['s1', 'a', 's2', 'b'], ['s1', 'a', 's2', 'b', 's3'], ['s1', 's2', 's3'], 4))
+      expect(reconcileSounding(['s1', 'a', 's2', 'b'], ['s1', 'a', 's2', 'b', 's3'], solos('s1', 's2', 's3'), 4))
         .toEqual(['s1', 'a', 's2', 's3']);
     });
 
     it('makes a later solo wait when every slot already holds a solo (first-come among solos)', () => {
-      expect(reconcileSounding(['s1', 's2'], ['s1', 's2', 's3'], ['s1', 's2', 's3'], 2)).toEqual(['s1', 's2']);
+      expect(reconcileSounding(['s1', 's2'], ['s1', 's2', 's3'], solos('s1', 's2', 's3'), 2)).toEqual(['s1', 's2']);
     });
 
     it('caps more solos than slots at the limit, first-come', () => {
-      expect(reconcileSounding(none, ['s1', 's2', 's3', 's4', 's5'], ['s1', 's2', 's3', 's4', 's5'], 3))
+      expect(reconcileSounding(none, ['s1', 's2', 's3', 's4', 's5'], solos('s1', 's2', 's3', 's4', 's5'), 3))
         .toEqual(['s1', 's2', 's3']);
     });
 
     it('never lets a later non-solo arrival evict a solo', () => {
-      expect(reconcileSounding(['s'], ['s', 'a'], ['s'], 1)).toEqual(['s']);
+      expect(reconcileSounding(['s'], ['s', 'a'], solos('s'), 1)).toEqual(['s']);
     });
 
     it('when the cap is lowered, evicts non-solo robots newest-first before touching any solo', () => {
-      expect(reconcileSounding(['a', 's', 'b', 'c'], ['a', 's', 'b', 'c'], ['s'], 2)).toEqual(['a', 's']);
-      expect(reconcileSounding(['a', 's'], ['a', 's'], ['s'], 1)).toEqual(['s']);
+      expect(reconcileSounding(['a', 's', 'b', 'c'], ['a', 's', 'b', 'c'], solos('s'), 2)).toEqual(['a', 's']);
+      expect(reconcileSounding(['a', 's'], ['a', 's'], solos('s'), 1)).toEqual(['s']);
     });
 
     it('when only solos remain and the cap is still lower, evicts the newest solo', () => {
-      expect(reconcileSounding(['s1', 's2', 's3'], ['s1', 's2', 's3'], ['s1', 's2', 's3'], 2)).toEqual(['s1', 's2']);
+      expect(reconcileSounding(['s1', 's2', 's3'], ['s1', 's2', 's3'], solos('s1', 's2', 's3'), 2)).toEqual(['s1', 's2']);
     });
 
     it('ignores a soloId that is not eligible', () => {
-      expect(reconcileSounding(none, ['a'], ['ghost'], 2)).toEqual(['a']);
+      expect(reconcileSounding(none, ['a'], solos('ghost'), 2)).toEqual(['a']);
+    });
+  });
+
+  describe('Highlight ranks between Solo and Auto (spec §1.4)', () => {
+    it('admits a Highlight into a free slot in arrival order, evicting nobody', () => {
+      expect(reconcileSounding(['a'], ['a', 'h'], highlights('h'), 4)).toEqual(['a', 'h']);
+    });
+
+    it('a Highlight evicts the newest Auto robot when the cap is full', () => {
+      expect(reconcileSounding(['a', 'b', 'c'], ['a', 'b', 'c', 'h'], highlights('h'), 3)).toEqual(['a', 'b', 'h']);
+    });
+
+    it('a Highlight skips past Solos and Highlights to evict the newest Auto', () => {
+      // b is the only Auto in; the Solo and the earlier Highlight keep their slots.
+      expect(reconcileSounding(['b', 's', 'h1'], ['b', 's', 'h1', 'h2'], { soloIds: ['s'], highlightIds: ['h1', 'h2'] }, 3))
+        .toEqual(['s', 'h1', 'h2']);
+    });
+
+    it('a Highlight waits when every slot holds a Solo or a Highlight', () => {
+      expect(reconcileSounding(['s', 'h1'], ['s', 'h1', 'h2'], { soloIds: ['s'], highlightIds: ['h1', 'h2'] }, 2))
+        .toEqual(['s', 'h1']);
+    });
+
+    it('a Highlight that waits keeps its place: it is admitted first when a slot frees', () => {
+      // a was an earlier arrival than h2, but h2 outranks it for the freed slot.
+      expect(reconcileSounding(['x'], ['x', 'a', 'h2'], highlights('h2'), 2)).toEqual(['x', 'h2']);
+    });
+
+    it('more Highlights than slots are admitted first-come, never evicting one another', () => {
+      expect(reconcileSounding(none, ['h1', 'h2', 'h3', 'a'], highlights('h1', 'h2', 'h3'), 2)).toEqual(['h1', 'h2']);
+      expect(reconcileSounding(['h1', 'h2'], ['h1', 'h2', 'h3'], highlights('h1', 'h2', 'h3'), 2)).toEqual(['h1', 'h2']);
+    });
+
+    it('a later Auto arrival never evicts a Highlight', () => {
+      expect(reconcileSounding(['h'], ['h', 'a'], highlights('h'), 1)).toEqual(['h']);
+    });
+
+    it('a Solo evicts the newest Auto before any Highlight', () => {
+      expect(reconcileSounding(['a', 'h', 'b'], ['a', 'h', 'b', 's'], { soloIds: ['s'], highlightIds: ['h'] }, 3))
+        .toEqual(['a', 'h', 's']);
+    });
+
+    it('a Solo evicts the newest Highlight when no Auto is in', () => {
+      expect(reconcileSounding(['h1', 'h2'], ['h1', 'h2', 's'], { soloIds: ['s'], highlightIds: ['h1', 'h2'] }, 2))
+        .toEqual(['h1', 's']);
+    });
+
+    it('a Solo waits only when every slot holds a Solo', () => {
+      expect(reconcileSounding(['s1', 's2'], ['s1', 's2', 's3'], solos('s1', 's2', 's3'), 2)).toEqual(['s1', 's2']);
+      expect(reconcileSounding(['s1', 'h'], ['s1', 'h', 's2'], { soloIds: ['s1', 's2'], highlightIds: ['h'] }, 2))
+        .toEqual(['s1', 's2']);
+    });
+
+    it('a fallen cap evicts the newest Auto, then the newest Highlight, then the newest Solo', () => {
+      const previous = ['s1', 'a1', 'h1', 'a2', 's2', 'h2'];
+      const ranks: AdmissionRanks = { soloIds: ['s1', 's2'], highlightIds: ['h1', 'h2'] };
+      expect(reconcileSounding(previous, previous, ranks, 5)).toEqual(['s1', 'a1', 'h1', 's2', 'h2']);
+      expect(reconcileSounding(previous, previous, ranks, 4)).toEqual(['s1', 'h1', 's2', 'h2']);
+      expect(reconcileSounding(previous, previous, ranks, 3)).toEqual(['s1', 'h1', 's2']);
+      expect(reconcileSounding(previous, previous, ranks, 2)).toEqual(['s1', 's2']);
+      expect(reconcileSounding(previous, previous, ranks, 1)).toEqual(['s1']);
+    });
+
+    it('a robot whose Highlight is removed keeps its slot', () => {
+      const previous = ['a', 'h'];
+      expect(reconcileSounding(previous, ['a', 'h', 'b'], noRanks,2)).toBe(previous);
+    });
+
+    it('a robot both soloed and highlighted ranks as a Solo', () => {
+      // As a Solo it evicts the newest Highlight; as a Highlight it would wait.
+      expect(reconcileSounding(['h1', 'h2'], ['h1', 'h2', 'sh'], { soloIds: ['sh'], highlightIds: ['h1', 'h2', 'sh'] }, 2))
+        .toEqual(['h1', 'sh']);
+    });
+
+    it('ignores a highlightId that is not eligible', () => {
+      expect(reconcileSounding(['a'], ['a', 'b'], highlights('ghost'), 1)).toEqual(['a']);
+    });
+
+    it('returns previous itself when a Highlight changes nothing', () => {
+      const previous = ['h', 'a'];
+      expect(reconcileSounding(previous, ['h', 'a', 'b'], highlights('h'), 2)).toBe(previous);
     });
   });
 
   describe('reference stability and purity', () => {
     it('returns the very same array when nothing changed (so the caller can skip the store write)', () => {
       const previous = ['a', 'b'];
-      expect(reconcileSounding(previous, ['a', 'b', 'c'], none, 2)).toBe(previous); // full, c still waiting
-      expect(reconcileSounding(previous, ['a', 'b'], none, 5)).toBe(previous); // room to spare, nobody waiting
+      expect(reconcileSounding(previous, ['a', 'b', 'c'], noRanks,2)).toBe(previous); // full, c still waiting
+      expect(reconcileSounding(previous, ['a', 'b'], noRanks,5)).toBe(previous); // room to spare, nobody waiting
     });
 
     it('returns the same empty array reference for empty-to-empty', () => {
       const previous: string[] = [];
-      expect(reconcileSounding(previous, none, none, 3)).toBe(previous);
-      expect(reconcileSounding(previous, ['a'], none, 0)).toBe(previous);
+      expect(reconcileSounding(previous, none, noRanks,3)).toBe(previous);
+      expect(reconcileSounding(previous, ['a'], noRanks,0)).toBe(previous);
     });
 
     it('returns a new array (not the previous one) when the set changed, and never mutates its inputs', () => {
       const previous = ['a', 'b'];
       const eligible = ['a', 'b', 'c'];
-      const solo: string[] = [];
-      const result = reconcileSounding(previous, eligible, solo, 3);
+      const result = reconcileSounding(previous, eligible, noRanks, 3);
       expect(result).not.toBe(previous);
       expect(result).toEqual(['a', 'b', 'c']);
       expect(previous).toEqual(['a', 'b']);
@@ -760,8 +844,8 @@ describe('reconcileSounding', () => {
     });
 
     it('never puts an id in twice, even if the eligible list repeats it', () => {
-      expect(reconcileSounding(none, ['a', 'a', 'b', 'b'], none, 4)).toEqual(['a', 'b']);
-      expect(reconcileSounding(['a'], ['a', 'a'], ['a', 'a'], 4)).toEqual(['a']);
+      expect(reconcileSounding(none, ['a', 'a', 'b', 'b'], noRanks,4)).toEqual(['a', 'b']);
+      expect(reconcileSounding(['a'], ['a', 'a'], solos('a', 'a'), 4)).toEqual(['a']);
     });
   });
 
@@ -784,7 +868,7 @@ describe('reconcileSounding', () => {
           const cap = Math.floor(random() * 14);
           arrival = orderByArrival(arrival, eligibleNow);
 
-          const next = reconcileSounding(sounding, arrival, soloIds, cap);
+          const next = reconcileSounding(sounding, arrival, { soloIds, highlightIds: none }, cap);
           const label = `seed ${seed} step ${step} cap ${cap}`;
 
           // Never exceeds the cap, only sounds eligible robots, no duplicates.
@@ -804,7 +888,46 @@ describe('reconcileSounding', () => {
           expect(next.filter((id) => survivors.includes(id)), label).toEqual(survivors);
 
           // A fixed point: feeding the result back in with the same inputs changes nothing.
-          expect(reconcileSounding(next, arrival, soloIds, cap), label).toBe(next);
+          expect(reconcileSounding(next, arrival, { soloIds, highlightIds: none }, cap), label).toBe(next);
+
+          sounding = next;
+        }
+      }
+    });
+
+    it('holds the three-way rank over random Solo / Highlight / cap changes', () => {
+      for (let seed = 1; seed <= 60; seed++) {
+        const random = makeRandom(seed);
+        let sounding: readonly string[] = [];
+        let arrival: readonly string[] = [];
+        for (let step = 0; step < 80; step++) {
+          const eligibleNow = ids.filter(() => random() < 0.6);
+          const soloIds = eligibleNow.filter(() => random() < 0.1);
+          const highlightIds = eligibleNow.filter((id) => !soloIds.includes(id) && random() < 0.2);
+          const cap = Math.floor(random() * 14);
+          arrival = orderByArrival(arrival, eligibleNow);
+
+          const next = reconcileSounding(sounding, arrival, { soloIds, highlightIds }, cap);
+          const label = `seed ${seed} step ${step} cap ${cap}`;
+          const isAuto = (id: string): boolean => !soloIds.includes(id) && !highlightIds.includes(id);
+
+          expect(next.length, label).toBeLessThanOrEqual(cap);
+          expect(next.every((id) => eligibleNow.includes(id)), label).toBe(true);
+          expect(new Set(next).size, label).toBe(next.length);
+          if (next.length < cap) expect(next.length, label).toBe(eligibleNow.length);
+
+          // A waiting Solo means every slot holds a Solo.
+          if (cap > 0 && soloIds.some((id) => !next.includes(id))) {
+            expect(next.every((id) => soloIds.includes(id)), label).toBe(true);
+          }
+          // A waiting Highlight means no Auto robot holds a slot.
+          if (cap > 0 && highlightIds.some((id) => !next.includes(id))) {
+            expect(next.some(isAuto), label).toBe(false);
+          }
+
+          const survivors = sounding.filter((id) => next.includes(id));
+          expect(next.filter((id) => survivors.includes(id)), label).toEqual(survivors);
+          expect(reconcileSounding(next, arrival, { soloIds, highlightIds }, cap), label).toBe(next);
 
           sounding = next;
         }

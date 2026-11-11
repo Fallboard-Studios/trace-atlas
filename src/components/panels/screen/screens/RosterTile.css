@@ -67,6 +67,10 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* The clip ends at the padding edge, so the lit mode light's glow (ModeLight.css, 8 px out from the disc) needs
+     room above and before the line; the matching negative margins keep the text where it was. */
+  padding: 8px 0 0 8px;
+  margin: -8px 0 0 -8px;
 }
 
 /* ------------------------------------------------------------------ the Move chip (Task 22)
@@ -131,6 +135,20 @@
    never reflows as the chip fades in. */
 .roster-tile--desk .roster-tile__name {
   padding-right: 72px;
+}
+
+/* Desk: the status line holds two lines (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.6, §7.1 B4): it wraps, a third
+   line is clipped, and two lines are always reserved, so every tile in the row is the same height whether its text
+   takes one line or two (controls hold their largest-content size). The phone keeps one line and its ellipsis. */
+.roster-tile--desk .roster-tile__status {
+  --roster-status-line-height: 1.3;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  line-height: var(--roster-status-line-height);
+  min-height: calc(2em * var(--roster-status-line-height));
 }
 
 /* Phone: no hover, so the chip is a small always-on glyph (the sketch's .phone .tile .mv), a square

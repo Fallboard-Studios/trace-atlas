@@ -15,6 +15,9 @@ export interface VoiceEntry {
   composite: CompositeVoice;
   panner: Tone.Panner;
   busGain: Tone.Gain;
+  /** The Volume slider position this bus was last given (at build, then by each Volume write), so a Highlight's dip
+   *  and its release can re-target the bus without reading the store (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2). */
+  masterVolume: number;
   /** The raw context's biquad, or a Tone.Filter where the context cannot make one (busFilter.ts). */
   busFilter: BusFilter;
   /** busFilter -> sends[key] -> that send's room (Reverb, Delay, or the Colour / Shimmer / Double room's in); 0 = this
