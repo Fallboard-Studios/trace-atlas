@@ -583,21 +583,20 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   // Roster-aware lane tally (docs/specs/LFO_BANK.md §1.3): every already-spawned robot's own
   // lane picks lean this robot's fresh draw (if any) toward the least-used lanes. Computed
   // unconditionally, before the founder/original branch, since the founder branch's own fallback
-  // (source.lfoLinks ?? generate) may still need it.
+  // (founder.lfoLinks ?? generate) may still need it.
   const priorLaneCounts = tallyLanes(robots.flatMap((r) => Object.values(r.lfoLinks ?? {})));
 
   if (founder) {
-    const source = founder;
-    audioAttributes = source.audioAttributes as ReturnType<typeof generateAudioAttributes>;
-    octaveRange = source.octaveRange;
-    spawnRhythmicDensity = source.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY;
-    spawnRhythmicMotifLength = source.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
-    spawnNoteVariance = source.noteVariance ?? DEFAULT_NOTE_VARIANCE;
-    spawnPitchRepeat = source.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
-    spawnDynamics = source.dynamics ?? DEFAULT_DYNAMICS;
-    spawnRests = source.rests ?? DEFAULT_RESTS;
-    spawnAccents = source.accents ?? DEFAULT_ACCENTS;
-    spawnLfoLinks = source.lfoLinks ?? generateRobotLfoLinks(noiseMap ?? ((_x: number, _y: number) => 0 as number), spawnCount, priorLaneCounts);
+    audioAttributes = founder.audioAttributes as ReturnType<typeof generateAudioAttributes>;
+    octaveRange = founder.octaveRange;
+    spawnRhythmicDensity = founder.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY;
+    spawnRhythmicMotifLength = founder.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
+    spawnNoteVariance = founder.noteVariance ?? DEFAULT_NOTE_VARIANCE;
+    spawnPitchRepeat = founder.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
+    spawnDynamics = founder.dynamics ?? DEFAULT_DYNAMICS;
+    spawnRests = founder.rests ?? DEFAULT_RESTS;
+    spawnAccents = founder.accents ?? DEFAULT_ACCENTS;
+    spawnLfoLinks = founder.lfoLinks ?? generateRobotLfoLinks(noiseMap ?? ((_x: number, _y: number) => 0 as number), spawnCount, priorLaneCounts);
   } else {
     // Generate audio attributes — octaveRange is seeded directly inside generateAudioAttributes
     audioAttributes = noiseMap

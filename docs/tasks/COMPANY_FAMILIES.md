@@ -621,7 +621,7 @@ and are recorded as they now stand: the world key's fallback is not a ratchet ri
 
   **Estimated scope:** S
 
-- [ ] **Task R5: the founder branch's leftover alias**
+- [x] **Task R5: the founder branch's leftover alias**
 
   **Description:** `spawnRobot`'s founder branch opens with `const source = founder;`, left from the copy branch it
   replaced. Read `founder` directly. The `?? DEFAULT_*` and `?? generateRobotLfoLinks(...)` fallbacks stay: the
