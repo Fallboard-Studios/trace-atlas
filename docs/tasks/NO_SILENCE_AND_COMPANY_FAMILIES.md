@@ -7,7 +7,9 @@ Stage 3.
 
 **Status:** plan written 2026-11-10. Phase 1 built 2026-11-10 (Tasks 1–2: `da8d5b52`, `da9416d0`; Task 3's row is in
 Results). Phase 2 built 2026-11-10/11 (Tasks 4–9: `b665a138`, `20ea1cd3`, `8394603c`, `3438dda4`, `2fa38ec3`,
-`90566d9c`; Task 10's rows are in Results); at Checkpoint B, waiting on Crawford before Task 11. **Part A only**: Part B (`company-families`) is not planned until
+`90566d9c`; Task 10's rows are in Results; Task 10a `986ed2f8` inserted at Checkpoint B). Phase 3 built 2026-11-11
+(Tasks 11–12: `ec0be658`, `ba8737b6`; Task 13 `c208f726`); **at Checkpoint C = Gate A, waiting on Crawford's band
+pick (A1) and A2** before Task 14. **Part A only**: Part B (`company-families`) is not planned until
 Gate B has passed and its questions (spec §7.3) are answered.
 
 ## Overview
@@ -570,8 +572,12 @@ task.
   **Estimated scope:** S (two long runs and a record)
 
 ### Checkpoint C: Gate A — the band (stop and report)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] The Gate A summary is in front of Crawford.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. (2026-11-11: the full suite at Task 12,
+      351 files, 13,697 passed, 238 s, with no code change since; `vite build` clean apart from the standing
+      chunk-size warning.)
+- [x] The Gate A summary is in front of Crawford (Results, "Gate A summary").
+- [x] No row has a silent measure. The stays on 0.8–1.25 are **about a third more frequent than the probe's** (0.18 %
+      of measures against 0.13 %): the same kind, said plainly in the summary, nothing re-tuned.
 - [ ] **Crawford picks `BATTERY_SIZE_MIN` / `BATTERY_SIZE_MAX`** (spec open question A1; default 0.8–1.25).
 - [ ] **Crawford answers A2** (eight cycle lengths, not a continuum; default accept), with the per-world sharing
       measured.
