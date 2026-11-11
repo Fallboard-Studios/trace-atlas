@@ -8,7 +8,7 @@
  * review (see docs/tasks/archive/ROBOT_SELECTION.md Task 12).
  */
 import type { DualLabelSchema, SliderLinearSchema } from '@/types/controls';
-import type { JobType, DockingState, RobotActivity } from '@/types/Robot';
+import type { JobType, DockingState, Robot, RobotActivity } from '@/types/Robot';
 import type { AudibilityState } from '@/utils/robotAudibility';
 import { labels, optionsRecord } from '@/content';
 
@@ -86,3 +86,9 @@ export const ACTIVITY_LABELS: Record<RobotActivity, ValueLabel> = optionsRecord(
  * rendered — best-guess drafts, pending review (see docs/reference/ROBOT_DATA_GRID.md).
  */
 export const AUDIBILITY_LABELS: Record<AudibilityState, ValueLabel> = optionsRecord('probe.status');
+
+/**
+ * The Status field's words (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.5): the robot's own Monitor Mode, keyed by
+ * `audioMode`, from the same `probe.monitorMode` options the editor's radio reads (one entry per concept).
+ */
+export const MODE_LABELS: Record<NonNullable<Robot['audioMode']>, ValueLabel> = optionsRecord('probe.monitorMode');

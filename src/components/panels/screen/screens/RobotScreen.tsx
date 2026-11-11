@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { useShell } from '../useShell';
-import { useRobotMeta, type RobotMetaField } from './useRobotMeta';
+import { metaWords, useRobotMeta, type RobotMetaField } from './useRobotMeta';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
@@ -492,7 +492,7 @@ function RobotAvatarBand({ robot, localeId }: RobotPanelProps) {
       <AvatarGem robot={robot} />
       <div className="robot-screen__band-text">
         <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
-        <span className="robot-screen__status-line">{fill('probe.band.statusLine', { ...meta, battery })}</span>
+        <span className="robot-screen__status-line">{fill('probe.band.statusLine', { ...metaWords(meta), battery })}</span>
       </div>
     </div>
   );

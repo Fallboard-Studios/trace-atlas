@@ -1972,7 +1972,7 @@ describe('RobotScreen — the avatar column (desk shell)', () => {
     const { container } = render(<RobotScreen />);
     const wells = [...container.querySelectorAll('.robot-screen__meta > .robot-screen__well')];
     expect(wells).toHaveLength(4);
-    expect(metaValues(container)).toEqual(['Acoustic Survey', 'Active', 'Working', 'Emitting']);
+    expect(metaValues(container)).toEqual(['Acoustic Survey', 'Active', 'Working', 'Auto']);
     const captions = wells.map((w) => w.querySelector('.sc-dual-label__lore')!.textContent);
     expect(captions).toEqual([
       ROBOT_SELECTION_ROW_SCHEMAS.job.loreLabel,
@@ -2011,32 +2011,45 @@ describe('RobotScreen — the avatar column (desk shell)', () => {
     expect(metaValues(c2)[0]).toBe('Maintenance');
   });
 
-  describe('the emission well', () => {
-    it('reads Emitting for an audible robot and Disabled for a muted one', () => {
+  // Monitor mode spec §1.5: the status well reads the robot's own mode word, whatever silences it.
+  describe('the status well', () => {
+    it('reads Auto for an Auto robot and Mute for a muted one', () => {
       selectRobot(makeRobot('r1', { audioMode: 'mute' }));
       const { container } = render(<RobotScreen />);
-      expect(metaValues(container)[3]).toBe('Disabled');
+      expect(metaValues(container)[3]).toBe('Mute');
       act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { audioMode: 'none' }));
-      expect(metaValues(container)[3]).toBe('Emitting');
+      expect(metaValues(container)[3]).toBe('Auto');
     });
 
-    it('reads Standing by while the Audio Load budget holds it back, and Emitting once admitted', () => {
-      selectRobot(makeRobot());
+    it('reads Solo and Highlight for those modes', () => {
+      selectRobot(makeRobot('r1', { audioMode: 'solo' }));
+      const { container } = render(<RobotScreen />);
+      expect(metaValues(container)[3]).toBe('Solo');
+      act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { audioMode: 'highlight' }));
+      expect(metaValues(container)[3]).toBe('Highlight');
+    });
+
+    it('reads its mode word, not Standing by, while the Audio Load budget holds it back', () => {
+      selectRobot(makeRobot('r1', { audioMode: 'highlight' }));
       useAudioStore.setState({ soundingRobotIds: ['other'] });
       const { container } = render(<RobotScreen />);
-      expect(metaValues(container)[3]).toBe('Standing by');
+      expect(metaValues(container)[3]).toBe('Highlight');
       act(() => useAudioStore.setState({ soundingRobotIds: ['other', 'r1'] }));
-      expect(metaValues(container)[3]).toBe('Emitting');
+      expect(metaValues(container)[3]).toBe('Highlight');
     });
 
-    it('flips to Disabled while another robot is soloed, and back', () => {
+    it('still reads Auto while another robot is soloed', () => {
       useLocaleStore.getState().addRobot(localeId, makeRobot('r2'));
       selectRobot(makeRobot());
       const { container } = render(<RobotScreen />);
       act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { audioMode: 'solo' }));
-      expect(metaValues(container)[3]).toBe('Disabled');
-      act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { audioMode: 'none' }));
-      expect(metaValues(container)[3]).toBe('Emitting');
+      expect(metaValues(container)[3]).toBe('Auto');
+    });
+
+    it('reads Auto for a robot in its station', () => {
+      selectRobot(makeRobot('r1', { docking: 'docked', activity: 'charging', audioMode: 'none' }));
+      const { container } = render(<RobotScreen />);
+      expect(metaValues(container)[3]).toBe('Auto');
     });
   });
 
@@ -2115,7 +2128,7 @@ describe('RobotScreen — the phone band (spec §1.4: small form only)', () => {
     expect(b.querySelector('svg.robot-screen__gem .gem')).not.toBeNull();
     expect(within(b).getByRole('heading', { name: 'Tidal Wisp' })).toBeTruthy();
     expect(b.querySelector('.robot-screen__status-line')!.textContent).toBe(
-      fill('probe.band.statusLine', { job: 'Acoustic Survey', dockingState: 'Active', activity: 'Working', status: 'Emitting', battery: `82${CONTENT['probe.battery'].unit}` }),
+      fill('probe.band.statusLine', { job: 'Acoustic Survey', dockingState: 'Active', activity: 'Working', status: 'Auto', battery: `82${CONTENT['probe.battery'].unit}` }),
     );
   });
 
@@ -2134,7 +2147,7 @@ describe('RobotScreen — the phone band (spec §1.4: small form only)', () => {
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 40.4, audioMode: 'mute' }));
     const line = container.querySelector('.robot-screen__status-line')!.textContent!;
     expect(line).toContain(`40${CONTENT['probe.battery'].unit}`);
-    expect(line).toContain('Disabled');
+    expect(line).toContain('Mute');
   });
 
   it('keeps the same tabs and panels as the desk', () => {

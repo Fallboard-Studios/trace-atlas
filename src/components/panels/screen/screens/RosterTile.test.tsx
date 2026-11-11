@@ -54,7 +54,7 @@ import { useAudioStore } from '@/stores/audioStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle } from '@/utils/traitColors';
 import { getRobotGem, gemViewBox } from '@/components/robot/gem/polygon';
-import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL, DOCKING_STATE_LABELS, ACTIVITY_LABELS, AUDIBILITY_LABELS } from '@/data/robotSelectionConfig';
+import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL, DOCKING_STATE_LABELS, ACTIVITY_LABELS, MODE_LABELS } from '@/data/robotSelectionConfig';
 import type { Robot } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
 import type { Company } from '@/types/Company';
@@ -127,15 +127,35 @@ describe('RosterTile — what it shows', () => {
     expect(gem.children.length).toBeGreaterThan(0);
   });
 
-  it('carries one status line: the job, then the docking, activity and emission states', () => {
+  it('carries one status line: the job, then the docking, activity and the robot own monitor mode', () => {
     addRobots(makeRobot('r0', { job: 'acousticSurvey', docking: 'active', activity: 'working', audioMode: 'none' }));
     const { container } = renderTile('r0');
     expect(container.querySelector('.roster-tile__status')?.textContent).toBe(fill('probe.roster.statusLine', {
       job: JOB_TYPE_LABELS.acousticSurvey.humanLabel,
       dockingState: DOCKING_STATE_LABELS.active.humanLabel,
       activity: ACTIVITY_LABELS.working.humanLabel,
-      status: AUDIBILITY_LABELS.emitting.humanLabel,
+      status: MODE_LABELS.none.humanLabel,
     }));
+  });
+
+  // Monitor mode spec §1.5: the status is the robot's own mode word, whatever silences it.
+  it('reads Auto for an Auto robot, Mute for a muted one, Solo and Highlight for theirs', () => {
+    addRobots(makeRobot('r0', { audioMode: 'none' }));
+    const { container } = renderTile('r0');
+    const status = () => container.querySelector('.roster-tile__status')!.textContent!;
+    expect(status().endsWith('Auto')).toBe(true);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'mute' }));
+    expect(status().endsWith('Mute')).toBe(true);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'solo' }));
+    expect(status().endsWith('Solo')).toBe(true);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'highlight' }));
+    expect(status().endsWith('Highlight')).toBe(true);
+  });
+
+  it('reads an unset audioMode as Auto', () => {
+    addRobots(makeRobot('r0', { audioMode: undefined }));
+    const { container } = renderTile('r0');
+    expect(container.querySelector('.roster-tile__status')!.textContent!.endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
   });
 
   // Code review 2026-10-11: the face button's aria-label replaces its content for assistive tech, so the
@@ -155,24 +175,25 @@ describe('RosterTile — what it shows', () => {
     expect(container.querySelector('.roster-tile__status')?.textContent?.startsWith(UNASSIGNED_JOB_LABEL.humanLabel)).toBe(true);
   });
 
-  it('reads the Audio Load budget and another robot\'s solo: standing by, then disabled', () => {
-    addRobots(makeRobot('r0'), makeRobot('r1'));
+  it('reads its own mode word while the Audio Load budget holds it back and under another robot Solo, never Standing by', () => {
+    addRobots(makeRobot('r0', { audioMode: 'none' }), makeRobot('r1'));
     useAudioStore.setState({ soundingRobotIds: ['r1'] });
     const { container } = renderTile('r0');
     const status = () => container.querySelector('.roster-tile__status')!.textContent!;
-    expect(status().endsWith(AUDIBILITY_LABELS.limited.humanLabel)).toBe(true);
+    expect(status().endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { audioMode: 'solo' }));
-    expect(status().endsWith(AUDIBILITY_LABELS.disabled.humanLabel)).toBe(true);
+    expect(status().endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
+    for (const old of ['Emitting', 'Standing by', 'Disabled']) expect(status()).not.toContain(old);
   });
 
   // The dock mutes on its own, not through audioMode, and a Solo beats it (Crawford, 2026-11-11).
-  it('reads a docked robot with no mute set as disabled, and emitting once it is soloed', () => {
+  it('reads a docked Auto robot as Auto, and Solo once it is soloed', () => {
     addRobots(makeRobot('r0', { docking: 'docked', activity: 'charging', audioMode: 'none' }));
     const { container } = renderTile('r0');
     const status = () => container.querySelector('.roster-tile__status')!.textContent!;
-    expect(status().endsWith(AUDIBILITY_LABELS.disabled.humanLabel)).toBe(true);
+    expect(status().endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'solo' }));
-    expect(status().endsWith(AUDIBILITY_LABELS.emitting.humanLabel)).toBe(true);
+    expect(status().endsWith(MODE_LABELS.solo.humanLabel)).toBe(true);
   });
 
   it.each([

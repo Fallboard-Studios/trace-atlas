@@ -7,6 +7,7 @@ import {
   DOCKING_STATE_LABELS,
   AUDIBILITY_LABELS,
   ACTIVITY_LABELS,
+  MODE_LABELS,
 } from './robotSelectionConfig';
 import { CONTENT } from '@/content';
 
@@ -73,6 +74,22 @@ describe('robotSelectionConfig', () => {
       const lore = Object.values(AUDIBILITY_LABELS).map((l) => l.loreLabel);
       expect(new Set(human).size).toBe(3);
       expect(new Set(lore).size).toBe(3);
+    });
+  });
+
+  describe('MODE_LABELS (monitor mode spec §1.5)', () => {
+    it('is the probe.monitorMode options record: the four modes, keyed by audioMode', () => {
+      expect(Object.keys(MODE_LABELS).sort()).toEqual(['highlight', 'mute', 'none', 'solo']);
+      for (const mode of ['none', 'mute', 'solo', 'highlight'] as const) {
+        expect(MODE_LABELS[mode].humanLabel).toBe(CONTENT['probe.monitorMode'].options[mode].human);
+        expect(MODE_LABELS[mode].loreLabel).toBe(CONTENT['probe.monitorMode'].options[mode].lore);
+      }
+    });
+
+    it('reads Auto, Mute, Solo and Highlight, each lore word distinct', () => {
+      expect([MODE_LABELS.none, MODE_LABELS.mute, MODE_LABELS.solo, MODE_LABELS.highlight].map((l) => l.humanLabel))
+        .toEqual(['Auto', 'Mute', 'Solo', 'Highlight']);
+      expect(new Set(Object.values(MODE_LABELS).map((l) => l.loreLabel)).size).toBe(4);
     });
   });
 

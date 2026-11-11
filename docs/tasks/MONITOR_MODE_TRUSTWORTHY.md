@@ -290,7 +290,7 @@ code, not text").
 
   **Estimated scope:** XS
 
-- [ ] **Task 7a: `useRobotMeta.ts`, `robotSelectionConfig.ts` — the status is the mode word, plus `mode` and `lit`**
+- [x] **Task 7a: `useRobotMeta.ts`, `robotSelectionConfig.ts` — the status is the mode word, plus `mode` and `lit`**
 
   **Description:** `MODE_LABELS: Record<NonNullable<Robot['audioMode']>, ValueLabel> =
   optionsRecord('probe.monitorMode')` beside `AUDIBILITY_LABELS` (deleted in 7b). `useRobotMeta` returns a `RobotMeta`
@@ -303,15 +303,15 @@ code, not text").
   reads `Auto`; a standing-by robot reads its mode word, not "Standing by".
 
   **Acceptance criteria:**
-  - [ ] `status` is the robot's own mode word in every state; the three old words appear nowhere on screen.
-  - [ ] `mode` and `lit` are returned; `lit` is true only for an audible, sounding robot.
-  - [ ] `robotSelectionConfig.test.ts` covers `MODE_LABELS` (the four options, human and lore).
+  - [x] `status` is the robot's own mode word in every state; the three old words appear nowhere on screen.
+  - [x] `mode` and `lit` are returned; `lit` is true only for an audible, sounding robot.
+  - [x] `robotSelectionConfig.test.ts` covers `MODE_LABELS` (the four options, human and lore).
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/RobotScreen.test.tsx
+  - [x] `npx vitest run src/components/panels/screen/screens/RobotScreen.test.tsx
         src/components/panels/screen/screens/RosterTile.test.tsx src/components/panels/screen/screens/RosterBoard.test.tsx
         src/data/robotSelectionConfig.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 5.
 
@@ -320,6 +320,11 @@ code, not text").
   `src/components/panels/screen/screens/RosterTile.test.tsx`
 
   **Estimated scope:** M (two source files, three test files rewritten)
+
+  **As built:** `fill` takes string vars only, so `RobotMeta`'s boolean `lit` could not be spread into the two
+  status-line templates: a `metaWords(meta)` helper in `useRobotMeta.ts` picks the four words, and `RosterTile.tsx` and
+  `RobotScreen.tsx` call it (one line each). `mode` and `lit` get their own RED test, `useRobotMeta.test.ts` (new),
+  since the tile and screen tests reach them only in Tasks 9 and 10.
 
 - [ ] **Task 7b: `robotAudibility.ts`, `robotSelectionConfig.ts`, `probe.ts` — the old vocabulary goes**
 
