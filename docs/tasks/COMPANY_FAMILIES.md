@@ -194,7 +194,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** M (two call sites; the blast radius is the pinned melodies)
 
-- [ ] **Task 3a: the rhythm on the world and the shape — every world's melodies change again**
+- [x] **Task 3a: the rhythm on the world and the shape — every world's melodies change again**
 
   **Description:** Spec §1.11 as revised (B16, B17, B19). In `melodyGenerator.ts`, an exported `rhythmShape(density,
   motif, subdivisions?)` (the motif length and onsets per cell with tiling on, the onsets per measure with it off),
@@ -213,21 +213,36 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   coincidence), recorded in this file's Results.
 
   **Acceptance criteria:**
-  - [ ] Two densities with the same onset count give the same stream; a motif length changed while tiling is off gives
+  - [x] Two densities with the same onset count give the same stream; a motif length changed while tiling is off gives
         the same stream; an onset count, motif length, tiling or world change gives a different one; note variance,
         pitch repeat and octave never enter it.
-  - [ ] In one world, robots with different composition seeds and one shape play the same onsets and lengths and,
+  - [x] In one world, robots with different composition seeds and one shape play the same onsets and lengths and,
         with the same Rests and Accents, the same stamps; their notes are their own. Another world plays a different
         rhythm. A robot edited to another's density and motif plays its rhythm.
-  - [ ] A Rests edit still only adds or removes rests (the four-draw contract holds on the new key).
-  - [ ] Spawn and regenerate still agree on every robot of a spawned roster; the session and link tests pass.
-  - [ ] Mutants, killed: the key on the raw density; the key without the world; the performance stream on the robot's
+  - [x] A Rests edit still only adds or removes rests (the four-draw contract holds on the new key).
+  - [x] Spawn and regenerate still agree on every robot of a spawned roster; the session and link tests pass.
+  - [x] Mutants, killed: the key on the raw density; the key without the world; the performance stream on the robot's
         own seed.
-  - [ ] Every test that pins a melody built the Task 3 way is re-pinned in this commit, old → new named in the message.
+  - [x] Every test that pins a melody built the Task 3 way is re-pinned in this commit, old → new named in the message.
+
+  **As built:** `rhythmShape` returns `{ cellLength, onsets }` (`cellLength` null with tiling off); a private
+  `rhythmKey` joins the world key, `cell<n>` or `free`, and the onset count, and `buildSeededRhythm` and
+  `buildSeededPerformance` both take `(worldKey, { rhythmicDensity, rhythmicMotifLength })` and hash that key with
+  their own tag. `generateMelodyForRobot` takes its onset counts from `rhythmShape` (Task 1's parity pins still pass,
+  so one-stream callers are unchanged). `melodyWorldKey(localeId)` and `composeRobotMelody(robot, worldKey)` live in
+  `regenerateMelody.ts`. The nested-rests case shows a lighter Rests value rests on a subset of a heavier one between
+  two robots of one rhythm. Mutants, killed: the key on the raw density (3 tests); the key without the world (7); the
+  performance stream on the robot's own seed (2); and an extra, spawn passing the locale id instead of the world key
+  (7). Rewritten, not re-pinned: Task 1's `buildSeededRhythm` cases and the `buildSeededPerformance` suite (new
+  signature), Task 3's lineage cases (now case 3). Re-pinned: the six Task 3 melody rebuilds (`spawnSystem.test.ts`
+  ×3, `sessionDiff.test.ts` ×2, `regenerateMelody.test.ts` ×1) now take the world key; two `applyPerformanceMarks`
+  cases take the new builder; and `regenerateMelody.test.ts`' "two robots with different compositionSeeds are stamped
+  differently", which B19 makes false, became "the same robot in two worlds is stamped differently". The Run is in
+  Results: 66 % of robots share a rhythm by coincidence; Crawford accepted it.
 
   **Verification:**
-  - [ ] `npm test` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` passes (351 files; 13,772 passed, 2 skipped; 227 s).
+  - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** Task 3.
 
@@ -456,7 +471,25 @@ Filled in by Tasks 3a, 4 and 8.
 
 ### Coincidental rhythms (Task 3a)
 
-*Not yet measured.*
+Measured 2026-11-11 on Task 3a's build (uncommitted), before families: `spawnInitialRoster` on each of the 121
+`SIM_SEED_COORDS` worlds (1,452 robots, before the aspect deal), grouping robots by rhythm shape. A throwaway test,
+not committed.
+
+| | World key (B16–B19, as built) | Per-robot seed (Task 3's design, for comparison) |
+|---|---|---|
+| Worlds with two or more robots on one rhythm | 121 of 121 | 63 of 121 |
+| Robots sharing a rhythm with another | 66 % | 14 % |
+| Robots sharing, per world: median / max | 8 / 12 | 2 / — |
+| Largest group | 9 robots | — |
+
+Why so many: rhythms are thin. Median density is 17 % (p10 4, p90 65), so 914 of 1,452 robots (63 %) play one onset
+per motif cell, and those shapes have few patterns (a 1-step cell with one onset is every step, identical under any
+key). Only 50 shapes occur over the whole grid. World (40, 0) is the plainest case: twelve robots, four rhythms (shapes
+5/1 ×4, 6/5 ×2, 8/1 ×3, free/2 ×3). The comparison column re-keys the same rosters on each robot's own seed; its
+share counts identical onsets and lengths. The agent's estimate when B16 was put to Crawford ("roughly one world in
+six" with a coincidental pair) was wrong by a wide margin. Stopped for Crawford before committing Task 3a, with four
+options (accept; key on the company; a visible Pattern setting in the key; back to the per-robot seed). **Crawford,
+2026-11-11: accept ("option 1, this sounds fine").** B16 stands as answered.
 
 ### The cap (Task 4)
 

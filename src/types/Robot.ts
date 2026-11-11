@@ -146,10 +146,6 @@ export interface MelodyEvent {
 export interface RobotLineage {
   /** Roster (spawn) index of the company's founder, its lowest-index member (B6). */
   founderIndex: number;
-  /** The founder's composition seed: the seed of this robot's rhythm and performance streams. */
-  rhythmSeed: number;
-  /** How many onset occurrences this robot moves one step off the founder's (melodyGenerator.ts's moveOnsets). */
-  movedOnsets: 0 | 1 | 2;
 }
 
 /**
@@ -188,11 +184,11 @@ export interface Robot {
   /**
    * A family member's descent (Company Families, docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md
    * §1.11). Set at spawn on a seeded company's members only; absent means an original, whose own
-   * roster index founds it and whose composition seed is its rhythm seed, nothing moved. The
-   * melody draws its onsets and lengths from the rhythm seed (melodyGenerator.ts's
-   * buildSeededRhythm), and its rests and accents too. Never user-edited, never shown, never diffed
-   * into a session — regenerated identically from the world seed — and kept when the robot is
-   * moved by hand into another company (B15).
+   * roster index founds it. The aspect deal reads it to deal a member from its founder. It plays no
+   * part in the melody: a member plays its founder's rhythm because it inherits its founder's
+   * density and motif (B16). Never user-edited, never shown, never diffed into a session —
+   * regenerated identically from the world seed — and kept when the robot is moved by hand into
+   * another company (B15).
    */
   lineage?: RobotLineage;
   /** The gem canvas's top-left in the scene. Written by the work loop on every leg's arrival. */

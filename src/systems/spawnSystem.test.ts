@@ -1957,6 +1957,13 @@ describe('spawnSystem', () => {
       });
       // Robot Performance T4 (docs/specs/ROBOT_PERFORMANCE.md section 1.2): the spawn melody is that
       // melody with the Rests / Accents post-pass applied from the robot's own two fields.
+      // Company Families Task 3a: onsets, lengths and stamps from the streams on the world's coordinates and the
+      // rhythm shape.
+      const { x, y } = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.coordinates;
+      const rhythm = {
+        rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
+        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+      };
       const expectedMelody = applyPerformanceMarks(
         generateMelodyForRobot({
           octaveMin: robot.octaveRange[0],
@@ -1966,14 +1973,10 @@ describe('spawnSystem', () => {
           noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
           pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
           rand,
-          // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
-          rhythmRand: buildSeededRhythm(robot.compositionSeed, {
-            rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
-            rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
-          }),
+          rhythmRand: buildSeededRhythm(`${x}:${y}`, rhythm),
         }),
         { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
-        buildSeededPerformance(robot.compositionSeed),
+        buildSeededPerformance(`${x}:${y}`, rhythm),
       );
       expect(stripEventIds(robot.melody)).toEqual(stripEventIds(expectedMelody));
     });
@@ -3138,7 +3141,12 @@ describe('spawnSystem', () => {
 
     describe('the melody carries the stamps', () => {
       const rosterLocale = 'performance-melody-roster-locale';
-      const rebuiltMelody = (robot: Robot) =>
+      /** Company Families Task 3a: a locale's world key, its coordinates. */
+      const worldOf = (localeId: string) => {
+        const { x, y } = useLocaleStore.getState().getLocaleById(localeId)!.coordinates;
+        return `${x}:${y}`;
+      };
+      const rebuiltMelody = (robot: Robot, world: string) =>
         applyPerformanceMarks(
           generateMelodyForRobot({
             octaveMin: robot.octaveRange[0],
@@ -3154,14 +3162,14 @@ describe('spawnSystem', () => {
               pitchRepeat: robot.pitchRepeat!,
               octaveRange: robot.octaveRange,
             }),
-            // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
-            rhythmRand: buildSeededRhythm(robot.compositionSeed, {
+            // Company Families Task 3a: onsets, lengths and stamps from the streams on the world and the rhythm shape.
+            rhythmRand: buildSeededRhythm(world, {
               rhythmicDensity: robot.rhythmicDensity!,
               rhythmicMotifLength: robot.rhythmicMotifLength!,
             }),
           }),
           { rests: robot.rests!, accents: robot.accents! },
-          buildSeededPerformance(robot.compositionSeed),
+          buildSeededPerformance(world, { rhythmicDensity: robot.rhythmicDensity!, rhythmicMotifLength: robot.rhythmicMotifLength! }),
         );
 
       it('every robot of a real roster has exactly the melody the post-pass makes from its own fields, and some are stamped', () => {
@@ -3171,7 +3179,7 @@ describe('spawnSystem', () => {
         const robots = useLocaleStore.getState().getLocaleById(rosterLocale)!.robots;
         expect(robots.length).toBeGreaterThan(0);
         for (const robot of robots) {
-          expect(stripEventIds(robot.melody), `robot ${robot.id}`).toEqual(stripEventIds(rebuiltMelody(robot)));
+          expect(stripEventIds(robot.melody), `robot ${robot.id}`).toEqual(stripEventIds(rebuiltMelody(robot, worldOf(rosterLocale))));
         }
         // Not vacuous: the seeded rests and accents really did stamp events.
         expect(robots.some((r) => r.melody.some((e) => e.rest !== undefined))).toBe(true);
@@ -3196,15 +3204,16 @@ describe('spawnSystem', () => {
         freshLocale(rosterLocale + '-notes');
         spawnInitialRoster(rosterLocale + '-notes');
         for (const robot of useLocaleStore.getState().getLocaleById(rosterLocale + '-notes')!.robots) {
-          const plain = applyPerformanceMarks(rebuiltMelody({ ...robot, rests: 0, accents: 0 }), { rests: 0, accents: 0 }, buildSeededPerformance(robot.compositionSeed));
+          const world = worldOf(rosterLocale + '-notes');
+          const plain = applyPerformanceMarks(rebuiltMelody({ ...robot, rests: 0, accents: 0 }, world), { rests: 0, accents: 0 }, buildSeededPerformance(world, { rhythmicDensity: robot.rhythmicDensity!, rhythmicMotifLength: robot.rhythmicMotifLength! }));
           expect(robot.melody.map(({ rest: _r, mark: _m, id: _id, ...rest }) => rest)).toEqual(plain.map(({ id: _id, ...rest }) => rest));
         }
       });
 
-      // Company Families Task 3 (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11): onsets and lengths come from
-      // the rhythm stream, keyed on the rhythm seed (an original's own composition seed) and the two rhythm settings,
-      // whatever the composition stream draws.
-      it('every spawned robot plays the rhythm stream: its onsets and lengths are buildSeededRhythm on its composition seed', () => {
+      // Company Families Task 3, revised by Task 3a (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11): onsets and
+      // lengths come from the rhythm stream, keyed on the world's coordinates and the rhythm shape, whatever the
+      // composition stream draws.
+      it('every spawned robot plays the rhythm stream: its onsets and lengths are buildSeededRhythm on its world', () => {
         for (const [suffix, coordinates] of [['-rhythm-a', { x: 7, y: 11 }], ['-rhythm-b', { x: 120, y: 40 }]] as const) {
           freshLocale(rosterLocale + suffix, coordinates);
           spawnInitialRoster(rosterLocale + suffix);
@@ -3219,7 +3228,7 @@ describe('spawnSystem', () => {
               noteVariance: robot.noteVariance!,
               pitchRepeat: robot.pitchRepeat!,
               rand: alea('any composition stream'),
-              rhythmRand: buildSeededRhythm(robot.compositionSeed, {
+              rhythmRand: buildSeededRhythm(`${coordinates.x}:${coordinates.y}`, {
                 rhythmicDensity: robot.rhythmicDensity!,
                 rhythmicMotifLength: robot.rhythmicMotifLength!,
               }),

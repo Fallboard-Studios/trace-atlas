@@ -130,25 +130,53 @@ export function buildSeededComposition(
   return alea(key);
 }
 
+/** The two settings a rhythm is made from: a robot's density and motif (B7). */
+export interface RhythmSettings {
+  rhythmicDensity: number;
+  rhythmicMotifLength: ToggleValue;
+}
+
 /**
- * Company Families (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11) — the rhythm stream, a
- * drop-in for `generateMelodyForRobot`'s `opts.rhythmRand`. Keyed on the rhythm seed and the two
- * rhythm settings only (B7), so a Note Variance, Pitch Repeat or octave edit leaves a robot's
- * onsets and note lengths where they were, and a family member whose rhythm seed is its founder's
- * composition seed plays the founder's rhythm. Takes the robot's full attributes as readily as
- * the two it reads. The `rhythm` tag keeps it a stream of its own beside buildSeededComposition.
+ * Company Families (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11, B17) — what a robot's
+ * density and motif make of a measure: with tiling on, the cell length and the onsets per cell;
+ * with it off, no cell and the onsets in the measure. Never fewer than one onset. The generator
+ * reads its onset counts from here and the rhythm key is built from it, so they cannot disagree:
+ * two densities that round to the same count are one shape, and an inert motif length (tiling off)
+ * is not part of it. Density is clamped to its 0–100 range first, as the generator always has.
  */
-export function buildSeededRhythm(
-  rhythmSeed: number,
-  attrs: { rhythmicDensity: number; rhythmicMotifLength: ToggleValue },
-): () => number {
-  const key = [
-    rhythmSeed,
-    attrs.rhythmicDensity,
-    `${attrs.rhythmicMotifLength.active}-${attrs.rhythmicMotifLength.value}`,
-    'rhythm',
-  ].join(':');
-  return alea(key);
+export function rhythmShape(
+  rhythmicDensity: number,
+  rhythmicMotifLength: ToggleValue,
+  subdivisions: number = DEFAULT_SUBDIVISIONS,
+): { cellLength: number | null; onsets: number } {
+  const densityPct = Math.max(RHYTHMIC_DENSITY_MIN, Math.min(RHYTHMIC_DENSITY_MAX, rhythmicDensity));
+  if (rhythmicMotifLength.active) {
+    const cellLength = Math.max(
+      RHYTHMIC_MOTIF_LENGTH_MIN,
+      Math.min(RHYTHMIC_MOTIF_LENGTH_MAX, Math.trunc(rhythmicMotifLength.value)),
+    );
+    return { cellLength, onsets: Math.max(1, Math.round((densityPct / 100) * cellLength)) };
+  }
+  return { cellLength: null, onsets: Math.max(1, Math.round((densityPct / 100) * subdivisions)) };
+}
+
+/** The world and the rhythm shape as a key: the one thing the rhythm and performance streams hash. */
+function rhythmKey(worldKey: string, attrs: RhythmSettings): string {
+  const { cellLength, onsets } = rhythmShape(attrs.rhythmicDensity, attrs.rhythmicMotifLength);
+  return [worldKey, cellLength === null ? 'free' : `cell${cellLength}`, onsets].join(':');
+}
+
+/**
+ * Company Families (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11, B16, B17, B19) — the
+ * rhythm stream, a drop-in for `generateMelodyForRobot`'s `opts.rhythmRand`. Keyed on the world
+ * (its coordinates, `${x}:${y}`) and the rhythm shape only, nothing of the robot's own: so in one
+ * world, robots whose settings make one shape play one rhythm (a family member, whose settings are
+ * its founder's, or any robot set to match), and a Note Variance, Pitch Repeat or octave edit
+ * leaves a robot's onsets and note lengths where they were (B7). Takes the robot's full attributes
+ * as readily as the two it reads. The `rhythm` tag keeps it a stream of its own.
+ */
+export function buildSeededRhythm(worldKey: string, attrs: RhythmSettings): () => number {
+  return alea(`${rhythmKey(worldKey, attrs)}:rhythm`);
 }
 
 /**
@@ -156,15 +184,16 @@ export function buildSeededRhythm(
  * post-pass draws from. Its own stream, separate from buildSeededComposition, so notes and rhythm
  * never move when either slider does: only the stamps are redrawn.
  *
- * Keyed on the seed alone, NOT on the slider values (the spec text keyed it on both). Every event
- * consumes exactly four draws whatever the values (see applyPerformanceMarks), which only keeps the
- * stream stable under a slider change if the stream starts from the same place every time: with the
- * values in the key, each slider tick would re-seed it and reshuffle which events are marked.
- * Keyed on the seed, dragging Rests only adds or removes rests, and Accents only adds or removes
- * marks. Fully deterministic, no Math.random.
+ * Keyed on the world and the rhythm shape, as the rhythm stream is (Company Families B19): robots
+ * that share a rhythm and the same Rests and Accents values rest and accent together. NOT keyed on
+ * the slider values: every event consumes exactly four draws whatever the values (see
+ * applyPerformanceMarks), which only keeps the stream stable under a slider change if the stream
+ * starts from the same place every time; with the values in the key, each slider tick would
+ * re-seed it and reshuffle which events are marked. So dragging Rests only adds or removes rests,
+ * and Accents only adds or removes marks. Fully deterministic, no Math.random.
  */
-export function buildSeededPerformance(compositionSeed: number): () => number {
-  return alea(`${compositionSeed}:performance`);
+export function buildSeededPerformance(worldKey: string, attrs: RhythmSettings): () => number {
+  return alea(`${rhythmKey(worldKey, attrs)}:performance`);
 }
 
 /**
@@ -552,33 +581,29 @@ export function generateMelodyForRobot(
   const rand = opts.rand ?? (opts.seed !== undefined ? alea(String(opts.seed)) : Math.random);
   const rhythmRand = opts.rhythmRand ?? rand;
   const subdivisions = opts.subdivisions ?? DEFAULT_SUBDIVISIONS;
-  const densityPct = Math.max(
-    RHYTHMIC_DENSITY_MIN,
-    Math.min(RHYTHMIC_DENSITY_MAX, opts.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY),
-  );
   const motif = opts.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
   const octMin = Math.min(opts.octaveMin, opts.octaveMax);
   const octMax = Math.max(opts.octaveMin, opts.octaveMax);
 
   // Density is a fill-rate % of either one motif cell (tiling on) or the whole
-  // measure (tiling off). buildMotifOnsets' own `rhythmicDensity` parameter is a
+  // measure (tiling off), resolved by rhythmShape, the same function the rhythm key
+  // is built from. buildMotifOnsets' own `rhythmicDensity` parameter is a
   // TOTAL onset count across the tiled measure, not a per-cell count — so when
   // tiling is on, the per-cell fill is multiplied back out by the repeat count
   // before calling it, keeping every repeat identically filled (no remainder
   // distributed unevenly, unlike the old total-onset-count model).
+  const shape = rhythmShape(opts.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY, motif, subdivisions);
   let onsets: number[];
   // Resolved only when motif tiling is active (`motif.active` stays the single source of truth
   // for that below — this is just the value, not a second independent flag); Pitch Repeat is
   // gated inert whenever tiling is off (no cell concept to lock pitches within).
   let motifLength: number | null = null;
   if (motif.active) {
-    motifLength = Math.max(RHYTHMIC_MOTIF_LENGTH_MIN, Math.min(RHYTHMIC_MOTIF_LENGTH_MAX, Math.trunc(motif.value)));
+    motifLength = shape.cellLength!;
     const repeats = Math.max(1, Math.floor(subdivisions / motifLength));
-    const perCell = Math.max(1, Math.round((densityPct / 100) * motifLength));
-    onsets = buildMotifOnsets(perCell * repeats, motifLength, subdivisions, rhythmRand);
+    onsets = buildMotifOnsets(shape.onsets * repeats, motifLength, subdivisions, rhythmRand);
   } else {
-    const onsetCount = Math.max(1, Math.round((densityPct / 100) * subdivisions));
-    onsets = buildMotifOnsets(onsetCount, subdivisions, subdivisions, rhythmRand);
+    onsets = buildMotifOnsets(shape.onsets, subdivisions, subdivisions, rhythmRand);
   }
   // A family member's moved onsets (moveOnsets), in the measure, before the pitch-lock plan reads
   // the cells and before the durations read the gaps.

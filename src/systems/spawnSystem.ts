@@ -16,7 +16,7 @@ import {
   DEFAULT_ACCENTS,
 } from '../engine/melodyGenerator';
 import type { ToggleValue } from '../engine/melodyGenerator';
-import { composeRobotMelody } from '../engine/regenerateMelody';
+import { composeRobotMelody, melodyWorldKey } from '../engine/regenerateMelody';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
@@ -634,10 +634,11 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     }
   }
 
-  // Seeded melody (Roadmap Phase 31) -- the same recipe regenerateMelody.ts uses for every later
-  // edit (composeRobotMelody: the rhythm, composition and performance streams, Company Families
-  // §1.11), so a post-spawn edit reverted to its original value reproduces this exact melody, stamps
-  // included (no "first-edit ratchet"). No lineage yet: every spawned robot is an original.
+  // Seeded melody (Roadmap Phase 31) -- the same recipe and world key regenerateMelody.ts uses for
+  // every later edit (composeRobotMelody: the rhythm and performance streams on the world and the
+  // rhythm shape, the composition stream on the robot's seed, Company Families §1.11), so a
+  // post-spawn edit reverted to its original value reproduces this exact melody, stamps included
+  // (no "first-edit ratchet").
   const spawnMelody = composeRobotMelody({
     compositionSeed,
     octaveRange,
@@ -647,7 +648,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     pitchRepeat: spawnPitchRepeat,
     rests: spawnRests,
     accents: spawnAccents,
-  });
+  }, melodyWorldKey(localeId));
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
 

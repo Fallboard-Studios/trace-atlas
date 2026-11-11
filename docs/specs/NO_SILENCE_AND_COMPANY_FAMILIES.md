@@ -804,7 +804,10 @@ only the same shape does. Four questions, **all answered yes on 2026-11-11**:
 
 - **B16. The rhythm is the world's and the settings', not the robot's.** In one world, the same rhythm settings play
   the same onsets and lengths; a member matches its founder because it inherits the settings; any robot set to them
-  joins; two freelancers that draw the same shape play together. **Answered: yes.**
+  joins; two freelancers that draw the same shape play together. **Answered: yes.** *Measured after (Task 3a's Run,
+  [COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md) Results): before families, 66 % of robots share a rhythm with
+  another in their world, in all 121 grid worlds, against 14 % on a per-robot seed; the estimate it was answered on
+  ("roughly one world in six") was wrong. Crawford, shown it: **accepted** ("this sounds fine").*
 - **B17. The key is the shape, not the raw density:** the onset count per cell (tiling on) or per measure (tiling off)
   and the motif length, so densities that round to the same count match and a user need not hit the exact slider
   value. **Answered: yes.**

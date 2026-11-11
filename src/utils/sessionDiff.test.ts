@@ -1168,6 +1168,13 @@ describe('applySessionPayload', () => {
       pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
       octaveRange: restoredRobot.octaveRange,
     });
+    // Company Families Task 3a: onsets, lengths and stamps from the streams on the world's coordinates and the
+    // rhythm shape.
+    const world = `${currentLocale()!.coordinates.x}:${currentLocale()!.coordinates.y}`;
+    const rhythm = {
+      rhythmicDensity: RHYTHMIC_DENSITY_MAX,
+      rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+    };
     // Robot Performance T4: a seeded robot carries rests and accents, so its melody is the generated
     // one with the same post-pass regenerateMelody applies (docs/specs/ROBOT_PERFORMANCE.md section 1.2).
     const expectedMelody = applyPerformanceMarks(
@@ -1179,14 +1186,10 @@ describe('applySessionPayload', () => {
         noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
         pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
         rand: expectedRand,
-        // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
-        rhythmRand: buildSeededRhythm(restoredRobot.compositionSeed, {
-          rhythmicDensity: RHYTHMIC_DENSITY_MAX,
-          rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
-        }),
+        rhythmRand: buildSeededRhythm(world, rhythm),
       }),
       { rests: restoredRobot.rests ?? DEFAULT_RESTS, accents: restoredRobot.accents ?? DEFAULT_ACCENTS },
-      buildSeededPerformance(restoredRobot.compositionSeed),
+      buildSeededPerformance(world, rhythm),
     );
     const stripIds = (melody: typeof expectedMelody) => melody.map(({ id: _id, ...rest }) => rest);
     expect(stripIds(restoredRobot.melody)).toEqual(stripIds(expectedMelody));
@@ -1517,6 +1520,12 @@ describe('applySessionPayload', () => {
         pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
         octaveRange: robot.octaveRange,
       });
+      const { x, y } = currentLocale()!.coordinates;
+      const world = `${x}:${y}`;
+      const rhythm = {
+        rhythmicDensity: robot.rhythmicDensity!,
+        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+      };
       return applyPerformanceMarks(
         generateMelodyForRobot({
           octaveMin: robot.octaveRange[0],
@@ -1526,14 +1535,12 @@ describe('applySessionPayload', () => {
           noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
           pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
           rand,
-          // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
-          rhythmRand: buildSeededRhythm(robot.compositionSeed, {
-            rhythmicDensity: robot.rhythmicDensity!,
-            rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
-          }),
+          // Company Families Task 3a: onsets, lengths and stamps from the streams on the current world's coordinates
+          // and the rhythm shape.
+          rhythmRand: buildSeededRhythm(world, rhythm),
         }),
         { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
-        buildSeededPerformance(robot.compositionSeed),
+        buildSeededPerformance(world, rhythm),
       );
     }
 
