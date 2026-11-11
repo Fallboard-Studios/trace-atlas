@@ -75,6 +75,12 @@ export interface GenerateMelodyForRobotOptions {
    */
   rhythmRand?: () => number;
   /**
+   * A family member's moved onsets (Company Families, spec §1.11): `count` occurrences move one
+   * step each (`moveOnsets`), drawn from `rand`, after the onsets are built and before the
+   * pitch-lock plan and the durations. Absent or a count of 0 moves nothing.
+   */
+  onsetMoves?: { count: number; rand: () => number };
+  /**
    * Weighted note-selection toggle. When `active` is false, notes are picked
    * unweighted from all 8 indices and `value` is inert. When true, selection
    * is a weighted slice of `value` (1–8) notes from the pitch array.
@@ -393,6 +399,40 @@ export function buildMotifOnsets(
 }
 
 /**
+ * Company Families (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11, B1, B13) — move `count`
+ * onset occurrences in the measure, each one step to a free neighbour, so a family member plays
+ * its founder's rhythm with a push or a pull. Pure; returns a new sorted array.
+ *
+ * The occurrences are tried in a seeded order. One with no free neighbour is skipped and the next
+ * tried, so fewer than `count` move only when no more can. Free means neither an onset now nor a
+ * step an onset started on: a move never lands where another onset left, so every move stays one
+ * step from where its own onset was. When both neighbours are free, one draw picks the side.
+ *
+ * @param onsets       Sorted onset steps (0-indexed, 0..subdivisions-1).
+ * @param count        How many occurrences to move.
+ * @param subdivisions Grid units per measure; a move never leaves [0, subdivisions).
+ * @param rand         The member's own move stream.
+ */
+export function moveOnsets(onsets: number[], count: number, subdivisions: number, rand: () => number): number[] {
+  if (count <= 0) return [...onsets];
+  const started = new Set(onsets);
+  const now = new Set(onsets);
+  const isFree = (step: number) => step >= 0 && step < subdivisions && !started.has(step) && !now.has(step);
+  let moved = 0;
+  for (const i of pickUniqueInRange(onsets.length, onsets.length, rand)) {
+    if (moved === count) break;
+    const from = onsets[i];
+    const sides = [from - 1, from + 1].filter(isFree);
+    if (sides.length === 0) continue;
+    const to = sides.length === 1 ? sides[0] : sides[Math.floor(rand() * 2)];
+    now.delete(from);
+    now.add(to);
+    moved++;
+  }
+  return Array.from(now).sort((a, b) => a - b);
+}
+
+/**
  * Determine which onsets in a tiled-motif melody should copy the base cell's noteIndex
  * verbatim, per Pitch Repeat's staged/seeded locking model (docs/intent/archive/pitch-repeat.md,
  * docs/specs/archive/PITCH_REPEAT.md §4). Returns a boolean per onset, same order/length as `onsets`.
@@ -539,6 +579,11 @@ export function generateMelodyForRobot(
   } else {
     const onsetCount = Math.max(1, Math.round((densityPct / 100) * subdivisions));
     onsets = buildMotifOnsets(onsetCount, subdivisions, subdivisions, rhythmRand);
+  }
+  // A family member's moved onsets (moveOnsets), in the measure, before the pitch-lock plan reads
+  // the cells and before the durations read the gaps.
+  if (opts.onsetMoves && opts.onsetMoves.count > 0) {
+    onsets = moveOnsets(onsets, opts.onsetMoves.count, subdivisions, opts.onsetMoves.rand);
   }
 
   // Pitch Repeat: which onsets copy the base cell's noteIndex verbatim (docs/specs/archive/PITCH_REPEAT.md).

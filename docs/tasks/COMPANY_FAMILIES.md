@@ -6,7 +6,7 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 [73](../todo/backlog.md#73-robots-a-seeded-company-is-a-family).
 
 **Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. Building on
-`feature/company-families` from `main` after Part A merged (PR #623). **Task 1 done 2026-11-11; next is Task 2.**
+`feature/company-families` from `main` after Part A merged (PR #623). **Tasks 1 and 2 done 2026-11-11; next is Task 3.**
 B12–B15 answered at Gate A: every default stands.
 
 ## Overview
@@ -101,7 +101,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** S (one function, one option threaded through two call sites)
 
-- [ ] **Task 2: `melodyGenerator.ts` — `moveOnsets`, applied in the measure**
+- [x] **Task 2: `melodyGenerator.ts` — `moveOnsets`, applied in the measure**
 
   **Description:** A pure `moveOnsets(onsets, count, subdivisions, rand)`: moves `count` onset occurrences, each one
   step to a free neighbour (B13's default: if neither neighbour is free, skip it and try the next occurrence), and
@@ -111,15 +111,22 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Proof:** RED test — `src/engine/melodyGenerator.test.ts`: case 3, and a melody built with a move.
 
   **Acceptance criteria:**
-  - [ ] Exactly `count` occurrences move, each by one step, never onto another onset or off the measure; the onset
+  - [x] Exactly `count` occurrences move, each by one step, never onto another onset or off the measure; the onset
         count and the sort order hold; count 0 returns the input unchanged; the same stream gives the same moves.
-  - [ ] A motif-tiled melody with a move still builds (the pitch-lock plan copes with an onset off its cell grid), and
+  - [x] A motif-tiled melody with a move still builds (the pitch-lock plan copes with an onset off its cell grid), and
         its event count is unchanged.
-  - [ ] Mutant, killed: a two-step move allowed.
+  - [x] Mutant, killed: a two-step move allowed.
+
+  **As built:** a move never lands on a step another onset started on, not only on one occupied now, so every move
+  reads as one step from its own onset and a count past what can move moves what can (`[0, 1, 2, 3]` with two moves
+  gives `[0, 1, 2, 4]`). The occurrences are tried in a seeded order; one draw picks the side when both are free. The
+  pitch-lock plan needed no change: it locks only positions that have an onset in the first cell, so a locked note
+  always finds its base note. The melody cases run full and half Pitch Repeat and check each duration fits its moved
+  gap. The two-step mutant failed 6 tests.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/melodyGenerator.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/melodyGenerator.test.ts` passes (170).
+  - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** None (beside Task 1).
 

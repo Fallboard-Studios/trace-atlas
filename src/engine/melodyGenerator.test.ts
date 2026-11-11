@@ -3,6 +3,7 @@ import alea from 'alea';
 import {
   pickRandomIndices,
   buildMotifOnsets,
+  moveOnsets,
   computePitchLockPlan,
   pickDurationForGap,
   generateMelodyForRobot,
@@ -896,6 +897,181 @@ describe('generateMelodyForRobot — rhythmRand', () => {
       [15, '8n', 5, 5, 1],
     ]);
   });
+});
+
+// ========================================
+// TEST SUITE: moveOnsets (Company Families, Task 2; spec §5.7 case 3)
+// ========================================
+
+describe('moveOnsets', () => {
+  const SUBS = 16;
+  // Spaced so most onsets have both neighbours free, some one, none none.
+  const spread = [0, 2, 3, 6, 9, 10, 15];
+  const seeds = Array.from({ length: 60 }, (_, i) => `move-${i}`);
+
+  /** The onsets that left and the steps that were taken, against the input. */
+  function diff(before: number[], after: number[]) {
+    return {
+      left: before.filter((o) => !after.includes(o)),
+      taken: after.filter((o) => !before.includes(o)),
+    };
+  }
+
+  /** True when every left step pairs with a distinct taken step exactly one away. */
+  function pairsOneStepApart(left: number[], taken: number[]): boolean {
+    if (left.length !== taken.length) return false;
+    if (left.length === 0) return true;
+    const [first, ...rest] = left;
+    return taken.some(
+      (t, i) => Math.abs(t - first) === 1 && pairsOneStepApart(rest, taken.filter((_, j) => j !== i)),
+    );
+  }
+
+  for (const count of [1, 2, 3]) {
+    it(`moves exactly ${count} occurrence(s), each one step, onto a free step in the measure`, () => {
+      for (const seed of seeds) {
+        const moved = moveOnsets(spread, count, SUBS, alea(seed));
+        const { left, taken } = diff(spread, moved);
+        expect(left).toHaveLength(count);
+        expect(taken).toHaveLength(count);
+        expect(pairsOneStepApart(left, taken)).toBe(true);
+        expect(new Set(moved).size).toBe(spread.length);
+        expect(moved.every((o) => o >= 0 && o < SUBS)).toBe(true);
+        expect(moved).toEqual([...moved].sort((a, b) => a - b));
+      }
+    });
+  }
+
+  it('count 0 returns the onsets unchanged', () => {
+    expect(moveOnsets(spread, 0, SUBS, alea('zero'))).toEqual(spread);
+  });
+
+  it('is repeatable: the same stream gives the same moves', () => {
+    for (const seed of seeds.slice(0, 10)) {
+      expect(moveOnsets(spread, 2, SUBS, alea(seed))).toEqual(moveOnsets(spread, 2, SUBS, alea(seed)));
+    }
+  });
+
+  it('the stream decides the moves: different streams move different onsets', () => {
+    const results = new Set(seeds.map((seed) => moveOnsets(spread, 1, SUBS, alea(seed)).join(',')));
+    expect(results.size).toBeGreaterThan(3);
+  });
+
+  it('never moves off the measure: the first step can only move up, the last only down', () => {
+    for (const seed of seeds) {
+      expect(moveOnsets([0], 1, SUBS, alea(seed))).toEqual([1]);
+      expect(moveOnsets([SUBS - 1], 1, SUBS, alea(seed))).toEqual([SUBS - 2]);
+    }
+  });
+
+  it('skips an occurrence with no free neighbour and tries the next', () => {
+    // 0, 1 and 2 are boxed in; only 3 can move, and only up.
+    for (const seed of seeds) {
+      expect(moveOnsets([0, 1, 2, 3], 1, SUBS, alea(seed))).toEqual([0, 1, 2, 4]);
+    }
+  });
+
+  it('never lands on a step another onset left: a count past what can move moves what can', () => {
+    // After 3 moves to 4, 2 could only move into the step 3 left, which would read as a two-step move.
+    for (const seed of seeds) {
+      expect(moveOnsets([0, 1, 2, 3], 2, SUBS, alea(seed))).toEqual([0, 1, 2, 4]);
+    }
+  });
+
+  it('a full measure moves nothing', () => {
+    const full = Array.from({ length: SUBS }, (_, i) => i);
+    expect(moveOnsets(full, 2, SUBS, alea('full'))).toEqual(full);
+  });
+
+  it('does not mutate its input', () => {
+    const input = [...spread];
+    moveOnsets(input, 2, SUBS, alea('mutate'));
+    expect(input).toEqual(spread);
+  });
+});
+
+// ========================================
+// TEST SUITE: generateMelodyForRobot — onsetMoves (Company Families, Task 2)
+// ========================================
+
+describe('generateMelodyForRobot — onsetMoves', () => {
+  const UNITS: Record<string, number> = { '16n': 1, '8n': 2, '4n': 4, '2n': 8 };
+  const configs = {
+    free: {
+      octaveMin: 3,
+      octaveMax: 6,
+      rhythmicDensity: 30,
+      rhythmicMotifLength: { active: false, value: 8 },
+    },
+    // Full Pitch Repeat locks every repeat it can, so a moved onset off its cell grid is exercised.
+    tiledFullLock: {
+      octaveMin: 3,
+      octaveMax: 5,
+      rhythmicDensity: 50,
+      rhythmicMotifLength: { active: true, value: 4 },
+      pitchRepeat: 100,
+      noteVariance: { active: true, value: 3 },
+    },
+    tiledHalfLock: {
+      octaveMin: 3,
+      octaveMax: 5,
+      rhythmicDensity: 40,
+      rhythmicMotifLength: { active: true, value: 5 },
+      pitchRepeat: 50,
+    },
+  };
+  const seeds = Array.from({ length: 40 }, (_, i) => `onset-moves-${i}`);
+
+  for (const [name, config] of Object.entries(configs)) {
+    describe(name, () => {
+      const build = (seed: number | string, count?: number) =>
+        generateMelodyForRobot({
+          ...config,
+          rand: alea(`composition-${seed}`),
+          rhythmRand: alea(`rhythm-${seed}`),
+          ...(count !== undefined ? { onsetMoves: { count, rand: alea(`moves-${seed}`) } } : {}),
+        });
+
+      it('a melody with moves builds, keeps its event count, and differs in exactly that many onsets', () => {
+        for (const seed of seeds) {
+          for (const count of [1, 2]) {
+            const plain = build(seed).map((e) => e.startStep);
+            const moved = build(seed, count);
+            const steps = moved.map((e) => e.startStep);
+            expect(moved).toHaveLength(plain.length);
+            expect(steps.filter((s) => !plain.includes(s))).toHaveLength(Math.min(count, plain.length));
+          }
+        }
+      });
+
+      it('every note of a moved melody is a real note, locked or not', () => {
+        for (const seed of seeds) {
+          for (const event of build(seed, 2)) {
+            expect(Number.isInteger(event.noteIndex)).toBe(true);
+            expect(event.noteIndex).toBeGreaterThanOrEqual(0);
+            expect(event.noteIndex).toBeLessThan(NOTE_PALETTE_SIZE);
+          }
+        }
+      });
+
+      it('each duration fits its moved gap', () => {
+        for (const seed of seeds) {
+          const moved = build(seed, 2);
+          moved.forEach((event, i) => {
+            const next = i < moved.length - 1 ? moved[i + 1].startStep : DEFAULT_SUBDIVISIONS + 1;
+            expect(UNITS[event.length]).toBeLessThanOrEqual(next - event.startStep);
+          });
+        }
+      });
+
+      it('count 0 gives the melody no onsetMoves gives', () => {
+        const shape = (m: MelodyEvent[]) => m.map((e) => [e.startStep, e.length, e.noteIndex, e.octave]);
+        for (const seed of seeds.slice(0, 10)) {
+          expect(shape(build(seed, 0))).toEqual(shape(build(seed)));
+        }
+      });
+    });
+  }
 });
 
 // ========================================
