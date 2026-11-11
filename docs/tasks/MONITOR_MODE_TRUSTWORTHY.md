@@ -6,7 +6,7 @@ Source spec: [docs/specs/MONITOR_MODE_TRUSTWORTHY.md](../specs/MONITOR_MODE_TRUS
 
 **Status:** plan written 2026-11-11 from the spec, before Crawford's answers to §7.2 Q1–Q2. Phases 0–2 built
 2026-11-11 (Tasks 0–11). Both gates passed 2026-11-11 (Crawford: "all looks and sounds fine"), every §7.1 default and
-§7.2 Q2 kept as built. Next: Task 12 (docs).
+§7.2 Q2 kept as built. Task 12 (docs) done 2026-11-11. Next: Checkpoint Complete, then Crawford's PR.
 
 ## Overview
 
@@ -492,7 +492,7 @@ code, not text").
 
 ### Phase 3: Docs
 
-- [ ] **Task 12: `AUDIO_SYSTEM.md`, `POLYPHONY_GUIDE.md`, `ROBOT_LIFECYCLE.md`, the spec — document the shipped behaviour**
+- [x] **Task 12: `AUDIO_SYSTEM.md`, `POLYPHONY_GUIDE.md`, `ROBOT_LIFECYCLE.md`, the spec — document the shipped behaviour**
 
   **Description:** AUDIO_SYSTEM.md: the `audioMode` policy item (~line 575) describes the bus-gain dip, when a
   Highlight is live, and `setHighlightedRobots`; the budget paragraph (~line 233) reads "Solo, then Highlight, then
@@ -504,11 +504,11 @@ code, not text").
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every named API, constant and rule matches the shipped source; no "keep existing sound" clause anywhere.
+  - [x] Every named API, constant and rule matches the shipped source; no "keep existing sound" clause anywhere.
 
   **Verification:**
-  - [ ] Manual review against the code.
-  - [ ] `npm run lint` clean.
+  - [x] Manual review against the code.
+  - [x] `npm run lint` clean.
 
   **Dependencies:** All prior tasks.
 
@@ -516,6 +516,13 @@ code, not text").
   `docs/specs/MONITOR_MODE_TRUSTWORTHY.md`
 
   **Estimated scope:** XS (docs only)
+
+  **As built:** besides the plan's lines, the same files carried the old vocabulary in four more places, now the mode
+  word and its light: AUDIO_SYSTEM.md's standing-by sentence (`getAudibilityState`), its muted-card sentence, the UI
+  paragraph's "Standing by", and the Headroom trim (now `busGainTarget`, at four places); ROBOT_LIFECYCLE.md's Audibility
+  section (the card line and "Standing by") and its test list's "Off". Left alone, outside this task's files:
+  `docs/reference/ROBOT_DATA_GRID.md` (Emitting / Disabled, `AUDIBILITY_LABELS`) and `docs/specs/CONTENT_LAYER.md`'s
+  migration table (names `AUDIBILITY_LABELS` as history).
 
 ### Checkpoint: Complete
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.

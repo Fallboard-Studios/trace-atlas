@@ -11,8 +11,8 @@
 
 **Status:** spec written 2026-11-11 from the confirmed intent
 [docs/intent/monitor-mode-trustworthy.md](../intent/monitor-mode-trustworthy.md) (`interview-me`, 2026-11-11, five
-questions, every guess confirmed). Not yet planned. Not yet a backlog entry: the shared counter's next free number is
-81, and the plan.md line (Stage 3 for the sound, or Stage 5 for the cards) is Crawford's call (§7.2 Q1).
+questions, every guess confirmed). Planned in [tasks/MONITOR_MODE_TRUSTWORTHY.md](../tasks/MONITOR_MODE_TRUSTWORTHY.md);
+backlog 81, plan.md Stage 3. **Built 2026-11-11**, both gates passed and every default kept: see §8, As built.
 
 **Who it is for:** Crawford, listening and reading the fleet at a glance, on the desk shell and the phone shell.
 
@@ -445,3 +445,46 @@ are defaults, re-pinned here). After Part B: he looks at §5.3's third run and n
 - **Q4. The Deck's count under a Highlight.** The `WorldLine` counts sounding robots; a dipped robot is still
   sounding and still counts. Correct as specified; flagged in case Crawford expected "1 of 12" while a Highlight
   is live.
+
+---
+
+## 8. As built
+
+Built 2026-11-11 on `feature/monitor-mode-trustworthy`, one commit per task (Task 0 5b6f2a58, T1 536ea899 to T11
+3dd8190a). The plan's tasks carry the detail ([tasks/MONITOR_MODE_TRUSTWORTHY.md](../tasks/MONITOR_MODE_TRUSTWORTHY.md));
+the shipped design is in [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) (Audio Load Budget; Note Resolution Pipeline step 3;
+Headroom's trim), [POLYPHONY_GUIDE.md](../POLYPHONY_GUIDE.md) and [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md) (rule 6;
+Audibility and the Audio Load Budget). Merged PR: recorded here after the merge (Task 13).
+
+**The gates.** Both passed 2026-11-11, together (Crawford: "all looks and sounds fine"); Phase 2 was built before the
+ear gate, at his request. Every §7.1 default and the §7.2 answers are kept as built:
+
+| Item | Pinned |
+|---|---|
+| A1, the dip | `HIGHLIGHT_DIP_DB = -10`, `HIGHLIGHT_DIP_GAIN = 10 ** (HIGHLIGHT_DIP_DB / 20)`, in `audioEngine/headroom.ts` |
+| A2, the ramp | `HIGHLIGHT_RAMP_SECONDS = 0.15`, in `AudioEngine.ts` beside `VOLUME_RAMP_SECONDS` |
+| A5, the rank | `reconcileSounding(previous, eligible, soloIds, highlightIds, maxAudibleRobots)`, a `rank(id)` and `newestOfRank` over `lastIndexWhere` |
+| B1, the colours | `getStatusLightColor`: `'yellow'` = `wire`, `'blue'` = `glass`; the existing four untouched |
+| B2, the light | `ModeLight({ mode, lit })`, local to `screens/`, `aria-hidden`, `data-mode` and `data-lit`; a 0.6em disc |
+| B3, dim | the whole light at `opacity: 0.3`, no glow; lit is the rocker's glow idiom, `0 0 6px 2px` |
+| B4, the desk tile | a two-line clamp (`-webkit-line-clamp` and `line-clamp`), `line-height` 1.3, `min-height` `calc(2em * 1.3)` |
+| Q1 | backlog 81, plan.md Stage 3, one entry for both parts |
+| Q2 | a user-muted robot's light is red and dim |
+
+**Where it differs from §1–§4.**
+
+| Where | Built | Why |
+|---|---|---|
+| §4, `setHighlightedRobots` | Reads each voice's Volume from `VoiceEntry.masterVolume`, written by `reserveVoice` and `updateRobotMasterVolume`, not `findActiveRobot` (T2, e3557f49). | §3 Always: the engine never reads the store for the dip. |
+| §2, `AudioEngine.ts` | The `isDockMuted` import went with the velocity block (T3, 4addda9f). | `triggerWithCap` reaches the dock through `isRobotAudible`; nothing else in the engine read it. |
+| §1.4, an existing budget test | `treats an unset audioMode as audible and highlight as audible, muted as not` now expects `[b, a, d]` (T4, 1351644d). | The Highlight is admitted ahead of the Autos, as a Solo is (§1.4 step 4); nothing reads the set's order. |
+| §4, `RobotMeta` | As §4 shows, plus `metaWords(meta)` in `useRobotMeta.ts`, which `RosterTile.tsx` and `RobotScreen.tsx` pass to `fill` (T7a, 6463ba63). | `fill` takes string vars only, so the boolean `lit` cannot be spread into a template. |
+| §1.5, the well and the band | The light sits inside the value span, first, so `metaValues` and the line's text read the words alone; `ModeLight.css`'s `margin-inline-end` is the gap, and `RobotScreen.css` is untouched (T10, 2cf86c1c). | One gap rule for the three consumers. |
+| §1.6, the desk tile | The base status rule gives the clip 8 px of room above and before the line (padding, with matching negative margins), so the lit glow is not cut square by `overflow: hidden`; text and tile heights do not move (T11, 3dd8190a). | Found by the Look: the clamp's `overflow: hidden` clipped the glow. |
+| §7.1 B5, the phone band | Wraps to two lines at 320 px; the band has no one-line rule. | Reported at the eye gate; no change asked. |
+
+**Found, not this branch's.** At 768 px the roster panel's content overflows by 9 px (a 250 px tile in a 233 px row),
+with or without these rules. Reported at the eye gate; left alone.
+
+**Not seen live.** A desk status short enough for one line (at the 250 px tile every status took two), so the empty
+reserved second line rests on the `min-height` alone.
