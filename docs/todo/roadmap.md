@@ -546,6 +546,8 @@ prices are in [scratchy-audio-phones.md](scratchy-audio-phones.md#backlog-67-the
 
 ### Open
 
-- Whether 67's Gate B listen passes without it, and so how soon this is needed.
+- ~~Whether 67's Gate B listen passes without it, and so how soon this is needed~~ — it passed by ear on 2026-11-10
+  (backlog [67](archive/backlog-archive.md#67-audio-the-desktop-crackles-at-full--the-graphs-standing-cost-leaves-no-headroom)
+  closed), so this waits on a need; parked in [plan.md](plan.md#parked-not-sequenced).
 - Whether a native envelope keeps the stored ADSR curves exactly, which is the listen's question.
 
