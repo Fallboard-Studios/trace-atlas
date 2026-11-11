@@ -448,7 +448,7 @@ task.
 
 ### Phase 3: The rule
 
-- [ ] **Task 11: tests only — every case that expects a recall gets a second Active robot**
+- [x] **Task 11: tests only — every case that expects a recall gets a second Active robot**
 
   **Description:** The rule keeps a lone Active robot up, so every case that puts one robot at critical and expects it
   Recalled will fail at Task 12 for a reason that is not its subject. Give each a healthy second Active robot (battery
@@ -467,15 +467,22 @@ task.
   the cases left for Task 12 fail. No behaviour changes, so there is no RED test.
 
   **Acceptance criteria:**
-  - [ ] Every case found by the local run has a second Active robot, placed so its seam-call counts and the robot it
+  - [x] Every case found by the local run has a second Active robot, placed so its seam-call counts and the robot it
         asserts on are unchanged.
-  - [ ] No assertion is weakened or removed, and the commit lists the titles it touched.
-  - [ ] With the rule applied locally, the failing set is exactly the cases named above as Task 12's.
+  - [x] No assertion is weakened or removed, and the commit lists the titles it touched.
+  - [x] With the rule applied locally, the failing set is exactly the cases named above as Task 12's.
+        *As built (2026-11-11):* the local run (the full suite, 351 files) failed 13 cases. Five took a companion as
+        listed. "beginRecall writes no visual state itself" did **not** fail, because under the rule its robot simply
+        stays, and the case would then pass without testing a recall at all. It takes a companion too, plus an
+        assertion that the recall happened. Two further cases are Task 12's, not listed above: `lifecycleSim.test.ts`'s
+        Task 2 "one row with every field finite … worst worlds" and "agrees with its own count", which need a silent
+        world, and no companion can give them one. With the companions in, the rule fails exactly the five reversal
+        cases, the prove-it and those two.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotSystems.test.ts src/systems/workLoop.integration.test.ts src/systems/audioBudgetSystem.test.ts src/systems/lifecycleSim.test.ts`
+  - [x] `npx vitest run src/systems/robotSystems.test.ts src/systems/workLoop.integration.test.ts src/systems/audioBudgetSystem.test.ts src/systems/lifecycleSim.test.ts`
         passes on the committed tree.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 10 (so the size-only row is measured before the rule is tried).
 

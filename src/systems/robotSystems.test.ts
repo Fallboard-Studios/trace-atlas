@@ -204,12 +204,16 @@ describe('robotSystems', () => {
   });
 
   describe('tickRobotLifecycle — threshold-triggered transitions', () => {
+    // A healthy second Active robot (no-silence Task 11): a robot crossing critical is recalled only while another
+    // robot is Active, so every case about a recall keeps one beside it. At 100 it drains without a transition.
+    const activeCompanion = () => makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
+
     it('Active robot crossing the critical threshold begins Recalled with a hold, not immediate Docked', () => {
       const robot = makeRobot({
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, // will land exactly at critical after drain
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      setupLocaleWithRobots([robot, activeCompanion()]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
@@ -226,7 +230,7 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      setupLocaleWithRobots([robot, activeCompanion()]);
       let dockingAtSeam: DockingState | undefined;
       seam.mockImplementationOnce((_l: string, id: string) => {
         dockingAtSeam = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, id)?.docking;
@@ -246,11 +250,12 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      setupLocaleWithRobots([robot, activeCompanion()]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
+      expect(updated.docking).toBe(DockingState.Recalled); // the recall happened, so the case is about beginRecall
       expect(updated.position).toEqual(robot.position);
       expect(updated.activity).toBe(robot.activity);
     });
@@ -650,7 +655,8 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      // A healthy second Active robot, so the robot crossing critical is recalled (no-silence Task 11).
+      setupLocaleWithRobots([robot, makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined })]);
 
       startRobotLifecycle(DEFAULT_LOCALE_ID);
       const tickCallback = (subscribeToMeasure as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -751,7 +757,7 @@ describe('robotSystems', () => {
       it('a smaller drain reaches the critical threshold later — the rule drives recall timing, not just the number', () => {
         const robot = makeSnapshot({ id: 'r', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
         const companion = makeSnapshot({ id: 'companion', batteryLevel: 100 });
-        const [byDefault] = stepRobotLifecycle([robot], 10, TEST_NOISE_MAP);
+        const [byDefault] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP);
         const [lighter] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP, () => 2);
         expect(byDefault.docking).toBe(DockingState.Recalled);
         expect(lighter.docking).toBe(DockingState.Active);
@@ -837,7 +843,8 @@ describe('robotSystems', () => {
 
     it('an Active robot crossing the critical threshold begins Recalled with a hold, not immediate Docked', () => {
       const robot = makeSnapshot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
-      const [result] = stepRobotLifecycle([robot], 10, TEST_NOISE_MAP);
+      // A healthy second Active robot, so the crossing is a recall and not a stay (no-silence Task 11).
+      const [result] = stepRobotLifecycle([robot, makeSnapshot({ id: 'companion', batteryLevel: 100 })], 10, TEST_NOISE_MAP);
       expect(result.batteryLevel).toBeLessThanOrEqual(BATTERY_CRITICAL_THRESHOLD);
       expect(result.docking).toBe(DockingState.Recalled);
       expect(result.dockingHoldUntilMeasure).toBe(11);
