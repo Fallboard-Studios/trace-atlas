@@ -256,15 +256,25 @@ export function orderByArrival(previousOrder: readonly string[], eligibleNow: re
   return sameOrder(next, previousOrder) ? previousOrder : next;
 }
 
+/** Admission rank: a Solo outranks a Highlight, which outranks an Auto robot. */
+const AUTO = 0;
+const HIGHLIGHT = 1;
+const SOLO = 2;
+
 /**
- * First-come-first-served admission with solo priority (docs/specs/archive/AUDIO_LOAD_BUDGET.md §1.3).
- * `previous` is the current sounding set in admission order; `eligible` is every robot `isRobotAudible`
- * allows, **in arrival order** (see `orderByArrival`); `soloIds` the soloed subset.
+ * First-come-first-served admission ranked Solo, then Highlight, then Auto (docs/specs/archive/AUDIO_LOAD_BUDGET.md
+ * §1.3; docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.4). `previous` is the current sounding set in admission order;
+ * `eligible` is every robot `isRobotAudible` allows, **in arrival order** (see `orderByArrival`); `soloIds` and
+ * `highlightIds` the soloed and highlighted subsets (an id in both ranks as a Solo; one not eligible is ignored).
  *
- * Still-eligible members keep their slot; if the cap fell, the newest non-solo robots go first (then the
- * newest solo). Each eligible solo is then admitted — into a free slot, or by evicting the newest non-solo
- * robot, never another solo (a solo that finds only solos waits, first-come). Finally the remaining
- * eligible robots fill any free slots in arrival order, so a freed slot goes to the earliest waiter.
+ * 1. Keep every still-eligible member of `previous`, in order.
+ * 2. If the cap fell, evict the newest Auto robot, then the newest Highlight, then the newest Solo, until it fits.
+ * 3. Admit each Solo not yet in, in arrival order: into a free slot, else by evicting the newest Auto robot, else the
+ *    newest Highlight; a Solo that finds only Solos waits (first-come).
+ * 4. Admit each Highlight not yet in, in arrival order: into a free slot, else by evicting the newest Auto robot only;
+ *    one that finds only Solos and Highlights waits (first-come).
+ * 5. Fill any free slots from arrival order, so a freed slot goes to the earliest waiter.
+ *
  * Returns `previous` itself (same reference) when nothing changed, so the caller can skip the store write.
  * A NaN cap means no cap.
  */
@@ -272,30 +282,40 @@ export function reconcileSounding(
   previous: readonly string[],
   eligible: readonly string[],
   soloIds: readonly string[],
+  highlightIds: readonly string[],
   maxAudibleRobots: number,
 ): readonly string[] {
   const cap = Number.isNaN(maxAudibleRobots) ? Infinity : Math.max(0, Math.floor(maxAudibleRobots));
   const arrival = unique(eligible);
   const eligibleSet = new Set(arrival);
   const solo = new Set(soloIds.filter((id) => eligibleSet.has(id)));
-  const isNonSolo = (id: string): boolean => !solo.has(id);
+  const highlight = new Set(highlightIds.filter((id) => eligibleSet.has(id)));
+  const rank = (id: string): number => (solo.has(id) ? SOLO : highlight.has(id) ? HIGHLIGHT : AUTO);
 
   const next = unique(previous).filter((id) => eligibleSet.has(id));
+  const newestOfRank = (r: number): number => lastIndexWhere(next, (id) => rank(id) === r);
 
+  // Step 2: the newest of the lowest rank present goes first.
   while (next.length > cap) {
-    const newestNonSolo = lastIndexWhere(next, isNonSolo);
-    next.splice(newestNonSolo === -1 ? next.length - 1 : newestNonSolo, 1);
+    const lowest = Math.min(...next.map(rank));
+    next.splice(newestOfRank(lowest), 1);
   }
 
-  for (const id of arrival) {
-    if (!solo.has(id) || next.includes(id)) continue;
-    if (next.length >= cap) {
-      const newestNonSolo = lastIndexWhere(next, isNonSolo);
-      if (newestNonSolo === -1) continue; // every slot holds a solo — this one waits
-      next.splice(newestNonSolo, 1);
+  // Steps 3 and 4: each rank evicts only the ranks below it, newest of the lowest first.
+  const admit = (r: number): void => {
+    for (const id of arrival) {
+      if (rank(id) !== r || next.includes(id)) continue;
+      if (next.length >= cap) {
+        let evict = -1;
+        for (let below = AUTO; below < r && evict === -1; below++) evict = newestOfRank(below);
+        if (evict === -1) continue; // every slot holds this rank or higher — this one waits
+        next.splice(evict, 1);
+      }
+      next.push(id);
     }
-    next.push(id);
-  }
+  };
+  admit(SOLO);
+  admit(HIGHLIGHT);
 
   for (const id of arrival) {
     if (next.length >= cap) break;

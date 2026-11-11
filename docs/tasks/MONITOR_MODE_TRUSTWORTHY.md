@@ -105,7 +105,7 @@ code, not text").
 
 ### Phase 1: The sound (Part A)
 
-- [ ] **Task 1: `audioBudget.ts` — `reconcileSounding` ranks Solo, Highlight, Auto**
+- [x] **Task 1: `audioBudget.ts` — `reconcileSounding` ranks Solo, Highlight, Auto**
 
   **Description:** `reconcileSounding(previous, eligible, soloIds, highlightIds, maxAudibleRobots)` implements spec
   §1.4's five steps: keep, evict on a fallen cap (newest Auto, then newest Highlight, then newest Solo), admit Solos
@@ -118,18 +118,18 @@ code, not text").
   cap evicts Auto, then Highlight, then Solo.
 
   **Acceptance criteria:**
-  - [ ] A Highlight with a free slot is admitted in arrival order; with none it evicts the newest Auto, never a Solo
+  - [x] A Highlight with a free slot is admitted in arrival order; with none it evicts the newest Auto, never a Solo
         or another Highlight, and waits if only those are in.
-  - [ ] A Solo evicts the newest Auto first and the newest Highlight when no Auto is in; it waits only when every
+  - [x] A Solo evicts the newest Auto first and the newest Highlight when no Auto is in; it waits only when every
         slot holds a Solo.
-  - [ ] A cap that fell evicts newest Auto, then newest Highlight, then newest Solo; an un-highlighted robot keeps its
+  - [x] A cap that fell evicts newest Auto, then newest Highlight, then newest Solo; an un-highlighted robot keeps its
         slot; `previous` is returned by reference when nothing changed.
-  - [ ] Every existing `reconcileSounding` test passes unmodified apart from the added `[]` argument (behaviour parity
+  - [x] Every existing `reconcileSounding` test passes unmodified apart from the added `[]` argument (behaviour parity
         with no Highlights).
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/audioBudget.test.ts src/systems/audioBudgetSystem.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/audioBudget.test.ts src/systems/audioBudgetSystem.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
