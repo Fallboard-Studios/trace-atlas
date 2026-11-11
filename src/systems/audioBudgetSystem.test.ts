@@ -85,6 +85,7 @@ const sounding = (): string[] => useAudioStore.getState().soundingRobotIds;
 const engineSet = vi.spyOn(AudioEngine, 'setSoundingRobots');
 const engineStandBy = vi.spyOn(AudioEngine, 'setStandingByRobots');
 const enginePoly = vi.spyOn(AudioEngine, 'setPolyphonyCap');
+const engineHighlight = vi.spyOn(AudioEngine, 'setHighlightedRobots');
 
 // ========================================
 // TESTS
@@ -178,7 +179,8 @@ describe('audioBudgetSystem', () => {
       ]);
       startAudioBudget();
 
-      expect(sounding()).toEqual(['a', 'b', 'd']);
+      // The Highlight is admitted ahead of the Autos, as a Solo is (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.4 step 4).
+      expect(sounding()).toEqual(['b', 'a', 'd']);
     });
   });
 
@@ -627,6 +629,154 @@ describe('audioBudgetSystem', () => {
       stopAudioBudget();
 
       expect(engineSet).toHaveBeenLastCalledWith(null);
+    });
+  });
+
+  // docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.3–§1.4 (Task 4): the live Highlight set is the highlighted robots in the
+  // sounding set, pushed to the engine before the sounding set and only when it changes.
+  describe('the live Highlight set', () => {
+    const lastHighlight = (): unknown => engineHighlight.mock.calls.at(-1)?.[0];
+
+    it('pushes a highlighted robot that is out and sounding', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' }), makeRobot('b')]);
+      startAudioBudget();
+
+      expect(lastHighlight()).toEqual(['h']);
+    });
+
+    it('pushes every live Highlight, in sounding order', () => {
+      setRoster([makeRobot('h1', { audioMode: 'highlight' }), makeRobot('a'), makeRobot('h2', { audioMode: 'highlight' })]);
+      startAudioBudget();
+
+      expect(lastHighlight()).toEqual(['h1', 'h2']);
+    });
+
+    it('does not push a highlighted robot in its station', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight', docking: DockingState.Docked })]);
+      startAudioBudget();
+
+      expect(lastHighlight()).toEqual([]);
+    });
+
+    it('drops a Highlight whose robot docks, and pushes it again when it comes back out', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' })]);
+      startAudioBudget();
+
+      update('h', { docking: DockingState.Docked });
+      expect(lastHighlight()).toEqual([]);
+
+      update('h', { docking: DockingState.Active });
+      expect(lastHighlight()).toEqual(['h']);
+    });
+
+    it('does not push a Highlight silenced by another robot\'s Solo', () => {
+      setRoster([makeRobot('s', { audioMode: 'solo' }), makeRobot('h', { audioMode: 'highlight' })]);
+      startAudioBudget();
+
+      expect(lastHighlight()).toEqual([]);
+    });
+
+    it('releases the Highlight when a Solo starts, and restores it when the Solo lifts', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' })]);
+      startAudioBudget();
+
+      update('a', { audioMode: 'solo' });
+      expect(lastHighlight()).toEqual([]);
+
+      update('a', { audioMode: 'none' });
+      expect(lastHighlight()).toEqual(['h']);
+    });
+
+    it('does not push a highlighted robot that stands by when every slot holds a Highlight', () => {
+      useAudioStore.setState({ robotLoad: 0.2 }); // 4 slots
+      setRoster(['h1', 'h2', 'h3', 'h4', 'h5'].map((id) => makeRobot(id, { audioMode: 'highlight' })));
+      startAudioBudget();
+
+      expect(lastHighlight()).toEqual(['h1', 'h2', 'h3', 'h4']);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['h5']);
+    });
+
+    it('on a Light tier, a Highlight on a standing-by robot admits it, pushes it, and the newest Auto stands by', () => {
+      useAudioStore.setState({ robotLoad: 0.2 }); // 4 slots
+      setRoster(roster(6));
+      startAudioBudget();
+      expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r4']);
+
+      update('r6', { audioMode: 'highlight' });
+
+      expect(sounding()).toEqual(['r1', 'r2', 'r3', 'r6']);
+      expect(lastHighlight()).toEqual(['r6']);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r4', 'r5']);
+    });
+
+    it('at the floor (2 slots), a Highlight still takes the newest Auto slot', () => {
+      useAudioStore.setState({ robotLoad: 0 });
+      setRoster(roster(4));
+      startAudioBudget();
+      expect(sounding()).toEqual(['r1', 'r2']);
+
+      update('r4', { audioMode: 'highlight' });
+
+      expect(sounding()).toEqual(['r1', 'r4']);
+      expect(lastHighlight()).toEqual(['r4']);
+    });
+
+    it('pushes the Highlight before the sounding set in the same reconcile', () => {
+      useAudioStore.setState({ robotLoad: 0.2 });
+      setRoster(roster(6));
+      startAudioBudget();
+      engineHighlight.mockClear();
+      engineSet.mockClear();
+
+      update('r6', { audioMode: 'highlight' });
+
+      expect(engineHighlight).toHaveBeenCalledTimes(1);
+      expect(engineSet).toHaveBeenCalledTimes(1);
+      expect(engineHighlight.mock.invocationCallOrder[0]).toBeLessThan(engineSet.mock.invocationCallOrder[0]);
+    });
+
+    it('does not push an unchanged set: a dial nudge or an unrelated roster change writes nothing', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' })]);
+      startAudioBudget();
+      engineHighlight.mockClear();
+
+      useAudioStore.getState().setRobotLoad(0.9);
+      update('a', { audioMode: 'mute' });
+      setRoster([makeRobot('a', { audioMode: 'mute' }), makeRobot('h', { audioMode: 'highlight' }), makeRobot('c')]);
+
+      expect(engineHighlight).not.toHaveBeenCalled();
+    });
+
+    it('pushes the empty set when the Highlight is removed', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' })]);
+      startAudioBudget();
+
+      update('h', { audioMode: 'none' });
+
+      expect(lastHighlight()).toEqual([]);
+    });
+
+    it('stopAudioBudget pushes the empty set, before it lifts the sounding set', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' })]);
+      startAudioBudget();
+      engineHighlight.mockClear();
+      engineSet.mockClear();
+
+      stopAudioBudget();
+
+      expect(engineHighlight.mock.calls).toEqual([[[]]]);
+      expect(engineHighlight.mock.invocationCallOrder[0]).toBeLessThan(engineSet.mock.invocationCallOrder[0]);
+    });
+
+    it('a restart after a stop pushes the live set again (the forced reconcile)', () => {
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' })]);
+      startAudioBudget();
+      stopAudioBudget();
+      engineHighlight.mockClear();
+
+      startAudioBudget();
+
+      expect(engineHighlight.mock.calls).toEqual([[['h']]]);
     });
   });
 

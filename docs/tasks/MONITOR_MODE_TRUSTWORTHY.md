@@ -195,7 +195,7 @@ code, not text").
 
   **Estimated scope:** XS (one block deleted, two tests rewritten)
 
-- [ ] **Task 4: `audioBudgetSystem.ts` — the live Highlight set is pushed before the sounding set**
+- [x] **Task 4: `audioBudgetSystem.ts` — the live Highlight set is pushed before the sounding set**
 
   **Description:** `reconcile` builds `highlightIds` (eligible robots with `audioMode === 'highlight'`), passes it to
   `reconcileSounding`, and derives the live set `next.filter(highlighted)`. A `pushedHighlighted` key beside
@@ -208,17 +208,19 @@ code, not text").
   `setSoundingRobots` on the same reconcile (spy call order); `stopAudioBudget` pushes `[]`.
 
   **Acceptance criteria:**
-  - [ ] The live set is exactly the highlighted robots in the sounding set: a docked, solo-silenced or standing-by
+  - [x] The live set is exactly the highlighted robots in the sounding set: a docked, solo-silenced or standing-by
         Highlight is absent.
-  - [ ] On a Light tier (`robotLoad` at the floor) a Highlight on a standing-by robot admits it, pushes it, and the
+  - [x] On a Light tier (`robotLoad` at the floor) a Highlight on a standing-by robot admits it, pushes it, and the
         newest Auto robot stands by in its place.
-  - [ ] `setHighlightedRobots` is called before `setSoundingRobots` within one reconcile, not called for an unchanged
+  - [x] `setHighlightedRobots` is called before `setSoundingRobots` within one reconcile, not called for an unchanged
         set, and called with `[]` by `stopAudioBudget`.
-  - [ ] Every existing budget-system test passes unmodified.
+  - [x] Every existing budget-system test passes unmodified, but one: `treats an unset audioMode as audible and
+        highlight as audible, muted as not` now expects `[b, a, d]`, not `[a, b, d]`; the Highlight is admitted ahead
+        of the Autos, as a Solo is (spec §1.4 step 4). Nothing reads the sounding set's order (membership only).
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/audioBudgetSystem.test.ts src/utils/audioBudget.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/audioBudgetSystem.test.ts src/utils/audioBudget.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1, 2.
 
