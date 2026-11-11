@@ -578,18 +578,19 @@ task.
 - [x] The Gate A summary is in front of Crawford (Results, "Gate A summary").
 - [x] No row has a silent measure. The stays on 0.8–1.25 are **about a third more frequent than the probe's** (0.18 %
       of measures against 0.13 %): the same kind, said plainly in the summary, nothing re-tuned.
-- [ ] **Crawford picks `BATTERY_SIZE_MIN` / `BATTERY_SIZE_MAX`** (spec open question A1; default 0.8–1.25).
-- [ ] **Crawford answers A2** (eight cycle lengths, not a continuum; default accept), with the per-world sharing
-      measured.
-- [ ] If a row has a silent measure, or the stays are far from the probe's (0.13 % of measures on 0.8–1.25), say so
+- [x] **Crawford picks `BATTERY_SIZE_MIN` / `BATTERY_SIZE_MAX`** (spec open question A1; default 0.8–1.25).
+      **2026-11-11: 0.67–1.5.**
+- [x] **Crawford answers A2** (eight cycle lengths, not a continuum; default accept), with the per-world sharing
+      measured. **2026-11-11: accept.**
+- [x] If a row has a silent measure, or the stays are far from the probe's (0.13 % of measures on 0.8–1.25), say so
       plainly and stop. No threshold is re-tuned to pass.
-- [ ] Nothing in Phase 4 starts before his answer.
+- [x] Nothing in Phase 4 starts before his answer.
 
 ---
 
 ### Phase 4: Gate A's decisions and the docs
 
-- [ ] **Task 14: the pick, in the constants and the pins**
+- [x] **Task 14: the pick, in the constants and the pins**
 
   **Description:** Set `BATTERY_SIZE_MIN` / `BATTERY_SIZE_MAX` to Crawford's pick, drop the "provisional" from their
   comment, and pin the two values in a test beside "BATTERY_DRAIN_ACTIVE is the flat 6 the Phase 43 drain sim picked".
@@ -602,14 +603,19 @@ task.
   Read of the comment and the spec.
 
   **Acceptance criteria:**
-  - [ ] The constants hold the pick, and a test names them as Gate A's.
-  - [ ] Every sim pin is green on the picked band, and the zero-silence case still passes.
-  - [ ] The spec's A1 and A2 read as answered, with the date.
+  - [x] The constants hold the pick, and a test names them as Gate A's.
+  - [x] Every sim pin is green on the picked band, and the zero-silence case still passes. *Measured:* the drain
+        rows move to 5.7136, 5.1025, 4.6633 (pin 5.71, 5.10, 4.66: flat 7 moved 4.65 → 4.66). The Task 9 readiness
+        case used 0.67–1.5 as its "not the shipped band" example; it now uses 0.8–1.25. The loop sim's rows for
+        0.67–1.5 are Task 13's (the report passes each band explicitly), and the always-on loop case on the new
+        default still counts 0 robots charging while visible.
+  - [x] The spec's A1 and A2 read as answered, with the date. (B12–B15 and the Part B branch are answered there
+        too.)
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotSystems.test.ts src/systems/spawnSystem.test.ts src/systems/lifecycleSim.test.ts`
+  - [x] `npx vitest run src/systems/robotSystems.test.ts src/systems/spawnSystem.test.ts src/systems/lifecycleSim.test.ts`
         passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint C.
 

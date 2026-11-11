@@ -216,11 +216,11 @@ export const DEFAULT_BATTERY_SIZE = 1;
 
 /**
  * The band every spawned robot's battery size is drawn from, evenly ('robot.batterySize', spawnSystem.ts's
- * generateBatterySize). Provisional until Gate A (docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md Checkpoint C):
- * 0.8–1.25 is the spec's sketch band.
+ * generateBatterySize). Crawford's pick at Gate A, 2026-11-11 (docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md, the
+ * Gate A summary): the widest of the three bands run, fifteen cycle lengths from 27 to 53 measures.
  */
-export const BATTERY_SIZE_MIN = 0.8;
-export const BATTERY_SIZE_MAX = 1.25;
+export const BATTERY_SIZE_MIN = 0.67;
+export const BATTERY_SIZE_MAX = 1.5;
 
 /** Active robot at or below this battery level is Recalled (sent back to dock). */
 export const BATTERY_CRITICAL_THRESHOLD = 10;

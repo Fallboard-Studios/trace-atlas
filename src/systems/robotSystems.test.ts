@@ -28,6 +28,8 @@ import {
   BATTERY_RECHARGE_RATE,
   BATTERY_CRITICAL_THRESHOLD,
   BATTERY_FULL_THRESHOLD,
+  BATTERY_SIZE_MIN,
+  BATTERY_SIZE_MAX,
   DOCKED_PITCH_DRIFT_RATIO,
   MAX_ROBOTS,
 } from '../constants';
@@ -128,6 +130,10 @@ describe('robotSystems', () => {
 
     it('BATTERY_DRAIN_ACTIVE is the flat 6 the Phase 43 drain sim picked', () => {
       expect(BATTERY_DRAIN_ACTIVE).toBe(6);
+    });
+
+    it('the battery-size band is Gate A\'s pick, 0.67-1.5 (Crawford, 2026-11-11)', () => {
+      expect([BATTERY_SIZE_MIN, BATTERY_SIZE_MAX]).toEqual([0.67, 1.5]);
     });
 
     it.each(Object.values(JobType))('drains the same flat BATTERY_DRAIN_ACTIVE for job type %s — the job no longer costs battery', (jobType) => {

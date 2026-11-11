@@ -658,7 +658,7 @@ together (B12's default) suit a section. If it fails, stop and report; nothing i
 - After the merge: backlog 60's record is brought up to date. It archives only once its fade-on-arcs note has a home
   (open question A4) and Stage 2's record is settled (open question B11; answered: backlog 73).
 - Part B's plan is [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md) (written 2026-11-11). Which branch
-  builds it after Gate B, this one or its own from `main` after this merges, is Crawford's call.
+  builds it: **its own branch from `main` after this one merges** (Crawford, 2026-11-11).
 
 ---
 
@@ -690,10 +690,13 @@ Each is the default this spec is written to. Crawford's word changes any of them
 None blocks the plan: A1 is a gate inside it, and the rest have a default.
 
 - **A1. The size's band.** 0.8–1.25 was the sketch's, not a decision. Decided at Gate A from the sim's table.
+  **Answered (Crawford, 2026-11-11, Gate A): 0.67–1.5**, the widest band run: fifteen cycle lengths (27–53), at most
+  five robots in step in any world (median 3), a stay in 0.20 % of measures, recall to Active again in 16 measures at
+  the shortest, no silence and no turn-back (the plan's Gate A summary).
 - **A2. Eight cycle lengths, not a continuum** (§1.3, finding 1). Robots that share a length stay in step until a stay
   moves one, and at least five of the twelve always share. Default: accept it, and let Gate A's per-world column show
   how much sharing there is. The other lever is a wider band (15 lengths at 0.67–1.5), which also makes shifts range
-  from 11 to 23 measures.
+  from 11 to 23 measures. **Answered (2026-11-11): accept**, on the picked band's fifteen lengths.
 - **A3. A staying robot at 0.1 opacity.** Default: leave it, and judge it at Gate B.
 - **A4. Backlog 60's fade on station arcs.** Not in the intent. It needs its own item or a cut before 60 archives.
 - **A5. CLAUDE.md's "flat drain/recharge".** Reword it when the docs task lands, or leave it: Crawford's file.
@@ -750,17 +753,17 @@ Each is the default §1.11 is written to. Crawford's word changes any of them.
 
 ### 7.5 Open questions, Part B (new, 2026-11-11)
 
-Found while specifying. None blocks the plan: each has a default the plan is written to, and Gate C is where each is
-heard.
+Found while specifying. **All four answered by Crawford on 2026-11-11 at Gate A: every default stands.** Gate C
+still hears them.
 
 - **B12. Rests and accents in a company.** Shared (the performance stream on the rhythm seed, so a section rests and
-  accents together) or each member's own (its composition seed, as today). Default: **shared**.
+  accents together) or each member's own (its composition seed, as today). Default: **shared**. **Answered: shared.**
 - **B13. How far a moved onset moves.** One step to a free neighbour (it reads as a push or a pull on the beat), or to
   any free step in the measure (it reads as a new note). Default: **one step**; if neither neighbour is free, that
-  occurrence is skipped and the next one tried.
+  occurrence is skipped and the next one tried. **Answered: agreed.**
 - **B14. The two-freelancer cap.** When the pool left for a company is under three, the company is not made (two
   companies instead of three in some worlds), or it is made smaller than three. Default: **not made**. The plan
-  measures how many grid worlds the cap touches.
+  measures how many grid worlds the cap touches. **Answered: not made.**
 - **B15. A robot moved by hand into another company.** It keeps its own lineage, so it keeps the rhythm it rolled and
   is dealt from its old founder (the 2026-11-01 rule), or it joins its new company's family. Default: **keeps its
-  own**.
+  own**. **Answered: keeps its own.**

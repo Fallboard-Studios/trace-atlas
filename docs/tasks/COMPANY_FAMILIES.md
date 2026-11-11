@@ -6,7 +6,8 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 [73](../todo/backlog.md#73-robots-a-seeded-company-is-a-family).
 
 **Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. **Not started, and
-not to be started before Part A's Gate B passes** (spec §0). Which branch builds it is Crawford's call (spec §6).
+not to be started before Part A's Gate B passes** (spec §0). It is built on **its own branch from `main`, after
+Part A merges** (Crawford, 2026-11-11). B12–B15 answered at Gate A: every default stands.
 
 ## Overview
 
@@ -333,13 +334,13 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
 ## Open Questions
 
-From the spec's §7.5; the plan is written to each default, and Gate C hears them.
+From the spec's §7.5. **All answered by Crawford on 2026-11-11: every default stands.** Gate C still hears them.
 
-1. **B12. Rests and accents in a company.** Default: shared (the rhythm seed's performance stream). Open.
-2. **B13. How far a moved onset moves.** Default: one step to a free neighbour. Open.
-3. **B14. The two-freelancer cap when a company cannot reach three.** Default: not made. Open; Task 4 measures it.
-4. **B15. A robot moved by hand into another company.** Default: keeps its own lineage. Open.
-5. **The branch.** This one after Gate B, or its own from `main` after Part A merges. Crawford's.
+1. **B12. Rests and accents in a company.** **Resolved: shared** (the rhythm seed's performance stream).
+2. **B13. How far a moved onset moves.** **Resolved: one step** to a free neighbour.
+3. **B14. The two-freelancer cap when a company cannot reach three.** **Resolved: not made**; Task 4 measures how many worlds it touches.
+4. **B15. A robot moved by hand into another company.** **Resolved: keeps its own lineage.**
+5. **The branch.** **Resolved: its own, from `main` after Part A merges.**
 
 ## Results
 

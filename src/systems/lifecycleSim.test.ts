@@ -286,9 +286,9 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(rows[0].mean).toBeGreaterThan(rows[1].mean);
       expect(rows[1].mean).toBeGreaterThan(rows[2].mean);
       // The base drains Crawford chose from were 5.70, 5.14 and 4.60 (commit 5bbbff3f) on unsized robots. Each robot's
-      // battery size now divides its drain and its charge (no-silence Task 8, the 0.8-1.25 band): 5.71, 5.10, 4.65.
-      // The stay-up rule (Task 12) moves them only in the fourth decimal: 5.7070 → 5.7069, 5.1030 → 5.1035, 4.6500 → 4.6512.
-      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.71', '5.10', '4.65']);
+      // battery size now divides its drain and its charge, with the stay-up rule, on Gate A's 0.67-1.5 band
+      // (no-silence Task 14): 5.7136, 5.1025, 4.6633. On 0.8-1.25 they were 5.7069, 5.1035, 4.6512 (Task 12).
+      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.71', '5.10', '4.66']);
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatDrainReport(rows)}`);
     }, 60_000);
   });
@@ -1103,17 +1103,18 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       const run = (band?: SimBand) => runReadinessSim({ worlds, seconds: 600, bpms: [200], candidates, band });
       const byDefault = run();
       expect(byDefault).toEqual(run([BATTERY_SIZE_MIN, BATTERY_SIZE_MAX]));
-      // A different roster moves the loop: 'flat' and a wide band each differ from the shipped band and from each other.
+      // A different roster moves the loop: 'flat' and another band each differ from the shipped band and from each other.
       const flat = run('flat');
-      const wide = run([0.67, 1.5]);
+      const other = run([0.8, 1.25]);
       expect(flat.seeds).not.toEqual(byDefault.seeds);
-      expect(wide.seeds).not.toEqual(byDefault.seeds);
-      expect(wide.seeds).not.toEqual(flat.seeds);
+      expect(other.seeds).not.toEqual(byDefault.seeds);
+      expect(other.seeds).not.toEqual(flat.seeds);
     }, 30_000);
 
     it('at 200 BPM the lifecycle docks a recalled robot sooner, so it is visible-while-Docked longer than at 20 BPM', () => {
-      // Turn-backs are not compared: with recharge 5/measure the shortest Docked stay (~20 measures,
-      // 24 s at 200 BPM) outlasts the longest walk home, so both tempos measure 0 (Task 15 report).
+      // Turn-backs are not compared: on the shipped 0.67-1.5 band the shortest Docked stay is 14 measures (a size-0.67
+      // robot's 11-measure shift, then 1.2 × 11 rounded up), 16.8 s at 200 BPM, and it still outlasts the longest walk
+      // home: the loop sim measured 0 turn-backs at 20, 110 and 200 BPM on every band (no-silence Task 13).
       const { rows } = runReadinessSim({ worlds, seconds: 600 });
       const at = (bpm: number) => rows.find((r) => r.bpm === bpm)!;
       expect(Number.isFinite(at(200).longestDockedVisible)).toBe(true);
