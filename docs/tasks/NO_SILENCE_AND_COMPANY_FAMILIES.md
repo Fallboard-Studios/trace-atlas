@@ -233,7 +233,7 @@ task.
 
   **Estimated scope:** XS (one branch, one test block)
 
-- [ ] **Task 5: `robotSystems.ts` — the step divides the drain and the charge by the robot's battery size**
+- [x] **Task 5: `robotSystems.ts` — the step divides the drain and the charge by the robot's battery size**
 
   **Description:** `RobotLifecycleSnapshot.batterySize?: number`, and `DEFAULT_BATTERY_SIZE = 1` in
   `src/constants/index.ts` beside the other battery constants. In `stepRobotLifecycle` the size is
@@ -245,16 +245,18 @@ task.
   **Proof:** RED test — `src/systems/robotSystems.test.ts`, on `stepRobotLifecycle`: cases 8, 9 and 10.
 
   **Acceptance criteria:**
-  - [ ] A snapshot of size *s* drains by `BATTERY_DRAIN_ACTIVE / s` and charges by `BATTERY_RECHARGE_RATE / s`; a
+  - [x] A snapshot of size *s* drains by `BATTERY_DRAIN_ACTIVE / s` and charges by `BATTERY_RECHARGE_RATE / s`; a
         snapshot with no size uses today's rates, and every existing step and tick case passes unmodified.
-  - [ ] An injected `DrainRule`'s value is divided by the size too.
-  - [ ] Counted through real steps from a full battery, beside a second Active robot: size 0.85 is recalled on its
+  - [x] An injected `DrainRule`'s value is divided by the size too.
+  - [x] Counted through real steps from a full battery, beside a second Active robot: size 0.85 is recalled on its
         13th Active measure and starts Undocking on its 16th Docked one; size 1.15 on its 18th and its 22nd.
-  - [ ] Mutant, killed: divide the drain but not the charge.
+        *As built:* the companion is re-fed at battery 100 every measure, so it is still Active when the sized robot
+        is recalled after Task 12's rule (a size-1 companion left to drain would be recalled on measure 15).
+  - [x] Mutant, killed: divide the drain but not the charge.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
