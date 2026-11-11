@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { useShell } from '../useShell';
 import { metaWords, useRobotMeta, type RobotMetaField } from './useRobotMeta';
+import { ModeLight } from './ModeLight';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
@@ -419,11 +420,12 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
 // THE AVATAR COLUMN AND BAND
 // ========================================
 
+// Status first (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.5): the robot's own mode, its light before the word.
 const META_FIELDS: readonly (readonly [RobotMetaField, DualLabelSchema])[] = [
+  ['status', ROBOT_SELECTION_ROW_SCHEMAS.status],
   ['job', ROBOT_SELECTION_ROW_SCHEMAS.job],
   ['dockingState', ROBOT_SELECTION_ROW_SCHEMAS.docking],
   ['activity', ROBOT_SELECTION_ROW_SCHEMAS.activity],
-  ['status', ROBOT_SELECTION_ROW_SCHEMAS.status],
 ];
 
 /** The gem in the avatar render context: day/night-invariant, at scale 1, framed to its motion canvas. */
@@ -459,7 +461,10 @@ const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: R
         {META_FIELDS.map(([field, schema]) => (
           <div key={field} className="robot-screen__well">
             <DualLabel {...schema} />
-            <span className="robot-screen__meta-value">{meta[field]}</span>
+            <span className="robot-screen__meta-value">
+              {field === 'status' && <ModeLight mode={meta.mode} lit={meta.lit} />}
+              {meta[field]}
+            </span>
           </div>
         ))}
         {loadedUnder !== null && (
@@ -492,7 +497,10 @@ function RobotAvatarBand({ robot, localeId }: RobotPanelProps) {
       <AvatarGem robot={robot} />
       <div className="robot-screen__band-text">
         <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
-        <span className="robot-screen__status-line">{fill('probe.band.statusLine', { ...metaWords(meta), battery })}</span>
+        <span className="robot-screen__status-line">
+          <ModeLight mode={meta.mode} lit={meta.lit} />
+          {fill('probe.band.statusLine', { ...metaWords(meta), battery })}
+        </span>
       </div>
     </div>
   );

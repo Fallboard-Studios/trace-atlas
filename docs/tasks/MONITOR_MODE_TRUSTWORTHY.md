@@ -416,13 +416,14 @@ code, not text").
   state; the phone band's line begins with the mode word and carries the light.
 
   **Acceptance criteria:**
-  - [ ] The Status well is first on the desk; its light and word agree with `useRobotMeta`.
-  - [ ] The phone band leads with the mode, then job, docking, activity, battery, the light before the line.
-  - [ ] Every other `RobotScreen.test.tsx` test passes unmodified.
+  - [x] The Status well is first on the desk; its light and word agree with `useRobotMeta`.
+  - [x] The phone band leads with the mode, then job, docking, activity, battery, the light before the line.
+  - [x] Every other `RobotScreen.test.tsx` test passes unmodified (but for the well indices the reorder shifts: job
+        0 → 1, activity 2 → 3).
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/RobotScreen.test.tsx src/content/content.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/screens/RobotScreen.test.tsx src/content/content.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
   - [ ] Look: the robot screen on the desk, the Status well first with its light; the phone band at 320 px, the mode
         leading.
 
@@ -432,6 +433,10 @@ code, not text").
   `src/content/copy/probe.ts`, `src/components/panels/screen/screens/RobotScreen.test.tsx`
 
   **Estimated scope:** S
+
+  **As built:** the light sits inside the value span (the well's and the band line's), first, so `metaValues` and the
+  line's text still read the words alone. `ModeLight.css`'s own `margin-inline-end` is the gap, so `RobotScreen.css`
+  is untouched. The Look is done with Task 11's, in one browser run.
 
 - [ ] **Task 11: `RosterTile.css` — the desk tile holds two status lines (the CSS-only task)**
 

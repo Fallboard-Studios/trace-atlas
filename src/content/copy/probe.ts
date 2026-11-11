@@ -79,8 +79,9 @@ export const probe = {
   // ---------------------------------------------------------------- selection card / display rows
   'probe.name': { human: 'Robot Name', lore: 'ROBOT IDENTIFIER' },
   // The robot screen's phone band (docs/specs/LAYOUT_REWORK.md §1.4): the avatar column's meta and
-  // battery on one line, as the sketch draws it ("Salvage · Docked · Charging · Disabled · 85%").
-  'probe.band.statusLine': { human: 'Status line', template: '{job} · {dockingState} · {activity} · {status} · {battery}' },
+  // battery on one line, the robot's own Monitor Mode first (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.6):
+  // "Auto · Salvage · Docked · Charging · 85%".
+  'probe.band.statusLine': { human: 'Status line', template: '{status} · {job} · {dockingState} · {activity} · {battery}' },
   'probe.job': {
     human: 'Job Data',
     lore: 'ASSIGNED PROTOCOL',
