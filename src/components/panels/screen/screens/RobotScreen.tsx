@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { useShell } from '../useShell';
-import { metaWords, useRobotMeta, type RobotMetaField } from './useRobotMeta';
+import { useRobotMeta, type RobotMetaField } from './useRobotMeta';
 import { ModeLight } from './ModeLight';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
@@ -463,7 +463,7 @@ const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: R
             <DualLabel {...schema} />
             <span className="robot-screen__meta-value">
               {field === 'status' && <ModeLight mode={meta.mode} lit={meta.lit} />}
-              {meta[field]}
+              {meta.words[field]}
             </span>
           </div>
         ))}
@@ -499,7 +499,7 @@ function RobotAvatarBand({ robot, localeId }: RobotPanelProps) {
         <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
         <span className="robot-screen__status-line">
           <ModeLight mode={meta.mode} lit={meta.lit} />
-          {fill('probe.band.statusLine', { ...metaWords(meta), battery })}
+          {fill('probe.band.statusLine', { ...meta.words, battery })}
         </span>
       </div>
     </div>

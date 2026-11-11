@@ -59,19 +59,19 @@ describe('useRobotMeta — the mode', () => {
   ] as const)('returns mode %s and the status word %s', (audioMode, word) => {
     const meta = metaOf(makeRobot('r0', { audioMode }));
     expect(meta.mode).toBe(audioMode);
-    expect(meta.status).toBe(word);
+    expect(meta.words.status).toBe(word);
   });
 
   it('reads an unset audioMode as none / Auto', () => {
     const meta = metaOf(makeRobot('r0', { audioMode: undefined }));
     expect(meta.mode).toBe('none');
-    expect(meta.status).toBe('Auto');
+    expect(meta.words.status).toBe('Auto');
   });
 
   it('keeps the mode and word of an Auto robot silenced by another robot Solo', () => {
     const meta = metaOf(makeRobot('r0', { audioMode: 'none' }), makeRobot('r1', { audioMode: 'solo' }));
     expect(meta.mode).toBe('none');
-    expect(meta.status).toBe('Auto');
+    expect(meta.words.status).toBe('Auto');
   });
 });
 
