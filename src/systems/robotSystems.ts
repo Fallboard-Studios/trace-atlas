@@ -85,10 +85,13 @@ export const activeDrain: DrainRule = () => BATTERY_DRAIN_ACTIVE;
  * One measure's worth of battery/docking transition for an entire roster, pure -- mirrors
  * tickRobotLifecycle's per-robot logic (the `drain` rule — default activeDrain —
  * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD) exactly, reusing the same constants -- never a second copy of the arithmetic. Mutates a local working array as it iterates, in roster
- * array order, so within-measure ordering matches a real tick bit for bit. Every robot decides on its own: when
- * all of them are docked or recharging the fleet falls silent for a while (Crawford, 2026-10-12 — the old
- * "never zero Active" guard that kept the last robot playing is gone). Imports neither
- * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
+ * array order, so within-measure ordering matches a real tick bit for bit. The last Active robot stays up
+ * (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.2): a robot at or below critical is recalled only while
+ * another robot in `working` is Active, so the fleet is never silent. Otherwise it stays Active and drains on
+ * to the floor of 0 until one lands; because `working` is mutated in roster order, a robot landing earlier in
+ * the roster relieves it in the same measure, one landing later in the next, and of two robots crossing
+ * critical together with no third Active the earlier goes and the later stays. The rule reads docking only,
+ * never audioMode. Imports neither useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
  *
  * A Recalled -> Docked landing also drifts `melody` via the same reRollMelodyPitches/
  * DOCKED_PITCH_DRIFT_RATIO rule landOnDocked applies live, seeded identically
@@ -110,7 +113,9 @@ export function stepRobotLifecycle(
     const size = robot.batterySize ?? DEFAULT_BATTERY_SIZE;
     if (robot.docking === DockingState.Active) {
       robot.batteryLevel = Math.max(0, robot.batteryLevel - drain(robot) / size);
-      if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD) {
+      // The last robot stays up (spec §1.2): recalled only while another robot is Active.
+      const anotherActive = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
+      if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD && anotherActive) {
         robot.docking = DockingState.Recalled;
         robot.dockingHoldUntilMeasure = measure + 1;
       }

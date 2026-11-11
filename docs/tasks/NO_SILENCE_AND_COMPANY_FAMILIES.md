@@ -490,7 +490,7 @@ task.
 
   **Estimated scope:** S (fixtures in one test file, six known cases)
 
-- [ ] **Task 12: `robotSystems.ts` — the last Active robot stays up**
+- [x] **Task 12: `robotSystems.ts` — the last Active robot stays up**
 
   **Description:** In `stepRobotLifecycle`, an Active robot at or below critical after its drain is recalled only
   while `working.some((r) => r.id !== robot.id && r.docking === DockingState.Active)`; otherwise it stays Active and
@@ -502,26 +502,38 @@ task.
   and the prove-it's stay, each failing on the code before the rule.
 
   **Acceptance criteria:**
-  - [ ] A sole Active robot at or below critical stays Active with no hold set and no `'recalled'` seam call, drains
+  - [x] A sole Active robot at or below critical stays Active with no hold set and no `'recalled'` seam call, drains
         every measure and floors at 0 (cases 1, 2), on the step and through the tick.
-  - [ ] It is recalled the same tick when the robot landing on Active is earlier in the roster, the next tick when it
+  - [x] It is recalled the same tick when the robot landing on Active is earlier in the roster, the next tick when it
         is later (case 3). Two robots crossing critical together: the earlier goes, the later stays; with a third
         Active robot both go (case 4).
-  - [ ] Beside only a Recalled robot, or only an Undocking one, it stays (case 5); a muted last robot stays (case 6).
-  - [ ] Over a real seeded roster the Active count never reaches zero (case 7), and over the grid at `SIM_MEASURES`
-        the cover sim counts zero silent measures in every world (case 17).
-  - [ ] The prove-it's run contains a stay: a sole Active robot crosses critical, drains on for at least two ticks and
+  - [x] Beside only a Recalled robot, or only an Undocking one, it stays (case 5); a muted last robot stays (case 6).
+  - [x] Over a real seeded roster the Active count never reaches zero (case 7), and over the grid at `SIM_MEASURES`
+        the cover sim counts zero silent measures in every world (case 17). *As built:* case 7 runs every world of
+        the grid at `SIM_MEASURES` on the shipped drain and band (the old "it may reach zero" case keeps its range
+        check and loses that clause).
+  - [x] The prove-it's run contains a stay: a sole Active robot crosses critical, drains on for at least two ticks and
         is recalled after another robot lands. The live result and the replay still agree field for field, and the
-        robot that landed ends on a battery that was drained and never floored.
-  - [ ] Mutants, all killed: drop `r.id !== robot.id`; count Recalled as Active; read the pre-tick `roster` and not
+        robot that landed ends on a battery that was drained and never floored. *As built:* robot 0 (size 1.2) crosses
+        on tick 1 and stays through tick 3 (9, 4, 0); robot 2 (Undocking, hold 3, later in the roster) lands on tick 3;
+        robot 0 is recalled on tick 4 and docks on tick 5. Robot 2 carries a job and ends at 100 − 2 × 6 / 0.82.
+  - [x] Mutants, all killed: drop `r.id !== robot.id`; count Recalled as Active; read the pre-tick `roster` and not
         `working`.
-  - [ ] The drain rows are re-pinned, old → new in the commit message.
+  - [x] The drain rows are re-pinned, old → new in the commit message. *Measured:* the rule moves them only in the
+        fourth decimal (5.7070 → 5.7069, 5.1030 → 5.1035, 4.6500 → 4.6512), so the two-decimal pin (5.71, 5.10,
+        4.65) stands and its comment records the move.
+  - *As built:* Task 2's two cover cases needed a silent world, which the rule removes. The invariants case now
+    asserts no silence and an empty worst-world list, and orders the stays (more than five worlds with one, lengths
+    in order). The cross-check runs every world and checks stays and measures in a stay against its own count. That
+    leaves `runCoverSim`'s worst-world cap and order with no real-step test: it can only ever list silence, which
+    can no longer happen. Its mutants survive by construction; it stays as Task 3's record unless Crawford cuts it.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts src/systems/workLoop.integration.test.ts src/systems/workLoop.test.ts src/systems/audioBudgetSystem.test.ts`
+  - [x] `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts src/systems/workLoop.integration.test.ts src/systems/workLoop.test.ts src/systems/audioBudgetSystem.test.ts`
         passes.
-  - [ ] `npm test` passes: the rule changes what every ticking test sees, so the full suite runs before this commit.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` passes: the rule changes what every ticking test sees, so the full suite runs before this commit.
+        (2026-11-11: 351 files, 13,697 passed, 238 s.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 11.
 

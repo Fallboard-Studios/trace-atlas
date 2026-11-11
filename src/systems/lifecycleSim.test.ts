@@ -197,7 +197,7 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
     });  });
 
   describe('activeCountsOverTime', () => {
-    it('returns one Active count per measure, never above the roster (it may reach zero: the fleet can fall silent)', () => {
+    it('returns one Active count per measure, never above the roster', () => {
       const noiseMap = simNoiseMap(-40, 80);
       const counts = activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, flatDrain(6), 300);
       expect(counts).toHaveLength(300);
@@ -206,6 +206,16 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
         expect(n).toBeLessThanOrEqual(MAX_ROBOTS);
       }
     });
+
+    // The last Active robot stays up (no-silence Task 12, spec §5.1 case 7): over real seeded rosters, the shipped
+    // drain and band, the Active count never reaches zero — in 100 of 121 worlds it did before the rule.
+    it('over every world of the grid at SIM_MEASURES, the Active count never reaches zero (case 7)', () => {
+      const zeroWorlds = SIM_SEED_COORDS.filter(({ x, y }) => {
+        const noiseMap = simNoiseMap(x, y);
+        return activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, activeDrain, SIM_MEASURES).some((n) => n === 0);
+      });
+      expect(zeroWorlds).toEqual([]);
+    }, 60_000);
 
     it('a heavier drain keeps fewer robots Active on average', () => {
       const noiseMap = simNoiseMap(-40, 80);
@@ -277,6 +287,7 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(rows[1].mean).toBeGreaterThan(rows[2].mean);
       // The base drains Crawford chose from were 5.70, 5.14 and 4.60 (commit 5bbbff3f) on unsized robots. Each robot's
       // battery size now divides its drain and its charge (no-silence Task 8, the 0.8-1.25 band): 5.71, 5.10, 4.65.
+      // The stay-up rule (Task 12) moves them only in the fourth decimal: 5.7070 → 5.7069, 5.1030 → 5.1035, 4.6500 → 4.6512.
       expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.71', '5.10', '4.65']);
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatDrainReport(rows)}`);
     }, 60_000);
@@ -500,11 +511,18 @@ const REPORT_BANDS: ReadonlyArray<{ label: string; band: SimBand }> = [
 ];
 
 describe('runCoverSim (no-silence Task 2)', () => {
-  it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and at most five worst worlds, longest silence first', () => {
-    // The whole grid, but short: enough silent worlds, of more than one length, to test the cap and the order.
+  it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and stays counted with their lengths in order', () => {
+    // The whole grid, but short. Since the rule (Task 12) no world goes silent, so the worst-world list is empty;
+    // the stays are what this case exercises now: enough of them, of more than one length, to order.
     const [row] = runCoverSim({ measures: 300 });
-    expect(row.worldsWithSilence).toBeGreaterThan(5);
-    expect(new Set(row.worstWorlds.map((w) => w.length)).size).toBeGreaterThan(1);
+    expect(row.worldsWithSilence).toBe(0);
+    expect(row.worstWorlds).toEqual([]);
+    expect(row.worldsWithStay).toBeGreaterThan(5);
+    expect(row.stayLength.median).toBeLessThanOrEqual(row.stayLength.p90);
+    expect(row.stayLength.p90).toBeLessThanOrEqual(row.stayLength.longest);
+    expect(row.stayLength.longest).toBeGreaterThan(row.stayLength.median);
+    expect(row.staysPer1000).toBeGreaterThan(0);
+    expect(row.stayShare).toBeGreaterThan(0);
     expect(row.worlds).toBe(SIM_SEED_COORDS.length);
     expect(row.measures).toBe(300);
     const numbers = [
@@ -530,34 +548,49 @@ describe('runCoverSim (no-silence Task 2)', () => {
     expect(lengths).toEqual([...lengths].sort((a, b) => b - a));
   });
 
-  it('agrees with its own count, world by world: silent measures, the longest silence and robots sounding off the real step', () => {
+  it('agrees with its own count, world by world: silent measures, stays, measures in a stay and robots sounding off the real step', () => {
     const SOUNDING = new Set<DockingState>([DockingState.Active, DockingState.Recalled]);
-    let silentWorlds = 0;
-    for (const { x, y } of SIM_SEED_COORDS.slice(0, 12)) {
+    let stayWorlds = 0;
+    for (const { x, y } of SIM_SEED_COORDS) {
       const noiseMap = simNoiseMap(x, y);
       let roster = buildSimRoster(noiseMap);
       let silent = 0;
       let soundingTotal = 0;
-      let run = 0;
-      let longest = 0;
+      let stays = 0;
+      let stayMeasures = 0;
+      let inStay = new Set<string>();
       for (let measure = 1; measure <= 300; measure++) {
         roster = stepRobotLifecycle(roster, measure, noiseMap);
         const sounding = roster.filter((r) => SOUNDING.has(r.docking)).length;
         soundingTotal += sounding;
-        run = sounding === 0 ? run + 1 : 0;
         if (sounding === 0) silent++;
-        longest = Math.max(longest, run);
+        // A stay: a robot Active at or below critical after a tick; consecutive measures are one stay.
+        const staying = new Set(roster.filter((r) => r.docking === DockingState.Active && r.batteryLevel <= BATTERY_CRITICAL_THRESHOLD).map((r) => r.id));
+        for (const id of staying) if (!inStay.has(id)) stays++;
+        if (staying.size > 0) stayMeasures++;
+        inStay = staying;
       }
       const [row] = runCoverSim({ coords: [{ x, y }], measures: 300 });
       expect(row.silentShare * 300).toBeCloseTo(silent, 9);
       expect(row.worldsWithSilence).toBe(silent > 0 ? 1 : 0);
       expect(row.sounding.mean).toBeCloseTo(soundingTotal / 300, 9);
-      expect(row.worstWorlds.map((w) => [w.x, w.y, w.length])).toEqual(silent > 0 ? [[x, y, longest]] : []);
-      if (silent > 0) silentWorlds++;
+      expect((row.staysPer1000 * 300) / 1000).toBeCloseTo(stays, 9);
+      expect(row.stayShare * 300).toBeCloseTo(stayMeasures, 9);
+      expect(row.worldsWithStay).toBe(stays > 0 ? 1 : 0);
+      if (stays > 0) stayWorlds++;
     }
-    // Guard against a coincidental pass on all-zero counts: some of these worlds must go silent.
-    expect(silentWorlds).toBeGreaterThan(0);
-  });
+    // Guard against a coincidental pass on all-zero counts: some of these worlds must hold a stay.
+    expect(stayWorlds).toBeGreaterThan(0);
+  }, 30_000);
+
+  // The last Active robot stays up (no-silence Task 12, spec §5.1 case 17): the always-on grid pass.
+  it('over the grid at SIM_MEASURES on the shipped band, no world has a silent measure (case 17)', () => {
+    const [row] = runCoverSim();
+    expect(row.measures).toBe(SIM_MEASURES);
+    expect(row.worlds).toBe(SIM_SEED_COORDS.length);
+    expect(row.worldsWithSilence).toBe(0);
+    expect(row.silentShare).toBe(0);
+  }, 60_000);
 
   it('pools the tally over worlds: staysPer1000 and the shares are per measure per world', () => {
     const [one] = runCoverSim({ coords: [FEW_COORDS[0]], measures: 300 });
