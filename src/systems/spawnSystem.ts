@@ -26,6 +26,7 @@ import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
+  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
 } from '../constants';
 import { robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
@@ -145,6 +146,15 @@ const GEM_SEED_MAX = 2 ** 31;
  */
 function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
   return Math.min(GEM_SEED_MAX - 1, Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
+}
+
+/**
+ * A robot's battery size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3): one even draw per robot, so the sizes
+ * fill the band rather than bunch in its middle. Drawn at spawn, never inherited on the copy path. Pure and exported,
+ * so lifecycleSim.ts's roster shares it; the band is an argument so the sims can try others.
+ */
+export function generateBatterySize(noiseMap: NoiseFunction2D, spawnCount: number, min = BATTERY_SIZE_MIN, max = BATTERY_SIZE_MAX): number {
+  return getUniformSeededVal(noiseMap, 'robot.batterySize', spawnCount, min, max);
 }
 
 // Phase 37's seeded greeble set (generateGreebles, GREEBLE_COUNT_RANGE and its three count/kind/
@@ -700,6 +710,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',
     batteryLevel,
+    // Always its own draw, even on the copy branch (spec §1.3); the alea fallback maps into the same band.
+    batterySize: noiseMap
+      ? generateBatterySize(noiseMap, spawnCount)
+      : BATTERY_SIZE_MIN + alea(`${localeId}:${spawnCount}:batterySize`)() * (BATTERY_SIZE_MAX - BATTERY_SIZE_MIN),
   };
 
   // Add to locale store

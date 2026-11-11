@@ -214,6 +214,14 @@ export const BATTERY_RECHARGE_RATE = 5;
  */
 export const DEFAULT_BATTERY_SIZE = 1;
 
+/**
+ * The band every spawned robot's battery size is drawn from, evenly ('robot.batterySize', spawnSystem.ts's
+ * generateBatterySize). Provisional until Gate A (docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md Checkpoint C):
+ * 0.8–1.25 is the spec's sketch band.
+ */
+export const BATTERY_SIZE_MIN = 0.8;
+export const BATTERY_SIZE_MAX = 1.25;
+
 /** Active robot at or below this battery level is Recalled (sent back to dock). */
 export const BATTERY_CRITICAL_THRESHOLD = 10;
 /** Docked robot at or above this battery level begins Undocking (redeploy-eligible). */

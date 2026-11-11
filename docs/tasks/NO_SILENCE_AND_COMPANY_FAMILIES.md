@@ -296,7 +296,7 @@ task.
 
   **Estimated scope:** S (one type field, one line in the snapshot builder, the prove-it's fixture)
 
-- [ ] **Task 7: `spawnSystem.ts` — every robot draws a battery size at spawn**
+- [x] **Task 7: `spawnSystem.ts` — every robot draws a battery size at spawn**
 
   **Description:** `BATTERY_SIZE_MIN = 0.8` and `BATTERY_SIZE_MAX = 1.25` in `src/constants/index.ts`, marked
   provisional until Gate A. `generateBatterySize(noiseMap, spawnCount, min = BATTERY_SIZE_MIN, max = BATTERY_SIZE_MAX)`
@@ -307,18 +307,18 @@ task.
   **Proof:** RED test — `src/systems/spawnSystem.test.ts`: case 11.
 
   **Acceptance criteria:**
-  - [ ] Every robot `spawnInitialRoster` makes carries a size inside the band; two locales at the same coordinates get
+  - [x] Every robot `spawnInitialRoster` makes carries a size inside the band; two locales at the same coordinates get
         the same sizes; the sizes differ across a roster.
-  - [ ] Over the grid's 121 worlds at offsets 0–99, `generateBatterySize` puts 8–12 % of its values in each outer
+  - [x] Over the grid's 121 worlds at offsets 0–99, `generateBatterySize` puts 8–12 % of its values in each outer
         tenth of the band (`outerTenths`, `src/testUtils/spread.ts`).
-  - [ ] A lone `spawnRobot` with no noise map still gets a size inside the band.
-  - [ ] An untouched spawned roster still diffs to no overrides: the session tests pass unmodified.
-  - [ ] Mutant, killed: draw the size with a plain `getSeededVal`.
+  - [x] A lone `spawnRobot` with no noise map still gets a size inside the band.
+  - [x] An untouched spawned roster still diffs to no overrides: the session tests pass unmodified.
+  - [x] Mutant, killed: draw the size with a plain `getSeededVal` (it puts 0.02 % in the bottom tenth).
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/spawnSystem.test.ts src/utils/sessionDiff.test.ts src/systems/lifecycleSim.test.ts`
-        passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/spawnSystem.test.ts src/utils/sessionDiff.test.ts src/systems/lifecycleSim.test.ts`
+        passes. The full suite ran too, as this is the commit where the app changes: 351 files, 13,660 passed, 230 s.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6.
 
