@@ -199,6 +199,9 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   draw at `'robot.onsetMoves'`: < 0.75 none, < 0.875 one, else two), and draws everything else as an original. The
   copy roll (`'robot.copyChance'`, `'robot.copySource'`) goes from `spawnRobot` and `generateRobotAudioBaseline`.
   `generateRobotRosterBaseline` gives a member its founder's baseline with its own name and volume.
+  Between this task and Task 6, `initializeLocale`'s `applyAspectDeal` still re-derives a dealt member from its own
+  index, live and in the baseline alike, so the session diff stays `{}` but a dealt member differs from its founder
+  until Task 6. This task's grid cases therefore check `spawnInitialRoster`'s output before the deal.
 
   **Proof:** RED test — `src/systems/spawnSystem.test.ts`, `src/utils/sessionDiff.test.ts`: cases 6, 7, 9 and 10.
 
