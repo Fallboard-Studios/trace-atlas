@@ -261,11 +261,18 @@ const AUTO = 0;
 const HIGHLIGHT = 1;
 const SOLO = 2;
 
+/** The ranked subsets of the eligible robots, named so the two lists cannot be swapped at a call site. An id in both
+ *  ranks as a Solo; an id that is not eligible is ignored. */
+export interface AdmissionRanks {
+  soloIds: readonly string[];
+  highlightIds: readonly string[];
+}
+
 /**
  * First-come-first-served admission ranked Solo, then Highlight, then Auto (docs/specs/archive/AUDIO_LOAD_BUDGET.md
  * §1.3; docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.4). `previous` is the current sounding set in admission order;
- * `eligible` is every robot `isRobotAudible` allows, **in arrival order** (see `orderByArrival`); `soloIds` and
- * `highlightIds` the soloed and highlighted subsets (an id in both ranks as a Solo; one not eligible is ignored).
+ * `eligible` is every robot `isRobotAudible` allows, **in arrival order** (see `orderByArrival`); `ranks` holds the
+ * soloed and highlighted subsets (`AdmissionRanks`).
  *
  * 1. Keep every still-eligible member of `previous`, in order.
  * 2. If the cap fell, evict the newest Auto robot, then the newest Highlight, then the newest Solo, until it fits.
@@ -281,8 +288,7 @@ const SOLO = 2;
 export function reconcileSounding(
   previous: readonly string[],
   eligible: readonly string[],
-  soloIds: readonly string[],
-  highlightIds: readonly string[],
+  { soloIds, highlightIds }: AdmissionRanks,
   maxAudibleRobots: number,
 ): readonly string[] {
   const cap = Number.isNaN(maxAudibleRobots) ? Infinity : Math.max(0, Math.floor(maxAudibleRobots));

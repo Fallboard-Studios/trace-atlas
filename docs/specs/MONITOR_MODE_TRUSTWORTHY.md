@@ -463,7 +463,7 @@ ear gate, at his request. Every §7.1 default and the §7.2 answers are kept as 
 |---|---|
 | A1, the dip | `HIGHLIGHT_DIP_DB = -10`, `HIGHLIGHT_DIP_GAIN = 10 ** (HIGHLIGHT_DIP_DB / 20)`, in `audioEngine/headroom.ts` |
 | A2, the ramp | `HIGHLIGHT_RAMP_SECONDS = 0.15`, in `AudioEngine.ts` beside `VOLUME_RAMP_SECONDS` |
-| A5, the rank | `reconcileSounding(previous, eligible, soloIds, highlightIds, maxAudibleRobots)`, a `rank(id)` and `newestOfRank` over `lastIndexWhere` |
+| A5, the rank | `reconcileSounding(previous, eligible, { soloIds, highlightIds }, maxAudibleRobots)`, a `rank(id)` and `newestOfRank` over `lastIndexWhere`; built with two positional arrays (T1, 536ea899), named as `AdmissionRanks` at review so they cannot be swapped |
 | B1, the colours | `getStatusLightColor`: `'yellow'` = `wire`, `'blue'` = `glass`; the existing four untouched |
 | B2, the light | `ModeLight({ mode, lit })`, local to `screens/`, `aria-hidden`, `data-mode` and `data-lit`; a 0.6em disc |
 | B3, dim | the whole light at `opacity: 0.3`, no glow; lit is the rocker's glow idiom, `0 0 6px 2px` |

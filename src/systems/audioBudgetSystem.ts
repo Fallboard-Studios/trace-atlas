@@ -122,7 +122,7 @@ function reconcile(force = false): void {
   const limits: LoadLimits = { ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) };
 
   arrivalOrder = orderByArrival(arrivalOrder, eligible);
-  const next = reconcileSounding(sounding, arrivalOrder, soloIds, [...highlighted], limits.maxAudibleRobots);
+  const next = reconcileSounding(sounding, arrivalOrder, { soloIds, highlightIds: [...highlighted] }, limits.maxAudibleRobots);
   applyHighlighted(next.filter((id) => highlighted.has(id)), force);
   if (force || next !== sounding) applySet(next);
   const soundingNow = new Set(next);
