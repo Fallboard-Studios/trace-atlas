@@ -598,7 +598,7 @@ and are recorded as they now stand: the world key's fallback is not a ratchet ri
 
   **Estimated scope:** XS
 
-- [ ] **Task R4: the cover sim's worst-world list cut**
+- [x] **Task R4: the cover sim's worst-world list cut**
 
   **Description:** Part A kept `runCoverSim`'s worst-world list as Task 3's record and left its removal to Crawford
   (spec §8). With the rule no world goes silent, so the list is always empty. Cut `CoverSimWorld`,
