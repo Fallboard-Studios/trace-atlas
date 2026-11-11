@@ -2,7 +2,6 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, beforeEach } from 'vitest';
-import { render } from '@testing-library/react';
 import Alea from 'alea';
 
 import { factoryGeometry } from './factoryGeometry';
@@ -13,6 +12,7 @@ import { createFactory, DEFAULT_FACTORY_ROW } from '../../systems/factoryPlaceme
 import { RECIPES } from '../../systems/districtRecipes';
 import { ActorType, type Actor, type DistrictName } from '../../types/Actor';
 import { useUIStore } from '../../stores/uiStore';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 // ========================================
 // HELPERS
@@ -57,7 +57,7 @@ function parseScale(t: string | null): { sx: number; sy: number } {
 
 /** The rendered outer group's translate plus its scaled 100×100 body, in scene units. */
 function renderedBox(actor: Actor) {
-  const { container, unmount } = render(<Factory actor={actor} />);
+  const { container, unmount } = renderSvg(<Factory actor={actor} />);
   const outer = container.querySelector('g[data-factory-type]');
   const scaled = outer?.querySelector(':scope > g[transform^="scale"]');
   const { x, y } = parseTranslate(outer?.getAttribute('transform') ?? null);

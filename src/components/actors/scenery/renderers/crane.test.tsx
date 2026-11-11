@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { crane } from './crane';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -29,12 +29,12 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('crane renderer', () => {
   it('renders under data-scenery="crane"', () => {
-    const { container } = render(crane(makeCtx()));
+    const { container } = renderSvg(crane(makeCtx()));
     expect(container.querySelector('[data-scenery="crane"]')).not.toBeNull();
   });
 
   it('posts are lit west/east separately (differing fills at a non-noon hour)', () => {
-    const { container } = render(crane(makeCtx()));
+    const { container } = renderSvg(crane(makeCtx()));
     const west = container.querySelector('[data-crane="post-west"]');
     const east = container.querySelector('[data-crane="post-east"]');
     expect(west).not.toBeNull();
@@ -43,7 +43,7 @@ describe('crane renderer', () => {
   });
 
   it('knee brace carries a 45° run of the spec length (40)', () => {
-    const { container } = render(crane(makeCtx()));
+    const { container } = renderSvg(crane(makeCtx()));
     const brace = container.querySelector('[data-crane="knee-brace"]')!;
     const points = (brace.getAttribute('points') ?? '').trim().split(/\s+/).map((pair) => pair.split(',').map(Number));
     let foundSpecLength = false;
@@ -61,7 +61,7 @@ describe('crane renderer', () => {
   });
 
   it("load hangs at hangerFrac × w from the tower's west edge", () => {
-    const { container } = render(crane(makeCtx({ params: { crane: { w: 300, h: 320, hangerFrac: 0.25 } } })));
+    const { container } = renderSvg(crane(makeCtx({ params: { crane: { w: 300, h: 320, hangerFrac: 0.25 } } })));
     const load = container.querySelector('[data-crane="load"]')!;
     const centerX = Number(load.getAttribute('x')) + Number(load.getAttribute('width')) / 2;
     // actor x = 500, half = 150 -> west edge = 350; hanger at 350 + 0.25*300 = 425
@@ -69,7 +69,7 @@ describe('crane renderer', () => {
   });
 
   it('beam-end light is present', () => {
-    const { container } = render(crane(makeCtx()));
+    const { container } = renderSvg(crane(makeCtx()));
     expect(container.querySelector('[data-crane="beam-end-light"]')).not.toBeNull();
   });
 
@@ -80,14 +80,14 @@ describe('crane renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(crane(ctx));
+      const { container } = renderSvg(crane(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(crane(makeCtx({ cap: 0.7 })));
-    const uncapped = render(crane(makeCtx({ cap: 1 })));
+    const capped = renderSvg(crane(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(crane(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-crane="post-west"]')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-crane="post-west"]')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);

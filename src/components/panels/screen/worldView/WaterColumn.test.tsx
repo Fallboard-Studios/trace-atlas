@@ -1,7 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest';
-import { act, render, cleanup } from '@testing-library/react';
-
+import { act, cleanup } from '@testing-library/react';
 import { WaterColumn } from './WaterColumn';
+import { renderSvg } from '@/testUtils/renderSvg';
+
 import { useUIStore } from '@/stores/uiStore';
 import { getLighting, getNightDepth } from '@/utils/lightingUtils';
 
@@ -42,7 +43,7 @@ describe('WaterColumn', () => {
   describe('gradient stops track the day/night cycle (§1.5)', () => {
     it.each([0, 6, 12, 18])('matches the §1.5 formula at hour %i within whole-percent rounding', (hour) => {
       setLocalTime(hour);
-      const { container } = render(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
+      const { container } = renderSvg(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
 
       const d = dAt(hour);
       const expectedTopL = Math.round(8 + (30 - 8) * d);
@@ -56,7 +57,7 @@ describe('WaterColumn', () => {
 
     it('top and bottom stops differ between noon and midnight', () => {
       setLocalTime(12);
-      const { container, rerender } = render(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
+      const { container, rerender } = renderSvg(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
       const noonGradient = container.querySelector('linearGradient#water-locale-a')!;
       const noonStops = Array.from(noonGradient.querySelectorAll('stop')).map((s) => s.getAttribute('stop-color'));
 
@@ -70,7 +71,7 @@ describe('WaterColumn', () => {
 
     it('re-render at the same rounded hour produces identical stop attributes (no churn)', () => {
       setLocalTime(9);
-      const { container, rerender } = render(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
+      const { container, rerender } = renderSvg(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
       const first = container.querySelector('linearGradient#water-locale-a')!.innerHTML;
 
       rerender(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
@@ -83,7 +84,7 @@ describe('WaterColumn', () => {
   describe('surface glow', () => {
     it('is present at noon and absent at midnight', () => {
       setLocalTime(12);
-      const { container, rerender } = render(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
+      const { container, rerender } = renderSvg(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
       expect(getGroup(container, 'locale-a')!.querySelector('ellipse')).not.toBeNull();
 
       setLocalTime(0);
@@ -106,7 +107,7 @@ describe('WaterColumn', () => {
       expect(belowHour).not.toBeNull();
 
       setLocalTime(aboveHour!);
-      const { container, rerender } = render(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
+      const { container, rerender } = renderSvg(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
       expect(getGroup(container, 'locale-a')!.querySelector('ellipse')).not.toBeNull();
 
       setLocalTime(belowHour!);
@@ -116,7 +117,7 @@ describe('WaterColumn', () => {
 
     it('opacity equals 0.08 x d, rounded to the nearest whole percent', () => {
       setLocalTime(12);
-      const { container } = render(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
+      const { container } = renderSvg(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
       const ellipse = getGroup(container, 'locale-a')!.querySelector('ellipse')!;
       const expected = Math.round(0.08 * dAt(12) * 100) / 100;
       expect(Number(ellipse.getAttribute('opacity'))).toBeCloseTo(expected, 5);
@@ -126,7 +127,7 @@ describe('WaterColumn', () => {
       // Both hours chosen well clear of the glow-omit threshold (d > 0.2 at both) so this test
       // isolates cx movement from the present/absent behavior covered above.
       setLocalTime(10);
-      const { container, rerender } = render(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
+      const { container, rerender } = renderSvg(<WaterColumn localeId="locale-a" width={1920} height={1080} />);
       const cxAtHour10 = getGroup(container, 'locale-a')!.querySelector('ellipse')!.getAttribute('cx');
 
       setLocalTime(14);
@@ -139,7 +140,7 @@ describe('WaterColumn', () => {
 
   describe('gradient id', () => {
     it('carries the locale id so two scenes in one document would not collide', () => {
-      const { container } = render(
+      const { container } = renderSvg(
         <>
           <WaterColumn localeId="locale-a" width={1920} height={1080} />
           <WaterColumn localeId="locale-b" width={1920} height={1080} />
@@ -152,7 +153,7 @@ describe('WaterColumn', () => {
 
   describe('background rect', () => {
     it('fills the given width/height using the gradient', () => {
-      const { container } = render(<WaterColumn localeId="locale-a" width={800} height={400} />);
+      const { container } = renderSvg(<WaterColumn localeId="locale-a" width={800} height={400} />);
       const rect = getGroup(container, 'locale-a')!.querySelector('rect')!;
       expect(rect.getAttribute('width')).toBe('800');
       expect(rect.getAttribute('height')).toBe('400');

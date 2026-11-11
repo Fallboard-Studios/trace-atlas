@@ -5,7 +5,6 @@
  * (assumption 9).
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { wall } from './wall';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
@@ -14,6 +13,7 @@ import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, ringsIn, withSwitch, outerBox } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}, size = { w: 200, h: 50 }): SceneryContext {
   const actor: Actor = {
@@ -44,7 +44,7 @@ const TOP = 980;
 const MID = 500;
 const SHIFT = { hueShift: 50, satShift: -15 };
 const tone = (mult: number) => applyColorShift(colorTheme.body.base, SHIFT, mult);
-const draw = (c: SceneryContext) => render(wall(c)).container;
+const draw = (c: SceneryContext) => renderSvg(wall(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="wall"]')!;
 const rail = (c: HTMLElement) => Array.from(group(c).querySelectorAll('rect')).find((r) => r.getAttribute('height') === '5')!;
 const num = (el: Element, attr: string) => Number(el.getAttribute(attr));

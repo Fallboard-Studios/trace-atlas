@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { pylon } from './pylon';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import { maxShapes } from '../sceneryParams';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -34,12 +34,12 @@ function allShapes(container: ParentNode) {
 
 describe('pylon renderer', () => {
   it('renders under data-scenery="pylon"', () => {
-    const { container } = render(pylon(makeCtx()));
+    const { container } = renderSvg(pylon(makeCtx()));
     expect(container.querySelector('[data-scenery="pylon"]')).not.toBeNull();
   });
 
   it('three cross-arms at 1/4, 2/4, 3/4 height steps, narrowing with height', () => {
-    const { container } = render(pylon(makeCtx()));
+    const { container } = renderSvg(pylon(makeCtx()));
     const arms = Array.from(container.querySelectorAll('[data-scenery="pylon"] rect'));
     expect(arms).toHaveLength(3);
     const widths = arms.map((a) => Number(a.getAttribute('width')));
@@ -49,13 +49,13 @@ describe('pylon renderer', () => {
   });
 
   it('head is a gem when gems are on', () => {
-    const { container } = render(pylon(makeCtx({ gems: true })));
+    const { container } = renderSvg(pylon(makeCtx({ gems: true })));
     expect(container.querySelector('[data-scenery="pylon"] [data-shape="gem"]')).not.toBeNull();
     expect(container.querySelector('[data-scenery="pylon"] circle')).toBeNull();
   });
 
   it('head is a plain indicator circle when gems are off', () => {
-    const { container } = render(pylon(makeCtx({ gems: false })));
+    const { container } = renderSvg(pylon(makeCtx({ gems: false })));
     expect(container.querySelector('[data-scenery="pylon"] [data-shape="gem"]')).toBeNull();
     expect(container.querySelector('[data-scenery="pylon"] circle')).not.toBeNull();
   });
@@ -69,26 +69,26 @@ describe('pylon renderer', () => {
         nightDepth: (i % 10) / 10,
         gems: i % 2 === 0,
       });
-      const { container } = render(pylon(ctx));
+      const { container } = renderSvg(pylon(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('maxShapes(\'pylon\') covers the real rendered element count (gem branch is the larger one)', () => {
-    const { container } = render(pylon(makeCtx({ gems: true })));
+    const { container } = renderSvg(pylon(makeCtx({ gems: true })));
     expect(allShapes(container).length).toBeLessThanOrEqual(maxShapes('pylon'));
   });
 
   it('mutation check: dropping the depth-cap multiply on the steel tone changes the fill', () => {
-    const capped = render(pylon(makeCtx({ cap: 0.7, gems: false })));
-    const uncapped = render(pylon(makeCtx({ cap: 1, gems: false })));
+    const capped = renderSvg(pylon(makeCtx({ cap: 0.7, gems: false })));
+    const uncapped = renderSvg(pylon(makeCtx({ cap: 1, gems: false })));
     const cappedFill = capped.container.querySelector('[data-scenery="pylon"] polygon')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-scenery="pylon"] polygon')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);
   });
 
   it('renders nothing (an empty group) when params are missing', () => {
-    const { container } = render(pylon(makeCtx({ params: {} })));
+    const { container } = renderSvg(pylon(makeCtx({ params: {} })));
     expect(container.querySelector('[data-scenery="pylon"]')?.children.length).toBe(0);
   });
 });

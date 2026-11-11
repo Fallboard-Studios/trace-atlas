@@ -25,6 +25,13 @@ export default defineConfig({
   test: {
     globals: true,
     setupFiles: 'vitest.setup.ts',
+    // Eight workers, not one per core (backlog 66, 2026-11-10). At sixteen the heaviest files all load at once and
+    // the main process, which serves every worker's transforms, falls more than a minute behind answering one
+    // worker's progress report; Vitest reports that as an unhandled "Timeout calling onTaskUpdate" and exits 1 with
+    // every test passing. Measured on an idle 16-core machine: 16 and 12 workers error on every run, 10 ran clean
+    // once, 8 ran clean twice; the cost is about 20 s on a 3.5-minute run. Eight keeps two workers of margin for a
+    // busy machine.
+    maxWorkers: 8,
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],

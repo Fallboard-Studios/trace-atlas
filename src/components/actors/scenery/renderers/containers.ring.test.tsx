@@ -3,7 +3,6 @@
  * single-tone at the box's ambient light, drawn before the box's label square.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { containers } from './containers';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
@@ -11,6 +10,7 @@ import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, markupWithoutRings, outerBox, ringsIn, withSwitch } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}, p: Partial<NonNullable<SceneryContext['params']['containers']>> = {}): SceneryContext {
   const actor: Actor = {
@@ -46,7 +46,7 @@ const SHIFT = { hueShift: 10, satShift: -5 };
 const AMBIENT = (0.9 + 0.5) / 2;
 const boxBase = (hue: number) => ({ h: hue, s: 35, l: 30 });
 const tone = (hue: number, mult: number, shift = SHIFT) => applyColorShift(boxBase(hue), shift, mult);
-const draw = (c: SceneryContext) => render(containers(c)).container;
+const draw = (c: SceneryContext) => renderSvg(containers(c)).container;
 const num = (el: Element, attr: string) => Number(el.getAttribute(attr));
 const cells = (c: HTMLElement) => Array.from(c.querySelectorAll('[data-scenery="containers"] > g > g'));
 

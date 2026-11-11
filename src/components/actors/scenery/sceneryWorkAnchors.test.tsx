@@ -2,7 +2,6 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 import Alea from 'alea';
 
 import {
@@ -20,6 +19,7 @@ import { SCENERY_HOST_JOBS } from '../../../systems/jobHosts';
 import { ActorType, type Actor, type SceneryKind } from '../../../types/Actor';
 import type { Vec2 } from '../../../types/Vec2';
 import { rotationOf, shapeExtents } from '../../../testUtils/svgShapeExtents';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 // ========================================
 // HELPERS
@@ -57,7 +57,7 @@ function renderKind(actor: Actor): HTMLElement {
     accent: { primary: 0, secondary: 30 },
     gems: true,
   };
-  const container = render(SCENERY_RENDERERS[kind]!(ctx)).container;
+  const container = renderSvg(SCENERY_RENDERERS[kind]!(ctx)).container;
   // A work anchor is the geometry of the element it names; the 1.5 px hairline (Phase 44) is an
   // outline drawn around that geometry, and would add 0.75 px to every measured extent. Work sites
   // do not move for it, so measure the shapes without it. Gem outlines (2 px) are left as they are.

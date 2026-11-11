@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { scaffold } from './scaffold';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -29,19 +29,19 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('scaffold renderer', () => {
   it('renders under data-scenery="scaffold"', () => {
-    const { container } = render(scaffold(makeCtx()));
+    const { container } = renderSvg(scaffold(makeCtx()));
     expect(container.querySelector('[data-scenery="scaffold"]')).not.toBeNull();
   });
 
   it('solid-lower block has two faces with differing fills at a non-noon hour', () => {
-    const { container } = render(scaffold(makeCtx()));
+    const { container } = renderSvg(scaffold(makeCtx()));
     const solid = container.querySelectorAll('[data-scaffold="solid"]');
     expect(solid.length).toBe(2);
     expect(solid[0].getAttribute('fill')).not.toBe(solid[1].getAttribute('fill'));
   });
 
   it('brace polygons are 45° parallelograms of length min(bay, 60)', () => {
-    const { container } = render(scaffold(makeCtx()));
+    const { container } = renderSvg(scaffold(makeCtx()));
     const braces = container.querySelectorAll('[data-scaffold="brace"]');
     expect(braces.length).toBeGreaterThan(0);
     const bayWidth = 200 / 3;
@@ -62,7 +62,7 @@ describe('scaffold renderer', () => {
   });
 
   it('braces only in alternating bays: count = ceil(bays * levels / 2), ±1', () => {
-    const { container } = render(scaffold(makeCtx()));
+    const { container } = renderSvg(scaffold(makeCtx()));
     const braces = container.querySelectorAll('[data-scaffold="brace"]');
     const bays = 3;
     const levels = Math.max(1, Math.floor(300 / 60));
@@ -71,13 +71,13 @@ describe('scaffold renderer', () => {
   });
 
   it('posts: one per bay boundary (bays + 1)', () => {
-    const { container } = render(scaffold(makeCtx()));
+    const { container } = renderSvg(scaffold(makeCtx()));
     const posts = container.querySelectorAll('[data-scaffold="post"]');
     expect(posts.length).toBe(4); // bays(3) + 1
   });
 
   it('top-corner light is lit (alert.powered) when not derelict', () => {
-    const { container } = render(scaffold(makeCtx()));
+    const { container } = renderSvg(scaffold(makeCtx()));
     expect(container.querySelector('[data-scaffold="light"]')).not.toBeNull();
   });
 
@@ -89,8 +89,8 @@ describe('scaffold renderer', () => {
       isActive: false,
       config: { kind: 'scaffold', district: 'derelict', row: 5, hueShift: 10, satShift: -5, derelict: true },
     };
-    const live = render(scaffold(makeCtx()));
-    const derelict = render(scaffold(makeCtx({ actor: derelictActor })));
+    const live = renderSvg(scaffold(makeCtx()));
+    const derelict = renderSvg(scaffold(makeCtx({ actor: derelictActor })));
     expect(derelict.container.querySelector('[data-scaffold="light"]')).toBeNull();
     const liveFrameFill = live.container.querySelector('[data-scaffold="post"]')?.getAttribute('fill');
     const derelictFrameFill = derelict.container.querySelector('[data-scaffold="post"]')?.getAttribute('fill');
@@ -106,8 +106,8 @@ describe('scaffold renderer', () => {
       config: { kind: 'scaffold', district: 'derelict', row: 5, hueShift: 0, satShift: 0, derelict: true },
     };
     const liveActor: Actor = { ...derelictActor, id: 'scaffold-sat-live', config: { ...derelictActor.config, derelict: undefined } };
-    const derelict = render(scaffold(makeCtx({ actor: derelictActor, cap: 1, eastL: 1, westL: 1 })));
-    const live = render(scaffold(makeCtx({ actor: liveActor, cap: 1, eastL: 1, westL: 1 })));
+    const derelict = renderSvg(scaffold(makeCtx({ actor: derelictActor, cap: 1, eastL: 1, westL: 1 })));
+    const live = renderSvg(scaffold(makeCtx({ actor: liveActor, cap: 1, eastL: 1, westL: 1 })));
     const derelictFill = derelict.container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
     const liveFill = live.container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
     const derelictSat = Number(derelictFill?.match(/,\s*([\d.]+)%,/)?.[1]);
@@ -121,8 +121,8 @@ describe('scaffold renderer', () => {
     const ctxDifferentConfigShift = makeCtx({
       actor: { ...ctxDefault.actor, config: { ...ctxDefault.actor.config, hueShift: 170, satShift: 40 } },
     });
-    const a = render(scaffold(ctxDefault)).container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
-    const b = render(scaffold(ctxDifferentConfigShift)).container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
+    const a = renderSvg(scaffold(ctxDefault)).container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
+    const b = renderSvg(scaffold(ctxDifferentConfigShift)).container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
     expect(a).not.toBe(b);
   });
 
@@ -138,14 +138,14 @@ describe('scaffold renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(scaffold(ctx));
+      const { container } = renderSvg(scaffold(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(scaffold(makeCtx({ cap: 0.7 })));
-    const uncapped = render(scaffold(makeCtx({ cap: 1 })));
+    const capped = renderSvg(scaffold(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(scaffold(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-scaffold="solid"]')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);

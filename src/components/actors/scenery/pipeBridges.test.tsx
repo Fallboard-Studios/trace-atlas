@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { PipeBridges } from './pipeBridges';
 import { createFactory, getRecipeRow, DEFAULT_FACTORY_ROW } from '../../../systems/factoryPlacementSystem';
@@ -7,6 +6,7 @@ import { selectVariantFromSeed, VARIANT_CONF } from '../factoryVariants';
 import { calcSilhouetteSize } from '../silhouetteUtils';
 import { assertNinetyFortyFive } from './sceneryTestHelpers';
 import type { Actor } from '../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 /** Same silhouette derivation `PipeBridges`' own `geometryOf` uses — including the row's
  *  `variants` filter (a factory with no `config.district` falls back to 'dense', same as
@@ -36,9 +36,9 @@ describe('PipeBridges', () => {
     const [a120, b120] = pairAtGap(120, 0, '-120');
     const [a300, b300] = pairAtGap(300, 0, '-300');
 
-    const r40 = render(<PipeBridges factories={[a40, b40]} />);
-    const r120 = render(<PipeBridges factories={[a120, b120]} />);
-    const r300 = render(<PipeBridges factories={[a300, b300]} />);
+    const r40 = renderSvg(<PipeBridges factories={[a40, b40]} />);
+    const r120 = renderSvg(<PipeBridges factories={[a120, b120]} />);
+    const r300 = renderSvg(<PipeBridges factories={[a300, b300]} />);
 
     expect(r40.container.querySelectorAll('[data-pipe-bridge]').length).toBe(0);
     expect(r120.container.querySelectorAll('[data-pipe-bridge]').length).toBe(1);
@@ -63,7 +63,7 @@ describe('PipeBridges', () => {
     const a = createFactory({ x: xA, y: baseYA }, row, 1, idA);
     const b = createFactory({ x: xB, y: baseYB }, row, 1, idB);
 
-    const { container } = render(<PipeBridges factories={[a, b]} />);
+    const { container } = renderSvg(<PipeBridges factories={[a, b]} />);
     const bar = container.querySelector('[data-pipe-bridge-part="bar"]')!;
     const post = container.querySelector('[data-pipe-bridge-part="post"]')!;
 
@@ -95,7 +95,7 @@ describe('PipeBridges', () => {
       const baseY = 1000;
       const a = createFactory({ x: xA, y: baseY }, row, 1, idA);
       const b = createFactory({ x: xB, y: baseY }, row, 1, idB);
-      const { container } = render(<PipeBridges factories={[a, b]} />);
+      const { container } = renderSvg(<PipeBridges factories={[a, b]} />);
       const bar = container.querySelector('[data-pipe-bridge-part="bar"]')!;
       const barY = Number(bar.getAttribute('y'));
       const higherRoof = Math.min(baseY - heightA, baseY - heightB);
@@ -111,7 +111,7 @@ describe('PipeBridges', () => {
   it('only bridges x-adjacent pairs within the same row', () => {
     const [a, b] = pairAtGap(120, 0, '-row0');
     const [c, d] = pairAtGap(120, 1, '-row1');
-    const { container } = render(<PipeBridges factories={[a, b, c, d]} />);
+    const { container } = renderSvg(<PipeBridges factories={[a, b, c, d]} />);
     expect(container.querySelectorAll('[data-pipe-bridge]').length).toBe(2);
   });
 
@@ -126,7 +126,7 @@ describe('PipeBridges', () => {
       const xB = xA + widthA + gap;
       const a = createFactory({ x: xA, y: 1000 + (i % 5) * 5 }, row, 1, idA);
       const b = createFactory({ x: xB, y: 1000 + (i % 7) * 4 }, row, 1, idB);
-      const { container } = render(<PipeBridges factories={[a, b]} />);
+      const { container } = renderSvg(<PipeBridges factories={[a, b]} />);
       assertNinetyFortyFive(container);
     }
   });

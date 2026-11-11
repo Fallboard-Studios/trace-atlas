@@ -39,7 +39,7 @@ import {
   type BusFilterContext,
 } from './audioEngine/busFilter';
 import { robotBusGain } from './audioEngine/headroom';
-import { getToneCtor, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
+import { getToneCtor, toneHasWebAudio, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
 import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
 import { ROOM_KEYS, setRoomFed, type RoomKey } from './audioEngine/bypassCell';
@@ -947,7 +947,9 @@ export const AudioEngine = {
       }
       return true;
     } catch (err) {
-      devWarn('[AudioEngine] Failed to create composite voice:', err);
+      // With no WebAudio under Tone (jsdom, Node) the failure is certain and expected, not news: every robot a test
+      // spawns against the real engine landed here, 652 warnings in a full run on 2026-11-10.
+      if (toneHasWebAudio()) devWarn('[AudioEngine] Failed to create composite voice:', err);
       // Fall back to a minimal, test-friendly composite stub so callers can reserve and trigger safely
       const stubComposite = {
         output: ({ connect: () => { } } as MinimalToneNode) as unknown as Tone.Gain,

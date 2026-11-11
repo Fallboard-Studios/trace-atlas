@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { containers } from './containers';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -36,12 +36,12 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('containers renderer', () => {
   it('renders under data-scenery="containers"', () => {
-    const { container } = render(containers(makeCtx()));
+    const { container } = renderSvg(containers(makeCtx()));
     expect(container.querySelector('[data-scenery="containers"]')).not.toBeNull();
   });
 
   it('upper rows have one fewer box than the row below', () => {
-    const { container } = render(containers(makeCtx()));
+    const { container } = renderSvg(containers(makeCtx()));
     const row0 = container.querySelectorAll('[data-container-row="0"] [data-container="box"]');
     const row1 = container.querySelectorAll('[data-container-row="1"] [data-container="box"]');
     const row2 = container.querySelectorAll('[data-container-row="2"] [data-container="box"]');
@@ -51,7 +51,7 @@ describe('containers renderer', () => {
   });
 
   it('adjacent boxes alternate hue between the pair', () => {
-    const { container } = render(containers(makeCtx()));
+    const { container } = renderSvg(containers(makeCtx()));
     const boxes = Array.from(container.querySelectorAll('[data-container-row="0"] [data-container="box"]'));
     expect(boxes.length).toBeGreaterThanOrEqual(2);
     const fills = boxes.map((b) => b.getAttribute('fill'));
@@ -62,7 +62,7 @@ describe('containers renderer', () => {
   });
 
   it('one 7x7 label square per box', () => {
-    const { container } = render(containers(makeCtx()));
+    const { container } = renderSvg(containers(makeCtx()));
     const boxes = container.querySelectorAll('[data-container="box"]');
     const labels = container.querySelectorAll('[data-container="label"]');
     expect(labels.length).toBe(boxes.length);
@@ -71,7 +71,7 @@ describe('containers renderer', () => {
   });
 
   it('label fill reflects the seeded lit roll (lit vs off differ)', () => {
-    const { container } = render(containers(makeCtx()));
+    const { container } = renderSvg(containers(makeCtx()));
     const labels = Array.from(container.querySelectorAll('[data-container="label"]'));
     const litFill = labels[0].getAttribute('fill'); // labelLitRoll[0] === true
     const offFill = labels[1].getAttribute('fill'); // labelLitRoll[1] === false
@@ -79,7 +79,7 @@ describe('containers renderer', () => {
   });
 
   it('box count matches the max(1, cols - row) pyramid: 3 + 2 + 1 = 6 boxes, 6 labels', () => {
-    const { container } = render(containers(makeCtx()));
+    const { container } = renderSvg(containers(makeCtx()));
     expect(container.querySelectorAll('[data-container="box"]').length).toBe(6);
   });
 
@@ -88,8 +88,8 @@ describe('containers renderer', () => {
     const ctxDifferentConfigShift = makeCtx({
       actor: { ...ctxDefault.actor, config: { ...ctxDefault.actor.config, hueShift: 170, satShift: 40 } },
     });
-    const a = render(containers(ctxDefault)).container.querySelector('[data-container="box"]')?.getAttribute('fill');
-    const b = render(containers(ctxDifferentConfigShift)).container.querySelector('[data-container="box"]')?.getAttribute('fill');
+    const a = renderSvg(containers(ctxDefault)).container.querySelector('[data-container="box"]')?.getAttribute('fill');
+    const b = renderSvg(containers(ctxDifferentConfigShift)).container.querySelector('[data-container="box"]')?.getAttribute('fill');
     expect(a).not.toBe(b);
   });
 
@@ -109,14 +109,14 @@ describe('containers renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(containers(ctx));
+      const { container } = renderSvg(containers(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the fill, so the cap really is applied', () => {
-    const capped = render(containers(makeCtx({ cap: 0.7 })));
-    const uncapped = render(containers(makeCtx({ cap: 1 })));
+    const capped = renderSvg(containers(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(containers(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-container="box"]')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-container="box"]')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);

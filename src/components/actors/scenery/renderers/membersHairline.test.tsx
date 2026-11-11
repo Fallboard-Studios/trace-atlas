@@ -6,7 +6,6 @@
  * portholes, the hatch plate and every ringed mass are left alone.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { pylon } from './pylon';
 import { scaffold } from './scaffold';
@@ -18,6 +17,7 @@ import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor, type SceneryKind } from '../../../../types/Actor';
 import { gemOutlineStroke } from '../gemShape';
 import { withSwitch } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function ctxFor(kind: SceneryKind, params: SceneryContext['params'], overrides: Partial<SceneryContext> = {}, config: Actor['config'] = {}): SceneryContext {
   const actor: Actor = {
@@ -38,7 +38,7 @@ const DOME = (o: Partial<SceneryContext> = {}) =>
   ctxFor('dome', { dome: { w: 200, bh: 40, ry: 70, portholes: 4, portholeLitRoll: [0.1, 0.3, 0.5, 0.7], hueShift: 10, satShift: -5 } }, o);
 const BEACON = (o: Partial<SceneryContext> = {}) => ctxFor('beacon', { beacon: { w: 60, mastH: 160, gemW: 48 } }, o);
 
-const draw = (el: ReturnType<typeof pylon>) => render(el).container;
+const draw = (el: ReturnType<typeof pylon>) => renderSvg(el).container;
 const isHairline = (el: Element) => el.getAttribute('stroke') === gemOutlineStroke() && el.getAttribute('stroke-width') === '1.5';
 const bare = (el: Element) => el.getAttribute('stroke') === null && el.getAttribute('stroke-width') === null;
 const part = (c: HTMLElement, attr: string, value: string) => Array.from(c.querySelectorAll(`[${attr}="${value}"]`));

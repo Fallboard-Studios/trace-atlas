@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { beacon } from './beacon';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import { maxShapes } from '../sceneryParams';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -30,12 +30,12 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('beacon renderer', () => {
   it('renders under data-scenery="beacon"', () => {
-    const { container } = render(beacon(makeCtx()));
+    const { container } = renderSvg(beacon(makeCtx()));
     expect(container.querySelector('[data-scenery="beacon"]')).not.toBeNull();
   });
 
   it('mast and foot plus a gem head', () => {
-    const { container } = render(beacon(makeCtx()));
+    const { container } = renderSvg(beacon(makeCtx()));
     const rects = container.querySelectorAll('[data-scenery="beacon"] rect');
     expect(rects).toHaveLength(2);
     expect(container.querySelector('[data-scenery="beacon"] [data-shape="gem"]')).not.toBeNull();
@@ -43,7 +43,7 @@ describe('beacon renderer', () => {
 
   it('the gem sits on top of the mast (fully above the mast top)', () => {
     const mastTopY = 1030 - 160; // actor.position.y - params.beacon.mastH
-    const { container } = render(beacon(makeCtx()));
+    const { container } = renderSvg(beacon(makeCtx()));
     const gemOutline = container.querySelector('[data-scenery="beacon"] [data-shape="gem"] polygon');
     const ys = (gemOutline?.getAttribute('points') ?? '').trim().split(/\s+/).map((pair) => Number(pair.split(',')[1]));
     expect(Math.max(...ys)).toBeLessThanOrEqual(mastTopY);
@@ -57,19 +57,19 @@ describe('beacon renderer', () => {
         westL: 0.9 - (i % 10) / 10,
         nightDepth: (i % 10) / 10,
       });
-      const { container } = render(beacon(ctx));
+      const { container } = renderSvg(beacon(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it("maxShapes('beacon') covers the real rendered element count", () => {
-    const { container } = render(beacon(makeCtx()));
+    const { container } = renderSvg(beacon(makeCtx()));
     const shapes = container.querySelectorAll('[data-scenery="beacon"] polygon, [data-scenery="beacon"] rect, [data-scenery="beacon"] circle');
     expect(shapes.length).toBeLessThanOrEqual(maxShapes('beacon'));
   });
 
   it('renders nothing (an empty group) when params are missing', () => {
-    const { container } = render(beacon(makeCtx({ params: {} })));
+    const { container } = renderSvg(beacon(makeCtx({ params: {} })));
     expect(container.querySelector('[data-scenery="beacon"]')?.children.length).toBe(0);
   });
 });

@@ -5,7 +5,6 @@
  * glow are untouched.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { vent } from './vent';
 import { ventSteps } from '../sceneryParams';
@@ -15,6 +14,7 @@ import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, markupWithoutRings, outerBox, ringsIn, withSwitch } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}, p: { w?: number; steps?: number } = {}): SceneryContext {
   const actor: Actor = {
@@ -41,7 +41,7 @@ const CTX = makeCtx();
 const AVG = (0.9 + 0.5) / 2;
 const NO_SHIFT = { hueShift: 0, satShift: 0 };
 const tone = (mult: number) => applyColorShift(colorTheme.shadowDepth, NO_SHIFT, mult);
-const draw = (c: SceneryContext) => render(vent(c)).container;
+const draw = (c: SceneryContext) => renderSvg(vent(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="vent"]')!;
 /** The steps' rects as the renderer stacks them, bottom up from the base. */
 function stepRects(c: SceneryContext) {

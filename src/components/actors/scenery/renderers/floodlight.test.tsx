@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { floodlight } from './floodlight';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
 import type { SceneryContext } from '../sceneryTypes';
 import { ActorType, type Actor } from '../../../../types/Actor';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
   const actor: Actor = {
@@ -29,13 +29,13 @@ function makeCtx(overrides: Partial<SceneryContext> = {}): SceneryContext {
 
 describe('floodlight renderer', () => {
   it('renders under data-scenery="floodlight"', () => {
-    const { container } = render(floodlight(makeCtx()));
+    const { container } = renderSvg(floodlight(makeCtx()));
     expect(container.querySelector('[data-scenery="floodlight"]')).not.toBeNull();
   });
 
   it('beam opacity is 0.04 at noon (nightDepth 0) and 0.16 at night (nightDepth 1)', () => {
-    const noon = render(floodlight(makeCtx({ nightDepth: 0 })));
-    const night = render(floodlight(makeCtx({ nightDepth: 1 })));
+    const noon = renderSvg(floodlight(makeCtx({ nightDepth: 0 })));
+    const night = renderSvg(floodlight(makeCtx({ nightDepth: 1 })));
     const noonOpacity = Number(noon.container.querySelector('[data-floodlight="beam"]')?.getAttribute('opacity'));
     const nightOpacity = Number(night.container.querySelector('[data-floodlight="beam"]')?.getAttribute('opacity'));
     expect(noonOpacity).toBeCloseTo(0.04, 3);
@@ -43,7 +43,7 @@ describe('floodlight renderer', () => {
   });
 
   it('the beam polygon has one vertical edge and one 45° edge', () => {
-    const { container } = render(floodlight(makeCtx()));
+    const { container } = renderSvg(floodlight(makeCtx()));
     const beam = container.querySelector('[data-floodlight="beam"]')!;
     const points = (beam.getAttribute('points') ?? '').trim().split(/\s+/).map((pair) => pair.split(',').map(Number));
     let hasVertical = false;
@@ -61,8 +61,8 @@ describe('floodlight renderer', () => {
   });
 
   it('ground pool opacity is 0.03 at noon and 0.13 at night', () => {
-    const noon = render(floodlight(makeCtx({ nightDepth: 0 })));
-    const night = render(floodlight(makeCtx({ nightDepth: 1 })));
+    const noon = renderSvg(floodlight(makeCtx({ nightDepth: 0 })));
+    const night = renderSvg(floodlight(makeCtx({ nightDepth: 1 })));
     const noonOpacity = Number(noon.container.querySelector('[data-floodlight="pool"]')?.getAttribute('opacity'));
     const nightOpacity = Number(night.container.querySelector('[data-floodlight="pool"]')?.getAttribute('opacity'));
     expect(noonOpacity).toBeCloseTo(0.03, 3);
@@ -76,14 +76,14 @@ describe('floodlight renderer', () => {
         eastL: 0.2 + (i % 10) / 10,
         westL: 0.8 - (i % 10) / 10,
       });
-      const { container } = render(floodlight(ctx));
+      const { container } = renderSvg(floodlight(ctx));
       assertNinetyFortyFive(container);
     }
   });
 
   it('mutation check: dropping the depth cap multiply changes the mast fill, so the cap really is applied', () => {
-    const capped = render(floodlight(makeCtx({ cap: 0.7 })));
-    const uncapped = render(floodlight(makeCtx({ cap: 1 })));
+    const capped = renderSvg(floodlight(makeCtx({ cap: 0.7 })));
+    const uncapped = renderSvg(floodlight(makeCtx({ cap: 1 })));
     const cappedFill = capped.container.querySelector('[data-floodlight="mast"]')?.getAttribute('fill');
     const uncappedFill = uncapped.container.querySelector('[data-floodlight="mast"]')?.getAttribute('fill');
     expect(cappedFill).not.toBe(uncappedFill);

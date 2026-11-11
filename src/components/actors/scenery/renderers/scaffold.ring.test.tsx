@@ -4,7 +4,6 @@
  * takes none — those are members, which take the hairline in Task 16.
  */
 import { describe, it, expect } from 'vitest';
-import { render } from '@testing-library/react';
 
 import { scaffold } from './scaffold';
 import { assertNinetyFortyFive } from '../sceneryTestHelpers';
@@ -13,6 +12,7 @@ import { ActorType, type Actor } from '../../../../types/Actor';
 import colorTheme from '../../../../constants/colorTheme.json';
 import { applyColorShift } from '../../../../utils/colorUtils';
 import { facetOn, facetsOfRing, markupWithoutRings, outerBox, ringsIn, withSwitch } from '../../material/ringTestHelpers';
+import { renderSvg } from '@/testUtils/renderSvg';
 
 function makeCtx(overrides: Partial<SceneryContext> = {}, p: Partial<NonNullable<SceneryContext['params']['scaffold']>> = {}): SceneryContext {
   const actor: Actor = {
@@ -44,7 +44,7 @@ const MID = 500;
 const SHIFT = { hueShift: 10, satShift: -5 };
 const tone = (mult: number, satMult = 1) =>
   applyColorShift({ ...colorTheme.body.base, s: colorTheme.body.base.s * satMult }, SHIFT, mult);
-const draw = (c: SceneryContext) => render(scaffold(c)).container;
+const draw = (c: SceneryContext) => renderSvg(scaffold(c)).container;
 const group = (c: HTMLElement) => c.querySelector('[data-scenery="scaffold"]')!;
 
 describe('scaffold ring: the solid block, and nothing else', () => {
