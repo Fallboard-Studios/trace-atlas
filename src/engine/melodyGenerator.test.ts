@@ -8,6 +8,7 @@ import {
   generateMelodyForRobot,
   reRollMelodyPitches,
   buildSeededComposition,
+  buildSeededRhythm,
   buildSeededPerformance,
   applyPerformanceMarks,
   REST_MIN_FRACTION,
@@ -717,6 +718,183 @@ describe('buildSeededComposition', () => {
     });
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+// ========================================
+// TEST SUITE: buildSeededRhythm (Company Families, Task 1; spec §5.7 case 1)
+// ========================================
+
+describe('buildSeededRhythm', () => {
+  // A robot's full composition attributes: the rhythm stream must read only density and motif
+  // from them (B7), so a caller can hand it the same record it hands buildSeededComposition.
+  const fullAttrs = {
+    rhythmicDensity: 50,
+    rhythmicMotifLength: { active: true, value: 8 } as ToggleValue,
+    noteVariance: { active: false, value: 0 } as ToggleValue,
+    pitchRepeat: 0,
+    octaveRange: [3, 5] as [number, number],
+  };
+
+  function drawSequence(rand: () => number, n = 8): number[] {
+    return Array.from({ length: n }, () => rand());
+  }
+
+  const base = () => drawSequence(buildSeededRhythm(0.42, fullAttrs));
+
+  it('is repeatable: the same seed and settings give the same stream', () => {
+    expect(base()).toEqual(base());
+  });
+
+  it('a Note Variance change leaves the stream as it was', () => {
+    const changed = { ...fullAttrs, noteVariance: { active: true, value: 3 } };
+    expect(drawSequence(buildSeededRhythm(0.42, changed))).toEqual(base());
+  });
+
+  it('a Pitch Repeat change leaves the stream as it was', () => {
+    const changed = { ...fullAttrs, pitchRepeat: 80 };
+    expect(drawSequence(buildSeededRhythm(0.42, changed))).toEqual(base());
+  });
+
+  it('an octave range change leaves the stream as it was', () => {
+    const changed = { ...fullAttrs, octaveRange: [2, 6] as [number, number] };
+    expect(drawSequence(buildSeededRhythm(0.42, changed))).toEqual(base());
+  });
+
+  it('a seed change gives a different stream', () => {
+    expect(drawSequence(buildSeededRhythm(0.43, fullAttrs))).not.toEqual(base());
+  });
+
+  it('a density change gives a different stream', () => {
+    expect(drawSequence(buildSeededRhythm(0.42, { ...fullAttrs, rhythmicDensity: 75 }))).not.toEqual(base());
+  });
+
+  it('a motif length change gives a different stream', () => {
+    const changed = { ...fullAttrs, rhythmicMotifLength: { active: true, value: 4 } };
+    expect(drawSequence(buildSeededRhythm(0.42, changed))).not.toEqual(base());
+  });
+
+  it('turning motif tiling off gives a different stream (same length value)', () => {
+    const changed = { ...fullAttrs, rhythmicMotifLength: { active: false, value: 8 } };
+    expect(drawSequence(buildSeededRhythm(0.42, changed))).not.toEqual(base());
+  });
+
+  it('is its own stream: it differs from buildSeededComposition on the same seed and settings', () => {
+    expect(base()).not.toEqual(drawSequence(buildSeededComposition(0.42, fullAttrs)));
+  });
+
+  it('never calls Math.random', () => {
+    const spy = vi.spyOn(Math, 'random');
+    base();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+// ========================================
+// TEST SUITE: generateMelodyForRobot — rhythmRand (Company Families, Task 1; spec §5.7 case 2)
+// ========================================
+
+describe('generateMelodyForRobot — rhythmRand', () => {
+  type Shape = [number, string, number, number, number];
+  const shape = (m: MelodyEvent[]): Shape[] =>
+    m.map((e) => [e.startStep, e.length, e.noteIndex, e.octave, e.pitchLocked ? 1 : 0]);
+  const rhythmOf = (m: MelodyEvent[]) => m.map((e) => [e.startStep, e.length]);
+  const notesOf = (m: MelodyEvent[]) => m.map((e) => [e.noteIndex, e.octave]);
+
+  // Sparse and free (long, varied gaps, so the duration draw has real choices) and tiled with
+  // Pitch Repeat (the lock plan draws from the composition stream between onsets and notes).
+  const configs = {
+    free: {
+      octaveMin: 3,
+      octaveMax: 6,
+      rhythmicDensity: 30,
+      rhythmicMotifLength: { active: false, value: 8 },
+    },
+    tiledWithPitchRepeat: {
+      octaveMin: 3,
+      octaveMax: 5,
+      rhythmicDensity: 50,
+      rhythmicMotifLength: { active: true, value: 4 },
+      pitchRepeat: 60,
+      noteVariance: { active: true, value: 3 },
+    },
+  };
+
+  for (const [name, config] of Object.entries(configs)) {
+    describe(name, () => {
+      const rhythmFor = (seed: number) =>
+        buildSeededRhythm(seed, {
+          rhythmicDensity: config.rhythmicDensity,
+          rhythmicMotifLength: config.rhythmicMotifLength,
+        });
+
+      it('one rhythm stream with two composition streams: same onsets and lengths, different notes', () => {
+        const a = generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(0.42) });
+        const b = generateMelodyForRobot({ ...config, rand: alea('composition-b'), rhythmRand: rhythmFor(0.42) });
+        expect(rhythmOf(b)).toEqual(rhythmOf(a));
+        expect(notesOf(b)).not.toEqual(notesOf(a));
+      });
+
+      it('the lengths really are drawn (not all one value), so the check above has teeth', () => {
+        const a = generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(0.42) });
+        expect(new Set(a.map((e) => e.length)).size).toBeGreaterThan(1);
+      });
+
+      // Several rhythm seeds, not two: a tiled 4-step cell has only six two-onset patterns, so any
+      // one pair of seeds can land on the same one by chance.
+      it('one composition stream with different rhythm streams: the onsets follow the rhythm stream', () => {
+        const patterns = new Set(
+          [0.11, 0.23, 0.42, 0.58, 0.77, 0.91].map((seed) =>
+            generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(seed) })
+              .map((e) => e.startStep)
+              .join(','),
+          ),
+        );
+        expect(patterns.size).toBeGreaterThan(1);
+      });
+
+      it('no rhythmRand behaves as passing rand itself as the rhythm stream', () => {
+        const omitted = generateMelodyForRobot({ ...config, rand: alea('one-stream') });
+        const same = alea('one-stream');
+        const passed = generateMelodyForRobot({ ...config, rand: same, rhythmRand: same });
+        expect(shape(passed)).toEqual(shape(omitted));
+      });
+
+      it('never calls Math.random with both streams given', () => {
+        const spy = vi.spyOn(Math, 'random');
+        generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(0.42) });
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+      });
+    });
+  }
+
+  // Captured from the generator before rhythmRand existed: a one-stream caller (every caller
+  // until Task 3) gets today's melody bit for bit.
+  it('parity: one stream gives the melody it gave before rhythmRand (free)', () => {
+    const melody = generateMelodyForRobot({ ...configs.free, rand: alea('parity-a') });
+    expect(shape(melody)).toEqual([
+      [8, '16n', 0, 6, 0],
+      [9, '16n', 6, 4, 0],
+      [10, '16n', 5, 4, 0],
+      [11, '8n', 5, 4, 0],
+      [13, '16n', 3, 4, 0],
+    ]);
+  });
+
+  it('parity: one stream gives the melody it gave before rhythmRand (tiled, Pitch Repeat)', () => {
+    const melody = generateMelodyForRobot({ ...configs.tiledWithPitchRepeat, rand: alea('parity-b') });
+    expect(shape(melody)).toEqual([
+      [2, '16n', 1, 3, 0],
+      [3, '8n', 5, 3, 0],
+      [6, '16n', 1, 3, 1],
+      [7, '16n', 5, 3, 1],
+      [10, '16n', 3, 5, 0],
+      [11, '8n', 5, 5, 1],
+      [14, '16n', 1, 5, 0],
+      [15, '8n', 5, 5, 1],
+    ]);
   });
 });
 

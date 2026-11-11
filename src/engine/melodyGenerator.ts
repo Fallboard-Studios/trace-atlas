@@ -67,6 +67,14 @@ export interface GenerateMelodyForRobotOptions {
    */
   rand?: () => number;
   /**
+   * The rhythm stream (Company Families, docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11):
+   * the onsets and every event's duration draw from it, in the positions they draw from `rand`
+   * without it; the pitch-lock plan, octaves and notes stay on `rand`. Built by
+   * `buildSeededRhythm`. Defaults to `rand` itself, so a one-stream caller gets the same melody
+   * it got before this option existed.
+   */
+  rhythmRand?: () => number;
+  /**
    * Weighted note-selection toggle. When `active` is false, notes are picked
    * unweighted from all 8 indices and `value` is inert. When true, selection
    * is a weighted slice of `value` (1–8) notes from the pitch array.
@@ -112,6 +120,27 @@ export function buildSeededComposition(
     `${attrs.noteVariance.active}-${attrs.noteVariance.value}`,
     attrs.pitchRepeat,
     `${attrs.octaveRange[0]}-${attrs.octaveRange[1]}`,
+  ].join(':');
+  return alea(key);
+}
+
+/**
+ * Company Families (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11) — the rhythm stream, a
+ * drop-in for `generateMelodyForRobot`'s `opts.rhythmRand`. Keyed on the rhythm seed and the two
+ * rhythm settings only (B7), so a Note Variance, Pitch Repeat or octave edit leaves a robot's
+ * onsets and note lengths where they were, and a family member whose rhythm seed is its founder's
+ * composition seed plays the founder's rhythm. Takes the robot's full attributes as readily as
+ * the two it reads. The `rhythm` tag keeps it a stream of its own beside buildSeededComposition.
+ */
+export function buildSeededRhythm(
+  rhythmSeed: number,
+  attrs: { rhythmicDensity: number; rhythmicMotifLength: ToggleValue },
+): () => number {
+  const key = [
+    rhythmSeed,
+    attrs.rhythmicDensity,
+    `${attrs.rhythmicMotifLength.active}-${attrs.rhythmicMotifLength.value}`,
+    'rhythm',
   ].join(':');
   return alea(key);
 }
@@ -481,6 +510,7 @@ export function generateMelodyForRobot(
   opts: GenerateMelodyForRobotOptions
 ): MelodyEvent[] {
   const rand = opts.rand ?? (opts.seed !== undefined ? alea(String(opts.seed)) : Math.random);
+  const rhythmRand = opts.rhythmRand ?? rand;
   const subdivisions = opts.subdivisions ?? DEFAULT_SUBDIVISIONS;
   const densityPct = Math.max(
     RHYTHMIC_DENSITY_MIN,
@@ -505,10 +535,10 @@ export function generateMelodyForRobot(
     motifLength = Math.max(RHYTHMIC_MOTIF_LENGTH_MIN, Math.min(RHYTHMIC_MOTIF_LENGTH_MAX, Math.trunc(motif.value)));
     const repeats = Math.max(1, Math.floor(subdivisions / motifLength));
     const perCell = Math.max(1, Math.round((densityPct / 100) * motifLength));
-    onsets = buildMotifOnsets(perCell * repeats, motifLength, subdivisions, rand);
+    onsets = buildMotifOnsets(perCell * repeats, motifLength, subdivisions, rhythmRand);
   } else {
     const onsetCount = Math.max(1, Math.round((densityPct / 100) * subdivisions));
-    onsets = buildMotifOnsets(onsetCount, subdivisions, subdivisions, rand);
+    onsets = buildMotifOnsets(onsetCount, subdivisions, subdivisions, rhythmRand);
   }
 
   // Pitch Repeat: which onsets copy the base cell's noteIndex verbatim (docs/specs/archive/PITCH_REPEAT.md).
@@ -601,7 +631,7 @@ export function generateMelodyForRobot(
     melody.push({
       id: generateUUID(),
       startStep: onsets[i] + 1, // 1-indexed to match existing MelodyEvent convention
-      length: pickDurationForGap(durationUnits, rand),
+      length: pickDurationForGap(durationUnits, rhythmRand),
       noteIndex,
       octave: currentOctave,
       ...(lockPlan[i] ? { pitchLocked: true } : {}),

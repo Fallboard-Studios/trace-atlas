@@ -5,9 +5,9 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 [docs/intent/no-silence-and-company-families.md](../intent/no-silence-and-company-families.md). Backlog
 [73](../todo/backlog.md#73-robots-a-seeded-company-is-a-family).
 
-**Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. **Not started, and
-not to be started before Part A's Gate B passes** (spec §0). It is built on **its own branch from `main`, after
-Part A merges** (Crawford, 2026-11-11). B12–B15 answered at Gate A: every default stands.
+**Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. Building on
+`feature/company-families` from `main` after Part A merged (PR #623). **Task 1 done 2026-11-11; next is Task 2.**
+B12–B15 answered at Gate A: every default stands.
 
 ## Overview
 
@@ -68,7 +68,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
 ### Phase 1: The rhythm stream
 
-- [ ] **Task 1: `melodyGenerator.ts` — `buildSeededRhythm` and `generateMelodyForRobot`'s `rhythmRand`**
+- [x] **Task 1: `melodyGenerator.ts` — `buildSeededRhythm` and `generateMelodyForRobot`'s `rhythmRand`**
 
   **Description:** `buildSeededRhythm(rhythmSeed, { rhythmicDensity, rhythmicMotifLength })` beside
   `buildSeededComposition`: an `alea` stream keyed on the seed and the two rhythm settings only (B7).
@@ -78,17 +78,22 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Proof:** RED test — `src/engine/melodyGenerator.test.ts`: cases 1 and 2.
 
   **Acceptance criteria:**
-  - [ ] `buildSeededRhythm` gives the same stream for a note-variance, octave or pitch-repeat change and a different
+  - [x] `buildSeededRhythm` gives the same stream for a note-variance, octave or pitch-repeat change and a different
         one for a density, motif or seed change.
-  - [ ] One rhythm stream with two different composition streams gives the same `startStep`s and lengths and
+  - [x] One rhythm stream with two different composition streams gives the same `startStep`s and lengths and
         different notes (on a seed where the notes do differ).
-  - [ ] With no `rhythmRand`, every existing melody test passes unmodified (parity).
-  - [ ] Mutants, killed: the rhythm key including note variance; durations left on `rand`.
+  - [x] With no `rhythmRand`, every existing melody test passes unmodified (parity).
+  - [x] Mutants, killed: the rhythm key including note variance; durations left on `rand`.
+
+  **As built:** two literal parity pins (free, and tiled with Pitch Repeat) captured from the generator before the
+  change. One extra mutant, killed: tiled onsets left on `rand`. The note-variance mutant showed that two rhythm seeds
+  can share a tiled pattern by chance (a 4-step cell with two onsets has six), so the "onsets follow the rhythm
+  stream" case compares six seeds.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/melodyGenerator.test.ts src/engine/regenerateMelody.test.ts src/systems/spawnSystem.test.ts`
-        passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/melodyGenerator.test.ts src/engine/regenerateMelody.test.ts src/systems/spawnSystem.test.ts`
+        passes (454).
+  - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; 4 warnings, none in these files).
 
   **Dependencies:** Gate B of Part A.
 
