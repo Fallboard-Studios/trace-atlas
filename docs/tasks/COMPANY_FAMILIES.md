@@ -11,8 +11,8 @@ stands. **Phase 1 (Tasks 1–3) built 2026-11-11; at its checkpoint Crawford rev
 the same settings in one world make the same rhythm, and the moved onsets go. Tasks 3a and 3b reworked Phase 1 to
 that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). Stopped at the rhythm-stream
 checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Task 4 built 2026-11-11 (the cap touches 34
-of 121 grid worlds); Tasks 5 and 6 built the same day. Phase 2 is built; stopped at the "built" checkpoint for
-Crawford's review before the docs (Task 7).**
+of 121 grid worlds); Tasks 5 and 6 built the same day. Phase 2 is built, and the "built" checkpoint passed
+(Crawford: "sounds good"). Next is Task 7 (the docs).**
 
 ## Overview
 
@@ -438,7 +438,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
       stream (Task 1), the raw density, no world and the performance stream on the robot's seed (Task 3a), the cap at
       one freelancer (Task 4), the founder as the highest index and the sends left fresh (Task 5), the deal by own
       index (Task 6).
-- [ ] Reviewed with human before the docs.
+- [x] Reviewed with human before the docs. Crawford, 2026-11-11: "sounds good".
 
 ---
 
