@@ -405,7 +405,7 @@ code, not text").
   **As built:** `RosterBoard.test.tsx` asserts no status text, so it needed no change; `content.test.ts`'s tile-line case
   pinned the old order and moved with the template.
 
-- [ ] **Task 10: `RobotScreen.tsx`, `RobotScreen.css`, `probe.ts` — the Status well first, the light inline**
+- [x] **Task 10: `RobotScreen.tsx`, `RobotScreen.css`, `probe.ts` — the Status well first, the light inline**
 
   **Description:** `META_FIELDS` reorders to status, job, docking, activity. The Status well's value renders
   `<ModeLight />` before the word (a small inline gap in `RobotScreen.css`). `probe.band.statusLine` becomes
@@ -424,7 +424,7 @@ code, not text").
   **Verification:**
   - [x] `npx vitest run src/components/panels/screen/screens/RobotScreen.test.tsx src/content/content.test.ts` passes.
   - [x] `npm run build:types`, `npm run lint` clean.
-  - [ ] Look: the robot screen on the desk, the Status well first with its light; the phone band at 320 px, the mode
+  - [x] Look: the robot screen on the desk, the Status well first with its light; the phone band at 320 px, the mode
         leading.
 
   **Dependencies:** Tasks 7a, 8.
@@ -436,9 +436,10 @@ code, not text").
 
   **As built:** the light sits inside the value span (the well's and the band line's), first, so `metaValues` and the
   line's text still read the words alone. `ModeLight.css`'s own `margin-inline-end` is the gap, so `RobotScreen.css`
-  is untouched. The Look is done with Task 11's, in one browser run.
+  is untouched. The Look was done with Task 11's, in one browser run (see Task 11's As built). Found there, not
+  changed: the phone band wraps to two lines at 320 px (it has no one-line rule; B5 assumed one), for the eye gate.
 
-- [ ] **Task 11: `RosterTile.css` — the desk tile holds two status lines (the CSS-only task)**
+- [x] **Task 11: `RosterTile.css` — the desk tile holds two status lines (the CSS-only task)**
 
   **Description:** Under `.roster-tile--desk .roster-tile__status`: `white-space: normal`, a two-line clamp
   (`display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden`) and a `min-height`
@@ -450,18 +451,29 @@ code, not text").
   the first line before the word. The phone shell at 320 px: one line, the mode word never cut.
 
   **Acceptance criteria:**
-  - [ ] Desk tiles are uniform in height with one- and two-line statuses side by side; no tile grows past two lines.
-  - [ ] The phone tile is unchanged.
+  - [x] Desk tiles are uniform in height with one- and two-line statuses side by side; no tile grows past two lines.
+  - [x] The phone tile is unchanged.
 
   **Verification:**
-  - [ ] The Look above, in a live browser, recorded in the commit. No test file.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] The Look above, in a live browser, recorded in the commit. No test file.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 9.
 
   **Files:** `src/components/panels/screen/screens/RosterTile.css` (no `*.test.ts`)
 
   **Estimated scope:** XS
+
+  **As built:** a `line-height` of 1.3 on the desk status sets the two-line `min-height` (`calc(2em * 1.3)`), and the
+  standard `line-clamp: 2` sits beside the prefixed one. The Look (headless Chrome over the dev server, 1440, 768
+  and 320 px, 2026-11-11) found the lit light's glow clipped square by the status span's `overflow: hidden`: the base
+  rule now gives the clip 8 px of room above and before the line (padding, with matching negative margins, so the
+  text and the tile heights do not move: desk 97 px, phone 81 px, before and after). Measured: all twelve desk tiles
+  97 px at both widths, the status box two 19.5 px lines, a three-line status clipped to two with its ellipsis, the
+  light on the first line; the phone one 23 px line, the mode first. Not seen live: a status short enough for one
+  line on the desk (at the 250 px tile every status took two), so the empty reserved second line rests on the
+  `min-height` alone. Found, not this branch's: at 768 px the panel content overflows by 9 px (a 250 px tile in a
+  233 px row), with or without these rules.
 
 ### Checkpoint B: the display (stop — Crawford's eye, spec §5.4)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
