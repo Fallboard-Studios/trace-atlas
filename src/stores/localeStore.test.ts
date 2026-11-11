@@ -566,10 +566,28 @@ describe('localeStore', () => {
         expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].batteryLevel).toBe(42);
       });
 
-      it('truncates a fractional value', () => {
+      // A sized robot drains and charges by fractions (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.4, case 13).
+      it('keeps a fractional value exactly - the battery is not truncated', () => {
         useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
         useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { batteryLevel: 42.9 });
-        expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].batteryLevel).toBe(42);
+        expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].batteryLevel).toBe(42.9);
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { batteryLevel: 0.25 });
+        expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].batteryLevel).toBe(0.25);
+      });
+
+      it('clamps a fractional overshoot to the bound', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { batteryLevel: 100.4 });
+        expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].batteryLevel).toBe(100);
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { batteryLevel: -0.4 });
+        expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].batteryLevel).toBe(0);
+      });
+
+      it('drops a NaN and keeps the stored value', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { batteryLevel: 37.5 });
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', { batteryLevel: Number.NaN });
+        expect(useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0].batteryLevel).toBe(37.5);
       });
     });
   });

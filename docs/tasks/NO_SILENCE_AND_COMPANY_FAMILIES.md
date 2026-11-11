@@ -6,7 +6,7 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 Stage 3.
 
 **Status:** plan written 2026-11-10. Phase 1 built 2026-11-10 (Tasks 1–2: `da8d5b52`, `da9416d0`; Task 3's row is in
-Results); at Checkpoint A, waiting on Crawford before Task 4. **Part A only**: Part B (`company-families`) is not planned until
+Results); Checkpoint A passed, Phase 2 in progress. **Part A only**: Part B (`company-families`) is not planned until
 Gate B has passed and its questions (spec §7.3) are answered.
 
 ## Overview
@@ -203,13 +203,13 @@ task.
 - [x] If the row disagrees with the intent in kind (no silent worlds, or silence in nearly all of them), stop here:
       the intent's premise needs his eyes before Phase 2. A difference of a few worlds or a fraction of a percent is
       recorded and the work goes on. *It agrees: 79 of 121 worlds silent, every probe number confirmed.*
-- [ ] Reviewed with human before proceeding to Phase 2.
+- [x] Reviewed with human before proceeding to Phase 2. (2026-11-10: Crawford asked for Phase 2.)
 
 ---
 
 ### Phase 2: Battery size
 
-- [ ] **Task 4: `localeStore.ts` — `updateRobot` keeps a fractional battery**
+- [x] **Task 4: `localeStore.ts` — `updateRobot` keeps a fractional battery**
 
   **Description:** Drop `Math.trunc` from `updateRobot`'s `batteryLevel` normalisation. Keep the 0–100 clamp. A `NaN`
   drops the key and keeps the stored value, as `pan`'s branch does. Nothing writes a fraction yet, so nothing in the
@@ -219,13 +219,13 @@ task.
   "truncates a fractional value" case flips).
 
   **Acceptance criteria:**
-  - [ ] A fractional battery is stored as written.
-  - [ ] 150 clamps to 100, −10 to 0, and a fractional overshoot (100.4) to 100.
-  - [ ] A `NaN` leaves the stored battery as it was.
+  - [x] A fractional battery is stored as written.
+  - [x] 150 clamps to 100, −10 to 0, and a fractional overshoot (100.4) to 100.
+  - [x] A `NaN` leaves the stored battery as it was.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/localeStore.test.ts src/systems/robotSystems.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/localeStore.test.ts src/systems/robotSystems.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
