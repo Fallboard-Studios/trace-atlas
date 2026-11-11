@@ -138,7 +138,7 @@ code, not text").
 
   **Estimated scope:** S (one algorithm and its tests; one call site)
 
-- [ ] **Task 2: `AudioEngine.ts`, `headroom.ts`, `voiceEntry.ts` — the dip is one bus-gain target**
+- [x] **Task 2: `AudioEngine.ts`, `headroom.ts`, `voiceEntry.ts` — the dip is one bus-gain target**
 
   **Description:** `HIGHLIGHT_DIP_DB = -10` and `HIGHLIGHT_DIP_GAIN` beside `HEADROOM_TRIM_GAIN` in `headroom.ts`;
   `HIGHLIGHT_RAMP_SECONDS = 0.15` beside `VOLUME_RAMP_SECONDS`. In the engine: module state `highlightedLive`,
@@ -153,16 +153,16 @@ code, not text").
   while the set is live is built at the dipped gain; the empty set ramps every voice back.
 
   **Acceptance criteria:**
-  - [ ] While the live set is non-empty, every voice not in it has bus gain `robotBusGain(volume) * HIGHLIGHT_DIP_GAIN`
+  - [x] While the live set is non-empty, every voice not in it has bus gain `robotBusGain(volume) * HIGHLIGHT_DIP_GAIN`
         at build, on a Volume edit and on the set change; a voice in it has `robotBusGain(volume)`.
-  - [ ] `setHighlightedRobots` ramps through `rampOrSet` over `HIGHLIGHT_RAMP_SECONDS` (the `rampTo` spy receives the
+  - [x] `setHighlightedRobots` ramps through `rampOrSet` over `HIGHLIGHT_RAMP_SECONDS` (the `rampTo` spy receives the
         duration); the same set again calls nothing; the empty set restores every voice.
-  - [ ] The existing `updateRobotMasterVolume` and `reserveVoice` bus-gain tests pass unmodified (no live set = today's
+  - [x] The existing `updateRobotMasterVolume` and `reserveVoice` bus-gain tests pass unmodified (no live set = today's
         gains).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
