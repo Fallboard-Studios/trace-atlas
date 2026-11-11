@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 75.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 81.
 
 ## Open items
 
@@ -505,4 +505,130 @@ sonic presence mirrors when it materializes and vanishes.
 Since 60 the dock mutes a robot in `Docked` and `Undocking` (`isDockMuted`, `src/utils/robotAudibility.ts`) and a Solo
 overrides it, so today a robot cuts in and out on those state changes; the fade would smooth exactly that edge. Needs a
 short interview before a spec. Plan.md Stage 3.
+
+### 75. Navigation: Close, Back, the Browser's Back Button, and the Nav's Width
+
+Raised by Crawford on 2026-11-11 (items 3, 4, 5 and 9 of his list). Four asks about how a player leaves a screen,
+recorded together because one history model could answer the first three, and the fourth is what moves when the list
+opens:
+
+- **Close.** Every open view gets a control that closes it and shows the deck. Today the only ways to the deck are
+  NavPanel's "Deck" box (`navActions.goHome`, named as the close control in `ContentPane.tsx`'s header) and the
+  breadcrumb's root (`NavBreadcrumb.tsx`).
+- **Back to the Probes list.** One press from a robot's screen, All Probes or a company's screen back to the Probes
+  list. Today `selectEntity` collapses the list when an entity opens (Crawford, 2026-10-10: "collapse the nav when a
+  probe or company is selected"), and only the Probes parent box brings it back (`pressBranchBox`).
+- **The browser's Back button.** Nothing in `src/` pushes a history entry: the address bar is only rewritten in place
+  with `replaceState` (`sessionShareUtils.ts` after a world link loads, `audioBudgetSystem.ts` for `?load=` and the
+  effects load). So Back leaves the app at once, along with any unsaved changes to the world. Options to weigh: push an
+  entry per navigation so Back walks the app's own trail (it must keep the `replaceState` writes intact), a leave
+  warning while the world has unsaved changes, or both. Open: what Back does on the deck and on the off screen.
+- **The nav's width.** The desk rail tweens from rest (124 px) to wide (200 px) while Probes lists its entities
+  (`NavPanel.css`, `--nav-panel-expand`, tweened in `NavPanel.tsx`), which moves ContentPane's left edge with it.
+  Decide whether the width change stays.
+
+Constraints: the controls live inside ScreenViewport (the UI Shell guardrail), navigation state stays in `uiStore`, and
+the labels go in `src/content/`. Neighbour: backlog [77](#77-help-popovers-a-link-from-a-send-to-its-effect) (a jump
+from a send to its effect is a navigation, so Back should return from it). Needs an interview before a spec. Plan.md
+Stage 5.
+
+### 76. Fleet Params and the Edit Tabs: Regroup, Re-order, Respace
+
+Raised by Crawford on 2026-11-11 (items 1, 2 and 8 of his list), in this order:
+
+1. **Tempo & Options.** Fleet Params' Pacing and Audio Quality become the two sub-tabs (Pacing, then Audio Quality) of
+   one new section, "Tempo & Options". It is one section tab despite the ampersand, and it sits at the left edge of
+   the section row, where Pacing is now (Crawford, 2026-11-11). Today there are eight sections, in this order: Pacing,
+   LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output, Audio Quality (`FleetParamsScreen.tsx`; the
+   content keys in navActions' `FLEET_PARAMS_GROUP_CONTENT`). Pacing and Audio Quality are the two single-panel
+   sections, with no sub-tab row (`SINGLE_PANEL`, and their empty lists in `FLEET_PARAMS_SUBSECTIONS`), so after
+   this every section has a sub-tab row and there are seven.
+2. **Slider order and grouping in several tabs.** Several tabs; Crawford compiles the list when the item is picked
+   up.
+3. **Style, after 2.** The lore titles need work, and the sliders may need more spacing and design once they are
+   regrouped.
+
+Steps 1 and 2 change layout and the breadcrumb's trail, and step 3 is style, so its proof is a look in the browser.
+Plan.md Stage 5.
+
+### 77. Help Popovers: A Link from a Send to Its Effect
+
+Raised by Crawford on 2026-11-11 (item 6 of his list). The robot and company screens carry five sends, and each one's
+help popover (`HelpPopover.tsx`, opened by DualLabel's "?") names the shared effect it feeds without linking to it.
+Add a link that opens Fleet Params at that effect:
+
+| Send (`src/content/copy/probe.ts`) | Feeds | Fleet Params section › sub-tab |
+| --- | --- | --- |
+| Reverb (`probe.reverbSend`) | Reverb | Time & Space › Reverb |
+| Delay (`probe.delaySend`) | Delay | Time & Space › Delay |
+| Grit (`probe.gritSend`) | the Colour room (Distortion, Chebyshev, Bit Crusher) | Colour (which sub-tab is open) |
+| Shimmer (`probe.shimmerSend`) | Frequency Shifter | Modulation › Frequency Shifter |
+| Double (`probe.doubleSend`) | Chorus | Modulation › Chorus |
+
+To work out: where the link's target is recorded (HelpPopover is one of the 13 shared primitives, and help text is a
+content entry, so it is either a new field on the help entry or on the control's schema); which of Colour's three
+sub-tabs Grit opens; and how the player gets back to the robot (backlog
+[75](#75-navigation-close-back-the-browsers-back-button-and-the-navs-width)). Plan.md Stage 5.
+
+### 78. Off Screen: Make the Themes Obvious
+
+Raised by Crawford on 2026-11-11 (item 7 of his list): the off screen's styling and wording should make the themes more
+prominent and obvious. Today the fourteen themes sit in the Loading axis's row, labelled "Trace Type" with the hint
+"select one" (`home.off.loading`, `home.off.loadingHint` in `src/content/copy/home.ts`), above the aspect rows ("Trace
+Aspects", "select many"). Open: what doesn't read today (the row's label, where it sits, how the picked theme and its
+sentence show). A sketch first. The theme sentences are still stand-ins on backlog
+[62](#62-misc-review-items-a-bucket)'s list, so the wording pass can take them too. Plan.md Stage 7.
+
+### 79. Robots: Move in Time with Their Own Melody
+
+Raised by Crawford on 2026-11-11 (item 10 of his list): an animation on each robot, in time with its melody, so a
+player can tell which robot is playing which melody. Today nothing on a robot moves per note. The three audio dials
+(the lights, each Mid's lit level, the body scale, ROBOT_DESIGN.md) follow settings, not notes. The selected robot's
+glow (`Robot.tsx`) marks the selection, and Monitor Mode's Highlight only turns the other probes down. Nothing in `src/`
+uses `Tone.Draw`.
+
+Architecture it touches, so the interview comes first, then Crawford's approval (CLAUDE.md: ask before changing the
+audio or animation architecture):
+
+- **Visual Mapping guardrail.** Audio reaches the body only through the dials ROBOT_DESIGN.md lists, each continuous or
+  animated, never a pop. A note pulse would be a new animated dial, written into that list.
+- **Timing.** The pulse must land on the note's audible time (the note is scheduled `MIN_LEAD` ahead), with no
+  `requestAnimationFrame` loop. The path from the transport to a GSAP tween is the design question: `Tone.Draw` or a
+  semantic note event. Under Strict Separation the arrow only runs audio → visual, never the reverse.
+- **Who pulses.** Only a robot that sounds: not one muted by the dock (`isDockMuted`), Mute or another robot's Solo,
+  nor one capped by the Audio Load Budget.
+- **Cost.** Up to twelve robots, several notes a second each, on the per-mover compositor layers (roadmap 53).
+  Transform or opacity on a mover stays on the compositor. A fill or palette change repaints, and desktop underruns
+  have been raster-bound before.
+
+Plan.md Stage 4.
+
+### 80. Audio: Notes Too Short to Hear the Instrument — More Guardrails
+
+Raised by Crawford on 2026-11-11, "the most important one": many robots still play notes too short to hear their
+instrument (the robot's voice: its oscillator layers, envelope, glide and filter). More guardrails are needed, and
+Crawford will listen first to find where it happens.
+
+Guards already in place, so the new ones build on them rather than repeat them:
+
+- **Envelope times run 0–2 s** (`ENVELOPE_TIME_MAX_SECONDS`, `src/constants/index.ts`), and the shaped stages are seeded
+  short (e16593e9, 2026-10-13). Back-to-back sixteenths under a multi-second attack and release held the gate open
+  into a drone.
+- **The attack rail.** A slow attack narrows the seeded Rhythmic Density band (`audibleDensityBand`,
+  `ATTACK_REACH_SHARE` 0.5), measured against a sixteenth at the theme's top BPM. It applies at load and on an aspect
+  deal. A hand edit is free.
+- **A cut note's floor.** A rest, staccato, staccatissimo or marcato sounds at least `MIN_SOUNDING_SECONDS` (0.03 s)
+  and releases in `CUT_RELEASE_SECONDS` (0.03 s) (`AudioEngine.processMelodyStep`). Backlog
+  [62](#62-misc-review-items-a-bucket)'s 2026-11-05 bullet (a cut note stalls a slow-attack robot) is one case of
+  this item and may move here.
+
+**First, Crawford's listen.** Which worlds, themes, aspects and robots, and what it sounds like (a click, a blip with
+no timbre, a voice that never opens). Tools to hand: the `?debug` audio HUD, Solo, and the headless-Chrome probe
+recipe that read `envelope.value` on live notes (2026-10-13). A measure-first pass could also list each seeded robot's
+shortest sounding note against its attack and decay, to point the listen.
+
+**Then, to work out from what the listen finds:** which notes count as too short (against the attack, the attack plus
+decay, or a fixed floor per voice), and which lever guards it: the seeded bands (density, note lengths, envelope), the
+cut release (62's recommended option: release short only when the attack fits inside the written note), or a floor at
+play time. An interview after the listen, then a spec. Plan.md Stage 3.
 
