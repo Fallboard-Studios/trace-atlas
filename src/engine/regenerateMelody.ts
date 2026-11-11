@@ -29,9 +29,11 @@ export type RobotMelodyInputs = Pick<Robot, 'compositionSeed' | 'octaveRange'> &
 /**
  * The world a melody's rhythm belongs to (Company Families, docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md
  * §1.11, B19): the locale's coordinates, `${x}:${y}`, the same input its noise map hashes, so a
- * world reloaded from a save or a link plays the rhythms it had, whatever its locale id. The locale
- * id stands in when the store has no such locale (a unit test's mocked store, a spawn into a locale
- * that is not there). Spawn and regenerate both ask here, so they always agree.
+ * world reloaded from a save or a link plays the rhythms it had, whatever its locale id. Spawn and
+ * regenerate both ask here, so they always agree. The locale id stands in when the store has no
+ * such locale, which only a unit test's mocked store gives: a robot spawned into a missing locale
+ * is dropped by localeStore.addRobot, so it is never stored, never edited, and never meets the
+ * coordinates key later (no first-edit ratchet).
  */
 export function melodyWorldKey(localeId: string): string {
   const coordinates = useLocaleStore.getState().getLocaleById(localeId)?.coordinates;

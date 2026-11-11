@@ -844,7 +844,7 @@ take one.
 | §1.3, the band | 0.67–1.5, Crawford's pick at Gate A (A1), not the sketch's 0.8–1.25: fifteen cycle lengths (27–53), at most five robots in step in a world. A2 accepted. | The Gate A summary: the bands differ little in what is heard, and the widest loops least. |
 | §1.3, the probe's stays | On 0.67–1.5 a robot is in a stay 0.20 % of measures, 0.81 stays per 1,000 measures a world, length 2 (p90 5, longest 9). On 0.8–1.25 it was 0.18 %, not the probe's 0.13 %. | The probe was a hand copy; the cover sim is the record. Same kind, about a third more frequent. |
 | §1.5, the cover sim's API | `runCoverSim` takes `rows` and returns a list (Task 9), where §1.5 had one row a call. | Task 10 and Task 13 needed four bands in one report. |
-| §1.5, the worst worlds | With the rule no world goes silent, so `runCoverSim`'s worst-world list is always empty and its cap and order have no real-step test (Task 12). Kept as Task 3's record. | Only silence fills it. Removing it is Crawford's call. |
+| §1.5, the worst worlds | With the rule no world goes silent, so `runCoverSim`'s worst-world list was always empty and its cap and order had no real-step test (Task 12). Kept as Task 3's record, then cut at Crawford's call after the review (2026-11-11, Part B plan Task R4), with the tally's `longestSilence`; `worldsWithSilence` counts worlds with a silent measure. | Only silence filled it. |
 | §5.1, the Task 2 cover cases | The invariants case and the cross-check needed a silent world; Task 12 re-aimed them at stays (the cross-check counts stays and stay measures over every world). | The rule removes silence everywhere, and no companion robot can give a world one. |
 | §5.1, case 7 | Runs every grid world at `SIM_MEASURES` on the shipped drain and band, not one roster. | The same cost as one long run, and it covers the worlds that went silent. |
 | §1.6, the loop sim | A report-only case runs the shipped cooldown on each band at 20, 110 and 200 BPM. 0 turn-backs and 0 robots charging while visible everywhere. | Task 13 needed the loop sim per band. |
@@ -877,7 +877,8 @@ design is in [COMPANIES.md](../COMPANIES.md) ("A seeded company is a family", "T
 [MELODY_SYSTEM.md](../MELODY_SYSTEM.md) ("The rhythm stream (Company Families)") and
 [PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md) ("Company Families dataIds").
 
-**The names.** `rhythmShape(density, motif, subdivisions?)` → `{ cellLength, onsets }`, `buildSeededRhythm(worldKey,
+**The names.** `rhythmShape(density, motif)` → `{ cellLength, onsets }` (its `subdivisions` parameter and the
+generator's `subdivisions` option, which no caller passed, removed after the review: Task R2), `buildSeededRhythm(worldKey,
 attrs)` and `buildSeededPerformance(worldKey, attrs)` (`melodyGenerator.ts`, beside `generateMelodyForRobot`'s
 `rhythmRand`); `melodyWorldKey(localeId)` and `composeRobotMelody(robot, worldKey)` (`regenerateMelody.ts`);
 `generateCompanyMembership(noiseMap, rosterSize = MAX_ROBOTS)`, `companyFounders(membership)` and `spawnRobot`'s
@@ -896,7 +897,7 @@ attrs)` and `buildSeededPerformance(worldKey, attrs)` (`melodyGenerator.ts`, bes
 |---|---|---|
 | The rhythm | Keyed on the world and the shape (Task 3a), as §1.11 now says. The first build (Tasks 1–3) keyed it on a rhythm seed on the robot, with `moveOnsets` for a quarter of members (Task 2), both reworked (3a) and removed (3b). | Crawford revised it at the rhythm-stream checkpoint (B16–B19). |
 | The recipe | `composeRobotMelody` lives in `regenerateMelody.ts`, not `melodyGenerator.ts`, and `spawnSystem.ts` imports it: an import edge §1.11 did not name. It reaches nothing spawn did not already import. | Its call to `generateMelodyForRobot` must cross a module, so test spies on that export still see it. |
-| The world key | The locale id stands in when the store has no such locale. | Unit tests with a mocked store. |
+| The world key | The locale id stands in when the store has no such locale. | Unit tests with a mocked store. No stored robot reaches it: `addRobot` drops a robot spawned into a missing locale (the review, Task R3). |
 | Membership | `generateCompanyMembership` takes the roster size; each company lists members in draw order, so the founder is `Math.min(...members)`. `spawnInitialCompanies` makes its companies from `generateCompanyRosterBaseline`, and its `alea` fallback went (it only ran with an empty pool). | The baseline is called with 16 and 10 ids in tests; one path makes live and replayed companies agree. |
 | Baselines of other lengths | A roster baseline of N robots draws companies over N, so a run of robots spawned alone (all originals) matches the chain of `generateRobotAudioBaseline`, not `generateRobotRosterBaseline`. Three tests re-aimed. | A consequence of membership first. |
 | The deal's baseline | `applyDealToBaselines` reads the founders from the seeded membership, since baselines carry no lineage; the Motion lane tally is taken at the deal index, so a member's links are its founder's. | §1.11 said only "from `lineage.founderIndex`". |
@@ -904,7 +905,9 @@ attrs)` and `buildSeededPerformance(worldKey, attrs)` (`melodyGenerator.ts`, bes
 **The nine mutants of §5.7**, each killed, named in its commit: the rhythm key with note variance and durations left on
 the composition stream (T1, `0594fd49`); the key on the raw density, the key without the world and the performance
 stream on the robot's own seed (T3a, `470c62a3`); the cap at one freelancer (T4, `c85f5a0b`); the founder as the highest
-index and the sends left fresh (T5, `78c5ccf9`); the deal by own index (T6, `6a7ba905`). Written RED first: cases 1–8
+index and the sends left fresh (T5, `78c5ccf9`); the deal by own index (T6, `6a7ba905`). A tenth, found by the review
+of 2026-11-11, survived them: the rhythm key built without the cell length, since every shape case changed the onset
+count too. Task R1 (`b7557f21`) added cases that hold the count, and they kill it. Written RED first: cases 1–8
 and the hand move of case 9. Not RED by their nature: case 9's `{}` over the grid and Task 6's live-versus-baseline case
 (guards that passed before the change), and case 10 (`lifecycleSim.test.ts` passing unmodified).
 

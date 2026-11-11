@@ -331,7 +331,7 @@ function tallyOf(start: CoverSnapshot[], series: CoverSnapshot[][]): CoverTallyR
 
 describe('createCoverTally (no-silence Task 1)', () => {
   describe('silence', () => {
-    it('two measures with nobody sounding are two silent measures, one silence of length 2 at the measure it begins', () => {
+    it('two measures with nobody sounding are two silent measures', () => {
       const result = tallyOf(cover(['a', A, 100]), [
         cover(['a', R, 10]),
         cover(['a', D, 15]),
@@ -340,27 +340,12 @@ describe('createCoverTally (no-silence Task 1)', () => {
       ]);
       expect(result.measures).toBe(4);
       expect(result.silentMeasures).toBe(2);
-      expect(result.longestSilence).toEqual({ start: 2, length: 2 });
     });
 
     it('a measure whose only sounding robot is Recalled is not silent; Docked and Undocking are not sounding', () => {
       const result = tallyOf(cover(['a', A, 12], ['b', D, 95]), [cover(['a', R, 6], ['b', U, 100])]);
       expect(result.silentMeasures).toBe(0);
-      expect(result.longestSilence).toBeUndefined();
       expect(result.soundingHistogram).toEqual([0, 1]);
-    });
-
-    it('the longest silence wins, and the earlier of two equal ones', () => {
-      const silent = cover(['a', D, 50]);
-      const heard = cover(['a', A, 50]);
-      expect(tallyOf(silent, [silent, heard, silent, silent, silent, heard]).longestSilence).toEqual({ start: 3, length: 3 });
-      expect(tallyOf(silent, [heard, silent, silent, heard, silent, silent, heard]).longestSilence).toEqual({ start: 2, length: 2 });
-      expect(tallyOf(silent, [heard, silent, silent, heard, silent, silent]).longestSilence).toEqual({ start: 2, length: 2 });
-    });
-
-    it('a silence still open at the end of the series counts at its length so far', () => {
-      const result = tallyOf(cover(['a', A, 50]), [cover(['a', A, 44]), cover(['a', D, 10]), cover(['a', D, 15])]);
-      expect(result.longestSilence).toEqual({ start: 2, length: 2 });
     });
 
     it('counts robots sounding per measure as a histogram indexed by the count', () => {
@@ -486,7 +471,6 @@ describe('createCoverTally (no-silence Task 1)', () => {
     it('with nothing observed, reports zero measures and no silence, stay or cycle', () => {
       const result = createCoverTally(start).result();
       expect(result).toMatchObject({ measures: 0, silentMeasures: 0, soundingHistogram: [], stays: [], stayMeasures: 0 });
-      expect(result.longestSilence).toBeUndefined();
       expect(result.robots.map((r) => [r.id, r.landings, r.cycle, r.heardShare])).toEqual([
         ['a', [], undefined, 0],
         ['b', [], undefined, 0],
@@ -512,11 +496,10 @@ const REPORT_BANDS: ReadonlyArray<{ label: string; band: SimBand }> = [
 
 describe('runCoverSim (no-silence Task 2)', () => {
   it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and stays counted with their lengths in order', () => {
-    // The whole grid, but short. Since the rule (Task 12) no world goes silent, so the worst-world list is empty;
-    // the stays are what this case exercises now: enough of them, of more than one length, to order.
+    // The whole grid, but short. Since the rule (Task 12) no world goes silent; the stays are what this case
+    // exercises: enough of them, of more than one length, to order.
     const [row] = runCoverSim({ measures: 300 });
     expect(row.worldsWithSilence).toBe(0);
-    expect(row.worstWorlds).toEqual([]);
     expect(row.worldsWithStay).toBeGreaterThan(5);
     expect(row.stayLength.median).toBeLessThanOrEqual(row.stayLength.p90);
     expect(row.stayLength.p90).toBeLessThanOrEqual(row.stayLength.longest);
@@ -542,10 +525,6 @@ describe('runCoverSim (no-silence Task 2)', () => {
     expect(row.heardShare.lowest).toBeLessThanOrEqual(row.heardShare.highest);
     expect(row.cycles.shortest).toBeLessThanOrEqual(row.cycles.longest);
     expect(row.worldsWithSilence).toBeLessThanOrEqual(row.worlds);
-    expect(row.worstWorlds.length).toBeLessThanOrEqual(5);
-    expect(row.worstWorlds.length).toBe(Math.min(5, row.worldsWithSilence));
-    const lengths = row.worstWorlds.map((w) => w.length);
-    expect(lengths).toEqual([...lengths].sort((a, b) => b - a));
   });
 
   it('agrees with its own count, world by world: silent measures, stays, measures in a stay and robots sounding off the real step', () => {
@@ -669,23 +648,15 @@ describe('formatCoverReport', () => {
     cycles: { shortest: 35, longest: 35, distinct: 1 },
     sharing: { median: 12, max: 12 },
     heardShare: { lowest: 0.457, highest: 0.458 },
-    worstWorlds: [
-      { x: 40, y: -80, start: 31, length: 8 },
-      { x: -200, y: 0, start: 12, length: 6 },
-    ],
   };
 
-  it('renders a header, a separator, one line per row, then each row\'s worst worlds longest first', () => {
-    const lines = formatCoverReport([row, { ...row, label: 'size only', worstWorlds: [] }]).trim().split('\n');
+  it('renders a header, a separator and one line per row, and nothing after', () => {
+    const lines = formatCoverReport([row, { ...row, label: 'size only' }]).trim().split('\n');
     expect(lines[0]).toMatch(/^\| Row \| Silent measures \|/);
     expect(lines[1]).toMatch(/^\|[-| ]+\|$/);
     expect(lines[2]).toMatch(/^\| today \| 3\.40 % \| 79 \/ 121 \|/);
     expect(lines[3]).toMatch(/^\| size only \|/);
-    const worst = lines.findIndex((l) => l === '| 40 | -80 | 31 | 8 |');
-    const next = lines.findIndex((l) => l === '| -200 | 0 | 12 | 6 |');
-    expect(worst).toBeGreaterThan(3);
-    expect(next).toBe(worst + 1);
-    expect(lines.some((l) => /size only/.test(l) && /no silence/.test(l))).toBe(true);
+    expect(lines).toHaveLength(4);
   });
 });
 

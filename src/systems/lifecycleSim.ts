@@ -197,8 +197,6 @@ export interface CoverTallyResult {
   /** soundingHistogram[n]: the measures after which n robots were sounding. */
   soundingHistogram: number[];
   silentMeasures: number;
-  /** The longest unbroken silence (the earlier of equals) and the measure it begins. */
-  longestSilence?: { start: number; length: number };
   /** Every stay's length in measures, in the order they ended; one still open at the end counts at its length so far. */
   stays: number[];
   /** Measures after which at least one robot was in a stay. */
@@ -241,20 +239,11 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
   let measures = 0;
   const soundingHistogram: number[] = [];
   let silentMeasures = 0;
-  let silenceStart: number | undefined;
-  let longestSilence: { start: number; length: number } | undefined;
   const stays: number[] = [];
   let stayMeasures = 0;
   const robots = new Map(
     startRoster.map((r) => [r.id, { wasActive: r.docking === DockingState.Active, landings: [] as number[], sounding: 0, stay: 0 }]),
   );
-
-  const closeSilence = (end: number) => {
-    if (silenceStart === undefined) return;
-    const length = end - silenceStart;
-    if (!longestSilence || length > longestSilence.length) longestSilence = { start: silenceStart, length };
-    silenceStart = undefined;
-  };
 
   return {
     observe(roster) {
@@ -285,27 +274,16 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
       while (soundingHistogram.length <= sounding) soundingHistogram.push(0);
       soundingHistogram[sounding]++;
       if (anyStaying) stayMeasures++;
-      if (sounding === 0) {
-        silentMeasures++;
-        silenceStart ??= measures;
-      } else {
-        closeSilence(measures);
-      }
+      if (sounding === 0) silentMeasures++;
     },
 
     result() {
-      // Read open runs without closing them, so result() can be called again.
-      let longest = longestSilence;
-      if (silenceStart !== undefined) {
-        const length = measures + 1 - silenceStart;
-        if (!longest || length > longest.length) longest = { start: silenceStart, length };
-      }
+      // Read open stays without closing them, so result() can be called again.
       const openStays = [...robots.values()].filter((r) => r.stay > 0).map((r) => r.stay);
       return {
         measures,
         soundingHistogram: [...soundingHistogram],
         silentMeasures,
-        longestSilence: longest && { ...longest },
         stays: [...stays, ...openStays],
         stayMeasures,
         robots: [...robots].map(([id, r]) => {
@@ -320,17 +298,6 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
 // ========================================
 // COVER SIM (no-silence Task 2)
 // ========================================
-
-/** Worlds listed by their longest silence in the cover report — Gate B listens there (spec §1.5). */
-const WORST_WORLDS_LISTED = 5;
-
-export interface CoverSimWorld {
-  x: number;
-  y: number;
-  /** The measure the world's longest silence begins. */
-  start: number;
-  length: number;
-}
 
 export interface CoverSimRow {
   label: string;
@@ -355,8 +322,6 @@ export interface CoverSimRow {
   sharing: { median: number; max: number };
   /** Each robot's heard share, lowest and highest across the grid. */
   heardShare: { lowest: number; highest: number };
-  /** The worlds with the longest silence, longest first (grid order on a tie), at most WORST_WORLDS_LISTED. */
-  worstWorlds: CoverSimWorld[];
 }
 
 /** One row the cover sim is asked for: its label, and the battery-size band its rosters carry (the shipped one if
@@ -386,8 +351,8 @@ function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: 
   const cycles: number[] = [];
   const sharing: number[] = [];
   const heard: number[] = [];
-  const silent: CoverSimWorld[] = [];
   let silentMeasures = 0;
+  let worldsWithSilence = 0;
   let stayMeasures = 0;
   let worldsWithStay = 0;
 
@@ -404,7 +369,7 @@ function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: 
       for (let i = 0; i < count; i++) sounding.push(n);
     });
     silentMeasures += t.silentMeasures;
-    if (t.longestSilence) silent.push({ x, y, ...t.longestSilence });
+    if (t.silentMeasures > 0) worldsWithSilence++;
     stays.push(...t.stays);
     stayMeasures += t.stayMeasures;
     if (t.stays.length > 0) worldsWithStay++;
@@ -425,7 +390,7 @@ function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: 
     worlds: coords.length,
     measures,
     silentShare: samples > 0 ? silentMeasures / samples : 0,
-    worldsWithSilence: silent.length,
+    worldsWithSilence,
     worldsWithStay,
     staysPer1000: samples > 0 ? (stays.length / samples) * 1000 : 0,
     stayLength: { median: orZero(stays, 50), p90: orZero(stays, 90), longest: orZero(stays, 100) },
@@ -438,11 +403,10 @@ function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: 
     cycles: { shortest: cycles.length > 0 ? Math.min(...cycles) : 0, longest: Math.max(0, ...cycles), distinct: new Set(cycles).size },
     sharing: { median: orZero(sharing, 50), max: Math.max(0, ...sharing) },
     heardShare: { lowest: heard.length > 0 ? Math.min(...heard) : 0, highest: Math.max(0, ...heard) },
-    worstWorlds: [...silent].sort((a, b) => b.length - a.length).slice(0, WORST_WORLDS_LISTED),
   };
 }
 
-/** The cover rows as a markdown table, then each row's worst worlds — for the stop-and-report and Results. */
+/** The cover rows as a markdown table — for the stop-and-report and Results. */
 export function formatCoverReport(rows: readonly CoverSimRow[]): string {
   const pct = (v: number) => `${(v * 100).toFixed(2)} %`;
   const lines = [
@@ -453,15 +417,6 @@ export function formatCoverReport(rows: readonly CoverSimRow[]): string {
     lines.push(
       `| ${r.label} | ${pct(r.silentShare)} | ${r.worldsWithSilence} / ${r.worlds} | ${r.worldsWithStay} / ${r.worlds} | ${r.staysPer1000.toFixed(2)} | ${r.stayLength.median}, ${r.stayLength.p90}, ${r.stayLength.longest} | ${pct(r.stayShare)} | ${r.sounding.mean.toFixed(2)}, ${r.sounding.p10}–${r.sounding.p90} | ${r.cycles.shortest}–${r.cycles.longest}, ${r.cycles.distinct} | ${r.sharing.median}, ${r.sharing.max} | ${pct(r.heardShare.lowest)}–${pct(r.heardShare.highest)} |`,
     );
-  }
-  for (const r of rows) {
-    if (r.worstWorlds.length === 0) {
-      lines.push('', `${r.label} — no silence in any world.`);
-      continue;
-    }
-    lines.push('', `${r.label} — the ${r.worstWorlds.length} longest silences (${r.measures} measures a world):`, '');
-    lines.push('| x | y | Begins at measure | Length |', '|---|---|---|---|');
-    for (const w of r.worstWorlds) lines.push(`| ${w.x} | ${w.y} | ${w.start} | ${w.length} |`);
   }
   return lines.join('\n');
 }

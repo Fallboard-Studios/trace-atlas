@@ -52,11 +52,6 @@ export interface GenerateMelodyForRobotOptions {
    */
   rhythmicMotifLength?: ToggleValue;
   /**
-   * Number of 16th-note subdivisions per measure.
-   * Default: 16.
-   */
-  subdivisions?: number;
-  /**
    * Integer seed for deterministic RNG. When provided, a seeded PRNG is used
    * instead of Math.random — useful for reproducible tests.
    */
@@ -137,11 +132,11 @@ export interface RhythmSettings {
  * reads its onset counts from here and the rhythm key is built from it, so they cannot disagree:
  * two densities that round to the same count are one shape, and an inert motif length (tiling off)
  * is not part of it. Density is clamped to its 0–100 range first, as the generator always has.
+ * A measure is always DEFAULT_SUBDIVISIONS steps, for the generator and the key alike.
  */
 export function rhythmShape(
   rhythmicDensity: number,
   rhythmicMotifLength: ToggleValue,
-  subdivisions: number = DEFAULT_SUBDIVISIONS,
 ): { cellLength: number | null; onsets: number } {
   const densityPct = Math.max(RHYTHMIC_DENSITY_MIN, Math.min(RHYTHMIC_DENSITY_MAX, rhythmicDensity));
   if (rhythmicMotifLength.active) {
@@ -151,7 +146,7 @@ export function rhythmShape(
     );
     return { cellLength, onsets: Math.max(1, Math.round((densityPct / 100) * cellLength)) };
   }
-  return { cellLength: null, onsets: Math.max(1, Math.round((densityPct / 100) * subdivisions)) };
+  return { cellLength: null, onsets: Math.max(1, Math.round((densityPct / 100) * DEFAULT_SUBDIVISIONS)) };
 }
 
 /** The world and the rhythm shape as a key: the one thing the rhythm and performance streams hash. */
@@ -540,7 +535,7 @@ export function generateMelodyForRobot(
 ): MelodyEvent[] {
   const rand = opts.rand ?? (opts.seed !== undefined ? alea(String(opts.seed)) : Math.random);
   const rhythmRand = opts.rhythmRand ?? rand;
-  const subdivisions = opts.subdivisions ?? DEFAULT_SUBDIVISIONS;
+  const subdivisions = DEFAULT_SUBDIVISIONS;
   const motif = opts.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
   const octMin = Math.min(opts.octaveMin, opts.octaveMax);
   const octMax = Math.max(opts.octaveMin, opts.octaveMax);
@@ -552,7 +547,7 @@ export function generateMelodyForRobot(
   // tiling is on, the per-cell fill is multiplied back out by the repeat count
   // before calling it, keeping every repeat identically filled (no remainder
   // distributed unevenly, unlike the old total-onset-count model).
-  const shape = rhythmShape(opts.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY, motif, subdivisions);
+  const shape = rhythmShape(opts.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY, motif);
   let onsets: number[];
   // Resolved only when motif tiling is active (`motif.active` stays the single source of truth
   // for that below — this is just the value, not a second independent flag); Pitch Repeat is

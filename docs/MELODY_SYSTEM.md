@@ -55,7 +55,6 @@ interface GenerateMelodyForRobotOptions {
   octaveMax: number;
   rhythmicDensity?: number;        // 0-100 fill-rate percentage (was a 4-12 onset count)
   rhythmicMotifLength?: ToggleValue; // value: 0-8 (was a plain 1-16 number); active derives from value > 0
-  subdivisions?: number;
   seed?: number;
   rand?: () => number;
   rhythmRand?: () => number;        // the rhythm stream: onsets and durations (Company Families); defaults to rand
@@ -250,8 +249,9 @@ notes. **A rhythm belongs to the world and the rhythm shape, not to the robot.**
 - **The stream.** `buildSeededRhythm(worldKey, { rhythmicDensity, rhythmicMotifLength })` (`melodyGenerator.ts`) is an
   `alea` over `` `${worldKey}:${cell<n> | free}:${onsets}:rhythm` ``: the world and the shape, nothing of the robot's
   own. The world key is the locale's coordinates, `` `${x}:${y}` ``, the input its noise map hashes, from
-  `melodyWorldKey(localeId)` (`regenerateMelody.ts`; the locale id stands in when the store has no such locale, as in a
-  unit test with a mocked store), so a world reloaded from a save or a link plays the rhythms it had.
+  `melodyWorldKey(localeId)` (`regenerateMelody.ts`; the locale id stands in when the store has no such locale, which
+  only a unit test with a mocked store gives: `addRobot` drops a robot spawned into a missing locale, so no stored robot
+  is ever keyed on the fallback), so a world reloaded from a save or a link plays the rhythms it had.
 - **What draws from it.** `generateMelodyForRobot`'s `rhythmRand` takes the onsets (`buildMotifOnsets`) and every
   event's duration (`pickDurationForGap`), in the positions they drew from `rand` before. The pitch-lock plan, the
   octaves and the notes stay on `rand`, the composition stream on the robot's own `compositionSeed`. With no
