@@ -7,7 +7,7 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
-import { generateBatterySize, generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateBatterySize, generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateCompanyMembership, companyFounders, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { audibleDensityBand, deriveEnvelopeFields, deriveRhythmicDensity, deriveSendFields, deriveVoiceFields } from './robotFieldDerivation';
 import { generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { resolveBands } from '../data/bands/resolveBands';
@@ -23,8 +23,9 @@ import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
   ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS,
-  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
+  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, FREELANCERS_MIN,
 } from '../constants';
+import { SIM_SEED_COORDS, simNoiseMap } from './lifecycleSim';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { CLASSIC } from '../data/bands/classic';
@@ -33,7 +34,7 @@ import { withLoading } from '../data/bands/loadingContext';
 import * as loadingContextModule from '../data/bands/loadingContext';
 import type { BandKey, BandTable } from '../data/bands/bandKeys';
 import type { RobotAudioBaseline } from './spawnSystem';
-import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
+import { buildSeededComposition, buildSeededRhythm, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
 import { cancelSwellForRobotAttribute } from './audioSwells';
 import { getStations, type Station } from './stations';
@@ -63,9 +64,8 @@ function accentAt(robotId: string, step: number): number | undefined {
 }
 
 // Spy on getSeededVal while keeping its real behavior (the globalAudioSeed.test.ts/
-// worldTransition.test.ts importOriginal pattern) — the lfoLinks-at-spawn tests below need to
-// force spawnRobot's own 'robot.copyChance' seeded roll to a known side without disturbing every
-// other seeded draw the rest of this file's many tests depend on.
+// worldTransition.test.ts importOriginal pattern) — tests below force single seeded draws to a
+// known side without disturbing every other seeded draw the rest of this file's many tests depend on.
 vi.mock('../utils/getSeededVal', async (importOriginal) => {
   const { steerSeededDraws } = await import('../testUtils/seededDraws');
   const actual = await importOriginal<typeof import('../utils/getSeededVal')>();
@@ -623,10 +623,9 @@ describe('spawnSystem', () => {
 
     describe('spawnRobot, the baseline and the reserve sites for a robot that is a glider AND an accent', () => {
       const localeId = 'articulation-seeding-locale';
-      /** Forces a glider (+ accent) and a fresh (non-copy) spawn; everything else stays the real seeded draw. */
+      /** Forces a glider (+ accent); everything else stays the real seeded draw. */
       async function forceGliderAccent() {
         await forceSeededDraws({
-          'robot.copyChance': 1,
           'robot.audio.portamento.glider': 0,
           'robot.audio.filter.accent': 0,
           'robot.audio.filter.type': 0, // < 0.4 -> bandpass
@@ -978,9 +977,12 @@ describe('spawnSystem', () => {
           [0.36, 0.21], [0.24, 0.29], [0.18, 0], [0.47, 0], [0.3, 0.07], [0.11, 0.2],
         ],
       };
+      // Each index's own draw (Company Families Task 5): a roster's company members now carry their founder's sends, so
+      // the pin reads the draw itself, which is what it always recorded for an original.
       for (const [seed, expected] of Object.entries(BASE)) {
-        const roster = generateRobotRosterBaseline(createNoise2D(alea(seed)), 12);
-        expect(roster.map((b) => [b.reverbSend, b.delaySend]), seed).toEqual(expected);
+        const noise = createNoise2D(alea(seed));
+        const draws = Array.from({ length: 12 }, (_, i) => generateRobotSends(noise, i));
+        expect(draws.map((b) => [b.reverbSend, b.delaySend]), seed).toEqual(expected);
       }
     });
 
@@ -1371,8 +1373,8 @@ describe('spawnSystem', () => {
         }
       });
 
-      // Robot Effect Sends T7 (spec §1.2): the three effect room sends are seeded at spawn from the same helper, outside
-      // the copy branch; at most one lands on a robot.
+      // Robot Effect Sends T7 (spec §1.2): the three effect room sends are seeded at spawn from the same helper (an
+      // original's; a company member takes its founder's); at most one lands on a robot.
       it('gives robot N the three effect room sends generateRobotSends draws at offset N, never two on one robot', () => {
         freshLocale('effect-sends-spawn-locale');
         for (let i = 0; i < 60; i++) spawnRobot('effect-sends-spawn-locale');
@@ -1397,7 +1399,7 @@ describe('spawnSystem', () => {
         expect(pick('effect-sends-det-a')).toEqual(pick('effect-sends-det-b'));
       });
 
-      it('equals the baseline for every robot of a real roster, copied siblings included, all five sends', () => {
+      it('equals the baseline for every robot of a real roster, company members included, all five sends', () => {
         freshLocale('effect-sends-baseline-locale');
         spawnInitialRoster('effect-sends-baseline-locale');
         const robots = useLocaleStore.getState().getLocaleById('effect-sends-baseline-locale')!.robots;
@@ -1409,24 +1411,6 @@ describe('spawnSystem', () => {
             ...effectSends(robot),
           });
         });
-      });
-
-      it('draws its own effect room sends on the copy branch, as the baseline does', async () => {
-        freshLocale('effect-sends-copy-locale');
-        await forceSeededDraws({ 'robot.copyChance': 0 });
-        try {
-          for (let i = 0; i < 30; i++) spawnRobot('effect-sends-copy-locale');
-        } finally {
-          await restoreSeededDraws();
-        }
-        const noiseMap = noiseFor('effect-sends-copy-locale');
-        const robots = useLocaleStore.getState().getLocaleById('effect-sends-copy-locale')!.robots;
-        const baselines = generateRobotRosterBaseline(noiseMap, robots.length);
-        robots.forEach((robot, i) => {
-          expect(effectSends(robot), `robot ${i}`).toEqual(effectSends(generateRobotSends(noiseMap, i)));
-        });
-        expect(new Set(robots.map((r) => `${r.gritSend}/${r.shimmerSend}/${r.doubleSend}`)).size).toBeGreaterThan(1);
-        expect(baselines).toHaveLength(robots.length);
       });
 
       it('with no locale (no noise map) falls back to alea: each effect send 0 or in its band, never two on one robot', () => {
@@ -1480,25 +1464,24 @@ describe('spawnSystem', () => {
         expect(pick('sends-det-a')).toEqual(pick('sends-det-b'));
       });
 
-      it('draws its own sends on the copy branch too - a copied robot shares the voice, not the depth', async () => {
-        freshLocale('sends-copy-locale');
-        // Spawn 0 is fresh (nobody to copy); every later spawn takes the copy branch (0 is below 0.30).
-        await forceSeededDraws({ 'robot.copyChance': 0 });
-        try {
-          for (let i = 0; i < 4; i++) spawnRobot('sends-copy-locale');
-        } finally {
-          await restoreSeededDraws();
-        }
+      // Company Families B5 (Task 5): a member takes its founder's five sends as well as its voice, so a section sits in one
+      // space. Replaces the copy branch's rule (a copied robot drew its own depths).
+      it('a member takes its founder\'s five sends, where an original draws its own at its spawn count', () => {
+        freshLocale('sends-member-locale');
+        for (let i = 0; i < 6; i++) spawnRobot('sends-member-locale');
+        spawnRobot('sends-member-locale', { founderIndex: 2 });
 
-        const noiseMap = noiseFor('sends-copy-locale');
-        const robots = useLocaleStore.getState().getLocaleById('sends-copy-locale')!.robots;
-        // A copy really happened: every later robot reuses an earlier robot's audioAttributes by reference.
-        expect(robots.slice(1).every((r) => robots.some((o) => o !== r && o.audioAttributes === r.audioAttributes))).toBe(true);
-        robots.forEach((robot, i) => {
-          expect({ reverbSend: robot.reverbSend, delaySend: robot.delaySend }, `robot ${i}`).toEqual(reverbAndDelay(generateRobotSends(noiseMap, i)));
+        const noiseMap = noiseFor('sends-member-locale');
+        const robots = useLocaleStore.getState().getLocaleById('sends-member-locale')!.robots;
+        const member = robots[6];
+        expect({ ...reverbAndDelay(member), ...effectSends(member) }).toEqual({ ...reverbAndDelay(robots[2]), ...effectSends(robots[2]) });
+        // Not by coincidence: the member's own draw at its spawn count differs from its founder's.
+        expect({ ...reverbAndDelay(generateRobotSends(noiseMap, 6)), ...effectSends(generateRobotSends(noiseMap, 6)) })
+          .not.toEqual({ ...reverbAndDelay(robots[2]), ...effectSends(robots[2]) });
+        robots.slice(0, 6).forEach((robot, i) => {
+          expect({ ...reverbAndDelay(robot), ...effectSends(robot) }, `robot ${i}`)
+            .toEqual({ ...reverbAndDelay(generateRobotSends(noiseMap, i)), ...effectSends(generateRobotSends(noiseMap, i)) });
         });
-        // ...and they are not simply the first robot's sends repeated.
-        expect(new Set(robots.map((r) => `${r.reverbSend}/${r.delaySend}`)).size).toBeGreaterThan(1);
       });
 
       it('adds only the three new dataIds, one draw each, at the spawn count', () => {
@@ -1653,22 +1636,23 @@ describe('spawnSystem', () => {
       for (const r of offRobots) expect(r.noteVariance!.active).toBe(false);
     });
 
-    it('a copied robot inherits the source\'s rhythmicDensity/rhythmicMotifLength/noteVariance rather than rolling fresh ones', () => {
-      for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
-      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
-      for (const r of robots) {
-        const group = byLinks.get(r.lfoLinks) ?? [];
-        group.push(r);
-        byLinks.set(r.lfoLinks, group);
-      }
-      const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
-      expect(sharedGroup, 'expected at least one copy to share its source\'s object references').toBeDefined();
-      const [a, b] = sharedGroup!;
-      expect(a.rhythmicDensity).toBe(b.rhythmicDensity);
-      expect(a.rhythmicMotifLength).toEqual(b.rhythmicMotifLength);
-      expect(a.noteVariance).toEqual(b.noteVariance);
-      expect(a.pitchRepeat).toBe(b.pitchRepeat);
+    // Company Families Task 5: the copy roll is gone; a company member inherits from its founder (spawnRobot's founderIndex).
+    it('a member inherits its founder\'s rhythmicDensity/rhythmicMotifLength/noteVariance/pitchRepeat rather than rolling fresh ones', () => {
+      const localeId = 'member-melody-fields-locale';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+      }));
+      for (let i = 0; i < 4; i++) spawnRobot(localeId);
+      spawnRobot(localeId, { founderIndex: 1 });
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      const [founder, member] = [robots[1], robots[4]];
+      expect(member.rhythmicDensity).toBe(founder.rhythmicDensity);
+      expect(member.rhythmicMotifLength).toBe(founder.rhythmicMotifLength);
+      expect(member.noteVariance).toBe(founder.noteVariance);
+      expect(member.pitchRepeat).toBe(founder.pitchRepeat);
+      // Not by coincidence: the originals around the founder differ from it somewhere in these four fields.
+      const fieldsOf = (r: Robot) => JSON.stringify([r.rhythmicDensity, r.rhythmicMotifLength, r.noteVariance, r.pitchRepeat]);
+      expect([robots[0], robots[2], robots[3]].some((r) => fieldsOf(r) !== fieldsOf(founder))).toBe(true);
     });
 
     describe('lfoLinks at spawn (LFO Bank Task 9)', () => {
@@ -1691,45 +1675,37 @@ describe('spawnSystem', () => {
           locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
         }));
 
-        // Force every spawn below to generate fresh links rather than copy an existing robot's —
-        // a copy would inherit a reference instead of exercising the tally this test checks.
-        await forceSeededDraws({ 'robot.copyChance': 1 }); // 1 is never < 0.30, so shouldCopy is always false
+        // A robot spawned alone is an original (no founder), so each draws fresh links through the tally.
+        spawnRobot(localeId);
+        spawnRobot(localeId);
+        const firstTwo = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+        expect(firstTwo).toHaveLength(2);
 
-        try {
-          spawnRobot(localeId);
-          spawnRobot(localeId);
-          const firstTwo = useLocaleStore.getState().getLocaleById(localeId)!.robots;
-          expect(firstTwo).toHaveLength(2);
+        spawnRobot(localeId);
+        const third = useLocaleStore.getState().getLocaleById(localeId)!.robots[2];
 
-          spawnRobot(localeId);
-          const third = useLocaleStore.getState().getLocaleById(localeId)!.robots[2];
+        const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+        const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
+        const priorLaneCounts = tallyLanes(firstTwo.flatMap((r) => Object.values(r.lfoLinks ?? {})));
+        const expectedLinks = generateRobotLfoLinks(noiseMap, 2, priorLaneCounts);
 
-          const locale = useLocaleStore.getState().getLocaleById(localeId)!;
-          const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
-          const priorLaneCounts = tallyLanes(firstTwo.flatMap((r) => Object.values(r.lfoLinks ?? {})));
-          const expectedLinks = generateRobotLfoLinks(noiseMap, 2, priorLaneCounts);
-
-          expect(third.lfoLinks).toEqual(expectedLinks);
-        } finally {
-          await restoreSeededDraws();
-        }
+        expect(third.lfoLinks).toEqual(expectedLinks);
       });
 
-      it('a copied robot inherits the source\'s lfoLinks reference rather than generating fresh ones', () => {
-        // Same copy-detection pattern as the rhythmicDensity/rhythmicMotifLength/noteVariance copy test above.
-        for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
-        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-        const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
-        for (const r of robots) {
-          const group = byLinks.get(r.lfoLinks) ?? [];
-          group.push(r);
-          byLinks.set(r.lfoLinks, group);
-        }
-        const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
-        expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
+      it('a member inherits its founder\'s lfoLinks reference rather than generating fresh ones', () => {
+        const localeId = 'member-lfo-links-locale';
+        useLocaleStore.setState((state) => ({
+          locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
+        }));
+        spawnRobot(localeId);
+        spawnRobot(localeId);
+        spawnRobot(localeId, { founderIndex: 0 });
+        const [founder, other, member] = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+        expect(member.lfoLinks).toBe(founder.lfoLinks);
+        expect(other.lfoLinks).not.toBe(founder.lfoLinks);
       });
 
-      it('a respawn copying from a source without lfoLinks (undefined — a pre-Task-9 robot) generates fresh links instead of inheriting undefined', async () => {
+      it('a member of a founder without lfoLinks (undefined — a pre-Task-9 robot) generates fresh links instead of inheriting undefined', () => {
         spawnRobot(DEFAULT_LOCALE_ID);
         const legacySource = { ...useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots[0] } as Partial<Robot>;
         delete legacySource.lfoLinks;
@@ -1740,22 +1716,14 @@ describe('spawnSystem', () => {
           },
         }));
 
-        await forceSeededDraws({
-          'robot.copyChance': 0, // 0 is always < 0.30, so shouldCopy is always true
-          'robot.copySource': 0, // picks the sole source robot regardless of range
-        });
+        spawnRobot(DEFAULT_LOCALE_ID, { founderIndex: 0 });
+        const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+        expect(robots).toHaveLength(2);
+        const member = robots[1];
 
-        try {
-          spawnRobot(DEFAULT_LOCALE_ID);
-          const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
-          expect(robots).toHaveLength(2);
-          const copy = robots[1];
-
-          expect(copy.lfoLinks).toBeDefined();
-          expect(Object.keys(copy.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
-        } finally {
-          await restoreSeededDraws();
-        }
+        expect(member.lineage).toEqual({ founderIndex: 0 });
+        expect(member.lfoLinks).toBeDefined();
+        expect(Object.keys(member.lfoLinks ?? {}).sort()).toEqual([...ROBOT_LFO_TARGET_IDS].sort());
       });
     });
 
@@ -1907,23 +1875,12 @@ describe('spawnSystem', () => {
       expect(seedsRun2).toEqual(seedsRun1);
     });
 
-    it('a copied robot gets its own compositionSeed, never the source\'s', () => {
-      // Same copy-detection pattern as the rhythmicDensity/rhythmicMotifLength/noteVariance copy
-      // test above: group by a field that IS inherited on copy (lfoLinks, by reference) to
-      // reliably find a copy pair, then assert compositionSeed -- which must NOT be inherited --
-      // actually differs between them.
-      for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
-      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
-      for (const r of robots) {
-        const group = byLinks.get(r.lfoLinks) ?? [];
-        group.push(r);
-        byLinks.set(r.lfoLinks, group);
-      }
-      const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
-      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
-      const [a, b] = sharedGroup!;
-      expect(a.compositionSeed).not.toBe(b.compositionSeed);
+    it('a company member gets its own compositionSeed, never its founder\'s', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID, { founderIndex: 0 });
+      const [founder, member] = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+      expect(member.lfoLinks).toBe(founder.lfoLinks); // precondition: a member, inheriting by reference
+      expect(member.compositionSeed).not.toBe(founder.compositionSeed);
     });
   });
 
@@ -1957,6 +1914,13 @@ describe('spawnSystem', () => {
       });
       // Robot Performance T4 (docs/specs/ROBOT_PERFORMANCE.md section 1.2): the spawn melody is that
       // melody with the Rests / Accents post-pass applied from the robot's own two fields.
+      // Company Families Task 3a: onsets, lengths and stamps from the streams on the world's coordinates and the
+      // rhythm shape.
+      const { x, y } = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.coordinates;
+      const rhythm = {
+        rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
+        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+      };
       const expectedMelody = applyPerformanceMarks(
         generateMelodyForRobot({
           octaveMin: robot.octaveRange[0],
@@ -1966,9 +1930,10 @@ describe('spawnSystem', () => {
           noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
           pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
           rand,
+          rhythmRand: buildSeededRhythm(`${x}:${y}`, rhythm),
         }),
         { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
-        buildSeededPerformance(robot.compositionSeed),
+        buildSeededPerformance(`${x}:${y}`, rhythm),
       );
       expect(stripEventIds(robot.melody)).toEqual(stripEventIds(expectedMelody));
     });
@@ -2643,20 +2608,12 @@ describe('spawnSystem', () => {
       expect(seedsRun2).toEqual(seedsRun1);
     });
 
-    it('a copied robot gets its own gemSeed, never the source\'s', () => {
-      // Same copy-detection pattern as the compositionSeed copy test: lfoLinks IS inherited by reference.
-      for (let i = 0; i < 30; i++) spawnRobot(DEFAULT_LOCALE_ID);
-      const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
-      const byLinks = new Map<Robot['lfoLinks'], Robot[]>();
-      for (const r of robots) {
-        const group = byLinks.get(r.lfoLinks) ?? [];
-        group.push(r);
-        byLinks.set(r.lfoLinks, group);
-      }
-      const sharedGroup = [...byLinks.values()].find((g) => g.length > 1);
-      expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
-      const [a, b] = sharedGroup!;
-      expect(a.gemSeed).not.toBe(b.gemSeed);
+    it('a company member gets its own gemSeed, never its founder\'s', () => {
+      spawnRobot(DEFAULT_LOCALE_ID);
+      spawnRobot(DEFAULT_LOCALE_ID, { founderIndex: 0 });
+      const [founder, member] = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
+      expect(member.lfoLinks).toBe(founder.lfoLinks); // precondition: a member, inheriting by reference
+      expect(member.gemSeed).not.toBe(founder.gemSeed);
     });
   });
 
@@ -2984,8 +2941,6 @@ describe('spawnSystem', () => {
       return getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
     };
     const stripEventIds = (melody: Robot['melody']) => melody.map(({ id: _id, ...rest }) => rest);
-    /** Force every spawn after the first onto the copy branch, copying the first robot. */
-    const forceCopyOfFirst = () => forceSeededDraws({ 'robot.copyChance': 0, 'robot.copySource': (min) => min });
 
     beforeEach(() => {
       useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: DEFAULT_LOCALE } });
@@ -3090,17 +3045,16 @@ describe('spawnSystem', () => {
         }
       });
 
-      it('on the copy branch inherits all three fields from the source and draws none', async () => {
+      it('a company member inherits all three fields from its founder and draws none', () => {
         freshLocale('performance-copy-locale');
-        await forceCopyOfFirst();
         for (let i = 0; i < 4; i++) {
           if (i === 1) vi.mocked(getUniformSeededVal).mockClear();
-          spawnRobot('performance-copy-locale');
+          spawnRobot('performance-copy-locale', i === 0 ? undefined : { founderIndex: 0 });
         }
         // Captured before the fresh-draw comparison below, which draws them itself (the even draw, Even Seeded Draws T9).
         const draws = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => /^robot\.(dynamics|rests|accents)$/.test(String(c[1])));
         const robots = useLocaleStore.getState().getLocaleById('performance-copy-locale')!.robots;
-        // The copy branch ran: every later robot reuses the first robot's audioAttributes by reference.
+        // Every later robot is a member: it reuses the founder's audioAttributes by reference.
         expect(robots.slice(1).every((r) => r.audioAttributes === robots[0].audioAttributes)).toBe(true);
         for (const robot of robots.slice(1)) expect(fieldsOf(robot)).toEqual(fieldsOf(robots[0]));
         // ...and not by coincidence: a fresh draw at those offsets would have given different values.
@@ -3110,7 +3064,7 @@ describe('spawnSystem', () => {
         expect(draws).toEqual([]);
       });
 
-      it('on the copy branch from a source with the fields absent falls back to 50, 0 and 0', async () => {
+      it('a member of a founder with the fields absent falls back to 50, 0 and 0', async () => {
         freshLocale('performance-copy-absent-locale');
         const bare = { ...(await (async () => {
           spawnRobot('performance-copy-absent-locale');
@@ -3122,18 +3076,22 @@ describe('spawnSystem', () => {
         useLocaleStore.setState((state) => ({
           locales: { ...state.locales, 'performance-copy-absent-locale': { ...state.locales['performance-copy-absent-locale'], robots: [bare] } },
         }));
-        await forceCopyOfFirst();
+        spawnRobot('performance-copy-absent-locale', { founderIndex: 0 });
 
-        spawnRobot('performance-copy-absent-locale');
-
-        const copy = useLocaleStore.getState().getLocaleById('performance-copy-absent-locale')!.robots[1];
-        expect(fieldsOf(copy)).toEqual({ dynamics: DEFAULT_DYNAMICS, rests: DEFAULT_RESTS, accents: DEFAULT_ACCENTS });
+        const member = useLocaleStore.getState().getLocaleById('performance-copy-absent-locale')!.robots[1];
+        expect(member.lineage).toEqual({ founderIndex: 0 });
+        expect(fieldsOf(member)).toEqual({ dynamics: DEFAULT_DYNAMICS, rests: DEFAULT_RESTS, accents: DEFAULT_ACCENTS });
       });
     });
 
     describe('the melody carries the stamps', () => {
       const rosterLocale = 'performance-melody-roster-locale';
-      const rebuiltMelody = (robot: Robot) =>
+      /** Company Families Task 3a: a locale's world key, its coordinates. */
+      const worldOf = (localeId: string) => {
+        const { x, y } = useLocaleStore.getState().getLocaleById(localeId)!.coordinates;
+        return `${x}:${y}`;
+      };
+      const rebuiltMelody = (robot: Robot, world: string) =>
         applyPerformanceMarks(
           generateMelodyForRobot({
             octaveMin: robot.octaveRange[0],
@@ -3149,9 +3107,14 @@ describe('spawnSystem', () => {
               pitchRepeat: robot.pitchRepeat!,
               octaveRange: robot.octaveRange,
             }),
+            // Company Families Task 3a: onsets, lengths and stamps from the streams on the world and the rhythm shape.
+            rhythmRand: buildSeededRhythm(world, {
+              rhythmicDensity: robot.rhythmicDensity!,
+              rhythmicMotifLength: robot.rhythmicMotifLength!,
+            }),
           }),
           { rests: robot.rests!, accents: robot.accents! },
-          buildSeededPerformance(robot.compositionSeed),
+          buildSeededPerformance(world, { rhythmicDensity: robot.rhythmicDensity!, rhythmicMotifLength: robot.rhythmicMotifLength! }),
         );
 
       it('every robot of a real roster has exactly the melody the post-pass makes from its own fields, and some are stamped', () => {
@@ -3161,7 +3124,7 @@ describe('spawnSystem', () => {
         const robots = useLocaleStore.getState().getLocaleById(rosterLocale)!.robots;
         expect(robots.length).toBeGreaterThan(0);
         for (const robot of robots) {
-          expect(stripEventIds(robot.melody), `robot ${robot.id}`).toEqual(stripEventIds(rebuiltMelody(robot)));
+          expect(stripEventIds(robot.melody), `robot ${robot.id}`).toEqual(stripEventIds(rebuiltMelody(robot, worldOf(rosterLocale))));
         }
         // Not vacuous: the seeded rests and accents really did stamp events.
         expect(robots.some((r) => r.melody.some((e) => e.rest !== undefined))).toBe(true);
@@ -3186,9 +3149,51 @@ describe('spawnSystem', () => {
         freshLocale(rosterLocale + '-notes');
         spawnInitialRoster(rosterLocale + '-notes');
         for (const robot of useLocaleStore.getState().getLocaleById(rosterLocale + '-notes')!.robots) {
-          const plain = applyPerformanceMarks(rebuiltMelody({ ...robot, rests: 0, accents: 0 }), { rests: 0, accents: 0 }, buildSeededPerformance(robot.compositionSeed));
+          const world = worldOf(rosterLocale + '-notes');
+          const plain = applyPerformanceMarks(rebuiltMelody({ ...robot, rests: 0, accents: 0 }, world), { rests: 0, accents: 0 }, buildSeededPerformance(world, { rhythmicDensity: robot.rhythmicDensity!, rhythmicMotifLength: robot.rhythmicMotifLength! }));
           expect(robot.melody.map(({ rest: _r, mark: _m, id: _id, ...rest }) => rest)).toEqual(plain.map(({ id: _id, ...rest }) => rest));
         }
+      });
+
+      // Company Families Task 3, revised by Task 3a (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11): onsets and
+      // lengths come from the rhythm stream, keyed on the world's coordinates and the rhythm shape, whatever the
+      // composition stream draws.
+      it('every spawned robot plays the rhythm stream: its onsets and lengths are buildSeededRhythm on its world', () => {
+        for (const [suffix, coordinates] of [['-rhythm-a', { x: 7, y: 11 }], ['-rhythm-b', { x: 120, y: 40 }]] as const) {
+          freshLocale(rosterLocale + suffix, coordinates);
+          spawnInitialRoster(rosterLocale + suffix);
+          const robots = useLocaleStore.getState().getLocaleById(rosterLocale + suffix)!.robots;
+          expect(robots.length).toBeGreaterThan(0);
+          for (const robot of robots) {
+            const rhythmOnly = generateMelodyForRobot({
+              octaveMin: robot.octaveRange[0],
+              octaveMax: robot.octaveRange[1],
+              rhythmicDensity: robot.rhythmicDensity!,
+              rhythmicMotifLength: robot.rhythmicMotifLength!,
+              noteVariance: robot.noteVariance!,
+              pitchRepeat: robot.pitchRepeat!,
+              rand: alea('any composition stream'),
+              rhythmRand: buildSeededRhythm(`${coordinates.x}:${coordinates.y}`, {
+                rhythmicDensity: robot.rhythmicDensity!,
+                rhythmicMotifLength: robot.rhythmicMotifLength!,
+              }),
+            });
+            expect(robot.melody.map((e) => [e.startStep, e.length]), `robot ${robot.id}`).toEqual(
+              rhythmOnly.map((e) => [e.startStep, e.length]),
+            );
+          }
+        }
+      });
+
+      it('an unedited spawned original carries no lineage, and a company member its founder\'s index (Company Families Task 5)', () => {
+        freshLocale(rosterLocale + '-lineage');
+        spawnInitialRoster(rosterLocale + '-lineage');
+        const founders = companyFounders(generateCompanyMembership(noiseFor(rosterLocale + '-lineage')));
+        expect(founders.size).toBeGreaterThan(0);
+        useLocaleStore.getState().getLocaleById(rosterLocale + '-lineage')!.robots.forEach((robot, i) => {
+          const founderIndex = founders.get(i);
+          expect(robot.lineage, `robot ${i}`).toEqual(founderIndex === undefined ? undefined : { founderIndex });
+        });
       });
     });
 
@@ -3208,39 +3213,31 @@ describe('spawnSystem', () => {
         expect(typeof baseline.rests).toBe('number');
       });
 
-      it('equals every robot of a real 12-robot roster, copied siblings included', () => {
+      it('equals every robot of a real 12-robot roster, company members included', () => {
         freshLocale('performance-baseline-roster-locale');
         spawnInitialRoster('performance-baseline-roster-locale');
         const robots = useLocaleStore.getState().getLocaleById('performance-baseline-roster-locale')!.robots;
         const baselines = generateRobotRosterBaseline(noiseFor('performance-baseline-roster-locale'), robots.length);
         expect(robots.length).toBeGreaterThan(0);
+        expect(robots.some((r) => r.lineage !== undefined), 'the roster has members').toBe(true);
         robots.forEach((robot, i) => {
           expect(fieldsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(fieldsOf(robot));
         });
       });
 
-      it('equals the spawned robots on the copy branch too', async () => {
-        freshLocale('performance-baseline-copy-locale');
-        await forceCopyOfFirst();
-        for (let i = 0; i < 5; i++) spawnRobot('performance-baseline-copy-locale');
-        const robots = useLocaleStore.getState().getLocaleById('performance-baseline-copy-locale')!.robots;
-        const baselines = generateRobotRosterBaseline(noiseFor('performance-baseline-copy-locale'), robots.length);
-        expect(baselines.slice(1).every((b) => b.audioAttributes === baselines[0].audioAttributes)).toBe(true);
-        robots.forEach((robot, i) => {
-          expect(fieldsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(fieldsOf(robot));
-        });
-      });
-
-      it('a copy baseline inherits the source three values, not a fresh draw', async () => {
+      it('a member\'s baseline inherits its founder\'s three values, not a fresh draw at its own index', () => {
         freshLocale('performance-baseline-inherit-locale');
         const noiseMap = noiseFor('performance-baseline-inherit-locale');
-        await forceCopyOfFirst();
-        const source = { ...generateRobotAudioBaseline(noiseMap, 0, []), dynamics: 11, rests: 22, accents: 33 };
-
-        const copy = generateRobotAudioBaseline(noiseMap, 1, [source]);
-
-        expect(copy.audioAttributes).toBe(source.audioAttributes);
-        expect(fieldsOf(copy)).toEqual({ dynamics: 11, rests: 22, accents: 33 });
+        const baselines = generateRobotRosterBaseline(noiseMap, 12);
+        const founders = [...companyFounders(generateCompanyMembership(noiseMap))];
+        expect(founders.length).toBeGreaterThan(0);
+        for (const [member, founder] of founders) {
+          expect(baselines[member].audioAttributes, `robot ${member}`).toBe(baselines[founder].audioAttributes);
+          expect(fieldsOf(baselines[member]), `robot ${member}`).toEqual(fieldsOf(baselines[founder]));
+        }
+        // ...and not by coincidence: a fresh draw at some member's own index would differ.
+        expect(founders.some(([member, founder]) =>
+          JSON.stringify(fieldsOf(generateRobotAudioBaseline(noiseMap, member, []))) !== JSON.stringify(fieldsOf(baselines[founder])))).toBe(true);
       });
     });
   });
@@ -3282,14 +3279,16 @@ describe('spawnSystem', () => {
 
       const locale = useLocaleStore.getState().getLocaleById(localeId)!;
       const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
-      const baselines = generateRobotRosterBaseline(noiseMap, robots.length);
+      // Robots spawned alone are originals, so the chain of original baselines (each given the ones before it) is what they
+      // replay; a roster baseline would make some of five a company (Company Families Task 5).
+      const baselines = robots.reduce<RobotAudioBaseline[]>((prior, _, i) => [...prior, generateRobotAudioBaseline(noiseMap, i, prior)], []);
 
       robots.forEach((robot, i) => {
         expect(baselines[i].lfoLinks, `robot ${i} (${robot.id}) lfoLinks`).toEqual(robot.lfoLinks);
       });
     });
 
-    it('reproduces every field of a full real 12-robot roster (spawnInitialRoster), including any copied siblings', () => {
+    it('reproduces every field of a full real 12-robot roster (spawnInitialRoster), company members included', () => {
       const localeId = 'baseline-parity-full-roster-locale';
       useLocaleStore.setState((state) => ({
         locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, robots: [] } },
@@ -3316,7 +3315,7 @@ describe('spawnSystem', () => {
     });
 
     // Robot Sends T5 (docs/specs/ROBOT_SENDS.md section 1.2): the baseline gains the two sends, drawn by the
-    // same helper as spawnRobot and OUTSIDE the copy branch, so "live differs from seed" is exact.
+    // same helper as spawnRobot (a company member's are its founder's, Company Families B5), so "live differs from seed" is exact.
     describe('sends (Robot Sends T5)', () => {
       // Robot Effect Sends T7: all five sends.
       const sendsOf = (x: { reverbSend: number; delaySend: number; gritSend: number; shimmerSend: number; doubleSend: number }) => ({
@@ -3356,72 +3355,42 @@ describe('spawnSystem', () => {
 
         const baselines = generateRobotRosterBaseline(noiseFor('baseline-sends-roster-locale'), robots.length);
 
+        expect(robots.some((r) => r.lineage !== undefined), 'the roster has members').toBe(true);
         robots.forEach((robot, i) => {
           expect(sendsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(sendsOf(robot));
         });
       });
 
-      it('equals the spawned robots on the copy branch too - the draw sits outside the branch', async () => {
-        freshLocale('baseline-sends-copy-locale');
-        // Every robot after the first copies an earlier one, in spawnRobot and in the baseline alike.
-        await forceSeededDraws({ 'robot.copyChance': 0 });
-        try {
-          for (let i = 0; i < 6; i++) spawnRobot('baseline-sends-copy-locale');
-          const robots = useLocaleStore.getState().getLocaleById('baseline-sends-copy-locale')!.robots;
-          const baselines = generateRobotRosterBaseline(noiseFor('baseline-sends-copy-locale'), robots.length);
-
-          // Sanity: the copy branch really ran (a later baseline reuses an earlier one's attributes by reference).
-          expect(baselines.slice(1).every((b) => baselines.some((o) => o !== b && o.audioAttributes === b.audioAttributes))).toBe(true);
-          robots.forEach((robot, i) => {
-            expect(sendsOf(baselines[i]), `robot ${i} (${robot.id})`).toEqual(sendsOf(robot));
-          });
-        } finally {
-          await restoreSeededDraws();
-        }
-      });
-
-      it('a copy baseline carries its own draw, not the source\'s', async () => {
+      // Company Families B5 (Task 5): replaces "a copy baseline carries its own draw, not the source's".
+      it('a member\'s baseline carries its founder\'s sends, not its own draw', () => {
         freshLocale('baseline-sends-own-locale');
         const noiseMap = noiseFor('baseline-sends-own-locale');
-        await forceSeededDraws({ 'robot.copyChance': 0 });
-        try {
-          const source = generateRobotAudioBaseline(noiseMap, 0, []);
-
-          const copy = generateRobotAudioBaseline(noiseMap, 1, [source]);
-
-          expect(copy.audioAttributes).toBe(source.audioAttributes); // it is a copy
-          expect(sendsOf(copy)).toEqual(generateRobotSends(noiseMap, 1));
-          expect(sendsOf(copy)).not.toEqual(sendsOf(source));
-        } finally {
-          await restoreSeededDraws();
+        const baselines = generateRobotRosterBaseline(noiseMap, 12);
+        const founders = [...companyFounders(generateCompanyMembership(noiseMap))];
+        expect(founders.length).toBeGreaterThan(0);
+        for (const [member, founder] of founders) {
+          expect(sendsOf(baselines[member]), `robot ${member}`).toEqual(sendsOf(baselines[founder]));
         }
+        expect(founders.some(([member, founder]) =>
+          JSON.stringify(sendsOf(generateRobotSends(noiseMap, member))) !== JSON.stringify(sendsOf(baselines[founder])))).toBe(true);
       });
     });
 
-    it('takes the copy branch (reuses a prior baseline by reference) at roughly the same ~30% rate spawnRobot itself uses', () => {
-      // No store involved at all -- generateRobotRosterBaseline is pure. 30 entries at a ~30%
-      // per-entry copy chance makes at least one copy virtually certain (P(zero) ~= 0.7^29),
-      // mirroring the existing "a copied robot inherits..." spawnRobot tests' own sample size.
+    it('a member\'s baseline reuses its founder\'s records by reference, with its own name', () => {
+      // No store involved at all -- generateRobotRosterBaseline is pure. A member reuses the SAME audioAttributes (and
+      // octaveRange, lfoLinks) objects, matching spawnRobot's own founder branch (no re-generation).
       const noiseMap = createNoise2D(alea('baseline-copy-branch-test-seed'));
-      const baselines = generateRobotRosterBaseline(noiseMap, 30);
-
-      const byAttributes = new Map<typeof baselines[number]['audioAttributes'], number[]>();
-      baselines.forEach((b, i) => {
-        const group = byAttributes.get(b.audioAttributes) ?? [];
-        group.push(i);
-        byAttributes.set(b.audioAttributes, group);
-      });
-      const sharedGroup = [...byAttributes.values()].find((indices) => indices.length > 1);
-      expect(sharedGroup, 'expected at least one entry to share an earlier entry\'s audioAttributes reference (a copy)').toBeDefined();
-
-      const [earlierIdx, laterIdx] = sharedGroup!;
-      // A copy reuses the SAME audioAttributes (and octaveRange/etc.) object by reference, not a
-      // freshly-generated equivalent one -- matching spawnRobot's own "source.audioAttributes"
-      // (no re-generation) on the copy path. name is the one field that's never copied (generated
-      // fresh even on a copy, see generateRobotAudioBaseline's own doc comment) -- not asserted
-      // here, since two different spawnCounts could coincidentally generate the same
-      // "Adjective Noun" name by chance, independent of copying.
-      expect(baselines[laterIdx].audioAttributes).toBe(baselines[earlierIdx].audioAttributes);
+      const baselines = generateRobotRosterBaseline(noiseMap, 12);
+      const founders = [...companyFounders(generateCompanyMembership(noiseMap))];
+      expect(founders.length).toBeGreaterThan(0);
+      for (const [member, founder] of founders) {
+        expect(baselines[member].audioAttributes, `robot ${member}`).toBe(baselines[founder].audioAttributes);
+        expect(baselines[member].octaveRange, `robot ${member}`).toBe(baselines[founder].octaveRange);
+        expect(baselines[member].lfoLinks, `robot ${member}`).toBe(baselines[founder].lfoLinks);
+      }
+      // Originals never share: every non-member's audioAttributes is its own object.
+      const originals = baselines.filter((_, i) => !founders.some(([member]) => member === i));
+      expect(new Set(originals.map((b) => b.audioAttributes)).size).toBe(originals.length);
     });
   });
 
@@ -3462,6 +3431,123 @@ describe('spawnSystem', () => {
       const noiseMap = createNoise2D(alea('company-baseline-purity-seed'));
       const robotIds = Array.from({ length: 10 }, (_, i) => `robot-${i}`);
       expect(() => generateCompanyRosterBaseline(noiseMap, robotIds)).not.toThrow();
+    });
+  });
+
+  // Company Families Task 4 (docs/tasks/COMPANY_FAMILIES.md; spec §1.11, case 5): membership is drawn over roster
+  // indices before any robot spawns, from today's draws in today's order, with B4's cap (at least FREELANCERS_MIN
+  // robots stay Freelance) and B14's default (a company that cannot reach COMPANY_SIZE_MIN is not made).
+  describe('generateCompanyMembership (Company Families Task 4)', () => {
+    /** Today's membership, from the retired path's draws: spawnInitialCompanies' own loop as it was before Task 4,
+     *  over roster indices instead of ids, with no cap. Written out here, never by calling the new function. */
+    const todaysMembership = (noiseMap: NoiseFunction2D, rosterSize = MAX_ROBOTS): number[][] => {
+      let pool = Array.from({ length: rosterSize }, (_, i) => i);
+      const count = INITIAL_COMPANIES_MIN + Math.floor(getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1));
+      const companies: number[][] = [];
+      for (let c = 0; c < count && pool.length > 0; c++) {
+        const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)));
+        const members: number[] = [];
+        for (let i = 0; i < size; i++) {
+          const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
+          members.push(pool[idx]);
+          pool = pool.filter((_, j) => j !== idx);
+        }
+        companies.push(members);
+      }
+      return companies;
+    };
+    const freelancersIn = (membership: number[][], rosterSize = MAX_ROBOTS) => rosterSize - membership.flat().length;
+    const GRID = SIM_SEED_COORDS.map(({ x, y }) => ({ key: `${x}:${y}`, noiseMap: simNoiseMap(x, y) }));
+    const touched = GRID.filter(({ noiseMap }) => freelancersIn(todaysMembership(noiseMap)) < FREELANCERS_MIN);
+    const untouched = GRID.filter(({ noiseMap }) => freelancersIn(todaysMembership(noiseMap)) >= FREELANCERS_MIN);
+
+    it('FREELANCERS_MIN is 2 (B4)', () => {
+      expect(FREELANCERS_MIN).toBe(2);
+    });
+
+    it('the grid holds worlds on both sides of the cap, so neither case below is vacuous', () => {
+      expect(touched.length).toBeGreaterThan(0);
+      expect(untouched.length).toBeGreaterThan(0);
+    });
+
+    it('on every grid world the cap does not touch, the membership is exactly today\'s', () => {
+      for (const { key, noiseMap } of untouched) {
+        expect(generateCompanyMembership(noiseMap), key).toEqual(todaysMembership(noiseMap));
+      }
+    });
+
+    it('on every grid world the cap touches, the earlier companies are today\'s and the last is cut to leave two freelancers, or not made', () => {
+      for (const { key, noiseMap } of touched) {
+        const today = todaysMembership(noiseMap);
+        const capped = generateCompanyMembership(noiseMap);
+        expect(capped.length, key).toBeLessThanOrEqual(today.length);
+        capped.forEach((members, c) => {
+          // Same draws in the same order: a cut company is a prefix of today's.
+          expect(today[c].slice(0, members.length), `${key} company ${c}`).toEqual(members);
+        });
+        // Only the last company today makes can be cut or dropped; every earlier one is untouched.
+        capped.slice(0, today.length - 1).forEach((members, c) => expect(members, `${key} company ${c}`).toEqual(today[c]));
+        expect(freelancersIn(capped), key).toBeGreaterThanOrEqual(FREELANCERS_MIN);
+      }
+    });
+
+    it('over the grid: never fewer than two freelancers, every company 3 to 4 disjoint roster indices, 2 to 3 companies at most', () => {
+      for (const { key, noiseMap } of GRID) {
+        const membership = generateCompanyMembership(noiseMap);
+        expect(freelancersIn(membership), key).toBeGreaterThanOrEqual(FREELANCERS_MIN);
+        expect(membership.length, key).toBeLessThanOrEqual(INITIAL_COMPANIES_MAX);
+        for (const members of membership) {
+          expect(members.length, key).toBeGreaterThanOrEqual(COMPANY_SIZE_MIN);
+          expect(members.length, key).toBeLessThanOrEqual(COMPANY_SIZE_MAX);
+          for (const index of members) {
+            expect(Number.isInteger(index), key).toBe(true);
+            expect(index, key).toBeGreaterThanOrEqual(0);
+            expect(index, key).toBeLessThan(MAX_ROBOTS);
+          }
+        }
+        expect(new Set(membership.flat()).size, key).toBe(membership.flat().length);
+      }
+    });
+
+    it('is repeatable: the same coordinates give the same membership, from a fresh noise map too', () => {
+      for (const { x, y } of SIM_SEED_COORDS.slice(0, 12)) {
+        const first = generateCompanyMembership(simNoiseMap(x, y));
+        expect(generateCompanyMembership(simNoiseMap(x, y)), `${x}:${y}`).toEqual(first);
+      }
+    });
+
+    it('a smaller roster keeps the floor: five robots make at most one company of three, four robots make none', () => {
+      for (const { key, noiseMap } of GRID.slice(0, 20)) {
+        const five = generateCompanyMembership(noiseMap, 5);
+        expect(five.length, key).toBeLessThanOrEqual(1);
+        five.forEach((members) => expect(members, key).toHaveLength(3));
+        expect(five.flat().every((i) => i < 5), key).toBe(true);
+        expect(generateCompanyMembership(noiseMap, 4), key).toEqual([]);
+        expect(generateCompanyMembership(noiseMap, 0), key).toEqual([]);
+      }
+    });
+
+    it('a larger roster is never capped: sixteen robots get today\'s membership', () => {
+      for (const { key, noiseMap } of GRID.slice(0, 20)) {
+        expect(generateCompanyMembership(noiseMap, 16), key).toEqual(todaysMembership(noiseMap, 16));
+      }
+    });
+
+    it('spawnInitialCompanies and generateCompanyRosterBaseline turn a capped membership into ids, on a world the cap touches', () => {
+      const [{ key }] = touched;
+      const [x, y] = key.split(':').map(Number);
+      const localeId = 'company-membership-capped';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x, y }, robots: [], companies: [] } },
+      }));
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const ids = locale.robots.map((r) => r.id);
+      const expected = generateCompanyMembership(simNoiseMap(x, y)).map((members) => members.map((i) => ids[i]));
+      expect(locale.companies.map((c) => c.robotIds)).toEqual(expected);
+      expect(generateCompanyRosterBaseline(simNoiseMap(x, y), ids).map((c) => c.robotIds)).toEqual(expected);
+      expect(locale.robots.filter((r) => r.companyId === undefined).length).toBeGreaterThanOrEqual(FREELANCERS_MIN);
     });
   });
 
@@ -3616,15 +3702,17 @@ describe('spawnSystem', () => {
         lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.37, delaySend: 0.02, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.7,
       },
+      // Re-captured at Company Families Task 5: robot 1 was a copy of robot 0 under the retired copy roll; a roster of three
+      // makes no company, so it is an original now, drawn at its own index.
       {
         audioAttributes: {
-          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
-          octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
-          layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
+          adsr: { attack: 0.9792626317334362, decay: 0.5848182141780853, sustain: 0.596685036085546, release: 0.553829893572256, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [2, 4], filterFreq: 3606.9838404655457, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 186, detune: 2, pulseWidth: 0.6713095553684979,
+          layers: [{ type: 'sawtooth', gain: 0.71, detune: 0, phase: 342 }, { type: 'sawtooth', gain: 0, detune: 0, phase: 298 }, { type: 'triangle', gain: 0.79, detune: 0, phase: 27 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 1, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 16,
-        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.51, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.63,
+        octaveRange: [2, 4], rhythmicDensity: 25, rhythmicMotifLength: { active: true, value: 6 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 67, dynamics: 77, rests: 1, accents: 8,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'a', depth: 52 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.51, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.78,
       },
       {
         audioAttributes: {
@@ -3647,28 +3735,42 @@ describe('spawnSystem', () => {
     // roster from the same noise, captured at cc9a01f2 the same way and typed in (robots 3, 4 and 28 of 29), then
     // re-captured at each Even Seeded Draws switch, which moves the tiers between robots: a shaped release (sine) with an
     // exclusive send (shimmer) (4), a shaped attack (ripple) on a lowpass accent with grit (11), and the bandpass accent,
-    // a glider with shimmer (50; at T9 no robot of the first 29 was bandpass, so the roster grew to 51 - a roster's
-    // earlier robots never depend on its length).
+    // a glider with shimmer (50; at T9 no robot of the first 29 was bandpass, so the roster grew to 51). Re-captured at
+    // Company Families Task 5, which ends "a roster's earlier robots never depend on its length" (the companies are drawn
+    // over the roster): robot 4, a copy of robot 0 under the retired copy roll, is an original now (a shaped release,
+    // bounce, with shimmer); robot 11 is a company member, so its tiers moved to two originals, 13 (a lowpass accent with
+    // grit) and 14 (a shaped attack, ripple, with grit); robot 50 moved one LFO lane (layer1.gain c -> b), the tally now
+    // counting the members' inherited links.
     const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
       4: {
         audioAttributes: {
-          adsr: { attack: 0.7031522855150979, decay: 1.000850616954267, sustain: 0.8231706575024873, release: 0.42179932110011575, attackCurve: 'linear', releaseCurve: 'sine' },
-          octaveRange: [5, 7], filterFreq: 3890.894716139883, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 244, detune: 2, pulseWidth: 0.2865218424703926,
-          layers: [{ type: 'triangle', gain: 0.59, detune: -1, phase: 336 }, { type: 'square', gain: 0, detune: -1, phase: 293 }, { type: 'triangle', gain: 0, detune: 2, phase: 137 }],
+          adsr: { attack: 1.956759051894769, decay: 1.9473565462976694, sustain: 0.7924570618197322, release: 0.7145893696229906, attackCurve: 'linear', releaseCurve: 'bounce' },
+          octaveRange: [4, 6], filterFreq: 6702.621109783649, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 97, detune: 0, pulseWidth: 0.05575906191952527,
+          layers: [{ type: 'triangle', gain: 0.67, detune: -1, phase: 359 }, { type: 'triangle', gain: 0.77, detune: -1, phase: 215 }, { type: 'pulse', gain: 0, detune: 1, phase: 118 }],
         } as AudioAttributes,
-        octaveRange: [5, 7], rhythmicDensity: 1, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 98, dynamics: 78, rests: 5, accents: 16,
-        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 4 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.23, delaySend: 0, gritSend: 0, shimmerSend: 0.36, doubleSend: 0, masterVolume: 0.77,
+        octaveRange: [4, 6], rhythmicDensity: 14, rhythmicMotifLength: { active: true, value: 8 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 94, dynamics: 65, rests: 2, accents: 21,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 3 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'd', depth: 4 } },
+        reverbSend: 0.23, delaySend: 0, gritSend: 0, shimmerSend: 0.36, doubleSend: 0, masterVolume: 0.82,
       },
-      11: {
+      13: {
         audioAttributes: {
-          adsr: { attack: 0.21824039553757757, decay: 1.1089304112829268, sustain: 0.02038705232553184, release: 1.589185946341604, attackCurve: 'ripple', releaseCurve: 'linear' },
-          octaveRange: [3, 5], filterFreq: 1443.7973321415484, filterQ: 6.3, filterType: 'lowpass', portamento: 0, waveform: 'sine', phase: 80, detune: 1, pulseWidth: 0.3550120924133807,
-          layers: [{ type: 'sawtooth', gain: 0.81, detune: 0, phase: 330 }, { type: 'sawtooth', gain: 0.45, detune: -1, phase: 267 }, { type: 'square', gain: 0, detune: -1, phase: 141 }],
+          adsr: { attack: 1.8065845173585695, decay: 1.2646829038858414, sustain: 0.36252002697438, release: 0.3111372747505084, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [4, 6], filterFreq: 1671.2479102658108, filterQ: 7.8, filterType: 'lowpass', portamento: 0, waveform: 'square', phase: 309, detune: 2, pulseWidth: 0.7197142589138821,
+          layers: [{ type: 'square', gain: 1.11, detune: 0, phase: 154 }, { type: 'sawtooth', gain: 1.02, detune: 0, phase: 34 }, { type: 'triangle', gain: 0, detune: 1, phase: 7 }],
         } as AudioAttributes,
-        octaveRange: [3, 5], rhythmicDensity: 47, rhythmicMotifLength: { active: true, value: 7 }, noteVariance: { active: true, value: 3 }, pitchRepeat: 14, dynamics: 80, rests: 4, accents: 18,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'a', depth: 9 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.56, delaySend: 0.23, gritSend: 0.63, shimmerSend: 0, doubleSend: 0, masterVolume: 0.8,
+        octaveRange: [4, 6], rhythmicDensity: 5, rhythmicMotifLength: { active: true, value: 3 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 10, dynamics: 64, rests: 7, accents: 24,
+        lfoLinks: { 'layer0.gain': { lane: 'a', depth: 32 }, 'layer0.detune': { lane: 'b', depth: 2 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 3 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.35, delaySend: 0, gritSend: 0.41, shimmerSend: 0, doubleSend: 0, masterVolume: 0.76,
+      },
+      14: {
+        audioAttributes: {
+          adsr: { attack: 0.14344633669126777, decay: 0.250333690084517, sustain: 0.5130676552653313, release: 0.46280183186754587, attackCurve: 'ripple', releaseCurve: 'step' },
+          octaveRange: [5, 7], filterFreq: 4020.2904902398586, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'pulse', phase: 124, detune: -2, pulseWidth: 0.4857038651360198,
+          layers: [{ type: 'square', gain: 0.69, detune: 1, phase: 119 }, { type: 'square', gain: 0, detune: 0, phase: 222 }, { type: 'sine', gain: 0.33, detune: 1, phase: 37 }],
+        } as AudioAttributes,
+        octaveRange: [5, 7], rhythmicDensity: 32, rhythmicMotifLength: { active: true, value: 2 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 8, dynamics: 67, rests: 4, accents: 16,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: 'a', depth: 14 }, 'layer1.detune': { lane: 'a', depth: 1 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'd', depth: 5 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.46, delaySend: 0, gritSend: 0.71, shimmerSend: 0, doubleSend: 0, masterVolume: 0.73,
       },
       50: {
         audioAttributes: {
@@ -3677,14 +3779,14 @@ describe('spawnSystem', () => {
           layers: [{ type: 'sawtooth', gain: 0.98, detune: -1, phase: 125 }, { type: 'sine', gain: 0.74, detune: 0, phase: 5 }, { type: 'triangle', gain: 0, detune: 0, phase: 329 }],
         } as AudioAttributes,
         octaveRange: [4, 6], rhythmicDensity: 14, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 65, rests: 3, accents: 23,
-        lfoLinks: { 'layer0.gain': { lane: 'c', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'c', depth: 7 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        lfoLinks: { 'layer0.gain': { lane: 'c', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'b', depth: 7 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.1, delaySend: 0.29, gritSend: 0, shimmerSend: 0.26, doubleSend: 0, masterVolume: 0.73,
       },
     };
 
-    it('Classic parity, the tiers: a shaped stage, the bandpass accent and an exclusive send are value for value what the constants seeded before the lift', () => {
+    it('Classic parity, the tiers: a shaped stage, a lowpass and the bandpass accent and an exclusive send are value for value what the generator seeds', () => {
       const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 51).map(({ name: _name, ...rest }) => rest);
-      expect({ 4: roster[4], 11: roster[11], 50: roster[50] }).toEqual(PARITY_TIERS);
+      expect({ 4: roster[4], 13: roster[13], 14: roster[14], 50: roster[50] }).toEqual(PARITY_TIERS);
     });
 
     it('Classic parity: three spawned robots carry the ids, master volumes, densities and glides the constants seeded before the lift', () => {
@@ -3693,10 +3795,12 @@ describe('spawnSystem', () => {
       for (let i = 0; i < 3; i++) spawnRobot(localeId);
       const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       expect(robots.map((r) => [r.id, r.masterVolume, r.rhythmicDensity, r.audioAttributes.portamento])).toEqual([
-        // The densities re-captured at the attack rail (82 -> 14).
+        // The densities re-captured at the attack rail (82 -> 14). Robots 1 and 2 re-captured at Company Families Task 5:
+        // they were copies of robot 0 under the retired copy roll (0.76, 14, 0.18 and 0.73, 14, 0.18); a robot spawned
+        // alone is an original now.
         ['robot-0-ckli2vjx', 0.75, 14, 0.18],
-        ['robot-1-a9g7kk48', 0.76, 14, 0.18],
-        ['robot-2-mrmqcepa', 0.73, 14, 0.18],
+        ['robot-1-a9g7kk48', 0.71, 13, 0],
+        ['robot-2-mrmqcepa', 0.68, 98, 0.14],
       ]);
     });
   });
@@ -3785,6 +3889,10 @@ describe('spawnSystem', () => {
     const ROSTER = 12;
     const ids = Array.from({ length: ROSTER }, (_, i) => `robot-${i}`);
     const HYPNOTIC_MECHANICAL: LoadingIdentity = { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    /** Company members of this roster, by index, to their founders (Company Families Task 5). */
+    const MEMBERS = companyFounders(generateCompanyMembership(noiseMap, ROSTER));
+    /** The index a robot is dealt from: a member's founder's, an original's own (Company Families Task 6). */
+    const at = (i: number) => MEMBERS.get(i) ?? i;
     const melodyFieldsOf = (robot: Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>) => ({
       rhythmicDensity: robot.rhythmicDensity,
       rhythmicMotifLength: robot.rhythmicMotifLength,
@@ -3803,7 +3911,7 @@ describe('spawnSystem', () => {
       vi.restoreAllMocks();
     });
 
-    it('applyDealToBaselines: a dealt robot\'s four Melody fields are re-derived from its own index under the aspect\'s bands, loadedUnder is set, and nothing else moves', () => {
+    it('applyDealToBaselines: a dealt robot\'s four Melody fields are re-derived from its deal index (a member\'s founder\'s) under the aspect\'s bands, loadedUnder is set, and nothing else moves', () => {
       const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
       const companies = generateCompanyRosterBaseline(noiseMap, ids);
       const dealt = applyDealToBaselines(undealt, ids, companies, HYPNOTIC_MECHANICAL, noiseMap);
@@ -3815,19 +3923,19 @@ describe('spawnSystem', () => {
         const { rhythmicDensity: _ud, rhythmicMotifLength: _um, noteVariance: _uv, pitchRepeat: _up, ...restUndealt } = undealt[i];
         expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
         if (loadedUnder?.melody === 'hypnotic') {
-          // Calm carries Hypnotic's column: a fresh robot at this index under Calm is the exact re-derivation.
-          const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+          // Calm carries Hypnotic's column: a fresh robot at the deal index under Calm is the exact re-derivation.
+          const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, at(i), []));
           expect(melodyFieldsOf(baseline), `robot ${i}`).toEqual(melodyFieldsOf(expected));
         } else {
           expect(loadedUnder, `robot ${i}`).toEqual({ melody: 'mechanical' });
           // Mechanical's 70-95 as the robot's attack leaves it (the attack rail).
           const density = audibleDensityBand({ min: 70, max: 95 }, baseline.audioAttributes.adsr.attack, CLASSIC.bpm);
-          expect(baseline.rhythmicDensity).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', i, density.min, density.max)));
-          expect(baseline.pitchRepeat).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.pitchRepeat', i, 0, 10)));
+          expect(baseline.rhythmicDensity).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', at(i), density.min, density.max)));
+          expect(baseline.pitchRepeat).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.pitchRepeat', at(i), 0, 10)));
           expect(baseline.rhythmicMotifLength.active).toBe(true);
           expect([6, 7, 8]).toContain(baseline.rhythmicMotifLength.value);
-          // The band Mechanical leaves alone is still re-derived from the robot's own index, under Classic's band.
-          expect(baseline.noteVariance).toEqual(generateRobotAudioBaseline(noiseMap, i, []).noteVariance);
+          // The band Mechanical leaves alone is still re-derived from the deal index, under Classic's band.
+          expect(baseline.noteVariance).toEqual(generateRobotAudioBaseline(noiseMap, at(i), []).noteVariance);
         }
       });
     });
@@ -3841,23 +3949,27 @@ describe('spawnSystem', () => {
       expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: [] } }, noiseMap)).toBe(undealt);
     });
 
-    it('a copied-baseline robot re-derives from its own index, not its source\'s', async () => {
-      // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor). Each index's density
-      // draw lands at its own spot (index / roster of the band), so robot 3 and robot 0 draw apart by construction and the
-      // check cannot pass by coincidence.
+    // Company Families Task 6 (B8): a company member (was: a copied robot, dealt from its own index) is dealt from its
+    // founder's index, so the company keeps one voice.
+    it('a member\'s baseline re-derives from its founder\'s index, not its own', async () => {
+      // Each index's density draw lands at its own spot (index / roster of the band), so a member's own index and its
+      // founder's draw apart by construction and the check cannot pass by coincidence.
       await forceSeededDraws({
-        'robot.copyChance': 0,
-        'robot.copySource': (min) => min,
         'robot.rhythmicDensity': (min, max, offset) => min + (offset / ROSTER) * (max - min),
       });
       try {
         const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
-        expect(undealt[3].rhythmicDensity).toBe(undealt[0].rhythmicDensity); // precondition: robot 3 is a copy of robot 0
+        const [member, founder] = [...MEMBERS][0];
+        expect(undealt[member].rhythmicDensity).toBe(undealt[founder].rhythmicDensity); // precondition: a member
         const companies = generateCompanyRosterBaseline(noiseMap, ids);
         const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['hypnotic'] } }, noiseMap);
-        expect(dealt[3].loadedUnder).toEqual({ melody: 'hypnotic' });
-        expect(dealt[3].rhythmicDensity).toBe(45); // its own index: 40 + 3/12 of Hypnotic's 40-60
-        expect(dealt[0].rhythmicDensity).toBe(40); // the source's index: the band's floor
+        expect(dealt[member].loadedUnder).toEqual({ melody: 'hypnotic' });
+        // Hypnotic's 40-60 as the shared attack leaves it (the attack rail), at an index's own spot.
+        const band = audibleDensityBand({ min: 40, max: 60 }, undealt[founder].audioAttributes.adsr.attack, CLASSIC.bpm);
+        const spot = (index: number) => Math.round(band.min + (index / ROSTER) * (band.max - band.min));
+        expect(spot(member)).not.toBe(spot(founder));
+        expect(dealt[member].rhythmicDensity).toBe(spot(founder));
+        expect(dealt[founder].rhythmicDensity).toBe(spot(founder));
       } finally {
         await restoreSeededDraws();
       }
@@ -3924,6 +4036,10 @@ describe('spawnSystem', () => {
     const ROSTER = 12;
     const ids = Array.from({ length: ROSTER }, (_, i) => `robot-${i}`);
     const companies = generateCompanyRosterBaseline(noiseMap, ids);
+    /** Company members of this roster, by index, to their founders (Company Families Task 5). */
+    const MEMBERS = companyFounders(generateCompanyMembership(noiseMap, ROSTER));
+    /** The index a robot is dealt from: a member's founder's, an original's own (Company Families Task 6). */
+    const at = (i: number) => MEMBERS.get(i) ?? i;
     const deal = (aspects: LoadingIdentity['aspects'], theme: LoadingIdentity['theme'] = 'classic') => {
       const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
       return { undealt, dealt: applyDealToBaselines(undealt, ids, companies, { theme, aspects }, noiseMap) };
@@ -3972,10 +4088,10 @@ describe('spawnSystem', () => {
       const bands = resolveBands('classic', { envelope: 'plucked' });
       dealt.forEach((baseline, i) => {
         expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'plucked' });
-        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(deriveEnvelopeFields(noiseMap, i, bands));
+        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(deriveEnvelopeFields(noiseMap, at(i), bands));
         expect(baseline.audioAttributes.adsr.attack, `robot ${i}`).toBeLessThanOrEqual(0.04);
         // The attack rail: the density re-drawn at its index under Classic's band against the plucked attack.
-        expect(baseline.rhythmicDensity, `robot ${i}`).toBe(deriveRhythmicDensity(noiseMap, i, resolveBands('classic', {}), baseline.audioAttributes.adsr.attack));
+        expect(baseline.rhythmicDensity, `robot ${i}`).toBe(deriveRhythmicDensity(noiseMap, at(i), resolveBands('classic', {}), baseline.audioAttributes.adsr.attack));
         expect(sendsOf(baseline), `robot ${i}`).toEqual(sendsOf(undealt[i]));
         const { rhythmicDensity: _dealt, ...rest } = restOf(baseline);
         const { rhythmicDensity: _undealt, ...restUndealt } = restOf(undealt[i]);
@@ -3992,11 +4108,12 @@ describe('spawnSystem', () => {
       const bands = resolveBands('classic', { distance: 'echoing' });
       dealt.forEach((baseline, i) => {
         expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'echoing' });
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, bands));
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, at(i), bands));
         // Echoing's sheet: every probe deep in the delay, only lightly in the reverb.
         expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.4);
         expect(baseline.reverbSend, `robot ${i}`).toBeLessThanOrEqual(0.15);
-        // The three effect room sends are the theme's: re-derived, they come out as they were.
+        // The three effect room sends are the theme's: re-derived, they come out as they were (a member's are its founder's,
+        // dealt from its founder's index).
         const { gritSend, shimmerSend, doubleSend } = undealt[i];
         expect({ gritSend: baseline.gritSend, shimmerSend: baseline.shimmerSend, doubleSend: baseline.doubleSend }).toEqual({ gritSend, shimmerSend, doubleSend });
         expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(undealt[i].audioAttributes.adsr);
@@ -4009,7 +4126,7 @@ describe('spawnSystem', () => {
       expect(useLoadingStore.getState().theme).toBe('classic');
       const { dealt } = deal({ distance: ['halfHeard'] }, 'undertow');
       dealt.forEach((baseline, i) => {
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('undertow', { distance: 'halfHeard' })));
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, at(i), resolveBands('undertow', { distance: 'halfHeard' })));
         // This file's Undertow (injected) seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
         expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
       });
@@ -4019,13 +4136,13 @@ describe('spawnSystem', () => {
       const { dealt } = deal({ melody: ['hypnotic'], envelope: ['held'], distance: ['near'] });
       dealt.forEach((baseline, i) => {
         expect(baseline.loadedUnder, `robot ${i}`).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'near' });
-        expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
-        expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', { distance: 'near' })));
+        expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, at(i), resolveBands('classic', { envelope: 'held' })));
+        expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, at(i), resolveBands('classic', { distance: 'near' })));
         // Calm carries Hypnotic's column in this file's mock: a fresh robot at this index under Calm is the Melody re-derivation.
-        const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+        const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, at(i), []));
         // The density is Hypnotic's draw against Held's attack (the attack rail), not the spawn attack Float would read.
         const hypnotic = resolveBands('classic', { melody: 'hypnotic' });
-        expect(baseline.rhythmicDensity).toBe(deriveRhythmicDensity(noiseMap, i, hypnotic, baseline.audioAttributes.adsr.attack));
+        expect(baseline.rhythmicDensity).toBe(deriveRhythmicDensity(noiseMap, at(i), hypnotic, baseline.audioAttributes.adsr.attack));
         expect(baseline.noteVariance).toEqual(expected.noteVariance);
       });
       const { dealt: two } = deal({ envelope: ['swelling'], distance: ['echoing'] });
@@ -4036,7 +4153,7 @@ describe('spawnSystem', () => {
       const { dealt } = deal({ envelope: ['swelling'] }, 'shatter');
       dealt.forEach((baseline, i) => {
         const { adsr } = baseline.audioAttributes;
-        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('shatter', { envelope: 'swelling' })));
+        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, at(i), resolveBands('shatter', { envelope: 'swelling' })));
         // Perilous (this file's mock) seeds attacks of 1.5-2 s; Swelling's 0.3-1.2 wins.
         expect(adsr.attack, `robot ${i}`).toBeLessThanOrEqual(1.2);
         expect(adsr.decay, `robot ${i}`).toBeGreaterThanOrEqual(1);
@@ -4045,21 +4162,20 @@ describe('spawnSystem', () => {
       });
     });
 
-    it('a copied-baseline robot re-derives its adsr from its own index, keeping the rest of the copy', async () => {
-      await forceSeededDraws({ 'robot.copyChance': 0, 'robot.copySource': (min) => min });
-      try {
-        const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
-        expect(undealt[3].audioAttributes).toEqual(undealt[0].audioAttributes); // precondition: robot 3 copies robot 0
-        const bands = resolveBands('classic', { envelope: 'held' });
-        const own = deriveEnvelopeFields(noiseMap, 3, bands);
-        expect(own).not.toEqual(deriveEnvelopeFields(noiseMap, 0, bands)); // precondition: the two indices draw apart
-        const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { envelope: ['held'] } }, noiseMap);
-        expect(dealt[3].audioAttributes.adsr).toEqual(own);
-        expect(dealt[3].audioAttributes.waveform).toBe(undealt[0].audioAttributes.waveform);
-        expect(dealt[3].audioAttributes.layers).toEqual(undealt[0].audioAttributes.layers);
-      } finally {
-        await restoreSeededDraws();
-      }
+    // Company Families Task 6 (B8): a company member (was: a copied robot, dealt from its own index) is dealt from its
+    // founder's index.
+    it('a member\'s baseline re-derives its adsr from its founder\'s index, keeping the rest of its founder\'s voice', () => {
+      const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
+      const [member, founder] = [...MEMBERS][0];
+      expect(undealt[member].audioAttributes).toBe(undealt[founder].audioAttributes); // precondition: a member
+      const bands = resolveBands('classic', { envelope: 'held' });
+      const founders = deriveEnvelopeFields(noiseMap, founder, bands);
+      expect(deriveEnvelopeFields(noiseMap, member, bands)).not.toEqual(founders); // precondition: the two indices draw apart
+      const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { envelope: ['held'] } }, noiseMap);
+      expect(dealt[member].audioAttributes.adsr).toEqual(founders);
+      expect(dealt[member].audioAttributes).toEqual(dealt[founder].audioAttributes);
+      expect(dealt[member].audioAttributes.waveform).toBe(undealt[founder].audioAttributes.waveform);
+      expect(dealt[member].audioAttributes.layers).toEqual(undealt[founder].audioAttributes.layers);
     });
 
     it('applyAspectDeal, live: an Envelope deal writes each adsr and hands it to the engine as a hand edit does, once a robot, and agrees with the baseline', () => {
@@ -4202,7 +4318,7 @@ describe('spawnSystem', () => {
         const bands = resolveBands('classic', { voice: 'woody' });
         dealt.forEach((baseline, i) => {
           expect(baseline.loadedUnder, `robot ${i}`).toEqual({ voice: 'woody' });
-          expect(voiceOf(baseline.audioAttributes), `robot ${i}`).toEqual(deriveVoiceFields(noiseMap, i, bands));
+          expect(voiceOf(baseline.audioAttributes), `robot ${i}`).toEqual(deriveVoiceFields(noiseMap, at(i), bands));
           // Everything outside the voice - the adsr, the register, the glide, the phase, detune and pulse width - as it was.
           const { filterFreq: _f, filterQ: _q, filterType: _t, waveform: _w, layers: _l, ...outside } = baseline.audioAttributes;
           const { filterFreq: _uf, filterQ: _uq, filterType: _ut, waveform: _uw, layers: _ul, ...outsideUndealt } = undealt[i].audioAttributes;
@@ -4252,8 +4368,8 @@ describe('spawnSystem', () => {
         const { dealt } = deal({ envelope: ['held'], voice: ['woody'] });
         dealt.forEach((baseline, i) => {
           expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'held', voice: 'woody' });
-          expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
-          expect(voiceOf(baseline.audioAttributes)).toEqual(deriveVoiceFields(noiseMap, i, resolveBands('classic', { voice: 'woody' })));
+          expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, at(i), resolveBands('classic', { envelope: 'held' })));
+          expect(voiceOf(baseline.audioAttributes)).toEqual(deriveVoiceFields(noiseMap, at(i), resolveBands('classic', { voice: 'woody' })));
         });
       });
 
@@ -4555,22 +4671,19 @@ describe('spawnSystem', () => {
       for (const robot of robotsOf(live)) expect(robot.loadedUnder, robot.id).toBeUndefined();
     });
 
-    it('a copied robot undealt takes its source\'s values back, as it spawned, not a fresh draw at its own index', async () => {
-      // Every robot after the first copies robot 0 (the copy roll low, the source draw at its floor).
-      await forceSeededDraws({ 'robot.copyChance': 0, 'robot.copySource': (min) => min });
-      try {
-        const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], voice: ['woody'] });
-        const dealt = robotsOf(live);
-        const plain = robotsOf(buildWorld({}));
-        expect(plain[3].audioAttributes).toEqual(plain[0].audioAttributes); // precondition: robot 3 spawns as robot 0's copy
-        expect(dealt[3].audioAttributes.adsr).not.toEqual(plain[3].audioAttributes.adsr); // precondition: the deal moved it off
+    // Company Families Task 5: a company member (was: a copied robot).
+    it('a member undealt takes its founder\'s values back, as it spawned, not a fresh draw at its own index', () => {
+      const live = buildWorld({ melody: ['wandering'], envelope: ['plucked'], voice: ['woody'] });
+      const dealt = robotsOf(live);
+      const plain = robotsOf(buildWorld({}));
+      const member = plain.findIndex((r) => r.lineage !== undefined);
+      const founder = plain[member].lineage!.founderIndex;
+      expect(plain[member].audioAttributes).toEqual(plain[founder].audioAttributes); // precondition: a member of its founder
+      expect(dealt[member].audioAttributes.adsr).not.toEqual(plain[member].audioAttributes.adsr); // precondition: the deal moved it off
 
-        redeal(live, {});
+      redeal(live, {});
 
-        expect(comparable(robotsOf(live))).toEqual(comparable(plain));
-      } finally {
-        await restoreSeededDraws();
-      }
+      expect(comparable(robotsOf(live))).toEqual(comparable(plain));
     });
 
     it('a Voice move carries the whole bus filter: open lowpass robots dealt Hollow come back resonant bandpass ones', async () => {

@@ -12,14 +12,22 @@ import { getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { correlation, outerTenths } from '../testUtils/spread';
-import { generateRobotRosterBaseline, spawnRobot, type RobotAudioBaseline } from './spawnSystem';
+import {
+  companyFounders,
+  generateCompanyMembership,
+  generateRobotAudioBaseline,
+  generateRobotRosterBaseline,
+  spawnRobot,
+  type RobotAudioBaseline,
+} from './spawnSystem';
 
 // ========================================
 // TESTS
 // ========================================
 
-// Even Seeded Draws (docs/specs/EVEN_SEEDED_DRAWS.md §5.1): the copy, performance, volume and melody-seed draws of
-// both robot paths over seeded locale maps, mock-free but for the engine (see spawnSystem.evenDraws.test.ts).
+// Even Seeded Draws (docs/specs/EVEN_SEEDED_DRAWS.md §5.1): the performance, volume and melody-seed draws of both robot
+// paths over seeded locale maps, mock-free but for the engine (see spawnSystem.evenDraws.test.ts). The copy draw this
+// file also covered is gone (Company Families Task 5): a company member takes its founder's fields instead.
 const ROBOTS_PER_WORLD = 12;
 
 /** Runs `spawn` with the engine's voice and melody registration stubbed (jsdom has no audio graph to build them on);
@@ -38,14 +46,14 @@ function withEngineStubbed<T>(spawn: () => T): T {
   }
 }
 
-describe('copy, performance, volume and the melody seed draw even, in both robot paths (Even Seeded Draws T9)', () => {
-  // The baseline path: 1,000 rosters of 12. A copy shares its audioAttributes object with the robot it copied, so the
-  // rest are fresh draws at their own index: about 8,700 robots, at which a performance field's outer tenth (9-11 % on
-  // its integer grid) sits 3 standard deviations inside 8-12 %.
+describe('performance, volume and the melody seed draw even, in both robot paths (Even Seeded Draws T9)', () => {
+  // The baseline path: 1,000 rosters of 12. A company member shares its audioAttributes object with its founder, so the
+  // rest are fresh draws at their own index: about 6,000 robots, at which a performance field's outer tenth (9-11 % on
+  // its integer grid) sits 2.5 standard deviations inside 8-12 %.
   const PERF_WORLDS = Array.from({ length: 1000 }, (_, i) => createNoise2D(alea(`performance:${i}`)));
   const ROSTERS = PERF_WORLDS.map((noiseMap) => generateRobotRosterBaseline(noiseMap, ROBOTS_PER_WORLD));
-  const isCopy = (roster: readonly RobotAudioBaseline[], n: number) => roster.slice(0, n).some((p) => p.audioAttributes === roster[n].audioAttributes);
-  const FRESH = ROSTERS.flatMap((roster) => roster.filter((_, n) => !isCopy(roster, n)));
+  const isMember = (roster: readonly RobotAudioBaseline[], n: number) => roster.slice(0, n).some((p) => p.audioAttributes === roster[n].audioAttributes);
+  const FRESH = ROSTERS.flatMap((roster) => roster.filter((_, n) => !isMember(roster, n)));
 
   // The spawn path: 400 locales x 12 spawns through spawnRobot, the only path that seeds master volume and the melody
   // seed.
@@ -83,13 +91,6 @@ describe('copy, performance, volume and the melody seed draw even, in both robot
     expect(new Set(SPAWNED.map((r) => r.compositionSeed)).size).toBeGreaterThan(4700);
   });
 
-  it('30 % of robots after the first are copies (+/-3 points), the written copy chance', () => {
-    const later = ROSTERS.flatMap((roster) => roster.slice(1).map((_, i) => isCopy(roster, i + 1)));
-    const share = later.filter(Boolean).length / later.length;
-    expect(share).toBeGreaterThanOrEqual(0.27);
-    expect(share).toBeLessThanOrEqual(0.33);
-  });
-
   it('rests and accents correlate under 0.1 with master volume', () => {
     const volume = SPAWNED.map((r) => r.masterVolume ?? 0);
     expect(Math.abs(correlation(SPAWNED.map((r) => r.rests ?? 0), volume)), 'rests vs master volume').toBeLessThan(0.1);
@@ -99,11 +100,12 @@ describe('copy, performance, volume and the melody seed draw even, in both robot
   it('the baseline path: each draw is the even draw at its own dataId and the spawn count', () => {
     for (const noiseMap of PERF_WORLDS.slice(0, 10)) {
       const roster = generateRobotRosterBaseline(noiseMap, ROBOTS_PER_WORLD);
+      const founders = companyFounders(generateCompanyMembership(noiseMap, ROBOTS_PER_WORLD));
       roster.forEach((b, n) => {
         const even = (dataId: string, min = 0, max = 1) => getUniformSeededVal(noiseMap, dataId, n, min, max);
-        const copy = n > 0 && even('robot.copyChance') < 0.3;
-        if (copy) {
-          expect(b.audioAttributes, `robot ${n}`).toBe(roster[Math.floor(even('robot.copySource', 0, n))].audioAttributes);
+        const founder = founders.get(n);
+        if (founder !== undefined) {
+          expect(b.audioAttributes, `robot ${n}`).toBe(roster[founder].audioAttributes);
           return;
         }
         for (const field of ['dynamics', 'rests', 'accents'] as const) {
@@ -114,12 +116,13 @@ describe('copy, performance, volume and the melody seed draw even, in both robot
     }
   });
 
-  it('the spawn path: the copy roll, the performance fields, the master volume and the melody seed are the same even draws', () => {
+  it('the spawn path: the performance fields, the master volume and the melody seed are the same even draws', () => {
     const volume = CLASSIC['robot.masterVolume'];
     for (const localeId of ['even-draws-t9-0', 'even-draws-t9-1', 'even-draws-t9-2']) {
       const locale = useLocaleStore.getState().getLocaleById(localeId)!;
       const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
-      const baselines = generateRobotRosterBaseline(noiseMap, ROBOTS_PER_WORLD);
+      // Robots spawned alone are originals: the chain of original baselines, each given the ones before it.
+      const baselines = locale.robots.reduce<RobotAudioBaseline[]>((prior, _, n) => [...prior, generateRobotAudioBaseline(noiseMap, n, prior)], []);
       locale.robots.forEach((robot, n) => {
         expect(robot.compositionSeed, `robot ${n}`).toBe(getUniformSeededVal(noiseMap, 'robot.compositionSeed', n));
         expect(robot.audioAttributes, `robot ${n}`).toEqual(baselines[n].audioAttributes);

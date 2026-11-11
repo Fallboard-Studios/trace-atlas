@@ -11,6 +11,11 @@
  * precondition unchanged. `git log -p` on this file shows the original recording (9600610b) and this one; its other
  * commits touched no recording.
  *
+ * Company Families Task 5 (docs/tasks/COMPANY_FAMILIES.md, B5) changed what spawn primes on purpose: a company member
+ * carries its founder's five sends. No recording was touched. (a) reads each index's own draw (every recorded row was
+ * one, the old copies included), and the (b) cases expect each seeded member row to be its founder's recorded row
+ * (`asFamilies`).
+ *
  * Five groups: (a) seeds, (b) the updateRobotSends call sequence per entry point, (c) the share string, (d) the store
  * clamp, (e) the swell pool. Every hand-set fixture send is a distinct, non-default value, so a path that drops or
  * swaps a send cannot pass by matching a seed or a zero (the parity-fixture rule).
@@ -43,7 +48,7 @@ import { useAudioStore } from '../stores/audioStore';
 import type { Robot } from '../types/Robot';
 import type { SessionPayload, RobotAudioOverrideDiff } from '../types/session';
 import { SWELL_ROBOT_ATTRIBUTE_IDS } from '../types/audioSwell';
-import { generateRobotRosterBaseline, spawnInitialRoster, reRegisterAllRobotsAudio } from './spawnSystem';
+import { companyFounders, generateCompanyMembership, generateRobotSends, spawnInitialRoster, reRegisterAllRobotsAudio } from './spawnSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from './audioSwells';
 import { buildSessionPayload, applySessionPayload } from '../utils/sessionDiff';
@@ -227,15 +232,33 @@ const SHARE_WIRE_JSON =
   '{"v":2,"n":"Send Parity","c":{"x":31,"y":47},"g":{},"r":{"parity-robot":{"rd":37,"p":-0.35,"rs":0.62,"ds":0.18,"gr":0.47,"sm":0.09,"db":0.73,"dy":41}}}';
 const CLAMPED_SENDS: number[] = [1, 0.18, 0, 1, 0.73];
 
+/** The fixed plot's company members, by roster index, to their founders. */
+const FOUNDERS = companyFounders(generateCompanyMembership(noiseMaps.getLocaleNoiseMap('send-parity-founders', COORDINATES.x, COORDINATES.y)));
+
+/** A recorded prime sequence as company families make it (B5): each member's seeded row (one still equal to its own
+ *  recorded spawn row) becomes its founder's recorded spawn row. Hand-set rows and the carried rows after the roster
+ *  stand as recorded. */
+function asFamilies(primes: Prime[]): Prime[] {
+  return primes.map(([robotId, sends], i): Prime => {
+    const founder = FOUNDERS.get(i);
+    return i < SPAWN_PRIMES.length && founder !== undefined && sends === SPAWN_PRIMES[i][1] ? [robotId, SPAWN_PRIMES[founder][1]] : [robotId, sends];
+  });
+}
+
 // ========================================
 // TESTS
 // ========================================
 
 describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
-  it('(a) seeds all five sends, value for value, for two twelve-robot rosters', () => {
+  it('the fixed plot has company members, so the (b) cases see the founder rule', () => {
+    expect(FOUNDERS.size).toBeGreaterThan(0);
+  });
+
+  it('(a) seeds all five sends, value for value, for two twelve-robot rosters (each index\'s own draw)', () => {
     const actual: Record<string, number[][]> = {};
     for (const seed of ['send-table-parity-a', 'send-table-parity-b']) {
-      actual[seed] = generateRobotRosterBaseline(createNoise2D(alea(seed)), 12).map((b) => SEND_FIELDS.map((f) => b[f]));
+      const noise = createNoise2D(alea(seed));
+      actual[seed] = Array.from({ length: 12 }, (_, i) => generateRobotSends(noise, i)).map((b) => SEND_FIELDS.map((f) => b[f]));
     }
     expect(actual).toEqual(SEEDED_SENDS);
   });
@@ -244,7 +267,7 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
     it('spawn: spawnInitialRoster primes each spawned robot with its own five sends', () => {
       const localeId = setupWorld('spawn');
       const primes = recordPrimes(() => spawnInitialRoster(localeId));
-      expect(primes).toEqual(SPAWN_PRIMES);
+      expect(primes).toEqual(asFamilies(SPAWN_PRIMES));
     });
 
     it('reRegisterAllRobotsAudio re-primes the whole roster, a hand-set robot with its hand-set sends', () => {
@@ -255,7 +278,7 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
       useLocaleStore.getState().updateRobot(localeId, target.id, HAND_SET);
 
       const primes = recordPrimes(() => reRegisterAllRobotsAudio(localeId));
-      expect(primes).toEqual(RE_REGISTER_PRIMES);
+      expect(primes).toEqual(asFamilies(RE_REGISTER_PRIMES));
     });
 
     it('AudioEngine.reReserveVoice hands the rebuilt voice the stored sends', () => {
@@ -278,7 +301,7 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
       applySessionPayload(shifted(payload));
 
       const primes = recordPrimes(() => applySessionPayload(payload));
-      expect(primes).toEqual(SESSION_RESTORE_PRIMES);
+      expect(primes).toEqual(asFamilies(SESSION_RESTORE_PRIMES));
     });
 
     it('a share link decoded and restored primes the same way, all five carried sends last', () => {
@@ -293,7 +316,7 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
       expect(decoded).not.toBeNull();
 
       const primes = recordPrimes(() => applySessionPayload(decoded!));
-      expect(primes).toEqual(SHARE_RESTORE_PRIMES);
+      expect(primes).toEqual(asFamilies(SHARE_RESTORE_PRIMES));
     });
 
     // Spec §7 Q4: the public tick, with the robot-pool start forced the way sessionDiff.test.ts's mid-swell cases force
@@ -302,6 +325,14 @@ describe('Robot sends parity (roadmap 55 oracle, recorded at 608c5b92)', () => {
     it('tickAudioSwells writes a send swell through updateRobotSends, ramp and landing', () => {
       const localeId = setupWorld('swell');
       spawnInitialRoster(localeId);
+      // Company Families Task 5: robot 11 is a company member and carries its founder's sends (Delay 0.13); its own
+      // recorded sends (Delay 0.25) are set back, so the swell rides from the recorded seed.
+      const swellRobot = currentRobots()[11];
+      expect(FOUNDERS.has(11)).toBe(true); // precondition: why the set-back is needed
+      const ownRecorded = JSON.parse(SPAWN_PRIMES[11][1]) as Record<'reverb' | 'delay' | 'grit' | 'shimmer' | 'double', number>;
+      useLocaleStore.getState().updateRobot(localeId, swellRobot.id, {
+        reverbSend: ownRecorded.reverb, delaySend: ownRecorded.delay, gritSend: ownRecorded.grit, shimmerSend: ownRecorded.shimmer, doubleSend: ownRecorded.double,
+      });
       useAudioStore.setState({ swellFrequency: 16, swellDuration: 15, pingVarianceAutomation: 1 });
       // Every draw not named lands mid-band (T3's fallback 0, the old stub's `?? 0`), so the swell is the recorded one.
       const forced = {

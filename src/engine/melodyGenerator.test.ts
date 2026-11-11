@@ -8,7 +8,9 @@ import {
   generateMelodyForRobot,
   reRollMelodyPitches,
   buildSeededComposition,
+  buildSeededRhythm,
   buildSeededPerformance,
+  rhythmShape,
   applyPerformanceMarks,
   REST_MIN_FRACTION,
   REST_SPAN,
@@ -721,6 +723,242 @@ describe('buildSeededComposition', () => {
 });
 
 // ========================================
+// TEST SUITE: rhythmShape (Company Families, Task 3a; spec §1.11, B17)
+// ========================================
+
+describe('rhythmShape', () => {
+  const tiled = (value: number) => ({ active: true, value });
+  const free = (value = 8) => ({ active: false, value });
+
+  it('with tiling on: the motif length and the onsets per cell, round(density% of the cell)', () => {
+    expect(rhythmShape(50, tiled(8))).toEqual({ cellLength: 8, onsets: 4 });
+    expect(rhythmShape(40, tiled(5))).toEqual({ cellLength: 5, onsets: 2 });
+  });
+
+  it('with tiling off: no cell, and the onsets in the measure, round(density% of 16)', () => {
+    expect(rhythmShape(50, free())).toEqual({ cellLength: null, onsets: 8 });
+    expect(rhythmShape(40, free())).toEqual({ cellLength: null, onsets: 6 });
+  });
+
+  it('densities that round to the same count have the same shape (B17)', () => {
+    // 4 per 8-step cell from 44 % to 56 %; 5 from 57 %.
+    expect(rhythmShape(44, tiled(8))).toEqual(rhythmShape(56, tiled(8)));
+    expect(rhythmShape(57, tiled(8))).not.toEqual(rhythmShape(56, tiled(8)));
+    expect(rhythmShape(47, free())).toEqual(rhythmShape(50, free()));
+  });
+
+  it('an inert motif length (tiling off) is not part of the shape', () => {
+    expect(rhythmShape(50, free(3))).toEqual(rhythmShape(50, free(8)));
+  });
+
+  it('never fewer than one onset, and density clamps to 0..100', () => {
+    expect(rhythmShape(0, free())).toEqual({ cellLength: null, onsets: 1 });
+    expect(rhythmShape(0, tiled(4))).toEqual({ cellLength: 4, onsets: 1 });
+    expect(rhythmShape(150, free())).toEqual(rhythmShape(100, free()));
+    expect(rhythmShape(-20, free())).toEqual(rhythmShape(0, free()));
+  });
+
+  it('is the count the generator plays: a free melody has exactly the shape\'s onsets', () => {
+    for (const density of [0, 13, 40, 47, 81, 100]) {
+      const melody = generateMelodyForRobot({ octaveMin: 3, octaveMax: 5, rhythmicDensity: density, rhythmicMotifLength: free(), rand: alea(`count-${density}`) });
+      expect(melody).toHaveLength(rhythmShape(density, free()).onsets);
+    }
+  });
+
+  it('is the count the generator plays: a tiled melody with no tail has the shape\'s onsets in every cell', () => {
+    for (const density of [20, 50, 75]) {
+      const melody = generateMelodyForRobot({ octaveMin: 3, octaveMax: 5, rhythmicDensity: density, rhythmicMotifLength: tiled(4), rand: alea(`cells-${density}`) });
+      const perCell = [0, 1, 2, 3].map((cell) => melody.filter((e) => Math.floor((e.startStep - 1) / 4) === cell).length);
+      expect(perCell).toEqual([0, 1, 2, 3].map(() => rhythmShape(density, tiled(4)).onsets));
+    }
+  });
+});
+
+// ========================================
+// TEST SUITE: buildSeededRhythm (Company Families, Task 1, revised by Task 3a; spec §5.7 case 1)
+// ========================================
+
+describe('buildSeededRhythm', () => {
+  // A robot's full composition attributes: the rhythm stream must read only density and motif
+  // from them (B7), so a caller can hand it the same record it hands buildSeededComposition.
+  const fullAttrs = {
+    rhythmicDensity: 50,
+    rhythmicMotifLength: { active: true, value: 8 } as ToggleValue,
+    noteVariance: { active: false, value: 0 } as ToggleValue,
+    pitchRepeat: 0,
+    octaveRange: [3, 5] as [number, number],
+  };
+  const WORLD = '7:11';
+
+  function drawSequence(rand: () => number, n = 8): number[] {
+    return Array.from({ length: n }, () => rand());
+  }
+
+  const base = () => drawSequence(buildSeededRhythm(WORLD, fullAttrs));
+
+  it('is repeatable: the same world and settings give the same stream', () => {
+    expect(base()).toEqual(base());
+  });
+
+  it('a Note Variance change leaves the stream as it was', () => {
+    const changed = { ...fullAttrs, noteVariance: { active: true, value: 3 } };
+    expect(drawSequence(buildSeededRhythm(WORLD, changed))).toEqual(base());
+  });
+
+  it('a Pitch Repeat change leaves the stream as it was', () => {
+    const changed = { ...fullAttrs, pitchRepeat: 80 };
+    expect(drawSequence(buildSeededRhythm(WORLD, changed))).toEqual(base());
+  });
+
+  it('an octave range change leaves the stream as it was', () => {
+    const changed = { ...fullAttrs, octaveRange: [2, 6] as [number, number] };
+    expect(drawSequence(buildSeededRhythm(WORLD, changed))).toEqual(base());
+  });
+
+  it('a density with the same onset count leaves the stream as it was (B17)', () => {
+    expect(drawSequence(buildSeededRhythm(WORLD, { ...fullAttrs, rhythmicDensity: 46 }))).toEqual(base());
+  });
+
+  it('a motif length changed while tiling is off leaves the stream as it was', () => {
+    const off = (value: number) => ({ ...fullAttrs, rhythmicMotifLength: { active: false, value } });
+    expect(drawSequence(buildSeededRhythm(WORLD, off(3)))).toEqual(drawSequence(buildSeededRhythm(WORLD, off(8))));
+  });
+
+  it('a world change gives a different stream', () => {
+    expect(drawSequence(buildSeededRhythm('7:12', fullAttrs))).not.toEqual(base());
+  });
+
+  it('a density with a different onset count gives a different stream', () => {
+    expect(drawSequence(buildSeededRhythm(WORLD, { ...fullAttrs, rhythmicDensity: 75 }))).not.toEqual(base());
+  });
+
+  it('a motif length change gives a different stream', () => {
+    // 4 of 8 and 2 of 4: the same fill, a different shape.
+    const changed = { ...fullAttrs, rhythmicMotifLength: { active: true, value: 4 } };
+    expect(drawSequence(buildSeededRhythm(WORLD, changed))).not.toEqual(base());
+  });
+
+  it('turning motif tiling off gives a different stream (same length value)', () => {
+    const changed = { ...fullAttrs, rhythmicMotifLength: { active: false, value: 8 } };
+    expect(drawSequence(buildSeededRhythm(WORLD, changed))).not.toEqual(base());
+  });
+
+  it('never calls Math.random', () => {
+    const spy = vi.spyOn(Math, 'random');
+    base();
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});
+
+// ========================================
+// TEST SUITE: generateMelodyForRobot — rhythmRand (Company Families, Task 1; spec §5.7 case 2)
+// ========================================
+
+describe('generateMelodyForRobot — rhythmRand', () => {
+  type Shape = [number, string, number, number, number];
+  const shape = (m: MelodyEvent[]): Shape[] =>
+    m.map((e) => [e.startStep, e.length, e.noteIndex, e.octave, e.pitchLocked ? 1 : 0]);
+  const rhythmOf = (m: MelodyEvent[]) => m.map((e) => [e.startStep, e.length]);
+  const notesOf = (m: MelodyEvent[]) => m.map((e) => [e.noteIndex, e.octave]);
+
+  // Sparse and free (long, varied gaps, so the duration draw has real choices) and tiled with
+  // Pitch Repeat (the lock plan draws from the composition stream between onsets and notes).
+  const configs = {
+    free: {
+      octaveMin: 3,
+      octaveMax: 6,
+      rhythmicDensity: 30,
+      rhythmicMotifLength: { active: false, value: 8 },
+    },
+    tiledWithPitchRepeat: {
+      octaveMin: 3,
+      octaveMax: 5,
+      rhythmicDensity: 50,
+      rhythmicMotifLength: { active: true, value: 4 },
+      pitchRepeat: 60,
+      noteVariance: { active: true, value: 3 },
+    },
+  };
+
+  for (const [name, config] of Object.entries(configs)) {
+    describe(name, () => {
+      const rhythmFor = (world: number) =>
+        buildSeededRhythm(`world-${world}`, {
+          rhythmicDensity: config.rhythmicDensity,
+          rhythmicMotifLength: config.rhythmicMotifLength,
+        });
+
+      it('one rhythm stream with two composition streams: same onsets and lengths, different notes', () => {
+        const a = generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(0.42) });
+        const b = generateMelodyForRobot({ ...config, rand: alea('composition-b'), rhythmRand: rhythmFor(0.42) });
+        expect(rhythmOf(b)).toEqual(rhythmOf(a));
+        expect(notesOf(b)).not.toEqual(notesOf(a));
+      });
+
+      it('the lengths really are drawn (not all one value), so the check above has teeth', () => {
+        const a = generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(0.42) });
+        expect(new Set(a.map((e) => e.length)).size).toBeGreaterThan(1);
+      });
+
+      // Several rhythm streams (one per world), not two: a tiled 4-step cell has only six two-onset
+      // patterns, so any one pair of streams can land on the same one by chance.
+      it('one composition stream with different rhythm streams: the onsets follow the rhythm stream', () => {
+        const patterns = new Set(
+          [0.11, 0.23, 0.42, 0.58, 0.77, 0.91].map((seed) =>
+            generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(seed) })
+              .map((e) => e.startStep)
+              .join(','),
+          ),
+        );
+        expect(patterns.size).toBeGreaterThan(1);
+      });
+
+      it('no rhythmRand behaves as passing rand itself as the rhythm stream', () => {
+        const omitted = generateMelodyForRobot({ ...config, rand: alea('one-stream') });
+        const same = alea('one-stream');
+        const passed = generateMelodyForRobot({ ...config, rand: same, rhythmRand: same });
+        expect(shape(passed)).toEqual(shape(omitted));
+      });
+
+      it('never calls Math.random with both streams given', () => {
+        const spy = vi.spyOn(Math, 'random');
+        generateMelodyForRobot({ ...config, rand: alea('composition-a'), rhythmRand: rhythmFor(0.42) });
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+      });
+    });
+  }
+
+  // Captured from the generator before rhythmRand existed: a one-stream caller (every caller
+  // until Task 3) gets today's melody bit for bit.
+  it('parity: one stream gives the melody it gave before rhythmRand (free)', () => {
+    const melody = generateMelodyForRobot({ ...configs.free, rand: alea('parity-a') });
+    expect(shape(melody)).toEqual([
+      [8, '16n', 0, 6, 0],
+      [9, '16n', 6, 4, 0],
+      [10, '16n', 5, 4, 0],
+      [11, '8n', 5, 4, 0],
+      [13, '16n', 3, 4, 0],
+    ]);
+  });
+
+  it('parity: one stream gives the melody it gave before rhythmRand (tiled, Pitch Repeat)', () => {
+    const melody = generateMelodyForRobot({ ...configs.tiledWithPitchRepeat, rand: alea('parity-b') });
+    expect(shape(melody)).toEqual([
+      [2, '16n', 1, 3, 0],
+      [3, '8n', 5, 3, 0],
+      [6, '16n', 1, 3, 1],
+      [7, '16n', 5, 3, 1],
+      [10, '16n', 3, 5, 0],
+      [11, '8n', 5, 5, 1],
+      [14, '16n', 1, 5, 0],
+      [15, '8n', 5, 5, 1],
+    ]);
+  });
+});
+
+// ========================================
 // TEST SUITE: generateMelodyForRobot — Pitch Repeat (Task 6)
 // ========================================
 
@@ -991,9 +1229,9 @@ describe('applyPerformanceMarks', () => {
     );
   }
 
-  const SEED = 0.4242;
+  const SHAPE = { rhythmicDensity: 50, rhythmicMotifLength: { active: true, value: 8 } };
   const stamp = (melody: MelodyEvent[], rests: number, accents: number) =>
-    applyPerformanceMarks(melody, { rests, accents }, buildSeededPerformance(SEED));
+    applyPerformanceMarks(melody, { rests, accents }, buildSeededPerformance('42:42', SHAPE));
   const markedIds = (melody: MelodyEvent[], field: 'rest' | 'mark') =>
     melody.filter((e) => e[field] !== undefined).map((e) => e.id);
 
@@ -1045,10 +1283,10 @@ describe('applyPerformanceMarks', () => {
       expect(stamp(melody, 55, 65)).toEqual(stamp(melody, 55, 65));
     });
 
-    it('a different seed produces different stamps', () => {
+    it('a different stream produces different stamps', () => {
       const melody = makeMelody(100);
-      const a = applyPerformanceMarks(melody, { rests: 55, accents: 65 }, buildSeededPerformance(0.1));
-      const b = applyPerformanceMarks(melody, { rests: 55, accents: 65 }, buildSeededPerformance(0.9));
+      const a = applyPerformanceMarks(melody, { rests: 55, accents: 65 }, buildSeededPerformance('1:1', SHAPE));
+      const b = applyPerformanceMarks(melody, { rests: 55, accents: 65 }, buildSeededPerformance('9:9', SHAPE));
       expect(a).not.toEqual(b);
     });
 
@@ -1220,31 +1458,31 @@ describe('applyPerformanceMarks', () => {
   });
 });
 
+// Company Families Task 3a (B19): keyed on the world and the rhythm shape, as the rhythm stream is,
+// so robots that share a rhythm share their stamps. Rewritten from the seed-keyed cases.
 describe('buildSeededPerformance', () => {
   const draws = (rand: () => number, n = 6) => Array.from({ length: n }, () => rand());
+  const attrs = { rhythmicDensity: 50, rhythmicMotifLength: { active: true, value: 8 } };
 
-  it('is a pure function of the seed: same seed, same sequence', () => {
-    expect(draws(buildSeededPerformance(0.42))).toEqual(draws(buildSeededPerformance(0.42)));
+  it('is a pure function of the world and the shape: same inputs, same sequence', () => {
+    expect(draws(buildSeededPerformance('7:11', attrs))).toEqual(draws(buildSeededPerformance('7:11', attrs)));
   });
 
-  it('different seeds give different sequences', () => {
-    expect(draws(buildSeededPerformance(0.42))).not.toEqual(draws(buildSeededPerformance(0.43)));
+  it('the same shape from another density gives the same sequence', () => {
+    expect(draws(buildSeededPerformance('7:11', { ...attrs, rhythmicDensity: 46 }))).toEqual(draws(buildSeededPerformance('7:11', attrs)));
   });
 
-  it('is its own stream: it differs from buildSeededComposition for the same seed', () => {
-    const composition = buildSeededComposition(0.42, {
-      rhythmicDensity: 50,
-      rhythmicMotifLength: { active: true, value: 8 },
-      noteVariance: { active: false, value: 0 },
-      pitchRepeat: 0,
-      octaveRange: [3, 5],
-    });
-    expect(buildSeededPerformance(0.42)()).not.toBe(composition());
-    expect(draws(buildSeededPerformance(0.42))).not.toEqual(draws(composition));
+  it('a different world or shape gives a different sequence', () => {
+    expect(draws(buildSeededPerformance('7:12', attrs))).not.toEqual(draws(buildSeededPerformance('7:11', attrs)));
+    expect(draws(buildSeededPerformance('7:11', { ...attrs, rhythmicDensity: 75 }))).not.toEqual(draws(buildSeededPerformance('7:11', attrs)));
+  });
+
+  it('is its own stream: it differs from buildSeededRhythm on the same world and shape', () => {
+    expect(draws(buildSeededPerformance('7:11', attrs))).not.toEqual(draws(buildSeededRhythm('7:11', attrs)));
   });
 
   it('returns draws in [0, 1)', () => {
-    for (const value of draws(buildSeededPerformance(0.42), 200)) {
+    for (const value of draws(buildSeededPerformance('7:11', attrs), 200)) {
       expect(value).toBeGreaterThanOrEqual(0);
       expect(value).toBeLessThan(1);
     }

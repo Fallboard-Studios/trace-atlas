@@ -64,6 +64,7 @@ import { generateAttenuationStyleBpm } from './bpmSeed';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
+import { SIM_SEED_COORDS } from '../systems/lifecycleSim';
 import { applyAspectDeal, rederiveLoading } from '../systems/aspectDeal';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
@@ -71,7 +72,7 @@ import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../sys
 import * as audioSwells from '../systems/audioSwells';
 import { constantNoiseMap, noiseMapForDataIds } from '../testUtils/seededDraws';
 import * as noiseMaps from './noiseMaps';
-import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
+import { buildSeededComposition, buildSeededRhythm, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
@@ -749,6 +750,24 @@ describe('buildSessionPayload', () => {
     expect(payload.userCreatedCompanies).toEqual([]);
   });
 
+  // Company Families Task 5 (case 9): members spawn from their founders and the baselines mirror it, so an untouched
+  // world still saves nothing, on every grid world (the cap of Task 4 included: 34 of them).
+  it('an untouched world saves robotOverrides {} and no company diffs on every one of the 121 grid worlds', () => {
+    for (const { x, y } of SIM_SEED_COORDS) {
+      const localeId = setupWorld();
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...state.locales[localeId], coordinates: { x, y } } },
+      }));
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const robots = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+      expect(robots.some((r) => r.lineage !== undefined), `${x}:${y} has members`).toBe(true);
+      const payload = buildSessionPayload();
+      expect(payload.robotOverrides, `${x}:${y}`).toEqual({});
+      expect(payload.companyDiffs, `${x}:${y}`).toEqual({});
+    }
+  });
+
   it('includes only the one company that was renamed, with only its changed field', () => {
     const localeId = setupWorld();
     spawnInitialRoster(localeId);
@@ -1168,6 +1187,13 @@ describe('applySessionPayload', () => {
       pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
       octaveRange: restoredRobot.octaveRange,
     });
+    // Company Families Task 3a: onsets, lengths and stamps from the streams on the world's coordinates and the
+    // rhythm shape.
+    const world = `${currentLocale()!.coordinates.x}:${currentLocale()!.coordinates.y}`;
+    const rhythm = {
+      rhythmicDensity: RHYTHMIC_DENSITY_MAX,
+      rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+    };
     // Robot Performance T4: a seeded robot carries rests and accents, so its melody is the generated
     // one with the same post-pass regenerateMelody applies (docs/specs/ROBOT_PERFORMANCE.md section 1.2).
     const expectedMelody = applyPerformanceMarks(
@@ -1179,9 +1205,10 @@ describe('applySessionPayload', () => {
         noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
         pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
         rand: expectedRand,
+        rhythmRand: buildSeededRhythm(world, rhythm),
       }),
       { rests: restoredRobot.rests ?? DEFAULT_RESTS, accents: restoredRobot.accents ?? DEFAULT_ACCENTS },
-      buildSeededPerformance(restoredRobot.compositionSeed),
+      buildSeededPerformance(world, rhythm),
     );
     const stripIds = (melody: typeof expectedMelody) => melody.map(({ id: _id, ...rest }) => rest);
     expect(stripIds(restoredRobot.melody)).toEqual(stripIds(expectedMelody));
@@ -1512,6 +1539,12 @@ describe('applySessionPayload', () => {
         pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
         octaveRange: robot.octaveRange,
       });
+      const { x, y } = currentLocale()!.coordinates;
+      const world = `${x}:${y}`;
+      const rhythm = {
+        rhythmicDensity: robot.rhythmicDensity!,
+        rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+      };
       return applyPerformanceMarks(
         generateMelodyForRobot({
           octaveMin: robot.octaveRange[0],
@@ -1521,9 +1554,12 @@ describe('applySessionPayload', () => {
           noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
           pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
           rand,
+          // Company Families Task 3a: onsets, lengths and stamps from the streams on the current world's coordinates
+          // and the rhythm shape.
+          rhythmRand: buildSeededRhythm(world, rhythm),
         }),
         { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
-        buildSeededPerformance(robot.compositionSeed),
+        buildSeededPerformance(world, rhythm),
       );
     }
 

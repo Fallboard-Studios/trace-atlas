@@ -7,8 +7,6 @@ import type { Vec2 } from '../types/Vec2';
 import type { AudioAttributes, Robot, RobotFilterType } from '../types/Robot';
 import { DockingState } from '../types/Robot';
 import {
-  generateMelodyForRobot,
-  buildSeededComposition,
   DEFAULT_RHYTHMIC_DENSITY,
   DEFAULT_RHYTHMIC_MOTIF_LENGTH,
   DEFAULT_NOTE_VARIANCE,
@@ -16,19 +14,18 @@ import {
   DEFAULT_DYNAMICS,
   DEFAULT_RESTS,
   DEFAULT_ACCENTS,
-  buildSeededPerformance,
-  applyPerformanceMarks,
 } from '../engine/melodyGenerator';
 import type { ToggleValue } from '../engine/melodyGenerator';
+import { composeRobotMelody, melodyWorldKey } from '../engine/regenerateMelody';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
-  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
+  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, FREELANCERS_MIN,
   BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
 } from '../constants';
-import { robotSendLevels, type RobotSendField } from '../data/robotSends';
+import { recordByField, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
 import type { RobotAspects } from '../data/bands/dealAspects';
 import useLocaleStore from '../stores/localeStore';
@@ -100,8 +97,8 @@ function masterVolumeFrom(seeded: number, octaveRange: readonly [number, number]
   return quantizeToStep(raw * 100, 0, VOLUME_STEP_PERCENT) / 100;
 }
 
-/** A robot's seeded master volume at `spawnCount`: drawn even in the loaded world's band, outside the copy branch (a
- *  copied robot draws its own, biased by its copied register). spawnRobot and generateRobotAudioBaseline share it, so
+/** A robot's seeded master volume at `spawnCount`: drawn even in the loaded world's band, a company member's too (it
+ *  draws its own, biased by its inherited register). spawnRobot and the roster baseline share it, so
  *  a loading change can compare it (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). */
 function seedMasterVolume(noiseMap: NoiseFunction2D, spawnCount: number, octaveRange: readonly [number, number]): number {
   const volume = getBand('robot.masterVolume');
@@ -142,7 +139,7 @@ const GEM_SEED_MAX = 2 ** 31;
 /**
  * The robot's gem-polygon body seed (Roadmap Phase 39, docs/specs/GEM_POLYGON_ROBOTS.md §1.1) —
  * same shape as generateRobotIdentityColor above: identity, not audio, drawn once at spawn,
- * never inherited on the copy path. Clamped because the noise sampler can return exactly `max`.
+ * never inherited from a company founder. Clamped because the noise sampler can return exactly `max`.
  */
 function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
   return Math.min(GEM_SEED_MAX - 1, Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
@@ -150,7 +147,7 @@ function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
 
 /**
  * A robot's battery size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3): one even draw per robot, so the sizes
- * fill the band rather than bunch in its middle. Drawn at spawn, never inherited on the copy path. Pure and exported,
+ * fill the band rather than bunch in its middle. Drawn at spawn, a company member's too (B2). Pure and exported,
  * so lifecycleSim.ts's roster shares it; the band is an argument so the sims can try others.
  */
 export function generateBatterySize(noiseMap: NoiseFunction2D, spawnCount: number, min = BATTERY_SIZE_MIN, max = BATTERY_SIZE_MAX): number {
@@ -240,8 +237,8 @@ function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string 
 /**
  * Deterministic melody-generation seed (Roadmap Phase 31) — own dataId ('robot.compositionSeed'),
  * an even draw (docs/specs/EVEN_SEEDED_DRAWS.md), so seeds rarely repeat across a fleet. Always fresh
- * per robot: computed unconditionally in spawnRobot, outside the shouldCopy branch, never inherited
- * from a copy source (same treatment as id/name/melody itself).
+ * per robot: computed unconditionally in spawnRobot, a company member's included, never inherited
+ * from its founder (same treatment as id/name/melody itself).
  */
 function generateCompositionSeed(noiseMap: NoiseFunction2D, spawnCount: number): number {
   return getUniformSeededVal(noiseMap, 'robot.compositionSeed', spawnCount, 0, 1);
@@ -343,8 +340,8 @@ export function generateRobotLfoLinks(
  * quiet). All four are even draws (docs/specs/EVEN_SEEDED_DRAWS.md, T9a), so a quarter of the fleet draws no delay
  * under Classic. The Grit, Shimmer and Double sends are uniform
  * per-robot rolls, `robot.send.<room>.lit` and `robot.send.<room>`, every one read on every robot, at most one landing
- * (composeExclusiveSends). One helper serves spawnRobot and generateRobotAudioBaseline, called outside the copy branch in
- * both, so a copied robot shares its sibling's voice but not its depths, and the two cannot drift.
+ * (composeExclusiveSends). One helper serves spawnRobot and generateRobotAudioBaseline for an original, so the two
+ * cannot drift; a company member takes its founder's five sends instead (Company Families B5).
  */
 export function generateRobotSends(noiseMap: NoiseFunction2D, offset: number): Record<RobotSendField, number> {
   return deriveSendFields(noiseMap, offset, currentSendBands());
@@ -372,14 +369,12 @@ function generateRobotSendsFallback(localeId: string, spawnCount: number): Recor
 }
 
 /**
- * A robot's audio-relevant seeded fields — exactly the shape spawnRobot's own "copy an earlier
- * sibling" branch reads from a live Robot object, extracted so it can be replayed for baseline
- * comparison (Session Storage, docs/specs/SESSION_STORAGE.md) without touching the store spawnRobot
- * itself reads from.
+ * A robot's audio-relevant seeded fields — the shape spawnRobot's founder branch reads from a live
+ * Robot object, extracted so it can be replayed for baseline comparison (Session Storage,
+ * docs/specs/SESSION_STORAGE.md) without touching the store spawnRobot itself reads from.
  */
 export interface RobotAudioBaseline {
-  /** Unconditional, like spawnRobot's own robot.name assignment — NOT inherited on the copy
-   *  branch (a copied robot still gets its own freshly-generated name). */
+  /** Always the robot's own draw — a company member gets its own name, not its founder's. */
   name: string;
   audioAttributes: AudioAttributes;
   octaveRange: [number, number];
@@ -387,21 +382,21 @@ export interface RobotAudioBaseline {
   rhythmicMotifLength: ToggleValue;
   noteVariance: ToggleValue;
   pitchRepeat: number;
-  /** Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): seeded, 0-100 integers, inherited on the copy branch like pitchRepeat. */
+  /** Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.4): seeded, 0-100 integers, a member's from its founder like pitchRepeat. */
   dynamics: number;
   rests: number;
   accents: number;
-  /** Mirrors spawnRobot's own lfoLinks branch (Session Storage/LFO Bank Task 18): copied on the
-   *  copy branch, freshly drawn (with the roster's running lane tally) on the fresh branch. */
+  /** Mirrors spawnRobot's own lfoLinks branch (Session Storage/LFO Bank Task 18): a member's are its
+   *  founder's, an original's freshly drawn (with the roster's running lane tally). */
   lfoLinks: Record<RobotLfoTargetId, LfoLink>;
-  /** Unconditional, like `name` — NOT inherited on the copy branch (a copied robot draws its own depth). */
+  /** A member's five sends are its founder's (Company Families B5), so a section sits in one space. */
   reverbSend: number;
   delaySend: number;
   /** Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.1): unconditional too, at most one of the three above 0. */
   gritSend: number;
   shimmerSend: number;
   doubleSend: number;
-  /** Unconditional, like `name`, biased by the (possibly copied) register (seedMasterVolume): what a loading change
+  /** Always the robot's own draw, like `name`, biased by the (possibly inherited) register (seedMasterVolume): what a loading change
    *  compares (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6). A listening choice, so the session diff never reads it. */
   masterVolume: number;
   /** What the deal loaded this robot under (docs/specs/OFF_SCREEN.md assumption 22), as Robot.loadedUnder; set by
@@ -410,40 +405,20 @@ export interface RobotAudioBaseline {
 }
 
 /**
- * Replays spawnRobot's exact generate-or-copy decision tree for one robot at `spawnCount`, given
- * the baselines already computed for every earlier robot in the same roster (`priorBaselines`, in
- * spawn order) — pure, no store read/write. Deliberately NOT a refactor of spawnRobot itself (see
- * this function's own file-level context in docs/tasks/SESSION_STORAGE.md Task 2): spawnRobot's
- * copy branch depends on the live store's accumulated `robots` array, so replaying it purely means
- * taking that pool as an explicit argument instead. Mirrors spawnRobot's own 'robot.copyChance'/
- * 'robot.copySource' dataIds and the 0.30 threshold exactly — any divergence here would silently
- * break Session Storage's "an untouched robot's diff is always empty" guarantee. Only the
- * real-noiseMap path is replayed; spawnRobot's own no-noiseMap `alea(...)` fallback (used only when
- * a locale/coordinates don't exist yet) has nothing meaningful to diff against, so it's not mirrored
- * here.
+ * Replays spawnRobot's draws for an original robot at `spawnCount`, given the baselines already
+ * computed for every earlier robot in the same roster (`priorBaselines`, in spawn order, read only
+ * for the LFO lane tally) — pure, no store read/write. A company member's baseline is not this but
+ * its founder's (memberBaseline, generateRobotRosterBaseline). Only the real-noiseMap path is
+ * replayed; spawnRobot's own no-noiseMap `alea(...)` fallback (used only when a locale/coordinates
+ * don't exist yet) has nothing meaningful to diff against, so it's not mirrored here.
  */
 export function generateRobotAudioBaseline(
   noiseMap: NoiseFunction2D,
   spawnCount: number,
   priorBaselines: readonly RobotAudioBaseline[],
 ): RobotAudioBaseline {
-  const copyRoll = getUniformSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1);
-  const shouldCopy = copyRoll < 0.30 && priorBaselines.length > 0;
-
   const name = generateRobotName(noiseMap, spawnCount);
-  // Outside the copy branch, like name: spawnRobot draws its sends unconditionally too.
   const sends = generateRobotSends(noiseMap, spawnCount);
-
-  if (shouldCopy) {
-    const srcIdx = Math.min(
-      priorBaselines.length - 1,
-      Math.floor(getUniformSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, priorBaselines.length))
-    );
-    // name is NOT inherited from the copy source — spawnRobot generates it unconditionally,
-    // outside the shouldCopy branch (see this function's own doc comment). Nor is the volume.
-    const source = priorBaselines[srcIdx];
-    return { ...source, name, ...sends, masterVolume: seedMasterVolume(noiseMap, spawnCount, source.octaveRange) };
-  }
 
   const audioAttributes = generateAudioAttributes(noiseMap, spawnCount);
   const octaveRange = audioAttributes.octaveRange ?? [2, 4] as [number, number];
@@ -457,15 +432,42 @@ export function generateRobotAudioBaseline(
   return { name, audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength, noteVariance, pitchRepeat, dynamics, rests, accents, lfoLinks, ...sends, masterVolume };
 }
 
+/** A company member's baseline at `spawnCount` (Company Families §1.11): its founder's, every field inherited — the
+ *  voice, the composition and performance settings, the LFO links and the five sends (B5) — with its own name and its
+ *  own volume, drawn as an original's over the inherited register. spawnRobot's founder branch, replayed. */
+function memberBaseline(noiseMap: NoiseFunction2D, spawnCount: number, founder: RobotAudioBaseline): RobotAudioBaseline {
+  return {
+    ...founder,
+    name: generateRobotName(noiseMap, spawnCount),
+    masterVolume: seedMasterVolume(noiseMap, spawnCount, founder.octaveRange),
+  };
+}
+
 /**
- * Replays generateRobotAudioBaseline above for a full `count`-robot roster in spawn order, purely
- * from the noise map. Used by sessionDiff.ts to compute what a locale's whole roster would look
- * like from the seed alone, to diff a live roster against.
+ * Each company member's founder, by roster index (Company Families B6): the company's lowest index. Founders and
+ * freelancers are absent. One reading of generateCompanyMembership for spawnInitialRoster and the baselines alike.
+ */
+export function companyFounders(membership: readonly (readonly number[])[]): Map<number, number> {
+  const founders = new Map<number, number>();
+  for (const members of membership) {
+    const founder = Math.min(...members);
+    for (const member of members) if (member !== founder) founders.set(member, founder);
+  }
+  return founders;
+}
+
+/**
+ * Replays spawnInitialRoster's robots for a full `count`-robot roster in spawn order, purely from the noise map: an
+ * original through generateRobotAudioBaseline, a company member (generateCompanyMembership) as its founder's baseline
+ * with its own name and volume. Used by sessionDiff.ts to compute what a locale's whole roster would look like from the
+ * seed alone, to diff a live roster against.
  */
 export function generateRobotRosterBaseline(noiseMap: NoiseFunction2D, count: number): RobotAudioBaseline[] {
+  const founders = companyFounders(generateCompanyMembership(noiseMap, count));
   const baselines: RobotAudioBaseline[] = [];
   for (let i = 0; i < count; i++) {
-    baselines.push(generateRobotAudioBaseline(noiseMap, i, baselines));
+    const founder = founders.get(i);
+    baselines.push(founder === undefined ? generateRobotAudioBaseline(noiseMap, i, baselines) : memberBaseline(noiseMap, i, baselines[founder]));
   }
   return baselines;
 }
@@ -480,35 +482,49 @@ export interface CompanyRosterBaseline {
 }
 
 /**
- * Replays spawnInitialCompanies' exact company-generation loop (dataIds 'company.count'/
- * 'company.size'/'company.member', the same INITIAL_COMPANIES_MIN/MAX and COMPANY_SIZE_MIN/MAX
- * bounds) purely from the noise map and a robot-id pool, in spawn order — no store read/write.
- * Deliberately NOT a refactor of spawnInitialCompanies itself, same rationale as
- * generateRobotAudioBaseline above (touching already-covered, store-coupled code is riskier than
- * an additive, independently-verified parallel implementation).
+ * The seeded companies' members as roster indices (Company Families §1.11, Task 4): pure, from the noise map alone, so
+ * spawn can know the membership before any robot exists. The draws ('company.count', 'company.size',
+ * 'company.member', plain getSeededVal) are spawnInitialCompanies' own from before families, in the same order, over
+ * a pool of indices instead of live ids. B4's cap: a company takes at most the pool less FREELANCERS_MIN, and a company
+ * that cannot then reach COMPANY_SIZE_MIN is not made (B14), nor is any after it (the pool only shrinks). A world the
+ * cap does not touch keeps exactly the membership it had. Each company is listed in draw order, so its founder (the
+ * lowest index, B6) is `Math.min(...members)`, not `members[0]`.
  */
-export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotIds: readonly string[]): CompanyRosterBaseline[] {
-  let pool = [...robotIds];
+export function generateCompanyMembership(noiseMap: NoiseFunction2D, rosterSize: number = MAX_ROBOTS): number[][] {
+  let pool = Array.from({ length: rosterSize }, (_, i) => i);
   const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
     getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
   );
 
-  const companies: CompanyRosterBaseline[] = [];
-  for (let c = 0; c < companyCount && pool.length > 0; c++) {
-    const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(
+  const companies: number[][] = [];
+  for (let c = 0; c < companyCount; c++) {
+    const size = Math.min(pool.length - FREELANCERS_MIN, COMPANY_SIZE_MIN + Math.floor(
       getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
     ));
+    if (size < COMPANY_SIZE_MIN) break;
 
-    const memberIds: string[] = [];
+    const members: number[] = [];
     for (let i = 0; i < size; i++) {
       const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
-      memberIds.push(pool[idx]);
+      members.push(pool[idx]);
       pool = pool.filter((_, j) => j !== idx);
     }
-
-    companies.push({ id: generateCompanyId(noiseMap, c), name: generateCompanyName(noiseMap, c), robotIds: memberIds });
+    companies.push(members);
   }
   return companies;
+}
+
+/**
+ * The seed-derived companies for a roster of `robotIds` in spawn order: generateCompanyMembership's indices turned
+ * into ids, with each company's seeded id and name — pure, no store read/write. spawnInitialCompanies makes the same
+ * companies from the same membership, so a fresh world's companies always match this baseline.
+ */
+export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotIds: readonly string[]): CompanyRosterBaseline[] {
+  return generateCompanyMembership(noiseMap, robotIds.length).map((members, c) => ({
+    id: generateCompanyId(noiseMap, c),
+    name: generateCompanyName(noiseMap, c),
+    robotIds: members.map((i) => robotIds[i]),
+  }));
 }
 
 /**
@@ -522,8 +538,12 @@ export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotId
  *   immediately visible/audible), so existing single-call-site callers and
  *   tests are unaffected unless they opt into a different starting state.
  * @param options.batteryLevel Starting battery (0-100). Default: 100.
+ * @param options.founderIndex A company member's founder, by roster index (Company Families §1.11):
+ *   the robot already in the store at that index. The member takes its voice, composition and
+ *   performance settings, LFO links and five sends, and draws the rest as an original does at its
+ *   own spawn count; it carries `lineage: { founderIndex }`. Absent, or with no robot there: an original.
  */
-export function spawnRobot(localeId: string, options?: { docking?: DockingState; batteryLevel?: number }): void {
+export function spawnRobot(localeId: string, options?: { docking?: DockingState; batteryLevel?: number; founderIndex?: number }): void {
   const docking = options?.docking ?? DockingState.Active;
   const batteryLevel = options?.batteryLevel ?? 100;
 
@@ -538,17 +558,13 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   // Monotonically incrementing offset for this locale — ensures each robot is distinct
   const spawnCount = getAndIncrementSpawnCount(localeId);
 
-  // 30% seeded chance to copy an existing robot's audio personality instead of generating fresh.
-  // Copied robots inherit: audioAttributes, octaveRange, rhythmicDensity, rhythmicMotifLength,
-  // noteVariance, lfoLinks. Always fresh: id, name, position, melody (regenerated
-  // from the copied octaveRange/rhythmicDensity/rhythmicMotifLength/noteVariance).
-  const copyRoll = noiseMap
-    ? getUniformSeededVal(noiseMap, 'robot.copyChance', spawnCount, 0, 1)
-    : alea(`${localeId}:${spawnCount}:copy`)();
-  const shouldCopy = copyRoll < 0.30 && robots.length > 0;
+  // A company member's founder, already spawned (it has the lower index, B6). Members inherit what
+  // generateRobotRosterBaseline's memberBaseline replays; everything else is drawn as an original's.
+  const founderIndex = options?.founderIndex;
+  const founder = founderIndex === undefined ? undefined : robots[founderIndex];
 
-  // Always fresh, outside the shouldCopy branch -- never inherited from a copy source,
-  // same treatment as id/name/melody (see generateCompositionSeed's own doc comment).
+  // Always the robot's own, a member's included -- same treatment as id/name/melody (see
+  // generateCompositionSeed's own doc comment).
   const compositionSeed = noiseMap
     ? generateCompositionSeed(noiseMap, spawnCount)
     : alea(`${localeId}:${spawnCount}:compositionSeed`)();
@@ -566,20 +582,12 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
 
   // Roster-aware lane tally (docs/specs/LFO_BANK.md §1.3): every already-spawned robot's own
   // lane picks lean this robot's fresh draw (if any) toward the least-used lanes. Computed
-  // unconditionally, before the copy/fresh branch, since the copy branch's own fallback
+  // unconditionally, before the founder/original branch, since the founder branch's own fallback
   // (source.lfoLinks ?? generate) may still need it.
   const priorLaneCounts = tallyLanes(robots.flatMap((r) => Object.values(r.lfoLinks ?? {})));
 
-  if (shouldCopy) {
-    const srcIdx = Math.min(
-      robots.length - 1,
-      Math.floor(
-        noiseMap
-          ? getUniformSeededVal(noiseMap, 'robot.copySource', spawnCount, 0, robots.length)
-          : alea(`${localeId}:${spawnCount}:src`)() * robots.length
-      )
-    );
-    const source = robots[srcIdx];
+  if (founder) {
+    const source = founder;
     audioAttributes = source.audioAttributes as ReturnType<typeof generateAudioAttributes>;
     octaveRange = source.octaveRange;
     spawnRhythmicDensity = source.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY;
@@ -637,33 +645,21 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     }
   }
 
-  // Seeded melody (Roadmap Phase 31) -- the same buildSeededComposition formula
-  // regenerateMelody.ts uses for every later edit, so a post-spawn edit reverted to its
-  // original value reproduces this exact melody (no "first-edit ratchet"). Retires the old
-  // per-call noise-map draw ('melody.rand'/melodyCallIndex) in favor of compositionSeed.
-  const compositionRand = buildSeededComposition(compositionSeed, {
+  // Seeded melody (Roadmap Phase 31) -- the same recipe and world key regenerateMelody.ts uses for
+  // every later edit (composeRobotMelody: the rhythm and performance streams on the world and the
+  // rhythm shape, the composition stream on the robot's seed, Company Families §1.11), so a
+  // post-spawn edit reverted to its original value reproduces this exact melody, stamps included
+  // (no "first-edit ratchet").
+  const spawnMelody = composeRobotMelody({
+    compositionSeed,
+    octaveRange,
     rhythmicDensity: spawnRhythmicDensity,
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
-    octaveRange,
-  });
-
-  // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.2): the Rests / Accents post-pass, the same one
-  // regenerateMelody.ts applies, so an edit reverted to its spawn value reproduces this melody, stamps included.
-  const spawnMelody = applyPerformanceMarks(
-    generateMelodyForRobot({
-      octaveMin: octaveRange[0],
-      octaveMax: octaveRange[1],
-      rhythmicDensity: spawnRhythmicDensity,
-      rhythmicMotifLength: spawnRhythmicMotifLength,
-      noteVariance: spawnNoteVariance,
-      pitchRepeat: spawnPitchRepeat,
-      rand: compositionRand,
-    }),
-    { rests: spawnRests, accents: spawnAccents },
-    buildSeededPerformance(compositionSeed),
-  );
+    rests: spawnRests,
+    accents: spawnAccents,
+  }, melodyWorldKey(localeId));
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
 
@@ -704,16 +700,20 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     pan: 0,
     panAuto: true,
     // Robot Sends (docs/specs/ROBOT_SENDS.md §1.2) and Robot Effect Sends (docs/specs/ROBOT_EFFECT_SENDS.md §1.2): all five,
-    // always their own draw, even on the copy branch.
-    ...(noiseMap ? generateRobotSends(noiseMap, spawnCount) : generateRobotSendsFallback(localeId, spawnCount)),
+    // a member's from its founder (Company Families B5, so a section sits in one space), an original's its own draw.
+    ...(founder
+      ? recordByField(({ field }) => founder[field])
+      : noiseMap ? generateRobotSends(noiseMap, spawnCount) : generateRobotSendsFallback(localeId, spawnCount)),
     docking,
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',
     batteryLevel,
-    // Always its own draw, even on the copy branch (spec §1.3); the alea fallback maps into the same band.
+    // Always its own draw, a member's too (spec §1.3, B2); the alea fallback maps into the same band.
     batterySize: noiseMap
       ? generateBatterySize(noiseMap, spawnCount)
       : BATTERY_SIZE_MIN + alea(`${localeId}:${spawnCount}:batterySize`)() * (BATTERY_SIZE_MAX - BATTERY_SIZE_MIN),
+    // Members only (spec §1.11): the founder the deal derives it from. Kept when it is moved by hand (B15).
+    ...(founder && founderIndex !== undefined ? { lineage: { founderIndex } } : {}),
   };
 
   // Add to locale store
@@ -776,16 +776,21 @@ export function spawnInitialRoster(localeId: string): void {
       : alea(`${localeId}:activeCount`)() * (INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
   );
 
+  // The companies first (Company Families §1.11): each member spawns from its founder, which has the
+  // lower index and so is already in the store. spawnInitialCompanies makes the same companies after.
+  const founders = noiseMap ? companyFounders(generateCompanyMembership(noiseMap, MAX_ROBOTS)) : new Map<number, number>();
+
   for (let i = 0; i < MAX_ROBOTS; i++) {
+    const founderIndex = founders.get(i);
     if (i < activeCount) {
-      spawnRobot(localeId, { docking: DockingState.Active, batteryLevel: 100 });
+      spawnRobot(localeId, { docking: DockingState.Active, batteryLevel: 100, founderIndex });
     } else {
       const dockedBattery = Math.floor(
         noiseMap
           ? getSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)
           : alea(`${localeId}:dockedBattery:${i}`)() * 100
       );
-      spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery });
+      spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery, founderIndex });
     }
   }
 
@@ -816,55 +821,27 @@ function placeRosterAtStations(localeId: string): void {
 }
 
 /**
- * Create the seeded set of Companies for a fresh locale (Roadmap Phase 10) — 2-3 companies, each
- * claiming a seeded 3-4 robots from the roster this locale already has (spawnInitialRoster must
- * have run first). Membership is drawn from a shrinking pool so no robot is ever claimed by more
- * than one company; any robot left in the pool when generation finishes is Freelance
- * (`companyId` stays undefined) — a meaningful chunk of the roster, by design, not an edge case.
- * Distinct from `MAX_COMPANIES` (the CRUD ceiling on manual company creation afterward) — this
- * function never reads that constant.
+ * Create the seeded set of Companies for a fresh locale (Roadmap Phase 10) — 2-3 companies of a
+ * seeded 3-4 robots each, from the roster this locale already has (spawnInitialRoster must have run
+ * first). The membership is generateCompanyMembership's (Company Families Task 4), turned into this
+ * roster's ids, so it matches generateCompanyRosterBaseline by construction: no robot is claimed
+ * twice, and at least FREELANCERS_MIN robots stay Freelance (`companyId` undefined). Distinct from
+ * `MAX_COMPANIES` (the CRUD ceiling on manual company creation afterward) — this function never
+ * reads that constant.
  */
 export function spawnInitialCompanies(localeId: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
-  const noiseMap = locale ? getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y) : null;
-  let pool = (locale?.robots ?? []).map((r) => r.id);
+  if (!locale) return;
+  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
 
-  const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
-    noiseMap
-      ? getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
-      : alea(`${localeId}:companyCount`)() * (INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
-  );
-
-  for (let c = 0; c < companyCount && pool.length > 0; c++) {
-    const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(
-      noiseMap
-        ? getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
-        : alea(`${localeId}:companySize:${c}`)() * (COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
-    ));
-
-    const memberIds: string[] = [];
-    for (let i = 0; i < size; i++) {
-      const idx = Math.floor(
-        noiseMap
-          ? getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length)
-          : alea(`${localeId}:companyMember:${c}:${i}`)() * pool.length
-      );
-      memberIds.push(pool[idx]);
-      pool = pool.filter((_, j) => j !== idx);
-    }
-
+  generateCompanyRosterBaseline(noiseMap, locale.robots.map((r) => r.id)).forEach(({ id, name, robotIds }, c) => {
     // usedColors reflects every company generated earlier in this same loop — addCompany (below)
     // runs before the next iteration reaches this line, so useLocaleStore already has them.
     const usedColors = (useLocaleStore.getState().getLocaleById(localeId)?.companies ?? []).map((existing) => existing.color);
-    const company: Company = {
-      id: noiseMap ? generateCompanyId(noiseMap, c) : `company-${localeId}-${c}`,
-      name: noiseMap ? generateCompanyName(noiseMap, c) : `Company ${c}`,
-      color: noiseMap ? generateCompanyIdentityColor(noiseMap, c, usedColors) : ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[0]],
-      robotIds: memberIds,
-    };
+    const company: Company = { id, name, color: generateCompanyIdentityColor(noiseMap, c, usedColors), robotIds };
     useLocaleStore.getState().addCompany(localeId, company);
-    memberIds.forEach((id) => useLocaleStore.getState().updateRobot(localeId, id, { companyId: company.id }));
-  }
+    robotIds.forEach((robotId) => useLocaleStore.getState().updateRobot(localeId, robotId, { companyId: company.id }));
+  });
 }
 
 /**

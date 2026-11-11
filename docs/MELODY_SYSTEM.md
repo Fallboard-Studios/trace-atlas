@@ -58,6 +58,7 @@ interface GenerateMelodyForRobotOptions {
   subdivisions?: number;
   seed?: number;
   rand?: () => number;
+  rhythmRand?: () => number;        // the rhythm stream: onsets and durations (Company Families); defaults to rand
   noteVariance?: ToggleValue;       // value: 0-8 (was a plain 0-8 number, 0 meaning "off"); active derives from value > 0
   pitchRepeat?: number;             // 0-100, only meaningful when rhythmicMotifLength.active is true
 }
@@ -83,6 +84,11 @@ Density is a percentage of either the full measure or one motif cell, gated by t
 
 - **Motif Length inactive** (`rhythmicMotifLength.active === false`): `rhythmicDensity`% of the full 16-step measure is filled, with onsets scattered freely (no repeating structure). Onset count = `round(density/100 * subdivisions)`, floored to a minimum of 1.
 - **Motif Length active**: `rhythmicDensity`% of a `rhythmicMotifLength.value`-step cell (1–8 steps) is filled, and that identically-filled cell tiles across the measure, truncating at measure end. Per-cell onset count = `round(density/100 * value)`, floored to a minimum of 1; the total onset count passed to `buildMotifOnsets()` is `perCell * repeats` (`repeats = floor(subdivisions / value)`) so every repeat gets exactly the same fill — no remainder distributed unevenly across copies, unlike the pre-percentage model.
+
+Both counts come from one function, `rhythmShape(rhythmicDensity, rhythmicMotifLength, subdivisions = 16)`
+(`melodyGenerator.ts`), which returns `{ cellLength, onsets }`: the cell length and the onsets per cell with tiling on,
+`cellLength: null` and the onsets in the measure with it off (density clamped to 0–100 first). The rhythm stream's key
+is built from the same function, so the two cannot disagree (see [The rhythm stream](#the-rhythm-stream-company-families)).
 
 `buildMotifOnsets()`'s own contract is unchanged: it still takes a plain total onset count, a motif length, and `subdivisions`, and still falls back to picking unique positions directly (ignoring the motif length as a tiling boundary) if the motif length is too short relative to `subdivisions` to support repetition.
 
@@ -154,8 +160,10 @@ pitches within when tiling is off. `generateMelodyForRobot` never even calls
   repeat indices — **shared across every position** (drawn once, not re-rolled per position). A
   position's applicable repeats exclude the tail repeat (see above) when that position falls at or
   past `tailLength` — the tail cell has no onset there to lock.
-- Both permutations are drawn from the same seeded `rand` stream `generateMelodyForRobot` already
-  threads through onset/pitch generation — no new `Math.random`, no new seeding utility.
+- Both permutations are drawn from the seeded `rand` stream (the composition stream) that
+  `generateMelodyForRobot` threads through pitch generation — no new `Math.random`, no new seeding
+  utility. The onsets they lock draw from the rhythm stream (`rhythmRand`, below), so robots that
+  share a rhythm still lock in their own orders.
 - A locked `(position, repeat)` onset copies the base cell's already-chosen `noteIndex` **verbatim**
   — via a `basePositionNoteIndex` map populated as repeat-0 events are pushed — bypassing Note
   Variance entirely for that onset, and without mutating Note Variance's own `uniqueSet`/
@@ -178,7 +186,7 @@ docs/specs/PITCH_REPEAT.md §7.1), not a bug.
 **Seeding & lifecycle:** rolled per-robot at spawn (`robotFieldDerivation.ts`'s `deriveMelodyFields`, `getSeededVal(noiseMap,
 'robot.pitchRepeat', spawnIndex, band.min, band.max)` with the band from `getBand('robot.pitchRepeat')` — Classic's is
 0–100; a Melody aspect moves it, see "Integration at Spawn" below), same convention as Density/Motif Length/Note Variance;
-inherited verbatim on the `shouldCopy` path; rerolls with the rest of the melody on a coordinate
+inherited verbatim from the founder by a company member ([COMPANIES.md](COMPANIES.md), "A seeded company is a family"); rerolls with the rest of the melody on a coordinate
 change (nothing about Pitch Repeat is preserved across one, same as Density); manually edited via
 `applyPitchRepeat` (`robotOptionsActions.ts`), which mirrors `applyDensity` exactly — and, as of
 Roadmap Phase 31 (Deterministic Robot Melody Generation), takes the same fully-seeded path every
@@ -188,11 +196,12 @@ other manual edit does now too. See "Deterministic Generation (Phase 31)" below.
 
 Every robot carries a `compositionSeed: number` (`Robot.ts`), drawn once at spawn from the noise
 map (`spawnSystem.ts`'s `generateCompositionSeed`, own dataId `'robot.compositionSeed'`) — always
-fresh, never inherited on the `shouldCopy` path, the same treatment as `id`/`name`/`melody` itself.
+fresh, never inherited, a company member's included, the same treatment as `id`/`name`/`melody` itself.
 `melodyGenerator.ts`'s `buildSeededComposition(compositionSeed, attrs)` combines it with a robot's
 current `rhythmicDensity`/`rhythmicMotifLength`/`noteVariance`/`pitchRepeat`/`octaveRange` into a
 single `() => number`, passed as `generateMelodyForRobot`'s existing `opts.rand`. Both call sites
-use this same function with the same inputs:
+build the melody through one recipe, `composeRobotMelody(robot, worldKey)` (`regenerateMelody.ts`,
+since Company Families; it adds the rhythm and performance streams, below), with the same inputs:
 
 - **Spawn** (`spawnSystem.ts`) — the robot's *initial* attribute values.
 - **Every edit** (`regenerateMelody.ts`, fired by `applyDensity`/`applyMotifLength`/
@@ -200,13 +209,13 @@ use this same function with the same inputs:
   attribute values, post-edit.
 
 Because both call sites share one formula, a robot's melody is a pure function of `compositionSeed`
-plus those five fields: the same values always produce the same melody, whether that's the moment
+plus those five fields, its `rests` and `accents`, and its world: the same values always produce the same melody, whether that's the moment
 of spawn or the hundredth edit. Nudging a slider to a new value and back reproduces the exact
 melody the robot had before — there is no one-time "first edit" shift into a different melody
 space. This retired the previous mechanism entirely: spawn-time generation no longer draws from
 `getSeededVal(noiseMap, 'melody.rand', ...)` per note, and edit-time generation no longer falls back
-to unseeded `Math.random()`. `generateMelodyForRobot`'s own signature and internals are unchanged —
-only what its two callers pass as `rand` changed.
+to unseeded `Math.random()`. `generateMelodyForRobot`'s own signature and internals were unchanged by
+Phase 31 — only what its two callers pass as `rand` changed (Company Families later added `rhythmRand`).
 
 **Not covered by this determinism:** `robotSystems.ts`'s docking pitch-drift reroll
 (`reRollMelodyPitches`, via `DOCKED_PITCH_DRIFT_RATIO`) is a distinct, intentionally non-reproducible
@@ -229,6 +238,49 @@ The standalone Reset Melody control (`RESET_MELODY_SCHEMA`, `robotOptionsConfig.
 full determinism there's nothing left for a manual reroll to do that changing an attribute doesn't
 already do.
 
+## The rhythm stream (Company Families)
+
+Company Families (backlog 73, [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](specs/NO_SILENCE_AND_COMPANY_FAMILIES.md)
+§1.11, B16–B19) split the rhythm off the composition stream, so that robots can share a rhythm and keep their own
+notes. **A rhythm belongs to the world and the rhythm shape, not to the robot.**
+
+- **The shape** is `rhythmShape`'s `{ cellLength, onsets }` (Rhythm model, above): with tiling on, the motif length and
+  the onsets per cell; with it off, the onsets in the measure. Two densities that round to the same count are one
+  shape, and a motif length while tiling is off is not part of it.
+- **The stream.** `buildSeededRhythm(worldKey, { rhythmicDensity, rhythmicMotifLength })` (`melodyGenerator.ts`) is an
+  `alea` over `` `${worldKey}:${cell<n> | free}:${onsets}:rhythm` ``: the world and the shape, nothing of the robot's
+  own. The world key is the locale's coordinates, `` `${x}:${y}` ``, the input its noise map hashes, from
+  `melodyWorldKey(localeId)` (`regenerateMelody.ts`; the locale id stands in when the store has no such locale, as in a
+  unit test with a mocked store), so a world reloaded from a save or a link plays the rhythms it had.
+- **What draws from it.** `generateMelodyForRobot`'s `rhythmRand` takes the onsets (`buildMotifOnsets`) and every
+  event's duration (`pickDurationForGap`), in the positions they drew from `rand` before. The pitch-lock plan, the
+  octaves and the notes stay on `rand`, the composition stream on the robot's own `compositionSeed`. With no
+  `rhythmRand` the option defaults to `rand`, so a one-stream caller gets exactly the melody it got before the option
+  existed.
+- **The one recipe.** `composeRobotMelody(robot, worldKey)` (`regenerateMelody.ts`) builds a melody from a robot's
+  stored fields: the composition stream, the rhythm stream and the performance stream (next section).
+  `regenerateMelody` and `spawnRobot` (`spawnSystem.ts`, which imports it) both call it with `melodyWorldKey`, so spawn
+  and every later edit agree by construction. It lives in `regenerateMelody.ts` rather than beside the generator so its
+  call to `generateMelodyForRobot` crosses a module, where test spies on that export still see it.
+
+What follows from it:
+
+- **In one world, one shape is one rhythm, whoever plays it.** A company member inherits its founder's Density and
+  Motif Length, so it plays the founder's onsets and note lengths exactly, with its own notes
+  ([COMPANIES.md](COMPANIES.md), "A seeded company is a family"). Two robots that draw the same shape play together
+  too: before families, 66 % of robots shared a rhythm with another, in all 121 grid worlds, because most rhythms are
+  thin (median density 17 %, 63 % of robots one onset per cell; [docs/tasks/COMPANY_FAMILIES.md](tasks/COMPANY_FAMILIES.md),
+  Results). Crawford accepted it. Setting a robot's Density and Motif Length to make another's shape makes it join
+  that rhythm; another world plays a different rhythm for the same shape.
+- **Only a rhythm setting moves the rhythm** (B7). A Note Variance, Pitch Repeat or Octave Range edit leaves the onsets
+  and lengths where they were and re-rolls the notes. A Density edit inside one shape keeps the rhythm too, though
+  the notes re-roll, since the composition stream is keyed on the raw density.
+- **No onset is moved per robot.** A first build moved one or two onsets for a quarter of members (`moveOnsets`); it
+  was cut (B18) before it reached `main`.
+
+Every world's melodies changed when the rhythm moved to its own stream, and again when it moved onto the world key;
+pre-v1, by design.
+
 ## Performance Marks: Rests and Accents
 
 Robot Performance (roadmap 50.5, [docs/specs/ROBOT_PERFORMANCE.md](specs/ROBOT_PERFORMANCE.md) §1.2) adds a **post-pass** over
@@ -237,9 +289,13 @@ optional `rest` and an optional `mark`, and nothing else. The notes, their steps
 `generateMelodyForRobot` produced, so moving the Rests or Accents slider never changes *which* notes play or *when* — only how
 long they sound and how hard they are struck.
 
-**Two streams.** The notes come from the composition stream, `buildSeededComposition(compositionSeed, { … })`; the stamps come from
-their own stream, `buildSeededPerformance(compositionSeed)` — an `alea` over `` `${compositionSeed}:performance` ``, keyed on the
-seed alone. Because the key carries neither slider value, dragging either slider re-stamps the same melody from the same stream.
+**Its own stream.** The notes come from the composition stream and the onsets from the rhythm stream; the stamps come from
+their own, `buildSeededPerformance(worldKey, { rhythmicDensity, rhythmicMotifLength })` — an `alea` over the rhythm stream's key
+with `:performance` in place of `:rhythm`, so keyed on the world and the rhythm shape (Company Families B19; it was keyed on
+`compositionSeed` before). Because the key carries neither slider value, dragging either slider re-stamps the same melody from the
+same stream. Robots that share a rhythm and the same Rests and Accents values rest and accent together (a company's members,
+which inherit both); with different values, the lighter setting rests or marks a subset of the events the heavier one does. A rhythm edit
+reshuffles the stamps along with the onsets.
 
 **Four draws per event, always.** For every event the post-pass draws `restRoll`, `restDepthRoll`, `markRoll` and `markPickRoll`
 in that order, whether or not it uses them. That is what keeps the two concerns apart: raising Rests changes which events are rested
@@ -285,28 +341,31 @@ imply. A restored session regenerates and therefore re-stamps (SESSION_STORAGE.m
 ## Integration at Spawn
 
 ```typescript
-import { generateMelodyForRobot } from '../engine/melodyGenerator';
-import { AudioEngine } from '../engine/AudioEngine';
+import { composeRobotMelody, melodyWorldKey } from '../engine/regenerateMelody';
 
-const melody = generateMelodyForRobot({
-  octaveMin: 2,
-  octaveMax: 5,
-  rhythmicDensity: 60,                              // 60% fill rate
-  rhythmicMotifLength: { active: true, value: 8 },  // tile an 8-step cell across the measure
-  noteVariance: { active: true, value: 2 },         // weighted slice of 2 notes
-});
-
-// Robot Performance: stamp rests and marks from the seed's own performance stream (the notes do not move).
-const stamped = applyPerformanceMarks(melody, { rests: 20, accents: 40 }, buildSeededPerformance(robot.compositionSeed));
-
-AudioEngine.registerRobotMelody(robot.id, stamped);
+// What spawnRobot does (and regenerateMelody after every edit): the composition stream on the robot's
+// own seed, the rhythm and performance streams on the world and the rhythm shape, stamps applied.
+const melody = composeRobotMelody(
+  {
+    compositionSeed,
+    octaveRange: [2, 5],
+    rhythmicDensity: 60,                              // 60% fill rate
+    rhythmicMotifLength: { active: true, value: 8 },  // tile an 8-step cell across the measure
+    noteVariance: { active: true, value: 2 },         // weighted slice of 2 notes
+    pitchRepeat: 0,
+    rests: 20,
+    accents: 40,
+  },
+  melodyWorldKey(localeId),                           // `${x}:${y}`
+);
 ```
 
-The generated melody is later consumed by AudioEngine via a step registry keyed by `startStep`.
+`spawnRobot` stores the melody on the robot and registers it with AudioEngine (`registerRobotMelody`), which consumes it
+via a step registry keyed by `startStep`.
 
-**Where the four Melody fields come from (roadmap 57, the band table; `docs/specs/OFF_SCREEN.md` assumptions 15, 21, 22).** `robotFieldDerivation.ts`'s `deriveMelodyFields(noiseMap, spawnIndex, bands, attackSeconds)` is the one derivation of `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance` and `pitchRepeat` — at spawn, in the regenerated baseline a save is diffed against, and in the aspect deal. Each is a `getSeededVal` draw from the robot's own spawn index at its dataId (`robot.rhythmicDensity`, `robot.rhythmicMotifLength.active`, `robot.noteVariance.active`, `robot.pitchRepeat`), into a **band** read at the point of the draw: Density and Pitch Repeat from a range band, the two toggle fields through `seedToggleValue(raw, band)` from a `ToggleBand` (`{ offShare, min, max }`: a draw under `offShare` lands the field off, 0; the rest maps uniformly onto the whole numbers `min..max`). The bands are the world's theme's — `getBand(key)` from `src/data/bands/loadingContext.ts`, Classic's `{ 0–100 }`, `{ 0.15, 1–8 }`, `{ 0.15, 1–8 }` and `{ 0–100 }` (`classic.ts`) unless the theme's column moves Density — or, for a robot the deal gave a **Melody aspect** (Hypnotic, Mechanical, Wandering; `src/data/bands/aspects.ts`), that aspect's column over `resolveBands(theme, { melody: aspect })`: the same draws re-derived into the aspect's four bands, so a dealt robot is exactly what it would have been had it spawned under the aspect, and `Robot.loadedUnder.melody` records which. The deal itself — which robots, by company — is in [COMPANIES.md](COMPANIES.md)'s "The deal"; the bands per theme and aspect are tabled in [reference/ROBOT_DATA_GRID.md](reference/ROBOT_DATA_GRID.md). `applyAspectDeal` regenerates each dealt robot's melody from its new fields (`regenerateMelody`, re-registered with the engine) in `initializeLocale`, right after `spawnInitialCompanies`. A hand edit still goes through `applyDensity` and its siblings and is saved as an override, exactly as before; the aspect only moves where a fresh robot starts.
+**Where the four Melody fields come from (roadmap 57, the band table; `docs/specs/OFF_SCREEN.md` assumptions 15, 21, 22).** `robotFieldDerivation.ts`'s `deriveMelodyFields(noiseMap, spawnIndex, bands, attackSeconds)` is the one derivation of `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance` and `pitchRepeat` — at spawn, in the regenerated baseline a save is diffed against, and in the aspect deal. Each is an even draw (`getUniformSeededVal`) from the robot's own spawn index at its dataId (`robot.rhythmicDensity`, `robot.rhythmicMotifLength.active`, `robot.noteVariance.active`, `robot.pitchRepeat`), into a **band** read at the point of the draw: Density and Pitch Repeat from a range band, the two toggle fields through `seedToggleValue(raw, band)` from a `ToggleBand` (`{ offShare, min, max }`: a draw under `offShare` lands the field off, 0; the rest maps uniformly onto the whole numbers `min..max`). The bands are the world's theme's — `getBand(key)` from `src/data/bands/loadingContext.ts`, Classic's `{ 0–100 }`, `{ 0.15, 1–8 }`, `{ 0.15, 1–8 }` and `{ 0–100 }` (`classic.ts`) unless the theme's column moves Density — or, for a robot the deal gave a **Melody aspect** (Hypnotic, Mechanical, Wandering; `src/data/bands/aspects.ts`), that aspect's column over `resolveBands(theme, { melody: aspect })`: the same draws re-derived into the aspect's four bands, so a dealt robot is exactly what it would have been had it spawned under the aspect, and `Robot.loadedUnder.melody` records which. The deal itself — which robots, by company — is in [COMPANIES.md](COMPANIES.md)'s "The deal"; the bands per theme and aspect are tabled in [reference/ROBOT_DATA_GRID.md](reference/ROBOT_DATA_GRID.md). `applyAspectDeal` regenerates each dealt robot's melody from its new fields (`regenerateMelody`, re-registered with the engine) in `initializeLocale`, right after `spawnInitialCompanies`. A hand edit still goes through `applyDensity` and its siblings and is saved as an override, exactly as before; the aspect only moves where a fresh robot starts. A company member draws none of the four: it inherits its founder's at spawn, and the deal derives them at its founder's index ([COMPANIES.md](COMPANIES.md), "A seeded company is a family").
 
-**The attack rail (2026-11-05).** A slow attack on dense notes never climbs: Tone restarts each note's attack from the envelope's current level, so a 1.14 s attack on back-to-back sixteenths reaches about a tenth of its peak per note and plays as a quiet, dull click (Solar Nomad, `?seed=bbng7yv2&x=21&y=-188`, density 88). So the density draw reads the robot's attack: `deriveMelodyFields(noiseMap, spawnIndex, bands, attackSeconds)` draws Density over `audibleDensityBand(band, attack, bpm)`, which caps the band where the mean gap between notes (100 ÷ density sixteenths, density being a fill rate) carries a linear attack to `ATTACK_REACH_SHARE` (0.5, `src/constants/index.ts`) of its peak. The gap is measured at the top of the theme's `bpm` band, the fastest tempo the world can seed, so the rule holds at any seeded tempo without tying a robot to the Attenuation Style that seeds the tempo (robots seed from coordinates alone). Under Classic's 40–100 BPM the cap is 30 ÷ attack: attacks to 0.3 s leave 0–100 whole, Solar Nomad's 1.14 s seeds 0–26. A cap under the band's bottom collapses the band onto the cap, so the rail wins over a dense theme or aspect. The draw stays even inside the narrowed band, at the same dataId. Envelope is drawn first at spawn, so nothing moves in the draw order; the deal derives Envelope before Melody for the same reason, and a robot dealt an Envelope option without a Melody one re-draws its density alone (`deriveRhythmicDensity`) under the theme's band against the dealt attack, its other Melody fields standing; `applyAspectDeal` regenerates its melody only when that moves the density. A copied robot takes its source's attack and density together. It is a loading rule only: a hand edit of Density or Attack goes anywhere, and a tempo edit re-checks nothing. Measured over 12,000 Classic robots, it moves the share at density 25 or under from 26 % to 66 % and at 75 or over from 25 % to 7 % (Crawford: "it sounds fine now").
+**The attack rail (2026-11-05).** A slow attack on dense notes never climbs: Tone restarts each note's attack from the envelope's current level, so a 1.14 s attack on back-to-back sixteenths reaches about a tenth of its peak per note and plays as a quiet, dull click (Solar Nomad, `?seed=bbng7yv2&x=21&y=-188`, density 88). So the density draw reads the robot's attack: `deriveMelodyFields(noiseMap, spawnIndex, bands, attackSeconds)` draws Density over `audibleDensityBand(band, attack, bpm)`, which caps the band where the mean gap between notes (100 ÷ density sixteenths, density being a fill rate) carries a linear attack to `ATTACK_REACH_SHARE` (0.5, `src/constants/index.ts`) of its peak. The gap is measured at the top of the theme's `bpm` band, the fastest tempo the world can seed, so the rule holds at any seeded tempo without tying a robot to the Attenuation Style that seeds the tempo (robots seed from coordinates alone). Under Classic's 40–100 BPM the cap is 30 ÷ attack: attacks to 0.3 s leave 0–100 whole, Solar Nomad's 1.14 s seeds 0–26. A cap under the band's bottom collapses the band onto the cap, so the rail wins over a dense theme or aspect. The draw stays even inside the narrowed band, at the same dataId. Envelope is drawn first at spawn, so nothing moves in the draw order; the deal derives Envelope before Melody for the same reason, and a robot dealt an Envelope option without a Melody one re-draws its density alone (`deriveRhythmicDensity`) under the theme's band against the dealt attack, its other Melody fields standing; `applyAspectDeal` regenerates its melody only when that moves the density. A company member takes its founder's attack and density together. It is a loading rule only: a hand edit of Density or Attack goes anywhere, and a tempo edit re-checks nothing. Measured over 12,000 Classic robots, it moves the share at density 25 or under from 26 % to 66 % and at 75 or over from 25 % to 7 % (Crawford: "it sounds fine now").
 
 ## Playback Integration
 
@@ -334,6 +393,9 @@ The current tests cover:
 - `generateMelodyForRobot`'s Pitch Repeat wiring: gating when Motif Length is off, no `pitchLocked` events at `pitchRepeat: 0`, full-lock verbatim repetition at `pitchRepeat: 100`, and Note Variance's uniqueness cap staying unaffected by locked copies
 - `reRollMelodyPitches` excluding `pitchLocked` events from its candidate pool, including the fully-locked (zero changes) and no-locks-present (regression) cases
 - `buildSeededComposition`: determinism (same `compositionSeed` + attrs → identical sequence), independent sensitivity to each of its six inputs, drop-in validity as `generateMelodyForRobot`'s `opts.rand`, and a `Math.random` spy confirming zero incidental randomness (`melodyGenerator.test.ts`)
-- Spawn-time/edit-time unification: `spawnSystem.test.ts` proves a spawned melody exactly matches `buildSeededComposition`'s own output and that a same-coordinates replay reproduces it; a capstone test there also proves `regenerateMelody`, called on a freshly spawned robot with zero attribute changes, reproduces the exact spawn melody (no first-edit ratchet) — the core acceptance criterion for Phase 31
+- `rhythmShape`: densities that round to one count are one shape, an inert motif length is not part of it, and it is the count the generator plays; `buildSeededRhythm` / `buildSeededPerformance`: the same world and shape give the same stream (another density of the same shape included), a world or shape change a different one, and note variance, pitch repeat and octave never enter it; `rhythmRand`: one rhythm stream with two composition streams gives the same onsets and lengths and different notes, and two literal parity pins hold the one-stream melody (`melodyGenerator.test.ts`)
+- `regenerateMelody.test.ts`, "the rhythm stream": only a rhythm setting moves the rhythm (B7), and in one world one shape is one rhythm (robots with different seeds play the same onsets, lengths and stamps, with their own notes)
+- Spawn-time/edit-time unification: `spawnSystem.test.ts` proves a spawned melody exactly matches a rebuild from its stored fields (`buildSeededComposition` on its seed, `buildSeededRhythm` and `buildSeededPerformance` on its world's coordinates) and that a same-coordinates replay reproduces it; a capstone test there also proves `regenerateMelody`, called on a freshly spawned robot with zero attribute changes, reproduces the exact spawn melody (no first-edit ratchet) — the core acceptance criterion for Phase 31
 - `regenerateMelody.test.ts`: determinism across repeated calls, the "edit then revert" case, and two robots with identical attributes but different `compositionSeed` producing different melodies
+- `spawnSystem.families.test.ts`: over the 121 grid worlds, every company member plays its founder's onsets, lengths and stamps exactly, and most members' notes differ from their founder's
 - `sessionDiff.test.ts`: a save → edit → wipe → load round trip reproduces a robot's exact melody, not just its attribute values

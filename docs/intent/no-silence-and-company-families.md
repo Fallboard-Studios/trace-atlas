@@ -2,7 +2,7 @@
 
 Confirmed via `idea-refine` on 2026-11-10 (four framing questions, three convergence questions, then two calls of
 Crawford's own: battery variance, and its continuous form), ahead of a `spec-driven-development` pass. Backlog
-[60](../todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of plan.md's
+[60](../todo/archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of plan.md's
 Stage 3, widened by Crawford to the robots that inherit at spawn. Two stages, each with its own spec; Stage 2's is
 written after Stage 1 has been heard.
 
@@ -75,7 +75,9 @@ The fleet is never silent and stops repeating itself, and then a seeded company 
 - **A member inherits** what today's copy takes, the voice included (Crawford: same voice, over a register spread and
   over an own voice), and four things more: the founder's onset pattern, its battery size, its company and its start.
 - **Rhythm** (Crawford's own mix): 75% of members play the founder's onsets exactly, 25% play them with one or two
-  onsets moved. The notes are always the member's own.
+  onsets moved. The notes are always the member's own. *Revised 2026-11-11 (spec §7.6, B16–B19): the rhythm follows
+  the settings in a world, so every member plays the founder's onsets exactly and any robot set to them joins; the
+  25 % with moved onsets is cut.*
 - **They start roughly together** (Crawford's words) and, sharing a battery size, keep one cycle length. Companies
   and freelancers drift against each other.
 - **Companies fray slowly, and that is accepted.** Each time the last-robot rule holds a member, that member moves

@@ -220,6 +220,72 @@ own "needs its own scoping pass" caveat raised (what happens to the *reused* ent
 previously-current locale) remains genuinely open but is now a documented, intentional
 limitation rather than silent corruption — see the fix's own doc comments.
 
+## 17. Audit: LFO Drift / Audio Swells / Ping Variance — Replayability Findings
+
+**Closed** 2026-11-11 (read, nothing to do; Crawford's call, at the plan.md Stage 3 review after backlogs 60 and 73
+archived). An informational audit with nothing to build: it records which audio state a measure replay can rebuild
+(swell triggers and targets) and which it cannot (LFO phase, a swell's in-flight ramp), for whoever next wants a
+reloaded world to sound identical. Not re-read against the code at closing; some details have moved since (every
+audio draw is even, 2026-11-02). The original request follows.
+
+Task 8 of `docs/tasks/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md` (roadmap Phase 20.5),
+2026-09-28. Non-blocking, informational — nothing here was fixed as part of this audit, and
+nothing in it blocked Phase 20.5's own deliverable (battery/docking/job/melody-drift
+replay), which is independently proven regardless of these findings. Recorded so a future
+phase wanting to replay/reproduce *audio* state (not just robot lifecycle) knows exactly
+what it's dealing with, rather than assuming "everything here is already measure-quantized"
+and discovering otherwise mid-implementation.
+
+**`src/systems/audioSwells.ts` — trigger/target logic is safe; ramp interpolation isn't
+(and doesn't need to be, a precedent already exists).** Its scheduling is
+`scheduleRepeat('16n', () => tickAudioSwells(localeId, getCurrentMeasurePrecise()))`
+(line 406) — Transport-driven, measure-based, never a raw `setTimeout`/`setInterval`. Every
+trigger-probability and target-selection roll (`getSeededVal(noiseMap, 'audioSwell.*', measure,
+...)`, lines 530-669) is seeded by `(noiseMap, measure)` — zero `Math.random`, zero
+`Date.now()` anywhere in the file (confirmed by direct search, not assumed). *Deciding
+whether/which/when a swell starts* is therefore fully deterministic and replayable from
+elapsed measures alone. What is **not** replayable: a swell's own in-flight `rampTo`
+interpolation is real Web Audio time, not measure time — the literal value at some
+arbitrary mid-ramp moment depends on real elapsed seconds since the ramp started, which
+`stepRobotLifecycle`-style measure replay has no way to reconstruct. This is not a new
+problem or a gap to fix here: `sessionDiff.ts`'s `extractSwellBaseValueIfActive`/
+`extractGlobalSwellBaseValueIfActive` (added for Session Storage, see
+`docs/todo/backlog.md`'s own history and `docs/SESSION_STORAGE.md`) already solve exactly
+this by capturing a swell's normalized *target* value instead of its mid-ramp interpolated
+one at save time. Any future phase wanting swell state to survive a World-Clock-style
+replay should reuse that same normalize-to-target-value technique, not invent a new one.
+
+**`src/engine/lfoEngine.ts` — NOT replayable from elapsed measures, by design, and this is
+correct as shipped.** `Tone.LFO` nodes (line 199, `new Tone.LFO(settings.rate)`) are real,
+continuous audio-rate oscillators driven by the Web Audio clock itself — their phase at any
+moment is a function of real elapsed wall-clock time since the node started, not of
+elapsed measures. The manual phase-polling fallback (`startPhaseFallback`, lines 283-298)
+makes this explicit in code: `const startTime = Tone.now()`, then every poll computes
+`const elapsed = Tone.now() - startTime; const angle = 2 * Math.PI * settings.rate * elapsed`
+— a textbook real-time oscillator, scheduled via `scheduleRepeat('16n', ...)` (measure-cadenced
+*polling*, but the *math inside* is real-seconds-based, not measure-based). This is
+deliberate, confirmed-intended behavior — the file's own doc comment states LFO `rate`
+must stay "a free-running Hz value," explicitly *not* tempo/transport-coupled (`sync()` is
+deliberately never called, for this exact reason). **Consequence for any future World Clock
+consumer:** reproducing "the exact LFO phase at this moment" needs real elapsed wall-clock
+time tracked as its own primitive — `createdAtMeasure`/elapsed-measures alone cannot derive
+it, since measures and real seconds are only loosely related via BPM and an LFO's own
+`startTime` is a real timestamp, not a measure count. Not a bug — a different kind of state
+than robot lifecycle, requiring a different (not yet built) mechanism if it's ever needed.
+
+**"Ping variance automation" is not a separate timing/randomness system — nothing to audit
+independently.** It's a single scalar (`audioStore.pingVarianceAutomation`, read at
+`audioSwells.ts:467`) that feeds into audio swells' own already-covered, already-safe
+trigger-probability math as one more input value. No independent scheduling mechanism, no
+independent randomness source, no separate file.
+
+**Summary for a future reader:** robot lifecycle (this phase) and audio-swell
+trigger/targeting are both genuinely measure-replayable today. LFO phase is not, and
+correctly so — it would need a real-elapsed-time primitive this phase deliberately doesn't
+build (out of scope, see `docs/intent/world-clock-deterministic-lifecycle-replay.md`). Swell
+ramp interpolation is "not replayable" in the same sense LFO phase is, but has an existing,
+reusable fix (normalize to target value) already proven by Session Storage.
+
 ## 19. Short World Link: Bring Back `?seed=`, `?x=` and `?y=`
 
 **Closed** 2026-10-25 (built on `feature/short-world-link`, roadmap [56](../roadmap.md#56-short-world-link); PR pending). The world link replaced `?session=`: `?seed=<exact name>&x=<int>&y=<int>`, plus one `s=1.<blob>` param of raw-deflated compact JSON (`fflate`) only when the world differs from its seed; the `seedUtils.ts` override primitives were deleted, not revived. The original request follows.
@@ -1297,6 +1363,43 @@ against those draws realise other shares than they say. Crawford's decisions: ev
 visual draws wait (46), Classic is switched first and then listened to, and the shape is even everywhere. Spec:
 [docs/specs/EVEN_SEEDED_DRAWS.md](../../specs/EVEN_SEEDED_DRAWS.md), on `fix/even-seeded-draws`.
 
+## 60. Audio: Cover the Silence When Every Active Robot Is Charging
+
+**Closed** 2026-11-11 (merged in PR #623, `feature/no-silence-for-now`; Part A of
+[the spec](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), §8 "As built (Part A)"). Crawford passed Gate A (the band,
+0.67–1.5) and Gate B by ear ("ok passes, sounds good") on 2026-11-11. The last Active robot stays up until another lands,
+and every robot draws one seeded battery size that divides its drain and its charge: no silent measure in any of 121
+worlds, against 3.39 % of measures in 79 worlds before; a robot stays up past critical in 0.20 % of measures
+([ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md)). Nothing of it is open: A3 stayed at its default, the fade on station
+arcs (A4) became backlog [74](../backlog.md#74-audio-fade-a-robot-in-and-out-on-its-station-arcs), and A5 was settled.
+Stage 2 (company families) became backlog [73](#73-robots-a-seeded-company-is-a-family). The elegant answer to silence
+is still backlog [7](../backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter), post-launch. The
+original request follows.
+
+**Status (2026-11-11): Stage 1 built on `feature/no-silence-for-now`, unpushed.** Interviewed and specified as Part A of
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), planned in
+[docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md). The last Active robot
+stays up until another lands, and every robot draws one seeded battery size (Gate A: 0.67–1.5) that divides its drain
+and its charge: no silent measure in any of 121 worlds, against 3.39 % of measures in 79 worlds before; a robot
+stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md)). Gate B passed by Crawford's ear the
+same day; ready for his PR, and it archives after the merge. The fade-on-arcs note that sat here (spec open question
+A4) is now backlog [74](../backlog.md#74-audio-fade-a-robot-in-and-out-on-its-station-arcs). Stage 2 (company families) is backlog
+[73](#73-robots-a-seeded-company-is-a-family) (built and archived).
+
+Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
+the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
+[7](../backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (chord progressions) post-launch. The shape he has
+in mind: always keep at least one robot sounding, perhaps "min 1 stays, max 3" by audio quality tier.
+
+**Where it lands.** The docking lifecycle (`src/systems/robotSystems.ts`, [ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md):
+the fixed 12-robot roster, flat drain and recharge on the measure tick) decides who docks when, and the Audio Load Budget
+(`src/systems/audioBudgetSystem.ts`, [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md) "Audio Load Budget") already caps sounding
+robots per tier, so a floor beside the cap is the natural pair. Needs a short interview before a spec: a floor means
+either a robot stays up past empty (which bends the battery rule) or the drains are staggered so the fleet never empties
+together, and whichever it is must keep the lifecycle a pure function of seed and measures (roadmap 20.5's replay).
+
+Plan.md Stage 3.
+
 ## 64. Off Screen: Current Stays the World You Came From, and a New Transmission Row with Scan
 
 **Closed** 2026-11-02 (built on `docs/archive-roadmap-57`, `8fb0400a`..`5127d72b`; Crawford passed the Look at Checkpoint 2, "good to go"). Current is a runtime snapshot of the world you powered off on: picking it before the change that left it lands cancels that change, and after, restores the snapshot under the wash; Keep saves it (`sessionStore.keepWorld`, `isPayloadDirty`). A New Transmission row above it holds a draw made on mount, with Scan in its row; Roll and `rollWorld` are gone. A theme or aspect click keeps the selected row, which names the live loading in place of its own; every row names its world; the list has "Saved Transmissions" and "Preset Transmissions" titles. The shipped screen is described in [UI_SHELL.md](../../UI_SHELL.md#the-off-screen). The unsaved line's reword is backlog [62](../backlog.md#62-misc-review-items-a-bucket). The original request follows.
@@ -1530,3 +1633,27 @@ effect is torn down a second after its disconnect and rebuilt at its next light.
 and the mean 0.050 / 0.032 (W1 / W2); at Light none of the ten exists; every crossing ≤ ×1.107 with no gap, and
 Crawford heard no click (record "Backlog 72", §1–§4). Next: Crawford's PR; archive after the merge. The ablation's code
 lives only in the backlog 67 session's scratchpad, not in the repo; record §9 describes it.
+
+## 73. Robots: A Seeded Company Is a Family
+
+**Closed** 2026-11-11 (`feature/company-families`; T1–T6 `0594fd49`..`6a7ba905`, the docs `842d824d`). Crawford passed
+the rhythm-stream and built checkpoints and Gate C by ear on 2026-11-11 ("ok, i'm happy"), and asked for the archive
+before the PR. Every seeded company is a family: its lowest-index robot founds it, and its members inherit the founder's
+voice, composition and performance settings, LFO links and five sends, and keep their own notes, volume, battery size
+and start. A rhythm belongs to the world and the rhythm shape (B16–B19), so members play the founder's onsets, lengths,
+rests and accents exactly, and any robot set to the same Density and Motif Length joins them; the moved onsets this item
+first described were cut (B18). At least two robots stay freelancers (the cap touches 34 of 121 grid worlds); the 30 %
+copy roll is retired; the deal derives a member from its founder ([spec](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md)
+§9, "As built (Part B)"; [COMPANIES.md](../../COMPANIES.md), "A seeded company is a family"). The original request
+follows.
+
+Stage 2 of the no-silence intent ([docs/intent/no-silence-and-company-families.md](../../intent/no-silence-and-company-families.md)),
+given its own number by Crawford on 2026-11-11 (spec open question B11), so backlog 60 closes with Stage 1. Every
+seeded company becomes a founder (its lowest roster index) and members that inherit the founder's voice, onset pattern
+and five sends, and keep their own notes, volume, battery size and start; a quarter of members move one or two onsets
+in the measure; at least two robots stay freelancers; today's 30 % copy roll goes. Specified in
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) Part B (§1.9–§1.11, from
+Crawford's answers to B1–B11), planned in [docs/tasks/COMPANY_FAMILIES.md](../../tasks/COMPANY_FAMILIES.md) (nine tasks,
+Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every world's melodies, so it lands before
+backlog [45](../backlog.md#45-off-screen-crawfords-three-preset-links). B12–B15 answered 2026-11-11 (every default stands); built on
+its own branch from `main` after 60 merges. Plan.md Stage 3.

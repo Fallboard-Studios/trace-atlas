@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ========================================
 // MOCKS
@@ -28,7 +28,9 @@ import type { Robot } from '../types/Robot';
 // Hoisted mock spy references — resolved after imports so vi.mocked() works.
 const updateRobotMock = vi.fn();
 // The robot's own locale, read back after the write (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5); none by default.
-const getLocaleByIdMock = vi.fn((_localeId: string): { robots: Robot[] } | undefined => undefined);
+const getLocaleByIdMock = vi.fn(
+  (_localeId: string): { robots: Robot[]; coordinates?: { x: number; y: number } } | undefined => undefined,
+);
 
 // ========================================
 // HELPERS
@@ -313,7 +315,7 @@ describe('regenerateMelody — Rests and Accents post-pass', () => {
   });
 
   it('with rests and accents absent the melody is today melody: no stamps, same events as the seeded generator', async () => {
-    const { generateMelodyForRobot, buildSeededComposition } = await import('./melodyGenerator');
+    const { generateMelodyForRobot, buildSeededComposition, buildSeededRhythm } = await import('./melodyGenerator');
     const robot = dense();
     const expected = generateMelodyForRobot({
       octaveMin: 3,
@@ -328,6 +330,12 @@ describe('regenerateMelody — Rests and Accents post-pass', () => {
         noteVariance: { active: false, value: 0 },
         pitchRepeat: 0,
         octaveRange: robot.octaveRange,
+      }),
+      // Company Families Task 3a: the rhythm stream is the world's; with no locale in the (mocked) store, the
+      // locale id stands in for the world key.
+      rhythmRand: buildSeededRhythm('locale-1', {
+        rhythmicDensity: 100,
+        rhythmicMotifLength: { active: false, value: 0 },
       }),
     });
     const melody = melodyFor(robot);
@@ -367,10 +375,15 @@ describe('regenerateMelody — Rests and Accents post-pass', () => {
     expect(withoutIds(melodyFor(dense({ rests: 60, accents: 60 })))).toEqual(original);
   });
 
-  it('two robots with different compositionSeeds are stamped differently', () => {
-    const a = melodyFor(dense({ compositionSeed: 0.11, rests: 60, accents: 60 }));
-    const b = melodyFor(dense({ compositionSeed: 0.89, rests: 60, accents: 60 }));
-    expect(withoutIds(a)).not.toEqual(withoutIds(b));
+  // Company Families Task 3a (B19): the stamps are the world's and the rhythm's, not the seed's, so this compares two
+  // worlds (two locale ids, which stand in for the world key while the mocked store has no locale).
+  it('the same robot in two worlds is stamped differently', () => {
+    const robot = dense({ rests: 60, accents: 60 });
+    updateRobotMock.mockClear();
+    regenerateMelody(robot, 'locale-2');
+    const elsewhere: StoredEvent[] = updateRobotMock.mock.calls[0][2].melody;
+    const stamps = (m: StoredEvent[]) => m.map((e) => [e.rest, e.mark]);
+    expect(stamps(elsewhere)).not.toEqual(stamps(melodyFor(robot)));
   });
 
   it('never calls Math.random with rests and accents set', () => {
@@ -391,5 +404,151 @@ describe('regenerateMelody — Rests and Accents post-pass', () => {
     const base = dense({ rests: 0, accents: 0 });
     const melody = melodyFor({ ...base, rests: 100 });
     expect(melody.every((e) => e.rest !== undefined)).toBe(true);
+  });
+});
+
+// ========================================
+// TEST SUITE: regenerateMelody — the rhythm stream (Company Families, Task 3, revised by Task 3a)
+// docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11
+// ========================================
+
+describe('regenerateMelody — the rhythm stream', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  type StoredEvent = { startStep: number; length: string; noteIndex: number; octave: number; rest?: number; mark?: string };
+
+  function melodyFor(robot: Robot): StoredEvent[] {
+    updateRobotMock.mockClear();
+    regenerateMelody(robot, 'locale-1');
+    return updateRobotMock.mock.calls[0][2].melody;
+  }
+  const rhythmOf = (m: StoredEvent[]) => m.map((e) => [e.startStep, e.length]);
+  const notesOf = (m: StoredEvent[]) => m.map((e) => [e.noteIndex, e.octave]);
+  const stampsOf = (m: StoredEvent[]) => m.map((e) => [e.rest, e.mark]);
+  const stepsOf = (m: StoredEvent[]) => m.map((e) => e.startStep);
+
+  // Free and sparse (long, varied gaps, so the lengths are real draws), and tiled.
+  const free = (overrides: Partial<Robot> = {}) =>
+    makeRobot({ compositionSeed: 0.37, rhythmicDensity: 40, rhythmicMotifLength: { active: false, value: 0 }, ...overrides });
+  const tiled = (overrides: Partial<Robot> = {}) =>
+    makeRobot({
+      compositionSeed: 0.37,
+      rhythmicDensity: 50,
+      rhythmicMotifLength: { active: true, value: 6 },
+      pitchRepeat: 40,
+      ...overrides,
+    });
+
+  describe('an edit moves the rhythm only when it is a rhythm setting (B7)', () => {
+    for (const [name, robot] of [['free', free], ['tiled', tiled]] as const) {
+      it(`${name}: a Note Variance edit leaves the onsets and lengths and changes the notes`, () => {
+        const before = melodyFor(robot());
+        const after = melodyFor(robot({ noteVariance: { active: true, value: 2 } }));
+        expect(rhythmOf(after)).toEqual(rhythmOf(before));
+        expect(notesOf(after)).not.toEqual(notesOf(before));
+      });
+
+      it(`${name}: an octave range edit leaves the onsets and lengths`, () => {
+        expect(rhythmOf(melodyFor(robot({ octaveRange: [2, 6] })))).toEqual(rhythmOf(melodyFor(robot())));
+      });
+
+      it(`${name}: a Pitch Repeat edit leaves the onsets and lengths`, () => {
+        expect(rhythmOf(melodyFor(robot({ pitchRepeat: 90 })))).toEqual(rhythmOf(melodyFor(robot())));
+      });
+
+      it(`${name}: a density edit moves the onsets`, () => {
+        expect(stepsOf(melodyFor(robot({ rhythmicDensity: 70 })))).not.toEqual(stepsOf(melodyFor(robot())));
+      });
+    }
+
+    it('a motif edit moves the onsets', () => {
+      expect(stepsOf(melodyFor(tiled({ rhythmicMotifLength: { active: true, value: 3 } })))).not.toEqual(
+        stepsOf(melodyFor(tiled())),
+      );
+    });
+  });
+
+  // Spec §5.7 case 3 (B16, B17, B19): the world is the locale's coordinates, read from the store.
+  describe('in one world, one rhythm shape is one rhythm', () => {
+    const COORDINATES: Record<string, { x: number; y: number }> = {
+      'world-a': { x: 7, y: 11 },
+      'world-a-again': { x: 7, y: 11 },
+      'world-b': { x: 8, y: 11 },
+      'world-c': { x: 7, y: 12 },
+      'world-d': { x: 120, y: 40 },
+      'world-e': { x: 0, y: 0 },
+    };
+    beforeEach(() => {
+      getLocaleByIdMock.mockImplementation((localeId) =>
+        COORDINATES[localeId] ? { robots: [], coordinates: COORDINATES[localeId] } : undefined,
+      );
+    });
+    afterEach(() => {
+      getLocaleByIdMock.mockImplementation(() => undefined);
+    });
+
+    function melodyIn(robot: Robot, localeId = 'world-a'): StoredEvent[] {
+      updateRobotMock.mockClear();
+      regenerateMelody(robot, localeId);
+      return updateRobotMock.mock.calls[0][2].melody;
+    }
+    const restedAt = (m: StoredEvent[]) => m.flatMap((e, i) => (e.rest !== undefined ? [i] : []));
+
+    for (const [name, robot] of [['free', free], ['tiled', tiled]] as const) {
+      it(`${name}: two robots with their own seeds and one shape play the same onsets and lengths, and their own notes`, () => {
+        const a = melodyIn(robot({ compositionSeed: 0.61 }));
+        const b = melodyIn(robot({ compositionSeed: 0.29 }));
+        expect(rhythmOf(b)).toEqual(rhythmOf(a));
+        expect(notesOf(b)).not.toEqual(notesOf(a));
+      });
+    }
+
+    it('with the same Rests and Accents they rest and accent together (B19)', () => {
+      const a = melodyIn(free({ compositionSeed: 0.61, rests: 50, accents: 60 }));
+      const b = melodyIn(free({ compositionSeed: 0.29, rests: 50, accents: 60 }));
+      expect(stampsOf(a).some(([rest, mark]) => rest !== undefined || mark !== undefined)).toBe(true);
+      expect(stampsOf(b)).toEqual(stampsOf(a));
+    });
+
+    it('with different Rests, the lighter one rests on a subset of the heavier one', () => {
+      const light = restedAt(melodyIn(free({ compositionSeed: 0.61, rests: 30, accents: 0 })));
+      const heavy = restedAt(melodyIn(free({ compositionSeed: 0.29, rests: 80, accents: 0 })));
+      expect(heavy.length).toBeGreaterThan(light.length);
+      expect(light.every((i) => heavy.includes(i))).toBe(true);
+    });
+
+    it('densities that round to the same onset count play the same rhythm (B17)', () => {
+      // Free over 16 steps: 38 % and 40 % are both six onsets.
+      expect(rhythmOf(melodyIn(free({ compositionSeed: 0.29, rhythmicDensity: 38 })))).toEqual(rhythmOf(melodyIn(free())));
+    });
+
+    it('a robot edited to another robot\'s density and motif plays its rhythm', () => {
+      const leader = melodyIn(tiled({ compositionSeed: 0.61 }));
+      const other = tiled({ compositionSeed: 0.29, rhythmicDensity: 80, rhythmicMotifLength: { active: true, value: 3 } });
+      expect(rhythmOf(melodyIn(other))).not.toEqual(rhythmOf(leader));
+      const matched = { ...other, rhythmicDensity: 50, rhythmicMotifLength: { active: true, value: 6 } };
+      expect(rhythmOf(melodyIn(matched))).toEqual(rhythmOf(leader));
+    });
+
+    it('another world plays another rhythm', () => {
+      const rhythms = new Set(
+        ['world-a', 'world-b', 'world-c', 'world-d', 'world-e'].map((world) => JSON.stringify(rhythmOf(melodyIn(free(), world)))),
+      );
+      expect(rhythms.size).toBeGreaterThan(1);
+    });
+
+    it('the world is the coordinates: two locale ids at one place play the same melody', () => {
+      const strip = (m: StoredEvent[]) => m.map(({ startStep, length, noteIndex, octave, rest, mark }) => [startStep, length, noteIndex, octave, rest, mark]);
+      const robot = free({ rests: 50, accents: 50 });
+      expect(strip(melodyIn(robot, 'world-a-again'))).toEqual(strip(melodyIn(robot, 'world-a')));
+    });
+
+    it('a lineage plays no part in the melody', () => {
+      const strip = (m: StoredEvent[]) => m.map(({ startStep, length, noteIndex, octave, rest, mark }) => [startStep, length, noteIndex, octave, rest, mark]);
+      const robot = free({ rests: 50, accents: 50 });
+      expect(strip(melodyIn({ ...robot, lineage: { founderIndex: 3 } }))).toEqual(strip(melodyIn(robot)));
+    });
   });
 });

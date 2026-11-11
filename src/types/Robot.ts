@@ -142,6 +142,12 @@ export interface MelodyEvent {
   mark?: ArticulationMark;
 }
 
+/** See `Robot.lineage`. */
+export interface RobotLineage {
+  /** Roster (spawn) index of the company's founder, its lowest-index member (B6). */
+  founderIndex: number;
+}
+
 /**
  * Main Robot entity
  * All fields are serializable (JSON-compatible) for Zustand state management
@@ -172,9 +178,19 @@ export interface Robot {
    * Seed for the robot's gem-polygon body (docs/specs/GEM_POLYGON_ROBOTS.md §1.1). The geometry
    * is derived — `getRobotGem(gemSeed)` in components/robot/gem/polygon.ts, cached per seed — and
    * never stored here. Drawn once at spawn ('robot.gem.seed'), never user-edited, never inherited
-   * on the copy path, never diffed into a session — regenerated identically from the world seed.
+   * from a company founder, never diffed into a session — regenerated identically from the world seed.
    */
   gemSeed: number;
+  /**
+   * A family member's descent (Company Families, docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md
+   * §1.11). Set at spawn on a seeded company's members only; absent means an original, whose own
+   * roster index founds it. The aspect deal reads it to deal a member from its founder. It plays no
+   * part in the melody: a member plays its founder's rhythm because it inherits its founder's
+   * density and motif (B16). Never user-edited, never shown, never diffed into a session —
+   * regenerated identically from the world seed — and kept when the robot is moved by hand into
+   * another company (B15).
+   */
+  lineage?: RobotLineage;
   /** The gem canvas's top-left in the scene. Written by the work loop on every leg's arrival. */
   position: Vec2;
   melody: MelodyEvent[];

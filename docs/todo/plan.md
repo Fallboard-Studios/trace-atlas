@@ -21,15 +21,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Backlog [60](backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging) **Cover the silence when every
-  active robot is charging** — built on `feature/no-silence-for-now` (the last robot stays up, a seeded battery size per
-  robot); Gate B passed 2026-11-11, ready for the PR. The elegant answer is backlog 7, post-launch.
-- Backlog [73](backlog.md#73-robots-a-seeded-company-is-a-family) **A seeded company is a family** — specified and
-  planned; built on its own branch after 60 merges, and before backlog 45 since it changes every world's melodies.
-- Backlog [74](backlog.md#74-audio-fade-a-robot-in-and-out-on-its-station-arcs) **Fade a robot in and out on its
-  station arcs** — moved out of 60; a short interview first.
-- Backlog [17](backlog.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings) **The replayability
-  audit** — read it against the code, then do what it points at or archive it.
+- Empty: backlogs 60 and 73 built and archived 2026-11-11, 74 taken off the plan (not needed after 60), and 17 closed
+  as read, nothing to do. Stage 4 is next.
 
 ## Stage 4 — Visual refinement
 
@@ -64,7 +57,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 - **Audio:** backlog [6](backlog.md#6-audio-groove-feature) **Groove**; backlog
   [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) **Tagged progressions, seeded mood
-  chain** (17's audit notes feed its determinism design); backlog
+  chain** (backlog [17](archive/backlog-archive.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings)'s
+  archived audit notes feed its determinism design); backlog
   [20](backlog.md#20-audio-user-authored-progressions-and-tags-editor-ui--maybe) **User-authored progressions** (a
   maybe, only if 7 earns it); roadmap [32](roadmap.md#32-robot-melody-history--configuration-scrubber) **Melody
   history** (about sharing what a robot played, not metrics); backlog

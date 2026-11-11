@@ -29,6 +29,8 @@ import {
   type PerformanceFields,
 } from './robotFieldDerivation';
 import {
+  companyFounders,
+  generateCompanyMembership,
   generateCompanyRosterBaseline,
   generateRobotRosterBaseline,
   type CompanyRosterBaseline,
@@ -109,6 +111,13 @@ function deriveFamilyFields(
   }
 }
 
+/** The spawn index a robot is dealt from (Company Families §1.11, Task 6): a company member's founder's, its lineage
+ *  (B8), so an aspect keeps a company one voice; an original's own. The founder has the lower index, so its tally of
+ *  the lanes before it is the member's too. */
+function dealIndex(robot: Pick<Robot, 'lineage'>, index: number): number {
+  return robot.lineage?.founderIndex ?? index;
+}
+
 /** The families in the order dealtFields derives them: Envelope first, as at spawn, so Melody's density draw reads the
  *  dealt attack; the rest in family order. */
 const DERIVE_ORDER: readonly AspectFamilyId[] = ['envelope', ...ASPECT_FAMILY_IDS.filter((family) => family !== 'envelope')];
@@ -144,10 +153,10 @@ function dealtFields(
 /**
  * The deal pass over a regenerated roster baseline, pure (assumption 22 as amended at planning): dealAspects over the
  * companies and the robot ids (spawn order), then for every robot dealt an aspect its family's fields re-derived from
- * its own index - a copied-baseline robot included, which so leaves its source's values behind - and `loadedUnder`
- * set; every other robot is the very same object, and with nothing dealt the input array comes back. Run inside
- * generateDealtRosterBaseline for buildSessionPayload's diff and mirrored live by applyAspectDeal from the same noise
- * map, so an untweaked dealt world diffs to nothing against its own seed.
+ * its deal index - its own, or a company member's founder's (the seeded membership, as spawn's lineage; Company
+ * Families Task 6) - and `loadedUnder` set; every other robot is the very same object, and with nothing dealt the input
+ * array comes back. Run inside generateDealtRosterBaseline for buildSessionPayload's diff and mirrored live by
+ * applyAspectDeal from the same noise map, so an untweaked dealt world diffs to nothing against its own seed.
  */
 export function applyDealToBaselines(
   baselines: RobotAudioBaseline[],
@@ -158,10 +167,12 @@ export function applyDealToBaselines(
 ): RobotAudioBaseline[] {
   const dealt = dealAspects(identity, companies, robotIds.map((id) => ({ id })), noiseMap);
   if (dealt.size === 0) return baselines;
+  const founders = companyFounders(generateCompanyMembership(noiseMap, robotIds.length));
   return baselines.map((baseline, i) => {
     const aspects = dealt.get(robotIds[i]);
     if (!aspects) return baseline;
-    return { ...baseline, ...dealtFields(noiseMap, i, identity.theme, aspects, baseline, priorLanesOf(baselines, i)), loadedUnder: aspects };
+    const at = founders.get(i) ?? i;
+    return { ...baseline, ...dealtFields(noiseMap, at, identity.theme, aspects, baseline, priorLanesOf(baselines, at)), loadedUnder: aspects };
   });
 }
 
@@ -257,7 +268,8 @@ export function applyAspectDeal(localeId: string): void {
   locale.robots.forEach((robot, i) => {
     const robotAspects = dealt.get(robot.id);
     if (!robotAspects) return;
-    const fields = dealtFields(noiseMap, i, theme, robotAspects, robot, priorLanesOf(locale.robots, i));
+    const at = dealIndex(robot, i);
+    const fields = dealtFields(noiseMap, at, theme, robotAspects, robot, priorLanesOf(locale.robots, at));
     useLocaleStore.getState().updateRobot(localeId, robot.id, { ...fields, loadedUnder: robotAspects });
     const updated = useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === robot.id);
     if (!updated) return;
@@ -427,14 +439,18 @@ export function rederiveLoading(
   // takes the new deal whole. A moved robot can differ from the seeded baseline; sessionDiff saves it as overrides.
   const oldDeal = dealAspects(from, locale.companies, locale.robots, noiseMap);
   const newDeal = dealAspects(to, locale.companies, locale.robots, noiseMap);
-  /** A robot's baselines under `theme` and the given aspects, as a spawn under them would draw it. */
+  /** A robot's baselines under `theme` and the given aspects, as a spawn under them would draw it: from its deal index,
+   *  a company member's founder's (its lineage, kept when it is moved by hand: B15). */
   const drawn = (
     theme: ThemeId,
     i: number,
     roster: readonly RobotAudioBaseline[],
     dealt: RobotAspects | undefined,
-  ): RobotAudioBaseline =>
-    dealt ? { ...roster[i], ...dealtFields(noiseMap, i, theme, dealt, roster[i], priorLanesOf(roster, i)), loadedUnder: dealt } : roster[i];
+  ): RobotAudioBaseline => {
+    if (!dealt) return roster[i];
+    const at = dealIndex(locale.robots[i], i);
+    return { ...roster[i], ...dealtFields(noiseMap, at, theme, dealt, roster[i], priorLanesOf(roster, at)), loadedUnder: dealt };
+  };
   const aspectsAfter = (robot: Robot): RobotAspects | undefined => {
     const next: RobotAspects = { ...robot.loadedUnder };
     for (const family of ASPECT_FAMILY_IDS) {
