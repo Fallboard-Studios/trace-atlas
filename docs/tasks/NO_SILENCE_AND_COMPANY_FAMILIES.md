@@ -6,7 +6,8 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 Stage 3.
 
 **Status:** plan written 2026-11-10. Phase 1 built 2026-11-10 (Tasks 1–2: `da8d5b52`, `da9416d0`; Task 3's row is in
-Results); Checkpoint A passed, Phase 2 in progress. **Part A only**: Part B (`company-families`) is not planned until
+Results). Phase 2 built 2026-11-10/11 (Tasks 4–9: `b665a138`, `20ea1cd3`, `8394603c`, `3438dda4`, `2fa38ec3`,
+`90566d9c`; Task 10's rows are in Results); at Checkpoint B, waiting on Crawford before Task 11. **Part A only**: Part B (`company-families`) is not planned until
 Gate B has passed and its questions (spec §7.3) are answered.
 
 ## Overview
@@ -383,7 +384,7 @@ task.
 
   **Estimated scope:** S (two options threaded through)
 
-- [ ] **Task 10: Run — the size-only row**
+- [x] **Task 10: Run — the size-only row**
 
   **Description:** Run the cover report at 6,000 measures with four rows: `'flat'`, 0.9–1.1, 0.8–1.25 and 0.67–1.5.
   The rule does not exist yet, so these are size with no rule. Record the 0.8–1.25 row as "Size only" beside the
@@ -392,11 +393,12 @@ task.
   **Proof:** Run — the report under `LIFECYCLE_SIM_REPORT`; the rows are recorded in Results.
 
   **Acceptance criteria:**
-  - [ ] The `'flat'` row equals Task 3's today row exactly, which shows nothing but the size has moved the fleet.
-  - [ ] The three sized rows are in Results, the probe's numbers marked confirmed or given their measured values.
+  - [x] The `'flat'` row equals Task 3's today row exactly, which shows nothing but the size has moved the fleet.
+  - [x] The three sized rows are in Results, the probe's numbers marked confirmed or given their measured values.
 
   **Verification:**
-  - [ ] The report run completes and its output matches what is written in Results.
+  - [x] The report run completes and its output matches what is written in Results. (2026-11-11:
+        `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts -t "the report: the full grid at 6000"`.)
 
   **Dependencies:** Task 9.
 
@@ -405,10 +407,14 @@ task.
   **Estimated scope:** XS (a run and a record)
 
 ### Checkpoint B: battery size is in
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; any unrelated failure named).
-- [ ] A real world's robots carry sizes, the live tick and the replay agree on fractional batteries, and the sim
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; any unrelated failure named). (2026-11-11:
+      351 files, 13,665 passed, 2 skipped (the opt-in reports), 227 s. One unrelated failure: `audioSwells.test.ts`
+      "robot pool — ramp lifecycle and write path > interpolates and returns to exactly baseValue on completion,
+      removing the swell", which passed on its one re-run (171 / 171); a third sibling of the two swell tests removed
+      for unmocked randomness (`9fdfe5bb`, `6c2d295f`). Proposed for removal, not chased.)
+- [x] A real world's robots carry sizes, the live tick and the replay agree on fractional batteries, and the sim
       roster matches spawn.
-- [ ] The size-only rows are reported to Crawford beside the probe's.
+- [x] The size-only rows are reported to Crawford beside the probe's.
 - [ ] Reviewed with human before proceeding to Phase 3.
 
 ---
@@ -694,7 +700,7 @@ Filled in by Tasks 3, 10, 13 and 17. "Probe" is the intent's scratch-probe numbe
 | Row | Task | Silent measures | Worlds with a silence | Stays | Robots sounding (mean, p10–p90) | Probe |
 |---|---|---|---|---|---|---|
 | Today | 3 | 3.39 % | 79 / 121 | none (0 / 121 worlds) | 5.49, 2–9 | 3.4 % of measures; 79 worlds; no stays; 5.5, 2–9 — **all confirmed** |
-| Size only (0.8–1.25) | 10 | | | | | 0.19 % of measures; 103 worlds |
+| Size only (0.8–1.25) | 10 | 0.25 % | 100 / 121 | none (no rule yet) | 5.42, 3–8 | 0.19 % of measures; 103 worlds — **measured 0.25 % in 100 worlds**: 0.06 points more silent measures in 3 fewer worlds; the kind (rarer than today, in more worlds) is confirmed |
 | Rule only | 13 | | | | | none; one stay in 92 worlds, 1–9 measures, inside the first 70 |
 | Both (0.8–1.25) | 13 | | | | | none; in a stay 0.13 % of measures, one per 1,700 measures a world, typically 2 (p90 4, longest 10); 5.4, 3–8 |
 
@@ -704,6 +710,22 @@ heard share 45.60–45.85 % (16 of 35 is 45.71 %; the spread is where measure 6,
 split of the 79 silent worlds by their longest silence is **confirmed**: 48 at one measure, 19 at two, 12 at three to
 eight (4 at 3, 3 at 4, one each at 5, 6 and 7, 2 at 8). Every world's longest silence begins between measures 27 and
 34, before the robots that started Active come back, and recurs every 35 measures.
+
+**Size only in full (Task 10, 2026-11-11, commit `90566d9c`'s cover sim, before the rule):** the `'flat'` row
+reproduces today's row exactly (3.39 %, 79 / 121, sounding 5.49 2–9, every cycle 35, heard share 45.60–45.85 %, the
+same five worst worlds), so nothing but the size moved the fleet. With sizes, silence is rarer and wider, and in more
+worlds:
+
+| Band | Silent measures | Worlds with a silence | Longest silence | Sounding (mean, p10–p90) | Heard share |
+|---|---|---|---|---|---|
+| 0.9–1.1 | 0.37 % | 104 / 121 | 13 (at (200, 0) from measure 27) | 5.41, 3–8 | 44.35–45.85 % |
+| 0.8–1.25 | 0.25 % | 100 / 121 | 11 (at (40, −200) from measure 82, and (200, 0) from 30) | 5.42, 3–8 | 44.35–45.85 % |
+| 0.67–1.5 | 0.15 % | 108 / 121 | 13 (at (200, 0) from measure 1,667) | 5.41, 3–8 | 44.38–45.85 % |
+
+Today's longest silence is 8 measures; every band's is longer. A sized world's silence no longer recurs on a fixed
+loop: the five worst on 0.8–1.25 begin at measures 30, 82, 180, 1,178 and 5,241. The spec's cycle-length arithmetic
+(§1.3) is **confirmed** on all three bands: 5 lengths on 0.9–1.1 (33–40), 8 on 0.8–1.25 (31–44), 15 on 0.67–1.5
+(27–53).
 
 ### Today's five worst worlds (Task 3; Gate B listens here)
 
@@ -721,9 +743,9 @@ The silence recurs every 35 measures from the measure it begins. A measure is 24
 
 | Band | Rule | Stays per 1,000 measures | Stay length (median, p90, longest) | Cycle lengths | Largest group sharing a length | Turn-backs (20 / 110 / 200 BPM) |
 |---|---|---|---|---|---|---|
-| 0.9–1.1 | off | | | | | n/a |
-| 0.8–1.25 | off | | | | | n/a |
-| 0.67–1.5 | off | | | | | n/a |
+| 0.9–1.1 | off | 0 (no rule) | — | 33–40, 5 distinct | median 5, max 8 | n/a |
+| 0.8–1.25 | off | 0 (no rule) | — | 31–44, 8 distinct | median 3, max 6 | n/a |
+| 0.67–1.5 | off | 0 (no rule) | — | 27–53, 15 distinct | median 3, max 5 | n/a |
 | 0.9–1.1 | on | | | | | |
 | 0.8–1.25 | on | | | | | |
 | 0.67–1.5 | on | | | | | |
