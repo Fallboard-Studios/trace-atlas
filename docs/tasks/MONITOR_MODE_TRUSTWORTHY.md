@@ -374,7 +374,7 @@ code, not text").
 
   **Estimated scope:** S (one new component, its stylesheet and test)
 
-- [ ] **Task 9: `RosterTile.tsx`, `probe.ts` — the light leads the line, the mode first**
+- [x] **Task 9: `RosterTile.tsx`, `probe.ts` — the light leads the line, the mode first**
 
   **Description:** `probe.roster.statusLine` becomes `{status} · {job} · {dockingState} · {activity}`. The tile
   renders `<ModeLight mode lit />` inside `.roster-tile__status` before the filled text. `RosterBoard.test.tsx`'s
@@ -385,15 +385,15 @@ code, not text").
   its station, under a Solo, standing by, or muted.
 
   **Acceptance criteria:**
-  - [ ] The line reads `<mode> · <job> · <docking> · <activity>` for every robot; an unassigned robot's job word is now
+  - [x] The line reads `<mode> · <job> · <docking> · <activity>` for every robot; an unassigned robot's job word is now
         second, not first.
-  - [ ] The light's `data-mode` is the robot's own mode in every case; `data-lit` follows `isRobotEmitting`.
-  - [ ] `aria-describedby` still points at the status span, whose text is the line without the light.
+  - [x] The light's `data-mode` is the robot's own mode in every case; `data-lit` follows `isRobotEmitting`.
+  - [x] `aria-describedby` still points at the status span, whose text is the line without the light.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/RosterTile.test.tsx
+  - [x] `npx vitest run src/components/panels/screen/screens/RosterTile.test.tsx
         src/components/panels/screen/screens/RosterBoard.test.tsx src/content/content.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 7a, 8.
 
@@ -401,6 +401,9 @@ code, not text").
   `src/components/panels/screen/screens/RosterTile.test.tsx`, `src/components/panels/screen/screens/RosterBoard.test.tsx`
 
   **Estimated scope:** S
+
+  **As built:** `RosterBoard.test.tsx` asserts no status text, so it needed no change; `content.test.ts`'s tile-line case
+  pinned the old order and moved with the template.
 
 - [ ] **Task 10: `RobotScreen.tsx`, `RobotScreen.css`, `probe.ts` — the Status well first, the light inline**
 

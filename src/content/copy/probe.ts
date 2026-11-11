@@ -71,8 +71,8 @@ export const probe = {
   /** A group's count beside its name box. One probe has its own form (as `ui.noteValue.bar` does). */
   'probe.roster.count': { human: 'Probes', template: '{n} probes' },
   'probe.roster.count.one': { human: '1 probe' },
-  /** A tile's one status line: the job, then the docking, activity and emission states. */
-  'probe.roster.statusLine': { human: 'Status line', template: '{job} · {dockingState} · {activity} · {status}' },
+  /** A tile's one status line: the robot's own Monitor Mode first, then the job, docking and activity. */
+  'probe.roster.statusLine': { human: 'Status line', template: '{status} · {job} · {dockingState} · {activity}' },
   /** The tile's reassignment chip: the glyph alone on the phone; the robot in its accessible name. */
   'probe.roster.move': { human: '⇄ Move', short: '⇄', template: 'Move {name}' },
 

@@ -88,6 +88,7 @@ function addRobots(...robots: Robot[]) {
 const onMove = vi.fn();
 const renderTile = (robotId: string) => render(<ul><RosterTile robotId={robotId} onMove={onMove} /></ul>);
 const face = (name: string) => screen.getByRole('button', { name });
+const light = (container: HTMLElement) => container.querySelector('.roster-tile__status .mode-light') as HTMLElement;
 /** Where the battery strip's partly-filled box sits: every box before it is full. */
 const straddleIndex = (container: HTMLElement) => {
   const track = container.querySelector('.roster-tile__battery .sc-voxel-track')!;
@@ -127,35 +128,39 @@ describe('RosterTile — what it shows', () => {
     expect(gem.children.length).toBeGreaterThan(0);
   });
 
-  it('carries one status line: the job, then the docking, activity and the robot own monitor mode', () => {
+  // Monitor mode spec §1.6: the line leads with the robot's own mode word, then job, docking and activity.
+  it('carries one status line: the robot own monitor mode, then the job, docking and activity', () => {
     addRobots(makeRobot('r0', { job: 'acousticSurvey', docking: 'active', activity: 'working', audioMode: 'none' }));
     const { container } = renderTile('r0');
-    expect(container.querySelector('.roster-tile__status')?.textContent).toBe(fill('probe.roster.statusLine', {
+    const line = container.querySelector('.roster-tile__status')?.textContent;
+    expect(line).toBe(fill('probe.roster.statusLine', {
       job: JOB_TYPE_LABELS.acousticSurvey.humanLabel,
       dockingState: DOCKING_STATE_LABELS.active.humanLabel,
       activity: ACTIVITY_LABELS.working.humanLabel,
       status: MODE_LABELS.none.humanLabel,
     }));
+    expect(line).toBe('Auto · Acoustic Survey · Active · Working');
   });
 
   // Monitor mode spec §1.5: the status is the robot's own mode word, whatever silences it.
-  it('reads Auto for an Auto robot, Mute for a muted one, Solo and Highlight for theirs', () => {
+  it('leads with Auto for an Auto robot, Mute for a muted one, Solo and Highlight for theirs', () => {
     addRobots(makeRobot('r0', { audioMode: 'none' }));
     const { container } = renderTile('r0');
     const status = () => container.querySelector('.roster-tile__status')!.textContent!;
-    expect(status().endsWith('Auto')).toBe(true);
+    expect(status().startsWith('Auto · ')).toBe(true);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'mute' }));
-    expect(status().endsWith('Mute')).toBe(true);
+    expect(status().startsWith('Mute · ')).toBe(true);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'solo' }));
-    expect(status().endsWith('Solo')).toBe(true);
+    expect(status().startsWith('Solo · ')).toBe(true);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'highlight' }));
-    expect(status().endsWith('Highlight')).toBe(true);
+    expect(status().startsWith('Highlight · ')).toBe(true);
   });
 
   it('reads an unset audioMode as Auto', () => {
     addRobots(makeRobot('r0', { audioMode: undefined }));
     const { container } = renderTile('r0');
-    expect(container.querySelector('.roster-tile__status')!.textContent!.endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
+    expect(container.querySelector('.roster-tile__status')!.textContent!.startsWith(`${MODE_LABELS.none.humanLabel} · `)).toBe(true);
+    expect(light(container).dataset.mode).toBe('none');
   });
 
   // Code review 2026-10-11: the face button's aria-label replaces its content for assistive tech, so the
@@ -169,10 +174,19 @@ describe('RosterTile — what it shows', () => {
     expect(status.id).not.toBe('');
   });
 
-  it('reads the unassigned job for a robot with no job yet', () => {
-    addRobots(makeRobot('r0', { job: undefined }));
+  it('describes the button by the line alone: the light inside it is empty and hidden', () => {
+    addRobots(makeRobot('r0', { job: 'acousticSurvey', docking: 'active', activity: 'working', audioMode: 'highlight' }));
     const { container } = renderTile('r0');
-    expect(container.querySelector('.roster-tile__status')?.textContent?.startsWith(UNASSIGNED_JOB_LABEL.humanLabel)).toBe(true);
+    const status = container.querySelector('.roster-tile__status') as HTMLElement;
+    expect(status.textContent).toBe('Highlight · Acoustic Survey · Active · Working');
+    expect(light(container).parentElement).toBe(status);
+    expect(light(container).getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('reads the unassigned job second for a robot with no job yet', () => {
+    addRobots(makeRobot('r0', { job: undefined, audioMode: 'none' }));
+    const { container } = renderTile('r0');
+    expect(container.querySelector('.roster-tile__status')?.textContent?.startsWith(`Auto · ${UNASSIGNED_JOB_LABEL.humanLabel} · `)).toBe(true);
   });
 
   it('reads its own mode word while the Audio Load budget holds it back and under another robot Solo, never Standing by', () => {
@@ -180,9 +194,9 @@ describe('RosterTile — what it shows', () => {
     useAudioStore.setState({ soundingRobotIds: ['r1'] });
     const { container } = renderTile('r0');
     const status = () => container.querySelector('.roster-tile__status')!.textContent!;
-    expect(status().endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
+    expect(status().startsWith(`${MODE_LABELS.none.humanLabel} · `)).toBe(true);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { audioMode: 'solo' }));
-    expect(status().endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
+    expect(status().startsWith(`${MODE_LABELS.none.humanLabel} · `)).toBe(true);
     for (const old of ['Emitting', 'Standing by', 'Disabled']) expect(status()).not.toContain(old);
   });
 
@@ -191,11 +205,69 @@ describe('RosterTile — what it shows', () => {
     addRobots(makeRobot('r0', { docking: 'docked', activity: 'charging', audioMode: 'none' }));
     const { container } = renderTile('r0');
     const status = () => container.querySelector('.roster-tile__status')!.textContent!;
-    expect(status().endsWith(MODE_LABELS.none.humanLabel)).toBe(true);
+    expect(status().startsWith(`${MODE_LABELS.none.humanLabel} · `)).toBe(true);
     act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'solo' }));
-    expect(status().endsWith(MODE_LABELS.solo.humanLabel)).toBe(true);
+    expect(status().startsWith(`${MODE_LABELS.solo.humanLabel} · `)).toBe(true);
+  });
+});
+
+// Monitor mode spec §1.5: the light before the line, the robot's own mode in colour, lit only while it is heard.
+describe('RosterTile — the mode light', () => {
+  const lightState = (container: HTMLElement) => [light(container).dataset.mode, light(container).dataset.lit];
+
+  it('sits first in the status line', () => {
+    addRobots(makeRobot('r0'));
+    const { container } = renderTile('r0');
+    expect(container.querySelector('.roster-tile__status')!.firstElementChild).toBe(light(container));
   });
 
+  it.each(['none', 'solo', 'highlight'] as const)('is lit in the %s colour for a robot that is sounding', (audioMode) => {
+    addRobots(makeRobot('r0', { audioMode }));
+    const { container } = renderTile('r0');
+    expect(lightState(container)).toEqual([audioMode, 'true']);
+  });
+
+  it('is lit for a robot in the budget sounding set', () => {
+    addRobots(makeRobot('r0'), makeRobot('r1'));
+    useAudioStore.setState({ soundingRobotIds: ['r0'] });
+    const { container } = renderTile('r0');
+    expect(lightState(container)).toEqual(['none', 'true']);
+  });
+
+  it('is a dim red for a muted robot', () => {
+    addRobots(makeRobot('r0', { audioMode: 'mute' }));
+    const { container } = renderTile('r0');
+    expect(lightState(container)).toEqual(['mute', 'false']);
+  });
+
+  it('is dim in the station, in the robot own colour, and lit once the robot is soloed there', () => {
+    addRobots(makeRobot('r0', { docking: 'docked', activity: 'charging', audioMode: 'highlight' }));
+    const { container } = renderTile('r0');
+    expect(lightState(container)).toEqual(['highlight', 'false']);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'solo' }));
+    expect(lightState(container)).toEqual(['solo', 'true']);
+  });
+
+  it('is a dim green, not red, for an Auto robot silenced by another robot Solo, and lit again when it lifts', () => {
+    addRobots(makeRobot('r0', { audioMode: 'none' }), makeRobot('r1'));
+    const { container } = renderTile('r0');
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { audioMode: 'solo' }));
+    expect(lightState(container)).toEqual(['none', 'false']);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { audioMode: 'none' }));
+    expect(lightState(container)).toEqual(['none', 'true']);
+  });
+
+  it('is dim while the budget holds the robot standing by, and lit once admitted', () => {
+    addRobots(makeRobot('r0', { audioMode: 'highlight' }), makeRobot('r1'));
+    useAudioStore.setState({ soundingRobotIds: ['r1'] });
+    const { container } = renderTile('r0');
+    expect(lightState(container)).toEqual(['highlight', 'false']);
+    act(() => useAudioStore.setState({ soundingRobotIds: ['r1', 'r0'] }));
+    expect(lightState(container)).toEqual(['highlight', 'true']);
+  });
+});
+
+describe('RosterTile — what it shows (battery)', () => {
   it.each([
     [85, 8],
     [0, 0],

@@ -5,6 +5,7 @@ import { VisuallyHidden } from '@radix-ui/react-visually-hidden';
 import { selectEntity } from '../nav/navActions';
 import { useShell } from '../useShell';
 import { metaWords, useRobotMeta } from './useRobotMeta';
+import { ModeLight } from './ModeLight';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem, gemViewBox } from '@/components/robot/gem/polygon';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
@@ -107,7 +108,7 @@ function RosterTileFace({ robot, localeId, onMove }: { robot: Robot; localeId: s
       </svg>
       <span className="roster-tile__text">
         <span className="roster-tile__name">{name}</span>
-        <span className="roster-tile__status" id={statusId}>{fill('probe.roster.statusLine', metaWords(meta))}</span>
+        <span className="roster-tile__status" id={statusId}><ModeLight mode={meta.mode} lit={meta.lit} />{fill('probe.roster.statusLine', metaWords(meta))}</span>
         <span className="roster-tile__battery" style={BATTERY_BOX_STYLE}>
           <VoxelTrack
             states={batteryStates}

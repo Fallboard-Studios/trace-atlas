@@ -382,9 +382,9 @@ describe('roster and company detail copy', () => {
     expect(CONTENT['probe.roster.count.one'].human).toBe('1 probe');
   });
 
-  it('a tile status line is the job and the three states, as the sketch draws it', () => {
-    expect(fill('probe.roster.statusLine', { job: 'Salvage', dockingState: 'Docked', activity: 'Charging', status: 'Disabled' }))
-      .toBe('Salvage · Docked · Charging · Disabled');
+  it('a tile status line leads with the monitor mode, then the job, docking and activity (monitor mode spec §1.6)', () => {
+    expect(fill('probe.roster.statusLine', { job: 'Salvage', dockingState: 'Docked', activity: 'Charging', status: 'Auto' }))
+      .toBe('Auto · Salvage · Docked · Charging');
   });
 
   it('the Move chip: "⇄ Move" on the desk, the glyph alone on the phone, the robot in its accessible name', () => {
