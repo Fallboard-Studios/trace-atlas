@@ -33,7 +33,7 @@ import { withLoading } from '../data/bands/loadingContext';
 import * as loadingContextModule from '../data/bands/loadingContext';
 import type { BandKey, BandTable } from '../data/bands/bandKeys';
 import type { RobotAudioBaseline } from './spawnSystem';
-import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
+import { buildSeededComposition, buildSeededRhythm, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_DENSITY, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import * as robotLfoLinks from './robotLfoLinks';
 import { cancelSwellForRobotAttribute } from './audioSwells';
 import { getStations, type Station } from './stations';
@@ -1966,6 +1966,11 @@ describe('spawnSystem', () => {
           noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
           pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
           rand,
+          // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
+          rhythmRand: buildSeededRhythm(robot.compositionSeed, {
+            rhythmicDensity: robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY,
+            rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+          }),
         }),
         { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
         buildSeededPerformance(robot.compositionSeed),
@@ -3149,6 +3154,11 @@ describe('spawnSystem', () => {
               pitchRepeat: robot.pitchRepeat!,
               octaveRange: robot.octaveRange,
             }),
+            // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
+            rhythmRand: buildSeededRhythm(robot.compositionSeed, {
+              rhythmicDensity: robot.rhythmicDensity!,
+              rhythmicMotifLength: robot.rhythmicMotifLength!,
+            }),
           }),
           { rests: robot.rests!, accents: robot.accents! },
           buildSeededPerformance(robot.compositionSeed),
@@ -3188,6 +3198,44 @@ describe('spawnSystem', () => {
         for (const robot of useLocaleStore.getState().getLocaleById(rosterLocale + '-notes')!.robots) {
           const plain = applyPerformanceMarks(rebuiltMelody({ ...robot, rests: 0, accents: 0 }), { rests: 0, accents: 0 }, buildSeededPerformance(robot.compositionSeed));
           expect(robot.melody.map(({ rest: _r, mark: _m, id: _id, ...rest }) => rest)).toEqual(plain.map(({ id: _id, ...rest }) => rest));
+        }
+      });
+
+      // Company Families Task 3 (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11): onsets and lengths come from
+      // the rhythm stream, keyed on the rhythm seed (an original's own composition seed) and the two rhythm settings,
+      // whatever the composition stream draws.
+      it('every spawned robot plays the rhythm stream: its onsets and lengths are buildSeededRhythm on its composition seed', () => {
+        for (const [suffix, coordinates] of [['-rhythm-a', { x: 7, y: 11 }], ['-rhythm-b', { x: 120, y: 40 }]] as const) {
+          freshLocale(rosterLocale + suffix, coordinates);
+          spawnInitialRoster(rosterLocale + suffix);
+          const robots = useLocaleStore.getState().getLocaleById(rosterLocale + suffix)!.robots;
+          expect(robots.length).toBeGreaterThan(0);
+          for (const robot of robots) {
+            const rhythmOnly = generateMelodyForRobot({
+              octaveMin: robot.octaveRange[0],
+              octaveMax: robot.octaveRange[1],
+              rhythmicDensity: robot.rhythmicDensity!,
+              rhythmicMotifLength: robot.rhythmicMotifLength!,
+              noteVariance: robot.noteVariance!,
+              pitchRepeat: robot.pitchRepeat!,
+              rand: alea('any composition stream'),
+              rhythmRand: buildSeededRhythm(robot.compositionSeed, {
+                rhythmicDensity: robot.rhythmicDensity!,
+                rhythmicMotifLength: robot.rhythmicMotifLength!,
+              }),
+            });
+            expect(robot.melody.map((e) => [e.startStep, e.length]), `robot ${robot.id}`).toEqual(
+              rhythmOnly.map((e) => [e.startStep, e.length]),
+            );
+          }
+        }
+      });
+
+      it('an unedited spawned original carries no lineage', () => {
+        freshLocale(rosterLocale + '-lineage');
+        spawnInitialRoster(rosterLocale + '-lineage');
+        for (const robot of useLocaleStore.getState().getLocaleById(rosterLocale + '-lineage')!.robots) {
+          expect(robot.lineage).toBeUndefined();
         }
       });
     });

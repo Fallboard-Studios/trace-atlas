@@ -6,7 +6,8 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 [73](../todo/backlog.md#73-robots-a-seeded-company-is-a-family).
 
 **Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. Building on
-`feature/company-families` from `main` after Part A merged (PR #623). **Tasks 1 and 2 done 2026-11-11; next is Task 3.**
+`feature/company-families` from `main` after Part A merged (PR #623). **Phase 1 (Tasks 1–3) built 2026-11-11; stopped at the rhythm-stream checkpoint for Crawford's listen. Next is
+Task 4.**
 B12–B15 answered at Gate A: every default stands.
 
 ## Overview
@@ -134,7 +135,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** S (one pure function, one option)
 
-- [ ] **Task 3: spawn and `regenerateMelody` build both streams — every world's melodies change**
+- [x] **Task 3: spawn and `regenerateMelody` build both streams — every world's melodies change**
 
   **Description:** `Robot.lineage?` in `src/types/Robot.ts` (doc comment in `gemSeed`'s manner; nothing sets it
   yet). `spawnRobot` and `regenerateMelody` build the rhythm stream from `lineage?.rhythmSeed ?? compositionSeed`
@@ -148,16 +149,31 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   composition stream).
 
   **Acceptance criteria:**
-  - [ ] Spawn and regenerate agree for an original and for a hand-built robot with a lineage (moved onsets included).
-  - [ ] A note-variance or octave edit leaves the onsets and lengths as they were; a density or motif edit moves them
+  - [x] Spawn and regenerate agree for an original and for a hand-built robot with a lineage (moved onsets included).
+  - [x] A note-variance or octave edit leaves the onsets and lengths as they were; a density or motif edit moves them
         (B7).
-  - [ ] An original's rests and accents are unchanged by this task (its rhythm seed is its composition seed).
-  - [ ] The full suite runs before this commit: any test pinned to a spawned melody's exact notes or onsets is
+  - [x] An original's rests and accents are unchanged by this task (its rhythm seed is its composition seed).
+  - [x] The full suite runs before this commit: any test pinned to a spawned melody's exact notes or onsets is
         re-pinned in this commit, old → new named in the message.
 
+  **As built:** one recipe, `composeRobotMelody(robot)` in `regenerateMelody.ts`, builds a melody from a robot's
+  stored fields (the rhythm, composition, move and performance streams); `regenerateMelody` and `spawnRobot` both call
+  it, so spawn and regenerate agree by construction, lineage or not (spawn imports it from `regenerateMelody.ts`, an
+  import edge the architecture note did not foresee; it reaches nothing new, as spawn already imports the engine and
+  the locale store). It lives there rather than in `melodyGenerator.ts` so its call to `generateMelodyForRobot` crosses
+  a module, where `robotOptionsActions.test.ts`' and `regenerateMelody.test.ts`' spies on that export still see it.
+  The move stream is `alea(`${compositionSeed}:onsetMoves`)`. The RED cases: B7 edits (free and tiled), a lineage
+  robot's rhythm, notes, shared stamps and moves, and every robot of two spawned rosters playing `buildSeededRhythm` on
+  its own seed. Mutants, killed: the performance stream on the robot's own seed; the move stream on the rhythm seed;
+  the rhythm stream on the robot's own seed; the rhythm stream left off (12 tests). Re-pins, each a rebuild of a
+  spawned or regenerated melody from one stream, given the rhythm stream: `spawnSystem.test.ts` (the Phase 31
+  mechanism pin; "every robot of a real roster…"; "rests and accents at their seeded values…"),
+  `regenerateMelody.test.ts` ("with rests and accents absent…"), `sessionDiff.test.ts` (the NORMALIZED-value restore;
+  the Robot Performance T15 round trip). No test outside those melody rebuilds moved.
+
   **Verification:**
-  - [ ] `npm test` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` passes (351 files; 13,763 passed, 2 skipped; 227 s).
+  - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** Tasks 1 and 2.
 
@@ -167,9 +183,9 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Estimated scope:** M (two call sites; the blast radius is the pinned melodies)
 
 ### Checkpoint: the rhythm stream
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Every world's melodies changed once and nothing else did: no session, link or lifecycle test moved except the
-      re-pins named in Task 3.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (Task 3's run).
+- [x] Every world's melodies changed once and nothing else did: no session, link or lifecycle test moved except the
+      re-pins named in Task 3 (the two session tests that moved rebuild a restored melody).
 - [ ] Reviewed with human before Phase 2 (a listen: originals only, every melody new).
 
 ---

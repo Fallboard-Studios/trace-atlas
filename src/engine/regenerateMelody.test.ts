@@ -313,7 +313,7 @@ describe('regenerateMelody — Rests and Accents post-pass', () => {
   });
 
   it('with rests and accents absent the melody is today melody: no stamps, same events as the seeded generator', async () => {
-    const { generateMelodyForRobot, buildSeededComposition } = await import('./melodyGenerator');
+    const { generateMelodyForRobot, buildSeededComposition, buildSeededRhythm } = await import('./melodyGenerator');
     const robot = dense();
     const expected = generateMelodyForRobot({
       octaveMin: 3,
@@ -328,6 +328,10 @@ describe('regenerateMelody — Rests and Accents post-pass', () => {
         noteVariance: { active: false, value: 0 },
         pitchRepeat: 0,
         octaveRange: robot.octaveRange,
+      }),
+      rhythmRand: buildSeededRhythm(robot.compositionSeed, {
+        rhythmicDensity: 100,
+        rhythmicMotifLength: { active: false, value: 0 },
       }),
     });
     const melody = melodyFor(robot);
@@ -391,5 +395,129 @@ describe('regenerateMelody — Rests and Accents post-pass', () => {
     const base = dense({ rests: 0, accents: 0 });
     const melody = melodyFor({ ...base, rests: 100 });
     expect(melody.every((e) => e.rest !== undefined)).toBe(true);
+  });
+});
+
+// ========================================
+// TEST SUITE: regenerateMelody — the rhythm stream and the lineage (Company Families, Task 3)
+// docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11
+// ========================================
+
+describe('regenerateMelody — the rhythm stream and the lineage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  type StoredEvent = { startStep: number; length: string; noteIndex: number; octave: number; rest?: number; mark?: string };
+
+  function melodyFor(robot: Robot): StoredEvent[] {
+    updateRobotMock.mockClear();
+    regenerateMelody(robot, 'locale-1');
+    return updateRobotMock.mock.calls[0][2].melody;
+  }
+  const rhythmOf = (m: StoredEvent[]) => m.map((e) => [e.startStep, e.length]);
+  const notesOf = (m: StoredEvent[]) => m.map((e) => [e.noteIndex, e.octave]);
+  const stampsOf = (m: StoredEvent[]) => m.map((e) => [e.rest, e.mark]);
+  const stepsOf = (m: StoredEvent[]) => m.map((e) => e.startStep);
+
+  // Free and sparse (long, varied gaps, so the lengths are real draws), and tiled.
+  const free = (overrides: Partial<Robot> = {}) =>
+    makeRobot({ compositionSeed: 0.37, rhythmicDensity: 40, rhythmicMotifLength: { active: false, value: 0 }, ...overrides });
+  const tiled = (overrides: Partial<Robot> = {}) =>
+    makeRobot({
+      compositionSeed: 0.37,
+      rhythmicDensity: 50,
+      rhythmicMotifLength: { active: true, value: 6 },
+      pitchRepeat: 40,
+      ...overrides,
+    });
+
+  describe('an edit moves the rhythm only when it is a rhythm setting (B7)', () => {
+    for (const [name, robot] of [['free', free], ['tiled', tiled]] as const) {
+      it(`${name}: a Note Variance edit leaves the onsets and lengths and changes the notes`, () => {
+        const before = melodyFor(robot());
+        const after = melodyFor(robot({ noteVariance: { active: true, value: 2 } }));
+        expect(rhythmOf(after)).toEqual(rhythmOf(before));
+        expect(notesOf(after)).not.toEqual(notesOf(before));
+      });
+
+      it(`${name}: an octave range edit leaves the onsets and lengths`, () => {
+        expect(rhythmOf(melodyFor(robot({ octaveRange: [2, 6] })))).toEqual(rhythmOf(melodyFor(robot())));
+      });
+
+      it(`${name}: a Pitch Repeat edit leaves the onsets and lengths`, () => {
+        expect(rhythmOf(melodyFor(robot({ pitchRepeat: 90 })))).toEqual(rhythmOf(melodyFor(robot())));
+      });
+
+      it(`${name}: a density edit moves the onsets`, () => {
+        expect(stepsOf(melodyFor(robot({ rhythmicDensity: 70 })))).not.toEqual(stepsOf(melodyFor(robot())));
+      });
+    }
+
+    it('a motif edit moves the onsets', () => {
+      expect(stepsOf(melodyFor(tiled({ rhythmicMotifLength: { active: true, value: 3 } })))).not.toEqual(
+        stepsOf(melodyFor(tiled())),
+      );
+    });
+  });
+
+  describe('a robot with a lineage', () => {
+    const FOUNDER_SEED = 0.61;
+    const founder = (overrides: Partial<Robot> = {}) =>
+      free({ compositionSeed: FOUNDER_SEED, rests: 50, accents: 60, ...overrides });
+    const member = (movedOnsets: 0 | 1 | 2, overrides: Partial<Robot> = {}) =>
+      free({
+        compositionSeed: 0.29,
+        rests: 50,
+        accents: 60,
+        lineage: { founderIndex: 0, rhythmSeed: FOUNDER_SEED, movedOnsets },
+        ...overrides,
+      });
+
+    it('plays its rhythm seed: the onsets and lengths of an original with that composition seed', () => {
+      expect(rhythmOf(melodyFor(member(0)))).toEqual(rhythmOf(melodyFor(founder())));
+    });
+
+    it('plays its own notes', () => {
+      expect(notesOf(melodyFor(member(0)))).not.toEqual(notesOf(melodyFor(founder())));
+    });
+
+    it('rests and accents with its rhythm seed (B12): the same stamps as the founder', () => {
+      const stamps = stampsOf(melodyFor(founder()));
+      expect(stamps.some(([rest, mark]) => rest !== undefined || mark !== undefined)).toBe(true);
+      expect(stampsOf(melodyFor(member(0)))).toEqual(stamps);
+    });
+
+    it('in a tiled robot too: the founder rhythm, its own notes', () => {
+      const tiledFounder = tiled({ compositionSeed: FOUNDER_SEED });
+      const tiledMember = tiled({ compositionSeed: 0.29, lineage: { founderIndex: 0, rhythmSeed: FOUNDER_SEED, movedOnsets: 0 } });
+      expect(rhythmOf(melodyFor(tiledMember))).toEqual(rhythmOf(melodyFor(tiledFounder)));
+      expect(notesOf(melodyFor(tiledMember))).not.toEqual(notesOf(melodyFor(tiledFounder)));
+    });
+
+    for (const moved of [1, 2] as const) {
+      it(`with ${moved} moved onset(s): the founder's onsets but ${moved}, the same event count`, () => {
+        const founderSteps = stepsOf(melodyFor(founder()));
+        const steps = stepsOf(melodyFor(member(moved)));
+        expect(steps).toHaveLength(founderSteps.length);
+        expect(steps.filter((s) => !founderSteps.includes(s))).toHaveLength(moved);
+      });
+    }
+
+    it('the moves are its own: members of one founder with their own seeds move different onsets', () => {
+      const patterns = new Set(
+        [0.11, 0.29, 0.47, 0.53, 0.71, 0.83].map((seed) => stepsOf(melodyFor(member(1, { compositionSeed: seed }))).join(',')),
+      );
+      expect(patterns.size).toBeGreaterThan(1);
+    });
+
+    it('is repeatable: regenerating a moved member twice gives the same melody', () => {
+      const strip = (m: StoredEvent[]) => m.map(({ startStep, length, noteIndex, octave, rest, mark }) => [startStep, length, noteIndex, octave, rest, mark]);
+      expect(strip(melodyFor(member(2)))).toEqual(strip(melodyFor(member(2))));
+    });
+
+    it('a Note Variance edit leaves a moved member rhythm where it was', () => {
+      expect(rhythmOf(melodyFor(member(2, { noteVariance: { active: true, value: 3 } })))).toEqual(rhythmOf(melodyFor(member(2))));
+    });
   });
 });

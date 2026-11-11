@@ -1,9 +1,11 @@
 // ========================================
 // IMPORTS
 // ========================================
+import alea from 'alea';
 import {
   generateMelodyForRobot,
   buildSeededComposition,
+  buildSeededRhythm,
   buildSeededPerformance,
   applyPerformanceMarks,
   DEFAULT_RHYTHMIC_DENSITY,
@@ -15,19 +17,70 @@ import {
 } from './melodyGenerator';
 import { AudioEngine } from './AudioEngine';
 import { useLocaleStore } from '../stores/localeStore';
-import type { Robot } from '../types/Robot';
+import type { MelodyEvent, Robot } from '../types/Robot';
 
 // ========================================
 // EXPORTS
 // ========================================
 
+/** What composeRobotMelody reads from a robot; absent composition fields read as their defaults. */
+export type RobotMelodyInputs = Pick<Robot, 'compositionSeed' | 'lineage' | 'octaveRange'> &
+  Partial<Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat' | 'rests' | 'accents'>>;
+
+/**
+ * A robot's melody from its stored fields: the one recipe spawnSystem.ts's spawnRobot and
+ * regenerateMelody below both use (Deterministic Robot Melody Generation, Roadmap Phase 31), so an
+ * edit reverted to its spawn value reproduces the spawn melody exactly, stamps included (no
+ * "first-edit ratchet"), for an original and a family member alike. Pure: no store, no engine.
+ *
+ * Company Families (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.11): the onsets and lengths
+ * draw from the rhythm stream on the rhythm seed (`lineage.rhythmSeed`, else the robot's own
+ * composition seed), so a Note Variance, Pitch Repeat or octave edit leaves them where they were
+ * (B7); the pitch-lock plan, octaves and notes from the composition stream; a member's
+ * `lineage.movedOnsets` from a move stream on its own composition seed, so the move is its own; and
+ * the Rests / Accents post-pass (docs/specs/ROBOT_PERFORMANCE.md §1.2) from the performance stream
+ * on the rhythm seed, so a section rests and accents together (B12). An original's rhythm seed is
+ * its composition seed, so its stamps draw from the stream they always did.
+ */
+export function composeRobotMelody(robot: RobotMelodyInputs): MelodyEvent[] {
+  const rhythmicDensity = robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY;
+  const rhythmicMotifLength = robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
+  const noteVariance = robot.noteVariance ?? DEFAULT_NOTE_VARIANCE;
+  const pitchRepeat = robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
+  const rhythmSeed = robot.lineage?.rhythmSeed ?? robot.compositionSeed;
+  const movedOnsets = robot.lineage?.movedOnsets ?? 0;
+
+  const melody = generateMelodyForRobot({
+    octaveMin: robot.octaveRange[0],
+    octaveMax: robot.octaveRange[1],
+    rhythmicDensity,
+    rhythmicMotifLength,
+    noteVariance,
+    pitchRepeat,
+    rand: buildSeededComposition(robot.compositionSeed, {
+      rhythmicDensity,
+      rhythmicMotifLength,
+      noteVariance,
+      pitchRepeat,
+      octaveRange: robot.octaveRange,
+    }),
+    rhythmRand: buildSeededRhythm(rhythmSeed, { rhythmicDensity, rhythmicMotifLength }),
+    ...(movedOnsets > 0 ? { onsetMoves: { count: movedOnsets, rand: alea(`${robot.compositionSeed}:onsetMoves`) } } : {}),
+  });
+
+  return applyPerformanceMarks(
+    melody,
+    { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
+    buildSeededPerformance(rhythmSeed),
+  );
+}
+
 /**
  * Regenerate a robot's melody using its current rhythmic attributes and octave range,
  * then write the new melody to the locale store and register it with AudioEngine.
  *
- * Uses the new GenerateMelodyForRobotOptions path (motif-density algorithm) when
- * `robot.rhythmicDensity` and `robot.rhythmicMotifLength` are present; falls back
- * to sensible defaults when they are absent.
+ * Builds it with composeRobotMelody, the recipe spawn uses; absent composition fields fall back
+ * to sensible defaults.
  *
  * Safe to call from UI event handlers — Zustand is synchronous, and
  * `AudioEngine.registerRobotMelody` is safe to call off the Transport tick.
@@ -37,40 +90,7 @@ import type { Robot } from '../types/Robot';
  * @param localeId The active locale ID (pass `getActiveLocaleId()` from the call site).
  */
 export function regenerateMelody(robot: Robot, localeId: string): void {
-  const [octMin, octMax] = robot.octaveRange;
-  const rhythmicDensity = robot.rhythmicDensity ?? DEFAULT_RHYTHMIC_DENSITY;
-  const rhythmicMotifLength = robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
-  const noteVariance = robot.noteVariance ?? DEFAULT_NOTE_VARIANCE;
-  const pitchRepeat = robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
-  const rests = robot.rests ?? DEFAULT_RESTS;
-  const accents = robot.accents ?? DEFAULT_ACCENTS;
-
-  // Deterministic Robot Melody Generation (Roadmap Phase 31) -- the same formula
-  // spawnSystem.ts uses for a robot's initial melody, so an edit reverted to its original
-  // value reproduces the exact melody it had before (no "first-edit ratchet").
-  const rand = buildSeededComposition(robot.compositionSeed, {
-    rhythmicDensity,
-    rhythmicMotifLength,
-    noteVariance,
-    pitchRepeat,
-    octaveRange: robot.octaveRange,
-  });
-
-  // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.2): Rests and Accents stamp the finished
-  // melody from their own stream, so the notes above never move when either slider does.
-  const newMelody = applyPerformanceMarks(
-    generateMelodyForRobot({
-      octaveMin: octMin,
-      octaveMax: octMax,
-      rhythmicDensity,
-      rhythmicMotifLength,
-      noteVariance,
-      pitchRepeat,
-      rand,
-    }),
-    { rests, accents },
-    buildSeededPerformance(robot.compositionSeed),
-  );
+  const newMelody = composeRobotMelody(robot);
 
   useLocaleStore.getState().updateRobot(localeId, robot.id, { melody: newMelody });
   // The engine gets the robot as stored, read back from its own locale: a rebuild regenerates (the deal's Melody push)

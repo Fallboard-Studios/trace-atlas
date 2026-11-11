@@ -7,8 +7,6 @@ import type { Vec2 } from '../types/Vec2';
 import type { AudioAttributes, Robot, RobotFilterType } from '../types/Robot';
 import { DockingState } from '../types/Robot';
 import {
-  generateMelodyForRobot,
-  buildSeededComposition,
   DEFAULT_RHYTHMIC_DENSITY,
   DEFAULT_RHYTHMIC_MOTIF_LENGTH,
   DEFAULT_NOTE_VARIANCE,
@@ -16,10 +14,9 @@ import {
   DEFAULT_DYNAMICS,
   DEFAULT_RESTS,
   DEFAULT_ACCENTS,
-  buildSeededPerformance,
-  applyPerformanceMarks,
 } from '../engine/melodyGenerator';
 import type { ToggleValue } from '../engine/melodyGenerator';
+import { composeRobotMelody } from '../engine/regenerateMelody';
 import { AudioEngine } from '../engine/AudioEngine';
 import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
@@ -637,33 +634,20 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     }
   }
 
-  // Seeded melody (Roadmap Phase 31) -- the same buildSeededComposition formula
-  // regenerateMelody.ts uses for every later edit, so a post-spawn edit reverted to its
-  // original value reproduces this exact melody (no "first-edit ratchet"). Retires the old
-  // per-call noise-map draw ('melody.rand'/melodyCallIndex) in favor of compositionSeed.
-  const compositionRand = buildSeededComposition(compositionSeed, {
+  // Seeded melody (Roadmap Phase 31) -- the same recipe regenerateMelody.ts uses for every later
+  // edit (composeRobotMelody: the rhythm, composition and performance streams, Company Families
+  // §1.11), so a post-spawn edit reverted to its original value reproduces this exact melody, stamps
+  // included (no "first-edit ratchet"). No lineage yet: every spawned robot is an original.
+  const spawnMelody = composeRobotMelody({
+    compositionSeed,
+    octaveRange,
     rhythmicDensity: spawnRhythmicDensity,
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
-    octaveRange,
+    rests: spawnRests,
+    accents: spawnAccents,
   });
-
-  // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.2): the Rests / Accents post-pass, the same one
-  // regenerateMelody.ts applies, so an edit reverted to its spawn value reproduces this melody, stamps included.
-  const spawnMelody = applyPerformanceMarks(
-    generateMelodyForRobot({
-      octaveMin: octaveRange[0],
-      octaveMax: octaveRange[1],
-      rhythmicDensity: spawnRhythmicDensity,
-      rhythmicMotifLength: spawnRhythmicMotifLength,
-      noteVariance: spawnNoteVariance,
-      pitchRepeat: spawnPitchRepeat,
-      rand: compositionRand,
-    }),
-    { rests: spawnRests, accents: spawnAccents },
-    buildSeededPerformance(compositionSeed),
-  );
 
   const position = noiseMap ? generateSpawnPosition(noiseMap, spawnCount) : generateSpawnPosition((_x: number, _y: number) => 0 as number, spawnCount);
 

@@ -71,7 +71,7 @@ import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../sys
 import * as audioSwells from '../systems/audioSwells';
 import { constantNoiseMap, noiseMapForDataIds } from '../testUtils/seededDraws';
 import * as noiseMaps from './noiseMaps';
-import { buildSeededComposition, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
+import { buildSeededComposition, buildSeededRhythm, buildSeededPerformance, applyPerformanceMarks, generateMelodyForRobot, DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_PITCH_REPEAT, DEFAULT_RESTS, DEFAULT_ACCENTS } from '../engine/melodyGenerator';
 import { RHYTHMIC_DENSITY_MAX } from '../constants';
 import { ROBOT_LFO_TARGET_IDS, GLOBAL_LFO_TARGET_IDS, LFO_LANE_IDS, type RobotLfoTargetId, type LfoLink } from '../types/lfo';
 import { DEFAULT_BANK_LFO, DEFAULT_LFO_LINK } from '../data/lfoConfig';
@@ -1179,6 +1179,11 @@ describe('applySessionPayload', () => {
         noteVariance: restoredRobot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
         pitchRepeat: restoredRobot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
         rand: expectedRand,
+        // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
+        rhythmRand: buildSeededRhythm(restoredRobot.compositionSeed, {
+          rhythmicDensity: RHYTHMIC_DENSITY_MAX,
+          rhythmicMotifLength: restoredRobot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+        }),
       }),
       { rests: restoredRobot.rests ?? DEFAULT_RESTS, accents: restoredRobot.accents ?? DEFAULT_ACCENTS },
       buildSeededPerformance(restoredRobot.compositionSeed),
@@ -1521,6 +1526,11 @@ describe('applySessionPayload', () => {
           noteVariance: robot.noteVariance ?? DEFAULT_NOTE_VARIANCE,
           pitchRepeat: robot.pitchRepeat ?? DEFAULT_PITCH_REPEAT,
           rand,
+          // Company Families Task 3: onsets and lengths from the rhythm stream, on an original's own seed.
+          rhythmRand: buildSeededRhythm(robot.compositionSeed, {
+            rhythmicDensity: robot.rhythmicDensity!,
+            rhythmicMotifLength: robot.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH,
+          }),
         }),
         { rests: robot.rests ?? DEFAULT_RESTS, accents: robot.accents ?? DEFAULT_ACCENTS },
         buildSeededPerformance(robot.compositionSeed),
