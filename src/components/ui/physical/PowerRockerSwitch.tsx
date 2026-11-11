@@ -269,7 +269,7 @@ export function PowerRockerSwitch() {
                 Its rect is POWER_GLYPH (rockerGeometry.ts). It does not move by a `y` tween: it is printed on
                 the bottom face, so GSAP scales it about the ridge (svgOrigin) by the face's own foreshortening,
                 the same orbit as the faces and the light. x/y/width/height still need real JSX values
-                (docs/todo/backlog.md #20): left GSAP-only, an SVG-length attribute has no valid value on the
+                (backlog 13, archived): left GSAP-only, an SVG-length attribute has no valid value on the
                 very first paint, before useGSAP's mount effect runs, which Chrome logged as
                 `<svg> attribute y: ... Expected length, ""`.
                 Sits before rocker-ridge so the ridge shadow paints over it.

@@ -192,22 +192,6 @@ specified). Not yet scoped.
 atmosphere layer of light rays. Marine snow, the particle half, was built and cut on 2026-10-07 (it read as film
 grain). Fog, dust and precipitation are still unbuilt, so the item stays open.
 
-### 13. SVG: Invalid Empty `y` Attribute — Live-Browser Confirmation Outstanding
-
-**Status:** fix merged to `main` via PR #469 (`7eb1f67`), 2026-09-15 — confirmed still
-present at `PowerRockerSwitch.tsx:314` (`y={POWER_SVG_REST.y}`). Only the live-browser
-confirmation remains genuinely open; no evidence since of that check having happened.
-
-`PowerRockerSwitch.tsx`'s nested `.rocker-power-svg` (the power icon inside the rocker
-switch) was the one element in the codebase whose `y` position was never set in JSX at
-all — set only by `useGSAP`'s `gsap.set(powerSvgEl, { attr: { y: POWER_SVG_REST.y } })` on
-mount, so on the very first paint the attribute was absent/invalid. The fix gives the
-`<svg>` an explicit `y` default in JSX so a valid value exists from the very first paint;
-GSAP still owns the tween from there. Covered by a `PowerRockerSwitch.test.tsx` regression
-test. **Not yet confirmed in a live browser** — the hypothesis is strong (the one
-component matching the bug's exact shape) but the real Chrome console output was never
-watched directly for it.
-
 ### 17. Audit: LFO Drift / Audio Swells / Ping Variance — Replayability Findings
 
 Task 8 of `docs/tasks/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md` (roadmap Phase 20.5),
