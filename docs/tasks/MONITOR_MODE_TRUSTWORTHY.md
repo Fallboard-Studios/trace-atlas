@@ -5,7 +5,8 @@ Source spec: [docs/specs/MONITOR_MODE_TRUSTWORTHY.md](../specs/MONITOR_MODE_TRUS
 (spec §7.2 Q1; default Stage 3, one entry for both parts).
 
 **Status:** plan written 2026-11-11 from the spec, before Crawford's answers to §7.2 Q1–Q2; every §7.1 default stands
-until a gate re-pins it. Not yet built.
+until a gate re-pins it. Phases 0–2 built 2026-11-11 (Tasks 0–11); both gates' automated checks pass. Waiting on
+Checkpoint A's ear runs and Checkpoint B's eye run, then Task 12.
 
 ## Overview
 
@@ -476,7 +477,8 @@ code, not text").
   233 px row), with or without these rules.
 
 ### Checkpoint B: the display (stop — Crawford's eye, spec §5.4)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-11-11: 13857 passed,
+      2 skipped, 354 files).
 - [ ] Run 3 (spec §5.3): the roster on the desk and the phone, the robot screen and the band, as Tasks 10 and 11
       describe; the colours Auto green, Solo yellow, Mute red, Highlight blue; the dim level readable.
 - [ ] Crawford names the blue (B1, `glass`), the light's size, the dim level (B3) and the muted robot's light (Q2,
