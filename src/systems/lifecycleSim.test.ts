@@ -30,6 +30,9 @@ import {
   runReadinessSim,
   formatReadinessReport,
   createCoverTally,
+  runCoverSim,
+  formatCoverReport,
+  type CoverSimRow,
   type CoverSnapshot,
   type CoverTallyResult,
   type LifecycleStep,
@@ -40,7 +43,7 @@ import {
   type ReadinessRow,
   type ReadinessSeedRow,
 } from './lifecycleSim';
-import { activeDrain, type RobotLifecycleSnapshot } from './robotSystems';
+import { activeDrain, stepRobotLifecycle, type RobotLifecycleSnapshot } from './robotSystems';
 import { spawnInitialRoster } from './spawnSystem';
 import { placeDistrict } from './districts';
 import { getWorkSite } from './workSites';
@@ -452,6 +455,138 @@ describe('createCoverTally (no-silence Task 1)', () => {
         ['b', [], undefined, 0],
       ]);
     });
+  });
+});
+
+// ========================================
+// COVER SIM (no-silence Task 2 — spec §1.5)
+// ========================================
+
+/** The cover report's run length (spec §5.3): 6,000 measures a world, under LIFECYCLE_SIM_REPORT only. */
+const COVER_REPORT_MEASURES = 6000;
+
+describe('runCoverSim (no-silence Task 2)', () => {
+  it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and at most five worst worlds, longest silence first', () => {
+    // The whole grid, but short: enough silent worlds, of more than one length, to test the cap and the order.
+    const row = runCoverSim({ measures: 300 });
+    expect(row.worldsWithSilence).toBeGreaterThan(5);
+    expect(new Set(row.worstWorlds.map((w) => w.length)).size).toBeGreaterThan(1);
+    expect(row.worlds).toBe(SIM_SEED_COORDS.length);
+    expect(row.measures).toBe(300);
+    const numbers = [
+      row.silentShare, row.worldsWithSilence, row.worldsWithStay, row.staysPer1000, row.stayShare,
+      row.stayLength.median, row.stayLength.p90, row.stayLength.longest,
+      row.sounding.mean, row.sounding.p10, row.sounding.p90,
+      row.cycles.shortest, row.cycles.longest, row.cycles.distinct,
+      row.sharing.median, row.sharing.max, row.heardShare.lowest, row.heardShare.highest,
+    ];
+    for (const n of numbers) expect(Number.isFinite(n)).toBe(true);
+    for (const share of [row.silentShare, row.stayShare, row.heardShare.lowest, row.heardShare.highest]) {
+      expect(share).toBeGreaterThanOrEqual(0);
+      expect(share).toBeLessThanOrEqual(1);
+    }
+    expect(row.sounding.p10).toBeLessThanOrEqual(row.sounding.mean);
+    expect(row.sounding.mean).toBeLessThanOrEqual(row.sounding.p90);
+    expect(row.heardShare.lowest).toBeLessThanOrEqual(row.heardShare.highest);
+    expect(row.cycles.shortest).toBeLessThanOrEqual(row.cycles.longest);
+    expect(row.worldsWithSilence).toBeLessThanOrEqual(row.worlds);
+    expect(row.worstWorlds.length).toBeLessThanOrEqual(5);
+    expect(row.worstWorlds.length).toBe(Math.min(5, row.worldsWithSilence));
+    const lengths = row.worstWorlds.map((w) => w.length);
+    expect(lengths).toEqual([...lengths].sort((a, b) => b - a));
+  });
+
+  it('agrees with its own count, world by world: silent measures, the longest silence and robots sounding off the real step', () => {
+    const SOUNDING = new Set<DockingState>([DockingState.Active, DockingState.Recalled]);
+    let silentWorlds = 0;
+    for (const { x, y } of SIM_SEED_COORDS.slice(0, 12)) {
+      const noiseMap = simNoiseMap(x, y);
+      let roster = buildSimRoster(noiseMap);
+      let silent = 0;
+      let soundingTotal = 0;
+      let run = 0;
+      let longest = 0;
+      for (let measure = 1; measure <= 300; measure++) {
+        roster = stepRobotLifecycle(roster, measure, noiseMap);
+        const sounding = roster.filter((r) => SOUNDING.has(r.docking)).length;
+        soundingTotal += sounding;
+        run = sounding === 0 ? run + 1 : 0;
+        if (sounding === 0) silent++;
+        longest = Math.max(longest, run);
+      }
+      const row = runCoverSim({ coords: [{ x, y }], measures: 300 });
+      expect(row.silentShare * 300).toBeCloseTo(silent, 9);
+      expect(row.worldsWithSilence).toBe(silent > 0 ? 1 : 0);
+      expect(row.sounding.mean).toBeCloseTo(soundingTotal / 300, 9);
+      expect(row.worstWorlds.map((w) => [w.x, w.y, w.length])).toEqual(silent > 0 ? [[x, y, longest]] : []);
+      if (silent > 0) silentWorlds++;
+    }
+    // Guard against a coincidental pass on all-zero counts: some of these worlds must go silent.
+    expect(silentWorlds).toBeGreaterThan(0);
+  });
+
+  it('pools the tally over worlds: staysPer1000 and the shares are per measure per world', () => {
+    const one = runCoverSim({ coords: [FEW_COORDS[0]], measures: 300 });
+    const two = runCoverSim({ coords: [FEW_COORDS[0], FEW_COORDS[0]], measures: 300 });
+    expect(two.silentShare).toBeCloseTo(one.silentShare, 12);
+    expect(two.staysPer1000).toBeCloseTo(one.staysPer1000, 12);
+    expect(two.stayShare).toBeCloseTo(one.stayShare, 12);
+    expect(two.sounding.mean).toBeCloseTo(one.sounding.mean, 12);
+    expect(two.worldsWithSilence).toBe(2 * one.worldsWithSilence);
+  });
+
+  it('is deterministic — the same row twice', () => {
+    expect(runCoverSim({ coords: FEW_COORDS, measures: 200 })).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 200 }));
+  });
+
+  it('touches no store and no BeatClock', () => {
+    const getState = vi.spyOn(useLocaleStore, 'getState');
+    vi.mocked(subscribeToMeasure).mockClear();
+    vi.mocked(getCurrentMeasure).mockClear();
+    runCoverSim({ coords: FEW_COORDS, measures: 100 });
+    expect(getState).not.toHaveBeenCalled();
+    expect(subscribeToMeasure).not.toHaveBeenCalled();
+    expect(getCurrentMeasure).not.toHaveBeenCalled();
+  });
+
+  it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)(`the report: the full grid at ${COVER_REPORT_MEASURES} measures a world`, () => {
+    const row = runCoverSim({ measures: COVER_REPORT_MEASURES });
+    console.log(`\n${formatCoverReport([row])}`);
+  }, 300_000);
+});
+
+describe('formatCoverReport', () => {
+  const row: CoverSimRow = {
+    label: 'today',
+    worlds: 121,
+    measures: 6000,
+    silentShare: 0.034,
+    worldsWithSilence: 79,
+    worldsWithStay: 0,
+    staysPer1000: 0,
+    stayLength: { median: 0, p90: 0, longest: 0 },
+    stayShare: 0,
+    sounding: { mean: 5.5, p10: 2, p90: 9 },
+    cycles: { shortest: 35, longest: 35, distinct: 1 },
+    sharing: { median: 12, max: 12 },
+    heardShare: { lowest: 0.457, highest: 0.458 },
+    worstWorlds: [
+      { x: 40, y: -80, start: 31, length: 8 },
+      { x: -200, y: 0, start: 12, length: 6 },
+    ],
+  };
+
+  it('renders a header, a separator, one line per row, then each row\'s worst worlds longest first', () => {
+    const lines = formatCoverReport([row, { ...row, label: 'size only', worstWorlds: [] }]).trim().split('\n');
+    expect(lines[0]).toMatch(/^\| Row \| Silent measures \|/);
+    expect(lines[1]).toMatch(/^\|[-| ]+\|$/);
+    expect(lines[2]).toMatch(/^\| today \| 3\.40 % \| 79 \/ 121 \|/);
+    expect(lines[3]).toMatch(/^\| size only \|/);
+    const worst = lines.findIndex((l) => l === '| 40 | -80 | 31 | 8 |');
+    const next = lines.findIndex((l) => l === '| -200 | 0 | 12 | 6 |');
+    expect(worst).toBeGreaterThan(3);
+    expect(next).toBe(worst + 1);
+    expect(lines.some((l) => /size only/.test(l) && /no silence/.test(l))).toBe(true);
   });
 });
 

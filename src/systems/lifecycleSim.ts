@@ -312,6 +312,143 @@ export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTa
 }
 
 // ========================================
+// COVER SIM (no-silence Task 2)
+// ========================================
+
+/** Worlds listed by their longest silence in the cover report — Gate B listens there (spec §1.5). */
+const WORST_WORLDS_LISTED = 5;
+
+export interface CoverSimWorld {
+  x: number;
+  y: number;
+  /** The measure the world's longest silence begins. */
+  start: number;
+  length: number;
+}
+
+export interface CoverSimRow {
+  label: string;
+  worlds: number;
+  /** Per world. */
+  measures: number;
+  /** Silent measures over every (world, measure). */
+  silentShare: number;
+  worldsWithSilence: number;
+  worldsWithStay: number;
+  /** Stays per 1,000 measures per world. */
+  staysPer1000: number;
+  /** In measures; all 0 when there is no stay. */
+  stayLength: { median: number; p90: number; longest: number };
+  /** Measures with a robot in a stay over every (world, measure). */
+  stayShare: number;
+  /** Robots sounding over every (world, measure). */
+  sounding: { mean: number; p10: number; p90: number };
+  /** Every robot's cycle across the grid; all 0 when no robot has one. */
+  cycles: { shortest: number; longest: number; distinct: number };
+  /** Per world, the largest group of robots sharing one cycle length; across worlds. */
+  sharing: { median: number; max: number };
+  /** Each robot's heard share, lowest and highest across the grid. */
+  heardShare: { lowest: number; highest: number };
+  /** The worlds with the longest silence, longest first (grid order on a tie), at most WORST_WORLDS_LISTED. */
+  worstWorlds: CoverSimWorld[];
+}
+
+/**
+ * The cover sim (spec §1.5): every world's buildSimRoster stepped through the real stepRobotLifecycle
+ * for `measures`, fed to a cover tally, then pooled into one row. Pure: no store, no BeatClock.
+ */
+export function runCoverSim(options: {
+  coords?: ReadonlyArray<{ x: number; y: number }>;
+  measures?: number;
+  label?: string;
+} = {}): CoverSimRow {
+  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, label = 'shipped' } = options;
+  const sounding: number[] = [];
+  const stays: number[] = [];
+  const cycles: number[] = [];
+  const sharing: number[] = [];
+  const heard: number[] = [];
+  const silent: CoverSimWorld[] = [];
+  let silentMeasures = 0;
+  let stayMeasures = 0;
+  let worldsWithStay = 0;
+
+  for (const { x, y } of coords) {
+    const noiseMap = simNoiseMap(x, y);
+    let roster = buildSimRoster(noiseMap);
+    const tally = createCoverTally(roster);
+    for (let measure = 1; measure <= measures; measure++) {
+      roster = stepRobotLifecycle(roster, measure, noiseMap);
+      tally.observe(roster);
+    }
+    const t = tally.result();
+    t.soundingHistogram.forEach((count, n) => {
+      for (let i = 0; i < count; i++) sounding.push(n);
+    });
+    silentMeasures += t.silentMeasures;
+    if (t.longestSilence) silent.push({ x, y, ...t.longestSilence });
+    stays.push(...t.stays);
+    stayMeasures += t.stayMeasures;
+    if (t.stays.length > 0) worldsWithStay++;
+    const groups = new Map<number, number>();
+    for (const r of t.robots) {
+      heard.push(r.heardShare);
+      if (r.cycle === undefined) continue;
+      cycles.push(r.cycle);
+      groups.set(r.cycle, (groups.get(r.cycle) ?? 0) + 1);
+    }
+    sharing.push(Math.max(0, ...groups.values()));
+  }
+
+  const samples = coords.length * measures;
+  const orZero = (values: readonly number[], p: number) => (values.length > 0 ? percentile(values, p) : 0);
+  return {
+    label,
+    worlds: coords.length,
+    measures,
+    silentShare: samples > 0 ? silentMeasures / samples : 0,
+    worldsWithSilence: silent.length,
+    worldsWithStay,
+    staysPer1000: samples > 0 ? (stays.length / samples) * 1000 : 0,
+    stayLength: { median: orZero(stays, 50), p90: orZero(stays, 90), longest: orZero(stays, 100) },
+    stayShare: samples > 0 ? stayMeasures / samples : 0,
+    sounding: {
+      mean: sounding.length > 0 ? sounding.reduce((s, v) => s + v, 0) / sounding.length : 0,
+      p10: orZero(sounding, 10),
+      p90: orZero(sounding, 90),
+    },
+    cycles: { shortest: cycles.length > 0 ? Math.min(...cycles) : 0, longest: Math.max(0, ...cycles), distinct: new Set(cycles).size },
+    sharing: { median: orZero(sharing, 50), max: Math.max(0, ...sharing) },
+    heardShare: { lowest: heard.length > 0 ? Math.min(...heard) : 0, highest: Math.max(0, ...heard) },
+    worstWorlds: [...silent].sort((a, b) => b.length - a.length).slice(0, WORST_WORLDS_LISTED),
+  };
+}
+
+/** The cover rows as a markdown table, then each row's worst worlds — for the stop-and-report and Results. */
+export function formatCoverReport(rows: readonly CoverSimRow[]): string {
+  const pct = (v: number) => `${(v * 100).toFixed(2)} %`;
+  const lines = [
+    '| Row | Silent measures | Worlds with a silence | Worlds with a stay | Stays / 1,000 measures | Stay length (median, p90, longest) | In a stay | Sounding (mean, p10–p90) | Cycles (shortest–longest, distinct) | Largest group sharing a cycle (median, max) | Heard share (lowest–highest) |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  for (const r of rows) {
+    lines.push(
+      `| ${r.label} | ${pct(r.silentShare)} | ${r.worldsWithSilence} / ${r.worlds} | ${r.worldsWithStay} / ${r.worlds} | ${r.staysPer1000.toFixed(2)} | ${r.stayLength.median}, ${r.stayLength.p90}, ${r.stayLength.longest} | ${pct(r.stayShare)} | ${r.sounding.mean.toFixed(2)}, ${r.sounding.p10}–${r.sounding.p90} | ${r.cycles.shortest}–${r.cycles.longest}, ${r.cycles.distinct} | ${r.sharing.median}, ${r.sharing.max} | ${pct(r.heardShare.lowest)}–${pct(r.heardShare.highest)} |`,
+    );
+  }
+  for (const r of rows) {
+    if (r.worstWorlds.length === 0) {
+      lines.push('', `${r.label} — no silence in any world.`);
+      continue;
+    }
+    lines.push('', `${r.label} — the ${r.worstWorlds.length} longest silences (${r.measures} measures a world):`, '');
+    lines.push('| x | y | Begins at measure | Length |', '|---|---|---|---|');
+    for (const w of r.worstWorlds) lines.push(`| ${w.x} | ${w.y} | ${w.start} | ${w.length} |`);
+  }
+  return lines.join('\n');
+}
+
+// ========================================
 // LOOP SIM — WORLD AND ROSTER (Phase 43 Task 15)
 // ========================================
 
