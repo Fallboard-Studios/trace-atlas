@@ -17,8 +17,7 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 2 — Bugs and quality of life
 
-- Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
-  console check** — two minutes with DevTools open.
+- Empty: its last item, backlog 13, closed 2026-11-10 by a live-browser check (nothing built). Stage 3 is next.
 
 ## Stage 3 — Audio refinement
 

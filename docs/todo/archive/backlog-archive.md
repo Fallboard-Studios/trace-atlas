@@ -120,6 +120,34 @@ most robots hit on every locale load simply by spawning Docked. Covered by new r
 in `idleSystem.test.ts` asserting `console.warn` fires for a missing robot and stays silent for
 every ordinary docking/state combination.
 
+## 13. SVG: Invalid Empty `y` Attribute — Live-Browser Confirmation Outstanding
+
+**Closed** 2026-11-10 (live-browser check on branch `bugs/empty-y`; nothing built). The fix from PR #469 still
+stands, in a newer shape: the glyph's rect is now `POWER_GLYPH` (`rockerGeometry.ts`), set in JSX as `x`, `y`, `width`
+and `height`, and GSAP scales the glyph about the ridge instead of tweening `y`. A headless Chrome on the Vite dev
+build (StrictMode on) was watched over the DevTools Protocol for three fresh loads, each followed by power on, power
+off and power on again, with `Log`, `Runtime` and `Console` events all captured. No `<svg> attribute` error appeared,
+the glyph read `y="54"` at every step, and no SVG in the document carried an empty length attribute. A positive
+control at the end (an injected `<svg y="">`) logged the original error word for word, `Error: <svg> attribute y:
+Unexpected end of attribute. Expected length, "".`, so the probe sees this error class. The only other console line
+was Tone's once-per-page scheduled-callback warning, which `AUDIO_SYSTEM.md` documents as expected on an undocking
+admission. The source comment and test title that pointed at "backlog #20" now point here. The original request
+follows.
+
+**Status:** fix merged to `main` via PR #469 (`7eb1f67`), 2026-09-15 — confirmed still
+present at `PowerRockerSwitch.tsx:314` (`y={POWER_SVG_REST.y}`). Only the live-browser
+confirmation remains genuinely open; no evidence since of that check having happened.
+
+`PowerRockerSwitch.tsx`'s nested `.rocker-power-svg` (the power icon inside the rocker
+switch) was the one element in the codebase whose `y` position was never set in JSX at
+all — set only by `useGSAP`'s `gsap.set(powerSvgEl, { attr: { y: POWER_SVG_REST.y } })` on
+mount, so on the very first paint the attribute was absent/invalid. The fix gives the
+`<svg>` an explicit `y` default in JSX so a valid value exists from the very first paint;
+GSAP still owns the tween from there. Covered by a `PowerRockerSwitch.test.tsx` regression
+test. **Not yet confirmed in a live browser** — the hypothesis is strong (the one
+component matching the bug's exact shape) but the real Chrome console output was never
+watched directly for it.
+
 ## 14. Live-Profiler Reverification Still Pending (3 spots)
 
 **Closed** 2026-10-22 (Crawford): obsolete. Two of the three spots name components that no longer exist (`RobotOptionsTab`, `RobotSectionAccordionStack`), and the scene has been rebuilt twice since the fixes landed (roadmap [17.2.5](../roadmap.md#1725-performance-idle-paint--composite-cost) and [53](../roadmap.md#53-per-mover-compositor-layers)), so a Profiler recheck of the September fixes would be measuring a different app. The original item follows.
