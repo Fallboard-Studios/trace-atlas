@@ -4,9 +4,9 @@ Source spec: [docs/specs/MONITOR_MODE_TRUSTWORTHY.md](../specs/MONITOR_MODE_TRUS
 [docs/intent/monitor-mode-trustworthy.md](../intent/monitor-mode-trustworthy.md). Backlog slot: 81, written by Task 0
 (spec §7.2 Q1; default Stage 3, one entry for both parts).
 
-**Status:** plan written 2026-11-11 from the spec, before Crawford's answers to §7.2 Q1–Q2; every §7.1 default stands
-until a gate re-pins it. Phases 0–2 built 2026-11-11 (Tasks 0–11); both gates' automated checks pass. Waiting on
-Checkpoint A's ear runs and Checkpoint B's eye run, then Task 12.
+**Status:** plan written 2026-11-11 from the spec, before Crawford's answers to §7.2 Q1–Q2. Phases 0–2 built
+2026-11-11 (Tasks 0–11). Both gates passed 2026-11-11 (Crawford: "all looks and sounds fine"), every §7.1 default and
+§7.2 Q2 kept as built. Next: Task 12 (docs).
 
 ## Overview
 
@@ -231,13 +231,14 @@ code, not text").
 
 ### Checkpoint A: the sound (stop — Crawford's ear, spec §5.4)
 - [x] `npm run build:types`, `npm run lint`, `npm test` all clean; `npm run build` clean.
-- [ ] Run 1 (spec §5.3, desk, headphones, Full tier): Highlight one robot, the others drop and it stands clear; back to
+- [x] Run 1 (spec §5.3, desk, headphones, Full tier): Highlight one robot, the others drop and it stands clear; back to
       Auto, the drop releases without a step; Highlight a docked robot, nothing changes; Solo one and Highlight
       another, nothing changes until the Solo lifts.
-- [ ] Run 2 (`?load=` at the floor): Highlight a standing-by robot; it is admitted and the newest Auto stands by.
-- [ ] Crawford names the dip (A1, −10 dB) and the ramp (A2, 150 ms), or re-pins them; a re-pin is one constant each
-      and no new task.
-- [ ] Reviewed with Crawford before Phase 2.
+- [x] Run 2 (`?load=` at the floor): Highlight a standing-by robot; it is admitted and the newest Auto stands by.
+- [x] Crawford names the dip (A1, −10 dB) and the ramp (A2, 150 ms), or re-pins them; a re-pin is one constant each
+      and no new task. **Kept:** −10 dB and 150 ms, as built.
+- [x] Reviewed with Crawford (2026-11-11, with Checkpoint B: "all looks and sounds fine"; Phase 2 was built before
+      this gate, at his request).
 
 ---
 
@@ -479,11 +480,13 @@ code, not text").
 ### Checkpoint B: the display (stop — Crawford's eye, spec §5.4)
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-11-11: 13857 passed,
       2 skipped, 354 files).
-- [ ] Run 3 (spec §5.3): the roster on the desk and the phone, the robot screen and the band, as Tasks 10 and 11
+- [x] Run 3 (spec §5.3): the roster on the desk and the phone, the robot screen and the band, as Tasks 10 and 11
       describe; the colours Auto green, Solo yellow, Mute red, Highlight blue; the dim level readable.
-- [ ] Crawford names the blue (B1, `glass`), the light's size, the dim level (B3) and the muted robot's light (Q2,
+- [x] Crawford names the blue (B1, `glass`), the light's size, the dim level (B3) and the muted robot's light (Q2,
       dim); a re-pin is a CSS or colour-table edit and no new task, unless he asks for a new theme family (ask first).
-- [ ] Reviewed with Crawford before the docs.
+      **Kept:** `glass` blue, the 0.6em light, 0.3 opacity dim, a muted robot's red dim, as built.
+- [x] Reviewed with Crawford before the docs (2026-11-11), with the two findings reported (the phone band wraps to
+      two lines at 320 px; the 768 px panel's 9 px overflow, not this branch's) and no change asked.
 
 ---
 
