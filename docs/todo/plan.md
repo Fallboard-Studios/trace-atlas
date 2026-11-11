@@ -21,12 +21,7 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Backlog [80](backlog.md#80-audio-notes-too-short-to-hear-the-instrument--more-guardrails) **Notes long enough to
-  hear the instrument** — Crawford's "most important one" (2026-11-11): his first listen found the 0 Hz oscillator
-  bug (fixed 2026-11-11); a second listen on the fixed build finds where, then an interview and more guardrails. (60 and 73 built and archived 2026-11-11, 74 off the plan, 17 closed.)
-- Backlog [81](backlog.md#81-monitor-mode-made-trustworthy--highlight-you-can-hear-from-a-robot-that-is-playing-and-the-mode-on-every-card)
-  **Monitor Mode made trustworthy** — Highlight a heard bus-gain dip from a sounding robot, and the mode on every card;
-  planned, building (Crawford's ear, then his eye).
+- Empty: backlog 80 (oscillator freeze fix, feb3cd1d) and 81 (monitor mode, ea9c4f04) both merged 2026-11-11. Stage 4 is next.
 
 ## Stage 4 — Visual refinement
 
