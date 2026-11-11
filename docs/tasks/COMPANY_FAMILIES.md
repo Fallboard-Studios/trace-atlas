@@ -10,7 +10,8 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 stands. **Phase 1 (Tasks 1–3) built 2026-11-11; at its checkpoint Crawford revised the rhythm (spec §7.6, B16–B19):
 the same settings in one world make the same rhythm, and the moved onsets go. Tasks 3a and 3b reworked Phase 1 to
 that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). Stopped at the rhythm-stream
-checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Next is Task 4.**
+checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Task 4 built 2026-11-11 (the cap touches 34
+of 121 grid worlds). Next is Task 5.**
 
 ## Overview
 
@@ -289,7 +290,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
 ### Phase 2: Families
 
-- [ ] **Task 4: `spawnSystem.ts` — `generateCompanyMembership`, with two freelancers at least**
+- [x] **Task 4: `spawnSystem.ts` — `generateCompanyMembership`, with two freelancers at least**
 
   **Description:** `FREELANCERS_MIN = 2` in `src/constants/index.ts`. A pure `generateCompanyMembership(noiseMap):
   number[][]` from `spawnInitialCompanies`' draws in their order, over roster indices, with B4's cap and B14's
@@ -300,16 +301,27 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   recorded in this file's Results.
 
   **Acceptance criteria:**
-  - [ ] On every grid world the cap does not touch, the membership equals today's (computed by the test from the
+  - [x] On every grid world the cap does not touch, the membership equals today's (computed by the test from the
         retired path's draws, not by calling the new function).
-  - [ ] No world has fewer than two freelancers or a company under three; repeatable.
-  - [ ] The session tests pass: an untouched world still saves `{}`.
-  - [ ] Mutant, killed: the cap at one freelancer.
+  - [x] No world has fewer than two freelancers or a company under three; repeatable.
+  - [x] The session tests pass: an untouched world still saves `{}`.
+  - [x] Mutant, killed: the cap at one freelancer.
+
+  **As built:** `generateCompanyMembership(noiseMap, rosterSize = MAX_ROBOTS)`: the roster size is a parameter
+  because `generateCompanyRosterBaseline` is called with id lists of other lengths (16 in the band-table tests, 10 in
+  its purity test). Each company lists its members in draw order, so the founder (Task 5) is the minimum, not the
+  first. `generateCompanyRosterBaseline` maps the indices to ids, and `spawnInitialCompanies` now makes its companies
+  from that baseline, so the live and the replayed membership agree by construction; its `alea` fallback went with
+  the old loop (it ran only with no locale, where the pool was empty). The touched-world case checks that the earlier
+  companies are today's and the last is a prefix of today's or gone; a smaller roster (5 robots: at most one company
+  of three; 4: none) and a larger one (16: never capped) are covered. Mutants, killed: the cap at one freelancer (4
+  tests); the "not made" guard removed (2). The Run is in Results.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/spawnSystem.test.ts src/utils/sessionDiff.test.ts src/systems/aspectDeal.test.ts`
-        passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/spawnSystem.test.ts src/utils/sessionDiff.test.ts src/systems/aspectDeal.test.ts`
+        passes (with `aspectDeal.widened.test.ts`: 694). `npm test` passes too (351 files; 13,758 passed, 2 skipped;
+        228 s), run because world (0, 0) is one the cap touches.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 3b.
 
@@ -498,7 +510,19 @@ options (accept; key on the company; a visible Pattern setting in the key; back 
 
 ### The cap (Task 4)
 
-*Not yet measured.*
+Measured 2026-11-11 on Task 4's build: `generateCompanyMembership` against today's uncapped loop on each of the 121
+`SIM_SEED_COORDS` worlds. A throwaway test, not committed.
+
+| | Today (no cap) | With the cap (B4, B14) |
+|---|---|---|
+| Worlds with 2 / 3 companies | 50 / 71 | 68 / 53 |
+| Worlds with 0 / 1 freelancers | 12 / 22 | 0 / 0 |
+| Worlds with 2 / 3 / 4 / 5 / 6 freelancers | 31 / 6 / 11 / 25 / 14 | 47 / 6 / 29 / 25 / 14 |
+
+**The cap touches 34 of 121 worlds**: in 18 the third company is not made (sizes 4-4-4 or 4-4-3 today), in 16 it is
+cut from 4 to 3 (3-4-4 or 4-3-4 today). In every touched world the first two companies are today's. World (0, 0) is
+one of the 18. With the cap, the members that inherit (company members less founders) number 4 to 7 a world, mean
+5.95, median 6, as spec §1.9 expects.
 
 ### Gate C (Task 8)
 

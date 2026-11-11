@@ -7,7 +7,7 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
-import { generateBatterySize, generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateBatterySize, generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, generateCompanyMembership, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { audibleDensityBand, deriveEnvelopeFields, deriveRhythmicDensity, deriveSendFields, deriveVoiceFields } from './robotFieldDerivation';
 import { generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { resolveBands } from '../data/bands/resolveBands';
@@ -23,8 +23,9 @@ import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
   ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS,
-  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
+  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, FREELANCERS_MIN,
 } from '../constants';
+import { SIM_SEED_COORDS, simNoiseMap } from './lifecycleSim';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
 import { CLASSIC } from '../data/bands/classic';
@@ -3519,6 +3520,123 @@ describe('spawnSystem', () => {
       const noiseMap = createNoise2D(alea('company-baseline-purity-seed'));
       const robotIds = Array.from({ length: 10 }, (_, i) => `robot-${i}`);
       expect(() => generateCompanyRosterBaseline(noiseMap, robotIds)).not.toThrow();
+    });
+  });
+
+  // Company Families Task 4 (docs/tasks/COMPANY_FAMILIES.md; spec §1.11, case 5): membership is drawn over roster
+  // indices before any robot spawns, from today's draws in today's order, with B4's cap (at least FREELANCERS_MIN
+  // robots stay Freelance) and B14's default (a company that cannot reach COMPANY_SIZE_MIN is not made).
+  describe('generateCompanyMembership (Company Families Task 4)', () => {
+    /** Today's membership, from the retired path's draws: spawnInitialCompanies' own loop as it was before Task 4,
+     *  over roster indices instead of ids, with no cap. Written out here, never by calling the new function. */
+    const todaysMembership = (noiseMap: NoiseFunction2D, rosterSize = MAX_ROBOTS): number[][] => {
+      let pool = Array.from({ length: rosterSize }, (_, i) => i);
+      const count = INITIAL_COMPANIES_MIN + Math.floor(getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1));
+      const companies: number[][] = [];
+      for (let c = 0; c < count && pool.length > 0; c++) {
+        const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)));
+        const members: number[] = [];
+        for (let i = 0; i < size; i++) {
+          const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
+          members.push(pool[idx]);
+          pool = pool.filter((_, j) => j !== idx);
+        }
+        companies.push(members);
+      }
+      return companies;
+    };
+    const freelancersIn = (membership: number[][], rosterSize = MAX_ROBOTS) => rosterSize - membership.flat().length;
+    const GRID = SIM_SEED_COORDS.map(({ x, y }) => ({ key: `${x}:${y}`, noiseMap: simNoiseMap(x, y) }));
+    const touched = GRID.filter(({ noiseMap }) => freelancersIn(todaysMembership(noiseMap)) < FREELANCERS_MIN);
+    const untouched = GRID.filter(({ noiseMap }) => freelancersIn(todaysMembership(noiseMap)) >= FREELANCERS_MIN);
+
+    it('FREELANCERS_MIN is 2 (B4)', () => {
+      expect(FREELANCERS_MIN).toBe(2);
+    });
+
+    it('the grid holds worlds on both sides of the cap, so neither case below is vacuous', () => {
+      expect(touched.length).toBeGreaterThan(0);
+      expect(untouched.length).toBeGreaterThan(0);
+    });
+
+    it('on every grid world the cap does not touch, the membership is exactly today\'s', () => {
+      for (const { key, noiseMap } of untouched) {
+        expect(generateCompanyMembership(noiseMap), key).toEqual(todaysMembership(noiseMap));
+      }
+    });
+
+    it('on every grid world the cap touches, the earlier companies are today\'s and the last is cut to leave two freelancers, or not made', () => {
+      for (const { key, noiseMap } of touched) {
+        const today = todaysMembership(noiseMap);
+        const capped = generateCompanyMembership(noiseMap);
+        expect(capped.length, key).toBeLessThanOrEqual(today.length);
+        capped.forEach((members, c) => {
+          // Same draws in the same order: a cut company is a prefix of today's.
+          expect(today[c].slice(0, members.length), `${key} company ${c}`).toEqual(members);
+        });
+        // Only the last company today makes can be cut or dropped; every earlier one is untouched.
+        capped.slice(0, today.length - 1).forEach((members, c) => expect(members, `${key} company ${c}`).toEqual(today[c]));
+        expect(freelancersIn(capped), key).toBeGreaterThanOrEqual(FREELANCERS_MIN);
+      }
+    });
+
+    it('over the grid: never fewer than two freelancers, every company 3 to 4 disjoint roster indices, 2 to 3 companies at most', () => {
+      for (const { key, noiseMap } of GRID) {
+        const membership = generateCompanyMembership(noiseMap);
+        expect(freelancersIn(membership), key).toBeGreaterThanOrEqual(FREELANCERS_MIN);
+        expect(membership.length, key).toBeLessThanOrEqual(INITIAL_COMPANIES_MAX);
+        for (const members of membership) {
+          expect(members.length, key).toBeGreaterThanOrEqual(COMPANY_SIZE_MIN);
+          expect(members.length, key).toBeLessThanOrEqual(COMPANY_SIZE_MAX);
+          for (const index of members) {
+            expect(Number.isInteger(index), key).toBe(true);
+            expect(index, key).toBeGreaterThanOrEqual(0);
+            expect(index, key).toBeLessThan(MAX_ROBOTS);
+          }
+        }
+        expect(new Set(membership.flat()).size, key).toBe(membership.flat().length);
+      }
+    });
+
+    it('is repeatable: the same coordinates give the same membership, from a fresh noise map too', () => {
+      for (const { x, y } of SIM_SEED_COORDS.slice(0, 12)) {
+        const first = generateCompanyMembership(simNoiseMap(x, y));
+        expect(generateCompanyMembership(simNoiseMap(x, y)), `${x}:${y}`).toEqual(first);
+      }
+    });
+
+    it('a smaller roster keeps the floor: five robots make at most one company of three, four robots make none', () => {
+      for (const { key, noiseMap } of GRID.slice(0, 20)) {
+        const five = generateCompanyMembership(noiseMap, 5);
+        expect(five.length, key).toBeLessThanOrEqual(1);
+        five.forEach((members) => expect(members, key).toHaveLength(3));
+        expect(five.flat().every((i) => i < 5), key).toBe(true);
+        expect(generateCompanyMembership(noiseMap, 4), key).toEqual([]);
+        expect(generateCompanyMembership(noiseMap, 0), key).toEqual([]);
+      }
+    });
+
+    it('a larger roster is never capped: sixteen robots get today\'s membership', () => {
+      for (const { key, noiseMap } of GRID.slice(0, 20)) {
+        expect(generateCompanyMembership(noiseMap, 16), key).toEqual(todaysMembership(noiseMap, 16));
+      }
+    });
+
+    it('spawnInitialCompanies and generateCompanyRosterBaseline turn a capped membership into ids, on a world the cap touches', () => {
+      const [{ key }] = touched;
+      const [x, y] = key.split(':').map(Number);
+      const localeId = 'company-membership-capped';
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x, y }, robots: [], companies: [] } },
+      }));
+      spawnInitialRoster(localeId);
+      spawnInitialCompanies(localeId);
+      const locale = useLocaleStore.getState().getLocaleById(localeId)!;
+      const ids = locale.robots.map((r) => r.id);
+      const expected = generateCompanyMembership(simNoiseMap(x, y)).map((members) => members.map((i) => ids[i]));
+      expect(locale.companies.map((c) => c.robotIds)).toEqual(expected);
+      expect(generateCompanyRosterBaseline(simNoiseMap(x, y), ids).map((c) => c.robotIds)).toEqual(expected);
+      expect(locale.robots.filter((r) => r.companyId === undefined).length).toBeGreaterThanOrEqual(FREELANCERS_MIN);
     });
   });
 

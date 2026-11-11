@@ -22,7 +22,7 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
-  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
+  INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, FREELANCERS_MIN,
   BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
 } from '../constants';
 import { robotSendLevels, type RobotSendField } from '../data/robotSends';
@@ -477,35 +477,49 @@ export interface CompanyRosterBaseline {
 }
 
 /**
- * Replays spawnInitialCompanies' exact company-generation loop (dataIds 'company.count'/
- * 'company.size'/'company.member', the same INITIAL_COMPANIES_MIN/MAX and COMPANY_SIZE_MIN/MAX
- * bounds) purely from the noise map and a robot-id pool, in spawn order — no store read/write.
- * Deliberately NOT a refactor of spawnInitialCompanies itself, same rationale as
- * generateRobotAudioBaseline above (touching already-covered, store-coupled code is riskier than
- * an additive, independently-verified parallel implementation).
+ * The seeded companies' members as roster indices (Company Families §1.11, Task 4): pure, from the noise map alone, so
+ * spawn can know the membership before any robot exists. The draws ('company.count', 'company.size',
+ * 'company.member', plain getSeededVal) are spawnInitialCompanies' own from before families, in the same order, over
+ * a pool of indices instead of live ids. B4's cap: a company takes at most the pool less FREELANCERS_MIN, and a company
+ * that cannot then reach COMPANY_SIZE_MIN is not made (B14), nor is any after it (the pool only shrinks). A world the
+ * cap does not touch keeps exactly the membership it had. Each company is listed in draw order, so its founder (the
+ * lowest index, B6) is `Math.min(...members)`, not `members[0]`.
  */
-export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotIds: readonly string[]): CompanyRosterBaseline[] {
-  let pool = [...robotIds];
+export function generateCompanyMembership(noiseMap: NoiseFunction2D, rosterSize: number = MAX_ROBOTS): number[][] {
+  let pool = Array.from({ length: rosterSize }, (_, i) => i);
   const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
     getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
   );
 
-  const companies: CompanyRosterBaseline[] = [];
-  for (let c = 0; c < companyCount && pool.length > 0; c++) {
-    const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(
+  const companies: number[][] = [];
+  for (let c = 0; c < companyCount; c++) {
+    const size = Math.min(pool.length - FREELANCERS_MIN, COMPANY_SIZE_MIN + Math.floor(
       getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
     ));
+    if (size < COMPANY_SIZE_MIN) break;
 
-    const memberIds: string[] = [];
+    const members: number[] = [];
     for (let i = 0; i < size; i++) {
       const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
-      memberIds.push(pool[idx]);
+      members.push(pool[idx]);
       pool = pool.filter((_, j) => j !== idx);
     }
-
-    companies.push({ id: generateCompanyId(noiseMap, c), name: generateCompanyName(noiseMap, c), robotIds: memberIds });
+    companies.push(members);
   }
   return companies;
+}
+
+/**
+ * The seed-derived companies for a roster of `robotIds` in spawn order: generateCompanyMembership's indices turned
+ * into ids, with each company's seeded id and name — pure, no store read/write. spawnInitialCompanies makes the same
+ * companies from the same membership, so a fresh world's companies always match this baseline.
+ */
+export function generateCompanyRosterBaseline(noiseMap: NoiseFunction2D, robotIds: readonly string[]): CompanyRosterBaseline[] {
+  return generateCompanyMembership(noiseMap, robotIds.length).map((members, c) => ({
+    id: generateCompanyId(noiseMap, c),
+    name: generateCompanyName(noiseMap, c),
+    robotIds: members.map((i) => robotIds[i]),
+  }));
 }
 
 /**
@@ -801,55 +815,27 @@ function placeRosterAtStations(localeId: string): void {
 }
 
 /**
- * Create the seeded set of Companies for a fresh locale (Roadmap Phase 10) — 2-3 companies, each
- * claiming a seeded 3-4 robots from the roster this locale already has (spawnInitialRoster must
- * have run first). Membership is drawn from a shrinking pool so no robot is ever claimed by more
- * than one company; any robot left in the pool when generation finishes is Freelance
- * (`companyId` stays undefined) — a meaningful chunk of the roster, by design, not an edge case.
- * Distinct from `MAX_COMPANIES` (the CRUD ceiling on manual company creation afterward) — this
- * function never reads that constant.
+ * Create the seeded set of Companies for a fresh locale (Roadmap Phase 10) — 2-3 companies of a
+ * seeded 3-4 robots each, from the roster this locale already has (spawnInitialRoster must have run
+ * first). The membership is generateCompanyMembership's (Company Families Task 4), turned into this
+ * roster's ids, so it matches generateCompanyRosterBaseline by construction: no robot is claimed
+ * twice, and at least FREELANCERS_MIN robots stay Freelance (`companyId` undefined). Distinct from
+ * `MAX_COMPANIES` (the CRUD ceiling on manual company creation afterward) — this function never
+ * reads that constant.
  */
 export function spawnInitialCompanies(localeId: string): void {
   const locale = useLocaleStore.getState().getLocaleById(localeId);
-  const noiseMap = locale ? getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y) : null;
-  let pool = (locale?.robots ?? []).map((r) => r.id);
+  if (!locale) return;
+  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
 
-  const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
-    noiseMap
-      ? getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
-      : alea(`${localeId}:companyCount`)() * (INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
-  );
-
-  for (let c = 0; c < companyCount && pool.length > 0; c++) {
-    const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(
-      noiseMap
-        ? getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
-        : alea(`${localeId}:companySize:${c}`)() * (COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
-    ));
-
-    const memberIds: string[] = [];
-    for (let i = 0; i < size; i++) {
-      const idx = Math.floor(
-        noiseMap
-          ? getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length)
-          : alea(`${localeId}:companyMember:${c}:${i}`)() * pool.length
-      );
-      memberIds.push(pool[idx]);
-      pool = pool.filter((_, j) => j !== idx);
-    }
-
+  generateCompanyRosterBaseline(noiseMap, locale.robots.map((r) => r.id)).forEach(({ id, name, robotIds }, c) => {
     // usedColors reflects every company generated earlier in this same loop — addCompany (below)
     // runs before the next iteration reaches this line, so useLocaleStore already has them.
     const usedColors = (useLocaleStore.getState().getLocaleById(localeId)?.companies ?? []).map((existing) => existing.color);
-    const company: Company = {
-      id: noiseMap ? generateCompanyId(noiseMap, c) : `company-${localeId}-${c}`,
-      name: noiseMap ? generateCompanyName(noiseMap, c) : `Company ${c}`,
-      color: noiseMap ? generateCompanyIdentityColor(noiseMap, c, usedColors) : ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[0]],
-      robotIds: memberIds,
-    };
+    const company: Company = { id, name, color: generateCompanyIdentityColor(noiseMap, c, usedColors), robotIds };
     useLocaleStore.getState().addCompany(localeId, company);
-    memberIds.forEach((id) => useLocaleStore.getState().updateRobot(localeId, id, { companyId: company.id }));
-  }
+    robotIds.forEach((robotId) => useLocaleStore.getState().updateRobot(localeId, robotId, { companyId: company.id }));
+  });
 }
 
 /**

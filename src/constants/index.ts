@@ -510,3 +510,7 @@ export const INITIAL_COMPANIES_MAX = 3;
  *  not claimed by a company (a meaningful chunk of the 12-robot roster, by design) is Freelance. */
 export const COMPANY_SIZE_MIN = 3;
 export const COMPANY_SIZE_MAX = 4;
+
+/** At least this many robots stay Freelance at spawn (Company Families B4): a company's size is capped at the pool
+ *  less this, and a company that cannot then reach COMPANY_SIZE_MIN is not made (B14). See generateCompanyMembership. */
+export const FREELANCERS_MIN = 2;
