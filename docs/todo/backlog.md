@@ -627,6 +627,18 @@ no timbre, a voice that never opens). Tools to hand: the `?debug` audio HUD, Sol
 recipe that read `envelope.value` on live notes (2026-10-13). A measure-first pass could also list each seeded robot's
 shortest sounding note against its attack and decay, to point the listen.
 
+**The first listen found a bug, fixed 2026-11-11.** On `?seed=ez84fjmr&x=93&y=-146&theme=shatter&load=full` Crawford
+heard the first robots play a few notes, then only clicks. Their oscillators had stopped: the Oscillator Leak Fix's
+disconnect (`src/engine/tonePatches.ts`, backlog 32) also cut the newest node's frequency whenever a rest or cut note
+gave an Oscillator two nodes at once, so it ran at 0 Hz and each note was the envelope shaping a DC step. The wrapper
+now reconnects the live nodes; the cause, the measurements and the fix are in
+[AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#tone-patch-the-per-note-oscillator-leak) ("The reconnect"). Any theme could hit it,
+and short releases made it worst, so the rest of this item waits for a **second listen** on the fixed build: what is
+still too short once every note keeps its pitch.
+
+Seen in the same probe, for the second listen: swells drove `adsr.attack` to 4–5 s on 0.124 s sixteenths (Neon Wisp,
+Azure Nomad and Rust Seeker in that world), which the attack rail does not guard; it acts at load and on a deal only.
+
 **Then, to work out from what the listen finds:** which notes count as too short (against the attack, the attack plus
 decay, or a fixed floor per voice), and which lever guards it: the seeded bands (density, note lengths, envelope), the
 cut release (62's recommended option: release short only when the attack fits inside the written note), or a floor at

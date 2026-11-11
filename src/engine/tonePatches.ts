@@ -20,11 +20,22 @@ import { devWarn } from '../utils/helpers';
 // every note, before its `onstop`. An error from Tone's handler itself still propagates. It touches two private names,
 // `_start` and `_oscillator`; when they are not what this was written against it is a devWarned no-op, so a Tone
 // upgrade degrades to "the leak is back", never to a broken boot. No Tone import: it works on any prototype.
+//
+// Then the reconnect (backlog 80, found 2026-11-11). Through standardized-audio-context, disconnecting a Signal from
+// one AudioParam drops its connections to EVERY param (measured in headless Chrome; raw Web Audio drops only the one).
+// Tone wires a new node ~150 ms ahead of its start, so a rest or a cut note shorter than that leaves the Oscillator
+// two nodes at once, and the old node's disconnect cut the new one's frequency: its oscillator ran at 0 Hz and every
+// note it played was a click. So the wrapper keeps each Oscillator's live nodes (started, not yet ended) and, after
+// the disconnects, connects both Signals back into every node still live. Web Audio ignores a repeated connect, so this
+// is safe where the disconnect cut nothing.
 
 /** Marks a prototype already wrapped, so a second call changes nothing. */
 const OSCILLATOR_ENDED_DISCONNECT_PATCHED = Symbol('oscillatorEndedDisconnect');
 
-type Disconnectable = { disconnect(destination: unknown): unknown };
+type Disconnectable = {
+  connect(destination: unknown): unknown;
+  disconnect(destination: unknown): unknown;
+};
 
 /** The one-shot node `_start` leaves on `_oscillator`. */
 type OneShotNode = {
@@ -57,6 +68,19 @@ function disconnectQuietly(source: Disconnectable, destination: unknown): void {
   }
 }
 
+/** One reconnect that never throws: a node Tone has disposed early cannot be fed, and a throw here would leave the
+ *  other Signal unconnected. Warned, since a missed reconnect is the 0 Hz click again. */
+function connectQuietly(source: Disconnectable, destination: unknown): void {
+  try {
+    source.connect(destination);
+  } catch (err) {
+    devWarn('[tonePatches] reconnecting a live oscillator node failed; it may sound at 0 Hz', err);
+  }
+}
+
+/** Each Oscillator's one-shot nodes that have started and not yet ended. */
+const liveNodes = new WeakMap<object, Set<OneShotNode>>();
+
 function isPatchablePrototype(prototype: unknown): prototype is PatchablePrototype {
   return (
     typeof prototype === 'object' &&
@@ -66,7 +90,8 @@ function isPatchablePrototype(prototype: unknown): prototype is PatchablePrototy
 }
 
 /** Wrap `prototype._start` so each new one-shot node disconnects the Oscillator's frequency and detune Signals from
- *  its own params in `onended`, after Tone's own handler and before Tone disposes it. Returns `true` when it wrapped, `false` when the prototype was
+ *  its own params in `onended`, after Tone's own handler and before Tone disposes it, then connects them back into
+ *  every node of that Oscillator still live. Returns `true` when it wrapped, `false` when the prototype was
  *  already wrapped or is not the private API this was written against (Tone 15.1.22). */
 export function patchOscillatorEndedDisconnect(prototype: unknown): boolean {
   if (!isPatchablePrototype(prototype)) {
@@ -83,14 +108,27 @@ export function patchOscillatorEndedDisconnect(prototype: unknown): boolean {
     const node = this._oscillator;
     if (typeof node !== 'object' || node === null) return result;
 
+    let live = liveNodes.get(this);
+    if (!live) {
+      live = new Set();
+      liveNodes.set(this, live);
+    }
+    const stillLive = live;
+    stillLive.add(node);
+
     const toneOnended = node.onended;
     const { frequency, detune } = this;
     node.onended = function (this: unknown, ...endedArgs: unknown[]) {
       try {
         toneOnended?.apply(this, endedArgs);
       } finally {
+        stillLive.delete(node);
         disconnectQuietly(frequency, node.frequency);
         disconnectQuietly(detune, node.detune);
+        for (const other of stillLive) {
+          connectQuietly(frequency, other.frequency);
+          connectQuietly(detune, other.detune);
+        }
       }
     };
     return result;
