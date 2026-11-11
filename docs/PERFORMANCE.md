@@ -2886,8 +2886,29 @@ it barely shows on the clock. The levers not taken, with their alone-time figure
 How to measure it again: a file's duration inside a full run is three to six times its duration alone (worker
 contention), so quote a per-file cost only from `npx vitest run --reporter=json --outputFile=<f> <file>` and sum
 `endTime - startTime`; quote the full run's wall-clock from the same report's `startTime` to the last file's `endTime`.
-The JSON reporter prints no unhandled-error line, so an exit code of 1 with zero failures is backlog 66's timeout, read
+The JSON reporter prints no unhandled-error line, so an exit code of 1 with zero failures is an unhandled error, read
 from a default-reporter run.
+
+**The worker cap — backlog 66 (2026-11-10).** Every full run at one worker per core (16) ended with Vitest's unhandled
+`[vitest-worker]: Timeout calling "onTaskUpdate"` and exit code 1, all tests passing. It is not a test that never
+yields: no case runs longer than 19 s against the 60 s RPC timeout. A temporary tracer in the worker named the file
+(`OffScreen.test.tsx`, the first and heaviest) and the moment (a progress report sent about 7 s in, unanswered at 67 s):
+in the startup burst every worker loads a heavy module graph at once, and the main process, which serves all of their
+transforms, falls more than a minute behind one report. `vitest.config.ts` caps `maxWorkers` at 8. Measured the same
+afternoon on the idle desktop (the first 16-worker run before the output cleanup `2f86e9ee` and `e08c3875`, the rest
+after it):
+
+| Workers | Runs | Unhandled error | Wall-clock (s) | Worker time (s) |
+| --- | --- | --- | --- | --- |
+| 16 | 2 | every run | 236, 195 | 1,177, 1,010 |
+| 12 | 1 | every run | 202 | 867 |
+| 10 | 1 | none | 211 | 766 |
+| 8 | 3 | none | 218, 216, 233 | 612, 616, 718 |
+
+The cap costs about 20 s of wall-clock, inside the day's spread at 16, and leaves two workers of margin below the
+observed edge for a busy machine. Worker time (Vitest's `tests` figure) falls with the cap because the files contend
+less, which is why the clock barely moves. Re-measure with `--maxWorkers=<n>` on the command line, which overrides the
+config; a suite that grows heavier at the front may need the cap lowered, one that is split finer may allow it raised.
 
 ## The audio pin at Full — backlog 67 (2026-11-10)
 

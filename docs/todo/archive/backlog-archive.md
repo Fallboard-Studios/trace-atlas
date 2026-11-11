@@ -1282,6 +1282,35 @@ Spec: [OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../../specs/OFF_SCREEN_CURREN
 [OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md](../../tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md). Plan.md Stage 1,
 ahead of roadmap 58.
 
+## 66. Tests: the Full Run's Unhandled "Timeout calling onTaskUpdate"
+
+**Closed** 2026-11-10 (on `main`; `f3b4ea1c` caps `maxWorkers` at 8 in `vitest.config.ts`, after the output cleanup
+`2f86e9ee` and `e08c3875`). Not a test that never yields: no case in the suite runs longer than 19 s against the
+60 s RPC timeout. A temporary tracer in Vitest's worker (applied to `node_modules`, run once, reverted) named the file,
+`OffScreen.test.tsx`, the first and heaviest, and the moment: a progress report sent about 7 s into the run, unanswered
+at 67 s. In the startup burst all sixteen workers load the heaviest module graphs at once, and the main process, which
+serves every worker's transforms, falls more than a minute behind one report. On the idle 16-core desktop 16 and 12
+workers errored on every run, 10 ran clean once and 8 ran clean three times, the third with the pin in the config; the
+cost is about 20 s on a 3.5-minute run. Figures and the re-measuring recipe:
+[PERFORMANCE.md](../../PERFORMANCE.md), "The worker cap". The same afternoon's cleanup took a full run's output from
+164,660 lines to 23,520: the composite-voice warning under a Tone with no WebAudio (`toneHasWebAudio`) and SVG
+components rendered into a `<div>` (`renderSvg` in `src/testUtils`). The original request follows.
+
+**Found 2026-11-05** at the review of roadmap [58](../roadmap.md#58-themes-and-aspects-refinement); **recorded, not
+chased** (Crawford). Every full `npm test` run that day (four: `main` at `70cc91ce`, then the branch
+`fix/deal-master-volume-push`) passed every test in 353 files and still printed "Vitest caught 1 unhandled error
+during the test run" with `[vitest-worker]: Timeout calling "onTaskUpdate"`. The run exits 0, so nothing fails, but a
+full run is never clean, and roadmap 58's Checkpoint: Complete asks for one.
+
+**What it most likely is.** A worker held its thread longer than Vitest's RPC timeout, so its progress report to the main
+process timed out: a long synchronous test that never yields. The measuring harness raised the same error until T10 of
+[THEME_AND_ASPECTS_REFINEMENT.md](../../tasks/THEME_AND_ASPECTS_REFINEMENT.md) made it `await` between worlds. Candidates
+are the many-world loops (spread and share tests over hundreds of styles, the swell-roll counts), which run slower
+under a full parallel load.
+
+**To do:** find the file (run the suite by directory, or with `--reporter=verbose`, until the error follows one file),
+then let its loop yield or split the case. Done when a full run reports no errors.
+
 ## 67. Audio: The Desktop Crackles at Full — the Graph's Standing Cost Leaves No Headroom
 
 **Closed** 2026-11-10. The four cuts were merged in PR #607 (2026-11-07). Their A/B runs, Gate B and the pin were done

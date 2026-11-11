@@ -17,8 +17,6 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 2 — Bugs and quality of life
 
-- Backlog [66](backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) **The full test run's
-  unhandled timeout** — find the test that never yields, then yield or split it.
 - Backlog [13](backlog.md#13-svg-invalid-empty-y-attribute--live-browser-confirmation-outstanding) **The empty `y`
   console check** — two minutes with DevTools open.
 

@@ -856,7 +856,7 @@ T1 (sheets file, current set) ──┬── T2 (theme candidates)
       JSON matches the committed one. (2026-11-05, on `main` after PRs #600 to #602: types clean; lint 0 errors, the 4
       old warnings; build clean; every test passes, 13,548 in 353 files, with one unhandled Vitest error, "Timeout
       calling onTaskUpdate", on every full run, recorded as backlog
-      [66](../todo/backlog.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) at Crawford's word. The
+      [66](../todo/archive/backlog-archive.md#66-tests-the-full-runs-unhandled-timeout-calling-ontaskupdate) at Crawford's word. The
       sketch re-run at `33dfc9ab` differs from the committed JSON only in `meta` and the timings: every measured
       spread is the committed one.)
 - [x] Every task's acceptance criteria met; every mutant listed killed, or recorded and argued equivalent. (Each task's
