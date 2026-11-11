@@ -171,7 +171,7 @@ code, not text").
 
   **Estimated scope:** M (three source files, one test file; new module state and one new public call)
 
-- [ ] **Task 3: `AudioEngine.ts` — the velocity halving goes**
+- [x] **Task 3: `AudioEngine.ts` — the velocity halving goes**
 
   **Description:** Delete the `anyHighlight` block in `scheduleNote` (the `isDockMuted` import stays for
   `triggerWithCap`). Velocity is the Dynamics roll's and the accents' alone. The two existing Highlight velocity tests
@@ -182,12 +182,12 @@ code, not text").
   non-highlighted robot whether or not a highlighted robot is out of its station.
 
   **Acceptance criteria:**
-  - [ ] A highlighted robot in the roster, docked or active, changes no other robot's note velocity.
-  - [ ] Every other `audioMode enforcement` test (mute, solo, the dock) passes unmodified.
+  - [x] A highlighted robot in the roster, docked or active, changes no other robot's note velocity.
+  - [x] Every other `audioMode enforcement` test (mute, solo, the dock) passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2 (so the dip exists before the halving goes; the suite is green either way).
 

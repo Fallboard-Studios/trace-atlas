@@ -24,7 +24,7 @@ import { precomputeDataX } from '../utils/getSeededVal';
 import { tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { devWarn } from '../utils/helpers';
 import { clampSend } from '../utils/clampSend';
-import { isDockMuted, isRobotAudible } from '../utils/robotAudibility';
+import { isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { lfoEngine } from './lfoEngine';
 import { calculatePanFromPosition } from './audioEngine/panning';
@@ -800,7 +800,7 @@ export const AudioEngine = {
     let effectiveVelocity = params.velocity;
 
     // The active locale's robots, looked up once per note: the velocity roll reads this robot's
-    // compositionSeed and Dynamics, and the audioMode policy below reads the whole roster.
+    // compositionSeed and Dynamics.
     let localeRobots: Robot[] = [];
     try {
       localeRobots = getActiveLocaleRobots();
@@ -819,18 +819,8 @@ export const AudioEngine = {
       effectiveVelocity = Math.min(1, effectiveVelocity * params.accentMultiplier);
     }
 
-    // Enforce audioMode policies (mute/solo/highlight) at schedule time. A highlighted robot in the station is silent,
-    // so it highlights nothing until it comes back out.
-    try {
-      const anyHighlight = localeRobots.some((r) => r.audioMode === 'highlight' && !isDockMuted(r.docking));
-      if (anyHighlight && robotFromStore?.audioMode !== 'highlight') {
-        // Apply ~50% attenuation (~-6dB) to non-highlighted robots
-        effectiveVelocity = (effectiveVelocity ?? 1) * 0.5;
-      }
-    } catch (err) {
-      devWarn('[AudioEngine] scheduleNote.audioMode failed', err);
-    }
-
+    // Mute and Solo are enforced in triggerWithCap; Highlight is a bus-gain dip (setHighlightedRobots), never a velocity
+    // change (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2).
     triggerWithCap({ robotId, note, duration, time, velocity: effectiveVelocity, release: params.release });
   },
 
