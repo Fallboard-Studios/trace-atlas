@@ -868,4 +868,17 @@ The pick is Crawford's (A1), and so is A2. No threshold was re-tuned.
 
 ### Gate B (Task 17)
 
-*Not yet heard.*
+*Not yet heard.* The listening list (2026-11-11). Load each world through New Transmission at its coordinates, on this
+branch and on `main`; count measures from the world's creation (a measure is 240 ÷ BPM seconds, 2.18 s at 110 BPM).
+
+| World (x, y) | On `main` (today) | On this branch (0.67–1.5, the rule) |
+|---|---|---|
+| **(200, 0)** | silent from measure 27 for 8 measures, every 35 | the earliest stay on the grid: robot index 8 stays up from measure 34 for 6 measures (A3: look at it) |
+| (40, 0) | silent from measure 27 for 8 | first stay at measure 917 (1 measure) |
+| (-120, -120) | silent from measure 28 for 7 | first stay at measure 486 (7 measures) |
+| (80, 120) | silent from measure 29 for 6 | first stay at measure 1,056 (3 measures) |
+| (-80, -200) | silent from measure 30 for 5 | no stay in 2,000 measures |
+
+Other early stays to look at (A3): (160, 200) at measure 34 (robot index 5, 4 measures); (80, -40) at 36 (index 8,
+4); (-200, 120) at 37 (index 3, 2); (0, 200) at 38 (index 5, 7). From the sim's roster, which matches spawn robot for
+robot; the live count can land a measure either side.
