@@ -229,7 +229,7 @@ code, not text").
   **Estimated scope:** S (one system file and its test)
 
 ### Checkpoint A: the sound (stop — Crawford's ear, spec §5.4)
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean; `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean; `npm run build` clean.
 - [ ] Run 1 (spec §5.3, desk, headphones, Full tier): Highlight one robot, the others drop and it stands clear; back to
       Auto, the drop releases without a step; Highlight a docked robot, nothing changes; Solo one and Highlight
       another, nothing changes until the Solo lifts.
