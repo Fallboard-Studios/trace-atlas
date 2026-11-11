@@ -21,8 +21,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Backlog [17](backlog.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings) **The replayability
-  audit** — read it against the code, then do what it points at or archive it.
+- Empty: backlogs 60 and 73 built and archived 2026-11-11, 74 taken off the plan (not needed after 60), and 17 closed
+  as read, nothing to do. Stage 4 is next.
 
 ## Stage 4 — Visual refinement
 
@@ -57,7 +57,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 - **Audio:** backlog [6](backlog.md#6-audio-groove-feature) **Groove**; backlog
   [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) **Tagged progressions, seeded mood
-  chain** (17's audit notes feed its determinism design); backlog
+  chain** (backlog [17](archive/backlog-archive.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings)'s
+  archived audit notes feed its determinism design); backlog
   [20](backlog.md#20-audio-user-authored-progressions-and-tags-editor-ui--maybe) **User-authored progressions** (a
   maybe, only if 7 earns it); roadmap [32](roadmap.md#32-robot-melody-history--configuration-scrubber) **Melody
   history** (about sharing what a robot played, not metrics); backlog
