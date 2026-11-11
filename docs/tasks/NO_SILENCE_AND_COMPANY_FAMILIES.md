@@ -8,8 +8,9 @@ Stage 3.
 **Status:** plan written 2026-11-10. Phase 1 built 2026-11-10 (Tasks 1–2: `da8d5b52`, `da9416d0`; Task 3's row is in
 Results). Phase 2 built 2026-11-10/11 (Tasks 4–9: `b665a138`, `20ea1cd3`, `8394603c`, `3438dda4`, `2fa38ec3`,
 `90566d9c`; Task 10's rows are in Results; Task 10a `986ed2f8` inserted at Checkpoint B). Phase 3 built 2026-11-11
-(Tasks 11–12: `ec0be658`, `ba8737b6`; Task 13 `c208f726`); **at Checkpoint C = Gate A, waiting on Crawford's band
-pick (A1) and A2** before Task 14. **Part A only**: Part B (`company-families`) is not planned until
+(Tasks 11–12: `ec0be658`, `ba8737b6`; Task 13 `c208f726`). Gate A answered 2026-11-11 (0.67–1.5; A2 accepted).
+Phase 4 built (Task 14 `1ca16f0c`, Task 15 `4c5488e2`, Task 16). **At Checkpoint D: Gate B (Task 17), Crawford's ear,
+is next.** **Part A only**: Part B (`company-families`) is not planned until
 Gate B has passed and its questions (spec §7.3) are answered.
 
 ## Overview
@@ -656,7 +657,7 @@ task.
 
   **Estimated scope:** S (one doc, about nine sections touched)
 
-- [ ] **Task 16: the other records — `PROCEDURAL_GENERATION.md`, backlog 60, plan.md, the spec**
+- [x] **Task 16: the other records — `PROCEDURAL_GENERATION.md`, backlog 60, plan.md, the spec**
 
   **Description:** `docs/PROCEDURAL_GENERATION.md`: `'robot.batterySize'` in the `spawnSystem.ts` call-site row and in
   "Which draw each site makes" (an even key). `docs/todo/backlog.md` item 60: a status paragraph (Stage 1 built on the
@@ -668,13 +669,13 @@ task.
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Each record says what shipped, and every link and anchor in the edited lines resolves.
-  - [ ] Backlog 60 is updated, not archived.
-  - [ ] The spec's "As built" names every difference from §1 and §4, or says there is none.
+  - [x] Each record says what shipped, and every link and anchor in the edited lines resolves.
+  - [x] Backlog 60 is updated, not archived. (Backlog 73's line records B12–B15 and its branch too.)
+  - [x] The spec's "As built" names every difference from §1 and §4, or says there is none. (§8.)
 
   **Verification:**
-  - [ ] Manual review; links and anchors opened.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual review; links and anchors opened.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 15.
 
@@ -684,11 +685,14 @@ task.
   **Estimated scope:** S (four docs, a few lines each, plus the spec's new section)
 
 ### Checkpoint D: complete, before the ear
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every case in spec §5.1 passes and was written RED first; each of its seven mutants is named, killed, in a
-      commit.
-- [ ] The docs describe the shipped behaviour, every identifier spot-checked against the source.
-- [ ] Flagged, not skipped: Gate B has not happened yet.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. (2026-11-11: the full suite at
+      Task 14, 351 files, 13,698 passed, with no source change since; types, lint and `vite build` re-run after
+      Task 16.)
+- [x] Every case in spec §5.1 passes and was written RED first; each of its seven mutants is named, killed, in a
+      commit (spec §8). Two exceptions, both said in their commits: the roster tile's and the World view's docked
+      cases in Task 10a were written after the code, when their mutants survived.
+- [x] The docs describe the shipped behaviour, every identifier spot-checked against the source.
+- [x] Flagged, not skipped: Gate B has not happened yet.
 - [ ] Reviewed with human before Task 17.
 
 ---

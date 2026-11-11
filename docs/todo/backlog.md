@@ -488,6 +488,15 @@ names, colours, gems and layout move. Done when no pick is welded to another and
 
 ### 60. Audio: Cover the Silence When Every Active Robot Is Charging
 
+**Status (2026-11-11): Stage 1 built on `feature/no-silence-for-now`, unpushed.** Interviewed and specified as Part A of
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), planned in
+[docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md). The last Active robot
+stays up until another lands, and every robot draws one seeded battery size (Gate A: 0.67–1.5) that divides its drain
+and its charge: no silent measure in any of 121 worlds, against 3.39 % of measures in 79 worlds before; a robot
+stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)). Waiting on Gate B, Crawford's
+ear. Still open before 60 archives: the fade-on-arcs note below (spec open question A4) needs its own item or a cut.
+Stage 2 (company families) is backlog [73](#73-robots-a-seeded-company-is-a-family).
+
 Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
 the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
 [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (chord progressions) post-launch. The shape he has
@@ -581,6 +590,6 @@ in the measure; at least two robots stay freelancers; today's 30 % copy roll goe
 [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) Part B (§1.9–§1.11, from
 Crawford's answers to B1–B11), planned in [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md) (nine tasks,
 Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every world's melodies, so it lands before
-backlog [45](#45-off-screen-crawfords-three-preset-links). Open: B12–B15 (defaults stand) and the branch. Plan.md
-Stage 3.
+backlog [45](#45-off-screen-crawfords-three-preset-links). B12–B15 answered 2026-11-11 (every default stands); built on
+its own branch from `main` after 60 merges. Plan.md Stage 3.
 

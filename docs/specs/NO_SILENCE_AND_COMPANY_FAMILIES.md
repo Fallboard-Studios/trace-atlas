@@ -15,7 +15,8 @@
 2026-11-10). Crawford asked for the plan the same day, with the assumptions of §7.1 standing at their defaults and
 open questions A1–A5 unanswered. Plan, Part A only:
 [docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md) (2026-11-10, seventeen
-tasks in five phases). **Part A built to Gate A on 2026-11-11** (the plan's Status line has the commits). **Part B
+tasks in five phases). **Part A built through Task 16 on 2026-11-11** (§8, As built): Gate A answered
+(0.67–1.5), Gate B, Crawford's ear, next. **Part B
 specified 2026-11-11** from Crawford's answers to B1–B11 (§7.3), early at his request, and planned in
 [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md); it is built only after Gate B (§0). Backlog
 [60](../todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of
@@ -767,3 +768,49 @@ still hears them.
 - **B15. A robot moved by hand into another company.** It keeps its own lineage, so it keeps the rhythm it rolled and
   is dealt from its old founder (the 2026-11-01 rule), or it joins its new company's family. Default: **keeps its
   own**. **Answered: keeps its own.**
+
+---
+
+## 8. As built (Part A)
+
+Built 2026-11-10/11 on `feature/no-silence-for-now`, one commit per task: T1 `da8d5b52`, T2 `da9416d0`, T3's row
+`f1991143`, T4 `b665a138`, T5 `20ea1cd3`, T6 `8394603c`, T7 `3438dda4`, T8 `2fa38ec3`, T9 `90566d9c`, T10 `e391c379`,
+T10a `986ed2f8` (inserted, below), T11 `ec0be658`, T12 `ba8737b6`, T13 `c208f726`, Checkpoint C `f889ac6b`, T14
+`1ca16f0c`, T15 `4c5488e2`, T16 (this section). The runs and the Gate A summary are in the plan's Results
+([tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md)); the shipped design is in
+[ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md), "The Docking State Machine", "Battery size" and "Headless Sims".
+
+**The names §4 left provisional.** `generateBatterySize(noiseMap, spawnCount, min = BATTERY_SIZE_MIN, max =
+BATTERY_SIZE_MAX)`, `DEFAULT_BATTERY_SIZE`, `BATTERY_SIZE_MIN` / `BATTERY_SIZE_MAX` as §4 named them; the rule's local is
+`anotherActive`. The cover sim is `createCoverTally(startRoster)` (`observe` / `result`), `runCoverSim({ coords,
+measures, rows })` returning one `CoverSimRow` per `CoverSimRowSpec` (`{ label, band? }`), and `formatCoverReport(rows)`.
+A band is a `SimBand`: `[min, max]` or `'flat'`. `buildSimRoster(noiseMap, band?)` and `runReadinessSim({ …, band })`
+take one.
+
+**Where it differs from §1.**
+
+| Where | Built | Why |
+|---|---|---|
+| §1.3, the band | 0.67–1.5, Crawford's pick at Gate A (A1), not the sketch's 0.8–1.25: fifteen cycle lengths (27–53), at most five robots in step in a world. A2 accepted. | The Gate A summary: the bands differ little in what is heard, and the widest loops least. |
+| §1.3, the probe's stays | On 0.67–1.5 a robot is in a stay 0.20 % of measures, 0.81 stays per 1,000 measures a world, length 2 (p90 5, longest 9). On 0.8–1.25 it was 0.18 %, not the probe's 0.13 %. | The probe was a hand copy; the cover sim is the record. Same kind, about a third more frequent. |
+| §1.5, the cover sim's API | `runCoverSim` takes `rows` and returns a list (Task 9), where §1.5 had one row a call. | Task 10 and Task 13 needed four bands in one report. |
+| §1.5, the worst worlds | With the rule no world goes silent, so `runCoverSim`'s worst-world list is always empty and its cap and order have no real-step test (Task 12). Kept as Task 3's record. | Only silence fills it. Removing it is Crawford's call. |
+| §5.1, the Task 2 cover cases | The invariants case and the cross-check needed a silent world; Task 12 re-aimed them at stays (the cross-check counts stays and stay measures over every world). | The rule removes silence everywhere, and no companion robot can give a world one. |
+| §5.1, case 7 | Runs every grid world at `SIM_MEASURES` on the shipped drain and band, not one roster. | The same cost as one long run, and it covers the worlds that went silent. |
+| §1.6, the loop sim | A report-only case runs the shipped cooldown on each band at 20, 110 and 200 BPM. 0 turn-backs and 0 robots charging while visible everywhere. | Task 13 needed the loop sim per band. |
+| Not in §1: Task 10a | Solo survives the dock cycle and beats the dock: the dock mutes by docking state (`isDockMuted`), never by writing `audioMode`. | Crawford found Solo lost at every landing (a bug on `main` since `ac85091b`) and wanted it fixed here to test this branch. Plan, Task 10a. |
+
+**The seven mutants of §5.1**, each killed, named in its commit: drop `r.id !== robot.id` (T12, `ba8737b6`); count
+Recalled as Active (T12); read the pre-tick `roster` (T12); divide the drain but not the charge (T5, `20ea1cd3`); put
+`Math.trunc` back in `updateRobot` (T4, `b665a138`, and T6, `8394603c`); drop `batterySize` from `toLifecycleSnapshot`
+(T6); draw the size with a plain `getSeededVal` (T7, `3438dda4`).
+
+**The runs** (6,000 measures a world, 121 worlds; the plan's Results):
+- **Today** (T3): silent 3.39 % of measures in 79 worlds, every cycle 35 measures; every probe number confirmed.
+- **Size only** (T10): 0.15–0.37 % of measures silent depending on the band, in 100–108 worlds, the longest silence 11–13
+  measures; the `'flat'` row reproduced today's exactly.
+- **The rule, with and without size** (T13): no silent measure on any row. Rule only: a stay in 92 worlds (the probe's
+  number), length 2, 4, 9.
+- **The drain rows** on the shipped band: 5.71, 5.10, 4.66 (pinned; 5.70, 5.14, 4.60 before battery size).
+
+**Gate A** answered 2026-11-11 (A1, A2 above). **Gate B**, Crawford's ear, is next (§5.5; plan Task 17).
