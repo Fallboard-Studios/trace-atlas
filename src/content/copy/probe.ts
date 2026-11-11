@@ -130,7 +130,7 @@ export const probe = {
   },
   'probe.status': {
     human: 'Status',
-    lore: 'ACOUSTIC EMISSION STATE',
+    lore: 'DIAGNOSTIC FEED STATE',
   },
 
   // ---------------------------------------------------------------- Dynamics / Levels
