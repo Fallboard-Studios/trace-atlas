@@ -24,6 +24,9 @@ the item's own measure-first check runs, and the item archives if the check find
 - Backlog [80](backlog.md#80-audio-notes-too-short-to-hear-the-instrument--more-guardrails) **Notes long enough to
   hear the instrument** — Crawford's "most important one" (2026-11-11): his listen finds where, then an interview and
   more guardrails. (60 and 73 built and archived 2026-11-11, 74 off the plan, 17 closed.)
+- Backlog [81](backlog.md#81-monitor-mode-made-trustworthy--highlight-you-can-hear-from-a-robot-that-is-playing-and-the-mode-on-every-card)
+  **Monitor Mode made trustworthy** — Highlight a heard bus-gain dip from a sounding robot, and the mode on every card;
+  planned, building (Crawford's ear, then his eye).
 
 ## Stage 4 — Visual refinement
 

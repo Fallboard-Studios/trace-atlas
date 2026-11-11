@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 81.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 82.
 
 ## Open items
 
@@ -631,4 +631,35 @@ shortest sounding note against its attack and decay, to point the listen.
 decay, or a fixed floor per voice), and which lever guards it: the seeded bands (density, note lengths, envelope), the
 cut release (62's recommended option: release short only when the attack fits inside the written note), or a floor at
 play time. An interview after the listen, then a spec. Plan.md Stage 3.
+
+### 81. Monitor Mode Made Trustworthy — Highlight you can hear, from a robot that is playing, and the mode on every card
+
+Raised by Crawford on 2026-11-11, in a review of how Auto, Solo, Mute and Highlight work. Of six findings he kept four
+and called two features:
+
+- **Highlight cannot be heard.** It halves every other robot's note velocity in `scheduleNote` (the `anyHighlight`
+  block, `src/engine/AudioEngine.ts`), nominally 6 dB, and the velocity curve and the master compressor flatten it.
+- **A silenced robot's Highlight still dims the players.** The check reads only the dock, so a Highlight on a robot
+  silenced by another robot's Solo, or standing by over the Audio Load budget, still halves the robots that sound.
+- **The budget gives Highlight no rank.** Only a Solo evicts, so on a Light tier a highlighted robot can stand by.
+- **Nothing on a card or tile says which mode a robot carries**, and the roster tile's one-line status (`job ·
+  docking · activity · status`) cuts the audio state with its ellipsis on the desk.
+
+**The shape** (from the intent, every guess confirmed): Highlight becomes a bus-gain dip of about 10 dB on every robot
+but the highlighted ones, ramped both ways, and the velocity halving goes. A Highlight counts only while its robot is
+sounding, and the budget admits Solo, then Highlight, then Auto. The robot screen, the phone band and the roster tile
+lead with the robot's own mode as a light and a word (Auto green, Solo yellow, Mute red, Highlight blue), lit only
+while the robot sounds; Emitting / Standing by / Disabled go. The tile reads mode · job · docking · activity, and on
+the desk holds two lines.
+
+**Out of scope** (spec §1.8): `isRobotAudible` and the note-trigger rule; the two findings kept as features (a Mute
+on the last robot defeats the stay-up rule, and a company's mode is a broadcast to its members); any mark in the world
+view (the body guardrail stands); the editor's Monitor Mode radio; the power rocker's light and its four colours;
+backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs) (the dock fade) and
+[79](#79-robots-move-in-time-with-their-own-melody) (a per-note pulse).
+
+**Status:** intent confirmed 2026-11-11 ([intent](../intent/monitor-mode-trustworthy.md)), spec written the same day
+([spec](../specs/MONITOR_MODE_TRUSTWORTHY.md), §7.2 Q1–Q2 at their defaults until the gates), plan written
+([plan](../tasks/MONITOR_MODE_TRUSTWORTHY.md): Task 0, Part A Tasks 1–4 then Crawford's ear, Part B Tasks 5–11 then
+his eye, docs, archive). Building on `feature/monitor-mode-trustworthy`. Plan.md Stage 3.
 

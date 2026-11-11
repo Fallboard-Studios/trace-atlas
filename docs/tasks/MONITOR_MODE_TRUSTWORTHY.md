@@ -79,7 +79,7 @@ code, not text").
 
 ### Phase 0: The records
 
-- [ ] **Task 0: `docs/todo/backlog.md`, `docs/todo/plan.md` — entry 81 and its Stage 3 line**
+- [x] **Task 0: `docs/todo/backlog.md`, `docs/todo/plan.md` — entry 81 and its Stage 3 line**
 
   **Description:** Add backlog entry `### 81. Monitor Mode Made Trustworthy — Highlight you can hear, from a robot
   that is playing, and the mode on every card`, in the house shape (raised 2026-11-11, the four findings kept, the two
@@ -89,11 +89,11 @@ code, not text").
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Entry 81 exists, links the three docs, and names what is out of scope (spec §1.8).
-  - [ ] plan.md carries one line for 81 in the agreed stage, with its anchor link.
+  - [x] Entry 81 exists, links the three docs, and names what is out of scope (spec §1.8).
+  - [x] plan.md carries one line for 81 in the agreed stage, with its anchor link.
 
   **Verification:**
-  - [ ] `npm run lint` clean (docs-only change).
+  - [x] `npm run lint` clean (docs-only change).
 
   **Dependencies:** None.
 
