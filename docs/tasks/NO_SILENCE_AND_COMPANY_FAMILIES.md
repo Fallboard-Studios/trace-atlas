@@ -624,7 +624,7 @@ task.
 
   **Estimated scope:** S (two constants, their pin, a comment, the spec's two answers)
 
-- [ ] **Task 15: `docs/ROBOT_LIFECYCLE.md` — the lifecycle as shipped**
+- [x] **Task 15: `docs/ROBOT_LIFECYCLE.md` — the lifecycle as shipped**
 
   **Description:** Rewrite the parts the change makes wrong, every number taken from Results and every identifier
   checked against the shipped source: core principle 3 (the rate is per robot, by its size); the "No keep-one-playing
@@ -638,14 +638,17 @@ task.
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No sentence says a robot is recalled whatever the fleet is doing, or that the fleet can go silent.
-  - [ ] Every number is one in Results; none is the intent's probe number unless Results confirmed it.
-  - [ ] Every function, constant and field named exists in the shipped source under that name.
-  - [ ] No compatibility or "keeps the existing sound" clause (the pre-v1 rule).
+  - [x] No sentence says a robot is recalled whatever the fleet is doing, or that the fleet can go silent.
+  - [x] Every number is one in Results; none is the intent's probe number unless Results confirmed it. (Two are
+        arithmetic and say so: the ⌈1.2·n⌉ docked count and the 16-measure shortest recall to Active.)
+  - [x] Every function, constant and field named exists in the shipped source under that name. (A stale one
+        found and fixed on the way: the replay section named `getSeededVal` for pitch drift, which is
+        `getUniformSeededVal`.)
+  - [x] No compatibility or "keeps the existing sound" clause (the pre-v1 rule).
 
   **Verification:**
-  - [ ] Manual review, each named identifier and number checked against the source and Results.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual review, each named identifier and number checked against the source and Results.
+  - [x] `npm run build:types`, `npm run lint` clean (no source change since Task 14, where both were clean).
 
   **Dependencies:** Task 14.
 
