@@ -572,20 +572,33 @@ None blocks the plan: A1 is a gate inside it, and the rest have a default.
 
 ### 7.3 Open questions, Part B
 
-Answered after Gate B. None blocks Part A.
+All eleven **answered by Crawford on 2026-11-11**, at Checkpoint B of Part A and before Gate B (he chose to answer
+early so Part B could be planned overnight; it is still built only after Gate B). Two answers reverse §1.9: B2 and its
+follow-up.
 
 - **B1. Where the 25 %'s moved onset sits:** in the measure, or in the motif cell, where it repeats.
+  **Answered: in the measure.** The move happens once a measure; a motif repeats around it unchanged.
 - **B2. "Roughly together":** the same measure, or a measure apart so an entrance builds.
+  **Answered: neither — keep today's start.** Robots now have different lifecycles, and Crawford would rather a
+  company line up organically for the time being. **Follow-up, answered: a member draws its own battery size**, as
+  every robot does since Part A. A company shares a voice, a rhythm and its sends, and drifts in and out of step.
+  This reverses §1.9's "its battery size … and its start", "they start roughly together" and "companies fray slowly".
 - **B3. Which robots start Active,** now that a company starts together. Today it is roster indices 0 to n−1, a
-  seeded 2–4, at full battery.
+  seeded 2–4, at full battery. **Answered: keep today's seeded 2–4.**
 - **B4. Company sizes:** 2–3 companies of 3–4 as today, or different now that size decides how many robots inherit.
+  **Answered: keep 2–3 companies of 3–4, but at least two freelancers** (at most ten robots in companies).
 - **B5. What stays fresh for a member.** Today a copy draws its own id, name, colour, gem, composition seed, volume,
-  sends and pan.
+  sends and pan. **Answered: a member also takes the founder's five sends** (reverb, delay, grit, shimmer, double),
+  so a section sits in one space. Id, name, colour, gem, composition seed (its notes), volume and pan stay its own.
 - **B6. Which member is the founder.** Proposed: the lowest roster index in the company, so it spawns first.
+  **Answered: the lowest roster index.**
 - **B7. The rhythm stream's side effect:** a note-variance or octave edit would stop reshuffling any robot's rhythm,
-  which it does today.
-- **B8. The deal:** members derive their dealt fields from the founder's spawn index.
+  which it does today. **Answered: accept.**
+- **B8. The deal:** members derive their dealt fields from the founder's spawn index. **Answered: yes, from the
+  founder's.**
 - **B9. The Robot Load cap:** a company of four at a low cap is a section of two. Accept, or admit by company.
+  **Answered: accept.**
 - **B10. The Pixel underrun A/B** for three or four robots hitting every onset together: proposed as a gate in the
-  idea-refine session, not confirmed.
+  idea-refine session, not confirmed. **Answered: no gate.**
 - **B11. Where Stage 2 is recorded:** its own number on the shared counter, placed before backlog 45, or kept under 60.
+  **Answered: its own number, before backlog 45;** backlog 60 closes with Part A.
