@@ -20,6 +20,6 @@ export function useRobotMeta(robot: Robot, localeId: string): Record<RobotMetaFi
     job: (robot.job ? JOB_TYPE_LABELS[robot.job] : UNASSIGNED_JOB_LABEL).humanLabel,
     dockingState: DOCKING_STATE_LABELS[robot.docking].humanLabel,
     activity: ACTIVITY_LABELS[robot.activity].humanLabel,
-    status: AUDIBILITY_LABELS[getAudibilityState(robot.audioMode, anySolo, isSounding)].humanLabel,
+    status: AUDIBILITY_LABELS[getAudibilityState(robot.audioMode, anySolo, robot.docking, isSounding)].humanLabel,
   };
 }

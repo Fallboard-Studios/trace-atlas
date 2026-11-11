@@ -24,7 +24,7 @@ Source of truth: [`src/engine/AudioEngine.ts`](../src/engine/AudioEngine.ts).
 
 `AudioEngine.scheduleNote()` resolves velocity and `audioMode` policy (see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md)'s Note Resolution Pipeline) before delegating to `triggerWithCap(params: NoteParams): boolean`, which:
 
-1. Checks `audioMode` (mute / solo) — the sole enforcement point (`scheduleNote` only applies the `highlight` attenuation).
+1. Checks `audioMode` (mute / solo) and the dock's mute (a robot in its station is silent unless soloed) through `isRobotAudible` — the sole enforcement point (`scheduleNote` only applies the `highlight` attenuation).
 2. **Audio Load gate:** rejects a robot outside a non-null sounding set (`soundingRobots`, pushed by `audioBudgetSystem`) — it never triggers and never consumes a slot. Checked *before* the cap so a standing-by robot cannot use up polyphony the sounding ones need.
 3. Rejects if `activeVoices >= polyphonyCap` (the live cap, default `MAX_POLYPHONY`).
 4. Increments `activeVoices`.

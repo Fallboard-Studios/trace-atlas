@@ -413,14 +413,17 @@ describe('robotSystems', () => {
       expect(updated?.dockingHoldUntilMeasure).toBeUndefined();
     });
 
-    it('sets audioMode to none — unmutes via the same toggle Robot Options exposes', () => {
-      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode: 'mute' });
+    // The dock mutes through the docking state itself (robotAudibility.isDockMuted); audioMode is the user's alone, so
+    // a Solo, Mute or Highlight set on the robot survives the landing (Crawford, 2026-11-11).
+    it.each(['solo', 'mute', 'highlight', 'none'] as const)('leaves the user\'s audioMode %s as it was', (audioMode) => {
+      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode });
       setupLocaleWithRobots([robot]);
 
       landOnActive(DEFAULT_LOCALE_ID, robot.id);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.audioMode).toBe('none');
+      expect(updated?.docking).toBe(DockingState.Active);
+      expect(updated?.audioMode).toBe(audioMode);
     });
 
     it('does not touch AudioEngine voice/melody registration — those are set once at spawn and stay put', () => {
@@ -435,8 +438,8 @@ describe('robotSystems', () => {
       expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual([]);
     });
 
-    it('calls the seam with \'active\' once, after the Active + unmute write', () => {
-      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode: 'mute' });
+    it('calls the seam with \'active\' once, after the Active write', () => {
+      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode: 'solo' });
       setupLocaleWithRobots([robot]);
       let atSeam: Robot | undefined;
       seam.mockImplementationOnce((_l: string, id: string) => {
@@ -447,7 +450,7 @@ describe('robotSystems', () => {
 
       expect(seam.mock.calls).toEqual([[DEFAULT_LOCALE_ID, robot.id, 'active']]);
       expect(atSeam?.docking).toBe(DockingState.Active);
-      expect(atSeam?.audioMode).toBe('none');
+      expect(atSeam?.audioMode).toBe('solo');
     });
 
     it('writes no job itself — the job is the seam\'s (legacy adapter now, work loop in J2)', () => {
@@ -486,17 +489,19 @@ describe('robotSystems', () => {
       expect(updated?.dockingHoldUntilMeasure).toBeUndefined();
     });
 
-    it('sets audioMode to mute — the toggle Robot Options exposes, not a voice release', () => {
-      const robot = makeRobot({ docking: DockingState.Recalled, audioMode: 'none' });
+    // The Docked state itself mutes the robot; a Solo set on it still lets it be heard (Crawford, 2026-11-11).
+    it.each(['solo', 'mute', 'highlight', 'none'] as const)('leaves the user\'s audioMode %s as it was', (audioMode) => {
+      const robot = makeRobot({ docking: DockingState.Recalled, audioMode });
       setupLocaleWithRobots([robot]);
 
       landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.audioMode).toBe('mute');
+      expect(updated?.docking).toBe(DockingState.Docked);
+      expect(updated?.audioMode).toBe(audioMode);
     });
 
-    it('does not release the voice or unregister the melody — a user can still override mute in Robot Options and hear it', () => {
+    it('does not release the voice or unregister the melody — a Solo set on a docked robot still lets it be heard', () => {
       const robot = makeRobot({ id: 'docked-voice-kept', docking: DockingState.Recalled });
       setupLocaleWithRobots([robot]);
       AudioEngine.reserveVoice(robot.id, robot.audioAttributes.layers!, robot.audioAttributes.adsr);
@@ -540,8 +545,8 @@ describe('robotSystems', () => {
       expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual(buildClickTrackMelody(robot.octaveRange[0]));
     });
 
-    it('calls the seam with \'docked\' once, after the Docked/mute/melody write, with the dock cycle already advanced', () => {
-      const robot = makeRobot({ id: 'docked-seam', docking: DockingState.Recalled, audioMode: 'none' });
+    it('calls the seam with \'docked\' once, after the Docked/melody write, with the dock cycle already advanced', () => {
+      const robot = makeRobot({ id: 'docked-seam', docking: DockingState.Recalled, audioMode: 'highlight' });
       setupLocaleWithRobots([robot]);
       const givenMelody = robot.melody.map((e) => ({ ...e, noteIndex: (e.noteIndex + 1) % 8 }));
       let atSeam: Robot | undefined;
@@ -555,7 +560,7 @@ describe('robotSystems', () => {
 
       expect(seam.mock.calls).toEqual([[DEFAULT_LOCALE_ID, robot.id, 'docked']]);
       expect(atSeam?.docking).toBe(DockingState.Docked);
-      expect(atSeam?.audioMode).toBe('mute');
+      expect(atSeam?.audioMode).toBe('highlight');
       expect(atSeam?.melody).toEqual(givenMelody);
       expect(cycleAtSeam).toBe(1);
     });

@@ -162,13 +162,13 @@ const toMs = (seconds: number | undefined): number | null =>
 /**
  * Audible robots in the active locale, read straight off the store at the sample tick (no
  * subscription, so the overlay's render cadence is unchanged). Same rule as the engine's
- * `triggerWithCap` gate: not muted, and not excluded by another robot's solo.
+ * `triggerWithCap` gate: not muted, not excluded by another robot's solo, and not in the station unless soloed.
  */
 function readRobotAudibility(): { audibleRobots: number; totalRobots: number } {
   const robots = useLocaleStore.getState().locales[getActiveLocaleId()]?.robots ?? [];
   const anySolo = robots.some((r) => r.audioMode === 'solo');
   return {
-    audibleRobots: robots.filter((r) => isRobotAudible(r.audioMode, anySolo)).length,
+    audibleRobots: robots.filter((r) => isRobotAudible(r.audioMode, anySolo, r.docking)).length,
     totalRobots: robots.length,
   };
 }

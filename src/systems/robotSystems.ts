@@ -261,18 +261,17 @@ export function stopRobotLifecycle(): void {
 // ========================================
 
 /**
- * Land on Active: unmute via `audioMode` (the same toggle Robot Options
- * exposes — RobotAudioTab's Audio Mode control — so a user can independently
- * override it), then hand the visual side (the work loop: out of the station, or a
- * turn-back) to the onLifecycleChange seam.
+ * Land on Active, which unmutes the robot by itself: the dock's mute is the docking state
+ * (robotAudibility.ts's isDockMuted), never `audioMode`, which is the user's Solo/Mute/Highlight
+ * and survives the landing (Crawford, 2026-11-11). Then hand the visual side (the work loop: out
+ * of the station, or a turn-back) to the onLifecycleChange seam.
  *
  * Voice reservation and melody registration are NOT done here — every robot
  * gets both once, at spawn (spawnSystem.ts's spawnRobot), regardless of
  * docking state. The melody stays put across dock cycles; the voice does not:
  * the Audio Load budget stands a muted robot by, releasing its voice once its
- * last note rings out, and rebuilds it when `audioMode` leaves 'mute' (here, or
- * the user flipping it back in Robot Options) and admits it
- * (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1).
+ * last note rings out, and rebuilds it when the robot leaves the station (here)
+ * or the user unmutes it, and admits it (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1).
  */
 export function landOnActive(localeId: string, robotId: string): void {
   const robot = useLocaleStore.getState().getRobotById(localeId, robotId);
@@ -281,18 +280,17 @@ export function landOnActive(localeId: string, robotId: string): void {
   useLocaleStore.getState().updateRobot(localeId, robotId, {
     docking: DockingState.Active,
     dockingHoldUntilMeasure: undefined,
-    audioMode: 'none',
   });
 
   onLifecycleChange(localeId, robotId, 'active');
 }
 
 /**
- * Land on Docked: mute via `audioMode: 'mute'` (see landOnActive's comment —
- * the voice/melody stay reserved/registered; only the toggle changes, so a
- * user can flip it back in Robot Options and hear the robot anyway). The
- * melody is re-registered with AudioEngine after the drift so a manual mute
- * override plays the drifted pitches, not the stale pre-drift ones. No
+ * Land on Docked, which mutes the robot by itself (see landOnActive's comment —
+ * the docking state is the dock's mute; `audioMode` stays the user's). A robot
+ * soloed in the station is still heard (Solo beats the dock). The melody is
+ * re-registered with AudioEngine after the drift so a soloed docked robot
+ * plays the drifted pitches, not the stale pre-drift ones. No
  * position write — the visual side (nothing: the entry ends in charging by itself) is
  * the onLifecycleChange seam's, called last.
  *
@@ -313,7 +311,6 @@ export function landOnDocked(localeId: string, robotId: string, driftedMelody: R
     docking: DockingState.Docked,
     dockingHoldUntilMeasure: undefined,
     melody: driftedMelody,
-    audioMode: 'mute',
   });
 
   // registerRobotMelody purges this robot's prior entries before adding the

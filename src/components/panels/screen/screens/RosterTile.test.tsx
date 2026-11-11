@@ -165,6 +165,16 @@ describe('RosterTile — what it shows', () => {
     expect(status().endsWith(AUDIBILITY_LABELS.disabled.humanLabel)).toBe(true);
   });
 
+  // The dock mutes on its own, not through audioMode, and a Solo beats it (Crawford, 2026-11-11).
+  it('reads a docked robot with no mute set as disabled, and emitting once it is soloed', () => {
+    addRobots(makeRobot('r0', { docking: 'docked', activity: 'charging', audioMode: 'none' }));
+    const { container } = renderTile('r0');
+    const status = () => container.querySelector('.roster-tile__status')!.textContent!;
+    expect(status().endsWith(AUDIBILITY_LABELS.disabled.humanLabel)).toBe(true);
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r0', { audioMode: 'solo' }));
+    expect(status().endsWith(AUDIBILITY_LABELS.emitting.humanLabel)).toBe(true);
+  });
+
   it.each([
     [85, 8],
     [0, 0],

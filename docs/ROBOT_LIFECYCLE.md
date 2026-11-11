@@ -26,8 +26,8 @@ either state machine.
 2. **Two state machines, two clocks**: `Robot.docking` (Docked/Undocking/Active/Recalled) is battery-driven and ticks once per measure. `Robot.activity` (charging/exiting/transit/working/waiting/returning/entering) is the work loop's and runs on wall-clock GSAP time. The docking machine never reads `activity`; the work loop reads `docking` at every decision.
 3. **Battery-driven, not job-driven**: every Active robot drains at the same flat rate whatever it is doing. The job, the site, the station and the position are live visual state; nothing in the lifecycle reads them.
 4. **Measure-quantized transitions**: every docking change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`. This is what makes battery, docking and pitch drift headlessly replayable — see "Deterministic Replay" below.
-5. **One seam to the visuals**: the tick writes docking, battery, audio mode and melody, then calls `onLifecycleChange(localeId, robotId, to)` for the transitions that have a visual consequence. It never starts a swim, writes a position or picks a job itself.
-6. **Muted by default while Docked, but overridable**: a `Docked` robot is hidden inside its station and has `audioMode: 'mute'` — the *same* field Robot Options' Audio Mode toggle writes to. Its melody stays registered the whole time, exactly like an `Active` robot's. Its `AudioEngine` voice does not: the Audio Load budget stands every muted robot by, so the voice is released after its last note and rebuilt when the budget admits the robot again (backlog 67's G1, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). Mute itself is enforced at the note trigger (`isRobotAudible` in `triggerWithCap`), so a user can flip a Docked robot's Audio Mode back to `none` in Robot Options and genuinely hear it: the flip makes it eligible, the budget rebuilds its voice, and nothing in the lifecycle system fights that override.
+5. **One seam to the visuals**: the tick writes docking, battery and melody, then calls `onLifecycleChange(localeId, robotId, to)` for the transitions that have a visual consequence. It never starts a swim, writes a position or picks a job itself.
+6. **The dock mutes; Solo beats it**: a robot in its station (`Docked`, or `Undocking` on its way out) is silent because of its docking state (`isDockMuted` in `src/utils/robotAudibility.ts`), never because of its `audioMode`. `audioMode` is the user's alone (Robot Options' and the company screen's Audio Mode: Off, Mute, Solo, Highlight), and nothing in the lifecycle writes it, so a Solo, Mute or Highlight survives every dock and undock (Crawford, 2026-11-11; until then the landings wrote `'mute'` and `'none'` over it). A soloed robot is heard even in its station; Off and Highlight never make a docked robot heard, and a highlighted robot in its station highlights nothing. The melody stays registered the whole time, exactly like an `Active` robot's. The `AudioEngine` voice does not: the Audio Load budget stands every muted robot by — muted by the user, or by the dock unless soloed — so the voice is released after its last note and rebuilt when the budget admits the robot again (backlog 67's G1, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). The rule is enforced at the note trigger (`isRobotAudible` in `triggerWithCap`).
 7. **Animation never touches audio**: every work-loop timeline callback calls only work-loop functions or store writes, never `AudioEngine` (the Strict Separation guardrail). Animation speed doesn't follow the music, except that a job's length is read from the tempo when it starts (`jobDuration(bpm)`).
 8. **A pause freezes measures; the day runs**: the power rocker pauses the world rather than tearing it down (`docs/specs/OFF_SCREEN.md` assumption 5; [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause)). The AudioContext is suspended, so the measure tick, and with it battery drain and recharge, the transition hold, pitch drift and the harmony, stop where they are and continue from there on resume — a replay by elapsed measures is unaffected, since no measure elapsed. The work loop's clock is shifted by the paused span and its `'world'` timelines are paused in place, so every robot is where it was and every site cooldown means what it did. The in-world day is wall clock (`DAY_DURATION_MS` from `dayStartTimestamp`) and is never gated: the light moves on while the tablet is off, and a world resumed after ten minutes resumes into a later hour.
 
@@ -347,25 +347,27 @@ snapshot again can't move them silently.
 ## Landing Effects
 
 **`landOnActive(localeId, robotId)`** — called when an `Undocking` robot's hold elapses:
-1. Sets `docking: Active`, clears `dockingHoldUntilMeasure`, sets `audioMode: 'none'`.
+1. Sets `docking: Active` and clears `dockingHoldUntilMeasure`. Leaving the station unmutes it; its
+   `audioMode` is the user's and is left alone.
 2. Calls `onLifecycleChange(localeId, robotId, 'active')`.
 
 Voice reservation and melody registration are **not** done here — every robot gets both once, at
 spawn (`spawnSystem.ts`'s `spawnRobot`), regardless of docking state, and they stay put across
-dock cycles. `audioMode` is the only thing that changes.
+dock cycles. The docking state is the only thing that changes.
 
 **`landOnDocked(localeId, robotId, driftedMelody)`** — called when a `Recalled` robot's hold
 elapses:
 1. Advances the robot's dock-cycle count (`dockCycles.ts`'s `recordDockLanding`).
-2. Sets `docking: Docked`, clears `dockingHoldUntilMeasure`, stores `driftedMelody`, sets
-   `audioMode: 'mute'`.
-3. Re-registers the drifted melody with `AudioEngine`, so a manual mute override plays the
+2. Sets `docking: Docked`, clears `dockingHoldUntilMeasure`, stores `driftedMelody`. Docking mutes
+   it; its `audioMode` is left alone.
+3. Re-registers the drifted melody with `AudioEngine`, so a robot soloed in its station plays the
    post-drift pitches. The caller, `tickRobotLifecycle`, computes the drift via
    `stepRobotLifecycle` and passes it in.
 4. Calls `onLifecycleChange(localeId, robotId, 'docked')`. **No position write** here — position is
    the work loop's.
 
-No voice is released and no melody is unregistered — muting is `audioMode` alone.
+No voice is released and no melody is unregistered here — the dock's mute is the docking state
+alone, and the Audio Load budget releases the voice (rule 6).
 
 **The dock-cycle count** lives in `src/systems/dockCycles.ts` (`getDockCycleCount` /
 `recordDockLanding`). Its one reader is pitch drift: `tickRobotLifecycle` threads it into each
@@ -491,14 +493,14 @@ locale load:
 - No job is assigned at load. A robot takes its first job at its first site.
 - `spawnRobot`'s `AudioEngine.reserveVoice`/`registerRobotMelody` calls are **unconditional** —
   every robot gets a voice and a registered melody at spawn regardless of docking state.
-  `audioMode` is set to `'mute'` when created `Docked` and `'none'` when created `Active`, so
-  muting is consistent from the very first tick, not just after a robot's first dock/undock cycle.
+  `audioMode` starts at `'none'` for every robot; a robot created `Docked` is muted by its docking
+  state from the very first tick (rule 6).
 
 ## Audibility and the Audio Load Budget
 
-Whether a robot is *heard* is now two independent things. **`audioMode`** (mute / solo, `isRobotAudible` in `src/utils/robotAudibility.ts`, unchanged) is the lifecycle's and the user's switch: `landOnDocked` mutes, `landOnActive` unmutes, and a user can override either. **The Audio Load budget** ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)) then caps how many *eligible* robots may sound at once (2–12 by the Robot Load slider; all 12 at Full — the separate Effects Load slider doesn't affect this cap): `audioBudgetSystem` admits them first come, first served, and one that is eligible but over the cap **stands by** — silent, shown as "Standing by" on its card, otherwise unchanged.
+Whether a robot is *heard* is now two independent things. **Eligibility** (`isRobotAudible` in `src/utils/robotAudibility.ts`) reads the user's `audioMode` and the robot's docking: Mute always silences; under any Solo only the soloed robots are heard, in their station or not; otherwise a robot in its station is silent (rule 6). **The Audio Load budget** ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)) then caps how many *eligible* robots may sound at once (2–12 by the Robot Load slider; all 12 at Full — the separate Effects Load slider doesn't affect this cap): `audioBudgetSystem` admits them first come, first served, and one that is eligible but over the cap **stands by** — silent, shown as "Standing by" on its card, otherwise unchanged.
 
-Standing-by robots keep the whole lifecycle: they work, drain, dock, recharge, drift pitch and keep their registered melody. Only the sound stops: the note trigger is gated (`triggerWithCap`), and the voice is released after the last note and rebuilt on admission ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). So the battery cycle is what supplies the turnover — a robot docking (`audioMode: 'mute'`) frees its slot for the earliest waiter within a measure or two. An explicit unmute of a docked robot when the set is full does not jump the queue (it shows "Standing by" until a slot frees); a soloed robot always sounds. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
+Standing-by robots keep the whole lifecycle: they work, drain, dock, recharge, drift pitch and keep their registered melody. Only the sound stops: the note trigger is gated (`triggerWithCap`), and the voice is released after the last note and rebuilt on admission ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). So the battery cycle is what supplies the turnover — a robot docking frees its slot for the earliest waiter within a measure or two. An explicit unmute of a robot when the set is full does not jump the queue (it shows "Standing by" until a slot frees); a soloed robot always sounds. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
 
 The robot card shows all three side by side: `{docking} · {activity} · {audibility}` (spec §1.11).
 
@@ -547,9 +549,9 @@ G1), and that robot gets its voice back when the budget admits it
 ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). `AudioEngine.killAll()` itself does not touch the
 `compositeVoices` map (it only cancels/resets the Transport and calls `resetBeatClock()`), and
 nothing calls it now, so voices are not invalidated by a power cycle; the re-registration is
-defensive work carried over as-is rather than a verified requirement. `audioMode` (unaffected by the
-power cycle, since it lives in `useLocaleStore`, not `AudioEngine`) is what keeps Docked robots
-silent afterward.
+defensive work carried over as-is rather than a verified requirement. The docking state (unaffected
+by the power cycle, since it lives in `useLocaleStore`, not `AudioEngine`) is what keeps Docked
+robots silent afterward.
 
 ## Known gaps
 
@@ -575,14 +577,15 @@ silent afterward.
 cover:
 - the flat drain for every Active robot whatever its job (mutation-checked: a re-introduced job surcharge breaks the prove-it test), recharge math, both clamped
 - threshold-triggered `Undocking`/`Recalled` entry with the hold, not an immediate landing; hold-elapsed landing on `Active`/`Docked`
-- `landOnActive`/`landOnDocked` setting `audioMode` (not touching voice reservation/melody registration), writing no position, job or swim themselves, and calling `onLifecycleChange` with the right `to`; the `./workLoop` import as the tick's only route to visuals
-- `landOnDocked` re-registering the drifted melody with `AudioEngine` so a manual mute override plays the post-drift pitches
+- `landOnActive`/`landOnDocked` leaving every `audioMode` (Off, Mute, Solo, Highlight) as it was and not touching voice reservation/melody registration, writing no position, job or swim themselves, and calling `onLifecycleChange` with the right `to`; the `./workLoop` import as the tick's only route to visuals
+- `landOnDocked` re-registering the drifted melody with `AudioEngine` so a robot soloed in its station plays the post-drift pitches
+- the dock's mute and Solo beating it (`robotAudibility.test.ts`, `audioBudgetSystem.test.ts`, `AudioEngine.test.ts`, the roster tile and the World view's count): a Solo and a Mute each survive a dock cycle
 - no keep-one-playing guard: a sole `Active` robot at/below critical battery (including one that drains to exactly 0) is recalled like any other, and two robots crossing critical in the same tick are both recalled
 - `stepRobotLifecycle`/`replayLifecycle` (the injected `DrainRule`, pitch drift matching the live seed formula, no cross-robot seed collision, compounding drift, the no-op case, `fromMeasure` excluded) and the prove-it test: a real 12-robot roster run for N real ticks and separately replayed, asserted identical field for field (mutation-checked against the pre-drift melody and a job surcharge)
 - the work loop: one robot per site, the cooldown, the job sticking until no ready site hosts it, recall in each activity, both turn-backs, adoption on mount and on start, settling, the body-less timelines, stop finishing a job silently, and callbacks that never touch `AudioEngine` (spy); every mutant run in Tasks 22–24 is killed
 - the two robot rows (J4; plus `layerSwitch.test.ts` and `midgroundSilhouettes.test.tsx`): front → back and back → front legs, the switch point's clear run, the skip with no switch point, the 0.75 row scale, the dissolve copy in both directions and every interruption of it (stop, recall, a dropped leg's re-mount, an overlapping fade), exits into the back row, and `stations.test.ts`' guards that no station box or exiting robot overlaps a midground silhouette (0 of 284 over the grid). The J1–J3 loop tests run with `backHosts: false`
 - the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case)
-- `spawnInitialRoster`'s active/docked split, seeded battery variation, determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody with `audioMode` matching its docking state
+- `spawnInitialRoster`'s active/docked split, seeded battery variation, determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody, every one with `audioMode: 'none'`
 - `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency; `pauseWorkLoop`/`resumeWorkLoop` (a cooldown stamped before a pause is unexpired after it, two pauses accumulate, a start resets); `powerController.test.ts`'s pause and resume orders, the cold path, `markHeardWorld` once, and the fade awaited before either path
 - `types/Robot.test.ts`: the deleted files are gone and no file in `src/` names a deleted identifier (below)
 - `lifecycleSim.ts`: the sim roster matching the real spawn path, determinism, no store/BeatClock (and no GSAP for the loop sim), the pinned flat-drain rows, and the loop sim's hand-worked timelines for each work-loop branch

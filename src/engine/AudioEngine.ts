@@ -24,7 +24,7 @@ import { precomputeDataX } from '../utils/getSeededVal';
 import { tryGetLocaleNoiseMap } from '../utils/noiseMaps';
 import { devWarn } from '../utils/helpers';
 import { clampSend } from '../utils/clampSend';
-import { isRobotAudible } from '../utils/robotAudibility';
+import { isDockMuted, isRobotAudible } from '../utils/robotAudibility';
 import { resolveLfoBankForEngine } from '../utils/tempoSync';
 import { lfoEngine } from './lfoEngine';
 import { calculatePanFromPosition } from './audioEngine/panning';
@@ -526,7 +526,7 @@ export function triggerWithCap(params: NoteParams): boolean {
       // actually reads (bugfix, found live via RobotSelectionCard's own re-render storm); this
       // call site isn't React-rendered so it wasn't part of that bug, but keeps the same contract.
       const anySolo = localeRobots.some((r) => r.audioMode === 'solo');
-      if (!isRobotAudible(robotFromStore?.audioMode, anySolo)) {
+      if (!isRobotAudible(robotFromStore?.audioMode, anySolo, robotFromStore?.docking)) {
         return false;
       }
       // Highlight attenuation is handled in scheduleNote; skip here to avoid double-attenuation.
@@ -806,9 +806,10 @@ export const AudioEngine = {
       effectiveVelocity = Math.min(1, effectiveVelocity * params.accentMultiplier);
     }
 
-    // Enforce audioMode policies (mute/solo/highlight) at schedule time.
+    // Enforce audioMode policies (mute/solo/highlight) at schedule time. A highlighted robot in the station is silent,
+    // so it highlights nothing until it comes back out.
     try {
-      const anyHighlight = localeRobots.some((r) => r.audioMode === 'highlight');
+      const anyHighlight = localeRobots.some((r) => r.audioMode === 'highlight' && !isDockMuted(r.docking));
       if (anyHighlight && robotFromStore?.audioMode !== 'highlight') {
         // Apply ~50% attenuation (~-6dB) to non-highlighted robots
         effectiveVelocity = (effectiveVelocity ?? 1) * 0.5;

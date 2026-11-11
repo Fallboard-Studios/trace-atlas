@@ -2084,12 +2084,13 @@ describe('spawnSystem', () => {
       expect(robot?.audioMode).toBe('none');
     });
 
-    it('sets audioMode to mute when created Docked — the toggle Robot Options exposes, not absent registration', () => {
+    // The Docked state itself mutes the robot (robotAudibility.isDockMuted); audioMode is the user's (Crawford, 2026-11-11).
+    it('sets audioMode to none when created Docked too — the dock mutes it, not the toggle Robot Options exposes', () => {
       const localeId = 'docking-opts-docked-audiomode';
       freshLocale(localeId, 107, 207);
       spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: 50 });
       const robot = useLocaleStore.getState().getLocaleById(localeId)?.robots[0];
-      expect(robot?.audioMode).toBe('mute');
+      expect(robot?.audioMode).toBe('none');
     });
 
     it('no longer sets a persists field', () => {
@@ -2399,13 +2400,13 @@ describe('spawnSystem', () => {
       });
     });
 
-    it('every robot has a reserved voice and registered melody, with audioMode matching its docking state', () => {
+    it('every robot has a reserved voice and registered melody, and starts with audioMode none whatever its docking', () => {
       spawnInitialRoster(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
       robots.forEach((r) => {
         expect(AudioEngine.getVoiceForRobot(r.id)).not.toBeNull();
         expect(AudioEngine.getRegisteredMelody(r.id).length).toBeGreaterThan(0);
-        expect(r.audioMode).toBe(r.docking === DockingState.Active ? 'none' : 'mute');
+        expect(r.audioMode).toBe('none');
       });
     });
 

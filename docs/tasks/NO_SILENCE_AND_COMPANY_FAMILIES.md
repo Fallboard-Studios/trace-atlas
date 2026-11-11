@@ -417,6 +417,33 @@ task.
 - [x] The size-only rows are reported to Crawford beside the probe's.
 - [ ] Reviewed with human before proceeding to Phase 3.
 
+### Inserted at Checkpoint B (Crawford, 2026-11-11)
+
+- [x] **Task 10a: Solo survives the dock cycle, and beats the dock**
+
+  **Description:** Listening at Checkpoint B, Crawford found Solo did nothing from the company screen and was lost
+  whenever a robot left its station. Both are on `main`, since `ac85091b` (2026-08-26): the dock muted a robot by
+  writing `audioMode` (`landOnDocked` wrote `'mute'`, `landOnActive` `'none'`, spawn `'mute'` for a Docked robot),
+  the same field the user's Off / Mute / Solo / Highlight lives in, so every landing overwrote it, and a company's
+  Solo wore off member by member. He asked for it fixed on this branch so he can use Solo to test it, and picked
+  **"Solo beats the dock"**: the dock mutes by the docking state itself (`isDockMuted`: Docked or Undocking); Mute
+  always silences; under any Solo only the soloed robots are heard, in their station or not; Off and Highlight never
+  make a docked robot heard. Nothing in the lifecycle writes `audioMode` any more. Decided while building (his to
+  overrule): a highlighted robot in its station highlights nothing; Recalled is still heard, as before.
+
+  **Proof:** RED test — `robotAudibility.test.ts` (the rule, `isDockMuted`, the state table over every docking),
+  `robotSystems.test.ts` (both landings leave each mode as it was), `spawnSystem.test.ts` (every robot starts
+  `'none'`), `audioBudgetSystem.test.ts` (a docked robot with no mute stands by; a docked soloed one sounds alone; a
+  Solo and a Mute each survive `landOnDocked` + `landOnActive`), `AudioEngine.test.ts` (the trigger and Highlight).
+  21 failing on today's code, then green. The roster tile's and the World view's docked cases were added after, when
+  their mutants survived. Docs: ROBOT_LIFECYCLE.md rule 6 and the landing effects, AUDIO_SYSTEM.md,
+  POLYPHONY_GUIDE.md, ROBOT_DATA_GRID.md, the spec's "Sounding" and Audio Load lines.
+
+  **Files:** `src/utils/robotAudibility.ts`, `src/systems/robotSystems.ts`, `src/systems/spawnSystem.ts`,
+  `src/systems/audioBudgetSystem.ts`, `src/engine/AudioEngine.ts`, `src/engine/audioDiagnostics.ts`,
+  `src/components/panels/screen/screens/useRobotMeta.ts`, `src/components/panels/screen/worldView/MetaBox.tsx`, their
+  tests, and the docs above.
+
 ---
 
 ### Phase 3: The rule

@@ -7,7 +7,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAttenuationStyleStore, DEFAULT_LOCALE_ID } from '@/stores/attenuationStyleStore';
-import type { Robot } from '@/types/Robot';
+import { DockingState, type Robot } from '@/types/Robot';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 8 (spec §1.7): the meta box, the Deck's glow-glass well at the top (moved from bottom-left, 2026-10-10),
@@ -138,6 +138,21 @@ describe('MetaBox — the world line (NavStatusBlock’s telemetry, moved verbat
     useAudioStore.setState({ soundingRobotIds: ['r1', 'r2'] });
     render(<MetaBox />);
     expect(screen.getByText(/^1 of \d+ Probes active\.$/)).toBeTruthy();
+  });
+
+  // The dock mutes on its own, not through audioMode, and a Solo beats it (Crawford, 2026-11-11).
+  it('counts a robot in the station as not audible, unless it is soloed', () => {
+    const setRobots = (robots: Robot[]) => useLocaleStore.setState((s) => ({
+      locales: { ...s.locales, [DEFAULT_LOCALE_ID]: { ...s.locales[DEFAULT_LOCALE_ID], robots } },
+    }));
+    setRobots([makeRobot('r1', { docking: DockingState.Docked }), makeRobot('r2', { docking: DockingState.Active })]);
+    useAudioStore.setState({ soundingRobotIds: ['r1', 'r2'] });
+    render(<MetaBox />);
+    expect(screen.getByText(/^1 of \d+ Probes active\.$/)).toBeTruthy();
+    act(() => setRobots([makeRobot('r1', { docking: DockingState.Docked, audioMode: 'solo' }), makeRobot('r2', { docking: DockingState.Active })]));
+    expect(screen.getByText(/^1 of \d+ Probes active\.$/)).toBeTruthy();
+    act(() => setRobots([makeRobot('r1', { docking: DockingState.Docked, audioMode: 'solo' }), makeRobot('r2', { docking: DockingState.Docked, audioMode: 'solo' })]));
+    expect(screen.getByText(/^2 of \d+ Probes active\.$/)).toBeTruthy();
   });
 });
 

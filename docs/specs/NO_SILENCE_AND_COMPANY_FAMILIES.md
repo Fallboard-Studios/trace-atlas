@@ -76,8 +76,9 @@ on/off pattern is set at spawn and repeats every 35 measures.
 
 Three terms, used the same way from here on:
 
-- **Sounding:** a robot whose docking is Active or Recalled. A Recalled robot keeps `audioMode: 'none'` until
-  `landOnDocked` mutes it, so it is heard for its one-measure hold.
+- **Sounding:** a robot whose docking is Active or Recalled. The dock mutes a robot only once it is Docked, so a
+  Recalled robot is heard for its one-measure hold. (Since 2026-11-11 the dock's mute is the docking state itself,
+  `isDockMuted`, not an `audioMode` write; see the plan's Task 10a.)
 - **Silent measure:** a tick after which no robot is sounding.
 - **Stay:** the run of measures a robot spends Active at or below critical because no other robot is Active. The
   intent calls this a hold. This spec keeps "hold" for the one-measure transition hold.
@@ -116,7 +117,7 @@ sim (§1.5) confirms it and measures what it costs.
 - The work loop reads `docking` at every decision, so a staying robot keeps choosing sites and working.
 - The Audio Load Budget is untouched. Its cap never drops below two sounding robots (`LOAD_AUDIBLE_ROBOTS_MIN`), and
   docked robots are muted and outside the set, so a lone Active robot is inside the cap. The one exception is a
-  listener who has unmuted docked robots that hold the slots, and then those robots are sounding.
+  listener who has soloed docked robots, and then those robots are the ones sounding.
 
 ### 1.3 Battery size
 
