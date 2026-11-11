@@ -8,8 +8,9 @@ Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE
 **Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. Building on
 `feature/company-families` from `main` after Part A merged (PR #623). B12–B15 answered at Gate A: every default
 stands. **Phase 1 (Tasks 1–3) built 2026-11-11; at its checkpoint Crawford revised the rhythm (spec §7.6, B16–B19):
-the same settings in one world make the same rhythm, and the moved onsets go. Tasks 3a and 3b rework Phase 1 to
-that; next is Task 3a.**
+the same settings in one world make the same rhythm, and the moved onsets go. Tasks 3a and 3b reworked Phase 1 to
+that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). Stopped at the rhythm-stream
+checkpoint for his listen; next is Task 4.**
 
 ## Overview
 
@@ -251,7 +252,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** M (one key, one recipe; the blast radius is the pinned melodies again)
 
-- [ ] **Task 3b: the moved onsets removed**
+- [x] **Task 3b: the moved onsets removed**
 
   **Description:** B18. `moveOnsets`, `GenerateMelodyForRobotOptions.onsetMoves` and their tests (Task 2's) go from
   `melodyGenerator.ts` and its test file. Nothing calls them after Task 3a.
@@ -260,10 +261,13 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   in the commit.
 
   **Acceptance criteria:**
-  - [ ] No `moveOnsets` or `onsetMoves` left in `src/`.
+  - [x] No `moveOnsets` or `onsetMoves` left in `src/`.
+
+  **As built:** 221 lines removed, all of them Task 2's (45 in the generator, its 176 in the test file; 23 tests).
 
   **Verification:**
-  - [ ] `npm test` passes; `npm run build:types`, `npm run lint` clean.
+  - [x] `npm test` passes (351 files; 13,749 passed, 2 skipped; 237 s); `npm run build:types`, `npm run lint` clean
+        (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** Task 3a.
 
@@ -276,7 +280,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 - [x] Every world's melodies changed once and nothing else did: no session, link or lifecycle test moved except the
       re-pins named in Task 3 (the two session tests that moved rebuild a restored melody).
 - [x] Reviewed with human (2026-11-11): Crawford revised the rhythm before listening (spec §7.6); Tasks 3a–3b added.
-- [ ] After Task 3b: `npm run build:types`, `npm run lint`, `npm test` clean; nothing moved but Task 3a's re-pins.
+- [x] After Task 3b: `npm run build:types`, `npm run lint`, `npm test` clean; nothing moved but Task 3a's re-pins.
 - [ ] Reviewed with human before Phase 2 (a listen: originals only, every melody new; robots sharing a shape play
       together, and an edit to another robot's density and motif joins its rhythm).
 
