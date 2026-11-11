@@ -537,6 +537,10 @@ do it all". Built on `fix/review-60-73-tidy` from `main`, one commit per task. T
 and are recorded as they now stand: the world key's fallback is not a ratchet risk (R3), and the founder branch's
 `?? DEFAULT_*` fallbacks stay, because the inherited `Robot` fields are optional in the type (R5).
 
+**Status:** every task built 2026-11-11. The last full suite: 352 files, 13,773 passed, 2 skipped, 273 s (Part B's
+13,772, plus R1's three cases, less the two R4 cut). `npm run build:types` clean; `npm run lint` 0 errors (4 warnings,
+all in scenery files this phase does not touch). The branch goes to Crawford's PR.
+
 - [x] **Task R1: the rhythm key's cell length, tested**
 
   **Description:** No test separates the cell length from the onset count in the rhythm key. "a motif length change
@@ -635,7 +639,7 @@ and are recorded as they now stand: the world key's fallback is not a ratchet ri
 
   **Estimated scope:** XS
 
-- [ ] **Task R6: the records**
+- [x] **Task R6: the records**
 
   **Description:** The spec's §8 (the worst-world row: cut, Crawford's call) and §9 (`rhythmShape`'s signature, the
   world key's row, the R1 mutant); this phase's status.
