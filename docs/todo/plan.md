@@ -21,17 +21,26 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Empty: backlogs 60 and 73 built and archived 2026-11-11, 74 taken off the plan (not needed after 60), and 17 closed
-  as read, nothing to do. Stage 4 is next.
+- Backlog [80](backlog.md#80-audio-notes-too-short-to-hear-the-instrument--more-guardrails) **Notes long enough to
+  hear the instrument** — Crawford's "most important one" (2026-11-11): his listen finds where, then an interview and
+  more guardrails. (60 and 73 built and archived 2026-11-11, 74 off the plan, 17 closed.)
 
 ## Stage 4 — Visual refinement
 
 - Backlog [46](backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement)
   **The world and visual draws go even** — names, colours, gems, companies, placement: the picks go even and the smooth
   walks stay, and every world's look moves once.
+- Backlog [79](backlog.md#79-robots-move-in-time-with-their-own-melody) **Robots move in time with their melody** — a
+  new animated dial and a transport-to-tween path; interview, then Crawford's approval of the architecture.
 
 ## Stage 5 — UX refinement
 
+- Backlog [75](backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width) **Close, back,
+  browser Back, the nav's width** — interview first.
+- Backlog [76](backlog.md#76-fleet-params-and-the-edit-tabs-regroup-re-order-respace) **Tempo & Options, slider
+  order, respacing** — Crawford brings the slider list when it is picked up.
+- Backlog [77](backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect) **A send's help links to its effect** —
+  after 75, so Back returns from the jump.
 - Roadmap [51](roadmap.md#51-guide-a-read-only-branch-that-teaches-the-whole-app) **The Guide** — large; likely one
   tabbed window that shows everything.
 - Backlog [61](backlog.md#61-accessibility-review) **Accessibility review** — interview the checklist, then run it.
@@ -44,6 +53,8 @@ the item's own measure-first check runs, and the item archives if the check find
 ## Stage 7 — Style fixes
 
 - Backlog [63](backlog.md#63-style-fixes-a-bucket) **The style bucket** — the same, for visual chrome.
+- Backlog [78](backlog.md#78-off-screen-make-the-themes-obvious) **Off screen: themes made obvious** — style and
+  wording; a sketch first.
 - Backlog [1](backlog.md#1-onload-better-power-off-background) **Off background art** — blocked on the artwork.
 - Backlog [3](backlog.md#3-onload-sleeve-logo) **Sleeve logo** — blocked on a logo and a designer; may slip post-launch.
 
