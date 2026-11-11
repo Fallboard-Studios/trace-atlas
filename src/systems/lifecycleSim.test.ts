@@ -29,6 +29,9 @@ import {
   runLoopSim,
   runReadinessSim,
   formatReadinessReport,
+  createCoverTally,
+  type CoverSnapshot,
+  type CoverTallyResult,
   type LifecycleStep,
   type LoopSimEvent,
   type LoopSimOptions,
@@ -59,6 +62,7 @@ import {
   WAIT_RETRY_SECONDS,
   BEATS_PER_MEASURE,
   BACK_HOSTS_ENABLED,
+  BATTERY_CRITICAL_THRESHOLD,
 } from '../constants';
 
 // ========================================
@@ -261,6 +265,192 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(lines[2]).toBe('| today | 4.12 | 3 | 5 |');
       expect(lines[3]).toBe('| flat 6 | 4.20 | 3 | 6 |');
       expect(lines).toHaveLength(4);
+    });
+  });
+});
+
+// ========================================
+// COVER TALLY (no-silence Task 1 — spec §1.1's three terms, §1.5)
+// ========================================
+
+const A = DockingState.Active;
+const R = DockingState.Recalled;
+const D = DockingState.Docked;
+const U = DockingState.Undocking;
+
+/** A roster for the tally: only id, docking and battery matter to it. */
+const cover = (...robots: [string, DockingState, number][]): CoverSnapshot[] =>
+  robots.map(([id, docking, batteryLevel]) => ({ id, docking, batteryLevel }));
+
+/** Feed a start roster and a series of post-tick rosters (measure 1, 2, …) and read the result. */
+function tallyOf(start: CoverSnapshot[], series: CoverSnapshot[][]): CoverTallyResult {
+  const tally = createCoverTally(start);
+  for (const roster of series) tally.observe(roster);
+  return tally.result();
+}
+
+describe('createCoverTally (no-silence Task 1)', () => {
+  describe('silence', () => {
+    it('two measures with nobody sounding are two silent measures, one silence of length 2 at the measure it begins', () => {
+      const result = tallyOf(cover(['a', A, 100]), [
+        cover(['a', R, 10]),
+        cover(['a', D, 15]),
+        cover(['a', D, 20]),
+        cover(['a', A, 100]),
+      ]);
+      expect(result.measures).toBe(4);
+      expect(result.silentMeasures).toBe(2);
+      expect(result.longestSilence).toEqual({ start: 2, length: 2 });
+    });
+
+    it('a measure whose only sounding robot is Recalled is not silent; Docked and Undocking are not sounding', () => {
+      const result = tallyOf(cover(['a', A, 12], ['b', D, 95]), [cover(['a', R, 6], ['b', U, 100])]);
+      expect(result.silentMeasures).toBe(0);
+      expect(result.longestSilence).toBeUndefined();
+      expect(result.soundingHistogram).toEqual([0, 1]);
+    });
+
+    it('the longest silence wins, and the earlier of two equal ones', () => {
+      const silent = cover(['a', D, 50]);
+      const heard = cover(['a', A, 50]);
+      expect(tallyOf(silent, [silent, heard, silent, silent, silent, heard]).longestSilence).toEqual({ start: 3, length: 3 });
+      expect(tallyOf(silent, [heard, silent, silent, heard, silent, silent, heard]).longestSilence).toEqual({ start: 2, length: 2 });
+      expect(tallyOf(silent, [heard, silent, silent, heard, silent, silent]).longestSilence).toEqual({ start: 2, length: 2 });
+    });
+
+    it('a silence still open at the end of the series counts at its length so far', () => {
+      const result = tallyOf(cover(['a', A, 50]), [cover(['a', A, 44]), cover(['a', D, 10]), cover(['a', D, 15])]);
+      expect(result.longestSilence).toEqual({ start: 2, length: 2 });
+    });
+
+    it('counts robots sounding per measure as a histogram indexed by the count', () => {
+      const result = tallyOf(cover(['a', A, 100], ['b', A, 100], ['c', D, 50]), [
+        cover(['a', A, 94], ['b', A, 94], ['c', D, 55]),
+        cover(['a', A, 88], ['b', R, 8], ['c', U, 100]),
+        cover(['a', R, 9], ['b', D, 13], ['c', A, 100]),
+        cover(['a', D, 14], ['b', D, 18], ['c', D, 90]),
+      ]);
+      expect(result.soundingHistogram).toEqual([1, 0, 3]);
+    });
+  });
+
+  describe('stays', () => {
+    it(`a robot Active at ${BATTERY_CRITICAL_THRESHOLD}, then 4, then 0, then Recalled is one stay of length 3`, () => {
+      const result = tallyOf(cover(['a', A, 16], ['b', D, 50]), [
+        cover(['a', A, BATTERY_CRITICAL_THRESHOLD], ['b', D, 55]),
+        cover(['a', A, 4], ['b', D, 60]),
+        cover(['a', A, 0], ['b', D, 65]),
+        cover(['a', R, 0], ['b', D, 70]),
+      ]);
+      expect(result.stays).toEqual([3]);
+      expect(result.stayMeasures).toBe(3);
+    });
+
+    it('an Active robot just above critical is in no stay, and neither is a Recalled one at or below it', () => {
+      const result = tallyOf(cover(['a', A, 17]), [cover(['a', A, BATTERY_CRITICAL_THRESHOLD + 1]), cover(['a', R, 5])]);
+      expect(result.stays).toEqual([]);
+      expect(result.stayMeasures).toBe(0);
+    });
+
+    it('two robots in a stay at once are two stays, and the measures they share count once', () => {
+      const result = tallyOf(cover(['a', A, 14], ['b', A, 20]), [
+        cover(['a', A, 8], ['b', A, 14]),
+        cover(['a', A, 2], ['b', A, 8]),
+        cover(['a', R, 0], ['b', A, 2]),
+        cover(['a', D, 5], ['b', R, 0]),
+      ]);
+      expect(result.stays).toEqual([2, 2]);
+      expect(result.stayMeasures).toBe(3);
+    });
+
+    it('one robot with two separate stays has two; a stay still open at the end counts at its length so far', () => {
+      const result = tallyOf(cover(['a', A, 12]), [
+        cover(['a', A, 6]),
+        cover(['a', R, 0]),
+        cover(['a', D, 5]),
+        cover(['a', A, 100]),
+        cover(['a', A, 9]),
+        cover(['a', A, 3]),
+      ]);
+      expect(result.stays).toEqual([1, 2]);
+    });
+  });
+
+  describe('cycles and heard share', () => {
+    /** One robot: Active over the given inclusive measure spans, Docked otherwise, over `measures`. */
+    const shifts = (measures: number, spans: [number, number][]): CoverSnapshot[][] =>
+      Array.from({ length: measures }, (_, i) => {
+        const m = i + 1;
+        const on = spans.some(([from, to]) => m >= from && m <= to);
+        return cover(['a', on ? A : D, 50]);
+      });
+
+    it('a robot landing on Active at measures 3, 38 and 73 has cycle 35', () => {
+      const result = tallyOf(cover(['a', D, 50]), shifts(75, [[3, 10], [38, 45], [73, 75]]));
+      const [a] = result.robots;
+      expect(a.id).toBe('a');
+      expect(a.landings).toEqual([3, 38, 73]);
+      expect(a.cycle).toBe(35);
+    });
+
+    it('one landing gives no cycle, and a robot Active in the start roster has not landed at measure 1', () => {
+      expect(tallyOf(cover(['a', D, 50]), shifts(40, [[3, 10]])).robots[0].cycle).toBeUndefined();
+      const fromStart = tallyOf(cover(['a', A, 100]), shifts(40, [[1, 10], [30, 40]])).robots[0];
+      expect(fromStart.landings).toEqual([30]);
+      expect(fromStart.cycle).toBeUndefined();
+    });
+
+    it('the cycle is the commonest gap; on a tie, the shorter', () => {
+      const commonest = tallyOf(cover(['a', D, 50]), shifts(110, [[1, 2], [36, 37], [71, 72], [102, 103]])).robots[0];
+      expect(commonest.landings).toEqual([1, 36, 71, 102]);
+      expect(commonest.cycle).toBe(35);
+      const tie = tallyOf(cover(['a', D, 50]), shifts(80, [[1, 2], [36, 37], [67, 68]])).robots[0];
+      expect(tie.cycle).toBe(31);
+    });
+
+    it('heard share is the measures a robot is Active or Recalled over the measures observed', () => {
+      const result = tallyOf(cover(['a', A, 100], ['b', D, 50]), [
+        cover(['a', A, 94], ['b', D, 55]),
+        cover(['a', R, 8], ['b', D, 60]),
+        cover(['a', D, 13], ['b', U, 100]),
+        cover(['a', D, 18], ['b', A, 100]),
+      ]);
+      expect(result.robots.map((r) => [r.id, r.heardShare])).toEqual([['a', 0.5], ['b', 0.25]]);
+    });
+
+    it('reports robots in start-roster order', () => {
+      const result = tallyOf(cover(['z', D, 50], ['m', D, 50], ['a', D, 50]), [cover(['z', D, 55], ['m', D, 55], ['a', D, 55])]);
+      expect(result.robots.map((r) => r.id)).toEqual(['z', 'm', 'a']);
+    });
+  });
+
+  describe('purity', () => {
+    const start = cover(['a', A, 16], ['b', D, 90]);
+    const series = [
+      cover(['a', A, 10], ['b', D, 95]),
+      cover(['a', R, 4], ['b', U, 100]),
+      cover(['a', D, 9], ['b', A, 100]),
+      cover(['a', D, 14], ['b', A, 94]),
+    ];
+
+    it('the same series gives the same result twice', () => {
+      expect(tallyOf(start, series)).toEqual(tallyOf(start, series));
+    });
+
+    it('does not mutate the rosters it is handed', () => {
+      const before = structuredClone([start, ...series]);
+      tallyOf(start, series);
+      expect([start, ...series]).toEqual(before);
+    });
+
+    it('with nothing observed, reports zero measures and no silence, stay or cycle', () => {
+      const result = createCoverTally(start).result();
+      expect(result).toMatchObject({ measures: 0, silentMeasures: 0, soundingHistogram: [], stays: [], stayMeasures: 0 });
+      expect(result.longestSilence).toBeUndefined();
+      expect(result.robots.map((r) => [r.id, r.landings, r.cycle, r.heardShare])).toEqual([
+        ['a', [], undefined, 0],
+        ['b', [], undefined, 0],
+      ]);
     });
   });
 });

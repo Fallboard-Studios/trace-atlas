@@ -28,6 +28,7 @@ import {
   STATION_ARC_SECONDS,
   SWIM_SPEED,
   WAIT_RETRY_SECONDS,
+  BATTERY_CRITICAL_THRESHOLD,
 } from '../constants';
 
 /**
@@ -166,6 +167,148 @@ export function formatDrainReport(rows: readonly DrainSimRow[]): string {
   const lines = ['| Drain | Mean Active | p10 | p90 |', '|---|---|---|---|'];
   for (const r of rows) lines.push(`| ${r.label} | ${r.mean.toFixed(2)} | ${r.p10} | ${r.p90} |`);
   return lines.join('\n');
+}
+
+// ========================================
+// COVER TALLY (no-silence Task 1)
+// ========================================
+
+/** What the cover tally reads off a roster — nothing else. */
+export type CoverSnapshot = Pick<RobotLifecycleSnapshot, 'id' | 'docking' | 'batteryLevel'>;
+
+export interface CoverTallyRobot {
+  id: string;
+  /** Measures on which the robot became Active (it was not Active the measure before). */
+  landings: number[];
+  /** The commonest gap between landings, the shorter on a tie; undefined with fewer than two landings. */
+  cycle?: number;
+  /** Measures sounding (Active or Recalled) over measures observed; 0 when none were. */
+  heardShare: number;
+}
+
+export interface CoverTallyResult {
+  measures: number;
+  /** soundingHistogram[n]: the measures after which n robots were sounding. */
+  soundingHistogram: number[];
+  silentMeasures: number;
+  /** The longest unbroken silence (the earlier of equals) and the measure it begins. */
+  longestSilence?: { start: number; length: number };
+  /** Every stay's length in measures, in the order they ended; one still open at the end counts at its length so far. */
+  stays: number[];
+  /** Measures after which at least one robot was in a stay. */
+  stayMeasures: number;
+  /** In start-roster order. */
+  robots: CoverTallyRobot[];
+}
+
+export interface CoverTally {
+  /** One post-tick roster: measure 1 first, then 2, and so on. */
+  observe(roster: readonly CoverSnapshot[]): void;
+  result(): CoverTallyResult;
+}
+
+/** Spec §1.1: a robot is sounding while Active or Recalled. */
+const isSounding = (r: CoverSnapshot) => r.docking === DockingState.Active || r.docking === DockingState.Recalled;
+
+/** Spec §1.1: a stay is a robot still Active at or below critical after a tick. */
+const isStaying = (r: CoverSnapshot) => r.docking === DockingState.Active && r.batteryLevel <= BATTERY_CRITICAL_THRESHOLD;
+
+/** The commonest value, the smaller on a tie; undefined for an empty list. */
+function commonest(values: readonly number[]): number | undefined {
+  const counts = new Map<number, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: number | undefined;
+  for (const [v, n] of counts) {
+    const bestCount = best === undefined ? 0 : counts.get(best)!;
+    if (n > bestCount || (n === bestCount && v < best!)) best = v;
+  }
+  return best;
+}
+
+/**
+ * The cover sim's accumulator (spec §1.5): fed one post-tick roster per measure, it counts silent
+ * measures, stays, robots sounding and each robot's landings on Active. Seeded with the starting
+ * roster so the first measure's landings are known. Reads id, docking and battery only; keeps its own
+ * copies, so the rosters it is handed are never touched.
+ */
+export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTally {
+  let measures = 0;
+  const soundingHistogram: number[] = [];
+  let silentMeasures = 0;
+  let silenceStart: number | undefined;
+  let longestSilence: { start: number; length: number } | undefined;
+  const stays: number[] = [];
+  let stayMeasures = 0;
+  const robots = new Map(
+    startRoster.map((r) => [r.id, { wasActive: r.docking === DockingState.Active, landings: [] as number[], sounding: 0, stay: 0 }]),
+  );
+
+  const closeSilence = (end: number) => {
+    if (silenceStart === undefined) return;
+    const length = end - silenceStart;
+    if (!longestSilence || length > longestSilence.length) longestSilence = { start: silenceStart, length };
+    silenceStart = undefined;
+  };
+
+  return {
+    observe(roster) {
+      measures++;
+      let sounding = 0;
+      let anyStaying = false;
+      for (const r of roster) {
+        let robot = robots.get(r.id);
+        if (!robot) {
+          robot = { wasActive: false, landings: [], sounding: 0, stay: 0 };
+          robots.set(r.id, robot);
+        }
+        const active = r.docking === DockingState.Active;
+        if (active && !robot.wasActive) robot.landings.push(measures);
+        robot.wasActive = active;
+        if (isSounding(r)) {
+          sounding++;
+          robot.sounding++;
+        }
+        if (isStaying(r)) {
+          robot.stay++;
+          anyStaying = true;
+        } else if (robot.stay > 0) {
+          stays.push(robot.stay);
+          robot.stay = 0;
+        }
+      }
+      while (soundingHistogram.length <= sounding) soundingHistogram.push(0);
+      soundingHistogram[sounding]++;
+      if (anyStaying) stayMeasures++;
+      if (sounding === 0) {
+        silentMeasures++;
+        silenceStart ??= measures;
+      } else {
+        closeSilence(measures);
+      }
+    },
+
+    result() {
+      // Read open runs without closing them, so result() can be called again.
+      let longest = longestSilence;
+      if (silenceStart !== undefined) {
+        const length = measures + 1 - silenceStart;
+        if (!longest || length > longest.length) longest = { start: silenceStart, length };
+      }
+      const openStays = [...robots.values()].filter((r) => r.stay > 0).map((r) => r.stay);
+      return {
+        measures,
+        soundingHistogram: [...soundingHistogram],
+        silentMeasures,
+        longestSilence: longest && { ...longest },
+        stays: [...stays, ...openStays],
+        stayMeasures,
+        robots: [...robots].map(([id, r]) => {
+          const gaps = r.landings.slice(1).map((m, i) => m - r.landings[i]);
+          return { id, landings: [...r.landings], cycle: commonest(gaps), heardShare: measures > 0 ? r.sounding / measures : 0 };
+        }),
+      };
+    },
+  };
 }
 
 // ========================================
