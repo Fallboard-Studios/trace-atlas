@@ -657,7 +657,7 @@ together (B12's default) suit a section. If it fails, stop and report; nothing i
 - The build continues on the same branch, one commit per task, nothing pushed. Crawford opens the PR.
 - Two gates stop for Crawford: A (the band, after the sim) and B (the ear, after the build).
 - After the merge: backlog 60's record is brought up to date. It archives only once its fade-on-arcs note has a home
-  (open question A4) and Stage 2's record is settled (open question B11; answered: backlog 73).
+  (open question A4; answered: backlog 74) and Stage 2's record is settled (open question B11; answered: backlog 73).
 - Part B's plan is [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md) (written 2026-11-11). Which branch
   builds it: **its own branch from `main` after this one merges** (Crawford, 2026-11-11).
 
@@ -698,9 +698,12 @@ None blocks the plan: A1 is a gate inside it, and the rest have a default.
   moves one, and at least five of the twelve always share. Default: accept it, and let Gate A's per-world column show
   how much sharing there is. The other lever is a wider band (15 lengths at 0.67–1.5), which also makes shifts range
   from 11 to 23 measures. **Answered (2026-11-11): accept**, on the picked band's fifteen lengths.
-- **A3. A staying robot at 0.1 opacity.** Default: leave it, and judge it at Gate B.
+- **A3. A staying robot at 0.1 opacity.** Default: leave it, and judge it at Gate B. **Answered (Gate B, 2026-11-11):
+  left as it is.**
 - **A4. Backlog 60's fade on station arcs.** Not in the intent. It needs its own item or a cut before 60 archives.
+  **Answered (Crawford, 2026-11-11): its own item,** backlog 74; nothing else holds 60 open.
 - **A5. CLAUDE.md's "flat drain/recharge".** Reword it when the docs task lands, or leave it: Crawford's file.
+  **Answered (Crawford, 2026-11-11): reworded** to name the battery size and the stay-up rule.
 
 ### 7.3 Open questions, Part B
 
@@ -814,5 +817,5 @@ Recalled as Active (T12); read the pre-tick `roster` (T12); divide the drain but
 - **The drain rows** on the shipped band: 5.71, 5.10, 4.66 (pinned; 5.70, 5.14, 4.60 before battery size).
 
 **Gate A** answered 2026-11-11 (A1, A2 above). **Gate B passed** the same day (§5.5; plan Task 17): Crawford, "ok
-passes, sounds good". A3 left at its default (a staying robot keeps the 0.1 opacity). Part A is complete; A4 (backlog
-60's fade on station arcs) and A5 (CLAUDE.md's "flat drain/recharge") stay open and his.
+passes, sounds good". A3 left at its default (a staying robot keeps the 0.1 opacity). Part A is complete. A4 and A5 were
+settled the same day: the fade on station arcs moved to backlog 74, and CLAUDE.md's line was reworded.

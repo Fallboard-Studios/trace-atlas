@@ -728,7 +728,8 @@ task.
 - [x] The spec's Status line says Part A is built and heard.
 - [x] Part B's questions (spec §7.3) are open for Crawford; Part B is completed in the spec and planned on its own.
       (Done early, 2026-11-11: answered, specified, planned in [COMPANY_FAMILIES.md](COMPANY_FAMILIES.md).)
-- [ ] Backlog 60 archives only once A4 (the fade on station arcs) and B11 (where Stage 2 is recorded) are settled.
+- [x] Backlog 60 archives only once A4 (the fade on station arcs) and B11 (where Stage 2 is recorded) are settled.
+      (Both settled 2026-11-11: A4 → backlog 74, B11 → backlog 73. 60 archives after the merge.)
 
 ## Risks and Mitigations
 
@@ -750,14 +751,14 @@ task.
 
 Carried from the spec's §7.2. None blocks Task 1.
 
-1. **A1. The size's band.** **Open** — Crawford's, at Gate A (Checkpoint C). Task 14 pins it.
-2. **A2. Eight cycle lengths, not a continuum.** **Open** — Crawford's, at Gate A, with the sharing measured.
-   Default: accept.
-3. **A3. A staying robot at 0.1 opacity.** **Open** — Crawford's, at Gate B (Task 17). Default: leave it.
-4. **A4. Backlog 60's fade on station arcs.** **Open** — needs its own item or a cut before 60 archives. No task here.
-5. **A5. CLAUDE.md's "flat drain/recharge".** **Open** — Crawford's file; no task touches it.
-6. **The intent, the spec and this plan are uncommitted** on `feature/no-silence-for-now`. **Open** — Crawford commits
-   them, or says to include them with Task 1.
+1. **A1. The size's band.** **Answered** (Gate A, 2026-11-11): 0.67–1.5, pinned by Task 14.
+2. **A2. Eight cycle lengths, not a continuum.** **Answered** (Gate A): accept, on the picked band's fifteen lengths.
+3. **A3. A staying robot at 0.1 opacity.** **Answered** (Gate B): left as it is.
+4. **A4. Backlog 60's fade on station arcs.** **Answered** (2026-11-11): its own item, backlog 74.
+5. **A5. CLAUDE.md's "flat drain/recharge".** **Answered** (2026-11-11): reworded to name the battery size and the
+   stay-up rule.
+6. **The intent, the spec and this plan are uncommitted** on `feature/no-silence-for-now`. **Answered:** committed in
+   f1991143.
 
 ## Results
 
