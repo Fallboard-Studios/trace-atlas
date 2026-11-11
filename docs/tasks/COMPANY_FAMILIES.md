@@ -76,6 +76,8 @@ Task 1 (rhythmRand)    Task 2 (moveOnsets)
         Checkpoint: built
                 │
         Task 7 (docs) ── Task 8 (Gate C: ear) ── Task 9 (records)
+                │
+        Review follow-ups (merged): R1, R2, R3, R4, R5, independent ── R6 (records)
 ```
 
 ## Task List
@@ -525,6 +527,124 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Dependencies:** Task 8.
 
   **Files:** `docs/todo/backlog.md`, `docs/todo/plan.md`, `docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md`
+
+  **Estimated scope:** XS
+
+### Phase 5: Review follow-ups (backlog 60 and 73)
+
+A code review of both merged PRs (#623, #624) on 2026-11-11 found no defect and four things to tidy. Crawford: "let's
+do it all". Built on `fix/review-60-73-tidy` from `main`, one commit per task. Two findings changed on a closer read
+and are recorded as they now stand: the world key's fallback is not a ratchet risk (R3), and the founder branch's
+`?? DEFAULT_*` fallbacks stay, because the inherited `Robot` fields are optional in the type (R5).
+
+- [ ] **Task R1: the rhythm key's cell length, tested**
+
+  **Description:** No test separates the cell length from the onset count in the rhythm key. "a motif length change
+  gives a different stream" (4 of 8 against 2 of 4) and "turning motif tiling off" (8 onsets against 4) both change
+  the onset count too, so a key built without the cell length passes them. Add cases with the same onset count and a
+  different shape, for `buildSeededRhythm` and `buildSeededPerformance`: a cell of 8 at 50 % against a cell of 7 at
+  57 % (4 onsets each), and a cell of 8 at 50 % against tiling off at 25 % (4 onsets each). Correct the first test's
+  comment ("the same fill, a different shape").
+
+  **Proof:** Mutant. The behaviour is built, so the cases pass on arrival (a guard, as Part B's case 9). With the key's
+  cell length dropped (`cellLength === null ? 'free'` → `true ? 'free'`) they fail; restored, they pass. The review's
+  run of that mutant against today's tests survived.
+
+  **Acceptance criteria:**
+  - [ ] Two shapes with the same onset count and a different cell length give different rhythm and performance streams.
+  - [ ] A tiled shape and a free one with the same onset count give different streams.
+  - [ ] The mutant above fails them; the commit names it.
+
+  **Dependencies:** None.
+
+  **Files:** `src/engine/melodyGenerator.test.ts`
+
+  **Estimated scope:** XS
+
+- [ ] **Task R2: the unused `subdivisions` option removed**
+
+  **Description:** `generateMelodyForRobot`'s `opts.subdivisions` reaches `rhythmShape`, but `rhythmKey` always uses
+  the default 16, so a caller passing another value would get a rhythm keyed on a shape it does not play. No caller in
+  the repo passes it (source, tests, sketches). Remove the option and `rhythmShape`'s third parameter, so the
+  generator and the key read the one `DEFAULT_SUBDIVISIONS` (lean: remove unused code, rather than thread it through
+  the key). `buildMotifOnsets` and `computePitchLockPlan` keep their own `subdivisions` arguments.
+
+  **Proof:** Read. A deletion: every existing test passes unmodified.
+
+  **Acceptance criteria:**
+  - [ ] `GenerateMelodyForRobotOptions` has no `subdivisions`; `rhythmShape` takes density and motif.
+  - [ ] `melodyGenerator.test.ts`, `regenerateMelody.test.ts` and the spawn tests pass unmodified.
+  - [ ] MELODY_SYSTEM.md's options listing drops the field.
+
+  **Dependencies:** None.
+
+  **Files:** `src/engine/melodyGenerator.ts`, `docs/MELODY_SYSTEM.md`
+
+  **Estimated scope:** XS
+
+- [ ] **Task R3: the world key's fallback, described as it is**
+
+  **Description:** `melodyWorldKey`'s comment lists "a spawn into a locale that is not there" as a case for its
+  locale-id fallback, and the review read that as a first-edit ratchet: a robot spawned on the fallback key and edited
+  once the locale exists. It cannot happen: `localeStore.addRobot` drops a robot whose locale is missing, so such a
+  robot is never stored and never edited. The fallback serves unit tests with a mocked store only. Say so in the
+  comment and in MELODY_SYSTEM.md. No code change.
+
+  **Proof:** Read.
+
+  **Dependencies:** None.
+
+  **Files:** `src/engine/regenerateMelody.ts`, `docs/MELODY_SYSTEM.md`
+
+  **Estimated scope:** XS
+
+- [ ] **Task R4: the cover sim's worst-world list cut**
+
+  **Description:** Part A kept `runCoverSim`'s worst-world list as Task 3's record and left its removal to Crawford
+  (spec §8). With the rule no world goes silent, so the list is always empty. Cut `CoverSimWorld`,
+  `WORST_WORLDS_LISTED`, `CoverSimRow.worstWorlds`, the report's per-row worst-world section, and the tally's
+  `longestSilence` (with `closeSilence` and `silenceStart`), which exists only to fill it. `worldsWithSilence` becomes
+  a count of worlds with a silent measure. The silent share, the worlds-with-silence column and case 17's
+  zero-silence pin stay. `lifecycleSim.ts` falls back under 1,000 lines.
+
+  **Proof:** Read. A deletion: the tests of the cut code go with it, and every other cover-sim and lifecycle test
+  passes unmodified.
+
+  **Acceptance criteria:**
+  - [ ] Nothing in `src/` names `worstWorlds`, `CoverSimWorld`, `WORST_WORLDS_LISTED` or `longestSilence`.
+  - [ ] `formatCoverReport` renders the table only.
+  - [ ] `lifecycleSim.test.ts` passes, case 17 included.
+
+  **Dependencies:** None.
+
+  **Files:** `src/systems/lifecycleSim.ts`, `src/systems/lifecycleSim.test.ts`
+
+  **Estimated scope:** S
+
+- [ ] **Task R5: the founder branch's leftover alias**
+
+  **Description:** `spawnRobot`'s founder branch opens with `const source = founder;`, left from the copy branch it
+  replaced. Read `founder` directly. The `?? DEFAULT_*` and `?? generateRobotLfoLinks(...)` fallbacks stay: the
+  inherited fields are optional on `Robot`, so they narrow the type.
+
+  **Proof:** Read. Every spawn test passes unmodified.
+
+  **Dependencies:** None.
+
+  **Files:** `src/systems/spawnSystem.ts`
+
+  **Estimated scope:** XS
+
+- [ ] **Task R6: the records**
+
+  **Description:** The spec's §8 (the worst-world row: cut, Crawford's call) and §9 (`rhythmShape`'s signature, the
+  world key's row, the R1 mutant); this phase's status.
+
+  **Proof:** Read.
+
+  **Dependencies:** R1–R5.
+
+  **Files:** `docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md`, this file
 
   **Estimated scope:** XS
 
