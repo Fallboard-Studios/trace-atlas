@@ -12,7 +12,8 @@ the same settings in one world make the same rhythm, and the moved onsets go. Ta
 that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). Stopped at the rhythm-stream
 checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Task 4 built 2026-11-11 (the cap touches 34
 of 121 grid worlds); Tasks 5 and 6 built the same day. Phase 2 is built, and the "built" checkpoint passed
-(Crawford: "sounds good"). Next is Task 7 (the docs).**
+(Crawford: "sounds good"). Task 7 (the docs) written 2026-11-11 and waiting for Crawford's read; then Task 8
+(Gate C).**
 
 ## Overview
 
@@ -444,7 +445,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
 ### Phase 3: Docs
 
-- [ ] **Task 7: the docs — COMPANIES.md, MELODY_SYSTEM.md, PROCEDURAL_GENERATION.md**
+- [x] **Task 7: the docs — COMPANIES.md, MELODY_SYSTEM.md, PROCEDURAL_GENERATION.md**
 
   **Description:** COMPANIES.md: a seeded company is a family, the founder, what members share and keep, the
   two-freelancer floor, the deal by founder, moves by hand, joining a rhythm by matching settings. MELODY_SYSTEM.md:
@@ -455,12 +456,27 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No sentence describes the 30 % copy roll as live.
-  - [ ] Every name and number matches the shipped source and this file's Results.
+  - [x] No sentence describes the 30 % copy roll as live (the two left name it retired; no other top-level doc
+        mentions it).
+  - [x] Every name and number matches the shipped source and this file's Results.
+
+  **As built:** COMPANIES.md: the membership drawn first (`generateCompanyMembership`, `FREELANCERS_MIN`, the 34
+  touched worlds), a new section "A seeded company is a family" (the founder, `companyFounders`, what a member
+  inherits and keeps, the rhythm following from the settings, `Robot.lineage`, the baselines, joining a rhythm by
+  hand, the 66 % coincidence), the deal by deal index (the paragraph that said a copy re-derives from its own index is
+  gone), and two Forbidden Patterns lines. MELODY_SYSTEM.md: `rhythmRand` in the options, `rhythmShape` in the rhythm
+  model, a new section "The rhythm stream (Company Families)" (the shape, the stream and its world key,
+  `composeRobotMelody`, B7, the coincidences), the performance stream on the world key and shape, the spawn example
+  rewritten around `composeRobotMelody`, the `shouldCopy` mentions replaced, and the testing notes. PROCEDURAL_GENERATION.md:
+  the call-site rows (spawn: membership, the copy draws gone; melody: the three streams) and a "Company Families
+  dataIds" table (the two retired keys; the company draws made earlier, unchanged). Two stale claims found while
+  checking and corrected in passing: PROCEDURAL_GENERATION.md said `Math.random()` remained as spawn's no-noise-map
+  melody fallback (spawn's fallback is `alea`), and MELODY_SYSTEM.md called the four Melody draws `getSeededVal`
+  (they are `getUniformSeededVal`).
 
   **Verification:**
-  - [ ] Manual review.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [ ] Manual review (Crawford's read).
+  - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** Task 6.
 
