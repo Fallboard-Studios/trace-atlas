@@ -25,6 +25,18 @@ describe('statusLightColors', () => {
       expect(result.color).toBe(hslToString(colorTheme.strut.base));
     });
 
+    it('sources yellow from colorTheme.json wire.base (the Solo light, monitor mode spec 7.1 B1)', () => {
+      const result = getStatusLightColor('yellow');
+      expect(result.color).toBe(hslToString(colorTheme.wire.base));
+      expect(result.glow).toBe(hslToString(colorTheme.wire.base, 0.6));
+    });
+
+    it('sources blue from colorTheme.json glass.base (the Highlight light, monitor mode spec 7.1 B1)', () => {
+      const result = getStatusLightColor('blue', 0.3);
+      expect(result.color).toBe(hslToString(colorTheme.glass.base));
+      expect(result.glow).toBe(hslToString(colorTheme.glass.base, 0.3));
+    });
+
     it('defaults the glow alpha to 0.6', () => {
       const result = getStatusLightColor('red');
       expect(result.glow).toBe(hslToString(colorTheme.alert.powered, 0.6));

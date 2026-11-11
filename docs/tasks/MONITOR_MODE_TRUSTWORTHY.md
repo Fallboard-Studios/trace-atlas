@@ -268,7 +268,7 @@ code, not text").
 
   **Estimated scope:** XS (one helper, one consumer)
 
-- [ ] **Task 6: `statusLightColors.ts` — yellow and blue**
+- [x] **Task 6: `statusLightColors.ts` — yellow and blue**
 
   **Description:** `StatusLightState` gains `'yellow'` (`colorTheme.wire.base`) and `'blue'` (`colorTheme.glass.base`),
   spec §7.1 B1; the existing four are untouched, so the rocker's light does not move.
@@ -277,12 +277,12 @@ code, not text").
   the `hslToString` of those families, with the glow at the given alpha.
 
   **Acceptance criteria:**
-  - [ ] The two new states resolve from `colorTheme.json`, never a literal.
-  - [ ] The four existing states return exactly what they did (existing tests unmodified).
+  - [x] The two new states resolve from `colorTheme.json`, never a literal.
+  - [x] The four existing states return exactly what they did (existing tests unmodified).
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/statusLightColors.test.ts src/components/ui/physical` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/statusLightColors.test.ts src/components/ui/physical` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
