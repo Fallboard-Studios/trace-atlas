@@ -12,8 +12,8 @@ the same settings in one world make the same rhythm, and the moved onsets go. Ta
 that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). Stopped at the rhythm-stream
 checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Task 4 built 2026-11-11 (the cap touches 34
 of 121 grid worlds); Tasks 5 and 6 built the same day. Phase 2 is built, and the "built" checkpoint passed
-(Crawford: "sounds good"). Task 7 (the docs) written 2026-11-11 and waiting for Crawford's read; then Task 8
-(Gate C).**
+(Crawford: "sounds good"). Task 7 (the docs) written 2026-11-11 and read. Gate C (Task 8) passed the same day
+(Crawford: "ok, i'm happy, task 8 can be checked off"). Next is Task 9 (the records).**
 
 ## Overview
 
@@ -475,7 +475,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   (they are `getUniformSeededVal`).
 
   **Verification:**
-  - [ ] Manual review (Crawford's read).
+  - [x] Manual review (Crawford's read, 2026-11-11: "ok, i'm happy").
   - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** Task 6.
@@ -486,7 +486,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
 ### Phase 4: Gate C
 
-- [ ] **Task 8: Gate C — Crawford's ear**
+- [x] **Task 8: Gate C — Crawford's ear**
 
   **Description:** On the built branch in a browser: a world with three companies. Does a company read as a section and
   not as one louder robot; do shared rests and accents (B19) suit a section; does setting a freelancer's density and
@@ -496,8 +496,11 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Proof:** Ear — Crawford's. No test file.
 
   **Acceptance criteria:**
-  - [ ] His words are recorded in the spec's "As built" and here; B14–B19 stand or change by his word.
-  - [ ] If it fails: stop, report what he heard, offer options. Nothing is re-tuned to pass.
+  - [x] His words are recorded in the spec's "As built" and here; B14–B19 stand or change by his word.
+  - [x] If it fails: stop, report what he heard, offer options. Nothing is re-tuned to pass. *(It passed.)*
+
+  **As built:** passed 2026-11-11. Crawford: "ok, i'm happy, task 8 can be checked off". B14–B19 stand as answered.
+  Recorded in this file's Results and in the spec's §9.
 
   **Dependencies:** Task 7.
 
@@ -589,4 +592,5 @@ one of the 18. With the cap, the members that inherit (company members less foun
 
 ### Gate C (Task 8)
 
-*Not yet heard.*
+**Passed 2026-11-11.** Crawford, after the Task 7 docs: "ok, i'm happy, task 8 can be checked off". Nothing was re-tuned; B14–B19 stand as answered. The three-company grid world offered for the listen was
+(-200, 80), three companies of three.

@@ -864,3 +864,12 @@ Recalled as Active (T12); read the pre-tick `roster` (T12); divide the drain but
 **Gate A** answered 2026-11-11 (A1, A2 above). **Gate B passed** the same day (§5.5; plan Task 17): Crawford, "ok
 passes, sounds good". A3 left at its default (a staying robot keeps the 0.1 opacity). Part A is complete. A4 and A5 were
 settled the same day: the fade on station arcs moved to backlog 74, and CLAUDE.md's line was reworded.
+
+## 9. As built (Part B)
+
+Built 2026-11-11 on `feature/company-families`; the plan is
+[tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md). The full record (differences from §1.11, the mutants and their
+commits, the Runs) is written by the plan's Task 9.
+
+**Gate C passed** 2026-11-11 (§5.7; plan Task 8): Crawford, "ok, i'm happy, task 8 can be checked off". B14–B19 stand
+as answered.
