@@ -6,9 +6,9 @@
 | Job Data | ASSIGNED PROTOCOL | Dual Label Component | N/A | N/A | No | Display only |
 | Battery Data | POWER CELL STATUS | Dual Label Component | N/A | N/A | No | Display only |
 | Docked Status | DOCKING STATE | Dual Label Component | N/A | N/A | No | States: DOCKED, DOCKING, DEPARTING, ACTIVE |
-| Status | ACOUSTIC EMISSION STATE *(draft, unconfirmed)* | Dual Label Component | N/A | N/A | No | Display only. True audibility (`isRobotAudible`) — Robot Options' own Status field, Roadmap 15.3. Values: Emitting, Disabled (see Draft table below) |
+| Status | ACOUSTIC EMISSION STATE *(draft, unconfirmed)* | Dual Label Component | N/A | N/A | No | Display only. The robot's own Monitor Mode word (`MODE_LABELS`, the `probe.monitorMode` options: Auto, Mute, Solo, Highlight), after a small light in the mode's colour (`ModeLight`), lit while the robot is heard (`isRobotEmitting`: audible and in the Audio Load budget's sounding set) and dim for any silence (backlog 81, docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.5). The robot screen's first well, and first on the roster tile's and phone band's status lines (see Draft table below) |
 | Company | UNIT AFFILIATION | Select Component | N/A | N/A | No | Options: Freelance, plus one per Company in the robot's locale. Reassigns `robot.companyId` via `assignRobotToCompany` (`localeStore.ts`); undefined `companyId` displays as Freelance |
-| Audio Setting | PROBE DIAGNOSTICS | Radio Button Component | N/A | N/A | No | Options: Off, Mute, Solo, Highlight |
+| Monitor Mode | DIAGNOSTIC FEED | Radio Button Component | N/A | N/A | No | Options: Auto, Mute, Solo, Highlight (`AUDIO_SETTING_SCHEMA`, `robotOptionsConfig.ts`; stored as `robot.audioMode`, `'none'` = Auto). Highlight turns every other sounding robot down by `HIGHLIGHT_DIP_DB` (−10 dB) on its bus gain while the highlighted robot is heard (docs/AUDIO_SYSTEM.md, Note Resolution Pipeline step 3) |
 | Volume | TRANSDUCER PRESSURE INDEX | Slider - linear Component | 0% | 100% | No | Linear scaling for held level ratio. Display-only 0–100%, 1% steps — stored as `robot.masterVolume`, a 0–1 fraction (`VOLUME_SCHEMA`, `robotOptionsConfig.ts`), same display-vs-storage split as Sustain below. The Volume LFO target was removed (docs/specs/LFO_LOAD_FIX.md) — Mode and Volume are the only two Output controls now |
 | Pan | BEARING *(placeholder lore word)* | Slider - centered-zero Component | -100 | 100 | No | Display-only signed −100…100, 1 step, no L/R letters — stored as `robot.pan`, a −1…1 fraction (`PAN_SCHEMA`, `robotOptionsConfig.ts`; `PAN_DISPLAY_SCALE`), same display-vs-storage split as Volume. Read-only (shows the live position-follow value) while Auto is on; interactive while it is off. Manual range is the full ±1; Auto's own field stays ±0.5. No seed: a spawned robot is always Auto at `0`. Saved in sessions and share links when Auto is off (unlike Volume) |
 | Auto | TRACKING *(placeholder lore word)* | Toggle Component | N/A | N/A | No | `robot.panAuto` (`PAN_AUTO_SCHEMA`). On (default): the panner follows the robot across the field as before. Off: it holds the Pan value and the robot keeps moving; the live position becomes the Pan value at that moment |
@@ -80,12 +80,10 @@ please review/edit both here and in that file together.
 | Docking | DOCKING | `DockingState.Docking` | Docked Status value |
 | Departing | DEPARTING | `DockingState.Departing` | Docked Status value |
 | Active | ACTIVE | `DockingState.Active` | Docked Status value |
-| Off | OFFLINE | `audioMode: 'none'` | Audio Setting value — purple status dot |
-| Mute | SILENCED | `audioMode: 'mute'` | Audio Setting value — red status dot |
-| Solo | ISOLATED | `audioMode: 'solo'` | Audio Setting value — green status dot |
-| Highlight | PRIORITIZED | `audioMode: 'highlight'` | Audio Setting value — amber status dot |
-| Emitting | ACOUSTIC EMISSION ACTIVE | `AUDIBILITY_LABELS.emitting` | Card Status value (Roadmap 15.2) — true audibility (not muted, not excluded by another robot's Solo, and not in its station unless soloed), not just this robot's own audioMode |
-| Disabled | ACOUSTIC EMISSION SUPPRESSED | `AUDIBILITY_LABELS.disabled` | Card Status value (Roadmap 15.2) |
+| Auto | FREEFORM | `audioMode: 'none'` (or unset) | Monitor Mode and Status value (`MODE_LABELS.none`) — green light (`indicator`) |
+| Mute | STANDBY | `audioMode: 'mute'` | Monitor Mode and Status value (`MODE_LABELS.mute`) — red light (`alert`), always dim |
+| Solo | FEATURED | `audioMode: 'solo'` | Monitor Mode and Status value (`MODE_LABELS.solo`) — yellow light (`wire`) |
+| Highlight | ELEVATED | `audioMode: 'highlight'` | Monitor Mode and Status value (`MODE_LABELS.highlight`) — blue light (`glass`) |
 
 ## Loading ranges by theme and aspect (roadmaps 57 and 58, the off screen)
 
