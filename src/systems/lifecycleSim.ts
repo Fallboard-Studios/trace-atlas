@@ -8,7 +8,7 @@ import { DockingState, type JobType, type RobotActivity } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
 import { getSeededVal } from '../utils/getSeededVal';
-import { generateRobotRosterBaseline } from './spawnSystem';
+import { generateBatterySize, generateRobotRosterBaseline } from './spawnSystem';
 import { stepRobotLifecycle } from './robotSystems';
 import type { DrainRule, RobotLifecycleSnapshot } from './robotSystems';
 import { isWorkSiteEligible } from './jobHosts';
@@ -65,12 +65,17 @@ export function simNoiseMap(x: number, y: number): NoiseFunction2D {
 // ROSTER
 // ========================================
 
+/** The battery sizes a sim roster carries: a `[min, max]` band to draw on, or 'flat' for none (today's fleet). */
+export type SimBand = readonly [min: number, max: number] | 'flat';
+
 /**
  * The roster a fresh locale on this noise map starts with, as lifecycle snapshots: spawnInitialRoster's
  * seeded Active count and Docked batteries, with generateRobotRosterBaseline's note variance. Melody
- * is empty — it only feeds pitch drift, which never touches battery or docking.
+ * is empty — it only feeds pitch drift, which never touches battery or docking. Each robot's battery
+ * size is spawn's own generateBatterySize at its spawn count, on the shipped band unless `band` names
+ * another; 'flat' sets no size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, §1.5).
  */
-export function buildSimRoster(noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
+export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): RobotLifecycleSnapshot[] {
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     getSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
   );
@@ -83,6 +88,7 @@ export function buildSimRoster(noiseMap: NoiseFunction2D): RobotLifecycleSnapsho
       melody: [],
       dockCycleCount: 0,
       noteVariance: b.noteVariance,
+      ...(band === 'flat' ? {} : { batterySize: band ? generateBatterySize(noiseMap, i, band[0], band[1]) : generateBatterySize(noiseMap, i) }),
     };
   });
 }

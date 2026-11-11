@@ -44,7 +44,7 @@ import {
   type ReadinessSeedRow,
 } from './lifecycleSim';
 import { activeDrain, stepRobotLifecycle, type RobotLifecycleSnapshot } from './robotSystems';
-import { spawnInitialRoster } from './spawnSystem';
+import { generateBatterySize, spawnInitialRoster } from './spawnSystem';
 import { placeDistrict } from './districts';
 import { getWorkSite } from './workSites';
 import { isWorkSiteEligible } from './jobHosts';
@@ -54,7 +54,7 @@ import { jobDuration } from '../animation/jobMoves/jobDuration';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { useLocaleStore } from '../stores/localeStore';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { DockingState, JobType } from '../types/Robot';
+import { DockingState, JobType, type Robot } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import {
   MAX_ROBOTS,
@@ -139,12 +139,35 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
       const sim = buildSimRoster(simNoiseMap(x, y));
-      expect(sim.map((s) => ({ docking: s.docking, batteryLevel: s.batteryLevel, noteVariance: s.noteVariance }))).toEqual(
-        real.map((r) => ({ docking: r.docking, batteryLevel: r.batteryLevel, noteVariance: r.noteVariance })),
-      );
+      const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel, noteVariance: s.noteVariance, batterySize: s.batterySize });
+      expect(sim.map(fields)).toEqual(real.map(fields));
 
-      // Guard against a coincidental pass on defaults: this seed must actually vary.
+      // Guard against a coincidental pass on defaults: this seed must actually vary, and carry real sizes.
       expect(new Set(real.filter((r) => r.docking === DockingState.Docked).map((r) => r.batteryLevel)).size).toBeGreaterThan(1);
+      expect(real.every((r) => r.batterySize !== undefined && r.batterySize !== 1)).toBe(true);
+      expect(new Set(real.map((r) => r.batterySize)).size).toBe(MAX_ROBOTS);
+    });
+
+    it('draws every size on the band it is given, from the same even draw (no-silence Task 8)', () => {
+      for (const { x, y } of FEW_COORDS) {
+        const noiseMap = simNoiseMap(x, y);
+        const banded = buildSimRoster(noiseMap, [0.67, 1.5]);
+        banded.forEach((r, i) => {
+          expect(r.batterySize).toBe(generateBatterySize(noiseMap, i, 0.67, 1.5));
+          expect(r.batterySize).toBeGreaterThanOrEqual(0.67);
+          expect(r.batterySize).toBeLessThan(1.5);
+        });
+        // The band changes the sizes only: docking, battery and note variance are the default roster's.
+        const strip = ({ batterySize: _size, ...rest }: RobotLifecycleSnapshot) => rest;
+        expect(banded.map(strip)).toEqual(buildSimRoster(noiseMap).map(strip));
+      }
+    });
+
+    it("'flat' builds today's fleet: the same roster with no size on any robot", () => {
+      const noiseMap = simNoiseMap(-40, 80);
+      const flat = buildSimRoster(noiseMap, 'flat');
+      for (const r of flat) expect('batterySize' in r).toBe(false);
+      expect(flat).toEqual(buildSimRoster(noiseMap).map(({ batterySize: _size, ...rest }) => rest));
     });
 
     it('uses the same noise map the live locale would (no attenuation-style override)', () => {
@@ -242,16 +265,16 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(getCurrentMeasure).not.toHaveBeenCalled();
     });
 
-    it('over the full grid and 2000 measures, reports every candidate — flat 6 reproduces Task 2\'s 5.14 mean Active', () => {
+    it('over the full grid and 2000 measures, reports every candidate — flat 6 at 5.10 mean Active on sized robots', () => {
       const rows = runDrainSim();
       expect(rows.map((r) => r.label)).toEqual(['flat 5', 'flat 6', 'flat 7']);
       for (const r of rows) expect(Number.isFinite(r.mean)).toBe(true);
       // Flat drains are ordered: more drain, fewer robots out.
       expect(rows[0].mean).toBeGreaterThan(rows[1].mean);
       expect(rows[1].mean).toBeGreaterThan(rows[2].mean);
-      // Narrowing the snapshot (no job, no scoring fields) must not move the flat numbers Crawford
-      // chose from (commit 5bbbff3f: flat 5 5.70, flat 6 5.14, flat 7 4.60).
-      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.70', '5.14', '4.60']);
+      // The base drains Crawford chose from were 5.70, 5.14 and 4.60 (commit 5bbbff3f) on unsized robots. Each robot's
+      // battery size now divides its drain and its charge (no-silence Task 8, the 0.8-1.25 band): 5.71, 5.10, 4.65.
+      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.71', '5.10', '4.65']);
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatDrainReport(rows)}`);
     }, 60_000);
   });

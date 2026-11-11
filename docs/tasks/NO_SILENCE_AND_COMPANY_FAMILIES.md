@@ -326,7 +326,7 @@ task.
 
   **Estimated scope:** S (one pure function, one field at spawn, two constants)
 
-- [ ] **Task 8: `lifecycleSim.ts` — the sim roster carries the size**
+- [x] **Task 8: `lifecycleSim.ts` — the sim roster carries the size**
 
   **Description:** `buildSimRoster(noiseMap, band?)`: by default each robot's size comes from `generateBatterySize` on
   the shipped band; a `[min, max]` band draws on that band; `'flat'` sets no size, which is today's fleet. The parity
@@ -337,14 +337,15 @@ task.
   robot on battery size (case 15), which fails while the sim sets none.
 
   **Acceptance criteria:**
-  - [ ] The default roster's sizes equal the spawned roster's at the same coordinates; the seed used in the test has
+  - [x] The default roster's sizes equal the spawned roster's at the same coordinates; the seed used in the test has
         sizes that vary.
-  - [ ] A `[min, max]` band puts every size inside it; `'flat'` gives a roster with no size on any robot.
-  - [ ] The drain rows are re-pinned, old → new in the commit message; flat 5 > flat 6 > flat 7 still holds.
+  - [x] A `[min, max]` band puts every size inside it; `'flat'` gives a roster with no size on any robot.
+  - [x] The drain rows are re-pinned, old → new in the commit message; flat 5 > flat 6 > flat 7 still holds.
+        *Measured:* 5.70 → 5.71, 5.14 → 5.10, 4.60 → 4.65.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/lifecycleSim.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/lifecycleSim.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 5 and 7.
 
