@@ -1530,3 +1530,27 @@ effect is torn down a second after its disconnect and rebuilt at its next light.
 and the mean 0.050 / 0.032 (W1 / W2); at Light none of the ten exists; every crossing ≤ ×1.107 with no gap, and
 Crawford heard no click (record "Backlog 72", §1–§4). Next: Crawford's PR; archive after the merge. The ablation's code
 lives only in the backlog 67 session's scratchpad, not in the repo; record §9 describes it.
+
+## 73. Robots: A Seeded Company Is a Family
+
+**Closed** 2026-11-11 (`feature/company-families`; T1–T6 `0594fd49`..`6a7ba905`, the docs `842d824d`). Crawford passed
+the rhythm-stream and built checkpoints and Gate C by ear on 2026-11-11 ("ok, i'm happy"), and asked for the archive
+before the PR. Every seeded company is a family: its lowest-index robot founds it, and its members inherit the founder's
+voice, composition and performance settings, LFO links and five sends, and keep their own notes, volume, battery size
+and start. A rhythm belongs to the world and the rhythm shape (B16–B19), so members play the founder's onsets, lengths,
+rests and accents exactly, and any robot set to the same Density and Motif Length joins them; the moved onsets this item
+first described were cut (B18). At least two robots stay freelancers (the cap touches 34 of 121 grid worlds); the 30 %
+copy roll is retired; the deal derives a member from its founder ([spec](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md)
+§9, "As built (Part B)"; [COMPANIES.md](../../COMPANIES.md), "A seeded company is a family"). The original request
+follows.
+
+Stage 2 of the no-silence intent ([docs/intent/no-silence-and-company-families.md](../../intent/no-silence-and-company-families.md)),
+given its own number by Crawford on 2026-11-11 (spec open question B11), so backlog 60 closes with Stage 1. Every
+seeded company becomes a founder (its lowest roster index) and members that inherit the founder's voice, onset pattern
+and five sends, and keep their own notes, volume, battery size and start; a quarter of members move one or two onsets
+in the measure; at least two robots stay freelancers; today's 30 % copy roll goes. Specified in
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) Part B (§1.9–§1.11, from
+Crawford's answers to B1–B11), planned in [docs/tasks/COMPANY_FAMILIES.md](../../tasks/COMPANY_FAMILIES.md) (nine tasks,
+Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every world's melodies, so it lands before
+backlog [45](../backlog.md#45-off-screen-crawfords-three-preset-links). B12–B15 answered 2026-11-11 (every default stands); built on
+its own branch from `main` after 60 merges. Plan.md Stage 3.

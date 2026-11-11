@@ -496,7 +496,7 @@ and its charge: no silent measure in any of 121 worlds, against 3.39 % of measur
 stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)). Gate B passed by Crawford's ear the
 same day; ready for his PR, and it archives after the merge. The fade-on-arcs note that sat here (spec open question
 A4) is now backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs). Stage 2 (company families) is backlog
-[73](#73-robots-a-seeded-company-is-a-family).
+[73](archive/backlog-archive.md#73-robots-a-seeded-company-is-a-family) (built and archived).
 
 Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
 the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
@@ -573,19 +573,6 @@ the session diff), the content layer (the mark names and legend), and long melod
 narrower cells, and the cells must hold their size). Neighbours: roadmap
 [32](roadmap.md#32-robot-melody-history--configuration-scrubber) (Melody history). Needs an interview before a spec:
 read-only strip first, or the editor with it. Plan.md Post-launch.
-
-### 73. Robots: A Seeded Company Is a Family
-
-Stage 2 of the no-silence intent ([docs/intent/no-silence-and-company-families.md](../intent/no-silence-and-company-families.md)),
-given its own number by Crawford on 2026-11-11 (spec open question B11), so backlog 60 closes with Stage 1. Every
-seeded company becomes a founder (its lowest roster index) and members that inherit the founder's voice, onset pattern
-and five sends, and keep their own notes, volume, battery size and start; a quarter of members move one or two onsets
-in the measure; at least two robots stay freelancers; today's 30 % copy roll goes. Specified in
-[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) Part B (§1.9–§1.11, from
-Crawford's answers to B1–B11), planned in [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md) (nine tasks,
-Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every world's melodies, so it lands before
-backlog [45](#45-off-screen-crawfords-three-preset-links). B12–B15 answered 2026-11-11 (every default stands); built on
-its own branch from `main` after 60 merges. Plan.md Stage 3.
 
 ### 74. Audio: Fade a Robot In and Out on Its Station Arcs
 

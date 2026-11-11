@@ -3,7 +3,7 @@
 Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), Part B
 (§1.9–§1.11, §5.7, §7.3–§7.6). Source intent:
 [docs/intent/no-silence-and-company-families.md](../intent/no-silence-and-company-families.md). Backlog
-[73](../todo/backlog.md#73-robots-a-seeded-company-is-a-family).
+[73](../todo/archive/backlog-archive.md#73-robots-a-seeded-company-is-a-family) (archived).
 
 **Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. Building on
 `feature/company-families` from `main` after Part A merged (PR #623). B12–B15 answered at Gate A: every default
@@ -13,7 +13,8 @@ that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). St
 checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Task 4 built 2026-11-11 (the cap touches 34
 of 121 grid worlds); Tasks 5 and 6 built the same day. Phase 2 is built, and the "built" checkpoint passed
 (Crawford: "sounds good"). Task 7 (the docs) written 2026-11-11 and read. Gate C (Task 8) passed the same day
-(Crawford: "ok, i'm happy, task 8 can be checked off"). Next is Task 9 (the records).**
+(Crawford: "ok, i'm happy, task 8 can be checked off"). Task 9 (the records) done the same day, and backlog 73
+archived at Crawford's word. Every task is done; the branch goes to Crawford's PR.**
 
 ## Overview
 
@@ -508,12 +509,18 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** XS for the agent
 
-- [ ] **Task 9: the records — backlog 73, plan.md, the spec's "As built"**
+- [x] **Task 9: the records — backlog 73, plan.md, the spec's "As built"**
 
   **Description:** Backlog 73's status; plan.md's Stage 3 line; the spec's Part B "As built" (differences from §1.11,
   the mutants and their commits, the Run). Archive 73 if Crawford calls it done.
 
   **Proof:** Read. No test file.
+
+  **As built:** Crawford called it done ("complete task 9, and archive 73"), so 73 moved whole to
+  `docs/todo/archive/backlog-archive.md` under a Closed note, its links rebased, with no stub; the three inbound links
+  (backlog 60, this file, the spec's status) point at the archive. Plan.md's 73 line is deleted. The spec's §9, "As
+  built (Part B)", holds the commits, names, files, the differences from §1.11, the nine mutants, the Runs and the
+  gates; §2 points at it.
 
   **Dependencies:** Task 8.
 

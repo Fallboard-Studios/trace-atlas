@@ -20,7 +20,9 @@ tasks in five phases). **Part A built and heard on 2026-11-11** (§8, As built):
 specified 2026-11-11** from Crawford's answers to B1–B11 (§7.3), early at his request, and planned in
 [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md); it is built only after Gate B (§0). **Part B's rhythm
 revised 2026-11-11** after its Phase 1 was built (B16–B19, §7.6): a rhythm is the world's and the rhythm settings',
-not a robot's, so the same settings in one world play the same rhythm; the moved onsets are cut. Backlog
+not a robot's, so the same settings in one world play the same rhythm; the moved onsets are cut. **Part B built and
+heard on 2026-11-11** (§9, As built): Gate C passed; backlog
+[73](../todo/archive/backlog-archive.md#73-robots-a-seeded-company-is-a-family), archived. Backlog
 [60](../todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of
 [plan.md](../todo/plan.md)'s Stage 3.
 
@@ -406,7 +408,7 @@ Found while specifying, 2026-11-11 (code):
 
 ## 2. Target File Structure
 
-Part A only. Part B's list is written when Part B is completed.
+Part A only. Part B's files are listed in §9, As built (Part B).
 
 ```text
 src/constants/index.ts              # BATTERY_SIZE_MIN / BATTERY_SIZE_MAX (Gate A's pick), DEFAULT_BATTERY_SIZE
@@ -867,9 +869,55 @@ settled the same day: the fade on station arcs moved to backlog 74, and CLAUDE.m
 
 ## 9. As built (Part B)
 
-Built 2026-11-11 on `feature/company-families`; the plan is
-[tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md). The full record (differences from §1.11, the mutants and their
-commits, the Runs) is written by the plan's Task 9.
+Built 2026-11-11 on `feature/company-families`, one commit per task: T1 `0594fd49`, T2 `7bdc5aff`, T3 `1117fb7d`, the
+rhythm revised `ad1838d3` (B16–B19, §7.6), T3a `470c62a3`, T3b `ddb3ee06`, the rhythm-stream checkpoint `58043276`, T4
+`c85f5a0b`, T5 `78c5ccf9`, T6 `6a7ba905`, the built checkpoint `17cdb70a`, T7 `842d824d`, Gate C `a7ea2232`, T9 (this
+section). The Runs are in the plan's Results ([tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md)); the shipped
+design is in [COMPANIES.md](../COMPANIES.md) ("A seeded company is a family", "The deal"),
+[MELODY_SYSTEM.md](../MELODY_SYSTEM.md) ("The rhythm stream (Company Families)") and
+[PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md) ("Company Families dataIds").
 
-**Gate C passed** 2026-11-11 (§5.7; plan Task 8): Crawford, "ok, i'm happy, task 8 can be checked off". B14–B19 stand
-as answered.
+**The names.** `rhythmShape(density, motif, subdivisions?)` → `{ cellLength, onsets }`, `buildSeededRhythm(worldKey,
+attrs)` and `buildSeededPerformance(worldKey, attrs)` (`melodyGenerator.ts`, beside `generateMelodyForRobot`'s
+`rhythmRand`); `melodyWorldKey(localeId)` and `composeRobotMelody(robot, worldKey)` (`regenerateMelody.ts`);
+`generateCompanyMembership(noiseMap, rosterSize = MAX_ROBOTS)`, `companyFounders(membership)` and `spawnRobot`'s
+`founderIndex` option (`spawnSystem.ts`); `FREELANCERS_MIN` (`src/constants/index.ts`); `Robot.lineage?: RobotLineage`
+(`{ founderIndex }`); a private `dealIndex` in `aspectDeal.ts`.
+
+**The files.** `src/constants/index.ts`, `src/types/Robot.ts`, `src/engine/melodyGenerator.ts`,
+`src/engine/regenerateMelody.ts`, `src/systems/spawnSystem.ts`, `src/systems/aspectDeal.ts`; tests in
+`melodyGenerator.test.ts`, `regenerateMelody.test.ts`, `spawnSystem.test.ts`, the new `spawnSystem.families.test.ts`,
+`spawnSystem.evenCopies.test.ts`, `aspectDeal.test.ts`, `aspectDeal.widened.test.ts`, `robotSendsParity.test.ts` and
+`sessionDiff.test.ts`.
+
+**Where it differs from §1.11.**
+
+| Where | Built | Why |
+|---|---|---|
+| The rhythm | Keyed on the world and the shape (Task 3a), as §1.11 now says. The first build (Tasks 1–3) keyed it on a rhythm seed on the robot, with `moveOnsets` for a quarter of members (Task 2), both reworked (3a) and removed (3b). | Crawford revised it at the rhythm-stream checkpoint (B16–B19). |
+| The recipe | `composeRobotMelody` lives in `regenerateMelody.ts`, not `melodyGenerator.ts`, and `spawnSystem.ts` imports it: an import edge §1.11 did not name. It reaches nothing spawn did not already import. | Its call to `generateMelodyForRobot` must cross a module, so test spies on that export still see it. |
+| The world key | The locale id stands in when the store has no such locale. | Unit tests with a mocked store. |
+| Membership | `generateCompanyMembership` takes the roster size; each company lists members in draw order, so the founder is `Math.min(...members)`. `spawnInitialCompanies` makes its companies from `generateCompanyRosterBaseline`, and its `alea` fallback went (it only ran with an empty pool). | The baseline is called with 16 and 10 ids in tests; one path makes live and replayed companies agree. |
+| Baselines of other lengths | A roster baseline of N robots draws companies over N, so a run of robots spawned alone (all originals) matches the chain of `generateRobotAudioBaseline`, not `generateRobotRosterBaseline`. Three tests re-aimed. | A consequence of membership first. |
+| The deal's baseline | `applyDealToBaselines` reads the founders from the seeded membership, since baselines carry no lineage; the Motion lane tally is taken at the deal index, so a member's links are its founder's. | §1.11 said only "from `lineage.founderIndex`". |
+
+**The nine mutants of §5.7**, each killed, named in its commit: the rhythm key with note variance and durations left on
+the composition stream (T1, `0594fd49`); the key on the raw density, the key without the world and the performance
+stream on the robot's own seed (T3a, `470c62a3`); the cap at one freelancer (T4, `c85f5a0b`); the founder as the highest
+index and the sends left fresh (T5, `78c5ccf9`); the deal by own index (T6, `6a7ba905`). Written RED first: cases 1–8
+and the hand move of case 9. Not RED by their nature: case 9's `{}` over the grid and Task 6's live-versus-baseline case
+(guards that passed before the change), and case 10 (`lifecycleSim.test.ts` passing unmodified).
+
+**The Runs** (the plan's Results):
+- **Coincidental rhythms** (T3a, before families): 66 % of robots share a rhythm with another, in 121 of 121 grid
+  worlds (median 8 of 12 a world, largest group 9), against 14 % on a per-robot seed. Rhythms are thin (median density
+  17 %). Crawford accepted it ("option 1, this sounds fine").
+- **The cap** (T4): it touches 34 of 121 worlds (18 lose their third company, 16 have it cut from four to three); 68
+  worlds have two companies and 53 three; 4 to 7 members inherit a world, mean 5.95.
+
+**The checks.** The last full suite (T6): 352 files, 13,772 passed, 2 skipped, 257 s; `npm run build` clean at the
+built checkpoint. Every world's melodies changed at T3 and again at T3a; each re-pin is named in its commit.
+
+**The gates.** The rhythm-stream checkpoint and the built checkpoint passed by Crawford's ear ("sounds good", both
+2026-11-11). **Gate C passed** 2026-11-11 (§5.7; plan Task 8): Crawford, "ok, i'm happy, task 8 can be checked off".
+B12–B19 stand as answered; no Part B question is open. Backlog 73 is archived.
