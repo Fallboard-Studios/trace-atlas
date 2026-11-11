@@ -348,7 +348,7 @@ code, not text").
 
   **Estimated scope:** S (deletions in five files)
 
-- [ ] **Task 8: `ModeLight.tsx`, `ModeLight.css` — the small light**
+- [x] **Task 8: `ModeLight.tsx`, `ModeLight.css` — the small light**
 
   **Description:** A stateless `ModeLight({ mode, lit })` in `src/components/panels/screen/screens/`: one inline
   `span`, `aria-hidden`, `data-mode` and `data-lit`, its `--mode-light-color` and `--mode-light-glow` set inline from
@@ -360,12 +360,12 @@ code, not text").
   each of the four modes.
 
   **Acceptance criteria:**
-  - [ ] The four modes map to the four colours through `getStatusLightColor`; no literal colour in the component.
-  - [ ] `lit` toggles `data-lit` and nothing else in the markup.
+  - [x] The four modes map to the four colours through `getStatusLightColor`; no literal colour in the component.
+  - [x] `lit` toggles `data-lit` and nothing else in the markup.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/screens/ModeLight.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/screens/ModeLight.test.tsx` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6.
 
