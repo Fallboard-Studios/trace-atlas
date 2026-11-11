@@ -33,6 +33,14 @@ export function isRobotAudible(audioMode: Robot['audioMode'], anySolo: boolean, 
   return !isDockMuted(docking);
 }
 
+/**
+ * True while a robot is heard right now: audible by the mute/solo/dock rule AND in the Audio Load budget's sounding
+ * set (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.5). The Deck's "n of m" counts it; the mode light is lit by it.
+ */
+export function isRobotEmitting(audioMode: Robot['audioMode'], anySolo: boolean, docking: DockingState | undefined, isSounding: boolean): boolean {
+  return isRobotAudible(audioMode, anySolo, docking) && isSounding;
+}
+
 /** What a robot's card says: audible and sounding, held back by the Audio Load budget, or silenced by mute/solo/the dock. */
 export type AudibilityState = 'emitting' | 'limited' | 'disabled';
 

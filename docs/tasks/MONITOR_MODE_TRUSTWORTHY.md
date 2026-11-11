@@ -242,7 +242,7 @@ code, not text").
 
 ### Phase 2: The display (Part B)
 
-- [ ] **Task 5: `robotAudibility.ts`, `MetaBox.tsx` — `isRobotEmitting`**
+- [x] **Task 5: `robotAudibility.ts`, `MetaBox.tsx` — `isRobotEmitting`**
 
   **Description:** Add `isRobotEmitting(audioMode, anySolo, docking, isSounding): boolean` = `isRobotAudible(...) &&
   isSounding`. `MetaBox.tsx`'s `useEmittingCount` counts with it instead of `getAudibilityState(...) === 'emitting'`.
@@ -253,13 +253,13 @@ code, not text").
   is sounding is true).
 
   **Acceptance criteria:**
-  - [ ] `isRobotEmitting` agrees with `getAudibilityState(...) === 'emitting'` on every case the old tests cover.
-  - [ ] `MetaBox.test.tsx` passes unmodified (the Deck's count is unchanged).
+  - [x] `isRobotEmitting` agrees with `getAudibilityState(...) === 'emitting'` on every case the old tests cover.
+  - [x] `MetaBox.test.tsx` passes unmodified (the Deck's count is unchanged).
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/robotAudibility.test.ts src/components/panels/screen/worldView/MetaBox.test.tsx`
+  - [x] `npx vitest run src/utils/robotAudibility.test.ts src/components/panels/screen/worldView/MetaBox.test.tsx`
         passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 

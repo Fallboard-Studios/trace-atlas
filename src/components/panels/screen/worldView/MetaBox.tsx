@@ -4,7 +4,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import { getAudibilityState, isRobotSounding } from '@/utils/robotAudibility';
+import { isRobotEmitting, isRobotSounding } from '@/utils/robotAudibility';
 import { robotLoadToLimits } from '@/utils/audioBudget';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import type { Robot } from '@/types/Robot';
@@ -37,7 +37,7 @@ function useEmittingCount(): number {
   return useLocaleStore((s) => {
     const robots = s.locales[localeId]?.robots ?? NO_ROBOTS;
     const anySolo = robots.some((r) => r.audioMode === 'solo');
-    return robots.filter((r) => getAudibilityState(r.audioMode, anySolo, r.docking, isRobotSounding(soundingRobotIds, r.id)) === 'emitting').length;
+    return robots.filter((r) => isRobotEmitting(r.audioMode, anySolo, r.docking, isRobotSounding(soundingRobotIds, r.id))).length;
   });
 }
 
