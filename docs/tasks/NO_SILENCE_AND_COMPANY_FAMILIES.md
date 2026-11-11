@@ -264,7 +264,7 @@ task.
 
   **Estimated scope:** S (two lines of arithmetic, one type field, one constant)
 
-- [ ] **Task 6: `Robot.batterySize` reaches the tick, and the prove-it runs on sized robots**
+- [x] **Task 6: `Robot.batterySize` reaches the tick, and the prove-it runs on sized robots**
 
   **Description:** `Robot.batterySize?: number` in `src/types/Robot.ts`, with a doc comment in `gemSeed`'s manner
   (seeded at spawn, never edited, never saved). `toLifecycleSnapshot` passes it to the step. The prove-it's fixture
@@ -277,17 +277,18 @@ task.
   (case 12); and the prove-it on sized robots, which fails while the live tick ignores the size.
 
   **Acceptance criteria:**
-  - [ ] The tick drains and charges each robot by its own size.
-  - [ ] The prove-it holds field for field (docking, battery, hold, melody) for all twelve sized robots, and asserts
+  - [x] The tick drains and charges each robot by its own size.
+  - [x] The prove-it holds field for field (docking, battery, hold, melody) for all twelve sized robots, and asserts
         that at least one battery in the result is not a whole number.
-  - [ ] The result holds a battery that was drained and never floored at 0, and one that was charged and never capped
-        at 100.
-  - [ ] Mutants, both killed: drop `batterySize` from `toLifecycleSnapshot`; put `Math.trunc` back in `updateRobot`.
+  - [x] The result holds a battery that was drained and never floored at 0, and one that was charged and never capped
+        at 100. *As built:* robot 0 (size 1.2, so 5 a measure) starts at 34 and is recalled at 9 on the fifth tick;
+        every Docked robot ends above its start and below 100.
+  - [x] Mutants, both killed: drop `batterySize` from `toLifecycleSnapshot`; put `Math.trunc` back in `updateRobot`.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotSystems.test.ts src/stores/localeStore.test.ts src/systems/workLoop.integration.test.ts src/systems/audioBudgetSystem.test.ts`
+  - [x] `npx vitest run src/systems/robotSystems.test.ts src/stores/localeStore.test.ts src/systems/workLoop.integration.test.ts src/systems/audioBudgetSystem.test.ts`
         passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 4 and 5.
 

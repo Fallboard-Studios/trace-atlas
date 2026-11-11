@@ -178,6 +178,7 @@ function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
     melody: robot.melody,
     dockCycleCount: getDockCycleCount(robot.id),
     noteVariance: robot.noteVariance,
+    batterySize: robot.batterySize,
   };
 }
 

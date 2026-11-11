@@ -159,9 +159,29 @@ describe('robotSystems', () => {
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.batteryLevel).toBe(0);
     });
+
+    it('drains a robot by its own battery size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, case 12)', () => {
+      const robot = makeRobot({ batteryLevel: 50, batterySize: 1.25 });
+      setupLocaleWithRobots([robot]);
+
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
+      expect(updated?.batteryLevel).toBe(50 - BATTERY_DRAIN_ACTIVE / 1.25);
+    });
   });
 
   describe('tickRobotLifecycle — battery recharge (Docked)', () => {
+    it('charges a robot by its own battery size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, case 12)', () => {
+      const robot = makeRobot({ docking: DockingState.Docked, batteryLevel: 50, batterySize: 0.8 });
+      setupLocaleWithRobots([robot]);
+
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
+      expect(updated?.batteryLevel).toBe(50 + BATTERY_RECHARGE_RATE / 0.8);
+    });
+
     it('recharges by BATTERY_RECHARGE_RATE', () => {
       const robot = makeRobot({ docking: DockingState.Docked, batteryLevel: 50 });
       setupLocaleWithRobots([robot]);
@@ -1129,15 +1149,22 @@ describe('robotSystems', () => {
       // transitions and complicating what's being proven.
       // Robot 0 holds a job (Phase 43 Task 3): the replay snapshot no longer carries one, so a job
       // surcharge creeping back into the live tick would make its real battery diverge from replay.
-      // It starts exactly REPLAY_MEASURES drains above critical, so it reaches critical on the last
-      // tick without ever flooring at 0 -- a floor would let a surcharged live run
-      // and the flat replay converge on 0 and hide the surcharge (found by Task 3's mutation check).
+      // It crosses critical on the last tick without ever flooring at 0 -- a floor would let a
+      // surcharged live run and the flat replay converge on 0 and hide the surcharge (found by Task 3's
+      // mutation check).
+      // Every robot has its own battery size, all different and none 1 (no-silence Task 6), so a live
+      // tick that ignores the size, or a store that truncates the fractions it makes, diverges from the
+      // replay; parity cannot pass on the default. Robot 0's size 1.2 drains it 5 a measure: from 34 it
+      // is at 14 after four ticks and 9 on the fifth. The Docked robots charge 4-6 a measure from 40-49,
+      // so after five ticks every one is above its start and below the 100 cap.
       const REPLAY_MEASURES = 5;
+      const SIZES = [1.2, 0.85, 0.82, 0.88, 0.91, 0.97, 1.03, 1.07, 1.11, 1.16, 1.21, 1.24];
       const robots: Robot[] = [
         makeRobot({
           id: 'prove-it-0',
           docking: DockingState.Active,
-          batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE * REPLAY_MEASURES,
+          batteryLevel: 34,
+          batterySize: SIZES[0],
           job: JobType.FluidMonitoring,
         }),
         makeRobot({
@@ -1145,13 +1172,14 @@ describe('robotSystems', () => {
           docking: DockingState.Recalled,
           dockingHoldUntilMeasure: 1,
           batteryLevel: 5,
+          batterySize: SIZES[1],
           job: JobType.AcousticSurvey,
           // 16 notes, so the drift re-rolls 4: with the default 4-note melody it re-rolls one, and an even draw lands
           // it back on its own note 1 time in 8 (Even Seeded Draws T17), which would leave the melody looking undrifted.
           melody: Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, startStep: i + 1, length: '16n' as const, noteIndex: i % 8, octave: 4 })),
         }),
         ...Array.from({ length: MAX_ROBOTS - 2 }, (_, i) =>
-          makeRobot({ id: `prove-it-${i + 2}`, docking: DockingState.Docked, batteryLevel: 40 + i, job: undefined }),
+          makeRobot({ id: `prove-it-${i + 2}`, docking: DockingState.Docked, batteryLevel: 40 + i, batterySize: SIZES[i + 2], job: undefined }),
         ),
       ];
       expect(robots).toHaveLength(MAX_ROBOTS);
@@ -1159,6 +1187,8 @@ describe('robotSystems', () => {
       // Assert the preconditions actually hold before running anything -- not left to chance.
       expect(robots.filter((r) => r.docking === DockingState.Active)).toHaveLength(1);
       expect(robots.find((r) => r.docking === DockingState.Recalled)?.dockingHoldUntilMeasure).toBe(1);
+      expect(new Set(robots.map((r) => r.batterySize)).size).toBe(MAX_ROBOTS);
+      expect(robots.every((r) => r.batterySize !== undefined && r.batterySize !== 1)).toBe(true);
 
       setupLocaleWithRobots(robots);
       const locale = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
@@ -1172,6 +1202,7 @@ describe('robotSystems', () => {
         melody: r.melody,
         dockCycleCount: 0, // fresh ids, never docked before in this test file
         noteVariance: r.noteVariance,
+        batterySize: r.batterySize,
       }));
 
       for (let m = 1; m <= REPLAY_MEASURES; m++) tickRobotLifecycle(DEFAULT_LOCALE_ID, m);
@@ -1179,11 +1210,20 @@ describe('robotSystems', () => {
 
       const replayResult = replayLifecycle(initialSnapshots, 0, REPLAY_MEASURES, noiseMap);
 
-      // The last Active robot was recalled on reaching critical battery (exactly critical -- above
-      // the 0 floor, so the battery comparison below is meaningful).
+      // The last Active robot was recalled on crossing critical battery on the last tick (at 9 --
+      // drained and above the 0 floor, so the battery comparison below is meaningful).
       const realtimeRobot0 = realtimeResult.find((r) => r.id === 'prove-it-0')!;
       expect(realtimeRobot0.docking).toBe(DockingState.Recalled);
-      expect(realtimeRobot0.batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
+      expect(realtimeRobot0.batteryLevel).toBeCloseTo(34 - 5 * REPLAY_MEASURES, 9);
+      expect(realtimeRobot0.batteryLevel).toBeGreaterThan(0);
+      // Charged and never capped: every Docked robot rose from its start and stayed under 100.
+      for (const robot of robots.slice(2)) {
+        const real = realtimeResult.find((r) => r.id === robot.id)!;
+        expect(real.batteryLevel).toBeGreaterThan(robot.batteryLevel);
+        expect(real.batteryLevel).toBeLessThan(100);
+      }
+      // The sized rates made fractions, and the store kept them.
+      expect(realtimeResult.some((r) => !Number.isInteger(r.batteryLevel))).toBe(true);
       // The drift actually fired: robot 1 landed on Docked with a melody different from its start.
       // Its job survives the landing untouched -- the real landOnDocked path never clears it.
       const realtimeRobot1 = realtimeResult.find((r) => r.id === 'prove-it-1')!;

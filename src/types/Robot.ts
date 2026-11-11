@@ -223,6 +223,13 @@ export interface Robot {
   dockingHoldUntilMeasure?: number;
   /** 0-100. Drains while Active, recharges while Docked. Seeded at spawn. */
   batteryLevel: number;
+  /**
+   * Divides both the drain and the recharge, so a big battery is a long shift and a long charge
+   * (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3). Drawn once at spawn ('robot.batterySize'),
+   * never user-edited, never shown, never diffed into a session — regenerated identically from the
+   * world seed. Absent reads as DEFAULT_BATTERY_SIZE, the flat rates.
+   */
+  batterySize?: number;
   /** Taken with a site by the work loop (chooseNextSite) and kept across sites until none ready
    *  hosts it. Undefined until the first site. Not cleared on the way home — stale while charging,
    *  and heldJobs ignores it there. */
