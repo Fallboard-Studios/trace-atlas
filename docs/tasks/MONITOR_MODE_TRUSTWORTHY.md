@@ -6,7 +6,8 @@ Source spec: [docs/specs/MONITOR_MODE_TRUSTWORTHY.md](../specs/MONITOR_MODE_TRUS
 
 **Status:** plan written 2026-11-11 from the spec, before Crawford's answers to §7.2 Q1–Q2. Phases 0–2 built
 2026-11-11 (Tasks 0–11). Both gates passed 2026-11-11 (Crawford: "all looks and sounds fine"), every §7.1 default and
-§7.2 Q2 kept as built. Task 12 (docs) done 2026-11-11. Next: Checkpoint Complete, then Crawford's PR.
+§7.2 Q2 kept as built. Task 12 (docs) done 2026-11-11. Reviewed, and Checkpoint Complete passed, 2026-11-11.
+Next: Crawford's PR, then Task 13 after the merge.
 
 ## Overview
 
@@ -525,10 +526,22 @@ code, not text").
   migration table (names `AUDIBILITY_LABELS` as history).
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every automated acceptance criterion met; both gates passed and their re-pins applied.
-- [ ] Any Look not done this session is flagged here, never silently skipped.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-11-11, after the review
+      fixes: 13857 passed, 2 skipped, 354 files; lint's 4 warnings are in `Scenery.tsx` and `gemShape.tsx`, not this
+      branch's).
+- [x] Every automated acceptance criterion met; both gates passed, no re-pins (every default kept).
+- [x] Any Look not done this session is flagged here, never silently skipped. **Not looked at:** (1) the phone roster
+      tile's lit glow at its bottom edge: the glow room (Task 11) is above and before the line only, and the phone
+      status is one clipped line, so by arithmetic a few pixels of glow may be cut flat below; (2) a desk status short
+      enough for one line (Task 11's As built).
+- [x] Ready for Crawford's PR.
+
+**Review (2026-11-11).** A five-axis review (correctness, readability, architecture, security, performance) approved
+the branch; 16 planted mutations of the new conditions were all caught by the suite. Its fixes, one commit each:
+`ROBOT_DATA_GRID.md`'s Status and Monitor Mode rows brought to the shipped words and lights (01e39e84); the phone
+band's wrap recorded as by design in the spec (4588a7ef); `probe.status`'s lore is DIAGNOSTIC FEED STATE (55b224ea);
+`useRobotMeta` returns `{ words, mode, lit }` and `metaWords` is gone (7fe01a14); `reconcileSounding` takes
+`{ soloIds, highlightIds }` as one `AdmissionRanks` argument (ef02c562).
 
 ---
 
