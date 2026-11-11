@@ -582,7 +582,7 @@ and are recorded as they now stand: the world key's fallback is not a ratchet ri
 
   **Estimated scope:** XS
 
-- [ ] **Task R3: the world key's fallback, described as it is**
+- [x] **Task R3: the world key's fallback, described as it is**
 
   **Description:** `melodyWorldKey`'s comment lists "a spawn into a locale that is not there" as a case for its
   locale-id fallback, and the review read that as a first-edit ratchet: a robot spawned on the fallback key and edited
