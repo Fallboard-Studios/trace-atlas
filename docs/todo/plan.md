@@ -24,6 +24,8 @@ the item's own measure-first check runs, and the item archives if the check find
 - Backlog [60](backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging) **Cover the silence when every
   active robot is charging** — a floor on sounding robots, interviewed first; the elegant answer is backlog 7,
   post-launch.
+- Backlog [73](backlog.md#73-robots-a-seeded-company-is-a-family) **A seeded company is a family** — specified and
+  planned; built after 60's Gate B, and before backlog 45 since it changes every world's melodies.
 - Backlog [17](backlog.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings) **The replayability
   audit** — read it against the code, then do what it points at or archive it.
 

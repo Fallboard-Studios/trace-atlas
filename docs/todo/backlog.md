@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 73.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 74.
 
 ## Open items
 
@@ -570,4 +570,17 @@ the session diff), the content layer (the mark names and legend), and long melod
 narrower cells, and the cells must hold their size). Neighbours: roadmap
 [32](roadmap.md#32-robot-melody-history--configuration-scrubber) (Melody history). Needs an interview before a spec:
 read-only strip first, or the editor with it. Plan.md Post-launch.
+
+### 73. Robots: A Seeded Company Is a Family
+
+Stage 2 of the no-silence intent ([docs/intent/no-silence-and-company-families.md](../intent/no-silence-and-company-families.md)),
+given its own number by Crawford on 2026-11-11 (spec open question B11), so backlog 60 closes with Stage 1. Every
+seeded company becomes a founder (its lowest roster index) and members that inherit the founder's voice, onset pattern
+and five sends, and keep their own notes, volume, battery size and start; a quarter of members move one or two onsets
+in the measure; at least two robots stay freelancers; today's 30 % copy roll goes. Specified in
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) Part B (§1.9–§1.11, from
+Crawford's answers to B1–B11), planned in [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md) (nine tasks,
+Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every world's melodies, so it lands before
+backlog [45](#45-off-screen-crawfords-three-preset-links). Open: B12–B15 (defaults stand) and the branch. Plan.md
+Stage 3.
 
