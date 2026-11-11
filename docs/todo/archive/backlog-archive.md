@@ -1297,6 +1297,43 @@ against those draws realise other shares than they say. Crawford's decisions: ev
 visual draws wait (46), Classic is switched first and then listened to, and the shape is even everywhere. Spec:
 [docs/specs/EVEN_SEEDED_DRAWS.md](../../specs/EVEN_SEEDED_DRAWS.md), on `fix/even-seeded-draws`.
 
+## 60. Audio: Cover the Silence When Every Active Robot Is Charging
+
+**Closed** 2026-11-11 (merged in PR #623, `feature/no-silence-for-now`; Part A of
+[the spec](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), §8 "As built (Part A)"). Crawford passed Gate A (the band,
+0.67–1.5) and Gate B by ear ("ok passes, sounds good") on 2026-11-11. The last Active robot stays up until another lands,
+and every robot draws one seeded battery size that divides its drain and its charge: no silent measure in any of 121
+worlds, against 3.39 % of measures in 79 worlds before; a robot stays up past critical in 0.20 % of measures
+([ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md)). Nothing of it is open: A3 stayed at its default, the fade on station
+arcs (A4) became backlog [74](../backlog.md#74-audio-fade-a-robot-in-and-out-on-its-station-arcs), and A5 was settled.
+Stage 2 (company families) became backlog [73](#73-robots-a-seeded-company-is-a-family). The elegant answer to silence
+is still backlog [7](../backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter), post-launch. The
+original request follows.
+
+**Status (2026-11-11): Stage 1 built on `feature/no-silence-for-now`, unpushed.** Interviewed and specified as Part A of
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), planned in
+[docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md). The last Active robot
+stays up until another lands, and every robot draws one seeded battery size (Gate A: 0.67–1.5) that divides its drain
+and its charge: no silent measure in any of 121 worlds, against 3.39 % of measures in 79 worlds before; a robot
+stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md)). Gate B passed by Crawford's ear the
+same day; ready for his PR, and it archives after the merge. The fade-on-arcs note that sat here (spec open question
+A4) is now backlog [74](../backlog.md#74-audio-fade-a-robot-in-and-out-on-its-station-arcs). Stage 2 (company families) is backlog
+[73](#73-robots-a-seeded-company-is-a-family) (built and archived).
+
+Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
+the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
+[7](../backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (chord progressions) post-launch. The shape he has
+in mind: always keep at least one robot sounding, perhaps "min 1 stays, max 3" by audio quality tier.
+
+**Where it lands.** The docking lifecycle (`src/systems/robotSystems.ts`, [ROBOT_LIFECYCLE.md](../../ROBOT_LIFECYCLE.md):
+the fixed 12-robot roster, flat drain and recharge on the measure tick) decides who docks when, and the Audio Load Budget
+(`src/systems/audioBudgetSystem.ts`, [AUDIO_SYSTEM.md](../../AUDIO_SYSTEM.md) "Audio Load Budget") already caps sounding
+robots per tier, so a floor beside the cap is the natural pair. Needs a short interview before a spec: a floor means
+either a robot stays up past empty (which bends the battery rule) or the drains are staggered so the fleet never empties
+together, and whichever it is must keep the lifecycle a pure function of seed and measures (roadmap 20.5's replay).
+
+Plan.md Stage 3.
+
 ## 64. Off Screen: Current Stays the World You Came From, and a New Transmission Row with Scan
 
 **Closed** 2026-11-02 (built on `docs/archive-roadmap-57`, `8fb0400a`..`5127d72b`; Crawford passed the Look at Checkpoint 2, "good to go"). Current is a runtime snapshot of the world you powered off on: picking it before the change that left it lands cancels that change, and after, restores the snapshot under the wash; Keep saves it (`sessionStore.keepWorld`, `isPayloadDirty`). A New Transmission row above it holds a draw made on mount, with Scan in its row; Roll and `rollWorld` are gone. A theme or aspect click keeps the selected row, which names the live loading in place of its own; every row names its world; the list has "Saved Transmissions" and "Preset Transmissions" titles. The shipped screen is described in [UI_SHELL.md](../../UI_SHELL.md#the-off-screen). The unsaved line's reword is backlog [62](../backlog.md#62-misc-review-items-a-bucket). The original request follows.

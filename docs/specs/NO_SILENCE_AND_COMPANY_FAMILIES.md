@@ -23,7 +23,7 @@ revised 2026-11-11** after its Phase 1 was built (B16–B19, §7.6): a rhythm is
 not a robot's, so the same settings in one world play the same rhythm; the moved onsets are cut. **Part B built and
 heard on 2026-11-11** (§9, As built): Gate C passed; backlog
 [73](../todo/archive/backlog-archive.md#73-robots-a-seeded-company-is-a-family), archived. Backlog
-[60](../todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of
+[60](../todo/archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of
 [plan.md](../todo/plan.md)'s Stage 3.
 
 **Where the numbers come from.** Three sources, marked where it matters:

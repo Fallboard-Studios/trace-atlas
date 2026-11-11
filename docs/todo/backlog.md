@@ -486,32 +486,6 @@ docked batteries (`lifecycleSim.ts`, `spawnSystem.ts`), factory placement (`fact
 terrain profile and the temperature steps probably are). Then measure, switch the picks, and look: every world's
 names, colours, gems and layout move. Done when no pick is welded to another and each fills its range.
 
-### 60. Audio: Cover the Silence When Every Active Robot Is Charging
-
-**Status (2026-11-11): Stage 1 built on `feature/no-silence-for-now`, unpushed.** Interviewed and specified as Part A of
-[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), planned in
-[docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md). The last Active robot
-stays up until another lands, and every robot draws one seeded battery size (Gate A: 0.67–1.5) that divides its drain
-and its charge: no silent measure in any of 121 worlds, against 3.39 % of measures in 79 worlds before; a robot
-stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)). Gate B passed by Crawford's ear the
-same day; ready for his PR, and it archives after the merge. The fade-on-arcs note that sat here (spec open question
-A4) is now backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs). Stage 2 (company families) is backlog
-[73](archive/backlog-archive.md#73-robots-a-seeded-company-is-a-family) (built and archived).
-
-Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
-the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
-[7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (chord progressions) post-launch. The shape he has
-in mind: always keep at least one robot sounding, perhaps "min 1 stays, max 3" by audio quality tier.
-
-**Where it lands.** The docking lifecycle (`src/systems/robotSystems.ts`, [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md):
-the fixed 12-robot roster, flat drain and recharge on the measure tick) decides who docks when, and the Audio Load Budget
-(`src/systems/audioBudgetSystem.ts`, [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md) "Audio Load Budget") already caps sounding
-robots per tier, so a floor beside the cap is the natural pair. Needs a short interview before a spec: a floor means
-either a robot stays up past empty (which bends the battery rule) or the drains are staggered so the fleet never empties
-together, and whichever it is must keep the lifecycle a pure function of seed and measures (roadmap 20.5's replay).
-
-Plan.md Stage 3.
-
 ### 61. Accessibility Review
 
 Requested by Crawford at the 2026-11-02 plan review. A fresh pass over the shipped UI before launch: focus order and
@@ -576,7 +550,7 @@ read-only strip first, or the editor with it. Plan.md Post-launch.
 
 ### 74. Audio: Fade a Robot In and Out on Its Station Arcs
 
-Moved out of backlog [60](#60-audio-cover-the-silence-when-every-active-robot-is-charging) on 2026-11-11 (spec open
+Moved out of backlog [60](archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging) on 2026-11-11 (spec open
 question A4), where it sat as a complementary note; 60's build did not touch it. As robots exit and enter stations,
 their audio presence should fade in and out to mirror their visual presence — *Semantic Fade on Lifecycle Change*
 policy: when `onLifecycleChange` fires, queue audio envelope fades through `AudioEngine` (never from GSAP timeline

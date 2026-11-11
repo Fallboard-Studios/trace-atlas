@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md). Source intent:
 [docs/intent/no-silence-and-company-families.md](../intent/no-silence-and-company-families.md). Backlog
-[60](../todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first line of plan.md's
+[60](../todo/archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first line of plan.md's
 Stage 3.
 
 **Status:** plan written 2026-11-10. Phase 1 built 2026-11-10 (Tasks 1–2: `da8d5b52`, `da9416d0`; Task 3's row is in

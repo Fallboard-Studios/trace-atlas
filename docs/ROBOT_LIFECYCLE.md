@@ -109,7 +109,7 @@ Docked ─────────────────▶ Undocking
   `BATTERY_CRITICAL_THRESHOLD` (10) or below **while another robot is `Active`**. `beginRecall`
   writes the docking state and hold, then calls `onLifecycleChange(…, 'recalled')` (see "Recall"
   below).
-  - **The last Active robot stays up** ([backlog 60](todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging),
+  - **The last Active robot stays up** ([backlog 60](todo/archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging),
     [spec](specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) §1.2; 2026-11-11). A robot at or below critical
     with no other robot `Active` stays `Active` — a **stay** — and drains on to the floor of 0 until
     another lands on `Active`. So the fleet is never silent: a roster with an `Active` robot before a

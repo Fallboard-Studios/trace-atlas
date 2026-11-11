@@ -2,7 +2,7 @@
 
 Confirmed via `idea-refine` on 2026-11-10 (four framing questions, three convergence questions, then two calls of
 Crawford's own: battery variance, and its continuous form), ahead of a `spec-driven-development` pass. Backlog
-[60](../todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of plan.md's
+[60](../todo/archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of plan.md's
 Stage 3, widened by Crawford to the robots that inherit at spawn. Two stages, each with its own spec; Stage 2's is
 written after Stage 1 has been heard.
 
