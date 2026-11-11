@@ -326,7 +326,7 @@ code, not text").
   `RobotScreen.tsx` call it (one line each). `mode` and `lit` get their own RED test, `useRobotMeta.test.ts` (new),
   since the tile and screen tests reach them only in Tasks 9 and 10.
 
-- [ ] **Task 7b: `robotAudibility.ts`, `robotSelectionConfig.ts`, `probe.ts` — the old vocabulary goes**
+- [x] **Task 7b: `robotAudibility.ts`, `robotSelectionConfig.ts`, `probe.ts` — the old vocabulary goes**
 
   **Description:** Delete `getAudibilityState`, `AudibilityState`, `AUDIBILITY_LABELS` and their tests, and the
   `options` block of `probe.status` (the entry keeps its label). `content.test.ts` stays green: `probe.status` is still
@@ -335,11 +335,11 @@ code, not text").
   **Proof:** Read — a deletion; `npm run build:types` proves nothing imports what went.
 
   **Acceptance criteria:**
-  - [ ] No export, type or content option of the three-state vocabulary remains; types, lint and the full suite are
+  - [x] No export, type or content option of the three-state vocabulary remains; types, lint and the full suite are
         green.
 
   **Verification:**
-  - [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+  - [x] `npm run build:types`, `npm run lint`, `npm test` clean.
 
   **Dependencies:** Task 7a.
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { getAudibilityState, isDockMuted, isRobotAudible, isRobotEmitting, isRobotSounding } from './robotAudibility';
+import { isDockMuted, isRobotAudible, isRobotEmitting, isRobotSounding } from './robotAudibility';
 import { DockingState } from '@/types/Robot';
 
 const OUT = DockingState.Active;
@@ -71,59 +71,6 @@ describe('isRobotAudible', () => {
   });
 });
 
-describe('getAudibilityState', () => {
-  it('is disabled for a muted robot, whatever the budget or solo says', () => {
-    for (const anySolo of [false, true]) {
-      for (const isSounding of [false, true]) {
-        expect(getAudibilityState('mute', anySolo, OUT, isSounding)).toBe('disabled');
-      }
-    }
-  });
-
-  it("is disabled for a robot another robot's solo excludes, whether or not it was in the sounding set", () => {
-    for (const audioMode of ['none', 'highlight', undefined] as const) {
-      expect(getAudibilityState(audioMode, true, OUT, true)).toBe('disabled');
-      expect(getAudibilityState(audioMode, true, OUT, false)).toBe('disabled');
-    }
-  });
-
-  it('is disabled for a robot the dock mutes, and not for a soloed one in the station', () => {
-    expect(getAudibilityState('none', false, DockingState.Docked, true)).toBe('disabled');
-    expect(getAudibilityState('solo', true, DockingState.Docked, true)).toBe('emitting');
-  });
-
-  it('is emitting for an eligible robot that is in the sounding set', () => {
-    for (const audioMode of ['none', 'highlight', undefined] as const) {
-      expect(getAudibilityState(audioMode, false, OUT, true)).toBe('emitting');
-    }
-  });
-
-  it('is limited ("Standing by") for an eligible robot the budget is holding back', () => {
-    for (const audioMode of ['none', 'highlight', undefined] as const) {
-      expect(getAudibilityState(audioMode, false, OUT, false)).toBe('limited');
-    }
-  });
-
-  it('treats a soloed robot as eligible, so it is emitting or limited but never disabled', () => {
-    expect(getAudibilityState('solo', true, OUT, true)).toBe('emitting');
-    expect(getAudibilityState('solo', true, OUT, false)).toBe('limited');
-    expect(getAudibilityState('solo', false, OUT, true)).toBe('emitting');
-  });
-
-  it('is disabled exactly when isRobotAudible is false, for every combination (the two never disagree)', () => {
-    for (const audioMode of AUDIO_MODES) {
-      for (const anySolo of [false, true]) {
-        for (const docking of DOCKINGS) {
-          for (const isSounding of [false, true]) {
-            expect(getAudibilityState(audioMode, anySolo, docking, isSounding) === 'disabled', `${audioMode}/${anySolo}/${docking}/${isSounding}`)
-              .toBe(!isRobotAudible(audioMode, anySolo, docking));
-          }
-        }
-      }
-    }
-  });
-});
-
 describe('isRobotEmitting (monitor mode spec §1.5: the light is lit only while the robot is heard)', () => {
   it('is true for an audible robot in the sounding set, whatever its own mode but Mute', () => {
     for (const audioMode of ['none', 'highlight', undefined] as const) {
@@ -160,13 +107,13 @@ describe('isRobotEmitting (monitor mode spec §1.5: the light is lit only while 
     expect(isRobotEmitting('solo', true, DockingState.Docked, false)).toBe(false);
   });
 
-  it('agrees with getAudibilityState(...) === emitting for every combination', () => {
+  it('is isRobotAudible && isSounding for every combination', () => {
     for (const audioMode of AUDIO_MODES) {
       for (const anySolo of [false, true]) {
         for (const docking of DOCKINGS) {
           for (const isSounding of [false, true]) {
             expect(isRobotEmitting(audioMode, anySolo, docking, isSounding), `${audioMode}/${anySolo}/${docking}/${isSounding}`)
-              .toBe(getAudibilityState(audioMode, anySolo, docking, isSounding) === 'emitting');
+              .toBe(isRobotAudible(audioMode, anySolo, docking) && isSounding);
           }
         }
       }

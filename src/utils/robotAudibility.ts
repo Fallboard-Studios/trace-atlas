@@ -41,19 +41,6 @@ export function isRobotEmitting(audioMode: Robot['audioMode'], anySolo: boolean,
   return isRobotAudible(audioMode, anySolo, docking) && isSounding;
 }
 
-/** What a robot's card says: audible and sounding, held back by the Audio Load budget, or silenced by mute/solo/the dock. */
-export type AudibilityState = 'emitting' | 'limited' | 'disabled';
-
-/**
- * Three-state audibility for the UI (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5). A robot `isRobotAudible` rules out
- * is `disabled`; one that is eligible but outside the budget's sounding set is `limited` ("Standing by"); an
- * eligible robot in the set is `emitting`. `isRobotAudible` itself stays the mute/solo/dock rule.
- */
-export function getAudibilityState(audioMode: Robot['audioMode'], anySolo: boolean, docking: DockingState | undefined, isSounding: boolean): AudibilityState {
-  if (!isRobotAudible(audioMode, anySolo, docking)) return 'disabled';
-  return isSounding ? 'emitting' : 'limited';
-}
-
 /**
  * Whether the budget lets this robot sound, for use as a per-robot boolean selector (never subscribe a card to
  * the whole list). An EMPTY list means the budget system is not running — it is cleared on stop and, once

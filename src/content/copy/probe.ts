@@ -130,11 +130,6 @@ export const probe = {
   'probe.status': {
     human: 'Status',
     lore: 'ACOUSTIC EMISSION STATE',
-    options: {
-      emitting: { human: 'Emitting', lore: 'ACOUSTIC EMISSION ACTIVE' },
-      limited: { human: 'Standing by', lore: 'ACOUSTIC EMISSION HELD IN RESERVE' },
-      disabled: { human: 'Disabled', lore: 'ACOUSTIC EMISSION SUPPRESSED' },
-    },
   },
 
   // ---------------------------------------------------------------- Dynamics / Levels
