@@ -82,6 +82,7 @@ the item's own measure-first check runs, and the item archives if the check find
   manual list); both wait on a Mac or iPhone being to hand, so neither sits in a stage.
 - Backlog [34](backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch) **The Tone
   upgrade** — waits for a Tone with the leak fix to be npm's `latest`; it then deletes `tonePatches.ts`.
-- Decisions, not work, left on three stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below
-  the roof), [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen) (three notes) and
-  [52](roadmap.md#52-job-decorations-six-small-animations-on-the-orbiters-work) (the spec questions shipped as proposed).
+- Decisions, not work, left on four stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below
+  the roof), [45](roadmap.md#45-layout-rework-shell-nav-section-tabs-roster-off-screen) (three notes),
+  [52](roadmap.md#52-job-decorations-six-small-animations-on-the-orbiters-work) (the spec questions shipped as proposed)
+  and [58](roadmap.md#58-themes-and-aspects-refinement) (whether a theme presets a Mood, once backlog 7 lands).
