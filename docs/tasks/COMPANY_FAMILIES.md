@@ -1,24 +1,27 @@
 # Implementation Plan: Company Families — Part B of No Silence and Company Families
 
 Source spec: [docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), Part B
-(§1.9–§1.11, §5.7, §7.3–§7.5). Source intent:
+(§1.9–§1.11, §5.7, §7.3–§7.6). Source intent:
 [docs/intent/no-silence-and-company-families.md](../intent/no-silence-and-company-families.md). Backlog
 [73](../todo/backlog.md#73-robots-a-seeded-company-is-a-family).
 
 **Status:** plan written 2026-11-11, overnight at Crawford's request, from his answers to B1–B11. Building on
-`feature/company-families` from `main` after Part A merged (PR #623). **Phase 1 (Tasks 1–3) built 2026-11-11; stopped at the rhythm-stream checkpoint for Crawford's listen. Next is
-Task 4.**
-B12–B15 answered at Gate A: every default stands.
+`feature/company-families` from `main` after Part A merged (PR #623). B12–B15 answered at Gate A: every default
+stands. **Phase 1 (Tasks 1–3) built 2026-11-11; at its checkpoint Crawford revised the rhythm (spec §7.6, B16–B19):
+the same settings in one world make the same rhythm, and the moved onsets go. Tasks 3a and 3b rework Phase 1 to
+that; next is Task 3a.**
 
 ## Overview
 
 Every seeded company becomes a family: its lowest-index member founds it, and the others inherit the founder's voice,
-onset pattern (note lengths included) and five sends, while keeping their own notes, volume, battery size and start.
-A quarter of members move one or two onsets in the measure. Nine tasks in four phases:
+rhythm settings and five sends, while keeping their own notes, volume, battery size and start. A rhythm belongs to
+the world and the rhythm settings (B16), so a member plays its founder's onsets and note lengths exactly, and any robot
+set to the same settings joins them. Eleven tasks in four phases:
 
-1. **The rhythm stream** (Tasks 1–3). Onsets and durations get their own seeded stream, keyed on a rhythm seed and the
-   two rhythm settings; a pure `moveOnsets`; spawn and `regenerateMelody` build both streams. Every world's melodies
-   change once, at Task 3. No families yet.
+1. **The rhythm stream** (Tasks 1–3, then 3a–3b). Onsets and durations get their own seeded stream. As first built
+   (Tasks 1–3) it was keyed on a rhythm seed on the robot, with a pure `moveOnsets` for a quarter of members; the
+   revision keys it on the world and the rhythm shape (Task 3a) and cuts the moved onsets (Task 3b). Every world's
+   melodies change at Task 3 and again at Task 3a. No families yet.
 2. **Families** (Tasks 4–6). Membership drawn before spawn with the two-freelancer cap; members inherit at spawn and
    the baselines mirror it; the deal derives a member from its founder.
 3. **Docs** (Task 7).
@@ -28,21 +31,25 @@ A quarter of members move one or two onsets in the measure. Nine tasks in four p
 
 - **Two streams, one order** (spec §1.11, assumption 1). `generateMelodyForRobot` gains `rhythmRand`, defaulting to
   `rand`. Onsets and each event's duration draw from `rhythmRand`, in the positions they draw from today, so a caller
-  that passes one stream gets today's melody bit for bit (Task 1 is parity for every existing caller). The duration
-  is one draw per event (`pickDurationForGap`), so a founder's and a member's duration draws stay aligned even when a
-  member's onset moves.
-- **The rhythm seed lives on the robot** (spec assumption 6): `Robot.lineage?: { founderIndex, rhythmSeed,
-  movedOnsets }`, members only. An original reads its composition seed as its rhythm seed and its own roster index as
-  its founder. A robot moved by hand keeps its lineage (B15's default).
+  that passes one stream gets today's melody bit for bit (Task 1 is parity for every existing caller).
+- **The rhythm is the world's and the shape's** (B16, B17, B19; Task 3a). `buildSeededRhythm(worldKey, attrs)` keys on
+  the world's coordinates and the rhythm shape (onsets per cell and motif length, or onsets per measure), which one
+  exported function computes for the key and the generator alike. Nothing per robot is in it. *Superseded:* the first
+  build's rhythm seed on the robot (Tasks 1 and 3).
+- **The lineage is the founder's index only** (spec assumption 6, Task 3a): `Robot.lineage?: { founderIndex }`,
+  members only, read by the deal (Task 6). A robot moved by hand keeps its lineage (B15).
+- **One recipe** (Task 3): `composeRobotMelody` in `regenerateMelody.ts`, which spawn and `regenerateMelody` both call,
+  so they agree by construction. It takes the world key; `regenerateMelody` and spawn find it from the locale's
+  coordinates (the locale id when the locale is not in the store, as in a unit test with a mocked store).
 - **Membership is a pure function of the noise map** over roster indices (spec §1.11), run by `spawnInitialRoster`
   before any spawn, and turned into ids by `spawnInitialCompanies` and `generateCompanyRosterBaseline`. The draws stay
   plain `getSeededVal` (spec assumption 7); only their timing moves.
 - **Spawn and its baseline land together** (Task 5). Splitting them would leave an untouched world saving overrides
   between commits, and the suite red.
-- **The performance stream follows the rhythm seed** (B12's default) and lands with Task 3, where an original's rhythm
-  seed equals its composition seed, so originals keep their rests and accents; members first exist at Task 5.
-- **No import edges added.** `spawnSystem.ts` already imports the melody generator; `aspectDeal.ts` already reads the
-  robots it deals.
+- **The performance stream follows the rhythm** (B19, Task 3a): keyed on the world key and the shape, so robots that
+  share a rhythm and the same Rests and Accents values rest and accent together. *Superseded:* the rhythm seed (Task 3).
+- **One import edge added** (Task 3): `spawnSystem.ts` imports `composeRobotMelody` from `regenerateMelody.ts`, which
+  reaches nothing spawn did not already import. `aspectDeal.ts` already reads the robots it deals.
 
 ## Dependency Graph
 
@@ -50,6 +57,10 @@ A quarter of members move one or two onsets in the measure. Nine tasks in four p
 Task 1 (rhythmRand)    Task 2 (moveOnsets)
         └───────┬───────────┘
         Task 3 (spawn + regenerate build both streams; every melody changes)
+                │
+        Task 3a (the rhythm on the world and the shape; every melody changes again)
+                │
+        Task 3b (the moved onsets removed)
                 │
         Task 4 (membership + the cap)
                 │
@@ -102,7 +113,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** S (one function, one option threaded through two call sites)
 
-- [x] **Task 2: `melodyGenerator.ts` — `moveOnsets`, applied in the measure**
+- [x] **Task 2: `melodyGenerator.ts` — `moveOnsets`, applied in the measure** *(removed by Task 3b, B18)*
 
   **Description:** A pure `moveOnsets(onsets, count, subdivisions, rand)`: moves `count` onset occurrences, each one
   step to a free neighbour (B13's default: if neither neighbour is free, skip it and try the next occurrence), and
@@ -135,7 +146,8 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** S (one pure function, one option)
 
-- [x] **Task 3: spawn and `regenerateMelody` build both streams — every world's melodies change**
+- [x] **Task 3: spawn and `regenerateMelody` build both streams — every world's melodies change** *(the rhythm seed,
+  the moves and the performance stream on the rhythm seed reworked by Task 3a)*
 
   **Description:** `Robot.lineage?` in `src/types/Robot.ts` (doc comment in `gemSeed`'s manner; nothing sets it
   yet). `spawnRobot` and `regenerateMelody` build the rhythm stream from `lineage?.rhythmSeed ?? compositionSeed`
@@ -182,11 +194,76 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** M (two call sites; the blast radius is the pinned melodies)
 
+- [ ] **Task 3a: the rhythm on the world and the shape — every world's melodies change again**
+
+  **Description:** Spec §1.11 as revised (B16, B17, B19). In `melodyGenerator.ts`, an exported `rhythmShape(density,
+  motif, subdivisions?)` (the motif length and onsets per cell with tiling on, the onsets per measure with it off),
+  used by `generateMelodyForRobot` for its onset counts and by `buildSeededRhythm(worldKey, attrs)` for its key, which
+  drops the rhythm seed and keys on the world key and the shape. In `regenerateMelody.ts`, `composeRobotMelody(robot,
+  worldKey)` builds the rhythm stream from the world key and the performance stream from the world key and the shape,
+  and a `melodyWorldKey(localeId)` gives `${x}:${y}` from the locale's coordinates, or the locale id when the store
+  has no such locale; `regenerateMelody` and `spawnRobot` both use it. `Robot.lineage` shrinks to
+  `{ founderIndex }`; the recipe stops reading it. `onsetMoves` is no longer passed (Task 3b removes it).
+  **This is the commit where every world's melodies change again.**
+
+  **Proof:** RED test — `src/engine/melodyGenerator.test.ts` (case 1 as revised, rewriting Task 1's key cases),
+  `src/engine/regenerateMelody.test.ts` (case 3, rewriting Task 3's lineage cases) and `src/systems/spawnSystem.test.ts`
+  (every spawned robot's onsets and lengths are `buildSeededRhythm` on its world's coordinates). Run — over the 121
+  grid worlds, how many have two or more robots sharing a rhythm shape (before families, so every match is a
+  coincidence), recorded in this file's Results.
+
+  **Acceptance criteria:**
+  - [ ] Two densities with the same onset count give the same stream; a motif length changed while tiling is off gives
+        the same stream; an onset count, motif length, tiling or world change gives a different one; note variance,
+        pitch repeat and octave never enter it.
+  - [ ] In one world, robots with different composition seeds and one shape play the same onsets and lengths and,
+        with the same Rests and Accents, the same stamps; their notes are their own. Another world plays a different
+        rhythm. A robot edited to another's density and motif plays its rhythm.
+  - [ ] A Rests edit still only adds or removes rests (the four-draw contract holds on the new key).
+  - [ ] Spawn and regenerate still agree on every robot of a spawned roster; the session and link tests pass.
+  - [ ] Mutants, killed: the key on the raw density; the key without the world; the performance stream on the robot's
+        own seed.
+  - [ ] Every test that pins a melody built the Task 3 way is re-pinned in this commit, old → new named in the message.
+
+  **Verification:**
+  - [ ] `npm test` passes.
+  - [ ] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 3.
+
+  **Files:** `src/engine/melodyGenerator.ts`, `src/engine/regenerateMelody.ts`, `src/systems/spawnSystem.ts`,
+  `src/types/Robot.ts`, their tests, and any test re-pinned
+
+  **Estimated scope:** M (one key, one recipe; the blast radius is the pinned melodies again)
+
+- [ ] **Task 3b: the moved onsets removed**
+
+  **Description:** B18. `moveOnsets`, `GenerateMelodyForRobotOptions.onsetMoves` and their tests (Task 2's) go from
+  `melodyGenerator.ts` and its test file. Nothing calls them after Task 3a.
+
+  **Proof:** none: the task only deletes (CLAUDE.md). The suite, types and lint passing show nothing used them; stated
+  in the commit.
+
+  **Acceptance criteria:**
+  - [ ] No `moveOnsets` or `onsetMoves` left in `src/`.
+
+  **Verification:**
+  - [ ] `npm test` passes; `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 3a.
+
+  **Files:** `src/engine/melodyGenerator.ts`, `src/engine/melodyGenerator.test.ts`
+
+  **Estimated scope:** XS
+
 ### Checkpoint: the rhythm stream
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (Task 3's run).
 - [x] Every world's melodies changed once and nothing else did: no session, link or lifecycle test moved except the
       re-pins named in Task 3 (the two session tests that moved rebuild a restored melody).
-- [ ] Reviewed with human before Phase 2 (a listen: originals only, every melody new).
+- [x] Reviewed with human (2026-11-11): Crawford revised the rhythm before listening (spec §7.6); Tasks 3a–3b added.
+- [ ] After Task 3b: `npm run build:types`, `npm run lint`, `npm test` clean; nothing moved but Task 3a's re-pins.
+- [ ] Reviewed with human before Phase 2 (a listen: originals only, every melody new; robots sharing a shape play
+      together, and an edit to another robot's density and motif joins its rhythm).
 
 ---
 
@@ -214,7 +291,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
         passes.
   - [ ] `npm run build:types`, `npm run lint` clean.
 
-  **Dependencies:** Task 3.
+  **Dependencies:** Task 3b.
 
   **Files:** `src/constants/index.ts`, `src/systems/spawnSystem.ts`, `src/systems/spawnSystem.test.ts`
 
@@ -224,9 +301,9 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Description:** `spawnInitialRoster` computes the membership first and passes each member its founder (the
   company's lowest index, B6). `spawnRobot` copies the founder's inherited fields (spec §1.9) and its five sends from
-  the store, sets `lineage` (founder's index, founder's composition seed as rhythm seed, `movedOnsets` from one even
-  draw at `'robot.onsetMoves'`: < 0.75 none, < 0.875 one, else two), and draws everything else as an original. The
-  copy roll (`'robot.copyChance'`, `'robot.copySource'`) goes from `spawnRobot` and `generateRobotAudioBaseline`.
+  the store, sets `lineage: { founderIndex }`, and draws everything else as an original; no new draw (B18 cut
+  `'robot.onsetMoves'`). The member's rhythm is the founder's because its density and motif are (B16). The copy
+  roll (`'robot.copyChance'`, `'robot.copySource'`) goes from `spawnRobot` and `generateRobotAudioBaseline`.
   `generateRobotRosterBaseline` gives a member its founder's baseline with its own name and volume.
   Between this task and Task 6, `initializeLocale`'s `applyAspectDeal` still re-derives a dealt member from its own
   index, live and in the baseline alike, so the session diff stays `{}` but a dealt member differs from its founder
@@ -236,9 +313,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Acceptance criteria:**
   - [ ] Over the grid: every member's inherited fields and sends equal its founder's; its onsets and lengths equal the
-        founder's when `movedOnsets` is 0, and differ in exactly that many onsets otherwise; its notes are its own;
-        founders and freelancers carry no lineage.
-  - [ ] The `'robot.onsetMoves'` shares over the grid's members land within sampling error of 75 / 12.5 / 12.5 %.
+        founder's exactly; its notes are its own in most members; founders and freelancers carry no lineage.
   - [ ] No spawn draws `'robot.copyChance'` or `'robot.copySource'` (a spy on the draw).
   - [ ] An untouched world saves `robotOverrides: {}` on every grid world; a member moved by hand keeps its lineage,
         and its melody does not change.
@@ -293,10 +368,10 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 - [ ] **Task 7: the docs — COMPANIES.md, MELODY_SYSTEM.md, PROCEDURAL_GENERATION.md**
 
   **Description:** COMPANIES.md: a seeded company is a family, the founder, what members share and keep, the
-  two-freelancer floor, the deal by founder, moves by hand. MELODY_SYSTEM.md: the rhythm stream, durations with it,
-  the moved onsets, B7's side effect, the performance stream on the rhythm seed. PROCEDURAL_GENERATION.md:
-  `'robot.onsetMoves'` (even), the two retired keys, membership drawn before spawn. Every identifier checked against
-  the shipped source.
+  two-freelancer floor, the deal by founder, moves by hand, joining a rhythm by matching settings. MELODY_SYSTEM.md:
+  the rhythm shape and stream on the world key, durations with it, B7's side effect, the performance stream on the
+  world key and shape, `composeRobotMelody` as the one recipe. PROCEDURAL_GENERATION.md: the two retired keys,
+  membership drawn before spawn. Every identifier checked against the shipped source.
 
   **Proof:** Read — human review. No test file.
 
@@ -319,14 +394,14 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 - [ ] **Task 8: Gate C — Crawford's ear**
 
   **Description:** On the built branch in a browser: a world with three companies. Does a company read as a section and
-  not as one louder robot; do the moved onsets read as a part and not a mistake; do shared rests and accents (B12)
-  suit a section. The agent's part is a list of grid worlds with three companies, from the tests' membership.
+  not as one louder robot; do shared rests and accents (B19) suit a section; does setting a freelancer's density and
+  motif to a company's make it join the section. The agent's part is a list of grid worlds with three companies, from
+  the tests' membership.
 
   **Proof:** Ear — Crawford's. No test file.
 
   **Acceptance criteria:**
-  - [ ] His words are recorded in the spec's "As built" and here; B12–B15 are answered or left at their defaults by
-        his word.
+  - [ ] His words are recorded in the spec's "As built" and here; B14–B19 stand or change by his word.
   - [ ] If it fails: stop, report what he heard, offer options. Nothing is re-tuned to pass.
 
   **Dependencies:** Task 7.
@@ -354,7 +429,9 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 |---|---|---|
 | Task 3 changes every melody and many tests pin exact notes or onsets | Medium | The full suite runs before its commit; each re-pin is named old → new; nothing else is allowed to move (the checkpoint). |
 | Durations on the rhythm stream change the draw order for one-stream callers | High | `rhythmRand` defaults to `rand` and draws in today's positions, so Task 1 is parity: every existing melody test passes unmodified. |
-| A moved onset breaks the pitch-lock plan's cell assumptions | Medium | Task 2's second criterion builds a motif-tiled melody with a move and checks the event count. |
+| Task 3a changes every melody a second time | Medium | As Task 3: the full suite first, each re-pin named old → new, nothing else allowed to move. |
+| Coincidental matches make worlds sound more unison than intended | Low | B16 accepts them; Task 3a's Run counts them before families exist; Gate C hears a real world. |
+| The world key differs between spawn and an edit, so an edit reshuffles a rhythm | High | One `melodyWorldKey(localeId)` serves both; Task 3a's spawn-then-regenerate case covers every robot of a roster. |
 | Spawn and baseline disagree for a frame of history, and a world saves overrides | High | Task 5 lands both in one commit, with the `{}` check over every grid world. |
 | The cap changes membership in some worlds unexpectedly | Low | Task 4 measures how many and records it; the remaining worlds are checked against today's membership. |
 | A member's references to the founder's records get mutated by a later edit | Low | Every edit replaces the record (spec §1.10); Task 5's hand-moved case and the session tests exercise edits. |
@@ -364,15 +441,22 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
 From the spec's §7.5. **All answered by Crawford on 2026-11-11: every default stands.** Gate C still hears them.
 
-1. **B12. Rests and accents in a company.** **Resolved: shared** (the rhythm seed's performance stream).
-2. **B13. How far a moved onset moves.** **Resolved: one step** to a free neighbour.
+1. **B12. Rests and accents in a company.** **Resolved: shared** (since B19, on the world key and the rhythm shape).
+2. **B13. How far a moved onset moves.** **Resolved: one step** to a free neighbour. *Moot since B18: cut.*
 3. **B14. The two-freelancer cap when a company cannot reach three.** **Resolved: not made**; Task 4 measures how many worlds it touches.
 4. **B15. A robot moved by hand into another company.** **Resolved: keeps its own lineage.**
 5. **The branch.** **Resolved: its own, from `main` after Part A merges.**
+6. **B16–B19, the rhythm revised** (spec §7.6). **All answered yes on 2026-11-11:** the rhythm is the world's and the
+   settings'; keyed on the shape, not the raw density; the moved onsets cut; the world in the key, and rests and
+   accents shared by a rhythm.
 
 ## Results
 
-Filled in by Tasks 4 and 8.
+Filled in by Tasks 3a, 4 and 8.
+
+### Coincidental rhythms (Task 3a)
+
+*Not yet measured.*
 
 ### The cap (Task 4)
 
