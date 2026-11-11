@@ -541,7 +541,7 @@ task.
 
   **Estimated scope:** M (a few lines of source; the tests are the work)
 
-- [ ] **Task 13: Run — the rule-only row, the three bands and the loop sim**
+- [x] **Task 13: Run — the rule-only row, the three bands and the loop sim**
 
   **Description:** With the rule in: the cover report at 6,000 measures for `'flat'` (rule only), 0.9–1.1, 0.8–1.25
   and 0.67–1.5; and the loop sim at 20, 110 and 200 BPM on each of the three bands. Record all of it in Results, then
@@ -552,14 +552,16 @@ task.
   **Proof:** Run — both reports under `LIFECYCLE_SIM_REPORT`; the rows and the summary are recorded in Results.
 
   **Acceptance criteria:**
-  - [ ] Zero silent measures in every row.
-  - [ ] `chargingWhileVisible` is 0 on every band at every tempo.
-  - [ ] Turn-backs are recorded per band and tempo, whatever they are (spec §1.6: a count above 0 is a finding to
-        report, not a failure).
-  - [ ] Each probe number is marked confirmed or given its measured value, with the difference stated.
+  - [x] Zero silent measures in every row.
+  - [x] `chargingWhileVisible` is 0 on every band at every tempo.
+  - [x] Turn-backs are recorded per band and tempo, whatever they are (spec §1.6: a count above 0 is a finding to
+        report, not a failure). *Measured:* 0 everywhere.
+  - [x] Each probe number is marked confirmed or given its measured value, with the difference stated.
 
   **Verification:**
-  - [ ] Both report runs complete and their output matches what is written in Results.
+  - [x] Both report runs complete and their output matches what is written in Results. (2026-11-11:
+        `LIFECYCLE_SIM_REPORT=1 npx vitest run src/systems/lifecycleSim.test.ts -t "the report: the full grid at 6000"`
+        and `-t "on each band"`.)
 
   **Dependencies:** Task 12.
 
@@ -747,8 +749,8 @@ Filled in by Tasks 3, 10, 13 and 17. "Probe" is the intent's scratch-probe numbe
 |---|---|---|---|---|---|---|
 | Today | 3 | 3.39 % | 79 / 121 | none (0 / 121 worlds) | 5.49, 2–9 | 3.4 % of measures; 79 worlds; no stays; 5.5, 2–9 — **all confirmed** |
 | Size only (0.8–1.25) | 10 | 0.25 % | 100 / 121 | none (no rule yet) | 5.42, 3–8 | 0.19 % of measures; 103 worlds — **measured 0.25 % in 100 worlds**: 0.06 points more silent measures in 3 fewer worlds; the kind (rarer than today, in more worlds) is confirmed |
-| Rule only | 13 | | | | | none; one stay in 92 worlds, 1–9 measures, inside the first 70 |
-| Both (0.8–1.25) | 13 | | | | | none; in a stay 0.13 % of measures, one per 1,700 measures a world, typically 2 (p90 4, longest 10); 5.4, 3–8 |
+| Rule only | 13 | 0.00 % | 0 / 121 | 92 / 121 worlds; 0.13 per 1,000 measures a world; length median 2, p90 4, longest 9; in a stay 0.03 % of measures | 5.49, 2–9 | none; one stay in 92 worlds, 1–9 measures, inside the first 70 — **92 worlds and the longest (9) confirmed**; about one stay per such world (0.13 × 6 × 121 ≈ 94 stays in 92 worlds); "inside the first 70" not re-measured (the report gives no start measure for a stay) |
+| Both (0.8–1.25) | 13 | 0.00 % | 0 / 121 | 120 / 121 worlds; 0.78 per 1,000 measures a world (one per ~1,280); length median 2, p90 4, longest 13; in a stay 0.18 % of measures | 5.42, 3–8 | none; in a stay 0.13 % of measures, one per 1,700 measures a world, typically 2 (p90 4, longest 10); 5.4, 3–8 — **no silence, typical length (2, p90 4) and sounding confirmed; more stays than the probe**: 0.18 % of measures against 0.13 %, one per ~1,280 against 1,700, longest 13 against 10 |
 
 **Today in full (Task 3, 2026-11-10, commit `da9416d0`'s cover sim on the unchanged step):** every robot's cycle is
 35 measures (one distinct length; the largest group sharing it is all 12 robots in every world), no stay anywhere,
@@ -792,13 +794,58 @@ The silence recurs every 35 measures from the measure it begins. A measure is 24
 | 0.9–1.1 | off | 0 (no rule) | — | 33–40, 5 distinct | median 5, max 8 | n/a |
 | 0.8–1.25 | off | 0 (no rule) | — | 31–44, 8 distinct | median 3, max 6 | n/a |
 | 0.67–1.5 | off | 0 (no rule) | — | 27–53, 15 distinct | median 3, max 5 | n/a |
-| 0.9–1.1 | on | | | | | |
-| 0.8–1.25 | on | | | | | |
-| 0.67–1.5 | on | | | | | |
+| 0.9–1.1 | on | 0.70 | 2, 3, 14 | 33–40, 5 distinct | median 5, max 8 | 0 / 0 / 0 |
+| 0.8–1.25 | on | 0.78 | 2, 4, 13 | 31–44, 8 distinct | median 3, max 6 | 0 / 0 / 0 |
+| 0.67–1.5 | on | 0.81 | 2, 5, 9 | 27–53, 15 distinct | median 3, max 5 | 0 / 0 / 0 |
+
+Rule only (`'flat'`, Task 13): 0.13 stays per 1,000 measures; length 2, 4, 9; one cycle length (35), all twelve robots
+share it; turn-backs 0 / 0 / 0.
+
+**Task 13's runs (2026-11-11, commit `ba8737b6`):** the cover report at 6,000 measures a world on `'flat'` and the three
+bands, and the loop sim (10 minutes a world, the shipped cooldown 0.3/2/30) on the same four at 20, 110 and 200 BPM.
+No row has a silent measure. `chargingWhileVisible` is 0 on every band at every tempo, and so are turn-backs. The loop
+sim's longest Docked-while-visible is 10.0–12.3 s at 20 BPM and 18.5–20.3 s at 110 and 200 BPM on every row, and the
+worst world's waiting share is 0.1–0.5 % on every row (world (200, 0) leads most of them). Today's fleet was not run
+through the loop sim here: the `'flat'` loop row already has the rule.
 
 ### Gate A summary (Task 13)
 
-*Not yet written.*
+The rule holds everywhere: **no silent measure in any world on any band**, against 3.39 % of measures in 79 worlds
+today. What the band changes:
+
+| | 0.9–1.1 | 0.8–1.25 (the sketch's) | 0.67–1.5 |
+|---|---|---|---|
+| Worlds with a stay (of 121) | 115 | 120 | 118 |
+| Stays per 1,000 measures a world | 0.70 | 0.78 | 0.81 |
+| Measures with a robot in a stay | 0.13 % | 0.18 % | 0.20 % |
+| Stay length (median, p90, longest) | 2, 3, 14 | 2, 4, 13 | 2, 5, 9 |
+| Robots sounding (mean, p10–p90) | 5.41, 3–8 | 5.42, 3–8 | 5.41, 3–8 |
+| Heard share (lowest–highest) | 44.35–45.85 % | 44.33–45.90 % | 44.37–45.85 % |
+| Cycle lengths (distinct) | 33–40 (5) | 31–44 (8) | 27–53 (15) |
+| Largest group sharing a length, per world (median, max) | 5, 8 | 3, 6 | 3, 5 |
+| Shortest recall to Active again (arithmetic) | 19 measures | 18 | 16 |
+| Turn-backs at 20 / 110 / 200 BPM | 0 / 0 / 0 | 0 / 0 / 0 | 0 / 0 / 0 |
+
+Today: no stays, 5.49 sounding (2–9), one length (35) shared by all twelve, recall to Active 20 measures. The shortest
+recall to Active is arithmetic, not a run: a full shift of *n* Active measures is followed by ⌈1.2·*n*⌉ Docked ones
+whatever the size (the size divides both rates), plus the two one-measure holds; *n* is 14, 13 and 11 at the bands'
+small ends, and a stay only lengthens it.
+
+- **Against the probe** (0.8–1.25): no silence, a stay's typical length (2, p90 4) and robots sounding (5.4, 3–8) are
+  confirmed. Stays are **more frequent** than the probe said: 0.18 % of measures in a stay, not 0.13 %; one stay per
+  ~1,280 measures a world, not 1,700; longest 13, not 10. Same kind, about a third more. The rule-only row confirms
+  the probe's 92 worlds and its longest stay of 9.
+- **A2, the eight lengths:** measured as the largest group of robots sharing one cycle length in a world: on 0.8–1.25
+  the median world has 3 robots in step and the worst 6; 0.9–1.1 puts 5 in step (worst 8); 0.67–1.5 3 (worst 5). Two
+  robots of one length stay in step until a stay moves one.
+- **The bands barely differ in what is heard** (sounding and heard share are flat across them). They differ in how
+  much the fleet loops (lengths, sharing) and a little in stays: the wider the band, the more varied the fleet and the
+  slightly more often a robot stays.
+- **Suite run time:** 239.9 s at Checkpoint A; 238 s for Task 12's full run, the same within noise.
+  `lifecycleSim.test.ts` itself went from about 8.4 s to 13.8 s (case 7, case 17 and the cross-check over every
+  world).
+
+The pick is Crawford's (A1), and so is A2. No threshold was re-tuned.
 
 ### Gate B (Task 17)
 
