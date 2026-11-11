@@ -9,8 +9,8 @@ Stage 3.
 Results). Phase 2 built 2026-11-10/11 (Tasks 4–9: `b665a138`, `20ea1cd3`, `8394603c`, `3438dda4`, `2fa38ec3`,
 `90566d9c`; Task 10's rows are in Results; Task 10a `986ed2f8` inserted at Checkpoint B). Phase 3 built 2026-11-11
 (Tasks 11–12: `ec0be658`, `ba8737b6`; Task 13 `c208f726`). Gate A answered 2026-11-11 (0.67–1.5; A2 accepted).
-Phase 4 built (Task 14 `1ca16f0c`, Task 15 `4c5488e2`, Task 16). **At Checkpoint D: Gate B (Task 17), Crawford's ear,
-is next.** **Part A only**: Part B (`company-families`) is not planned until
+Phase 4 built (Task 14 `1ca16f0c`, Task 15 `4c5488e2`, Task 16 `9ae49418`). **Gate B passed 2026-11-11: Part A is
+complete**, ready for Crawford's PR. **Part A only**: Part B (`company-families`) is not planned until
 Gate B has passed and its questions (spec §7.3) are answered.
 
 ## Overview
@@ -699,7 +699,7 @@ task.
 
 ### Phase 5: Gate B
 
-- [ ] **Task 17: Gate B — Crawford's ear**
+- [x] **Task 17: Gate B — Crawford's ear** (passed 2026-11-11)
 
   **Description:** Crawford listens and looks on the built branch, in a browser (`npm run dev`). The agent's part is
   the list he works from, taken from Results: today's five worst worlds, each with its coordinates, the measure its
@@ -709,13 +709,13 @@ task.
   **Proof:** Ear and Look — Crawford's, in a live browser. No test file.
 
   **Acceptance criteria:**
-  - [ ] A long listen with no silence.
-  - [ ] At one of the worst worlds, the measure that was silent on `main` is covered on the branch.
-  - [ ] The fleet without its 35-measure loop sounds at least as good.
-  - [ ] A staying robot has been looked at, and open question A3 (its 0.1 opacity) is answered.
+  - [x] A long listen with no silence.
+  - [x] At one of the worst worlds, the measure that was silent on `main` is covered on the branch.
+  - [x] The fleet without its 35-measure loop sounds at least as good.
+  - [x] A staying robot has been looked at, and open question A3 (its 0.1 opacity) is answered: left at its default.
 
   **Verification:**
-  - [ ] Crawford's words are recorded in the spec's "As built" and in Results.
+  - [x] Crawford's words are recorded in the spec's "As built" and in Results.
   - [ ] If it fails: stop, report what he heard, and offer options. Nothing is re-tuned to pass.
 
   **Dependencies:** Checkpoint D.
@@ -725,8 +725,9 @@ task.
   **Estimated scope:** XS for the agent (a list and a record); the listen is Crawford's
 
 ### After Gate B
-- [ ] The spec's Status line says Part A is built and heard.
-- [ ] Part B's questions (spec §7.3) are open for Crawford; Part B is completed in the spec and planned on its own.
+- [x] The spec's Status line says Part A is built and heard.
+- [x] Part B's questions (spec §7.3) are open for Crawford; Part B is completed in the spec and planned on its own.
+      (Done early, 2026-11-11: answered, specified, planned in [COMPANY_FAMILIES.md](COMPANY_FAMILIES.md).)
 - [ ] Backlog 60 archives only once A4 (the fade on station arcs) and B11 (where Stage 2 is recorded) are settled.
 
 ## Risks and Mitigations
@@ -868,7 +869,8 @@ The pick is Crawford's (A1), and so is A2. No threshold was re-tuned.
 
 ### Gate B (Task 17)
 
-*Not yet heard.* The listening list (2026-11-11). Load each world through New Transmission at its coordinates, on this
+**Passed (Crawford, 2026-11-11): "ok passes, sounds good."** A3 (a staying robot at 0.1 opacity) is left at its
+default: nothing changes. The listening list he worked from (2026-11-11). Load each world through New Transmission at its coordinates, on this
 branch and on `main`; count measures from the world's creation (a measure is 240 ÷ BPM seconds, 2.18 s at 110 BPM).
 
 | World (x, y) | On `main` (today) | On this branch (0.67–1.5, the rule) |

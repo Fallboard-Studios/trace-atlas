@@ -15,8 +15,8 @@
 2026-11-10). Crawford asked for the plan the same day, with the assumptions of §7.1 standing at their defaults and
 open questions A1–A5 unanswered. Plan, Part A only:
 [docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md) (2026-11-10, seventeen
-tasks in five phases). **Part A built through Task 16 on 2026-11-11** (§8, As built): Gate A answered
-(0.67–1.5), Gate B, Crawford's ear, next. **Part B
+tasks in five phases). **Part A built and heard on 2026-11-11** (§8, As built): Gate A answered
+(0.67–1.5), Gate B passed. **Part B
 specified 2026-11-11** from Crawford's answers to B1–B11 (§7.3), early at his request, and planned in
 [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md); it is built only after Gate B (§0). Backlog
 [60](../todo/backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging), first item of
@@ -813,4 +813,6 @@ Recalled as Active (T12); read the pre-tick `roster` (T12); divide the drain but
   number), length 2, 4, 9.
 - **The drain rows** on the shipped band: 5.71, 5.10, 4.66 (pinned; 5.70, 5.14, 4.60 before battery size).
 
-**Gate A** answered 2026-11-11 (A1, A2 above). **Gate B**, Crawford's ear, is next (§5.5; plan Task 17).
+**Gate A** answered 2026-11-11 (A1, A2 above). **Gate B passed** the same day (§5.5; plan Task 17): Crawford, "ok
+passes, sounds good". A3 left at its default (a staying robot keeps the 0.1 opacity). Part A is complete; A4 (backlog
+60's fade on station arcs) and A5 (CLAUDE.md's "flat drain/recharge") stay open and his.

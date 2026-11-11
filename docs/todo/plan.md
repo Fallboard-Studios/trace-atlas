@@ -23,7 +23,7 @@ the item's own measure-first check runs, and the item archives if the check find
 
 - Backlog [60](backlog.md#60-audio-cover-the-silence-when-every-active-robot-is-charging) **Cover the silence when every
   active robot is charging** — built on `feature/no-silence-for-now` (the last robot stays up, a seeded battery size per
-  robot); waiting on Crawford's ear (Gate B). The elegant answer is backlog 7, post-launch.
+  robot); Gate B passed 2026-11-11, ready for the PR. The elegant answer is backlog 7, post-launch.
 - Backlog [73](backlog.md#73-robots-a-seeded-company-is-a-family) **A seeded company is a family** — specified and
   planned; built on its own branch after 60 merges, and before backlog 45 since it changes every world's melodies.
 - Backlog [17](backlog.md#17-audit-lfo-drift--audio-swells--ping-variance--replayability-findings) **The replayability

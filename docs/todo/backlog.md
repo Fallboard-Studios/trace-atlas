@@ -493,8 +493,8 @@ names, colours, gems and layout move. Done when no pick is welded to another and
 [docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md). The last Active robot
 stays up until another lands, and every robot draws one seeded battery size (Gate A: 0.67–1.5) that divides its drain
 and its charge: no silent measure in any of 121 worlds, against 3.39 % of measures in 79 worlds before; a robot
-stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)). Waiting on Gate B, Crawford's
-ear. Still open before 60 archives: the fade-on-arcs note below (spec open question A4) needs its own item or a cut.
+stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)). Gate B passed by Crawford's ear the
+same day; ready for his PR. Still open before 60 archives: the fade-on-arcs note below (spec open question A4) needs its own item or a cut.
 Stage 2 (company families) is backlog [73](#73-robots-a-seeded-company-is-a-family).
 
 Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
