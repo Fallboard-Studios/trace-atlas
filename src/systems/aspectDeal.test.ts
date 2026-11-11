@@ -5,14 +5,18 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import type { Robot } from '../types/Robot';
 import { JobType } from '../types/Robot';
 import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
-import { applyAspectDeal, rederiveLoading } from './aspectDeal';
+import { applyAspectDeal, generateDealtRosterBaseline, rederiveLoading } from './aspectDeal';
 import { DEFAULT_LOADING, useLoadingStore, type LoadingIdentity } from '../stores/loadingStore';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { AudioEngine } from '../engine/AudioEngine';
-import { robotSendLevels } from '../data/robotSends';
+import { ROBOT_SEND_FIELDS, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import type { ThemeId } from '../data/bands/themes';
 import { CLASSIC } from '../data/bands/classic';
-import { audibleDensityBand } from './robotFieldDerivation';
+import { dealAspects } from '../data/bands/dealAspects';
+import { resolveBands } from '../data/bands/resolveBands';
+import { audibleDensityBand, deriveMelodyFields } from './robotFieldDerivation';
+import { SIM_SEED_COORDS } from './lifecycleSim';
+import { getLocaleNoiseMap } from '../utils/noiseMaps';
 
 // ========================================
 // TESTS
@@ -406,5 +410,157 @@ describe('applyAspectDeal: the attack rail', () => {
     for (const robot of narrowed) {
       expect(registered.has(robot.id), robot.name).toBe(true);
     }
+  });
+});
+
+// Company Families Task 6 (docs/tasks/COMPANY_FAMILIES.md; spec §1.11, case 8): the deal derives a company member's
+// dealt fields from its founder's index (`lineage.founderIndex`), so an aspect keeps a company one voice: live, in the
+// baseline and on an aspect change. A member moved by hand into another company is dealt that company's pick, still
+// from its own lineage (B15).
+describe('the deal by founder (Company Families Task 6)', () => {
+  let worlds = 0;
+  /** Every family dealt two picks, so companies differ. */
+  const ALL: LoadingIdentity = {
+    theme: 'classic',
+    aspects: {
+      melody: ['hypnotic', 'mechanical'], envelope: ['plucked', 'held'], distance: ['near', 'echoing'],
+      voice: ['glassy', 'woody'], motion: ['gliding', 'trembling'], performance: ['steady', 'dramatic'],
+    },
+  };
+  const ALL_AGAIN: LoadingIdentity = {
+    theme: 'classic',
+    aspects: {
+      melody: ['wandering', 'chanting'], envelope: ['swelling', 'bowed'], distance: ['halfHeard', 'near'],
+      voice: ['hollow', 'brassy'], motion: ['sweeping', 'gliding'], performance: ['halting', 'steady'],
+    },
+  };
+  /** A world at (x, y) under `loading`, as initializeLocale builds one, under a new id. */
+  const buildWorld = (loading: LoadingIdentity, x: number, y: number) => {
+    useLoadingStore.getState().setLoading(loading);
+    const localeId = `deal-by-founder-${worlds++}`;
+    useLocaleStore.setState((state) => ({
+      locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x, y }, robots: [], companies: [] } },
+    }));
+    spawnInitialRoster(localeId);
+    spawnInitialCompanies(localeId);
+    applyAspectDeal(localeId);
+    return localeId;
+  };
+  const robotsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots;
+  /** Everything the deal writes: what a member shares with its founder. */
+  const dealtOf = (robot: Pick<Robot, 'audioAttributes' | 'lfoLinks' | 'loadedUnder' | 'rhythmicDensity' | 'rhythmicMotifLength'
+    | 'noteVariance' | 'pitchRepeat' | 'dynamics' | 'rests' | 'accents' | RobotSendField>) => ({
+    audioAttributes: robot.audioAttributes,
+    lfoLinks: robot.lfoLinks,
+    loadedUnder: robot.loadedUnder,
+    melody: [robot.rhythmicDensity, robot.rhythmicMotifLength, robot.noteVariance, robot.pitchRepeat],
+    performance: [robot.dynamics, robot.rests, robot.accents],
+    sends: ROBOT_SEND_FIELDS.map((field) => robot[field]),
+  });
+  /** The rhythm the melody regenerates with: onsets, lengths and the rest and accent stamps. */
+  const rhythmOf = (robot: Robot) => robot.melody.map((e) => [e.startStep, e.length, e.rest, e.mark]);
+  /** Stubs the engine pushes, so a grid of worlds deals quickly; no draw is stubbed. */
+  const stubEngine = () => {
+    vi.spyOn(AudioEngine, 'reserveVoice').mockReturnValue(true);
+    vi.spyOn(AudioEngine, 'registerRobotMelody').mockImplementation(() => {});
+    vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
+    vi.spyOn(AudioEngine, 'updateVoiceEnvelope').mockImplementation(() => {});
+    vi.spyOn(AudioEngine, 'reReserveVoice').mockImplementation(() => true);
+    vi.spyOn(AudioEngine, 'updateVoicePortamento').mockImplementation(() => {});
+    vi.spyOn(AudioEngine, 'updateRobotMasterVolume').mockImplementation(() => {});
+  };
+  const GRID = SIM_SEED_COORDS.filter((_, i) => i % 4 === 0); // 31 worlds
+
+  afterEach(() => {
+    useLoadingStore.getState().setLoading(DEFAULT_LOADING);
+    vi.restoreAllMocks();
+  });
+
+  it('after applyAspectDeal, every member carries its founder\'s dealt fields and rhythm, every family dealt', () => {
+    stubEngine();
+    let members = 0;
+    for (const { x, y } of GRID) {
+      const robots = robotsOf(buildWorld(ALL, x, y));
+      for (const robot of robots) {
+        if (!robot.lineage) continue;
+        members++;
+        const founder = robots[robot.lineage.founderIndex];
+        expect(robot.loadedUnder, `${x}:${y} ${robot.name}`).toBeDefined();
+        expect(dealtOf(robot), `${x}:${y} ${robot.name}`).toEqual(dealtOf(founder));
+        expect(rhythmOf(robot), `${x}:${y} ${robot.name}`).toEqual(rhythmOf(founder));
+      }
+    }
+    expect(members).toBeGreaterThanOrEqual(GRID.length * 4);
+  });
+
+  it('the live deal agrees with generateDealtRosterBaseline robot for robot, members included (an untouched dealt world saves nothing)', () => {
+    stubEngine();
+    for (const { x, y } of GRID.slice(0, 8)) {
+      const localeId = buildWorld(ALL, x, y);
+      const robots = robotsOf(localeId);
+      const { robots: baselines } = generateDealtRosterBaseline(getLocaleNoiseMap(localeId, x, y), robots.map((r) => r.id), ALL);
+      robots.forEach((robot, i) => {
+        expect(dealtOf(robot), `${x}:${y} robot ${i}`).toEqual(dealtOf(baselines[i]));
+      });
+    }
+  });
+
+  it('after an aspect change through rederiveLoading, every member still carries its founder\'s dealt fields and rhythm', () => {
+    stubEngine();
+    for (const { x, y } of GRID.slice(0, 12)) {
+      const localeId = buildWorld(ALL, x, y);
+      useLoadingStore.getState().setLoading(ALL_AGAIN);
+      rederiveLoading(localeId, ALL, vi.fn());
+      const robots = robotsOf(localeId);
+      // Precondition: every robot was re-dealt.
+      expect(robots.every((r) => r.loadedUnder?.melody === 'wandering' || r.loadedUnder?.melody === 'chanting')).toBe(true);
+      for (const robot of robots) {
+        if (!robot.lineage) continue;
+        const founder = robots[robot.lineage.founderIndex];
+        expect(dealtOf(robot), `${x}:${y} ${robot.name}`).toEqual(dealtOf(founder));
+        expect(rhythmOf(robot), `${x}:${y} ${robot.name}`).toEqual(rhythmOf(founder));
+      }
+    }
+  });
+
+  it('a member moved by hand and then re-dealt takes its new company\'s pick, derived from its own lineage (B15)', () => {
+    stubEngine();
+    const FROM: LoadingIdentity = { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } };
+    const TO: LoadingIdentity = { theme: 'classic', aspects: { melody: ['wandering', 'chanting'] } };
+    const [x, y] = [-200, 80]; // three companies (Task 4's Results)
+    const localeId = buildWorld(FROM, x, y);
+    const noiseMap = getLocaleNoiseMap(localeId, x, y);
+    const { robots, companies } = useLocaleStore.getState().getLocaleById(localeId)!;
+    const member = robots.find((r) => r.lineage !== undefined && r.companyId === companies[0].id)!;
+    expect(member, 'a member of the first company').toBeDefined();
+    const founderIndex = member.lineage!.founderIndex;
+    const memberIndex = robots.indexOf(member);
+
+    // A company whose pick under TO differs from the founder's, once the member stands in it.
+    const target = companies.slice(1).find((company) => {
+      const moved = companies.map((c) => ({
+        robotIds: c.id === company.id ? [...c.robotIds, member.id] : c.robotIds.filter((id) => id !== member.id),
+      }));
+      const deal = dealAspects(TO, moved, robots, noiseMap);
+      return deal.get(member.id)?.melody !== deal.get(robots[founderIndex].id)?.melody;
+    })!;
+    expect(target, 'a company dealt another pick').toBeDefined();
+    useLocaleStore.getState().assignRobotToCompany(localeId, member.id, target.id);
+
+    useLoadingStore.getState().setLoading(TO);
+    rederiveLoading(localeId, FROM, vi.fn());
+
+    const after = robotsOf(localeId);
+    const moved = after[memberIndex];
+    const pick = after.find((r) => r.companyId === target.id && r.id !== member.id)!.loadedUnder!.melody!;
+    expect(moved.lineage).toEqual({ founderIndex });
+    expect(moved.loadedUnder?.melody).toBe(pick);
+    expect(after[founderIndex].loadedUnder?.melody).not.toBe(pick);
+    const bands = resolveBands('classic', { melody: pick });
+    const attack = moved.audioAttributes.adsr.attack;
+    const fromLineage = deriveMelodyFields(noiseMap, founderIndex, bands, attack);
+    expect(fromLineage).not.toEqual(deriveMelodyFields(noiseMap, memberIndex, bands, attack)); // precondition
+    expect([moved.rhythmicDensity, moved.rhythmicMotifLength, moved.noteVariance, moved.pitchRepeat])
+      .toEqual([fromLineage.rhythmicDensity, fromLineage.rhythmicMotifLength, fromLineage.noteVariance, fromLineage.pitchRepeat]);
   });
 });

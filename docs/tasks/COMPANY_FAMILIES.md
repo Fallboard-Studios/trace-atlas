@@ -11,7 +11,8 @@ stands. **Phase 1 (Tasks 1–3) built 2026-11-11; at its checkpoint Crawford rev
 the same settings in one world make the same rhythm, and the moved onsets go. Tasks 3a and 3b reworked Phase 1 to
 that (built 2026-11-11; 3a's coincidence Run shown to Crawford and accepted). Stopped at the rhythm-stream
 checkpoint; Crawford listened ("sounds good") and the checkpoint passed. Task 4 built 2026-11-11 (the cap touches 34
-of 121 grid worlds); Task 5 built the same day. Next is Task 6.**
+of 121 grid worlds); Tasks 5 and 6 built the same day. Phase 2 is built; stopped at the "built" checkpoint for
+Crawford's review before the docs (Task 7).**
 
 ## Overview
 
@@ -387,7 +388,7 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
 
   **Estimated scope:** M (spawn and its baseline in one commit)
 
-- [ ] **Task 6: `aspectDeal.ts` — a member is dealt from its founder**
+- [x] **Task 6: `aspectDeal.ts` — a member is dealt from its founder**
 
   **Description:** `applyAspectDeal`, `applyDealToBaselines` and `rederiveLoading` derive a robot's dealt fields from
   `lineage.founderIndex` when it has one. In the live deal the founder is dealt first (lower index), and a member's
@@ -396,16 +397,30 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Proof:** RED test — `src/systems/aspectDeal.test.ts`: case 8.
 
   **Acceptance criteria:**
-  - [ ] After `applyAspectDeal`, and after an aspect change through `rederiveLoading`, every member's dealt fields
+  - [x] After `applyAspectDeal`, and after an aspect change through `rederiveLoading`, every member's dealt fields
         equal its founder's.
-  - [ ] An untouched dealt world still saves `{}`; a member moved by hand and then re-dealt takes its new company's
+  - [x] An untouched dealt world still saves `{}`; a member moved by hand and then re-dealt takes its new company's
         pick, derived from its own lineage (B15's default; the 2026-11-01 rule).
-  - [ ] Mutant, killed: the deal by own index.
+  - [x] Mutant, killed: the deal by own index.
+
+  **As built:** a private `dealIndex(robot, i)` (`lineage.founderIndex ?? i`) serves `applyAspectDeal` and
+  `rederiveLoading`'s `drawn`; `applyDealToBaselines`, whose baselines carry no lineage, reads the seeded membership
+  (`companyFounders(generateCompanyMembership(noiseMap, robotIds.length))`), the same founders spawn set. The Motion
+  lane tally is the one before the founder (`priorLanesOf(…, at)`), so a member's links are its founder's. Case 8 in
+  `aspectDeal.test.ts`, every family dealt two picks: members equal founders (dealt fields and the regenerated rhythm)
+  after `applyAspectDeal` on 31 grid worlds and after `rederiveLoading` on 12; the live deal equals
+  `generateDealtRosterBaseline` robot for robot on 8 (a guard: it passed before the change too, both sides dealing by
+  own index); and B15: a member of world (-200, 80) moved into a company dealt another pick takes that pick, its Melody
+  fields `deriveMelodyFields` at its founder's index. Flipped from Task 5's interim (named in the commit): the deal
+  cases in `spawnSystem.test.ts` and `aspectDeal.widened.test.ts` that expected every robot at its own index now expect
+  the deal index, the two Task 5 member cases now expect the founder's index, and Task 5's two member skips are gone.
+  Mutants, killed: the deal by own index everywhere (15 tests), and separately in the baseline (24), live (29) and the
+  re-derive (20); extras: the lane tally at the member's own index, live (4) and in the baseline (3).
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/aspectDeal.test.ts src/systems/aspectDeal.widened.test.ts src/systems/spawnSystem.test.ts src/utils/sessionDiff.test.ts`
-        passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/aspectDeal.test.ts src/systems/aspectDeal.widened.test.ts src/systems/spawnSystem.test.ts src/utils/sessionDiff.test.ts`
+        passes (with `spawnSystem.families.test.ts`: 708). `npm test` passes (352 files; 13,772 passed, 2 skipped; 257 s).
+  - [x] `npm run build:types`, `npm run lint` clean (lint: 0 errors; the same 4 warnings).
 
   **Dependencies:** Task 5.
 
@@ -414,8 +429,15 @@ Every task names its **Proof**: **RED test** for behaviour, **Run** for a measur
   **Estimated scope:** S
 
 ### Checkpoint: built
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Every case of spec §5.7 passes and was written RED first; each mutant named, killed, in a commit.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (2026-11-11, after Task 6; the build to a
+      scratch out dir).
+- [x] Every case of spec §5.7 passes; each mutant named, killed, in a commit. Written RED first: cases 1–8 and the
+      hand move of 9. Not RED, by their nature: case 9's `{}` over the grid and Task 6's live-versus-baseline case
+      (guards: both sides moved together, so they passed before the change), and case 10 (`lifecycleSim.test.ts`
+      passing unmodified). The nine §5.7 mutants: the rhythm key with note variance and durations on the composition
+      stream (Task 1), the raw density, no world and the performance stream on the robot's seed (Task 3a), the cap at
+      one freelancer (Task 4), the founder as the highest index and the sends left fresh (Task 5), the deal by own
+      index (Task 6).
 - [ ] Reviewed with human before the docs.
 
 ---

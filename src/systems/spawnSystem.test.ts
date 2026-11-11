@@ -3891,6 +3891,8 @@ describe('spawnSystem', () => {
     const HYPNOTIC_MECHANICAL: LoadingIdentity = { theme: 'classic', aspects: { melody: ['hypnotic', 'mechanical'] } };
     /** Company members of this roster, by index, to their founders (Company Families Task 5). */
     const MEMBERS = companyFounders(generateCompanyMembership(noiseMap, ROSTER));
+    /** The index a robot is dealt from: a member's founder's, an original's own (Company Families Task 6). */
+    const at = (i: number) => MEMBERS.get(i) ?? i;
     const melodyFieldsOf = (robot: Pick<Robot, 'rhythmicDensity' | 'rhythmicMotifLength' | 'noteVariance' | 'pitchRepeat'>) => ({
       rhythmicDensity: robot.rhythmicDensity,
       rhythmicMotifLength: robot.rhythmicMotifLength,
@@ -3909,7 +3911,7 @@ describe('spawnSystem', () => {
       vi.restoreAllMocks();
     });
 
-    it('applyDealToBaselines: a dealt robot\'s four Melody fields are re-derived from its own index under the aspect\'s bands, loadedUnder is set, and nothing else moves', () => {
+    it('applyDealToBaselines: a dealt robot\'s four Melody fields are re-derived from its deal index (a member\'s founder\'s) under the aspect\'s bands, loadedUnder is set, and nothing else moves', () => {
       const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
       const companies = generateCompanyRosterBaseline(noiseMap, ids);
       const dealt = applyDealToBaselines(undealt, ids, companies, HYPNOTIC_MECHANICAL, noiseMap);
@@ -3921,22 +3923,19 @@ describe('spawnSystem', () => {
         const { rhythmicDensity: _ud, rhythmicMotifLength: _um, noteVariance: _uv, pitchRepeat: _up, ...restUndealt } = undealt[i];
         expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
         if (loadedUnder?.melody === 'hypnotic') {
-          // A company member's density reads its founder's attack (the attack rail), which a fresh robot at its index does
-          // not draw; Company Families Task 6 deals it from its founder's index instead.
-          if (MEMBERS.has(i)) return;
-          // Calm carries Hypnotic's column: a fresh robot at this index under Calm is the exact re-derivation.
-          const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+          // Calm carries Hypnotic's column: a fresh robot at the deal index under Calm is the exact re-derivation.
+          const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, at(i), []));
           expect(melodyFieldsOf(baseline), `robot ${i}`).toEqual(melodyFieldsOf(expected));
         } else {
           expect(loadedUnder, `robot ${i}`).toEqual({ melody: 'mechanical' });
           // Mechanical's 70-95 as the robot's attack leaves it (the attack rail).
           const density = audibleDensityBand({ min: 70, max: 95 }, baseline.audioAttributes.adsr.attack, CLASSIC.bpm);
-          expect(baseline.rhythmicDensity).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', i, density.min, density.max)));
-          expect(baseline.pitchRepeat).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.pitchRepeat', i, 0, 10)));
+          expect(baseline.rhythmicDensity).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.rhythmicDensity', at(i), density.min, density.max)));
+          expect(baseline.pitchRepeat).toBe(Math.round(getUniformSeededVal(noiseMap, 'robot.pitchRepeat', at(i), 0, 10)));
           expect(baseline.rhythmicMotifLength.active).toBe(true);
           expect([6, 7, 8]).toContain(baseline.rhythmicMotifLength.value);
-          // The band Mechanical leaves alone is still re-derived from the robot's own index, under Classic's band.
-          expect(baseline.noteVariance).toEqual(generateRobotAudioBaseline(noiseMap, i, []).noteVariance);
+          // The band Mechanical leaves alone is still re-derived from the deal index, under Classic's band.
+          expect(baseline.noteVariance).toEqual(generateRobotAudioBaseline(noiseMap, at(i), []).noteVariance);
         }
       });
     });
@@ -3950,11 +3949,11 @@ describe('spawnSystem', () => {
       expect(applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: [] } }, noiseMap)).toBe(undealt);
     });
 
-    // Company Families Task 5: a company member (was: a copied robot) is still dealt from its own index; Task 6 deals it
-    // from its founder's.
-    it('a member\'s baseline re-derives from its own index, not its founder\'s', async () => {
-      // Each index's density draw lands at its own spot (index / roster of the band), so a member and its founder draw
-      // apart by construction and the check cannot pass by coincidence.
+    // Company Families Task 6 (B8): a company member (was: a copied robot, dealt from its own index) is dealt from its
+    // founder's index, so the company keeps one voice.
+    it('a member\'s baseline re-derives from its founder\'s index, not its own', async () => {
+      // Each index's density draw lands at its own spot (index / roster of the band), so a member's own index and its
+      // founder's draw apart by construction and the check cannot pass by coincidence.
       await forceSeededDraws({
         'robot.rhythmicDensity': (min, max, offset) => min + (offset / ROSTER) * (max - min),
       });
@@ -3965,12 +3964,12 @@ describe('spawnSystem', () => {
         const companies = generateCompanyRosterBaseline(noiseMap, ids);
         const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { melody: ['hypnotic'] } }, noiseMap);
         expect(dealt[member].loadedUnder).toEqual({ melody: 'hypnotic' });
-        // Hypnotic's 40-60 as the shared attack leaves it (the attack rail), at each robot's own index.
+        // Hypnotic's 40-60 as the shared attack leaves it (the attack rail), at an index's own spot.
         const band = audibleDensityBand({ min: 40, max: 60 }, undealt[founder].audioAttributes.adsr.attack, CLASSIC.bpm);
-        const at = (index: number) => Math.round(band.min + (index / ROSTER) * (band.max - band.min));
-        expect(at(member)).not.toBe(at(founder));
-        expect(dealt[member].rhythmicDensity).toBe(at(member));
-        expect(dealt[founder].rhythmicDensity).toBe(at(founder));
+        const spot = (index: number) => Math.round(band.min + (index / ROSTER) * (band.max - band.min));
+        expect(spot(member)).not.toBe(spot(founder));
+        expect(dealt[member].rhythmicDensity).toBe(spot(founder));
+        expect(dealt[founder].rhythmicDensity).toBe(spot(founder));
       } finally {
         await restoreSeededDraws();
       }
@@ -4039,6 +4038,8 @@ describe('spawnSystem', () => {
     const companies = generateCompanyRosterBaseline(noiseMap, ids);
     /** Company members of this roster, by index, to their founders (Company Families Task 5). */
     const MEMBERS = companyFounders(generateCompanyMembership(noiseMap, ROSTER));
+    /** The index a robot is dealt from: a member's founder's, an original's own (Company Families Task 6). */
+    const at = (i: number) => MEMBERS.get(i) ?? i;
     const deal = (aspects: LoadingIdentity['aspects'], theme: LoadingIdentity['theme'] = 'classic') => {
       const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
       return { undealt, dealt: applyDealToBaselines(undealt, ids, companies, { theme, aspects }, noiseMap) };
@@ -4087,10 +4088,10 @@ describe('spawnSystem', () => {
       const bands = resolveBands('classic', { envelope: 'plucked' });
       dealt.forEach((baseline, i) => {
         expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'plucked' });
-        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(deriveEnvelopeFields(noiseMap, i, bands));
+        expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(deriveEnvelopeFields(noiseMap, at(i), bands));
         expect(baseline.audioAttributes.adsr.attack, `robot ${i}`).toBeLessThanOrEqual(0.04);
         // The attack rail: the density re-drawn at its index under Classic's band against the plucked attack.
-        expect(baseline.rhythmicDensity, `robot ${i}`).toBe(deriveRhythmicDensity(noiseMap, i, resolveBands('classic', {}), baseline.audioAttributes.adsr.attack));
+        expect(baseline.rhythmicDensity, `robot ${i}`).toBe(deriveRhythmicDensity(noiseMap, at(i), resolveBands('classic', {}), baseline.audioAttributes.adsr.attack));
         expect(sendsOf(baseline), `robot ${i}`).toEqual(sendsOf(undealt[i]));
         const { rhythmicDensity: _dealt, ...rest } = restOf(baseline);
         const { rhythmicDensity: _undealt, ...restUndealt } = restOf(undealt[i]);
@@ -4107,16 +4108,14 @@ describe('spawnSystem', () => {
       const bands = resolveBands('classic', { distance: 'echoing' });
       dealt.forEach((baseline, i) => {
         expect(baseline.loadedUnder, `robot ${i}`).toEqual({ distance: 'echoing' });
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, bands));
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, at(i), bands));
         // Echoing's sheet: every probe deep in the delay, only lightly in the reverb.
         expect(baseline.delaySend, `robot ${i}`).toBeGreaterThanOrEqual(0.4);
         expect(baseline.reverbSend, `robot ${i}`).toBeLessThanOrEqual(0.15);
-        // The three effect room sends are the theme's: re-derived, they come out as they were. Not yet on a company member,
-        // which carries its founder's sends but is dealt from its own index until Company Families Task 6.
+        // The three effect room sends are the theme's: re-derived, they come out as they were (a member's are its founder's,
+        // dealt from its founder's index).
         const { gritSend, shimmerSend, doubleSend } = undealt[i];
-        if (!MEMBERS.has(i)) {
-          expect({ gritSend: baseline.gritSend, shimmerSend: baseline.shimmerSend, doubleSend: baseline.doubleSend }).toEqual({ gritSend, shimmerSend, doubleSend });
-        }
+        expect({ gritSend: baseline.gritSend, shimmerSend: baseline.shimmerSend, doubleSend: baseline.doubleSend }).toEqual({ gritSend, shimmerSend, doubleSend });
         expect(baseline.audioAttributes.adsr, `robot ${i}`).toEqual(undealt[i].audioAttributes.adsr);
         expect(restOf(baseline), `robot ${i}`).toEqual(restOf(undealt[i]));
       });
@@ -4127,7 +4126,7 @@ describe('spawnSystem', () => {
       expect(useLoadingStore.getState().theme).toBe('classic');
       const { dealt } = deal({ distance: ['halfHeard'] }, 'undertow');
       dealt.forEach((baseline, i) => {
-        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, i, resolveBands('undertow', { distance: 'halfHeard' })));
+        expect(sendsOf(baseline), `robot ${i}`).toEqual(deriveSendFields(noiseMap, at(i), resolveBands('undertow', { distance: 'halfHeard' })));
         // This file's Undertow (injected) seeds a grit of exactly 0.5 on every robot; Classic's lit share of 0.21 would leave most at 0.
         expect(baseline.gritSend, `robot ${i}`).toBe(0.5);
       });
@@ -4137,13 +4136,13 @@ describe('spawnSystem', () => {
       const { dealt } = deal({ melody: ['hypnotic'], envelope: ['held'], distance: ['near'] });
       dealt.forEach((baseline, i) => {
         expect(baseline.loadedUnder, `robot ${i}`).toEqual({ melody: 'hypnotic', envelope: 'held', distance: 'near' });
-        expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
-        expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, i, resolveBands('classic', { distance: 'near' })));
+        expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, at(i), resolveBands('classic', { envelope: 'held' })));
+        expect(sendsOf(baseline)).toEqual(deriveSendFields(noiseMap, at(i), resolveBands('classic', { distance: 'near' })));
         // Calm carries Hypnotic's column in this file's mock: a fresh robot at this index under Calm is the Melody re-derivation.
-        const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, i, []));
+        const expected = withLoading({ theme: 'float', aspects: {} }, () => generateRobotAudioBaseline(noiseMap, at(i), []));
         // The density is Hypnotic's draw against Held's attack (the attack rail), not the spawn attack Float would read.
         const hypnotic = resolveBands('classic', { melody: 'hypnotic' });
-        expect(baseline.rhythmicDensity).toBe(deriveRhythmicDensity(noiseMap, i, hypnotic, baseline.audioAttributes.adsr.attack));
+        expect(baseline.rhythmicDensity).toBe(deriveRhythmicDensity(noiseMap, at(i), hypnotic, baseline.audioAttributes.adsr.attack));
         expect(baseline.noteVariance).toEqual(expected.noteVariance);
       });
       const { dealt: two } = deal({ envelope: ['swelling'], distance: ['echoing'] });
@@ -4154,7 +4153,7 @@ describe('spawnSystem', () => {
       const { dealt } = deal({ envelope: ['swelling'] }, 'shatter');
       dealt.forEach((baseline, i) => {
         const { adsr } = baseline.audioAttributes;
-        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('shatter', { envelope: 'swelling' })));
+        expect(adsr).toEqual(deriveEnvelopeFields(noiseMap, at(i), resolveBands('shatter', { envelope: 'swelling' })));
         // Perilous (this file's mock) seeds attacks of 1.5-2 s; Swelling's 0.3-1.2 wins.
         expect(adsr.attack, `robot ${i}`).toBeLessThanOrEqual(1.2);
         expect(adsr.decay, `robot ${i}`).toBeGreaterThanOrEqual(1);
@@ -4163,17 +4162,18 @@ describe('spawnSystem', () => {
       });
     });
 
-    // Company Families Task 5: a company member (was: a copied robot) is still dealt from its own index; Task 6 deals it
-    // from its founder's.
-    it('a member\'s baseline re-derives its adsr from its own index, keeping the rest of its founder\'s voice', () => {
+    // Company Families Task 6 (B8): a company member (was: a copied robot, dealt from its own index) is dealt from its
+    // founder's index.
+    it('a member\'s baseline re-derives its adsr from its founder\'s index, keeping the rest of its founder\'s voice', () => {
       const undealt = generateRobotRosterBaseline(noiseMap, ROSTER);
       const [member, founder] = [...MEMBERS][0];
       expect(undealt[member].audioAttributes).toBe(undealt[founder].audioAttributes); // precondition: a member
       const bands = resolveBands('classic', { envelope: 'held' });
-      const own = deriveEnvelopeFields(noiseMap, member, bands);
-      expect(own).not.toEqual(deriveEnvelopeFields(noiseMap, founder, bands)); // precondition: the two indices draw apart
+      const founders = deriveEnvelopeFields(noiseMap, founder, bands);
+      expect(deriveEnvelopeFields(noiseMap, member, bands)).not.toEqual(founders); // precondition: the two indices draw apart
       const dealt = applyDealToBaselines(undealt, ids, companies, { theme: 'classic', aspects: { envelope: ['held'] } }, noiseMap);
-      expect(dealt[member].audioAttributes.adsr).toEqual(own);
+      expect(dealt[member].audioAttributes.adsr).toEqual(founders);
+      expect(dealt[member].audioAttributes).toEqual(dealt[founder].audioAttributes);
       expect(dealt[member].audioAttributes.waveform).toBe(undealt[founder].audioAttributes.waveform);
       expect(dealt[member].audioAttributes.layers).toEqual(undealt[founder].audioAttributes.layers);
     });
@@ -4318,7 +4318,7 @@ describe('spawnSystem', () => {
         const bands = resolveBands('classic', { voice: 'woody' });
         dealt.forEach((baseline, i) => {
           expect(baseline.loadedUnder, `robot ${i}`).toEqual({ voice: 'woody' });
-          expect(voiceOf(baseline.audioAttributes), `robot ${i}`).toEqual(deriveVoiceFields(noiseMap, i, bands));
+          expect(voiceOf(baseline.audioAttributes), `robot ${i}`).toEqual(deriveVoiceFields(noiseMap, at(i), bands));
           // Everything outside the voice - the adsr, the register, the glide, the phase, detune and pulse width - as it was.
           const { filterFreq: _f, filterQ: _q, filterType: _t, waveform: _w, layers: _l, ...outside } = baseline.audioAttributes;
           const { filterFreq: _uf, filterQ: _uq, filterType: _ut, waveform: _uw, layers: _ul, ...outsideUndealt } = undealt[i].audioAttributes;
@@ -4368,8 +4368,8 @@ describe('spawnSystem', () => {
         const { dealt } = deal({ envelope: ['held'], voice: ['woody'] });
         dealt.forEach((baseline, i) => {
           expect(baseline.loadedUnder, `robot ${i}`).toEqual({ envelope: 'held', voice: 'woody' });
-          expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, i, resolveBands('classic', { envelope: 'held' })));
-          expect(voiceOf(baseline.audioAttributes)).toEqual(deriveVoiceFields(noiseMap, i, resolveBands('classic', { voice: 'woody' })));
+          expect(baseline.audioAttributes.adsr).toEqual(deriveEnvelopeFields(noiseMap, at(i), resolveBands('classic', { envelope: 'held' })));
+          expect(voiceOf(baseline.audioAttributes)).toEqual(deriveVoiceFields(noiseMap, at(i), resolveBands('classic', { voice: 'woody' })));
         });
       });
 

@@ -50,6 +50,8 @@ import type { ThemeColumn } from '../data/bands/themes';
 import {
   spawnInitialRoster,
   spawnInitialCompanies,
+  companyFounders,
+  generateCompanyMembership,
   generateCompanyRosterBaseline,
   generateRobotRosterBaseline,
   type RobotAudioBaseline,
@@ -327,13 +329,17 @@ describe('the Motion and Performance deals (themes-58 T7b)', () => {
     return { undealt, dealt: applyDealToBaselines(undealt, robotIds, companies, { theme: 'classic', aspects }, NOISE) };
   };
   const priorLanes = (roster: readonly RobotAudioBaseline[], i: number) => tallyLanes(roster.slice(0, i).flatMap((b) => Object.values(b.lfoLinks)));
+  /** The index a robot is dealt from: a company member's founder's, an original's own (Company Families Task 6). */
+  const MEMBERS = companyFounders(generateCompanyMembership(NOISE, ROSTER));
+  const at = (i: number) => MEMBERS.get(i) ?? i;
 
-  it('a robot dealt Gliding is its Motion draw from its own index under the option, with the lane tally of the roster before it as spawned; nothing else moves', () => {
+  it('a robot dealt Gliding is its Motion draw from its deal index under the option, with the lane tally of the roster before that index as spawned; nothing else moves', () => {
     const { undealt, dealt } = dealtBaselines({ motion: ['gliding'] });
     const bands = resolveBands('classic', { motion: 'gliding' });
+    expect(MEMBERS.size).toBeGreaterThan(0); // the roster has members, dealt from their founders
     dealt.forEach((baseline, i) => {
       expect(baseline.loadedUnder, `robot ${i}`).toEqual({ motion: 'gliding' });
-      const expected = deriveMotionFields(NOISE, i, bands, priorLanes(undealt, i));
+      const expected = deriveMotionFields(NOISE, at(i), bands, priorLanes(undealt, at(i)));
       expect({ portamento: baseline.audioAttributes.portamento, lfoLinks: baseline.lfoLinks }, `robot ${i}`).toEqual(expected);
       const { audioAttributes, lfoLinks: _l, loadedUnder: _u, ...rest } = baseline;
       const { audioAttributes: undealtAttributes, lfoLinks: _ul, ...restUndealt } = undealt[i];
@@ -344,13 +350,13 @@ describe('the Motion and Performance deals (themes-58 T7b)', () => {
     expect(dealt.every((b) => (b.audioAttributes.portamento ?? 0) >= 1)).toBe(true);
   });
 
-  it('a robot dealt Dramatic is its Performance draw from its own index under the option; nothing else moves', () => {
+  it('a robot dealt Dramatic is its Performance draw from its deal index under the option; nothing else moves', () => {
     const { undealt, dealt } = dealtBaselines({ performance: ['dramatic'] });
     const bands = resolveBands('classic', { performance: 'dramatic' });
     dealt.forEach((baseline, i) => {
       expect(baseline.loadedUnder, `robot ${i}`).toEqual({ performance: 'dramatic' });
       const { dynamics, rests, accents, loadedUnder: _u, ...rest } = baseline;
-      expect({ dynamics, rests, accents }, `robot ${i}`).toEqual(derivePerformanceFields(NOISE, i, bands));
+      expect({ dynamics, rests, accents }, `robot ${i}`).toEqual(derivePerformanceFields(NOISE, at(i), bands));
       const { dynamics: _d, rests: _r, accents: _a, ...restUndealt } = undealt[i];
       expect(rest, `robot ${i} outside the family`).toEqual(restUndealt);
     });
