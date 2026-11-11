@@ -561,7 +561,7 @@ and are recorded as they now stand: the world key's fallback is not a ratchet ri
 
   **Estimated scope:** XS
 
-- [ ] **Task R2: the unused `subdivisions` option removed**
+- [x] **Task R2: the unused `subdivisions` option removed**
 
   **Description:** `generateMelodyForRobot`'s `opts.subdivisions` reaches `rhythmShape`, but `rhythmKey` always uses
   the default 16, so a caller passing another value would get a rhythm keyed on a shape it does not play. No caller in

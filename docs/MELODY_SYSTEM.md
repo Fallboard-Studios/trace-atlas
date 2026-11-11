@@ -55,7 +55,6 @@ interface GenerateMelodyForRobotOptions {
   octaveMax: number;
   rhythmicDensity?: number;        // 0-100 fill-rate percentage (was a 4-12 onset count)
   rhythmicMotifLength?: ToggleValue; // value: 0-8 (was a plain 1-16 number); active derives from value > 0
-  subdivisions?: number;
   seed?: number;
   rand?: () => number;
   rhythmRand?: () => number;        // the rhythm stream: onsets and durations (Company Families); defaults to rand
