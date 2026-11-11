@@ -26,6 +26,7 @@ import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
+  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
 } from '../constants';
 import { robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
@@ -145,6 +146,15 @@ const GEM_SEED_MAX = 2 ** 31;
  */
 function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
   return Math.min(GEM_SEED_MAX - 1, Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
+}
+
+/**
+ * A robot's battery size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3): one even draw per robot, so the sizes
+ * fill the band rather than bunch in its middle. Drawn at spawn, never inherited on the copy path. Pure and exported,
+ * so lifecycleSim.ts's roster shares it; the band is an argument so the sims can try others.
+ */
+export function generateBatterySize(noiseMap: NoiseFunction2D, spawnCount: number, min = BATTERY_SIZE_MIN, max = BATTERY_SIZE_MAX): number {
+  return getUniformSeededVal(noiseMap, 'robot.batterySize', spawnCount, min, max);
 }
 
 // Phase 37's seeded greeble set (generateGreebles, GREEBLE_COUNT_RANGE and its three count/kind/
@@ -671,10 +681,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     melody: spawnMelody,
     audioAttributes,
     octaveRange,
-    // Mute is expressed via audioMode (the same toggle Robot Options exposes,
-    // so a user can independently override it), not by withholding voice
+    // audioMode is the user's Solo/Mute/Highlight alone: a Docked robot is muted by its docking
+    // state (robotAudibility.ts's isDockMuted), not by this toggle, and not by withholding voice
     // reservation/melody registration below — those happen unconditionally.
-    audioMode: docking === DockingState.Active ? 'none' : 'mute',
+    audioMode: 'none',
     rhythmicDensity: spawnRhythmicDensity,
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
@@ -700,17 +710,20 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     // The work loop's starting state (spec §1.2); placeRosterAtStations sets it again at the port.
     activity: docking === DockingState.Active ? 'exiting' : 'charging',
     batteryLevel,
+    // Always its own draw, even on the copy branch (spec §1.3); the alea fallback maps into the same band.
+    batterySize: noiseMap
+      ? generateBatterySize(noiseMap, spawnCount)
+      : BATTERY_SIZE_MIN + alea(`${localeId}:${spawnCount}:batterySize`)() * (BATTERY_SIZE_MAX - BATTERY_SIZE_MIN),
   };
 
   // Add to locale store
   useLocaleStore.getState().addRobot(localeId, robot);
 
   // Every robot gets a reserved voice and registered melody, regardless of
-  // docking state — mute is enforced by AudioEngine reading `audioMode` at
-  // schedule time (see scheduleNote), not by withholding registration. This
-  // is what makes a Docked robot's mute genuinely overridable from Robot
-  // Options: the synth and melody are already live, so flipping audioMode
-  // back to 'none' there is enough to hear it despite still being docked.
+  // docking state — mute is enforced by AudioEngine reading `audioMode` and
+  // `docking` at trigger time (see triggerWithCap), not by withholding
+  // registration. This is what lets a Solo beat the dock: the synth and
+  // melody are already live, so soloing a Docked robot is enough to hear it.
   // Unregister first to guard against duplicate entries if robot id is reused.
   AudioEngine.unregisterRobotMelody(robot.id);
   // Reserve a voice for this robot (best-effort) so its timbre/adsr are isolated.
@@ -861,8 +874,8 @@ export function spawnInitialCompanies(localeId: string): void {
  * This release-then-reserve pass predates this phase and was already
  * unconditional on `killAll()` for whichever robots it covered — this phase
  * just widened *which* robots that is: every robot now keeps its voice
- * reserved and melody registered across a dock cycle (mute is `audioMode`
- * alone, see spawnRobot/robotSystems.ts's landing effects), not just the old
+ * reserved and melody registered across a dock cycle (the dock's mute is the
+ * docking state, robotAudibility.ts's isDockMuted), not just the old
  * `persists`-flagged ones, so every robot needs re-registering here now, not
  * a filtered subset.
  *

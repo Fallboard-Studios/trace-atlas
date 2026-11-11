@@ -201,7 +201,12 @@ export const useLocaleStore = create<LocaleState>((set, get) => ({
         }
       }
       if (typeof normalized.batteryLevel === 'number') {
-        normalized.batteryLevel = Math.max(0, Math.min(100, Math.trunc(normalized.batteryLevel)));
+        // Fractional, so no trunc: a sized robot drains and charges by fractions. NaN is dropped as pan's is.
+        if (Number.isNaN(normalized.batteryLevel)) {
+          delete normalized.batteryLevel;
+        } else {
+          normalized.batteryLevel = Math.max(0, Math.min(100, normalized.batteryLevel));
+        }
       }
       if (typeof normalized.pan === 'number') {
         // Fractional, so no trunc. NaN has no sensible clamp: drop the key and keep the stored value.

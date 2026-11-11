@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 73.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 75.
 
 ## Open items
 
@@ -488,6 +488,16 @@ names, colours, gems and layout move. Done when no pick is welded to another and
 
 ### 60. Audio: Cover the Silence When Every Active Robot Is Charging
 
+**Status (2026-11-11): Stage 1 built on `feature/no-silence-for-now`, unpushed.** Interviewed and specified as Part A of
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md), planned in
+[docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md](../tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md). The last Active robot
+stays up until another lands, and every robot draws one seeded battery size (Gate A: 0.67–1.5) that divides its drain
+and its charge: no silent measure in any of 121 worlds, against 3.39 % of measures in 79 worlds before; a robot
+stays up past critical in 0.20 % of measures ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)). Gate B passed by Crawford's ear the
+same day; ready for his PR, and it archives after the merge. The fade-on-arcs note that sat here (spec open question
+A4) is now backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs). Stage 2 (company families) is backlog
+[73](#73-robots-a-seeded-company-is-a-family).
+
 Requested by Crawford at the 2026-11-02 plan review: occasionally every active robot is docked and charging at once and
 the music stops, an awkward pause. Cover it for now; the elegant answer waits on backlog
 [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (chord progressions) post-launch. The shape he has
@@ -499,13 +509,6 @@ the fixed 12-robot roster, flat drain and recharge on the measure tick) decides 
 robots per tier, so a floor beside the cap is the natural pair. Needs a short interview before a spec: a floor means
 either a robot stays up past empty (which bends the battery rule) or the drains are staggered so the fleet never empties
 together, and whichever it is must keep the lifecycle a pure function of seed and measures (roadmap 20.5's replay).
-
-**Complementary audio policy: fade-in/fade-out on station arcs.** As robots exit and enter stations, their audio presence
-should fade in and out to mirror their visual presence — *Semantic Fade on Lifecycle Change* policy: when `onLifecycleChange`
-fires, queue audio envelope fades through `AudioEngine` (never from GSAP timeline callbacks; respects Strict Separation):
-`'active'` → linear fade-in envelope (0 → full gain, 1s duration matching the exit arc), `'docked'` → linear fade-out
-envelope (full → 0, same duration). The fade respects existing `audioMode` and load-budget standing. This creates audio/visual
-coherence without adding scheduling logic to the lifecycle — a robot's sonic presence mirrors when it materializes and vanishes.
 
 Plan.md Stage 3.
 
@@ -570,4 +573,32 @@ the session diff), the content layer (the mark names and legend), and long melod
 narrower cells, and the cells must hold their size). Neighbours: roadmap
 [32](roadmap.md#32-robot-melody-history--configuration-scrubber) (Melody history). Needs an interview before a spec:
 read-only strip first, or the editor with it. Plan.md Post-launch.
+
+### 73. Robots: A Seeded Company Is a Family
+
+Stage 2 of the no-silence intent ([docs/intent/no-silence-and-company-families.md](../intent/no-silence-and-company-families.md)),
+given its own number by Crawford on 2026-11-11 (spec open question B11), so backlog 60 closes with Stage 1. Every
+seeded company becomes a founder (its lowest roster index) and members that inherit the founder's voice, onset pattern
+and five sends, and keep their own notes, volume, battery size and start; a quarter of members move one or two onsets
+in the measure; at least two robots stay freelancers; today's 30 % copy roll goes. Specified in
+[docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md](../specs/NO_SILENCE_AND_COMPANY_FAMILIES.md) Part B (§1.9–§1.11, from
+Crawford's answers to B1–B11), planned in [docs/tasks/COMPANY_FAMILIES.md](../tasks/COMPANY_FAMILIES.md) (nine tasks,
+Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every world's melodies, so it lands before
+backlog [45](#45-off-screen-crawfords-three-preset-links). B12–B15 answered 2026-11-11 (every default stands); built on
+its own branch from `main` after 60 merges. Plan.md Stage 3.
+
+### 74. Audio: Fade a Robot In and Out on Its Station Arcs
+
+Moved out of backlog [60](#60-audio-cover-the-silence-when-every-active-robot-is-charging) on 2026-11-11 (spec open
+question A4), where it sat as a complementary note; 60's build did not touch it. As robots exit and enter stations,
+their audio presence should fade in and out to mirror their visual presence — *Semantic Fade on Lifecycle Change*
+policy: when `onLifecycleChange` fires, queue audio envelope fades through `AudioEngine` (never from GSAP timeline
+callbacks; respects Strict Separation): `'active'` → linear fade-in envelope (0 → full gain, 1s duration matching the
+exit arc), `'docked'` → linear fade-out envelope (full → 0, same duration). The fade respects existing `audioMode` and
+load-budget standing. This creates audio/visual coherence without adding scheduling logic to the lifecycle — a robot's
+sonic presence mirrors when it materializes and vanishes.
+
+Since 60 the dock mutes a robot in `Docked` and `Undocking` (`isDockMuted`, `src/utils/robotAudibility.ts`) and a Solo
+overrides it, so today a robot cuts in and out on those state changes; the fade would smooth exactly that edge. Needs a
+short interview before a spec. Plan.md Stage 3.
 

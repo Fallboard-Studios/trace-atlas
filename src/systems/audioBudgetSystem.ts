@@ -20,7 +20,7 @@ import {
   withParam,
 } from '../utils/audioBudget';
 import { getActiveLocaleId } from '../utils/localeHelpers';
-import { isRobotAudible } from '../utils/robotAudibility';
+import { isDockMuted, isRobotAudible } from '../utils/robotAudibility';
 import { primeRobotLinks } from './robotLfoLinks';
 
 // ========================================
@@ -99,11 +99,13 @@ function applyStandingBy(next: readonly string[], force: boolean): void {
 function reconcile(force = false): void {
   const robots = activeRobots();
   const anySolo = robots.some((r) => r.audioMode === 'solo');
-  const eligible = robots.filter((r) => isRobotAudible(r.audioMode, anySolo)).map((r) => r.id);
+  const eligible = robots.filter((r) => isRobotAudible(r.audioMode, anySolo, r.docking)).map((r) => r.id);
   const soloIds = robots.filter((r) => r.audioMode === 'solo').map((r) => r.id);
-  // G1: a muted robot triggers nothing, so it stands by at every tier; a solo-silenced one keeps its voice, since an
-  // un-solo would readmit eleven at once.
-  const mutedIds = robots.filter((r) => r.audioMode === 'mute').map((r) => r.id);
+  // G1: a muted robot triggers nothing, so it stands by at every tier — muted by the user, or by the dock unless it is
+  // soloed (Solo beats the dock). A solo-silenced one keeps its voice, since an un-solo would readmit eleven at once.
+  const mutedIds = robots
+    .filter((r) => r.audioMode === 'mute' || (isDockMuted(r.docking) && r.audioMode !== 'solo'))
+    .map((r) => r.id);
   const { robotLoad, effectsLoad } = useAudioStore.getState();
   const limits: LoadLimits = { ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) };
 

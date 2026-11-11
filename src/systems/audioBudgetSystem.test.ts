@@ -365,7 +365,7 @@ describe('audioBudgetSystem', () => {
       const finalRobots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
       sounding().forEach((id) => {
         const robot = finalRobots.find((r) => r.id === id)!;
-        expect(isRobotAudible(robot.audioMode, false)).toBe(true);
+        expect(isRobotAudible(robot.audioMode, false, robot.docking)).toBe(true);
       });
     });
   });
@@ -548,6 +548,51 @@ describe('audioBudgetSystem', () => {
 
       expect(sounding()).toEqual(['r1']);
       expect(engineStandBy).toHaveBeenLastCalledWith([]);
+    });
+
+    // The dock mutes on its own, not through audioMode, and a Solo beats it (Crawford, 2026-11-11).
+    it('a Docked or Undocking robot with no mute set is named and never sounds', () => {
+      setRoster(roster(12).map((r, i) => (i === 0 ? { ...r, docking: DockingState.Docked } : i === 1 ? { ...r, docking: DockingState.Undocking } : r)));
+      startAudioBudget();
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r1', 'r2']);
+      expect(sounding()).not.toContain('r1');
+      expect(sounding()).not.toContain('r2');
+    });
+
+    it('a soloed robot in the station sounds alone; the other docked robots are named, the solo-silenced ones are not', () => {
+      setRoster(roster(12).map((r, i) => (i < 3 ? { ...r, docking: DockingState.Docked } : r)));
+      startAudioBudget();
+
+      update('r2', { audioMode: 'solo' });
+
+      expect(sounding()).toEqual(['r2']);
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r1', 'r3']);
+    });
+
+    it('a Solo survives the dock cycle: the soloed robot sounds alone through landOnDocked and landOnActive', () => {
+      setRoster(roster(12));
+      startAudioBudget();
+      update('r4', { audioMode: 'solo' });
+
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      expect(sounding()).toEqual(['r4']);
+
+      landOnActive(DEFAULT_LOCALE_ID, 'r4');
+      expect(sounding()).toEqual(['r4']);
+      expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, 'r4')?.audioMode).toBe('solo');
+    });
+
+    it('a Mute survives the dock cycle: the muted robot stays named after it comes back out', () => {
+      setRoster(roster(12));
+      startAudioBudget();
+      update('r4', { audioMode: 'mute' });
+
+      landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      landOnActive(DEFAULT_LOCALE_ID, 'r4');
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r4']);
+      expect(sounding()).not.toContain('r4');
     });
 
     it('under a solo, a muted robot is still named and the solo-silenced ones are not', () => {

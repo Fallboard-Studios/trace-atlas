@@ -29,6 +29,12 @@ import {
   runLoopSim,
   runReadinessSim,
   formatReadinessReport,
+  createCoverTally,
+  runCoverSim,
+  formatCoverReport,
+  type CoverSimRow,
+  type CoverSnapshot,
+  type CoverTallyResult,
   type LifecycleStep,
   type LoopSimEvent,
   type LoopSimOptions,
@@ -36,9 +42,10 @@ import {
   type LoopSimWorld,
   type ReadinessRow,
   type ReadinessSeedRow,
+  type SimBand,
 } from './lifecycleSim';
-import { activeDrain, type RobotLifecycleSnapshot } from './robotSystems';
-import { spawnInitialRoster } from './spawnSystem';
+import { activeDrain, stepRobotLifecycle, type RobotLifecycleSnapshot } from './robotSystems';
+import { generateBatterySize, spawnInitialRoster } from './spawnSystem';
 import { placeDistrict } from './districts';
 import { getWorkSite } from './workSites';
 import { isWorkSiteEligible } from './jobHosts';
@@ -48,7 +55,7 @@ import { jobDuration } from '../animation/jobMoves/jobDuration';
 import { subscribeToMeasure, getCurrentMeasure } from '../engine/beatClock';
 import { useLocaleStore } from '../stores/localeStore';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { DockingState, JobType } from '../types/Robot';
+import { DockingState, JobType, type Robot } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import {
   MAX_ROBOTS,
@@ -59,6 +66,9 @@ import {
   WAIT_RETRY_SECONDS,
   BEATS_PER_MEASURE,
   BACK_HOSTS_ENABLED,
+  BATTERY_CRITICAL_THRESHOLD,
+  BATTERY_SIZE_MIN,
+  BATTERY_SIZE_MAX,
 } from '../constants';
 
 // ========================================
@@ -132,12 +142,35 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
       const sim = buildSimRoster(simNoiseMap(x, y));
-      expect(sim.map((s) => ({ docking: s.docking, batteryLevel: s.batteryLevel, noteVariance: s.noteVariance }))).toEqual(
-        real.map((r) => ({ docking: r.docking, batteryLevel: r.batteryLevel, noteVariance: r.noteVariance })),
-      );
+      const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel, noteVariance: s.noteVariance, batterySize: s.batterySize });
+      expect(sim.map(fields)).toEqual(real.map(fields));
 
-      // Guard against a coincidental pass on defaults: this seed must actually vary.
+      // Guard against a coincidental pass on defaults: this seed must actually vary, and carry real sizes.
       expect(new Set(real.filter((r) => r.docking === DockingState.Docked).map((r) => r.batteryLevel)).size).toBeGreaterThan(1);
+      expect(real.every((r) => r.batterySize !== undefined && r.batterySize !== 1)).toBe(true);
+      expect(new Set(real.map((r) => r.batterySize)).size).toBe(MAX_ROBOTS);
+    });
+
+    it('draws every size on the band it is given, from the same even draw (no-silence Task 8)', () => {
+      for (const { x, y } of FEW_COORDS) {
+        const noiseMap = simNoiseMap(x, y);
+        const banded = buildSimRoster(noiseMap, [0.67, 1.5]);
+        banded.forEach((r, i) => {
+          expect(r.batterySize).toBe(generateBatterySize(noiseMap, i, 0.67, 1.5));
+          expect(r.batterySize).toBeGreaterThanOrEqual(0.67);
+          expect(r.batterySize).toBeLessThan(1.5);
+        });
+        // The band changes the sizes only: docking, battery and note variance are the default roster's.
+        const strip = ({ batterySize: _size, ...rest }: RobotLifecycleSnapshot) => rest;
+        expect(banded.map(strip)).toEqual(buildSimRoster(noiseMap).map(strip));
+      }
+    });
+
+    it("'flat' builds today's fleet: the same roster with no size on any robot", () => {
+      const noiseMap = simNoiseMap(-40, 80);
+      const flat = buildSimRoster(noiseMap, 'flat');
+      for (const r of flat) expect('batterySize' in r).toBe(false);
+      expect(flat).toEqual(buildSimRoster(noiseMap).map(({ batterySize: _size, ...rest }) => rest));
     });
 
     it('uses the same noise map the live locale would (no attenuation-style override)', () => {
@@ -164,7 +197,7 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
     });  });
 
   describe('activeCountsOverTime', () => {
-    it('returns one Active count per measure, never above the roster (it may reach zero: the fleet can fall silent)', () => {
+    it('returns one Active count per measure, never above the roster', () => {
       const noiseMap = simNoiseMap(-40, 80);
       const counts = activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, flatDrain(6), 300);
       expect(counts).toHaveLength(300);
@@ -173,6 +206,16 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
         expect(n).toBeLessThanOrEqual(MAX_ROBOTS);
       }
     });
+
+    // The last Active robot stays up (no-silence Task 12, spec §5.1 case 7): over real seeded rosters, the shipped
+    // drain and band, the Active count never reaches zero — in 100 of 121 worlds it did before the rule.
+    it('over every world of the grid at SIM_MEASURES, the Active count never reaches zero (case 7)', () => {
+      const zeroWorlds = SIM_SEED_COORDS.filter(({ x, y }) => {
+        const noiseMap = simNoiseMap(x, y);
+        return activeCountsOverTime(buildSimRoster(noiseMap), noiseMap, activeDrain, SIM_MEASURES).some((n) => n === 0);
+      });
+      expect(zeroWorlds).toEqual([]);
+    }, 60_000);
 
     it('a heavier drain keeps fewer robots Active on average', () => {
       const noiseMap = simNoiseMap(-40, 80);
@@ -235,16 +278,17 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(getCurrentMeasure).not.toHaveBeenCalled();
     });
 
-    it('over the full grid and 2000 measures, reports every candidate — flat 6 reproduces Task 2\'s 5.14 mean Active', () => {
+    it('over the full grid and 2000 measures, reports every candidate — flat 6 at 5.10 mean Active on sized robots', () => {
       const rows = runDrainSim();
       expect(rows.map((r) => r.label)).toEqual(['flat 5', 'flat 6', 'flat 7']);
       for (const r of rows) expect(Number.isFinite(r.mean)).toBe(true);
       // Flat drains are ordered: more drain, fewer robots out.
       expect(rows[0].mean).toBeGreaterThan(rows[1].mean);
       expect(rows[1].mean).toBeGreaterThan(rows[2].mean);
-      // Narrowing the snapshot (no job, no scoring fields) must not move the flat numbers Crawford
-      // chose from (commit 5bbbff3f: flat 5 5.70, flat 6 5.14, flat 7 4.60).
-      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.70', '5.14', '4.60']);
+      // The base drains Crawford chose from were 5.70, 5.14 and 4.60 (commit 5bbbff3f) on unsized robots. Each robot's
+      // battery size now divides its drain and its charge, with the stay-up rule, on Gate A's 0.67-1.5 band
+      // (no-silence Task 14): 5.7136, 5.1025, 4.6633. On 0.8-1.25 they were 5.7069, 5.1035, 4.6512 (Task 12).
+      expect(rows.map((r) => r.mean.toFixed(2))).toEqual(['5.71', '5.10', '4.66']);
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatDrainReport(rows)}`);
     }, 60_000);
   });
@@ -262,6 +306,386 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(lines[3]).toBe('| flat 6 | 4.20 | 3 | 6 |');
       expect(lines).toHaveLength(4);
     });
+  });
+});
+
+// ========================================
+// COVER TALLY (no-silence Task 1 — spec §1.1's three terms, §1.5)
+// ========================================
+
+const A = DockingState.Active;
+const R = DockingState.Recalled;
+const D = DockingState.Docked;
+const U = DockingState.Undocking;
+
+/** A roster for the tally: only id, docking and battery matter to it. */
+const cover = (...robots: [string, DockingState, number][]): CoverSnapshot[] =>
+  robots.map(([id, docking, batteryLevel]) => ({ id, docking, batteryLevel }));
+
+/** Feed a start roster and a series of post-tick rosters (measure 1, 2, …) and read the result. */
+function tallyOf(start: CoverSnapshot[], series: CoverSnapshot[][]): CoverTallyResult {
+  const tally = createCoverTally(start);
+  for (const roster of series) tally.observe(roster);
+  return tally.result();
+}
+
+describe('createCoverTally (no-silence Task 1)', () => {
+  describe('silence', () => {
+    it('two measures with nobody sounding are two silent measures, one silence of length 2 at the measure it begins', () => {
+      const result = tallyOf(cover(['a', A, 100]), [
+        cover(['a', R, 10]),
+        cover(['a', D, 15]),
+        cover(['a', D, 20]),
+        cover(['a', A, 100]),
+      ]);
+      expect(result.measures).toBe(4);
+      expect(result.silentMeasures).toBe(2);
+      expect(result.longestSilence).toEqual({ start: 2, length: 2 });
+    });
+
+    it('a measure whose only sounding robot is Recalled is not silent; Docked and Undocking are not sounding', () => {
+      const result = tallyOf(cover(['a', A, 12], ['b', D, 95]), [cover(['a', R, 6], ['b', U, 100])]);
+      expect(result.silentMeasures).toBe(0);
+      expect(result.longestSilence).toBeUndefined();
+      expect(result.soundingHistogram).toEqual([0, 1]);
+    });
+
+    it('the longest silence wins, and the earlier of two equal ones', () => {
+      const silent = cover(['a', D, 50]);
+      const heard = cover(['a', A, 50]);
+      expect(tallyOf(silent, [silent, heard, silent, silent, silent, heard]).longestSilence).toEqual({ start: 3, length: 3 });
+      expect(tallyOf(silent, [heard, silent, silent, heard, silent, silent, heard]).longestSilence).toEqual({ start: 2, length: 2 });
+      expect(tallyOf(silent, [heard, silent, silent, heard, silent, silent]).longestSilence).toEqual({ start: 2, length: 2 });
+    });
+
+    it('a silence still open at the end of the series counts at its length so far', () => {
+      const result = tallyOf(cover(['a', A, 50]), [cover(['a', A, 44]), cover(['a', D, 10]), cover(['a', D, 15])]);
+      expect(result.longestSilence).toEqual({ start: 2, length: 2 });
+    });
+
+    it('counts robots sounding per measure as a histogram indexed by the count', () => {
+      const result = tallyOf(cover(['a', A, 100], ['b', A, 100], ['c', D, 50]), [
+        cover(['a', A, 94], ['b', A, 94], ['c', D, 55]),
+        cover(['a', A, 88], ['b', R, 8], ['c', U, 100]),
+        cover(['a', R, 9], ['b', D, 13], ['c', A, 100]),
+        cover(['a', D, 14], ['b', D, 18], ['c', D, 90]),
+      ]);
+      expect(result.soundingHistogram).toEqual([1, 0, 3]);
+    });
+  });
+
+  describe('stays', () => {
+    it(`a robot Active at ${BATTERY_CRITICAL_THRESHOLD}, then 4, then 0, then Recalled is one stay of length 3`, () => {
+      const result = tallyOf(cover(['a', A, 16], ['b', D, 50]), [
+        cover(['a', A, BATTERY_CRITICAL_THRESHOLD], ['b', D, 55]),
+        cover(['a', A, 4], ['b', D, 60]),
+        cover(['a', A, 0], ['b', D, 65]),
+        cover(['a', R, 0], ['b', D, 70]),
+      ]);
+      expect(result.stays).toEqual([3]);
+      expect(result.stayMeasures).toBe(3);
+    });
+
+    it('an Active robot just above critical is in no stay, and neither is a Recalled one at or below it', () => {
+      const result = tallyOf(cover(['a', A, 17]), [cover(['a', A, BATTERY_CRITICAL_THRESHOLD + 1]), cover(['a', R, 5])]);
+      expect(result.stays).toEqual([]);
+      expect(result.stayMeasures).toBe(0);
+    });
+
+    it('two robots in a stay at once are two stays, and the measures they share count once', () => {
+      const result = tallyOf(cover(['a', A, 14], ['b', A, 20]), [
+        cover(['a', A, 8], ['b', A, 14]),
+        cover(['a', A, 2], ['b', A, 8]),
+        cover(['a', R, 0], ['b', A, 2]),
+        cover(['a', D, 5], ['b', R, 0]),
+      ]);
+      expect(result.stays).toEqual([2, 2]);
+      expect(result.stayMeasures).toBe(3);
+    });
+
+    it('one robot with two separate stays has two; a stay still open at the end counts at its length so far', () => {
+      const result = tallyOf(cover(['a', A, 12]), [
+        cover(['a', A, 6]),
+        cover(['a', R, 0]),
+        cover(['a', D, 5]),
+        cover(['a', A, 100]),
+        cover(['a', A, 9]),
+        cover(['a', A, 3]),
+      ]);
+      expect(result.stays).toEqual([1, 2]);
+    });
+  });
+
+  describe('cycles and heard share', () => {
+    /** One robot: Active over the given inclusive measure spans, Docked otherwise, over `measures`. */
+    const shifts = (measures: number, spans: [number, number][]): CoverSnapshot[][] =>
+      Array.from({ length: measures }, (_, i) => {
+        const m = i + 1;
+        const on = spans.some(([from, to]) => m >= from && m <= to);
+        return cover(['a', on ? A : D, 50]);
+      });
+
+    it('a robot landing on Active at measures 3, 38 and 73 has cycle 35', () => {
+      const result = tallyOf(cover(['a', D, 50]), shifts(75, [[3, 10], [38, 45], [73, 75]]));
+      const [a] = result.robots;
+      expect(a.id).toBe('a');
+      expect(a.landings).toEqual([3, 38, 73]);
+      expect(a.cycle).toBe(35);
+    });
+
+    it('one landing gives no cycle, and a robot Active in the start roster has not landed at measure 1', () => {
+      expect(tallyOf(cover(['a', D, 50]), shifts(40, [[3, 10]])).robots[0].cycle).toBeUndefined();
+      const fromStart = tallyOf(cover(['a', A, 100]), shifts(40, [[1, 10], [30, 40]])).robots[0];
+      expect(fromStart.landings).toEqual([30]);
+      expect(fromStart.cycle).toBeUndefined();
+    });
+
+    it('the cycle is the commonest gap; on a tie, the shorter', () => {
+      const commonest = tallyOf(cover(['a', D, 50]), shifts(110, [[1, 2], [36, 37], [71, 72], [102, 103]])).robots[0];
+      expect(commonest.landings).toEqual([1, 36, 71, 102]);
+      expect(commonest.cycle).toBe(35);
+      const tie = tallyOf(cover(['a', D, 50]), shifts(80, [[1, 2], [36, 37], [67, 68]])).robots[0];
+      expect(tie.cycle).toBe(31);
+    });
+
+    it('heard share is the measures a robot is Active or Recalled over the measures observed', () => {
+      const result = tallyOf(cover(['a', A, 100], ['b', D, 50]), [
+        cover(['a', A, 94], ['b', D, 55]),
+        cover(['a', R, 8], ['b', D, 60]),
+        cover(['a', D, 13], ['b', U, 100]),
+        cover(['a', D, 18], ['b', A, 100]),
+      ]);
+      expect(result.robots.map((r) => [r.id, r.heardShare])).toEqual([['a', 0.5], ['b', 0.25]]);
+    });
+
+    it('reports robots in start-roster order', () => {
+      const result = tallyOf(cover(['z', D, 50], ['m', D, 50], ['a', D, 50]), [cover(['z', D, 55], ['m', D, 55], ['a', D, 55])]);
+      expect(result.robots.map((r) => r.id)).toEqual(['z', 'm', 'a']);
+    });
+  });
+
+  describe('purity', () => {
+    const start = cover(['a', A, 16], ['b', D, 90]);
+    const series = [
+      cover(['a', A, 10], ['b', D, 95]),
+      cover(['a', R, 4], ['b', U, 100]),
+      cover(['a', D, 9], ['b', A, 100]),
+      cover(['a', D, 14], ['b', A, 94]),
+    ];
+
+    it('the same series gives the same result twice', () => {
+      expect(tallyOf(start, series)).toEqual(tallyOf(start, series));
+    });
+
+    it('does not mutate the rosters it is handed', () => {
+      const before = structuredClone([start, ...series]);
+      tallyOf(start, series);
+      expect([start, ...series]).toEqual(before);
+    });
+
+    it('with nothing observed, reports zero measures and no silence, stay or cycle', () => {
+      const result = createCoverTally(start).result();
+      expect(result).toMatchObject({ measures: 0, silentMeasures: 0, soundingHistogram: [], stays: [], stayMeasures: 0 });
+      expect(result.longestSilence).toBeUndefined();
+      expect(result.robots.map((r) => [r.id, r.landings, r.cycle, r.heardShare])).toEqual([
+        ['a', [], undefined, 0],
+        ['b', [], undefined, 0],
+      ]);
+    });
+  });
+});
+
+// ========================================
+// COVER SIM (no-silence Task 2 — spec §1.5)
+// ========================================
+
+/** The cover report's run length (spec §5.3): 6,000 measures a world, under LIFECYCLE_SIM_REPORT only. */
+const COVER_REPORT_MEASURES = 6000;
+
+/** The rows the reports print (plan Tasks 10 and 13): today's flat fleet and the three candidate bands. */
+const REPORT_BANDS: ReadonlyArray<{ label: string; band: SimBand }> = [
+  { label: 'flat', band: 'flat' },
+  { label: '0.9–1.1', band: [0.9, 1.1] },
+  { label: '0.8–1.25', band: [0.8, 1.25] },
+  { label: '0.67–1.5', band: [0.67, 1.5] },
+];
+
+describe('runCoverSim (no-silence Task 2)', () => {
+  it('one row with every field finite, shares inside 0-1, p10 <= mean <= p90, and stays counted with their lengths in order', () => {
+    // The whole grid, but short. Since the rule (Task 12) no world goes silent, so the worst-world list is empty;
+    // the stays are what this case exercises now: enough of them, of more than one length, to order.
+    const [row] = runCoverSim({ measures: 300 });
+    expect(row.worldsWithSilence).toBe(0);
+    expect(row.worstWorlds).toEqual([]);
+    expect(row.worldsWithStay).toBeGreaterThan(5);
+    expect(row.stayLength.median).toBeLessThanOrEqual(row.stayLength.p90);
+    expect(row.stayLength.p90).toBeLessThanOrEqual(row.stayLength.longest);
+    expect(row.stayLength.longest).toBeGreaterThan(row.stayLength.median);
+    expect(row.staysPer1000).toBeGreaterThan(0);
+    expect(row.stayShare).toBeGreaterThan(0);
+    expect(row.worlds).toBe(SIM_SEED_COORDS.length);
+    expect(row.measures).toBe(300);
+    const numbers = [
+      row.silentShare, row.worldsWithSilence, row.worldsWithStay, row.staysPer1000, row.stayShare,
+      row.stayLength.median, row.stayLength.p90, row.stayLength.longest,
+      row.sounding.mean, row.sounding.p10, row.sounding.p90,
+      row.cycles.shortest, row.cycles.longest, row.cycles.distinct,
+      row.sharing.median, row.sharing.max, row.heardShare.lowest, row.heardShare.highest,
+    ];
+    for (const n of numbers) expect(Number.isFinite(n)).toBe(true);
+    for (const share of [row.silentShare, row.stayShare, row.heardShare.lowest, row.heardShare.highest]) {
+      expect(share).toBeGreaterThanOrEqual(0);
+      expect(share).toBeLessThanOrEqual(1);
+    }
+    expect(row.sounding.p10).toBeLessThanOrEqual(row.sounding.mean);
+    expect(row.sounding.mean).toBeLessThanOrEqual(row.sounding.p90);
+    expect(row.heardShare.lowest).toBeLessThanOrEqual(row.heardShare.highest);
+    expect(row.cycles.shortest).toBeLessThanOrEqual(row.cycles.longest);
+    expect(row.worldsWithSilence).toBeLessThanOrEqual(row.worlds);
+    expect(row.worstWorlds.length).toBeLessThanOrEqual(5);
+    expect(row.worstWorlds.length).toBe(Math.min(5, row.worldsWithSilence));
+    const lengths = row.worstWorlds.map((w) => w.length);
+    expect(lengths).toEqual([...lengths].sort((a, b) => b - a));
+  });
+
+  it('agrees with its own count, world by world: silent measures, stays, measures in a stay and robots sounding off the real step', () => {
+    const SOUNDING = new Set<DockingState>([DockingState.Active, DockingState.Recalled]);
+    let stayWorlds = 0;
+    for (const { x, y } of SIM_SEED_COORDS) {
+      const noiseMap = simNoiseMap(x, y);
+      let roster = buildSimRoster(noiseMap);
+      let silent = 0;
+      let soundingTotal = 0;
+      let stays = 0;
+      let stayMeasures = 0;
+      let inStay = new Set<string>();
+      for (let measure = 1; measure <= 300; measure++) {
+        roster = stepRobotLifecycle(roster, measure, noiseMap);
+        const sounding = roster.filter((r) => SOUNDING.has(r.docking)).length;
+        soundingTotal += sounding;
+        if (sounding === 0) silent++;
+        // A stay: a robot Active at or below critical after a tick; consecutive measures are one stay.
+        const staying = new Set(roster.filter((r) => r.docking === DockingState.Active && r.batteryLevel <= BATTERY_CRITICAL_THRESHOLD).map((r) => r.id));
+        for (const id of staying) if (!inStay.has(id)) stays++;
+        if (staying.size > 0) stayMeasures++;
+        inStay = staying;
+      }
+      const [row] = runCoverSim({ coords: [{ x, y }], measures: 300 });
+      expect(row.silentShare * 300).toBeCloseTo(silent, 9);
+      expect(row.worldsWithSilence).toBe(silent > 0 ? 1 : 0);
+      expect(row.sounding.mean).toBeCloseTo(soundingTotal / 300, 9);
+      expect((row.staysPer1000 * 300) / 1000).toBeCloseTo(stays, 9);
+      expect(row.stayShare * 300).toBeCloseTo(stayMeasures, 9);
+      expect(row.worldsWithStay).toBe(stays > 0 ? 1 : 0);
+      if (stays > 0) stayWorlds++;
+    }
+    // Guard against a coincidental pass on all-zero counts: some of these worlds must hold a stay.
+    expect(stayWorlds).toBeGreaterThan(0);
+  }, 30_000);
+
+  // The last Active robot stays up (no-silence Task 12, spec §5.1 case 17): the always-on grid pass.
+  it('over the grid at SIM_MEASURES on the shipped band, no world has a silent measure (case 17)', () => {
+    const [row] = runCoverSim();
+    expect(row.measures).toBe(SIM_MEASURES);
+    expect(row.worlds).toBe(SIM_SEED_COORDS.length);
+    expect(row.worldsWithSilence).toBe(0);
+    expect(row.silentShare).toBe(0);
+  }, 60_000);
+
+  it('pools the tally over worlds: staysPer1000 and the shares are per measure per world', () => {
+    const [one] = runCoverSim({ coords: [FEW_COORDS[0]], measures: 300 });
+    const [two] = runCoverSim({ coords: [FEW_COORDS[0], FEW_COORDS[0]], measures: 300 });
+    expect(two.silentShare).toBeCloseTo(one.silentShare, 12);
+    expect(two.staysPer1000).toBeCloseTo(one.staysPer1000, 12);
+    expect(two.stayShare).toBeCloseTo(one.stayShare, 12);
+    expect(two.sounding.mean).toBeCloseTo(one.sounding.mean, 12);
+    expect(two.worldsWithSilence).toBe(2 * one.worldsWithSilence);
+  });
+
+  it('is deterministic — the same rows twice', () => {
+    const rows = [{ label: 'flat', band: 'flat' as const }, { label: 'wide', band: [0.67, 1.5] as const }];
+    expect(runCoverSim({ coords: FEW_COORDS, measures: 200, rows })).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 200, rows }));
+  });
+
+  describe('rows on a band each (no-silence Task 9)', () => {
+    const rows = [
+      { label: 'flat', band: 'flat' as const },
+      { label: '0.9-1.1', band: [0.9, 1.1] as const },
+      { label: '0.67-1.5', band: [0.67, 1.5] as const },
+    ];
+
+    it('come back in the order asked, labelled, each built on its own band', () => {
+      const result = runCoverSim({ coords: FEW_COORDS, measures: 300, rows });
+      expect(result.map((r) => r.label)).toEqual(['flat', '0.9-1.1', '0.67-1.5']);
+      rows.forEach((spec, i) => expect(result[i]).toEqual(runCoverSim({ coords: FEW_COORDS, measures: 300, rows: [spec] })[0]));
+      expect(result[1]).not.toEqual({ ...result[2], label: result[1].label });
+    });
+
+    it('with no rows asked, one row labelled shipped on the shipped band', () => {
+      const result = runCoverSim({ coords: FEW_COORDS, measures: 300 });
+      expect(result).toHaveLength(1);
+      const shipped = runCoverSim({ coords: FEW_COORDS, measures: 300, rows: [{ label: 'shipped', band: [BATTERY_SIZE_MIN, BATTERY_SIZE_MAX] }] });
+      expect(result).toEqual(shipped);
+    });
+
+    it("the 'flat' row has one cycle length, every robot's 35 measures; a banded row has several", () => {
+      const [flat, narrow, wide] = runCoverSim({ coords: FEW_COORDS, measures: 300, rows });
+      expect(flat.cycles).toEqual({ shortest: 35, longest: 35, distinct: 1 });
+      expect(narrow.cycles.distinct).toBeGreaterThan(1);
+      expect(wide.cycles.distinct).toBeGreaterThan(narrow.cycles.distinct);
+      expect(wide.cycles.shortest).toBeLessThan(35);
+      expect(wide.cycles.longest).toBeGreaterThan(35);
+    });
+  });
+
+  it('touches no store and no BeatClock', () => {
+    const getState = vi.spyOn(useLocaleStore, 'getState');
+    vi.mocked(subscribeToMeasure).mockClear();
+    vi.mocked(getCurrentMeasure).mockClear();
+    runCoverSim({ coords: FEW_COORDS, measures: 100 });
+    expect(getState).not.toHaveBeenCalled();
+    expect(subscribeToMeasure).not.toHaveBeenCalled();
+    expect(getCurrentMeasure).not.toHaveBeenCalled();
+  });
+
+  it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)(`the report: the full grid at ${COVER_REPORT_MEASURES} measures a world`, () => {
+    const rows = runCoverSim({ measures: COVER_REPORT_MEASURES, rows: REPORT_BANDS });
+    console.log(`\n${formatCoverReport(rows)}`);
+  }, 300_000);
+});
+
+describe('formatCoverReport', () => {
+  const row: CoverSimRow = {
+    label: 'today',
+    worlds: 121,
+    measures: 6000,
+    silentShare: 0.034,
+    worldsWithSilence: 79,
+    worldsWithStay: 0,
+    staysPer1000: 0,
+    stayLength: { median: 0, p90: 0, longest: 0 },
+    stayShare: 0,
+    sounding: { mean: 5.5, p10: 2, p90: 9 },
+    cycles: { shortest: 35, longest: 35, distinct: 1 },
+    sharing: { median: 12, max: 12 },
+    heardShare: { lowest: 0.457, highest: 0.458 },
+    worstWorlds: [
+      { x: 40, y: -80, start: 31, length: 8 },
+      { x: -200, y: 0, start: 12, length: 6 },
+    ],
+  };
+
+  it('renders a header, a separator, one line per row, then each row\'s worst worlds longest first', () => {
+    const lines = formatCoverReport([row, { ...row, label: 'size only', worstWorlds: [] }]).trim().split('\n');
+    expect(lines[0]).toMatch(/^\| Row \| Silent measures \|/);
+    expect(lines[1]).toMatch(/^\|[-| ]+\|$/);
+    expect(lines[2]).toMatch(/^\| today \| 3\.40 % \| 79 \/ 121 \|/);
+    expect(lines[3]).toMatch(/^\| size only \|/);
+    const worst = lines.findIndex((l) => l === '| 40 | -80 | 31 | 8 |');
+    const next = lines.findIndex((l) => l === '| -200 | 0 | 12 | 6 |');
+    expect(worst).toBeGreaterThan(3);
+    expect(next).toBe(worst + 1);
+    expect(lines.some((l) => /size only/.test(l) && /no silence/.test(l))).toBe(true);
   });
 });
 
@@ -674,9 +1098,23 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       expect(b).toEqual(a);
     });
 
+    it('runs on the band it is given, and with none on the shipped one (no-silence Task 9)', () => {
+      const candidates = COOLDOWN_CANDIDATES.slice(0, 1);
+      const run = (band?: SimBand) => runReadinessSim({ worlds, seconds: 600, bpms: [200], candidates, band });
+      const byDefault = run();
+      expect(byDefault).toEqual(run([BATTERY_SIZE_MIN, BATTERY_SIZE_MAX]));
+      // A different roster moves the loop: 'flat' and another band each differ from the shipped band and from each other.
+      const flat = run('flat');
+      const other = run([0.8, 1.25]);
+      expect(flat.seeds).not.toEqual(byDefault.seeds);
+      expect(other.seeds).not.toEqual(byDefault.seeds);
+      expect(other.seeds).not.toEqual(flat.seeds);
+    }, 30_000);
+
     it('at 200 BPM the lifecycle docks a recalled robot sooner, so it is visible-while-Docked longer than at 20 BPM', () => {
-      // Turn-backs are not compared: with recharge 5/measure the shortest Docked stay (~20 measures,
-      // 24 s at 200 BPM) outlasts the longest walk home, so both tempos measure 0 (Task 15 report).
+      // Turn-backs are not compared: on the shipped 0.67-1.5 band the shortest Docked stay is 14 measures (a size-0.67
+      // robot's 11-measure shift, then 1.2 × 11 rounded up), 16.8 s at 200 BPM, and it still outlasts the longest walk
+      // home: the loop sim measured 0 turn-backs at 20, 110 and 200 BPM on every band (no-silence Task 13).
       const { rows } = runReadinessSim({ worlds, seconds: 600 });
       const at = (bpm: number) => rows.find((r) => r.bpm === bpm)!;
       expect(Number.isFinite(at(200).longestDockedVisible)).toBe(true);
@@ -689,6 +1127,15 @@ describe('loop sim (Phase 43 Task 15 — readiness and handoff, spec §5.2)', ()
       for (const r of rows) expect(r.chargingWhileVisible).toBe(0);
       if (process.env.LIFECYCLE_SIM_REPORT) console.log(`\n${formatReadinessReport(rows, seeds)}`);
     }, 120_000);
+
+    it.runIf(!!process.env.LIFECYCLE_SIM_REPORT)('the report: the full grid at 20, 110 and 200 BPM for 10 minutes on each band', () => {
+      const grid = SIM_SEED_COORDS.map(({ x, y }) => ({ x, y, actors: placedWorld(x, y).actors }));
+      const candidates = COOLDOWN_CANDIDATES.slice(0, 1);
+      for (const { label, band } of REPORT_BANDS) {
+        const { rows, seeds } = runReadinessSim({ worlds: grid, candidates, band });
+        console.log(`\n### Band ${label}\n\n${formatReadinessReport(rows, seeds)}`);
+      }
+    }, 600_000);
   });
 
   describe('formatReadinessReport', () => {

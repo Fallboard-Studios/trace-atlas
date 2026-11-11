@@ -8,7 +8,7 @@ import { DockingState, type JobType, type RobotActivity } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
 import { getSeededVal } from '../utils/getSeededVal';
-import { generateRobotRosterBaseline } from './spawnSystem';
+import { generateBatterySize, generateRobotRosterBaseline } from './spawnSystem';
 import { stepRobotLifecycle } from './robotSystems';
 import type { DrainRule, RobotLifecycleSnapshot } from './robotSystems';
 import { isWorkSiteEligible } from './jobHosts';
@@ -28,6 +28,7 @@ import {
   STATION_ARC_SECONDS,
   SWIM_SPEED,
   WAIT_RETRY_SECONDS,
+  BATTERY_CRITICAL_THRESHOLD,
 } from '../constants';
 
 /**
@@ -64,12 +65,17 @@ export function simNoiseMap(x: number, y: number): NoiseFunction2D {
 // ROSTER
 // ========================================
 
+/** The battery sizes a sim roster carries: a `[min, max]` band to draw on, or 'flat' for none (today's fleet). */
+export type SimBand = readonly [min: number, max: number] | 'flat';
+
 /**
  * The roster a fresh locale on this noise map starts with, as lifecycle snapshots: spawnInitialRoster's
  * seeded Active count and Docked batteries, with generateRobotRosterBaseline's note variance. Melody
- * is empty — it only feeds pitch drift, which never touches battery or docking.
+ * is empty — it only feeds pitch drift, which never touches battery or docking. Each robot's battery
+ * size is spawn's own generateBatterySize at its spawn count, on the shipped band unless `band` names
+ * another; 'flat' sets no size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, §1.5).
  */
-export function buildSimRoster(noiseMap: NoiseFunction2D): RobotLifecycleSnapshot[] {
+export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): RobotLifecycleSnapshot[] {
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     getSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
   );
@@ -82,6 +88,7 @@ export function buildSimRoster(noiseMap: NoiseFunction2D): RobotLifecycleSnapsho
       melody: [],
       dockCycleCount: 0,
       noteVariance: b.noteVariance,
+      ...(band === 'flat' ? {} : { batterySize: band ? generateBatterySize(noiseMap, i, band[0], band[1]) : generateBatterySize(noiseMap, i) }),
     };
   });
 }
@@ -165,6 +172,297 @@ export function runDrainSim(options: {
 export function formatDrainReport(rows: readonly DrainSimRow[]): string {
   const lines = ['| Drain | Mean Active | p10 | p90 |', '|---|---|---|---|'];
   for (const r of rows) lines.push(`| ${r.label} | ${r.mean.toFixed(2)} | ${r.p10} | ${r.p90} |`);
+  return lines.join('\n');
+}
+
+// ========================================
+// COVER TALLY (no-silence Task 1)
+// ========================================
+
+/** What the cover tally reads off a roster — nothing else. */
+export type CoverSnapshot = Pick<RobotLifecycleSnapshot, 'id' | 'docking' | 'batteryLevel'>;
+
+export interface CoverTallyRobot {
+  id: string;
+  /** Measures on which the robot became Active (it was not Active the measure before). */
+  landings: number[];
+  /** The commonest gap between landings, the shorter on a tie; undefined with fewer than two landings. */
+  cycle?: number;
+  /** Measures sounding (Active or Recalled) over measures observed; 0 when none were. */
+  heardShare: number;
+}
+
+export interface CoverTallyResult {
+  measures: number;
+  /** soundingHistogram[n]: the measures after which n robots were sounding. */
+  soundingHistogram: number[];
+  silentMeasures: number;
+  /** The longest unbroken silence (the earlier of equals) and the measure it begins. */
+  longestSilence?: { start: number; length: number };
+  /** Every stay's length in measures, in the order they ended; one still open at the end counts at its length so far. */
+  stays: number[];
+  /** Measures after which at least one robot was in a stay. */
+  stayMeasures: number;
+  /** In start-roster order. */
+  robots: CoverTallyRobot[];
+}
+
+export interface CoverTally {
+  /** One post-tick roster: measure 1 first, then 2, and so on. */
+  observe(roster: readonly CoverSnapshot[]): void;
+  result(): CoverTallyResult;
+}
+
+/** Spec §1.1: a robot is sounding while Active or Recalled. */
+const isSounding = (r: CoverSnapshot) => r.docking === DockingState.Active || r.docking === DockingState.Recalled;
+
+/** Spec §1.1: a stay is a robot still Active at or below critical after a tick. */
+const isStaying = (r: CoverSnapshot) => r.docking === DockingState.Active && r.batteryLevel <= BATTERY_CRITICAL_THRESHOLD;
+
+/** The commonest value, the smaller on a tie; undefined for an empty list. */
+function commonest(values: readonly number[]): number | undefined {
+  const counts = new Map<number, number>();
+  for (const v of values) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: number | undefined;
+  for (const [v, n] of counts) {
+    const bestCount = best === undefined ? 0 : counts.get(best)!;
+    if (n > bestCount || (n === bestCount && v < best!)) best = v;
+  }
+  return best;
+}
+
+/**
+ * The cover sim's accumulator (spec §1.5): fed one post-tick roster per measure, it counts silent
+ * measures, stays, robots sounding and each robot's landings on Active. Seeded with the starting
+ * roster so the first measure's landings are known. Reads id, docking and battery only; keeps its own
+ * copies, so the rosters it is handed are never touched.
+ */
+export function createCoverTally(startRoster: readonly CoverSnapshot[]): CoverTally {
+  let measures = 0;
+  const soundingHistogram: number[] = [];
+  let silentMeasures = 0;
+  let silenceStart: number | undefined;
+  let longestSilence: { start: number; length: number } | undefined;
+  const stays: number[] = [];
+  let stayMeasures = 0;
+  const robots = new Map(
+    startRoster.map((r) => [r.id, { wasActive: r.docking === DockingState.Active, landings: [] as number[], sounding: 0, stay: 0 }]),
+  );
+
+  const closeSilence = (end: number) => {
+    if (silenceStart === undefined) return;
+    const length = end - silenceStart;
+    if (!longestSilence || length > longestSilence.length) longestSilence = { start: silenceStart, length };
+    silenceStart = undefined;
+  };
+
+  return {
+    observe(roster) {
+      measures++;
+      let sounding = 0;
+      let anyStaying = false;
+      for (const r of roster) {
+        let robot = robots.get(r.id);
+        if (!robot) {
+          robot = { wasActive: false, landings: [], sounding: 0, stay: 0 };
+          robots.set(r.id, robot);
+        }
+        const active = r.docking === DockingState.Active;
+        if (active && !robot.wasActive) robot.landings.push(measures);
+        robot.wasActive = active;
+        if (isSounding(r)) {
+          sounding++;
+          robot.sounding++;
+        }
+        if (isStaying(r)) {
+          robot.stay++;
+          anyStaying = true;
+        } else if (robot.stay > 0) {
+          stays.push(robot.stay);
+          robot.stay = 0;
+        }
+      }
+      while (soundingHistogram.length <= sounding) soundingHistogram.push(0);
+      soundingHistogram[sounding]++;
+      if (anyStaying) stayMeasures++;
+      if (sounding === 0) {
+        silentMeasures++;
+        silenceStart ??= measures;
+      } else {
+        closeSilence(measures);
+      }
+    },
+
+    result() {
+      // Read open runs without closing them, so result() can be called again.
+      let longest = longestSilence;
+      if (silenceStart !== undefined) {
+        const length = measures + 1 - silenceStart;
+        if (!longest || length > longest.length) longest = { start: silenceStart, length };
+      }
+      const openStays = [...robots.values()].filter((r) => r.stay > 0).map((r) => r.stay);
+      return {
+        measures,
+        soundingHistogram: [...soundingHistogram],
+        silentMeasures,
+        longestSilence: longest && { ...longest },
+        stays: [...stays, ...openStays],
+        stayMeasures,
+        robots: [...robots].map(([id, r]) => {
+          const gaps = r.landings.slice(1).map((m, i) => m - r.landings[i]);
+          return { id, landings: [...r.landings], cycle: commonest(gaps), heardShare: measures > 0 ? r.sounding / measures : 0 };
+        }),
+      };
+    },
+  };
+}
+
+// ========================================
+// COVER SIM (no-silence Task 2)
+// ========================================
+
+/** Worlds listed by their longest silence in the cover report — Gate B listens there (spec §1.5). */
+const WORST_WORLDS_LISTED = 5;
+
+export interface CoverSimWorld {
+  x: number;
+  y: number;
+  /** The measure the world's longest silence begins. */
+  start: number;
+  length: number;
+}
+
+export interface CoverSimRow {
+  label: string;
+  worlds: number;
+  /** Per world. */
+  measures: number;
+  /** Silent measures over every (world, measure). */
+  silentShare: number;
+  worldsWithSilence: number;
+  worldsWithStay: number;
+  /** Stays per 1,000 measures per world. */
+  staysPer1000: number;
+  /** In measures; all 0 when there is no stay. */
+  stayLength: { median: number; p90: number; longest: number };
+  /** Measures with a robot in a stay over every (world, measure). */
+  stayShare: number;
+  /** Robots sounding over every (world, measure). */
+  sounding: { mean: number; p10: number; p90: number };
+  /** Every robot's cycle across the grid; all 0 when no robot has one. */
+  cycles: { shortest: number; longest: number; distinct: number };
+  /** Per world, the largest group of robots sharing one cycle length; across worlds. */
+  sharing: { median: number; max: number };
+  /** Each robot's heard share, lowest and highest across the grid. */
+  heardShare: { lowest: number; highest: number };
+  /** The worlds with the longest silence, longest first (grid order on a tie), at most WORST_WORLDS_LISTED. */
+  worstWorlds: CoverSimWorld[];
+}
+
+/** One row the cover sim is asked for: its label, and the battery-size band its rosters carry (the shipped one if
+ *  omitted; 'flat' for none). */
+export interface CoverSimRowSpec {
+  label: string;
+  band?: SimBand;
+}
+
+/**
+ * The cover sim (spec §1.5): for each row asked, every world's buildSimRoster on that row's band stepped through the
+ * real stepRobotLifecycle for `measures`, fed to a cover tally, then pooled into one row. Rows come back in the order
+ * asked; with none asked, one row on the shipped band. Pure: no store, no BeatClock.
+ */
+export function runCoverSim(options: {
+  coords?: ReadonlyArray<{ x: number; y: number }>;
+  measures?: number;
+  rows?: readonly CoverSimRowSpec[];
+} = {}): CoverSimRow[] {
+  const { coords = SIM_SEED_COORDS, measures = SIM_MEASURES, rows = [{ label: 'shipped' }] } = options;
+  return rows.map(({ label, band }) => coverSimRow(coords, measures, label, band));
+}
+
+function coverSimRow(coords: ReadonlyArray<{ x: number; y: number }>, measures: number, label: string, band: SimBand | undefined): CoverSimRow {
+  const sounding: number[] = [];
+  const stays: number[] = [];
+  const cycles: number[] = [];
+  const sharing: number[] = [];
+  const heard: number[] = [];
+  const silent: CoverSimWorld[] = [];
+  let silentMeasures = 0;
+  let stayMeasures = 0;
+  let worldsWithStay = 0;
+
+  for (const { x, y } of coords) {
+    const noiseMap = simNoiseMap(x, y);
+    let roster = buildSimRoster(noiseMap, band);
+    const tally = createCoverTally(roster);
+    for (let measure = 1; measure <= measures; measure++) {
+      roster = stepRobotLifecycle(roster, measure, noiseMap);
+      tally.observe(roster);
+    }
+    const t = tally.result();
+    t.soundingHistogram.forEach((count, n) => {
+      for (let i = 0; i < count; i++) sounding.push(n);
+    });
+    silentMeasures += t.silentMeasures;
+    if (t.longestSilence) silent.push({ x, y, ...t.longestSilence });
+    stays.push(...t.stays);
+    stayMeasures += t.stayMeasures;
+    if (t.stays.length > 0) worldsWithStay++;
+    const groups = new Map<number, number>();
+    for (const r of t.robots) {
+      heard.push(r.heardShare);
+      if (r.cycle === undefined) continue;
+      cycles.push(r.cycle);
+      groups.set(r.cycle, (groups.get(r.cycle) ?? 0) + 1);
+    }
+    sharing.push(Math.max(0, ...groups.values()));
+  }
+
+  const samples = coords.length * measures;
+  const orZero = (values: readonly number[], p: number) => (values.length > 0 ? percentile(values, p) : 0);
+  return {
+    label,
+    worlds: coords.length,
+    measures,
+    silentShare: samples > 0 ? silentMeasures / samples : 0,
+    worldsWithSilence: silent.length,
+    worldsWithStay,
+    staysPer1000: samples > 0 ? (stays.length / samples) * 1000 : 0,
+    stayLength: { median: orZero(stays, 50), p90: orZero(stays, 90), longest: orZero(stays, 100) },
+    stayShare: samples > 0 ? stayMeasures / samples : 0,
+    sounding: {
+      mean: sounding.length > 0 ? sounding.reduce((s, v) => s + v, 0) / sounding.length : 0,
+      p10: orZero(sounding, 10),
+      p90: orZero(sounding, 90),
+    },
+    cycles: { shortest: cycles.length > 0 ? Math.min(...cycles) : 0, longest: Math.max(0, ...cycles), distinct: new Set(cycles).size },
+    sharing: { median: orZero(sharing, 50), max: Math.max(0, ...sharing) },
+    heardShare: { lowest: heard.length > 0 ? Math.min(...heard) : 0, highest: Math.max(0, ...heard) },
+    worstWorlds: [...silent].sort((a, b) => b.length - a.length).slice(0, WORST_WORLDS_LISTED),
+  };
+}
+
+/** The cover rows as a markdown table, then each row's worst worlds — for the stop-and-report and Results. */
+export function formatCoverReport(rows: readonly CoverSimRow[]): string {
+  const pct = (v: number) => `${(v * 100).toFixed(2)} %`;
+  const lines = [
+    '| Row | Silent measures | Worlds with a silence | Worlds with a stay | Stays / 1,000 measures | Stay length (median, p90, longest) | In a stay | Sounding (mean, p10–p90) | Cycles (shortest–longest, distinct) | Largest group sharing a cycle (median, max) | Heard share (lowest–highest) |',
+    '|---|---|---|---|---|---|---|---|---|---|---|',
+  ];
+  for (const r of rows) {
+    lines.push(
+      `| ${r.label} | ${pct(r.silentShare)} | ${r.worldsWithSilence} / ${r.worlds} | ${r.worldsWithStay} / ${r.worlds} | ${r.staysPer1000.toFixed(2)} | ${r.stayLength.median}, ${r.stayLength.p90}, ${r.stayLength.longest} | ${pct(r.stayShare)} | ${r.sounding.mean.toFixed(2)}, ${r.sounding.p10}–${r.sounding.p90} | ${r.cycles.shortest}–${r.cycles.longest}, ${r.cycles.distinct} | ${r.sharing.median}, ${r.sharing.max} | ${pct(r.heardShare.lowest)}–${pct(r.heardShare.highest)} |`,
+    );
+  }
+  for (const r of rows) {
+    if (r.worstWorlds.length === 0) {
+      lines.push('', `${r.label} — no silence in any world.`);
+      continue;
+    }
+    lines.push('', `${r.label} — the ${r.worstWorlds.length} longest silences (${r.measures} measures a world):`, '');
+    lines.push('| x | y | Begins at measure | Length |', '|---|---|---|---|');
+    for (const w of r.worstWorlds) lines.push(`| ${w.x} | ${w.y} | ${w.start} | ${w.length} |`);
+  }
   return lines.join('\n');
 }
 
@@ -605,18 +903,20 @@ export interface ReadinessSeedRow {
 /**
  * Every candidate × tempo over every placed world, `seconds` each, on the real roster, lifecycle,
  * sites and stations. Each world's rand is seeded by coordinates and tempo, so candidates are
- * compared on the same draws. Store-free once the worlds are placed.
+ * compared on the same draws. The rosters carry battery sizes on `band` (the shipped one if omitted;
+ * 'flat' for none, no-silence spec §1.6). Store-free once the worlds are placed.
  */
 export function runReadinessSim(options: {
   worlds: ReadonlyArray<{ x: number; y: number; actors: Actor[] }>;
   seconds?: number;
   bpms?: readonly number[];
   candidates?: readonly CooldownCandidate[];
+  band?: SimBand;
 }): { rows: ReadinessRow[]; seeds: ReadinessSeedRow[] } {
-  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES } = options;
+  const { worlds, seconds = SIM_LOOP_SECONDS, bpms = SIM_LOOP_BPMS, candidates = COOLDOWN_CANDIDATES, band } = options;
   const prepared = worlds.map(({ x, y, actors }) => {
     const noiseMap = simNoiseMap(x, y);
-    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap) };
+    return { x, y, noiseMap, world: buildLoopWorld(actors, noiseMap), roster: buildSimRoster(noiseMap, band) };
   });
 
   const rows: ReadinessRow[] = [];

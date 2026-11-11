@@ -198,15 +198,29 @@ export const INITIAL_ACTIVE_ROBOTS_MIN = 2;
 export const INITIAL_ACTIVE_ROBOTS_MAX = 4;
 
 /**
- * Battery drain, percent per measure, while a robot is Active — flat, the same for every robot and
- * every job (Phase 43: the job is live visual state, not part of the replayed lifecycle). 6 keeps
+ * Battery drain, percent per measure, while a robot is Active, before the robot's battery size divides it — the same
+ * base for every robot and every job (Phase 43: the job is live visual state, not part of the replayed lifecycle). 6 keeps
  * the mean Active count closest to the old per-job surcharge rule's (lifecycleSim.ts, 121 seeds ×
  * 2000 measures: old rule 5.05, flat 6 5.14).
  */
 export const BATTERY_DRAIN_ACTIVE = 6;
 
-/** Battery recharge, percent per measure, while a robot is Docked — flat, same for every robot. */
+/** Battery recharge, percent per measure, while a robot is Docked, before the robot's battery size divides it. */
 export const BATTERY_RECHARGE_RATE = 5;
+
+/**
+ * A robot's battery size when it carries none (a hand-built robot or snapshot): the flat rates. The step divides both
+ * the drain and the recharge by the size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3).
+ */
+export const DEFAULT_BATTERY_SIZE = 1;
+
+/**
+ * The band every spawned robot's battery size is drawn from, evenly ('robot.batterySize', spawnSystem.ts's
+ * generateBatterySize). Crawford's pick at Gate A, 2026-11-11 (docs/tasks/NO_SILENCE_AND_COMPANY_FAMILIES.md, the
+ * Gate A summary): the widest of the three bands run, fifteen cycle lengths from 27 to 53 measures.
+ */
+export const BATTERY_SIZE_MIN = 0.67;
+export const BATTERY_SIZE_MAX = 1.5;
 
 /** Active robot at or below this battery level is Recalled (sent back to dock). */
 export const BATTERY_CRITICAL_THRESHOLD = 10;

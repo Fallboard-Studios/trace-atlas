@@ -18,6 +18,7 @@ import {
   BATTERY_RECHARGE_RATE,
   BATTERY_CRITICAL_THRESHOLD,
   BATTERY_FULL_THRESHOLD,
+  DEFAULT_BATTERY_SIZE,
   DOCKED_PITCH_DRIFT_RATIO,
 } from '../constants';
 
@@ -68,23 +69,29 @@ export interface RobotLifecycleSnapshot {
    *  side channel) so stepRobotLifecycle stays a pure function of its own input. Starts at 0. */
   dockCycleCount: number;
   noteVariance?: Robot['noteVariance'];
+  /** Divides both the drain and the recharge; absent reads as DEFAULT_BATTERY_SIZE, the flat rates
+   *  (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3). */
+  batterySize?: number;
 }
 
-/** How much one Active measure drains a robot's battery — injectable so lifecycleSim.ts can compare
- *  candidate rules on the same replay code (Phase 43 Task 2). Pure. */
+/** The base drain of one Active measure, before the robot's battery size divides it — injectable so
+ *  lifecycleSim.ts can compare candidate rules on the same replay code (Phase 43 Task 2). Pure. */
 export type DrainRule = (snapshot: RobotLifecycleSnapshot) => number;
 
-/** The default: a flat BATTERY_DRAIN_ACTIVE for every Active robot, whatever it is doing. */
+/** The default: a flat BATTERY_DRAIN_ACTIVE base for every Active robot, whatever it is doing. */
 export const activeDrain: DrainRule = () => BATTERY_DRAIN_ACTIVE;
 
 /**
  * One measure's worth of battery/docking transition for an entire roster, pure -- mirrors
  * tickRobotLifecycle's per-robot logic (the `drain` rule — default activeDrain —
  * BATTERY_RECHARGE_RATE/BATTERY_CRITICAL_THRESHOLD/BATTERY_FULL_THRESHOLD) exactly, reusing the same constants -- never a second copy of the arithmetic. Mutates a local working array as it iterates, in roster
- * array order, so within-measure ordering matches a real tick bit for bit. Every robot decides on its own: when
- * all of them are docked or recharging the fleet falls silent for a while (Crawford, 2026-10-12 — the old
- * "never zero Active" guard that kept the last robot playing is gone). Imports neither
- * useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
+ * array order, so within-measure ordering matches a real tick bit for bit. The last Active robot stays up
+ * (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.2): a robot at or below critical is recalled only while
+ * another robot in `working` is Active, so the fleet is never silent. Otherwise it stays Active and drains on
+ * to the floor of 0 until one lands; because `working` is mutated in roster order, a robot landing earlier in
+ * the roster relieves it in the same measure, one landing later in the next, and of two robots crossing
+ * critical together with no third Active the earlier goes and the later stays. The rule reads docking only,
+ * never audioMode. Imports neither useLocaleStore nor getCurrentMeasure -- zero side effects, zero store access.
  *
  * A Recalled -> Docked landing also drifts `melody` via the same reRollMelodyPitches/
  * DOCKED_PITCH_DRIFT_RATIO rule landOnDocked applies live, seeded identically
@@ -102,14 +109,18 @@ export function stepRobotLifecycle(
   const working = roster.map((r) => ({ ...r }));
 
   for (const robot of working) {
+    // One seeded number divides both rates: a big battery is a long shift and a long charge (spec §1.3).
+    const size = robot.batterySize ?? DEFAULT_BATTERY_SIZE;
     if (robot.docking === DockingState.Active) {
-      robot.batteryLevel = Math.max(0, robot.batteryLevel - drain(robot));
-      if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD) {
+      robot.batteryLevel = Math.max(0, robot.batteryLevel - drain(robot) / size);
+      // The last robot stays up (spec §1.2): recalled only while another robot is Active.
+      const anotherActive = working.some((r) => r.id !== robot.id && r.docking === DockingState.Active);
+      if (robot.batteryLevel <= BATTERY_CRITICAL_THRESHOLD && anotherActive) {
         robot.docking = DockingState.Recalled;
         robot.dockingHoldUntilMeasure = measure + 1;
       }
     } else if (robot.docking === DockingState.Docked) {
-      robot.batteryLevel = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE);
+      robot.batteryLevel = Math.min(100, robot.batteryLevel + BATTERY_RECHARGE_RATE / size);
       if (robot.batteryLevel >= BATTERY_FULL_THRESHOLD) {
         robot.docking = DockingState.Undocking;
         robot.dockingHoldUntilMeasure = measure + 1;
@@ -172,6 +183,7 @@ function toLifecycleSnapshot(robot: Robot): RobotLifecycleSnapshot {
     melody: robot.melody,
     dockCycleCount: getDockCycleCount(robot.id),
     noteVariance: robot.noteVariance,
+    batterySize: robot.batterySize,
   };
 }
 
@@ -254,18 +266,17 @@ export function stopRobotLifecycle(): void {
 // ========================================
 
 /**
- * Land on Active: unmute via `audioMode` (the same toggle Robot Options
- * exposes — RobotAudioTab's Audio Mode control — so a user can independently
- * override it), then hand the visual side (the work loop: out of the station, or a
- * turn-back) to the onLifecycleChange seam.
+ * Land on Active, which unmutes the robot by itself: the dock's mute is the docking state
+ * (robotAudibility.ts's isDockMuted), never `audioMode`, which is the user's Solo/Mute/Highlight
+ * and survives the landing (Crawford, 2026-11-11). Then hand the visual side (the work loop: out
+ * of the station, or a turn-back) to the onLifecycleChange seam.
  *
  * Voice reservation and melody registration are NOT done here — every robot
  * gets both once, at spawn (spawnSystem.ts's spawnRobot), regardless of
  * docking state. The melody stays put across dock cycles; the voice does not:
  * the Audio Load budget stands a muted robot by, releasing its voice once its
- * last note rings out, and rebuilds it when `audioMode` leaves 'mute' (here, or
- * the user flipping it back in Robot Options) and admits it
- * (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1).
+ * last note rings out, and rebuilds it when the robot leaves the station (here)
+ * or the user unmutes it, and admits it (docs/specs/DESKTOP_FULL_TIER_STANDING_COST.md G1).
  */
 export function landOnActive(localeId: string, robotId: string): void {
   const robot = useLocaleStore.getState().getRobotById(localeId, robotId);
@@ -274,18 +285,17 @@ export function landOnActive(localeId: string, robotId: string): void {
   useLocaleStore.getState().updateRobot(localeId, robotId, {
     docking: DockingState.Active,
     dockingHoldUntilMeasure: undefined,
-    audioMode: 'none',
   });
 
   onLifecycleChange(localeId, robotId, 'active');
 }
 
 /**
- * Land on Docked: mute via `audioMode: 'mute'` (see landOnActive's comment —
- * the voice/melody stay reserved/registered; only the toggle changes, so a
- * user can flip it back in Robot Options and hear the robot anyway). The
- * melody is re-registered with AudioEngine after the drift so a manual mute
- * override plays the drifted pitches, not the stale pre-drift ones. No
+ * Land on Docked, which mutes the robot by itself (see landOnActive's comment —
+ * the docking state is the dock's mute; `audioMode` stays the user's). A robot
+ * soloed in the station is still heard (Solo beats the dock). The melody is
+ * re-registered with AudioEngine after the drift so a soloed docked robot
+ * plays the drifted pitches, not the stale pre-drift ones. No
  * position write — the visual side (nothing: the entry ends in charging by itself) is
  * the onLifecycleChange seam's, called last.
  *
@@ -306,7 +316,6 @@ export function landOnDocked(localeId: string, robotId: string, driftedMelody: R
     docking: DockingState.Docked,
     dockingHoldUntilMeasure: undefined,
     melody: driftedMelody,
-    audioMode: 'mute',
   });
 
   // registerRobotMelody purges this robot's prior entries before adding the

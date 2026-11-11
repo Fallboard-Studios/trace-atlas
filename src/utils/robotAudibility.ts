@@ -1,11 +1,22 @@
-import type { Robot } from '@/types/Robot';
+import { DockingState, type Robot } from '@/types/Robot';
 
 /**
- * True if a robot with `audioMode` would actually be heard right now, given whether ANY robot in
+ * The dock's own mute: a robot in the station — Docked, or Undocking on its way out — is silent whatever its
+ * audioMode, which stays the user's alone (Crawford, 2026-11-11: the dock used to write `audioMode` itself, which
+ * overwrote a Solo, Mute or Highlight at every landing). A Recalled robot is still heard on its way home.
+ */
+export function isDockMuted(docking: DockingState | undefined): boolean {
+  return docking === DockingState.Docked || docking === DockingState.Undocking;
+}
+
+/**
+ * True if a robot with `audioMode` and `docking` would actually be heard right now, given whether ANY robot in
  * its locale is currently soloed — mirrors AudioEngine.ts's own triggerWithCap mute/solo check
  * exactly (that check is refactored to call this instead of re-deriving the rule, see
  * docs/specs/archive/ROBOT_CARDS_REDESIGN.md §1.2). `undefined` (a robot not yet in the store, or
- * audioMode unset) behaves identically to `'none'`.
+ * audioMode unset) behaves identically to `'none'`; an undefined docking is out of the station. Mute always wins;
+ * under any Solo only the soloed robots are heard, in the station or not (Solo beats the dock); otherwise the dock
+ * mutes a robot in the station.
  *
  * Takes `anySolo: boolean`, not the full locale robot list (bugfix, found live: the only thing
  * this ever read off that list was this same boolean, but every caller still had to subscribe to
@@ -16,22 +27,22 @@ import type { Robot } from '@/types/Robot';
  * selector — a primitive Zustand can bail out on with its own default equality check, unlike an
  * array reference that changes every tick regardless of whether solo state itself changed).
  */
-export function isRobotAudible(audioMode: Robot['audioMode'], anySolo: boolean): boolean {
+export function isRobotAudible(audioMode: Robot['audioMode'], anySolo: boolean, docking: DockingState | undefined): boolean {
   if (audioMode === 'mute') return false;
-  if (anySolo && audioMode !== 'solo') return false;
-  return true;
+  if (anySolo) return audioMode === 'solo';
+  return !isDockMuted(docking);
 }
 
-/** What a robot's card says: audible and sounding, held back by the Audio Load budget, or silenced by mute/solo. */
+/** What a robot's card says: audible and sounding, held back by the Audio Load budget, or silenced by mute/solo/the dock. */
 export type AudibilityState = 'emitting' | 'limited' | 'disabled';
 
 /**
  * Three-state audibility for the UI (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5). A robot `isRobotAudible` rules out
  * is `disabled`; one that is eligible but outside the budget's sounding set is `limited` ("Standing by"); an
- * eligible robot in the set is `emitting`. `isRobotAudible` itself is unchanged and stays the mute/solo rule.
+ * eligible robot in the set is `emitting`. `isRobotAudible` itself stays the mute/solo/dock rule.
  */
-export function getAudibilityState(audioMode: Robot['audioMode'], anySolo: boolean, isSounding: boolean): AudibilityState {
-  if (!isRobotAudible(audioMode, anySolo)) return 'disabled';
+export function getAudibilityState(audioMode: Robot['audioMode'], anySolo: boolean, docking: DockingState | undefined, isSounding: boolean): AudibilityState {
+  if (!isRobotAudible(audioMode, anySolo, docking)) return 'disabled';
   return isSounding ? 'emitting' : 'limited';
 }
 

@@ -28,6 +28,8 @@ import {
   BATTERY_RECHARGE_RATE,
   BATTERY_CRITICAL_THRESHOLD,
   BATTERY_FULL_THRESHOLD,
+  BATTERY_SIZE_MIN,
+  BATTERY_SIZE_MAX,
   DOCKED_PITCH_DRIFT_RATIO,
   MAX_ROBOTS,
 } from '../constants';
@@ -130,6 +132,10 @@ describe('robotSystems', () => {
       expect(BATTERY_DRAIN_ACTIVE).toBe(6);
     });
 
+    it('the battery-size band is Gate A\'s pick, 0.67-1.5 (Crawford, 2026-11-11)', () => {
+      expect([BATTERY_SIZE_MIN, BATTERY_SIZE_MAX]).toEqual([0.67, 1.5]);
+    });
+
     it.each(Object.values(JobType))('drains the same flat BATTERY_DRAIN_ACTIVE for job type %s — the job no longer costs battery', (jobType) => {
       const robot = makeRobot({ batteryLevel: 80, job: jobType });
       setupLocaleWithRobots([robot]);
@@ -159,9 +165,29 @@ describe('robotSystems', () => {
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
       expect(updated?.batteryLevel).toBe(0);
     });
+
+    it('drains a robot by its own battery size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, case 12)', () => {
+      const robot = makeRobot({ batteryLevel: 50, batterySize: 1.25 });
+      setupLocaleWithRobots([robot]);
+
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
+      expect(updated?.batteryLevel).toBe(50 - BATTERY_DRAIN_ACTIVE / 1.25);
+    });
   });
 
   describe('tickRobotLifecycle — battery recharge (Docked)', () => {
+    it('charges a robot by its own battery size (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, case 12)', () => {
+      const robot = makeRobot({ docking: DockingState.Docked, batteryLevel: 50, batterySize: 0.8 });
+      setupLocaleWithRobots([robot]);
+
+      tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
+      expect(updated?.batteryLevel).toBe(50 + BATTERY_RECHARGE_RATE / 0.8);
+    });
+
     it('recharges by BATTERY_RECHARGE_RATE', () => {
       const robot = makeRobot({ docking: DockingState.Docked, batteryLevel: 50 });
       setupLocaleWithRobots([robot]);
@@ -184,12 +210,16 @@ describe('robotSystems', () => {
   });
 
   describe('tickRobotLifecycle — threshold-triggered transitions', () => {
+    // A healthy second Active robot (no-silence Task 11): a robot crossing critical is recalled only while another
+    // robot is Active, so every case about a recall keeps one beside it. At 100 it drains without a transition.
+    const activeCompanion = () => makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined });
+
     it('Active robot crossing the critical threshold begins Recalled with a hold, not immediate Docked', () => {
       const robot = makeRobot({
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, // will land exactly at critical after drain
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      setupLocaleWithRobots([robot, activeCompanion()]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
@@ -206,7 +236,7 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      setupLocaleWithRobots([robot, activeCompanion()]);
       let dockingAtSeam: DockingState | undefined;
       seam.mockImplementationOnce((_l: string, id: string) => {
         dockingAtSeam = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, id)?.docking;
@@ -226,11 +256,12 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      setupLocaleWithRobots([robot, activeCompanion()]);
 
       tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
+      expect(updated.docking).toBe(DockingState.Recalled); // the recall happened, so the case is about beginRecall
       expect(updated.position).toEqual(robot.position);
       expect(updated.activity).toBe(robot.activity);
     });
@@ -262,43 +293,95 @@ describe('robotSystems', () => {
       expect(updated?.batteryLevel).toBe(5);
     });
 
-    it('the sole Active robot is recalled at critical battery like any other — the fleet may fall silent (no keep-one-playing guard)', () => {
-      const robot = makeRobot({
-        batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
-        job: undefined,
+    // The last Active robot stays up (no-silence Task 12, docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.2): a robot
+    // at or below critical is recalled only while another robot is Active. Case numbers are the spec's §5.1.
+    describe('the last Active robot stays up (no-silence Task 12)', () => {
+      const docking = (id: string) => useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, id)?.docking;
+      const battery = (id: string) => useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, id)?.batteryLevel;
+
+      it('the sole Active robot at critical stays Active: no hold set, no recall at the seam (case 1)', () => {
+        const robot = makeRobot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
+        const dockedCompanion = makeRobot({ id: 'robot-docked', docking: DockingState.Docked, batteryLevel: 40 });
+        setupLocaleWithRobots([robot, dockedCompanion]);
+
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+        const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
+        expect(updated?.docking).toBe(DockingState.Active);
+        expect(updated?.dockingHoldUntilMeasure).toBeUndefined();
+        expect(updated?.batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
+        expect(seam).not.toHaveBeenCalled();
       });
-      const dockedCompanion = makeRobot({ id: 'robot-docked', docking: DockingState.Docked, batteryLevel: 40 });
-      setupLocaleWithRobots([robot, dockedCompanion]);
 
-      tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+      it('while it stays it drains every measure and floors at 0, still Active (case 2)', () => {
+        const robot = makeRobot({ batteryLevel: BATTERY_DRAIN_ACTIVE + 4, job: undefined }); // 10, then 4, then 0, 0
+        setupLocaleWithRobots([robot]);
+        const seen: Array<[DockingState | undefined, number | undefined]> = [];
 
-      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.docking).toBe(DockingState.Recalled);
-      expect(updated?.dockingHoldUntilMeasure).toBe(11);
-      expect(seam).toHaveBeenCalledWith(DEFAULT_LOCALE_ID, robot.id, 'recalled');
-    });
+        for (let m = 10; m <= 12; m++) {
+          tickRobotLifecycle(DEFAULT_LOCALE_ID, m);
+          seen.push([docking(robot.id), battery(robot.id)]);
+        }
 
-    it('a sole Active robot that drains to 0 battery is recalled too, not held at the floor', () => {
-      const robot = makeRobot({ batteryLevel: BATTERY_DRAIN_ACTIVE, job: undefined }); // drains to exactly 0
-      setupLocaleWithRobots([robot]);
+        expect(seen).toEqual([[DockingState.Active, 4], [DockingState.Active, 0], [DockingState.Active, 0]]);
+        expect(seam).not.toHaveBeenCalled();
+      });
 
-      tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+      it('it is recalled the same tick a robot earlier in the roster lands on Active (case 3)', () => {
+        const lander = makeRobot({ id: 'robot-lander', docking: DockingState.Undocking, dockingHoldUntilMeasure: 10, batteryLevel: 100 });
+        const staying = makeRobot({ id: 'robot-staying', batteryLevel: 5, job: undefined });
+        setupLocaleWithRobots([lander, staying]);
 
-      const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.batteryLevel).toBe(0);
-      expect(updated?.docking).toBe(DockingState.Recalled);
-    });
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
 
-    it('when two robots cross critical in the same tick, both depart — nothing holds the last one back', () => {
-      const robotA = makeRobot({ id: 'robot-a', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
-      const robotB = makeRobot({ id: 'robot-b', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
-      setupLocaleWithRobots([robotA, robotB]);
+        expect(docking(lander.id)).toBe(DockingState.Active);
+        expect(docking(staying.id)).toBe(DockingState.Recalled);
+        expect(seam.mock.calls).toEqual([[DEFAULT_LOCALE_ID, lander.id, 'active'], [DEFAULT_LOCALE_ID, staying.id, 'recalled']]);
+      });
 
-      tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+      it('it is recalled the next tick when the robot landing on Active is later in the roster (case 3)', () => {
+        const staying = makeRobot({ id: 'robot-staying', batteryLevel: 5, job: undefined });
+        const lander = makeRobot({ id: 'robot-lander', docking: DockingState.Undocking, dockingHoldUntilMeasure: 10, batteryLevel: 100 });
+        setupLocaleWithRobots([staying, lander]);
 
-      const updatedA = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robotA.id);
-      const updatedB = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robotB.id);
-      expect([updatedA?.docking, updatedB?.docking]).toEqual([DockingState.Recalled, DockingState.Recalled]);
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+        expect([docking(staying.id), docking(lander.id)]).toEqual([DockingState.Active, DockingState.Active]);
+
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 11);
+        expect(docking(staying.id)).toBe(DockingState.Recalled);
+        expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, staying.id)?.dockingHoldUntilMeasure).toBe(12);
+      });
+
+      it('two robots crossing critical in one tick with no third Active: the earlier departs, the later stays (case 4)', () => {
+        const robotA = makeRobot({ id: 'robot-a', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
+        const robotB = makeRobot({ id: 'robot-b', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
+        setupLocaleWithRobots([robotA, robotB]);
+
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+        expect([docking(robotA.id), docking(robotB.id)]).toEqual([DockingState.Recalled, DockingState.Active]);
+        expect(seam.mock.calls).toEqual([[DEFAULT_LOCALE_ID, robotA.id, 'recalled']]);
+      });
+
+      it('with a third robot Active, two robots crossing critical together both depart (case 4)', () => {
+        const robotA = makeRobot({ id: 'robot-a', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
+        const robotB = makeRobot({ id: 'robot-b', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined });
+        setupLocaleWithRobots([robotA, robotB, activeCompanion()]);
+
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+        expect([docking(robotA.id), docking(robotB.id)]).toEqual([DockingState.Recalled, DockingState.Recalled]);
+      });
+
+      it('a muted last robot still stays — the rule reads docking, not audioMode (case 6)', () => {
+        const robot = makeRobot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE, job: undefined, audioMode: 'mute' });
+        setupLocaleWithRobots([robot, makeRobot({ id: 'robot-docked', docking: DockingState.Docked, batteryLevel: 40 })]);
+
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+        expect(docking(robot.id)).toBe(DockingState.Active);
+        expect(seam).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -393,14 +476,17 @@ describe('robotSystems', () => {
       expect(updated?.dockingHoldUntilMeasure).toBeUndefined();
     });
 
-    it('sets audioMode to none — unmutes via the same toggle Robot Options exposes', () => {
-      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode: 'mute' });
+    // The dock mutes through the docking state itself (robotAudibility.isDockMuted); audioMode is the user's alone, so
+    // a Solo, Mute or Highlight set on the robot survives the landing (Crawford, 2026-11-11).
+    it.each(['solo', 'mute', 'highlight', 'none'] as const)('leaves the user\'s audioMode %s as it was', (audioMode) => {
+      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode });
       setupLocaleWithRobots([robot]);
 
       landOnActive(DEFAULT_LOCALE_ID, robot.id);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.audioMode).toBe('none');
+      expect(updated?.docking).toBe(DockingState.Active);
+      expect(updated?.audioMode).toBe(audioMode);
     });
 
     it('does not touch AudioEngine voice/melody registration — those are set once at spawn and stay put', () => {
@@ -415,8 +501,8 @@ describe('robotSystems', () => {
       expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual([]);
     });
 
-    it('calls the seam with \'active\' once, after the Active + unmute write', () => {
-      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode: 'mute' });
+    it('calls the seam with \'active\' once, after the Active write', () => {
+      const robot = makeRobot({ docking: DockingState.Undocking, job: undefined, audioMode: 'solo' });
       setupLocaleWithRobots([robot]);
       let atSeam: Robot | undefined;
       seam.mockImplementationOnce((_l: string, id: string) => {
@@ -427,7 +513,7 @@ describe('robotSystems', () => {
 
       expect(seam.mock.calls).toEqual([[DEFAULT_LOCALE_ID, robot.id, 'active']]);
       expect(atSeam?.docking).toBe(DockingState.Active);
-      expect(atSeam?.audioMode).toBe('none');
+      expect(atSeam?.audioMode).toBe('solo');
     });
 
     it('writes no job itself — the job is the seam\'s (legacy adapter now, work loop in J2)', () => {
@@ -466,17 +552,19 @@ describe('robotSystems', () => {
       expect(updated?.dockingHoldUntilMeasure).toBeUndefined();
     });
 
-    it('sets audioMode to mute — the toggle Robot Options exposes, not a voice release', () => {
-      const robot = makeRobot({ docking: DockingState.Recalled, audioMode: 'none' });
+    // The Docked state itself mutes the robot; a Solo set on it still lets it be heard (Crawford, 2026-11-11).
+    it.each(['solo', 'mute', 'highlight', 'none'] as const)('leaves the user\'s audioMode %s as it was', (audioMode) => {
+      const robot = makeRobot({ docking: DockingState.Recalled, audioMode });
       setupLocaleWithRobots([robot]);
 
       landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
 
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id);
-      expect(updated?.audioMode).toBe('mute');
+      expect(updated?.docking).toBe(DockingState.Docked);
+      expect(updated?.audioMode).toBe(audioMode);
     });
 
-    it('does not release the voice or unregister the melody — a user can still override mute in Robot Options and hear it', () => {
+    it('does not release the voice or unregister the melody — a Solo set on a docked robot still lets it be heard', () => {
       const robot = makeRobot({ id: 'docked-voice-kept', docking: DockingState.Recalled });
       setupLocaleWithRobots([robot]);
       AudioEngine.reserveVoice(robot.id, robot.audioAttributes.layers!, robot.audioAttributes.adsr);
@@ -520,8 +608,8 @@ describe('robotSystems', () => {
       expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual(buildClickTrackMelody(robot.octaveRange[0]));
     });
 
-    it('calls the seam with \'docked\' once, after the Docked/mute/melody write, with the dock cycle already advanced', () => {
-      const robot = makeRobot({ id: 'docked-seam', docking: DockingState.Recalled, audioMode: 'none' });
+    it('calls the seam with \'docked\' once, after the Docked/melody write, with the dock cycle already advanced', () => {
+      const robot = makeRobot({ id: 'docked-seam', docking: DockingState.Recalled, audioMode: 'highlight' });
       setupLocaleWithRobots([robot]);
       const givenMelody = robot.melody.map((e) => ({ ...e, noteIndex: (e.noteIndex + 1) % 8 }));
       let atSeam: Robot | undefined;
@@ -535,7 +623,7 @@ describe('robotSystems', () => {
 
       expect(seam.mock.calls).toEqual([[DEFAULT_LOCALE_ID, robot.id, 'docked']]);
       expect(atSeam?.docking).toBe(DockingState.Docked);
-      expect(atSeam?.audioMode).toBe('mute');
+      expect(atSeam?.audioMode).toBe('highlight');
       expect(atSeam?.melody).toEqual(givenMelody);
       expect(cycleAtSeam).toBe(1);
     });
@@ -625,7 +713,8 @@ describe('robotSystems', () => {
         batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE,
         job: undefined,
       });
-      setupLocaleWithRobots([robot]);
+      // A healthy second Active robot, so the robot crossing critical is recalled (no-silence Task 11).
+      setupLocaleWithRobots([robot, makeRobot({ id: 'robot-companion', batteryLevel: 100, job: undefined })]);
 
       startRobotLifecycle(DEFAULT_LOCALE_ID);
       const tickCallback = (subscribeToMeasure as ReturnType<typeof vi.fn>).mock.calls[0][0];
@@ -726,7 +815,7 @@ describe('robotSystems', () => {
       it('a smaller drain reaches the critical threshold later — the rule drives recall timing, not just the number', () => {
         const robot = makeSnapshot({ id: 'r', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
         const companion = makeSnapshot({ id: 'companion', batteryLevel: 100 });
-        const [byDefault] = stepRobotLifecycle([robot], 10, TEST_NOISE_MAP);
+        const [byDefault] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP);
         const [lighter] = stepRobotLifecycle([robot, companion], 10, TEST_NOISE_MAP, () => 2);
         expect(byDefault.docking).toBe(DockingState.Recalled);
         expect(lighter.docking).toBe(DockingState.Active);
@@ -745,28 +834,139 @@ describe('robotSystems', () => {
       expect(result.batteryLevel).toBe(100);
     });
 
+    describe('battery size divides both rates (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3)', () => {
+      it.each([0.85, 1.15, 1.25])('size %s drains an Active robot by BATTERY_DRAIN_ACTIVE / size', (size) => {
+        const [result] = stepRobotLifecycle([makeSnapshot({ batteryLevel: 80, batterySize: size })], 10, TEST_NOISE_MAP);
+        expect(result.batteryLevel).toBe(80 - BATTERY_DRAIN_ACTIVE / size);
+      });
+
+      it.each([0.85, 1.15, 0.8])('size %s charges a Docked robot by BATTERY_RECHARGE_RATE / size', (size) => {
+        const [result] = stepRobotLifecycle([makeSnapshot({ docking: DockingState.Docked, batteryLevel: 40, batterySize: size })], 10, TEST_NOISE_MAP);
+        expect(result.batteryLevel).toBe(40 + BATTERY_RECHARGE_RATE / size);
+      });
+
+      it('a snapshot with no size drains and charges at the flat rates', () => {
+        const active = makeSnapshot({ id: 'active', batteryLevel: 80 });
+        const docked = makeSnapshot({ id: 'docked', docking: DockingState.Docked, batteryLevel: 40 });
+        expect('batterySize' in active).toBe(false);
+        const [ra, rd] = stepRobotLifecycle([active, docked], 10, TEST_NOISE_MAP);
+        expect(ra.batteryLevel).toBe(80 - BATTERY_DRAIN_ACTIVE);
+        expect(rd.batteryLevel).toBe(40 + BATTERY_RECHARGE_RATE);
+      });
+
+      it('an injected drain rule returns the base drain, and the size divides it too', () => {
+        const [result] = stepRobotLifecycle([makeSnapshot({ batteryLevel: 80, batterySize: 1.25 })], 10, TEST_NOISE_MAP, () => 3);
+        expect(result.batteryLevel).toBe(80 - 3 / 1.25);
+      });
+
+      it('leaves the thresholds, the floor and the cap alone', () => {
+        const [floored] = stepRobotLifecycle([makeSnapshot({ batteryLevel: 2, batterySize: 0.8 })], 10, TEST_NOISE_MAP);
+        expect(floored.batteryLevel).toBe(0);
+        const [capped] = stepRobotLifecycle([makeSnapshot({ docking: DockingState.Docked, batteryLevel: 97, batterySize: 0.8 })], 10, TEST_NOISE_MAP);
+        expect(capped.batteryLevel).toBe(100);
+        expect(capped.docking).toBe(DockingState.Undocking);
+      });
+
+      /** Steps one sized robot from a full battery through a shift and a charge, beside a companion re-fed at 100
+       *  each measure so the recall is never the last Active robot's. Returns the Active measure it is recalled on
+       *  and the Docked measure it starts Undocking on, counted from 1. */
+      function shiftAndCharge(size: number): { recalledOn: number; undockingOn: number } {
+        let robot = makeSnapshot({ id: 'sized', batteryLevel: 100, batterySize: size });
+        const counts = { [DockingState.Active]: 0, [DockingState.Docked]: 0 } as Record<DockingState, number>;
+        let recalledOn = 0;
+        for (let measure = 1; measure <= 200; measure++) {
+          const before = robot.docking;
+          if (before === DockingState.Active || before === DockingState.Docked) counts[before] += 1;
+          [robot] = stepRobotLifecycle([robot, makeSnapshot({ id: 'companion', batteryLevel: 100 })], measure, TEST_NOISE_MAP);
+          if (before === DockingState.Active && robot.docking === DockingState.Recalled) recalledOn = counts[DockingState.Active];
+          if (before === DockingState.Docked && robot.docking === DockingState.Undocking) {
+            return { recalledOn, undockingOn: counts[DockingState.Docked] };
+          }
+        }
+        throw new Error(`size ${size} never finished a cycle`);
+      }
+
+      it('size 0.85 is recalled on its 13th Active measure and starts Undocking on its 16th Docked one', () => {
+        expect(shiftAndCharge(0.85)).toEqual({ recalledOn: 13, undockingOn: 16 });
+      });
+
+      it('size 1.15 is recalled on its 18th Active measure and starts Undocking on its 22nd Docked one', () => {
+        expect(shiftAndCharge(1.15)).toEqual({ recalledOn: 18, undockingOn: 22 });
+      });
+
+      it('size 1 keeps the flat cycle: recalled on its 15th Active measure, Undocking on its 18th Docked one', () => {
+        expect(shiftAndCharge(1)).toEqual({ recalledOn: 15, undockingOn: 18 });
+      });
+    });
+
     it('an Active robot crossing the critical threshold begins Recalled with a hold, not immediate Docked', () => {
       const robot = makeSnapshot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
-      const [result] = stepRobotLifecycle([robot], 10, TEST_NOISE_MAP);
+      // A healthy second Active robot, so the crossing is a recall and not a stay (no-silence Task 11).
+      const [result] = stepRobotLifecycle([robot, makeSnapshot({ id: 'companion', batteryLevel: 100 })], 10, TEST_NOISE_MAP);
       expect(result.batteryLevel).toBeLessThanOrEqual(BATTERY_CRITICAL_THRESHOLD);
       expect(result.docking).toBe(DockingState.Recalled);
       expect(result.dockingHoldUntilMeasure).toBe(11);
     });
 
-    it('the only Active robot is recalled at/under critical battery — nothing keeps one playing', () => {
-      const onlyActive = makeSnapshot({ batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
-      const dockedOther = makeSnapshot({ id: 'robot-docked', docking: DockingState.Docked, batteryLevel: 50 });
-      const [result] = stepRobotLifecycle([onlyActive, dockedOther], 10, TEST_NOISE_MAP);
-      expect(result.docking).toBe(DockingState.Recalled);
-      expect(result.dockingHoldUntilMeasure).toBe(11);
-    });
+    // The last Active robot stays up (no-silence Task 12, docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.2, §4).
+    describe('the last Active robot stays up (no-silence Task 12)', () => {
+      const critical = (id: string) => makeSnapshot({ id, batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
 
-    it('two robots at critical in the same step both depart', () => {
-      const a = makeSnapshot({ id: 'robot-a', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
-      const b = makeSnapshot({ id: 'robot-b', batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
-      const [resultA, resultB] = stepRobotLifecycle([a, b], 10, TEST_NOISE_MAP);
-      expect(resultA.docking).toBe(DockingState.Recalled);
-      expect(resultB.docking).toBe(DockingState.Recalled);
+      it('the only Active robot at/under critical stays Active, no hold set (case 1)', () => {
+        const dockedOther = makeSnapshot({ id: 'robot-docked', docking: DockingState.Docked, batteryLevel: 50 });
+        const [result] = stepRobotLifecycle([critical('robot-only'), dockedOther], 10, TEST_NOISE_MAP);
+        expect(result.docking).toBe(DockingState.Active);
+        expect(result.dockingHoldUntilMeasure).toBeUndefined();
+        expect(result.batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
+      });
+
+      it('a lone robot alone in the roster stays too, and drains on to the floor of 0 (cases 1 and 2)', () => {
+        let roster = [makeSnapshot({ batteryLevel: 7, batterySize: 1.2 })]; // 5 a measure: 2, then 0, then 0
+        const seen: number[] = [];
+        for (let m = 10; m <= 12; m++) {
+          roster = stepRobotLifecycle(roster, m, TEST_NOISE_MAP);
+          expect(roster[0].docking).toBe(DockingState.Active);
+          seen.push(roster[0].batteryLevel);
+        }
+        expect(seen[0]).toBeCloseTo(2, 9);
+        expect(seen.slice(1)).toEqual([0, 0]);
+      });
+
+      it('two robots at critical in one step with no third Active: the earlier departs, the later stays (case 4)', () => {
+        const [resultA, resultB] = stepRobotLifecycle([critical('robot-a'), critical('robot-b')], 10, TEST_NOISE_MAP);
+        expect(resultA.docking).toBe(DockingState.Recalled);
+        expect(resultB.docking).toBe(DockingState.Active);
+        expect(resultB.dockingHoldUntilMeasure).toBeUndefined();
+      });
+
+      it('with a third robot Active, two robots at critical in one step both depart (case 4)', () => {
+        const third = makeSnapshot({ id: 'robot-c', batteryLevel: 100 });
+        const [resultA, resultB] = stepRobotLifecycle([critical('robot-a'), critical('robot-b'), third], 10, TEST_NOISE_MAP);
+        expect([resultA.docking, resultB.docking]).toEqual([DockingState.Recalled, DockingState.Recalled]);
+      });
+
+      it('beside only a Recalled robot, or only an Undocking one still in its hold, it stays (case 5)', () => {
+        const recalled = makeSnapshot({ id: 'robot-recalled', docking: DockingState.Recalled, dockingHoldUntilMeasure: 20, batteryLevel: 5 });
+        const undocking = makeSnapshot({ id: 'robot-undocking', docking: DockingState.Undocking, dockingHoldUntilMeasure: 20, batteryLevel: 100 });
+        expect(stepRobotLifecycle([critical('robot-x'), recalled], 10, TEST_NOISE_MAP)[0].docking).toBe(DockingState.Active);
+        expect(stepRobotLifecycle([recalled, critical('robot-x')], 10, TEST_NOISE_MAP)[1].docking).toBe(DockingState.Active);
+        expect(stepRobotLifecycle([critical('robot-x'), undocking], 10, TEST_NOISE_MAP)[0].docking).toBe(DockingState.Active);
+        expect(stepRobotLifecycle([undocking, critical('robot-x')], 10, TEST_NOISE_MAP)[1].docking).toBe(DockingState.Active);
+      });
+
+      it('it is recalled in the step a robot earlier in the roster lands on Active, the next step when later (case 3)', () => {
+        const lander = makeSnapshot({ id: 'robot-lander', docking: DockingState.Undocking, dockingHoldUntilMeasure: 10, batteryLevel: 100 });
+        const staying = makeSnapshot({ id: 'robot-staying', batteryLevel: 5 });
+
+        const [landerFirst, stayingSecond] = stepRobotLifecycle([lander, staying], 10, TEST_NOISE_MAP);
+        expect([landerFirst.docking, stayingSecond.docking]).toEqual([DockingState.Active, DockingState.Recalled]);
+
+        const afterOne = stepRobotLifecycle([staying, lander], 10, TEST_NOISE_MAP);
+        expect(afterOne.map((r) => r.docking)).toEqual([DockingState.Active, DockingState.Active]);
+        const afterTwo = stepRobotLifecycle(afterOne, 11, TEST_NOISE_MAP);
+        expect(afterTwo[0].docking).toBe(DockingState.Recalled);
+        expect(afterTwo[0].dockingHoldUntilMeasure).toBe(12);
+      });
     });
 
     it('a Docked robot reaching full battery begins Undocking with a hold, not immediate Active', () => {
@@ -1050,29 +1250,38 @@ describe('robotSystems', () => {
   });
 
   describe('prove-it: replay matches realtime (docs/specs/WORLD_CLOCK_DETERMINISTIC_LIFECYCLE_REPLAY.md Task 7)', () => {
-    it('N real ticks and one replayLifecycle call converge on identical docking/batteryLevel/dockingHoldUntilMeasure/melody for all 12 robots, exercising both the recall of the last Active robot and a dock-triggered melody drift', () => {
-      // Contrived starting state, not left to chance: robot 0 is the ONLY Active robot, reaching
-      // the critical threshold on the last tick -- it is recalled like any other (the fleet may go
-      // silent: no keep-one-playing guard).
+    it('N real ticks and one replayLifecycle call converge on identical docking/batteryLevel/dockingHoldUntilMeasure/melody for all 12 robots, exercising a stay, its relief and a dock-triggered melody drift', () => {
+      // Contrived starting state, not left to chance: robot 0 is the ONLY Active robot.
       // Robot 1 is already Recalled, still holding the
       // job it was assigned before it was recalled (the real landOnDocked path never clears
       // job -- see docs/ROBOT_LIFECYCLE.md), with its hold elapsing on the very first tick --
       // guarantees both a dock-triggered melody drift AND a non-undefined job survive the landing
       // within the test's window, so an undefined-vs-undefined job comparison can't hide a
-      // regression here again. Robots 2-11 are Docked, mid-battery, far from any threshold, so
+      // regression here again. Robots 3-11 are Docked, mid-battery, far from any threshold, so
       // they contribute realistic "nothing special happens" noise without triggering their own
       // transitions and complicating what's being proven.
-      // Robot 0 holds a job (Phase 43 Task 3): the replay snapshot no longer carries one, so a job
-      // surcharge creeping back into the live tick would make its real battery diverge from replay.
-      // It starts exactly REPLAY_MEASURES drains above critical, so it reaches critical on the last
-      // tick without ever flooring at 0 -- a floor would let a surcharged live run
-      // and the flat replay converge on 0 and hide the surcharge (found by Task 3's mutation check).
+      // The run holds a stay (no-silence Task 12): robot 0, the only Active robot, crosses critical on
+      // the first tick and stays up, draining on to the 0 floor, until robot 2 (Undocking, hold 3,
+      // later in the roster) lands on Active on tick 3; robot 0 is recalled on tick 4 and lands on
+      // Docked on tick 5.
+      // Robots 0 and 2 hold a job (Phase 43 Task 3): the replay snapshot no longer carries one, so a job
+      // surcharge creeping back into the live tick would make a real battery diverge from replay.
+      // Robot 2 drains for two ticks after landing without ever flooring at 0 -- a floor would let a
+      // surcharged live run and the flat replay converge on 0 and hide the surcharge (found by Task 3's
+      // mutation check); robot 0's own drain ends on the floor, so robot 2 is the unfloored one.
+      // Every robot has its own battery size, all different and none 1 (no-silence Task 6), so a live
+      // tick that ignores the size, or a store that truncates the fractions it makes, diverges from the
+      // replay; parity cannot pass on the default. Robot 0's size 1.2 drains it 5 a measure: 9, 4, 0.
+      // The Docked robots charge 4-6 a measure from 41-49, so after five ticks every one is above its
+      // start and below the 100 cap.
       const REPLAY_MEASURES = 5;
+      const SIZES = [1.2, 0.85, 0.82, 0.88, 0.91, 0.97, 1.03, 1.07, 1.11, 1.16, 1.21, 1.24];
       const robots: Robot[] = [
         makeRobot({
           id: 'prove-it-0',
           docking: DockingState.Active,
-          batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE * REPLAY_MEASURES,
+          batteryLevel: 14,
+          batterySize: SIZES[0],
           job: JobType.FluidMonitoring,
         }),
         makeRobot({
@@ -1080,13 +1289,22 @@ describe('robotSystems', () => {
           docking: DockingState.Recalled,
           dockingHoldUntilMeasure: 1,
           batteryLevel: 5,
+          batterySize: SIZES[1],
           job: JobType.AcousticSurvey,
           // 16 notes, so the drift re-rolls 4: with the default 4-note melody it re-rolls one, and an even draw lands
           // it back on its own note 1 time in 8 (Even Seeded Draws T17), which would leave the melody looking undrifted.
           melody: Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, startStep: i + 1, length: '16n' as const, noteIndex: i % 8, octave: 4 })),
         }),
-        ...Array.from({ length: MAX_ROBOTS - 2 }, (_, i) =>
-          makeRobot({ id: `prove-it-${i + 2}`, docking: DockingState.Docked, batteryLevel: 40 + i, job: undefined }),
+        makeRobot({
+          id: 'prove-it-2',
+          docking: DockingState.Undocking,
+          dockingHoldUntilMeasure: 3,
+          batteryLevel: 100,
+          batterySize: SIZES[2],
+          job: JobType.FluidMonitoring,
+        }),
+        ...Array.from({ length: MAX_ROBOTS - 3 }, (_, i) =>
+          makeRobot({ id: `prove-it-${i + 3}`, docking: DockingState.Docked, batteryLevel: 41 + i, batterySize: SIZES[i + 3], job: undefined }),
         ),
       ];
       expect(robots).toHaveLength(MAX_ROBOTS);
@@ -1094,6 +1312,9 @@ describe('robotSystems', () => {
       // Assert the preconditions actually hold before running anything -- not left to chance.
       expect(robots.filter((r) => r.docking === DockingState.Active)).toHaveLength(1);
       expect(robots.find((r) => r.docking === DockingState.Recalled)?.dockingHoldUntilMeasure).toBe(1);
+      expect(robots.find((r) => r.docking === DockingState.Undocking)?.dockingHoldUntilMeasure).toBe(3);
+      expect(new Set(robots.map((r) => r.batterySize)).size).toBe(MAX_ROBOTS);
+      expect(robots.every((r) => r.batterySize !== undefined && r.batterySize !== 1)).toBe(true);
 
       setupLocaleWithRobots(robots);
       const locale = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!;
@@ -1107,18 +1328,39 @@ describe('robotSystems', () => {
         melody: r.melody,
         dockCycleCount: 0, // fresh ids, never docked before in this test file
         noteVariance: r.noteVariance,
+        batterySize: r.batterySize,
       }));
 
-      for (let m = 1; m <= REPLAY_MEASURES; m++) tickRobotLifecycle(DEFAULT_LOCALE_ID, m);
+      const robot0Timeline: Array<[DockingState, number]> = [];
+      for (let m = 1; m <= REPLAY_MEASURES; m++) {
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, m);
+        const r0 = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, 'prove-it-0')!;
+        robot0Timeline.push([r0.docking, r0.batteryLevel]);
+      }
       const realtimeResult = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
 
       const replayResult = replayLifecycle(initialSnapshots, 0, REPLAY_MEASURES, noiseMap);
 
-      // The last Active robot was recalled on reaching critical battery (exactly critical -- above
-      // the 0 floor, so the battery comparison below is meaningful).
-      const realtimeRobot0 = realtimeResult.find((r) => r.id === 'prove-it-0')!;
-      expect(realtimeRobot0.docking).toBe(DockingState.Recalled);
-      expect(realtimeRobot0.batteryLevel).toBe(BATTERY_CRITICAL_THRESHOLD);
+      // The stay: robot 0 crossed critical on tick 1 and stayed Active, draining to the floor, while it was
+      // the only Active robot; robot 2 landed on tick 3, so robot 0 was recalled on tick 4 and docked on 5.
+      expect(robot0Timeline.map(([d]) => d)).toEqual([
+        DockingState.Active, DockingState.Active, DockingState.Active, DockingState.Recalled, DockingState.Docked,
+      ]);
+      expect(robot0Timeline[0][1]).toBeCloseTo(9, 9);
+      expect(robot0Timeline[1][1]).toBeCloseTo(4, 9);
+      expect(robot0Timeline.slice(2).map(([, b]) => b)).toEqual([0, 0, 0]);
+      // Drained and never floored: robot 2 landed on tick 3 and drained on ticks 4 and 5 at its own size.
+      const realtimeRobot2 = realtimeResult.find((r) => r.id === 'prove-it-2')!;
+      expect(realtimeRobot2.docking).toBe(DockingState.Active);
+      expect(realtimeRobot2.batteryLevel).toBeCloseTo(100 - 2 * (BATTERY_DRAIN_ACTIVE / SIZES[2]), 9);
+      // Charged and never capped: every Docked robot rose from its start and stayed under 100.
+      for (const robot of robots.slice(3)) {
+        const real = realtimeResult.find((r) => r.id === robot.id)!;
+        expect(real.batteryLevel).toBeGreaterThan(robot.batteryLevel);
+        expect(real.batteryLevel).toBeLessThan(100);
+      }
+      // The sized rates made fractions, and the store kept them.
+      expect(realtimeResult.some((r) => !Number.isInteger(r.batteryLevel))).toBe(true);
       // The drift actually fired: robot 1 landed on Docked with a melody different from its start.
       // Its job survives the landing untouched -- the real landOnDocked path never clears it.
       const realtimeRobot1 = realtimeResult.find((r) => r.id === 'prove-it-1')!;

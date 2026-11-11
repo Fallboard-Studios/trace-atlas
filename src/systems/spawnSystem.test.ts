@@ -7,7 +7,7 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import type { AudioAttributes, Robot } from '../types/Robot';
 import { ENVELOPE_CURVE_NAMES } from '../types/Robot';
 
-import { generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
+import { generateBatterySize, generateSpawnPosition, generateAudioAttributes, generateRobotLfoLinks, generateRobotSends, generateRobotAudioBaseline, generateRobotRosterBaseline, generateCompanyRosterBaseline, spawnRobot, spawnInitialRoster, spawnInitialCompanies, generateCompanyName, generateCompanyIdentityColor, reRegisterAllRobotsAudio, ADJECTIVES, COMPANY_NOUNS } from './spawnSystem';
 import { audibleDensityBand, deriveEnvelopeFields, deriveRhythmicDensity, deriveSendFields, deriveVoiceFields } from './robotFieldDerivation';
 import { generateDealtRosterBaseline, applyDealToBaselines, applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { resolveBands } from '../data/bands/resolveBands';
@@ -23,6 +23,7 @@ import {
   MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX,
   ENVELOPE_ATTACK_MIN_SECONDS, ENVELOPE_RELEASE_MIN_SECONDS,
+  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX,
 } from '../constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import { tallyLanes } from '../utils/lfoLaneDraw';
@@ -39,6 +40,7 @@ import { getStations, type Station } from './stations';
 import { positionForCentre, robotCentre } from '../animation/jobMoves/sceneToOrbiterLocal';
 import { chargingColorsKey, parseColorsKey } from '../components/stations/stationOccupancy';
 import { constantNoiseMap, noiseMapForDataIds } from '../testUtils/seededDraws';
+import { outerTenths } from '../testUtils/spread';
 
 /** Each motif-active robot whose first motif window opens on a plain note (no mark, no rest), with that step: where the
  *  group accent is all the scheduled note's accent multiplier holds (docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R5). */
@@ -2082,12 +2084,13 @@ describe('spawnSystem', () => {
       expect(robot?.audioMode).toBe('none');
     });
 
-    it('sets audioMode to mute when created Docked — the toggle Robot Options exposes, not absent registration', () => {
+    // The Docked state itself mutes the robot (robotAudibility.isDockMuted); audioMode is the user's (Crawford, 2026-11-11).
+    it('sets audioMode to none when created Docked too — the dock mutes it, not the toggle Robot Options exposes', () => {
       const localeId = 'docking-opts-docked-audiomode';
       freshLocale(localeId, 107, 207);
       spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: 50 });
       const robot = useLocaleStore.getState().getLocaleById(localeId)?.robots[0];
-      expect(robot?.audioMode).toBe('mute');
+      expect(robot?.audioMode).toBe('none');
     });
 
     it('no longer sets a persists field', () => {
@@ -2397,13 +2400,13 @@ describe('spawnSystem', () => {
       });
     });
 
-    it('every robot has a reserved voice and registered melody, with audioMode matching its docking state', () => {
+    it('every robot has a reserved voice and registered melody, and starts with audioMode none whatever its docking', () => {
       spawnInitialRoster(DEFAULT_LOCALE_ID);
       const robots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)?.robots ?? [];
       robots.forEach((r) => {
         expect(AudioEngine.getVoiceForRobot(r.id)).not.toBeNull();
         expect(AudioEngine.getRegisteredMelody(r.id).length).toBeGreaterThan(0);
-        expect(r.audioMode).toBe(r.docking === DockingState.Active ? 'none' : 'mute');
+        expect(r.audioMode).toBe('none');
       });
     });
 
@@ -2654,6 +2657,82 @@ describe('spawnSystem', () => {
       expect(sharedGroup, 'expected at least one copy to share its source\'s lfoLinks reference').toBeDefined();
       const [a, b] = sharedGroup!;
       expect(a.gemSeed).not.toBe(b.gemSeed);
+    });
+  });
+
+  describe('spawnRobot — batterySize (docs/specs/NO_SILENCE_AND_COMPANY_FAMILIES.md §1.3, case 11)', () => {
+    const inBand = (size: number | undefined) => size !== undefined && size >= BATTERY_SIZE_MIN && size < BATTERY_SIZE_MAX;
+    const sizesAt = (localeId: string, x: number, y: number) => {
+      useLocaleStore.setState((state) => ({
+        locales: { ...state.locales, [localeId]: { ...DEFAULT_LOCALE, id: localeId, coordinates: { x, y }, robots: [] } },
+      }));
+      spawnInitialRoster(localeId);
+      return useLocaleStore.getState().getLocaleById(localeId)!.robots.map((r) => r.batterySize);
+    };
+
+    beforeEach(() => {
+      useLocaleStore.setState({ locales: {} });
+      vi.clearAllMocks();
+    });
+
+    it('every robot spawnInitialRoster makes carries a size inside the band, and the sizes differ', () => {
+      const sizes = sizesAt('battery-size-band', 40, -80);
+      expect(sizes).toHaveLength(MAX_ROBOTS);
+      sizes.forEach((size) => expect(inBand(size), `size ${size}`).toBe(true));
+      expect(new Set(sizes).size).toBe(MAX_ROBOTS);
+    });
+
+    it('two locales at the same coordinates get the same sizes, robot for robot', () => {
+      const a = sizesAt('battery-size-twin-a', 120, 160);
+      const b = sizesAt('battery-size-twin-b', 120, 160);
+      a.forEach((size) => expect(inBand(size)).toBe(true)); // two arrays of undefined would also compare equal
+      expect(b).toEqual(a);
+      expect(sizesAt('battery-size-elsewhere', -160, 40)).not.toEqual(a);
+    });
+
+    it('a size is the even draw at robot.batterySize, offset the spawn count', () => {
+      const noiseMap = getLocaleNoiseMap('battery-size-draw', 80, 0);
+      const sizes = sizesAt('battery-size-draw', 80, 0);
+      sizes.forEach((size, i) => expect(size).toBe(generateBatterySize(noiseMap, i)));
+      expect(generateBatterySize(noiseMap, 3)).toBe(getUniformSeededVal(noiseMap, 'robot.batterySize', 3, BATTERY_SIZE_MIN, BATTERY_SIZE_MAX));
+    });
+
+    it('takes another band as arguments, for the sims', () => {
+      const noiseMap = getLocaleNoiseMap('battery-size-other-band', 0, 0);
+      for (let i = 0; i < 50; i++) {
+        const size = generateBatterySize(noiseMap, i, 0.67, 1.5);
+        expect(size).toBeGreaterThanOrEqual(0.67);
+        expect(size).toBeLessThan(1.5);
+      }
+    });
+
+    // 121 worlds × 100 offsets = 12,100 draws: the sampling error on an outer tenth's share is about 0.3 %.
+    it('over the grid\'s 121 worlds at offsets 0-99, puts 8-12 % of its values in each outer tenth of the band', () => {
+      const axis = [-200, -160, -120, -80, -40, 0, 40, 80, 120, 160, 200];
+      const sizes = axis.flatMap((x) => axis.flatMap((y) => {
+        const noiseMap = createNoise2D(alea(`${x}:${y}`));
+        return Array.from({ length: 100 }, (_, i) => generateBatterySize(noiseMap, i));
+      }));
+      expect(sizes).toHaveLength(12_100);
+      const { bottom, top } = outerTenths(sizes, { min: BATTERY_SIZE_MIN, max: BATTERY_SIZE_MAX });
+      expect(bottom).toBeGreaterThanOrEqual(0.08);
+      expect(bottom).toBeLessThanOrEqual(0.12);
+      expect(top).toBeGreaterThanOrEqual(0.08);
+      expect(top).toBeLessThanOrEqual(0.12);
+    });
+
+    it('with no locale (no noise map) a lone spawnRobot still gets a size inside the band, varied', () => {
+      const added: Robot[] = [];
+      const realAddRobot = useLocaleStore.getState().addRobot;
+      useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
+      try {
+        for (let i = 0; i < 20; i++) spawnRobot(`battery-size-no-locale-${i}`);
+      } finally {
+        useLocaleStore.setState({ addRobot: realAddRobot });
+      }
+      expect(added).toHaveLength(20);
+      added.forEach((robot) => expect(inBand(robot.batterySize), `size ${robot.batterySize}`).toBe(true));
+      expect(new Set(added.map((r) => r.batterySize)).size).toBeGreaterThan(15);
     });
   });
 

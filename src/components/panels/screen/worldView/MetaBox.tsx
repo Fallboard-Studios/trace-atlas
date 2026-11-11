@@ -37,7 +37,7 @@ function useEmittingCount(): number {
   return useLocaleStore((s) => {
     const robots = s.locales[localeId]?.robots ?? NO_ROBOTS;
     const anySolo = robots.some((r) => r.audioMode === 'solo');
-    return robots.filter((r) => getAudibilityState(r.audioMode, anySolo, isRobotSounding(soundingRobotIds, r.id)) === 'emitting').length;
+    return robots.filter((r) => getAudibilityState(r.audioMode, anySolo, r.docking, isRobotSounding(soundingRobotIds, r.id)) === 'emitting').length;
   });
 }
 

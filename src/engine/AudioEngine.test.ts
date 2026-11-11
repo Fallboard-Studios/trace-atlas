@@ -1449,6 +1449,67 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
     });
     expect(found).toBe(true);
   });
+
+  // The dock mutes through the docking state, not audioMode, and a Solo beats it (Crawford, 2026-11-11).
+  describe('the dock mutes on its own; Solo beats it', () => {
+    const robotAt = (id: string, audioMode: string, docking: string) => ({
+      id, audioMode, docking, audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
+      masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
+    });
+
+    /** Puts `robots` in the active locale, reserves a voice each, and returns the velocity each scheduled note triggered
+     *  with (undefined when it did not trigger). */
+    async function velocities(robots: ReturnType<typeof robotAt>[], notes: Array<{ robotId: string; note: string }>) {
+      const Tone = await import('tone');
+      const { AudioEngine } = await import('./AudioEngine');
+      const helpers = await import('../utils/localeHelpers');
+      (helpers.getActiveLocaleId as ReturnType<typeof vi.fn>).mockReturnValue(merged_DEFAULT_LOCALE_ID);
+      merged_useLocaleStore.getState().setLocaleData(merged_DEFAULT_LOCALE_ID, { robots: robots as any });
+      await AudioEngine.start();
+      for (const r of robots) AudioEngine.reserveVoice(r.id, [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any, TEST_ADSR);
+      const synthResults = (Tone.Synth as unknown as any).mock.results;
+      synthResults.forEach((r: any) => r.value?.triggerAttackRelease?.mockClear());
+      for (const { robotId, note } of notes) AudioEngine.scheduleNote({ robotId, note, duration: '4n', time: 0, velocity: 0.8 });
+      return notes.map(({ note }) => {
+        let vel: number | undefined;
+        synthResults.forEach((r: any) => r.value?.triggerAttackRelease?.mock?.calls?.forEach((c: any) => { if (c[0] === note) vel = c[3]; }));
+        return vel;
+      });
+    }
+
+    it('a Docked or Undocking robot with Off set triggers nothing; an Active and a Recalled one do', async () => {
+      const [docked, undocking, active, recalled] = await velocities(
+        [robotAt('d', 'none', 'docked'), robotAt('u', 'none', 'undocking'), robotAt('a', 'none', 'active'), robotAt('r', 'none', 'recalled')],
+        [{ robotId: 'd', note: 'C9' }, { robotId: 'u', note: 'D9' }, { robotId: 'a', note: 'E9' }, { robotId: 'r', note: 'F9' }],
+      );
+      expect(docked).toBeUndefined();
+      expect(undocking).toBeUndefined();
+      expect(active).toBeDefined();
+      expect(recalled).toBeDefined();
+    });
+
+    it('a soloed robot in the station is heard, and the robots out of it are silenced by its solo', async () => {
+      const [soloed, other] = await velocities(
+        [robotAt('s', 'solo', 'docked'), robotAt('o', 'none', 'active')],
+        [{ robotId: 's', note: 'C8' }, { robotId: 'o', note: 'D8' }],
+      );
+      expect(soloed).toBeDefined();
+      expect(other).toBeUndefined();
+    });
+
+    it('a highlighted robot in the station attenuates nobody; one out of it still does', async () => {
+      const [whileDocked] = await velocities(
+        [robotAt('h', 'highlight', 'docked'), robotAt('o', 'none', 'active')],
+        [{ robotId: 'o', note: 'C7' }],
+      );
+      expect(whileDocked).toBeCloseTo(0.8, 5);
+      const [whileOut] = await velocities(
+        [robotAt('h2', 'highlight', 'recalled'), robotAt('o2', 'none', 'active')],
+        [{ robotId: 'o2', note: 'D7' }],
+      );
+      expect(whileOut).toBeCloseTo(0.4, 5);
+    });
+  });
 });
 
 describe('AudioEngine - Melody Lifecycle', () => {
