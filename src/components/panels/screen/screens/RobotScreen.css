@@ -155,7 +155,8 @@
 }
 
 /* The sketch's `.st`. It wraps rather than cut: at 320 px "Structural Inspection · Active · Working ·
-   Emitting · 82%" is 244 px in 164, and an ellipsis lost the emission and the battery (measured). */
+   Emitting · 82%" was 244 px in 164, and an ellipsis lost the status and the battery (measured). The line now
+   leads with the mode ("Auto · Structural Inspection · …", backlog 81), so it is no shorter. */
 .robot-screen__status-line {
   color: var(--color-text-muted);
   font-family: var(--font-mono);

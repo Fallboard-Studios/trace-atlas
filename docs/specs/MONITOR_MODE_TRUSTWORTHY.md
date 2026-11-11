@@ -481,7 +481,7 @@ ear gate, at his request. Every §7.1 default and the §7.2 answers are kept as 
 | §4, `RobotMeta` | As §4 shows, plus `metaWords(meta)` in `useRobotMeta.ts`, which `RosterTile.tsx` and `RobotScreen.tsx` pass to `fill` (T7a, 6463ba63). | `fill` takes string vars only, so the boolean `lit` cannot be spread into a template. |
 | §1.5, the well and the band | The light sits inside the value span, first, so `metaValues` and the line's text read the words alone; `ModeLight.css`'s `margin-inline-end` is the gap, and `RobotScreen.css` is untouched (T10, 2cf86c1c). | One gap rule for the three consumers. |
 | §1.6, the desk tile | The base status rule gives the clip 8 px of room above and before the line (padding, with matching negative margins), so the lit glow is not cut square by `overflow: hidden`; text and tile heights do not move (T11, 3dd8190a). | Found by the Look: the clamp's `overflow: hidden` clipped the glow. |
-| §7.1 B5, the phone band | Wraps to two lines at 320 px; the band has no one-line rule. | Reported at the eye gate; no change asked. |
+| §7.1 B5, the phone band | Wraps to two lines at 320 px, by design: the band has no one-line rule, and B5 assumed one. | `RobotScreen.css`'s status-line rule wraps rather than cuts, since the Layout Rework measured an ellipsis losing the status and the battery at 320 px. Reported at the eye gate; no change asked. |
 
 **Found, not this branch's.** At 768 px the roster panel's content overflows by 9 px (a 250 px tile in a 233 px row),
 with or without these rules. Reported at the eye gate; left alone.
