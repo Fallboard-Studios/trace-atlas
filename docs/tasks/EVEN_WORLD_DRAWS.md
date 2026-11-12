@@ -459,7 +459,7 @@ re-seeded in the same commit (the probe table).
 
   **Estimated scope:** XS
 
-- [ ] **Task 9: BUILDING_DESIGN.md, ROBOT_LIFECYCLE.md, COMPANIES.md — placement, the roster table, seeded companies**
+- [x] **Task 9: BUILDING_DESIGN.md, ROBOT_LIFECYCLE.md, COMPANIES.md — placement, the roster table, seeded companies**
 
   **Description:** BUILDING_DESIGN.md: the accent pair's offset note (step 1 of the lean) and the derelict roll's
   re-hash go; `factory.spacing` and `factory.scale` are even. ROBOT_LIFECYCLE.md: the seeded roster (2–4 Active a
@@ -642,6 +642,19 @@ survived it; a second parity case over 30 grid worlds (every Active count among 
 - Mutants killed: the count, x, width and depth on the plain draw, the direction threshold at 0.4, the count clamp
   dropped, the direction welded to the count draw.
 - Full suite: 13,893 passed, 2 skipped, 1 failed of 13,896; the failure is the station case (Checkpoint B).
+
+### T9: as built
+
+- **COMPANIES.md's grid counts re-measured** (T7's note): a temporary harness over `SIM_SEED_COORDS` ran
+  `generateCompanyMembership` and the uncapped `company.count` / `company.size` draws per world, then was deleted. The
+  floor touches 27 of 121 worlds (was 34): 16 lose the third company (was 18), 11 have it cut from four robots to
+  three (was 16); every world keeps two, 46 have three (was 53). Members per world 4 to 7 as before, mean 5.84 (was
+  5.95). The doc gives both, the plain-draw figures as history.
+- **ROBOT_LIFECYCLE.md's "in a stay" share** after the cover table was also plain-era (0.20 %); the repo's report
+  (`LIFECYCLE_SIM_REPORT`) re-run on the branch gives 0.18 %, and its shipped row matches T3's record exactly. The
+  second drain table (5.71 / 5.10 / 4.66) matched the re-run unchanged, so it stays.
+- **BUILDING_DESIGN.md** gained the even draws in four places the plan did not name: the Attenuation Style tints (with
+  the scenery family's own draw), the accent coin, the light shafts and `factory.scale` (which no section described).
 
 ### Checkpoint A / B: the harness sections
 

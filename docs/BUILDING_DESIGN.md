@@ -19,7 +19,10 @@ to actually hold, per [PROCEDURAL_GENERATION.md](PROCEDURAL_GENERATION.md).
 A factory's colour shift additionally layers a second, independent seed on
 top: the active Attenuation Style's own noise map (`deriveAsColorShift()`,
 `factoryPlacementSystem.ts`) contributes an additive hue/saturation delta
-summed with the locale-seeded shift above. Nothing else about a factory is
+summed with the locale-seeded shift above: even draws over ±30 hue and ±20
+saturation (`AS_HUE_SHIFT_RANGE`, `AS_SAT_SHIFT_RANGE`), so the delta reaches
+its edges, and scenery draws its own (`deriveSceneryAsColorShift()`), so the
+factory and scenery tints do not move together. Nothing else about a factory is
 affected — placement, count, id, variant, scale, and greeble selection stay
 driven exclusively by the locale seed regardless of which Attenuation Style
 is active. Retransmitting a new Attenuation Style recolors an existing
@@ -156,13 +159,14 @@ How (`src/utils/accentLean.ts`, applied in `factoryPlacementSystem.ts`):
 1. **The Attenuation Style picks an accent pair**, once per placement pass
    (`deriveAsAccentPair(asNoiseMap)`): a primary hue drawn from the 18
    console accents (`ACCENT_HUES`, in `ROBOT_IDENTITY_COLOR_NAMES` order) at
-   dataId `'factory.as.accentPrimary'` with a fixed non-integer offset
-   (`ACCENT_PAIR_OFFSET`, the simplex lattice-collapse guard), plus that
+   dataId `'factory.as.accentPrimary'`, one even draw at offset 0, so each
+   of the 18 hues is the primary for about 1 style in 18, plus that
    hue's nearest other accent on the wheel (`secondaryFor`, ≤60° apart by
    construction). Per **style**, not per locale: every locale under one
    style shares the pair, and a retransmit moves the whole skyline.
 2. **Each factory picks one of the two** by a seeded coin on its index
-   (`pickAccentTarget`, dataId `'factory.as.accentPick'`).
+   (`pickAccentTarget`, dataId `'factory.as.accentPick'`), an even draw, so
+   half lean each way.
 3. **The lean is computed from the final pre-lean body** — variant base +
    local shift + AS shift already applied — and returned as one more
    additive `ColorShift` (`computeAccentLean(body, targetHue)`):
@@ -239,7 +243,9 @@ light at any depth.
 ### Derelict
 
 An actor can roll `config.derelict: true` at placement (`'actor.derelict'`, offset = actor index,
-`< row.derelict ?? DERELICT_RATIO` — default `0.25`; see PROCEDURAL_GENERATION.md). Families that
+`< row.derelict ?? DERELICT_RATIO` — default `0.25`; see PROCEDURAL_GENERATION.md). The roll is an
+even draw compared with the ratio directly, so the ratio is the share: a quarter of derelict-capable
+actors by default (Even World Draws, which removed the re-hash the bell-curved draw needed). Families that
 can be derelict: factory, tank, dome, scaffold. Wrecks are always derelict and carry no flag.
 Render-time effect (`Factory.tsx` and every derelict-capable scenery renderer):
 
@@ -407,8 +413,9 @@ interface DistrictRow {
 ```
 
 Rows say **where an item stands**, never a literal `y`. The three spreads (`edges`/`full`/`center`)
-are unchanged from the legacy table, including the seeded `factory.spacing` jitter for `center`;
-placement still computes each factory's silhouette size via `calcSilhouetteSize` and advances by the
+are unchanged from the legacy table, including the seeded `factory.spacing` jitter for `center`
+(0.8–1.2). It and each factory's `factory.scale` (0.9–1.1, `placeDistrict`) are even draws, so both
+spread across their whole bands (Even World Draws, 2026-11-11); placement still computes each factory's silhouette size via `calcSilhouetteSize` and advances by the
 computed width to avoid overlaps.
 
 ### Anchors and the ground-lock invariant
@@ -566,7 +573,8 @@ still checked edge by edge.
 Roadmap Phase 42 D3 adds one atmosphere layer: `LightShafts` (`worldView/LightShafts.tsx`), 3–5
 static polygons in the back layer, after `WaterColumn` and before the terrain ridge. Each has one
 vertical edge and one 45° edge (the scenery families' own grid rule), seeded on the locale's own
-noise map (`'atmos.shaft.*'` dataIds), and fills with a vertical gradient from `glass.base` at opacity
+noise map (`'atmos.shaft.*'` dataIds, even draws through `seedLightShafts()`, so 3, 4 and 5 shafts each
+come up in a third of worlds and the widths and depths fill their bands), and fills with a vertical gradient from `glass.base` at opacity
 `0.11 × (1 − nightDepth)` down to 0 — sold at midday, gone at night (the group renders nothing once
 that opacity drops below 0.005). It reads the lighting tick the same way `WaterColumn` and
 `TerrainLayer` do: no GSAP, no CSS transition, a re-fill only when the rounded hour steps.
