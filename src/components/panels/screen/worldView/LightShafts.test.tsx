@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { act, cleanup } from '@testing-library/react';
+import alea from 'alea';
+import { createNoise2D } from 'simplex-noise';
 import { LightShafts } from './LightShafts';
+import { seedLightShafts } from './seedLightShafts';
 import { renderSvg } from '@/testUtils/renderSvg';
+import { outerTenths } from '@/testUtils/spread';
 
-import { evictLocaleNoiseMap } from '@/utils/noiseMaps';
+import { evictLocaleNoiseMap, getLocaleNoiseMap } from '@/utils/noiseMaps';
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getLighting, getNightDepth } from '@/utils/lightingUtils';
@@ -183,5 +187,69 @@ describe('LightShafts', () => {
       const { container } = renderSvg(<LightShafts localeId="does-not-exist" />);
       expect(container.querySelector('g[data-atmos="shafts"]')).toBeNull();
     });
+  });
+
+  describe('seedLightShafts', () => {
+    it("the component renders exactly the shafts seedLightShafts gives for the locale's map", () => {
+      setLocalTime(12);
+      const { dir, shafts } = seedLightShafts(
+        getLocaleNoiseMap(TEST_LOCALE.id, TEST_LOCALE.coordinates.x, TEST_LOCALE.coordinates.y),
+      );
+      const { container } = renderSvg(<LightShafts localeId={TEST_LOCALE.id} />);
+      const rendered = Array.from(getGroup(container)!.querySelectorAll('polygon')).map((p) => p.getAttribute('points'));
+      expect(rendered).toEqual(
+        shafts.map(({ x, w, depth }) => `${x},0 ${x + w},0 ${x + w + dir * depth},${depth} ${x},${depth}`),
+      );
+    });
+  });
+});
+
+// Even World Draws (docs/specs/EVEN_WORLD_DRAWS.md §5.1, docs/tasks/EVEN_WORLD_DRAWS.md T6): the shafts' seeded geometry
+// over 3,000 real locale maps (each seeded `${x}:${y}`, as a locale's is). Every tolerance is at least 3 standard
+// deviations of its share.
+describe('the light shafts draw even (Even World Draws T6)', () => {
+  const WORLDS = 3000;
+  const seeded = Array.from({ length: WORLDS }, (_, i) =>
+    seedLightShafts(createNoise2D(alea(`${(i % 60) * 7 - 210}:${Math.floor(i / 60) * 7 - 175}`))));
+  const shafts = seeded.flatMap((s) => s.shafts);
+
+  const expectTenths = (values: number[], band: { min: number; max: number }, label: string) => {
+    expect(Math.min(...values), label).toBeGreaterThanOrEqual(band.min);
+    expect(Math.max(...values), label).toBeLessThan(band.max);
+    const { bottom, top } = outerTenths(values, band);
+    expect(bottom, `${label} bottom`).toBeGreaterThanOrEqual(0.08);
+    expect(bottom, `${label} bottom`).toBeLessThanOrEqual(0.12);
+    expect(top, `${label} top`).toBeGreaterThanOrEqual(0.08);
+    expect(top, `${label} top`).toBeLessThanOrEqual(0.12);
+  };
+
+  it('3, 4 and 5 shafts each start a third of worlds (+/-3 points)', () => {
+    for (const count of [3, 4, 5]) {
+      const share = seeded.filter((s) => s.shafts.length === count).length / WORLDS;
+      expect(share, `${count} shafts`).toBeGreaterThanOrEqual(0.303);
+      expect(share, `${count} shafts`).toBeLessThanOrEqual(0.363);
+    }
+  });
+
+  it('each direction is half the worlds (+/-3 points), and only ever -1 or 1', () => {
+    expect(seeded.every((s) => s.dir === -1 || s.dir === 1)).toBe(true);
+    const share = seeded.filter((s) => s.dir === -1).length / WORLDS;
+    expect(share).toBeGreaterThanOrEqual(0.47);
+    expect(share).toBeLessThanOrEqual(0.53);
+  });
+
+  it('the direction is independent of the count: half of each count rakes each way (+/-5 points)', () => {
+    for (const count of [3, 4, 5]) {
+      const worlds = seeded.filter((s) => s.shafts.length === count);
+      const share = worlds.filter((s) => s.dir === -1).length / worlds.length;
+      expect(share, `${count} shafts`).toBeGreaterThanOrEqual(0.45);
+      expect(share, `${count} shafts`).toBeLessThanOrEqual(0.55);
+    }
+  });
+
+  it('the widths fill 50-160, the depths 420-760 and the xs -200-1920: 8-12 % in each outer tenth', () => {
+    expectTenths(shafts.map((s) => s.w), { min: 50, max: 160 }, 'width');
+    expectTenths(shafts.map((s) => s.depth), { min: 420, max: 760 }, 'depth');
+    expectTenths(shafts.map((s) => s.x), { min: -200, max: 1920 }, 'x');
   });
 });

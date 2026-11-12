@@ -347,7 +347,7 @@ re-seeded in the same commit (the probe table).
 
   **Estimated scope:** M
 
-- [ ] **Task 6: LightShafts.tsx — the shafts' count, direction and geometry draw even, through one pure function**
+- [x] **Task 6: LightShafts.tsx — the shafts' count, direction and geometry draw even, through one pure function**
 
   **Description:** Extract the five draws into an exported `seedLightShafts(noiseMap)` returning `{ dir, shafts }`
   (Architecture Decisions), switch them to even, and have the component call it. Rewrite the count comment's
@@ -595,9 +595,9 @@ survived it; a second parity case over 30 grid worlds (every Active count among 
 
 ### T5: as built
 
-- **The sample** is 200 real `dense` placements, placed once on first use: 8,013 derelict-capable actors (factories
-  and tank/dome/scaffold scenery; `DERELICT_CAPABLE_KINDS` is exported for the test), over 5,000 factories and 2,000
-  scenery. The plan's "more than 3,900 distinct over 4,000 scenery" is asserted as its ratio, more than 97.5 %
+- **The sample** is 200 real `dense` placements, placed once on first use: the cases assert more than 5,000
+  derelict-capable actors (factories and tank/dome/scaffold scenery; `DERELICT_CAPABLE_KINDS` is exported for the
+  test), more than 5,000 factories and more than 2,000 scenery. The plan's "more than 3,900 distinct over 4,000 scenery" is asserted as its ratio, more than 97.5 %
   distinct over every scenery actor placed (plain draw: 76.9 %).
 - **The derelict share case is not a RED**: the old plain draw plus re-hash already realised about 25 %. The RED is the
   call check (now on the even draw), and the share case kills the plain draw without the re-hash; it also asserts no
@@ -611,6 +611,24 @@ survived it; a second parity case over 30 grid worlds (every Active count among 
   decision.
 - Mutants killed: the derelict roll on the plain draw with and without the re-hash, the capable-kind check dropped,
   `scenery.id` and `factory.scale` on the plain draw.
+- (Corrected in T6's commit: this record first said "8,013 derelict-capable actors", a number never measured; the
+  case asserts more than 5,000.)
+
+### T6: as built
+
+- **`seedLightShafts` lives in its own `seedLightShafts.ts`**, beside the component, not in `LightShafts.tsx` as the
+  plan said: exporting a function from the component file added a `react-refresh/only-export-components` lint
+  warning. The geometry constants moved with it; the opacity constants stayed.
+- **RED in two steps**: the extraction first, on the plain draw (the render cases passed unmodified, and a new case
+  checks the component renders exactly `seedLightShafts`' shafts), so the spread cases failed on the draws, not on a
+  missing export: 3 shafts in 41.7 % of worlds, 0.3 % of widths in the bottom tenth. Then the switch.
+- **The direction put back on the plain draw alone survives**: with every other draw even, a plain coin at 0.5 is
+  fair (a symmetric bell) and has nothing to weld to. Recorded as an equivalent mutant, like T2's count and size; the
+  switch stays (spec §1.3). A case that the direction is independent of the count (half of each count rakes each way,
+  ± 5 points) was added; it kills a direction welded to the count draw.
+- Mutants killed: the count, x, width and depth on the plain draw, the direction threshold at 0.4, the count clamp
+  dropped, the direction welded to the count draw.
+- Full suite: 13,893 passed, 2 skipped, 1 failed of 13,896; the failure is the station case (Checkpoint B).
 
 ### Checkpoint A / B: the harness sections
 
