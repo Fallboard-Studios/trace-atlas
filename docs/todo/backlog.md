@@ -584,7 +584,10 @@ audio or animation architecture):
   Transform or opacity on a mover stays on the compositor. A fill or palette change repaints, and desktop underruns
   have been raster-bound before.
 
-Plan.md Stage 4.
+**Status (2026-11-12):** a throwaway spike (`spike/note-pulse`, local) settled the direction by eye. A pulse on the
+lit strips was rejected; what Crawford ended happy with is a cloud of notes around each robot, a small piano roll in
+time with the sound. The intent is drafted and **not yet confirmed**: [intent](../intent/robot-note-cloud.md), whose
+"To confirm" list is what stands between it and a spec. Plan.md Stage 4.
 
 ### 80. Audio: Notes Too Short to Hear the Instrument — More Guardrails
 
