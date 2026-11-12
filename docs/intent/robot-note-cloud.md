@@ -6,8 +6,10 @@ Behavior is what he decided by looking, as built. What he was never asked is und
 is settled. Ahead of a `spec-driven-development` pass. Backlog
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
-The spike is the branch `spike/note-pulse` (local, fourteen commits, never merges). It is the reference for how
+The spike is the branch `spike/note-pulse` (local, fifteen commits, never merges). It is the reference for how
 everything below looks; none of its code is to be carried over as it stands (no tests, no timeline registration).
+The link he was looking at when he approved it carried `?trail=all&rollSize=2.5&trailLife=5&notePx=4`, and those are
+now the spike's defaults, so plain `?trail=all` shows the approved look.
 
 ## Outcome
 
@@ -19,22 +21,24 @@ It is there on every robot but quiet about it, and it comes forward for the robo
 
 ### The cloud
 
-- **A piano roll around the robot.** It is a third larger than the robot as drawn (1.33× the box its parts fill, at
+- **A piano roll around the robot.** It is two and a half times the robot as drawn (2.5× the box its parts fill, at
   the body's scale). Nothing marks its edges: there is no panel behind the notes.
-- **A note is a solid rounded bar.** Its length is the note's length (a note takes about 2.2 seconds to cross the
-  roll), and its row is the note's pitch within that robot's own range.
+- **A note is a solid rounded bar.** Its length is the note's length (a note takes 5 seconds to cross the roll), and
+  its row is the note's pitch within that robot's own range.
 - **Notes cross from right to left.** A robot has no front or back, so nothing trails it; the roll sits on it.
 - **Half in front, half behind.** C, D, E, F♯, G♯ and A♯ cross in front of the body; C♯, D♯, F, G, A and B cross
   behind it. The robot sits in a cloud of its notes.
 - **The rows run straight through the middle and fan at the edges.** Across the middle of the roll a row holds its
   pitch height with the slightest wave, so the pattern of notes still reads as a piano roll. Toward the left and
   right edges the rows spread apart, the wave grows, and a bar tilts to follow its row.
-- **A note is at least four pixels thick on screen.** On a desktop that is slim. On a small screen, where the
-  scene is drawn smaller, the note grows in the scene to stay legible.
+- **A note is a fourteenth of the roll's height thick, and never under four pixels on screen.** At 2.5× that is the
+  roll's share on a desktop. On a small screen, where the scene is drawn smaller, the four-pixel floor takes over and
+  the note grows in the scene to stay legible.
 
 ### In time with the sound
 
-- **A note arrives before it sounds.** It enters at the right edge in its own colour and fades in as it travels.
+- **A note arrives before it sounds.** It enters at the right edge in its own colour and fades in as it travels,
+  for a little over a second at his settings.
 - **It turns white as it sounds**, at the point where the rows come together, a little under a quarter of the way
   in from the right edge. It stays white for as long as the note lasts, then cools to its colour.
 - **Only what sounds is drawn.** A robot that is muted, silenced by another robot's Solo, standing by over the Audio
@@ -113,8 +117,12 @@ Built by me without being asked, or never put to Crawford. Each needs a yes or a
    guardrail edit is Crawford's alone.
 2. **The engine announcing notes early.** He chose it on 2026-11-12 so a note can travel in from the edge. It is a
    new engine interface, so it needs his architecture approval as such (CLAUDE.md), with what it costs: an early
-   announcement is a forecast, and in the spike 97 to 99.7% of pitches were right, the misses being the first notes
-   after a chord change.
+   announcement is a forecast. At his settings a note is announced about 0.9 seconds sooner than its trigger, and
+   two power-ons of one world gave 330 pitches right, 23 wrong and 13 notes not announced, then 352, 1 and 13. (At
+   the spike's first settings, about 0.3 seconds sooner: 353/8, 354/9 and 362/1, with 4 or 5 not announced.) The
+   wrong pitches are the notes just after a chord change. The longer the lead, the longer a robot that has just
+   started sounding goes without notes, and the longer one that has just gone quiet keeps drawing notes it will not
+   play; the second is expected from how it works and was not counted.
 3. **The marker on a robot under the pointer.** In the spike, pointing at a robot also frames it with the Deck
    camera's marker (the square with "name | job"). I wired that; he has seen it but never said he wants it.
 4. **Ducking the others.** `&spot` in the spike drops the other robots about 10 dB while one is singled out
@@ -132,9 +140,9 @@ Built by me without being asked, or never put to Crawford. Each needs a yes or a
 10. **The lit strips' dials.** Before the cloud, Crawford agreed the boundary lines could stop being dynamic in
     width (the differences are invisible below a 4K screen) and that the edit flicker could go. That was for the
     strip pulse, which is rejected. Whether he still wants those two cleanups, as their own item.
-11. **The numbers.** Roll 1.33×, crossing 2.2 s, "now" 22.5% in, dim 0.35, fan 0.6, four pixels, 50% battery: all
-    are what he was looking at when he said he was happy, and each is a switch in the spike. Whether any wants
-    another look on a phone.
+11. **The numbers.** He named four himself: every robot (`trail=all`), roll 2.5×, crossing 5 s, four pixels. The
+    rest were the spike's defaults while he looked and he did not name them: "now" 22.5% in, dim 0.35, fan 0.6,
+    wave 1.5%, the 50% battery line. Each is a switch in the spike. Whether any wants another look on a phone.
 
 ## Known implementation notes (not yet spec'd)
 
@@ -161,8 +169,12 @@ Built by me without being asked, or never put to Crawford. Each needs a yes or a
   spike sets the layers' scale from `robot.layer` at once, which pops on a row switch.
 - **Who is singled out.** The spike keeps one robot id: under the pointer, else the Deck camera's followed robot,
   else none. The Deck camera only follows where the world is wider than the window, so never on a desktop.
-- **Measured, headless, one world** (`npm run perf:idle`, cloud off against on): paint time per sounding robot
-  back at baseline with the belt (10 to 18 ms a window, against 27 to 40 ms in the first cut); the compositor's
-  update time up about 30%; main-thread time inside the spread of the off runs for straight rows. The wavy rows add
-  a transform write per live note per frame, and the one run that measured them was too noisy to size it. Not
-  measured: Crawford's full-screen desktop, a phone, a world with all twelve sounding.
+- **Measured, headless, one world** (`npm run perf:idle --only stock --throttle 1`, cloud off against on, 6-second
+  windows). **At his settings** (2.5×, 5 s, the wavy rows and the early announcements): main-thread time 2,844 and
+  2,716 ms off against 3,315 and 3,290 ms on, about 19% more; the compositor's update time 203 and 171 ms against
+  250 and 251, about a third more; paint time and rastered area unchanged; 57 to 58 frames a second either way. So
+  the approved look has a main-thread cost the real build has to take back: a 5-second crossing keeps about twice as
+  many notes alive as 2.2 did, and each is rewritten every frame to follow its row. **At the spike's first settings**
+  (1.33×, 2.2 s, straight rows): paint time per sounding robot back at baseline with the belt (10 to 18 ms a window,
+  against 27 to 40 ms in the first cut) and main-thread time inside the spread of the off runs. Not measured at
+  all: Crawford's full-screen desktop, a phone, a world with all twelve sounding.
