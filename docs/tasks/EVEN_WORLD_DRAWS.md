@@ -438,7 +438,7 @@ re-seeded in the same commit (the probe table).
 
 ### Phase 4: Docs
 
-- [ ] **Task 8: PROCEDURAL_GENERATION.md — the world picks are even; the plain draw is for the three walks**
+- [x] **Task 8: PROCEDURAL_GENERATION.md — the world picks are even; the plain draw is for the three walks**
 
   **Description:** "Sampling Values": when to use each draw, with the plain draw named for `terrainProfile.ts`,
   `localeTemperature.ts` and `localeTemperatureStep.ts` only. "Call Sites": every row for a §1.3 draw says even; the
