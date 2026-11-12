@@ -165,6 +165,21 @@ describe('a company\'s name, id, identity colour and membership draw even (Even 
     }
   });
 
+  // The case above reaches a retry only on a collision (about one company in 18), so a retry drawn off the even draw
+  // would leave its shares in tolerance. Here every draw is a retry: each map's own first colour is marked used.
+  it('a colour retry draws even too: forced past the first colour, each of the 18 hues is 5.6 % of retries (+/-1.5 points)', () => {
+    const retries = MAPS.map((noiseMap) => {
+      const first = generateCompanyIdentityColor(noiseMap, 0, []);
+      const retry = generateCompanyIdentityColor(noiseMap, 0, [first]);
+      expect(retry).not.toBe(first);
+      return retry;
+    });
+    for (const name of ROBOT_IDENTITY_COLOR_NAMES) {
+      expect(shareOf(retries, ACCENT_COLORS[name]), name).toBeGreaterThanOrEqual(0.041);
+      expect(shareOf(retries, ACCENT_COLORS[name]), name).toBeLessThanOrEqual(0.071);
+    }
+  });
+
   it('the company id keeps its shape and its suffix takes a distinct value for more than 95 % of companies', () => {
     COMPANIES.forEach((company) => expect(company.id).toMatch(/^company-[0-2]-[0-9a-z]{8}$/));
     expect(new Set(COMPANIES.map((c) => c.id.split('-')[2])).size).toBeGreaterThan(COMPANIES.length * 0.95);
