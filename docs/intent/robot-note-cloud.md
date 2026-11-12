@@ -67,8 +67,15 @@ It is there on every robot but quiet about it, and it comes forward for the robo
 
 - The robot's body, its dials, the lit strips and the lights are untouched. The cloud is drawn around the robot,
   not on it.
-- A working robot still bobs.
 - Nothing about what is heard changes.
+
+### The bob, while we are in there
+
+- **A working robot still bobs, half as far and half as fast.** Crawford, 2026-11-12: "cut the idle bob in half in
+  velocity and distance." It moves ±3 units where it moved ±6, on the same 1.2-second cycle, so it covers 12 units a
+  cycle at about 10 a second where it covered 24 at about 20. Built the same day (`BOB_PX`,
+  `src/constants/index.ts`), ahead of the rest. The waiting robot's one bob reads the same distance and halves with
+  it.
 
 ## Style / constraint
 
@@ -140,7 +147,10 @@ Built by me without being asked, or never put to Crawford. Each needs a yes or a
 10. **The lit strips' dials.** Before the cloud, Crawford agreed the boundary lines could stop being dynamic in
     width (the differences are invisible below a 4K screen) and that the edit flicker could go. That was for the
     strip pulse, which is rejected. Whether he still wants those two cleanups, as their own item.
-11. **The numbers.** He named four himself: every robot (`trail=all`), roll 2.5×, crossing 5 s, four pixels. The
+11. **The bob's cycle.** I read "half in velocity and distance" as half the distance on the same cycle, which is
+    also half the speed. If he meant the bob to take twice as long as well, that is `BOB_CYCLE_SECONDS` 1.2 to 2.4,
+    and the speed would then be a quarter of what it was.
+12. **The numbers.** He named four himself: every robot (`trail=all`), roll 2.5×, crossing 5 s, four pixels. The
     rest were the spike's defaults while he looked and he did not name them: "now" 22.5% in, dim 0.35, fan 0.6,
     wave 1.5%, the 50% battery line. Each is a switch in the spike. Whether any wants another look on a phone.
 

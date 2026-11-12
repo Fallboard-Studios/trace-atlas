@@ -142,8 +142,9 @@ at once, and a passive effect would register too late for it.
 §1.9) builds **one paused timeline per job run**, keyed `` `work-${robotId}` ``, lasting exactly
 `jobDuration(bpm)` (10 s at 20 BPM to 6 s at 200 BPM, the live tempo read at job start):
 
-- **The bob** — the robot's `.robot` group moves ±`BOB_PX` (6) in whole cycles of about
-  `BOB_CYCLE_SECONDS` (1.2), so it ends where it started.
+- **The bob** — the robot's `.robot` group moves ±`BOB_PX` (3) in whole cycles of about
+  `BOB_CYCLE_SECONDS` (1.2), so it ends where it started. The distance was ±6 until 2026-11-12, when Crawford
+  halved the bob in distance and speed: half as far on the same cycle is half as fast.
 - **Detach** — each locked orbiter flies from its dock to its target over `ATTACH_DURATION`
   (1 s). Targets are scene points mapped into the orbiter's own frame by `sceneToOrbiterLocal`
   (which inverts the robot translate, the `g.gem` scale about its centre and the corner's dock
@@ -249,7 +250,7 @@ the back row for free and unmounts with the robot. Idle robots carry none; reduc
   decorations shrink with it. [polyline.ts](../src/animation/jobMoves/decor/polyline.ts) (`polyLen`, `polyAt`,
   `polyVertices`) walks a route for the trail, the ticks and the droplets.
 - **The counter-bob.** The group sits outside `g.gem`, so the body's bob would carry it. `addJobDecor` adds
-  the bob inverted over the layer scale (`BOB_PX` (6) ÷ `layerScale`), so a wire anchored to a site point stays
+  the bob inverted over the layer scale (`BOB_PX` (3) ÷ `layerScale`), so a wire anchored to a site point stays
   on it.
 - **Cleanup.** The group is removed by a `tl.call` at the window's end and by a wrap of `tl.kill`. GSAP's
   `onInterrupt` fires only below progress 1, so it would miss the work loop's silent finish
