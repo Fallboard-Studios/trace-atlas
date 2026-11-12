@@ -7,7 +7,7 @@ import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 import { DockingState, type JobType, type RobotActivity } from '../types/Robot';
 import type { Actor } from '../types/Actor';
 import type { Vec2 } from '../types/Vec2';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getUniformSeededVal } from '../utils/getSeededVal';
 import { generateBatterySize, generateRobotRosterBaseline } from './spawnSystem';
 import { stepRobotLifecycle } from './robotSystems';
 import type { DrainRule, RobotLifecycleSnapshot } from './robotSystems';
@@ -77,14 +77,14 @@ export type SimBand = readonly [min: number, max: number] | 'flat';
  */
 export function buildSimRoster(noiseMap: NoiseFunction2D, band?: SimBand): RobotLifecycleSnapshot[] {
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
-    getSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
+    getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1),
   );
   return generateRobotRosterBaseline(noiseMap, MAX_ROBOTS).map((b, i) => {
     const active = i < activeCount;
     return {
       id: `sim-${i}`,
       docking: active ? DockingState.Active : DockingState.Docked,
-      batteryLevel: active ? 100 : Math.floor(getSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
+      batteryLevel: active ? 100 : Math.floor(getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)),
       melody: [],
       dockCycleCount: 0,
       noteVariance: b.noteVariance,

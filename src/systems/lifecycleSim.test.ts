@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import alea from 'alea';
 import gsap from 'gsap';
 
@@ -149,6 +149,51 @@ describe('lifecycleSim (Phase 43 Task 2 — measure the drain before flattening 
       expect(new Set(real.filter((r) => r.docking === DockingState.Docked).map((r) => r.batteryLevel)).size).toBeGreaterThan(1);
       expect(real.every((r) => r.batterySize !== undefined && r.batterySize !== 1)).toBe(true);
       expect(new Set(real.map((r) => r.batterySize)).size).toBe(MAX_ROBOTS);
+    });
+
+    // Even World Draws T3 (docs/specs/EVEN_WORLD_DRAWS.md §1.1): the roster's two draws are even, so the written shares
+    // mean their numbers. 3,000 worlds (a 60 x 50 block of plots): each share's tolerance is over 3 standard deviations.
+    describe('the roster draws even (Even World Draws T3)', () => {
+      // Built once, before these cases only (about 10 s), not at collection.
+      let ROSTERS: RobotLifecycleSnapshot[][] = [];
+      beforeAll(() => {
+        ROSTERS = Array.from({ length: 3000 }, (_, i) => buildSimRoster(simNoiseMap(i % 60, Math.floor(i / 60)), 'flat'));
+      }, 60_000);
+
+      it('two, three and four Active robots each start 33 % of worlds (+/-3 points)', () => {
+        const counts = ROSTERS.map((roster) => roster.filter((r) => r.docking === DockingState.Active).length);
+        for (const n of [2, 3, 4]) {
+          const share = counts.filter((c) => c === n).length / counts.length;
+          expect(share, `${n} Active`).toBeGreaterThanOrEqual(0.303);
+          expect(share, `${n} Active`).toBeLessThanOrEqual(0.363);
+        }
+      });
+
+      it('the docked batteries fill 0-99: 8-12 % in each outer tenth, and every whole value from 0 to 99 occurs', () => {
+        const batteries = ROSTERS.flatMap((roster) => roster.filter((r) => r.docking === DockingState.Docked).map((r) => r.batteryLevel));
+        const bottom = batteries.filter((b) => b <= 9).length / batteries.length;
+        const top = batteries.filter((b) => b >= 90).length / batteries.length;
+        for (const [tenth, share] of [['bottom', bottom], ['top', top]] as const) {
+          expect(share, `${tenth} tenth`).toBeGreaterThanOrEqual(0.08);
+          expect(share, `${tenth} tenth`).toBeLessThanOrEqual(0.12);
+        }
+        expect(new Set(batteries)).toEqual(new Set(Array.from({ length: 100 }, (_, i) => i)));
+      });
+
+      it('spawn and the sim make the same two draws: docking and battery agree index for index on 30 grid worlds, every Active count among them', () => {
+        const fields = (s: RobotLifecycleSnapshot | Robot) => ({ docking: s.docking, batteryLevel: s.batteryLevel });
+        const activeCounts = new Set<number>();
+        for (const [i, { x, y }] of SIM_SEED_COORDS.slice(0, 30).entries()) {
+          const localeId = `even-world-roster-parity-${i}`;
+          registerLocale(localeId, x, y);
+          spawnInitialRoster(localeId);
+          const real = useLocaleStore.getState().getLocaleById(localeId)!.robots;
+          expect(buildSimRoster(simNoiseMap(x, y)).map(fields), `${x}:${y}`).toEqual(real.map(fields));
+          activeCounts.add(real.filter((r) => r.docking === DockingState.Active).length);
+        }
+        // Not vacuous: the worlds compared start with two, three and four Active robots.
+        expect(activeCounts).toEqual(new Set([2, 3, 4]));
+      });
     });
 
     it('draws every size on the band it is given, from the same even draw (no-silence Task 8)', () => {

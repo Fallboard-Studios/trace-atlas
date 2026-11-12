@@ -51,7 +51,7 @@ import {
   seedToggleValue,
 } from './robotFieldDerivation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { getCentredSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
@@ -773,7 +773,7 @@ export function spawnInitialRoster(localeId: string): void {
 
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     noiseMap
-      ? getSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
+      ? getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
       : alea(`${localeId}:activeCount`)() * (INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
   );
 
@@ -788,7 +788,7 @@ export function spawnInitialRoster(localeId: string): void {
     } else {
       const dockedBattery = Math.floor(
         noiseMap
-          ? getSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)
+          ? getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)
           : alea(`${localeId}:dockedBattery:${i}`)() * 100
       );
       spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery, founderIndex });

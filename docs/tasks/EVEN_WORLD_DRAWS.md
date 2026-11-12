@@ -230,7 +230,7 @@ re-seeded in the same commit (the probe table).
 
   **Estimated scope:** M (one source, five test files to repair, each a fixture change)
 
-- [ ] **Task 3: spawnSystem.ts + lifecycleSim.ts — the roster's Active count and docked batteries draw even, and the cover-sim table is re-run**
+- [x] **Task 3: spawnSystem.ts + lifecycleSim.ts — the roster's Active count and docked batteries draw even, and the cover-sim table is re-run**
 
   **Description:** Switch `roster.activeCount` and `roster.dockedBattery` in `spawnInitialRoster` and in
   `buildSimRoster`, in one commit. The `alea` fallbacks for a missing map stay. Then run the lifecycle report
@@ -548,7 +548,21 @@ shafts render is far below either reading.
 
 ### T3: the cover-sim table
 
-(to be recorded: the old "Both, shipped" row and the new one)
+2026-11-11, the repo's report (`LIFECYCLE_SIM_REPORT`), the 121-world grid at 6,000 measures a world. ROBOT_LIFECYCLE.md's
+columns; T9 replaces its row with the new one and keeps the old as history.
+
+| Row | Silent measures | Worlds with a stay | Stays / 1,000 measures | Stay length (median, p90, longest) | Sounding (mean, p10–p90) | Cycle lengths |
+|---|---|---|---|---|---|---|
+| Both, shipped (0.67–1.5), plain roster draws (ROBOT_LIFECYCLE.md today) | none | 118 / 121 | 0.81 | 2, 5, 9 | 5.41, 3–8 | 27–53 (15) |
+| **Both, shipped (0.67–1.5), even roster draws (T3)** | **none (0 / 121 worlds)** | **114 / 121** | **0.75** | **2, 5, 10** | **5.41, 3–8** | **27–53 (15)** |
+
+No world has a silent measure, so no stop (spec §5.3). The report's other rows on the even draws, for the record: flat
+0 / 121 silent, stays in 42 / 121; 0.9–1.1 in 98 / 121; 0.8–1.25 in 102 / 121; all with no silence.
+
+As built: the plan's "the docked batteries take more than 2,500 distinct values" cannot hold, since a battery is a
+whole number 0–99; the case asserts every whole value from 0 to 99 occurs, with the outer tenths. The plan's existing
+parity case (one plot, (40, −80)) draws the same Active count on both draws, so a spawn-only revert of the count
+survived it; a second parity case over 30 grid worlds (every Active count among them) kills it.
 
 ### Checkpoint A / B: the harness sections
 
