@@ -3797,10 +3797,11 @@ describe('spawnSystem', () => {
       expect(robots.map((r) => [r.id, r.masterVolume, r.rhythmicDensity, r.audioAttributes.portamento])).toEqual([
         // The densities re-captured at the attack rail (82 -> 14). Robots 1 and 2 re-captured at Company Families Task 5:
         // they were copies of robot 0 under the retired copy roll (0.76, 14, 0.18 and 0.73, 14, 0.18); a robot spawned
-        // alone is an original now.
-        ['robot-0-ckli2vjx', 0.75, 14, 0.18],
-        ['robot-1-a9g7kk48', 0.71, 13, 0],
-        ['robot-2-mrmqcepa', 0.68, 98, 0.14],
+        // alone is an original now. The ids re-captured at Even World Draws T1 (the id suffix draws even; were
+        // ckli2vjx, a9g7kk48, mrmqcepa); the volumes, densities and glides unchanged.
+        ['robot-0-17kogycf', 0.75, 14, 0.18],
+        ['robot-1-fuk9s0k0', 0.71, 13, 0],
+        ['robot-2-dxgf3u9g', 0.68, 98, 0.14],
       ]);
     });
   });

@@ -110,11 +110,11 @@ function seedMasterVolume(noiseMap: NoiseFunction2D, spawnCount: number, octaveR
 // with a distinct COMPANY_NOUNS list so a generated company name can never take the exact same
 // word-pair form a robot name can (see docs/specs/archive/COMPANIES.md §7.3).
 export const ADJECTIVES = ['Iron', 'Null', 'Silent', 'Drift', 'Azure', 'Rust', 'Neon', 'Glass', 'Solar', 'Tidal'];
-const NOUNS = ['Drifter', 'Tide', 'Warden', 'Seeker', 'Courier', 'Wisp', 'Beacon', 'Nomad', 'Rover', 'Pilot'];
+export const NOUNS = ['Drifter', 'Tide', 'Warden', 'Seeker', 'Courier', 'Wisp', 'Beacon', 'Nomad', 'Rover', 'Pilot'];
 
 function generateRobotName(noiseMap: NoiseFunction2D, offset: number): string {
-  const a = ADJECTIVES[Math.floor(getSeededVal(noiseMap, 'robot.name.adj', offset, 0, ADJECTIVES.length))];
-  const n = NOUNS[Math.floor(getSeededVal(noiseMap, 'robot.name.noun', offset, 0, NOUNS.length))];
+  const a = ADJECTIVES[Math.floor(getUniformSeededVal(noiseMap, 'robot.name.adj', offset, 0, ADJECTIVES.length))];
+  const n = NOUNS[Math.floor(getUniformSeededVal(noiseMap, 'robot.name.noun', offset, 0, NOUNS.length))];
   return `${a} ${n}`;
 }
 
@@ -122,14 +122,15 @@ function generateRobotName(noiseMap: NoiseFunction2D, offset: number): string {
  * Deterministic per-robot identity color (Roadmap Phase 14, docs/specs/
  * COLOR_SCHEME_TRAIT_THEMING.md §1.4) — UI chrome only (RobotSelectionCard/RobotDisplaySection),
  * never the SVG body's own ADSR/waveform-derived HSL fill. Same generation mechanism as
- * generateRobotName above: one getSeededVal draw against ROBOT_IDENTITY_COLOR_NAMES (the 18 hue
- * keys — black/white/darkGray are deliberately excluded there, not filtered here).
+ * generateRobotName above: one even draw against ROBOT_IDENTITY_COLOR_NAMES (the 18 hue
+ * keys — black/white/darkGray are deliberately excluded there, not filtered here), so every hue
+ * colours an equal share of robots (docs/specs/EVEN_WORLD_DRAWS.md).
  */
 function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): string {
   // Clamped (matching the weighted picks' own last-option fallback, not generateRobotName's
   // unclamped one) since the failure mode of an out-of-range index here is a visibly broken
   // undefined CSS custom property, not just a missing name syllable.
-  const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.identityColor', offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
+  const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getUniformSeededVal(noiseMap, 'robot.identityColor', offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
   return ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
 }
 
@@ -139,10 +140,11 @@ const GEM_SEED_MAX = 2 ** 31;
 /**
  * The robot's gem-polygon body seed (Roadmap Phase 39, docs/specs/GEM_POLYGON_ROBOTS.md §1.1) —
  * same shape as generateRobotIdentityColor above: identity, not audio, drawn once at spawn,
- * never inherited from a company founder. Clamped because the noise sampler can return exactly `max`.
+ * never inherited from a company founder. An even draw, so seeds rarely repeat across worlds
+ * (docs/specs/EVEN_WORLD_DRAWS.md); clamped as a guard, the even draw itself stays under `max`.
  */
 function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
-  return Math.min(GEM_SEED_MAX - 1, Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
+  return Math.min(GEM_SEED_MAX - 1, Math.floor(getUniformSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
 }
 
 /**
@@ -223,14 +225,14 @@ export function generateCompanyIdentityColor(noiseMap: NoiseFunction2D, offset: 
  * seeding mechanism (same as every other spawn-time attribute) rather than
  * crypto.randomUUID(). Uniqueness is structural, not actively checked: `spawnCount`
  * is a monotonic per-locale counter, embedded directly in the ID string, and
- * `getSeededVal`'s 'robot.id' dataId gives this field its own row in the noise
- * map distinct from every other seeded field. Required so Session Storage
+ * the suffix is an even draw under its own 'robot.id' dataId, so it varies from
+ * world to world at every spawn count (docs/specs/EVEN_WORLD_DRAWS.md). Required so Session Storage
  * (Phase 20) can reapply Robot Options overrides by ID after the roster
  * regenerates from a reload or shared link — the same coordinates always
  * replay the same spawnCount sequence and therefore the same ID sequence.
  */
 function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string {
-  const idSeed = getSeededVal(noiseMap, 'robot.id', spawnCount, 0, 1);
+  const idSeed = getUniformSeededVal(noiseMap, 'robot.id', spawnCount, 0, 1);
   return `robot-${spawnCount}-${idSeed.toString(36).slice(2, 10)}`;
 }
 
@@ -267,8 +269,8 @@ function getAndIncrementSpawnCount(localeId: string): number {
  */
 export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number): Vec2 {
   return {
-    x: getSeededVal(noiseMap, 'spawn.pos.x', offset, 0, WORLD_WIDTH),
-    y: WORLD_HEIGHT + OFFSCREEN_OFFSET + getSeededVal(noiseMap, 'spawn.pos.y', offset, 0, 50),
+    x: getUniformSeededVal(noiseMap, 'spawn.pos.x', offset, 0, WORLD_WIDTH),
+    y: WORLD_HEIGHT + OFFSCREEN_OFFSET + getUniformSeededVal(noiseMap, 'spawn.pos.y', offset, 0, 50),
   };
 }
 

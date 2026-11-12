@@ -122,7 +122,7 @@ because they share test files.
 
 ### Phase 0: The baseline
 
-- [ ] **Task 0: Timing baseline on the branch base**
+- [x] **Task 0: Timing baseline on the branch base**
 
   **Description:** Spec §5.4. A temporary `src/utils/zzWorldTiming.test.ts` times, after a warm-up, the median of 200
   runs of (a) `spawnInitialRoster` plus `placeDistrict` for one registered locale and (b) `seedLightShafts`' future
@@ -154,7 +154,7 @@ Every task here runs the generator it changes over seeded locale maps (`createNo
 offset-0 key. The RED test is a spread today's draw cannot reach. A pinned value this switch breaks is re-captured or
 re-seeded in the same commit (the probe table).
 
-- [ ] **Task 1: spawnSystem.ts — a robot's name, identity colour, gem seed, id and spawn position draw even**
+- [x] **Task 1: spawnSystem.ts — a robot's name, identity colour, gem seed, id and spawn position draw even**
 
   **Description:** In `generateRobotName`, `generateRobotIdentityColor`, `generateGemSeed`, `generateRobotId` and
   `generateSpawnPosition`, switch the seven draws (`robot.name.adj`, `robot.name.noun`, `robot.identityColor`,
