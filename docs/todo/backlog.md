@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 84.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 85.
 
 ## Open items
 
@@ -746,4 +746,40 @@ before the bar. Either way two clocks that should agree do not.
 - Whether the first melody tick is lost at power-on, and whether a pause and resume keeps or moves the offset.
 
 Plan.md Stage 3.
+
+### 84. Audio: Keep a Robot Playing until It Is in the Station
+
+Raised by Crawford on 2026-11-12, during backlog [79](#79-robots-move-in-time-with-their-own-melody)'s spike. 79's
+notes show what a robot is playing, so they stop when it goes quiet, and a robot heading home goes quiet long before
+it disappears. He wants it to keep playing until it is in its station.
+
+**Today.** A robot's audio follows its docking state, and its swim home does not:
+
+- A recalled robot lands on `Docked` at the first measure tick at or after the measure following the recall
+  (`dockingHoldUntilMeasure: measure + 1`, `src/systems/robotSystems.ts`), so within one measure, wherever it is.
+  [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md#the-docking-state-machine) says so: "a recalled robot can land on `Docked`
+  while it is still swimming home, and the work loop simply finishes the trip."
+- A `Docked` robot is silent (`isDockMuted`, `src/utils/robotAudibility.ts`).
+- The work loop meanwhile swims it home (`activity: 'returning'`), plays the arc into the station (`'entering'`) and
+  only then writes `'charging'` (`src/systems/workLoop.ts`).
+
+So for most of the trip home the robot is in view and makes no sound.
+
+**What it touches, so an interview comes first** (CLAUDE.md: ask before changing the audio architecture):
+
+- **Two machines, two clocks.** ROBOT_LIFECYCLE.md: the docking machine never reads `activity`. Keeping the robot
+  audible until it is in the station means either the mute follows the work loop's arrival, or the landing waits for
+  it. Each breaks that rule somewhere, and which is the design question.
+- **What a landing does.** `landOnDocked` is where the battery starts to recharge and the melody's pitch drift is
+  stored. Whether those move with the mute or stay on the measure.
+- **The Audio Load budget.** A robot muted by the dock stands by and gives up its voice (`audioBudgetSystem.ts`,
+  [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget)); a robot kept playing keeps its voice and its place in the
+  sounding set for the length of the swim.
+- **What reads "is it sounding".** The mode light on a card and a tile, and the Deck's count of active probes.
+- **The way out.** Whether a robot leaving its station is heard before it appears, the mirror of this, to be checked.
+- **Backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs)** (fade a robot's audio in and out on its
+  station arcs), off the plan since 2026-11-11. This item is the same edge: 74 would smooth it, this one moves it.
+  Whether 74 folds into this is Crawford's call.
+
+Plan.md Stage 4.
 

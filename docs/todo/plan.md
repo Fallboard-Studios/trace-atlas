@@ -31,6 +31,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 - Backlog [79](backlog.md#79-robots-move-in-time-with-their-own-melody) **Robots move in time with their melody** — a
   new animated dial and a transport-to-tween path; interview, then Crawford's approval of the architecture.
+- Backlog [84](backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station) **A robot plays until it is in
+  its station** — interview first: a recalled robot goes silent within a measure, mid-swim, and 79's notes stop with it.
 
 ## Stage 5 — UX refinement
 
