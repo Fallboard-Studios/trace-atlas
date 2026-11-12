@@ -393,7 +393,8 @@ re-seeded in the same commit (the probe table).
 
   **Description:** Re-run the `zzWorldSpread` harness and the T0 timing harness on the branch head. Record the
   after-table beside spec §1.1's before-table (distinct counts, outer tenths, bucket shares, realised ratios, pair
-  counts) and the two timings beside T0's. If either timing grew past 16 ms, stop and ask Crawford (spec §5.4). Grep
+  counts) and the two timings beside T0's. If either timing grew by more than 16 ms over T0's, stop and ask Crawford
+  (spec §5.4; "growth" is his reading, T0's record). Grep
   the five §1.3 files for `getSeededVal(` and record that only `getSeededVal.ts`, the three walks and the
   `getUniformSeededVal` wrapper call it, as a check, not a test. Delete both harnesses.
 
@@ -529,8 +530,9 @@ re-seeded in the same commit (the probe table).
 | (b) one `render(<LightShafts />)` plus unmount | 0.585 ms | 0.580 ms |
 
 (a) already sits above 16 ms on the plain draw (jsdom, store writes and melody registration included), so spec §5.4's
-"grows past a frame (16 ms)" is ambiguous for it: growth by 16 ms, or crossing 16 ms. **Open for Crawford at T7**; the
-shafts render is far below either reading.
+"grows past a frame (16 ms)" is ambiguous for it: growth by 16 ms, or crossing 16 ms. **Crawford, 2026-11-11: growth.**
+T7 stops and asks only if a timing grows by more than 16 ms over this baseline (he does not care much about a span this
+short).
 
 ### T1–T2: as built
 
@@ -570,8 +572,8 @@ survived it; a second parity case over 30 grid worlds (every Active count among 
 
 ### Checkpoint A / B: the harness sections
 
-Checkpoint A: passed by Crawford's look, 2026-11-11; the harness section was not run (see the checkpoint). Still open
-for him: the 16 ms reading at T7 (T0's record) and whether to remove the `audioSwells` flake.
+Checkpoint A: passed by Crawford's look, 2026-11-11; the harness section was not run (see the checkpoint). His answers
+the same day: the 16 ms line is growth (T0's record), and the `audioSwells` flake is removed (its own commit).
 
 Checkpoint B: (to be recorded)
 
