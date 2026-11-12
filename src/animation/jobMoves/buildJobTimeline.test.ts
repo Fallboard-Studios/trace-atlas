@@ -112,9 +112,27 @@ afterEach(() => {
 // TESTS
 // ========================================
 describe('job timeline constants (spec §1.9, Task 0b)', () => {
-  it('bobs ±6 u on a ≈1.2 s cycle', () => {
-    expect(BOB_PX).toBe(6);
+  // Halved from ±6 on 2026-11-12 (Crawford): half the distance on the same cycle, so half the speed too.
+  it('bobs ±3 u on a ≈1.2 s cycle', () => {
+    expect(BOB_PX).toBe(3);
     expect(BOB_CYCLE_SECONDS).toBe(1.2);
+  });
+
+  it('a working robot travels 12 u a cycle, at 10 u a second on average', () => {
+    const i = input(2);
+    const tl = buildJobTimeline(i);
+    const D = tl.duration();
+    const cycles = Math.round(D / BOB_CYCLE_SECONDS);
+    let travelled = 0;
+    let last = num(i.robotEl, 'y');
+    for (let k = 1; k <= 4000; k++) {
+      tl.time((k / 4000) * D);
+      const y = num(i.robotEl, 'y');
+      travelled += Math.abs(y - last);
+      last = y;
+    }
+    expect(travelled / cycles).toBeCloseTo(12, 1); // up 3, down 6, up 3
+    expect(12 / BOB_CYCLE_SECONDS).toBe(10); // was 24 u a cycle, 20 u a second
   });
 });
 
