@@ -411,6 +411,10 @@ probe run picks its worlds again.
 
 ### 46. World: Seeded Draws Are Welded and Centre-Heavy (Names, Colours, Gems, Companies, Placement)
 
+**Status (2026-11-11): interviewed, intent confirmed** ([docs/intent/even-world-draws.md](../intent/even-world-draws.md),
+on `fix/even-world-draws`): every pick goes even, the terrain and temperature walks stay plain, the id change and its
+effect on saved sessions is accepted, and the gate is a measured table plus Crawford's look at fresh worlds. Spec next.
+
 **Found 2026-11-01** while measuring the audio draws for backlog [47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
 **recorded, not fixed** (Crawford: the visuals go on their own branch in case they need different tuning). A plain
 `getSeededVal` draw samples one smooth simplex patch per world, so keys whose hashed x land close together read nearly
