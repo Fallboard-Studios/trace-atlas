@@ -491,7 +491,8 @@ re-seeded in the same commit (the probe table).
   **Proof:** Read — human review.
 
   **Acceptance criteria:**
-  - [ ] Before the merge: the status line. After: the archive entry, no dangling `backlog.md#46-` link in `docs/`.
+  - [x] Before the merge: the status line (2026-11-11). After: the archive entry, no dangling `backlog.md#46-` link in
+    `docs/`. **Waits for Crawford's merge.**
 
   **Verification:**
   - [ ] A grep over `docs/` for the old anchor finds nothing after the archive commit.
@@ -504,11 +505,14 @@ re-seeded in the same commit (the probe table).
   **Estimated scope:** XS
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every automated acceptance criterion above is met; the T3 and T7 records are in this file.
-- [ ] Docs reflect the shipped draws, every name spot-checked against source.
-- [ ] Both looks done and passed, the station decision made; anything not looked at this session is flagged here.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean: Checkpoint C's run (`6a23b747`)
+  stands, since T8–T10 changed docs only (no `src/` or `package.json` diff since); lint re-run at T8 and T9, 0 errors.
+  The one unhandled `onTaskUpdate` timeout is recorded at Checkpoint C.
+- [x] Every automated acceptance criterion above is met; the T3 and T7 records are in this file.
+- [x] Docs reflect the shipped draws, every name spot-checked against source (T8, T9).
+- [x] Both looks done and passed, the station decision made. Flagged: the `onTaskUpdate` error (Checkpoint C), and
+  T10's second half (the archive), which waits for the merge.
+- [x] Ready for Crawford's PR.
 
 ## Risks and Mitigations
 

@@ -417,7 +417,14 @@ effect on saved sessions is accepted, and the gate is a measured table plus Craw
 written the same day, [docs/specs/EVEN_WORLD_DRAWS.md](../specs/EVEN_WORLD_DRAWS.md), with the before-table (§1.1)
 and its two questions answered the same day (even for the four neutral-middle bands; both dead workarounds removed).
 Plan: [docs/tasks/EVEN_WORLD_DRAWS.md](../tasks/EVEN_WORLD_DRAWS.md), ten tasks with a probe table (24 tests in 10
-files move, one of them a station overlap for Crawford's decision at Checkpoint B). Next: the build, from Task 0.
+files move, one of them a station overlap for Crawford's decision at Checkpoint B).
+
+**Status (2026-11-11): built and passed, awaiting the PR.** Every world and visual pick draws even on
+`fix/even-world-draws` (T1–T6, `516b9035`–`7896d815`; code complete at Checkpoint C, `6a23b747`; docs T8–T9, through
+`12800f59`). Both looks passed with nothing to narrow; the station overlap at (−160, −120) is kept and
+pinned (Checkpoint B). The after-table (plan, T7): zero correlated pairs, every pick at its even share; the world
+build costs about 5 ms more. The plain draw is left with the terrain profile and the two temperature walks. Archived
+after the merge (T10's second half).
 
 **Found 2026-11-01** while measuring the audio draws for backlog [47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
 **recorded, not fixed** (Crawford: the visuals go on their own branch in case they need different tuning). A plain
