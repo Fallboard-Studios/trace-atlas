@@ -608,11 +608,12 @@ announcement, and backlog 79 is archived with its plan.md line deleted.
 
 - **The order** (Crawford, 2026-11-12): backlog 82 and 83 first, then this. Nothing here is built until then,
   Part 0 included.
-- **Parts 0 to D:** the branch `feature/note-cloud` (it already holds the intent and the bob's first commit), one
-  task per commit, RED test in the same commit as its GREEN, message in the repo's voice
-  (`feat(robots): a triggered note tells its listeners (Task 2)`), ending with the attribution line the session
-  carries. `feature/note-cloud` was cut before PR #632 merged, so it is rebased on `main` first to pick up backlog
-  82 to 84.
+- **What is already in** (2026-11-12): the intent, this spec, backlog 79's status and the bob's first half
+  (`BOB_PX` 6 to 3, 82b11962) were written on `feature/note-cloud` ahead of the pause and merge as they are: docs
+  and one finished, tested change, nothing half-built.
+- **Parts 0 to D:** a fresh branch off `main` once 82 and 83 are closed, one task per commit, RED test in the same
+  commit as its GREEN, message in the repo's voice (`feat(robots): a triggered note tells its listeners (Task 2)`),
+  ending with the attribution line the session carries.
 - **Part E:** its own branch off `main` once Parts 0 to D have merged (`feature/note-cloud-early-notes`).
 - Crawford opens and merges each PR; the PR body links this spec's sections.
 - The intent file stays. This spec and the plan (`docs/tasks/ROBOT_NOTE_CLOUD.md`) are committed before the first
