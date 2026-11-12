@@ -1,13 +1,13 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import alea from 'alea';
 import { createNoise2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
 import {
   ADJECTIVES, COMPANY_NOUNS, NOUNS, generateCompanyIdentityColor, generateCompanyMembership, generateCompanyRosterBaseline,
-  generateRobotRosterBaseline, spawnRobot,
+  generateRobotRosterBaseline, spawnRobot, type CompanyRosterBaseline,
 } from './spawnSystem';
 import { MAX_ROBOTS } from '../constants';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
@@ -45,12 +45,14 @@ function spawnWorlds(): Robot[] {
   });
 }
 
-const ROBOTS = spawnWorlds();
-const NAMES = COORDS.flatMap(({ x, y }, w) => {
-  const noiseMap = getLocaleNoiseMap(`even-world-names-${w}`, x, y);
-  evictLocaleNoiseMap(`even-world-names-${w}`);
-  return generateRobotRosterBaseline(noiseMap, ROBOTS_PER_WORLD).map((b) => b.name);
-});
+/** The baseline's names for the same 400 worlds, in the same order as spawnWorlds' robots. */
+function baselineNames(): string[] {
+  return COORDS.flatMap(({ x, y }, w) => {
+    const noiseMap = getLocaleNoiseMap(`even-world-names-${w}`, x, y);
+    evictLocaleNoiseMap(`even-world-names-${w}`);
+    return generateRobotRosterBaseline(noiseMap, ROBOTS_PER_WORLD).map((b) => b.name);
+  });
+}
 
 const shareOf = <T>(values: readonly T[], value: T) => values.filter((v) => v === value).length / values.length;
 const hueIndex = (robot: Robot) => ROBOT_IDENTITY_COLOR_NAMES.findIndex((name) => ACCENT_COLORS[name] === robot.identityColor);
@@ -60,6 +62,14 @@ const hueIndex = (robot: Robot) => ROBOT_IDENTITY_COLOR_NAMES.findIndex((name) =
 // ========================================
 
 describe('a robot\'s name, identity colour, gem seed, id and spawn position draw even (Even World Draws T1)', () => {
+  // Built once, before these cases only, not at collection (as lifecycleSim.test.ts's roster block).
+  let ROBOTS: Robot[] = [];
+  let NAMES: string[] = [];
+  beforeAll(() => {
+    ROBOTS = spawnWorlds();
+    NAMES = baselineNames();
+  }, 60_000);
+
   it('the sample is what it says: 4,800 spawned robots and 4,800 baseline names, the spawned names the baseline\'s', () => {
     expect(ROBOTS).toHaveLength(WORLDS * ROBOTS_PER_WORLD);
     expect(NAMES).toHaveLength(WORLDS * ROBOTS_PER_WORLD);
@@ -128,14 +138,17 @@ describe('a company\'s name, id, identity colour and membership draw even (Even 
   // company's draw retried against the colours before it).
   const MAPS = Array.from({ length: 3000 }, (_, i) => createNoise2D(alea(`even-world-companies:${i}`)));
   const ROSTER_IDS = Array.from({ length: MAX_ROBOTS }, (_, i) => `robot-${i}`);
-  const COMPANIES = MAPS.flatMap((noiseMap) => {
-    const used: string[] = [];
-    return generateCompanyRosterBaseline(noiseMap, ROSTER_IDS).map((company, c) => {
-      const color = generateCompanyIdentityColor(noiseMap, c, used);
-      used.push(color);
-      return { ...company, color };
+  let COMPANIES: (CompanyRosterBaseline & { color: string })[] = [];
+  beforeAll(() => {
+    COMPANIES = MAPS.flatMap((noiseMap) => {
+      const used: string[] = [];
+      return generateCompanyRosterBaseline(noiseMap, ROSTER_IDS).map((company, c) => {
+        const color = generateCompanyIdentityColor(noiseMap, c, used);
+        used.push(color);
+        return { ...company, color };
+      });
     });
-  });
+  }, 60_000);
 
   it('every adjective names 10 % of companies (+/-2 points) and every company noun 12.5 % (+/-2 points)', () => {
     const adjectives = COMPANIES.map((c) => c.name.split(' ')[0]);

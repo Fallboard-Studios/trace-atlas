@@ -3803,9 +3803,9 @@ describe('spawnSystem', () => {
     it('Classic parity, the tiers: a shaped stage, a lowpass and the bandpass accent, a glider and an exclusive send are value for value what the generator seeds', () => {
       const noiseMap = createNoise2D(alea('band-table-parity'));
       const roster = generateRobotRosterBaseline(noiseMap, 51).map(({ name: _name, ...rest }) => rest);
-      // Precondition: every tier robot is an original, so its tiers are its own draws, not a founder's.
-      const founders = companyFounders(generateCompanyMembership(noiseMap, 51));
-      for (const index of Object.keys(PARITY_TIERS).map(Number)) expect(founders.has(index), `robot ${index}`).toBe(false);
+      // Precondition: every tier robot is an original (it has no founder), so its tiers are its own draws.
+      const founderOf = companyFounders(generateCompanyMembership(noiseMap, 51));
+      for (const index of Object.keys(PARITY_TIERS).map(Number)) expect(founderOf.has(index), `robot ${index}`).toBe(false);
       expect({ 7: roster[7], 13: roster[13], 14: roster[14], 16: roster[16], 28: roster[28] }).toEqual(PARITY_TIERS);
     });
 
