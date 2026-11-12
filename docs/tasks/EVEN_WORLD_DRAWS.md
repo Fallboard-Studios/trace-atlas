@@ -395,7 +395,7 @@ re-seeded in the same commit (the probe table).
 
 ### Phase 3: Measure
 
-- [ ] **Task 7: After-measurements, timings and the plain-draw check**
+- [x] **Task 7: After-measurements, timings and the plain-draw check**
 
   **Description:** Re-run the `zzWorldSpread` harness and the T0 timing harness on the branch head. Record the
   after-table beside spec §1.1's before-table (distinct counts, outer tenths, bucket shares, realised ratios, pair
@@ -646,4 +646,102 @@ the checkpoint). Station decision (b). Next: Phase 3, T7, in a fresh session.
 
 ### T7: after-measurements and timings
 
-(to be recorded beside spec §1.1)
+2026-11-11, branch head `072fb90e`. The `zzWorldSpread` harness re-created from the recipe (3,000 locale maps,
+`createNoise2D(alea(\`${x}:${y}\`))` with x, y in −200..200 from `alea('zz46')`; 3,000 style maps through
+`getAttenuationStyleNoiseMap` with an evict each), every §1.3 key drawn at its generator's offsets with **both** draws,
+so the before column is re-measured by the same code. It reproduces spec §1.1 to the figure (37 / 66 and 180 / 325 pairs,
+74 above 0.9, Iron 1.6 %, 19.7 / 60.3 / 20.0, 40.9 / 17.3 / 41.8, the derelict 14.4 %, `factory.scale` 469 distinct),
+so the after column is the shipped draw on the same footing. 22.9 s. Offsets: the robot keys at spawn count 0–11; the
+placement and style per-index keys at 0–9; `company.size`, names, id and colour at 0–2; `company.member` at
+`c * 100 + i` for c 0–2, i 0–3; `factory.spacing` at `rowIndex * 1000 + 1..6` for rows 0–2; the shafts at 0–4.
+
+**Correlated pairs** (|r| above 0.3 / above 0.9; the largest after):
+
+| Set | Before | After | Largest after |
+|---|---|---|---|
+| The 12 per-index locale keys, over (map, index 0–9) (66 pairs) | 37 / 8 | **0 / 0** | 0.016 |
+| The 26 locale keys at their first offset (325 pairs) | 180 / 74 | **0 / 0** | 0.058 |
+| The 6 per-index style keys (15 pairs) | 6 / 1 | **0 / 0** | 0.009 |
+| The 7 style keys at their first offset (21 pairs) | 9 / 3 | **0 / 0** | 0.025 |
+
+**Per key** (distinct values over all draws; at offset 0 over 3,000 maps; the outer tenths, bottom / top, in %; the
+smallest and largest tenth of the band; list shares, smallest–largest option):
+
+| Key | Draws | Distinct before → after | At offset 0 | Outer tenths before → after | Tenths after | Options before → after |
+|---|---|---|---|---|---|---|
+| `robot.name.adj` | 36,000 | 5,640 → 35,051 | 192 → 2,963 | 1.6 / 1.7 → 10.3 / 10.0 | 9.8–10.4 | 1.6–15.6 → 9.8–10.4 |
+| `robot.name.noun` | 36,000 | 2,104 → 35,029 | 137 → 2,966 | 3.7 / 3.4 → 10.2 / 9.9 | 9.6–10.5 | 2.8–16.0 → 9.6–10.5 |
+| `robot.identityColor` | 36,000 | 5,645 → 35,060 | 192 → 2,968 | 2.8 / 2.9 → 10.0 / 9.9 | 9.8–10.3 | 0.9–9.3 → 5.5–5.8 |
+| `robot.gem.seed` | 36,000 | 4,442 → 35,054 | 500 → 2,968 | 3.2 / 2.9 → 10.1 / 10.1 | 9.8–10.2 | |
+| `robot.id` | 36,000 | 5,194 → 35,024 | 192 → 2,962 | 1.5 / 1.5 → 9.9 / 10.3 | 9.7–10.3 | |
+| `spawn.pos.x` | 36,000 | 4,424 → 35,024 | 192 → 2,963 | 2.2 / 2.1 → 10.1 / 9.6 | 9.6–10.4 | |
+| `spawn.pos.y` | 36,000 | 5,651 → 35,045 | 192 → 2,962 | 2.0 / 2.1 → 10.1 / 9.7 | 9.7–10.4 | |
+| `roster.dockedBattery` | 36,000 | 4,321 → 34,983 | 64 → 2,935 | 1.4 / 1.5 → 10.1 / 9.8 | 9.8–10.4 | |
+| `roster.activeCount` | 3,000 | 192 → 2,966 | | 0 / 0 → 10.3 / 10.1 | 9.5–10.4 | 19.7 / 60.3 / 20.0 → 33.5 / 33.3 / 33.2 |
+| `company.count` | 3,000 | 192 → 2,970 | | 8.2 / 8.3 → 10.2 / 10.4 | 9.5–10.4 | 49.6 / 50.4 → 49.4 / 50.6 |
+| `company.size` | 9,000 | 136 → 8,869 | 64 → 2,970 | 5.0 / 4.6 → 10.0 / 9.5 | 9.5–10.5 | 50.4 / 49.6 → 49.6 / 50.4 |
+| `company.member` | 36,000 | 5,349 → 34,999 | 192 → 2,967 | 2.6 / 2.6 → 9.9 / 10.3 | 9.8–10.3 | |
+| `company.name.adj` | 9,000 | 146 → 8,877 | 74 → 2,966 | 5.9 / 5.5 → 10.2 / 10.1 | 9.3–10.4 | 0.2–18.2 → 9.3–10.4 |
+| `company.name.noun` | 9,000 | 1,188 → 8,870 | 192 → 2,960 | 2.1 / 2.1 → 9.6 / 10.0 | 9.3–10.7 | 3.0–20.7 → 11.7–13.0 |
+| `company.id` | 9,000 | 625 → 8,835 | 64 → 2,932 | 1.7 / 1.8 → 9.9 / 10.9 | 9.6–10.9 | |
+| `company.identityColor` | 9,000 | 753 → 8,870 | 192 → 2,969 | 3.5 / 3.5 → 9.9 / 10.1 | 9.2–10.6 | 16 of 18, 0–11.6 → 18 of 18, 4.8–6.0 |
+| `factory.id` | 30,000 | 3,082 → 29,252 | 24 → 2,967 | 1.5 / 1.4 → 10.2 / 9.9 | 9.9–10.2 | |
+| `factory.scale` | 30,000 | 469 → 29,231 | 3 → 2,952 | 3.5 / 3.5 → 9.7 / 10.3 | 9.6–10.3 | |
+| `factory.spacing` | 54,000 | 7,105 → 52,088 | 496 → 2,964 | 2.0 / 2.0 → 10.1 / 10.1 | 9.8–10.2 | |
+| `scenery.id` | 30,000 | 4,660 → 29,318 | 192 → 2,963 | 1.7 / 1.7 → 10.0 / 10.0 | 9.8–10.2 | |
+| `actor.derelict` | 30,000 | 3,965 → 29,306 | 192 → 2,972 | 1.8 / 1.8 → 10.2 / 10.3 | 9.6–10.3 | below 0.25: 14.4 → 25.2 % |
+| `atmos.shaft.count` | 3,000 | 192 → 2,961 | | 8.2 / 8.3 → 10.0 / 10.0 | 9.4–10.8 | 40.9 / 17.3 / 41.8 → 33.1 / 33.6 / 33.2 |
+| `atmos.shaft.dir` | 3,000 | 500 → 2,969 | | 0 / 0 → 9.2 / 8.8 | 8.8–11.1 | 50.6 / 49.4 → 49.9 / 50.1 |
+| `atmos.shaft.x` | 15,000 | 1,992 → 14,727 | 500 → 2,968 | 5.7 / 5.2 → 10.1 / 9.7 | 9.7–10.6 | |
+| `atmos.shaft.w` | 15,000 | 1,977 → 14,738 | 3 → 2,957 | 0.5 / 0.5 → 9.9 / 9.9 | 9.6–10.3 | |
+| `atmos.shaft.depth` | 15,000 | 2,184 → 14,732 | 192 → 2,964 | 1.7 / 1.6 → 9.9 / 9.9 | 9.8–10.3 | |
+| `factory.as.hueShift` | 30,000 | 3,660 → 29,510 | 499 → 2,990 | 0.2 / 0.2 → 10.2 / 9.8 | 9.7–10.3 | |
+| `factory.as.satShift` | 30,000 | 3,215 → 29,543 | 24 → 2,997 | 1.7 / 1.8 → 9.9 / 10.0 | 9.8–10.4 | |
+| `scenery.as.hueShift` | 30,000 | 3,917 → 29,552 | 192 → 2,999 | 2.0 / 2.0 → 10.2 / 10.1 | 9.6–10.2 | |
+| `scenery.as.satShift` | 30,000 | 3,096 → 29,551 | 24 → 2,994 | 1.2 / 1.3 → 9.8 / 10.0 | 9.8–10.3 | |
+| `factory.as.accentPick` | 30,000 | 4,561 → 29,531 | 192 → 2,983 | 2.0 / 1.9 → 10.0 / 10.0 | 9.8–10.3 | below 0.5: 50.3 → 50.2 % |
+| `scenery.as.accentPick` | 30,000 | 2,708 → 29,497 | 499 → 2,996 | 4.5 / 4.2 → 10.0 / 10.0 | 9.7–10.3 | below 0.5: 50.4 → 49.9 % |
+| `factory.as.accentPrimary` (offset 0) | 3,000 | 192 → 2,995 | | 0 / 0 → 9.9 / 10.7 | 9.4–11.4 | 14 of 18, 0–13.7 → 18 of 18, 4.9–6.6 |
+
+Every key is above 2,500 distinct per 3,000 draws at offset 0 (2,932–2,999), every outer tenth is 8.8–10.9 %, and
+every list option is at its even share. The accent primary's "before" here is the plain draw at offset 0 (spec §1.2's
+14 of 18), not the shipped 0.37 offset (§1.1's 16 of 18), since the offset went with T4.
+
+**Realised through the shipped generators** (3,000 locale maps, 3,000 styles):
+
+| Measure | After |
+|---|---|
+| `buildSimRoster`: 2 / 3 / 4 Active | 33.5 / 33.3 / 33.2 % |
+| `buildSimRoster`: docked batteries | 27,009; outer tenths 10.2 / 9.8 %; all 100 whole values |
+| `generateCompanyMembership`: first company of 3 / 4 | 49.8 / 50.2 % |
+| `generateCompanyMembership`: 2 / 3 companies | 62.0 / 38.0 % (see below) |
+| `seedLightShafts`: 3 / 4 / 5 shafts | 33.1 / 33.6 / 33.2 %; raking left 49.9 % |
+| `deriveAsAccentPair`: primary | 18 of 18 hues, 4.9–6.6 % |
+
+The company count is not a draw finding: `company.count` itself splits 49.4 / 50.6, and the families cap (B4, B14)
+drops the third company whenever the first two both take 4 (12 − 8 leaves 4, under `FREELANCERS_MIN` 2 plus
+`COMPANY_SIZE_MIN` 3), so three companies are made in 50 % × 75 % = 37.5 % of worlds on either draw. Spec §1.5's
+"50 / 50" for `INITIAL_COMPANIES` is the draw's split. **For T9:** COMPANIES.md's floor paragraph gives 121-grid counts
+measured on the plain membership (the floor touches 34 worlds, 18 lose the third company, 16 cut one from four to
+three, 53 have three, from COMPANY_FAMILIES.md's Results); the membership moved in T2, so T9 re-measures them over the
+grid rather than carrying them, and says "even" where the paragraph says "plain `getSeededVal` draws".
+
+**Timings** (the T0 harness re-created from its description, one locale at (17, −23), hour 12, median of 200 after 20
+warm-ups; one arm per process, since builds accumulate state inside one process and slow down run over run: 24 → 148 ms
+across four arms in one process). The plain arm mocks `getUniformSeededVal` back to `getSeededVal` for the §1.3 dataIds
+only (47's audio draws stay even, as at T0's base):
+
+| Measure | T0 (base) | T7 even, no mock (2 runs) | T7 even (2 runs) | T7 plain arm (2 runs) |
+|---|---|---|---|---|
+| (a) `spawnInitialRoster` + `placeDistrict` | 16.88, 16.84 ms | 23.12, 22.81 ms | 25.86, 24.10 ms | 19.85, 19.33 ms |
+| (b) one `renderSvg(<LightShafts />)` plus unmount | 0.585, 0.580 ms | 0.709, 0.752 ms | 0.826, 0.770 ms | 0.749, 0.776 ms |
+
+The even draws cost about 4.5–6 ms per world build; the rest of the gap to T0 (the plain arm sits ~2.5–3 ms above
+T0's 16.9) is this harness and this machine, not the draws. The shafts show no draw cost (both arms 0.75–0.83 ms). The
+largest growth over T0 is +9.0 ms (a), under Crawford's 16 ms growth line, so no stop.
+
+**The plain-draw check** (Grep of `src/` outside tests for `getSeededVal(`): `getSeededVal.ts` (its definition and
+the `getUniformSeededVal` wrapper's three samples), `terrainProfile.ts` (the run and step draws),
+`localeTemperature.ts` and `localeTemperatureStep.ts`. No §1.3 call site uses the plain draw; the three walks still do.
+
+Both harnesses deleted; `git status` clean of `zz*` files.
