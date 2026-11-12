@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 86.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 88.
 
 ## Open items
 
@@ -869,4 +869,60 @@ points at that list, so the list is edited with the code. The guardrail's own se
 dial relaxes nothing. No audio, no state, nothing in a session or on a link.
 
 Plan.md Stage 4.
+
+### 86. World: Move the Whole World to a Measure
+
+Agreed by Crawford on 2026-11-12, in the interview for backlog
+[82](#82-audio-the-chord-cycle-does-not-always-change-on-time)'s fix: part two of the one music clock
+([intent](../intent/one-music-clock.md)), split out of part one so the open questions below do not hold it up. An
+engine call that moves the whole world to a given measure: the chords, the melody steps, and each robot's battery,
+docking and whether it is playing. No player-facing control; that comes with the features in
+[87](#87-composition-loops-recordings-from-measure-to-measure-links-at-a-measure).
+
+**Why the whole world.** The battery and docking cycle is counted in measures
+([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)). If the music moved to measure 40 and the robots stayed at measure 12,
+"measure" would mean two things.
+
+**What it builds on.** Part one: the chord, the measure and the melody step all read the clock, so moving the clock
+moves them. The battery and docking cycle already replays from power-on (World Clock,
+[intent](../intent/world-clock-deterministic-lifecycle-replay.md)).
+
+**Open, so an interview comes first:**
+
+- **What the world looks like after a jump.** The robots' work loop (work sites, charging stations, recalls, the
+  swim home) runs on wall-clock time, not measures. After a jump a robot whose battery says "docked" may be standing
+  at a work site mid-job. Whether the work loop is re-derived, snapped, or left to catch up is the design question.
+- **What stays on the wall clock.** The in-world day does (CLAUDE.md's guardrail), so a jump moves the music and the
+  robots but not the time of day.
+- **Repeats after a jump.** Read from Tone 15.1.22's source, not measured: a repeat moved by a `ticks` change keeps its
+  original offset from the bar (`TransportRepeatEvent._restart`), so anything still on a repeat must have started on
+  the bar.
+- **The sound, not only the notes.** Global LFOs and effect tails run on their own timing; whether a jump matters to
+  them is part of [87](#87-composition-loops-recordings-from-measure-to-measure-links-at-a-measure)'s question.
+
+Depends on 82's fix (part one). Not yet placed in plan.md.
+
+### 87. Composition: Loops, Recordings from Measure to Measure, Links at a Measure
+
+Raised by Crawford on 2026-11-12, in the same interview, as where the measure work is heading. He has no vision yet
+for how it goes. In his words: "i want users to be able to isolate loops and export recordings. so they'd want to make
+all their compositional changes, then they'd want to find the right place to start and finish the recording. or they
+may want to share a link to their composition at a certain measure."
+
+**The promise they share.** The same world at the same measure gives the same music. Backlog
+[82](#82-audio-the-chord-cycle-does-not-always-change-on-time)'s fix makes it true for the notes (part one); anything
+built against the clock from now on should keep it true.
+
+**What each needs, as far as is known:**
+
+- **Isolate a loop** (play a stretch of measures over and over): part one; and, if every pass has to sound the same
+  and not only play the same notes, the global LFOs and effects synced to the clock (the LFO bank and the Free/Sync
+  toggle, [intent](../intent/free-sync-toggle.md)).
+- **Export a recording from one measure to another:** part two
+  ([86](#86-world-move-the-whole-world-to-a-measure)) to start at the first measure, and an audio export. The app has
+  no recorder today.
+- **A link that opens at a measure:** the world link ([intent](../intent/short-world-link.md)) plus a measure, and part
+  two to arrive there.
+
+Interview first, when Crawford has a vision for it. Depends on 82's fix and on 86. Not yet placed in plan.md.
 
