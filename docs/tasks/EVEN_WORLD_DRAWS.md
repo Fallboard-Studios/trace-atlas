@@ -264,11 +264,15 @@ re-seeded in the same commit (the probe table).
   **Estimated scope:** S
 
 ### Checkpoint A: Robots, companies and the roster
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (note the count).
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (note the count): types and lint clean; 13,878 passed,
+  2 skipped, 1 failed of 13,881, the failure the documented `audioSwells` flake ("interpolates and returns to exactly
+  baseValue"), 171/171 with the file alone.
 - [ ] The harness's locale section re-run on the branch (not committed): every robot and company key above 2,500
-  distinct values per 3,000 draws, zero pairs above 0.3, the list shares even. Figures in the record.
-- [ ] **Crawford's look 1** (spec §5.5): the roster, the names and the colours across a few fresh worlds (a Scan or two,
-  and a link). Anything he wants narrowed is noted for N1… after Checkpoint C.
+  distinct values per 3,000 draws, zero pairs above 0.3, the list shares even. Figures in the record. **Not run at
+  Checkpoint A**: Crawford passed the checkpoint on his look; T1–T3's committed spread tests cover the list shares,
+  distinct counts and the named pairs, and T7 re-measures every key.
+- [x] **Crawford's look 1** (spec §5.5): the roster, the names and the colours across a few fresh worlds (a Scan or two,
+  and a link). Passed 2026-11-11 ("I like it"); nothing to narrow.
 
 ---
 
@@ -566,7 +570,10 @@ survived it; a second parity case over 30 grid worlds (every Active count among 
 
 ### Checkpoint A / B: the harness sections
 
-(to be recorded)
+Checkpoint A: passed by Crawford's look, 2026-11-11; the harness section was not run (see the checkpoint). Still open
+for him: the 16 ms reading at T7 (T0's record) and whether to remove the `audioSwells` flake.
+
+Checkpoint B: (to be recorded)
 
 ### T7: after-measurements and timings
 
