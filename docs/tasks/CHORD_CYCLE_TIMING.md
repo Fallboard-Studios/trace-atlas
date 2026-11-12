@@ -5,7 +5,8 @@ doc: this plan builds nothing. It measures one thing on `main`, whether the lead
 2026-11-12 is the cause, and stops at a gate where Crawford decides what, if anything, is built. A fix gets its own
 interview and spec after the gate.
 
-**Status:** written 2026-11-12, not started.
+**Status:** measured 2026-11-12 (Tasks 1, 2 and 4 done, Task 3 skipped). The cause is established, by a different
+route from the one the lead named: see Findings. Waiting at Gate A.
 
 ## Overview
 
@@ -70,7 +71,7 @@ callback writes, and nothing orders the two in its favour.
 
 ## Task List
 
-- [ ] **Task 1: the probe, and proof that it is live**
+- [x] **Task 1: the probe, and proof that it is live**
 
   **Description:** A scratchpad Node script on `scripts/perf/cdp-lib.mjs`'s `withChrome`, against a dev server on its
   own port (`npx vite --port 5199 --strictPort`, `main`'s tree). It follows `withPoweredWorld`'s sequence by hand,
@@ -95,10 +96,15 @@ callback writes, and nothing orders the two in its favour.
   every 48 ticks, and the harmony callback firing every 1536.
 
   **Acceptance criteria:**
-  - [ ] The four repeats are seen and named; an unexpected fifth is reported, not ignored.
-  - [ ] The app's own values (`getCurrentMeasure()`, the palette) and the transport's are both in every firing's row.
-  - [ ] The page's console shows no error the probe caused, and the world still sounds (the overlay's rows read as
-        they do without the probe).
+  - [x] The four repeats are seen and named; an unexpected fifth is reported, not ignored. Named by their arguments,
+        and each name matches its registration's call stack (`initBeatClock`, `startMelodyPlayback`,
+        `scheduleHarmonyCycle`, `startAudioSwells`). No fifth in any run.
+  - [x] The app's own values (`getCurrentMeasure()`, the palette) and the transport's are both in every firing's row.
+  - [x] The page's console shows no error the probe caused, and the world still sounds (the overlay's rows read as
+        they do without the probe). One Tone warning per power-on ("Events scheduled inside of scheduled callbacks
+        should use the passed in scheduling time"), present in a run without the probe too, so not the probe's.
+
+  **Done 2026-11-12.** Proof run: four registrations, BeatClock's tick every 48 ticks, the harmony callback every 1536.
 
   **Dependencies:** None.
 
@@ -106,7 +112,7 @@ callback writes, and nothing orders the two in its favour.
 
   **Estimated scope:** S (one script, on a recipe used before).
 
-- [ ] **Task 2: ten power-ons, and the two tables**
+- [x] **Task 2: ten power-ons, and the two tables**
 
   **Description:** Ten runs, each a fresh Chrome, one at a time in the foreground
   ([PERFORMANCE.md](../PERFORMANCE.md), "Measurement hygiene"). Each run lasts until the harmony callback has fired
@@ -115,10 +121,14 @@ callback writes, and nothing orders the two in its favour.
   **Proof:** Measurement. Both tables filled, and each of P1 to P5 marked held or refuted with the rows that show it.
 
   **Acceptance criteria:**
-  - [ ] Table 1 has a row per run and Table 2 a row per run.
-  - [ ] Each prediction is marked from the rows, with no prediction left "probably".
-  - [ ] For backlog 83: across the runs, the tick count of each melody tick that plays step 1 and of each BeatClock
+  - [x] Table 1 has a row per run and Table 2 a row per run.
+  - [x] Each prediction is marked from the rows, with no prediction left "probably". P3 is marked untested, with the
+        reason.
+  - [x] For backlog 83: across the runs, the tick count of each melody tick that plays step 1 and of each BeatClock
         tick that turns the measure, as offsets from the bar, and whether either repeat lost its first firing.
+
+  **Done 2026-11-12.** Ten runs, each a fresh headless Chrome, one at a time in the foreground, no orphaned Chrome
+  after. Every run reached twelve harmony firings.
 
   **Dependencies:** Task 1.
 
@@ -126,7 +136,9 @@ callback writes, and nothing orders the two in its favour.
 
   **Estimated scope:** S.
 
-- [ ] **Task 3: slowed runs (only if P5 is unsettled)**
+- [x] **Task 3: slowed runs (only if P5 is unsettled)**: **skipped.** P5 is settled from Task 2's rows: the probe
+  logged how far each BeatClock tick's clock pass reached, so whether each firing is on time is explained firing by
+  firing (Findings, P5). Slowing the passes would only change how often the reach is long, not the mechanism.
 
   **Description:** Five more runs under CDP's `Emulation.setCPUThrottlingRate` (4), which lengthens the clock loop's
   passes. The lead predicts more on-time firings at the same start offset. Skipped, and marked skipped here, if
@@ -140,7 +152,7 @@ callback writes, and nothing orders the two in its favour.
 
   **Estimated scope:** XS.
 
-- [ ] **Task 4: the findings go into the record**
+- [x] **Task 4: the findings go into the record**
 
   **Description:** Backlog 82's entry: the lead paragraph becomes what was measured, with the figures; its "To find
   out" list is marked item by item (answered, or still open). Backlog 83's entry: what Task 2 showed for its first
@@ -168,21 +180,106 @@ callback writes, and nothing orders the two in its favour.
 
 ## Tables
 
-**Table 1: where each repeat starts.** Ticks. Offset is the start modulo 48.
+Measured 2026-11-12 on `main`'s tree (a1337cf2), dev server, headless Chrome, `?seed=charlie&x=200&y=-30`. The run
+read PPQ 192 (a sixteenth is 48 ticks, a measure 768), the world's 71 BPM (a tick is 4.4 ms, a sixteenth 211 ms),
+a 100 ms lookahead, a 50 ms update interval and the worker clock.
+
+**Table 1: where each repeat starts.** Ticks, at the first firing's own time. Offset is the start modulo 48.
 
 | Run | BPM | BeatClock start | Offset | Melody start | Offset | Harmony start | Swell start | A first firing lost? |
 |---|---|---|---|---|---|---|---|---|
-| 1 | | | | | | | | |
+| 1 | 71 | 82.87 | 34.87 | 82.87 | 34.87 | 1536 | 96 | swell (48 already passed) |
+| 2 | 71 | 132.94 | 36.94 | 85.98 | 37.98 | 1536 | 144 | BeatClock (83 already passed); swell |
+| 3 | 71 | 49.36 | 1.36 | 49.36 | 1.36 | 1536 | 96 | swell |
+| 4 | 71 | 85.73 | 37.73 | 85.73 | 37.73 | 1536 | 48 | BeatClock and melody (36.9 scheduled, never fired) |
+| 5 | 71 | 41.94 | 41.94 | 41.94 | 41.94 | 1536 | 48 | none |
+| 6 | 71 | 49.36 | 1.36 | 49.36 | 1.36 | 1536 | 96 | swell |
+| 7 | 71 | 89.92 | 41.92 | 89.92 | 41.92 | 1536 | 48 | BeatClock and melody (40 already passed) |
+| 8 | 71 | 82.87 | 34.87 | 82.87 | 34.87 | 1536 | 96 | swell |
+| 9 | 71 | 41.94 | 41.94 | 41.94 | 41.94 | 1536 | 48 | none |
+| 10 | 71 | 41.94 | 41.94 | 41.94 | 41.94 | 1536 | 48 | none |
 
-**Table 2: the twelve harmony firings of each run.** "Late" is a firing that read the boundary's measure minus one
-and left the palette as it was. "Gap" is from BeatClock's last tick before a boundary to the boundary, in
-milliseconds at the run's tempo.
+**Table 2: the twelve harmony firings of each run.** "Late" is a firing that read the boundary's measure minus one,
+so the entry in force after it is the previous one. (The plan first said "and left the palette as it was". That fits
+only a first late firing: a run late throughout changes the palette at every firing, to the stale entry, which is why
+five runs read 0 to 11.) "Gap" is from the time of BeatClock's last tick before a boundary to the boundary, in
+milliseconds at the run's tempo, with ticks in brackets. It is the same at every boundary of a run.
 
 | Run | Gap (ms) | On time | Late | Ran first on a shared tick | Entries by firing | Slowed? |
 |---|---|---|---|---|---|---|
-| 1 | | | | | | |
+| 1 | 57.9 (13.2) | 1 | 11 | no shared tick | 1 1 2 3 4 5 6 7 8 9 10 11 | no |
+| 2 | 48.7 (11.1) | 0 | 12 | no shared tick | 0 1 2 3 4 5 6 7 8 9 10 11 | no |
+| 3 | 205.5 (46.7) | 0 | 12 | no shared tick | 0 1 2 3 4 5 6 7 8 9 10 11 | no |
+| 4 | 45.2 (10.3) | 0 | 12 | no shared tick | 0 1 2 3 4 5 6 7 8 9 10 11 | no |
+| 5 | 26.8 (6.1) | 4 | 8 | no shared tick | 0 1 2 4 4 5 7 7 8 10 10 0 | no |
+| 6 | 205.5 (46.7) | 0 | 12 | no shared tick | 0 1 2 3 4 5 6 7 8 9 10 11 | no |
+| 7 | 26.8 (6.1) | 5 | 7 | no shared tick | 0 2 2 3 4 6 6 8 9 9 10 0 | no |
+| 8 | 57.9 (13.2) | 0 | 12 | no shared tick | 0 1 2 3 4 5 6 7 8 9 10 11 | no |
+| 9 | 26.8 (6.1) | 4 | 8 | no shared tick | 0 1 2 4 4 5 6 8 9 10 10 11 | no |
+| 10 | 26.8 (6.1) | 4 | 8 | no shared tick | 0 1 2 4 4 5 6 8 9 9 11 11 | no |
 
-**Findings.** Not yet measured.
+Intended entries, firing 1 to 12: 1 2 3 4 5 6 7 8 9 10 11 0.
+
+**Findings.**
+
+*The cause.* BeatClock's tick never sits on the bar. It passes no start time, so Tone starts it where the transport
+has reached when it is registered: 37 to 83 ticks after `transport.start()` (about 95 to 215 ms at Tone's default
+120 BPM; `powerController.start` sets the world's tempo only after `AudioEngine.start` returns). In every run it then
+ran 1.4 to 41.9 ticks after each sixteenth, and its measure turns that far after each bar. The harmony repeat fires on
+the bar (tick 1536 × k in every run) and reads `getCurrentMeasure()` before BeatClock has turned it, so it sets the
+entry already in force: one entry, two measures, late. The exception is a boundary where BeatClock's last tick before
+it ran in a clock pass that already reached past the boundary. That tick reads `transport.position` at Tone's "now",
+gets the new measure early, and the firing is on time. Of 120 firings, 102 were late and 18 on time. Every on-time
+firing followed a BeatClock tick that had read ahead, and no late firing did. Whether a firing is on time is decided at
+each boundary by how far that one pass reached, which is why one world plays a different chord sequence on each
+power-on.
+
+*What the lead got wrong.* The same-tick order (the harmony callback before BeatClock's) never came into play: no run
+had a BeatClock tick on a boundary. It could only happen on a power-on whose BeatClock start lands on a multiple of
+48, and none of ten did. The lateness needs no shared tick.
+
+*The predictions, from the rows.* "Reach" below is how far past its own time Tone's "now" was when BeatClock's last
+tick before a boundary ran, in ticks; the probe logged it at every firing.
+
+- **P1: held, except the swell.** BeatClock's and the melody's starts were never a multiple of 48 and moved from run
+  to run (offsets 1.36, 34.87, 36.94 and 37.98, 37.73, 41.92, 41.94). The harmony started at 1536 in all ten. The
+  swell clause is refuted: the swell started at 48 in five runs, 96 in four and 144 in one. In those five its 48 had already
+  passed when `startLocaleSystems` registered it (the transport at 54 to 99), and Tone moved it to the next sixteenth.
+  It stays on the sixteenth grid.
+- **P2: held.** All 102 late firings read the boundary's measure minus one. All 18 on-time firings read the boundary's
+  measure. No firing read anything else.
+- **P3: untested.** No run had a shared tick (above). Not needed for the cause.
+- **P4: held, both ways.** All 18 on-time firings followed a BeatClock tick that had already turned to the boundary's
+  measure, and none of the 102 late ones did. Run 5's rows show the line: firing 4, reach 8.08 against a gap of 6.08,
+  BeatClock read ahead, on time; firing 5, reach 6.08 against 6.08, not ahead, late. Every on-time firing has a reach
+  above its gap and every late one a reach at or below it.
+- **P5: held in part.** The share of on-time firings follows the gap: 17 of 48 at 6.1 ticks (runs 5, 7, 9, 10), 1 of
+  48 at 10.3 to 13.2 ticks (runs 1, 2, 4, 8), 0 of 24 at 46.7 ticks (runs 3, 6). The split by run is refuted as
+  stated: the reach is not a fixed length for a run. It changed from firing to firing inside every run, between −0.9
+  and 16.2 ticks (up to about 70 ms) and 25.7 once, so no gap is "inside it" every time and no run was on time
+  throughout. Runs with the same gap differ by at
+  most one firing (4, 5, 4, 4 and 1, 0), and each difference is that firing's reach.
+
+*Backlog 83.*
+
+- Melody step 1 sits 41.9 to 89.9 ticks after the bar (0.87 to 1.87 sixteenths, 185 to 396 ms at 71 BPM), the same
+  in every measure of a run and different between runs: 82.87, 85.98, 49.36, 85.73, 41.94, 49.36, 89.92, 82.87,
+  41.94, 41.94. Step 1 is the melody tick's first firing, wherever the transport had got to.
+- BeatClock turns the measure 1.3 to 41.9 ticks after the bar, or 6.1 to 13.2 ticks before it when it reads ahead.
+- Of 83's two readings the first is the one, for a different reason: the melody loop is late because it starts where
+  the transport has reached, not because a tick at time 0 never fires. BeatClock is early only on a read-ahead, and
+  only by a fraction of a sixteenth.
+- The sighting reproduces on `main`. In the seven runs whose step 1 sits 48 or more ticks after the bar, step 16 falls
+  in the next bar and carries the next measure in 24 of 24 cycles. In runs 5, 9 and 10 (step 1 at 41.9), step 16 sits
+  6 ticks before the next bar and carries the next measure in 10 or 11 of 24 cycles: those where BeatClock read ahead.
+- A first firing was lost by both `16n` ticks in run 4 (scheduled on a tick already processed, never fired) and run 7
+  (already passed at registration, moved on a sixteenth), and by BeatClock alone in run 2. There BeatClock runs about
+  a tick before the melody tick in each sixteenth, not on the same tick.
+- Not measured: the listen with the Click Track, and a pause and resume.
+
+*Aside, not chased.* Every power-on logs one Tone warning, "Events scheduled inside of scheduled callbacks should use
+the passed in scheduling time", with or without the probe. Something reaches Tone with no time from inside a
+callback. Not this plan's question.
 
 ## Risks and Mitigations
 
@@ -195,9 +292,11 @@ milliseconds at the run's tempo.
 
 ## Open Questions
 
-1. Does the transport move between `transport.start()` and the registrations? **Open**: P1 answers it.
-2. Does a replay from power-on give the same chords? **Open**: Table 2's "Entries by firing" column answers it for
-   ten power-ons of one world.
+1. Does the transport move between `transport.start()` and the registrations? **Answered: yes**, 37 to 83 ticks
+   (about 95 to 215 ms) before BeatClock's tick is registered, a different amount on each power-on.
+2. Does a replay from power-on give the same chords? **Answered: no.** Five of ten power-ons played 0 to 11, one entry
+   late throughout; the other five each played a different sequence, three of them from the same start offset (runs
+   5, 9, 10). A mixed run skips entries: run 5 never plays entries 3, 6 or 9.
 3. What backlog [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody)'s early announcements should
    read once the cycle is predictable. **Open**, and not this plan's: it is settled when 79 is picked up again,
    against whatever the gate decides.
