@@ -5,7 +5,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { createFactory, deriveAsAccentPair, pickAccentTarget, getRecipeRow, factoryWidthAt, spreadXs } from './factoryPlacementSystem';
+import {
+  createFactory, deriveAsAccentPair, pickAccentTarget, getRecipeRow, factoryWidthAt, spreadXs, generateFactoryId,
+  deriveAsColorShift, deriveSceneryAsColorShift, pickSceneryAccentTarget,
+} from './factoryPlacementSystem';
 import { placeDistrict, pickDistrict } from './districts';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
 import type { FactoryVariant } from '../components/actors/factoryVariants';
@@ -13,10 +16,18 @@ import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
 import { RECIPES, COVERAGE_TOP_UP } from './districtRecipes';
 import { shiftHSL } from '../utils/colorUtils';
 import { computeAccentLean, hueArc, ACCENT_SAT_LIFT, ACCENT_HUES } from '../utils/accentLean';
-import { getAttenuationStyleNoiseMap, getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getSeededVal } from '../utils/getSeededVal';
-import * as getSeededValModule from '../utils/getSeededVal';
+import { getAttenuationStyleNoiseMap, getLocaleNoiseMap, evictAttenuationStyleNoiseMap } from '../utils/noiseMaps';
+import { getUniformSeededVal } from '../utils/getSeededVal';
 import { deriveAttenuationStyleSeed } from '../utils/seedUtils';
+import { constantNoiseMap } from '../testUtils/seededDraws';
+import { correlation, outerTenths } from '../testUtils/spread';
+
+// Even World Draws (docs/tasks/EVEN_WORLD_DRAWS.md T4): the even draw is steerable through a tagged stub map and
+// countable through its calls; a real noise map passes straight through to the real draw.
+vi.mock('../utils/getSeededVal', async (importOriginal) => {
+  const { steerSeededDraws } = await import('../testUtils/seededDraws');
+  return steerSeededDraws(await importOriginal<typeof import('../utils/getSeededVal')>());
+});
 
 // duplicate constants from placement system for use in assertions
 const WORLD_BOUNDS = { width: 1920, height: 1080 };
@@ -200,19 +211,11 @@ describe('FactoryPlacementSystem', () => {
       expect(xs.some((x) => x >= mid)).toBe(true);
     });
 
-    it("'center': calls getSeededVal's 'factory.spacing' jitter at offset rowIndex*1000 + placedCenter", () => {
-      const spy = vi.spyOn(getSeededValModule, 'getSeededVal');
-      try {
-        spreadXs({ spread: 'center', count: 3, centerWidth: 0.4 }, () => 60, fakeNoiseMap, 7);
-        const calls = spy.mock.calls.filter((c) => c[1] === 'factory.spacing');
-        expect(calls.length).toBeGreaterThan(0);
-        for (const [, , offset] of calls) {
-          expect(offset).toBeGreaterThanOrEqual(7000);
-          expect(offset).toBeLessThan(8000);
-        }
-      } finally {
-        spy.mockRestore();
-      }
+    it("'center': draws the 'factory.spacing' jitter even, at offset rowIndex*1000 + placedCenter", () => {
+      vi.mocked(getUniformSeededVal).mockClear();
+      spreadXs({ spread: 'center', count: 3, centerWidth: 0.4 }, () => 60, fakeNoiseMap, 7);
+      const calls = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => c[1] === 'factory.spacing');
+      expect(calls.map((c) => c[2])).toEqual([7001, 7002, 7003]);
     });
 
     it('falls back to alea (not a crash) when noiseMap is null', () => {
@@ -560,8 +563,8 @@ describe('FactoryPlacementSystem', () => {
       const row = actor.config?.row ?? EXPECTED_DEFAULT_FACTORY_ROW;
       const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRecipeRow(district, row)?.variants);
       const as = {
-        hueShift: getSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
-        satShift: getSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
+        hueShift: getUniformSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
+        satShift: getUniformSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
       };
       const combined = { hueShift: local.hueShift + as.hueShift, satShift: local.satShift + as.satShift };
       return { combined, body: shiftHSL(VARIANT_CONF[local.variant].colors.body, combined) };
@@ -620,24 +623,22 @@ describe('FactoryPlacementSystem', () => {
       expect(a.primary).not.toBe(b.primary);
     });
 
-    it("samples the style-level primary at a fixed NON-integer, non-zero offset — the simplex lattice-collapse guard (PROCEDURAL_GENERATION.md 'Gotchas')", () => {
-      const spy = vi.spyOn(getSeededValModule, 'getSeededVal');
-      try {
-        deriveAsAccentPair(getAttenuationStyleNoiseMap('as-offset-guard', 'as-offset-guard-name'));
-        const calls = spy.mock.calls.filter((c) => c[1] === 'factory.as.accentPrimary');
-        expect(calls.length).toBeGreaterThan(0);
-        for (const [, , offset] of calls) {
-          expect(offset).not.toBe(0);
-          expect(Number.isInteger(offset)).toBe(false);
-        }
-      } finally {
-        spy.mockRestore();
-      }
+    it("draws 'factory.as.accentPrimary' once, at offset 0, through the even draw (the offset-0 collapse is the plain draw's alone)", () => {
+      vi.mocked(getUniformSeededVal).mockClear();
+      deriveAsAccentPair(getAttenuationStyleNoiseMap('as-offset-guard', 'as-offset-guard-name'));
+      const calls = vi.mocked(getUniformSeededVal).mock.calls.filter((c) => c[1] === 'factory.as.accentPrimary');
+      expect(calls).toHaveLength(1);
+      expect(calls[0][2]).toBe(0);
+    });
+
+    it('steers the primary across the whole wheel: the band min is the first accent hue, its max the last', () => {
+      expect(deriveAsAccentPair(constantNoiseMap(-1)).primary).toBe(ACCENT_HUES[0]);
+      // A draw of exactly the band max is clamped onto the last hue, never one past it.
+      expect(deriveAsAccentPair(constantNoiseMap(1)).primary).toBe(ACCENT_HUES[ACCENT_HUES.length - 1]);
     });
 
     it('spread guard: across 50 real style seeds the primary covers at least 10 of the 18 accent hues', () => {
-      // Real maps, not mocks — this measures the real hash of the dataId. If it fails, change
-      // ACCENT_PAIR_OFFSET in factoryPlacementSystem.ts, never this threshold.
+      // Real maps, not mocks — this measures the real hash of the dataId.
       const primaries = new Set<number>();
       for (let i = 0; i < 50; i++) {
         const map = createNoise2D(alea(deriveAttenuationStyleSeed(`accent-spread-${i}`)));
@@ -648,10 +649,10 @@ describe('FactoryPlacementSystem', () => {
 
     it('pickAccentTarget: a seeded value below 0.5 picks the primary, at/above 0.5 the secondary', () => {
       const pair = { primary: 100, secondary: 140 };
-      const lowMap: NoiseFunction2D = () => -1; // getSeededVal maps -1 → 0
-      const highMap: NoiseFunction2D = () => 1;  // and +1 → 1
-      expect(pickAccentTarget(lowMap, pair, 0)).toBe(100);
-      expect(pickAccentTarget(highMap, pair, 0)).toBe(140);
+      expect(pickAccentTarget(constantNoiseMap(-1), pair, 0)).toBe(100); // the draw's min, 0
+      expect(pickAccentTarget(constantNoiseMap(-0.0001), pair, 0)).toBe(100); // just under 0.5
+      expect(pickAccentTarget(constantNoiseMap(0), pair, 0)).toBe(140); // exactly 0.5
+      expect(pickAccentTarget(constantNoiseMap(1), pair, 0)).toBe(140); // the draw's max, 1
     });
 
     it('pickAccentTarget keys on the factory index, so neighbouring factories can differ under one real map', () => {
@@ -727,15 +728,17 @@ describe('FactoryPlacementSystem', () => {
         robots: [], actors: [], companies: [], createdAtMeasure: 0, dayStartTimestamp: Date.now(),
       });
       const styleA = { id: 'recolor-lean-a', name: 'recolor-lean-alpha' };
-      const styleB = { id: 'recolor-lean-b', name: 'recolor-lean-beta' };
+      // The style map is seeded by the name. 'recolor-lean-beta' drew pair A swapped once the draws went even
+      // (Even World Draws T4), so B is 'recolor-lean-gamma'.
+      const styleB = { id: 'recolor-lean-c', name: 'recolor-lean-gamma' };
 
       function preLean(actor: Actor, index: number, asMap: NoiseFunction2D) {
         const district = actor.config?.district ?? 'dense';
         const row = actor.config?.row ?? EXPECTED_DEFAULT_FACTORY_ROW;
         const local = selectVariantFromSeed(actor.id, actor.position.x, row, getRecipeRow(district, row)?.variants);
         const as = {
-          hueShift: getSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
-          satShift: getSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
+          hueShift: getUniformSeededVal(asMap, 'factory.as.hueShift', index, -30, 30),
+          satShift: getUniformSeededVal(asMap, 'factory.as.satShift', index, -20, 20),
         };
         const combined = { hueShift: local.hueShift + as.hueShift, satShift: local.satShift + as.satShift };
         return { combined, body: shiftHSL(VARIANT_CONF[local.variant].colors.body, combined) };
@@ -751,8 +754,10 @@ describe('FactoryPlacementSystem', () => {
         const mapB = getAttenuationStyleNoiseMap(styleB.id, styleB.name);
         const pairA = deriveAsAccentPair(mapA);
         const pairB = deriveAsAccentPair(mapB);
-        // Precondition on the fixture names — the "off the old one" half is meaningless otherwise.
-        expect(pairB.primary).not.toBe(pairA.primary);
+        // Precondition on the fixture names — the "off the old one" half is meaningless otherwise: the two pairs
+        // share no hue (a swapped pair would leave every factory on a hue of A).
+        expect([pairB.primary, pairB.secondary]).not.toContain(pairA.primary);
+        expect([pairB.primary, pairB.secondary]).not.toContain(pairA.secondary);
 
         useLocaleStore.getState().addLocale(styleA.id, makeLocale('recolor-lean-locale', styleA.id));
         placeDistrict('recolor-lean-locale');
@@ -818,17 +823,23 @@ describe('FactoryPlacementSystem', () => {
       expect(recolored.config?.district).toBeUndefined();
 
       // The local (non-AS) component must match the fallback district/row's own
-      // variant pool specifically — not some other row's. Isolate it by
-      // subtracting the AS-only contribution, bounded by the reverted
-      // baseline's own AS_FACTORY_HUE_SHIFT_RANGE ([-30, 30]): a wrong row
-      // would very likely pick a different variant with a very different
-      // base hue, pushing this delta far outside that window.
+      // variant pool specifically — not some other row's. The stored shift is
+      // the fallback row's local shift folded with the style's exact AS shift
+      // and accent lean for factory 0: a wrong row picks a different variant
+      // (a different local shift or base body), so the fold would not match.
       const expectedAvailableTypes = getRecipeRow('dense', EXPECTED_DEFAULT_FACTORY_ROW)?.variants;
       const expectedLocal = selectVariantFromSeed(
         rowlessActor.id, rowlessActor.position.x, EXPECTED_DEFAULT_FACTORY_ROW, expectedAvailableTypes
       );
-      const asOnlyHueDelta = (recolored.config?.hueShift ?? 0) - expectedLocal.hueShift;
-      expect(Math.abs(asOnlyHueDelta)).toBeLessThanOrEqual(30);
+      const asMap = getAttenuationStyleNoiseMap('rowless-planet', 'rowless-planet-name');
+      const expected = foldBodyShift(
+        VARIANT_CONF[expectedLocal.variant].colors.body,
+        { hueShift: expectedLocal.hueShift, satShift: expectedLocal.satShift },
+        deriveAsColorShift(asMap, 0),
+        pickAccentTarget(asMap, deriveAsAccentPair(asMap), 0),
+      );
+      expect(recolored.config?.hueShift).toBeCloseTo(expected.hueShift, 9);
+      expect(recolored.config?.satShift).toBeCloseTo(expected.satShift, 9);
     });
 
     // docs/specs/WORLD_VIEW_DISTRICTS.md §1.8 / roadmap Phase 42 Task 13: body-bearing scenery
@@ -934,5 +945,94 @@ describe('FactoryPlacementSystem', () => {
         expect(() => recolorActorsForAttenuationStyle(DEFAULT_LOCALE_ID, styleB.id, styleB.name)).not.toThrow();
       });
     });
+  });
+});
+
+// Even World Draws (docs/specs/EVEN_WORLD_DRAWS.md §5.1, docs/tasks/EVEN_WORLD_DRAWS.md T4): the style-map picks and
+// the placement draws, over real seeded maps through the real generators. Every tolerance is at least 3 standard
+// deviations of its share.
+describe('placement and the style tints draw even (Even World Draws T4)', () => {
+  const STYLES = 3000;
+  const style = Array.from({ length: STYLES }, (_, i) => {
+    const id = `even-world-style-${i}`;
+    const map = getAttenuationStyleNoiseMap(id, `${id}-name`);
+    const sample = {
+      primary: deriveAsAccentPair(map).primary,
+      factory: deriveAsColorShift(map, 0),
+      scenery: deriveSceneryAsColorShift(map, 0),
+      pickedPrimary: pickAccentTarget(map, { primary: 100, secondary: 140 }, 0) === 100,
+      sceneryPickedPrimary: pickSceneryAccentTarget(map, { primary: 100, secondary: 140 }, 0) === 100,
+    };
+    evictAttenuationStyleNoiseMap(id);
+    return sample;
+  });
+
+  /** 400 locale maps on a 20 x 20 grid, the way a locale's map is seeded (`${x}:${y}`). */
+  const LOCALE_MAPS = Array.from({ length: 400 }, (_, i) =>
+    createNoise2D(alea(`${(i % 20) * 9 - 90}:${Math.floor(i / 20) * 9 - 90}`)));
+
+  it('the accent primary reaches all 18 hues, each 5.6 % of styles (+/-1.5 points)', () => {
+    for (const hue of ACCENT_HUES) {
+      const share = style.filter((s) => s.primary === hue).length / STYLES;
+      expect(share, `hue ${hue}`).toBeGreaterThanOrEqual(0.041);
+      expect(share, `hue ${hue}`).toBeLessThanOrEqual(0.071);
+    }
+  });
+
+  it('the hue shift fills +/-30 and the sat shift +/-20, 8-12 % in each outer tenth, for factories and scenery', () => {
+    for (const family of ['factory', 'scenery'] as const) {
+      const hue = outerTenths(style.map((s) => s[family].hueShift), { min: -30, max: 30 });
+      const sat = outerTenths(style.map((s) => s[family].satShift), { min: -20, max: 20 });
+      for (const [name, share] of Object.entries({ hueBottom: hue.bottom, hueTop: hue.top, satBottom: sat.bottom, satTop: sat.top })) {
+        expect(share, `${family} ${name}`).toBeGreaterThanOrEqual(0.08);
+        expect(share, `${family} ${name}`).toBeLessThanOrEqual(0.12);
+      }
+    }
+  });
+
+  it('the factory and scenery shifts at one index are independent (|r| under 0.1)', () => {
+    const r = (pick: (s: (typeof style)[number]) => [number, number]) =>
+      correlation(style.map((s) => pick(s)[0]), style.map((s) => pick(s)[1]));
+    expect(Math.abs(r((s) => [s.factory.satShift, s.scenery.satShift]))).toBeLessThan(0.1);
+    expect(Math.abs(r((s) => [s.factory.hueShift, s.scenery.hueShift]))).toBeLessThan(0.1);
+    expect(Math.abs(r((s) => [s.factory.hueShift, s.factory.satShift]))).toBeLessThan(0.1);
+  });
+
+  it('the accent pick leans to the primary for half the actors (+/-3 points)', () => {
+    const share = style.filter((s) => s.pickedPrimary).length / STYLES;
+    expect(share).toBeGreaterThanOrEqual(0.47);
+    expect(share).toBeLessThanOrEqual(0.53);
+  });
+
+  it("the factory and scenery picks at one index are independent coins: they agree in half the styles (+/-3 points), and each is independent of its family's hue shift", () => {
+    const agree = style.filter((s) => s.pickedPrimary === s.sceneryPickedPrimary).length / STYLES;
+    expect(agree).toBeGreaterThanOrEqual(0.47);
+    expect(agree).toBeLessThanOrEqual(0.53);
+    const coin = (b: boolean) => (b ? 1 : 0);
+    expect(Math.abs(correlation(style.map((s) => coin(s.pickedPrimary)), style.map((s) => s.factory.hueShift)))).toBeLessThan(0.1);
+    expect(Math.abs(correlation(style.map((s) => coin(s.sceneryPickedPrimary)), style.map((s) => s.scenery.hueShift)))).toBeLessThan(0.1);
+  });
+
+  it('the factory id takes more than 3,900 distinct suffixes over 400 locales x 10 factories', () => {
+    const suffixes = new Set(LOCALE_MAPS.flatMap((map) =>
+      Array.from({ length: 10 }, (_, i) => generateFactoryId(map, i).split('-')[2])));
+    expect(suffixes.size).toBeGreaterThan(3900);
+  });
+
+  it("the centre row's spacing multiplier fills 0.8-1.2, 8-12 % in each outer tenth", () => {
+    // A fixed width of 60 makes each step (60 - 20) x the multiplier, so the gaps read the draws back.
+    const mults = LOCALE_MAPS.flatMap((map) => {
+      const xs: number[] = [];
+      spreadXs({ spread: 'center', count: 10, centerWidth: 0.4 }, (x) => { xs.push(x); return 60; }, map, 0);
+      return xs.slice(1).map((x, i) => (x - xs[i]) / 40);
+    });
+    expect(mults).toHaveLength(400 * 9);
+    expect(Math.min(...mults)).toBeGreaterThanOrEqual(0.8);
+    expect(Math.max(...mults)).toBeLessThan(1.2);
+    const { bottom, top } = outerTenths(mults, { min: 0.8, max: 1.2 });
+    expect(bottom).toBeGreaterThanOrEqual(0.08);
+    expect(bottom).toBeLessThanOrEqual(0.12);
+    expect(top).toBeGreaterThanOrEqual(0.08);
+    expect(top).toBeLessThanOrEqual(0.12);
   });
 });

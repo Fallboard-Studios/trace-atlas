@@ -278,7 +278,7 @@ re-seeded in the same commit (the probe table).
 
 ### Phase 2: Placement and the light (locale and style maps)
 
-- [ ] **Task 4: factoryPlacementSystem.ts — ids, spacing, the style shifts, the accent pair and pick draw even; `ACCENT_PAIR_OFFSET` goes**
+- [x] **Task 4: factoryPlacementSystem.ts — ids, spacing, the style shifts, the accent pair and pick draw even; `ACCENT_PAIR_OFFSET` goes**
 
   **Description:** Switch `generateFactoryId` (`factory.id`), the `spreadXs` centre-row `factory.spacing` multiplier,
   `deriveAsColorShiftFor` (both namespaces' `.as.hueShift` and `.as.satShift`), `pickAccentTargetFor` (`.as.accentPick`)
@@ -333,6 +333,7 @@ re-seeded in the same commit (the probe table).
   - [ ] `stations.test.ts`'s overlap case is **not** re-pinned here: its failure (station 2 at (−160, −120)) is
     recorded for Checkpoint B's decision, and the suite is left red on that one case only if Crawford's decision is
     still pending at the commit, stated in the commit message. Prefer to reach Checkpoint B in the same session.
+  - (`workSites.test.ts`'s repair landed in T4, whose `factory.id` switch broke it; see "T4: as built".)
 
   **Verification:**
   - [ ] `npx vitest run src/systems/districts.test.ts src/systems/jobCoverage.test.ts src/systems/workSites.test.ts src/systems/stations.test.ts`;
@@ -569,6 +570,28 @@ As built: the plan's "the docked batteries take more than 2,500 distinct values"
 whole number 0–99; the case asserts every whole value from 0 to 99 occurs, with the outer tenths. The plan's existing
 parity case (one plot, (40, −80)) draws the same Active count on both draws, so a spawn-only revert of the count
 survived it; a second parity case over 30 grid worlds (every Active count among them) kills it.
+
+### T4: as built
+
+- **The file steers its draws** through `steerSeededDraws` (`vi.mock`), so the spacing and accent-primary call checks
+  read `getUniformSeededVal`'s calls and `pickAccentTarget`'s threshold case uses `constantNoiseMap` (min, just under
+  0.5, exactly 0.5, max); a real map passes through to the real draw. A clamp case pins the primary's band ends to the
+  first and last accent hue.
+- **The accent pick's 50 % share passes on the plain draw too** (a bell centred on 0.5 still splits evenly), so the
+  pick reverted alone survived. Added: the factory and scenery picks at one index agree in 50 ± 3 % of styles, and each
+  is uncorrelated with its family's hue shift; that kills it.
+- **`recolor-lean-beta` drew pair A swapped** (31.1 / 40.8 against 40.8 / 31.1), so every factory stayed on a hue of
+  A and "off the old one" found none. Style B is now `recolor-lean-c` / `recolor-lean-gamma` (185.8 / 198.1; the map is
+  seeded by the name and cached by the id), and the precondition asserts the two pairs share no hue, not only that the
+  primaries differ.
+- **The rowless fallback test** now asserts the exact fold (`foldBodyShift` of the fallback row's local shift, the
+  style's `deriveAsColorShift(map, 0)` and its accent pick for factory 0), not a ±30 bound. A fallback row of 0 instead
+  of 1 survives it: `dense` rows 0 and 1 are both `['Skyscraper']`, so the fixture cannot tell them apart. That gap
+  predates T4 (the ±30 bound had it too); a fallback district of `habitat` is killed.
+- **`workSites.test.ts`'s "two hosts sharing an id" moved here from T5**: `factory.id` going even is what broke it
+  (the full suite's only failure after the switch). It now clones a grid host to a second x with the same id, with
+  the precondition that the clone still hosts; keying the site cache by id fails it.
+- Mutants killed: each of the six draws put back on the plain draw, the primary at offset 0.37.
 
 ### Checkpoint A / B: the harness sections
 
