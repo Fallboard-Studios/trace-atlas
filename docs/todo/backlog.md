@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 82.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 86.
 
 ## Open items
 
@@ -662,4 +662,167 @@ backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs) (the dock fa
 ([spec](../specs/MONITOR_MODE_TRUSTWORTHY.md), §7.2 Q1–Q2 at their defaults until the gates), plan written
 ([plan](../tasks/MONITOR_MODE_TRUSTWORTHY.md): Task 0, Part A Tasks 1–4 then Crawford's ear, Part B Tasks 5–11 then
 his eye, docs, archive). Building on `feature/monitor-mode-trustworthy`. Plan.md Stage 3.
+
+### 82. Audio: The Chord Cycle Does Not Always Change on Time
+
+Found on 2026-11-12 during backlog [79](#79-robots-move-in-time-with-their-own-melody)'s spike, and asked for by
+Crawford the same day: "definitely sounds like it's something worth investigating to make sure we're not running
+redundant code." By ear he does not hear mixed-chord outcomes, so nothing sounds broken. An investigation: measure
+first, and build only what the cause calls for.
+
+**What is intended.** Each harmony palette holds for two measures ([HARMONY_SYSTEM.md](../HARMONY_SYSTEM.md)). A `2m`
+repeat in `src/engine/harmonySystem.ts` (`scheduleHarmonyCycle`) sets the palette to entry
+`floor(getCurrentMeasure() / 2) % 12`, derived fresh each time it fires.
+
+**What was seen.** The spike made the engine announce each note a few steps before it plays and checked every
+announcement against the note then triggered, logging the palette in force (`getAvailableNotes()`) and BeatClock's
+measure (`getCurrentMeasure()`) at a miss. One build, one pinned world (`?seed=charlie&x=200&y=-30`), headless Chrome,
+a fresh power-on each run:
+
+- One run kept time: measures 2–3 on entry 1, 4–5 on entry 2, 6–7 on entry 3, measure 8 on entry 4.
+- One run fell behind: entry 3 in force at measure 6 and still at measure 8, where entry 4 is intended.
+- One run fell behind and caught up: entry 2 still in force as measure 8 began (so through measures 6–7, where
+  entry 3 is intended), entry 4 from measure 8 on, so entry 3 was never played; then entry 5 at measure 12, where
+  entry 6 is intended.
+- A forecast that assumed "on time" got 138 of 372 pitches wrong in one run. One that assumed "one entry behind" got
+  88 of 366 wrong in a second run and 187 of 363 wrong in a third. Neither assumption holds from one power-on to the
+  next.
+
+The log held misses only, about fifty seconds a run, so this is a sighting, not a survey. The code it passed through
+(`harmonySystem.ts`, `beatClock.ts`, `AudioEngine.start`, the melody tick) is the same on `main` as on the spike
+branch, but it has not been reproduced on `main`.
+
+**Suspected cause, not established.** Three repeats sit on the transport: BeatClock's own `16n` tick, which reads
+`transport.position` and sets the measure (`initBeatClock`); the melody's `16n` tick (`startMelodyPlayback`); and the
+harmony cycle's `2m` repeat. `AudioEngine.start` sets them up in that order. On a measure's first tick all three fire
+for the same transport time. If the harmony repeat runs before BeatClock's tick it reads the measure that has just
+ended, derives the entry already in force, and changes nothing for two more measures. Which runs first may not be
+fixed.
+
+**To find out:**
+
+- Reproduce on `main`: log the measure read and the entry set at every `2m` callback, beside the measure at each
+  BeatClock tick, over several power-ons of one world.
+- Whether a replay from power-on gives the same chords each time. Velocity and Humanize are drawn so that a replay
+  repeats (`computeNoteVelocitySeeded` and `humanizeOffsetFor`, `src/engine/AudioEngine.ts`); a chord cycle that
+  depends on callback order would not.
+- Whether the third repeat is needed at all (Crawford's "redundant code"). The palette could be a pure function of the
+  transport position at a note's own time, read when the note is scheduled, with no state to fall out of step.
+- What depends on the answer: backlog [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (tagged
+  progressions and a seeded mood chain, which need the cycle to be predictable), and backlog 79's early announcements,
+  which today read the cycle's lag off the palette in force instead of assuming it.
+
+Related: backlog [83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), seen in the same log. Plan.md
+Stage 3.
+
+### 83. Audio: Melody Steps May Sit One Sixteenth off the Measure
+
+Found on 2026-11-12 in the same log as backlog [82](#82-audio-the-chord-cycle-does-not-always-change-on-time), and
+asked for by Crawford the same day. He cannot tell by ear where the audio's downbeat is, so listening has neither
+confirmed nor ruled it out. An investigation: measure first.
+
+**What is intended.** A melody is sixteen steps, one measure ([MELODY_SYSTEM.md](../MELODY_SYSTEM.md)). The melody's
+`16n` tick plays step `(stepCounter % 16) + 1` (`startMelodyPlayback`, `src/engine/AudioEngine.ts`), and `stepCounter`
+starts at 0, so step 1 is meant to fall on a measure's first sixteenth.
+
+**What was seen.** In the log, taken at note triggers, a measure's steps 1 to 15 carried BeatClock's measure *m* and
+step 16 carried *m + 1*: by the time step 16 is triggered, BeatClock has already moved to the next measure. Read at
+face value, step 16 sounds on a measure's first sixteenth and step 1 on its second. Seen in each of the three runs
+whose log held a step 16, on the spike branch only.
+
+**Two readings, and the log cannot tell them apart:**
+
+- The melody loop runs one sixteenth late: its first tick, at transport time 0, never fires, so `stepCounter` 0 lands
+  on the second sixteenth.
+- BeatClock turns the measure over one sixteenth early: it reads `transport.position` inside a callback that runs a
+  lookahead ahead of the time it is scheduled for.
+
+**Why it matters.** If the melody is late, a chord change lands on step 16 and not on step 1, and the motif accent on
+a repeat window's first event (MELODY_SYSTEM.md's "downbeat") is a sixteenth after the bar. If BeatClock is early,
+everything that runs on the measure (the docking tick, the swells, the harmony cycle of backlog 82) acts a sixteenth
+before the bar. Either way two clocks that should agree do not.
+
+**To find out:**
+
+- Reproduce on `main`: at each melody tick and each BeatClock tick log the transport's own tick count for that
+  callback's time, and see which of the two is off the sixteenth it claims.
+- Hear it: a robot's testing-only Click Track (`src/engine/clickTrack.ts`: quarter notes on steps 1, 5, 9 and 13,
+  never humanized) against a reference click on the transport's bar.
+- Whether the first melody tick is lost at power-on, and whether a pause and resume keeps or moves the offset.
+
+Plan.md Stage 3.
+
+### 84. Audio: Keep a Robot Playing until It Is in the Station
+
+Raised by Crawford on 2026-11-12, during backlog [79](#79-robots-move-in-time-with-their-own-melody)'s spike. 79's
+notes show what a robot is playing, so they stop when it goes quiet, and a robot heading home goes quiet long before
+it disappears. He wants it to keep playing until it is in its station.
+
+**Today.** A robot's audio follows its docking state, and its swim home does not:
+
+- A recalled robot lands on `Docked` at the first measure tick at or after the measure following the recall
+  (`dockingHoldUntilMeasure: measure + 1`, `src/systems/robotSystems.ts`), so within one measure, wherever it is.
+  [ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md#the-docking-state-machine) says so: "a recalled robot can land on `Docked`
+  while it is still swimming home, and the work loop simply finishes the trip."
+- A `Docked` robot is silent (`isDockMuted`, `src/utils/robotAudibility.ts`).
+- The work loop meanwhile swims it home (`activity: 'returning'`), plays the arc into the station (`'entering'`) and
+  only then writes `'charging'` (`src/systems/workLoop.ts`).
+
+So for most of the trip home the robot is in view and makes no sound.
+
+**What it touches, so an interview comes first** (CLAUDE.md: ask before changing the audio architecture):
+
+- **Two machines, two clocks.** ROBOT_LIFECYCLE.md: the docking machine never reads `activity`. Keeping the robot
+  audible until it is in the station means either the mute follows the work loop's arrival, or the landing waits for
+  it. Each breaks that rule somewhere, and which is the design question.
+- **What a landing does.** `landOnDocked` is where the battery starts to recharge and the melody's pitch drift is
+  stored. Whether those move with the mute or stay on the measure.
+- **The Audio Load budget.** A robot muted by the dock stands by and gives up its voice (`audioBudgetSystem.ts`,
+  [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget)); a robot kept playing keeps its voice and its place in the
+  sounding set for the length of the swim.
+- **What reads "is it sounding".** The mode light on a card and a tile, and the Deck's count of active probes.
+- **The way out.** Whether a robot leaving its station is heard before it appears, the mirror of this, to be checked.
+- **Backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs)** (fade a robot's audio in and out on its
+  station arcs), off the plan since 2026-11-11. This item is the same edge: 74 would smooth it, this one moves it.
+  Whether 74 folds into this is Crawford's call.
+
+Plan.md Stage 4.
+
+### 85. Robots: Fixed-Width Boundary Lines, No Edit Flicker
+
+Agreed by Crawford on 2026-11-12, twice: first during backlog [79](#79-robots-move-in-time-with-their-own-melody)'s
+spike, when a note pulse was going to take over the lit strips, and again once that pulse was rejected and the note
+cloud replaced it ("yes, as its own item"). Two cleanups on the robot's body, wanted for their own sake: the
+differences they draw are too small to see below a 4K screen.
+
+**Today.**
+
+- **Line widths follow settings.** A Top or Mid boundary line is 0.3 to 0.7 gem units wide, from the depth of that
+  layer's gain-LFO link (`BODY_LINE_MIN` / `BODY_LINE_MAX`, `src/components/robot/gem/bodyLineDials.ts`). An
+  orbiter's is 0.3 to 1.1, from Note Variance (`(ORBITER_LINE_BASE + value) / 10`,
+  `src/components/robot/gem/orbiterDials.ts`). The lit strip down a line is a third of its width (`RobotGem.tsx`), so
+  0.1 to 0.37 gem units: under a CSS pixel in the world.
+- **An edit flickers a line.** `useStripFlicker` (`src/components/robot/gem/useStripFlicker.ts`) plays a two-second
+  flicker on a line's strips when one of its values changes: the link's depth or lane, a Mid's layer gain, Note
+  Variance, Pitch Repeat. Two of those, the depth and Note Variance, are the values the widths read.
+
+**Wanted.**
+
+- Every boundary line a fixed width; `bodyLineDials` and the orbiters' `lineWidth` dial go.
+- `useStripFlicker` goes, with its trigger tuples in `RobotBody.tsx`.
+
+**To settle in a short interview first:**
+
+- The one width, or one for the body and one for the orbiters. Today's ranges overlap at 0.3 to 0.7.
+- The orbiters' strip opacity (0.35 to 1 from Pitch Repeat, `ORBITER_STRIP_OPACITY_MIN`). It was to be taken over by
+  the note pulse; with the pulse rejected, Crawford has not said whether it stays a dial or becomes fixed like the
+  body's (`BODY_STRIP_OPACITY`, 0.6).
+- Whether an edit to a Mid's layer gain, which also moves that Mid's lit level, needs any sign once the flicker is
+  gone.
+
+**What it touches.** [ROBOT_DESIGN.md](../ROBOT_DESIGN.md) lists the dials, and CLAUDE.md's Visual Mapping guardrail
+points at that list, so the list is edited with the code. The guardrail's own sentence does not change: removing a
+dial relaxes nothing. No audio, no state, nothing in a session or on a link.
+
+Plan.md Stage 4.
 

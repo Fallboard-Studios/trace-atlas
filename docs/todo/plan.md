@@ -21,12 +21,21 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Empty: backlog 80 (oscillator freeze fix, feb3cd1d) and 81 (monitor mode, ea9c4f04) both merged 2026-11-11. Stage 4 is next.
+- Backlog [82](backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time) **The chord cycle's timing** —
+  measure first: the palette sometimes changes two measures late, differently from one power-on to the next; find the
+  cause, then decide whether the cycle needs its own timer at all.
+- Backlog [83](backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) **Melody steps against the
+  measure** — measure first: step 1 may sound on a measure's second sixteenth; find which of the two clocks is off.
 
 ## Stage 4 — Visual refinement
 
 - Backlog [79](backlog.md#79-robots-move-in-time-with-their-own-melody) **Robots move in time with their melody** — a
   new animated dial and a transport-to-tween path; interview, then Crawford's approval of the architecture.
+- Backlog [84](backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station) **A robot plays until it is in
+  its station** — interview first: a recalled robot goes silent within a measure, mid-swim, and 79's notes stop with it.
+- Backlog [85](backlog.md#85-robots-fixed-width-boundary-lines-no-edit-flicker) **Fixed-width boundary lines, no edit
+  flicker** — a short interview first: the line-width dials draw differences too small to see, and the flicker's
+  triggers go with them.
 
 ## Stage 5 — UX refinement
 
