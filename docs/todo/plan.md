@@ -21,7 +21,11 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Empty: backlog 80 (oscillator freeze fix, feb3cd1d) and 81 (monitor mode, ea9c4f04) both merged 2026-11-11. Stage 4 is next.
+- Backlog [82](backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time) **The chord cycle's timing** —
+  measure first: the palette sometimes changes two measures late, differently from one power-on to the next; find the
+  cause, then decide whether the cycle needs its own timer at all.
+- Backlog [83](backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) **Melody steps against the
+  measure** — measure first: step 1 may sound on a measure's second sixteenth; find which of the two clocks is off.
 
 ## Stage 4 — Visual refinement
 
