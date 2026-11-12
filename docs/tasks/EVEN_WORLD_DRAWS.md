@@ -312,7 +312,7 @@ re-seeded in the same commit (the probe table).
 
   **Estimated scope:** M (one source, one busy test file, one deletion by decision)
 
-- [ ] **Task 5: districts.ts — factory scale, scenery ids and the derelict roll draw even; the re-hash goes**
+- [x] **Task 5: districts.ts — factory scale, scenery ids and the derelict roll draw even; the re-hash goes**
 
   **Description:** In `placeDistrict`, switch `factory.scale`, `scenery.id` and `actor.derelict`; `rollDerelict`
   compares the even draw against the ratio directly, its `alea(String(rawRoll))()` line and the comment explaining it
@@ -592,6 +592,25 @@ survived it; a second parity case over 30 grid worlds (every Active count among 
   (the full suite's only failure after the switch). It now clones a grid host to a second x with the same id, with
   the precondition that the clone still hosts; keying the site cache by id fails it.
 - Mutants killed: each of the six draws put back on the plain draw, the primary at offset 0.37.
+
+### T5: as built
+
+- **The sample** is 200 real `dense` placements, placed once on first use: 8,013 derelict-capable actors (factories
+  and tank/dome/scaffold scenery; `DERELICT_CAPABLE_KINDS` is exported for the test), over 5,000 factories and 2,000
+  scenery. The plan's "more than 3,900 distinct over 4,000 scenery" is asserted as its ratio, more than 97.5 %
+  distinct over every scenery actor placed (plain draw: 76.9 %).
+- **The derelict share case is not a RED**: the old plain draw plus re-hash already realised about 25 %. The RED is the
+  call check (now on the even draw), and the share case kills the plain draw without the re-hash; it also asserts no
+  non-capable actor is ever derelict.
+- **The scale/id correlation case passes before the switch**: T4 made `factory.id` even, which already broke the 1.0
+  correlation. It stays as a guard; the scale's outer tenths (plain: 3.7 %) are its RED.
+- **`jobCoverage.test.ts`'s "only in districts whose recipes fall short" passes** after the switch, so it is not
+  re-pinned; the probe's failure came from the T4 and T5 draws together, and T4 alone did not fail it either.
+- **The station case is open**: `stations.test.ts` fails on world (−160, −120), station 2 (box from x 551), as the
+  probe said. It is the full suite's only failure (13,888 passed, 2 skipped, 1 failed of 13,891); Checkpoint B's
+  decision.
+- Mutants killed: the derelict roll on the plain draw with and without the re-hash, the capable-kind check dropped,
+  `scenery.id` and `factory.scale` on the plain draw.
 
 ### Checkpoint A / B: the harness sections
 
