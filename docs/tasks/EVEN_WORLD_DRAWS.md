@@ -421,11 +421,18 @@ re-seeded in the same commit (the probe table).
   **Estimated scope:** XS
 
 ### Checkpoint C: Code complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean, the station case included (its
-  decision made and, if (a), its task N0 built).
-- [ ] The T7 record meets spec §6's measurable criteria.
-- [ ] Any narrowing from the two looks becomes a task (N1, N2, …): a band, ratio or count change, or a
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean, the station case included (its
+  decision made and, if (a), its task N0 built). 2026-11-11 at T7 (`b095cf09`): types and build clean; lint 0 errors,
+  4 warnings, all in `Scenery.tsx` and `gemShape.tsx`, which this branch does not touch; 13,894 passed, 2 skipped,
+  **0 failed** of 13,896, the station case included. Both full runs also reported **one unhandled error**,
+  `[vitest-worker]: Timeout calling "onTaskUpdate"` (backlog 66's error, closed 2026-11-10 with `maxWorkers` 8), not a
+  test. Not chased: none of this branch's new tests is an outlier (the slowest, the 200-placement derelict case, takes
+  3.8 s; nine older cases take longer, the loop sim 12.5 s). Crawford's call whether it gets a backlog entry.
+- [x] The T7 record meets spec §6's measurable criteria: no §1.3 call site uses the plain draw and the three walks
+  still do; the grid has no silent world (T3, and case 17 green in this run); the after-table and timings are recorded.
+- [x] Any narrowing from the two looks becomes a task (N1, N2, …): a band, ratio or count change, or a
   `getCentredSeededVal` for one of spec §1.5's four bands, each with a RED guard on the new edge, one commit each.
+  **None**: both looks passed with nothing to narrow, so no N task.
 
 ---
 
