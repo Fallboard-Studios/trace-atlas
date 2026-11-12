@@ -51,7 +51,7 @@ import {
   seedToggleValue,
 } from './robotFieldDerivation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
-import { getCentredSeededVal, getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { getCentredSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { quantizeToStep } from '../utils/math';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '../constants/accentColors';
 import type { RobotLfoTargetId, LfoLaneId, LfoLink } from '../types/lfo';
@@ -110,11 +110,11 @@ function seedMasterVolume(noiseMap: NoiseFunction2D, spawnCount: number, octaveR
 // with a distinct COMPANY_NOUNS list so a generated company name can never take the exact same
 // word-pair form a robot name can (see docs/specs/archive/COMPANIES.md §7.3).
 export const ADJECTIVES = ['Iron', 'Null', 'Silent', 'Drift', 'Azure', 'Rust', 'Neon', 'Glass', 'Solar', 'Tidal'];
-const NOUNS = ['Drifter', 'Tide', 'Warden', 'Seeker', 'Courier', 'Wisp', 'Beacon', 'Nomad', 'Rover', 'Pilot'];
+export const NOUNS = ['Drifter', 'Tide', 'Warden', 'Seeker', 'Courier', 'Wisp', 'Beacon', 'Nomad', 'Rover', 'Pilot'];
 
 function generateRobotName(noiseMap: NoiseFunction2D, offset: number): string {
-  const a = ADJECTIVES[Math.floor(getSeededVal(noiseMap, 'robot.name.adj', offset, 0, ADJECTIVES.length))];
-  const n = NOUNS[Math.floor(getSeededVal(noiseMap, 'robot.name.noun', offset, 0, NOUNS.length))];
+  const a = ADJECTIVES[Math.floor(getUniformSeededVal(noiseMap, 'robot.name.adj', offset, 0, ADJECTIVES.length))];
+  const n = NOUNS[Math.floor(getUniformSeededVal(noiseMap, 'robot.name.noun', offset, 0, NOUNS.length))];
   return `${a} ${n}`;
 }
 
@@ -122,14 +122,15 @@ function generateRobotName(noiseMap: NoiseFunction2D, offset: number): string {
  * Deterministic per-robot identity color (Roadmap Phase 14, docs/specs/
  * COLOR_SCHEME_TRAIT_THEMING.md §1.4) — UI chrome only (RobotSelectionCard/RobotDisplaySection),
  * never the SVG body's own ADSR/waveform-derived HSL fill. Same generation mechanism as
- * generateRobotName above: one getSeededVal draw against ROBOT_IDENTITY_COLOR_NAMES (the 18 hue
- * keys — black/white/darkGray are deliberately excluded there, not filtered here).
+ * generateRobotName above: one even draw against ROBOT_IDENTITY_COLOR_NAMES (the 18 hue
+ * keys — black/white/darkGray are deliberately excluded there, not filtered here), so every hue
+ * colours an equal share of robots (docs/specs/EVEN_WORLD_DRAWS.md).
  */
 function generateRobotIdentityColor(noiseMap: NoiseFunction2D, offset: number): string {
   // Clamped (matching the weighted picks' own last-option fallback, not generateRobotName's
   // unclamped one) since the failure mode of an out-of-range index here is a visibly broken
   // undefined CSS custom property, not just a missing name syllable.
-  const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getSeededVal(noiseMap, 'robot.identityColor', offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
+  const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getUniformSeededVal(noiseMap, 'robot.identityColor', offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
   return ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
 }
 
@@ -139,10 +140,11 @@ const GEM_SEED_MAX = 2 ** 31;
 /**
  * The robot's gem-polygon body seed (Roadmap Phase 39, docs/specs/GEM_POLYGON_ROBOTS.md §1.1) —
  * same shape as generateRobotIdentityColor above: identity, not audio, drawn once at spawn,
- * never inherited from a company founder. Clamped because the noise sampler can return exactly `max`.
+ * never inherited from a company founder. An even draw, so seeds rarely repeat across worlds
+ * (docs/specs/EVEN_WORLD_DRAWS.md); clamped as a guard, the even draw itself stays under `max`.
  */
 function generateGemSeed(noiseMap: NoiseFunction2D, offset: number): number {
-  return Math.min(GEM_SEED_MAX - 1, Math.floor(getSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
+  return Math.min(GEM_SEED_MAX - 1, Math.floor(getUniformSeededVal(noiseMap, 'robot.gem.seed', offset, 0, GEM_SEED_MAX)));
 }
 
 /**
@@ -164,13 +166,13 @@ export const COMPANY_NOUNS = ['Collective', 'Consortium', 'Guild', 'Division', '
 
 /**
  * Deterministic, human-legible company name — same generation mechanism as generateRobotName
- * (ADJECTIVES + a word-list draw, same getSeededVal pattern), but exported: unlike robot names,
+ * (ADJECTIVES + a word-list draw, the same even draw), but exported: unlike robot names,
  * a company's suggested name is re-shown to the user at Create time (CompanyCrudControls), so it
  * needs a reuse point robot names never did.
  */
 export function generateCompanyName(noiseMap: NoiseFunction2D, offset: number): string {
-  const a = ADJECTIVES[Math.floor(getSeededVal(noiseMap, 'company.name.adj', offset, 0, ADJECTIVES.length))];
-  const n = COMPANY_NOUNS[Math.floor(getSeededVal(noiseMap, 'company.name.noun', offset, 0, COMPANY_NOUNS.length))];
+  const a = ADJECTIVES[Math.floor(getUniformSeededVal(noiseMap, 'company.name.adj', offset, 0, ADJECTIVES.length))];
+  const n = COMPANY_NOUNS[Math.floor(getUniformSeededVal(noiseMap, 'company.name.noun', offset, 0, COMPANY_NOUNS.length))];
   return `${a} ${n}`;
 }
 
@@ -179,7 +181,7 @@ export function generateCompanyName(noiseMap: NoiseFunction2D, offset: number): 
  *  above) so generateCompanyRosterBaseline below — and Session Storage's sessionDiff.ts, which
  *  needs a company's id to match it against a live company — can call it directly. */
 export function generateCompanyId(noiseMap: NoiseFunction2D, index: number): string {
-  const idSeed = getSeededVal(noiseMap, 'company.id', index, 0, 1);
+  const idSeed = getUniformSeededVal(noiseMap, 'company.id', index, 0, 1);
   return `company-${index}-${idSeed.toString(36).slice(2, 10)}`;
 }
 
@@ -208,7 +210,7 @@ export function generateCompanyIdentityColor(noiseMap: NoiseFunction2D, offset: 
   let lastColor = ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[0]];
   for (let attempt = 0; attempt < ROBOT_IDENTITY_COLOR_NAMES.length; attempt++) {
     const dataId = attempt === 0 ? 'company.identityColor' : `company.identityColor.retry${attempt}`;
-    const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getSeededVal(noiseMap, dataId, offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
+    const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getUniformSeededVal(noiseMap, dataId, offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
     lastColor = ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
     if (!used.has(lastColor)) return lastColor;
   }
@@ -223,14 +225,14 @@ export function generateCompanyIdentityColor(noiseMap: NoiseFunction2D, offset: 
  * seeding mechanism (same as every other spawn-time attribute) rather than
  * crypto.randomUUID(). Uniqueness is structural, not actively checked: `spawnCount`
  * is a monotonic per-locale counter, embedded directly in the ID string, and
- * `getSeededVal`'s 'robot.id' dataId gives this field its own row in the noise
- * map distinct from every other seeded field. Required so Session Storage
+ * the suffix is an even draw under its own 'robot.id' dataId, so it varies from
+ * world to world at every spawn count (docs/specs/EVEN_WORLD_DRAWS.md). Required so Session Storage
  * (Phase 20) can reapply Robot Options overrides by ID after the roster
  * regenerates from a reload or shared link — the same coordinates always
  * replay the same spawnCount sequence and therefore the same ID sequence.
  */
 function generateRobotId(noiseMap: NoiseFunction2D, spawnCount: number): string {
-  const idSeed = getSeededVal(noiseMap, 'robot.id', spawnCount, 0, 1);
+  const idSeed = getUniformSeededVal(noiseMap, 'robot.id', spawnCount, 0, 1);
   return `robot-${spawnCount}-${idSeed.toString(36).slice(2, 10)}`;
 }
 
@@ -267,8 +269,8 @@ function getAndIncrementSpawnCount(localeId: string): number {
  */
 export function generateSpawnPosition(noiseMap: NoiseFunction2D, offset: number): Vec2 {
   return {
-    x: getSeededVal(noiseMap, 'spawn.pos.x', offset, 0, WORLD_WIDTH),
-    y: WORLD_HEIGHT + OFFSCREEN_OFFSET + getSeededVal(noiseMap, 'spawn.pos.y', offset, 0, 50),
+    x: getUniformSeededVal(noiseMap, 'spawn.pos.x', offset, 0, WORLD_WIDTH),
+    y: WORLD_HEIGHT + OFFSCREEN_OFFSET + getUniformSeededVal(noiseMap, 'spawn.pos.y', offset, 0, 50),
   };
 }
 
@@ -484,8 +486,8 @@ export interface CompanyRosterBaseline {
 /**
  * The seeded companies' members as roster indices (Company Families §1.11, Task 4): pure, from the noise map alone, so
  * spawn can know the membership before any robot exists. The draws ('company.count', 'company.size',
- * 'company.member', plain getSeededVal) are spawnInitialCompanies' own from before families, in the same order, over
- * a pool of indices instead of live ids. B4's cap: a company takes at most the pool less FREELANCERS_MIN, and a company
+ * 'company.member', even since docs/specs/EVEN_WORLD_DRAWS.md) are spawnInitialCompanies' own from before families, in
+ * the same order, over a pool of indices instead of live ids. B4's cap: a company takes at most the pool less FREELANCERS_MIN, and a company
  * that cannot then reach COMPANY_SIZE_MIN is not made (B14), nor is any after it (the pool only shrinks). A world the
  * cap does not touch keeps exactly the membership it had. Each company is listed in draw order, so its founder (the
  * lowest index, B6) is `Math.min(...members)`, not `members[0]`.
@@ -493,19 +495,19 @@ export interface CompanyRosterBaseline {
 export function generateCompanyMembership(noiseMap: NoiseFunction2D, rosterSize: number = MAX_ROBOTS): number[][] {
   let pool = Array.from({ length: rosterSize }, (_, i) => i);
   const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
-    getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
+    getUniformSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
   );
 
   const companies: number[][] = [];
   for (let c = 0; c < companyCount; c++) {
     const size = Math.min(pool.length - FREELANCERS_MIN, COMPANY_SIZE_MIN + Math.floor(
-      getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
+      getUniformSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
     ));
     if (size < COMPANY_SIZE_MIN) break;
 
     const members: number[] = [];
     for (let i = 0; i < size; i++) {
-      const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
+      const idx = Math.floor(getUniformSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
       members.push(pool[idx]);
       pool = pool.filter((_, j) => j !== idx);
     }
@@ -771,7 +773,7 @@ export function spawnInitialRoster(localeId: string): void {
 
   const activeCount = INITIAL_ACTIVE_ROBOTS_MIN + Math.floor(
     noiseMap
-      ? getSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
+      ? getUniformSeededVal(noiseMap, 'roster.activeCount', 0, 0, INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
       : alea(`${localeId}:activeCount`)() * (INITIAL_ACTIVE_ROBOTS_MAX - INITIAL_ACTIVE_ROBOTS_MIN + 1)
   );
 
@@ -786,7 +788,7 @@ export function spawnInitialRoster(localeId: string): void {
     } else {
       const dockedBattery = Math.floor(
         noiseMap
-          ? getSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)
+          ? getUniformSeededVal(noiseMap, 'roster.dockedBattery', i, 0, 100)
           : alea(`${localeId}:dockedBattery:${i}`)() * 100
       );
       spawnRobot(localeId, { docking: DockingState.Docked, batteryLevel: dockedBattery, founderIndex });

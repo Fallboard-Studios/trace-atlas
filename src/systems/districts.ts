@@ -1,10 +1,9 @@
 // ========================================
 // IMPORTS
 // ========================================
-import alea from 'alea';
 import type { NoiseFunction2D } from 'simplex-noise';
 import { ActorType, type Actor, type DistrictName, type SceneryKind } from '../types/Actor';
-import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
+import { getUniformSeededVal } from '../utils/getSeededVal';
 import { useLocaleStore } from '../stores/localeStore';
 import { useAttenuationStyleStore } from '../stores/attenuationStyleStore';
 import { getLocaleNoiseMap, getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
@@ -110,7 +109,7 @@ function isPlaceableScenery(kind: DistrictRow['kind']): kind is SceneryKind {
 
 /** Families that can roll `config.derelict` at placement — docs/specs/WORLD_VIEW_DISTRICTS.md
  *  §1.6. Wrecks are always derelict and carry no flag, so they're deliberately absent here. */
-const DERELICT_CAPABLE_KINDS = new Set<DistrictRow['kind']>(['factory', 'tank', 'dome', 'scaffold']);
+export const DERELICT_CAPABLE_KINDS = new Set<DistrictRow['kind']>(['factory', 'tank', 'dome', 'scaffold']);
 
 /** This row's base y for an item at `x`, resolved from its anchor (§1.4). `floorY` is
  *  guaranteed present when `anchor === 'floor'` by Task 2's own `districtRecipes.test.ts`. */
@@ -167,17 +166,12 @@ export function placeDistrict(localeId: string): Actor[] {
   let actorIndex = 0;
   let sceneryIndex = 0;
 
-  // Shared by both branches below: rolls this actor's derelict flag (§1.6),
-  // re-hashed through alea() before the threshold compare — same fix as
-  // pickDistrict's bucket split (see its doc comment). Raw simplex output
-  // is bell-curved, not uniform, so `rawRoll < ratio` alone under-fires
-  // for any ratio off-center from 0.5 (measured: a nominal 0.25 ratio
-  // fired ~0.15 of the time with the raw value, ~0.25 once re-hashed).
+  // Shared by both branches below: rolls this actor's derelict flag (§1.6).
+  // The even draw fills [0, 1), so the ratio is the share as written.
   const rollDerelict = (row: DistrictRow): boolean => {
     const actorIdx = actorIndex++;
     const ratio = row.derelict ?? DERELICT_RATIO;
-    const rawRoll = getSeededVal(noiseMap, 'actor.derelict', actorIdx, 0, 1);
-    const roll = alea(String(rawRoll))();
+    const roll = getUniformSeededVal(noiseMap, 'actor.derelict', actorIdx, 0, 1);
     return DERELICT_CAPABLE_KINDS.has(row.kind) && roll < ratio;
   };
 
@@ -185,7 +179,7 @@ export function placeDistrict(localeId: string): Actor[] {
   // its footprint width for spreadXs. Shared by the recipe rows and the coverage top-ups.
   const placeScenery = (row: DistrictRow, rowIndex: number, x: number): { actor: Actor; w: number } => {
     const index = sceneryIndex++;
-    const idSeed = getSeededVal(noiseMap, 'scenery.id', index, 0, 1);
+    const idSeed = getUniformSeededVal(noiseMap, 'scenery.id', index, 0, 1);
     const id = `scenery-${index}-${idSeed.toString(36).slice(2, 10)}`;
     const kind = row.kind as SceneryKind;
 
@@ -227,7 +221,7 @@ export function placeDistrict(localeId: string): Actor[] {
       const nextWidth = (x: number): number => {
         const index = factoryIndex++;
         const id = generateFactoryId(noiseMap, index);
-        const scale = getSeededVal(noiseMap, 'factory.scale', index, 0.9, 1.1);
+        const scale = getUniformSeededVal(noiseMap, 'factory.scale', index, 0.9, 1.1);
         const asShift = asNoiseMap ? deriveAsColorShift(asNoiseMap, index) : { hueShift: 0, satShift: 0 };
         const accentTarget = asNoiseMap && accentPair ? pickAccentTarget(asNoiseMap, accentPair, index) : undefined;
 

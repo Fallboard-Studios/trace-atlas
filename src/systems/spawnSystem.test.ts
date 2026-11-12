@@ -3118,8 +3118,9 @@ describe('spawnSystem', () => {
         );
 
       it('every robot of a real roster has exactly the melody the post-pass makes from its own fields, and some are stamped', () => {
-        // A plot whose roster stamps both a rest and a mark (the default plot's thinned melodies, after the attack rail, land none).
-        freshLocale(rosterLocale, { x: 7, y: 11 });
+        // A plot whose roster stamps both a rest and a mark (the default plot's thinned melodies, after the attack rail, land
+        // none). (7, 11) until Even World Draws T2 moved its membership; (1, 1) stamps rests on 7 robots and marks on 9.
+        freshLocale(rosterLocale, { x: 1, y: 1 });
         spawnInitialRoster(rosterLocale);
         const robots = useLocaleStore.getState().getLocaleById(rosterLocale)!.robots;
         expect(robots.length).toBeGreaterThan(0);
@@ -3442,13 +3443,14 @@ describe('spawnSystem', () => {
      *  over roster indices instead of ids, with no cap. Written out here, never by calling the new function. */
     const todaysMembership = (noiseMap: NoiseFunction2D, rosterSize = MAX_ROBOTS): number[][] => {
       let pool = Array.from({ length: rosterSize }, (_, i) => i);
-      const count = INITIAL_COMPANIES_MIN + Math.floor(getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1));
+      // The draws even since Even World Draws T2, as the shipped code's (so "today's" means today's code).
+      const count = INITIAL_COMPANIES_MIN + Math.floor(getUniformSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1));
       const companies: number[][] = [];
       for (let c = 0; c < count && pool.length > 0; c++) {
-        const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)));
+        const size = Math.min(pool.length, COMPANY_SIZE_MIN + Math.floor(getUniformSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)));
         const members: number[] = [];
         for (let i = 0; i < size; i++) {
-          const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
+          const idx = Math.floor(getUniformSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
           members.push(pool[idx]);
           pool = pool.filter((_, j) => j !== idx);
         }
@@ -3740,17 +3742,21 @@ describe('spawnSystem', () => {
     // over the roster): robot 4, a copy of robot 0 under the retired copy roll, is an original now (a shaped release,
     // bounce, with shimmer); robot 11 is a company member, so its tiers moved to two originals, 13 (a lowpass accent with
     // grit) and 14 (a shaped attack, ripple, with grit); robot 50 moved one LFO lane (layer1.gain c -> b), the tally now
-    // counting the members' inherited links.
+    // counting the members' inherited links. Re-captured at Even World Draws T2, whose even membership draws make robots
+    // 4 and 50 company members and leave no original pairing a shaped release with shimmer: the tiers are now five
+    // originals, 7 (a shaped attack, step, with shimmer), 13 (a lowpass accent with grit; one LFO lane moved,
+    // layer0.detune b -> c), 14 (a shaped attack, ripple, and a shaped release, step, with grit; unchanged), 16 (the
+    // bandpass accent with double) and 28 (the roster's one glider).
     const PARITY_TIERS: Record<number, Omit<RobotAudioBaseline, 'name'>> = {
-      4: {
+      7: {
         audioAttributes: {
-          adsr: { attack: 1.956759051894769, decay: 1.9473565462976694, sustain: 0.7924570618197322, release: 0.7145893696229906, attackCurve: 'linear', releaseCurve: 'bounce' },
-          octaveRange: [4, 6], filterFreq: 6702.621109783649, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'sawtooth', phase: 97, detune: 0, pulseWidth: 0.05575906191952527,
-          layers: [{ type: 'triangle', gain: 0.67, detune: -1, phase: 359 }, { type: 'triangle', gain: 0.77, detune: -1, phase: 215 }, { type: 'pulse', gain: 0, detune: 1, phase: 118 }],
+          adsr: { attack: 0.07869219868909567, decay: 1.3084454676136374, sustain: 0.43424307787790895, release: 1.9482753654243425, attackCurve: 'step', releaseCurve: 'linear' },
+          octaveRange: [5, 7], filterFreq: 7744.446364231408, filterQ: 1, filterType: 'lowpass', portamento: 0, waveform: 'triangle', phase: 150, detune: 2, pulseWidth: 0.7164525624131783,
+          layers: [{ type: 'square', gain: 0.92, detune: -2, phase: 51 }, { type: 'triangle', gain: 0, detune: 0, phase: 178 }, { type: 'square', gain: 0, detune: 0, phase: 46 }],
         } as AudioAttributes,
-        octaveRange: [4, 6], rhythmicDensity: 14, rhythmicMotifLength: { active: true, value: 8 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 94, dynamics: 65, rests: 2, accents: 21,
-        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'd', depth: 3 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'd', depth: 4 } },
-        reverbSend: 0.23, delaySend: 0, gritSend: 0, shimmerSend: 0.36, doubleSend: 0, masterVolume: 0.82,
+        octaveRange: [5, 7], rhythmicDensity: 96, rhythmicMotifLength: { active: true, value: 3 }, noteVariance: { active: false, value: 0 }, pitchRepeat: 95, dynamics: 65, rests: 2, accents: 5,
+        lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'a', depth: 1 }, 'layer2.gain': { lane: 'b', depth: 33 }, 'layer2.detune': { lane: 'c', depth: 6 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.39, delaySend: 0, gritSend: 0, shimmerSend: 0.33, doubleSend: 0, masterVolume: 0.65,
       },
       13: {
         audioAttributes: {
@@ -3759,7 +3765,7 @@ describe('spawnSystem', () => {
           layers: [{ type: 'square', gain: 1.11, detune: 0, phase: 154 }, { type: 'sawtooth', gain: 1.02, detune: 0, phase: 34 }, { type: 'triangle', gain: 0, detune: 1, phase: 7 }],
         } as AudioAttributes,
         octaveRange: [4, 6], rhythmicDensity: 5, rhythmicMotifLength: { active: true, value: 3 }, noteVariance: { active: true, value: 5 }, pitchRepeat: 10, dynamics: 64, rests: 7, accents: 24,
-        lfoLinks: { 'layer0.gain': { lane: 'a', depth: 32 }, 'layer0.detune': { lane: 'b', depth: 2 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 3 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        lfoLinks: { 'layer0.gain': { lane: 'a', depth: 32 }, 'layer0.detune': { lane: 'c', depth: 2 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: 'b', depth: 3 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.35, delaySend: 0, gritSend: 0.41, shimmerSend: 0, doubleSend: 0, masterVolume: 0.76,
       },
       14: {
@@ -3772,21 +3778,35 @@ describe('spawnSystem', () => {
         lfoLinks: { 'layer0.gain': { lane: null, depth: 0 }, 'layer0.detune': { lane: 'c', depth: 3 }, 'layer1.gain': { lane: 'a', depth: 14 }, 'layer1.detune': { lane: 'a', depth: 1 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: 'd', depth: 5 }, 'bus.frequency': { lane: null, depth: 0 } },
         reverbSend: 0.46, delaySend: 0, gritSend: 0.71, shimmerSend: 0, doubleSend: 0, masterVolume: 0.73,
       },
-      50: {
+      16: {
         audioAttributes: {
-          adsr: { attack: 1.8618122535315342, decay: 1.7409854433499277, sustain: 0.36384062259458005, release: 1.6627617875812575, attackCurve: 'linear', releaseCurve: 'linear' },
-          octaveRange: [4, 6], filterFreq: 981.7550272680819, filterQ: 5.9, filterType: 'bandpass', portamento: 0.08, waveform: 'sawtooth', phase: 16, detune: -2, pulseWidth: 0.15774889986496418,
-          layers: [{ type: 'sawtooth', gain: 0.98, detune: -1, phase: 125 }, { type: 'sine', gain: 0.74, detune: 0, phase: 5 }, { type: 'triangle', gain: 0, detune: 0, phase: 329 }],
+          adsr: { attack: 1.9660634227166884, decay: 1.962196541018784, sustain: 0.37567537860013545, release: 0.7066211605630816, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [1, 3], filterFreq: 1528.405042621307, filterQ: 3.3, filterType: 'bandpass', portamento: 0, waveform: 'pulse', phase: 220, detune: 1, pulseWidth: 0.4464993801200762,
+          layers: [{ type: 'sawtooth', gain: 0.75, detune: 0, phase: 95 }, { type: 'triangle', gain: 0.31, detune: -2, phase: 341 }, { type: 'square', gain: 0.42, detune: 1, phase: 275 }],
         } as AudioAttributes,
-        octaveRange: [4, 6], rhythmicDensity: 14, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 2 }, pitchRepeat: 17, dynamics: 65, rests: 3, accents: 23,
-        lfoLinks: { 'layer0.gain': { lane: 'c', depth: 46 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: 'b', depth: 7 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
-        reverbSend: 0.1, delaySend: 0.29, gritSend: 0, shimmerSend: 0.26, doubleSend: 0, masterVolume: 0.73,
+        octaveRange: [1, 3], rhythmicDensity: 10, rhythmicMotifLength: { active: true, value: 5 }, noteVariance: { active: true, value: 4 }, pitchRepeat: 97, dynamics: 61, rests: 9, accents: 16,
+        lfoLinks: { 'layer0.gain': { lane: 'c', depth: 19 }, 'layer0.detune': { lane: 'b', depth: 6 }, 'layer1.gain': { lane: 'a', depth: 23 }, 'layer1.detune': { lane: 'c', depth: 5 }, 'layer2.gain': { lane: null, depth: 0 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: 'b', depth: 31 } },
+        reverbSend: 0.59, delaySend: 0.14, gritSend: 0, shimmerSend: 0, doubleSend: 0.45, masterVolume: 0.89,
+      },
+      28: {
+        audioAttributes: {
+          adsr: { attack: 0.847295454919804, decay: 1.9955490841530263, sustain: 0.6613638484850526, release: 0.5675344764161855, attackCurve: 'linear', releaseCurve: 'linear' },
+          octaveRange: [1, 3], filterFreq: 3511.334517970681, filterQ: 1, filterType: 'lowpass', portamento: 0.15, waveform: 'sine', phase: 49, detune: 0, pulseWidth: 0.7137682390632107,
+          layers: [{ type: 'sawtooth', gain: 0.45, detune: 0, phase: 104 }, { type: 'sawtooth', gain: 0.27, detune: 1, phase: 180 }, { type: 'pulse', gain: 0.69, detune: -1, phase: 123 }],
+        } as AudioAttributes,
+        octaveRange: [1, 3], rhythmicDensity: 2, rhythmicMotifLength: { active: true, value: 1 }, noteVariance: { active: true, value: 7 }, pitchRepeat: 92, dynamics: 62, rests: 5, accents: 7,
+        lfoLinks: { 'layer0.gain': { lane: 'b', depth: 14 }, 'layer0.detune': { lane: null, depth: 0 }, 'layer1.gain': { lane: null, depth: 0 }, 'layer1.detune': { lane: null, depth: 0 }, 'layer2.gain': { lane: 'b', depth: 47 }, 'layer2.detune': { lane: null, depth: 0 }, 'bus.frequency': { lane: null, depth: 0 } },
+        reverbSend: 0.45, delaySend: 0, gritSend: 0, shimmerSend: 0, doubleSend: 0, masterVolume: 0.78,
       },
     };
 
-    it('Classic parity, the tiers: a shaped stage, a lowpass and the bandpass accent and an exclusive send are value for value what the generator seeds', () => {
-      const roster = generateRobotRosterBaseline(createNoise2D(alea('band-table-parity')), 51).map(({ name: _name, ...rest }) => rest);
-      expect({ 4: roster[4], 13: roster[13], 14: roster[14], 50: roster[50] }).toEqual(PARITY_TIERS);
+    it('Classic parity, the tiers: a shaped stage, a lowpass and the bandpass accent, a glider and an exclusive send are value for value what the generator seeds', () => {
+      const noiseMap = createNoise2D(alea('band-table-parity'));
+      const roster = generateRobotRosterBaseline(noiseMap, 51).map(({ name: _name, ...rest }) => rest);
+      // Precondition: every tier robot is an original, so its tiers are its own draws, not a founder's.
+      const founders = companyFounders(generateCompanyMembership(noiseMap, 51));
+      for (const index of Object.keys(PARITY_TIERS).map(Number)) expect(founders.has(index), `robot ${index}`).toBe(false);
+      expect({ 7: roster[7], 13: roster[13], 14: roster[14], 16: roster[16], 28: roster[28] }).toEqual(PARITY_TIERS);
     });
 
     it('Classic parity: three spawned robots carry the ids, master volumes, densities and glides the constants seeded before the lift', () => {
@@ -3797,10 +3817,11 @@ describe('spawnSystem', () => {
       expect(robots.map((r) => [r.id, r.masterVolume, r.rhythmicDensity, r.audioAttributes.portamento])).toEqual([
         // The densities re-captured at the attack rail (82 -> 14). Robots 1 and 2 re-captured at Company Families Task 5:
         // they were copies of robot 0 under the retired copy roll (0.76, 14, 0.18 and 0.73, 14, 0.18); a robot spawned
-        // alone is an original now.
-        ['robot-0-ckli2vjx', 0.75, 14, 0.18],
-        ['robot-1-a9g7kk48', 0.71, 13, 0],
-        ['robot-2-mrmqcepa', 0.68, 98, 0.14],
+        // alone is an original now. The ids re-captured at Even World Draws T1 (the id suffix draws even; were
+        // ckli2vjx, a9g7kk48, mrmqcepa); the volumes, densities and glides unchanged.
+        ['robot-0-17kogycf', 0.75, 14, 0.18],
+        ['robot-1-fuk9s0k0', 0.71, 13, 0],
+        ['robot-2-dxgf3u9g', 0.68, 98, 0.14],
       ]);
     });
   });

@@ -66,6 +66,7 @@ import { useAudioStore } from '../stores/audioStore';
 import { spawnInitialRoster, spawnInitialCompanies } from '../systems/spawnSystem';
 import { SIM_SEED_COORDS } from '../systems/lifecycleSim';
 import { applyAspectDeal, rederiveLoading } from '../systems/aspectDeal';
+import { ASPECT_FAMILIES } from '../data/bands/aspects';
 import * as worldTransition from '../systems/worldTransition';
 import { stopRobotLifecycle } from '../systems/robotSystems';
 import { stopAudioSwells, tickAudioSwells, getActiveSwellSnapshot } from '../systems/audioSwells';
@@ -1012,7 +1013,8 @@ describe('applySessionPayload', () => {
     // saves a swelling field's base); the re-deal drops it, as a hand edit of the field does. Since
     // docs/tasks/OFF_SCREEN_FINAL_FIXES.md F16 the re-deal writes only what it moves, so a swell on a send the change
     // leaves standing rides on, and its base is still the seeded value: Keep diffs empty either way. The forced swell
-    // lands on a Shimmer send, which no Distance pick moves (aspectDeal.test.ts covers the dropped ones).
+    // lands on a Grit send, which no Distance pick moves (aspectDeal.test.ts covers the dropped ones). It was a Shimmer
+    // send until Even World Draws T2: the eligible pairs follow the seeded companies, whose membership draws even now.
     it('a re-deal keeps the swell riding a send it leaves standing, and the payload still diffs empty', () => {
       const localeId = setupWorld();
       spawnInitialRoster(localeId);
@@ -1035,7 +1037,9 @@ describe('applySessionPayload', () => {
         useLoadingStore.getState().setLoading({ theme: 'classic', aspects: { distance: ['halfHeard'] } });
         rederiveLoading(localeId, { theme: 'classic', aspects: {} }, audioSwells.cancelSwellForRobotAttribute);
 
-        expect(swell.robotAttribute).toBe('shimmerSend'); // precondition: a send no Distance pick moves
+        // precondition: a send no Distance pick moves
+        expect(swell.robotAttribute).toBe('gritSend');
+        expect(ASPECT_FAMILIES.distance.keys as readonly string[]).not.toContain(swell.robotAttribute);
         const riding = getActiveSwellSnapshot('robot').filter((s) => s.members!.some((m) => m.robotId === robotId));
         expect(riding.map((s) => s.robotAttribute)).toContain(swell.robotAttribute);
         expect(buildSessionPayload().robotOverrides).toEqual({});

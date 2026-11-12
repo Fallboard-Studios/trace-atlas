@@ -141,16 +141,19 @@ describe('stations (Phase 43 Task 13, spec §1.6)', () => {
 
     // Phase 43 Task 34b (Q2): the station's back fragment (L4) and an exiting robot draw in the back
     // robot row, under the midground. Stations avoid only hosts' bounds, so this is not guaranteed
-    // by placement; it holds over the grid (measured 2026-10-08: 0 of 284), and if a recipe change
-    // ever breaks it a midground silhouette would draw between L4 and L3 — revisit Task 34b's Q2.
-    it('no station box overlaps a midground silhouette (L4 sits in the back row)', () => {
+    // by placement (measured 2026-10-08: 0 of 284). Since Even World Draws T5 (2026-11-11) one grid
+    // world has an overlap: (-160, -120), station 2. Crawford looked at it and kept it (Checkpoint B,
+    // option b): the look is fine, so the measured overlaps are pinned here, not avoided by placement.
+    // A new overlap fails this case — look at the world, then re-pin or revisit Task 34b's Q2.
+    it('only the one known station box overlaps a midground silhouette (L4 sits in the back row)', () => {
+      const overlapping: string[] = [];
       for (const w of GRID) {
         const silhouettes = getMidgroundSilhouettes(w.id);
         for (const s of w.stations) {
-          const hit = silhouettes.find((o) => overlaps(stationBox(s.center), o));
-          expect(hit, `${w.id} ${s.id}`).toBeUndefined();
+          if (silhouettes.some((o) => overlaps(stationBox(s.center), o))) overlapping.push(`${w.id} ${s.id}`);
         }
       }
+      expect(overlapping).toEqual(['stations--160--120 station-2']);
     });
 
     it('nor does the largest robot at back-row scale, exiting at any port', () => {

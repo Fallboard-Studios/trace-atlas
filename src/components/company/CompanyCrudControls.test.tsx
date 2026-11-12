@@ -7,7 +7,7 @@ import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { MAX_COMPANIES } from '@/constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
-import { ADJECTIVES, COMPANY_NOUNS } from '@/systems/spawnSystem';
+import { generateCompanyName } from '@/systems/spawnSystem';
 import type { Company } from '@/types/Company';
 import type { Locale } from '@/types/locale';
 
@@ -261,12 +261,12 @@ describe('CompanyRenameDeleteForm (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task
     });
 
     it('stays disabled in the rare case the auto-suggested draft coincidentally matches the current name (the existing renameUnchanged guard)', () => {
-      // Math.random mocked to 0 forces suggestCompanyName's own getSeededVal-driven word picks to
-      // index 0 of both ADJECTIVES and COMPANY_NOUNS every time (getSeededVal maps a constant -1
-      // noise value to its own `min`) — so the "coincidence" is reproducible rather than relying on
-      // real chance, proving the guard still holds now that it's a rare path instead of the default
-      // one.
-      const coincidentalName = `${ADJECTIVES[0]} ${COMPANY_NOUNS[0]}`;
+      // Math.random mocked to 0 makes suggestCompanyName's noise map a constant -1, so its even word
+      // draws land on one fixed name every time (computed here from the same constant map, since the
+      // even draw hashes its samples rather than mapping -1 to index 0) — so the "coincidence" is
+      // reproducible rather than relying on real chance, proving the guard still holds now that it's
+      // a rare path instead of the default one.
+      const coincidentalName = generateCompanyName(() => -1, 0);
       useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: coincidentalName, color: '#4f6d7a', robotIds: [] });
       useUIStore.getState().selectCompany('c1');
       const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);

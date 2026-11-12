@@ -9,7 +9,7 @@ import type { FactoryVariant } from '../components/actors/factoryVariants';
 import { VARIANT_CONF, selectVariantFromSeed } from '../components/actors/factoryVariants';
 import { calcSilhouetteSize } from '../components/actors/silhouetteUtils';
 import { getAttenuationStyleNoiseMap } from '../utils/noiseMaps';
-import { getSeededVal } from '../utils/getSeededVal';
+import { getUniformSeededVal } from '../utils/getSeededVal';
 import { generateUUID } from '../utils/randomId';
 import { shiftHSL, type ColorShift, type HSL } from '../utils/colorUtils';
 import { computeAccentLean, secondaryFor, ACCENT_HUES, type AccentPair } from '../utils/accentLean';
@@ -61,13 +61,6 @@ const AS_SAT_SHIFT_RANGE: [number, number] = [-20, 20];
  *  family's placement order can shift the other's seeded shift. */
 type AsShiftNamespace = 'factory' | 'scenery';
 
-/** Fixed non-zero, non-integer offset for the Attenuation-Style-level accent-pair draw — a
- *  single-value dataId sampled at offset 0 can collapse to 3–4 values across every seed if its
- *  hash lands near a simplex lattice point (PROCEDURAL_GENERATION.md "Gotchas", the cut
- *  consoleTheme.ts). The test suite's spread guard measures this; if it ever trips, change this
- *  number, never the threshold. docs/specs/WORLD_PALETTE_PULL.md §1.2. */
-const ACCENT_PAIR_OFFSET = 0.37;
-
 // ========================================
 // EXPORTS
 // ========================================
@@ -77,21 +70,22 @@ const ACCENT_PAIR_OFFSET = 0.37;
  *  for districts.ts's placeDistrict (roadmap Phase 42 Task 4), which reuses this exact
  *  seeding so factory ids stay stable under the recipe-driven placement path. */
 export function generateFactoryId(noiseMap: NoiseFunction2D, index: number): string {
-  const idSeed = getSeededVal(noiseMap, 'factory.id', index, 0, 1);
+  const idSeed = getUniformSeededVal(noiseMap, 'factory.id', index, 0, 1);
   return `factory-${index}-${idSeed.toString(36).slice(2, 10)}`;
 }
 
 /** AS-seeded color delta for one actor, additive on top of its existing locale-seeded
  *  hueShift/satShift — never a replacement. Sampled from the active Attenuation Style's own
- *  noise map, keyed by the actor's position in its own family's placement order (the same
- *  getSeededVal(noiseMap, dataId, offset, min, max) pattern every other seeded field in this
- *  file already uses). `deriveAsColorShift`/`deriveSceneryAsColorShift` below are the named,
- *  per-family entry points real callers use; this is the one body both share.
+ *  noise map, keyed by the actor's position in its own family's placement order. Like every
+ *  other world pick in this file, both are even draws (getUniformSeededVal): each fills its band
+ *  and is independent of the other family's and of each other (docs/specs/EVEN_WORLD_DRAWS.md).
+ *  `deriveAsColorShift`/`deriveSceneryAsColorShift` below are the named, per-family entry points
+ *  real callers use; this is the one body both share.
  *  See docs/specs/archive/ATTENUATION_STYLE.md §1.2. */
 function deriveAsColorShiftFor(namespace: AsShiftNamespace, noiseMap: NoiseFunction2D, index: number): ColorShift {
   return {
-    hueShift: getSeededVal(noiseMap, `${namespace}.as.hueShift`, index, ...AS_HUE_SHIFT_RANGE),
-    satShift: getSeededVal(noiseMap, `${namespace}.as.satShift`, index, ...AS_SAT_SHIFT_RANGE),
+    hueShift: getUniformSeededVal(noiseMap, `${namespace}.as.hueShift`, index, ...AS_HUE_SHIFT_RANGE),
+    satShift: getUniformSeededVal(noiseMap, `${namespace}.as.satShift`, index, ...AS_SAT_SHIFT_RANGE),
   };
 }
 
@@ -109,8 +103,10 @@ export function deriveAsColorShift(noiseMap: NoiseFunction2D, index: number): Co
  * generateCompanyIdentityColor; placeDistrict/recolor are the only real callers.
  */
 export function deriveAsAccentPair(asNoiseMap: NoiseFunction2D): AccentPair {
-  // Clamped index, mirroring generateRobotIdentityColor's own guard in spawnSystem.ts.
-  const raw = Math.floor(getSeededVal(asNoiseMap, 'factory.as.accentPrimary', ACCENT_PAIR_OFFSET, 0, ROBOT_IDENTITY_COLOR_NAMES.length));
+  // Clamped index, mirroring generateRobotIdentityColor's own guard in spawnSystem.ts. The even
+  // draw reaches every hue at offset 0, so no offset trick is needed (docs/specs/EVEN_WORLD_DRAWS.md
+  // decision 4).
+  const raw = Math.floor(getUniformSeededVal(asNoiseMap, 'factory.as.accentPrimary', 0, 0, ROBOT_IDENTITY_COLOR_NAMES.length));
   const primaryIndex = Math.max(0, Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, raw));
   return { primary: ACCENT_HUES[primaryIndex], secondary: ACCENT_HUES[secondaryFor(primaryIndex)] };
 }
@@ -120,7 +116,7 @@ export function deriveAsAccentPair(asNoiseMap: NoiseFunction2D): AccentPair {
  *  uses. `pickAccentTarget`/`pickSceneryAccentTarget` below are the named, per-family entry
  *  points real callers use; this is the one body both share. */
 function pickAccentTargetFor(namespace: AsShiftNamespace, asNoiseMap: NoiseFunction2D, pair: AccentPair, index: number): number {
-  return getSeededVal(asNoiseMap, `${namespace}.as.accentPick`, index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
+  return getUniformSeededVal(asNoiseMap, `${namespace}.as.accentPick`, index, 0, 1) < 0.5 ? pair.primary : pair.secondary;
 }
 
 /** `pickAccentTargetFor('factory', …)` — see its doc comment. */
@@ -365,7 +361,7 @@ export function spreadXs(
       // reload-determinism reason.
       const spacingOffset = rowIndex * 1000 + placedCenter;
       const mult = noiseMap
-        ? getSeededVal(noiseMap, 'factory.spacing', spacingOffset, 0.8, 1.2)
+        ? getUniformSeededVal(noiseMap, 'factory.spacing', spacingOffset, 0.8, 1.2)
         : 0.8 + Math.random() * 0.4;
       currX += (w - 20) * mult;
     }

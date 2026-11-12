@@ -121,15 +121,13 @@ describe('workSites — factories (Phase 43 Task 9, spec §1.5)', () => {
     });
 
     it('actor ids repeat across locales, so two hosts sharing an id each get their own site', () => {
-      const byId = new Map<string, Actor>();
-      let pair: [Actor, Actor] | undefined;
-      for (const a of GRID_HOSTS) {
-        const other = byId.get(a.id);
-        if (other && other.position.x !== a.position.x) { pair = [other, a]; break; }
-        byId.set(a.id, a);
-      }
-      expect(pair).toBeDefined();
-      const [a, b] = pair!;
+      // Built explicitly: the even id draw (Even World Draws T4) rarely repeats an id on the grid, but two locales
+      // can still share one (every id is drawn per locale), so the cache must not key on it.
+      const a = GRID_HOSTS[0];
+      const shift = a.position.x < WORLD_WIDTH / 2 ? 300 : -300;
+      const b: Actor = { ...structuredClone(a), position: { ...a.position, x: a.position.x + shift } };
+      expect(b.id).toBe(a.id);
+      expect(hostJobs(b).length).toBeGreaterThan(0);
       expect(getWorkSite(a)).toEqual(deriveWorkSite(a));
       expect(getWorkSite(b)).toEqual(deriveWorkSite(b));
       expect(getWorkSite(b)!.bounds).not.toEqual(getWorkSite(a)!.bounds);

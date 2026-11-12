@@ -1,7 +1,7 @@
+import { seedLightShafts } from './seedLightShafts';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getLocaleNoiseMap } from '@/utils/noiseMaps';
-import { getSeededVal } from '@/utils/getSeededVal';
 import { getLighting, getNightDepth } from '@/utils/lightingUtils';
 import { hslToString } from '@/utils/colorUtils';
 import colorTheme from '@/constants/colorTheme.json';
@@ -18,18 +18,8 @@ interface LightShaftsProps {
 // CONSTANTS (docs/specs/WORLD_VIEW_DISTRICTS.md §1.12)
 // ========================================
 
-// "3-5 polygons" — one draw mapped into the 3 buckets 3/4/5, same clamp pattern as
-// districts.ts's pickDistrict (`min(bucketCount - 1, floor(v * bucketCount))`).
-const SHAFT_COUNT_MIN = 3;
-const SHAFT_COUNT_BUCKETS = 3;
-
-// "each x -200..1920, width 50-160, depth 420-760".
-const SHAFT_X_MIN = -200;
-const SHAFT_X_MAX = 1920;
-const SHAFT_WIDTH_MIN = 50;
-const SHAFT_WIDTH_MAX = 160;
-const SHAFT_DEPTH_MIN = 420;
-const SHAFT_DEPTH_MAX = 760;
+// The seeded geometry ("3-5 polygons ... each x -200..1920, width 50-160, depth 420-760") is
+// seedLightShafts.ts's.
 
 // "opacity 0.11 x (1 - nd) ... omitted entirely when that opacity < 0.005".
 const OPACITY_SCALE = 0.11;
@@ -61,14 +51,7 @@ export function LightShafts({ localeId }: LightShaftsProps) {
   const topOpacity = OPACITY_SCALE * (1 - nightDepth);
   if (topOpacity < OPACITY_OMIT_THRESHOLD) return null;
 
-  const noiseMap = getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y);
-
-  const countBucket = Math.min(
-    SHAFT_COUNT_BUCKETS - 1,
-    Math.floor(getSeededVal(noiseMap, 'atmos.shaft.count', 0, 0, 1) * SHAFT_COUNT_BUCKETS),
-  );
-  const count = SHAFT_COUNT_MIN + countBucket;
-  const dir = getSeededVal(noiseMap, 'atmos.shaft.dir', 0, 0, 1) < 0.5 ? -1 : 1;
+  const { dir, shafts } = seedLightShafts(getLocaleNoiseMap(localeId, locale.coordinates.x, locale.coordinates.y));
 
   const gradientId = `shaft-${localeId}`;
   const glassBase = hslToString(colorTheme.glass.base);
@@ -81,10 +64,7 @@ export function LightShafts({ localeId }: LightShaftsProps) {
           <stop offset="100%" stopColor={glassBase} stopOpacity={0} />
         </linearGradient>
       </defs>
-      {Array.from({ length: count }, (_, i) => {
-        const x = getSeededVal(noiseMap, 'atmos.shaft.x', i, SHAFT_X_MIN, SHAFT_X_MAX);
-        const w = getSeededVal(noiseMap, 'atmos.shaft.w', i, SHAFT_WIDTH_MIN, SHAFT_WIDTH_MAX);
-        const depth = getSeededVal(noiseMap, 'atmos.shaft.depth', i, SHAFT_DEPTH_MIN, SHAFT_DEPTH_MAX);
+      {shafts.map(({ x, w, depth }, i) => {
         const points = [
           `${x},0`,
           `${x + w},0`,

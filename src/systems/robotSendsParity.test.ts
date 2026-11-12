@@ -11,6 +11,11 @@
  * precondition unchanged. `git log -p` on this file shows the original recording (9600610b) and this one; its other
  * commits touched no recording.
  *
+ * The second re-capture: Even World Draws T1 (Crawford, 2026-11-11; docs/tasks/EVEN_WORLD_DRAWS.md) moved the robot id
+ * suffix to the even draw on purpose, so the (b) recordings' robot ids were captured again from that code. Only the id
+ * column changed: every send value, every row and its order is the recording as it stood (`git log -p` shows a diff of
+ * ids alone).
+ *
  * Company Families Task 5 (docs/tasks/COMPANY_FAMILIES.md, B5) changed what spawn primes on purpose: a company member
  * carries its founder's five sends. No recording was touched. (a) reads each index's own draw (every recorded row was
  * one, the old copies included), and the (b) cases expect each seeded member row to be its founder's recorded row
@@ -116,7 +121,7 @@ function recordPrimes(run: () => void): Prime[] {
 }
 
 // ========================================
-// RECORDINGS (608c5b92; re-recorded once at Even Seeded Draws T9a — never otherwise)
+// RECORDINGS (608c5b92; re-recorded once at Even Seeded Draws T9a, ids alone at Even World Draws T1 — never otherwise)
 // ========================================
 
 const SEEDED_SENDS: Record<string, number[][]> = {
@@ -150,83 +155,83 @@ const SEEDED_SENDS: Record<string, number[][]> = {
   ],
 };
 const SPAWN_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-1-oc8copp5', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-0-wpbves58', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-1-n4gmqbce', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-m27v5t6h', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-4b97ro6i', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-7kg2lb4q', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-oaw3ri2h', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-33wxnvpe', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-z181tura', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-3j3e1174', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-w2zlcm7u', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-7rqf9w6h', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-kzth2fqy', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
 ];
 const RE_REGISTER_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-1-oc8copp5', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-0-wpbves58', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-1-n4gmqbce', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
+  ['robot-2-m27v5t6h', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-4b97ro6i', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-7kg2lb4q', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-oaw3ri2h', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-33wxnvpe', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-z181tura', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-3j3e1174', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-w2zlcm7u', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-7rqf9w6h', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-kzth2fqy', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
 ];
 const RE_RESERVE_PRIMES: Prime[] = [
-  ['robot-4-g9rrd94w', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
+  ['robot-4-7kg2lb4q', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
 ];
 const SESSION_RESTORE_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-1-oc8copp5', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-2-nq1zfwlz', '{"delay":0.21,"grit":0.56,"shimmer":0.38}'],
+  ['robot-0-wpbves58', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-1-n4gmqbce', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-m27v5t6h', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-4b97ro6i', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-7kg2lb4q', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-oaw3ri2h', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-33wxnvpe', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-z181tura', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-3j3e1174', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-w2zlcm7u', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-7rqf9w6h', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-kzth2fqy', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-m27v5t6h', '{"delay":0.21,"grit":0.56,"shimmer":0.38}'],
 ];
 const SHARE_RESTORE_PRIMES: Prime[] = [
-  ['robot-0-rtzgxb0h', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-1-oc8copp5', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-2-nq1zfwlz', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
-  ['robot-3-spaohmu8', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-4-g9rrd94w', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
-  ['robot-5-gu8i8m8l', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-6-50bzozmg', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
-  ['robot-8-jq9k9pbv', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-9-tmw8lmz4', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-10-ug4nah4e', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
-  ['robot-11-ri6s5np6', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
-  ['robot-7-b2f37xro', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
+  ['robot-0-wpbves58', '{"reverb":0.15,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-1-n4gmqbce', '{"reverb":0.23,"delay":0.13,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-2-m27v5t6h', '{"reverb":0.1,"delay":0.29,"grit":0.42,"shimmer":0,"double":0}'],
+  ['robot-3-4b97ro6i', '{"reverb":0.58,"delay":0.27,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-4-7kg2lb4q', '{"reverb":0.18,"delay":0,"grit":0,"shimmer":0,"double":0.44}'],
+  ['robot-5-oaw3ri2h', '{"reverb":0.58,"delay":0.14,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-6-33wxnvpe', '{"reverb":0.45,"delay":0.09,"grit":0,"shimmer":0.28,"double":0}'],
+  ['robot-7-z181tura', '{"reverb":0.18,"delay":0.08,"grit":0,"shimmer":0,"double":0.33}'],
+  ['robot-8-3j3e1174', '{"reverb":0.22,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-9-w2zlcm7u', '{"reverb":0.48,"delay":0,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-10-7rqf9w6h', '{"reverb":0.2,"delay":0.02,"grit":0,"shimmer":0,"double":0.35}'],
+  ['robot-11-kzth2fqy', '{"reverb":0.2,"delay":0.25,"grit":0,"shimmer":0,"double":0}'],
+  ['robot-7-z181tura', '{"reverb":0.62,"delay":0.18,"grit":0.47,"shimmer":0.09,"double":0.73}'],
 ];
 // The forced start lands on robot 11's Delay send (seeded 0.25): eight writes up to the peak, seven down, landing exactly.
 const SWELL_PRIMES: Prime[] = [
-  ['robot-11-ri6s5np6', '{"delay":0.328125}'],
-  ['robot-11-ri6s5np6', '{"delay":0.40625}'],
-  ['robot-11-ri6s5np6', '{"delay":0.484375}'],
-  ['robot-11-ri6s5np6', '{"delay":0.5625}'],
-  ['robot-11-ri6s5np6', '{"delay":0.640625}'],
-  ['robot-11-ri6s5np6', '{"delay":0.71875}'],
-  ['robot-11-ri6s5np6', '{"delay":0.796875}'],
-  ['robot-11-ri6s5np6', '{"delay":0.875}'],
-  ['robot-11-ri6s5np6', '{"delay":0.7857142857142858}'],
-  ['robot-11-ri6s5np6', '{"delay":0.6964285714285714}'],
-  ['robot-11-ri6s5np6', '{"delay":0.6071428571428571}'],
-  ['robot-11-ri6s5np6', '{"delay":0.5178571428571429}'],
-  ['robot-11-ri6s5np6', '{"delay":0.42857142857142855}'],
-  ['robot-11-ri6s5np6', '{"delay":0.3392857142857143}'],
-  ['robot-11-ri6s5np6', '{"delay":0.25}'],
+  ['robot-11-kzth2fqy', '{"delay":0.328125}'],
+  ['robot-11-kzth2fqy', '{"delay":0.40625}'],
+  ['robot-11-kzth2fqy', '{"delay":0.484375}'],
+  ['robot-11-kzth2fqy', '{"delay":0.5625}'],
+  ['robot-11-kzth2fqy', '{"delay":0.640625}'],
+  ['robot-11-kzth2fqy', '{"delay":0.71875}'],
+  ['robot-11-kzth2fqy', '{"delay":0.796875}'],
+  ['robot-11-kzth2fqy', '{"delay":0.875}'],
+  ['robot-11-kzth2fqy', '{"delay":0.7857142857142858}'],
+  ['robot-11-kzth2fqy', '{"delay":0.6964285714285714}'],
+  ['robot-11-kzth2fqy', '{"delay":0.6071428571428571}'],
+  ['robot-11-kzth2fqy', '{"delay":0.5178571428571429}'],
+  ['robot-11-kzth2fqy', '{"delay":0.42857142857142855}'],
+  ['robot-11-kzth2fqy', '{"delay":0.3392857142857143}'],
+  ['robot-11-kzth2fqy', '{"delay":0.25}'],
 ];
 const SHARE_WIRE_JSON =
   '{"v":2,"n":"Send Parity","c":{"x":31,"y":47},"g":{},"r":{"parity-robot":{"rd":37,"p":-0.35,"rs":0.62,"ds":0.18,"gr":0.47,"sm":0.09,"db":0.73,"dy":41}}}';

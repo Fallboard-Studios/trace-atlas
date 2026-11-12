@@ -528,12 +528,17 @@ GSAP. It runs over `SIM_SEED_COORDS`, the districts tests' 121-coordinate grid.
   | Neither (before 2026-11-11) | 3.39 % in 79 / 121 worlds | — | — | — | 5.49, 2–9 | 35 only |
   | Size only (0.67–1.5) | 0.15 % in 108 / 121 worlds | — | — | — | 5.41, 3–8 | 27–53 |
   | Rule only | none | 92 / 121 | 0.13 | 2, 4, 9 | 5.49, 2–9 | 35 only |
-  | **Both, shipped (0.67–1.5)** | **none** | **118 / 121** | **0.81** | **2, 5, 9** | **5.41, 3–8** | **27–53 (15)** |
+  | Both, shipped (0.67–1.5), plain roster draws (2026-11-11, before Even World Draws) | none | 118 / 121 | 0.81 | 2, 5, 9 | 5.41, 3–8 | 27–53 (15) |
+  | **Both, shipped (0.67–1.5), even roster draws** | **none** | **114 / 121** | **0.75** | **2, 5, 10** | **5.41, 3–8** | **27–53 (15)** |
 
   Each half alone leaves something: size alone makes silence rarer but longer and spreads it to more
   worlds; the rule alone fires about once per world and the fleet goes back to looping every 35
-  measures. Together a robot is in a stay 0.20 % of measures. An always-on case pins zero silent
-  measures over the grid at 2,000 measures.
+  measures. Together a robot is in a stay 0.18 % of measures (0.20 % on the plain roster draws). An
+  always-on case pins zero silent measures over the grid at 2,000 measures. The first four rows were
+  measured with the roster's Active count and docked batteries on the plain draw; the last is the
+  shipped roster since Even World Draws ([docs/tasks/EVEN_WORLD_DRAWS.md](tasks/EVEN_WORLD_DRAWS.md),
+  T3), which starts 2, 3 or 4 robots Active a third of the time each. The rule is structural, so no
+  world went silent on either.
 - **Loop sim** (`runLoopSim` / `runReadinessSim`, Task 15) — the work loop's decisions (site
   choice, site cooldown, swims, job durations, station arcs) in seconds, interleaved with lifecycle
   measures at a given BPM, over each world's real work sites and stations. It pinned the site
@@ -557,9 +562,12 @@ Set `LIFECYCLE_SIM_REPORT=1` to print either report from `npx vitest run src/sys
 locale load:
 
 - A seeded count within `[INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX]` (2–4) start
-  `Active` at full battery.
+  `Active` at full battery: one even draw (`'roster.activeCount'`, offset 0), so 2, 3 and 4 each
+  start a third of worlds.
 - The rest start `Docked`, each with an independently seeded, varied starting battery (0–99) so
-  they don't all finish recharging in lockstep.
+  they don't all finish recharging in lockstep: an even draw per robot (`'roster.dockedBattery'`,
+  offset = roster index), spread over the whole 0–99. `lifecycleSim.ts`'s `buildSimRoster` makes the
+  same two draws, so the sims replay spawn's roster.
 - Every robot draws its battery size (`generateBatterySize`, see "Battery size") at its spawn
   count, which is its roster index.
 - `spawnRobot(localeId, { docking, batteryLevel })` sets `activity` from `docking` (Active →
@@ -665,7 +673,7 @@ cover:
 - `spawnInitialRoster`'s active/docked split, seeded battery variation, every robot's battery size inside the band and filling it evenly (mutation-checked: a plain draw), determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody, every one with `audioMode: 'none'`
 - `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency; `pauseWorkLoop`/`resumeWorkLoop` (a cooldown stamped before a pause is unexpired after it, two pauses accumulate, a start resets); `powerController.test.ts`'s pause and resume orders, the cold path, `markHeardWorld` once, and the fade awaited before either path
 - `types/Robot.test.ts`: the deleted files are gone and no file in `src/` names a deleted identifier (below)
-- `lifecycleSim.ts`: the sim roster matching the real spawn path (battery size included), determinism, no store/BeatClock (and no GSAP for the loop sim), the pinned drain rows, the cover tally on hand-built rosters, the cover sim against its own count world by world, zero silent measures over the grid, the band option, and the loop sim's hand-worked timelines for each work-loop branch
+- `lifecycleSim.ts`: the sim roster matching the real spawn path (battery size included), its Active count a third each of 2, 3 and 4 and its docked batteries filling 0–99 over 3,000 worlds (mutation-checked: either draw back on the plain draw), determinism, no store/BeatClock (and no GSAP for the loop sim), the pinned drain rows, the cover tally on hand-built rosters, the cover sim against its own count world by world, zero silent measures over the grid, the band option, and the loop sim's hand-worked timelines for each work-loop branch
 
 ## Removed in Phase 43
 

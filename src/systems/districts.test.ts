@@ -5,16 +5,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import alea from 'alea';
 import { createNoise2D, type NoiseFunction2D } from 'simplex-noise';
 
-import { DISTRICT_NAMES, SHIPPED_SCENERY, pickDistrict, placeDistrict, isGemGatedRow } from './districts';
+import { DISTRICT_NAMES, SHIPPED_SCENERY, DERELICT_CAPABLE_KINDS, pickDistrict, placeDistrict, isGemGatedRow } from './districts';
 import * as getSeededValModule from '../utils/getSeededVal';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
 import { getRecipeRow } from './factoryPlacementSystem';
 import { selectVariantFromSeed } from '../components/actors/factoryVariants';
 import { getTerrainProfile, ridgeYAt, groundYAt, __clearTerrainProfileCache } from './terrainProfile';
-import { RECIPES, COVERAGE_TOP_UP, coverageTopUpRow } from './districtRecipes';
+import { RECIPES, COVERAGE_TOP_UP, DERELICT_RATIO, coverageTopUpRow } from './districtRecipes';
 import { useLocaleStore } from '../stores/localeStore';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
-import { ActorType, type Actor, type DistrictName } from '../types/Actor';
+import { ActorType, type Actor, type DistrictName, type SceneryKind } from '../types/Actor';
+import { correlation, outerTenths } from '../testUtils/spread';
 
 // ========================================
 // HELPERS
@@ -52,6 +53,23 @@ function findCoordsForDistrict(district: DistrictName, count: number): Array<{ x
     }
   }
   return results;
+}
+
+/** A factory, or a scenery actor of a kind that can roll `config.derelict`. */
+function isDerelictCapable(actor: Actor): boolean {
+  return actor.type === ActorType.FACTORY || DERELICT_CAPABLE_KINDS.has(actor.config?.kind as SceneryKind);
+}
+
+/** 200 real dense placements, placed once on first use (Even World Draws T5's sample). */
+let denseCache: Actor[][] | undefined;
+function denseSample(): Actor[][] {
+  denseCache ??= placeDistrictSeeds('dense', 200, 'even-world-dense');
+  return denseCache;
+}
+
+/** The [0, 1) draw behind an id's 8 base-36 suffix (`<kind>-<index>-<suffix>`), to within 36^-8. */
+function idDraw(id: string): number {
+  return parseInt(id.split('-')[2], 36) / 36 ** 8;
 }
 
 /** Places `count` real, differently-seeded locales that land on `district`. */
@@ -285,26 +303,21 @@ describe('districts', () => {
         }
       });
 
-      it('default ratio 0.25: the 20-seed mean fraction of derelict actors is 0.15-0.35', () => {
+      it('default ratio 0.25: over 200 dense placements, 25 % of derelict-capable actors are derelict (+/-3 points), and no other actor is', () => {
         // Every dense row carries no per-row override, so DERELICT_RATIO (0.25) applies uniformly.
         expect(RECIPES.dense.every((r) => r.derelict === undefined)).toBe(true);
-        const placements = placeDistrictSeeds('dense', 20, 'derelict-default');
-        let derelictCount = 0;
-        let total = 0;
-        for (const actors of placements) {
-          for (const a of actors) {
-            total++;
-            if (a.config?.derelict) derelictCount++;
-          }
-        }
-        expect(total).toBeGreaterThan(0);
-        const mean = derelictCount / total;
-        expect(mean).toBeGreaterThanOrEqual(0.15);
-        expect(mean).toBeLessThanOrEqual(0.35);
+        expect(DERELICT_RATIO).toBe(0.25);
+        const actors = denseSample().flat();
+        const capable = actors.filter(isDerelictCapable);
+        expect(capable.length).toBeGreaterThan(5000);
+        const share = capable.filter((a) => a.config?.derelict).length / capable.length;
+        expect(share).toBeGreaterThanOrEqual(0.22);
+        expect(share).toBeLessThanOrEqual(0.28);
+        expect(actors.filter((a) => !isDerelictCapable(a) && a.config?.derelict)).toEqual([]);
       });
 
-      it('draws from its own dataId at a distinct offset per actor (actorIndex)', () => {
-        const spy = vi.spyOn(getSeededValModule, 'getSeededVal');
+      it('draws from its own dataId, through the even draw, at a distinct offset per actor (actorIndex)', () => {
+        const spy = vi.spyOn(getSeededValModule, 'getUniformSeededVal');
         try {
           const [{ x, y }] = findCoordsForDistrict('habitat', 1); // every habitat row is derelict: 0
           const id = registerLocale('derelict-dataid-check', x, y);
@@ -340,6 +353,34 @@ describe('districts', () => {
         const wreckActors = placements.flatMap((actors) => actors.filter((a) => a.config?.kind === 'wreck'));
         expect(wreckActors.length).toBeGreaterThan(0);
         expect(wreckActors.every((a) => a.config?.derelict === undefined)).toBe(true);
+      });
+    });
+
+    // Even World Draws (docs/specs/EVEN_WORLD_DRAWS.md §5.1, docs/tasks/EVEN_WORLD_DRAWS.md T5): the factory scale and
+    // the scenery id, over the same 200 real dense placements. Every tolerance is at least 3 standard deviations.
+    describe('the factory scale and scenery ids draw even (Even World Draws T5)', () => {
+      it('factory.scale fills 0.9-1.1: 8-12 % of factories in each outer tenth', () => {
+        const scales = denseSample().flat().filter((a) => a.type === ActorType.FACTORY).map((a) => a.scaleX!);
+        expect(scales.length).toBeGreaterThan(5000);
+        expect(Math.min(...scales)).toBeGreaterThanOrEqual(0.9);
+        expect(Math.max(...scales)).toBeLessThan(1.1);
+        const { bottom, top } = outerTenths(scales, { min: 0.9, max: 1.1 });
+        expect(bottom).toBeGreaterThanOrEqual(0.08);
+        expect(bottom).toBeLessThanOrEqual(0.12);
+        expect(top).toBeGreaterThanOrEqual(0.08);
+        expect(top).toBeLessThanOrEqual(0.12);
+      });
+
+      it("a factory's scale is independent of its id draw (|r| under 0.1)", () => {
+        const factories = denseSample().flat().filter((a) => a.type === ActorType.FACTORY);
+        expect(Math.abs(correlation(factories.map((a) => a.scaleX!), factories.map((a) => idDraw(a.id))))).toBeLessThan(0.1);
+      });
+
+      it('scenery ids almost never repeat a suffix: more than 97.5 % distinct over every scenery actor placed', () => {
+        const scenery = denseSample().flat().filter((a) => a.type === ActorType.SCENERY);
+        expect(scenery.length).toBeGreaterThan(2000);
+        const suffixes = new Set(scenery.map((a) => a.id.split('-')[2]));
+        expect(suffixes.size / scenery.length).toBeGreaterThan(0.975);
       });
     });
   });
