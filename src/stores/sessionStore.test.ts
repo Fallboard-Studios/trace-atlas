@@ -6,9 +6,16 @@ import { listSessions, loadSession, saveNamedSession } from '../utils/sessionSto
 import { buildSessionPayload } from '../utils/sessionDiff';
 import { generateCompanyName } from '../systems/spawnSystem';
 
-/** The suggestion Math.random yields when every sample of its two even draws (the adjective, then the noun: three
- *  samples each, so six calls per name since Even World Draws T2) returns `r`. */
+/** The suggestion Math.random yields when every sample it takes returns `r`. */
 const suggestionAt = (r: number) => generateCompanyName(() => r * 2 - 1, 0);
+
+/** How many Math.random calls one suggestion makes (its noise map is Math.random, one call per sample), counted from
+ *  the real name draw rather than written down, so a change in the even draw's sample count moves it too. */
+const SAMPLES_PER_NAME = (() => {
+  let samples = 0;
+  generateCompanyName(() => { samples++; return 0; }, 0);
+  return samples;
+})();
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -75,9 +82,9 @@ describe('nextSaveName', () => {
     const free = suggestionAt(0.99);
     expect(free).not.toBe(taken); // precondition
     saveNamedSession(taken, buildSessionPayload());
-    // The first name's six samples land on the taken one; every later sample on the free one.
+    // The first name's samples land on the taken one; every later sample on the free one.
     const random = vi.spyOn(Math, 'random');
-    for (let i = 0; i < 6; i++) random.mockReturnValueOnce(0);
+    for (let i = 0; i < SAMPLES_PER_NAME; i++) random.mockReturnValueOnce(0);
     random.mockReturnValue(0.99);
     expect(nextSaveName()).toBe(free);
   });
