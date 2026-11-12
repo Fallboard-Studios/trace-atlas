@@ -6,7 +6,8 @@ doc: this plan builds nothing. It measures one thing on `main`, whether the lead
 interview and spec after the gate.
 
 **Status:** measured 2026-11-12 (Tasks 1, 2 and 4 done, Task 3 skipped). The cause is established, by a different
-route from the one the lead named: see Findings. Waiting at Gate A.
+route from the one the lead named: see Findings. Gate A passed the same day: both fixes, as one (see the gate). Next is
+the interview and spec; this plan builds nothing further.
 
 ## Overview
 
@@ -168,15 +169,25 @@ callback writes, and nothing orders the two in its favour.
 
 ### Gate A: Crawford reads the findings
 
-- [ ] The cause is established, or the plan says plainly that it is not and what was ruled out.
-- [ ] His decision on what is built. The candidates, named here and designed nowhere yet:
+- [x] The cause is established, or the plan says plainly that it is not and what was ruled out.
+- [x] His decision on what is built. The candidates, named here and designed nowhere yet:
   - the palette as a pure function of the transport's tick count at a note's own time, read when the note is
     scheduled, with no harmony repeat and no stored entry (his "redundant code" question);
   - BeatClock's measure derived from each tick's own time and not from `transport.position`, with its tick started
     on the bar, which would also move everything else that reads the measure.
-- [ ] Whether backlog 83 is answered by the same log, or still needs its listen with the Click Track.
+
+  **Decided 2026-11-12: both.** One idea, two halves: nothing keeps its own count, everything reads the music clock.
+  The chord comes from the clock when a note is scheduled; the measure comes from the clock at each tick's own time,
+  started on the bar; and the melody's step comes from the clock too, not from `stepCounter`. Why both: features
+  coming soon (tracking measures, letting the player move to a measure, changing chord palettes) each break on a
+  count that does not know the transport moved. Fixing only the chord leaves the measure and the steps wrong; fixing
+  only the measure leaves the chord stale for up to two measures after a move or a palette change.
+- [x] Whether backlog 83 is answered by the same log, or still needs its listen with the Click Track. Answered by the
+      same log, and folded into the same fix (the melody's step from the clock puts step 1 on the bar). The listen
+      becomes a check after the fix, not an investigation.
 - [ ] Whichever is chosen changes the timing path CLAUDE.md asks about before changing, so it goes through an
-      interview and a spec, not straight into a branch.
+      interview and a spec, not straight into a branch. **Next:** the interview, starting from the coming features,
+      not from the bug.
 
 ## Tables
 

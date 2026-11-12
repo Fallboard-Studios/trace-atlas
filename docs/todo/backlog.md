@@ -716,9 +716,13 @@ app's measure and palette before and after each callback. Ten power-ons of the s
   on a shared tick (the harmony's first, by Tone's source) never came into play. It could only on a power-on whose
   BeatClock start lands on a multiple of 48 ticks.
 
-**Status:** measured 2026-11-12; the cause is established. Waiting at the plan's Gate A: Crawford decides what, if
-anything, is built. Any fix changes the timing path CLAUDE.md asks about before changing, so it goes through an
-interview and a spec.
+**Status:** measured 2026-11-12; the cause is established. Gate A passed the same day. Crawford's decision: both
+candidates, as one fix in which nothing keeps its own count and everything reads the music clock (the chord when a
+note is scheduled, the measure at each tick's own time with the tick started on the bar, the melody's step). Why:
+tracking measures, moving the player to a measure and changing chord palettes are coming soon, and each breaks on a
+count that does not know the transport moved. It changes the timing path CLAUDE.md asks about before changing, so an
+interview and a spec come first, starting from those features. Backlog
+[83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) is folded in.
 
 **To find out:**
 
@@ -726,13 +730,13 @@ interview and a spec.
 - ~~Whether a replay from power-on gives the same chords each time.~~ **Answered: no.** The entry at each boundary
   depends on how far one clock pass reached, not on the seed. Velocity and Humanize are drawn so that a replay repeats
   (`computeNoteVelocitySeeded` and `humanizeOffsetFor`, `src/engine/AudioEngine.ts`); the chord cycle does not.
-- Whether the third repeat is needed at all (Crawford's "redundant code"). **Open, for Gate A.** The palette could be a
-  pure function of the transport position at a note's own time, read when the note is scheduled, with no state to fall
-  out of step. The other candidate the plan names is BeatClock's measure taken from each tick's own time, with its tick
-  started on the bar.
+- ~~Whether the third repeat is needed at all (Crawford's "redundant code").~~ **Answered at Gate A: no.** The palette
+  becomes a pure function of the transport position at a note's own time, and BeatClock's measure is taken from each
+  tick's own time with its tick started on the bar. Both, as one fix (Status).
 - What depends on the answer: backlog [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (tagged
   progressions and a seeded mood chain, which need the cycle to be predictable), and backlog 79's early announcements,
-  which today read the cycle's lag off the palette in force instead of assuming it. **Open**, settled with Gate A.
+  which today read the cycle's lag off the palette in force instead of assuming it. **Open:** each is re-read against
+  the spec once it is written.
 
 Related: backlog [83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), seen in the same log. Plan.md
 Stage 3.
@@ -783,12 +787,12 @@ power-ons of one world on `main`, every melody tick's and BeatClock tick's own t
 - ~~Reproduce on `main` and see which of the two clocks is off the sixteenth it claims.~~ **Answered:** both run off
   the sixteenth by the same per-power-on offset; the melody's step numbering is what puts step 1 late (above).
 - Hear it: a robot's testing-only Click Track (`src/engine/clickTrack.ts`: quarter notes on steps 1, 5, 9 and 13,
-  never humanized) against a reference click on the transport's bar. **Open.** The offset is now known per power-on,
-  so the listen is a check on whether it is audible, not on where it is.
+  never humanized) against a reference click on the transport's bar. **Moved:** a check after 82's fix, not an
+  investigation.
 - ~~Whether the first melody tick is lost at power-on.~~ **Answered:** in two of ten. Whether a pause and resume keeps
   or moves the offset: **open**, not measured.
-- Whether 82's fix covers this. **Open, for 82's Gate A.** A fix that starts the ticks on the bar moves step 1 onto the
-  bar too.
+- ~~Whether 82's fix covers this.~~ **Answered at 82's Gate A, 2026-11-12: yes.** This item is folded into 82's fix,
+  in which the melody's step is read from the music clock and not counted.
 
 Plan.md Stage 3.
 
