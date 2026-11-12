@@ -375,12 +375,17 @@ re-seeded in the same commit (the probe table).
   **Estimated scope:** S
 
 ### Checkpoint B: Placement and the light
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean, apart from the station case if its
-  decision is still open.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean, apart from the station case if its
+  decision is still open: types, lint and build clean; 13,893 passed, 2 skipped, 1 failed of 13,896 at T6, the
+  failure the station case, since re-pinned (37/37 in `stations.test.ts`).
 - [ ] The harness's placement, shaft and style sections re-run on the branch: every key above 2,500 distinct values,
-  zero pairs above 0.3, the derelict and accent shares at their numbers. Figures in the record.
-- [ ] **Crawford's look 2** (spec §5.5): the skyline and the light across a few fresh worlds, by day.
-- [ ] **The station decision.** Shown: the world at (−160, −120), where station 2's box overlaps a midground
+  zero pairs above 0.3, the derelict and accent shares at their numbers. Figures in the record. **Skipped at
+  Checkpoint B** (Crawford, 2026-11-11), as at Checkpoint A: T4–T6's committed spread tests cover the named shares and
+  pairs, and T7 re-measures every key.
+- [x] **Crawford's look 2** (spec §5.5): the skyline and the light across a few fresh worlds, by day. Passed
+  2026-11-11 ("looks good"); nothing to narrow.
+- [x] **The station decision.** Crawford, 2026-11-11: **(b)**. `stations.test.ts` now pins the grid's overlaps as the
+  one list `['stations--160--120 station-2']`; a new overlap, or this one gone, fails it. Shown: the world at (−160, −120), where station 2's box overlaps a midground
   silhouette. Options: (a) stations gain the midground silhouettes as an obstacle in `stations.ts` (a placement-rule
   change, its own task, Ask first); (b) the look is fine, and the test pins the measured overlap count over the grid
   with the world named. Recommended: look first, then (a) if a silhouette visibly draws through the station's back
@@ -516,7 +521,8 @@ re-seeded in the same commit (the probe table).
 1. Even or centred for the four neutral-middle bands. **Resolved** (spec decision 4): even, all four; a centred draw
    is an N-task if a look asks for it.
 2. Remove the derelict re-hash and `ACCENT_PAIR_OFFSET`. **Resolved** (spec decision 4): both go, in T5 and T4.
-3. The station overlap at (−160, −120). **Open** — Crawford, at Checkpoint B, after seeing the world.
+3. The station overlap at (−160, −120). **Resolved** (Crawford, Checkpoint B, 2026-11-11): (b), the look is fine;
+   the test pins the measured overlap, no placement rule and no N0 task.
 
 ## Record
 
@@ -635,7 +641,8 @@ survived it; a second parity case over 30 grid worlds (every Active count among 
 Checkpoint A: passed by Crawford's look, 2026-11-11; the harness section was not run (see the checkpoint). His answers
 the same day: the 16 ms line is growth (T0's record), and the `audioSwells` flake is removed (its own commit).
 
-Checkpoint B: (to be recorded)
+Checkpoint B: passed by Crawford's look, 2026-11-11 ("looks good"); the harness section was skipped on his say-so (see
+the checkpoint). Station decision (b). Next: Phase 3, T7, in a fresh session.
 
 ### T7: after-measurements and timings
 
