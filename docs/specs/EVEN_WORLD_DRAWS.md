@@ -15,7 +15,7 @@
 plan.md Stage 4, on branch `fix/even-world-draws`. Intent: [docs/intent/even-world-draws.md](../intent/even-world-draws.md).
 This is the visual half of backlog 47, Even Seeded Draws ([spec](EVEN_SEEDED_DRAWS.md), merged PR #596, 2026-11-02),
 which moved every audio draw and left these for their own branch in case they needed different tuning. Plan: to be
-written at `docs/tasks/EVEN_WORLD_DRAWS.md` once this spec is approved.
+[docs/tasks/EVEN_WORLD_DRAWS.md](../tasks/EVEN_WORLD_DRAWS.md) (approved the same day, decision 4).
 
 Crawford's decisions (2026-11-11, the interview):
 
@@ -25,6 +25,9 @@ Crawford's decisions (2026-11-11, the interview):
 2. The two **smooth walks** stay on the plain draw: the terrain profile and both temperature draws (§1.4).
 3. The gate is a measured after-table plus Crawford's look at a few fresh worlds. No side-by-side of old and new: the
    old spread was an accident, not a reference. Any tuning he asks for is its own task, after the look.
+4. §7's two questions, answered 2026-11-11 as recommended: the four neutral-middle bands draw **even** (Q1), and both
+   dead workarounds, the derelict re-hash and `ACCENT_PAIR_OFFSET`, are **removed** (Q2). Plan:
+   [docs/tasks/EVEN_WORLD_DRAWS.md](../tasks/EVEN_WORLD_DRAWS.md).
 
 ---
 
@@ -267,6 +270,8 @@ geometry per locale is the first fix (Ask first).
 ---
 
 ## 7. Open Questions
+
+Answered 2026-11-11, both as recommended (decision 4). Kept for the record:
 
 1. **Even or centred for the four neutral-middle bands** (hue ±30, sat ±20, `factory.scale` 0.9–1.1,
    `factory.spacing` 0.8–1.2)? **Recommended: even, all four**, per decision 3 (switch, look, then narrow). Today the
