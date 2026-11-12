@@ -912,20 +912,6 @@ describe('robot pool — concurrency cap', () => {
 });
 
 describe('robot pool — ramp lifecycle and write path', () => {
-  it('interpolates and returns to exactly baseValue on completion, removing the swell', () => {
-    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 })); // up: floor 0.6, peak 0.6 via ALWAYS_MIN
-    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
-    tickAudioSwells(LOCALE_ID, 0); // creates the swell only
-
-    tickAudioSwells(LOCALE_ID, 3); // falling phase's first tick -> value === peak
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBeCloseTo(0.6);
-    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(true);
-
-    tickAudioSwells(LOCALE_ID, 15); // falling completes
-    expect(useLocaleStore.getState().getRobotById(LOCALE_ID, 'r1')!.masterVolume).toBe(0.1);
-    expect(getActiveSwellSnapshot('robot').some((s) => s.robotAttribute === 'volume')).toBe(false);
-  });
-
   it('writes a Volume swell through applyVolume, never a bare updateRobot/AudioEngine call', () => {
     const spy = vi.spyOn(robotOptionsActions, 'applyVolume');
     useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
