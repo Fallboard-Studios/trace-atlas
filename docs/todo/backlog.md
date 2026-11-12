@@ -699,10 +699,31 @@ for the same transport time. If the harmony repeat runs before BeatClock's tick 
 ended, derives the entry already in force, and changes nothing for two more measures. Which runs first may not be
 fixed.
 
+**A lead from the source, 2026-11-12 (read, not measured).** Tone (15.1.22) does fix the order, and the three repeats
+are not registered alike:
+
+- The two `16n` ticks may not start on the bar. `AudioEngine.start` awaits `transport.start()`, primes the LFO bank
+  and awaits a dynamic import before it registers anything. BeatClock's tick and the melody tick pass no start time,
+  and Tone then starts a repeat at the transport's position at that moment. If the transport has moved by then, both
+  run at an offset from the bar that is fixed for that power-on and different on the next. The harmony repeat is
+  given `2m` as its start (BeatClock's `scheduleRepeat`), so it fires on the bar.
+- On a shared tick the harmony callback runs first. Tone runs same-tick events in the order they were added to its
+  timeline, and a repeat adds each firing two intervals ahead: the `2m` event four measures before a boundary,
+  BeatClock's `16n` event two sixteenths before it.
+- Either way the callback reads a measure BeatClock has not yet turned over, derives the entry already in force, and
+  changes nothing until it next fires: one entry late.
+- It is on time only when BeatClock's previous tick read ahead. BeatClock parses `transport.position`, which is the
+  position at Tone's "now" (lookahead included), not at the tick's own time, so a tick processed in a clock pass that
+  already reaches the boundary reads the new measure early. That is likelier the closer the tick sits to the boundary
+  and whenever the main thread stalls, which would give all three sightings: late, on time, and mixed.
+
+**Status:** measurement plan written 2026-11-12 ([plan](../tasks/CHORD_CYCLE_TIMING.md): a probe, ten power-ons, five
+predictions the tables settle, then a gate where Crawford decides what is built). Not started.
+
 **To find out:**
 
 - Reproduce on `main`: log the measure read and the entry set at every `2m` callback, beside the measure at each
-  BeatClock tick, over several power-ons of one world.
+  BeatClock tick, over several power-ons of one world. This is the plan's Task 2.
 - Whether a replay from power-on gives the same chords each time. Velocity and Humanize are drawn so that a replay
   repeats (`computeNoteVelocitySeeded` and `humanizeOffsetFor`, `src/engine/AudioEngine.ts`); a chord cycle that
   depends on callback order would not.
@@ -749,6 +770,11 @@ before the bar. Either way two clocks that should agree do not.
 - Hear it: a robot's testing-only Click Track (`src/engine/clickTrack.ts`: quarter notes on steps 1, 5, 9 and 13,
   never humanized) against a reference click on the transport's bar.
 - Whether the first melody tick is lost at power-on, and whether a pause and resume keeps or moves the offset.
+
+**From backlog 82's lead, 2026-11-12 (read, not measured).** BeatClock's tick and the melody tick both pass no start
+time, so both may start off the bar by whatever the transport had moved before they were registered. 82's measurement
+logs every melody tick's and every BeatClock tick's own tick count, which answers the first question above in the same
+runs ([plan](../tasks/CHORD_CYCLE_TIMING.md), Task 2). The listen and the pause question stay here.
 
 Plan.md Stage 3.
 
