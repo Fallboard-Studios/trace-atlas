@@ -516,7 +516,17 @@ re-seeded in the same commit (the probe table).
 
 ### T0: timings (before)
 
-(to be recorded)
+2026-11-11, branch base `83af2b15`, jsdom under Vitest, one locale at (17, −23), hour 12, median of 200 runs after
+20 warm-up runs, two runs of the harness:
+
+| Measure | Run 1 | Run 2 |
+|---|---|---|
+| (a) `spawnInitialRoster` + `placeDistrict` (the locale's robots, actors and companies cleared before each run) | 16.88 ms | 16.84 ms |
+| (b) one `render(<LightShafts />)` plus unmount | 0.585 ms | 0.580 ms |
+
+(a) already sits above 16 ms on the plain draw (jsdom, store writes and melody registration included), so spec §5.4's
+"grows past a frame (16 ms)" is ambiguous for it: growth by 16 ms, or crossing 16 ms. **Open for Crawford at T7**; the
+shafts render is far below either reading.
 
 ### T3: the cover-sim table
 
