@@ -1,9 +1,12 @@
 # Intent: The Note Cloud — a robot's melody drawn as notes around it
 
-**Not yet confirmed.** Drafted on 2026-11-12 from a spike, not from an `interview-me` pass: Crawford steered a
+**Confirmed 2026-11-12.** Drafted that day from a spike, not from an `interview-me` pass: Crawford steered a
 throwaway build by eye over one session and ended "happy with the current state". Everything under Outcome and
-Behavior is what he decided by looking, as built. What he was never asked is under **To confirm**, and nothing there
-is settled. Ahead of a `spec-driven-development` pass. Backlog
+Behavior is what he decided by looking, as built. What he had never been asked was listed under **To confirm**; he
+answered all twelve points the same day, and each answer is written under its point. Three answers changed the
+Behavior above them (a repeat, where the cloud shows, the bob's cycle) and those bullets are corrected. The spec is
+[docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). **Paused the same day, at his word:** backlog 82 and
+83 are finished first, then this is picked up. Backlog
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
 The spike is the branch `spike/note-pulse` (local, fifteen commits, never merges). It is the reference for how
@@ -56,12 +59,18 @@ It is there on every robot but quiet about it, and it comes forward for the robo
 - **Overlapping notes look like one shape.** The dimming belongs to the whole cloud, not to each note.
 - **The robot the player turns to is at full strength.** A robot under the pointer, selected, soloed or highlighted
   shows its whole cloud undimmed.
-- **An immediately repeated note is not drawn twice.** When a robot plays the same pitch twice in a row, the second
-  is left out; in a longer run the even-numbered ones are.
+- **An immediately repeated note is not drawn twice.** When a robot plays the same note twice in a row (the same
+  pitch and the same length, with no rest between), the second is left out; in a longer run the even-numbered ones
+  are. A rest breaks the run.
 - **The battery thins the population.** A robot's notes are at full strength down to 50% battery, then grow fainter
   with the battery.
 - **Attention brings them back.** Pointing at a robot or selecting it returns its notes to full strength, and they
   stay there after the pointer leaves, until the robot is next back in its station.
+
+### Where it shows
+
+- **The world and the detail avatar.** Every robot in the scene, and the avatar on a robot's own screen, which is
+  always at full strength. The cards and roster tiles show nothing.
 
 ### What does not change
 
@@ -71,11 +80,11 @@ It is there on every robot but quiet about it, and it comes forward for the robo
 
 ### The bob, while we are in there
 
-- **A working robot still bobs, half as far and half as fast.** Crawford, 2026-11-12: "cut the idle bob in half in
-  velocity and distance." It moves ±3 units where it moved ±6, on the same 1.2-second cycle, so it covers 12 units a
-  cycle at about 10 a second where it covered 24 at about 20. Built the same day (`BOB_PX`,
-  `src/constants/index.ts`), ahead of the rest. The waiting robot's one bob reads the same distance and halves with
-  it.
+- **A working robot still bobs, half as far and on a cycle twice as long.** Crawford, 2026-11-12: "cut the idle bob
+  in half in velocity and distance." It moves ±3 units where it moved ±6 (built the same day, `BOB_PX`,
+  `src/constants/index.ts`, ahead of the rest), and its cycle goes from 1.2 to 2.4 seconds (his answer to point 11
+  below; not yet built). So it covers 12 units a cycle at about 5 a second where it covered 24 at about 20. The
+  waiting robot's one bob reads the same distance and halves with it; its timing is its own and does not change.
 
 ## Style / constraint
 
@@ -114,14 +123,16 @@ Separate items:
   goes quiet within a measure and its notes stop with it, part-way home.
 - **The chord cycle's timing and the melody's step alignment** are backlog 82 and 83 (see the note below).
 
-## To confirm
+## To confirm (answered 2026-11-12)
 
-Built by me without being asked, or never put to Crawford. Each needs a yes or a no before the spec.
+Built by me without being asked, or never put to Crawford. Each needed a yes or a no before the spec; each point's
+**Answer** is his, given on 2026-11-12.
 
 1. **The Visual Mapping guardrail.** CLAUDE.md says audio reaches the body only through ROBOT_DESIGN.md's dials and
    that day/night and battery dimming are the only two overlays. The cloud is audio-driven, sits around the body
    and fades with the battery. My reading: it is a third overlay and the guardrail needs a sentence naming it. A
    guardrail edit is Crawford's alone.
+   **Answer:** add a sentence naming the cloud. The wording is his, at the spec's eye gate.
 2. **The engine announcing notes early.** He chose it on 2026-11-12 so a note can travel in from the edge. It is a
    new engine interface, so it needs his architecture approval as such (CLAUDE.md), with what it costs: an early
    announcement is a forecast. At his settings a note is announced about 0.9 seconds sooner than its trigger, and
@@ -130,29 +141,43 @@ Built by me without being asked, or never put to Crawford. Each needs a yes or a
    wrong pitches are the notes just after a chord change. The longer the lead, the longer a robot that has just
    started sounding goes without notes, and the longer one that has just gone quiet keeps drawing notes it will not
    play; the second is expected from how it works and was not counted.
+   **Answer:** approved, and built after backlog 82 and 83. The cloud ships first on the notes the engine reports as
+   it triggers them, so until then a note appears just to the right of where it sounds and the outer right-hand fan
+   is empty.
 3. **The marker on a robot under the pointer.** In the spike, pointing at a robot also frames it with the Deck
    camera's marker (the square with "name | job"). I wired that; he has seen it but never said he wants it.
+   **Answer:** keep it, as seen.
 4. **Ducking the others.** `&spot` in the spike drops the other robots about 10 dB while one is singled out
    (Highlight's dip), and `&tour` moves the spotlight round by itself. Both are off unless switched on. My guess:
    out.
+   **Answer:** neither.
 5. **Zero at a flat battery.** I read "fade to zero" as zero at 0%. A robot is recalled at 10%, so it heads home
    with its notes at a fifth strength. The alternative is zero at the recall line.
+   **Answer:** zero at a flat battery, as built.
 6. **A repeat is the same pitch**, whatever the two notes' lengths, and a silence between them does not break the
    run. My reading of "identical note played twice in a row".
+   **Answer:** no. A repeat is the same pitch and the same length, and a rest between the two breaks the run.
 7. **Reduced motion.** The spike draws no cloud at all under `prefers-reduced-motion`. An alternative is the blip
    without the travel.
+   **Answer:** no cloud.
 8. **Where it shows.** The world only. The detail avatar and the cards show nothing.
+   **Answer:** the world and the detail avatar. In the avatar the roll keeps its size and the box cuts the notes
+   off as they leave it.
 9. **Touch.** There is no pointer to hover with. A tap selects, which wakes the notes, and on a phone the robot the
    Deck camera follows counts as singled out. Whether that is enough.
+   **Answer:** yes, as built.
 10. **The lit strips' dials.** Before the cloud, Crawford agreed the boundary lines could stop being dynamic in
     width (the differences are invisible below a 4K screen) and that the edit flicker could go. That was for the
     strip pulse, which is rejected. Whether he still wants those two cleanups, as their own item.
+    **Answer:** yes, as their own item, backlog 85.
 11. **The bob's cycle.** I read "half in velocity and distance" as half the distance on the same cycle, which is
     also half the speed. If he meant the bob to take twice as long as well, that is `BOB_CYCLE_SECONDS` 1.2 to 2.4,
     and the speed would then be a quarter of what it was.
+    **Answer:** also double the cycle, to 2.4 seconds. Not yet built; it is the spec's Part 0.
 12. **The numbers.** He named four himself: every robot (`trail=all`), roll 2.5×, crossing 5 s, four pixels. The
     rest were the spike's defaults while he looked and he did not name them: "now" 22.5% in, dim 0.35, fan 0.6,
     wave 1.5%, the 50% battery line. Each is a switch in the spike. Whether any wants another look on a phone.
+    **Answer:** pinned at the spike's values, with a re-check on a phone at the spec's eye gate.
 
 ## Known implementation notes (not yet spec'd)
 
