@@ -190,7 +190,7 @@ re-seeded in the same commit (the probe table).
 
   **Estimated scope:** M (one source, one new test, two repairs with a parity claim to prove)
 
-- [ ] **Task 2: spawnSystem.ts — a company's name, id, identity colour and membership draw even**
+- [x] **Task 2: spawnSystem.ts — a company's name, id, identity colour and membership draw even**
 
   **Description:** In `generateCompanyName`, `generateCompanyId`, `generateCompanyIdentityColor` (attempt 0 and every
   retry dataId) and `generateCompanyMembership` (`company.count`, `company.size`, `company.member`), switch the draws.
@@ -527,6 +527,24 @@ re-seeded in the same commit (the probe table).
 (a) already sits above 16 ms on the plain draw (jsdom, store writes and melody registration included), so spec §5.4's
 "grows past a frame (16 ms)" is ambiguous for it: growth by 16 ms, or crossing 16 ms. **Open for Crawford at T7**; the
 shafts render is far below either reading.
+
+### T1–T2: as built
+
+- **T1** went as planned. `NOUNS` is exported for the test (the adjective list already was).
+- **T2, the member case:** the plan's "every roster index is a member in 40–60 % of worlds" cannot hold: a 12-robot
+  world puts about 8 robots in companies, so the mean share is 67 %. The case asserts what the plan meant, no index
+  favoured: every index within 4 points of the mean over all twelve (plain draw: index 0 at 35 % against a 67 % mean).
+- **T2, count and size:** their shares were already right on the plain draw (spec §1.1), so the RED for them is a joint
+  case, the four (count, first size) pairs at 25 ± 3 % each (plain: 2:3 at 30.7 %). Either draw alone put back on the
+  plain draw passes every case: with two outcomes split at the middle and everything else even, a lone plain count or
+  size is fair and unwelded. Recorded as equivalent mutants; both switches stay (spec §1.3).
+- **T2, `PARITY_TIERS`:** robots 4 and 50 became company members, and no original in the 51-robot roster pairs a shaped
+  release with Shimmer. The tiers are now five originals: 7 (step attack, Shimmer), 13 (lowpass accent, Grit; one LFO
+  lane moved), 14 (ripple attack and step release, Grit; unchanged), 16 (bandpass accent, Double), 28 (the one glider).
+  The case asserts each is an original first.
+- **T2, the stamped plot:** (7, 11) lost its rests under the new membership; (1, 1) stamps rests on 7 robots and marks
+  on 9. The swell in `sessionDiff.test.ts` lands on Grit now (was Shimmer); the precondition asserts it against
+  `ASPECT_FAMILIES.distance.keys`.
 
 ### T3: the cover-sim table
 

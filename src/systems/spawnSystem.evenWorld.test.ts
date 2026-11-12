@@ -2,8 +2,14 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect } from 'vitest';
+import alea from 'alea';
+import { createNoise2D } from 'simplex-noise';
 import type { Robot } from '../types/Robot';
-import { ADJECTIVES, NOUNS, generateRobotRosterBaseline, spawnRobot } from './spawnSystem';
+import {
+  ADJECTIVES, COMPANY_NOUNS, NOUNS, generateCompanyIdentityColor, generateCompanyMembership, generateCompanyRosterBaseline,
+  generateRobotRosterBaseline, spawnRobot,
+} from './spawnSystem';
+import { MAX_ROBOTS } from '../constants';
 import { useLocaleStore, DEFAULT_LOCALE } from '../stores/localeStore';
 import { evictLocaleNoiseMap, getLocaleNoiseMap } from '../utils/noiseMaps';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -114,5 +120,88 @@ describe('a robot\'s name, identity colour, gem seed, id and spawn position draw
     const noun = NAMES.map((n) => NOUNS.indexOf(n.split(' ')[1]));
     expect(Math.abs(correlation(adjective, ROBOTS.map(hueIndex)))).toBeLessThan(0.1);
     expect(Math.abs(correlation(noun, ROBOTS.map((r) => r.gemSeed)))).toBeLessThan(0.1);
+  });
+});
+
+describe('a company\'s name, id, identity colour and membership draw even (Even World Draws T2)', () => {
+  // 3,000 worlds, each a 12-robot roster's seeded companies, coloured the way spawnInitialCompanies colours them (each
+  // company's draw retried against the colours before it).
+  const MAPS = Array.from({ length: 3000 }, (_, i) => createNoise2D(alea(`even-world-companies:${i}`)));
+  const ROSTER_IDS = Array.from({ length: MAX_ROBOTS }, (_, i) => `robot-${i}`);
+  const COMPANIES = MAPS.flatMap((noiseMap) => {
+    const used: string[] = [];
+    return generateCompanyRosterBaseline(noiseMap, ROSTER_IDS).map((company, c) => {
+      const color = generateCompanyIdentityColor(noiseMap, c, used);
+      used.push(color);
+      return { ...company, color };
+    });
+  });
+
+  it('every adjective names 10 % of companies (+/-2 points) and every company noun 12.5 % (+/-2 points)', () => {
+    const adjectives = COMPANIES.map((c) => c.name.split(' ')[0]);
+    const nouns = COMPANIES.map((c) => c.name.split(' ')[1]);
+    for (const word of ADJECTIVES) {
+      expect(shareOf(adjectives, word), word).toBeGreaterThanOrEqual(0.08);
+      expect(shareOf(adjectives, word), word).toBeLessThanOrEqual(0.12);
+    }
+    for (const word of COMPANY_NOUNS) {
+      expect(shareOf(nouns, word), word).toBeGreaterThanOrEqual(0.105);
+      expect(shareOf(nouns, word), word).toBeLessThanOrEqual(0.145);
+    }
+  });
+
+  it('each of the 18 hues is some company\'s colour at 5.6 % (+/-1.5 points), and no two companies of a world share one', () => {
+    const colors = COMPANIES.map((c) => c.color);
+    for (const name of ROBOT_IDENTITY_COLOR_NAMES) {
+      expect(shareOf(colors, ACCENT_COLORS[name]), name).toBeGreaterThanOrEqual(0.041);
+      expect(shareOf(colors, ACCENT_COLORS[name]), name).toBeLessThanOrEqual(0.071);
+    }
+    let start = 0;
+    for (const noiseMap of MAPS) {
+      const count = generateCompanyMembership(noiseMap).length;
+      const world = colors.slice(start, start + count);
+      expect(new Set(world).size).toBe(world.length);
+      start += count;
+    }
+  });
+
+  it('the company id keeps its shape and its suffix takes a distinct value for more than 95 % of companies', () => {
+    COMPANIES.forEach((company) => expect(company.id).toMatch(/^company-[0-2]-[0-9a-z]{8}$/));
+    expect(new Set(COMPANIES.map((c) => c.id.split('-')[2])).size).toBeGreaterThan(COMPANIES.length * 0.95);
+  });
+
+  it('the count draw makes two companies in 50 % of worlds (+/-3 points) and three in the rest, read on a roster the cap never touches', () => {
+    const counts = MAPS.map((noiseMap) => generateCompanyMembership(noiseMap, 16).length);
+    expect(counts.every((n) => n === 2 || n === 3)).toBe(true);
+    expect(shareOf(counts, 2)).toBeGreaterThanOrEqual(0.47);
+    expect(shareOf(counts, 2)).toBeLessThanOrEqual(0.53);
+  });
+
+  it('the size draw: a world\'s first company (never capped) has 3 robots in 50 % of worlds (+/-3 points) and 4 in the rest', () => {
+    const sizes = MAPS.map((noiseMap) => generateCompanyMembership(noiseMap)[0].length);
+    expect(sizes.every((n) => n === 3 || n === 4)).toBe(true);
+    expect(shareOf(sizes, 3)).toBeGreaterThanOrEqual(0.47);
+    expect(shareOf(sizes, 3)).toBeLessThanOrEqual(0.53);
+  });
+
+  // The count and size shares above were already right on the plain draw (spec §1.1): two outcomes split at the middle.
+  // What the plain draw got wrong is the pair, welded at offset 0; this case was RED with both plain (2:3 at 30.7 %).
+  // Either one alone put back on the plain draw passes every case here: an equivalent mutant, recorded at T2.
+  it('the count and the first size are independent: each of the four (count, size) pairs starts 25 % of worlds (+/-3 points)', () => {
+    const pairs = MAPS.map((noiseMap) => {
+      const membership = generateCompanyMembership(noiseMap, 16);
+      return `${membership.length}:${membership[0].length}`;
+    });
+    for (const pair of ['2:3', '2:4', '3:3', '3:4']) {
+      expect(shareOf(pairs, pair), pair).toBeGreaterThanOrEqual(0.22);
+      expect(shareOf(pairs, pair), pair).toBeLessThanOrEqual(0.28);
+    }
+  });
+
+  it('the member draw favours no roster index: each index is in a company in a share within 4 points of the mean over all twelve', () => {
+    const memberships = MAPS.map((noiseMap) => new Set(generateCompanyMembership(noiseMap).flat()));
+    const shares = ROSTER_IDS.map((_, i) => memberships.filter((m) => m.has(i)).length / memberships.length);
+    const mean = shares.reduce((sum, s) => sum + s, 0) / shares.length;
+    shares.forEach((share, i) => expect(Math.abs(share - mean), `index ${i}: ${share} vs mean ${mean}`).toBeLessThanOrEqual(0.04));
   });
 });

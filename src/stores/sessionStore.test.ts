@@ -6,7 +6,8 @@ import { listSessions, loadSession, saveNamedSession } from '../utils/sessionSto
 import { buildSessionPayload } from '../utils/sessionDiff';
 import { generateCompanyName } from '../systems/spawnSystem';
 
-/** The suggestion Math.random yields when both its draws (the adjective, then the noun) return `r`. */
+/** The suggestion Math.random yields when every sample of its two even draws (the adjective, then the noun: three
+ *  samples each, so six calls per name since Even World Draws T2) returns `r`. */
 const suggestionAt = (r: number) => generateCompanyName(() => r * 2 - 1, 0);
 
 afterEach(() => {
@@ -74,7 +75,10 @@ describe('nextSaveName', () => {
     const free = suggestionAt(0.99);
     expect(free).not.toBe(taken); // precondition
     saveNamedSession(taken, buildSessionPayload());
-    vi.spyOn(Math, 'random').mockReturnValueOnce(0).mockReturnValueOnce(0).mockReturnValue(0.99);
+    // The first name's six samples land on the taken one; every later sample on the free one.
+    const random = vi.spyOn(Math, 'random');
+    for (let i = 0; i < 6; i++) random.mockReturnValueOnce(0);
+    random.mockReturnValue(0.99);
     expect(nextSaveName()).toBe(free);
   });
 

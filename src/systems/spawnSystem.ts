@@ -166,13 +166,13 @@ export const COMPANY_NOUNS = ['Collective', 'Consortium', 'Guild', 'Division', '
 
 /**
  * Deterministic, human-legible company name — same generation mechanism as generateRobotName
- * (ADJECTIVES + a word-list draw, same getSeededVal pattern), but exported: unlike robot names,
+ * (ADJECTIVES + a word-list draw, the same even draw), but exported: unlike robot names,
  * a company's suggested name is re-shown to the user at Create time (CompanyCrudControls), so it
  * needs a reuse point robot names never did.
  */
 export function generateCompanyName(noiseMap: NoiseFunction2D, offset: number): string {
-  const a = ADJECTIVES[Math.floor(getSeededVal(noiseMap, 'company.name.adj', offset, 0, ADJECTIVES.length))];
-  const n = COMPANY_NOUNS[Math.floor(getSeededVal(noiseMap, 'company.name.noun', offset, 0, COMPANY_NOUNS.length))];
+  const a = ADJECTIVES[Math.floor(getUniformSeededVal(noiseMap, 'company.name.adj', offset, 0, ADJECTIVES.length))];
+  const n = COMPANY_NOUNS[Math.floor(getUniformSeededVal(noiseMap, 'company.name.noun', offset, 0, COMPANY_NOUNS.length))];
   return `${a} ${n}`;
 }
 
@@ -181,7 +181,7 @@ export function generateCompanyName(noiseMap: NoiseFunction2D, offset: number): 
  *  above) so generateCompanyRosterBaseline below — and Session Storage's sessionDiff.ts, which
  *  needs a company's id to match it against a live company — can call it directly. */
 export function generateCompanyId(noiseMap: NoiseFunction2D, index: number): string {
-  const idSeed = getSeededVal(noiseMap, 'company.id', index, 0, 1);
+  const idSeed = getUniformSeededVal(noiseMap, 'company.id', index, 0, 1);
   return `company-${index}-${idSeed.toString(36).slice(2, 10)}`;
 }
 
@@ -210,7 +210,7 @@ export function generateCompanyIdentityColor(noiseMap: NoiseFunction2D, offset: 
   let lastColor = ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[0]];
   for (let attempt = 0; attempt < ROBOT_IDENTITY_COLOR_NAMES.length; attempt++) {
     const dataId = attempt === 0 ? 'company.identityColor' : `company.identityColor.retry${attempt}`;
-    const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getSeededVal(noiseMap, dataId, offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
+    const index = Math.min(ROBOT_IDENTITY_COLOR_NAMES.length - 1, Math.floor(getUniformSeededVal(noiseMap, dataId, offset, 0, ROBOT_IDENTITY_COLOR_NAMES.length)));
     lastColor = ACCENT_COLORS[ROBOT_IDENTITY_COLOR_NAMES[index]];
     if (!used.has(lastColor)) return lastColor;
   }
@@ -486,8 +486,8 @@ export interface CompanyRosterBaseline {
 /**
  * The seeded companies' members as roster indices (Company Families §1.11, Task 4): pure, from the noise map alone, so
  * spawn can know the membership before any robot exists. The draws ('company.count', 'company.size',
- * 'company.member', plain getSeededVal) are spawnInitialCompanies' own from before families, in the same order, over
- * a pool of indices instead of live ids. B4's cap: a company takes at most the pool less FREELANCERS_MIN, and a company
+ * 'company.member', even since docs/specs/EVEN_WORLD_DRAWS.md) are spawnInitialCompanies' own from before families, in
+ * the same order, over a pool of indices instead of live ids. B4's cap: a company takes at most the pool less FREELANCERS_MIN, and a company
  * that cannot then reach COMPANY_SIZE_MIN is not made (B14), nor is any after it (the pool only shrinks). A world the
  * cap does not touch keeps exactly the membership it had. Each company is listed in draw order, so its founder (the
  * lowest index, B6) is `Math.min(...members)`, not `members[0]`.
@@ -495,19 +495,19 @@ export interface CompanyRosterBaseline {
 export function generateCompanyMembership(noiseMap: NoiseFunction2D, rosterSize: number = MAX_ROBOTS): number[][] {
   let pool = Array.from({ length: rosterSize }, (_, i) => i);
   const companyCount = INITIAL_COMPANIES_MIN + Math.floor(
-    getSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
+    getUniformSeededVal(noiseMap, 'company.count', 0, 0, INITIAL_COMPANIES_MAX - INITIAL_COMPANIES_MIN + 1)
   );
 
   const companies: number[][] = [];
   for (let c = 0; c < companyCount; c++) {
     const size = Math.min(pool.length - FREELANCERS_MIN, COMPANY_SIZE_MIN + Math.floor(
-      getSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
+      getUniformSeededVal(noiseMap, 'company.size', c, 0, COMPANY_SIZE_MAX - COMPANY_SIZE_MIN + 1)
     ));
     if (size < COMPANY_SIZE_MIN) break;
 
     const members: number[] = [];
     for (let i = 0; i < size; i++) {
-      const idx = Math.floor(getSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
+      const idx = Math.floor(getUniformSeededVal(noiseMap, 'company.member', c * 100 + i, 0, pool.length));
       members.push(pool[idx]);
       pool = pool.filter((_, j) => j !== idx);
     }
