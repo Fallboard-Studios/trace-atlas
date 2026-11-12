@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/EVEN_WORLD_DRAWS.md](../specs/EVEN_WORLD_DRAWS.md). Source intent:
 [docs/intent/even-world-draws.md](../intent/even-world-draws.md). Backlog slot:
-[46](../todo/backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement), plan.md
+[46](../todo/archive/backlog-archive.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement), plan.md
 Stage 4. Build branch: `fix/even-world-draws` off `main` at `fe0c9166`. The visual half of backlog 47
 ([docs/tasks/EVEN_SEEDED_DRAWS.md](EVEN_SEEDED_DRAWS.md)), whose plan shape this follows.
 
@@ -481,7 +481,7 @@ re-seeded in the same commit (the probe table).
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 10: backlog 46 and plan.md — the record, then the archive**
+- [x] **Task 10: backlog 46 and plan.md — the record, then the archive**
 
   **Description:** Backlog 46's status line says built and passed, with the branch and the commit; plan.md's Stage 4
   line stays until the merge. After Crawford's merge, 46 moves whole to `archive/backlog-archive.md` under a Closed
@@ -492,7 +492,8 @@ re-seeded in the same commit (the probe table).
 
   **Acceptance criteria:**
   - [x] Before the merge: the status line (2026-11-11). After: the archive entry, no dangling `backlog.md#46-` link in
-    `docs/`. **Waits for Crawford's merge.**
+    `docs/`. **Done on this branch before the merge**, on Crawford's say-so the same day ("i'm calling this one
+    done"), so the PR carries it; the status line went with the move.
 
   **Verification:**
   - [ ] A grep over `docs/` for the old anchor finds nothing after the archive commit.

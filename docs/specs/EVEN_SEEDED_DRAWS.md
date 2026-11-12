@@ -13,7 +13,7 @@
 the draws get fixed before any band is tuned, because every band so far was heard through the draws described below.
 Recorded as backlog [47](../todo/archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first) on
 branch `fix/even-seeded-draws`. The world and visual draws have the same problem and are backlog
-[46](../todo/backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement), on
+[46](../todo/archive/backlog-archive.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement), on
 their own branch, because they may need their own tuning. Plan:
 [docs/tasks/EVEN_SEEDED_DRAWS.md](../tasks/EVEN_SEEDED_DRAWS.md).
 

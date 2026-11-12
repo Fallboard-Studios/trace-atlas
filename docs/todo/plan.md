@@ -25,9 +25,6 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 4 — Visual refinement
 
-- Backlog [46](backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement)
-  **The world and visual draws go even** — names, colours, gems, companies, placement: the picks go even and the smooth
-  walks stay, and every world's look moves once.
 - Backlog [79](backlog.md#79-robots-move-in-time-with-their-own-melody) **Robots move in time with their melody** — a
   new animated dial and a transport-to-tween path; interview, then Crawford's approval of the architecture.
 

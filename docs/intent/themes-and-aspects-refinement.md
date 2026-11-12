@@ -74,7 +74,7 @@ all open, and a fifth family may be proposed.
 - **Mood** is backlog [7](../todo/backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s: only
   the harmony note options, post-launch. Whether a theme presets a Mood is undecided and later.
 - **The world and visual draws** go even on their own branch, backlog
-  [46](../todo/backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
+  [46](../todo/archive/backlog-archive.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
   plan.md's Stage 4.
 - **The off screen's layout.** No row, column or scroll change is designed here; the set is decided first and the
   layout follows it, in a task of its own if one is needed.

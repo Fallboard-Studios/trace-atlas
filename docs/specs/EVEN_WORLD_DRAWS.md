@@ -10,9 +10,10 @@
 >   `npx vitest run src/utils/zzWorldSpread.test.ts`, writing its JSON to the session scratchpad, deleted before every
 >   commit
 
-**Status:** spec written 2026-11-11, for Crawford's review. Backlog
-[46](../todo/backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
-plan.md Stage 4, on branch `fix/even-world-draws`. Intent: [docs/intent/even-world-draws.md](../intent/even-world-draws.md).
+**Status:** shipped 2026-11-11 on branch `fix/even-world-draws`; Crawford passed both looks and called it done (spec
+written and approved the same day). Backlog
+[46](../todo/archive/backlog-archive.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
+archived; the record is the plan's (T7: the after-table and timings). Intent: [docs/intent/even-world-draws.md](../intent/even-world-draws.md).
 This is the visual half of backlog 47, Even Seeded Draws ([spec](EVEN_SEEDED_DRAWS.md), merged PR #596, 2026-11-02),
 which moved every audio draw and left these for their own branch in case they needed different tuning. Plan: to be
 [docs/tasks/EVEN_WORLD_DRAWS.md](../tasks/EVEN_WORLD_DRAWS.md) (approved the same day, decision 4).

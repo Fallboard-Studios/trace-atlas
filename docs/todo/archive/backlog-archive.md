@@ -1352,9 +1352,39 @@ heavily tweaked one is not); how many fit; and whether the off screen and the Se
 left, warn as it runs low, or both. Delete is already in the Sessions list. Needs a short interview: where the warning
 lives and what it says are Crawford's.
 
+## 46. World: Seeded Draws Are Welded and Centre-Heavy (Names, Colours, Gems, Companies, Placement)
+
+**Closed** 2026-11-11 (built on `fix/even-world-draws`, `928a0938`..`da8e6276` plus this archive commit; Crawford
+passed both looks, "I like it" and "looks good", and called it done). Every world and visual pick draws even
+(`getUniformSeededVal`) at the dataId and offset it always had: robot and company names, identity colours, gem seeds,
+ids, spawn positions, company membership, the roster's Active count and docked batteries (spawn and the sim together),
+factory ids, scales and spacing, the Attenuation Style tints and accent lean, scenery ids, the derelict roll and the
+light shafts. Two bell-era workarounds went: `ACCENT_PAIR_OFFSET` (the accent primary draws at offset 0) and the
+derelict re-hash. The plain draw is left with the three smooth walks (the terrain profile and the two temperature
+files). After-table: zero correlated pairs in every set, every pick at its even share; the world build costs about
+5 ms more; the station overlap at (−160, −120) is kept and pinned. Intent
+[docs/intent/even-world-draws.md](../../intent/even-world-draws.md), spec
+[docs/specs/EVEN_WORLD_DRAWS.md](../../specs/EVEN_WORLD_DRAWS.md), plan and record
+[docs/tasks/EVEN_WORLD_DRAWS.md](../../tasks/EVEN_WORLD_DRAWS.md). The original request follows.
+
+**Found 2026-11-01** while measuring the audio draws for backlog [47](#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
+**recorded, not fixed** (Crawford: the visuals go on their own branch in case they need different tuning). A plain
+`getSeededVal` draw samples one smooth simplex patch per world, so keys whose hashed x land close together read nearly
+the same value, a key at offset 0 takes only a few values across all worlds, and a band's outer tenths rarely come up
+([docs/specs/EVEN_SEEDED_DRAWS.md](../../specs/EVEN_SEEDED_DRAWS.md) §1.1 has the measurements). 47 moved the audio draws
+to `getUniformSeededVal` (merged via PR #596, 2026-11-02; [PROCEDURAL_GENERATION.md](../../PROCEDURAL_GENERATION.md)
+"Sampling Values" describes the three draws and lists the keys left on the plain one). The world and visual draws keep the plain draw: robot and company names, identity colours,
+gem seeds, robot and company ids, company count, size and membership, spawn positions, the roster's active count and
+docked batteries (`lifecycleSim.ts`, `spawnSystem.ts`), factory placement (`factoryPlacementSystem.ts`), districts
+(`districts.ts`), terrain (`terrainProfile.ts`), light shafts (`LightShafts.tsx`), locale temperature.
+
+**To work out:** which of those are picks (they should go even, like 47) and which are smooth walks on purpose (the
+terrain profile and the temperature steps probably are). Then measure, switch the picks, and look: every world's
+names, colours, gems and layout move. Done when no pick is welded to another and each fills its range.
+
 ## 47. Audio: Seeded Draws Are Welded and Centre-Heavy — Even Draws First
 
-**Closed** 2026-11-02 (merged via PR #596, `fix/even-seeded-draws`, `e333b033`..`2617fd8d`; Crawford passed Classic at Checkpoint D, "i love it"). Every audio draw is even (`getUniformSeededVal`) or centred (`getCentredSeededVal`: the EQ bands, the detunes, a lit detune link's depth folded to its 1 % floor), at the dataId and offset it always had; no key pair correlates above 0.1; every fitted edge became the share it says (spec §1.4). The record, before-and-after tables included, is [docs/tasks/EVEN_SEEDED_DRAWS.md](../../tasks/EVEN_SEEDED_DRAWS.md); its docs tasks T19–T20 landed after the merge on `docs/plan-2026-11-02`. The refinement this was step zero of is roadmap [58](../roadmap.md#58-themes-and-aspects-refinement); the world and visual draws are backlog [46](../backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement). The original request follows.
+**Closed** 2026-11-02 (merged via PR #596, `fix/even-seeded-draws`, `e333b033`..`2617fd8d`; Crawford passed Classic at Checkpoint D, "i love it"). Every audio draw is even (`getUniformSeededVal`) or centred (`getCentredSeededVal`: the EQ bands, the detunes, a lit detune link's depth folded to its 1 % floor), at the dataId and offset it always had; no key pair correlates above 0.1; every fitted edge became the share it says (spec §1.4). The record, before-and-after tables included, is [docs/tasks/EVEN_SEEDED_DRAWS.md](../../tasks/EVEN_SEEDED_DRAWS.md); its docs tasks T19–T20 landed after the merge on `docs/plan-2026-11-02`. The refinement this was step zero of is roadmap [58](../roadmap.md#58-themes-and-aspects-refinement); the world and visual draws are backlog [46](#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement). The original request follows.
 
 **Found 2026-11-01**, the first step of refining the themes and aspects (Crawford agreed to fix the spread before any tuning and then
 re-hear Classic). Every audio value a world seeds through plain `getSeededVal` is welded to other keys,

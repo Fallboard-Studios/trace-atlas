@@ -3507,7 +3507,7 @@ of 2026-10-31 and 2026-11-01 as a starting point, not a finish. The grids hold t
 - **Mood is backlog [7](../backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter)'s**: only the
   harmony note options, post-launch. Whether a theme limits the moods is undecided and likely later.
 - **The world and visual draws are not this phase**: backlog
-  [46](../backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement) goes even on
+  [46](backlog-archive.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement) goes even on
   its own branch, in plan.md's Stage 4.
 
 ### Not Doing (and why)

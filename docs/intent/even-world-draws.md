@@ -1,7 +1,7 @@
 # Intent: Even World Draws — every world and visual pick fills its range, the smooth walks stay
 
 Confirmed via `interview-me` on 2026-11-11 (four questions, every guess confirmed), ahead of a `spec-driven-development`
-pass. Backlog [46](../todo/backlog.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
+pass. Backlog [46](../todo/archive/backlog-archive.md#46-world-seeded-draws-are-welded-and-centre-heavy-names-colours-gems-companies-placement),
 plan.md Stage 4; the visual half of backlog 47 (Even Seeded Draws,
 [docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md), merged PR #596), held back on 2026-11-01 for its own
 branch in case the visuals needed different tuning. Branch: `fix/even-world-draws`.

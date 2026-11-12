@@ -409,38 +409,6 @@ and its name over its content entry. Nothing else changes: `presetPayload` decod
 theme and the aspect picks included. The review's probes use Vessport Null and the `kr1nd4ra` plot by name, so a later
 probe run picks its worlds again.
 
-### 46. World: Seeded Draws Are Welded and Centre-Heavy (Names, Colours, Gems, Companies, Placement)
-
-**Status (2026-11-11): interviewed, intent confirmed** ([docs/intent/even-world-draws.md](../intent/even-world-draws.md),
-on `fix/even-world-draws`): every pick goes even, the terrain and temperature walks stay plain, the id change and its
-effect on saved sessions is accepted, and the gate is a measured table plus Crawford's look at fresh worlds. Spec
-written the same day, [docs/specs/EVEN_WORLD_DRAWS.md](../specs/EVEN_WORLD_DRAWS.md), with the before-table (§1.1)
-and its two questions answered the same day (even for the four neutral-middle bands; both dead workarounds removed).
-Plan: [docs/tasks/EVEN_WORLD_DRAWS.md](../tasks/EVEN_WORLD_DRAWS.md), ten tasks with a probe table (24 tests in 10
-files move, one of them a station overlap for Crawford's decision at Checkpoint B).
-
-**Status (2026-11-11): built and passed, awaiting the PR.** Every world and visual pick draws even on
-`fix/even-world-draws` (T1–T6, `516b9035`–`7896d815`; code complete at Checkpoint C, `6a23b747`; docs T8–T9, through
-`12800f59`). Both looks passed with nothing to narrow; the station overlap at (−160, −120) is kept and
-pinned (Checkpoint B). The after-table (plan, T7): zero correlated pairs, every pick at its even share; the world
-build costs about 5 ms more. The plain draw is left with the terrain profile and the two temperature walks. Archived
-after the merge (T10's second half).
-
-**Found 2026-11-01** while measuring the audio draws for backlog [47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
-**recorded, not fixed** (Crawford: the visuals go on their own branch in case they need different tuning). A plain
-`getSeededVal` draw samples one smooth simplex patch per world, so keys whose hashed x land close together read nearly
-the same value, a key at offset 0 takes only a few values across all worlds, and a band's outer tenths rarely come up
-([docs/specs/EVEN_SEEDED_DRAWS.md](../specs/EVEN_SEEDED_DRAWS.md) §1.1 has the measurements). 47 moved the audio draws
-to `getUniformSeededVal` (merged via PR #596, 2026-11-02; [PROCEDURAL_GENERATION.md](../PROCEDURAL_GENERATION.md)
-"Sampling Values" describes the three draws and lists the keys left on the plain one). The world and visual draws keep the plain draw: robot and company names, identity colours,
-gem seeds, robot and company ids, company count, size and membership, spawn positions, the roster's active count and
-docked batteries (`lifecycleSim.ts`, `spawnSystem.ts`), factory placement (`factoryPlacementSystem.ts`), districts
-(`districts.ts`), terrain (`terrainProfile.ts`), light shafts (`LightShafts.tsx`), locale temperature.
-
-**To work out:** which of those are picks (they should go even, like 47) and which are smooth walks on purpose (the
-terrain profile and the temperature steps probably are). Then measure, switch the picks, and look: every world's
-names, colours, gems and layout move. Done when no pick is welded to another and each fills its range.
-
 ### 61. Accessibility Review
 
 Requested by Crawford at the 2026-11-02 plan review. A fresh pass over the shipped UI before launch: focus order and
