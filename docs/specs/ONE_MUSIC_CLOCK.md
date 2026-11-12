@@ -13,8 +13,9 @@
 the same day), after backlog 82's measurement passed its Gate A ([CHORD_CYCLE_TIMING.md](../tasks/CHORD_CYCLE_TIMING.md)).
 Backlog items [82](../todo/backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
 [83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure). Part one only; part two is backlog
-[86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure). Not yet approved. §9 holds three questions for
-Crawford.
+[86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure). **Approved by Crawford 2026-11-12**, with §9's
+three questions resolved as recommended: the ticks register before the transport starts, `getPolyphonyStats().step`
+goes, and the named removals go. Plan: [docs/tasks/ONE_MUSIC_CLOCK.md](../tasks/ONE_MUSIC_CLOCK.md).
 
 ---
 
@@ -317,12 +318,11 @@ BEATCLOCK_TRANSPORT_TIME, OFF_SCREEN) are records of their time and are not edit
 
 ---
 
-## 9. Open Questions (for Crawford)
+## 9. Open Questions (resolved 2026-11-12, all as recommended)
 
-1. **The power-on order (§4.5).** Register the two ticks before starting the transport, with the tempo set first, so
-   measure 0 plays from step 1 (recommended)? Or keep today's order and let measure 0 start partway, as now?
-2. **`getPolyphonyStats().step`.** It reads `stepCounter`, which goes. No app code reads the field (the overlay reads
-   `voices` and `maxVoices`). Remove it (recommended), or derive it from BeatClock's last position?
-3. **The removals.** `resetHarmony`, `setAvailableNotes` (tests only), `getAvailableNotes`, `scheduleHarmonyCycle`,
-   `stopHarmonyCycle` and `parseTransportPosition` (its own test only) all go, with their tests. Your Gate A decision
-   covers the harmony repeat; this asks for the rest by name, since nothing is removed without your say-so.
+1. **The power-on order (§4.5).** **Resolved:** the two ticks register before the transport starts, with the tempo set
+   first, so measure 0 plays from step 1.
+2. **`getPolyphonyStats().step`.** It reads `stepCounter`, which goes, and no app code reads the field (the overlay
+   reads `voices` and `maxVoices`). **Resolved:** removed.
+3. **The removals.** **Resolved:** `resetHarmony`, `setAvailableNotes`, `getAvailableNotes`, `scheduleHarmonyCycle`,
+   `stopHarmonyCycle` and `parseTransportPosition` all go, with their tests.
