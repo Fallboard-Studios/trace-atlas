@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 85.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 86.
 
 ## Open items
 
@@ -780,6 +780,44 @@ So for most of the trip home the robot is in view and makes no sound.
 - **Backlog [74](#74-audio-fade-a-robot-in-and-out-on-its-station-arcs)** (fade a robot's audio in and out on its
   station arcs), off the plan since 2026-11-11. This item is the same edge: 74 would smooth it, this one moves it.
   Whether 74 folds into this is Crawford's call.
+
+Plan.md Stage 4.
+
+### 85. Robots: Fixed-Width Boundary Lines, No Edit Flicker
+
+Agreed by Crawford on 2026-11-12, twice: first during backlog [79](#79-robots-move-in-time-with-their-own-melody)'s
+spike, when a note pulse was going to take over the lit strips, and again once that pulse was rejected and the note
+cloud replaced it ("yes, as its own item"). Two cleanups on the robot's body, wanted for their own sake: the
+differences they draw are too small to see below a 4K screen.
+
+**Today.**
+
+- **Line widths follow settings.** A Top or Mid boundary line is 0.3 to 0.7 gem units wide, from the depth of that
+  layer's gain-LFO link (`BODY_LINE_MIN` / `BODY_LINE_MAX`, `src/components/robot/gem/bodyLineDials.ts`). An
+  orbiter's is 0.3 to 1.1, from Note Variance (`(ORBITER_LINE_BASE + value) / 10`,
+  `src/components/robot/gem/orbiterDials.ts`). The lit strip down a line is a third of its width (`RobotGem.tsx`), so
+  0.1 to 0.37 gem units: under a CSS pixel in the world.
+- **An edit flickers a line.** `useStripFlicker` (`src/components/robot/gem/useStripFlicker.ts`) plays a two-second
+  flicker on a line's strips when one of its values changes: the link's depth or lane, a Mid's layer gain, Note
+  Variance, Pitch Repeat. Two of those, the depth and Note Variance, are the values the widths read.
+
+**Wanted.**
+
+- Every boundary line a fixed width; `bodyLineDials` and the orbiters' `lineWidth` dial go.
+- `useStripFlicker` goes, with its trigger tuples in `RobotBody.tsx`.
+
+**To settle in a short interview first:**
+
+- The one width, or one for the body and one for the orbiters. Today's ranges overlap at 0.3 to 0.7.
+- The orbiters' strip opacity (0.35 to 1 from Pitch Repeat, `ORBITER_STRIP_OPACITY_MIN`). It was to be taken over by
+  the note pulse; with the pulse rejected, Crawford has not said whether it stays a dial or becomes fixed like the
+  body's (`BODY_STRIP_OPACITY`, 0.6).
+- Whether an edit to a Mid's layer gain, which also moves that Mid's lit level, needs any sign once the flicker is
+  gone.
+
+**What it touches.** [ROBOT_DESIGN.md](../ROBOT_DESIGN.md) lists the dials, and CLAUDE.md's Visual Mapping guardrail
+points at that list, so the list is edited with the code. The guardrail's own sentence does not change: removing a
+dial relaxes nothing. No audio, no state, nothing in a session or on a link.
 
 Plan.md Stage 4.
 
