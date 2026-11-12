@@ -413,7 +413,10 @@ probe run picks its worlds again.
 
 **Status (2026-11-11): interviewed, intent confirmed** ([docs/intent/even-world-draws.md](../intent/even-world-draws.md),
 on `fix/even-world-draws`): every pick goes even, the terrain and temperature walks stay plain, the id change and its
-effect on saved sessions is accepted, and the gate is a measured table plus Crawford's look at fresh worlds. Spec next.
+effect on saved sessions is accepted, and the gate is a measured table plus Crawford's look at fresh worlds. Spec
+written the same day, [docs/specs/EVEN_WORLD_DRAWS.md](../specs/EVEN_WORLD_DRAWS.md), with the before-table (§1.1)
+and two open questions (even or centred for the four neutral-middle bands; removing the two dead workarounds), for
+Crawford's review; then the plan.
 
 **Found 2026-11-01** while measuring the audio draws for backlog [47](archive/backlog-archive.md#47-audio-seeded-draws-are-welded-and-centre-heavy--even-draws-first);
 **recorded, not fixed** (Crawford: the visuals go on their own branch in case they need different tuning). A plain
