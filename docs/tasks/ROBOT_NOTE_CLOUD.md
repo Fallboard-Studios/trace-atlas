@@ -5,7 +5,8 @@ Source spec: [docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Sou
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4. The look's reference is the
 branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over without its test).
 
-**Status:** building. Phase 1 started 2026-11-12.
+**Status:** building. Phase 1 (Tasks 1 to 3) built 2026-11-12; Checkpoint: Events awaits Crawford's look at the bob
+and his review. Next: Task 4.
 
 ## Overview
 
@@ -187,8 +188,9 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   **Estimated scope:** S
 
 ### Checkpoint: Events
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (any existing, unrelated failure named).
-- [ ] Nothing is drawn yet and nothing is heard differently: the engine emits only when something listens, and
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (any existing, unrelated failure named). 2026-11-12:
+      356 files, 13,988 passed, 2 skipped (skipped before this branch), 0 failed; lint has the 4 old warnings only.
+- [x] Nothing is drawn yet and nothing is heard differently: the engine emits only when something listens, and
       nothing does.
 - [ ] Crawford looks at a working robot's bob at ±3 on 2.4 s (Task 1's Look; a hard reload first).
 - [ ] Reviewed with Crawford before Phase 2.
