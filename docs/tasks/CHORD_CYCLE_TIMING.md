@@ -1,6 +1,6 @@
 # Measurement Plan: The Chord Cycle's Timing
 
-Source: backlog [82](../todo/backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time). No spec and no intent
+Source: backlog [82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time). No spec and no intent
 doc: this plan builds nothing. It measures one thing on `main`, whether the lead recorded in the backlog entry on
 2026-11-12 is the cause, and stops at a gate where Crawford decides what, if anything, is built. A fix gets its own
 interview and spec after the gate.
@@ -16,7 +16,7 @@ a task's Proof is a measurement (a filled table in this file) or a Read. The pro
 committed; what it found is.
 
 The same log also answers the first question of backlog
-[83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) (which of the two clocks is off
+[83](../todo/archive/backlog-archive.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) (which of the two clocks is off
 the sixteenth it claims), so Task 2 records that too. 83 stays its own item.
 
 ## What the lead says
