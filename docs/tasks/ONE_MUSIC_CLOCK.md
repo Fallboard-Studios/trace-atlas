@@ -10,8 +10,10 @@ Source spec: [docs/specs/ONE_MUSIC_CLOCK.md](../specs/ONE_MUSIC_CLOCK.md) (appro
 **Status:** Phases 1–3 done 2026-11-12 (Task 1: nothing needs a started transport; Tasks 2–3: `positionFromTicks`,
 `positionAt`, BeatClock's tick on its own time; Tasks 4–9: `paletteForMeasure`, the melody and swell ticks on their
 own positions, the harmony repeat and its state gone, the ticks registered before the transport starts at the
-store's tempo). Checkpoint: Core's suite and build are clean; waiting for Crawford's hard reload and listen, and his
-review, before Phase 4 (Task 10).
+store's tempo). Checkpoint: Core's suite and build are clean. Phase 4's Task 10 done 2026-11-12: ten power-ons, every
+firing on the grid from tick 0, every measure turned on its bar, every step 1 on the right chord, one sequence in all
+ten. Waiting at Checkpoint: By ear (Crawford's hard reload and Click Track listen), and his reads of Task 1, Core and
+Task 10's table.
 
 ## Overview
 
@@ -468,15 +470,76 @@ Task 6 and do not depend on each other.
   **Proof:** Measurement.
 
   **Acceptance criteria:**
-  - [ ] Every BeatClock and melody firing in every run sits on a multiple of 48 ticks (to within 0.01).
-  - [ ] The first firing of both is tick 0 in every run.
-  - [ ] BeatClock's measure turns on the bar's own tick in every run, never before it.
-  - [ ] At every step 1 the palette is entry `floor(measure / 2) % 12`: no late chord change in ten runs.
-  - [ ] The sequence of (measure, step, palette entry) is identical across the ten runs.
-  - [ ] The overlay's rows read as before (voices, sounding, events, tempo), and the console shows nothing new.
+  - [x] Every BeatClock and melody firing in every run sits on a multiple of 48 ticks (to within 0.01).
+  - [x] The first firing of both is tick 0 in every run.
+  - [x] BeatClock's measure turns on the bar's own tick in every run, never before it.
+  - [x] At every step 1 the palette is entry `floor(measure / 2) % 12`: no late chord change in ten runs.
+  - [x] The sequence of (measure, step, palette entry) is identical across the ten runs.
+  - [x] The overlay's rows read as before (voices, sounding, events, tempo), and the console shows nothing new.
+        (See the overlay note below: no pre-change overlay was recorded to compare with, and the overlay has no
+        tempo row; the tempo is the transport's.)
 
   **Verification:**
   - [ ] The table, read by Crawford at the checkpoint below.
+
+  **Done 2026-11-12.** Measured on this branch at 4b99707a (Tasks 2–9 in), dev server, headless Chrome,
+  `?debug&seed=charlie&x=200&y=-30`. Ten runs, each a fresh Chrome, one at a time in the foreground (two or three per
+  call), no orphaned Chrome after, the dev server's node process stopped after. Each run lasted until the melody tick
+  had played measure 25, step 1 (about 88 s: 406 or 407 firings of each `16n` tick). Every run read PPQ 192 (a
+  sixteenth is 48 ticks, a measure 768), 71 BPM at the first firing, a 100 ms lookahead, a 50 ms update interval and
+  the worker clock.
+
+  The probe (scratchpad, not committed) imports the page's own Tone, `beatClock.ts`, `harmonySystem.ts` and
+  `AudioEngine.ts` by their resource URLs before the Power click, wraps `scheduleRepeat` on the transport instance
+  (each firing logs its time, `getTicksAtTime(time)`, and BeatClock's measure before and after the callback) and
+  wraps `AudioEngine.processMelodyStep` (each step logs the position the engine was handed, its tick count and the
+  palette `paletteForMeasure` gives that measure). The analysis works the position out from the tick count itself
+  and names the palette entry against its own copy of the table, so it does not reuse the code under test. It was
+  tested before it was trusted: a copy of run 1 with the old faults written in (the melody's ticks 37.36 off the grid,
+  a measure turned a sixteenth late at measure 5, measure 10's step 1 on the stale entry) was flagged on each, and
+  run 1 against that copy failed the identical-sequence check.
+
+  | Run | BeatClock firings | Melody firings | Off the grid (> 0.01) | Largest offset (ticks) | First firing (both) | Swell registered / first | Measure turns (on the bar) | Step 1s (right palette) | Steps off their tick count | Console |
+  |---|---|---|---|---|---|---|---|---|---|---|
+  | 1 | 407 | 407 | 0 | 8.2e-12 | 0 | 10 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 2 | 407 | 407 | 0 | 8.2e-12 | 0 | 5 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 3 | 406 | 406 | 0 | 5.5e-12 | 0 | 12 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 4 | 407 | 407 | 0 | 1.4e-11 | 0 | 10 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 5 | 407 | 407 | 0 | 8.2e-12 | 0 | 5 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 6 | 406 | 406 | 0 | 1.4e-11 | 0 | 8 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 7 | 406 | 406 | 0 | 5.5e-12 | 0 | 5 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 8 | 406 | 406 | 0 | 8.2e-12 | 0 | 10 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 9 | 406 | 406 | 0 | 8.2e-12 | 0 | 5 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+  | 10 | 406 | 406 | 0 | 8.2e-12 | 0 | 10 / 48 | 25 (25) | 26 (26) | 0 | the Tone warning |
+
+  **What the rows show.**
+  - *Registrations.* Three in every run, each named by its call stack: BeatClock's tick (`initBeatClock`) and the
+    melody tick (`startMelodyPlayback`), both `16n` with a start of `0`, registered with the transport stopped at tick
+    0; and the swell tick (`startAudioSwells`), `16n` from `16n`, registered after the transport had started (at tick
+    5 to 12). No fourth: the harmony repeat is gone, and nothing unexpected appeared.
+  - *The grid.* Every BeatClock, melody and swell firing sits on a multiple of 48 ticks; the largest offset in any run
+    is about 1e-11 ticks (float error). Consecutive firings are 48 ticks apart throughout, so no firing was lost. Both
+    `16n` ticks fire first at tick 0 in every run (backlog 82 measured 41.9 to 132.9 before). The swell tick fires
+    first at 48 in every run (before: 48, 96 or 144, depending on how far the transport had got).
+  - *The measure.* BeatClock turns the measure 25 times per run (measures 1 to 25), each on the bar's own firing and to
+    that bar's measure; no bar went by without a turn and nothing turned between bars. The first turn's tick count
+    reads 767.9999999999998 in run 1: the rounding to the nearest sixteenth (spec §4.1) is what labels it bar 1.
+  - *The chord.* Every step 1 (26 per run, measures 0 to 25) plays entry `floor(measure / 2) % 12`, and so does every
+    other step: the entries at step 1 read `0 0 1 1 2 2 … 11 11 0 0` in every run. No late chord change at any of the
+    260 bar starts.
+  - *The position.* The position the engine handed `processMelodyStep` (sixteenth, measure, step) equals the one
+    worked out from the step's own tick count at all 4,064 steps, and BeatClock's last measure equals the step's
+    measure at every one (BeatClock's tick runs first on each shared sixteenth; nothing leans on that any more).
+  - *Across runs.* The sequence of (measure, step, palette entry) for measures 0 to 24, 400 steps, is identical in all
+    ten runs. Backlog 82 measured six different chord sequences in ten power-ons of this world.
+  - *Console.* One warning per power-on, the same Tone warning backlog 82's runs saw with and without the probe
+    ("Events scheduled inside of scheduled callbacks should use the passed in scheduling time"). Nothing else: no
+    error, no exception.
+  - *The overlay* (`?debug`, read 11 s after the Power click and at the end), the same in every run: `ctx running`,
+    `transport started`, `events 9`, `bank 4/4`, `links 28/91`, `fin ok`; at 11 s `sounding 3/12`, voices 2 to 4 of
+    16; at the end `sounding 7/12`, voices 3 to 7 of 16. The world played throughout. No overlay from before the
+    change was recorded, so "as before" is that every row is present and reads as a healthy world, not a row-by-row
+    comparison; the overlay has no tempo row, and the transport read 71 BPM at the first firing in every run.
 
   **Dependencies:** Tasks 2–9.
 
