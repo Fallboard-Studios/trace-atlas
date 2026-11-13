@@ -355,6 +355,9 @@ export const BOB_CYCLE_SECONDS = 2.4;
 /** The most output latency a note event's `lead` carries (§7.2 A11): the raw context's `outputLatency`, else its
  *  `baseLatency`, is capped here so a device that reports nonsense cannot push a note seconds off its sound. */
 export const NOTE_LATENCY_MAX_SECONDS = 0.5;
+/** The least range, in semitones, a robot's roll height stands for (§1.3, §7.2 A1), so its first note sits at
+ *  mid-height and a two-note melody does not leap the whole roll. */
+export const NOTE_RANGE_MIN_SEMITONES = 12;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
