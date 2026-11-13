@@ -7,7 +7,7 @@ Source spec: [docs/specs/ONE_MUSIC_CLOCK.md](../specs/ONE_MUSIC_CLOCK.md) (appro
 [CHORD_CYCLE_TIMING.md](CHORD_CYCLE_TIMING.md). Part two is backlog
 [86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure).
 
-**Status:** written 2026-11-12, not started.
+**Status:** Phase 1 done 2026-11-12 (Task 1: nothing needs a started transport). Next: Task 2.
 
 ## Overview
 
@@ -80,7 +80,7 @@ Task 6 and do not depend on each other.
 
 ### Phase 1: The risky assumption
 
-- [ ] **Task 1: `AudioEngine.start` — confirm nothing before the registrations needs a started transport**
+- [x] **Task 1: `AudioEngine.start` — confirm nothing before the registrations needs a started transport**
 
   **Description:** Read every step `AudioEngine.start` runs between `Tone.start()` and `initBeatClock` (in
   [AudioEngine.ts](../../src/engine/AudioEngine.ts)): `loadInstruments`, `waitForGlobalReverbReady`,
@@ -93,8 +93,8 @@ Task 6 and do not depend on each other.
   **Proof:** Read. No test file; nothing changes.
 
   **Acceptance criteria:**
-  - [ ] Each step is listed with what it needs (a running context, the store, nothing).
-  - [ ] Either "nothing needs a started transport" is recorded and Task 9 proceeds as planned, or the step that does is
+  - [x] Each step is listed with what it needs (a running context, the store, nothing).
+  - [x] Either "nothing needs a started transport" is recorded and Task 9 proceeds as planned, or the step that does is
         named and the build stops for Crawford (spec §8, "Ask first").
 
   **Verification:**
@@ -105,6 +105,37 @@ Task 6 and do not depend on each other.
   **Files:** this file only.
 
   **Estimated scope:** XS (a read)
+
+  **Outcome (read 2026-11-12): nothing needs a started transport. Task 9 proceeds as planned.**
+
+  | Step in `AudioEngine.start` | What it does | What it needs |
+  |---|---|---|
+  | `Tone.start()` | Resumes the AudioContext (the user gesture). | Nothing |
+  | `loadInstruments()` | `buildGlobalFxChain()` builds the nodes; Chorus and Tremolo call `.start()` with no time (the context's now). A robot spawned before power-on gets `reserveVoice`, `updateRobotPan`, `updateRobotSends`. | A running context, the store |
+  | `waitForGlobalReverbReady()` | Awaits the reverb's impulse response. | A running context |
+  | `applyGlobalAudioToEngine(globalAudio, bpm)` | Writes each `setGlobal*`. Synced rates and the delay time are Hz and seconds from the store's `bpm` (`tempoSync.ts`, plain arithmetic). | The store, the built nodes |
+  | `lfoEngine.primeLfoBank` | Gated on `isAudioContextRunning()` (`lfoShared.ts`); lanes start at `Tone.now() + MIN_LEAD`. | A running context, the store |
+  | `lfoEngine.linkTarget` (each global target) | Connects link gains; drift starts at `Tone.now() + MIN_LEAD`. | A running context, the store |
+  | `setRoomFed` (each room) | Builds or lights bypass cells; effect LFOs `.start()` with no time. | A running context |
+  | `primeRosterLinks` | Robot lane links, as `linkTarget`. | A running context, the store |
+
+  Repo-wide, outside tests: no `.sync()` anywhere in `src`; `getTransport` only in `AudioEngine.ts`, `audioDiagnostics.ts`
+  (the overlay's reads of the transport's state and event counts, after `start` returns) and `audioContextSetup.ts` (a
+  comment). `Tone.Time(…).toSeconds()` appears only on the note path (`scheduleVoiceRelease`, `processMelodyStep`,
+  `compositeVoice`'s trigger), which only the ticks reach. BeatClock's pending schedules, registered in
+  `initBeatClock`, pass their interval as an absolute start, so they land on the grid with the transport stopped too.
+
+  Three things for later tasks, none a blocker:
+  - **Stale comments.** `AudioEngine.ts` (above the LFO priming: "after Tone.start()/transport.start() have
+    succeeded"), `audioStore.ts` (above `regenerateLfoBankFromSeed`: "after Tone.start()/transport.start() succeed")
+    and `beatClock.ts` (`initBeatClock`: "Should be called after Transport starts") name the transport. Only a running
+    context is needed (`lfoShared.ts` already says so). Task 3 rewords the BeatClock one and Task 9 the other two.
+  - **The tempo today.** `AudioEngine.setBPM` returns early until `initialized`, which `start` sets on its last line,
+    so the transport starts at Tone's default 120 BPM until `powerController.start`'s `setBPM` call after `start`
+    resolves. Task 9 writes `transport.bpm.value` directly before `transport.start()`, as its description says, not
+    through `setBPM`.
+  - **`await transport.start()`.** Tone's `start` returns the transport, not a promise, so the `await` does nothing.
+    Harmless. Task 9 can drop it when it moves the call.
 
 ### Phase 2: The position foundation
 
