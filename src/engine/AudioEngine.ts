@@ -13,10 +13,10 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { paletteForMeasure } from './harmonySystem';
-import { resetBeatClock, initBeatClock, positionAt, type MusicPosition } from './beatClock';
+import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPosition } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS } from '../constants';
-import { emitRobotNote, hasRobotNoteListener } from './noteEvents';
+import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './noteEvents';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
 
@@ -551,6 +551,34 @@ function announceTriggeredNote(robotId: string, note: string, at: number, end: n
 }
 
 /**
+ * Announce a later step's notes ahead of their trigger (note cloud spec §1.9; plan Task 34). Run by the melody's 16n
+ * tick, only while a listener has asked for a preview (`setNotePreviewSeconds`). The step announced is the first whole
+ * sixteenth at least the preview on; its place in the music is `positionAt` of its own time, its notes come from
+ * `stepNotes` (the reads the trigger makes), and each robot with a listener is asked `mayRobotTrigger` as things stand
+ * now. The polyphony cap refuses no announcement. While a preview is asked for, triggerWithCap emits nothing.
+ */
+function announceUpcomingStep(time: number): void {
+  const preview = getNotePreviewSeconds();
+  if (preview <= 0) return;
+  try {
+    const sixteenth = getTickSeconds(time);
+    if (sixteenth === undefined) return;
+    // Rounded up to a whole sixteenth: never less than asked (a float error can only make it one more).
+    const ahead = Math.ceil(preview / sixteenth);
+    const laterTime = time + ahead * sixteenth;
+    const later = positionAt(laterTime);
+    if (!later) return;
+    for (const params of stepNotes(later, laterTime)) {
+      if (!hasRobotNoteListener(params.robotId) || !mayRobotTrigger(params.robotId)) continue;
+      const at = params.time ?? laterTime;
+      announceTriggeredNote(params.robotId, params.note, at, at + Tone.Time(params.duration).toSeconds());
+    }
+  } catch (err) {
+    devWarn('[AudioEngine] announceUpcomingStep failed', err);
+  }
+}
+
+/**
  * May this robot trigger now? (note cloud spec §1.9; plan Task 33.) The gates that come before the polyphony cap, in
  * one place, so triggerWithCap and an early announcement ask the same thing: Mute, Solo and the dock
  * (`isRobotAudible`), the Audio Load budget (`soundingRobots`) and a reserved voice. Reads only; it counts no voice.
@@ -638,8 +666,9 @@ export function triggerWithCap(params: NoteParams): boolean {
     const noteEnd = scheduleVoiceRelease(duration, scheduleTime);
     standingBy.recordNoteEnd(robotId, noteEnd);
     // Past every gate: the note will sound, so its listeners hear of it (the note cloud, spec §1.2). Free when nobody
-    // listens; its own guard, so nothing here can un-count the voice that is now sounding.
-    if (hasRobotNoteListener(robotId)) announceTriggeredNote(robotId, note, scheduleTime, noteEnd);
+    // listens; its own guard, so nothing here can un-count the voice that is now sounding. While a preview is asked
+    // for, the tick has already announced it (announceUpcomingStep, spec §1.9), so it is not told twice.
+    if (getNotePreviewSeconds() <= 0 && hasRobotNoteListener(robotId)) announceTriggeredNote(robotId, note, scheduleTime, noteEnd);
     return true;
   } catch (err) {
     console.error('[AudioEngine] Failed to trigger note:', err);
@@ -669,6 +698,9 @@ function startMelodyPlayback(): void {
     // One shared per-step loop (processMelodyStep) — this used to carry its own copy that
     // dropped isGroupAccent, so the motif accent only ever worked through the test helper.
     AudioEngine.processMelodyStep(at, time);
+
+    // The note cloud's early notes (spec §1.9): a later step, announced only while a listener asks for a preview.
+    announceUpcomingStep(time);
   }, '16n', 0);
 }
 
