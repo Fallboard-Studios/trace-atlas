@@ -387,6 +387,9 @@ export const NOTE_NOW = 0.225;
 /** The layers' mask (§1.4, §1.7): clear at the left edge, the dim level from NOTE_DIM_FROM of the width, full
  *  strength from NOTE_BRIGHT_BAND of the width left of "now" up to "now". */
 export const NOTE_DIM_FROM = 0.3;
+/** The dim level (§1.7): how faint a note becomes once it has sounded, on a robot nobody has turned to. The robot
+ *  that is singled out is undimmed (1). Written on the cloud's box as `--note-dim`, which both masks read. */
+export const NOTE_DIM = 0.35;
 export const NOTE_BRIGHT_BAND = 0.14;
 /** A freelancer's notes wear its identity hue's complement at this saturation and lightness (§1.3). */
 export const NOTE_COMPLEMENT_S = 100;

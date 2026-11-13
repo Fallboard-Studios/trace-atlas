@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useLayoutEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import type { Robot } from '../../types/Robot';
 import {
@@ -29,7 +29,8 @@ import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { useNoteCloud } from './notes/useNoteCloud';
 import { noteColor } from './notes/noteRows';
 import { getStageScale } from '../panels/screen/worldView/useStageFit';
-import { BACK_LAYER_SCALE } from '../../constants';
+import { getSingledOutRobotId, subscribeSingledOut } from '../../systems/robotAttention';
+import { BACK_LAYER_SCALE, NOTE_DIM } from '../../constants';
 
 // ========================================
 // TYPES
@@ -58,6 +59,9 @@ interface RobotBodyProps {
 
 /** Same default the hand-drawn shapes applied when a fixture omitted identityColor. */
 const FALLBACK_IDENTITY = '#78cce2';
+
+/** What a card and an avatar subscribe to for the world's attention: nothing. */
+const subscribeNothing = () => () => {};
 
 // ========================================
 // COMPONENT
@@ -223,6 +227,21 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     color: noteColor(robot.identityColor || FALLBACK_IDENTITY, companyColor),
     pxPerUnit: () => getStageScale() * rowScale,
   });
+
+  // Attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7), world only: a body is singled out while it is under the pointer
+  // or followed by the Deck camera (robotAttention), selected, soloed or highlighted. The snapshots are booleans
+  // about this robot, so the pointer moving between two other robots re-renders nothing here. A singled-out robot's
+  // cloud is undimmed: `--note-dim` on the cloud's box, which both masks read, so a flip rebuilds nothing.
+  const isWorld = motion === 'world';
+  const isSingledOutHere = useCallback(() => isWorld && getSingledOutRobotId() === robot.id, [isWorld, robot.id]);
+  const pointedOrFollowed = useSyncExternalStore(isWorld ? subscribeSingledOut : subscribeNothing, isSingledOutHere);
+  const selected = useUIStore((s) => isWorld && s.selectedRobotId === robot.id);
+  const singledOut = pointedOrFollowed || selected || robot.audioMode === 'solo' || robot.audioMode === 'highlight';
+  useLayoutEffect(() => {
+    if (!isWorld) return;
+    const box = gemRef.current?.closest<HTMLElement>('[data-note-cloud]');
+    box?.style.setProperty('--note-dim', String(singledOut ? 1 : NOTE_DIM));
+  }, [isWorld, singledOut]);
 
   return (
     <RobotGem

@@ -26,6 +26,32 @@ import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import { emitRobotNote, hasRobotNoteListener } from '@/engine/noteEvents';
 import { setWorldState } from '@/systems/worldState';
+import { setPointedRobot, sleepRobotNotes } from '@/systems/robotAttention';
+
+// The Deck camera's followed robot, as a fake the attention cases drive (note cloud Tasks 21, 23); the rest of the
+// module is the real one.
+const camera = vi.hoisted(() => {
+  let followed: string | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    follow(id: string | null) {
+      followed = id;
+      for (const listener of [...listeners]) listener();
+    },
+    getFollowedRobotId: () => followed,
+    subscribeFollowedRobot(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+  };
+});
+vi.mock('@/animation/deckCamera', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/animation/deckCamera')>()),
+  getFollowedRobotId: camera.getFollowedRobotId,
+  subscribeFollowedRobot: camera.subscribeFollowedRobot,
+}));
 
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
@@ -751,5 +777,109 @@ describe('RobotBody — the note cloud (note cloud Task 13)', () => {
     const { unmount } = drawInCloud(makeRobot(), 'world');
     unmount();
     expect(hasRobotNoteListener('r1')).toBe(false);
+  });
+});
+
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.7 (note cloud Task 21): a world body that is singled out writes --note-dim 1 on
+// its cloud's box, any other NOTE_DIM; both masks read it, so a flip rebuilds nothing.
+describe('RobotBody — the singled-out robot\'s cloud is undimmed (note cloud Task 21)', () => {
+  function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
+    const result = render(
+      <div data-note-cloud="">
+        <NoteCloudLayer side="behind" />
+        <svg><RobotBody robot={robot} motion={motion} /></svg>
+        <NoteCloudLayer side="front" />
+      </div>,
+    );
+    const box = result.container.querySelector('[data-note-cloud]') as HTMLElement;
+    return { ...result, dim: () => box.style.getPropertyValue('--note-dim') };
+  }
+
+  beforeEach(() => {
+    setWorldState('running');
+    clearNoteCloudModel('r1');
+  });
+
+  afterEach(() => {
+    cleanup();
+    setWorldState('cold');
+    setPointedRobot(null);
+    camera.follow(null);
+    sleepRobotNotes('r1');
+    sleepRobotNotes('r2');
+    useUIStore.getState().selectRobot(null);
+  });
+
+  it('a robot nobody has turned to is dimmed', () => {
+    const { dim } = drawInCloud(makeRobot(), 'world');
+    expect(dim()).toBe('0.35');
+  });
+
+  it('the pointed-at robot is undimmed, and the value flips back when the pointer leaves', () => {
+    const { dim } = drawInCloud(makeRobot(), 'world');
+    act(() => setPointedRobot('r1'));
+    expect(dim()).toBe('1');
+    act(() => setPointedRobot(null));
+    expect(dim()).toBe('0.35');
+  });
+
+  it('the robot the Deck camera follows is undimmed', () => {
+    const { dim } = drawInCloud(makeRobot(), 'world');
+    act(() => camera.follow('r1'));
+    expect(dim()).toBe('1');
+  });
+
+  it('the selected robot is undimmed', () => {
+    const { dim } = drawInCloud(makeRobot(), 'world');
+    act(() => useUIStore.getState().selectRobot('r1'));
+    expect(dim()).toBe('1');
+  });
+
+  it('a soloed and a highlighted robot are undimmed; a muted one is not', () => {
+    const solo = drawInCloud(makeRobot({ audioMode: 'solo' }), 'world');
+    expect(solo.dim()).toBe('1');
+    solo.unmount();
+    const highlight = drawInCloud(makeRobot({ audioMode: 'highlight' }), 'world');
+    expect(highlight.dim()).toBe('1');
+    highlight.unmount();
+    const mute = drawInCloud(makeRobot({ audioMode: 'mute' }), 'world');
+    expect(mute.dim()).toBe('0.35');
+  });
+
+  it('another robot singled out leaves this one dimmed', () => {
+    const { dim } = drawInCloud(makeRobot(), 'world');
+    act(() => setPointedRobot('r2'));
+    act(() => useUIStore.getState().selectRobot('r2'));
+    expect(dim()).toBe('0.35');
+  });
+
+  it('a flip removes no note bar', () => {
+    const { container } = drawInCloud(makeRobot(), 'world');
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
+    expect(container.querySelectorAll('.note')).toHaveLength(1);
+    act(() => setPointedRobot('r1'));
+    act(() => setPointedRobot(null));
+    expect(container.querySelectorAll('.note')).toHaveLength(1);
+  });
+
+  it('a world body is not re-rendered when another robot becomes the singled-out one', () => {
+    const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
+    drawInCloud(makeRobot(), 'world');
+    const afterMount = renderSpy.mock.calls.length;
+    act(() => setPointedRobot('r2'));
+    act(() => camera.follow('r3'));
+    expect(renderSpy.mock.calls.length).toBe(afterMount);
+    renderSpy.mockRestore();
+  });
+
+  it('a card writes no --note-dim and is not re-rendered when the singled-out robot changes', () => {
+    const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
+    const { dim } = drawInCloud(makeRobot());
+    const afterMount = renderSpy.mock.calls.length;
+    act(() => setPointedRobot('r1'));
+    act(() => camera.follow('r1'));
+    expect(dim()).toBe('');
+    expect(renderSpy.mock.calls.length).toBe(afterMount);
+    renderSpy.mockRestore();
   });
 });
