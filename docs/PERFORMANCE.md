@@ -2951,6 +2951,106 @@ the pin's runs stalled (56 and 99 underruns); the copy never did. So the band is
 Same-round, the branch reads −0.050 on the mean against the pin's code and −0.047 against its copy. **From backlog
 72's merge, compare against 5b914870's code** (or the merge commit that carries it), as the rule above says.
 
+## Note cloud — the Task 17 cost run (2026-11-13, backlog 79)
+
+The robot note cloud's idle cost, for Gate 1 ([specs/ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md) §5.3;
+[tasks/ROBOT_NOTE_CLOUD.md](tasks/ROBOT_NOTE_CLOUD.md) Task 17). The build has Parts 0 to D: the cloud with
+attention and the desk avatar, and no early notes (Part E).
+
+**What was run.** `feature/note-cloud` at 3e91a1b6, a production build under `vite preview`. The world was
+`?seed=charlie&x=200&y=-30` (the short world link), the spike's world. `npm run perf:idle -- --only stock --throttle 1`
+was run four times in one session, each with one 6 s window, in the order off, on, off, on. Off is `&notes=off` and on
+is the default. All were headless, 1280×900, in the foreground one at a time, and left no orphaned Chrome. Every
+window read 12 robots, 2 factories and an undimmed world.
+
+| Window | Main busy (ms) | Long tasks | Frames | Paint (ms) | Compositor::Update (ms) | Rastered screens/frame | Unresolved raster layers | Layers (drawing) | FunctionCall (ms) | Animation frame (ms) | UpdateLayoutTree (ms) | Layout (ms) |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| off | 2 799 | 0 | 351 | 156 | 191 | 0.47 | 9 | 29 (24) | 2 119 | 1 207 | 234 | 129 |
+| on | 3 242 | 0 | 343 | 159 | 242 | 0.48 | 47 | 46 (34) | 2 500 | 1 497 | 293 | 160 |
+| off | 2 684 | 0 | 352 | 153 | 187 | 0.47 | 9 | 29 (24) | 2 000 | 1 133 | 220 | 119 |
+| on | 3 205 | 2 | 341 | 156 | 238 | 0.48 | 47 | 46 (34) | 2 473 | 1 473 | 298 | 163 |
+
+| | Off (mean) | On (mean) | Change | The spike (off → on, same world and command, 2026-11-12) |
+|---|---|---|---|---|
+| Main busy | 2 742 ms | 3 224 ms | **+17.6 %** (each on against each off: +14.5 % to +20.8 %) | 2 844, 2 716 → 3 315, 3 290: +19 % |
+| Compositor::Update | 189 ms | 240 ms | +27 % | 203, 171 → 250, 251: +33 % |
+| Paint | 154.5 ms | 157.5 ms | +2 % | unchanged |
+| Rastered screens/frame | 0.47 | 0.48 | +0.01 | unchanged |
+| Frames a second | 58.6 | 57.0 | −2.7 % | 57–58 both |
+
+**Against the working target** (spec §5.3: main-thread time within 10 % of off; paint, rastered area and frame rate
+inside the off runs' own spread). **Main-thread time is over:** +17.6 %, with both on windows above every off window.
+Paint (on 156–159 ms against off 153–156), rastered area (0.48 against 0.47) and frame rate (341–343 frames against
+351–352) are each just outside the off runs' spread, all by a few percent or less.
+
+**Where the added main-thread time goes** (mean on minus mean off, of +482 ms). Script accounts for most of it:
+FunctionCall +427 ms, of which the animation-frame callbacks (GSAP's ticker, so the belts' onUpdate passes) are
++315 ms. Style recalculation is +69 ms and layout +38 ms, both about +30 %. The compositor's update is +51 ms. Paint
+barely moves.
+
+**Read with these in mind.**
+- **No early notes.** The spike's +19 % was measured with early notes on. With them a note is on the roll about a fifth
+  longer, so Gate 4 runs this again with Part E built (spec §5.4).
+- **The rastered column under-reads the on windows.** About four layers per sounding robot come and go inside a window.
+  The on windows have 47 raster layers resolved in neither layer snapshot, against 9 off, and the column charges such
+  a layer nothing. Paint time, which does not depend on the snapshots, barely moved.
+- **The one pair of long tasks** (on, second window) is a single window's reading. Neither the other on window nor
+  either off window had one.
+- **Not measured here:** Crawford's desktop at full screen, a phone, and all twelve robots sounding at the Full tier
+  (spec §5.3's second run, at Gate 2).
+
+**The repeat rule** (spec §7.3 Q3). The run was a separate 50 s window on the same world, on the dev server, after
+power-on and an 8 s settle. A page-side probe (scratchpad only, never committed) subscribed to every robot's note
+events and to its drawn notes. **4 of 498 notes were dropped (0.8 %), all from one robot.** The spike's pitch-only rule
+dropped 88 of 373 (24 %) in a similar window. Counting length and rests leaves the rule almost nothing to thin on this
+world.
+
+## Note cloud — the battery bands, the Task 17d cost run (2026-11-13, backlog 79)
+
+Gate 1's answer to the run above: a robot places notes only while its battery is in 10–20%, 30–40%, 50–60%, 70–80% or
+90–100%, or whenever it is woken ([specs/ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md) §1.7; plan Tasks 17a–17c).
+
+**What was run.** Two production builds served side by side: the bands at 6bd2a82e (port 4173), and Task 17's code
+at 3e91a1b6 from a scratch worktree (port 4174; the same `index-BZB0cdvA.js` Task 17 served, so the same bytes). Same
+command, world and window as Task 17. There were two rounds of three arms, in the order off, old, bands and then
+bands, old, off. Off is the bands' build with `&notes=off`. All were headless, in the foreground one at a time, and
+left no orphaned Chrome.
+
+| Window | Main busy (ms) | Long tasks | Frames | Paint (ms) | Compositor::Update (ms) | Rastered screens/frame | Layers (drawing) | FunctionCall (ms) | Animation frame (ms) | UpdateLayoutTree (ms) | Layout (ms) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| off | 2 576 | 0 | 356 | 151 | 188 | 0.50 | 29 (24) | 1 870 | 1 045 | 203 | 117 |
+| old cloud | 2 765 | 1 | 349 | 156 | 228 | 0.48 | 46 (34) | 2 065 | 1 183 | 248 | 135 |
+| bands | 2 645 | 0 | 353 | 156 | 191 | 0.48 | 39 (30) | 1 912 | 1 056 | 223 | 124 |
+| bands | 2 514 | 0 | 355 | 149 | 202 | 0.47 | 43 (32) | 1 836 | 1 081 | 225 | 119 |
+| old cloud | 2 962 | 2 | 345 | 162 | 235 | 0.49 | 46 (34) | 2 173 | 1 280 | 266 | 147 |
+| off | 2 400 | 0 | 351 | 144 | 169 | 0.47 | 29 (24) | 1 781 | 972 | 194 | 103 |
+
+| Against off (means) | Old cloud | Bands |
+|---|---|---|
+| Main busy | +15.1 % (+7.3 % and +23.4 % in-round) | **+3.7 %** (+2.7 % and +4.8 % in-round) |
+| Compositor::Update | +30 % | +10 % |
+| Animation frame | +22 % | +6 % |
+| UpdateLayoutTree / Layout | +29 % / +28 % | +13 % / +10 % |
+| Frames | 347 against 353.5 | 354, inside the off runs' spread |
+| Rastered screens/frame | 0.48–0.49 | 0.47–0.48, inside the off runs' spread (0.47–0.50) |
+| Paint | 156–162 ms | 149–156 ms; the off runs read 144–151 |
+| Long tasks | 1 and 2 | 0 and 0 |
+
+**Against the working target.** Main-thread time with the bands is **+3.7 %, inside the 10 %**. Each bands window is
+within 5 % of the off window in its own round. Crossed with the other round, the spread runs from −2.4 % to +10.2 %
+(2 645 against 2 400). Frame rate and rastered area are inside the off runs' spread. Paint's 156 ms sits 5 ms over the
+off runs' 151.
+
+**Read with these in mind.**
+- **The old cloud read +15.1 % this session, against +17.6 % in Task 17's.** One of its rounds read +7.3 % and the other
+  +23.4 %, so a single pair is noisy. The bands read +2.7 % and +4.8 %.
+- **A 6 s window samples which robots are in an on band.** The layer count stands in for how many robots had notes
+  when the layers were read: the bands' 39 and 43 against the old cloud's 46 (about four layers a robot) means one or
+  two robots fewer here. Over a whole discharge a robot's cloud is off about half the time, so a longer window, or
+  another world, could read higher or lower than these two. Gate 2's runs on Crawford's desktop and a phone, with all
+  twelve sounding, are the next look.
+- **No early notes**, as in Task 17. Gate 4 runs this again with Part E built.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

@@ -5,12 +5,12 @@ import { useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 import gsap from 'gsap';
 import { useShallow } from 'zustand/react/shallow';
 
-import { getFollowedRobotId, subscribeFollowedRobot } from '@/animation/deckCamera';
 import { getRobotGem, gemWidth, GEM_CANVAS_H } from '@/components/robot/gem/polygon';
 import { BACK_LAYER_SCALE } from '@/constants';
 import { fill } from '@/content';
 import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL } from '@/data/robotSelectionConfig';
 import { useLocaleStore } from '@/stores/localeStore';
+import { getSingledOutRobotId, subscribeSingledOut } from '@/systems/robotAttention';
 import { getRef } from '@/utils/refs';
 
 // ========================================
@@ -170,7 +170,9 @@ function Marker({ robotId, localeId }: MarkerProps) {
 }
 
 /**
- * The square and caption around the robot the Deck camera is floating to or following (the
+ * The square and caption around the singled-out robot (docs/specs/ROBOT_NOTE_CLOUD.md §1.7): the robot
+ * under the pointer, else the one the Deck camera is floating to or following, else nothing; so on a
+ * desktop, where the camera never follows, it appears on hover. First drawn for the camera (the
  * indicator Crawford asked for after Checkpoint A of docs/tasks/DECK_CAMERA_FOLLOW.md): a 90 x 90
  * double border and inset glow (IntroPanel's) in the robot's identity colour, and "name | job" just above its top line. A sibling
  * overlay, not part of the robot, so the gem body is untouched (CLAUDE.md "Visual Mapping"). A mover
@@ -178,6 +180,6 @@ function Marker({ robotId, localeId }: MarkerProps) {
  * static sheet it would repaint the foreground factories each frame.
  */
 export function FollowedRobotMarker({ localeId }: { localeId: string }) {
-  const robotId = useSyncExternalStore(subscribeFollowedRobot, getFollowedRobotId);
+  const robotId = useSyncExternalStore(subscribeSingledOut, getSingledOutRobotId);
   return robotId === null ? null : <Marker robotId={robotId} localeId={localeId} />;
 }

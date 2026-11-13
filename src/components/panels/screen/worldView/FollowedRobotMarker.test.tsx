@@ -12,6 +12,7 @@ import { fill } from '@/content';
 import { BACK_LAYER_SCALE } from '@/constants';
 import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL } from '@/data/robotSelectionConfig';
 import { getRobotGem, gemWidth, GEM_CANVAS_H } from '@/components/robot/gem/polygon';
+import { setPointedRobot, sleepRobotNotes } from '@/systems/robotAttention';
 import { JobType, type Robot } from '@/types/Robot';
 
 // ========================================
@@ -320,6 +321,56 @@ describe('FollowedRobotMarker', () => {
       unmount();
 
       expect(followed.listeners.size).toBe(0);
+    });
+  });
+
+  // docs/specs/ROBOT_NOTE_CLOUD.md §1.7 (note cloud Task 25): the marker frames the singled-out robot, so on a desktop
+  // it appears on hover.
+  describe('the robot under the pointer', () => {
+    function point(id: string | null): void {
+      act(() => setPointedRobot(id));
+    }
+
+    afterEach(() => {
+      setPointedRobot(null);
+      for (const id of ['a', 'b', 'c']) sleepRobotNotes(id);
+    });
+
+    it('frames the pointed-at robot with no robot followed', () => {
+      const { container } = renderMarker();
+      expect(marker(container)).toBeNull();
+
+      point('b');
+
+      expect(marker(container)!.getAttribute('data-followed-robot')).toBe('b');
+    });
+
+    it('frames the pointed-at robot even while the camera follows another', () => {
+      follow('a');
+      const { container } = renderMarker();
+
+      point('c');
+
+      expect(marker(container)!.getAttribute('data-followed-robot')).toBe('c');
+    });
+
+    it('when the pointer leaves, frames the followed robot again', () => {
+      follow('a');
+      const { container } = renderMarker();
+      point('c');
+
+      point(null);
+
+      expect(marker(container)!.getAttribute('data-followed-robot')).toBe('a');
+    });
+
+    it('with neither, renders nothing', () => {
+      const { container } = renderMarker();
+      point('b');
+
+      point(null);
+
+      expect(marker(container)).toBeNull();
     });
   });
 

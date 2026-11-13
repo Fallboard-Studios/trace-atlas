@@ -12,7 +12,9 @@ the two lights, each Mid polygon's lit level, and the body scale — so an audio
 or resize a robot but never change a count, a side, a line or a position there. The orbiters are the
 one exception: composition settings (not audio) drive how many are attached and their size/line/strip
 ("Orbiters" below), and an attach/detach always animates — never a pop. Day/night lightness and
-battery dimming are the two overlays.
+battery dimming are the first two overlays, on the body. The note cloud is the third, drawn around the
+body and never on it: the robot's own notes, fed only by the engine's note events ("The note cloud"
+below).
 
 The geometry is never stored: `Robot.gemSeed` is the only persisted value, and
 `getRobotGem(gemSeed)` derives the parts on demand, cached per seed for the life of the page
@@ -24,6 +26,9 @@ The geometry is never stored: `Robot.gemSeed` is the only persisted value, and
 - [Procedural Generation](PROCEDURAL_GENERATION.md) — `getSeededVal`, the `'robot.gem.seed'` dataId
 - [Performance](PERFORMANCE.md) — "Gem Polygon Robots — the Task 9 idle-paint gate"
 - [Orbiting Polygons spec](specs/ORBITING_POLYGONS.md) — the orbiter dock/attach/detach design (Phase 40)
+- [Note Cloud spec](specs/ROBOT_NOTE_CLOUD.md) — the third overlay (backlog 79); its motion is in
+  [ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#the-note-cloud), its events in
+  [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-events--audio-to-the-picture)
 
 ## The generator
 
@@ -186,6 +191,54 @@ Both are read outside the audio memo, so the once-a-second daylight tick never r
   lights' opacity, and `batteryFacetContrast` lowers facet contrast with it, floored at
   `GEM_BATTERY_CONTRAST_FLOOR` (0.25) so the bevel never vanishes.
 
+## The note cloud — the third overlay
+
+Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). Around a robot, its own melody crosses
+a piano roll: a solid rounded bar for each note it plays, right to left, white while the note sounds.
+It answers "which robot is playing what?" without touching the body. The Visual Mapping guardrail
+(CLAUDE.md) names it: fed only by the engine's note events, audio flows to the picture and never back;
+it never changes the body's geometry, colour or dials; a note enters and leaves without a pop.
+
+- **What feeds it.** `noteEvents.ts` alone ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-events--audio-to-the-picture)):
+  one event per note that will sound, emitted past every gate, so a muted, docked, standing-by or
+  capped robot draws nothing because it plays nothing. The cloud reads no audio setting and writes
+  nothing to `RobotGem`.
+- **What a note becomes** (`src/components/robot/notes/noteCloudModel.ts`, `nextDrawnNote`). Its
+  **row** is its pitch within the robot's own range so far, at least `NOTE_RANGE_MIN_SEMITONES` (12)
+  tall; the range only grows, so a note keeps its row. The even pitch classes (C, D, E, F♯, G♯, A♯)
+  cross **in front** of the body, the other six **behind**. In a run of identical notes (same pitch,
+  same sounding length to the millisecond, no rest of more than `NOTE_REST_MIN_SECONDS` (0.05 s)
+  between) the first, third, fifth… are drawn. One model per robot, shared by every cloud of it
+  (`subscribeDrawnNotes`), forgotten when its world body unmounts (`clearNoteCloudModel`).
+- **Its shape** (`noteRows.ts`). The roll is `NOTE_ROLL_SIZE` (2.5) times the box the robot's parts
+  fill at its body scale, centred on the gem canvas centre (`rollBox`). A note crosses it in
+  `NOTE_CROSSING_SECONDS` (5), so a bar's length is its sounding length at that speed (`noteLength`:
+  at least its thickness, at most `NOTE_MAX_LENGTH_SHARE` (0.8) of the width). A bar is
+  `NOTE_HEIGHT_SHARE` (1/14) of the roll's height, never under `NOTE_MIN_PX` (4) on screen
+  (`noteThickness`). The rows run straight through the middle but for a faint wave, and fan apart past
+  `NOTE_EDGE_START` (0.55) of the way to each edge, where a bar tilts to its row's slope
+  (`noteRowGeometry`).
+- **Its colour** (`noteColor`). The robot's company colour, or for a freelancer the complement of its
+  identity hue at `NOTE_COMPLEMENT_S` / `NOTE_COMPLEMENT_L` (100 / 70). A note turns `NOTE_HOT_COLOR`
+  (near-white) while it sounds and fades back after. "Now", where a note's leading end is as it leaves
+  the speakers, is `NOTE_NOW` (0.225) of the width in from the right edge.
+- **Its strength.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.75). One mask on each layer
+  (`noteMask`) takes a note in from clear at the right, to full at "now", down to `--note-dim` once it
+  has sounded, to clear at the left edge: the mask dims a layer as a whole, so overlapping bars never
+  show a darker patch. `--note-dim` is `NOTE_DIM` (0.35), or 1 on the **singled-out** robot: under the
+  pointer or followed by the Deck camera (`src/systems/robotAttention.ts`), selected, soloed or
+  highlighted.
+- **The battery bands.** A world cloud places notes only while the robot's battery is in one of
+  `NOTE_BATTERY_BANDS` (10–28, 38–55, 65–73, 83–100 %), or while it is **woken**: pointed at or
+  selected, until it is next in its station (`notesShown`, `noteBands.ts`). Leaving a band places no
+  new note and lets the ones in flight finish crossing. The bands thin the cloud; they never dim the
+  body (that is the battery overlay's job).
+- **Never a pop.** Notes enter and leave through the mask. A body-scale or gem change fades both layers
+  out over `NOTE_WAKE_SECONDS` (0.3 s), rebuilds the roll and fades back; a row switch scales the
+  layers with the row. A colour edit colours only later notes.
+- **Off.** Under `prefers-reduced-motion`, and with `?notes=off` (the cost A/B switch), no layer is
+  rendered.
+
 ## Render contexts
 
 - **World** — `Robot.tsx` returns a **mover** (roadmap Phase 53, `.mover--robot`): a `div`, a
@@ -197,23 +250,34 @@ Both are read outside the audio memo, so the once-a-second daylight tick never r
   The swim tilts about the gem canvas centre, which is the mover's centre. `.robot` renders
   `RobotBody`, which composes `RobotGem` with the audio scale. `motion="world"` enables
   `useOrbiterMotion`. A robot changes rows by changing the mover's `data-scene-slot`, not by being
-  re-mounted ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)).
+  re-mounted ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)). The mover is also the note
+  cloud's box (`data-note-cloud`): one note layer before the svg (behind the body) and one after it
+  (in front).
   - **The back row** (Roadmap Phase 43 J4). A robot working at a background building, or exiting a
     station, is drawn in the back robot row, behind the midground, at `BACK_LAYER_SCALE` (0.75).
     That scale is on `.robot__row`, a wrapper between the root `<g>` and `RobotBody`, about the
     gem canvas centre, so it multiplies the body scale (0.735–1.69 becomes 0.55–1.27) without
     touching any dial. It is depth, not audio: the work loop eases it over the swim into or out of
     the row, never a pop, and the scene's depth tints haze that row like the buildings around it.
-    Neither is a robot overlay, so day/night and battery stay the only two. The root `<g>` carries
+    Neither is a robot overlay, so the overlays stay day/night, battery and the note cloud (whose
+    layers the work loop scales with the row). The root `<g>` carries
     `id="world-robot-{id}"`, which the layer switch's dissolve copy points at
     ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)).
-- **Detail avatar (96 px)** — `RobotDisplaySection` passes `motion="avatar"` (orbiters attach/detach
-  here too) and `viewBox={gemMotionViewBox(gem)}` — the plain `gemViewBox` canvas, padded for an
-  orbiter's dock position at its maximum size and its attach/detach flight; usually a small or zero
-  pad, since the docks sit close to Top's own corners.
-- **Selection card (64 px)** — no `motion` prop: orbiters render statically, the first `count` of
-  the seeded order at `scale(size)`, no hook, no animation. `viewBox={gemViewBox(gem)}` (`0 0 W 80`),
-  unchanged from Phase 39.
+- **Detail avatar** — `RobotScreen.tsx`'s `AvatarGem` passes `motion="avatar"` (orbiters
+  attach/detach here too) and `viewBox={gemMotionViewBox(gem)}` — the plain `gemViewBox` canvas, padded
+  for an orbiter's dock position at its maximum size and its attach/detach flight; usually a small or
+  zero pad, since the docks sit close to Top's own corners.
+  - **The desk column** draws the note cloud: the svg sits in `.robot-screen__gem-box`
+    (`data-note-cloud`) between a behind and a front frame, which a `ResizeObserver` places on the
+    svg's fit (`--note-fit-x`, `--note-fit-y`, `--note-fit-scale`). It places every note (no battery
+    bands: opening the robot's screen is turning to it) at `--note-dim` 1. The box does not clip: the
+    cloud spills over the details under the gem and only the console pane's edge cuts it (Gate 3,
+    2026-11-13), so the column does not scroll; `.robot-screen__avatar-details` does.
+  - **The phone band** draws no cloud.
+- **Roster tile (`RosterTile.tsx`) and the company screen's gem (`CompanyScreen.tsx`)** — no `motion`
+  prop: orbiters render statically, the first
+  `count` of the seeded order at `scale(size)`, no hook, no animation, no note cloud.
+  `viewBox={gemViewBox(gem)}` (`0 0 W 80`), unchanged from Phase 39.
 - Both avatar and card: `preserveAspectRatio="xMidYMid meet"` and `RobotBody ignoreDaylight
   ignoreScale` fit every robot to its tile at scale 1. Body scale shows in-world only.
 
@@ -228,7 +292,10 @@ RobotBody ─ getRobotGem(gemSeed) [cache] ──► RobotGem geometry (runtime 
         ├─ orbiterPlan(gemSeed) [cache, :orbit stream]        — seeded cornerOrder, outside both memos
         ├─ outside:          daylight, battery dim, identityColor
         ├─ gemPalette(...) ──► RobotGem (draw-only)
-        └─ useOrbiterMotion(root, plan, dials, enabled) ──► GSAP attach/detach on RobotGem's orbiters
+        ├─ useOrbiterMotion(root, plan, dials, enabled) ──► GSAP attach/detach on RobotGem's orbiters
+        └─ useNoteCloud(...) ──► bars on the note layers beside the svg, never on RobotGem
+                 ▲
+AudioEngine.triggerWithCap ──► noteEvents ──► noteCloudModel (subscribeDrawnNotes)
 ```
 
 `gemSeed` is drawn once at spawn, never user-edited, never inherited on the copy path and never
@@ -247,3 +314,6 @@ diffed into a session — a reloaded world regenerates the same seed, hence the 
 - A React-owned `transform`/`display`/`opacity` on an orbiter's outer group in an animated context
   (`motion="world"`/`"avatar"`) — `useOrbiterMotion`'s GSAP is the only writer there.
 - `requestAnimationFrame` loops or timers for robot visuals; GSAP owns motion.
+- A note cloud fed by anything but `noteEvents` (reading the engine, Tone or a robot's audio settings
+  for its notes), or writing to the body: its geometry, its colour or a dial. Notes in Zustand, or a
+  tween or timer per note (the belt's one pass does a note's whole life).

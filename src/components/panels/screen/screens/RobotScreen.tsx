@@ -1,10 +1,11 @@
-import { memo, useCallback, useEffect, useMemo, useRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, type ComponentProps, type CSSProperties, type ReactNode } from 'react';
 import { useShell } from '../useShell';
 import { useRobotMeta, type RobotMetaField } from './useRobotMeta';
 import { ModeLight } from './ModeLight';
 import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
+import { NoteCloudLayer } from '@/components/robot/notes/NoteCloudLayers';
 import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
 import { useHeldOffSends } from '@/components/robot/useHeldOffSends';
 import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
@@ -21,6 +22,8 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { isNoteCloudEnabled } from '@/utils/debugParams';
+import { prefersReducedMotion } from '@/utils/reducedMotion';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_RHYTHMIC_MOTIF_LENGTH, DEFAULT_NOTE_VARIANCE, DEFAULT_DYNAMICS, DEFAULT_RESTS, DEFAULT_ACCENTS } from '@/engine/melodyGenerator';
 import { SIGNATURE_ARRAY_CONFIG, BUS_FILTER_LFO_TARGET, type SignatureArrayParamSchema } from '@/data/robotOptionsConfig';
@@ -437,12 +440,63 @@ const META_FIELDS: readonly (readonly [RobotMetaField, DualLabelSchema])[] = [
   ['activity', ROBOT_SELECTION_ROW_SCHEMAS.activity],
 ];
 
-/** The gem in the avatar render context: day/night-invariant, at scale 1, framed to its motion canvas. */
-function AvatarGem({ robot }: { robot: Robot }) {
-  return (
-    <svg className="robot-screen__gem" viewBox={gemMotionViewBox(getRobotGem(robot.gemSeed))} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+/** The gem in the avatar render context: day/night-invariant, at scale 1, framed to its motion canvas. With `cloud`
+ *  (the desk column's, not the phone band's: docs/specs/ROBOT_NOTE_CLOUD.md §1.8) it sits in the note cloud's box,
+ *  unless the cloud is off (reduced motion, `?notes=off`), when it is the bare svg as before. */
+function AvatarGem({ robot, cloud = false }: { robot: Robot; cloud?: boolean }) {
+  const viewBox = gemMotionViewBox(getRobotGem(robot.gemSeed));
+  const svg = (
+    <svg className="robot-screen__gem" viewBox={viewBox} preserveAspectRatio="xMidYMid meet" aria-hidden="true">
       <RobotBody robot={robot} ignoreDaylight ignoreScale motion="avatar" />
     </svg>
+  );
+  if (!cloud || !isNoteCloudEnabled() || prefersReducedMotion()) return svg;
+  return <AvatarCloudBox viewBox={viewBox}>{svg}</AvatarCloudBox>;
+}
+
+const roundTo = (value: number, places: number) => Number(value.toFixed(places));
+
+/** The avatar's dim: always 1, the singled-out look (spec §1.8). Both masks read it. */
+const AVATAR_CLOUD_STYLE = { '--note-dim': 1 } as CSSProperties;
+
+/**
+ * The desk avatar's note cloud box (spec §1.8; docs/tasks/ROBOT_NOTE_CLOUD.md Task 27): the avatar's present size,
+ * clipping, holding a behind frame, the svg and a front frame. useNoteCloud places each layer in gem canvas units, so
+ * each frame's origin is the canvas's (0, 0), placed and scaled the way the svg's meet-and-centre fit places its
+ * viewBox. A ResizeObserver measures the box and writes that fit as `--note-fit-x`, `--note-fit-y` and
+ * `--note-fit-scale`, which the frames' CSS reads and the avatar's body reads for the hook's pixels per unit: one
+ * write per resize, never per frame. A zero-sided box (not laid out) writes nothing.
+ */
+function AvatarCloudBox({ viewBox, children }: { viewBox: string; children: ReactNode }) {
+  const boxRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const box = boxRef.current;
+    if (!box) return;
+    const [vx, vy, vw, vh] = viewBox.split(' ').map(Number);
+    const observer = new ResizeObserver((entries) => {
+      for (const { contentRect } of entries) {
+        const { width, height } = contentRect;
+        if (width <= 0 || height <= 0) continue;
+        const scale = Math.min(width / vw, height / vh);
+        box.style.setProperty('--note-fit-scale', String(roundTo(scale, 6)));
+        box.style.setProperty('--note-fit-x', `${roundTo((width - scale * vw) / 2 - scale * vx, 3)}px`);
+        box.style.setProperty('--note-fit-y', `${roundTo((height - scale * vh) / 2 - scale * vy, 3)}px`);
+      }
+    });
+    observer.observe(box);
+    return () => observer.disconnect();
+  }, [viewBox]);
+
+  return (
+    <div ref={boxRef} className="robot-screen__gem-box" data-note-cloud="" style={AVATAR_CLOUD_STYLE}>
+      <div className="robot-screen__note-frame robot-screen__note-frame--behind">
+        <NoteCloudLayer side="behind" />
+      </div>
+      {children}
+      <div className="robot-screen__note-frame robot-screen__note-frame--front">
+        <NoteCloudLayer side="front" />
+      </div>
+    </div>
   );
 }
 
@@ -463,35 +517,37 @@ const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: R
   }, [localeId, robot.id]);
 
   return (
-    <div className="robot-screen__avatar-column">
-      <AvatarGem robot={robot} />
-      <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
-      <div className="robot-screen__meta">
-        {META_FIELDS.map(([field, schema]) => (
-          <div key={field} className="robot-screen__well">
-            <DualLabel {...schema} />
-            <span className="robot-screen__meta-value">
-              {field === 'status' && <ModeLight mode={meta.mode} lit={meta.lit} />}
-              {meta.words[field]}
-            </span>
-          </div>
-        ))}
-        {loadedUnder !== null && (
-          <div className="robot-screen__well">
-            <DualLabel {...LOADED_UNDER_LABELS} />
-            <span className="robot-screen__meta-value">{loadedUnder}</span>
-          </div>
-        )}
+    <div className="robot-screen__avatar-column robot-screen__avatar-column--cloud">
+      <AvatarGem robot={robot} cloud />
+      <div className="robot-screen__avatar-details">
+        <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
+        <div className="robot-screen__meta">
+          {META_FIELDS.map(([field, schema]) => (
+            <div key={field} className="robot-screen__well">
+              <DualLabel {...schema} />
+              <span className="robot-screen__meta-value">
+                {field === 'status' && <ModeLight mode={meta.mode} lit={meta.lit} />}
+                {meta.words[field]}
+              </span>
+            </div>
+          ))}
+          {loadedUnder !== null && (
+            <div className="robot-screen__well">
+              <DualLabel {...LOADED_UNDER_LABELS} />
+              <span className="robot-screen__meta-value">{loadedUnder}</span>
+            </div>
+          )}
+        </div>
+        <SliderLinear
+          schema={BATTERY_READOUT_SCHEMA}
+          value={Math.round(robot.batteryLevel)}
+          onChange={NO_CHANGE}
+          readOnly
+          boxSize={BATTERY_READOUT_BOX_SIZE}
+          gapSize={BATTERY_READOUT_GAP_SIZE}
+        />
+        <RadioButton schema={companyAssignmentSchema} value={robot.companyId ?? FREELANCE_VALUE} onChange={handleCompanyChange} />
       </div>
-      <SliderLinear
-        schema={BATTERY_READOUT_SCHEMA}
-        value={Math.round(robot.batteryLevel)}
-        onChange={NO_CHANGE}
-        readOnly
-        boxSize={BATTERY_READOUT_BOX_SIZE}
-        gapSize={BATTERY_READOUT_GAP_SIZE}
-      />
-      <RadioButton schema={companyAssignmentSchema} value={robot.companyId ?? FREELANCE_VALUE} onChange={handleCompanyChange} />
     </div>
   );
 });

@@ -341,12 +341,87 @@ export const JOB_BASE_MIN_SECONDS = 6;
 /**
  * A working robot's bob (spec §1.9, buildJobTimeline.ts): ±BOB_PX scene units on its `.robot` group,
  * in whole cycles of about BOB_CYCLE_SECONDS fitting the job, so it ends where it started.
- * The cycle is as sketched (Phase 43 Task 0b). The distance was ±6 until 2026-11-12, when Crawford halved the bob
- * "in velocity and distance": half as far on the same cycle is also half as fast (12 u a cycle, about 10 u a second,
- * down from 24 and 20). The waiting robot's one bob (workLoop.ts) reads the same distance, so it halves with it.
+ * The distance was ±6 on a 1.2 s cycle (Phase 43 Task 0b) until 2026-11-12, when Crawford halved the bob "in
+ * velocity and distance", then doubled the cycle (note cloud spec §1.11): 12 u a cycle at about 5 u a second, down
+ * from 24 and 20. Jobs last 6–10 s, so a job holds 3 or 4 cycles. The waiting robot's one bob (workLoop.ts) reads the
+ * same distance; its timing is WAIT_RETRY_SECONDS, not this cycle.
  */
 export const BOB_PX = 3;
-export const BOB_CYCLE_SECONDS = 1.2;
+export const BOB_CYCLE_SECONDS = 2.4;
+
+// ========================================
+// The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md)
+// ========================================
+/** The most output latency a note event's `lead` carries (§7.2 A11): the raw context's `outputLatency`, else its
+ *  `baseLatency`, is capped here so a device that reports nonsense cannot push a note seconds off its sound. */
+export const NOTE_LATENCY_MAX_SECONDS = 0.5;
+/** The least range, in semitones, a robot's roll height stands for (§1.3, §7.2 A1), so its first note sits at
+ *  mid-height and a two-note melody does not leap the whole roll. */
+export const NOTE_RANGE_MIN_SEMITONES = 12;
+/** A rest, for the cloud's repeat rule (§1.3, §7.2 A4): more than this many seconds of silence between one note's
+ *  sounding end and the next note's start. Humanize moves a note by 20 ms at most, so two notes written to touch can
+ *  sit 40 ms apart and are still a run. */
+export const NOTE_REST_MIN_SECONDS = 0.05;
+/** The roll against the box the robot's parts fill, about the gem canvas centre (§1.3; Crawford's 2.5). */
+export const NOTE_ROLL_SIZE = 2.5;
+/** A note's time across the roll, in seconds (§1.3; Crawford's 5): the roll's speed, so a bar's length. */
+export const NOTE_CROSSING_SECONDS = 5;
+/** A bar's thickness against the roll's height, and its least thickness on screen in CSS pixels (§1.3): where the
+ *  stage is drawn small or the robot is in the back row, the bar grows in scene units to hold the pixels. */
+export const NOTE_HEIGHT_SHARE = 1 / 14;
+export const NOTE_MIN_PX = 4;
+/** A bar is never longer than this share of the roll's width (§1.3). */
+export const NOTE_MAX_LENGTH_SHARE = 0.8;
+/** The rows (§1.3): straight, but for a wave of NOTE_WAVE of the roll's height, until NOTE_EDGE_START of the way
+ *  from the centre (0) to an edge (1). Past it the rows spread apart by up to NOTE_FAN of their middle spread at the
+ *  edge, the wave grows to NOTE_WAVE_EDGE_GAIN times, and a bar tilts to its row's slope. NOTE_WAVE_COUNT waves
+ *  cross the roll. */
+export const NOTE_WAVE = 0.015;
+export const NOTE_EDGE_START = 0.55;
+export const NOTE_FAN = 0.6;
+export const NOTE_WAVE_EDGE_GAIN = 5;
+export const NOTE_WAVE_COUNT = 1.5;
+/** "Now" (§1.4): where a note's leading end is as it leaves the speakers, this share of the roll's width in from
+ *  the right edge, where the right-hand fan ends. */
+export const NOTE_NOW = 0.225;
+/** The layers' mask (§1.4, §1.7): clear at the left edge, the dim level from NOTE_DIM_FROM of the width, full
+ *  strength from NOTE_BRIGHT_BAND of the width left of "now" up to "now". */
+export const NOTE_DIM_FROM = 0.3;
+/** The dim level (§1.7): how faint a note becomes once it has sounded, on a robot nobody has turned to. The robot
+ *  that is singled out is undimmed (1). Written on the cloud's box as `--note-dim`, which both masks read. */
+export const NOTE_DIM = 0.35;
+export const NOTE_BRIGHT_BAND = 0.14;
+/** A freelancer's notes wear its identity hue's complement at this saturation and lightness (§1.3). */
+export const NOTE_COMPLEMENT_S = 100;
+export const NOTE_COMPLEMENT_L = 70;
+/** How far ahead of its sound a note is known, for the mask's clear right-hand end (§1.4): about a fifth of a second
+ *  while notes come from the trigger. Part E (early announcements) replaces it with the asked-for preview. */
+export const NOTE_KNOWN_AHEAD_SECONDS = 0.2;
+/** The per-frame pass writes a note's place only when it moves by a whole quantum (§1.6, §7.2 A7): a quarter of a
+ *  canvas unit across its row, a quarter of a degree in its tilt. Through the straight middle most frames write nothing. */
+export const NOTE_QUANTUM_UNITS = 0.25;
+export const NOTE_QUANTUM_DEGREES = 0.25;
+/** A note is white while it sounds (§1.4): its white copy turns opaque over NOTE_HOT_IN_SECONDS as the note leaves
+ *  the speakers, holds for the note's length, then clears over NOTE_COOL_SECONDS back to the note's own colour. */
+export const NOTE_HOT_COLOR = '#fffbe6';
+export const NOTE_HOT_IN_SECONDS = 0.05;
+export const NOTE_COOL_SECONDS = 0.25;
+/** The battery thins the cloud in bands (§1.7, Crawford 2026-11-13): the on bands (%), low to high, each from its lower
+ *  edge up to, not including, its upper one; the top band's upper edge is a full battery and counts. A robot places no
+ *  notes below the first band or in the gaps between. */
+export const NOTE_BATTERY_BANDS: readonly (readonly [number, number])[] = [
+  [10, 28],
+  [38, 55],
+  [65, 73],
+  [83, 100],
+];
+/** The cloud at its strongest (§1.7): the layers' opacity, in the world and on the avatar. Every other level (the dim
+ *  a note falls to once it has sounded, its white while it sounds) sits under it (Crawford, 2026-11-13: "75% of their
+ *  current opacity"). */
+export const NOTE_PEAK_STRENGTH = 0.75;
+/** A re-size never pops (§1.5): the layers fade out over NOTE_WAKE_SECONDS, the roll is rebuilt, and they fade back
+ *  to NOTE_PEAK_STRENGTH over the same. */
+export const NOTE_WAKE_SECONDS = 0.3;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */

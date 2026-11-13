@@ -9,6 +9,7 @@ Animation in Trace Atlas is driven by GSAP and SVG transforms. The runtime is ce
 - [src/animation/robotMotionRegistry.ts](../src/animation/robotMotionRegistry.ts) lets the work loop reach React-owned robot motion (the halo arc, the orbiter lock)
 - [src/animation/jobMoves/](../src/animation/jobMoves/) builds a working robot's job timeline, and [src/animation/stationRipple.ts](../src/animation/stationRipple.ts) a charging station's ripple
 - [src/animation/layerSwitch.ts](../src/animation/layerSwitch.ts) finds where a robot may change robot row on a leg
+- [src/components/robot/notes/useNoteCloud.ts](../src/components/robot/notes/useNoteCloud.ts) moves a robot's note cloud ([below](#the-note-cloud))
 
 The robots' motion is driven by the work loop, [src/systems/workLoop.ts](../src/systems/workLoop.ts) (Roadmap Phase 43); what it decides and when is in [ROBOT_LIFECYCLE.md](ROBOT_LIFECYCLE.md). This file covers the timelines it plays.
 
@@ -47,7 +48,7 @@ export function killTimeline(id: string): void {
 
 Further exports: `getTimeline(id): Timeline | undefined` (plain lookup, no side effect), `getTimelineScope(id): TimelineScope | undefined` (the scope an id was registered under, `undefined` for an unknown id — the way a test proves a registration's scope by code), `pauseWorldTimelines()` / `resumeWorldTimelines()` (below) and `killAllTimelines(): void` (kills and clears every entry, the scopes and the world pause — used for full teardown/reset).
 
-**The two scopes (`docs/specs/OFF_SCREEN.md` assumption 3).** `'world'` is everything that moves in the world — swims, job moves, station arcs and ripples, halo waves, orbiters, bubbles, strip flicker, the deck camera's float — and pauses as one set when the power rocker pauses the world. `'ui'`, the default, is the tablet's own chrome — the rocker, the nav, cabinet pops, the roster glide, the section tabs, the off screen's own theatre — which keeps running while the world is paused. **The rule: every world mover passes `'world'`; nothing else does.** The default is `'ui'` on purpose: a mover that forgets its scope keeps moving through a pause, which is visible, rather than a UI timeline freezing, which would look broken (spec §7 Q7). Each registration's scope is pinned in its module's test through `getTimelineScope`.
+**The two scopes (`docs/specs/OFF_SCREEN.md` assumption 3).** `'world'` is everything that moves in the world — swims, job moves, station arcs and ripples, halo waves, orbiters, bubbles, strip flicker, the note clouds, the deck camera's float — and pauses as one set when the power rocker pauses the world. `'ui'`, the default, is the tablet's own chrome — the rocker, the nav, cabinet pops, the roster glide, the section tabs, the off screen's own theatre — which keeps running while the world is paused. **The rule: every world mover passes `'world'`; nothing else does.** The default is `'ui'` on purpose: a mover that forgets its scope keeps moving through a pause, which is visible, rather than a UI timeline freezing, which would look broken (spec §7 Q7). Each registration's scope is pinned in its module's test through `getTimelineScope`.
 
 `pauseWorldTimelines()` pauses every `'world'` entry that is playing and remembers which (a module-level set), then raises a flag; while the flag is up a `'world'` timeline that is already playing when it is registered is paused on registration. *Corrected 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R26, item 1):* this used to say a robot that re-renders while the tablet is off does not start swimming, and the guard does not promise that. A timeline built `{ paused: true }` and played after `setTimeline`, as the swims, the work loop's dissolve and work moves, the station ripples and the deck camera's float are, is not playing when it is registered, so its `play()` runs under the pause. While the world is paused nothing starts those but the deck camera, whose tick runs on `gsap.ticker`, so the tick does nothing while the world is paused: measured headless, its float otherwise played from 0 to 1 behind the off screen. A module that can start a `'world'` timeline during a pause must check `getWorldState()` itself. `resumeWorldTimelines()` plays exactly the entries it paused — one a module had paused on purpose stays paused across a power cycle — and lowers the flag. Both are idempotent and touch no `'ui'` entry. `powerController.pause()` / `resume()` (`src/systems/powerController.ts`) are their only callers, in the order [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause) gives.
 
@@ -143,8 +144,9 @@ at once, and a passive effect would register too late for it.
 `jobDuration(bpm)` (10 s at 20 BPM to 6 s at 200 BPM, the live tempo read at job start):
 
 - **The bob** — the robot's `.robot` group moves ±`BOB_PX` (3) in whole cycles of about
-  `BOB_CYCLE_SECONDS` (1.2), so it ends where it started. The distance was ±6 until 2026-11-12, when Crawford
-  halved the bob in distance and speed: half as far on the same cycle is half as fast.
+  `BOB_CYCLE_SECONDS` (2.4), so it ends where it started: 3 cycles in a 6 s job, 4 in a 10 s one. It was ±6 on a
+  1.2 s cycle until 2026-11-12, when Crawford halved the distance and doubled the cycle (the note cloud spec §1.11),
+  a quarter of the old speed.
 - **Detach** — each locked orbiter flies from its dock to its target over `ATTACH_DURATION`
   (1 s). Targets are scene points mapped into the orbiter's own frame by `sceneToOrbiterLocal`
   (which inverts the robot translate, the `g.gem` scale about its centre and the corner's dock
@@ -402,10 +404,12 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `orbiters-${context}-${robotId}` `` | `useOrbiterMotion` | the mount | unmount (a no-op stub, see above) |
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
 | `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
+| `` `note-belt-${context}-${robotId}` `` | `useNoteCloud` | the mount; a re-size's rebuild replaces it | the rebuild (`setTimeline`), unmount |
+| `` `note-resize-${context}-${robotId}` `` | `useNoteCloud` | one re-size fade (out, rebuild, back in) | the next re-size, unmount |
 
 Every key in this table is registered as `'world'` (the registry's scope, above): the work loop's six
 `setTimeline` calls, `swimAnimation.ts`, `buildJobTimeline.ts`, `stationRipple.ts`, `useHaloMotion`,
-`useOrbiterMotion`'s motion tween, `useStripFlicker`, `BubbleStream.tsx` and `deckCamera.ts`'s float all
+`useOrbiterMotion`'s motion tween, `useStripFlicker`, `useNoteCloud`'s two, `BubbleStream.tsx` and `deckCamera.ts`'s float all
 pass it, so a power-off freezes them in place and a power-on plays them again from where they stopped. The one
 exception is `useOrbiterMotion`'s master key (`` `orbiters-${context}-${robotId}` ``), a kill-only token with
 no motion in it, which keeps the `'ui'` default on purpose and is pinned so in its test.
@@ -431,9 +435,9 @@ The ocean scene (`OceanScene.tsx`) is one **stage**, `div.ocean-scene__stage`, 1
 | `robots` | movers | every other robot, each a `div.mover.mover--robot`, over `stations` |
 | `dissolve` | movers | the layer switch's copies, `div.mover.mover--dissolve`, appended by the work loop to this slot's empty `div` (`getRef('robot-dissolve-layer')`) |
 | `front` | static sheet | `#station-front-layer` (each station's front fragment: halo and ripple), first, then tint D, foreground factories/scenery and pipe bridges |
-| `marker` | mover | the Deck camera's followed-robot marker (`FollowedRobotMarker`), a `div.mover.mover--marker` in front of every building |
+| `marker` | mover | the singled-out robot's marker (`FollowedRobotMarker`: the robot under the pointer, else the Deck camera's followed robot), a `div.mover.mover--marker` in front of every building |
 
-A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the followed robot's canvas centre each frame. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
+A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A robot's mover also holds its two note layers, one each side of the svg ("The note cloud" below). A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the singled-out robot's canvas centre each frame. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
 
 Each station's three fragments are plain groups in three sheets, not sheets of their own: `#station-l4-layer` is the last child of `back`, `#station-l3-layer` is all of `stations`, and `#station-front-layer` is the first child of `front` (before tint D). All three are static; only the one-second ripple animates one.
 
@@ -462,6 +466,58 @@ Two rules follow from all of this:
 
 Measure with `npm run perf:idle` before and after any change to what moves in the scene (docs/PERFORMANCE.md, "Idle paint & composite").
 
+### The note cloud
+Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the cloud draws and why is in
+[ROBOT_DESIGN.md](ROBOT_DESIGN.md#the-note-cloud--the-third-overlay); where its notes come from is in
+[AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-events--audio-to-the-picture). This is how it moves.
+`src/components/robot/notes/useNoteCloud.ts`, called by `RobotBody` with the world or avatar context
+(never on a card), owns it all. Its cost was measured at Gate 1 (PERFORMANCE.md, "Note cloud — the Task
+17 cost run" and "Note cloud — the battery bands, the Task 17d cost run").
+
+- **The layers.** `NoteCloudLayer` (`NoteCloudLayers.tsx`) renders a wrapper (`.note-layer`, masked,
+  `pointer-events: none`, `aria-hidden`) holding an empty belt (`.note-layer__belt`). In the world a
+  robot's mover holds a pair: `.note-layer--behind` before the svg (z-index −1) and
+  `.note-layer--front` after it (z-index 1); the mover is its own stacking context. The box holding a
+  pair carries `data-note-cloud`, and the hook finds it from inside the svg
+  (`closest('[data-note-cloud]')`), then the pair under it, so nothing is passed down. React renders
+  no children in a belt and never reconciles what the hook appends. A wrapper is `display: none` and
+  its belt drops `will-change` while it has no live note, so an idle cloud costs no layer. Neither is
+  rendered under reduced motion or `?notes=off` (`isNoteCloudEnabled`, `debugParams.ts`).
+- **The belt.** One `gsap.to` per robot per context, linear and `repeat: -1`, moves both belts left by
+  the roll's width each `NOTE_CROSSING_SECONDS`; it is registered `'world'` as
+  `` `note-belt-${context}-${robotId}` ``, so a power-off pause freezes the cloud mid-flight. Its
+  `onUpdate` is the one pass a frame: it writes both belts' `translate`, removes a note whose right end
+  has crossed the roll's left edge, and settles each live note. A note's place is kept in unwrapped
+  belt units, so its x changes only when the belt wraps, and the rows' wave and fan move it across
+  its row by a write only when it moves a whole quantum (`NOTE_QUANTUM_UNITS`, `NOTE_QUANTUM_DEGREES`;
+  through the straight middle most frames write nothing). Its white copy (`.note__hot`) takes its
+  opacity from the belt's own time: up over `NOTE_HOT_IN_SECONDS` as the note leaves the speakers,
+  held for its length, down over `NOTE_COOL_SECONDS`. No tween and no timer per note.
+- **A note arriving.** `subscribeDrawnNotes` hands the hook a drawn note and its event. It places
+  nothing while the tab is hidden, the world is not `'running'` (`getWorldState()`), or `placing` is
+  false (the battery bands); the model has counted the note either way. Otherwise one
+  `div.note` with its `.note__hot` child is appended to the front or behind belt at "now" plus the
+  event's `lead` at the belt's speed, and the first live note wakes the layers.
+- **Strength and re-size.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.75), set when the cloud is
+  built; nothing else changes it but a re-size. A gem or body-scale change fades both layers out over
+  `NOTE_WAKE_SECONDS`, rebuilds the roll at the latest size from a `.call` (dropping the notes in
+  flight and starting a new belt), and fades back to the peak, on
+  `` `note-resize-${context}-${robotId}` `` (`'world'`). A second change mid-fade replaces it from
+  wherever the layers are.
+- **The singled-out dim.** `RobotBody` writes `--note-dim` on the cloud's box (`NOTE_DIM`, or 1 when
+  singled out); both masks read it, so a flip rebuilds nothing.
+- **The row scale.** The work loop's `placeRow` and `easeRowWith` scale a robot's `.note-layer`s with
+  `.robot__row`, about each layer's own centre (the gem canvas centre), in the same tween as the row,
+  so a row switch never pops the cloud.
+- **Pixels per unit.** A bar's 4-pixel floor needs the screen scale, read when a note arrives and never
+  by a layout read: in the world `getStageScale()` (`useStageFit.ts`, the value it last wrote to
+  `--stage-scale`) times the row's scale; on the desk avatar `--note-fit-scale`, which the avatar's
+  box writes from its `ResizeObserver` and its frames' CSS reads to place the layers on the svg's
+  fit.
+- **The model's life.** `noteCloudModel` outlives an effect re-run and the avatar's mount; only the
+  world body's unmount forgets the robot's range and run (`clearNoteCloudModel`). The world body's
+  unmount also ends the robot's wake (`sleepRobotNotes`).
+
 ### Layout-rework timelines (Phase 45)
 
 Three families of UI timelines, all in `timelineMap`, none touching audio:
@@ -482,7 +538,7 @@ The module is runtime-only, in the pattern of `timelineMap` and the ref registry
 
 **The loop.** One `gsap.ticker` handler, added in `registerDeckScroller` and removed when the scroller goes, does all per-frame work. Every clock is a `performance.now()` comparison inside it; there are no timers.
 
-**The scroller's dimensions are measured, never read per frame.** `scrollWidth` and `clientWidth` are read once when the scroller is registered and again on each resize (a `ResizeObserver` on the scroller); read right after GSAP's transform writes they force a layout, and the old ticker read them every frame. **With nothing to scroll** — any viewport at or wider than the stage's 16:9, which is every desktop window — the camera stands down: the ticker returns at once, `moveCameraTo` starts nothing, the edit-return overrides do nothing and the marker never appears. A resize that opens a range lets the next tick pick; one that closes it ends any float or follow (backlog item 26, candidate 2, 2026-10-16).
+**The scroller's dimensions are measured, never read per frame.** `scrollWidth` and `clientWidth` are read once when the scroller is registered and again on each resize (a `ResizeObserver` on the scroller); read right after GSAP's transform writes they force a layout, and the old ticker read them every frame. **With nothing to scroll** — any viewport at or wider than the stage's 16:9, which is every desktop window — the camera stands down: the ticker returns at once, `moveCameraTo` starts nothing, the edit-return overrides do nothing and the marker never appears for the camera (it still frames the robot under the pointer, `robotAttention.ts`). A resize that opens a range lets the next tick pick; one that closes it ends any float or follow (backlog item 26, candidate 2, 2026-10-16).
 
 **The scroller is composited** (`will-change: scroll-position` on `.world-view__scroller`, 2026-10-18). The camera writes `scrollLeft` and nothing else, so a composited scroller turns each pan into a compositor scroll of the scroller's own layer. Without it, Chrome on a desktop below DPR 1.5 draws the scroller into the console shell's layer (`div.screen-content`) and re-rasters that layer on every frame of a pan with no `Paint` event; at DPR ≥ 1.5 and on mobile Chrome composites the scroller anyway, so phones were never affected. The cost is the scroller's layer, ≈ 0.7 MB at 1× on 1280 × 900. Measured in [tasks/DECK_SCROLLER_COMPOSITING.md](tasks/DECK_SCROLLER_COMPOSITING.md) and PERFORMANCE.md "Deck scroller compositing — the desktop A/B"; `contain: paint` was measured too and did nothing.
 
@@ -497,7 +553,7 @@ The module is runtime-only, in the pattern of `timelineMap` and the ref registry
 - **Robot edit-return.** The module subscribes to `uiStore` and remembers the last `selectedRobotId`. When `activeHubTile` goes from set to `null` (the Deck is back), it floats straight to that robot with no cooldown wait, if the robot is still undocked; if it is docked, nothing happens and the loop carries on.
 - **Company edit-return.** The same edge with `selectedCompanyId`: `pick` from that company's undocked members, or from every undocked robot when it has none.
 
-**Who may call in.** Nothing else may call into the module. `WorldView` registers the scroller (`registerDeckScroller`); `FollowedRobotMarker` reads the followed robot (`getFollowedRobotId`, `subscribeFollowedRobot`) to draw its marker. There is no manual "jump to this robot" control and no tap-to-pan; a new trigger belongs inside the module, behind the loop's own rules.
+**Who may call in.** Nothing else may call into the module. `WorldView` registers the scroller (`registerDeckScroller`); `src/systems/robotAttention.ts` reads the followed robot (`getFollowedRobotId`, `subscribeFollowedRobot`) for the singled-out robot (`getSingledOutRobotId`, `subscribeSingledOut`), which `FollowedRobotMarker` draws its marker on and `RobotBody` undims its note cloud for. There is no manual "jump to this robot" control and no tap-to-pan; a new trigger belongs inside the module, behind the loop's own rules.
 
 ### UI and system animations
 Other systems follow the same model:

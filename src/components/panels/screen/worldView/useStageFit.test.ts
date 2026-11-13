@@ -1,8 +1,8 @@
 import { renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useEffect, useRef } from 'react';
 
-import { useStageFit } from './useStageFit';
+import { getStageScale, useStageFit } from './useStageFit';
 
 // docs/specs/PER_MOVER_COMPOSITOR_LAYERS.md §1.1 (roadmap Phase 53, Task 7). The scene box is
 // observed once; every resize writes the stage's three CSS custom properties from `sceneFit`. One
@@ -210,5 +210,41 @@ describe('useStageFit', () => {
       })
     ).not.toThrow();
     expect(MockResizeObserver.instances).toHaveLength(0);
+  });
+});
+
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.6 (note cloud Task 11): the note cloud's 4-pixel floor needs the
+// stage's scale without a layout read, so the number the observer writes is also kept in module state.
+describe('getStageScale', () => {
+  it('is 1 before any resize', async () => {
+    vi.resetModules();
+    const fresh = await import('./useStageFit');
+    expect(fresh.getStageScale()).toBe(1);
+  });
+
+  it('is the fitted scale after a resize, as written to --stage-scale', () => {
+    mountHook();
+    MockResizeObserver.instances[0].fire([390, 400]);
+    expect(getStageScale()).toBeCloseTo(400 / 1080, 5);
+    expect(getStageScale()).toBe(parseFloat(prop('--stage-scale')));
+  });
+
+  it('follows a later resize', () => {
+    mountHook();
+    const observer = MockResizeObserver.instances[0];
+    observer.fire([2560, 1080]);
+    expect(getStageScale()).toBeCloseTo(4 / 3, 5);
+    observer.fire([1920, 1080]);
+    expect(getStageScale()).toBe(1);
+  });
+
+  it('a zero-sided box changes nothing', () => {
+    mountHook();
+    const observer = MockResizeObserver.instances[0];
+    observer.fire([390, 400]);
+    observer.fire([0, 0]);
+    observer.fire([0, 720]);
+    observer.fire([1280, 0]);
+    expect(getStageScale()).toBeCloseTo(400 / 1080, 5);
   });
 });

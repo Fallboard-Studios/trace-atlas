@@ -14,10 +14,14 @@
 **Status:** spec written 2026-11-12 from the intent
 [docs/intent/robot-note-cloud.md](../intent/robot-note-cloud.md), whose twelve "To confirm" points Crawford answered
 the same day (§7.1 records each answer), with his answers to this spec's first open questions folded in (§7.1,
-second table). **Paused 2026-11-12, at Crawford's word:** backlog 82 and 83 are finished first, as plan.md already
-orders them, and this work is picked up after. Before it is planned, §1.1, §1.2 and §1.9 are re-read against what 82
-and 83 shipped. Not yet planned. Backlog [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody),
-plan.md Stage 4.
+second table). Paused that day at Crawford's word until backlog 82 and 83 were finished. **Picked up again
+2026-11-12:** both closed with the one music clock (PR #635), and §1.1, §1.2 and §1.9 have been re-read against the
+engine as it now is. §1.1 gained the music clock and §1.9 is rewritten on it. Asked whether Part E should now move
+into the first branch, Crawford kept it last (§7.1). **Planned 2026-11-12:**
+[docs/tasks/ROBOT_NOTE_CLOUD.md](../tasks/ROBOT_NOTE_CLOUD.md), 37 tasks. **Built 2026-11-12 to 2026-11-13:** Parts 0
+to D on `feature/note-cloud` (plan Tasks 1 to 30), Gates 1 to 3 passed; §8 records what differs from this spec. Part
+E (plan Tasks 31 to 37) follows on its own branch after the merge. Backlog
+[79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
 **Who it is for:** a player watching the world, on the desk shell and on a phone, who wants to see which robot is
 playing which sound.
@@ -32,20 +36,21 @@ spike draws it", the spike is the picture and this spec is the rule.
 ## 0. Scope check
 
 One capability (a robot's notes drawn around it), in six parts that are each testable alone. One spec, because every
-part reads the same note events and the same numbers. Part E leans on two other backlog items (82 and 83), and the
-whole build now waits for them (Status, above).
+part reads the same note events and the same numbers. Part E leans on what backlog 82 and 83 fixed (the one music
+clock, §1.1), and both are closed.
 
 | Part | Responsibility | Depends on |
 |---|---|---|
 | 0 — the bob | The working bob's cycle doubles (§1.11). Unrelated to the cloud; Crawford asked for it "while we are in there" | — |
 | A — note events | The engine tells listeners about each note it triggers (§1.2) | — |
 | B — the cloud | The piano roll around a world robot: belts, rows, colours, timing (§1.3–§1.6) | A |
-| C — attention | Dim and full strength, the battery fade, waking, the marker on a pointed-at robot (§1.7) | B |
+| C — attention | Dim and full strength, the battery bands, waking, the marker on a pointed-at robot (§1.7) | B |
 | D — the avatar | The same cloud on the robot screen's detail avatar (§1.8) | B |
-| E — early announcements | The engine announces a note before its trigger, so it enters at the roll's edge (§1.9) | A, B, and backlog 82 and 83 closed |
+| E — early announcements | The engine announces a note before its trigger, so it enters at the roll's edge (§1.9) | A, B (backlog 82 and 83, closed) |
 
-Build order, once 82 and 83 are closed: 0, A, B, C, D, then E. Parts 0 to D are one branch and merge when Gate 3
-passes; Part E is its own branch straight after (§6).
+Build order: 0, A, B, C, D, then E. Parts 0 to D are one branch and merge when Gate 3 passes; Part E is its own
+branch straight after (§6). Crawford agreed this while Part E still had to wait for 82 and 83, and kept it once
+nothing made it wait (2026-11-12, §7.1): Part E is last.
 
 ---
 
@@ -55,8 +60,14 @@ passes; Part E is its own branch straight after (§6).
 
 - **Nothing on a robot moves per note.** The three audio dials (the lights, each Mid's lit level, the body scale)
   follow settings. `useStripFlicker` plays on an edit, not on a note.
+- **One music clock** (backlog 82 and 83, PR #635). A transport callback's own `time` says where it sits in the
+  music: `positionAt(time)` (`src/engine/beatClock.ts`) gives the sixteenth since the transport's tick 0, the measure
+  and the melody step (1 to 16). The chord palette is a pure function of the measure, `paletteForMeasure(measure)`
+  (`src/engine/harmonySystem.ts`); nothing is remembered and nothing lags. The melody's 16n tick starts on the grid
+  at tick 0, so step 1 is on the bar. Velocity and Humanize are rolled from the robot's seed and the sixteenth.
 - **Where a note is known to sound.** The 16n transport tick in `startMelodyPlayback` (`src/engine/AudioEngine.ts`)
-  calls `processMelodyStep`, which calls `scheduleNote`, which calls `triggerWithCap`. `triggerWithCap` is the one
+  calls `processMelodyStep(at, time)` with that position, which calls `scheduleNote`, which calls `triggerWithCap`.
+  `triggerWithCap` is the one
   place where Mute, Solo, the dock (`isRobotAudible`), the Audio Load budget (`soundingRobots`), the polyphony cap,
   the missing-voice check and the note-string check have all been applied. Past
   `synth.triggerAttackRelease(...)` the note will sound.
@@ -182,7 +193,8 @@ and what the approved settings still cost is taken back here.
 - **No layout read per note.** The stage's scale and the row's scale, which the 4-pixel floor needs, are read when
   they change, not when a note arrives.
 - **Two registered timelines per robot per context,** both `'world'` scope and both killed on unmount: the belt
-  (`note-belt-<context>-<robotId>`) and the strength fade (`note-strength-<context>-<robotId>`, §1.7). No
+  (`note-belt-<context>-<robotId>`) and the re-size fade (`note-resize-<context>-<robotId>`, §1.5; first planned as
+  a strength fade, `note-strength-…`, which went with the battery fade: §8). No
   `gsap.delayedCall`, `setTimeout`, `requestAnimationFrame` or `Tone.Draw` anywhere.
 - **A switch for the A/B.** `?notes=off` (beside `?debug` and `?latency=` in `src/utils/debugParams.ts`) draws no
   cloud and registers no listener, so cloud-off and cloud-on are measured from one build (§7.2 A8).
@@ -190,21 +202,34 @@ and what the approved settings still cost is taken back here.
 ### 1.7 Attention (Part C)
 
 Two separate things set how strongly a robot's cloud shows. **Dim** is how faint a note becomes once it has sounded.
-**Strength** is the opacity of the whole cloud.
+**Strength** is the opacity of the whole cloud. "Full strength" below means the cloud's peak, 0.75 (Crawford,
+2026-11-13: "75% of their current opacity"); every other level, the dim and a note's white while it sounds, sits
+under that ceiling. A world cloud is at full strength throughout; the battery decides whether notes are placed, not
+how strongly they show.
 
 - **Bright now, faint after.** For a robot nobody has turned to, a note is at full strength where it sounds and
   falls to 0.35 as it moves on. The dimming is the layer's mask, so overlapping notes look like one shape.
 - **The robot the player turns to is undimmed.** A robot is *singled out* while it is under the pointer, or the Deck
   camera is following it, or it is selected, soloed or highlighted. Its whole cloud is at full strength (dim = 1).
   One custom property on the mover (`--note-dim`), read by both masks; a change rebuilds nothing.
-- **The battery thins the population.** Strength is 1 down to 50% battery, then falls in a straight line to 0 at a
-  flat battery (Crawford, 2026-11-12: zero at flat, not at the recall line). A robot recalled at 10% heads home at a
-  fifth strength. At strength 0 no notes are placed.
-- **Attention brings them back.** Pointing at a robot or selecting it *wakes* its notes: strength 1 whatever the
-  battery, and it stays there after the pointer leaves or the selection moves, until the robot is next in its station
-  (`activity === 'charging'`). The Deck camera following a robot singles it out but does not wake it.
-- **Strength changes are eased, never a step:** a rise over 0.3 s, a fall over 1 s (the battery steps once a
-  measure).
+- **The battery thins the population, in bands** (Crawford, 2026-11-13, at Gate 1, to take back the cost; the bands
+  re-drawn by him the same day). A robot places notes only while its battery is in 10–28%, 38–55%, 65–73% or
+  83–100%. A band runs from its lower edge up to, not including, its upper one, and a full 100% counts as the top
+  band. Below 10% and in 28–38%, 55–65% and 73–83% it places none: 60% of the battery's range is on, 40% off. A robot
+  recalled at 10% heads home in an on band and goes quiet below it. The robots' seeded battery sizes keep the fleet's
+  bands out of step. (The first bands, the odd tens 10–20% … 90–100%, were half on; measured at +3.7%.)
+- **A band's edge never touches a note on screen.** Leaving a band stops new notes only: the notes in flight finish
+  their crossing at full strength, so the cloud goes quiet rather than switching off. Entering one, the next note
+  starts at "now" as any note does. The battery steps once a measure, so an edge is crossed between two notes.
+- **The bands replace the battery fade.** The fade (Crawford, 2026-11-12: the peak down to 50%, then a straight line to
+  0 at a flat battery) dimmed a cloud but placed every note until the battery was flat, so it took no cost back. The
+  bands place about three fifths of the notes over a discharge, and every note placed shows at full strength. They are not the
+  spike's switch-off at 50% (§1.13), which emptied the lower half of every battery.
+- **Attention brings them back.** Pointing at a robot or selecting it *wakes* its notes: placed whatever its
+  battery's band, and it stays woken after the pointer leaves or the selection moves, until the robot is next in its
+  station (`activity === 'charging'`). The Deck camera following a robot singles it out but does not wake it.
+- **A strength change is eased, never a step:** a rise over 0.3 s, a fall over 1 s. Nothing in the world changes a
+  cloud's strength since the bands replaced the fade; the easing stays for the re-size fade (§1.5) and any later use.
 - **Touch.** A tap selects, which singles out and wakes. On a phone the robot the Deck camera follows is singled out
   while it is followed. Nothing else is added for touch (Crawford, 2026-11-12).
 - **Keyboard.** Selecting a robot from the roster singles it out and wakes it like any other selection. Nothing new
@@ -225,45 +250,55 @@ nothing.
 
 - **The same notes.** The avatar's cloud reads the same events and the same per-robot model (§4) as the world's, so
   a note has the same row, the same layer and the same colour in both, and the repeat rule drops the same notes.
-- **Always full strength, undimmed.** The player has turned to this robot by opening its screen. No battery fade.
+- **Always full strength (the peak, 0.75), undimmed.** The player has turned to this robot by opening its screen. No
+  battery bands: it places every drawn note whatever its battery (opening the screen selects the robot, which wakes
+  its world cloud too).
 - **Only what sounds.** A muted or docked robot's avatar shows no notes, as in the world.
 - **Mounting.** `AvatarGem` gains a positioned box that takes the avatar's present size and holds the behind layer,
   the `<svg>` and the front layer. The avatar's box does not change size (Crawford's rule: a control holds its
   size).
-- **The roll keeps its size and the box cuts it off** (Crawford, 2026-11-12: "the note animation can be cut off as
-  it leaves the viewing area"). The robot is drawn as it is today, the roll is 2.5 times the robot as in the world,
-  and the avatar's box clips whatever falls outside it. No shrinking, and no second set of numbers.
-- **What the clip takes, to be seen at Gate 3.** The robot is fitted to its box, so the box shows roughly the middle
-  two fifths of the roll in the direction the robot fits tightest. Two things follow. "Now" sits about a fifth of
-  the robot's width outside its right edge, so where the box has no room there a note is first seen after it has
-  sounded, already cooling, and the white flash is off the edge. And the rows for a robot's highest and lowest
-  pitches lie above and below the box, so those notes are not seen at all. If either reads badly, the remedy is an
-  avatar-only "now" or roll size, and that is Crawford's call at the gate (§7.3 Q1).
+- **The roll keeps its size and spills past the box; the console pane cuts it off** (Crawford, 2026-11-12: "the
+  note animation can be cut off as it leaves the viewing area"; Gate 3, 2026-11-13, after a look at both: the
+  spill). The robot is drawn as it is today, and the roll is 2.5 times the robot as in the world. No shrinking,
+  and no second set of numbers. The avatar's box does not clip: the cloud draws over the name, the wells and the
+  controls beside the column (it takes no clicks), and only the console pane's edge cuts it, above and to the left
+  of the gem. So the column does not clip either: the gem sits at its top and does not scroll, and the details
+  under it (the name, the wells, the battery, the company radio) scroll on their own. The gem is still the first
+  thing to give way on a short window, down to its 120 px before the details scroll.
+- **What the clip would have taken** (the plan before Gate 3). Clipped at the box, the box showed roughly the
+  middle two fifths of the roll in the direction the robot fits tightest: "now" fell outside the box's right edge
+  where it had no room, and the rows for a robot's highest and lowest pitches fell above and below it. The spill
+  shows both; the pane's edge still takes the rows above the gem and the left-hand fan.
 - **The desk column's avatar shows the cloud; the phone band's 72 × 58 px gem does not** (default, §7.3 Q1).
 - **The 4-pixel floor** uses the avatar's own scale (rendered pixels per viewBox unit), not the stage's.
 
-### 1.9 Early announcements (Part E; approved, built after backlog 82 and 83)
+### 1.9 Early announcements (Part E; approved)
 
 Crawford approved this engine interface on 2026-11-12, to be built once backlog
 [82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
-[83](../todo/archive/backlog-archive.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) are closed (the two entries
-are on `main` since PR #632; this branch has them once rebased). **Before this work is planned, this section is
-re-read against what 82 and 83 shipped,** and corrected first.
+[83](../todo/archive/backlog-archive.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) were closed.
+Both closed the same day (PR #635), and this section is rewritten on what they shipped.
 
 - **A listener asks for notes earlier.** `setNotePreviewSeconds(seconds)` on `noteEvents.ts`. The cloud asks for the
   run-in from the roll's right edge to "now" (22.5% of 5 s) less the lead every note already has: about 0.9 s.
-- **The engine then announces a step ahead of its trigger.** At each 16n tick it announces the notes of the step far
-  enough on, from the melody it already holds in `stepRegistry`, with the pitch, length and Humanize offset
-  `processMelodyStep` will give them, and through `triggerWithCap`'s gates bar the polyphony cap. A note announced
-  early is not emitted again at its trigger. The event's shape does not change; only `lead` is longer.
-- **An early announcement is a forecast.** Measured in the spike at these settings, two power-ons of one world: 330
-  pitches right, 23 wrong, 13 notes not announced; then 352, 1 and 13. The wrong pitches follow a chord change, and
-  the spike worked round the chord cycle's timing (backlog 82) and the steps' alignment (83) to get that far. Part E
-  is built without the workaround: the palette a future measure will use comes from a pure function of the measure,
-  which is what 82 is expected to leave. If 82 leaves something else, this part is re-specified.
+- **The engine then announces a step ahead of its trigger.** At each 16n tick it announces the notes of a later
+  step: the first whole sixteenth that is at least the asked-for time on. A note announced early is not emitted
+  again at its trigger. The event's shape does not change; only `lead` is longer, and it moves with the tempo (a
+  whole number of sixteenths, never less than what was asked for).
+- **A forecast reads what the trigger will read.** The later step's place in the music is `positionAt` of its own
+  time, its pitch is `paletteForMeasure` of that measure with the event's note index and octave, its length is the
+  event's after articulation, and its Humanize offset is the same roll at that sixteenth (§1.1). The melody comes
+  from `stepRegistry`, and `triggerWithCap`'s gates are asked as they stand now, bar the polyphony cap. The plan
+  takes these reads out of `processMelodyStep` into one place both the trigger and the forecast call, so the two
+  cannot drift.
+- **So with nothing changed inside the lead, the forecast is the note.** The spike could not say that: it measured
+  330 pitches right, 23 wrong and 13 notes not announced, then 352, 1 and 13, and the wrong ones followed a chord
+  change, because the palette then turned late and the steps sat off the bar. Both are gone, and so are the spike's
+  two workarounds (the measure read off the transport, the cycle's lag as observed).
 - **What a forecast may still get wrong, and is accepted:** a robot muted, soloed away, docked or stood by inside the
   lead keeps drawing notes it will not play, for at most the lead; a robot that has just started sounding shows no
-  notes for the lead; a tempo move or a melody edit inside the lead draws the old note.
+  notes for the lead; a tempo move or a melody edit inside the lead draws the old note; a note the polyphony cap
+  refuses at its trigger was drawn anyway.
 - **No forecast check ships.** The spike's `window.__noteForecast` counter is a probe for Part E's own run (§5.3),
   behind `?debug` or not at all (the plan decides).
 
@@ -271,9 +306,10 @@ re-read against what 82 and 83 shipped,** and corrected first.
 
 - Every sounding robot sits in a faint cloud of its notes: a bright blip where a note sounds, a ghost of what it just
   played drifting left. The rhythm reads in the spacing and the melody in the heights.
-- Point at a robot, or select it: its cloud comes to full strength, the marker frames it, and its notes stay woken
-  until it is back in its station.
-- A robot low on battery shows fainter notes, and none at a flat battery, unless the player woke them.
+- Point at a robot, or select it: its cloud is undimmed, the marker frames it, and its notes stay woken until it is
+  back in its station.
+- A robot's notes come and go with its battery: they show in 10–28%, 38–55%, 65–73% and 83–100% and go quiet in the
+  gaps between and below 10%, unless the player woke them.
 - Open a robot's screen on the desk: its avatar sits in the same cloud at full strength.
 - Mute a robot, or let it dock: its notes stop arriving and the last ones finish crossing.
 - Power off: every cloud freezes. Power on: they carry on.
@@ -284,8 +320,8 @@ re-read against what 82 and 83 shipped,** and corrected first.
 Crawford, 2026-11-12: "cut the idle bob in half in velocity and distance", then, asked which he meant: also double
 the cycle. `BOB_PX` is already 3 (82b11962). `BOB_CYCLE_SECONDS` goes from 1.2 to 2.4, so a working robot moves ±3
 units on a 2.4 s cycle: half as far, and a quarter of the speed it had at ±6 on 1.2 s. `buildJobTimeline.ts` fits
-whole cycles to the job (`Math.round(duration / BOB_CYCLE_SECONDS)`); jobs last 6 to 10 s, so a job now holds two to
-four cycles where its comment says five or more, and the comment is corrected. The waiting robot's one bob
+whole cycles to the job (`Math.round(duration / BOB_CYCLE_SECONDS)`); jobs last 6 to 10 s, so a job now holds three
+or four cycles (`Math.round(2.5)` is 3) where its comment says five or more, and the comment is corrected. The waiting robot's one bob
 (`workLoop.ts` `wait`) is timed by `WAIT_RETRY_SECONDS` and is untouched.
 
 ### 1.12 What does not change
@@ -301,7 +337,7 @@ four cycles where its comment says five or more, and the comment is corrected. T
 
 Rejected in the spike and not to be raised again: a pulse on the lit strips or the lights; notes as gems; notes
 trailing off one side; a panel behind the notes; lowering each note's own opacity; notes only while a robot works; a
-switch-off at 50% battery; a body bob in time with the melody.
+switch-off at 50% battery (the bands of §1.7 are a different rule); a body bob in time with the melody.
 
 Separate items:
 
@@ -310,7 +346,9 @@ Separate items:
 - **Keeping a robot playing until it is in its station** — backlog
   [84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station). Until then a recalled robot goes
   quiet within a measure and its notes stop with it, part-way home.
-- **The chord cycle's timing and the steps' alignment** — backlog 82 and 83. Neither is fixed inside this work.
+- **The chord cycle's timing and the steps' alignment** — backlog 82 and 83, fixed and archived (PR #635).
+- **Moving the world to a measure, and loops, recordings and links at a measure** — backlog 86 and 87. The cloud
+  draws whatever the engine triggers and holds no position of its own, so neither is prepared for here.
 - **A reduced-motion alternative** (a blip without travel) — not built; its own item if wanted.
 - **Shapes driven by oscillators and envelopes** — Crawford's idea from the spike session; recorded only in the
   intent.
@@ -326,17 +364,17 @@ src/engine/
 ├── noteEvents.ts                 # Part A: the registry (onRobotNote, hasRobotNoteListener, emitRobotNote);
 │                                 #   Part E: setNotePreviewSeconds / getNotePreviewSeconds
 ├── noteEvents.test.ts
-├── AudioEngine.ts                # Part A: the emit in triggerWithCap; Part E: the announce at the 16n tick
-├── AudioEngine.test.ts
-└── harmonySystem.ts              # Part E only, and only as backlog 82 leaves it
+├── AudioEngine.ts                # Part A: the emit in triggerWithCap; Part E: the announce at the 16n tick,
+│                                 #   and a step's reads shared by the trigger and the forecast (§1.9)
+└── AudioEngine.test.ts
 src/components/robot/notes/
 ├── noteCloudModel.ts             # pure, per robot: the repeat rule, the range and row, front or behind (§1.3)
 ├── noteCloudModel.test.ts
 ├── noteRows.ts                   # pure geometry: the roll's box, a row's height across the roll, a bar's
 │                                 #   thickness and length, the mask, the note colour
 ├── noteRows.test.ts
-├── noteStrength.ts               # pure: strength from battery and woken (§1.7)
-├── noteStrength.test.ts
+├── noteBands.ts                  # pure: whether notes are placed, from battery and woken (§1.7)
+├── noteBands.test.ts
 ├── NoteCloudLayers.tsx           # the two wrappers and belts React renders (§1.5), for the mover and the avatar
 ├── NoteCloud.css
 ├── useNoteCloud.ts               # the hook: listens, places notes, runs the belt and the per-frame pass (§1.6)
@@ -349,7 +387,7 @@ src/systems/
 src/components/robot/
 ├── Robot.tsx                     # renders NoteCloudLayers round the svg; pointer enter / leave on g.robot
 ├── Robot.test.tsx
-├── RobotBody.tsx                 # strength, singled out, the wake and the sleep; calls useNoteCloud (world, avatar)
+├── RobotBody.tsx                 # the bands, singled out, the wake and the sleep; calls useNoteCloud (world, avatar)
 └── RobotBody.test.tsx
 src/components/panels/screen/worldView/
 ├── FollowedRobotMarker.tsx       # frames the pointed-at robot, else the followed one (§1.7)
@@ -374,7 +412,8 @@ docs/todo/backlog.md, docs/todo/plan.md   # entry 79 and its line; archive after
 docs/specs/ROBOT_NOTE_CLOUD.md    # an "As built" section
 ```
 
-Untouched: `RobotGem.tsx` and everything under `src/components/robot/gem/`, `robotAudibility.ts`,
+Untouched: `beatClock.ts` and `harmonySystem.ts` (Part E reads `positionAt` and `paletteForMeasure` as they are),
+`RobotGem.tsx` and everything under `src/components/robot/gem/`, `robotAudibility.ts`,
 `audioBudgetSystem.ts`, `deckCamera.ts`, every store, `src/content/` (the cloud has no words).
 
 ---
@@ -395,8 +434,8 @@ Untouched: `RobotGem.tsx` and everything under `src/components/robot/gem/`, `rob
 
 **Ask first**
 - Any change to `triggerWithCap`'s gates, or an emit from anywhere but its success path.
-- Any engine interface beyond §1.2's three functions before Part E, and Part E's shape if 82 or 83 leave the chord
-  cycle or the steps other than §1.9 assumes.
+- Any engine interface beyond §1.2's three functions before Part E, and any change to `beatClock.ts` or
+  `harmonySystem.ts` (the music clock is read here, not changed).
 - The wording of the CLAUDE.md guardrail sentence (a guardrail edit is Crawford's alone).
 - Anything that makes the cloud audible (a dip, a duck), or a tour.
 - A cloud on a card or a roster tile, or on the phone band's gem.
@@ -407,7 +446,8 @@ Untouched: `RobotGem.tsx` and everything under `src/components/robot/gem/`, `rob
   no `gsap.delayedCall` or tween that is not reachable from a registered timeline.
 - A note event, a timeline, a DOM ref or the woken set in Zustand or React state.
 - A write to the robot's `<svg>` or anything inside it for a note. The body is not repainted for the cloud.
-- A fix for backlog 82 or 83 inside this work, or the spike's observed-lag workaround in `harmonySystem.ts`.
+- A second copy of how a step becomes a note. The forecast and the trigger share one (§1.9); the spike's mirror of
+  `processMelodyStep` and its observed-lag workaround are not carried over.
 - A file-text test (source, doc or CSS read as text). The look, the mask and the CSS get Crawford's eye in the
   browser, named on the task's Proof line; a task with no behaviour (a doc, the guardrail sentence) has no RED test.
 - A "keep existing look" or compatibility clause in any doc (pre-v1 rule).
@@ -472,13 +512,14 @@ export interface DrawnNote {
 /** The next note of this robot's melody: what to draw, or null for the even-numbered notes of a run (§1.3). */
 export function nextDrawnNote(robotId: string, event: RobotNoteEvent): DrawnNote | null;
 
-// noteStrength.ts
-/** 1 down to NOTE_BATTERY_FULL, then a straight line to 0 at a flat battery; 1 whenever woken (§1.7). */
-export function noteStrength(batteryLevel: number, woken: boolean): number;
+// noteBands.ts
+/** Whether a world cloud places notes (§1.7): always while woken; otherwise only while the battery is in one of
+ *  NOTE_BATTERY_BANDS (10–28%, 38–55%, 65–73%, 83–100%, a full 100% included). */
+export function notesShown(batteryLevel: number, woken: boolean): boolean;
 ```
 
 - **Pure first.** Everything that decides *what* is drawn (the repeat rule, the row, the layer, the colour, the roll's
-  box, a row's height across the roll, the thickness, the strength) is a pure function with a unit test. The hook
+  box, a row's height across the roll, the thickness, the bands) is a pure function with a unit test. The hook
   only listens, places elements and runs the belt.
 - **Names follow the neighbours':** `useNoteCloud` beside `useOrbiterMotion` and `useHaloMotion` (same options shape:
   `root`, `robotId`, `context`, `enabled`); `robotAttention.ts` shaped like `deckCamera.ts`'s followed-robot pair
@@ -533,7 +574,13 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
 - `workLoop.test.ts`: `placeRow` and the swim's ease write the row's scale to the note layers as to `.robot__row`.
 
 **Part C**
-- `noteStrength.test.ts`: 1 at 100 and at 50; 0.5 at 25; 0.2 at 10; 0 at 0; 1 at any level when woken.
+- `noteBands.test.ts`: shown at each band's lower edge and just under its upper one (10, 27.9, 38, 54.9, 65, 72.9,
+  83) and at 100; not at 0, 9.9, 28, 37.9, 55, 64.9, 73, 82.9; shown at any level when woken; a level above 100
+  counts as the top band, one below 0 or not a number as off.
+- `useNoteCloud.test.tsx`: with `placing` false an event places no bar; turning it false leaves the notes in flight
+  on their belts, moving, at the layers' strength; turning it true again places the next note.
+- `RobotBody.test.tsx`: a world body hands its cloud the peak strength at any battery, and places notes in an on band,
+  not in an off one, and in an off one once woken.
 - `robotAttention.test.ts`: the singled-out id is the pointed-at robot, else the Deck camera's followed robot, else
   null; a subscriber is called only when the id changes; pointing at a robot wakes it and it stays woken after the
   pointer leaves; `sleep` ends it; the followed robot is not woken.
@@ -547,12 +594,18 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
 **Part D**
 - `RobotScreen.test.tsx`: the desk avatar's box holds a note layer either side of its `<svg>`; an event for the
   robot on screen places a bar there at full strength whatever its battery; the phone band's gem has no note layers
-  (default, §7.3 Q1); the avatar and the world place the same note in the same layer. The clip at the box's edge is
-  CSS and gets a look, not a test.
+  (default, §7.3 Q1); the avatar and the world place the same note in the same layer. The spill past the box and
+  the details' own scroller are CSS and get a look, not a test.
 
-**Part E** (when built): the engine tests are written against what 82 and 83 shipped. At least: with a preview asked
-for, a note is announced the asked-for time ahead with the pitch its trigger then plays, across a chord change; it is
-not emitted again at the trigger; with no preview asked for, Part A's behaviour is unchanged.
+**Part E**
+- `noteEvents.test.ts`: the preview asked for is read back; it is 0 until asked.
+- `AudioEngine.test.ts` (on the music clock's own helpers, `atStep` and the mocked `positionAt` /
+  `paletteForMeasure`): with a preview asked for, a note is announced at the first tick at least that far ahead of
+  its step, with the pitch, the length and the scheduled start its trigger then gives it, across a palette change
+  and across a measure's end; it is not emitted again at its trigger; a robot that is muted, soloed away, docked or
+  standing by at the announcing tick announces nothing; the polyphony cap refuses no announcement; with no preview
+  asked for, Part A's behaviour is unchanged; and the trigger plays the same notes it played before the step's reads
+  were shared (the existing `processMelodyStep` tests stay green untouched).
 
 ### 5.2 Checks
 
@@ -574,21 +627,28 @@ not emitted again at the trigger; with no preview asked for, Part A's behaviour 
 - **The pause:** power off with notes mid-flight; they freeze. Power on; they carry on, and no note is stranded on
   screen.
 - **The look:** the cloud against `spike/note-pulse` at `?trail=all`, side by side, on the desk and on a phone.
-- **Part E's forecast** (when built): two power-ons of one world with no input, a few hundred notes each; no wrong
-  pitch, and no unannounced note outside the lead after a robot starts sounding.
+- **Part E's forecast:** two power-ons of one world with no input, a few hundred notes each, a palette change
+  included; no wrong pitch, and no unannounced note outside the lead after a robot starts sounding. The spike's
+  figures (§1.9) are the before.
 
 ### 5.4 Gates (the build stops and reports at each)
 
 - **Gate 1, cost** — after Part B: §5.3's headless run, reported with the spike's figures beside it. Crawford sets
   the line there. Over the working 10%, the build does not go on to Part C without his decision (take more back, or
-  accept the figure).
+  accept the figure). **2026-11-13:** the run read +17.6% (PERFORMANCE.md); he chose to take more back with the
+  battery bands (§1.7), and the run is taken again with them built: +3.7%. He re-drew the bands (60% on) and took
+  them without a re-run. **Passed 2026-11-13.**
 - **Gate 2, Crawford's eye and ear** — after Part C: the look on his desktop and on a phone; the unmeasured cost
   runs; the row switch, the layer switch's dissolve and an edit that re-sizes the roll; the marker on hover. He
   names any of §7.2 A1's numbers he wants re-pinned (he chose a re-check on a phone, 2026-11-12), and gives the
-  guardrail sentence its wording.
+  guardrail sentence its wording. **Passed 2026-11-13 on his word** ("i'm happy with gate 2, i believe"): no number
+  re-pinned, the repeat rule kept. The guardrail sentence was given the same day and is in CLAUDE.md (plan Task 26).
 - **Gate 3, the avatar** — after Part D: his look at the desk avatar with the roll clipped by its box (§1.8: where
   "now" falls, and the top and bottom rows), and his answer to §7.3 Q1. Parts 0 to D merge when it passes.
-- **Gate 4, Part E** — its own eye gate is the note entering at the roll's edge, and §5.3's forecast run.
+  **Passed 2026-11-13:** he looked at the clip and at the spill, and chose the spill (§1.8).
+- **Gate 4, Part E** — its own eye gate is the note entering at the roll's edge, and §5.3's forecast run. §5.3's
+  headless cost run is taken again here, against Gate 1's figures: with early notes a note is on the roll about a
+  fifth longer than in the cloud Gate 1 measured, and the spike's 19% was measured with them on.
 
 ### 5.5 Done when
 
@@ -606,14 +666,14 @@ announcement, and backlog 79 is archived with its plan.md line deleted.
 
 ## 6. Git & Workflow Context
 
-- **The order** (Crawford, 2026-11-12): backlog 82 and 83 first, then this. Nothing here is built until then,
-  Part 0 included.
-- **What is already in** (2026-11-12): the intent, this spec, backlog 79's status and the bob's first half
-  (`BOB_PX` 6 to 3, 82b11962) were written on `feature/note-cloud` ahead of the pause and merge as they are: docs
-  and one finished, tested change, nothing half-built.
-- **Parts 0 to D:** a fresh branch off `main` once 82 and 83 are closed, one task per commit, RED test in the same
-  commit as its GREEN, message in the repo's voice (`feat(robots): a triggered note tells its listeners (Task 2)`),
-  ending with the attribution line the session carries.
+- **The order** (Crawford, 2026-11-12): backlog 82 and 83 first, then this. Both are merged (PR #635) and archived
+  (PR #636), so this is next. Nothing here is built before the spec is approved and planned, Part 0 included.
+- **What is already in:** the intent, this spec, backlog 79's status and the bob's first half (`BOB_PX` 6 to 3,
+  82b11962) merged ahead of the pause (PR #634).
+- **Parts 0 to D:** `feature/note-cloud`, brought up to `main` at 2d2dbdae (the merged branch fast-forwarded, so it
+  starts as `main`), one task per commit, RED test in the same commit as its GREEN, message in the repo's voice
+  (`feat(robots): a triggered note tells its listeners (Task 2)`), ending with the attribution line the session
+  carries.
 - **Part E:** its own branch off `main` once Parts 0 to D have merged (`feature/note-cloud-early-notes`).
 - Crawford opens and merges each PR; the PR body links this spec's sections.
 - The intent file stays. This spec and the plan (`docs/tasks/ROBOT_NOTE_CLOUD.md`) are committed before the first
@@ -628,11 +688,11 @@ announcement, and backlog 79 is archived with its plan.md line deleted.
 
 | # | Point | Answer |
 |---|---|---|
-| 1 | The Visual Mapping guardrail | Add a sentence naming the cloud as a third overlay. His wording, at Gate 2 |
+| 1 | The Visual Mapping guardrail | Add a sentence naming the cloud as a third overlay. His wording, at Gate 2. Given 2026-11-13 (§8.1) |
 | 2 | The engine announcing notes early | Approved. Built after backlog 82 and 83; the cloud ships first on trigger-time events (§1.4, §1.9) |
 | 3 | The marker on a robot under the pointer | Keep it, as seen (§1.7) |
 | 4 | Ducking the others, the tour | Neither |
-| 5 | Where the battery fade reaches zero | A flat battery |
+| 5 | Where the battery fade reaches zero | A flat battery. Replaced at Gate 1 (2026-11-13) by the bands (§1.7) |
 | 6 | What a repeat is | The same pitch and the same length (§1.3). The spike compared pitch only |
 | 7 | Reduced motion | No cloud |
 | 8 | Where it shows | The world and the detail avatar (§1.8). The spike drew the world only |
@@ -649,11 +709,12 @@ His answers to this spec's first open questions, the same day:
 
 | Question | Answer |
 |---|---|
-| The avatar's sizing | "The note animation can be cut off as it leaves the viewing area": the roll keeps its 2.5 times and the avatar's box clips it (§1.8) |
+| The avatar's sizing | "The note animation can be cut off as it leaves the viewing area": the roll keeps its 2.5 times. Planned as clipped by the avatar's box; at Gate 3 (2026-11-13) he chose the spill, cut only by the console pane's edge (§1.8) |
 | The cost target | "I'm not really sure." The 10% stays a working figure; he sets the line at Gate 1 with the numbers in hand (§5.3) |
 | A silence inside a run of identical notes | A rest breaks the run (§1.3) |
 | Merging Parts 0 to D before Part E | Yes |
 | The order against Stage 3 | Pause this; finish backlog 82 and 83; then come back (§6) |
+| Part E's place, once 82 and 83 had closed and nothing made it wait | Last, as written: its own branch after Parts 0 to D merge. The first cloud ships on trigger-time events (§1.4), and Gate 4 re-measures the cost with early notes on (§5.4) |
 
 ### 7.2 Assumptions (defaults the plan builds on; each re-pinned at a gate)
 
@@ -674,7 +735,8 @@ His answers to this spec's first open questions, the same day:
   | `NOTE_BRIGHT_BAND` | 0.14 | how far past "now" a note is still at full strength |
   | `NOTE_HOT_COLOR` | `#fffbe6` | a sounding note; 0.05 s in, 0.25 s to cool |
   | `NOTE_RANGE_MIN_SEMITONES` | 12 | the least range the roll's height stands for |
-  | `NOTE_BATTERY_FULL` | 50 | the battery level down to which strength is 1 |
+  | `NOTE_PEAK_STRENGTH` | 0.75 | the cloud at its strongest (Crawford, 2026-11-13) |
+  | `NOTE_BATTERY_BANDS` | 10–28, 38–55, 65–73, 83–100 | the battery's on bands, % (Crawford, 2026-11-13) |
   | `NOTE_WAKE_SECONDS` / `NOTE_EBB_SECONDS` | 0.3 / 1 | a strength rise / fall |
   | complement | S 100, L 70 | a freelancer's note colour |
 
@@ -699,20 +761,104 @@ His answers to this spec's first open questions, the same day:
 - **A10. During a layer switch the cloud stays on the mover** and is not copied into the dissolve.
 - **A11. The output latency in `lead`** is the raw context's `outputLatency`, else `baseLatency`, else 0, capped at
   half a second, as the spike read it.
+- **A12. The Click Track is drawn like any other sound.** A robot with Click Track on plays the test pattern on its
+  own voice through `triggerWithCap` (back on the robot, company and All Probes screens since PR #635), so its
+  sixteen sixteenths are note events and the cloud draws them, thinned by the repeat rule like a melody. No special
+  case either way.
 
 ### 7.3 Open questions
 
-None blocks planning. Each is answered at a gate, with something to look at or a number in hand.
+None blocks planning. Q1 to Q3 are answered at a gate, with something to look at or a number in hand; Q4 and Q5 are
+answered and kept for the record.
 
 - **Q1. What the avatar's clip takes (Gate 3).** With the roll clipped by the avatar's box, "now" and the rows for
   a robot's highest and lowest pitches can fall outside it (§1.8). Whether that reads, and whether the phone band's
-  small gem should show a cloud at all (default: no).
+  small gem should show a cloud at all (default: no). **Answered 2026-11-13:** no clip at the box; the cloud
+  spills and only the console pane cuts it (§1.8). The phone band keeps the default, no cloud.
 - **Q2. The cost line (Gate 1).** The working figure is main-thread time within 10% of cloud-off; the spike
   measured about 19% at the approved settings. Crawford sets the line when the build's own numbers are in front of
-  him.
+  him. **Answered 2026-11-13:** the build read +17.6%; his answer was the battery bands (§1.7), measured at +3.7% on
+  the odd tens. He re-drew them (60% on) and accepted them without a re-run.
 - **Q3. How much the repeat rule still thins (Gate 2).** With length and rests both counted, only identical notes
   that run straight into each other are dropped. If the cloud reads as too busy at the eye gate, the rule is the
-  first thing to look at; the per-robot counts of drawn and dropped notes are the probe.
-- **Q4. What 82 and 83 leave** (before planning). §1.1, §1.2 and §1.9 describe the engine as it is today. If 83
-  moves the melody's steps against the measure, or 82 changes how the palette is chosen, those sections are
-  corrected first.
+  first thing to look at; the per-robot counts of drawn and dropped notes are the probe. **Answered 2026-11-13:** it
+  dropped 4 of 498 notes in 50 s (PERFORMANCE.md); Crawford passed Gate 2 with the rule as it is.
+- **Q4. Does Part E still wait for its own branch? Answered: yes, it is last** (Crawford, 2026-11-12). The
+  recommendation put to him was to build its engine half straight after Part A, so that Gate 1 measured the cloud
+  that ships and Gate 2 showed the approved look. He kept the order as written. What follows from that: Gates 1 and
+  2 judge the stopgap of §1.4, with an empty right-hand fan and fewer notes alive at once, and Gate 4 takes the cost
+  run again with early notes on (§5.4).
+- **Q5. What 82 and 83 left: answered.** The palette is a pure function of the measure and the steps sit on the bar
+  (§1.1), which is what §1.9 hoped for; it is rewritten on that and nothing in Parts A to D changed.
+
+---
+
+## 8. As built (Parts 0 to D, `feature/note-cloud`, 2026-11-12 to 2026-11-13)
+
+What shipped is this spec, except where this section says otherwise. Each task's own "As built" note in
+[the plan](../tasks/ROBOT_NOTE_CLOUD.md) has the detail; the shipped design is described in ROBOT_DESIGN.md ("The
+note cloud — the third overlay"), ANIMATION_SYSTEM.md ("The note cloud") and AUDIO_SYSTEM.md ("Note events — audio
+to the picture").
+
+### 8.1 The gates, and what Crawford changed
+
+- **Gate 1 (cost)** read +17.6 % main-thread time with the cloud on (the spike: +19 %), compositor update +27 %,
+  over the working 10 %. His answer was the **battery bands**, which replace the battery fade of §1.7's first draft:
+  a world cloud places notes only in `NOTE_BATTERY_BANDS`, or while woken (`notesShown`, `noteBands.ts`); the cloud
+  shows every placed note at the peak; leaving a band lets the notes in flight finish (the hook's `placing` switch).
+  `noteStrength.ts` and `NOTE_BATTERY_FULL` went with the fade. Measured on the odd tens (half on): +3.7 % main
+  thread, +10 % compositor. He then re-drew the bands to 10–28, 38–55, 65–73 and 83–100 % (60 % on) and declined a
+  re-run, so the shipped bands are not measured. Passed 2026-11-13.
+- **`NOTE_PEAK_STRENGTH` 0.75** (after Phase 4, "75% of their current opacity"): the whole cloud's opacity, in the
+  world and on the avatar.
+- **Gate 2 (eye and ear)** passed on his overall word ("i'm happy with gate 2, i believe"): no number in §7.2 A1
+  re-pinned, and the repeat rule kept (4 of 498 notes dropped in 50 s, PERFORMANCE.md; §7.3 Q3). He did not go
+  through the gate's items one by one, and no figures from his desktop, a phone or twelve robots sounding were
+  recorded.
+- **The guardrail sentence** (§7.1 point 1), his words, closes the Visual Mapping guardrail in CLAUDE.md: "The note
+  cloud is the third overlay: the robot's own notes drawn around its body, fed only by the engine's note events, so
+  audio flows to the picture and never back. It never changes the body's geometry, colour or dials, and a note enters
+  and leaves without a pop." At his word the line before it now reads "remain the first two overlay exceptions".
+- **Gate 3 (the avatar):** the spill, not the clip (§1.8). The robot screen's column no longer scrolls as a whole;
+  the details under the gem (`.robot-screen__avatar-details`) scroll, and the gem still shrinks to its 120 px first.
+- **Part 0:** a job holds three or four bob cycles, not "two to four" (§1.11 corrected at Task 1).
+
+### 8.2 Where the code departs from this spec, and why
+
+- **The tilt is weighted by the fan** (§1.3): level through the straight middle, easing in to the row's full slope
+  at the edge. Tilting everywhere, as the spike did, gives up to about 8° in the middle of a square roll. Beyond the
+  roll the fan holds its edge value, so the layer's `pad` holds every row.
+- **Pitch is compared as a MIDI number** in the row and the repeat rule, so `Bb4` and `A#4` are one pitch.
+- **A cloud that throws on a note** is reported and does not cost the next cloud its note (`subscribeDrawnNotes`),
+  the rule `noteEvents` keeps.
+- **The belt** is one linear `gsap.to` over a plain clock object; a note's x on its belt changes only when the belt
+  wraps, so only its row height and tilt are quantised. The mask's clear right-hand end is
+  `NOTE_KNOWN_AHEAD_SECONDS` (0.2), which Part E replaces.
+- **Attention:** `getPointedRobotId()` was added, so a robot's unmount clears the pointer only if it is still that
+  robot's; the camera's subscription is held only while the singled-out id has a subscriber. `RobotBody` subscribes
+  through booleans about its own robot, so the pointer moving between two other robots re-renders nothing. The world
+  body's unmount ends the wake from `RobotBody`, not the hook, so the hook never imports `robotAttention`.
+- **Strength** is no longer an input (§8.3): the layers sit at `NOTE_PEAK_STRENGTH` and §1.7's eased strength
+  change was removed once the bands made it constant.
+- **A re-size** does not re-run the hook's main effect: the latest size is kept in a ref, and the re-size fade's
+  timeline calls the rebuild between the fade out and the fade in.
+- **The avatar's layers** each hang in a frame (`.robot-screen__note-frame--behind` / `--front`), a zero-size origin
+  at the gem canvas's (0, 0) that CSS moves and scales from `--note-fit-x`, `--note-fit-y` and `--note-fit-scale`,
+  which the box's `ResizeObserver` writes. So the hook finds a layer anywhere in its box, and the avatar's pixels per
+  unit read `--note-fit-scale`.
+- **The output latency** treats 0 as "not reported" (a device's output cannot have none) and falls through to
+  `baseLatency`.
+
+### 8.3 After the record, and left for Crawford
+
+- **The strength ease is gone** (Crawford, 2026-11-13: "remove the leftovers"). With the bands in place the
+  strength was always the peak, so the hook's strength-change ease and `NOTE_EBB_SECONDS` never fired. The hook's
+  `strength` option went with them: it sets the layers to `NOTE_PEAK_STRENGTH` itself, and its one timeline besides
+  the belt is the re-size fade, `note-resize-{context}-{id}` (was `note-strength-…`). Task 22's ease tests went;
+  one case pins the peak at mount.
+- **Checkpoint looks not itemised:** the bob at ±3 on 2.4 s, the reviews after Phases 1 and 2, and the Cloud
+  checkpoint's look, pause and `?notes=off` checks. Gate 2's word covers the look as a whole. **Answered at the
+  plan's Checkpoint: Complete (2026-11-13):** the bob and the level-in-the-middle tilt looked at and accepted, the
+  reviews covered by the five-axis review (approve; four fixes), and the runs never made (the re-drawn bands, his
+  desktop full screen, a phone, twelve sounding) accepted without a number.
+- **Part E** (§1.9; plan Tasks 31 to 37, Gate 4) on its own branch after this one merges.

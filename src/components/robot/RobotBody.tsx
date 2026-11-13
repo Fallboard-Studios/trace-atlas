@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useLayoutEffect, useMemo, useRef } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import type { Robot } from '../../types/Robot';
 import {
@@ -26,6 +26,19 @@ import { batteryFacetContrast } from './gem/gemShading';
 import { orbiterDials } from './gem/orbiterDials';
 import { orbiterPlan } from './gem/orbiterMotion';
 import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
+import { useNoteCloud } from './notes/useNoteCloud';
+import { noteColor } from './notes/noteRows';
+import { getStageScale } from '../panels/screen/worldView/useStageFit';
+import { notesShown } from './notes/noteBands';
+import {
+  getSingledOutRobotId,
+  isRobotNotesWoken,
+  sleepRobotNotes,
+  subscribeSingledOut,
+  subscribeWokenNotes,
+  wakeRobotNotes,
+} from '../../systems/robotAttention';
+import { BACK_LAYER_SCALE, NOTE_DIM } from '../../constants';
 
 // ========================================
 // TYPES
@@ -54,6 +67,9 @@ interface RobotBodyProps {
 
 /** Same default the hand-drawn shapes applied when a fixture omitted identityColor. */
 const FALLBACK_IDENTITY = '#78cce2';
+
+/** What a card and an avatar subscribe to for the world's attention: nothing. */
+const subscribeNothing = () => () => {};
 
 // ========================================
 // COMPONENT
@@ -204,6 +220,58 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     gemSeed: robot.gemSeed,
     triggers: flickerTriggers,
     enabled: motionEnabled,
+  });
+
+  // Attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7), world only: a body is singled out while it is under the pointer
+  // or followed by the Deck camera (robotAttention), selected, soloed or highlighted. The snapshots are booleans
+  // about this robot, so the pointer moving between two other robots re-renders nothing here. A singled-out robot's
+  // cloud is undimmed: `--note-dim` on the cloud's box, which both masks read, so a flip rebuilds nothing.
+  const isWorld = motion === 'world';
+  const isSingledOutHere = useCallback(() => isWorld && getSingledOutRobotId() === robot.id, [isWorld, robot.id]);
+  const pointedOrFollowed = useSyncExternalStore(isWorld ? subscribeSingledOut : subscribeNothing, isSingledOutHere);
+  const selected = useUIStore((s) => isWorld && s.selectedRobotId === robot.id);
+  const singledOut = pointedOrFollowed || selected || robot.audioMode === 'solo' || robot.audioMode === 'highlight';
+  useLayoutEffect(() => {
+    if (!isWorld) return;
+    const box = gemRef.current?.closest<HTMLElement>('[data-note-cloud]');
+    box?.style.setProperty('--note-dim', String(singledOut ? 1 : NOTE_DIM));
+  }, [isWorld, singledOut]);
+
+  // Woken (§1.7): pointing at the robot (robotAttention) or selecting it wakes its notes, and it stays woken until it
+  // is next in its station (`activity === 'charging'`). The Deck camera following it does not wake it. The world
+  // body's unmount ends the wake (plan, Architecture Decisions: keyed on the robot id alone).
+  const isWokenHere = useCallback(() => isWorld && isRobotNotesWoken(robot.id), [isWorld, robot.id]);
+  const woken = useSyncExternalStore(isWorld ? subscribeWokenNotes : subscribeNothing, isWokenHere);
+  useEffect(() => {
+    if (isWorld && selected) wakeRobotNotes(robot.id);
+  }, [isWorld, selected, robot.id]);
+  useEffect(() => {
+    if (isWorld && robot.activity === 'charging') sleepRobotNotes(robot.id);
+  }, [isWorld, robot.activity, robot.id]);
+  useEffect(() => {
+    if (!isWorld) return;
+    return () => sleepRobotNotes(robot.id);
+  }, [isWorld, robot.id]);
+
+  // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.8), in the world and on the desk avatar; never on a card.
+  // Its colour is the company's, else the identity hue's complement. In the world a pixel on screen is the stage's
+  // scale times the row's. It shows at the peak strength (the hook's), and places notes only in its battery's on bands, or
+  // whenever woken (§1.7, notesShown). The avatar places every note (the player turned to it by opening its screen;
+  // its box sets the dim to 1), and its pixel is the fit its box wrote (`--note-fit-scale`), read from the inline style
+  // when a note arrives: no layout read.
+  const rowScale = robot.layer === 'background' ? BACK_LAYER_SCALE : 1;
+  useNoteCloud({
+    root: gemRef,
+    robotId: robot.id,
+    context: motion ?? 'world',
+    enabled: motionEnabled,
+    gem,
+    scale: ignoreScale ? 1 : audio.scale,
+    color: noteColor(robot.identityColor || FALLBACK_IDENTITY, companyColor),
+    pxPerUnit: isWorld
+      ? () => getStageScale() * rowScale
+      : () => parseFloat(gemRef.current?.closest<HTMLElement>('[data-note-cloud]')?.style.getPropertyValue('--note-fit-scale') ?? ''),
+    placing: isWorld ? notesShown(robot.batteryLevel, woken) : true,
   });
 
   return (

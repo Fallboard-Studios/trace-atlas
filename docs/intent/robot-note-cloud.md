@@ -5,8 +5,8 @@ throwaway build by eye over one session and ended "happy with the current state"
 Behavior is what he decided by looking, as built. What he had never been asked was listed under **To confirm**; he
 answered all twelve points the same day, and each answer is written under its point. Three answers changed the
 Behavior above them (a repeat, where the cloud shows, the bob's cycle) and those bullets are corrected. The spec is
-[docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). **Paused the same day, at his word:** backlog 82 and
-83 are finished first, then this is picked up. Backlog
+[docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Paused the same day, at his word, until backlog 82 and
+83 were finished; both closed that day (PR #635) and the work is picked up again. Backlog
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
 The spike is the branch `spike/note-pulse` (local, fifteen commits, never merges). It is the reference for how
@@ -56,6 +56,8 @@ It is there on every robot but quiet about it, and it comes forward for the robo
 
 - **Bright now, faint after.** A note is at full strength where it sounds and falls to about a third as it moves
   on. So every robot shows a bright blip on the beat and a ghost of what it just played.
+- **Full strength is three quarters.** The cloud at its strongest is 75% opaque, and everything else (the dim, the
+  battery fade, the white of a sounding note) sits under that (Crawford, 2026-11-13).
 - **Overlapping notes look like one shape.** The dimming belongs to the whole cloud, not to each note.
 - **The robot the player turns to is at full strength.** A robot under the pointer, selected, soloed or highlighted
   shows its whole cloud undimmed.
@@ -196,7 +198,9 @@ Built by me without being asked, or never put to Crawford. Each needed a yes or 
   found that the chord cycle does not keep fixed time and that the melody's steps sit a sixteenth off the measure,
   and works round both: it reads the measure off the transport and takes the cycle's lag as observed. If 82 makes
   the palette a function of the transport position, the forecast becomes exact and that workaround goes. So 82 and
-  83 are better settled before this part is built.
+  83 are better settled before this part is built. **It did** (PR #635, the one music clock): the palette is a pure
+  function of the measure and the steps sit on the bar, so the spec's early-notes section is written without the
+  workaround.
 - **Layers.** The two note layers are HTML siblings of the robot's `<svg>` inside its mover (`Robot.tsx`), one
   below it and one above. About four compositor layers per sounding robot. The mover's children are React's, so
   how the layers are mounted is a spec question (the spike inserts them by hand).

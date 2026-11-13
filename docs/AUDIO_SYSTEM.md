@@ -166,6 +166,34 @@ The melody tick (`startMelodyPlayback`, private to `AudioEngine.ts`) is a `16n` 
 
 **For complete BeatClock implementation details, see [BEAT_CLOCK.md](BEAT_CLOCK.md).**
 
+### Note events — audio to the picture
+
+Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md) §1.2. The engine tells the picture
+which notes a robot plays; the note cloud ([ROBOT_DESIGN.md](ROBOT_DESIGN.md#the-note-cloud--the-third-overlay))
+is the one listener. The arrow runs one way: audio to visual, never back (Strict Separation, and the
+Visual Mapping guardrail's third overlay).
+
+- **The registry.** `src/engine/noteEvents.ts` imports nothing. `onRobotNote(robotId, listener)`
+  returns the unsubscribe; `hasRobotNoteListener(robotId)` lets the engine skip building an event
+  nobody reads; `emitRobotNote(robotId, event)` is the engine's side. A listener that throws is
+  `console.error`'d and never reaches the engine or the next listener, so a listener cannot cost a
+  note. Not a store: twelve robots on sixteenths is about a hundred events a second, none of it
+  through Zustand or React.
+- **The event** (`RobotNoteEvent`), a plain object, never the engine: `note` (the pitch as triggered,
+  e.g. `C4`), `duration` (the sounding length in seconds, after articulation), `at` (the scheduled start
+  on the audio clock, for comparing one note with the next, never for scheduling) and `lead` (seconds
+  from now until it leaves the speakers).
+- **Where it is emitted.** At the end of `triggerWithCap`, after `triggerAttackRelease`, through
+  `announceTriggeredNote`, so past every gate: mute, Solo and dock mute (`isRobotAudible`), the Audio
+  Load Budget's standing-by robots, the polyphony cap, a missing voice and an invalid note. A robot
+  that does not sound is not drawn. The call is skipped when nobody listens, and has its own guard,
+  so nothing in it can un-count the voice that is now sounding.
+- **The lead.** `max(0, at − Tone.now())`, the transport's lookahead plus `MIN_LEAD` plus Humanize,
+  plus `outputLatencySeconds()`: the raw context's `outputLatency`, else its `baseLatency`, capped at
+  `NOTE_LATENCY_MAX_SECONDS` (0.5); a 0, negative or non-number value counts as not reported. A
+  note is therefore known about a fifth of a second before it is heard (`NOTE_KNOWN_AHEAD_SECONDS`, the
+  cloud's mask). Announcing notes earlier, from the steps ahead, is Part E of the spec, not built yet.
+
 ## The band table — where a fresh world's ranges live
 
 Every value a **fresh** world or robot may seed is drawn into a band from one table, `src/data/bands/` (roadmap 57, `docs/specs/OFF_SCREEN.md` assumption 15, §1.3–1.5). A band bounds a draw — never what a slider exposes or what the app can do; a theme or an aspect moves a band, never the draw, so every dataId, offset and draw order is what it was. At the lift Classic was byte for byte the world before the table existed (pinned by a literal table typed from the survey in `resolveBands.test.ts`, and by a value-for-value fixture of the pre-lift generators in `spawnSystem.test.ts`). **The draw inside a band is even** since Even Seeded Draws (`docs/specs/EVEN_SEEDED_DRAWS.md`, 2026-11-02): `getUniformSeededVal` fills `[min, max]` evenly, and the three EQ bands and the detunes draw centred (`getCentredSeededVal`, a triangle on the band's middle), so a band's edges are reached and a `lit`, an `offShare` or any other edge is the share it realises. Every Classic world moved once at that switch, the parity fixtures and the seed oracle were re-recorded once (their headers say so), and the thresholds that had been fitted to the plain draw became their targets (spec §1.4). `PROCEDURAL_GENERATION.md`'s "Sampling Values" describes the three draws.
@@ -713,6 +741,7 @@ The main anti-patterns to avoid are:
 2. Using `setTimeout`/`setInterval`/`requestAnimationFrame` for music timing.
 3. Triggering audio from GSAP timelines or React effects instead of semantic events.
 4. Storing synth instances or other non-serializable audio objects in Zustand or component state.
+5. A visual reading notes out of the engine, or handing the engine anything back: the picture listens to `noteEvents` and nothing else.
 
 When in doubt, route the behavior through `AudioEngine` and keep the data serializable.
 

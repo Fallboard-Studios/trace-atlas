@@ -112,13 +112,38 @@ afterEach(() => {
 // TESTS
 // ========================================
 describe('job timeline constants (spec §1.9, Task 0b)', () => {
-  // Halved from ±6 on 2026-11-12 (Crawford): half the distance on the same cycle, so half the speed too.
-  it('bobs ±3 u on a ≈1.2 s cycle', () => {
+  // Halved from ±6 on 2026-11-12 (Crawford), then the cycle doubled from 1.2 s (note cloud spec §1.11).
+  it('bobs ±3 u on a ≈2.4 s cycle', () => {
     expect(BOB_PX).toBe(3);
-    expect(BOB_CYCLE_SECONDS).toBe(1.2);
+    expect(BOB_CYCLE_SECONDS).toBe(2.4);
   });
 
-  it('a working robot travels 12 u a cycle, at 10 u a second on average', () => {
+  it('a 6 s job bobs 3 whole cycles and a 10 s job 4, each ending where it started', () => {
+    for (const [bpm, seconds, cycles] of [
+      [200, 6, 3],
+      [20, 10, 4],
+    ]) {
+      const i = input(2, { bpm });
+      const tl = buildJobTimeline(i);
+      const D = tl.duration();
+      expect(D).toBeCloseTo(seconds, 6);
+      let travelled = 0;
+      let last = num(i.robotEl, 'y');
+      for (let k = 1; k <= 4000; k++) {
+        tl.time((k / 4000) * D);
+        const y = num(i.robotEl, 'y');
+        travelled += Math.abs(y - last);
+        last = y;
+      }
+      expect(travelled).toBeCloseTo(12 * cycles, 0); // 12 u a cycle: up 3, down 6, up 3
+      for (let c = 1; c <= cycles; c++) {
+        tl.time((c / cycles) * D);
+        expect(num(i.robotEl, 'y')).toBeCloseTo(300, 6);
+      }
+    }
+  });
+
+  it('a working robot travels 12 u a cycle, at 5 u a second on average', () => {
     const i = input(2);
     const tl = buildJobTimeline(i);
     const D = tl.duration();
@@ -132,7 +157,7 @@ describe('job timeline constants (spec §1.9, Task 0b)', () => {
       last = y;
     }
     expect(travelled / cycles).toBeCloseTo(12, 1); // up 3, down 6, up 3
-    expect(12 / BOB_CYCLE_SECONDS).toBe(10); // was 24 u a cycle, 20 u a second
+    expect(12 / BOB_CYCLE_SECONDS).toBe(5); // was 24 u a cycle, 20 u a second at ±6 on 1.2 s
   });
 });
 

@@ -587,12 +587,29 @@ audio or animation architecture):
   Transform or opacity on a mover stays on the compositor. A fill or palette change repaints, and desktop underruns
   have been raster-bound before.
 
-**Status (2026-11-12):** a throwaway spike (`spike/note-pulse`, local) settled the direction by eye. A pulse on the
-lit strips was rejected; what Crawford ended happy with is a cloud of notes around each robot, a small piano roll in
-time with the sound. The [intent](../intent/robot-note-cloud.md) is confirmed (its twelve "To confirm" points answered
-the same day) and the [spec](../specs/ROBOT_NOTE_CLOUD.md) is written, not yet planned. **Paused at Crawford's word:**
-backlog 82 and 83 are finished first, since the spec's last part (the engine announcing notes early) leans on both;
-the spec is re-read against what they shipped before it is planned. Plan.md Stage 4.
+**Status (2026-11-13): Parts 0 to D built on `feature/note-cloud`; Part E follows.** A throwaway spike
+(`spike/note-pulse`, local, never merges) settled the direction by eye: a pulse on the lit strips was rejected, and
+what Crawford ended happy with is **the note cloud**, a small piano roll of each robot's own notes around it, in time
+with the sound. [Intent](../intent/robot-note-cloud.md), [spec](../specs/ROBOT_NOTE_CLOUD.md) (its §8 "As built"),
+[plan](../tasks/ROBOT_NOTE_CLOUD.md). What the first branch ships:
+
+- **Note events** (`src/engine/noteEvents.ts`): `triggerWithCap` tells a robot's listeners about each note that will
+  sound, past every gate (mute, Solo, dock mute, the Audio Load Budget, the polyphony cap), so only a robot that
+  sounds is drawn. The arrow runs audio to picture only (AUDIO_SYSTEM.md, "Note events — audio to the picture").
+- **The cloud** round every sounding robot in the world and on the desk's detail avatar (where it spills past the
+  gem's box): a bar per note at its pitch height, half in front of the body and half behind, crossing right to left
+  in 5 s, white while it sounds, in the company colour or a freelancer's complement. A robot places notes only while
+  its battery is in an on band (10–28, 38–55, 65–73, 83–100 %), or once woken by the pointer or a selection until it
+  is next in its station. The robot under the pointer, followed, selected, soloed or highlighted shows its cloud
+  undimmed, and the marker frames the robot under the pointer. None under reduced motion; `?notes=off` for the cost
+  A/B (ROBOT_DESIGN.md, "The note cloud — the third overlay").
+- **The Visual Mapping guardrail** names the cloud as the third overlay, in Crawford's words (CLAUDE.md).
+- **The working bob** at ±3 on a 2.4 s cycle.
+
+Gates 1 to 3 passed 2026-11-13 (cost: +3.7 % main thread with the bands, measured on the odd tens before he re-drew
+them). **Next:** the branch's Checkpoint: Complete and Crawford's PR; then **Part E**, the engine announcing notes
+early so they run in through the right-hand fan (plan Tasks 31 to 37, branch `feature/note-cloud-early-notes`, Gate
+4). Not archived until Part E is done. Plan.md Stage 4.
 
 ### 80. Audio: Notes Too Short to Hear the Instrument — More Guardrails
 

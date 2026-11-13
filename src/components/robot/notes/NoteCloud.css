@@ -1,0 +1,41 @@
+/* The note cloud's two layers (docs/specs/ROBOT_NOTE_CLOUD.md §1.5, §1.6). They sit inside a mover,
+   which is its own stacking context, so z-index −1 draws the behind layer under the robot's svg and
+   1 draws the front layer over it. useNoteCloud sizes and places each wrapper on the roll's box, sets
+   its mask, and shows it only while it has live notes: until then it is display: none and costs no
+   layer. The belt is what the one belt tween moves; notes are appended to it by the hook. */
+.note-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: none;
+  pointer-events: none;
+}
+
+.note-layer--behind {
+  z-index: -1;
+}
+
+.note-layer--front {
+  z-index: 1;
+}
+
+.note-layer__belt {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* A note: a solid rounded bar placed once on its belt (size, radius, colour and transform inline, per note), turning
+   about its own centre to its row's slope. Its white copy lies over it, clear until the note sounds. */
+.note {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.note__hot {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+}

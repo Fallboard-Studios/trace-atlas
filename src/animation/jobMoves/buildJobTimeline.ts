@@ -194,7 +194,7 @@ function planStep(step: MoveStep, w: WorkContext, t0: number, t1: number): Plann
 // ========================================
 export function buildJobTimeline(input: JobTimelineInput): gsap.core.Timeline {
   const duration = jobDuration(input.bpm);
-  const cycles = Math.round(duration / BOB_CYCLE_SECONDS); // ≥ 5: jobs last 6–10 s
+  const cycles = Math.round(duration / BOB_CYCLE_SECONDS); // 3 or 4: jobs last 6–10 s
   const cycle = duration / cycles;
   const tl = gsap.timeline({ paused: true, onComplete: input.onComplete });
 

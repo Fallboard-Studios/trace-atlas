@@ -15,7 +15,8 @@ import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type Se
 import { paletteForMeasure } from './harmonySystem';
 import { resetBeatClock, initBeatClock, positionAt, type MusicPosition } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS } from '../constants';
+import { emitRobotNote, hasRobotNoteListener } from './noteEvents';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
 
@@ -517,6 +518,39 @@ function updateAllPanners(time?: number): void {
   }
 }
 /**
+ * The output's own latency in seconds (note cloud spec §7.2 A11): the raw context's `outputLatency`, else its
+ * `baseLatency`, else 0, capped at NOTE_LATENCY_MAX_SECONDS. A 0, a negative or a non-number is "not reported" (a
+ * device's output cannot have no latency), so it falls through to the next.
+ */
+function outputLatencySeconds(): number {
+  const raw = Tone.getContext().rawContext as { outputLatency?: unknown; baseLatency?: unknown } | undefined;
+  for (const latency of [raw?.outputLatency, raw?.baseLatency]) {
+    if (typeof latency === 'number' && Number.isFinite(latency) && latency > 0) {
+      return Math.min(latency, NOTE_LATENCY_MAX_SECONDS);
+    }
+  }
+  return 0;
+}
+
+/**
+ * Tell a robot's note listeners about a note that will sound (note cloud spec §1.2, §4): its pitch, its sounding
+ * length (`end` less `at`), its scheduled start, and the lead until it leaves the speakers. Called by triggerWithCap
+ * past every gate. `emitRobotNote` already keeps a throwing listener from the caller; this guard covers the reads.
+ */
+function announceTriggeredNote(robotId: string, note: string, at: number, end: number): void {
+  try {
+    emitRobotNote(robotId, {
+      lead: Math.max(0, at - Tone.now()) + outputLatencySeconds(),
+      duration: end - at,
+      at,
+      note,
+    });
+  } catch (err) {
+    devWarn('[AudioEngine] announceTriggeredNote failed', err);
+  }
+}
+
+/**
  * Trigger note with polyphony cap enforcement.
  * Applies per-robot synth selection and ADSR envelope when provided.
  * Returns true if note was triggered, false if skipped due to cap.
@@ -592,7 +626,11 @@ export function triggerWithCap(params: NoteParams): boolean {
     // A seconds number goes to the synth as its string: Tone.Time reads "0.075" as seconds, and the composite
     // voice stringifies its duration anyway (it accepts NoteDuration | string).
     synth.triggerAttackRelease(note, typeof duration === 'number' ? String(duration) : duration, scheduleTime, params.velocity ?? NOTE_VELOCITY_BASELINE, params.release);
-    standingBy.recordNoteEnd(robotId, scheduleVoiceRelease(duration, scheduleTime));
+    const noteEnd = scheduleVoiceRelease(duration, scheduleTime);
+    standingBy.recordNoteEnd(robotId, noteEnd);
+    // Past every gate: the note will sound, so its listeners hear of it (the note cloud, spec §1.2). Free when nobody
+    // listens; its own guard, so nothing here can un-count the voice that is now sounding.
+    if (hasRobotNoteListener(robotId)) announceTriggeredNote(robotId, note, scheduleTime, noteEnd);
     return true;
   } catch (err) {
     console.error('[AudioEngine] Failed to trigger note:', err);
