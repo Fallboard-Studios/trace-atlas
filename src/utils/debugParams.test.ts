@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect, afterEach, vi } from 'vitest';
 
-import { parseLatencyParam, parseDebugParam } from './debugParams';
+import { parseLatencyParam, parseDebugParam, parseNotesParam } from './debugParams';
 
 // ========================================
 // TESTS
@@ -46,6 +46,31 @@ describe('parseDebugParam', () => {
   });
 });
 
+describe('parseNotesParam (the note cloud A/B switch, spec 1.6)', () => {
+  it('is on when the param is absent', () => {
+    expect(parseNotesParam(null)).toBe(true);
+    expect(parseNotesParam(undefined)).toBe(true);
+  });
+
+  it('is on for a bare ?notes (an empty value)', () => {
+    expect(parseNotesParam('')).toBe(true);
+  });
+
+  it('is off for off, OFF, 0 and false', () => {
+    expect(parseNotesParam('off')).toBe(false);
+    expect(parseNotesParam('OFF')).toBe(false);
+    expect(parseNotesParam('0')).toBe(false);
+    expect(parseNotesParam('false')).toBe(false);
+    expect(parseNotesParam('False')).toBe(false);
+  });
+
+  it('is on for any other value', () => {
+    expect(parseNotesParam('on')).toBe(true);
+    expect(parseNotesParam('1')).toBe(true);
+    expect(parseNotesParam('no')).toBe(true);
+  });
+});
+
 describe('boot-time URL params', () => {
   afterEach(() => {
     window.history.replaceState({}, '', '/');
@@ -76,6 +101,18 @@ describe('boot-time URL params', () => {
     const debugOnly = await loadFreshWithQuery('?debug=1');
     expect(debugOnly.isDebugEnabled()).toBe(true);
     expect(debugOnly.getLatencyOverride()).toBeNull();
+  });
+
+  it('draws the note cloud unless ?notes=off', async () => {
+    const plain = await loadFreshWithQuery('');
+    expect(plain.isNoteCloudEnabled()).toBe(true);
+
+    const off = await loadFreshWithQuery('?debug&notes=off');
+    expect(off.isNoteCloudEnabled()).toBe(false);
+    expect(off.isDebugEnabled()).toBe(true);
+
+    const bare = await loadFreshWithQuery('?notes');
+    expect(bare.isNoteCloudEnabled()).toBe(true);
   });
 
   it('ignores an invalid ?latency= value', async () => {
