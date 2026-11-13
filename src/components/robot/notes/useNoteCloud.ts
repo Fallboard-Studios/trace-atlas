@@ -13,8 +13,16 @@
 // IMPORTS
 // ========================================
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
+import gsap from 'gsap';
 
-import { NOTE_CROSSING_SECONDS, NOTE_KNOWN_AHEAD_SECONDS, NOTE_NOW } from '../../../constants';
+import {
+  NOTE_CROSSING_SECONDS,
+  NOTE_KNOWN_AHEAD_SECONDS,
+  NOTE_NOW,
+  NOTE_QUANTUM_DEGREES,
+  NOTE_QUANTUM_UNITS,
+} from '../../../constants';
+import { killTimeline, setTimeline } from '../../../animation/timelineMap';
 import { getWorldState } from '../../../systems/worldState';
 import { isNoteCloudEnabled } from '../../../utils/debugParams';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
@@ -43,11 +51,23 @@ export interface UseNoteCloudOptions {
 
 type Side = 'front' | 'behind';
 
+/** A note on a belt. Its place is kept in "unwrapped belt" units, so its x on the roll at belt time t is
+ *  `start - t × speed` whatever the belt's wraps. What was last written is kept to skip a write that changes nothing. */
+interface LiveNote {
+  el: HTMLElement;
+  row: number;
+  length: number;
+  start: number;
+  written: string;
+}
+
 // ========================================
 // HELPERS
 // ========================================
 /** A number for a style string: four decimals, so the DOM carries no float noise. */
 const n4 = (value: number) => Number(value.toFixed(4));
+/** A value snapped to a quantum (§7.2 A7), as a style number. */
+const snap = (value: number, quantum: number) => n4(Math.round(value / quantum) * quantum);
 
 // ========================================
 // HOOK
@@ -103,12 +123,79 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     };
     fit();
 
+    // The belt (§1.6): one linear, repeating tween moves both belts left by the roll's width each crossing, and its
+    // onUpdate is the one pass a frame over the live notes. A note is placed once on a belt and its place there
+    // changes only when the belt wraps (when the tween repeats, the belts jump back a roll's width and every note is
+    // re-based by the same, so nothing on screen jumps). The row's wave and the fan move it across its row, written
+    // only when it moves by a whole quantum. Its whole life hangs off this registered 'world' timeline, so a power-off
+    // pause freezes the cloud mid-flight.
+    const beltEls = [belts.front, belts.behind];
+    const live: LiveNote[] = [];
+    const key = `note-belt-${context}-${robotId}`;
+    let beltTime = 0; // the belt's playhead, as its last render left it
+
+    const writeBelts = (time: number) => {
+      const x = n4(-(time % NOTE_CROSSING_SECONDS) * speed);
+      for (const belt of beltEls) belt.style.transform = `translate(${x}px, 0px)`;
+    };
+
+    /** Settles a note on its row for where it is at belt time `time`; writes only a changed, quantised place. */
+    const settle = (note: LiveNote, time: number) => {
+      const x = note.start - time * speed; // its left end on the roll
+      const across = (x + note.length / 2) / roll.w;
+      const onBelt = n4(note.start - Math.floor(time / NOTE_CROSSING_SECONDS) * roll.w);
+      const y = snap(rows.y(note.row, across), NOTE_QUANTUM_UNITS);
+      const tilt = snap(rows.tilt(note.row, across), NOTE_QUANTUM_DEGREES);
+      const transform = `translate(${onBelt}px, ${y}px) rotate(${tilt}deg)`;
+      if (transform === note.written) return;
+      note.written = transform;
+      note.el.style.transform = transform;
+    };
+
+    const idle = () => {
+      for (const layer of layers) layer.style.display = 'none';
+      for (const belt of beltEls) belt.style.willChange = '';
+      tween.pause();
+    };
+
+    const wake = () => {
+      for (const layer of layers) layer.style.display = 'block';
+      for (const belt of beltEls) belt.style.willChange = 'transform';
+      tween.play();
+    };
+
+    const pass = () => {
+      beltTime = tween.totalTime();
+      writeBelts(beltTime);
+      for (let i = live.length - 1; i >= 0; i--) {
+        const note = live[i];
+        if (note.start - beltTime * speed + note.length < 0) {
+          note.el.remove();
+          live.splice(i, 1);
+        } else {
+          settle(note, beltTime);
+        }
+      }
+      if (live.length === 0) idle();
+    };
+
+    const clock = { t: 0 };
+    const tween = gsap.to(clock, {
+      t: NOTE_CROSSING_SECONDS,
+      duration: NOTE_CROSSING_SECONDS,
+      ease: 'none',
+      repeat: -1,
+      paused: true,
+      onUpdate: pass,
+    });
+    setTimeline(key, tween as unknown as ReturnType<typeof gsap.timeline>, 'world');
+    idle();
+
     const unsubscribe = subscribeDrawnNotes(robotId, (note, event) => {
       if (document.hidden || getWorldState() !== 'running') return;
       fit();
       const length = noteLength(note.duration, roll.w, thickness);
       const left = nowX + Math.max(0, event.lead) * speed;
-      const across = (left + length / 2) / roll.w;
 
       const bar = document.createElement('div');
       bar.className = 'note';
@@ -116,22 +203,29 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       bar.style.height = `${n4(thickness)}px`;
       bar.style.borderRadius = `${n4(thickness / 2)}px`;
       bar.style.backgroundColor = colorRef.current;
-      bar.style.transform =
-        `translate(${n4(left)}px, ${n4(rows.y(note.row, across))}px) rotate(${n4(rows.tilt(note.row, across))}deg)`;
       const hot = document.createElement('div');
       hot.className = 'note__hot';
       bar.appendChild(hot);
 
+      const placed: LiveNote = { el: bar, row: note.row, length, start: left + beltTime * speed, written: '' };
+      settle(placed, beltTime);
       const side: Side = note.layer;
       belts[side]!.appendChild(bar);
-      for (const layer of layers) layer.style.display = 'block';
+      live.push(placed);
+      if (live.length === 1) wake();
     });
 
     return () => {
       unsubscribe();
+      killTimeline(key);
       belts.front!.replaceChildren();
       belts.behind!.replaceChildren();
       for (const layer of layers) layer.style.display = '';
+      // A rebuilt roll's new belt starts from the left of its roll, as its playhead does.
+      for (const belt of beltEls) {
+        belt.style.transform = '';
+        belt.style.willChange = '';
+      }
     };
   }, [root, robotId, context, enabled, reducedMotion, gem, scale]);
 

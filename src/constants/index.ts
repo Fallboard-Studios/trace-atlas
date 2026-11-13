@@ -394,6 +394,10 @@ export const NOTE_COMPLEMENT_L = 70;
 /** How far ahead of its sound a note is known, for the mask's clear right-hand end (§1.4): about a fifth of a second
  *  while notes come from the trigger. Part E (early announcements) replaces it with the asked-for preview. */
 export const NOTE_KNOWN_AHEAD_SECONDS = 0.2;
+/** The per-frame pass writes a note's place only when it moves by a whole quantum (§1.6, §7.2 A7): a quarter of a
+ *  canvas unit across its row, a quarter of a degree in its tilt. Through the straight middle most frames write nothing. */
+export const NOTE_QUANTUM_UNITS = 0.25;
+export const NOTE_QUANTUM_DEGREES = 0.25;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */

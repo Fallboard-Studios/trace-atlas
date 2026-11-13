@@ -7,6 +7,7 @@
 import { useRef } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup } from '@testing-library/react';
+import gsap from 'gsap';
 
 vi.unmock('gsap');
 
@@ -24,8 +25,14 @@ import { noteLength, noteRowGeometry, noteThickness, rollBox } from './noteRows'
 import { getRobotGem } from '../gem/polygon';
 import { emitRobotNote, hasRobotNoteListener, type RobotNoteEvent } from '@/engine/noteEvents';
 import { setWorldState } from '@/systems/worldState';
-import { killAllTimelines } from '@/animation/timelineMap';
-import { NOTE_CROSSING_SECONDS, NOTE_NOW } from '@/constants';
+import {
+  getTimeline,
+  getTimelineScope,
+  killAllTimelines,
+  pauseWorldTimelines,
+  resumeWorldTimelines,
+} from '@/animation/timelineMap';
+import { NOTE_CROSSING_SECONDS, NOTE_NOW, NOTE_QUANTUM_UNITS } from '@/constants';
 
 // ========================================
 // FIXTURES
@@ -87,11 +94,46 @@ function setHidden(hidden: boolean) {
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
 }
 
+/** The belt's registered timeline for robot r1 in the world context. */
+const belt = (id = 'r1', context = 'world') => getTimeline(`note-belt-${context}-${id}`);
+
+/** Moves the belt's playhead on by `seconds`, as the ticker would. */
+function advance(seconds: number, id = 'r1') {
+  const tl = belt(id);
+  if (!tl) throw new Error('no belt timeline');
+  tl.totalTime(tl.totalTime() + seconds);
+}
+
+/** Counts writes to one style property of one element (an own accessor over the prototype's). */
+function countWrites(el: HTMLElement, prop: 'transform' | 'opacity') {
+  let proto: object | null = Object.getPrototypeOf(el.style);
+  let desc: PropertyDescriptor | undefined;
+  while (proto && !(desc = Object.getOwnPropertyDescriptor(proto, prop))) proto = Object.getPrototypeOf(proto);
+  if (!desc?.set || !desc.get) throw new Error(`no accessor for ${prop}`);
+  const { get, set } = desc;
+  const counter = { writes: 0 };
+  Object.defineProperty(el.style, prop, {
+    configurable: true,
+    get() { return get.call(this); },
+    set(value) { counter.writes++; set.call(this, value); },
+  });
+  return counter;
+}
+
+/** The belt's offset, read back from its transform (0 before it has one). */
+function beltX(container: HTMLElement, side: 'front' | 'behind' = 'front'): number {
+  const el = container.querySelector(`.note-layer--${side} .note-layer__belt`) as HTMLElement;
+  const match = /translate\((-?[\d.e-]+)px/.exec(el.style.transform);
+  return match ? Number(match[1]) : 0;
+}
+
 beforeEach(() => {
   noteCloudSwitch.on = true;
   setReducedMotion(false);
   setWorldState('running');
   for (const id of ['r1', 'r2']) clearNoteCloudModel(id);
+  // The ticker never moves a belt on its own here: the tests set its time by hand.
+  gsap.globalTimeline.pause();
 });
 
 afterEach(() => {
@@ -99,6 +141,7 @@ afterEach(() => {
   delete (document as unknown as { hidden?: boolean }).hidden;
   killAllTimelines();
   setWorldState('cold');
+  gsap.globalTimeline.resume();
 });
 
 // ========================================
@@ -146,11 +189,12 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
     const speed = roll.w / NOTE_CROSSING_SECONDS;
     const nowX = roll.w * (1 - NOTE_NOW);
     expect(translateOf(bar).x).toBeCloseTo(nowX + 0.2 * speed, 2);
-    // The first note sits at mid-height (row 0).
+    // The first note sits at mid-height (row 0), within the quantum its transform is written to (Task 14).
     const thick = noteThickness(roll.h, 1);
     const len = noteLength(0.25, roll.w, thick);
     const rows = noteRowGeometry(roll, thick);
-    expect(translateOf(bar).y).toBeCloseTo(rows.y(0, (nowX + 0.2 * speed + len / 2) / roll.w), 2);
+    const rowY = rows.y(0, (nowX + 0.2 * speed + len / 2) / roll.w);
+    expect(Math.abs(translateOf(bar).y - rowY)).toBeLessThanOrEqual(NOTE_QUANTUM_UNITS / 2);
   });
 
   it('a longer lead places the bar further right', () => {
@@ -298,5 +342,142 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
       emitRobotNote('r1', repeat);
       expect(allBars(container)).toHaveLength(0);
     });
+  });
+});
+
+// ========================================
+// TASK 14: the belt carries the notes across and takes them off
+// ========================================
+describe('useNoteCloud — the belt (Task 14)', () => {
+  const wrappers = (container: HTMLElement) => [...container.querySelectorAll('.note-layer')] as HTMLElement[];
+  const belts = (container: HTMLElement) => [...container.querySelectorAll('.note-layer__belt')] as HTMLElement[];
+  const roll = rollBox(GEM, 1);
+  const speed = roll.w / NOTE_CROSSING_SECONDS;
+
+  it('idle: the belt is registered under world, paused, the wrappers hidden and the belts without will-change', () => {
+    const { container } = render(<Harness />);
+    expect(belt()).toBeDefined();
+    expect(getTimelineScope('note-belt-world-r1')).toBe('world');
+    expect(belt()!.paused()).toBe(true);
+    for (const w of wrappers(container)) expect(w.style.display).toBe('none');
+    for (const b of belts(container)) expect(b.style.willChange).toBe('');
+  });
+
+  it('a note shows the wrappers, readies the belts and plays the belt', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    expect(belt()!.paused()).toBe(false);
+    for (const w of wrappers(container)) expect(w.style.display).toBe('block');
+    for (const b of belts(container)) expect(b.style.willChange).toBe('transform');
+  });
+
+  it('the belt carries the bar left at the roll speed (the bar itself stays put on its belt)', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    const [bar] = bars(container, 'front');
+    const placedX = translateOf(bar).x;
+    advance(1);
+    expect(beltX(container, 'front')).toBeCloseTo(-speed, 2);
+    expect(beltX(container, 'behind')).toBeCloseTo(-speed, 2);
+    expect(translateOf(bar).x).toBeCloseTo(placedX, 3);
+  });
+
+  it('a note still on the roll stays; past its crossing it is gone, and an empty belt goes idle', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    advance(2);
+    expect(allBars(container)).toHaveLength(1);
+    advance(NOTE_CROSSING_SECONDS);
+    expect(allBars(container)).toHaveLength(0);
+    for (const w of wrappers(container)) expect(w.style.display).toBe('none');
+    for (const b of belts(container)) expect(b.style.willChange).toBe('');
+    expect(belt()!.paused()).toBe(true);
+  });
+
+  it('takes a note off once its right end passes the left edge, not before', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4', { lead: 0.2, duration: 0.25 }));
+    const thick = noteThickness(roll.h, 1);
+    const len = noteLength(0.25, roll.w, thick);
+    const startX = roll.w * (1 - NOTE_NOW) + 0.2 * speed;
+    const crossing = (startX + len) / speed; // seconds until its right end reaches x = 0
+    advance(crossing - 0.05);
+    expect(allBars(container)).toHaveLength(1);
+    advance(0.1);
+    expect(allBars(container)).toHaveLength(0);
+  });
+
+  it('one note leaving keeps the belt running for the others', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    advance(3);
+    emitRobotNote('r1', noteEvent('F4'));
+    advance(2); // the first has crossed, the second is mid-roll
+    expect(bars(container, 'front')).toHaveLength(0);
+    expect(bars(container, 'behind')).toHaveLength(1);
+    expect(belt()!.paused()).toBe(false);
+    for (const w of wrappers(container)) expect(w.style.display).toBe('block');
+  });
+
+  it('nothing jumps when the belt wraps: a bar keeps moving left at the roll speed', () => {
+    const { container } = render(<Harness />);
+    advance(4.5); // an idle belt's time can stand anywhere; place the note just before a wrap
+    emitRobotNote('r1', noteEvent('C4'));
+    const [bar] = bars(container, 'front');
+    const onScreen = () => translateOf(bar).x + beltX(container);
+    const before = onScreen();
+    advance(1); // crosses the 5 s wrap
+    expect(onScreen()).toBeCloseTo(before - speed, 1);
+  });
+
+  it('through the straight middle, two small advances write a bar transform at most once', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    advance(1.5); // out of the right-hand fan, into the straight middle
+    const [bar] = bars(container, 'front');
+    const writes = countWrites(bar, 'transform');
+    advance(1 / 60);
+    advance(1 / 60);
+    expect(writes.writes).toBeLessThanOrEqual(1);
+  });
+
+  it('a power-off pause with a note mid-flight pauses the belt; power-on plays it', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    pauseWorldTimelines();
+    expect(belt()!.paused()).toBe(true);
+    resumeWorldTimelines();
+    expect(belt()!.paused()).toBe(false);
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('an idle belt stays paused across a power cycle', () => {
+    render(<Harness />);
+    pauseWorldTimelines();
+    resumeWorldTimelines();
+    expect(belt()!.paused()).toBe(true);
+  });
+
+  it('unmount kills the belt', () => {
+    const { unmount } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    unmount();
+    expect(belt()).toBeUndefined();
+  });
+
+  it('the avatar context registers its own belt', () => {
+    render(<Harness context="avatar" />);
+    expect(belt('r1', 'avatar')).toBeDefined();
+    expect(getTimelineScope('note-belt-avatar-r1')).toBe('world');
+    expect(belt('r1', 'world')).toBeUndefined();
+  });
+
+  it('a body-scale rebuild starts the new belt at the left of its roll', () => {
+    const { container, rerender } = render(<Harness scale={1} />);
+    emitRobotNote('r1', noteEvent('C4'));
+    advance(1);
+    rerender(<Harness scale={1.5} />);
+    expect(beltX(container)).toBe(0);
+    expect(belt()!.paused()).toBe(true);
   });
 });
