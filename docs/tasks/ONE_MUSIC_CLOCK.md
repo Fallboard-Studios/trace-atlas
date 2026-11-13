@@ -577,10 +577,38 @@ Task 6 and do not depend on each other.
   **Files:** `src/components/robot/PingControlsDrawer.tsx`, `src/components/robot/PingControlsDrawer.test.tsx`,
   `src/components/panels/screen/screens/RobotScreen.tsx`, `src/components/panels/screen/screens/RobotScreen.test.tsx`
 
+- [x] **Task 10b: the Click Track on the company and All Probes screens too (added 2026-11-12, Crawford's ask)**
+
+  **Description:** Both screens render the Composition section through `useCompanySubsectionRenderer` on
+  `useCompanyOptions` (a company id, or `'all'` for every robot, Freelance included). The hook gains
+  `onClickTrackActiveChange`, on `onDensityChange`'s shape: `applyClickTrackActive` once per member, then
+  `{ clickTrackActive }` patched into the company's `lastEditedOptions` (or `allRobotsLastEditedOptions`), a field the
+  snapshot type and `resolveCompanyOptions` already carried. `CompanyOptionsSection` passes it to the section, so the
+  toggle from Task 10a shows there too.
+
+  **Proof:** RED test — `useCompanyOptions.test.ts` (the broadcast) and `CompanyOptionsSection.test.tsx` (the wiring).
+
+  **Acceptance criteria:**
+  - [x] A flip applies once per member with the new state (on and off) and records only `{ clickTrackActive }`.
+  - [x] With the real action, every member stores the flag and the panel's value follows it, on then off.
+  - [x] For `'all'`, every robot is reached (Freelance included) and the all-robots snapshot records it, no company's.
+  - [x] A company that does not exist reaches nobody and records nothing; the handler keeps its identity across an
+        unrelated edit and across its own.
+  - [x] Mutation: the section's handler dropped, the broadcast dropped, the record dropped, and `active` → `true`
+        each fail a test.
+
+  **Done 2026-11-12.** RED: 8 failures (6 hook cases on "onClickTrackActiveChange is not a function", 2 section cases
+  on the missing probe). Mutants: all 4 killed (2, 6, 4, 2 failures). The company, Composition and screens suites (14
+  files): 1,202 passed. Types clean; lint 0 errors.
+
+  **Files:** `src/components/company/useCompanyOptions.ts`, `src/components/company/useCompanyOptions.test.ts`,
+  `src/components/company/CompanyOptionsSection.tsx`, `src/components/company/CompanyOptionsSection.test.tsx`,
+  `src/components/robot/PingControlsDrawer.tsx` (comments)
+
 ### Checkpoint: By ear (spec §6.3)
-- [ ] Crawford, after a hard reload: a robot on the testing-only Click Track (the toggle at the top of the robot
-      screen's Composition section, dev server only, Task 10a), the downbeat heard where the chords change. Recorded
-      here.
+- [ ] Crawford, after a hard reload: a robot on the testing-only Click Track (the toggle at the top of the
+      Composition section on a robot, company or All Probes screen, dev server only, Tasks 10a and 10b), the downbeat
+      heard where the chords change. Recorded here.
 - [ ] His call: backlog 83 closes with 82, or stays open with what the listen found.
 
 ---

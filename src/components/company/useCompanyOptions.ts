@@ -12,7 +12,7 @@ import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend,
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
-  applyDynamics, applyRests, applyAccents,
+  applyDynamics, applyRests, applyAccents, applyClickTrackActive,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -131,6 +131,8 @@ export interface CompanyOptions {
   onOctaveMinChange: (v: number) => void;
   onOctaveMaxChange: (v: number) => void;
   onNoteVarianceChange: (v: number) => void;
+  /** The dev-only Click Track, broadcast to every member (docs/tasks/ONE_MUSIC_CLOCK.md Task 10b). */
+  onClickTrackActiveChange: (active: boolean) => void;
   onAdsrChange: (adsr: ADSREnvelope) => void;
   onPortamentoChange: (seconds: number) => void;
   onBusFilterChange: (patch: BusFilterPatch) => void;
@@ -417,6 +419,13 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     patchSnapshot({ pitchRepeat: v });
   }, [localeId, patchSnapshot]);
 
+  // The dev-only Click Track (docs/tasks/ONE_MUSIC_CLOCK.md Task 10b): onDensityChange's shape, so a whole company (or the
+  // fleet) can play the pulse together. Each member's stored melody is untouched (applyClickTrackActive).
+  const onClickTrackActiveChange = useCallback((active: boolean) => {
+    latest.current.members.forEach((m) => applyClickTrackActive(m, localeId, active));
+    patchSnapshot({ clickTrackActive: active });
+  }, [localeId, patchSnapshot]);
+
   // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md): onDensityChange's shape. Dynamics writes each member's field;
   // Rests and Accents regenerate each member's melody from its own seed (the actions do that), so the members keep their
   // own notes and only the marks move together. None is a swell attribute, so nothing is cancelled.
@@ -537,6 +546,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     onOctaveMinChange,
     onOctaveMaxChange,
     onNoteVarianceChange,
+    onClickTrackActiveChange,
     onAdsrChange,
     onPortamentoChange,
     onBusFilterChange,
@@ -550,7 +560,7 @@ export function useCompanyOptions(target: string): CompanyOptionsResult {
     adsrSwelling, layer0Swelling, layer1Swelling, layer2Swelling,
     onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange,
     onDynamicsChange, onRestsChange, onAccentsChange,
-    onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onAdsrChange,
+    onOctaveMinChange, onOctaveMaxChange, onNoteVarianceChange, onClickTrackActiveChange, onAdsrChange,
     onPortamentoChange, onBusFilterChange, onBusLinkChange,
     onLayerTypeChange, onLayerParamChange, onLayerLfoFieldChange,
   ]);

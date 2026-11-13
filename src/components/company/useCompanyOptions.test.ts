@@ -504,6 +504,98 @@ describe('useCompanyOptions', () => {
     });
   });
 
+  // The dev-only Click Track on the company and All Probes screens (docs/tasks/ONE_MUSIC_CLOCK.md Task 10b): broadcast,
+  // not link, on onDensityChange's shape.
+  describe('Click Track (one music clock Task 10b)', () => {
+    const lastEdited = (id = 'c1') => useLocaleStore.getState().getCompanyById(localeId, id)?.lastEditedOptions;
+    const allLastEdited = () => useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions;
+    const stored = (id: string) => useLocaleStore.getState().getLocaleById(localeId)?.robots.find((r) => r.id === id);
+
+    function twoMembers() {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c1' }));
+      addCompany('c1', ['r1', 'r2']);
+    }
+
+    it('onClickTrackActiveChange(true) applies once per member with true and records only { clickTrackActive: true }', () => {
+      twoMembers();
+      const apply = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onClickTrackActiveChange(true));
+
+      expect(apply).toHaveBeenCalledTimes(2);
+      expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r1' }), localeId, true);
+      expect(apply).toHaveBeenCalledWith(expect.objectContaining({ id: 'r2' }), localeId, true);
+      expect(lastEdited()).toEqual({ clickTrackActive: true });
+    });
+
+    it('turning it off applies false to every member and records false', () => {
+      twoMembers();
+      const apply = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+
+      act(() => result.current.options.onClickTrackActiveChange(false));
+
+      expect(apply.mock.calls.map((c) => c[2])).toEqual([false, false]);
+      expect(lastEdited()).toEqual({ clickTrackActive: false });
+    });
+
+    it('with the real action, every member stores the flag and the panel shows it, on and then off', () => {
+      twoMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      expect(result.current.options.pingControlsValue.clickTrackActive).toBe(false);
+
+      act(() => result.current.options.onClickTrackActiveChange(true));
+      expect(stored('r1')?.clickTrackActive).toBe(true);
+      expect(stored('r2')?.clickTrackActive).toBe(true);
+      expect(result.current.options.pingControlsValue.clickTrackActive).toBe(true);
+
+      act(() => result.current.options.onClickTrackActiveChange(false));
+      expect(stored('r1')?.clickTrackActive).toBe(false);
+      expect(stored('r2')?.clickTrackActive).toBe(false);
+      expect(result.current.options.pingControlsValue.clickTrackActive).toBe(false);
+    });
+
+    it('for "all", applies to every robot (Freelance included) and records into the all-robots snapshot', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+      addCompany('c1', ['r1']);
+      const apply = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('all'));
+
+      act(() => result.current.options.onClickTrackActiveChange(true));
+
+      expect(apply.mock.calls.map((c) => c[0].id).sort()).toEqual(['r1', 'r2']);
+      expect(allLastEdited()).toEqual({ clickTrackActive: true });
+      expect(lastEdited()).toBeUndefined();
+    });
+
+    it('does nothing for a company that does not exist', () => {
+      const apply = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('ghost'));
+
+      act(() => result.current.options.onClickTrackActiveChange(true));
+
+      expect(apply).not.toHaveBeenCalled();
+      expect(lastEdited('ghost')).toBeUndefined();
+    });
+
+    it('keeps its identity across an unrelated edit and across an edit of its own', () => {
+      twoMembers();
+      vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
+      vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const first = result.current.options.onClickTrackActiveChange;
+
+      act(() => result.current.options.onVolumeChange(50));
+      expect(result.current.options.onClickTrackActiveChange).toBe(first);
+
+      act(() => result.current.options.onClickTrackActiveChange(true));
+      expect(result.current.options.onClickTrackActiveChange).toBe(first);
+    });
+  });
+
   // docs/tasks/ROBOT_SENDS.md Task 14 - the company Reverb and Delay rows: the first member's sends (or the
   // recorded ones), a broadcast that interrupts each member's own send swell, and a snapshot of the stored fraction.
   describe('Reverb and Delay sends (Robot Sends Task 14)', () => {

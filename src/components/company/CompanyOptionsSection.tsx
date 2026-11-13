@@ -85,6 +85,7 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onOctaveMinChange={options.onOctaveMinChange}
             onOctaveMaxChange={options.onOctaveMaxChange}
             onNoteVarianceChange={options.onNoteVarianceChange}
+            onClickTrackActiveChange={options.onClickTrackActiveChange}
             onRestsChange={options.onRestsChange}
             onAccentsChange={options.onAccentsChange}
           />

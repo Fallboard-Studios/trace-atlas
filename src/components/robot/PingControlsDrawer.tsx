@@ -259,8 +259,8 @@ const COMPOSITION_ROW3_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.comp
 
 export interface PingControlsCompositionSectionProps {
   value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents' | 'clickTrackActive'>;
-  /** The dev-only Click Track toggle renders only when this is given (the robot screen; the company screen has no
-   *  broadcast for it) and DEV_TUNING is on. */
+  /** The dev-only Click Track toggle renders only when this is given (the robot screen, and the company and All
+   *  Probes screens' broadcast, docs/tasks/ONE_MUSIC_CLOCK.md Task 10b) and DEV_TUNING is on. */
   onClickTrackActiveChange?: (active: boolean) => void;
   onDensityChange: (value: number) => void;
   onMotifLengthChange: (value: number) => void;
@@ -279,8 +279,8 @@ export interface PingControlsCompositionSectionProps {
  * worth of plain content, laid out as 3 rows of 2 fields each: Density+Motif Length, Pitch
  * Repeat+Note Variance, Octave Min+Octave Max (docs/reference/layout-updates.md), then a labelled Articulation
  * panel (Rests, Accents) of Robot Performance. The dev-only Click Track toggle comes first when the caller passes
- * `onClickTrackActiveChange` (the robot screen; docs/tasks/ONE_MUSIC_CLOCK.md Task 10a, so the downbeat can be
- * heard). The sliders stay live while it plays: the engine registers the click pattern in place of any melody while
+ * `onClickTrackActiveChange` (the robot, company and All Probes screens; docs/tasks/ONE_MUSIC_CLOCK.md Tasks 10a and
+ * 10b, so the downbeat can be heard). The sliders stay live while it plays: the engine registers the click pattern in place of any melody while
  * the flag is on (`AudioEngine.registerRobotMelody`), so an edit changes the stored melody heard once it is off.
  */
 function PingControlsCompositionSectionInner({
