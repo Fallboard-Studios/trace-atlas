@@ -391,6 +391,9 @@ export const NOTE_BRIGHT_BAND = 0.14;
 /** A freelancer's notes wear its identity hue's complement at this saturation and lightness (§1.3). */
 export const NOTE_COMPLEMENT_S = 100;
 export const NOTE_COMPLEMENT_L = 70;
+/** How far ahead of its sound a note is known, for the mask's clear right-hand end (§1.4): about a fifth of a second
+ *  while notes come from the trigger. Part E (early announcements) replaces it with the asked-for preview. */
+export const NOTE_KNOWN_AHEAD_SECONDS = 0.2;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */

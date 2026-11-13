@@ -26,6 +26,10 @@ import { batteryFacetContrast } from './gem/gemShading';
 import { orbiterDials } from './gem/orbiterDials';
 import { orbiterPlan } from './gem/orbiterMotion';
 import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
+import { useNoteCloud } from './notes/useNoteCloud';
+import { noteColor } from './notes/noteRows';
+import { getStageScale } from '../panels/screen/worldView/useStageFit';
+import { BACK_LAYER_SCALE } from '../../constants';
 
 // ========================================
 // TYPES
@@ -204,6 +208,20 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     gemSeed: robot.gemSeed,
     triggers: flickerTriggers,
     enabled: motionEnabled,
+  });
+
+  // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.6), world only for now (the avatar is Part D). Its colour
+  // is the company's, else the identity hue's complement; a pixel on screen is the stage's scale times the row's.
+  const rowScale = robot.layer === 'background' ? BACK_LAYER_SCALE : 1;
+  useNoteCloud({
+    root: gemRef,
+    robotId: robot.id,
+    context: motion ?? 'world',
+    enabled: motion === 'world',
+    gem,
+    scale: ignoreScale ? 1 : audio.scale,
+    color: noteColor(robot.identityColor || FALLBACK_IDENTITY, companyColor),
+    pxPerUnit: () => getStageScale() * rowScale,
   });
 
   return (

@@ -13,6 +13,9 @@ import { BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
 import type { ArcDecorator } from './gem/useHaloMotion';
+import { NoteCloudLayer } from './notes/NoteCloudLayers';
+import { clearNoteCloudModel } from './notes/noteCloudModel';
+import { noteColor } from './notes/noteRows';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import type { Locale } from '@/types/locale';
@@ -21,6 +24,8 @@ import { timelineMap, killAllTimelines } from '@/animation/timelineMap';
 import { getArcDecorator, getOrbiterWork, clearRobotMotionRegistry } from '@/animation/robotMotionRegistry';
 import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
+import { emitRobotNote, hasRobotNoteListener } from '@/engine/noteEvents';
+import { setWorldState } from '@/systems/worldState';
 
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
@@ -690,5 +695,61 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         renderSpy.mockRestore();
       });
     });
+  });
+});
+
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.5 (note cloud Task 13): a world body calls useNoteCloud enabled, so its notes are
+// placed on the layers Robot.tsx renders round its svg; a card (no motion) never listens.
+describe('RobotBody — the note cloud (note cloud Task 13)', () => {
+  function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
+    return render(
+      <div data-note-cloud="">
+        <NoteCloudLayer side="behind" />
+        <svg><RobotBody robot={robot} motion={motion} /></svg>
+        <NoteCloudLayer side="front" />
+      </div>,
+    );
+  }
+
+  beforeEach(() => {
+    setWorldState('running');
+    clearNoteCloudModel('r1');
+  });
+
+  afterEach(() => {
+    cleanup();
+    setWorldState('cold');
+  });
+
+  it('a world body listens, and a note lands on its cloud in the freelancer complement colour', () => {
+    const { container } = drawInCloud(makeRobot({ identityColor: '#428d95' }), 'world');
+    expect(hasRobotNoteListener('r1')).toBe(true);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
+    const bar = container.querySelector('.note-layer--front .note') as HTMLElement;
+    expect(bar).not.toBeNull();
+    const probe = document.createElement('div');
+    probe.style.backgroundColor = noteColor('#428d95', undefined);
+    expect(bar.style.backgroundColor).toBe(probe.style.backgroundColor);
+  });
+
+  it('a company member\'s notes wear the company colour', () => {
+    useLocaleStore.getState().addCompany(getActiveLocaleId(), { id: 'cn', name: 'Notes', color: '#123456', robotIds: [] });
+    const { container } = drawInCloud(makeRobot({ companyId: 'cn' }), 'world');
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
+    const bar = container.querySelector('.note-layer--front .note') as HTMLElement;
+    expect(bar.style.backgroundColor).toBe('rgb(18, 52, 86)');
+  });
+
+  it('a card (no motion) does not listen and places nothing', () => {
+    const { container } = drawInCloud(makeRobot());
+    expect(hasRobotNoteListener('r1')).toBe(false);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
+    expect(container.querySelector('.note')).toBeNull();
+  });
+
+  it('the world body\'s unmount drops its listener', () => {
+    const { unmount } = drawInCloud(makeRobot(), 'world');
+    unmount();
+    expect(hasRobotNoteListener('r1')).toBe(false);
   });
 });

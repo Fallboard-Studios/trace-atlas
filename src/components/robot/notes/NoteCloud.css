@@ -24,3 +24,18 @@
   left: 0;
   top: 0;
 }
+
+/* A note: a solid rounded bar placed once on its belt (size, radius, colour and transform inline, per note), turning
+   about its own centre to its row's slope. Its white copy lies over it, clear until the note sounds. */
+.note {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+.note__hot {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  opacity: 0;
+}
