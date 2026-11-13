@@ -403,6 +403,9 @@ export const NOTE_QUANTUM_DEGREES = 0.25;
 export const NOTE_HOT_COLOR = '#fffbe6';
 export const NOTE_HOT_IN_SECONDS = 0.05;
 export const NOTE_COOL_SECONDS = 0.25;
+/** The battery thins the cloud (§1.7): full strength down to this battery level (%), then a straight line to none at
+ *  a flat battery (Crawford, 2026-11-12: zero at flat, not at the recall line). */
+export const NOTE_BATTERY_FULL = 50;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
