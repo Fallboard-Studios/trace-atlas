@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { GEM_CANVAS_H, gemWidth, getRobotGem, type GemPart, type RobotGem } from '../gem/polygon';
-import { noteLength, noteThickness, rollBox } from './noteRows';
+import { noteLength, noteRowGeometry, noteThickness, rollBox } from './noteRows';
 
 /** A part with only the box the roll reads. */
 const part = (x: number, y: number, w: number, h: number): GemPart => ({ x, y, w, h, pts: [], inner: [], lines: [], lights: [] });
@@ -80,6 +80,94 @@ describe('noteRows: a bar’s thickness (§1.3)', () => {
 
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY])('a scale not yet known (%s) leaves the share alone', (pxPerUnit) => {
     expect(noteThickness(140, pxPerUnit)).toBeCloseTo(10, 10);
+  });
+});
+
+describe('noteRows: rows that run straight and fan at the edges (§1.3)', () => {
+  // A roll 200 wide and 140 high with 10-unit bars: the rows spread over 130 in the middle.
+  const BOX = { x: 0, y: 0, w: 200, h: 140 };
+  const THICK = 10;
+  const TRAVEL = BOX.h - THICK;
+  const WAVE = 0.015 * BOX.h; // the wave's amplitude in the middle
+  const rows = noteRowGeometry(BOX, THICK);
+  /** Where a row's bar sits with no fan and no wave: the pitch height, in the layer's units. */
+  const pitchY = (row: number) => rows.pad + TRAVEL / 2 - row * TRAVEL;
+  const spread = (across: number) => rows.y(-0.5, across) - rows.y(0.5, across);
+  /** The row's slope at `across` as an angle in degrees, measured from the curve by a small step either side. */
+  const slopeDegrees = (row: number, across: number) => {
+    const step = 1e-5;
+    const lo = Math.max(0, across - step);
+    const hi = Math.min(1, across + step);
+    const slope = (rows.y(row, hi) - rows.y(row, lo)) / ((hi - lo) * BOX.w);
+    return (Math.atan(slope) * 180) / Math.PI;
+  };
+  const ROWS = [-0.5, -0.3, -0.25, 0, 0.1, 0.25, 0.5];
+
+  it('at the centre a row is within the wave’s amplitude of its pitch height, and the top row is above the bottom', () => {
+    for (const row of ROWS) expect(Math.abs(rows.y(row, 0.5) - pitchY(row))).toBeLessThanOrEqual(WAVE + 1e-9);
+    expect(rows.y(0.5, 0.5)).toBeLessThan(rows.y(-0.5, 0.5));
+  });
+
+  it('through the straight middle the rows hold their spread', () => {
+    for (const across of [0.23, 0.35, 0.5, 0.65, 0.77]) expect(spread(across)).toBeCloseTo(TRAVEL, 10);
+  });
+
+  it('at either edge the top and bottom rows are 1.6 times as far apart as at the centre', () => {
+    expect(spread(0)).toBeCloseTo(1.6 * TRAVEL, 10);
+    expect(spread(1)).toBeCloseTo(1.6 * TRAVEL, 10);
+  });
+
+  it('a place beyond the roll fans no further than its edge', () => {
+    expect(spread(-0.3)).toBeCloseTo(1.6 * TRAVEL, 10);
+    expect(spread(1.3)).toBeCloseTo(1.6 * TRAVEL, 10);
+  });
+
+  it('the rows are the same on the left as on the right', () => {
+    for (const [left, right] of [[0.2, 0.8], [0.1, 0.9], [0.05, 0.95]]) expect(spread(left)).toBeCloseTo(spread(right), 10);
+  });
+
+  it('the wave grows to five times its middle amplitude at the edges, 1.5 waves across', () => {
+    // The quarter row's wave is at its crest at the left edge (sin(2π · (1.5 · 0 + 0.25)) = 1): it sits at its
+    // fanned height (spread 1.6) plus five times the middle's wave.
+    expect(rows.y(0.25, 0)).toBeCloseTo(rows.pad + TRAVEL / 2 - 0.25 * 1.6 * TRAVEL + 5 * WAVE, 10);
+    // The middle row is not fanned, so it moves only by its wave: never more than five times the middle's.
+    for (let i = 0; i <= 200; i++) {
+      expect(Math.abs(rows.y(0, i / 200) - pitchY(0))).toBeLessThanOrEqual(5 * WAVE + 1e-9);
+    }
+  });
+
+  it('every bar stays inside the layer: the pad is room enough for the fan and the wave', () => {
+    for (const row of ROWS) {
+      for (let i = 0; i <= 100; i++) {
+        const y = rows.y(row, i / 100);
+        expect(y).toBeGreaterThanOrEqual(0);
+        expect(y + THICK).toBeLessThanOrEqual(BOX.h + 2 * rows.pad);
+      }
+    }
+  });
+
+  it('a bar is level through the straight middle', () => {
+    for (const row of ROWS) {
+      for (const across of [0.23, 0.3, 0.5, 0.7, 0.77]) expect(Math.abs(rows.tilt(row, across))).toBeLessThan(1);
+    }
+  });
+
+  it('past the fan’s start a bar tilts the way its row slopes, all the way to the slope at the edge', () => {
+    for (const row of ROWS) {
+      for (const across of [0.05, 0.12, 0.88, 0.95]) {
+        const slope = slopeDegrees(row, across);
+        if (Math.abs(slope) > 0.5) expect(Math.sign(rows.tilt(row, across))).toBe(Math.sign(slope));
+      }
+      expect(rows.tilt(row, 0)).toBeCloseTo(slopeDegrees(row, 0), 1);
+      expect(rows.tilt(row, 1)).toBeCloseTo(slopeDegrees(row, 1), 1);
+    }
+    // the fan opens the top row upward on the left (rising toward the centre: y grows left to right)
+    expect(rows.tilt(0.5, 0.02)).toBeGreaterThan(5);
+  });
+
+  it('a bar thicker than the roll puts every row at one height', () => {
+    const flat = noteRowGeometry(BOX, 200);
+    for (const across of [0, 0.1, 0.5, 1]) expect(flat.y(-0.5, across) - flat.y(0.5, across)).toBeCloseTo(0, 10);
   });
 });
 

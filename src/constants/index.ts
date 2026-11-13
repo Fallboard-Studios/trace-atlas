@@ -372,6 +372,15 @@ export const NOTE_HEIGHT_SHARE = 1 / 14;
 export const NOTE_MIN_PX = 4;
 /** A bar is never longer than this share of the roll's width (§1.3). */
 export const NOTE_MAX_LENGTH_SHARE = 0.8;
+/** The rows (§1.3): straight, but for a wave of NOTE_WAVE of the roll's height, until NOTE_EDGE_START of the way
+ *  from the centre (0) to an edge (1). Past it the rows spread apart by up to NOTE_FAN of their middle spread at the
+ *  edge, the wave grows to NOTE_WAVE_EDGE_GAIN times, and a bar tilts to its row's slope. NOTE_WAVE_COUNT waves
+ *  cross the roll. */
+export const NOTE_WAVE = 0.015;
+export const NOTE_EDGE_START = 0.55;
+export const NOTE_FAN = 0.6;
+export const NOTE_WAVE_EDGE_GAIN = 5;
+export const NOTE_WAVE_COUNT = 1.5;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
