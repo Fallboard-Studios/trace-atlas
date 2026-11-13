@@ -39,6 +39,7 @@ import {
   applyDensity, applyMotifLength, applyNoteVariance, applyPitchRepeat, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyPortamento, applyBusFilter, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink,
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend, applyDynamics, applyRests, applyAccents,
+  applyClickTrackActive,
 } from '@/systems/robotOptionsActions';
 import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/systems/audioSwells';
 import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
@@ -295,6 +296,12 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   // Rests and Accents re-stamp the melody (not its notes) and are not swell attributes (docs/specs/ROBOT_PERFORMANCE.md §1.5).
   const handleRestsChange = useCallback((v: number) => applyRests(latestRobot.current, localeId, v), [localeId]);
   const handleAccentsChange = useCallback((v: number) => applyAccents(latestRobot.current, localeId, v), [localeId]);
+  // The dev-only Click Track (the section shows it only under DEV_TUNING): swaps the robot's melody for a pulse on
+  // every beat, without touching the stored melody (docs/tasks/ONE_MUSIC_CLOCK.md Task 10a).
+  const handleClickTrackActiveChange = useCallback(
+    (active: boolean) => applyClickTrackActive(latestRobot.current, localeId, active),
+    [localeId],
+  );
 
   const handleAdsrChange = useCallback((adsr: ADSREnvelope) => {
     const prevAdsr = latestRobot.current.audioAttributes.adsr;
@@ -353,6 +360,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
         return (
           <PingControlsCompositionSection
             value={pingControlsValue}
+            onClickTrackActiveChange={handleClickTrackActiveChange}
             onDensityChange={handleDensityChange}
             onMotifLengthChange={handleMotifLengthChange}
             onPitchRepeatChange={handlePitchRepeatChange}
@@ -409,6 +417,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
     handleSendChange, handleDynamicsChange, sendSwelling,
     pingControlsValue, handleDensityChange, handleMotifLengthChange, handlePitchRepeatChange,
     handleOctaveMinChange, handleOctaveMaxChange, handleNoteVarianceChange, handleRestsChange, handleAccentsChange,
+    handleClickTrackActiveChange,
     robot.audioAttributes.adsr, handleAdsrChange, portamento, handlePortamentoChange, adsrSwelling,
     signatureArrayValue, layer0Swelling, layer1Swelling, layer2Swelling,
     handleLayerTypeChange, handleLayerParamChange, handleLayerLfoFieldChange,

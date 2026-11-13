@@ -547,9 +547,40 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** S
 
+- [x] **Task 10a: the Click Track toggle back on the robot screen (added 2026-11-12, Crawford's ask)**
+
+  **Description:** The checkpoint below listens on the Click Track, but its toggle had left the UI: the screens render
+  `PingControlsCompositionSection`, which dropped it (docs/reference/layout-updates.md), while the engine path
+  (`clickTrack.ts`, `registerRobotMelody`'s swap), the store field, the schema and the copy all stayed. The section
+  takes an optional `onClickTrackActiveChange` and, with it and `DEV_TUNING`, renders the toggle first, before
+  Density. The robot screen passes it, wired to `applyClickTrackActive`. The company screen passes none (no broadcast
+  action exists for it), so it shows no toggle.
+
+  **Proof:** RED test — `PingControlsDrawer.test.tsx` (the section) and `RobotScreen.test.tsx` (the wiring).
+
+  **Acceptance criteria:**
+  - [x] With a handler and `DEV_TUNING`, a Click Track switch renders before Density, reads the robot's flag, and a
+        flip calls the handler once with the new state (on from off, off from on); it is disabled with the section.
+  - [x] Without a handler, or with `DEV_TUNING` false, there is no switch.
+  - [x] The robot screen passes the robot's flag (false when absent) and wires the flip to `applyClickTrackActive`.
+  - [x] Mutation: each of the handler check, the `DEV_TUNING` check, the toggle's `disabled` and the robot screen's
+        handler, removed, fails a test.
+
+  **Done 2026-11-12.** RED: 6 failures (the 4 section cases above and the 2 screen cases; one screen case failed first
+  on its fixture, two robots sharing the id `r1`, fixed to `r2`). Two cases passed before the change and are kept as
+  guards: no switch under `DEV_TUNING` false, and every slider live while the Click Track plays. The sliders are not
+  dimmed, unlike the old drawer: `registerRobotMelody` plays the click pattern whenever the flag is on, so a slider
+  edit cannot override it; it changes the stored melody, heard once the Click Track is off. Mutants: all 4 killed, 1
+  failure each. The three files (with CompanyScreen.test.tsx): 359 passed. Types clean; lint 0 errors. Where the
+  toggle sits on the screen is for Crawford's look in the browser.
+
+  **Files:** `src/components/robot/PingControlsDrawer.tsx`, `src/components/robot/PingControlsDrawer.test.tsx`,
+  `src/components/panels/screen/screens/RobotScreen.tsx`, `src/components/panels/screen/screens/RobotScreen.test.tsx`
+
 ### Checkpoint: By ear (spec §6.3)
-- [ ] Crawford, after a hard reload: a robot on the testing-only Click Track, the downbeat heard where the chords
-      change. Recorded here.
+- [ ] Crawford, after a hard reload: a robot on the testing-only Click Track (the toggle at the top of the robot
+      screen's Composition section, dev server only, Task 10a), the downbeat heard where the chords change. Recorded
+      here.
 - [ ] His call: backlog 83 closes with 82, or stays open with what the listen found.
 
 ---

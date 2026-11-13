@@ -658,8 +658,15 @@ describe('PingControlsDrawer — old combined component, unchanged (docs/tasks/a
   });
 });
 
-describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion, Click Track UI removed', () => {
-  function renderSection(overrides: Partial<PingControlsValue> = {}, extra: { disabled?: boolean } = {}) {
+describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion', () => {
+  beforeEach(() => {
+    mockDevTuning = true;
+  });
+
+  function renderSection(
+    overrides: Partial<PingControlsValue> = {},
+    extra: { disabled?: boolean; onClickTrackActiveChange?: (active: boolean) => void } = {},
+  ) {
     const value = makeValue(overrides);
     return render(
       <PingControlsCompositionSection
@@ -677,7 +684,7 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     );
   }
 
-  it('renders Density, Motif Length, Pitch Repeat, Note Variance, Octave Min, Octave Max — no Click Track toggle anywhere', () => {
+  it('renders Density, Motif Length, Pitch Repeat, Note Variance, Octave Min, Octave Max — and no Click Track toggle without a Click Track handler', () => {
     renderSection();
 
     expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
@@ -740,6 +747,61 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     renderSection({}, { disabled: true });
     expect(screen.getByRole('slider', { name: /density/i }).getAttribute('data-disabled')).toBe('');
     expect(screen.getByRole('slider', { name: /note variance/i }).getAttribute('data-disabled')).toBe('');
+  });
+
+  // The dev-only Click Track, back on the robot screen so the downbeat can be heard (one music clock, Task 10a).
+  describe('Click Track (dev only, with a handler)', () => {
+    const clickTrack = () => screen.getByRole('switch', { name: /Click Track/i });
+
+    it('renders a Click Track toggle, labelled Click Track, first in the section, before Density', () => {
+      renderSection({}, { onClickTrackActiveChange: () => {} });
+      expect(clickTrack().textContent).toBe(CONTENT['probe.composition.clickTrack'].human);
+      const density = screen.getByRole('slider', { name: /density/i });
+      expect(!!(clickTrack().compareDocumentPosition(density) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    });
+
+    it('reads off while the robot plays its melody and on while it plays the Click Track', () => {
+      const off = renderSection({ clickTrackActive: false }, { onClickTrackActiveChange: () => {} });
+      expect(clickTrack().getAttribute('aria-checked')).toBe('false');
+      off.unmount();
+
+      renderSection({ clickTrackActive: true }, { onClickTrackActiveChange: () => {} });
+      expect(clickTrack().getAttribute('aria-checked')).toBe('true');
+    });
+
+    it('a flip calls onClickTrackActiveChange once with the new state: on from off, off from on', () => {
+      const turnOn = vi.fn();
+      const off = renderSection({ clickTrackActive: false }, { onClickTrackActiveChange: turnOn });
+      fireEvent.click(clickTrack());
+      expect(turnOn).toHaveBeenCalledTimes(1);
+      expect(turnOn).toHaveBeenCalledWith(true);
+      off.unmount();
+
+      const turnOff = vi.fn();
+      renderSection({ clickTrackActive: true }, { onClickTrackActiveChange: turnOff });
+      fireEvent.click(clickTrack());
+      expect(turnOff).toHaveBeenCalledTimes(1);
+      expect(turnOff).toHaveBeenCalledWith(false);
+    });
+
+    it('leaves every slider live while the Click Track plays: an edit changes the melody heard once it is off', () => {
+      renderSection({ clickTrackActive: true, rhythmicMotifLength: 4 }, { onClickTrackActiveChange: () => {} });
+      for (const name of [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i, /lowest octave/i, /highest octave/i, /^rests/i, /^accents/i]) {
+        expect(screen.getByRole('slider', { name }).getAttribute('data-disabled')).toBeNull();
+      }
+    });
+
+    it('is disabled with the rest of the section', () => {
+      renderSection({}, { disabled: true, onClickTrackActiveChange: () => {} });
+      expect((clickTrack() as HTMLButtonElement).disabled).toBe(true);
+    });
+
+    it('is absent when DEV_TUNING is false, handler or not: never reachable in a production build', () => {
+      mockDevTuning = false;
+      renderSection({}, { onClickTrackActiveChange: () => {} });
+      expect(screen.queryByRole('switch', { name: /Click Track/i })).toBeNull();
+      expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
+    });
   });
 
   it('forwards an optional style to its own root', () => {

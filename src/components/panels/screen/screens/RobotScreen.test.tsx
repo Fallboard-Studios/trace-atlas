@@ -141,7 +141,8 @@ const compositionStub = vi.hoisted(() => {
 });
 vi.mock('@/components/robot/PingControlsDrawer', () => ({
   PingControlsCompositionSection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; rests: number; accents: number };
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; rests: number; accents: number; clickTrackActive: boolean };
+    onClickTrackActiveChange?: (active: boolean) => void;
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
@@ -159,7 +160,9 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
       data-pitch-repeat={props.value.pitchRepeat}
       data-rests={props.value.rests}
       data-accents={props.value.accents}
+      data-click-track={String(props.value.clickTrackActive)}
     >
+      {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
       <button onClick={() => props.onDensityChange(77)}>probe-density</button>
       <button onClick={() => props.onMotifLengthChange(6)}>probe-motif-length</button>
       <button onClick={() => props.onPitchRepeatChange(88)}>probe-pitch-repeat</button>
@@ -1414,6 +1417,32 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       render(<RobotScreen />);
       fireEvent.click(screen.getByText(button));
       expect(spy).toHaveBeenCalledWith(robot, localeId, value);
+    });
+
+    // The dev-only Click Track, back on the robot screen (one music clock, Task 10a).
+    describe('Click Track', () => {
+      it("passes the robot's own flag, and false when the field is absent", () => {
+        selectRobot(makeRobot('r1', { clickTrackActive: true }), 'melody');
+        const on = render(<RobotScreen />);
+        expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-click-track')).toBe('true');
+        on.unmount();
+
+        selectRobot(makeRobot('r2'), 'melody');
+        render(<RobotScreen />);
+        expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-click-track')).toBe('false');
+      });
+
+      it('wires the flip to applyClickTrackActive with the robot and the new state, once, and regenerates nothing', () => {
+        const robot = makeRobot();
+        selectRobot(robot, 'melody');
+        const click = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+        const density = vi.spyOn(robotOptionsActions, 'applyDensity').mockImplementation(() => {});
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-click-track'));
+        expect(click).toHaveBeenCalledTimes(1);
+        expect(click).toHaveBeenCalledWith(robot, localeId, true);
+        expect(density).not.toHaveBeenCalled();
+      });
     });
 
     // docs/tasks/ROBOT_PERFORMANCE.md Task 10: the screen passes the robot's Rests and Accents (0 when absent) and wires two handlers.
