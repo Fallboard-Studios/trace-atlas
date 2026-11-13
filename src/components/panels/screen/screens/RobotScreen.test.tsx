@@ -2638,7 +2638,7 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     screenView.unmount();
     expect(box.querySelectorAll('.note')).toHaveLength(0);
     expect(getTimeline('note-belt-avatar-r1')).toBeUndefined();
-    expect(getTimeline('note-strength-avatar-r1')).toBeUndefined();
+    expect(getTimeline('note-resize-avatar-r1')).toBeUndefined();
     expect(worldCloud.querySelectorAll('.note')).toHaveLength(3);
     expect(getTimeline('note-belt-world-r1')).toBeDefined();
     // The model kept its run: C4 again straight after is the second of a run, not drawn.

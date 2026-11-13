@@ -35,9 +35,9 @@ import {
 import {
   NOTE_COOL_SECONDS,
   NOTE_CROSSING_SECONDS,
-  NOTE_EBB_SECONDS,
   NOTE_HOT_IN_SECONDS,
   NOTE_NOW,
+  NOTE_PEAK_STRENGTH,
   NOTE_QUANTUM_UNITS,
   NOTE_WAKE_SECONDS,
 } from '@/constants';
@@ -55,13 +55,12 @@ interface HarnessProps {
   scale?: number;
   color?: string;
   px?: number;
-  strength?: number;
   placing?: boolean;
 }
 
-function Harness({ robotId = 'r1', context = 'world', enabled = true, scale = 1, color = '#ff0000', px = 1, strength = 1, placing }: HarnessProps) {
+function Harness({ robotId = 'r1', context = 'world', enabled = true, scale = 1, color = '#ff0000', px = 1, placing }: HarnessProps) {
   const root = useRef<SVGGElement>(null);
-  useNoteCloud({ root, robotId, context, enabled, gem: GEM, scale, color, pxPerUnit: () => px, strength, placing });
+  useNoteCloud({ root, robotId, context, enabled, gem: GEM, scale, color, pxPerUnit: () => px, placing });
   return (
     <div data-note-cloud="">
       <NoteCloudLayer side="behind" />
@@ -280,7 +279,7 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
   it('with no note layers to find it registers no listener', () => {
     function Bare() {
       const root = useRef<SVGGElement>(null);
-      useNoteCloud({ root, robotId: 'r1', context: 'world', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1, strength: 1 });
+      useNoteCloud({ root, robotId: 'r1', context: 'world', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1 });
       return <svg><g ref={root} /></svg>;
     }
     render(<Bare />);
@@ -338,7 +337,7 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
       const { container, rerender } = render(<Harness context="world" scale={1} />);
       emitRobotNote('r1', first);
       rerender(<Harness context="world" scale={1.2} />);
-      getTimeline('note-strength-world-r1')!.progress(1); // the roll rebuilt at its new size (Task 24)
+      getTimeline('note-resize-world-r1')!.progress(1); // the roll rebuilt at its new size (Task 24)
       emitRobotNote('r1', repeat);
       expect(allBars(container)).toHaveLength(0);
     });
@@ -477,7 +476,7 @@ describe('useNoteCloud — the belt (Task 14)', () => {
     emitRobotNote('r1', noteEvent('C4'));
     advance(1);
     rerender(<Harness scale={1.5} />);
-    getTimeline('note-strength-world-r1')!.progress(1); // past the fade's rebuild (Task 24)
+    getTimeline('note-resize-world-r1')!.progress(1); // past the fade's rebuild (Task 24)
     expect(beltX(container)).toBe(0);
     expect(belt()!.paused()).toBe(true);
     expect(belt()!.totalTime()).toBe(0);
@@ -568,95 +567,14 @@ describe('useNoteCloud — white while it sounds (Task 15)', () => {
 });
 
 // ========================================
-// TASK 22: strength is the cloud's opacity, eased
+// TASK 22: the cloud's opacity is the peak strength (the ease went once the battery bands made it constant)
 // ========================================
-describe('useNoteCloud — strength (Task 22)', () => {
-  const STRENGTH_KEY = 'note-strength-world-r1';
-  const strengthTimeline = () => getTimeline(STRENGTH_KEY);
-  const opacities = (container: HTMLElement) =>
-    [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
-
-  it('mounts at its strength, with no fade', () => {
-    const { container } = render(<Harness strength={0.4} />);
-    expect(opacities(container)).toEqual([0.4, 0.4]);
-    expect(strengthTimeline()).toBeUndefined();
-  });
-
-  it('a fall (1 to 0.4) is a world timeline over NOTE_EBB_SECONDS, ending at the new strength', () => {
-    const { container, rerender } = render(<Harness strength={1} />);
-    rerender(<Harness strength={0.4} />);
-    const tl = strengthTimeline()!;
-    expect(tl).toBeDefined();
-    expect(getTimelineScope(STRENGTH_KEY)).toBe('world');
-    expect(tl.duration()).toBeCloseTo(NOTE_EBB_SECONDS, 5);
-    expect(opacities(container)).toEqual([1, 1]); // no step
-    tl.progress(1);
-    expect(opacities(container)).toEqual([0.4, 0.4]);
-  });
-
-  it('a rise (0.4 to 1) is over NOTE_WAKE_SECONDS', () => {
-    const { container, rerender } = render(<Harness strength={0.4} />);
-    rerender(<Harness strength={1} />);
-    const tl = strengthTimeline()!;
-    expect(tl.duration()).toBeCloseTo(NOTE_WAKE_SECONDS, 5);
-    tl.progress(1);
-    expect(opacities(container)).toEqual([1, 1]);
-  });
-
-  it('a change mid-fade starts from where the fade has got to, and rises if that is below the new strength', () => {
-    const { container, rerender } = render(<Harness strength={1} />);
-    rerender(<Harness strength={0.4} />);
-    const first = strengthTimeline()!;
-    first.progress(0.5);
-    const midway = opacities(container)[0];
-    expect(midway).toBeGreaterThan(0.4);
-    expect(midway).toBeLessThan(1);
-    rerender(<Harness strength={0.9} />);
-    expect(opacities(container)[0]).toBeCloseTo(midway, 5);
-    const second = strengthTimeline()!;
-    expect(second).not.toBe(first);
-    expect(second.duration()).toBeCloseTo(NOTE_WAKE_SECONDS, 5);
-    second.progress(1);
-    expect(opacities(container)).toEqual([0.9, 0.9]);
-  });
-
-  it('at strength 0 an event places no bar; back at 1 the next event does', () => {
-    const { container, rerender } = render(<Harness strength={0} />);
-    emitRobotNote('r1', noteEvent('C4'));
-    expect(allBars(container)).toHaveLength(0);
-    rerender(<Harness strength={1} />);
-    emitRobotNote('r1', noteEvent('D4'));
-    expect(allBars(container)).toHaveLength(1);
-  });
-
-  it('a run begun at strength 0 is honoured: the second of the run is still a repeat', () => {
-    const { container, rerender } = render(<Harness strength={0} />);
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 300, note: 'C4' });
-    rerender(<Harness strength={1} />);
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 300.25, note: 'C4' });
-    expect(allBars(container)).toHaveLength(0);
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 300.5, note: 'C4' });
-    expect(allBars(container)).toHaveLength(1);
-  });
-
-  it('a low strength above 0 still places notes; the layer carries the faintness', () => {
-    const { container } = render(<Harness strength={0.1} />);
-    emitRobotNote('r1', noteEvent('C4'));
-    expect(allBars(container)).toHaveLength(1);
-  });
-
-  it('unmount kills the strength timeline', () => {
-    const { rerender, unmount } = render(<Harness strength={1} />);
-    rerender(<Harness strength={0.5} />);
-    expect(strengthTimeline()).toBeDefined();
-    unmount();
-    expect(strengthTimeline()).toBeUndefined();
-  });
-
-  it('a disabled cloud registers no strength timeline on a change', () => {
-    const { rerender } = render(<Harness enabled={false} strength={1} />);
-    rerender(<Harness enabled={false} strength={0.5} />);
-    expect(strengthTimeline()).toBeUndefined();
+describe('useNoteCloud — the peak strength (Task 22)', () => {
+  it('mounts at NOTE_PEAK_STRENGTH, with no fade', () => {
+    const { container } = render(<Harness />);
+    const opacities = [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
+    expect(opacities).toEqual([NOTE_PEAK_STRENGTH, NOTE_PEAK_STRENGTH]);
+    expect(getTimeline('note-resize-world-r1')).toBeUndefined();
   });
 });
 
@@ -681,15 +599,15 @@ describe('useNoteCloud — the placing switch (Task 17b)', () => {
   });
 
   it('turning it false leaves the notes in flight on their belts, moving, at the layers\' strength', () => {
-    const { container, rerender } = render(<Harness strength={0.75} placing />);
+    const { container, rerender } = render(<Harness placing />);
     emitRobotNote('r1', noteEvent('C4'));
     emitRobotNote('r1', noteEvent('B3'));
     const [front] = bars(container, 'front');
     const beltBefore = beltX(container);
-    rerender(<Harness strength={0.75} placing={false} />);
+    rerender(<Harness placing={false} />);
     expect(allBars(container)).toHaveLength(2);
-    expect(opacities(container)).toEqual([0.75, 0.75]);
-    expect(getTimeline('note-strength-world-r1')).toBeUndefined();
+    expect(opacities(container)).toEqual([NOTE_PEAK_STRENGTH, NOTE_PEAK_STRENGTH]);
+    expect(getTimeline('note-resize-world-r1')).toBeUndefined();
     advance(1);
     expect(beltX(container)).toBeLessThan(beltBefore);
     expect(front.isConnected).toBe(true);
@@ -737,13 +655,13 @@ describe('useNoteCloud — the placing switch (Task 17b)', () => {
 // TASK 24: an edit that re-sizes the roll never pops
 // ========================================
 describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
-  const STRENGTH_KEY = 'note-strength-world-r1';
-  const strengthTimeline = () => getTimeline(STRENGTH_KEY);
+  const FADE_KEY = 'note-resize-world-r1';
+  const fadeTimeline = () => getTimeline(FADE_KEY);
   const frontWrapper = (container: HTMLElement) => container.querySelector('.note-layer--front') as HTMLElement;
   const width = (container: HTMLElement) => parseFloat(frontWrapper(container).style.width);
   const opacities = (container: HTMLElement) =>
     [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
-  /** Where the fade-out ends and the rebuild happens: half the strength timeline (out, then back in). */
+  /** Where the fade-out ends and the rebuild happens: half the fade timeline (out, then back in). */
   const PAST_FADE_OUT = 0.6;
 
   it('straight after a scale change the wrappers keep their old size and the bar in flight is still there', () => {
@@ -752,20 +670,20 @@ describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
     rerender(<Harness scale={1.5} />);
     expect(width(container)).toBeCloseTo(rollBox(GEM, 1).w, 3);
     expect(allBars(container)).toHaveLength(1);
-    expect(getTimelineScope(STRENGTH_KEY)).toBe('world');
+    expect(getTimelineScope(FADE_KEY)).toBe('world');
   });
 
   it('the fade out and back in each take NOTE_WAKE_SECONDS', () => {
     const { rerender } = render(<Harness scale={1} />);
     rerender(<Harness scale={1.5} />);
-    expect(strengthTimeline()!.duration()).toBeCloseTo(2 * NOTE_WAKE_SECONDS, 5);
+    expect(fadeTimeline()!.duration()).toBeCloseTo(2 * NOTE_WAKE_SECONDS, 5);
   });
 
   it('past the fade-out the wrappers have the new size, faded out, with no bars; a new note lands on the new roll', () => {
     const { container, rerender } = render(<Harness scale={1} />);
     emitRobotNote('r1', noteEvent('C4'));
     rerender(<Harness scale={1.5} />);
-    strengthTimeline()!.progress(PAST_FADE_OUT);
+    fadeTimeline()!.progress(PAST_FADE_OUT);
     expect(width(container)).toBeCloseTo(rollBox(GEM, 1.5).w, 3);
     expect(allBars(container)).toHaveLength(0);
     expect(opacities(container)[0]).toBeLessThan(0.5);
@@ -773,51 +691,39 @@ describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
     expect(allBars(container)).toHaveLength(1);
   });
 
-  it('at its end the wrappers are back at the strength', () => {
-    const { container, rerender } = render(<Harness scale={1} strength={0.7} />);
-    rerender(<Harness scale={1.5} strength={0.7} />);
-    strengthTimeline()!.progress(1);
-    expect(opacities(container)).toEqual([0.7, 0.7]);
-  });
-
-  it('a strength change during the fade-out is where the fade comes back to', () => {
-    const { container, rerender } = render(<Harness scale={1} strength={1} />);
-    rerender(<Harness scale={1.5} strength={1} />);
-    const resize = strengthTimeline()!;
-    resize.progress(0.25);
-    rerender(<Harness scale={1.5} strength={0.4} />);
-    expect(strengthTimeline()).toBe(resize); // the re-size is not cut short
-    resize.progress(1);
-    expect(width(container)).toBeCloseTo(rollBox(GEM, 1.5).w, 3);
-    expect(opacities(container)).toEqual([0.4, 0.4]);
-  });
-
-  it('a second scale change mid-fade ends at the latest size, with one strength timeline', () => {
+  it('at its end the wrappers are back at the peak strength', () => {
     const { container, rerender } = render(<Harness scale={1} />);
     rerender(<Harness scale={1.5} />);
-    const first = strengthTimeline()!;
+    fadeTimeline()!.progress(1);
+    expect(opacities(container)).toEqual([NOTE_PEAK_STRENGTH, NOTE_PEAK_STRENGTH]);
+  });
+
+  it('a second scale change mid-fade ends at the latest size, with one fade timeline', () => {
+    const { container, rerender } = render(<Harness scale={1} />);
+    rerender(<Harness scale={1.5} />);
+    const first = fadeTimeline()!;
     first.progress(0.25);
     rerender(<Harness scale={2} />);
-    const second = strengthTimeline()!;
+    const second = fadeTimeline()!;
     expect(second).not.toBe(first);
     expect(gsap.globalTimeline.getChildren(false, true, true)).not.toContain(first);
     second.progress(1);
     expect(width(container)).toBeCloseTo(rollBox(GEM, 2).w, 3);
-    expect(opacities(container)).toEqual([1, 1]);
+    expect(opacities(container)).toEqual([NOTE_PEAK_STRENGTH, NOTE_PEAK_STRENGTH]);
   });
 
   it('a colour edit starts no fade and keeps the bar', () => {
     const { container, rerender } = render(<Harness color="#ff0000" />);
     emitRobotNote('r1', noteEvent('C4'));
     rerender(<Harness color="#00ff00" />);
-    expect(strengthTimeline()).toBeUndefined();
+    expect(fadeTimeline()).toBeUndefined();
     expect(allBars(container)).toHaveLength(1);
   });
 
   it('a disabled cloud starts no fade on a scale change', () => {
     const { rerender } = render(<Harness enabled={false} scale={1} />);
     rerender(<Harness enabled={false} scale={1.5} />);
-    expect(strengthTimeline()).toBeUndefined();
+    expect(fadeTimeline()).toBeUndefined();
   });
 
   it('enabled later, the cloud is built at the latest size', () => {
@@ -830,10 +736,10 @@ describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
   it('unmount mid-fade kills the fade, and the rebuild never runs', () => {
     const { container, rerender, unmount } = render(<Harness scale={1} />);
     rerender(<Harness scale={1.5} />);
-    const fade = strengthTimeline()!;
+    const fade = fadeTimeline()!;
     const wrapper = frontWrapper(container);
     unmount();
-    expect(strengthTimeline()).toBeUndefined();
+    expect(fadeTimeline()).toBeUndefined();
     expect(() => fade.progress(1)).not.toThrow();
     expect(parseFloat(wrapper.style.width)).toBeCloseTo(rollBox(GEM, 1).w, 3);
   });

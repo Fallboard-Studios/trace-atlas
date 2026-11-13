@@ -419,9 +419,9 @@ export const NOTE_BATTERY_BANDS: readonly (readonly [number, number])[] = [
  *  a note falls to once it has sounded, its white while it sounds) sits under it (Crawford, 2026-11-13: "75% of their
  *  current opacity"). */
 export const NOTE_PEAK_STRENGTH = 0.75;
-/** A change of strength is eased, never a step (§1.7): a rise over NOTE_WAKE_SECONDS, a fall over NOTE_EBB_SECONDS. */
+/** A re-size never pops (§1.5): the layers fade out over NOTE_WAKE_SECONDS, the roll is rebuilt, and they fade back
+ *  to NOTE_PEAK_STRENGTH over the same. */
 export const NOTE_WAKE_SECONDS = 0.3;
-export const NOTE_EBB_SECONDS = 1;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */

@@ -837,8 +837,8 @@ to the picture").
   robot's; the camera's subscription is held only while the singled-out id has a subscriber. `RobotBody` subscribes
   through booleans about its own robot, so the pointer moving between two other robots re-renders nothing. The world
   body's unmount ends the wake from `RobotBody`, not the hook, so the hook never imports `robotAttention`.
-- **Strength** eases `sine.inOut` (the spec names no ease), rise or fall judged against the layers' opacity at the
-  change, so a change mid-fade eases on from where it had got to.
+- **Strength** is no longer an input (§8.3): the layers sit at `NOTE_PEAK_STRENGTH` and §1.7's eased strength
+  change was removed once the bands made it constant.
 - **A re-size** does not re-run the hook's main effect: the latest size is kept in a ref, and the re-size fade's
   timeline calls the rebuild between the fade out and the fade in.
 - **The avatar's layers** each hang in a frame (`.robot-screen__note-frame--behind` / `--front`), a zero-size origin
@@ -848,11 +848,13 @@ to the picture").
 - **The output latency** treats 0 as "not reported" (a device's output cannot have none) and falls through to
   `baseLatency`.
 
-### 8.3 Left for Crawford
+### 8.3 After the record, and left for Crawford
 
-- **The strength ease now runs for nothing.** With the bands in place the strength is always the peak, so the
-  hook's strength-change ease and `NOTE_EBB_SECONDS` never fire; kept for a strength that changes (§1.7). Proposed
-  for removal on his say-so, not cut.
+- **The strength ease is gone** (Crawford, 2026-11-13: "remove the leftovers"). With the bands in place the
+  strength was always the peak, so the hook's strength-change ease and `NOTE_EBB_SECONDS` never fired. The hook's
+  `strength` option went with them: it sets the layers to `NOTE_PEAK_STRENGTH` itself, and its one timeline besides
+  the belt is the re-size fade, `note-resize-{context}-{id}` (was `note-strength-…`). Task 22's ease tests went;
+  one case pins the peak at mount.
 - **Checkpoint looks not itemised:** the bob at ±3 on 2.4 s, the reviews after Phases 1 and 2, and the Cloud
   checkpoint's look, pause and `?notes=off` checks. Gate 2's word covers the look as a whole.
 - **Part E** (§1.9; plan Tasks 31 to 37, Gate 4) on its own branch after this one merges.

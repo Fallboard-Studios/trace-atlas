@@ -405,7 +405,7 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
 | `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
 | `` `note-belt-${context}-${robotId}` `` | `useNoteCloud` | the mount; a re-size's rebuild replaces it | the rebuild (`setTimeline`), unmount |
-| `` `note-strength-${context}-${robotId}` `` | `useNoteCloud` | one strength ease, or one re-size fade | the next ease or fade, unmount |
+| `` `note-resize-${context}-${robotId}` `` | `useNoteCloud` | one re-size fade (out, rebuild, back in) | the next re-size, unmount |
 
 Every key in this table is registered as `'world'` (the registry's scope, above): the work loop's six
 `setTimeline` calls, `swimAnimation.ts`, `buildJobTimeline.ts`, `stationRipple.ts`, `useHaloMotion`,
@@ -494,17 +494,16 @@ Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the clou
   opacity from the belt's own time: up over `NOTE_HOT_IN_SECONDS` as the note leaves the speakers,
   held for its length, down over `NOTE_COOL_SECONDS`. No tween and no timer per note.
 - **A note arriving.** `subscribeDrawnNotes` hands the hook a drawn note and its event. It places
-  nothing while the tab is hidden, the world is not `'running'` (`getWorldState()`), the strength is 0
-  or `placing` is false (the battery bands); the model has counted the note either way. Otherwise one
+  nothing while the tab is hidden, the world is not `'running'` (`getWorldState()`), or `placing` is
+  false (the battery bands); the model has counted the note either way. Otherwise one
   `div.note` with its `.note__hot` child is appended to the front or behind belt at "now" plus the
   event's `lead` at the belt's speed, and the first live note wakes the layers.
-- **Strength and re-size.** `` `note-strength-${context}-${robotId}` `` (`'world'`) carries the
-  layers' opacity: a change of strength eases from where it is, up over `NOTE_WAKE_SECONDS` or down
-  over `NOTE_EBB_SECONDS`, never a step. A gem or body-scale change fades both layers out over
+- **Strength and re-size.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.75), set when the cloud is
+  built; nothing else changes it but a re-size. A gem or body-scale change fades both layers out over
   `NOTE_WAKE_SECONDS`, rebuilds the roll at the latest size from a `.call` (dropping the notes in
-  flight and starting a new belt), and fades back. `RobotBody` passes `NOTE_PEAK_STRENGTH` in both
-  contexts since the battery bands replaced the fade, so only the re-size fade runs; the ease is kept
-  for a strength that changes (spec §1.7).
+  flight and starting a new belt), and fades back to the peak, on
+  `` `note-resize-${context}-${robotId}` `` (`'world'`). A second change mid-fade replaces it from
+  wherever the layers are.
 - **The singled-out dim.** `RobotBody` writes `--note-dim` on the cloud's box (`NOTE_DIM`, or 1 when
   singled out); both masks read it, so a flip rebuilds nothing.
 - **The row scale.** The work loop's `placeRow` and `easeRowWith` scale a robot's `.note-layer`s with

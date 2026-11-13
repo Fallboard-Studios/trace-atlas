@@ -885,14 +885,12 @@ describe('RobotBody — the singled-out robot\'s cloud is undimmed (note cloud T
   });
 });
 
-// docs/specs/ROBOT_NOTE_CLOUD.md §1.7 (note cloud Tasks 23 and 17c): a world body hands its cloud the peak strength and
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.7 (note cloud Tasks 23 and 17c): a world body hands its cloud
 // notesShown(battery, woken) as `placing`; pointing at it or selecting it wakes it, and its station ends the wake. These
 // cases read what the body hands useNoteCloud; the switch itself is the hook's (useNoteCloud.test.tsx, Task 17b).
 describe('RobotBody — the battery bands thin the cloud, attention wakes it (note cloud Tasks 23 and 17c)', () => {
   let cloudSpy: MockInstance<typeof useNoteCloudModule.useNoteCloud>;
-  const strength = () => cloudSpy.mock.lastCall![0].strength;
   const placing = () => cloudSpy.mock.lastCall![0].placing;
-  const PEAK = 0.75; // the cloud at its strongest (Crawford, 2026-11-13)
   const OFF_BAND = 30; // 28–38%: no notes unless woken
   const ON_BAND = 45; // 38–55%
 
@@ -924,22 +922,20 @@ describe('RobotBody — the battery bands thin the cloud, attention wakes it (no
     useUIStore.getState().selectRobot(null);
   });
 
-  it('places notes in an on band (100, 45, 15) and none in an off band (60, 30, 5), at the peak strength in all six', () => {
+  it('places notes in an on band (100, 45, 15) and none in an off band (60, 30, 5)', () => {
     for (const [level, shown] of [[100, true], [45, true], [15, true], [60, false], [30, false], [5, false]] as const) {
       const { unmount } = drawInCloud(makeRobot({ batteryLevel: level, activity: 'working' }), 'world');
       expect(placing(), `${level}%`).toBe(shown);
-      expect(strength(), `${level}%`).toBe(PEAK);
       unmount();
     }
   });
 
-  it('a battery step across a band edge switches placing and leaves the strength at the peak', () => {
+  it('a battery step across a band edge switches placing', () => {
     const robot = makeRobot({ batteryLevel: 74, activity: 'working' });
     const { redraw } = drawInCloud(robot, 'world');
     expect(placing()).toBe(false);
     redraw({ ...robot, batteryLevel: 72 });
     expect(placing()).toBe(true);
-    expect(strength()).toBe(PEAK);
   });
 
   it('pointing at the robot in an off band makes it place, and it stays placing after the pointer leaves', () => {
@@ -948,7 +944,6 @@ describe('RobotBody — the battery bands thin the cloud, attention wakes it (no
     expect(placing()).toBe(true);
     act(() => setPointedRobot(null));
     expect(placing()).toBe(true);
-    expect(strength()).toBe(PEAK);
   });
 
   it('selecting the robot wakes it; deselecting leaves it woken', () => {
@@ -991,10 +986,9 @@ describe('RobotBody — the battery bands thin the cloud, attention wakes it (no
     expect(placing()).toBe(false);
   });
 
-  it('the avatar places in any band, at the peak', () => {
+  it('the avatar places in any band', () => {
     drawInCloud(makeRobot({ batteryLevel: OFF_BAND, activity: 'working' }), 'avatar');
     expect(placing()).toBe(true);
-    expect(strength()).toBe(PEAK);
   });
 
   it('the world body\'s unmount ends its wake', () => {

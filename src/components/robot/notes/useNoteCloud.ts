@@ -18,11 +18,11 @@ import gsap from 'gsap';
 import {
   NOTE_COOL_SECONDS,
   NOTE_CROSSING_SECONDS,
-  NOTE_EBB_SECONDS,
   NOTE_HOT_COLOR,
   NOTE_HOT_IN_SECONDS,
   NOTE_KNOWN_AHEAD_SECONDS,
   NOTE_NOW,
+  NOTE_PEAK_STRENGTH,
   NOTE_QUANTUM_DEGREES,
   NOTE_QUANTUM_UNITS,
   NOTE_WAKE_SECONDS,
@@ -52,10 +52,6 @@ export interface UseNoteCloudOptions {
   color: string;
   /** Screen pixels per canvas unit, for the 4-pixel floor. A getter, read when a note arrives: no layout read. */
   pxPerUnit: () => number;
-  /** How strongly the whole cloud shows, 0 to 1 (§1.7; the peak, in the world and on the avatar): the layers'
-   *  opacity, eased to on a change. At
-   *  0 no note is placed, though the model still counts it. */
-  strength: number;
   /** Whether a drawn note is placed (§1.7, the battery bands; default true). While false no bar is placed, though the
    *  model still counts the note; turning it false leaves the notes in flight to finish their crossing. Read when a
    *  note arrives: a switch starts nothing and re-runs nothing. */
@@ -99,7 +95,7 @@ function hotLevel(since: number, duration: number): number {
 // ========================================
 // HOOK
 // ========================================
-export function useNoteCloud({ root, robotId, context, enabled, gem, scale, color, pxPerUnit, strength, placing = true }: UseNoteCloudOptions): void {
+export function useNoteCloud({ root, robotId, context, enabled, gem, scale, color, pxPerUnit, placing = true }: UseNoteCloudOptions): void {
   const reducedMotion = prefersReducedMotion();
   const colorRef = useRef(color);
   const pxPerUnitRef = useRef(pxPerUnit);
@@ -109,15 +105,13 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     pxPerUnitRef.current = pxPerUnit;
     placingRef.current = placing;
   });
-  // The strength the layers are at or easing to, and the two wrappers while the roll is built (null when it is not).
-  const strengthRef = useRef(strength);
+  // The two wrappers while the roll is built (null when it is not), and the re-size fade's key.
   const layersRef = useRef<HTMLElement[] | null>(null);
-  const strengthKey = `note-strength-${context}-${robotId}`;
-  // The size the roll is built at or is fading to (the latest gem and scale), the built cloud's rebuild (null when it
-  // is not built), and whether a re-size's fade has yet to reach its rebuild.
+  const fadeKey = `note-resize-${context}-${robotId}`;
+  // The size the roll is built at or is fading to (the latest gem and scale), and the built cloud's rebuild (null when
+  // it is not built).
   const sizeRef = useRef({ gem, scale });
   const rebuildRef = useRef<(() => void) | null>(null);
-  const resizePendingRef = useRef(false);
 
   // The roll, the layers, the belt and the listener. A gem or body-scale change does not re-run this: the re-size
   // effect below fades the layers out, calls the rebuild, and fades them back (§1.5).
@@ -136,7 +130,8 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     if (!wrappers.front || !wrappers.behind || !belts.front || !belts.behind) return;
     const layers = [wrappers.front, wrappers.behind];
     layersRef.current = layers;
-    for (const layer of layers) layer.style.opacity = String(strengthRef.current);
+    // The cloud at its strongest (§1.7): the layers' opacity, which only a re-size's fade takes away and gives back.
+    for (const layer of layers) layer.style.opacity = String(NOTE_PEAK_STRENGTH);
 
     // The roll at the latest size; the rebuild replaces all three.
     let roll = rollBox(sizeRef.current.gem, sizeRef.current.scale);
@@ -268,7 +263,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
 
     const unsubscribe = subscribeDrawnNotes(robotId, (note, event) => {
       // The model has counted it already (the run and the range), drawn or not.
-      if (document.hidden || getWorldState() !== 'running' || strengthRef.current === 0 || !placingRef.current) return;
+      if (document.hidden || getWorldState() !== 'running' || !placingRef.current) return;
       fit();
       const length = noteLength(note.duration, roll.w, thickness);
       const lead = Math.max(0, event.lead);
@@ -306,10 +301,9 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     return () => {
       unsubscribe();
       killTimeline(key);
-      // A re-size fade in flight is killed by the strength timeline's own cleanup; its rebuild finds nothing.
+      // A re-size fade in flight is killed by its own cleanup below; its rebuild finds nothing.
       layersRef.current = null;
       rebuildRef.current = null;
-      resizePendingRef.current = false;
       clearNotes();
       for (const layer of layers) layer.style.display = '';
       for (const belt of beltEls) belt.style.willChange = '';
@@ -317,46 +311,25 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
   }, [root, robotId, context, enabled, reducedMotion]);
 
   // A re-size never pops (§1.5, §7.2 A6): a gem or body-scale change fades both layers out over NOTE_WAKE_SECONDS,
-  // rebuilds the roll at the latest size (the notes in flight are dropped), and fades them back to the strength over
-  // NOTE_WAKE_SECONDS, all on the strength timeline. A second change mid-fade replaces it, starting from wherever the
-  // layers are; the rebuild always reads the latest size. A colour edit changes neither and starts nothing.
+  // rebuilds the roll at the latest size (the notes in flight are dropped), and fades them back to NOTE_PEAK_STRENGTH
+  // over NOTE_WAKE_SECONDS, on a registered 'world' timeline, so a power-off pause holds it. A second change mid-fade
+  // replaces it, starting from wherever the layers are; the rebuild always reads the latest size. A colour edit
+  // changes neither and starts nothing.
   useEffect(() => {
     if (sizeRef.current.gem === gem && sizeRef.current.scale === scale) return;
     sizeRef.current = { gem, scale };
     const layers = layersRef.current;
     if (!layers) return; // not built: the next build reads the latest size
-    resizePendingRef.current = true;
     const fade = gsap.timeline();
     fade
       .to(layers, { opacity: 0, duration: NOTE_WAKE_SECONDS, ease: 'sine.inOut' })
-      .call(() => {
-        resizePendingRef.current = false;
-        rebuildRef.current?.();
-      })
-      .to(layers, { opacity: () => strengthRef.current, duration: NOTE_WAKE_SECONDS, ease: 'sine.inOut' });
-    setTimeline(strengthKey, fade, 'world');
-  }, [gem, scale, strengthKey]);
+      .call(() => rebuildRef.current?.())
+      .to(layers, { opacity: NOTE_PEAK_STRENGTH, duration: NOTE_WAKE_SECONDS, ease: 'sine.inOut' });
+    setTimeline(fadeKey, fade, 'world');
+  }, [gem, scale, fadeKey]);
 
-  // Strength (§1.7): a change eases both wrappers' opacity from wherever they are to the new strength, on a
-  // registered 'world' tween, so a power-off pause holds it: a rise over NOTE_WAKE_SECONDS, a fall over
-  // NOTE_EBB_SECONDS. Never a step. A new change replaces the tween in flight (setTimeline kills the old one), except
-  // a re-size fade that has yet to rebuild: that one comes back to the new strength itself.
-  useEffect(() => {
-    if (strength === strengthRef.current) return;
-    strengthRef.current = strength;
-    const layers = layersRef.current;
-    if (!layers || resizePendingRef.current) return;
-    const from = Number(layers[0].style.opacity);
-    const tween = gsap.to(layers, {
-      opacity: strength,
-      duration: strength > from ? NOTE_WAKE_SECONDS : NOTE_EBB_SECONDS,
-      ease: 'sine.inOut',
-    });
-    setTimeline(strengthKey, tween as unknown as ReturnType<typeof gsap.timeline>, 'world');
-  }, [strength, strengthKey]);
-
-  // The strength tween goes with the hook.
-  useEffect(() => () => killTimeline(strengthKey), [strengthKey]);
+  // The re-size fade goes with the hook.
+  useEffect(() => () => killTimeline(fadeKey), [fadeKey]);
 
   // The model outlives an effect re-run and the avatar's mount: only the world body's unmount, keyed on the robot
   // alone, forgets the robot's range and run (plan, Architecture Decisions).

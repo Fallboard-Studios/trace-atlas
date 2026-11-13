@@ -38,7 +38,7 @@ import {
   subscribeWokenNotes,
   wakeRobotNotes,
 } from '../../systems/robotAttention';
-import { BACK_LAYER_SCALE, NOTE_DIM, NOTE_PEAK_STRENGTH } from '../../constants';
+import { BACK_LAYER_SCALE, NOTE_DIM } from '../../constants';
 
 // ========================================
 // TYPES
@@ -255,7 +255,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
 
   // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.8), in the world and on the desk avatar; never on a card.
   // Its colour is the company's, else the identity hue's complement. In the world a pixel on screen is the stage's
-  // scale times the row's. It is always at the peak strength, and places notes only in its battery's on bands, or
+  // scale times the row's. It shows at the peak strength (the hook's), and places notes only in its battery's on bands, or
   // whenever woken (§1.7, notesShown). The avatar places every note (the player turned to it by opening its screen;
   // its box sets the dim to 1), and its pixel is the fit its box wrote (`--note-fit-scale`), read from the inline style
   // when a note arrives: no layout read.
@@ -271,7 +271,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     pxPerUnit: isWorld
       ? () => getStageScale() * rowScale
       : () => parseFloat(gemRef.current?.closest<HTMLElement>('[data-note-cloud]')?.style.getPropertyValue('--note-fit-scale') ?? ''),
-    strength: NOTE_PEAK_STRENGTH,
     placing: isWorld ? notesShown(robot.batteryLevel, woken) : true,
   });
 

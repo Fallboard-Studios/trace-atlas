@@ -918,6 +918,11 @@ so these tasks revise Tasks 18, 22 and 23.
 
 - [x] **Task 22: `useNoteCloud.ts` — strength is the cloud's opacity, eased**
 
+  **Removed 2026-11-13, after Task 30 (Crawford: "remove the leftovers"):** once the battery bands made the strength
+  a constant, this ease never ran. The `strength` option, the ease, `NOTE_EBB_SECONDS` and the strength-0 gate are
+  gone; the layers sit at `NOTE_PEAK_STRENGTH`, and Task 24's fade is keyed `note-resize-<context>-<robotId>`. Spec
+  §8.3.
+
   **Description:** The hook takes `strength` (0 to 1). A change eases both wrappers' opacity to it on a tween
   registered as `note-strength-<context>-<robotId>` under `'world'`: a rise over `NOTE_WAKE_SECONDS` (0.3), a fall
   over `NOTE_EBB_SECONDS` (1), never a step (spec §1.7). At a strength of 0 no note is placed (the run and the range
