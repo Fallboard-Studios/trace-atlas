@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/ONE_MUSIC_CLOCK.md](../specs/ONE_MUSIC_CLOCK.md) (approved 2026-11-12). Source intent:
 [docs/intent/one-music-clock.md](../intent/one-music-clock.md). Backlog
-[82](../todo/backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
+[82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
 [83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure); measured in
 [CHORD_CYCLE_TIMING.md](CHORD_CYCLE_TIMING.md). Part two is backlog
 [86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure).
@@ -746,7 +746,7 @@ Task 6 and do not depend on each other.
 - [x] Docs match the shipped source (Task 11, read by Crawford).
 - [x] Ready for Crawford's PR.
 
-- [ ] **Task 13: archive, after the merge**
+- [x] **Task 13: archive, after the merge**
 
   **Description:** Backlog 82 and 83 (if 83 closed) move to the backlog archive with their links rebased; their
   plan.md lines go; CHORD_CYCLE_TIMING.md, this plan, the spec and the intent stay live where they are, as archived
@@ -755,10 +755,16 @@ Task 6 and do not depend on each other.
   **Proof:** Read.
 
   **Acceptance criteria:**
-  - [ ] No link to 82 or 83 is broken (each points into the archive).
+  - [x] No link to 82 or 83 is broken (each points into the archive).
 
   **Verification:**
   - [ ] Crawford's read.
+
+  **Done 2026-11-12, after PR #635 merged.** Backlog 82 moved whole to the archive under a "Closed" line, its links
+  rebased (`../X` → `../../X`, live backlog anchors → `../backlog.md#…`), with no stub left. Every inbound link
+  repointed: three in backlog.md (in 83, 86 and 87) and one each in plan.md (deleted with the line), the intent, the
+  spec, this plan, CHORD_CYCLE_TIMING.md and ROBOT_NOTE_CLOUD.md. Backlog 83 stays live (open for a pause and resume,
+  Crawford's call), so its links are unchanged; its plan.md line now names only that check.
 
   **Dependencies:** The PR merged.
 

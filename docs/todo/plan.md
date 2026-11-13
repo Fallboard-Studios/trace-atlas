@@ -21,11 +21,9 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Backlog [82](backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time) **The chord cycle's timing** —
-  measure first: the palette sometimes changes two measures late, differently from one power-on to the next; find the
-  cause, then decide whether the cycle needs its own timer at all.
 - Backlog [83](backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) **Melody steps against the
-  measure** — measure first: step 1 may sound on a measure's second sixteenth; find which of the two clocks is off.
+  measure** — fixed for a power-on with 82 (PR #635); one check left: whether a pause and resume keeps the steps on
+  the bar.
 
 ## Stage 4 — Visual refinement
 

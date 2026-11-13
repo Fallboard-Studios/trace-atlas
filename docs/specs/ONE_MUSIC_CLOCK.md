@@ -11,7 +11,7 @@
 
 **Status:** spec written 2026-11-12 from [docs/intent/one-music-clock.md](../intent/one-music-clock.md) (interview of
 the same day), after backlog 82's measurement passed its Gate A ([CHORD_CYCLE_TIMING.md](../tasks/CHORD_CYCLE_TIMING.md)).
-Backlog items [82](../todo/backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
+Backlog items [82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
 [83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure). Part one only; part two is backlog
 [86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure). **Approved by Crawford 2026-11-12**, with §9's
 three questions resolved as recommended: the ticks register before the transport starts, `getPolyphonyStats().step`

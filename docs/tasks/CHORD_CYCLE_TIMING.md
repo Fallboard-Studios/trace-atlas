@@ -1,6 +1,6 @@
 # Measurement Plan: The Chord Cycle's Timing
 
-Source: backlog [82](../todo/backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time). No spec and no intent
+Source: backlog [82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time). No spec and no intent
 doc: this plan builds nothing. It measures one thing on `main`, whether the lead recorded in the backlog entry on
 2026-11-12 is the cause, and stops at a gate where Crawford decides what, if anything, is built. A fix gets its own
 interview and spec after the gate.

@@ -1687,3 +1687,111 @@ Crawford's answers to B1–B11), planned in [docs/tasks/COMPANY_FAMILIES.md](../
 Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every world's melodies, so it lands before
 backlog [45](../backlog.md#45-off-screen-crawfords-three-preset-links). B12–B15 answered 2026-11-11 (every default stands); built on
 its own branch from `main` after 60 merges. Plan.md Stage 3.
+
+## 82. Audio: The Chord Cycle Does Not Always Change on Time
+
+**Closed** 2026-11-12 (`docs/backlog-82-measurement-plan`, merged PR #635; one music clock, Tasks 1–12, `997b7a03`..
+`a7d53c13`). The measure, the melody step and the chord palette are read from the transport at each callback's own
+time; the harmony repeat and every running count are gone. Ten power-ons played the same chord sequence, every chord
+change on the bar, and Crawford heard the downbeat where the chords change. Backlog
+[83](../backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), folded into the same fix, stays open
+for a pause and resume. The original request follows.
+
+Found on 2026-11-12 during backlog [79](../backlog.md#79-robots-move-in-time-with-their-own-melody)'s spike, and asked for by
+Crawford the same day: "definitely sounds like it's something worth investigating to make sure we're not running
+redundant code." By ear he does not hear mixed-chord outcomes, so nothing sounds broken. An investigation: measure
+first, and build only what the cause calls for.
+
+**What is intended.** Each harmony palette holds for two measures ([HARMONY_SYSTEM.md](../../HARMONY_SYSTEM.md)). A `2m`
+repeat in `src/engine/harmonySystem.ts` (`scheduleHarmonyCycle`) sets the palette to entry
+`floor(getCurrentMeasure() / 2) % 12`, derived fresh each time it fires.
+
+**What was seen.** The spike made the engine announce each note a few steps before it plays and checked every
+announcement against the note then triggered, logging the palette in force (`getAvailableNotes()`) and BeatClock's
+measure (`getCurrentMeasure()`) at a miss. One build, one pinned world (`?seed=charlie&x=200&y=-30`), headless Chrome,
+a fresh power-on each run:
+
+- One run kept time: measures 2–3 on entry 1, 4–5 on entry 2, 6–7 on entry 3, measure 8 on entry 4.
+- One run fell behind: entry 3 in force at measure 6 and still at measure 8, where entry 4 is intended.
+- One run fell behind and caught up: entry 2 still in force as measure 8 began (so through measures 6–7, where
+  entry 3 is intended), entry 4 from measure 8 on, so entry 3 was never played; then entry 5 at measure 12, where
+  entry 6 is intended.
+- A forecast that assumed "on time" got 138 of 372 pitches wrong in one run. One that assumed "one entry behind" got
+  88 of 366 wrong in a second run and 187 of 363 wrong in a third. Neither assumption holds from one power-on to the
+  next.
+
+The log held misses only, about fifty seconds a run, so this was a sighting, not a survey. It is now reproduced on
+`main` (below).
+
+**What was measured, 2026-11-12** ([plan](../../tasks/CHORD_CYCLE_TIMING.md), Tables 1 and 2 and Findings). A probe
+wrapped the transport's `scheduleRepeat` before the Power click and logged every firing of the four repeats on it
+(BeatClock's `16n` tick, the melody's `16n` tick, the harmony cycle's `2m` repeat, the swells' `16n` tick), with the
+app's measure and palette before and after each callback. Ten power-ons of the same world, twelve harmony firings each,
+71 BPM:
+
+- **102 of 120 firings were late, 18 on time.** Every late firing read the boundary's measure minus one and set the
+  entry already in force; every on-time one read the boundary's measure. Five power-ons were one entry late throughout
+  (entries 0 to 11 where 1 to 11 then 0 are intended); the other five were mixed, each with a different sequence, and a
+  mixed run skips entries (one never played entries 3, 6 or 9).
+- **The cause: BeatClock's tick never sits on the bar.** It passes no start time, so Tone starts it where the transport
+  has reached when `AudioEngine.start` registers it, 37 to 83 ticks after `transport.start()` (about 95 to 215 ms of
+  awaits). It then runs 1.4 to 41.9 ticks after every sixteenth, a different amount on each power-on, and its measure
+  turns that far after each bar. The harmony repeat is given its start and fires on the bar, so it reads the measure
+  that has just ended.
+- **On time only when BeatClock read ahead.** BeatClock parses `transport.position`, which is the position at Tone's
+  "now", not at the tick's own time. When its last tick before a boundary ran in a clock pass that already reached past
+  the boundary, it read the new measure early and that firing was on time. That held for all 18 on-time firings and for
+  none of the late ones. How far a pass reaches changes from firing to firing (up to about 70 ms), so the closer
+  BeatClock's tick sits before the bar, the more firings are on time: 17 of 48 at 27 ms before it, 1 of 48 at 45 to
+  58 ms, none at 206 ms.
+- **The first suspicion did not apply.** No BeatClock tick fell on a boundary in any run, so the order of two callbacks
+  on a shared tick (the harmony's first, by Tone's source) never came into play. It could only on a power-on whose
+  BeatClock start lands on a multiple of 48 ticks.
+
+**Status:** measured 2026-11-12; the cause is established. Gate A passed the same day. Crawford's decision: both
+candidates, as one fix in which nothing keeps its own count and everything reads the music clock (the chord when a
+note is scheduled, the measure at each tick's own time with the tick started on the bar, the melody's step). Why:
+tracking measures, moving the player to a measure and changing chord palettes are coming soon, and each breaks on a
+count that does not know the transport moved. It changes the timing path CLAUDE.md asks about before changing, so an
+interview and a spec come first, starting from those features. Backlog
+[83](../backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) is folded in.
+
+**Fixed, 2026-11-12** ([spec](../../specs/ONE_MUSIC_CLOCK.md), [plan](../../tasks/ONE_MUSIC_CLOCK.md); intent
+[one-music-clock.md](../../intent/one-music-clock.md)), merged via PR #635. The
+measure, the step, the palette and the roll position are read from the transport's tick count at each callback's own
+time (`positionAt` in `beatClock.ts`); the palette is `paletteForMeasure(measure)`; the harmony repeat, its state and
+`resetHarmony` are gone; BeatClock's tick and the melody tick start on the grid (a start of `0`) and are registered,
+with the store's tempo set, before the transport starts. **Measured the same day** (the plan's Task 10 table): ten
+power-ons of the same world on a dev server, about 88 s each (to measure 25, step 1), 406 or 407 firings of each `16n`
+tick per run, 71 BPM:
+
+- Every BeatClock, melody and swell firing sat on a multiple of 48 ticks (the largest offset in any run about 1e-11
+  ticks, float error), consecutive firings 48 ticks apart throughout. The first firing of both `16n` ticks was tick 0 in
+  every run (37 to 83 ticks after the start before, by the old registration).
+- BeatClock turned the measure 25 times a run, each on the bar's own firing, never before or after it.
+- Every step 1 (26 a run, 260 in all) played entry `floor(measure / 2) % 12`: no late chord change. The entries at step
+  1 read `0 0 1 1 2 2 … 11 11 0 0` in every run.
+- The (measure, step, palette entry) sequence for measures 0 to 24, 400 steps, was identical in all ten runs. Before,
+  ten power-ons gave six different chord sequences.
+- Three repeats registered (BeatClock's, the melody's, the swells'); no harmony repeat, nothing unexpected. The console
+  showed one Tone warning per power-on, the same one seen before the change, and nothing else.
+
+By ear (the plan's Checkpoint: By ear): Crawford, on a Click Track robot sounding alone, heard the downbeat where the
+chords change: "I think we're good." Not measured: a pause and resume (see 83), and a tempo change mid-run.
+
+**To find out:**
+
+- ~~Reproduce on `main`.~~ **Answered:** reproduced, above.
+- ~~Whether a replay from power-on gives the same chords each time.~~ **Answered: no.** The entry at each boundary
+  depends on how far one clock pass reached, not on the seed. Velocity and Humanize are drawn so that a replay repeats
+  (`computeNoteVelocitySeeded` and `humanizeOffsetFor`, `src/engine/AudioEngine.ts`); the chord cycle does not.
+- ~~Whether the third repeat is needed at all (Crawford's "redundant code").~~ **Answered at Gate A: no.** The palette
+  becomes a pure function of the transport position at a note's own time, and BeatClock's measure is taken from each
+  tick's own time with its tick started on the bar. Both, as one fix (Status).
+- What depends on the answer: backlog [7](../backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (tagged
+  progressions and a seeded mood chain, which need the cycle to be predictable), and backlog 79's early announcements,
+  which today read the cycle's lag off the palette in force instead of assuming it. **Open:** each is re-read against
+  the spec once it is written. Backlog 7's "What exists" now names `paletteForMeasure`; 79 is re-read against the
+  spec when work on it resumes.
+
+Related: backlog [83](../backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), seen in the same log.

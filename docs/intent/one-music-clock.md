@@ -2,7 +2,7 @@
 
 Confirmed via `interview-me` on 2026-11-12 (six questions, every guess held; one answer reshaped the work, splitting
 "move the world to a measure" out into a part two), ahead of a `spec-driven-development` pass. Backlog items
-[82](../todo/backlog.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
+[82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
 [83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), decided at the measurement
 plan's Gate A ([CHORD_CYCLE_TIMING.md](../tasks/CHORD_CYCLE_TIMING.md)): both candidate fixes, as one.
 
