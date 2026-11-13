@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { GEM_CANVAS_H, gemWidth, getRobotGem, type GemPart, type RobotGem } from '../gem/polygon';
-import { noteLength, noteRowGeometry, noteThickness, rollBox } from './noteRows';
+import { noteColor, noteLength, noteMask, noteRowGeometry, noteThickness, rollBox } from './noteRows';
 
 /** A part with only the box the roll reads. */
 const part = (x: number, y: number, w: number, h: number): GemPart => ({ x, y, w, h, pts: [], inner: [], lines: [], lights: [] });
@@ -183,5 +183,67 @@ describe('noteRows: a bar’s length (§1.3)', () => {
 
   it('a 10 s note is 0.8 of the width', () => {
     expect(noteLength(10, 200, 4)).toBeCloseTo(160, 10);
+  });
+});
+
+describe('noteRows: a note’s colour (§1.3)', () => {
+  it('a robot in a company wears the company’s colour as it is', () => {
+    expect(noteColor('#ff8000', '#3a7bd5')).toBe('#3a7bd5');
+  });
+
+  it('a freelancer at hue 30 gets hue 210, S 100, L 70', () => {
+    expect(noteColor('#ff8000', undefined)).toBe('hsl(210, 100%, 70%)'); // #ff8000 is hue 30.1
+  });
+
+  it('hue 300 wraps round to 120', () => {
+    expect(noteColor('#ff00ff', undefined)).toBe('hsl(120, 100%, 70%)');
+  });
+
+  it('an empty company colour counts as none', () => {
+    expect(noteColor('#ff00ff', '')).toBe('hsl(120, 100%, 70%)');
+  });
+});
+
+/** The mask's stops, read from what noteMask returns: each colour and where it sits, in percent. */
+function maskStops(mask: string): Array<{ color: string; at: number }> {
+  const match = /^linear-gradient\(to right, (.*)\)$/.exec(mask);
+  expect(match).not.toBeNull();
+  const parts: string[] = [];
+  let depth = 0;
+  let current = '';
+  for (const char of match![1]) {
+    if (char === '(') depth++;
+    if (char === ')') depth--;
+    if (char === ',' && depth === 0) {
+      parts.push(current.trim());
+      current = '';
+    } else current += char;
+  }
+  parts.push(current.trim());
+  return parts.map((part) => {
+    const split = part.lastIndexOf(' ');
+    const at = /^(-?[\d.]+)%$/.exec(part.slice(split + 1));
+    expect(at).not.toBeNull();
+    return { color: part.slice(0, split), at: Number(at![1]) };
+  });
+}
+
+describe('noteRows: the layer’s mask (§1.4, §1.7)', () => {
+  const DIM = 'rgba(0, 0, 0, var(--note-dim, 1))';
+
+  it('clear at the left edge, the dim level from 30%, full from 14% left of “now” to “now”, clear 0.2 s ahead', () => {
+    const stops = maskStops(noteMask(0.2));
+    expect(stops.map((s) => s.color)).toEqual(['transparent', DIM, DIM, '#000', 'transparent']);
+    const at = stops.map((s) => s.at);
+    [0, 30, 63.5, 77.5, 81.5].forEach((expected, i) => expect(at[i]).toBeCloseTo(expected, 6));
+  });
+
+  it('a note known 2 s ahead ends the mask at the right edge, not past it', () => {
+    expect(maskStops(noteMask(2)).at(-1)!.at).toBe(100);
+  });
+
+  it('a note known no time ahead turns clear at “now”', () => {
+    expect(maskStops(noteMask(0)).at(-1)!.at).toBeCloseTo(77.5, 6);
+    expect(maskStops(noteMask(-1)).at(-1)!.at).toBeCloseTo(77.5, 6);
   });
 });

@@ -8,17 +8,23 @@
 // IMPORTS
 // ========================================
 import {
+  NOTE_BRIGHT_BAND,
+  NOTE_COMPLEMENT_L,
+  NOTE_COMPLEMENT_S,
   NOTE_CROSSING_SECONDS,
+  NOTE_DIM_FROM,
   NOTE_EDGE_START,
   NOTE_FAN,
   NOTE_HEIGHT_SHARE,
   NOTE_MAX_LENGTH_SHARE,
   NOTE_MIN_PX,
+  NOTE_NOW,
   NOTE_ROLL_SIZE,
   NOTE_WAVE,
   NOTE_WAVE_COUNT,
   NOTE_WAVE_EDGE_GAIN,
 } from '../../../constants';
+import { hexToHsl, hslToString } from '../../../utils/colorUtils';
 import { GEM_CANVAS_H, gemWidth, type RobotGem } from '../gem/polygon';
 
 // ========================================
@@ -48,6 +54,8 @@ export interface NoteRowGeometry {
 // HELPERS
 // ========================================
 const DEGREES = 180 / Math.PI;
+/** A gradient stop's place, in percent to two decimals. */
+const pct = (share: number) => `${Number((share * 100).toFixed(2))}%`;
 
 /** How far into the fan `across` is: 0 through the straight middle, rising to 1 at either edge (and held there
  *  beyond it), with its rate of change along `across`. */
@@ -139,4 +147,30 @@ export function noteThickness(rollHeight: number, pxPerUnit: number): number {
 export function noteLength(seconds: number, rollWidth: number, thickness: number): number {
   const travelled = (seconds * rollWidth) / NOTE_CROSSING_SECONDS;
   return Math.min(NOTE_MAX_LENGTH_SHARE * rollWidth, Math.max(thickness, travelled));
+}
+
+/**
+ * A note's colour (§1.3): the robot's company colour when it is in one, else the complement of its identity hue
+ * (the hue plus 180°) at NOTE_COMPLEMENT_S saturation and NOTE_COMPLEMENT_L lightness.
+ */
+export function noteColor(identityColor: string, companyColor: string | undefined): string {
+  if (companyColor) return companyColor;
+  const hue = Math.round(hexToHsl(identityColor).h + 180) % 360;
+  return hslToString({ h: hue, s: NOTE_COMPLEMENT_S, l: NOTE_COMPLEMENT_L });
+}
+
+/**
+ * The mask both layers wear (§1.4, §1.7), left to right: clear at the left edge; `--note-dim` (set on the mover,
+ * 1 when unset) from NOTE_DIM_FROM of the width to NOTE_BRIGHT_BAND left of "now"; full at "now" (NOTE_NOW in from
+ * the right); clear again where a note is first known, `knownAheadSeconds` of travel right of "now" and never past
+ * the right edge. The mask dims the layer as a whole, so overlapping bars never show a darker patch.
+ */
+export function noteMask(knownAheadSeconds: number): string {
+  const now = 1 - NOTE_NOW;
+  const known = Math.min(1, now + Math.max(0, knownAheadSeconds) / NOTE_CROSSING_SECONDS);
+  const dim = 'rgba(0, 0, 0, var(--note-dim, 1))';
+  return (
+    `linear-gradient(to right, transparent 0%, ${dim} ${pct(NOTE_DIM_FROM)}, ` +
+    `${dim} ${pct(now - NOTE_BRIGHT_BAND)}, #000 ${pct(now)}, transparent ${pct(known)})`
+  );
 }

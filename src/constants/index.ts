@@ -381,6 +381,16 @@ export const NOTE_EDGE_START = 0.55;
 export const NOTE_FAN = 0.6;
 export const NOTE_WAVE_EDGE_GAIN = 5;
 export const NOTE_WAVE_COUNT = 1.5;
+/** "Now" (§1.4): where a note's leading end is as it leaves the speakers, this share of the roll's width in from
+ *  the right edge, where the right-hand fan ends. */
+export const NOTE_NOW = 0.225;
+/** The layers' mask (§1.4, §1.7): clear at the left edge, the dim level from NOTE_DIM_FROM of the width, full
+ *  strength from NOTE_BRIGHT_BAND of the width left of "now" up to "now". */
+export const NOTE_DIM_FROM = 0.3;
+export const NOTE_BRIGHT_BAND = 0.14;
+/** A freelancer's notes wear its identity hue's complement at this saturation and lightness (§1.3). */
+export const NOTE_COMPLEMENT_S = 100;
+export const NOTE_COMPLEMENT_L = 70;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
