@@ -13,7 +13,9 @@ Gate 1, which are still to run; Checkpoint: Attention's checks pass. Phase 5 (Ta
 Crawford's word, ahead of Gates 1 and 2; Checkpoint: Avatar's checks pass, and Gate 3 passed 2026-11-13 with the
 cloud spilling past the avatar's box. Task 17 ran 2026-11-13: main-thread time +17.6 % with the cloud on (the spike's
 +19 %), over the working 10 %. Crawford's answer was the battery bands (Tasks 17a to 17d, built and run the same day):
-+3.7 %, inside it. Gate 1's line is his to confirm; still to run: Gate 2 and Task 26.
++3.7 %, inside it; he then re-drew the bands (Task 17e, 60% on, not re-measured). Gate 1 passed 2026-11-13 ("no,
+that's ok" to a re-run) and Gate 2 passed the same day on his word ("i'm happy with gate 2, i believe"). Next: Task
+26 (it needs his guardrail sentence, not yet worded) and Phase 6, in a fresh session.
 
 ## Overview
 
@@ -664,10 +666,11 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 ### Gate 1: cost (spec §5.4)
 - [x] Task 17's figures reported with the spike's beside them (2026-11-13).
-- [ ] **Crawford sets the line.** Over the working 10%, the build does not go on to Phase 4 without his decision:
+- [x] **Crawford sets the line.** Over the working 10%, the build does not go on to Phase 4 without his decision:
       take more back (the quantum of Task 14 is the first lever), or accept the figure. 2026-11-13: he chose to take
       more back with the battery bands (spec §1.7), Tasks 17a to 17d below. The line itself waits on Task 17d's run:
-      +3.7 % with the bands, inside the working 10 %.
+      +3.7 % with the bands, inside the working 10 %. After Task 17e re-drew the bands (60% on) he declined a
+      re-run ("no, that's ok"): **Gate 1 passed**, 2026-11-13.
 
 ### Gate 1 follow-up: the battery bands (spec §1.7, Crawford 2026-11-13)
 
@@ -1028,14 +1031,21 @@ so these tasks revise Tasks 18, 22 and 23.
       touches nothing in `src/stores` or `src/types`.
 
 ### Gate 2: Crawford's eye and ear (spec §5.4)
-- [ ] The look on his desktop and on a phone: faint clouds, full strength on the robot he points at or selects, the
-      marker on hover, a low-battery robot fainter and woken by a click until its station.
-- [ ] A row switch, a layer switch's dissolve (the cloud stays with the mover, §7.2 A10) and an edit that re-sizes
+
+**Passed 2026-11-13 on his word:** "i'm happy with gate 2, i believe." He did not go through the items one by one, so
+the boxes record his overall answer, not a check of each. He named no number to re-pin and asked for no change to
+the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him for it.
+
+- [x] The look on his desktop and on a phone: faint clouds, full strength on the robot he points at or selects, the
+      marker on hover, a low-battery robot fainter and woken by a click until its station. (Since Gate 1 a robot in
+      an off band shows no notes rather than fainter ones.)
+- [x] A row switch, a layer switch's dissolve (the cloud stays with the mover, §7.2 A10) and an edit that re-sizes
       the roll.
-- [ ] The unmeasured cost runs (spec §5.3): his desktop at full screen, a phone, and twelve robots sounding at the
+- [x] The unmeasured cost runs (spec §5.3): his desktop at full screen, a phone, and twelve robots sounding at the
       Full tier, each with the `?debug` HUD up against `?notes=off`. No added crackle; the underrun count no worse.
 - [ ] He names any of §7.2 A1's numbers to re-pin, says whether the repeat rule thins enough (§7.3 Q3), and gives
-      the guardrail sentence its wording.
+      the guardrail sentence its wording. None re-pinned, the rule kept (4 of 498 dropped); **the sentence is
+      still to come.**
 
 - [ ] **Task 26: `CLAUDE.md` — the Visual Mapping guardrail names the cloud**
 

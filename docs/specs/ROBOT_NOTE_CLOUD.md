@@ -633,11 +633,13 @@ export function notesShown(batteryLevel: number, woken: boolean): boolean;
 - **Gate 1, cost** — after Part B: §5.3's headless run, reported with the spike's figures beside it. Crawford sets
   the line there. Over the working 10%, the build does not go on to Part C without his decision (take more back, or
   accept the figure). **2026-11-13:** the run read +17.6% (PERFORMANCE.md); he chose to take more back with the
-  battery bands (§1.7), and the run is taken again with them built.
+  battery bands (§1.7), and the run is taken again with them built: +3.7%. He re-drew the bands (60% on) and took
+  them without a re-run. **Passed 2026-11-13.**
 - **Gate 2, Crawford's eye and ear** — after Part C: the look on his desktop and on a phone; the unmeasured cost
   runs; the row switch, the layer switch's dissolve and an edit that re-sizes the roll; the marker on hover. He
   names any of §7.2 A1's numbers he wants re-pinned (he chose a re-check on a phone, 2026-11-12), and gives the
-  guardrail sentence its wording.
+  guardrail sentence its wording. **Passed 2026-11-13 on his word** ("i'm happy with gate 2, i believe"): no number
+  re-pinned, the repeat rule kept. The guardrail sentence is still to be worded (plan Task 26).
 - **Gate 3, the avatar** — after Part D: his look at the desk avatar with the roll clipped by its box (§1.8: where
   "now" falls, and the top and bottom rows), and his answer to §7.3 Q1. Parts 0 to D merge when it passes.
   **Passed 2026-11-13:** he looked at the clip and at the spill, and chose the spill (§1.8).
@@ -772,11 +774,12 @@ answered and kept for the record.
   spills and only the console pane cuts it (§1.8). The phone band keeps the default, no cloud.
 - **Q2. The cost line (Gate 1).** The working figure is main-thread time within 10% of cloud-off; the spike
   measured about 19% at the approved settings. Crawford sets the line when the build's own numbers are in front of
-  him. **2026-11-13:** the build read +17.6%; his answer was the battery bands (§1.7), to be measured again. The line
-  itself is still his, with that run in hand.
+  him. **Answered 2026-11-13:** the build read +17.6%; his answer was the battery bands (§1.7), measured at +3.7% on
+  the odd tens. He re-drew them (60% on) and accepted them without a re-run.
 - **Q3. How much the repeat rule still thins (Gate 2).** With length and rests both counted, only identical notes
   that run straight into each other are dropped. If the cloud reads as too busy at the eye gate, the rule is the
-  first thing to look at; the per-robot counts of drawn and dropped notes are the probe.
+  first thing to look at; the per-robot counts of drawn and dropped notes are the probe. **Answered 2026-11-13:** it
+  dropped 4 of 498 notes in 50 s (PERFORMANCE.md); Crawford passed Gate 2 with the rule as it is.
 - **Q4. Does Part E still wait for its own branch? Answered: yes, it is last** (Crawford, 2026-11-12). The
   recommendation put to him was to build its engine half straight after Part A, so that Gate 1 measured the cloud
   that ships and Gate 2 showed the approved look. He kept the order as written. What follows from that: Gates 1 and
