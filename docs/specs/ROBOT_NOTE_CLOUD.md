@@ -193,7 +193,8 @@ and what the approved settings still cost is taken back here.
 - **No layout read per note.** The stage's scale and the row's scale, which the 4-pixel floor needs, are read when
   they change, not when a note arrives.
 - **Two registered timelines per robot per context,** both `'world'` scope and both killed on unmount: the belt
-  (`note-belt-<context>-<robotId>`) and the strength fade (`note-strength-<context>-<robotId>`, §1.7). No
+  (`note-belt-<context>-<robotId>`) and the re-size fade (`note-resize-<context>-<robotId>`, §1.5; first planned as
+  a strength fade, `note-strength-…`, which went with the battery fade: §8). No
   `gsap.delayedCall`, `setTimeout`, `requestAnimationFrame` or `Tone.Draw` anywhere.
 - **A switch for the A/B.** `?notes=off` (beside `?debug` and `?latency=` in `src/utils/debugParams.ts`) draws no
   cloud and registers no listener, so cloud-off and cloud-on are measured from one build (§7.2 A8).

@@ -72,8 +72,9 @@ listens: an HMR swap has split the audio graph before.
   tween). Its `onUpdate` settles each live note on its row, sets the white copy's opacity from the belt's own time,
   and removes a note that has crossed. Paused by its owner while the robot has no live notes; `timelineMap` already
   leaves an owner-paused timeline paused across a power cycle. No `gsap.delayedCall` and no tween per note.
-- **Strength is the second registered timeline:** `note-strength-<context>-<robotId>`, `'world'`, a tween of both
-  wrappers' opacity. Task 24 reuses it for the fade that covers a re-size.
+- **The re-size fade is the second registered timeline:** `note-resize-<context>-<robotId>`, `'world'`, a tween of
+  both wrappers' opacity out and back round the rebuild (Task 24). Planned as `note-strength-…`, the battery fade's
+  tween, which Task 24 reused; the battery fade went at Gate 1 and the strength ease after it (spec §8).
 - **Until Task 24, a body-scale edit rebuilds the roll at once** (the hook's effect re-runs and drops the notes in
   flight). Task 24 puts the fade round it. Gate 2 is where Crawford looks at it, after Task 24.
 - **Constants land with their first user,** all named `NOTE_…` in `src/constants/index.ts` at the spec's §7.2 A1
