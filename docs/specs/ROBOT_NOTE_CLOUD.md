@@ -16,7 +16,8 @@
 the same day (§7.1 records each answer), with his answers to this spec's first open questions folded in (§7.1,
 second table). Paused that day at Crawford's word until backlog 82 and 83 were finished. **Picked up again
 2026-11-12:** both closed with the one music clock (PR #635), and §1.1, §1.2 and §1.9 have been re-read against the
-engine as it now is. §1.1 gained the music clock, §1.9 is rewritten on it, and §7.3 Q4 and Q5 are new. **Awaiting
+engine as it now is. §1.1 gained the music clock and §1.9 is rewritten on it. Asked whether Part E should now move
+into the first branch, Crawford kept it last (§7.1). **Awaiting
 Crawford's approval; not yet planned.** Backlog
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
@@ -45,9 +46,9 @@ clock, §1.1), and both are closed.
 | D — the avatar | The same cloud on the robot screen's detail avatar (§1.8) | B |
 | E — early announcements | The engine announces a note before its trigger, so it enters at the roll's edge (§1.9) | A, B (backlog 82 and 83, closed) |
 
-Build order as Crawford agreed it on 2026-11-12, while Part E still had to wait: 0, A, B, C, D, then E. Parts 0 to D
-are one branch and merge when Gate 3 passes; Part E is its own branch straight after (§6). Nothing makes Part E wait
-any more, so whether it moves forward is §7.3 Q4.
+Build order: 0, A, B, C, D, then E. Parts 0 to D are one branch and merge when Gate 3 passes; Part E is its own
+branch straight after (§6). Crawford agreed this while Part E still had to wait for 82 and 83, and kept it once
+nothing made it wait (2026-11-12, §7.1): Part E is last.
 
 ---
 
@@ -612,7 +613,9 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
   guardrail sentence its wording.
 - **Gate 3, the avatar** — after Part D: his look at the desk avatar with the roll clipped by its box (§1.8: where
   "now" falls, and the top and bottom rows), and his answer to §7.3 Q1. Parts 0 to D merge when it passes.
-- **Gate 4, Part E** — its own eye gate is the note entering at the roll's edge, and §5.3's forecast run.
+- **Gate 4, Part E** — its own eye gate is the note entering at the roll's edge, and §5.3's forecast run. §5.3's
+  headless cost run is taken again here, against Gate 1's figures: with early notes a note is on the roll about a
+  fifth longer than in the cloud Gate 1 measured, and the spike's 19% was measured with them on.
 
 ### 5.5 Done when
 
@@ -638,8 +641,7 @@ announcement, and backlog 79 is archived with its plan.md line deleted.
   starts as `main`), one task per commit, RED test in the same commit as its GREEN, message in the repo's voice
   (`feat(robots): a triggered note tells its listeners (Task 2)`), ending with the attribution line the session
   carries.
-- **Part E:** its own branch off `main` once Parts 0 to D have merged (`feature/note-cloud-early-notes`), unless
-  §7.3 Q4 moves it into the first branch.
+- **Part E:** its own branch off `main` once Parts 0 to D have merged (`feature/note-cloud-early-notes`).
 - Crawford opens and merges each PR; the PR body links this spec's sections.
 - The intent file stays. This spec and the plan (`docs/tasks/ROBOT_NOTE_CLOUD.md`) are committed before the first
   task.
@@ -679,6 +681,7 @@ His answers to this spec's first open questions, the same day:
 | A silence inside a run of identical notes | A rest breaks the run (§1.3) |
 | Merging Parts 0 to D before Part E | Yes |
 | The order against Stage 3 | Pause this; finish backlog 82 and 83; then come back (§6) |
+| Part E's place, once 82 and 83 had closed and nothing made it wait | Last, as written: its own branch after Parts 0 to D merge. The first cloud ships on trigger-time events (§1.4), and Gate 4 re-measures the cost with early notes on (§5.4) |
 
 ### 7.2 Assumptions (defaults the plan builds on; each re-pinned at a gate)
 
@@ -731,8 +734,8 @@ His answers to this spec's first open questions, the same day:
 
 ### 7.3 Open questions
 
-Q4 is for Crawford before planning, since it sets the order of the tasks. The others are answered at a gate, with
-something to look at or a number in hand.
+None blocks planning. Q1 to Q3 are answered at a gate, with something to look at or a number in hand; Q4 and Q5 are
+answered and kept for the record.
 
 - **Q1. What the avatar's clip takes (Gate 3).** With the roll clipped by the avatar's box, "now" and the rows for
   a robot's highest and lowest pitches can fall outside it (§1.8). Whether that reads, and whether the phone band's
@@ -743,12 +746,10 @@ something to look at or a number in hand.
 - **Q3. How much the repeat rule still thins (Gate 2).** With length and rests both counted, only identical notes
   that run straight into each other are dropped. If the cloud reads as too busy at the eye gate, the rule is the
   first thing to look at; the per-robot counts of drawn and dropped notes are the probe.
-- **Q4. Does Part E still wait for its own branch? (before planning)** Crawford agreed to merge Parts 0 to D first
-  while Part E had to wait for 82 and 83. It no longer has to. **Recommended: build Part E's engine half straight
-  after Part A, in the first branch,** for two reasons. Gate 1 would measure the cloud that ships: with early notes
-  a note lives about a fifth longer on the roll, and the spike's 19% was measured with them on, so a Gate 1 taken
-  without them flatters the cost. And Gate 2 would show Crawford the look he approved, notes entering at the roll's
-  edge, not the stopgap of §1.4 with an empty right-hand fan. The other choice is the order as written: a smaller
-  first PR, and the stopgap look judged first. Either way Part E keeps its own tests and its forecast run.
+- **Q4. Does Part E still wait for its own branch? Answered: yes, it is last** (Crawford, 2026-11-12). The
+  recommendation put to him was to build its engine half straight after Part A, so that Gate 1 measured the cloud
+  that ships and Gate 2 showed the approved look. He kept the order as written. What follows from that: Gates 1 and
+  2 judge the stopgap of §1.4, with an empty right-hand fan and fewer notes alive at once, and Gate 4 takes the cost
+  run again with early notes on (§5.4).
 - **Q5. What 82 and 83 left: answered.** The palette is a pure function of the measure and the steps sit on the bar
   (§1.1), which is what §1.9 hoped for; it is rewritten on that and nothing in Parts A to D changed.
