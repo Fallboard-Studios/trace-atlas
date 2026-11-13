@@ -9,8 +9,9 @@ branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over
 and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits his review. Phase 3 (Tasks 10 to
 16) built 2026-11-12; Checkpoint: Cloud's checks pass and its look awaits him (hard reload first: `workLoop.ts`
 changed). Phase 4 (Tasks 18 to 25) built 2026-11-13 on Crawford's word ("implement phase 4"), ahead of Task 17 and
-Gate 1, which are still to run; Checkpoint: Attention's checks pass. Next: Task 17, the cost run, then Gate 1 and
-Gate 2.
+Gate 1, which are still to run; Checkpoint: Attention's checks pass. Phase 5 (Tasks 27 and 28) built 2026-11-13 on
+Crawford's word, ahead of Gates 1 and 2; Checkpoint: Avatar's checks pass, and Gate 3 (his look at the desk avatar)
+is next to it. Still to run: Task 17 (the cost run), Gate 1, Gate 2 and Task 26.
 
 ## Overview
 
@@ -936,7 +937,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 ### Phase 5: The detail avatar (Part D)
 
-- [ ] **Task 27: `RobotScreen.tsx` — the desk avatar's box, its layers and its fit**
+- [x] **Task 27: `RobotScreen.tsx` — the desk avatar's box, its layers and its fit**
 
   **Description:** `AvatarGem` takes a `cloud` flag, set by the desk column and not by the phone band (spec §1.8).
   With it, the `<svg>` sits in a positioned box (`data-note-cloud`, the avatar's present size, `overflow: hidden`)
@@ -944,6 +945,16 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   (`gemMotionViewBox`), which CSS scales and centres to match the svg's own fit. The box measures itself with a
   ResizeObserver, as `useStageFit` does, writes the fit as custom properties, and keeps the scale (rendered pixels
   per viewBox unit) where the hook's `pxPerUnit` reads it. The avatar's box does not change size.
+
+  **As built:** each layer hangs in its own frame (`.robot-screen__note-frame--behind` / `--front`), not in one
+  viewBox-sized div. A frame is a zero-size origin at the gem canvas's (0, 0), moved and scaled by CSS from
+  `--note-fit-x`, `--note-fit-y` and `--note-fit-scale`. It is needed because the hook writes a layer's `left` and
+  `top` in canvas units, which the layer's own transform would not scale. Two frames, not one, so the behind frame
+  sits under the svg and the front frame over it inside the box (`isolation: isolate`). So the layers are not
+  direct children of the box, and Task 28 changed the hook's lookup to match. The box also sets `--note-dim: 1`
+  inline (spec §1.8). With the cloud off (reduced motion, `?notes=off`) the avatar is the bare svg, with no box.
+  Finding: no seed's motion canvas is padded today (2,000 seeds probed, every `gemMotionViewBox` starts `0 0`), so
+  the fit's viewBox-origin term is tested with a spied, padded viewBox.
 
   **Proof:** RED test — `src/components/panels/screen/screens/RobotScreen.test.tsx`. The clip and the fit are CSS
   and are seen at Gate 3.
@@ -966,12 +977,20 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 28: `RobotBody.tsx` — the avatar's cloud**
+- [x] **Task 28: `RobotBody.tsx` — the avatar's cloud**
 
   **Description:** A body with `motion === 'avatar'` calls the hook too: strength `NOTE_PEAK_STRENGTH` (0.75, revised 2026-11-13) and `--note-dim` 1 whatever the
   battery or the attention, the roll at 2.5 times the robot at the avatar's scale of 1 (`ignoreScale`), `pxPerUnit`
   from Task 27, timelines `note-belt-avatar-<id>` and `note-strength-avatar-<id>` under `'world'` (spec §1.8, §7.2
   A9). It subscribes to the same model, so its notes are the world's notes. It never clears the model.
+
+  **As built:** the avatar's `pxPerUnit` reads `--note-fit-scale` from its box's inline style when a note arrives
+  (before the first fit it is not a number, and `noteThickness` leaves the share alone). `useNoteCloud` finds a
+  layer anywhere in its box (`.note-layer--front`, no longer `:scope > …`). The tests live in
+  `RobotScreen.test.tsx` only; `RobotBody.test.tsx` is unchanged. The screen's `deckCamera` mock became partial (a
+  world body reads the followed robot). The muted case drives the real `triggerWithCap` for a muted robot: it
+  refuses and the avatar stays empty, but jsdom has no audio context, so the case cannot tell the mute gate from a
+  missing voice. The gate itself is `AudioEngine.test.ts`'s "refused notes emit nothing" (Task 3).
 
   **Proof:** RED test — `src/components/panels/screen/screens/RobotScreen.test.tsx`.
 
@@ -996,7 +1015,9 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   **Estimated scope:** S
 
 ### Checkpoint: Avatar
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. 2026-11-13: 361 files, 14,216
+      passed, 2 skipped (skipped before this branch), 0 failed; lint has the 4 old warnings only; the build's
+      chunk-size warning predates this branch.
 
 ### Gate 3: the avatar (spec §5.4)
 - [ ] Crawford looks at the desk avatar with the roll clipped by its box: where "now" falls, and whether the top and
