@@ -8,7 +8,9 @@ branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over
 **Status:** building. Phase 1 (Tasks 1 to 3) built 2026-11-12; Checkpoint: Events awaits Crawford's look at the bob
 and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits his review. Phase 3 (Tasks 10 to
 16) built 2026-11-12; Checkpoint: Cloud's checks pass and its look awaits him (hard reload first: `workLoop.ts`
-changed). Next: Task 17, the cost run, then Gate 1.
+changed). Phase 4 (Tasks 18 to 25) built 2026-11-13 on Crawford's word ("implement phase 4"), ahead of Task 17 and
+Gate 1, which are still to run; Checkpoint: Attention's checks pass. Next: Task 17, the cost run, then Gate 1 and
+Gate 2.
 
 ## Overview
 
@@ -659,7 +661,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 ### Phase 4: Attention (Part C)
 
-- [ ] **Task 18: `noteStrength.ts` — strength from the battery and the wake**
+- [x] **Task 18: `noteStrength.ts` — strength from the battery and the wake**
 
   **Description:** New pure `noteStrength(batteryLevel, woken)` (spec §1.7, §4): 1 down to `NOTE_BATTERY_FULL` (50),
   then a straight line to 0 at a flat battery; 1 whenever woken.
@@ -681,13 +683,18 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** XS
 
-- [ ] **Task 19: `robotAttention.ts` — the pointed-at robot, the singled-out robot, the woken set**
+- [x] **Task 19: `robotAttention.ts` — the pointed-at robot, the singled-out robot, the woken set**
 
   **Description:** New `src/systems/robotAttention.ts`, runtime module state shaped like `deckCamera.ts`'s
   followed-robot pair (spec §1.7): `setPointedRobot(id | null)`, `getSingledOutRobotId()` (the pointed-at robot,
   else `getFollowedRobotId()`, else null) with `subscribeSingledOut`, and `wakeRobotNotes`, `sleepRobotNotes`,
   `isRobotNotesWoken` with `subscribeWokenNotes`. Pointing at a robot wakes it; the camera following one does not.
   It names robots and never reaches the engine.
+
+  **As built:** two additions. `getPointedRobotId()`, so a robot's unmount clears the pointer only if it is still
+  that robot (Task 20). And the camera's subscription is held only while the singled-out id has a subscriber; the
+  first subscriber takes the current id as the last one told, so a camera change made while nobody listened is not
+  reported twice.
 
   **Proof:** RED test — `src/systems/robotAttention.test.ts` (new), with `deckCamera`'s pair mocked.
 
@@ -709,7 +716,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 20: `Robot.tsx` — the pointer sets the pointed-at robot**
+- [x] **Task 20: `Robot.tsx` — the pointer sets the pointed-at robot**
 
   **Description:** `onPointerEnter` and `onPointerLeave` on `g.robot` call `setPointedRobot(robotId)` and
   `setPointedRobot(null)`, whatever the pointer type (spec §7.2 A5). The unmount clears it if it is still this robot.
@@ -732,12 +739,17 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** XS
 
-- [ ] **Task 21: `RobotBody.tsx` — the singled-out robot's cloud is undimmed**
+- [x] **Task 21: `RobotBody.tsx` — the singled-out robot's cloud is undimmed**
 
   **Description:** A world body is singled out while it is the singled-out id (`useSyncExternalStore`), or selected
   (`uiStore.selectedRobotId`), or its `audioMode` is `solo` or `highlight` (spec §1.7). It writes `--note-dim` on
   its `data-note-cloud` box: 1 when singled out, `NOTE_DIM` (0.35) when not. Both masks read it, so a change
   rebuilds nothing. A card and an avatar subscribe to nothing.
+
+  **As built:** the snapshot is a boolean about this robot (`getSingledOutRobotId() === robot.id`), and the
+  selection selector likewise, so the pointer moving between two other robots re-renders no world body; a case
+  pins it (an id snapshot fails it). `RobotBody.test.tsx` mocks `deckCamera`'s pair (the rest of the module real)
+  so a case can follow a robot.
 
   **Proof:** RED test — `src/components/robot/RobotBody.test.tsx`.
 
@@ -759,12 +771,17 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 22: `useNoteCloud.ts` — strength is the cloud's opacity, eased**
+- [x] **Task 22: `useNoteCloud.ts` — strength is the cloud's opacity, eased**
 
   **Description:** The hook takes `strength` (0 to 1). A change eases both wrappers' opacity to it on a tween
   registered as `note-strength-<context>-<robotId>` under `'world'`: a rise over `NOTE_WAKE_SECONDS` (0.3), a fall
   over `NOTE_EBB_SECONDS` (1), never a step (spec §1.7). At a strength of 0 no note is placed (the run and the range
   are still counted). Killed on unmount.
+
+  **As built:** the layers mount at their strength with no fade and no strength timeline; the first change
+  registers one. Rise or fall is judged against the layers' opacity at the moment of the change, not the last
+  target, so a change mid-fade eases on from where the fade had got to. The ease is `sine.inOut` (the spec names
+  none). `RobotBody` passed 1 until Task 23.
 
   **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx`.
 
@@ -786,11 +803,16 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 23: `RobotBody.tsx` — the battery thins the cloud, attention wakes it, the station ends the wake**
+- [x] **Task 23: `RobotBody.tsx` — the battery thins the cloud, attention wakes it, the station ends the wake**
 
   **Description:** A world body passes `noteStrength(robot.batteryLevel, woken)` to the hook, with `woken` read
   from `robotAttention` (`useSyncExternalStore`). Being selected wakes the robot; `robot.activity === 'charging'`
   sleeps it (spec §1.7). The Deck camera following it changes nothing here.
+
+  **As built:** the global gsap mock runs no tween, so the cases read the strength the body hands `useNoteCloud`
+  (a spy that calls through) rather than the wrappers' eased opacity; the easing is Task 22's, tested with real
+  GSAP. The world body's unmount sleeps its robot: the Architecture Decisions put that on the world cloud's unmount,
+  and it sits in `RobotBody` beside the wake and the sleep instead, so the hook never imports `robotAttention`.
 
   **Proof:** RED test — `src/components/robot/RobotBody.test.tsx`.
 
@@ -812,11 +834,19 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 24: `useNoteCloud.ts` — an edit that re-sizes the roll never pops**
+- [x] **Task 24: `useNoteCloud.ts` — an edit that re-sizes the roll never pops**
 
   **Description:** A gem or body-scale change no longer rebuilds at once. On the strength timeline the wrappers fade
   out over `NOTE_WAKE_SECONDS`, the roll is rebuilt at the new size (the notes in flight are dropped), and they fade
   back to the current strength (spec §1.5, §7.2 A6). A colour edit still rebuilds nothing.
+
+  **As built:** the main effect is no longer keyed on the gem and the scale; it keeps the latest size in a ref and
+  hands a rebuild to the re-size effect, whose timeline calls it between the fade out and the fade in. The rebuild
+  drops the notes and makes a new belt tween from the left of the new roll (as the old re-run did). A strength
+  change before the rebuild does not cut the re-size short: the fade in reads the strength when it starts. A cloud
+  that is not built when the size changes takes the latest size when it is. Three Task 13/14 cases that pinned the
+  instant rebuild now advance the strength timeline past the fade first; the instant-rebuild case itself is replaced
+  by this task's.
 
   **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx`.
 
@@ -837,7 +867,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 25: `FollowedRobotMarker.tsx` — the marker frames the robot under the pointer**
+- [x] **Task 25: `FollowedRobotMarker.tsx` — the marker frames the robot under the pointer**
 
   **Description:** The marker reads `getSingledOutRobotId` / `subscribeSingledOut` in place of the camera's pair:
   the pointed-at robot when there is one, else the followed robot, else nothing (spec §1.7). So on a desktop the
@@ -862,8 +892,11 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   **Estimated scope:** XS
 
 ### Checkpoint: Attention
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] No store gained state: the pointed-at robot, the woken set and every note are module or DOM state.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. 2026-11-13: 361 files, 14,194
+      passed, 2 skipped (skipped before this branch), 0 failed; lint has the 4 old warnings only; the build's
+      chunk-size warnings predate this branch.
+- [x] No store gained state: the pointed-at robot, the woken set and every note are module or DOM state. Phase 4
+      touches nothing in `src/stores` or `src/types`.
 
 ### Gate 2: Crawford's eye and ear (spec §5.4)
 - [ ] The look on his desktop and on a phone: faint clouds, full strength on the robot he points at or selects, the
