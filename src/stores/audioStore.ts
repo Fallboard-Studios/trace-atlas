@@ -741,7 +741,8 @@ export const useAudioStore = create<AudioStore>((set, get) => ({
   // "initialize audio only from an explicit user gesture" (CLAUDE.md) and
   // throwing outright in headless/test environments. AudioEngine.start()
   // (Task 10) is the only safe point to prime the bank and its links, since
-  // it runs after Tone.start()/transport.start() succeed.
+  // it runs after Tone.start() succeeds (a running AudioContext; the transport
+  // starts later, docs/specs/ONE_MUSIC_CLOCK.md §4.5).
   regenerateLfoBankFromSeed: (attenuationStyleId, attenuationStyleName) => {
     const lfoBank = generateLfoBankSettings(attenuationStyleId, attenuationStyleName);
     set({ lfoBank });

@@ -730,15 +730,13 @@ export const AudioEngine = {
 
     const transport = Tone.getTransport();
     _transport = transport;
-    // Always start audio transport at 0 so music begins at measure 0 regardless
-    // of the world time. Do NOT realign transport.position with store.
-    if (transport.state !== 'started') {
-      await transport.start();
-    }
+    // The store's tempo, read with the seeded state below; the transport takes it before it starts.
+    let storeBpm: number | undefined;
 
     // Prime the LFO Bank from the current seeded state and link every global target with its
     // stored link (docs/specs/LFO_BANK.md) — this is the one point guaranteed to run after
-    // Tone.start()/transport.start() have succeeded, so it's the only safe place to construct the
+    // Tone.start() has succeeded (a running AudioContext; nothing here needs a started transport, see
+    // docs/tasks/ONE_MUSIC_CLOCK.md Task 1), so it's the only safe place to construct the
     // underlying Tone.LFO lane nodes. AS-sync's regenerateLfoBankFromSeed/
     // regenerateGlobalLfoLinksFromSeed (audioStore.ts) are deliberately data-only for exactly this
     // reason — they run before any user gesture.
@@ -749,6 +747,7 @@ export const AudioEngine = {
     try {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
       const { globalAudio, lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
+      storeBpm = bpm;
       // buildGlobalFxChain() (above) just constructed every FX node from its
       // own hardcoded literal defaults — not whatever's already seeded in
       // globalAudio. regenerateGlobalAudioFromSeed's own push (AS-sync,
@@ -786,8 +785,23 @@ export const AudioEngine = {
       devWarn('[AudioEngine] priming robot LFO links failed', err);
     }
 
+    // Register, set the tempo, then start (docs/specs/ONE_MUSIC_CLOCK.md §4.5): both 16n ticks start on the grid at
+    // tick 0, so the first firing is measure 0, step 1, at the world's tempo from the first sixteenth. setBPM cannot
+    // set it here (it waits for `initialized`), so the tempo is written directly.
     initBeatClock(transport);
     startMelodyPlayback();
+    if (storeBpm !== undefined) {
+      try {
+        transport.bpm.value = storeBpm;
+      } catch (err) {
+        devWarn('[AudioEngine] setting the tempo before start failed', err);
+      }
+    }
+    // Always start audio transport at 0 so music begins at measure 0 regardless
+    // of the world time. Do NOT realign transport.position with store.
+    if (transport.state !== 'started') {
+      transport.start();
+    }
 
     initialized = true;
   },
@@ -1593,7 +1607,7 @@ export const AudioEngine = {
 
   /**
    * Power is a pause (docs/specs/OFF_SCREEN.md assumption 2): suspend the AudioContext itself, so the transport, the
-   * BeatClock's 16n tick (and with it the battery lifecycle, the harmony and the swells), every LFO, every sounding
+   * BeatClock's 16n tick (and with it the battery lifecycle), the melody and swell ticks, every LFO, every sounding
    * voice and every tail freeze together — and resume() continues them all from where they stopped, mid-note. The
    * transport is never told anything. A no-op before start(); a rejected suspend (the context already closed) is logged.
    */

@@ -2951,6 +2951,87 @@ describe('AudioEngine - Transport methods & Master Volume (Issue #220)', () => {
     });
   });
 
+  // ── start(): register, set the tempo, then start (docs/specs/ONE_MUSIC_CLOCK.md §4.5, Task 9) ── //
+  describe('start() registers the ticks and sets the tempo before it starts the transport', () => {
+    /** A transport in `state` that records its tempo at the moment start() is first called on it. */
+    async function transportFor(state: 'stopped' | 'started') {
+      const Tone = await import('tone');
+      const transport = {
+        state,
+        start: vi.fn(),
+        pause: vi.fn(),
+        stop: vi.fn(),
+        cancel: vi.fn(),
+        clear: vi.fn(),
+        scheduleOnce: vi.fn(),
+        scheduleRepeat: vi.fn(() => 1),
+        bpm: { value: 120 },
+        bpmAtStart: undefined as number | undefined,
+      };
+      transport.start.mockImplementation(() => {
+        transport.bpmAtStart ??= transport.bpm.value;
+        return transport;
+      });
+      (Tone.getTransport as unknown as AnyMock).mockReturnValueOnce(transport);
+      return transport;
+    }
+
+    /** The order of the first call of a mock, for comparing against another's. */
+    const firstOrder = (fn: unknown) => (fn as AnyMock).mock.invocationCallOrder[0];
+
+    it('calls initBeatClock before transport.start()', async () => {
+      const transport = await transportFor('stopped');
+      const { AudioEngine } = await import('./AudioEngine');
+      const beatClock = await import('./beatClock');
+      vi.mocked(beatClock.initBeatClock).mockClear();
+
+      await AudioEngine.start();
+
+      expect(transport.start).toHaveBeenCalledTimes(1);
+      expect(firstOrder(beatClock.initBeatClock)).toBeLessThan(firstOrder(transport.start));
+      AudioEngine.killAll();
+    });
+
+    it('registers the melody tick (16n, start 0) before transport.start()', async () => {
+      const transport = await transportFor('stopped');
+      const { AudioEngine } = await import('./AudioEngine');
+
+      await AudioEngine.start();
+
+      const melodyTick = transport.scheduleRepeat.mock.calls.findIndex((c: unknown[]) => c[1] === '16n' && c[2] === 0);
+      expect(melodyTick).toBeGreaterThanOrEqual(0);
+      expect(transport.scheduleRepeat.mock.invocationCallOrder[melodyTick]).toBeLessThan(firstOrder(transport.start));
+      AudioEngine.killAll();
+    });
+
+    it('starts the transport at the store\'s tempo (97 BPM), not Tone\'s default 120', async () => {
+      const transport = await transportFor('stopped');
+      const { AudioEngine } = await import('./AudioEngine');
+      const { useAudioStore } = await import('../stores/audioStore');
+      useAudioStore.setState({ bpm: 97 });
+
+      await AudioEngine.start();
+
+      expect(transport.start).toHaveBeenCalledTimes(1);
+      expect(transport.bpmAtStart).toBe(97);
+      AudioEngine.killAll();
+    });
+
+    it('a transport already started is not started again, and the ticks still register', async () => {
+      const transport = await transportFor('started');
+      const { AudioEngine } = await import('./AudioEngine');
+      const beatClock = await import('./beatClock');
+      vi.mocked(beatClock.initBeatClock).mockClear();
+
+      await AudioEngine.start();
+
+      expect(transport.start).not.toHaveBeenCalled();
+      expect(beatClock.initBeatClock).toHaveBeenCalledWith(transport);
+      expect(transport.scheduleRepeat.mock.calls.some((c: unknown[]) => c[1] === '16n' && c[2] === 0)).toBe(true);
+      AudioEngine.killAll();
+    });
+  });
+
   // ── setMasterVolume ────────────────────────────────────── //
   describe('setMasterVolume()', () => {
     it('updates the master gain node value', async () => {

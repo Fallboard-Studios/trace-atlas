@@ -403,7 +403,7 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** XS
 
-- [ ] **Task 9: `AudioEngine.start` — register the ticks, set the tempo, then start the transport**
+- [x] **Task 9: `AudioEngine.start` — register the ticks, set the tempo, then start the transport**
 
   **Description:** Move `transport.start()` to after `initBeatClock` and `startMelodyPlayback`, and set
   `transport.bpm.value` from the store's `bpm` (already read in `start`) before it (spec §4.5, §9 Q1). Everything else
@@ -414,14 +414,27 @@ Task 6 and do not depend on each other.
   called before `transport.start`, and the tempo is set before it.
 
   **Acceptance criteria:**
-  - [ ] By call order, `initBeatClock` and the melody tick's registration both precede `transport.start()`.
-  - [ ] `transport.bpm.value` equals the store's `bpm` before `transport.start()` is called.
-  - [ ] A transport already started (a second `start` after a pause path) is not started again, as now.
-  - [ ] Mutation: put `transport.start()` back before the registrations fails the order test.
+  - [x] By call order, `initBeatClock` and the melody tick's registration both precede `transport.start()`.
+  - [x] `transport.bpm.value` equals the store's `bpm` before `transport.start()` is called.
+  - [x] A transport already started (a second `start` after a pause path) is not started again, as now.
+  - [x] Mutation: put `transport.start()` back before the registrations fails the order test.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Done 2026-11-12.** `start` reads the store's `bpm` with the seeded state it already reads, then, after
+  `initBeatClock` and `startMelodyPlayback`, writes `transport.bpm.value` (in a try, as `setBPM` does) and starts
+  the transport if it is not started. The tempo is written whether or not the transport was already started. The
+  `await` on `transport.start()` went (Task 1: it returns the transport, not a promise). The test transport records
+  its tempo at its first `start` call. RED: the two order cases (start at call 142 and 304, before the registrations
+  at 161 and 324) and the tempo case (120) failed; the already-started case passed, as a kept behaviour should.
+  Mutants: `transport.start()` moved back before the registrations killed 3 (both order cases, and the tempo case
+  once the recorder kept the first call's tempo: the mock never flips to `'started'`, so the mutant started it twice
+  and the first version of the recorder read the second); the tempo write dropped killed 1. The stale comments Task 1
+  named are reworded: the LFO priming's in `AudioEngine.ts` and `regenerateLfoBankFromSeed`'s in `audioStore.ts`
+  name a running context, not a started transport. `AudioEngine.pause()`'s doc comment no longer lists "the
+  harmony" (missed in Task 6). AudioEngine and audioStore tests: 558 passed.
 
   **Dependencies:** Tasks 1, 3, 5, 6.
 
