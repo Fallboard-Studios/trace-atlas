@@ -242,15 +242,18 @@ nothing.
 - **Mounting.** `AvatarGem` gains a positioned box that takes the avatar's present size and holds the behind layer,
   the `<svg>` and the front layer. The avatar's box does not change size (Crawford's rule: a control holds its
   size).
-- **The roll keeps its size and the box cuts it off** (Crawford, 2026-11-12: "the note animation can be cut off as
-  it leaves the viewing area"). The robot is drawn as it is today, the roll is 2.5 times the robot as in the world,
-  and the avatar's box clips whatever falls outside it. No shrinking, and no second set of numbers.
-- **What the clip takes, to be seen at Gate 3.** The robot is fitted to its box, so the box shows roughly the middle
-  two fifths of the roll in the direction the robot fits tightest. Two things follow. "Now" sits about a fifth of
-  the robot's width outside its right edge, so where the box has no room there a note is first seen after it has
-  sounded, already cooling, and the white flash is off the edge. And the rows for a robot's highest and lowest
-  pitches lie above and below the box, so those notes are not seen at all. If either reads badly, the remedy is an
-  avatar-only "now" or roll size, and that is Crawford's call at the gate (§7.3 Q1).
+- **The roll keeps its size and spills past the box; the console pane cuts it off** (Crawford, 2026-11-12: "the
+  note animation can be cut off as it leaves the viewing area"; Gate 3, 2026-11-13, after a look at both: the
+  spill). The robot is drawn as it is today, and the roll is 2.5 times the robot as in the world. No shrinking,
+  and no second set of numbers. The avatar's box does not clip: the cloud draws over the name, the wells and the
+  controls beside the column (it takes no clicks), and only the console pane's edge cuts it, above and to the left
+  of the gem. So the column does not clip either: the gem sits at its top and does not scroll, and the details
+  under it (the name, the wells, the battery, the company radio) scroll on their own. The gem is still the first
+  thing to give way on a short window, down to its 120 px before the details scroll.
+- **What the clip would have taken** (the plan before Gate 3). Clipped at the box, the box showed roughly the
+  middle two fifths of the roll in the direction the robot fits tightest: "now" fell outside the box's right edge
+  where it had no room, and the rows for a robot's highest and lowest pitches fell above and below it. The spill
+  shows both; the pane's edge still takes the rows above the gem and the left-hand fan.
 - **The desk column's avatar shows the cloud; the phone band's 72 × 58 px gem does not** (default, §7.3 Q1).
 - **The 4-pixel floor** uses the avatar's own scale (rendered pixels per viewBox unit), not the stage's.
 
@@ -569,8 +572,8 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
 **Part D**
 - `RobotScreen.test.tsx`: the desk avatar's box holds a note layer either side of its `<svg>`; an event for the
   robot on screen places a bar there at full strength whatever its battery; the phone band's gem has no note layers
-  (default, §7.3 Q1); the avatar and the world place the same note in the same layer. The clip at the box's edge is
-  CSS and gets a look, not a test.
+  (default, §7.3 Q1); the avatar and the world place the same note in the same layer. The spill past the box and
+  the details' own scroller are CSS and get a look, not a test.
 
 **Part E**
 - `noteEvents.test.ts`: the preview asked for is read back; it is 0 until asked.
@@ -617,6 +620,7 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
   guardrail sentence its wording.
 - **Gate 3, the avatar** — after Part D: his look at the desk avatar with the roll clipped by its box (§1.8: where
   "now" falls, and the top and bottom rows), and his answer to §7.3 Q1. Parts 0 to D merge when it passes.
+  **Passed 2026-11-13:** he looked at the clip and at the spill, and chose the spill (§1.8).
 - **Gate 4, Part E** — its own eye gate is the note entering at the roll's edge, and §5.3's forecast run. §5.3's
   headless cost run is taken again here, against Gate 1's figures: with early notes a note is on the roll about a
   fifth longer than in the cloud Gate 1 measured, and the spike's 19% was measured with them on.
@@ -680,7 +684,7 @@ His answers to this spec's first open questions, the same day:
 
 | Question | Answer |
 |---|---|
-| The avatar's sizing | "The note animation can be cut off as it leaves the viewing area": the roll keeps its 2.5 times and the avatar's box clips it (§1.8) |
+| The avatar's sizing | "The note animation can be cut off as it leaves the viewing area": the roll keeps its 2.5 times. Planned as clipped by the avatar's box; at Gate 3 (2026-11-13) he chose the spill, cut only by the console pane's edge (§1.8) |
 | The cost target | "I'm not really sure." The 10% stays a working figure; he sets the line at Gate 1 with the numbers in hand (§5.3) |
 | A silence inside a run of identical notes | A rest breaks the run (§1.3) |
 | Merging Parts 0 to D before Part E | Yes |
@@ -744,7 +748,8 @@ answered and kept for the record.
 
 - **Q1. What the avatar's clip takes (Gate 3).** With the roll clipped by the avatar's box, "now" and the rows for
   a robot's highest and lowest pitches can fall outside it (§1.8). Whether that reads, and whether the phone band's
-  small gem should show a cloud at all (default: no).
+  small gem should show a cloud at all (default: no). **Answered 2026-11-13:** no clip at the box; the cloud
+  spills and only the console pane cuts it (§1.8). The phone band keeps the default, no cloud.
 - **Q2. The cost line (Gate 1).** The working figure is main-thread time within 10% of cloud-off; the spike
   measured about 19% at the approved settings. Crawford sets the line when the build's own numbers are in front of
   him.

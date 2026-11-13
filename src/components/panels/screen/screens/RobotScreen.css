@@ -78,12 +78,39 @@
 }
 
 /* The note cloud's box (docs/specs/ROBOT_NOTE_CLOUD.md §1.8): it takes the avatar's place and size, and the svg
-   fills it as before. It clips the roll (2.5 times the robot) at its edge, and isolates the frames' z-indexes so the
-   behind frame draws over the column and under the svg. */
+   fills it as before. It does not clip the roll (2.5 times the robot): the cloud spills over the details below and the
+   controls beside, taking no clicks, and only the console pane's edge cuts it (Crawford, Gate 3, 2026-11-13). It
+   isolates the frames' z-indexes so the behind frame draws over the column and under the svg. */
 .robot-screen__gem-box {
   position: relative;
   isolation: isolate;
-  overflow: hidden;
+}
+
+/* The robot's column holds the cloud, so it does not scroll or clip; the details under the gem scroll instead, with
+   the scrollbar's 8 px moved onto them. The gem's shrink weight keeps it the first thing to give way: it is down to
+   its 120 px before the details shrink and scroll. (The company screen's column scrolls as a whole, as before.) */
+.robot-screen--desk > .robot-screen__avatar-column--cloud {
+  overflow: visible;
+  padding-right: 0;
+}
+
+.robot-screen__avatar-column--cloud > .robot-screen__gem,
+.robot-screen__avatar-column--cloud > .robot-screen__gem-box {
+  flex-shrink: 10000;
+}
+
+.robot-screen__avatar-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+}
+
+.robot-screen--desk .robot-screen__avatar-details {
+  flex: 0 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: var(--spacing-sm);
 }
 
 .robot-screen__avatar-column .robot-screen__gem-box > .robot-screen__gem {

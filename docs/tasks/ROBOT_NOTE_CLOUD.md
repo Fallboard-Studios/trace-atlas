@@ -10,8 +10,8 @@ and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits
 16) built 2026-11-12; Checkpoint: Cloud's checks pass and its look awaits him (hard reload first: `workLoop.ts`
 changed). Phase 4 (Tasks 18 to 25) built 2026-11-13 on Crawford's word ("implement phase 4"), ahead of Task 17 and
 Gate 1, which are still to run; Checkpoint: Attention's checks pass. Phase 5 (Tasks 27 and 28) built 2026-11-13 on
-Crawford's word, ahead of Gates 1 and 2; Checkpoint: Avatar's checks pass, and Gate 3 (his look at the desk avatar)
-is next to it. Still to run: Task 17 (the cost run), Gate 1, Gate 2 and Task 26.
+Crawford's word, ahead of Gates 1 and 2; Checkpoint: Avatar's checks pass, and Gate 3 passed 2026-11-13 with the
+cloud spilling past the avatar's box. Still to run: Task 17 (the cost run), Gate 1, Gate 2 and Task 26.
 
 ## Overview
 
@@ -1020,10 +1020,15 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
       chunk-size warning predates this branch.
 
 ### Gate 3: the avatar (spec §5.4)
-- [ ] Crawford looks at the desk avatar with the roll clipped by its box: where "now" falls, and whether the top and
-      bottom rows are missed (spec §1.8).
-- [ ] His answer to spec §7.3 Q1: the clip as it is, or an avatar-only "now" or roll size; and whether the phone
-      band's gem stays without a cloud.
+- [x] Crawford looks at the desk avatar with the roll clipped by its box: where "now" falls, and whether the top and
+      bottom rows are missed (spec §1.8). 2026-11-13: he looked at the clip, then at the cloud spilling past the
+      box ("i like it").
+- [x] His answer to spec §7.3 Q1: the clip as it is, or an avatar-only "now" or roll size; and whether the phone
+      band's gem stays without a cloud. **The spill:** the box does not clip and only the console pane's edge cuts
+      the cloud. The robot screen's column no longer scrolls as a whole; the gem stays at its top and the details
+      under it (`.robot-screen__avatar-details`) scroll, the gem still shrinking to its 120 px first. The company
+      screen's column is unchanged. The phone band keeps the default, no cloud. CSS and a wrapper: proof by look,
+      no test.
 
 ---
 
@@ -1288,7 +1293,8 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 ## Open Questions
 
-1. **The avatar's clip (spec §7.3 Q1).** **Open** — Crawford at Gate 3, with the avatar in front of him.
+1. **The avatar's clip (spec §7.3 Q1).** **Answered** at Gate 3, 2026-11-13: no clip at the box, the cloud spills
+   and the console pane cuts it; the phone band has no cloud.
 2. **The cost line (spec §7.3 Q2).** **Open** — Crawford at Gate 1, with Task 17's figures.
 3. **How much the repeat rule thins (spec §7.3 Q3).** **Open** — Task 17 records the count; Crawford at Gate 2.
 4. **Part E's place (spec §7.3 Q4).** **Resolved** — last, on its own branch (Crawford, 2026-11-12); Phase 7.

@@ -517,35 +517,37 @@ const RobotAvatarColumn = memo(function RobotAvatarColumn({ robot, localeId }: R
   }, [localeId, robot.id]);
 
   return (
-    <div className="robot-screen__avatar-column">
+    <div className="robot-screen__avatar-column robot-screen__avatar-column--cloud">
       <AvatarGem robot={robot} cloud />
-      <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
-      <div className="robot-screen__meta">
-        {META_FIELDS.map(([field, schema]) => (
-          <div key={field} className="robot-screen__well">
-            <DualLabel {...schema} />
-            <span className="robot-screen__meta-value">
-              {field === 'status' && <ModeLight mode={meta.mode} lit={meta.lit} />}
-              {meta.words[field]}
-            </span>
-          </div>
-        ))}
-        {loadedUnder !== null && (
-          <div className="robot-screen__well">
-            <DualLabel {...LOADED_UNDER_LABELS} />
-            <span className="robot-screen__meta-value">{loadedUnder}</span>
-          </div>
-        )}
+      <div className="robot-screen__avatar-details">
+        <h2 className="robot-screen__name">{robot.name || robot.id}</h2>
+        <div className="robot-screen__meta">
+          {META_FIELDS.map(([field, schema]) => (
+            <div key={field} className="robot-screen__well">
+              <DualLabel {...schema} />
+              <span className="robot-screen__meta-value">
+                {field === 'status' && <ModeLight mode={meta.mode} lit={meta.lit} />}
+                {meta.words[field]}
+              </span>
+            </div>
+          ))}
+          {loadedUnder !== null && (
+            <div className="robot-screen__well">
+              <DualLabel {...LOADED_UNDER_LABELS} />
+              <span className="robot-screen__meta-value">{loadedUnder}</span>
+            </div>
+          )}
+        </div>
+        <SliderLinear
+          schema={BATTERY_READOUT_SCHEMA}
+          value={Math.round(robot.batteryLevel)}
+          onChange={NO_CHANGE}
+          readOnly
+          boxSize={BATTERY_READOUT_BOX_SIZE}
+          gapSize={BATTERY_READOUT_GAP_SIZE}
+        />
+        <RadioButton schema={companyAssignmentSchema} value={robot.companyId ?? FREELANCE_VALUE} onChange={handleCompanyChange} />
       </div>
-      <SliderLinear
-        schema={BATTERY_READOUT_SCHEMA}
-        value={Math.round(robot.batteryLevel)}
-        onChange={NO_CHANGE}
-        readOnly
-        boxSize={BATTERY_READOUT_BOX_SIZE}
-        gapSize={BATTERY_READOUT_GAP_SIZE}
-      />
-      <RadioButton schema={companyAssignmentSchema} value={robot.companyId ?? FREELANCE_VALUE} onChange={handleCompanyChange} />
     </div>
   );
 });
