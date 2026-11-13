@@ -694,7 +694,7 @@ so these tasks revise Tasks 18, 22 and 23.
   **Dependencies:** Gate 1's answer. **Files:** `noteBands.ts`, `noteBands.test.ts` (new); `noteStrength.ts`,
   `noteStrength.test.ts` (removed); `src/constants/index.ts`. **Estimated scope:** XS
 
-- [ ] **Task 17b: `useNoteCloud.ts` — the `placing` switch**
+- [x] **Task 17b: `useNoteCloud.ts` — the `placing` switch**
 
   **Description:** The hook takes `placing` (boolean). While it is false a drawn note places no bar (the model still
   counts it). Turning it false touches nothing on screen: the notes in flight keep moving to the left edge at the
@@ -703,11 +703,16 @@ so these tasks revise Tasks 18, 22 and 23.
 
   **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx`.
 
+  **As built:** `placing` is optional and defaults to true, so the avatar and the existing callers need nothing. It
+  is read through a ref when a note arrives, beside the colour and the pixels per unit. Seven cases, four RED first;
+  a run counted while not placing is honoured, as at strength 0. Mutations: 4 killed (placing ignored, default false,
+  the ref never following the prop, a switch re-running the cloud).
+
   **Acceptance criteria:**
-  - [ ] Placing false: an event places no bar.
-  - [ ] True to false with bars in flight: the bars stay on their belts and the belt keeps moving them; the layers'
+  - [x] Placing false: an event places no bar.
+  - [x] True to false with bars in flight: the bars stay on their belts and the belt keeps moving them; the layers'
         opacity is unchanged.
-  - [ ] False to true: the next event places a bar.
+  - [x] False to true: the next event places a bar.
 
   **Dependencies:** none. **Files:** `useNoteCloud.ts`, `useNoteCloud.test.tsx`. **Estimated scope:** S
 

@@ -56,11 +56,12 @@ interface HarnessProps {
   color?: string;
   px?: number;
   strength?: number;
+  placing?: boolean;
 }
 
-function Harness({ robotId = 'r1', context = 'world', enabled = true, scale = 1, color = '#ff0000', px = 1, strength = 1 }: HarnessProps) {
+function Harness({ robotId = 'r1', context = 'world', enabled = true, scale = 1, color = '#ff0000', px = 1, strength = 1, placing }: HarnessProps) {
   const root = useRef<SVGGElement>(null);
-  useNoteCloud({ root, robotId, context, enabled, gem: GEM, scale, color, pxPerUnit: () => px, strength });
+  useNoteCloud({ root, robotId, context, enabled, gem: GEM, scale, color, pxPerUnit: () => px, strength, placing });
   return (
     <div data-note-cloud="">
       <NoteCloudLayer side="behind" />
@@ -656,6 +657,79 @@ describe('useNoteCloud — strength (Task 22)', () => {
     const { rerender } = render(<Harness enabled={false} strength={1} />);
     rerender(<Harness enabled={false} strength={0.5} />);
     expect(strengthTimeline()).toBeUndefined();
+  });
+});
+
+// ========================================
+// TASK 17a–17c: the battery bands — the placing switch
+// ========================================
+describe('useNoteCloud — the placing switch (Task 17b)', () => {
+  const opacities = (container: HTMLElement) =>
+    [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
+
+  it('places by default', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('while placing is false an event places no bar', () => {
+    const { container } = render(<Harness placing={false} />);
+    emitRobotNote('r1', noteEvent('C4'));
+    emitRobotNote('r1', noteEvent('B3'));
+    expect(allBars(container)).toHaveLength(0);
+  });
+
+  it('turning it false leaves the notes in flight on their belts, moving, at the layers\' strength', () => {
+    const { container, rerender } = render(<Harness strength={0.75} placing />);
+    emitRobotNote('r1', noteEvent('C4'));
+    emitRobotNote('r1', noteEvent('B3'));
+    const [front] = bars(container, 'front');
+    const beltBefore = beltX(container);
+    rerender(<Harness strength={0.75} placing={false} />);
+    expect(allBars(container)).toHaveLength(2);
+    expect(opacities(container)).toEqual([0.75, 0.75]);
+    expect(getTimeline('note-strength-world-r1')).toBeUndefined();
+    advance(1);
+    expect(beltX(container)).toBeLessThan(beltBefore);
+    expect(front.isConnected).toBe(true);
+    emitRobotNote('r1', noteEvent('D4'));
+    expect(allBars(container)).toHaveLength(2);
+  });
+
+  it('the notes in flight still leave at the left edge, and the cloud goes idle', () => {
+    const { container, rerender } = render(<Harness placing />);
+    emitRobotNote('r1', noteEvent('C4'));
+    rerender(<Harness placing={false} />);
+    advance(NOTE_CROSSING_SECONDS + 1);
+    expect(allBars(container)).toHaveLength(0);
+    for (const layer of container.querySelectorAll<HTMLElement>('.note-layer')) expect(layer.style.display).toBe('none');
+  });
+
+  it('turning it true again places the next note', () => {
+    const { container, rerender } = render(<Harness placing={false} />);
+    emitRobotNote('r1', noteEvent('C4'));
+    rerender(<Harness placing />);
+    emitRobotNote('r1', noteEvent('D4'));
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('a run counted while not placing is honoured: the second of the run is still a repeat', () => {
+    const { container, rerender } = render(<Harness placing={false} />);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 400, note: 'C4' });
+    rerender(<Harness placing />);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 400.25, note: 'C4' });
+    expect(allBars(container)).toHaveLength(0);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 400.5, note: 'C4' });
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('a switch re-runs nothing: the belt is the same timeline before and after', () => {
+    const { rerender } = render(<Harness placing />);
+    const before = belt();
+    rerender(<Harness placing={false} />);
+    rerender(<Harness placing />);
+    expect(belt()).toBe(before);
   });
 });
 

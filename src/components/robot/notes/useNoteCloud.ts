@@ -55,6 +55,10 @@ export interface UseNoteCloudOptions {
   /** How strongly the whole cloud shows, 0 to 1 (§1.7, noteStrength): the layers' opacity, eased to on a change. At
    *  0 no note is placed, though the model still counts it. */
   strength: number;
+  /** Whether a drawn note is placed (§1.7, the battery bands; default true). While false no bar is placed, though the
+   *  model still counts the note; turning it false leaves the notes in flight to finish their crossing. Read when a
+   *  note arrives: a switch starts nothing and re-runs nothing. */
+  placing?: boolean;
 }
 
 type Side = 'front' | 'behind';
@@ -94,13 +98,15 @@ function hotLevel(since: number, duration: number): number {
 // ========================================
 // HOOK
 // ========================================
-export function useNoteCloud({ root, robotId, context, enabled, gem, scale, color, pxPerUnit, strength }: UseNoteCloudOptions): void {
+export function useNoteCloud({ root, robotId, context, enabled, gem, scale, color, pxPerUnit, strength, placing = true }: UseNoteCloudOptions): void {
   const reducedMotion = prefersReducedMotion();
   const colorRef = useRef(color);
   const pxPerUnitRef = useRef(pxPerUnit);
+  const placingRef = useRef(placing);
   useLayoutEffect(() => {
     colorRef.current = color;
     pxPerUnitRef.current = pxPerUnit;
+    placingRef.current = placing;
   });
   // The strength the layers are at or easing to, and the two wrappers while the roll is built (null when it is not).
   const strengthRef = useRef(strength);
@@ -261,7 +267,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
 
     const unsubscribe = subscribeDrawnNotes(robotId, (note, event) => {
       // The model has counted it already (the run and the range), drawn or not.
-      if (document.hidden || getWorldState() !== 'running' || strengthRef.current === 0) return;
+      if (document.hidden || getWorldState() !== 'running' || strengthRef.current === 0 || !placingRef.current) return;
       fit();
       const length = noteLength(note.duration, roll.w, thickness);
       const lead = Math.max(0, event.lead);
