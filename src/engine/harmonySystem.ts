@@ -49,6 +49,15 @@ let scheduleId: string | null = null;
 // ========================================
 
 /**
+ * The palette a measure plays: entry floor(measure / MEASURES_PER_PALETTE_ENTRY) % HARMONY_PALETTES.length, as a copy.
+ * Worked out from the measure and the table, nothing remembered, so a note reads the chord of the measure it sounds
+ * in (docs/specs/ONE_MUSIC_CLOCK.md §4.3).
+ */
+export function paletteForMeasure(measure: number): string[] {
+  return [...HARMONY_PALETTES[Math.floor(measure / MEASURES_PER_PALETTE_ENTRY) % HARMONY_PALETTES.length]];
+}
+
+/**
  * Returns a copy of the current 8-note palette.
  * Safe for iteration without mutation risk.
  */

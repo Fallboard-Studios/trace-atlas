@@ -222,7 +222,7 @@ Task 6 and do not depend on each other.
 
 ### Phase 3: The consumers move onto the position
 
-- [ ] **Task 4: `harmonySystem.ts` — `paletteForMeasure`**
+- [x] **Task 4: `harmonySystem.ts` — `paletteForMeasure`**
 
   **Description:** Add `paletteForMeasure(measure)` (spec §4.3) beside the existing exports, which stay until Task 7.
   No caller yet.
@@ -230,14 +230,20 @@ Task 6 and do not depend on each other.
   **Proof:** RED test — `src/engine/harmonySystem.test.ts`: measures 0 to 25 give entries `floor(m / 2) % 12`.
 
   **Acceptance criteria:**
-  - [ ] Measures 0 and 1 give entry 0, 2 and 3 entry 1, 22 and 23 entry 11, 24 entry 0.
-  - [ ] It returns a copy: mutating the result leaves the next call's unchanged.
-  - [ ] Mutation: `/ MEASURES_PER_PALETTE_ENTRY` dropped fails the measure-1 case; `% HARMONY_PALETTES.length` dropped
+  - [x] Measures 0 and 1 give entry 0, 2 and 3 entry 1, 22 and 23 entry 11, 24 entry 0.
+  - [x] It returns a copy: mutating the result leaves the next call's unchanged.
+  - [x] Mutation: `/ MEASURES_PER_PALETTE_ENTRY` dropped fails the measure-1 case; `% HARMONY_PALETTES.length` dropped
         fails the measure-24 case.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/harmonySystem.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/harmonySystem.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Done 2026-11-12.** The expected entries are written out as literal notes, so the test never restates `% 12`. RED:
+  30 new cases, all "paletteForMeasure is not a function". Edge cases beyond the list: later laps (48, 241, 263) wrap
+  the same as the first; the stored palette and a firing of the old repeat do not change what it returns (that case
+  goes with `setAvailableNotes` in Task 7). Mutants: no division killed 27 (measure 1 among them), no wrap killed 3
+  (measure 24 among them), returning the table entry uncopied killed 1 (the copy case).
 
   **Dependencies:** None (listed after Task 3 for the order of the build).
 
