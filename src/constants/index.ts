@@ -341,12 +341,13 @@ export const JOB_BASE_MIN_SECONDS = 6;
 /**
  * A working robot's bob (spec §1.9, buildJobTimeline.ts): ±BOB_PX scene units on its `.robot` group,
  * in whole cycles of about BOB_CYCLE_SECONDS fitting the job, so it ends where it started.
- * The cycle is as sketched (Phase 43 Task 0b). The distance was ±6 until 2026-11-12, when Crawford halved the bob
- * "in velocity and distance": half as far on the same cycle is also half as fast (12 u a cycle, about 10 u a second,
- * down from 24 and 20). The waiting robot's one bob (workLoop.ts) reads the same distance, so it halves with it.
+ * The distance was ±6 on a 1.2 s cycle (Phase 43 Task 0b) until 2026-11-12, when Crawford halved the bob "in
+ * velocity and distance", then doubled the cycle (note cloud spec §1.11): 12 u a cycle at about 5 u a second, down
+ * from 24 and 20. Jobs last 6–10 s, so a job holds 3 or 4 cycles. The waiting robot's one bob (workLoop.ts) reads the
+ * same distance; its timing is WAIT_RETRY_SECONDS, not this cycle.
  */
 export const BOB_PX = 3;
-export const BOB_CYCLE_SECONDS = 1.2;
+export const BOB_CYCLE_SECONDS = 2.4;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */

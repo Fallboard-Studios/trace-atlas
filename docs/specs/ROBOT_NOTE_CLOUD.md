@@ -298,8 +298,8 @@ Both closed the same day (PR #635), and this section is rewritten on what they s
 Crawford, 2026-11-12: "cut the idle bob in half in velocity and distance", then, asked which he meant: also double
 the cycle. `BOB_PX` is already 3 (82b11962). `BOB_CYCLE_SECONDS` goes from 1.2 to 2.4, so a working robot moves ±3
 units on a 2.4 s cycle: half as far, and a quarter of the speed it had at ±6 on 1.2 s. `buildJobTimeline.ts` fits
-whole cycles to the job (`Math.round(duration / BOB_CYCLE_SECONDS)`); jobs last 6 to 10 s, so a job now holds two to
-four cycles where its comment says five or more, and the comment is corrected. The waiting robot's one bob
+whole cycles to the job (`Math.round(duration / BOB_CYCLE_SECONDS)`); jobs last 6 to 10 s, so a job now holds three
+or four cycles (`Math.round(2.5)` is 3) where its comment says five or more, and the comment is corrected. The waiting robot's one bob
 (`workLoop.ts` `wait`) is timed by `WAIT_RETRY_SECONDS` and is untouched.
 
 ### 1.12 What does not change

@@ -5,7 +5,7 @@ Source spec: [docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Sou
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4. The look's reference is the
 branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over without its test).
 
-**Status:** planned 2026-11-12, not started. Awaiting Crawford's read of this plan.
+**Status:** building. Phase 1 started 2026-11-12.
 
 ## Overview
 
@@ -106,7 +106,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 ### Phase 1: The bob and the note events (Parts 0 and A)
 
-- [ ] **Task 1: `constants/index.ts` — the working bob's cycle doubles**
+- [x] **Task 1: `constants/index.ts` — the working bob's cycle doubles**
 
   **Description:** `BOB_CYCLE_SECONDS` 1.2 to 2.4 (spec §1.11). `buildJobTimeline.ts` already fits whole cycles to
   the job; its comment "≥ 5: jobs last 6–10 s" is corrected to the counts the test pins. ANIMATION_SYSTEM.md's bob

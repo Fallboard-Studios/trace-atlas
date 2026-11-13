@@ -143,8 +143,9 @@ at once, and a passive effect would register too late for it.
 `jobDuration(bpm)` (10 s at 20 BPM to 6 s at 200 BPM, the live tempo read at job start):
 
 - **The bob** — the robot's `.robot` group moves ±`BOB_PX` (3) in whole cycles of about
-  `BOB_CYCLE_SECONDS` (1.2), so it ends where it started. The distance was ±6 until 2026-11-12, when Crawford
-  halved the bob in distance and speed: half as far on the same cycle is half as fast.
+  `BOB_CYCLE_SECONDS` (2.4), so it ends where it started: 3 cycles in a 6 s job, 4 in a 10 s one. It was ±6 on a
+  1.2 s cycle until 2026-11-12, when Crawford halved the distance and doubled the cycle (the note cloud spec §1.11),
+  a quarter of the old speed.
 - **Detach** — each locked orbiter flies from its dock to its target over `ATTACH_DURATION`
   (1 s). Targets are scene points mapped into the orbiter's own frame by `sceneToOrbiterLocal`
   (which inverts the robot translate, the `g.gem` scale about its centre and the corner's dock
