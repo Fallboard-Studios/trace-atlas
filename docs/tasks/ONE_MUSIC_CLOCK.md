@@ -7,7 +7,9 @@ Source spec: [docs/specs/ONE_MUSIC_CLOCK.md](../specs/ONE_MUSIC_CLOCK.md) (appro
 [CHORD_CYCLE_TIMING.md](CHORD_CYCLE_TIMING.md). Part two is backlog
 [86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure).
 
-**Status:** Phase 1 done 2026-11-12 (Task 1: nothing needs a started transport). Next: Task 2.
+**Status:** Phases 1 and 2 done 2026-11-12 (Task 1: nothing needs a started transport; Tasks 2–3: `positionFromTicks`,
+`positionAt`, BeatClock's tick on its own time). Checkpoint: Foundation's suite is clean; waiting for Crawford's read
+before Phase 3 (Task 4).
 
 ## Overview
 
@@ -208,7 +210,9 @@ Task 6 and do not depend on each other.
   **Estimated scope:** S (one module and its tests)
 
 ### Checkpoint: Foundation
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; any pre-existing, unrelated failure named).
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; any pre-existing, unrelated failure named).
+      2026-11-12 at 451855a5: 355 files, 13,912 passed, 2 skipped, 0 failed (257 s); types clean; lint 0 errors (4
+      existing `react-refresh` warnings in the scenery files, untouched).
 - [ ] Task 1's outcome read by Crawford.
 - [ ] What is true now: BeatClock's measure turns on the bar's own tick. The chord is still the old repeat, which now
       reads a measure that has turned, so the chord changes on time already; the melody is still off the grid.
