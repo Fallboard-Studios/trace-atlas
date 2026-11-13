@@ -132,7 +132,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** XS
 
-- [ ] **Task 2: `noteEvents.ts` — the listener registry**
+- [x] **Task 2: `noteEvents.ts` — the listener registry**
 
   **Description:** New `src/engine/noteEvents.ts` exactly as spec §4 gives it: `RobotNoteEvent`, `onRobotNote`,
   `hasRobotNoteListener`, `emitRobotNote`. It imports nothing. No caller yet.
