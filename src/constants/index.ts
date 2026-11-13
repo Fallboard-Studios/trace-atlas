@@ -362,6 +362,16 @@ export const NOTE_RANGE_MIN_SEMITONES = 12;
  *  sounding end and the next note's start. Humanize moves a note by 20 ms at most, so two notes written to touch can
  *  sit 40 ms apart and are still a run. */
 export const NOTE_REST_MIN_SECONDS = 0.05;
+/** The roll against the box the robot's parts fill, about the gem canvas centre (§1.3; Crawford's 2.5). */
+export const NOTE_ROLL_SIZE = 2.5;
+/** A note's time across the roll, in seconds (§1.3; Crawford's 5): the roll's speed, so a bar's length. */
+export const NOTE_CROSSING_SECONDS = 5;
+/** A bar's thickness against the roll's height, and its least thickness on screen in CSS pixels (§1.3): where the
+ *  stage is drawn small or the robot is in the back row, the bar grows in scene units to hold the pixels. */
+export const NOTE_HEIGHT_SHARE = 1 / 14;
+export const NOTE_MIN_PX = 4;
+/** A bar is never longer than this share of the roll's width (§1.3). */
+export const NOTE_MAX_LENGTH_SHARE = 0.8;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
