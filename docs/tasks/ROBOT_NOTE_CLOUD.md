@@ -664,7 +664,72 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 ### Gate 1: cost (spec §5.4)
 - [x] Task 17's figures reported with the spike's beside them (2026-11-13).
 - [ ] **Crawford sets the line.** Over the working 10%, the build does not go on to Phase 4 without his decision:
-      take more back (the quantum of Task 14 is the first lever), or accept the figure.
+      take more back (the quantum of Task 14 is the first lever), or accept the figure. 2026-11-13: he chose to take
+      more back with the battery bands (spec §1.7), Tasks 17a to 17d below. The line itself waits on Task 17d's run.
+
+### Gate 1 follow-up: the battery bands (spec §1.7, Crawford 2026-11-13)
+
+His three answers: the bands replace the battery fade (every note placed shows at the peak); attention still wakes a
+robot's notes whatever its band; at a band's edge the notes in flight finish their crossing. Built after Phase 4,
+so these tasks revise Tasks 18, 22 and 23.
+
+- [ ] **Task 17a: `noteBands.ts` — whether notes are placed, from the battery and the wake**
+
+  **Description:** New pure `notesShown(batteryLevel, woken)` in place of Task 18's `noteStrength`: true while woken;
+  otherwise true only in an odd band of `NOTE_BATTERY_BAND` (10): 10–20%, 30–40%, 50–60%, 70–80%, 90–100%, each from
+  its lower edge up to, not including, its upper one, a full 100% (and above) counting as the top band, below 0 or
+  not a number as off. `noteStrength.ts`, its test and `NOTE_BATTERY_FULL` go, replaced.
+
+  **Proof:** RED test — `src/components/robot/notes/noteBands.test.ts` (new).
+
+  **Acceptance criteria:**
+  - [ ] Shown at 10, 15, 30, 55, 79.9, 90, 100 and 120; not at 0, 9.9, 20, 45, 60, 89.9, −5 or NaN.
+  - [ ] Shown at every level while woken.
+
+  **Dependencies:** Gate 1's answer. **Files:** `noteBands.ts`, `noteBands.test.ts` (new); `noteStrength.ts`,
+  `noteStrength.test.ts` (removed); `src/constants/index.ts`. **Estimated scope:** XS
+
+- [ ] **Task 17b: `useNoteCloud.ts` — the `placing` switch**
+
+  **Description:** The hook takes `placing` (boolean). While it is false a drawn note places no bar (the model still
+  counts it). Turning it false touches nothing on screen: the notes in flight keep moving to the left edge at the
+  layers' strength and are removed there as any note is. Turning it true places the next note as usual. It starts no
+  tween and re-runs no effect.
+
+  **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx`.
+
+  **Acceptance criteria:**
+  - [ ] Placing false: an event places no bar.
+  - [ ] True to false with bars in flight: the bars stay on their belts and the belt keeps moving them; the layers'
+        opacity is unchanged.
+  - [ ] False to true: the next event places a bar.
+
+  **Dependencies:** none. **Files:** `useNoteCloud.ts`, `useNoteCloud.test.tsx`. **Estimated scope:** S
+
+- [ ] **Task 17c: `RobotBody.tsx` — the bands in place of the fade**
+
+  **Description:** A world body hands its cloud `strength: NOTE_PEAK_STRENGTH` at any battery and
+  `placing: notesShown(robot.batteryLevel, woken)`; the avatar places always. Task 23's wake and sleep are
+  unchanged.
+
+  **Proof:** RED test — `src/components/robot/RobotBody.test.tsx` (Task 23's cases re-pinned to the bands).
+
+  **Acceptance criteria:**
+  - [ ] At 100, 55 and 15 a world body places; at 45, 25 and 5 it does not; the strength is the peak at all six.
+  - [ ] Pointed at or selected in an off band it places, and stays placing until charging sleeps it.
+  - [ ] The Deck camera following it in an off band does not make it place.
+
+  **Dependencies:** 17a, 17b. **Files:** `RobotBody.tsx`, `RobotBody.test.tsx`. **Estimated scope:** S
+
+- [ ] **Task 17d: the cost run again**
+
+  **Description:** Task 17's run, the same command, world and window order, against the bands' build, with Task 17's
+  build beside it (or its figures, if the session matches). The windows count which robots are in an on band, since
+  a 6 s window samples that. PERFORMANCE.md gains the rows.
+
+  **Proof:** Run. No test file.
+
+  **Dependencies:** 17c. **Files:** `docs/PERFORMANCE.md`. **Estimated scope:** S
 
 ---
 

@@ -42,7 +42,7 @@ clock, §1.1), and both are closed.
 | 0 — the bob | The working bob's cycle doubles (§1.11). Unrelated to the cloud; Crawford asked for it "while we are in there" | — |
 | A — note events | The engine tells listeners about each note it triggers (§1.2) | — |
 | B — the cloud | The piano roll around a world robot: belts, rows, colours, timing (§1.3–§1.6) | A |
-| C — attention | Dim and full strength, the battery fade, waking, the marker on a pointed-at robot (§1.7) | B |
+| C — attention | Dim and full strength, the battery bands, waking, the marker on a pointed-at robot (§1.7) | B |
 | D — the avatar | The same cloud on the robot screen's detail avatar (§1.8) | B |
 | E — early announcements | The engine announces a note before its trigger, so it enters at the roll's edge (§1.9) | A, B (backlog 82 and 83, closed) |
 
@@ -200,22 +200,32 @@ and what the approved settings still cost is taken back here.
 
 Two separate things set how strongly a robot's cloud shows. **Dim** is how faint a note becomes once it has sounded.
 **Strength** is the opacity of the whole cloud. "Full strength" below means the cloud's peak, 0.75 (Crawford,
-2026-11-13: "75% of their current opacity"); every other level, the dim, the battery fade and a note's white while
-it sounds, sits under that ceiling.
+2026-11-13: "75% of their current opacity"); every other level, the dim and a note's white while it sounds, sits
+under that ceiling. A world cloud is at full strength throughout; the battery decides whether notes are placed, not
+how strongly they show.
 
 - **Bright now, faint after.** For a robot nobody has turned to, a note is at full strength where it sounds and
   falls to 0.35 as it moves on. The dimming is the layer's mask, so overlapping notes look like one shape.
 - **The robot the player turns to is undimmed.** A robot is *singled out* while it is under the pointer, or the Deck
   camera is following it, or it is selected, soloed or highlighted. Its whole cloud is at full strength (dim = 1).
   One custom property on the mover (`--note-dim`), read by both masks; a change rebuilds nothing.
-- **The battery thins the population.** Strength is the peak (0.75) down to 50% battery, then falls in a straight
-  line to 0 at a flat battery (Crawford, 2026-11-12: zero at flat, not at the recall line). A robot recalled at 10%
-  heads home at a fifth of the peak. At strength 0 no notes are placed.
-- **Attention brings them back.** Pointing at a robot or selecting it *wakes* its notes: the peak whatever the
-  battery, and it stays there after the pointer leaves or the selection moves, until the robot is next in its station
-  (`activity === 'charging'`). The Deck camera following a robot singles it out but does not wake it.
-- **Strength changes are eased, never a step:** a rise over 0.3 s, a fall over 1 s (the battery steps once a
-  measure).
+- **The battery thins the population, in bands** (Crawford, 2026-11-13, at Gate 1, to take back the cost). A robot
+  places notes only while its battery is in an odd ten: 10–20%, 30–40%, 50–60%, 70–80% and 90–100%. A band runs
+  from its lower edge up to, not including, its upper one, and a full 100% counts as the top band. Below 10% and in
+  20–30%, 40–50%, 60–70% and 80–90% it places none. So a robot recalled at 10% heads home in an off band. The robots'
+  seeded battery sizes keep the fleet's bands out of step.
+- **A band's edge never touches a note on screen.** Leaving a band stops new notes only: the notes in flight finish
+  their crossing at full strength, so the cloud goes quiet rather than switching off. Entering one, the next note
+  starts at "now" as any note does. The battery steps once a measure, so an edge is crossed between two notes.
+- **The bands replace the battery fade.** The fade (Crawford, 2026-11-12: the peak down to 50%, then a straight line to
+  0 at a flat battery) dimmed a cloud but placed every note until the battery was flat, so it took no cost back. The
+  bands halve the notes placed over a discharge, and every note placed shows at full strength. They are not the
+  spike's switch-off at 50% (§1.13), which emptied the lower half of every battery.
+- **Attention brings them back.** Pointing at a robot or selecting it *wakes* its notes: placed whatever its
+  battery's band, and it stays woken after the pointer leaves or the selection moves, until the robot is next in its
+  station (`activity === 'charging'`). The Deck camera following a robot singles it out but does not wake it.
+- **A strength change is eased, never a step:** a rise over 0.3 s, a fall over 1 s. Nothing in the world changes a
+  cloud's strength since the bands replaced the fade; the easing stays for the re-size fade (§1.5) and any later use.
 - **Touch.** A tap selects, which singles out and wakes. On a phone the robot the Deck camera follows is singled out
   while it is followed. Nothing else is added for touch (Crawford, 2026-11-12).
 - **Keyboard.** Selecting a robot from the roster singles it out and wakes it like any other selection. Nothing new
@@ -237,7 +247,8 @@ nothing.
 - **The same notes.** The avatar's cloud reads the same events and the same per-robot model (§4) as the world's, so
   a note has the same row, the same layer and the same colour in both, and the repeat rule drops the same notes.
 - **Always full strength (the peak, 0.75), undimmed.** The player has turned to this robot by opening its screen. No
-  battery fade.
+  battery bands: it places every drawn note whatever its battery (opening the screen selects the robot, which wakes
+  its world cloud too).
 - **Only what sounds.** A muted or docked robot's avatar shows no notes, as in the world.
 - **Mounting.** `AvatarGem` gains a positioned box that takes the avatar's present size and holds the behind layer,
   the `<svg>` and the front layer. The avatar's box does not change size (Crawford's rule: a control holds its
@@ -291,9 +302,10 @@ Both closed the same day (PR #635), and this section is rewritten on what they s
 
 - Every sounding robot sits in a faint cloud of its notes: a bright blip where a note sounds, a ghost of what it just
   played drifting left. The rhythm reads in the spacing and the melody in the heights.
-- Point at a robot, or select it: its cloud comes to full strength, the marker frames it, and its notes stay woken
-  until it is back in its station.
-- A robot low on battery shows fainter notes, and none at a flat battery, unless the player woke them.
+- Point at a robot, or select it: its cloud is undimmed, the marker frames it, and its notes stay woken until it is
+  back in its station.
+- A robot's notes come and go with its battery: they show in every other ten (10–20%, 30–40%, … 90–100%) and go quiet
+  in the tens between, unless the player woke them.
 - Open a robot's screen on the desk: its avatar sits in the same cloud at full strength.
 - Mute a robot, or let it dock: its notes stop arriving and the last ones finish crossing.
 - Power off: every cloud freezes. Power on: they carry on.
@@ -321,7 +333,7 @@ or four cycles (`Math.round(2.5)` is 3) where its comment says five or more, and
 
 Rejected in the spike and not to be raised again: a pulse on the lit strips or the lights; notes as gems; notes
 trailing off one side; a panel behind the notes; lowering each note's own opacity; notes only while a robot works; a
-switch-off at 50% battery; a body bob in time with the melody.
+switch-off at 50% battery (the bands of §1.7 are a different rule); a body bob in time with the melody.
 
 Separate items:
 
@@ -357,8 +369,8 @@ src/components/robot/notes/
 ├── noteRows.ts                   # pure geometry: the roll's box, a row's height across the roll, a bar's
 │                                 #   thickness and length, the mask, the note colour
 ├── noteRows.test.ts
-├── noteStrength.ts               # pure: strength from battery and woken (§1.7)
-├── noteStrength.test.ts
+├── noteBands.ts                  # pure: whether notes are placed, from battery and woken (§1.7)
+├── noteBands.test.ts
 ├── NoteCloudLayers.tsx           # the two wrappers and belts React renders (§1.5), for the mover and the avatar
 ├── NoteCloud.css
 ├── useNoteCloud.ts               # the hook: listens, places notes, runs the belt and the per-frame pass (§1.6)
@@ -371,7 +383,7 @@ src/systems/
 src/components/robot/
 ├── Robot.tsx                     # renders NoteCloudLayers round the svg; pointer enter / leave on g.robot
 ├── Robot.test.tsx
-├── RobotBody.tsx                 # strength, singled out, the wake and the sleep; calls useNoteCloud (world, avatar)
+├── RobotBody.tsx                 # the bands, singled out, the wake and the sleep; calls useNoteCloud (world, avatar)
 └── RobotBody.test.tsx
 src/components/panels/screen/worldView/
 ├── FollowedRobotMarker.tsx       # frames the pointed-at robot, else the followed one (§1.7)
@@ -496,14 +508,14 @@ export interface DrawnNote {
 /** The next note of this robot's melody: what to draw, or null for the even-numbered notes of a run (§1.3). */
 export function nextDrawnNote(robotId: string, event: RobotNoteEvent): DrawnNote | null;
 
-// noteStrength.ts
-/** NOTE_PEAK_STRENGTH down to NOTE_BATTERY_FULL, then a straight line to 0 at a flat battery; the peak whenever
- *  woken (§1.7). */
-export function noteStrength(batteryLevel: number, woken: boolean): number;
+// noteBands.ts
+/** Whether a world cloud places notes (§1.7): always while woken; otherwise only while the battery is in an odd band
+ *  of NOTE_BATTERY_BAND (10–20%, 30–40%, … 90–100%, a full 100% included). */
+export function notesShown(batteryLevel: number, woken: boolean): boolean;
 ```
 
 - **Pure first.** Everything that decides *what* is drawn (the repeat rule, the row, the layer, the colour, the roll's
-  box, a row's height across the roll, the thickness, the strength) is a pure function with a unit test. The hook
+  box, a row's height across the roll, the thickness, the bands) is a pure function with a unit test. The hook
   only listens, places elements and runs the belt.
 - **Names follow the neighbours':** `useNoteCloud` beside `useOrbiterMotion` and `useHaloMotion` (same options shape:
   `root`, `robotId`, `context`, `enabled`); `robotAttention.ts` shaped like `deckCamera.ts`'s followed-robot pair
@@ -558,7 +570,12 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
 - `workLoop.test.ts`: `placeRow` and the swim's ease write the row's scale to the note layers as to `.robot__row`.
 
 **Part C**
-- `noteStrength.test.ts`: 1 at 100 and at 50; 0.5 at 25; 0.2 at 10; 0 at 0; 1 at any level when woken.
+- `noteBands.test.ts`: shown at 10, 15, 30, 55, 79.9, 90 and 100; not at 0, 9.9, 20, 45, 60, 89.9; shown at any
+  level when woken; a level above 100 counts as the top band, one below 0 or not a number as off.
+- `useNoteCloud.test.tsx`: with `placing` false an event places no bar; turning it false leaves the notes in flight
+  on their belts, moving, at the layers' strength; turning it true again places the next note.
+- `RobotBody.test.tsx`: a world body hands its cloud the peak strength at any battery, and places notes in an on band,
+  not in an off one, and in an off one once woken.
 - `robotAttention.test.ts`: the singled-out id is the pointed-at robot, else the Deck camera's followed robot, else
   null; a subscriber is called only when the id changes; pointing at a robot wakes it and it stays woken after the
   pointer leaves; `sleep` ends it; the followed robot is not woken.
@@ -613,7 +630,8 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
 
 - **Gate 1, cost** — after Part B: §5.3's headless run, reported with the spike's figures beside it. Crawford sets
   the line there. Over the working 10%, the build does not go on to Part C without his decision (take more back, or
-  accept the figure).
+  accept the figure). **2026-11-13:** the run read +17.6% (PERFORMANCE.md); he chose to take more back with the
+  battery bands (§1.7), and the run is taken again with them built.
 - **Gate 2, Crawford's eye and ear** — after Part C: the look on his desktop and on a phone; the unmeasured cost
   runs; the row switch, the layer switch's dissolve and an edit that re-sizes the roll; the marker on hover. He
   names any of §7.2 A1's numbers he wants re-pinned (he chose a re-check on a phone, 2026-11-12), and gives the
@@ -667,7 +685,7 @@ announcement, and backlog 79 is archived with its plan.md line deleted.
 | 2 | The engine announcing notes early | Approved. Built after backlog 82 and 83; the cloud ships first on trigger-time events (§1.4, §1.9) |
 | 3 | The marker on a robot under the pointer | Keep it, as seen (§1.7) |
 | 4 | Ducking the others, the tour | Neither |
-| 5 | Where the battery fade reaches zero | A flat battery |
+| 5 | Where the battery fade reaches zero | A flat battery. Replaced at Gate 1 (2026-11-13) by the bands (§1.7) |
 | 6 | What a repeat is | The same pitch and the same length (§1.3). The spike compared pitch only |
 | 7 | Reduced motion | No cloud |
 | 8 | Where it shows | The world and the detail avatar (§1.8). The spike drew the world only |
@@ -711,7 +729,7 @@ His answers to this spec's first open questions, the same day:
   | `NOTE_HOT_COLOR` | `#fffbe6` | a sounding note; 0.05 s in, 0.25 s to cool |
   | `NOTE_RANGE_MIN_SEMITONES` | 12 | the least range the roll's height stands for |
   | `NOTE_PEAK_STRENGTH` | 0.75 | the cloud at its strongest (Crawford, 2026-11-13) |
-  | `NOTE_BATTERY_FULL` | 50 | the battery level down to which strength is the peak |
+  | `NOTE_BATTERY_BAND` | 10 | a battery band's width; notes in every other band from 10% (Crawford, 2026-11-13) |
   | `NOTE_WAKE_SECONDS` / `NOTE_EBB_SECONDS` | 0.3 / 1 | a strength rise / fall |
   | complement | S 100, L 70 | a freelancer's note colour |
 
@@ -752,7 +770,8 @@ answered and kept for the record.
   spills and only the console pane cuts it (§1.8). The phone band keeps the default, no cloud.
 - **Q2. The cost line (Gate 1).** The working figure is main-thread time within 10% of cloud-off; the spike
   measured about 19% at the approved settings. Crawford sets the line when the build's own numbers are in front of
-  him.
+  him. **2026-11-13:** the build read +17.6%; his answer was the battery bands (§1.7), to be measured again. The line
+  itself is still his, with that run in hand.
 - **Q3. How much the repeat rule still thins (Gate 2).** With length and rests both counted, only identical notes
   that run straight into each other are dropped. If the cloud reads as too busy at the eye gate, the rule is the
   first thing to look at; the per-robot counts of drawn and dropped notes are the probe.
