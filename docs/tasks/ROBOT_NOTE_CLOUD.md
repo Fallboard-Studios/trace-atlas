@@ -155,7 +155,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 3: `AudioEngine.ts` — a triggered note tells its listeners**
+- [x] **Task 3: `AudioEngine.ts` — a triggered note tells its listeners**
 
   **Description:** In `triggerWithCap`'s success path, after `synth.triggerAttackRelease` and
   `standingBy.recordNoteEnd`, emit one event when `hasRobotNoteListener(robotId)` (spec §1.2, §4's snippet).

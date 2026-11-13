@@ -349,6 +349,13 @@ export const JOB_BASE_MIN_SECONDS = 6;
 export const BOB_PX = 3;
 export const BOB_CYCLE_SECONDS = 2.4;
 
+// ========================================
+// The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md)
+// ========================================
+/** The most output latency a note event's `lead` carries (§7.2 A11): the raw context's `outputLatency`, else its
+ *  `baseLatency`, is capped here so a device that reports nonsense cannot push a note seconds off its sound. */
+export const NOTE_LATENCY_MAX_SECONDS = 0.5;
+
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
 export const HOVER_GATHER_RADIUS = 14;

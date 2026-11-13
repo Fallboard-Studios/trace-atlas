@@ -21,8 +21,10 @@ const rawContextMock = vi.hoisted(() => ({
 vi.mock('tone', () => ({
   start: vi.fn().mockResolvedValue(undefined),
   now: vi.fn(() => 0),
-  Time: vi.fn((duration: string) => ({
+  // A number is seconds, as Tone reads it (a rested or clipped note's length, note cloud Task 3).
+  Time: vi.fn((duration: string | number) => ({
     toSeconds: () => {
+      if (typeof duration === 'number') return duration;
       const map: Record<string, number> = { '8n': 0.5, '4n': 1.0, '2n': 2.0 };
       return map[duration] || 1.0;
     },
@@ -7188,5 +7190,185 @@ describe('AudioEngine.pause / resume — the AudioContext suspends and resumes',
 
     expect(() => AudioEngine.pause()).not.toThrow();
     expect(() => AudioEngine.resume()).not.toThrow();
+  });
+});
+
+// ========================================
+// The note cloud's note events (docs/specs/ROBOT_NOTE_CLOUD.md §1.2, §4, §7.2 A11; plan Task 3)
+// ========================================
+describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
+  const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
+  const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
+    id, audioMode, docking, audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
+  });
+  type Heard = import('./noteEvents').RobotNoteEvent;
+
+  /** Puts `robots` in the active locale, starts the engine, reserves a voice for each id in `reserve`, and listens to
+   *  robot `n`. Every module is fresh (resetModules), so the engine and the test share one noteEvents registry. */
+  async function setUp(robots = [robotAt('n')], reserve = robots.map((r) => r.id)) {
+    const { AudioEngine, triggerWithCap } = await import('./AudioEngine');
+    const noteEvents = await import('./noteEvents');
+    const helpers = await import('../utils/localeHelpers');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const { DEFAULT_LOCALE_ID } = await import('../stores/attenuationStyleStore');
+    vi.mocked(helpers.getActiveLocaleId).mockReturnValue(DEFAULT_LOCALE_ID);
+    store.getState().setLocaleData(DEFAULT_LOCALE_ID, { robots: robots as any });
+    await AudioEngine.start();
+    for (const id of reserve) AudioEngine.reserveVoice(id, LAYER, TEST_ADSR);
+    const heard: Heard[] = [];
+    const off = noteEvents.onRobotNote('n', (event) => heard.push(event));
+    return { AudioEngine, triggerWithCap, noteEvents, heard, off };
+  }
+
+  /** How many times any synth was told to play `note`. */
+  async function synthTriggersFor(note: string) {
+    const Tone = await import('tone');
+    let count = 0;
+    for (const result of (Tone.Synth as unknown as any).mock.results) {
+      result.value?.triggerAttackRelease?.mock?.calls?.forEach((call: any) => {
+        if (call[0] === note) count++;
+      });
+    }
+    return count;
+  }
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.now).mockImplementation(() => 0);
+    delete (rawContextMock as any).outputLatency;
+    delete (rawContextMock as any).baseLatency;
+  });
+
+  it('a triggered note emits one event: the pitch, its sounding length, its start, and the lead to the speakers', async () => {
+    const { triggerWithCap, heard } = await setUp();
+    (rawContextMock as any).outputLatency = 0.04;
+    expect(triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0.3, velocity: 0.8 })).toBe(true);
+    expect(heard).toHaveLength(1);
+    expect(heard[0].note).toBe('C4');
+    expect(heard[0].duration).toBeCloseTo(0.5, 9); // '8n' as the mock reads it
+    expect(heard[0].at).toBe(0.3);
+    expect(heard[0].lead).toBeCloseTo(0.3 + 0.04, 9); // 0.3 s ahead of Tone.now() (0), plus the output latency
+  });
+
+  it('a length in seconds (a rested or clipped note) is its sounding length', async () => {
+    const { triggerWithCap, heard } = await setUp();
+    triggerWithCap({ robotId: 'n', note: 'E4', duration: 0.375, time: 1.5 });
+    expect(heard).toHaveLength(1);
+    expect(heard[0].duration).toBeCloseTo(0.375, 9);
+    expect(heard[0].at).toBe(1.5);
+  });
+
+  it('no time given: the note starts now, with a lead of the output latency alone', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.now).mockImplementation(() => 7);
+    const { triggerWithCap, heard } = await setUp();
+    (rawContextMock as any).outputLatency = 0.02;
+    triggerWithCap({ robotId: 'n', note: 'G4', duration: '4n' });
+    expect(heard[0].at).toBe(7);
+    expect(heard[0].lead).toBeCloseTo(0.02, 9);
+  });
+
+  it('the lead is never below zero: a note scheduled in the past leads by the latency alone', async () => {
+    const Tone = await import('tone');
+    vi.mocked(Tone.now).mockImplementation(() => 2);
+    const { triggerWithCap, heard } = await setUp();
+    triggerWithCap({ robotId: 'n', note: 'A4', duration: '8n', time: 1.9 });
+    expect(heard[0].lead).toBe(0); // no latency on the context either
+  });
+
+  it('the latency is outputLatency, else baseLatency, else 0, and never more than half a second', async () => {
+    const { triggerWithCap, heard } = await setUp();
+    const leadWith = (latency: { outputLatency?: number; baseLatency?: number }) => {
+      delete (rawContextMock as any).outputLatency;
+      delete (rawContextMock as any).baseLatency;
+      Object.assign(rawContextMock, latency);
+      triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 });
+      return heard.at(-1)!.lead;
+    };
+    expect(leadWith({ outputLatency: 0.03, baseLatency: 0.01 })).toBeCloseTo(0.03, 9);
+    expect(leadWith({ baseLatency: 0.01 })).toBeCloseTo(0.01, 9);
+    expect(leadWith({ outputLatency: 0, baseLatency: 0.01 })).toBeCloseTo(0.01, 9); // a 0 is "not reported"
+    expect(leadWith({ outputLatency: Number.NaN })).toBe(0);
+    expect(leadWith({})).toBe(0);
+    expect(leadWith({ outputLatency: 2 })).toBe(0.5);
+  });
+
+  it('refused notes emit nothing: Mute, another robot\'s Solo, the dock', async () => {
+    for (const robots of [
+      [robotAt('n', 'mute')],
+      [robotAt('n'), robotAt('s', 'solo')],
+      [robotAt('n', 'none', 'docked')],
+      [robotAt('n', 'none', 'undocking')],
+    ]) {
+      vi.resetModules();
+      const { triggerWithCap, heard } = await setUp(robots);
+      expect(triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 })).toBe(false);
+      expect(heard).toEqual([]);
+    }
+  });
+
+  it('refused notes emit nothing: the budget (standing by), a missing voice, a bad note string', async () => {
+    const budget = await setUp();
+    budget.AudioEngine.setSoundingRobots(['someone-else']);
+    expect(budget.triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 })).toBe(false);
+    expect(budget.heard).toEqual([]);
+
+    vi.resetModules();
+    const unreserved = await setUp([robotAt('n')], []);
+    expect(unreserved.triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 })).toBe(false);
+    expect(unreserved.heard).toEqual([]);
+
+    vi.resetModules();
+    const badNote = await setUp();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(badNote.triggerWithCap({ robotId: 'n', note: 'H4', duration: '8n', time: 0 })).toBe(false);
+    expect(badNote.heard).toEqual([]);
+  });
+
+  it('the polyphony cap: a refused note emits nothing, the ones under it emit one each', async () => {
+    const { AudioEngine, triggerWithCap, heard } = await setUp();
+    AudioEngine.setPolyphonyCap(2);
+    const played = [0, 1, 2].map(() => triggerWithCap({ robotId: 'n', note: 'C4', duration: '4n', time: 0 }));
+    expect(played).toEqual([true, true, false]);
+    expect(heard).toHaveLength(2);
+  });
+
+  it('another robot\'s note reaches only that robot\'s listeners', async () => {
+    const { triggerWithCap, heard } = await setUp([robotAt('n'), robotAt('m')]);
+    triggerWithCap({ robotId: 'm', note: 'D4', duration: '8n', time: 0 });
+    expect(heard).toEqual([]);
+  });
+
+  it('with no listener no event is built: the latency is never read', async () => {
+    const { triggerWithCap, off } = await setUp();
+    off();
+    const latencyRead = vi.fn(() => 0.03);
+    Object.defineProperty(rawContextMock, 'outputLatency', { get: latencyRead, configurable: true });
+    expect(triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 })).toBe(true);
+    expect(latencyRead).not.toHaveBeenCalled();
+  });
+
+  it('a throwing listener leaves the note sounding: triggerWithCap returns true and the synth is triggered', async () => {
+    const { triggerWithCap, noteEvents } = await setUp();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    noteEvents.onRobotNote('n', () => {
+      throw new Error('a broken cloud');
+    });
+    expect(triggerWithCap({ robotId: 'n', note: 'F6', duration: '8n', time: 0 })).toBe(true);
+    expect(await synthTriggersFor('F6')).toBe(1);
+    expect(error).toHaveBeenCalled();
+    error.mockRestore();
+  });
+
+  it('a note played twice emits twice: the engine thins nothing (the cloud does)', async () => {
+    const { triggerWithCap, heard } = await setUp();
+    triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 });
+    triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0.5 });
+    expect(heard.map((e) => e.at)).toEqual([0, 0.5]);
   });
 });
