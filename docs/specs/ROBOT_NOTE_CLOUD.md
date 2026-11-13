@@ -14,10 +14,11 @@
 **Status:** spec written 2026-11-12 from the intent
 [docs/intent/robot-note-cloud.md](../intent/robot-note-cloud.md), whose twelve "To confirm" points Crawford answered
 the same day (§7.1 records each answer), with his answers to this spec's first open questions folded in (§7.1,
-second table). **Paused 2026-11-12, at Crawford's word:** backlog 82 and 83 are finished first, as plan.md already
-orders them, and this work is picked up after. Before it is planned, §1.1, §1.2 and §1.9 are re-read against what 82
-and 83 shipped. Not yet planned. Backlog [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody),
-plan.md Stage 4.
+second table). Paused that day at Crawford's word until backlog 82 and 83 were finished. **Picked up again
+2026-11-12:** both closed with the one music clock (PR #635), and §1.1, §1.2 and §1.9 have been re-read against the
+engine as it now is. §1.1 gained the music clock, §1.9 is rewritten on it, and §7.3 Q4 and Q5 are new. **Awaiting
+Crawford's approval; not yet planned.** Backlog
+[79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
 **Who it is for:** a player watching the world, on the desk shell and on a phone, who wants to see which robot is
 playing which sound.
@@ -32,8 +33,8 @@ spike draws it", the spike is the picture and this spec is the rule.
 ## 0. Scope check
 
 One capability (a robot's notes drawn around it), in six parts that are each testable alone. One spec, because every
-part reads the same note events and the same numbers. Part E leans on two other backlog items (82 and 83), and the
-whole build now waits for them (Status, above).
+part reads the same note events and the same numbers. Part E leans on what backlog 82 and 83 fixed (the one music
+clock, §1.1), and both are closed.
 
 | Part | Responsibility | Depends on |
 |---|---|---|
@@ -42,10 +43,11 @@ whole build now waits for them (Status, above).
 | B — the cloud | The piano roll around a world robot: belts, rows, colours, timing (§1.3–§1.6) | A |
 | C — attention | Dim and full strength, the battery fade, waking, the marker on a pointed-at robot (§1.7) | B |
 | D — the avatar | The same cloud on the robot screen's detail avatar (§1.8) | B |
-| E — early announcements | The engine announces a note before its trigger, so it enters at the roll's edge (§1.9) | A, B, and backlog 82 and 83 closed |
+| E — early announcements | The engine announces a note before its trigger, so it enters at the roll's edge (§1.9) | A, B (backlog 82 and 83, closed) |
 
-Build order, once 82 and 83 are closed: 0, A, B, C, D, then E. Parts 0 to D are one branch and merge when Gate 3
-passes; Part E is its own branch straight after (§6).
+Build order as Crawford agreed it on 2026-11-12, while Part E still had to wait: 0, A, B, C, D, then E. Parts 0 to D
+are one branch and merge when Gate 3 passes; Part E is its own branch straight after (§6). Nothing makes Part E wait
+any more, so whether it moves forward is §7.3 Q4.
 
 ---
 
@@ -55,8 +57,14 @@ passes; Part E is its own branch straight after (§6).
 
 - **Nothing on a robot moves per note.** The three audio dials (the lights, each Mid's lit level, the body scale)
   follow settings. `useStripFlicker` plays on an edit, not on a note.
+- **One music clock** (backlog 82 and 83, PR #635). A transport callback's own `time` says where it sits in the
+  music: `positionAt(time)` (`src/engine/beatClock.ts`) gives the sixteenth since the transport's tick 0, the measure
+  and the melody step (1 to 16). The chord palette is a pure function of the measure, `paletteForMeasure(measure)`
+  (`src/engine/harmonySystem.ts`); nothing is remembered and nothing lags. The melody's 16n tick starts on the grid
+  at tick 0, so step 1 is on the bar. Velocity and Humanize are rolled from the robot's seed and the sixteenth.
 - **Where a note is known to sound.** The 16n transport tick in `startMelodyPlayback` (`src/engine/AudioEngine.ts`)
-  calls `processMelodyStep`, which calls `scheduleNote`, which calls `triggerWithCap`. `triggerWithCap` is the one
+  calls `processMelodyStep(at, time)` with that position, which calls `scheduleNote`, which calls `triggerWithCap`.
+  `triggerWithCap` is the one
   place where Mute, Solo, the dock (`isRobotAudible`), the Audio Load budget (`soundingRobots`), the polyphony cap,
   the missing-voice check and the note-string check have all been applied. Past
   `synth.triggerAttackRelease(...)` the note will sound.
@@ -242,28 +250,33 @@ nothing.
 - **The desk column's avatar shows the cloud; the phone band's 72 × 58 px gem does not** (default, §7.3 Q1).
 - **The 4-pixel floor** uses the avatar's own scale (rendered pixels per viewBox unit), not the stage's.
 
-### 1.9 Early announcements (Part E; approved, built after backlog 82 and 83)
+### 1.9 Early announcements (Part E; approved)
 
 Crawford approved this engine interface on 2026-11-12, to be built once backlog
 [82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
-[83](../todo/archive/backlog-archive.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) are closed (the two entries
-are on `main` since PR #632; this branch has them once rebased). **Before this work is planned, this section is
-re-read against what 82 and 83 shipped,** and corrected first.
+[83](../todo/archive/backlog-archive.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) were closed.
+Both closed the same day (PR #635), and this section is rewritten on what they shipped.
 
 - **A listener asks for notes earlier.** `setNotePreviewSeconds(seconds)` on `noteEvents.ts`. The cloud asks for the
   run-in from the roll's right edge to "now" (22.5% of 5 s) less the lead every note already has: about 0.9 s.
-- **The engine then announces a step ahead of its trigger.** At each 16n tick it announces the notes of the step far
-  enough on, from the melody it already holds in `stepRegistry`, with the pitch, length and Humanize offset
-  `processMelodyStep` will give them, and through `triggerWithCap`'s gates bar the polyphony cap. A note announced
-  early is not emitted again at its trigger. The event's shape does not change; only `lead` is longer.
-- **An early announcement is a forecast.** Measured in the spike at these settings, two power-ons of one world: 330
-  pitches right, 23 wrong, 13 notes not announced; then 352, 1 and 13. The wrong pitches follow a chord change, and
-  the spike worked round the chord cycle's timing (backlog 82) and the steps' alignment (83) to get that far. Part E
-  is built without the workaround: the palette a future measure will use comes from a pure function of the measure,
-  which is what 82 is expected to leave. If 82 leaves something else, this part is re-specified.
+- **The engine then announces a step ahead of its trigger.** At each 16n tick it announces the notes of a later
+  step: the first whole sixteenth that is at least the asked-for time on. A note announced early is not emitted
+  again at its trigger. The event's shape does not change; only `lead` is longer, and it moves with the tempo (a
+  whole number of sixteenths, never less than what was asked for).
+- **A forecast reads what the trigger will read.** The later step's place in the music is `positionAt` of its own
+  time, its pitch is `paletteForMeasure` of that measure with the event's note index and octave, its length is the
+  event's after articulation, and its Humanize offset is the same roll at that sixteenth (§1.1). The melody comes
+  from `stepRegistry`, and `triggerWithCap`'s gates are asked as they stand now, bar the polyphony cap. The plan
+  takes these reads out of `processMelodyStep` into one place both the trigger and the forecast call, so the two
+  cannot drift.
+- **So with nothing changed inside the lead, the forecast is the note.** The spike could not say that: it measured
+  330 pitches right, 23 wrong and 13 notes not announced, then 352, 1 and 13, and the wrong ones followed a chord
+  change, because the palette then turned late and the steps sat off the bar. Both are gone, and so are the spike's
+  two workarounds (the measure read off the transport, the cycle's lag as observed).
 - **What a forecast may still get wrong, and is accepted:** a robot muted, soloed away, docked or stood by inside the
   lead keeps drawing notes it will not play, for at most the lead; a robot that has just started sounding shows no
-  notes for the lead; a tempo move or a melody edit inside the lead draws the old note.
+  notes for the lead; a tempo move or a melody edit inside the lead draws the old note; a note the polyphony cap
+  refuses at its trigger was drawn anyway.
 - **No forecast check ships.** The spike's `window.__noteForecast` counter is a probe for Part E's own run (§5.3),
   behind `?debug` or not at all (the plan decides).
 
@@ -310,7 +323,9 @@ Separate items:
 - **Keeping a robot playing until it is in its station** — backlog
   [84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station). Until then a recalled robot goes
   quiet within a measure and its notes stop with it, part-way home.
-- **The chord cycle's timing and the steps' alignment** — backlog 82 and 83. Neither is fixed inside this work.
+- **The chord cycle's timing and the steps' alignment** — backlog 82 and 83, fixed and archived (PR #635).
+- **Moving the world to a measure, and loops, recordings and links at a measure** — backlog 86 and 87. The cloud
+  draws whatever the engine triggers and holds no position of its own, so neither is prepared for here.
 - **A reduced-motion alternative** (a blip without travel) — not built; its own item if wanted.
 - **Shapes driven by oscillators and envelopes** — Crawford's idea from the spike session; recorded only in the
   intent.
@@ -326,9 +341,9 @@ src/engine/
 ├── noteEvents.ts                 # Part A: the registry (onRobotNote, hasRobotNoteListener, emitRobotNote);
 │                                 #   Part E: setNotePreviewSeconds / getNotePreviewSeconds
 ├── noteEvents.test.ts
-├── AudioEngine.ts                # Part A: the emit in triggerWithCap; Part E: the announce at the 16n tick
-├── AudioEngine.test.ts
-└── harmonySystem.ts              # Part E only, and only as backlog 82 leaves it
+├── AudioEngine.ts                # Part A: the emit in triggerWithCap; Part E: the announce at the 16n tick,
+│                                 #   and a step's reads shared by the trigger and the forecast (§1.9)
+└── AudioEngine.test.ts
 src/components/robot/notes/
 ├── noteCloudModel.ts             # pure, per robot: the repeat rule, the range and row, front or behind (§1.3)
 ├── noteCloudModel.test.ts
@@ -374,7 +389,8 @@ docs/todo/backlog.md, docs/todo/plan.md   # entry 79 and its line; archive after
 docs/specs/ROBOT_NOTE_CLOUD.md    # an "As built" section
 ```
 
-Untouched: `RobotGem.tsx` and everything under `src/components/robot/gem/`, `robotAudibility.ts`,
+Untouched: `beatClock.ts` and `harmonySystem.ts` (Part E reads `positionAt` and `paletteForMeasure` as they are),
+`RobotGem.tsx` and everything under `src/components/robot/gem/`, `robotAudibility.ts`,
 `audioBudgetSystem.ts`, `deckCamera.ts`, every store, `src/content/` (the cloud has no words).
 
 ---
@@ -395,8 +411,8 @@ Untouched: `RobotGem.tsx` and everything under `src/components/robot/gem/`, `rob
 
 **Ask first**
 - Any change to `triggerWithCap`'s gates, or an emit from anywhere but its success path.
-- Any engine interface beyond §1.2's three functions before Part E, and Part E's shape if 82 or 83 leave the chord
-  cycle or the steps other than §1.9 assumes.
+- Any engine interface beyond §1.2's three functions before Part E, and any change to `beatClock.ts` or
+  `harmonySystem.ts` (the music clock is read here, not changed).
 - The wording of the CLAUDE.md guardrail sentence (a guardrail edit is Crawford's alone).
 - Anything that makes the cloud audible (a dip, a duck), or a tour.
 - A cloud on a card or a roster tile, or on the phone band's gem.
@@ -407,7 +423,8 @@ Untouched: `RobotGem.tsx` and everything under `src/components/robot/gem/`, `rob
   no `gsap.delayedCall` or tween that is not reachable from a registered timeline.
 - A note event, a timeline, a DOM ref or the woken set in Zustand or React state.
 - A write to the robot's `<svg>` or anything inside it for a note. The body is not repainted for the cloud.
-- A fix for backlog 82 or 83 inside this work, or the spike's observed-lag workaround in `harmonySystem.ts`.
+- A second copy of how a step becomes a note. The forecast and the trigger share one (§1.9); the spike's mirror of
+  `processMelodyStep` and its observed-lag workaround are not carried over.
 - A file-text test (source, doc or CSS read as text). The look, the mask and the CSS get Crawford's eye in the
   browser, named on the task's Proof line; a task with no behaviour (a doc, the guardrail sentence) has no RED test.
 - A "keep existing look" or compatibility clause in any doc (pre-v1 rule).
@@ -550,9 +567,15 @@ export function noteStrength(batteryLevel: number, woken: boolean): number;
   (default, §7.3 Q1); the avatar and the world place the same note in the same layer. The clip at the box's edge is
   CSS and gets a look, not a test.
 
-**Part E** (when built): the engine tests are written against what 82 and 83 shipped. At least: with a preview asked
-for, a note is announced the asked-for time ahead with the pitch its trigger then plays, across a chord change; it is
-not emitted again at the trigger; with no preview asked for, Part A's behaviour is unchanged.
+**Part E**
+- `noteEvents.test.ts`: the preview asked for is read back; it is 0 until asked.
+- `AudioEngine.test.ts` (on the music clock's own helpers, `atStep` and the mocked `positionAt` /
+  `paletteForMeasure`): with a preview asked for, a note is announced at the first tick at least that far ahead of
+  its step, with the pitch, the length and the scheduled start its trigger then gives it, across a palette change
+  and across a measure's end; it is not emitted again at its trigger; a robot that is muted, soloed away, docked or
+  standing by at the announcing tick announces nothing; the polyphony cap refuses no announcement; with no preview
+  asked for, Part A's behaviour is unchanged; and the trigger plays the same notes it played before the step's reads
+  were shared (the existing `processMelodyStep` tests stay green untouched).
 
 ### 5.2 Checks
 
@@ -574,8 +597,9 @@ not emitted again at the trigger; with no preview asked for, Part A's behaviour 
 - **The pause:** power off with notes mid-flight; they freeze. Power on; they carry on, and no note is stranded on
   screen.
 - **The look:** the cloud against `spike/note-pulse` at `?trail=all`, side by side, on the desk and on a phone.
-- **Part E's forecast** (when built): two power-ons of one world with no input, a few hundred notes each; no wrong
-  pitch, and no unannounced note outside the lead after a robot starts sounding.
+- **Part E's forecast:** two power-ons of one world with no input, a few hundred notes each, a palette change
+  included; no wrong pitch, and no unannounced note outside the lead after a robot starts sounding. The spike's
+  figures (§1.9) are the before.
 
 ### 5.4 Gates (the build stops and reports at each)
 
@@ -606,15 +630,16 @@ announcement, and backlog 79 is archived with its plan.md line deleted.
 
 ## 6. Git & Workflow Context
 
-- **The order** (Crawford, 2026-11-12): backlog 82 and 83 first, then this. Nothing here is built until then,
-  Part 0 included.
-- **What is already in** (2026-11-12): the intent, this spec, backlog 79's status and the bob's first half
-  (`BOB_PX` 6 to 3, 82b11962) were written on `feature/note-cloud` ahead of the pause and merge as they are: docs
-  and one finished, tested change, nothing half-built.
-- **Parts 0 to D:** a fresh branch off `main` once 82 and 83 are closed, one task per commit, RED test in the same
-  commit as its GREEN, message in the repo's voice (`feat(robots): a triggered note tells its listeners (Task 2)`),
-  ending with the attribution line the session carries.
-- **Part E:** its own branch off `main` once Parts 0 to D have merged (`feature/note-cloud-early-notes`).
+- **The order** (Crawford, 2026-11-12): backlog 82 and 83 first, then this. Both are merged (PR #635) and archived
+  (PR #636), so this is next. Nothing here is built before the spec is approved and planned, Part 0 included.
+- **What is already in:** the intent, this spec, backlog 79's status and the bob's first half (`BOB_PX` 6 to 3,
+  82b11962) merged ahead of the pause (PR #634).
+- **Parts 0 to D:** `feature/note-cloud`, brought up to `main` at 2d2dbdae (the merged branch fast-forwarded, so it
+  starts as `main`), one task per commit, RED test in the same commit as its GREEN, message in the repo's voice
+  (`feat(robots): a triggered note tells its listeners (Task 2)`), ending with the attribution line the session
+  carries.
+- **Part E:** its own branch off `main` once Parts 0 to D have merged (`feature/note-cloud-early-notes`), unless
+  §7.3 Q4 moves it into the first branch.
 - Crawford opens and merges each PR; the PR body links this spec's sections.
 - The intent file stays. This spec and the plan (`docs/tasks/ROBOT_NOTE_CLOUD.md`) are committed before the first
   task.
@@ -699,10 +724,15 @@ His answers to this spec's first open questions, the same day:
 - **A10. During a layer switch the cloud stays on the mover** and is not copied into the dissolve.
 - **A11. The output latency in `lead`** is the raw context's `outputLatency`, else `baseLatency`, else 0, capped at
   half a second, as the spike read it.
+- **A12. The Click Track is drawn like any other sound.** A robot with Click Track on plays the test pattern on its
+  own voice through `triggerWithCap` (back on the robot, company and All Probes screens since PR #635), so its
+  sixteen sixteenths are note events and the cloud draws them, thinned by the repeat rule like a melody. No special
+  case either way.
 
 ### 7.3 Open questions
 
-None blocks planning. Each is answered at a gate, with something to look at or a number in hand.
+Q4 is for Crawford before planning, since it sets the order of the tasks. The others are answered at a gate, with
+something to look at or a number in hand.
 
 - **Q1. What the avatar's clip takes (Gate 3).** With the roll clipped by the avatar's box, "now" and the rows for
   a robot's highest and lowest pitches can fall outside it (§1.8). Whether that reads, and whether the phone band's
@@ -713,6 +743,12 @@ None blocks planning. Each is answered at a gate, with something to look at or a
 - **Q3. How much the repeat rule still thins (Gate 2).** With length and rests both counted, only identical notes
   that run straight into each other are dropped. If the cloud reads as too busy at the eye gate, the rule is the
   first thing to look at; the per-robot counts of drawn and dropped notes are the probe.
-- **Q4. What 82 and 83 leave** (before planning). §1.1, §1.2 and §1.9 describe the engine as it is today. If 83
-  moves the melody's steps against the measure, or 82 changes how the palette is chosen, those sections are
-  corrected first.
+- **Q4. Does Part E still wait for its own branch? (before planning)** Crawford agreed to merge Parts 0 to D first
+  while Part E had to wait for 82 and 83. It no longer has to. **Recommended: build Part E's engine half straight
+  after Part A, in the first branch,** for two reasons. Gate 1 would measure the cloud that ships: with early notes
+  a note lives about a fifth longer on the roll, and the spike's 19% was measured with them on, so a Gate 1 taken
+  without them flatters the cost. And Gate 2 would show Crawford the look he approved, notes entering at the roll's
+  edge, not the stopgap of §1.4 with an empty right-hand fan. The other choice is the order as written: a smaller
+  first PR, and the stopgap look judged first. Either way Part E keeps its own tests and its forecast run.
+- **Q5. What 82 and 83 left: answered.** The palette is a pure function of the measure and the steps sit on the bar
+  (§1.1), which is what §1.9 hoped for; it is rewritten on that and nothing in Parts A to D changed.

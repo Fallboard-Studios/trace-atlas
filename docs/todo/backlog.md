@@ -590,9 +590,11 @@ audio or animation architecture):
 **Status (2026-11-12):** a throwaway spike (`spike/note-pulse`, local) settled the direction by eye. A pulse on the
 lit strips was rejected; what Crawford ended happy with is a cloud of notes around each robot, a small piano roll in
 time with the sound. The [intent](../intent/robot-note-cloud.md) is confirmed (its twelve "To confirm" points answered
-the same day) and the [spec](../specs/ROBOT_NOTE_CLOUD.md) is written, not yet planned. **Paused at Crawford's word:**
-backlog 82 and 83 are finished first, since the spec's last part (the engine announcing notes early) leans on both;
-the spec is re-read against what they shipped before it is planned. Plan.md Stage 4.
+the same day) and the [spec](../specs/ROBOT_NOTE_CLOUD.md) is written, not yet planned. It was paused at Crawford's
+word until backlog 82 and 83 were finished, since the spec's last part (the engine announcing notes early) leans on
+both. They closed the same day (PR #635), and the spec has been re-read against what they shipped: its early-notes
+section is rewritten on the one music clock. **Next: Crawford's approval of the spec, then the plan.** Plan.md
+Stage 4.
 
 ### 80. Audio: Notes Too Short to Hear the Instrument — More Guardrails
 
