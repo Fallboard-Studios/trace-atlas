@@ -6,7 +6,7 @@ Source spec: [docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Sou
 branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over without its test).
 
 **Status:** building. Phase 1 (Tasks 1 to 3) built 2026-11-12; Checkpoint: Events awaits Crawford's look at the bob
-and his review. Next: Task 4.
+and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits his review. Next: Task 10.
 
 ## Overview
 
@@ -199,7 +199,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 ### Phase 2: What a note becomes (Part B, pure)
 
-- [ ] **Task 4: `noteCloudModel.ts` — a note's row and its layer**
+- [x] **Task 4: `noteCloudModel.ts` — a note's row and its layer**
 
   **Description:** New `src/components/robot/notes/noteCloudModel.ts`: `DrawnNote` and `nextDrawnNote(robotId,
   event)` (spec §4), for now without the repeat rule. The row is the pitch within the robot's own range so far, at
@@ -227,7 +227,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 5: `noteCloudModel.ts` — a repeated note is not drawn twice**
+- [x] **Task 5: `noteCloudModel.ts` — a repeated note is not drawn twice**
 
   **Description:** `nextDrawnNote` returns null for the even-numbered notes of a run (spec §1.3). A run is the same
   pitch and the same sounding length (equal to the millisecond, §7.2 A2) with no rest between; a rest is a gap of
@@ -255,12 +255,15 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 6: `noteCloudModel.ts` — one engine listener per robot, shared by its clouds**
+- [x] **Task 6: `noteCloudModel.ts` — one engine listener per robot, shared by its clouds**
 
   **Description:** `subscribeDrawnNotes(robotId, listener)` and `clearNoteCloudModel(robotId)` (Architecture
   Decisions). The first subscriber registers one `onRobotNote` listener; each event goes through `nextDrawnNote`
   once and every subscriber gets the same `DrawnNote` with its event (nothing for a dropped repeat). The last
   unsubscribe removes the engine listener and keeps the run and the range; `clearNoteCloudModel` forgets them.
+
+  **As built:** also a throwing subscriber is reported and does not cost the next its note (the rule noteEvents
+  keeps), tested and mutation-checked.
 
   **Proof:** RED test — `src/components/robot/notes/noteCloudModel.test.ts`, driving `emitRobotNote`.
 
@@ -282,7 +285,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 7: `noteRows.ts` — the roll's box and a bar's size**
+- [x] **Task 7: `noteRows.ts` — the roll's box and a bar's size**
 
   **Description:** New `src/components/robot/notes/noteRows.ts`, pure geometry (spec §1.3): `rollBox(gem, scale)`,
   the box the backing, Mids, Top and orbiters fill, scaled about the gem canvas centre as the body is, times
@@ -311,7 +314,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 8: `noteRows.ts` — rows that run straight and fan at the edges**
+- [x] **Task 8: `noteRows.ts` — rows that run straight and fan at the edges**
 
   **Description:** `noteRowGeometry(box, thickness)` returns the room the fan needs above and below the box (`pad`)
   and two functions of a row (−0.5 to 0.5) and a place across the roll (0 left to 1 right): the row's height and
@@ -319,6 +322,14 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   `NOTE_EDGE_START` (0.55) of the way from the centre to an edge; past it the spread grows by up to `NOTE_FAN` (0.6)
   and the wave to `NOTE_WAVE_EDGE_GAIN` (5) times, `NOTE_WAVE_COUNT` (1.5) waves across. The spike's curve is the
   picture.
+
+  **As built (for Gate 2's look):** the spike tilted every bar to its row's slope, and the middle's wave alone gives
+  up to about 8° on a square robot's roll (0.015 × 2π × 1.5 ≈ 0.14), which this task's "within a degree of level at
+  the centre" rules out. So the tilt is weighted by the fan's own weight (the square of how far past
+  `NOTE_EDGE_START`): level through the straight middle, easing in to the row's full slope at the edge, never a pop.
+  "Now" (`NOTE_NOW`, 0.225) sits where that easing begins. The spike also let the fan grow to 1.69 beyond the roll,
+  outside its own `pad`; here it holds its edge value beyond the roll. `y` is a bar's top edge in the layer (the roll
+  grown by `pad` each way); the slope is analytic, checked in the test against the curve.
 
   **Proof:** RED test — `src/components/robot/notes/noteRows.test.ts`.
 
@@ -340,7 +351,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 9: `noteRows.ts` — a note's colour and the layer's mask**
+- [x] **Task 9: `noteRows.ts` — a note's colour and the layer's mask**
 
   **Description:** `noteColor(identityColor, companyColor)`: the company's colour, else the identity hue plus 180°
   at S 100 and L 70 (`hexToHsl`, `hslToString` from `src/utils/colorUtils.ts`). `noteMask(knownAheadSeconds)`: the
@@ -369,8 +380,10 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   **Estimated scope:** S
 
 ### Checkpoint: Pure
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Everything that decides what is drawn is a tested pure function, and nothing is drawn yet.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean. 2026-11-12: 358 files, 14,067 passed, 2 skipped
+      (skipped before this branch), 0 failed; lint has the 4 old warnings only; `npm run build` clean.
+- [x] Everything that decides what is drawn is a tested pure function, and nothing is drawn yet: nothing in `src`
+      imports `src/components/robot/notes/`.
 - [ ] Reviewed with Crawford before Phase 3.
 
 ---
