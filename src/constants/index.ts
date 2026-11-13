@@ -398,6 +398,11 @@ export const NOTE_KNOWN_AHEAD_SECONDS = 0.2;
  *  canvas unit across its row, a quarter of a degree in its tilt. Through the straight middle most frames write nothing. */
 export const NOTE_QUANTUM_UNITS = 0.25;
 export const NOTE_QUANTUM_DEGREES = 0.25;
+/** A note is white while it sounds (§1.4): its white copy turns opaque over NOTE_HOT_IN_SECONDS as the note leaves
+ *  the speakers, holds for the note's length, then clears over NOTE_COOL_SECONDS back to the note's own colour. */
+export const NOTE_HOT_COLOR = '#fffbe6';
+export const NOTE_HOT_IN_SECONDS = 0.05;
+export const NOTE_COOL_SECONDS = 0.25;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */

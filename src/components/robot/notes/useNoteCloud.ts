@@ -16,7 +16,10 @@ import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 import gsap from 'gsap';
 
 import {
+  NOTE_COOL_SECONDS,
   NOTE_CROSSING_SECONDS,
+  NOTE_HOT_COLOR,
+  NOTE_HOT_IN_SECONDS,
   NOTE_KNOWN_AHEAD_SECONDS,
   NOTE_NOW,
   NOTE_QUANTUM_DEGREES,
@@ -52,13 +55,18 @@ export interface UseNoteCloudOptions {
 type Side = 'front' | 'behind';
 
 /** A note on a belt. Its place is kept in "unwrapped belt" units, so its x on the roll at belt time t is
- *  `start - t × speed` whatever the belt's wraps. What was last written is kept to skip a write that changes nothing. */
+ *  `start - t × speed` whatever the belt's wraps. It sounds from belt time `soundsAt` for `duration` seconds. What
+ *  was last written is kept to skip a write that changes nothing. */
 interface LiveNote {
   el: HTMLElement;
+  hot: HTMLElement;
   row: number;
   length: number;
   start: number;
+  soundsAt: number;
+  duration: number;
   written: string;
+  hotWritten: number;
 }
 
 // ========================================
@@ -68,6 +76,15 @@ interface LiveNote {
 const n4 = (value: number) => Number(value.toFixed(4));
 /** A value snapped to a quantum (§7.2 A7), as a style number. */
 const snap = (value: number, quantum: number) => n4(Math.round(value / quantum) * quantum);
+const clamp01 = (value: number) => Math.min(1, Math.max(0, value));
+
+/** How white a note is `since` seconds after it started sounding (§1.4): clear before, opaque over
+ *  NOTE_HOT_IN_SECONDS, held for its `duration`, clear again over NOTE_COOL_SECONDS. Two decimals. */
+function hotLevel(since: number, duration: number): number {
+  const rise = clamp01(since / NOTE_HOT_IN_SECONDS);
+  const fall = clamp01(1 - (since - duration) / NOTE_COOL_SECONDS);
+  return Number(Math.min(rise, fall).toFixed(2));
+}
 
 // ========================================
 // HOOK
@@ -147,9 +164,16 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       const y = snap(rows.y(note.row, across), NOTE_QUANTUM_UNITS);
       const tilt = snap(rows.tilt(note.row, across), NOTE_QUANTUM_DEGREES);
       const transform = `translate(${onBelt}px, ${y}px) rotate(${tilt}deg)`;
-      if (transform === note.written) return;
-      note.written = transform;
-      note.el.style.transform = transform;
+      if (transform !== note.written) {
+        note.written = transform;
+        note.el.style.transform = transform;
+      }
+      // White while it sounds, from the belt's own time: no tween and no timer per note.
+      const level = hotLevel(time - note.soundsAt, note.duration);
+      if (level !== note.hotWritten) {
+        note.hotWritten = level;
+        note.hot.style.opacity = String(level);
+      }
     };
 
     const idle = () => {
@@ -195,7 +219,8 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       if (document.hidden || getWorldState() !== 'running') return;
       fit();
       const length = noteLength(note.duration, roll.w, thickness);
-      const left = nowX + Math.max(0, event.lead) * speed;
+      const lead = Math.max(0, event.lead);
+      const left = nowX + lead * speed;
 
       const bar = document.createElement('div');
       bar.className = 'note';
@@ -205,9 +230,20 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       bar.style.backgroundColor = colorRef.current;
       const hot = document.createElement('div');
       hot.className = 'note__hot';
+      hot.style.backgroundColor = NOTE_HOT_COLOR;
       bar.appendChild(hot);
 
-      const placed: LiveNote = { el: bar, row: note.row, length, start: left + beltTime * speed, written: '' };
+      const placed: LiveNote = {
+        el: bar,
+        hot,
+        row: note.row,
+        length,
+        start: left + beltTime * speed,
+        soundsAt: beltTime + lead,
+        duration: note.duration,
+        written: '',
+        hotWritten: 0, // clear, as the stylesheet draws it
+      };
       settle(placed, beltTime);
       const side: Side = note.layer;
       belts[side]!.appendChild(bar);

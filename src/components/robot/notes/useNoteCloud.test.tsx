@@ -32,7 +32,13 @@ import {
   pauseWorldTimelines,
   resumeWorldTimelines,
 } from '@/animation/timelineMap';
-import { NOTE_CROSSING_SECONDS, NOTE_NOW, NOTE_QUANTUM_UNITS } from '@/constants';
+import {
+  NOTE_COOL_SECONDS,
+  NOTE_CROSSING_SECONDS,
+  NOTE_HOT_IN_SECONDS,
+  NOTE_NOW,
+  NOTE_QUANTUM_UNITS,
+} from '@/constants';
 
 // ========================================
 // FIXTURES
@@ -479,5 +485,88 @@ describe('useNoteCloud — the belt (Task 14)', () => {
     rerender(<Harness scale={1.5} />);
     expect(beltX(container)).toBe(0);
     expect(belt()!.paused()).toBe(true);
+  });
+});
+
+// ========================================
+// TASK 15: a note is white while it sounds
+// ========================================
+describe('useNoteCloud — white while it sounds (Task 15)', () => {
+  const LEAD = 0.2;
+  const LENGTH = 0.5;
+  const hotOf = (container: HTMLElement) => bars(container, 'front')[0].querySelector('.note__hot') as HTMLElement;
+  const hot = (container: HTMLElement) => Number(hotOf(container).style.opacity || 0);
+
+  function placeOne() {
+    const view = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4', { lead: LEAD, duration: LENGTH }));
+    return view;
+  }
+
+  it('the white copy wears the hot colour', () => {
+    const { container } = placeOne();
+    expect(hotOf(container).style.backgroundColor).toBe('rgb(255, 251, 230)');
+  });
+
+  it('is clear when placed and still clear before lead has passed', () => {
+    const { container } = placeOne();
+    expect(hot(container)).toBe(0);
+    advance(LEAD / 2);
+    expect(hot(container)).toBe(0);
+    advance(LEAD / 2 - 0.01);
+    expect(hot(container)).toBe(0);
+  });
+
+  it('turns white over NOTE_HOT_IN_SECONDS as it sounds: half way through, half white', () => {
+    const { container } = placeOne();
+    advance(LEAD + NOTE_HOT_IN_SECONDS / 2);
+    expect(hot(container)).toBeCloseTo(0.5, 1);
+  });
+
+  it('just after it sounds it is opaque, and stays so for its length', () => {
+    const { container } = placeOne();
+    advance(LEAD + NOTE_HOT_IN_SECONDS + 0.01);
+    expect(hot(container)).toBe(1);
+    advance(LENGTH - NOTE_HOT_IN_SECONDS - 0.05);
+    expect(hot(container)).toBe(1);
+  });
+
+  it('cools over NOTE_COOL_SECONDS after its length: half way, half white; at the end, clear', () => {
+    const { container } = placeOne();
+    advance(LEAD + LENGTH + NOTE_COOL_SECONDS / 2);
+    expect(hot(container)).toBeCloseTo(0.5, 1);
+    advance(NOTE_COOL_SECONDS / 2);
+    expect(hot(container)).toBe(0);
+  });
+
+  it('a note shorter than the rise never reaches full white, and still cools to clear', () => {
+    const view = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4', { lead: LEAD, duration: 0.02 }));
+    advance(LEAD + 0.02);
+    expect(hot(view.container)).toBeLessThan(1);
+    advance(NOTE_COOL_SECONDS);
+    expect(hot(view.container)).toBe(0);
+  });
+
+  it('writes the white copy only when its value changes: none before it sounds, none once cool', () => {
+    const { container } = placeOne();
+    const writes = countWrites(hotOf(container), 'opacity');
+    advance(0.05);
+    advance(0.05);
+    expect(writes.writes).toBe(0);
+    advance(LEAD + LENGTH + NOTE_COOL_SECONDS); // well past cool
+    const afterCool = writes.writes;
+    advance(0.05);
+    advance(0.05);
+    expect(writes.writes).toBe(afterCool);
+  });
+
+  it('placing a note creates no tween and no delayed call', () => {
+    render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4'));
+    const before = gsap.globalTimeline.getChildren(true, true, true).length;
+    emitRobotNote('r1', noteEvent('D4'));
+    emitRobotNote('r1', noteEvent('F4'));
+    expect(gsap.globalTimeline.getChildren(true, true, true).length).toBe(before);
   });
 });
