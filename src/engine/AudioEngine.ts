@@ -12,7 +12,7 @@ import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, Robo
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
-import { paletteForMeasure, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
+import { paletteForMeasure } from './harmonySystem';
 import { resetBeatClock, initBeatClock, positionAt, type MusicPosition } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS } from '../constants';
@@ -788,7 +788,6 @@ export const AudioEngine = {
 
     initBeatClock(transport);
     startMelodyPlayback();
-    scheduleHarmonyCycle();
 
     initialized = true;
   },
@@ -1631,8 +1630,6 @@ export const AudioEngine = {
     try {
       const transport = _transport ?? Tone.getTransport();
       try { transport.cancel(); } catch (err) { devWarn('[AudioEngine] transport.cancel failed', err); }
-
-      stopHarmonyCycle();
 
       try {
         if (transport.state === 'started') {

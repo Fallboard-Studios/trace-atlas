@@ -300,7 +300,7 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** M (one module, three test files moved to the new call shape)
 
-- [ ] **Task 6: `AudioEngine.ts`, `powerController.ts` — nothing schedules or resets the harmony any more**
+- [x] **Task 6: `AudioEngine.ts`, `powerController.ts` — nothing schedules or resets the harmony any more**
 
   **Description:** `AudioEngine.start` stops calling `scheduleHarmonyCycle`, `killAll` stops calling
   `stopHarmonyCycle`, and `powerController.start` stops calling `resetHarmony`. With Task 5 in, nothing reads the
@@ -312,15 +312,21 @@ Task 6 and do not depend on each other.
   name.
 
   **Acceptance criteria:**
-  - [ ] After `AudioEngine.start`, the mocked `scheduleHarmonyCycle` has not been called; after `killAll`, the mocked
+  - [x] After `AudioEngine.start`, the mocked `scheduleHarmonyCycle` has not been called; after `killAll`, the mocked
         `stopHarmonyCycle` has not been called.
-  - [ ] `powerController.start` runs `AudioEngine.start`, `setBPM` and `reRegisterAllRobotsAudio`, as its test says
+  - [x] `powerController.start` runs `AudioEngine.start`, `setBPM` and `reRegisterAllRobotsAudio`, as its test says
         without `resetHarmony`.
-  - [ ] Mutation: restore the `scheduleHarmonyCycle()` call fails the start test.
+  - [x] Mutation: restore the `scheduleHarmonyCycle()` call fails the start test.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts src/systems/powerController.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts src/systems/powerController.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Done 2026-11-12.** RED: both new cases failed on the calls being made. Edge case beyond the list: the power-on
+  after a `killAll` schedules no cycle either. powerController.test.ts lost its harmony mock and both `resetHarmony`
+  assertions (the start case and the resume-from-pause case); `pause()`'s comment no longer lists "the harmony" among
+  what the BeatClock tick carries. Mutant: the restored `scheduleHarmonyCycle()` call killed 2 (the start case among
+  them). AudioEngine, powerController and powerController.world tests: 472 passed.
 
   **Dependencies:** Task 5.
 

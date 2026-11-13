@@ -3453,6 +3453,40 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
   });
 });
 
+// One music clock Task 6 (docs/specs/ONE_MUSIC_CLOCK.md §4.3): each step reads its measure's palette, so nothing
+// schedules, stops or remembers one. Task 7 deletes these with the names.
+describe('AudioEngine — the chord palette is read, never scheduled (one music clock Task 6)', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('start does not schedule the harmony cycle', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const harmony = await import('./harmonySystem');
+    vi.mocked(harmony.scheduleHarmonyCycle).mockClear();
+
+    await AudioEngine.start();
+
+    expect(harmony.scheduleHarmonyCycle).not.toHaveBeenCalled();
+    AudioEngine.killAll();
+  });
+
+  it('killAll does not stop a harmony cycle, and the power-on after it schedules none either', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    const harmony = await import('./harmonySystem');
+    await AudioEngine.start();
+    vi.mocked(harmony.scheduleHarmonyCycle).mockClear();
+    vi.mocked(harmony.stopHarmonyCycle).mockClear();
+
+    AudioEngine.killAll();
+    await AudioEngine.start();
+
+    expect(harmony.stopHarmonyCycle).not.toHaveBeenCalled();
+    expect(harmony.scheduleHarmonyCycle).not.toHaveBeenCalled();
+    AudioEngine.killAll();
+  });
+});
+
 describe('AudioEngine.start — primes the just-built global FX chain from currently-seeded globalAudio state', () => {
   // Deliberately far from globalFx.ts's own hardcoded construction defaults
   // (compressor threshold -18/ratio 6, EQ bands 0, LPF/HPF passthrough,
