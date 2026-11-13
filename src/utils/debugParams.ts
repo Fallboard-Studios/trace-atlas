@@ -36,12 +36,10 @@ export function parseDebugParam(raw: string | null | undefined): boolean {
 /**
  * Parse a `?notes=` URL param, the note cloud's A/B switch (ROBOT_NOTE_CLOUD.md §1.6, §7.2 A8).
  * Only an explicit `off`/`0`/`false` (case-insensitive) turns the cloud off; absent, a bare
- * `?notes` and anything else leave it on.
+ * `?notes` and anything else leave it on. `?debug`'s reading, but on when absent.
  */
 export function parseNotesParam(raw: string | null | undefined): boolean {
-  if (raw === null || raw === undefined) return true;
-  const value = raw.toLowerCase();
-  return value !== '0' && value !== 'false' && value !== 'off';
+  return raw === null || raw === undefined || parseDebugParam(raw);
 }
 
 // ========================================
