@@ -551,16 +551,15 @@ function announceTriggeredNote(robotId: string, note: string, at: number, end: n
 }
 
 /**
- * Trigger note with polyphony cap enforcement.
- * Applies per-robot synth selection and ADSR envelope when provided.
- * Returns true if note was triggered, false if skipped due to cap.
+ * May this robot trigger now? (note cloud spec §1.9; plan Task 33.) The gates that come before the polyphony cap, in
+ * one place, so triggerWithCap and an early announcement ask the same thing: Mute, Solo and the dock
+ * (`isRobotAudible`), the Audio Load budget (`soundingRobots`) and a reserved voice. Reads only; it counts no voice.
+ * The cap, the voice count and the note-string check stay in triggerWithCap.
  */
-export function triggerWithCap(params: NoteParams): boolean {
-  const { robotId, note, duration, time } = params;
-
+export function mayRobotTrigger(robotId: string): boolean {
   // Enforce audioMode (mute/solo) here — this is the sole enforcement point,
   // not a backup: scheduleNote's own audioMode block only handles highlight
-  // attenuation. Checked before the polyphony cap below so a muted/non-solo
+  // attenuation. Checked before the polyphony cap so a muted/non-solo
   // robot's note never consumes a polyphony slot — that note was never going
   // to play either way. No devLog on the mute/solo branches below —
   // muted/non-solo robots hit this on every note attempt, and that's
@@ -583,34 +582,44 @@ export function triggerWithCap(params: NoteParams): boolean {
   }
 
   // Audio-load budget: a robot standing by (eligible, but over the budget) neither triggers nor takes a
-  // polyphony slot. After the mute/solo check above and before the cap below, so it never counts against it.
+  // polyphony slot. After the mute/solo check above and before the cap, so it never counts against it.
   if (soundingRobots !== null && !soundingRobots.has(robotId)) {
     return false;
   }
+
+  if (!compositeVoices.has(robotId)) {
+    devWarn(`[AudioEngine] No composite voice reserved for ${robotId}, skipping note`);
+    return false;
+  }
+  if (!compositeVoices.get(robotId)?.composite) {
+    devWarn('[AudioEngine] No composite voice available, skipping note');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Trigger note with polyphony cap enforcement.
+ * Applies per-robot synth selection and ADSR envelope when provided.
+ * Returns true if note was triggered, false if skipped by a gate (mayRobotTrigger), the cap or a bad note string.
+ */
+export function triggerWithCap(params: NoteParams): boolean {
+  const { robotId, note, duration, time } = params;
+
+  if (!mayRobotTrigger(robotId)) return false;
 
   if (activeVoices >= polyphonyCap) {
     return false;
   }
 
+  // mayRobotTrigger has just found the voice; this only narrows the type.
+  const synth = compositeVoices.get(robotId)?.composite;
+  if (!synth) return false;
+
   const scheduleTime = time ?? Tone.now();
   activeVoices++;
 
   try {
-    if (!compositeVoices.has(robotId)) {
-      activeVoices = Math.max(0, activeVoices - 1);
-      devWarn(`[AudioEngine] No composite voice reserved for ${robotId}, skipping note`);
-      return false;
-    }
-
-    const comp = compositeVoices.get(robotId);
-    const synth = comp?.composite ?? null;
-
-    if (!synth) {
-      activeVoices = Math.max(0, activeVoices - 1);
-      devWarn('[AudioEngine] No composite voice available, skipping note');
-      return false;
-    }
-
     // Validate note string before touching the synth — an invalid note can start
     // an oscillator attack before throwing, leaving voices permanently open.
     if (!NOTE_RE.test(note)) {

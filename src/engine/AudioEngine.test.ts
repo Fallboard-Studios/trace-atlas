@@ -7488,3 +7488,87 @@ describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
     expect(heard.map((e) => e.at)).toEqual([0, 0.5]);
   });
 });
+
+// ========================================
+// The note cloud's Part E (docs/specs/ROBOT_NOTE_CLOUD.md §1.9; plan Task 33): one place answers "may this robot
+// trigger now?", so the trigger and an early announcement ask the same gates. The polyphony cap is not one of them.
+// ========================================
+describe('mayRobotTrigger: the gates before the polyphony cap (note cloud Task 33)', () => {
+  const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
+  const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
+    id, audioMode, docking, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
+  });
+
+  /** Puts `robots` in the active locale, starts the engine and reserves a voice for each id in `reserve`. */
+  async function setUp(robots = [robotAt('n')], reserve = robots.map((r) => r.id)) {
+    const { AudioEngine, mayRobotTrigger, triggerWithCap } = await import('./AudioEngine');
+    const helpers = await import('../utils/localeHelpers');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const { DEFAULT_LOCALE_ID } = await import('../stores/attenuationStyleStore');
+    vi.mocked(helpers.getActiveLocaleId).mockReturnValue(DEFAULT_LOCALE_ID);
+    store.getState().setLocaleData(DEFAULT_LOCALE_ID, { robots: robots as any });
+    await AudioEngine.start();
+    for (const id of reserve) AudioEngine.reserveVoice(id, LAYER, TEST_ADSR);
+    return { AudioEngine, mayRobotTrigger, triggerWithCap };
+  }
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('is true for a robot that is audible, admitted by the budget and holds a voice', async () => {
+    const { mayRobotTrigger } = await setUp();
+    expect(mayRobotTrigger('n')).toBe(true);
+  });
+
+  it('is false for a muted robot', async () => {
+    const { mayRobotTrigger } = await setUp([robotAt('n', 'mute')]);
+    expect(mayRobotTrigger('n')).toBe(false);
+  });
+
+  it('is false for a robot soloed away, and true for the soloist', async () => {
+    const { mayRobotTrigger } = await setUp([robotAt('n'), robotAt('s', 'solo')]);
+    expect(mayRobotTrigger('n')).toBe(false);
+    expect(mayRobotTrigger('s')).toBe(true);
+  });
+
+  it('is false for a docked robot and an undocking one', async () => {
+    const docked = await setUp([robotAt('n', 'none', 'docked')]);
+    expect(docked.mayRobotTrigger('n')).toBe(false);
+    vi.resetModules();
+    const undocking = await setUp([robotAt('n', 'none', 'undocking')]);
+    expect(undocking.mayRobotTrigger('n')).toBe(false);
+  });
+
+  it('is false for a robot standing by (outside the budget\'s sounding set), true again once admitted', async () => {
+    const { AudioEngine, mayRobotTrigger } = await setUp([robotAt('n'), robotAt('m')]);
+    AudioEngine.setSoundingRobots(['m']);
+    expect(mayRobotTrigger('n')).toBe(false);
+    expect(mayRobotTrigger('m')).toBe(true);
+    AudioEngine.setSoundingRobots(null);
+    expect(mayRobotTrigger('n')).toBe(true);
+  });
+
+  it('is false for a robot with no voice reserved', async () => {
+    const { mayRobotTrigger } = await setUp([robotAt('n')], []);
+    expect(mayRobotTrigger('n')).toBe(false);
+  });
+
+  it('is true at a full polyphony count: the cap is not one of its gates', async () => {
+    const { AudioEngine, mayRobotTrigger, triggerWithCap } = await setUp();
+    AudioEngine.setPolyphonyCap(1);
+    expect(triggerWithCap({ robotId: 'n', note: 'C4', duration: '4n', time: 0 })).toBe(true);
+    expect(triggerWithCap({ robotId: 'n', note: 'D4', duration: '4n', time: 0 })).toBe(false); // the cap refuses
+    expect(mayRobotTrigger('n')).toBe(true);
+  });
+
+  it('changes no voice count, whatever it answers', async () => {
+    const { AudioEngine, mayRobotTrigger } = await setUp([robotAt('n'), robotAt('q', 'mute')]);
+    const before = AudioEngine.getPolyphonyStats().voices;
+    mayRobotTrigger('n');
+    mayRobotTrigger('q');
+    mayRobotTrigger('nobody');
+    expect(AudioEngine.getPolyphonyStats().voices).toBe(before);
+  });
+});
