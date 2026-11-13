@@ -226,6 +226,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     scale: ignoreScale ? 1 : audio.scale,
     color: noteColor(robot.identityColor || FALLBACK_IDENTITY, companyColor),
     pxPerUnit: () => getStageScale() * rowScale,
+    strength: 1,
   });
 
   // Attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7), world only: a body is singled out while it is under the pointer

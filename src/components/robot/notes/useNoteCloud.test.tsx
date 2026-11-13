@@ -35,9 +35,11 @@ import {
 import {
   NOTE_COOL_SECONDS,
   NOTE_CROSSING_SECONDS,
+  NOTE_EBB_SECONDS,
   NOTE_HOT_IN_SECONDS,
   NOTE_NOW,
   NOTE_QUANTUM_UNITS,
+  NOTE_WAKE_SECONDS,
 } from '@/constants';
 
 // ========================================
@@ -53,11 +55,12 @@ interface HarnessProps {
   scale?: number;
   color?: string;
   px?: number;
+  strength?: number;
 }
 
-function Harness({ robotId = 'r1', context = 'world', enabled = true, scale = 1, color = '#ff0000', px = 1 }: HarnessProps) {
+function Harness({ robotId = 'r1', context = 'world', enabled = true, scale = 1, color = '#ff0000', px = 1, strength = 1 }: HarnessProps) {
   const root = useRef<SVGGElement>(null);
-  useNoteCloud({ root, robotId, context, enabled, gem: GEM, scale, color, pxPerUnit: () => px });
+  useNoteCloud({ root, robotId, context, enabled, gem: GEM, scale, color, pxPerUnit: () => px, strength });
   return (
     <div data-note-cloud="">
       <NoteCloudLayer side="behind" />
@@ -276,7 +279,7 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
   it('with no note layers to find it registers no listener', () => {
     function Bare() {
       const root = useRef<SVGGElement>(null);
-      useNoteCloud({ root, robotId: 'r1', context: 'world', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1 });
+      useNoteCloud({ root, robotId: 'r1', context: 'world', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1, strength: 1 });
       return <svg><g ref={root} /></svg>;
     }
     render(<Bare />);
@@ -568,5 +571,98 @@ describe('useNoteCloud — white while it sounds (Task 15)', () => {
     emitRobotNote('r1', noteEvent('D4'));
     emitRobotNote('r1', noteEvent('F4'));
     expect(gsap.globalTimeline.getChildren(true, true, true).length).toBe(before);
+  });
+});
+
+// ========================================
+// TASK 22: strength is the cloud's opacity, eased
+// ========================================
+describe('useNoteCloud — strength (Task 22)', () => {
+  const STRENGTH_KEY = 'note-strength-world-r1';
+  const strengthTimeline = () => getTimeline(STRENGTH_KEY);
+  const opacities = (container: HTMLElement) =>
+    [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
+
+  it('mounts at its strength, with no fade', () => {
+    const { container } = render(<Harness strength={0.4} />);
+    expect(opacities(container)).toEqual([0.4, 0.4]);
+    expect(strengthTimeline()).toBeUndefined();
+  });
+
+  it('a fall (1 to 0.4) is a world timeline over NOTE_EBB_SECONDS, ending at the new strength', () => {
+    const { container, rerender } = render(<Harness strength={1} />);
+    rerender(<Harness strength={0.4} />);
+    const tl = strengthTimeline()!;
+    expect(tl).toBeDefined();
+    expect(getTimelineScope(STRENGTH_KEY)).toBe('world');
+    expect(tl.duration()).toBeCloseTo(NOTE_EBB_SECONDS, 5);
+    expect(opacities(container)).toEqual([1, 1]); // no step
+    tl.progress(1);
+    expect(opacities(container)).toEqual([0.4, 0.4]);
+  });
+
+  it('a rise (0.4 to 1) is over NOTE_WAKE_SECONDS', () => {
+    const { container, rerender } = render(<Harness strength={0.4} />);
+    rerender(<Harness strength={1} />);
+    const tl = strengthTimeline()!;
+    expect(tl.duration()).toBeCloseTo(NOTE_WAKE_SECONDS, 5);
+    tl.progress(1);
+    expect(opacities(container)).toEqual([1, 1]);
+  });
+
+  it('a change mid-fade starts from where the fade has got to, and rises if that is below the new strength', () => {
+    const { container, rerender } = render(<Harness strength={1} />);
+    rerender(<Harness strength={0.4} />);
+    const first = strengthTimeline()!;
+    first.progress(0.5);
+    const midway = opacities(container)[0];
+    expect(midway).toBeGreaterThan(0.4);
+    expect(midway).toBeLessThan(1);
+    rerender(<Harness strength={0.9} />);
+    expect(opacities(container)[0]).toBeCloseTo(midway, 5);
+    const second = strengthTimeline()!;
+    expect(second).not.toBe(first);
+    expect(second.duration()).toBeCloseTo(NOTE_WAKE_SECONDS, 5);
+    second.progress(1);
+    expect(opacities(container)).toEqual([0.9, 0.9]);
+  });
+
+  it('at strength 0 an event places no bar; back at 1 the next event does', () => {
+    const { container, rerender } = render(<Harness strength={0} />);
+    emitRobotNote('r1', noteEvent('C4'));
+    expect(allBars(container)).toHaveLength(0);
+    rerender(<Harness strength={1} />);
+    emitRobotNote('r1', noteEvent('D4'));
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('a run begun at strength 0 is honoured: the second of the run is still a repeat', () => {
+    const { container, rerender } = render(<Harness strength={0} />);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 300, note: 'C4' });
+    rerender(<Harness strength={1} />);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 300.25, note: 'C4' });
+    expect(allBars(container)).toHaveLength(0);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 300.5, note: 'C4' });
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('a low strength above 0 still places notes; the layer carries the faintness', () => {
+    const { container } = render(<Harness strength={0.1} />);
+    emitRobotNote('r1', noteEvent('C4'));
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('unmount kills the strength timeline', () => {
+    const { rerender, unmount } = render(<Harness strength={1} />);
+    rerender(<Harness strength={0.5} />);
+    expect(strengthTimeline()).toBeDefined();
+    unmount();
+    expect(strengthTimeline()).toBeUndefined();
+  });
+
+  it('a disabled cloud registers no strength timeline on a change', () => {
+    const { rerender } = render(<Harness enabled={false} strength={1} />);
+    rerender(<Harness enabled={false} strength={0.5} />);
+    expect(strengthTimeline()).toBeUndefined();
   });
 });

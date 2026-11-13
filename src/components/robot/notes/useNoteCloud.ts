@@ -18,12 +18,14 @@ import gsap from 'gsap';
 import {
   NOTE_COOL_SECONDS,
   NOTE_CROSSING_SECONDS,
+  NOTE_EBB_SECONDS,
   NOTE_HOT_COLOR,
   NOTE_HOT_IN_SECONDS,
   NOTE_KNOWN_AHEAD_SECONDS,
   NOTE_NOW,
   NOTE_QUANTUM_DEGREES,
   NOTE_QUANTUM_UNITS,
+  NOTE_WAKE_SECONDS,
 } from '../../../constants';
 import { killTimeline, setTimeline } from '../../../animation/timelineMap';
 import { getWorldState } from '../../../systems/worldState';
@@ -50,6 +52,9 @@ export interface UseNoteCloudOptions {
   color: string;
   /** Screen pixels per canvas unit, for the 4-pixel floor. A getter, read when a note arrives: no layout read. */
   pxPerUnit: () => number;
+  /** How strongly the whole cloud shows, 0 to 1 (§1.7, noteStrength): the layers' opacity, eased to on a change. At
+   *  0 no note is placed, though the model still counts it. */
+  strength: number;
 }
 
 type Side = 'front' | 'behind';
@@ -89,7 +94,7 @@ function hotLevel(since: number, duration: number): number {
 // ========================================
 // HOOK
 // ========================================
-export function useNoteCloud({ root, robotId, context, enabled, gem, scale, color, pxPerUnit }: UseNoteCloudOptions): void {
+export function useNoteCloud({ root, robotId, context, enabled, gem, scale, color, pxPerUnit, strength }: UseNoteCloudOptions): void {
   const reducedMotion = prefersReducedMotion();
   const colorRef = useRef(color);
   const pxPerUnitRef = useRef(pxPerUnit);
@@ -97,6 +102,10 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     colorRef.current = color;
     pxPerUnitRef.current = pxPerUnit;
   });
+  // The strength the layers are at or easing to, and the two wrappers while the roll is built (null when it is not).
+  const strengthRef = useRef(strength);
+  const layersRef = useRef<HTMLElement[] | null>(null);
+  const strengthKey = `note-strength-${context}-${robotId}`;
 
   // The roll, the layers and the listener. A gem or body-scale change re-runs it and rebuilds the roll at once,
   // dropping the notes in flight (Task 24 puts a fade round it).
@@ -113,6 +122,8 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     };
     if (!wrappers.front || !wrappers.behind || !belts.front || !belts.behind) return;
     const layers = [wrappers.front, wrappers.behind];
+    layersRef.current = layers;
+    for (const layer of layers) layer.style.opacity = String(strengthRef.current);
 
     const roll = rollBox(gem, scale);
     const speed = roll.w / NOTE_CROSSING_SECONDS; // canvas units a second
@@ -216,7 +227,8 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     idle();
 
     const unsubscribe = subscribeDrawnNotes(robotId, (note, event) => {
-      if (document.hidden || getWorldState() !== 'running') return;
+      // The model has counted it already (the run and the range), drawn or not.
+      if (document.hidden || getWorldState() !== 'running' || strengthRef.current === 0) return;
       fit();
       const length = noteLength(note.duration, roll.w, thickness);
       const lead = Math.max(0, event.lead);
@@ -254,6 +266,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     return () => {
       unsubscribe();
       killTimeline(key);
+      layersRef.current = null;
       belts.front!.replaceChildren();
       belts.behind!.replaceChildren();
       for (const layer of layers) layer.style.display = '';
@@ -264,6 +277,26 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       }
     };
   }, [root, robotId, context, enabled, reducedMotion, gem, scale]);
+
+  // Strength (§1.7): a change eases both wrappers' opacity from wherever they are to the new strength, on a
+  // registered 'world' tween, so a power-off pause holds it: a rise over NOTE_WAKE_SECONDS, a fall over
+  // NOTE_EBB_SECONDS. Never a step. A new change replaces the tween in flight (setTimeline kills the old one).
+  useEffect(() => {
+    if (strength === strengthRef.current) return;
+    strengthRef.current = strength;
+    const layers = layersRef.current;
+    if (!layers) return;
+    const from = Number(layers[0].style.opacity);
+    const tween = gsap.to(layers, {
+      opacity: strength,
+      duration: strength > from ? NOTE_WAKE_SECONDS : NOTE_EBB_SECONDS,
+      ease: 'sine.inOut',
+    });
+    setTimeline(strengthKey, tween as unknown as ReturnType<typeof gsap.timeline>, 'world');
+  }, [strength, strengthKey]);
+
+  // The strength tween goes with the hook.
+  useEffect(() => () => killTimeline(strengthKey), [strengthKey]);
 
   // The model outlives an effect re-run and the avatar's mount: only the world body's unmount, keyed on the robot
   // alone, forgets the robot's range and run (plan, Architecture Decisions).
