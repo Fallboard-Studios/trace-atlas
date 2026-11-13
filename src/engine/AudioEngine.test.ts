@@ -1799,8 +1799,10 @@ describe('AudioEngine - Motif Group Accent', () => {
       const robot = { ...makeRobot('elsewhere-click', { active: true, value: 4 }), clickTrackActive: true, octaveRange: [2, 5] };
       AudioEngine.registerRobotMelody('elsewhere-click', melody, robot as any);
       const registered = AudioEngine.getRegisteredMelody('elsewhere-click');
-      expect(registered.map((e) => e.id).sort()).toEqual(['click-track-0', 'click-track-1', 'click-track-2', 'click-track-3']);
-      expect(registered.every((e) => e.octave === 2)).toBe(true);
+      // The pattern itself is clickTrack.test.ts's; here, that it is the one built from this robot's own register.
+      const { buildClickTrackMelody } = await import('./clickTrack');
+      const byId = (a: { id: string }, b: { id: string }) => a.id.localeCompare(b.id);
+      expect([...registered].sort(byId)).toEqual([...buildClickTrackMelody(2)].sort(byId));
     });
 
     it('the robot passed in wins over the active locale\'s own copy; with none passed, the lookup as before', async () => {
@@ -1988,28 +1990,29 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
     const { AudioEngine } = await import('./AudioEngine');
     await setActiveRobot(makeRobot('r2', { clickTrackActive: true, octaveRange: [3, 6] }));
 
-    // A real melody with an onset nowhere near the click track's own downbeats (1/5/9/13).
+    // A real melody with a note the click track never plays (noteIndex 5, octave 4: 'A44').
     const realMelody = [{ id: 'real-1', startStep: 7, length: '8n' as const, noteIndex: 5, octave: 4 }];
     const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
     AudioEngine.registerRobotMelody('r2', realMelody);
 
-    // The real melody's own step never fires...
+    // The real melody's own step plays the click track's note there instead, once...
     AudioEngine.processMelodyStep(atStep(7), 0);
-    expect(spy).not.toHaveBeenCalled();
+    expect(spy.mock.calls.map((c) => c[0].note)).toEqual(['D43']);
+    spy.mockClear();
 
-    // ...but the click track's downbeats do, at the robot's own octave-range minimum (3).
+    // ...and each beat's first step plays its own note, at the robot's own octave-range minimum (3), the downbeat an
+    // octave up (the click track's pattern itself is clickTrack.test.ts's).
     AudioEngine.processMelodyStep(atStep(1), 0);
     AudioEngine.processMelodyStep(atStep(5), 0);
     AudioEngine.processMelodyStep(atStep(9), 0);
     AudioEngine.processMelodyStep(atStep(13), 0);
 
-    expect(spy).toHaveBeenCalledTimes(4);
     const notes = spy.mock.calls.map((c) => c[0].note);
     // This file's paletteForMeasure() mock returns note NAMES that already carry
     // their own octave digit (['C4','D4',...]) — scheduleNote's `${noteName}${event.octave}`
     // concatenation then appends the click track's own octave (3) after that, e.g. 'C4' + 3 =
     // 'C43'. Odd-looking but consistent with every other note-string assertion in this file.
-    expect(notes).toEqual(['C43', 'D43', 'C43', 'E43']);
+    expect(notes).toEqual(['C44', 'D43', 'E43', 'F43']);
     spy.mockRestore();
   });
 
@@ -2025,11 +2028,11 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
     // click track is still toggled on.
     AudioEngine.registerRobotMelody('r3', [{ id: 'drifted-1', startStep: 2, length: '8n' as const, noteIndex: 3, octave: 5 }]);
 
-    AudioEngine.processMelodyStep(atStep(2), 0); // the drifted melody's own step — must NOT fire
-    AudioEngine.processMelodyStep(atStep(1), 0); // a click-track downbeat — must fire
+    AudioEngine.processMelodyStep(atStep(2), 0); // the drifted melody's own step: the click track's note, not 'F45'
+    AudioEngine.processMelodyStep(atStep(1), 0); // the click track's downbeat, an octave up
 
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect(spy.mock.calls[0][0].note).toBe('C43'); // 'C4' (mocked note name) + octave 3
+    // 'C4' (mocked note name) + the click track's octave: 3 on step 2, 4 on the downbeat.
+    expect(spy.mock.calls.map((c) => c[0].note)).toEqual(['C43', 'C44']);
     spy.mockRestore();
   });
 

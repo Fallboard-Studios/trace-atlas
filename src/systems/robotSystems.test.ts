@@ -605,7 +605,9 @@ describe('robotSystems', () => {
       // AudioEngine is still the click track, never the passed-in real melody.
       const updated = useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)!;
       expect(updated.clickTrackActive).toBe(true);
-      expect(AudioEngine.getRegisteredMelody(robot.id)).toEqual(buildClickTrackMelody(robot.octaveRange[0]));
+      // In step order: the registry lists events by the order its steps were first used, not by step.
+      const registered = [...AudioEngine.getRegisteredMelody(robot.id)].sort((a, b) => a.startStep - b.startStep);
+      expect(registered).toEqual(buildClickTrackMelody(robot.octaveRange[0]));
     });
 
     it('calls the seam with \'docked\' once, after the Docked/melody write, with the dock cycle already advanced', () => {

@@ -605,6 +605,35 @@ Task 6 and do not depend on each other.
   `src/components/company/CompanyOptionsSection.tsx`, `src/components/company/CompanyOptionsSection.test.tsx`,
   `src/components/robot/PingControlsDrawer.tsx` (comments)
 
+- [x] **Task 10c: a Click Track that marks every step, beat and downbeat (added 2026-11-12, Crawford's ask)**
+
+  **Description:** The old pattern (quarter notes on steps 1, 5, 9, 13, notes 0 1 0 2) told where the measure sat only
+  from its note order. `buildClickTrackMelody` now plays a straight sixteenth on every step, each beat's four on its own
+  noteIndex (`0000 1111 2222 3333`), and the measure's first sixteenth an octave up. (Crawford first asked for two
+  eighths a beat, then for sixteenths in groups of four "so I can most accurately tell what's happening"; the eighth
+  version was never committed.) The two tests outside `clickTrack.test.ts` that wrote the old pattern out now compare
+  with `buildClickTrackMelody`; the engine's override tests pick their notes from the new pattern; the dock-cycle test
+  sorts by step, since the registry lists events in the order their steps were first used.
+
+  **Proof:** RED test — `src/engine/clickTrack.test.ts` (the pattern) and `AudioEngine.test.ts` (what the override
+  plays).
+
+  **Acceptance criteria:**
+  - [x] 16 events on steps 1 to 16, every one `16n`, notes `0000 1111 2222 3333`, unique ids, a fresh array each call.
+  - [x] Step 1 an octave above the given octave and the other 15 on it, at octaves 1, 3, 5 and 7.
+  - [x] With the flag on, a real melody's step plays the click note there instead (step 7: noteIndex 1), and each
+        beat's first step plays C, D, E, F with the downbeat an octave up.
+  - [x] Mutation: the accent dropped, every beat accented, notes cycling per step, eighth notes, steps off by one:
+        each fails a test.
+
+  **Done 2026-11-12.** RED: 8 failures against the eighth-note version (6 pattern cases, 2 engine cases). Mutants: all 5
+  killed (4, 3, 3, 1, 4 failures). clickTrack, robotOptionsActions, robotSystems and AudioEngine tests: 732 passed.
+  Types clean; lint 0 errors. `MELODY_SYSTEM.md`'s Click Track note describes the new pattern and where the toggle
+  lives (it still said "the Ping Controls accordion").
+
+  **Files:** `src/engine/clickTrack.ts`, `src/engine/clickTrack.test.ts`, `src/engine/AudioEngine.test.ts`,
+  `src/systems/robotOptionsActions.test.ts`, `src/systems/robotSystems.test.ts`, `docs/MELODY_SYSTEM.md`
+
 ### Checkpoint: By ear (spec §6.3)
 - [ ] Crawford, after a hard reload: a robot on the testing-only Click Track (the toggle at the top of the
       Composition section on a robot, company or All Probes screen, dev server only, Tasks 10a and 10b), the downbeat
