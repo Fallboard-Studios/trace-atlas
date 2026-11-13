@@ -68,12 +68,49 @@
 
 /* The sketch's 300 px gem, the first thing to give way when the column is short (the column scrolls only
    once the gem is down to 120 px): its motion canvas is mostly the orbiters' room to move. */
-.robot-screen__avatar-column .robot-screen__gem {
+.robot-screen__avatar-column .robot-screen__gem,
+.robot-screen__avatar-column .robot-screen__gem-box {
   display: block;
   flex: 0 1 auto;
   width: 100%;
   height: 300px;
   min-height: 120px;
+}
+
+/* The note cloud's box (docs/specs/ROBOT_NOTE_CLOUD.md §1.8): it takes the avatar's place and size, and the svg
+   fills it as before. It clips the roll (2.5 times the robot) at its edge, and isolates the frames' z-indexes so the
+   behind frame draws over the column and under the svg. */
+.robot-screen__gem-box {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.robot-screen__avatar-column .robot-screen__gem-box > .robot-screen__gem {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+/* A frame is the gem canvas's (0, 0) in the box: the fit the box measured (translate, then scale about the frame's
+   own top-left), so the layers useNoteCloud places in canvas units land where the svg draws the robot. */
+.robot-screen__note-frame {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+  transform-origin: 0 0;
+  transform: translate(var(--note-fit-x, 0px), var(--note-fit-y, 0px)) scale(var(--note-fit-scale, 1));
+  pointer-events: none;
+}
+
+.robot-screen__note-frame--behind {
+  z-index: -1;
+}
+
+.robot-screen__note-frame--front {
+  z-index: 1;
 }
 
 .robot-screen__name {
