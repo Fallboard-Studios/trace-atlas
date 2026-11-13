@@ -15,6 +15,7 @@ import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { AudioEngine } from '@/engine/AudioEngine';
 import * as melodyGen from '@/engine/melodyGenerator';
+import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { Robot, ADSREnvelope, MelodyEvent } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { LfoLink } from '@/types/lfo';
@@ -769,12 +770,8 @@ describe('robotOptionsActions', () => {
       applyClickTrackActive(robot, localeId, true);
 
       expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { clickTrackActive: true });
-      expect(registerSpy).toHaveBeenCalledWith(robot.id, [
-        { id: 'click-track-0', startStep: 1, length: '4n', noteIndex: 0, octave: 3 },
-        { id: 'click-track-1', startStep: 5, length: '4n', noteIndex: 1, octave: 3 },
-        { id: 'click-track-2', startStep: 9, length: '4n', noteIndex: 0, octave: 3 },
-        { id: 'click-track-3', startStep: 13, length: '4n', noteIndex: 2, octave: 3 },
-      ]);
+      // The pattern itself is clickTrack.test.ts's; here, that it is the one built from the octave range minimum.
+      expect(registerSpy).toHaveBeenCalledWith(robot.id, buildClickTrackMelody(3));
     });
 
     it('writes clickTrackActive false and re-registers the robot\'s own real melody, unchanged, when turned off', () => {

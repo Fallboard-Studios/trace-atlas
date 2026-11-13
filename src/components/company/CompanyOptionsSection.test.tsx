@@ -76,6 +76,7 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
     onOctaveMinChange: (v: number) => void;
     onOctaveMaxChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
+    onClickTrackActiveChange?: (active: boolean) => void;
     disabled?: boolean;
   }) => {
     renderCounts.pingControlsComposition();
@@ -94,6 +95,7 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
         <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
         <button onClick={() => props.onOctaveMaxChange(6)}>probe-octave-max</button>
         <button onClick={() => props.onNoteVarianceChange(33)}>probe-note-variance</button>
+        {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
       </div>
     );
   }),
@@ -483,6 +485,27 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
       render(<Sections target="c1" ids={['rhythm']} />);
       click(probe);
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+    });
+
+    // docs/tasks/ONE_MUSIC_CLOCK.md Task 10b: the dev-only Click Track on the company and All Probes screens.
+    it('Composition: the Click Track reaches every member with the new state, and is recorded', () => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      render(<Sections target="c1" ids={['rhythm']} />);
+      click('probe-click-track');
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls.map((c) => c[2])).toEqual([true, true]);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ clickTrackActive: true });
+    });
+
+    it('Composition: for \'all\', the Click Track reaches every robot, across companies and Freelance', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: undefined }));
+      addCompany('c1', ['r1']);
+      const spy = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
+      render(<Sections target="all" ids={['rhythm']} />);
+      click('probe-click-track');
       expect(ids(spy)).toEqual(['r1', 'r2']);
     });
 

@@ -49,7 +49,7 @@ AudioEngine.scheduleNote({ robotId, note, duration, time, velocity }); // void �
 AudioEngine.reserveVoice(robotId, descriptor, phase, detune, pulseWidth); // boolean
 AudioEngine.releaseVoice(robotId);
 AudioEngine.reReserveVoice(robotId); // boolean
-AudioEngine.getPolyphonyStats(); // { voices: number; maxVoices: number; step: number } — maxVoices is the LIVE cap
+AudioEngine.getPolyphonyStats(); // { voices: number; maxVoices: number } — maxVoices is the LIVE cap
 AudioEngine.getVoiceForRobot(robotId);
 AudioEngine.setSoundingRobots(ids | null); // Audio Load: robots allowed to sound; null = no restriction (default)
 AudioEngine.setPolyphonyCap(n);            // Audio Load: live ceiling, clamped to [0, MAX_POLYPHONY]; NaN -> MAX_POLYPHONY
@@ -75,13 +75,13 @@ Voice release is **not** handled with `setTimeout`/`queueMicrotask`. `scheduleVo
 ## Debugging
 
 ```typescript
-console.log(AudioEngine.getPolyphonyStats()); // { voices, maxVoices, step }
+console.log(AudioEngine.getPolyphonyStats()); // { voices, maxVoices }
 console.log(AudioEngine.getVoiceForRobot(robotId));
 ```
 
 ## Integration: Melody Playback
 
-`AudioEngine`'s internal playback tick (16 steps per measure — see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md)) calls `scheduleNote()` for every registered event at the current step. `scheduleNote` returns `void` — polyphony rejection is silent from the caller's perspective; `triggerWithCap`'s `boolean` result isn't surfaced there. To observe skip rate, poll `AudioEngine.getPolyphonyStats()` rather than expecting a per-call success/failure signal.
+`AudioEngine`'s internal playback tick (16 steps per measure, each read from the transport — see [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#playback-loop)) calls `scheduleNote()` for every registered event at the tick's own step. `scheduleNote` returns `void` — polyphony rejection is silent from the caller's perspective; `triggerWithCap`'s `boolean` result isn't surfaced there. To observe skip rate, poll `AudioEngine.getPolyphonyStats()` rather than expecting a per-call success/failure signal.
 
 ## Testing
 

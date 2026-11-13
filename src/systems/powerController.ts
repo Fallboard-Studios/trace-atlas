@@ -1,6 +1,5 @@
 import { AudioEngine } from '../engine/AudioEngine';
 import { useAudioStore } from '../stores/audioStore';
-import { resetHarmony } from '../engine/harmonySystem';
 import { reRegisterAllRobotsAudio } from './spawnSystem';
 import { pauseWorkLoop, resumeWorkLoop } from './workLoop';
 import { useUIStore } from '../stores/uiStore';
@@ -21,7 +20,6 @@ export const powerController = {
   async start() {
     await AudioEngine.start();
     AudioEngine.setBPM(useAudioStore.getState().bpm);
-    resetHarmony();
     reRegisterAllRobotsAudio(getActiveLocaleId());
   },
 
@@ -29,7 +27,7 @@ export const powerController = {
    * Power is a pause (docs/specs/OFF_SCREEN.md assumption 5): freeze the running world in place and flip the power
    * state off. The work loop's clock stops first (no site cooldown runs out while the tablet is off), then every
    * `'world'` timeline (the robots freeze mid-glide), then the AudioContext — the transport, the BeatClock's measure
-   * tick (and with it the battery lifecycle, the harmony and the swells), every LFO, voice and tail stop together.
+   * tick (and with it the battery lifecycle), the melody and swell ticks, every LFO, voice and tail stop together.
    * Nothing is torn down: the lifecycle subscription stands (its tick is frozen with the context), no voice is
    * released, no robot moves. The rocker's return animation is the caller's. A no-op unless the world is running.
    */

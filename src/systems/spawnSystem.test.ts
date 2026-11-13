@@ -57,7 +57,7 @@ function windowOpenings(robots: readonly Robot[]): { robot: Robot; step: number 
 /** The accent multiplier `robotId`'s note at `step` schedules (1 for none), through the engine's own per-step loop. */
 function accentAt(robotId: string, step: number): number | undefined {
   const schedule = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
-  AudioEngine.processMelodyStep(step, 0);
+  AudioEngine.processMelodyStep({ sixteenth: step - 1, measure: 0, step }, 0);
   const note = schedule.mock.calls.map(([params]) => params).find((params) => params.robotId === robotId);
   schedule.mockRestore();
   return note ? (note.accentMultiplier ?? 1) : undefined;

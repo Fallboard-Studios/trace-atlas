@@ -51,7 +51,7 @@ vi.mock('gsap', () => ({
 }));
 
 vi.mock('./AudioEngine', () => ({
-  AudioEngine: { getPolyphonyStats: () => ({ voices: fakeVoices, maxVoices: 16, step: 1 }) },
+  AudioEngine: { getPolyphonyStats: () => ({ voices: fakeVoices, maxVoices: 16 }) },
 }));
 
 // Only the fields readInfo reads. `robotLoad`/`effectsLoad` / `soundingRobotIds` are live, so a test can change

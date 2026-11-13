@@ -2,35 +2,35 @@
 
 The Harmony System provides dynamic musical palettes that cycle sequentially through a fixed set of
 12 palettes as `Tone.Transport` measures advance, creating evolving ambient textures without requiring
-manual composition. Each palette holds for `MEASURES_PER_PALETTE_ENTRY` (2) measures before the system
-advances to the next one, wrapping back to the first once it reaches the end. **This is a distinct clock
-from each locale's own visual day/night cycle** (a flat, universal `DAY_DURATION_MS` real-world duration,
-wall-clock-driven from that locale's own `dayStartTimestamp`, see `src/constants/time.ts`). The two are
-deliberately decoupled: a locale's visual lighting always completes a day in that fixed real-world
-duration regardless of tempo, while the harmony palette moves with musical measures. See "Palette
-Advancement" below for the implementation detail.
+manual composition. Each palette holds for `MEASURES_PER_PALETTE_ENTRY` (2) measures before the next one
+takes over, wrapping back to the first after the last. **This is a distinct clock from each locale's own
+visual day/night cycle** (a flat, universal `DAY_DURATION_MS` real-world duration, wall-clock-driven from
+that locale's own `dayStartTimestamp`, see `src/constants/time.ts`). The two are deliberately decoupled: a
+locale's visual lighting always completes a day in that fixed real-world duration regardless of tempo,
+while the harmony palette moves with musical measures. See "Palette Advancement" below.
 
 ## Purpose
 
 Robots do not store literal note strings in their melodies. Instead, they store **note indices (0-7)**
-that map into a global 8-note palette (`availableNotes`). The palette is re-evaluated from the beat clock
-on a repeating transport callback and only swaps when the currently-active palette index changes, so
-melody events stay stable while the active harmony palette evolves.
+that map into an 8-note palette. The palette is worked out from the measure a note sounds in, each time a
+note is scheduled (`paletteForMeasure(measure)`), so melody events stay stable while the harmony evolves,
+and every note plays the chord of its own measure. Nothing holds a "current palette": there is no harmony
+repeat and no module state (docs/specs/ONE_MUSIC_CLOCK.md §4.3).
 
 ## Core Concept
 
 ```
 Robot Melody: [2, 0, 5, 3, ...]  (note indices, immutable)
                 ↓  ↓  ↓  ↓
-Available Notes: ['C', 'G', 'E', 'D', 'B', 'C', 'E', 'G']  (note names, no octave — checked every 2 measures, value changes when the computed palette index advances)
+Palette:      ['C', 'G', 'E', 'D', 'B', 'C', 'E', 'G']  (note names, no octave — paletteForMeasure(measure), a new entry every 2 measures)
                 ↓  ↓  ↓  ↓
 Per-event octave: [4,  4,  4,  3,  ...]  (concrete octave stored on each MelodyEvent at spawn)
                 ↓  ↓  ↓  ↓
 Actual Playback: E4, C4, A3, ... (note name + event octave combined at scheduling time)
 ```
 
-When the active palette entry changes, only `availableNotes` swaps—robot melodies (indices + octaves)
-remain untouched.
+When the measure reaches a new palette entry, only the note names a step reads change; robot melodies
+(indices + octaves) remain untouched.
 
 ## Data Structure
 
@@ -53,82 +53,48 @@ const HARMONY_PALETTES: EighthNotes[] = [
   ['B',  'F#', 'D#', 'C#', 'A',  'B',  'D#', 'F#'],
   ['E',  'C',  'G#', 'D',  'Bb', 'E',  'G#', 'B' ],
 ];
+
+// Measures each palette entry holds before advancing to the next.
+const MEASURES_PER_PALETTE_ENTRY = 2;
 ```
 
-A plain array, not an hour-keyed map — nothing in the cycling mechanism assumes this array's length,
-so a future palette set of any size works unchanged (docs/specs/HARMONY_PALETTE_SEQUENCING.md).
+A plain array, not an hour-keyed map — nothing in the lookup assumes this array's length, so a future
+palette set of any size works unchanged (docs/specs/archive/HARMONY_PALETTE_SEQUENCING.md).
 
 ## API
 
-```typescript
-// Retrieve a copy of the current palette (safe to iterate)
-export function getAvailableNotes(): string[];
-
-// Reset the palette to the first entry
-export function resetHarmony(): void;
-
-// Manually set palette (for testing or custom harmonies)
-export function setAvailableNotes(notes: EighthNotes): void;
-
-// Initialize automatic palette cycling (call once after Transport starts). Takes no arguments —
-// scheduling goes through beatClock.ts's own scheduleRepeat/cancelSchedule, not a transport passed
-// in by the caller.
-export function scheduleHarmonyCycle(): void;
-
-// Stop the scheduled harmony cycle
-export function stopHarmonyCycle(): void;
-```
-
-## Implementation
-
-**File: `src/engine/harmonySystem.ts`**
+**File: `src/engine/harmonySystem.ts`** — one export besides the `EighthNotes` type:
 
 ```typescript
-// The runtime keeps an internal `availableNotes` and updates it from beatClock's transport-driven
-// measure count.
-let availableNotes: EighthNotes = HARMONY_PALETTES[0];
-
-export function scheduleHarmonyCycle(): void {
-  // Schedules a beatClock.scheduleRepeat('2m', ...) tick and swaps the palette when the computed
-  // index changes. If scheduleHarmonyCycle is called twice, the implementation warns and ignores
-  // the second call.
-}
+// The palette a measure plays: entry floor(measure / MEASURES_PER_PALETTE_ENTRY) % HARMONY_PALETTES.length,
+// as a copy. Pure: worked out from the measure and the table, nothing remembered.
+export function paletteForMeasure(measure: number): string[];
 ```
 
-`scheduleHarmonyCycle()` schedules a repeating callback via `beatClock.ts`'s own `scheduleRepeat`,
-on an interval built from `MEASURES_PER_PALETTE_ENTRY` (`` `${MEASURES_PER_PALETTE_ENTRY}m` ``, i.e.
-`'2m'` today) — the same constant the index math below reads from, so the two can't independently drift
-apart. Inside that callback it computes `paletteIndex = Math.floor(getCurrentMeasure() /
-MEASURES_PER_PALETTE_ENTRY) % HARMONY_PALETTES.length`, fresh on every tick — never an accumulated
-counter, so a missed or errored tick can't leave the palette permanently out of sync with the transport.
-The palette only reassigns if the computed index differs from the previous one, and the callback is
-wrapped in `try/catch` so a failure does not break the loop. `stopHarmonyCycle()` calls `cancelSchedule()`
-on the tracked schedule id and resets internal references.
+The measure is the never-wrapping count from the transport's tick 0, the `measure` of a `MusicPosition`
+([BEAT_CLOCK.md](BEAT_CLOCK.md#the-music-position)). There is nothing to start, stop or reset: a power-on
+plays measure 0 on entry 0 because the transport starts at tick 0.
 
 ## Usage in Melody Playback
 
-```typescript
-import { scheduleRepeat } from '../engine/beatClock'; // named export — no `BeatClock` object
+The melody tick reads its own position and hands it to `AudioEngine.processMelodyStep`, which reads the
+palette for that position's measure (`src/engine/AudioEngine.ts`, abridged):
 
-// During 8th-note tick
-scheduleRepeat('8n', (time) => {
-  const currentStep = (stepCounter % 16) + 1;
-  const eventsAtStep = melodyRegistry.get(currentStep) || [];
-  
-  eventsAtStep.forEach(({ robotId, event }) => {
-    const notes = getAvailableNotes();         // note names, e.g. ['C', 'G', ...]
-    const noteName = notes[event.noteIndex];   // e.g. 'C'
-    const note = `${noteName}${event.octave}`; // e.g. 'C4' — octave baked in at spawn
-    
-    AudioEngine.scheduleNote({
-      robotId,
-      note,  // Automatically uses new harmony + robot's spawn-time octave
-      duration: event.length,
-      time: time + MIN_LEAD,
-    });
-  });
-  
-  stepCounter++;
+```typescript
+// startMelodyPlayback: a 16n repeat on the sixteenth grid (start 0), registered before the transport starts.
+transport.scheduleRepeat((time: number) => {
+  const at = positionAt(time);          // { sixteenth, measure, step } of this callback's own time
+  if (!at) return;
+  AudioEngine.processMelodyStep(at, time);
+}, '16n', 0);
+
+// processMelodyStep(at: MusicPosition, time: number)
+const events = stepRegistry.get(at.step) || [];
+const notes = paletteForMeasure(at.measure);   // the chord of the measure this step sounds in
+events.forEach(({ robotId, event }) => {
+  const noteName = notes[event.noteIndex];     // e.g. 'C'
+  const note = `${noteName}${event.octave ?? 4}`; // e.g. 'C4' — octave baked in at spawn
+  AudioEngine.scheduleNote({ robotId, note, duration: event.length, time: time + MIN_LEAD /* + humanize */ });
 });
 ```
 
@@ -136,28 +102,30 @@ scheduleRepeat('8n', (time) => {
 
 **✅ DO:**
 - Store note indices (0-7) in robot melodies
-- Call `getAvailableNotes()` at playback time
-- Use `scheduleHarmonyCycle`/Transport for palette updates
+- Read the palette at playback time with `paletteForMeasure(measure)`, for the measure of the note's own
+  callback time (`positionAt(time)`)
 - Keep melodies immutable after spawn
 
 **❌ DON'T:**
 - Store literal pitch strings in melodies
-- Regenerate melodies when harmony changes
-- Mutate robot melody arrays
-- Use `setInterval` or `setTimeout` for palette updates
-- Reschedule melody loops on harmony change
+- Keep a "current palette", or any other running count, beside the clock
+- Read the measure from another tick's last value (`getCurrentMeasure()`) for a note's palette: that value
+  belongs to whichever tick ran last
+- Regenerate melodies or reschedule melody loops when the palette changes
+- Use `setInterval` or `setTimeout` for anything musical
 
 ## Palette Advancement
 
 ```typescript
-import { getCurrentMeasure } from '../engine/beatClock'; // named export, no `BeatClock` object
-
-// Recomputed fresh every '2m' tick — never accumulated.
-const paletteIndex = Math.floor(getCurrentMeasure() / MEASURES_PER_PALETTE_ENTRY) % HARMONY_PALETTES.length;
+// paletteForMeasure: worked out on every call — never stored, never incremented.
+HARMONY_PALETTES[Math.floor(measure / MEASURES_PER_PALETTE_ENTRY) % HARMONY_PALETTES.length]
 ```
 
-**Important:** the active index is **derived** from the transport's measure count on every tick, never
-stored or incremented in state — a missed/errored tick self-corrects on the next one rather than drifting.
+**Important:** the entry is a pure function of the measure. A late or lost firing cannot leave the palette
+out of step, and the palette changes on the bar's own first sixteenth: step 1 of measure 2 plays entry 1,
+because the step reads measure 2 from its own time. (Until docs/specs/ONE_MUSIC_CLOCK.md, a `2m` repeat
+swapped a stored palette and read BeatClock's last measure, so the chord could change two measures late;
+backlog 82.)
 
 **This is a different clock from the visual day/night cycle.** The harmony palette advances with
 `Tone.Transport`'s measure position — it moves with musical tempo, not real time. Facade/window lighting
@@ -178,39 +146,35 @@ When creating custom `HARMONY_PALETTES` entries:
    sequencing/mood arcs are a property of the order you list entries in the array, not a fixed clock
    position.
 
+A palette setting (backlog 7) would enter through `paletteForMeasure`, the one place the table is read. It
+keeps no history: after a change, every measure, earlier ones included, plays the palettes as they are then
+set.
+
 ## Index Safety
 
-When code consumes a melody event, it is safest to guard the palette lookup against out-of-range values:
-
-```typescript
-const safeIndex = Math.max(0, Math.min(7, event.noteIndex));
-const note = availableNotes[safeIndex] ?? availableNotes[0];
-```
+`processMelodyStep` looks the note name up with `notes[event.noteIndex]`. An index with no name (outside
+0..7) is skipped with a `devWarn`, and the step's other events still play: each event is scheduled inside
+its own `try/catch`.
 
 ## Testing
 
-**Manual palette override:**
-```typescript
-// Force a specific harmony for testing using note names only
-setAvailableNotes(['C', 'E', 'G', 'B', 'D', 'F', 'A', 'C']);
-```
+`paletteForMeasure` is pure: call it with a measure and compare with the table. `processMelodyStep` takes a
+`MusicPosition`, so a test plays any measure and step directly, with no transport
+(`src/engine/AudioEngine.test.ts`'s `atStep(step, measure)` helper builds one).
 
 **Debug display:**
 ```typescript
 import { getCurrentMeasure } from '../engine/beatClock';
-console.log('Current notes:', getAvailableNotes());
+import { paletteForMeasure } from '../engine/harmonySystem';
 console.log('Current measure:', getCurrentMeasure());
+console.log('Its notes:', paletteForMeasure(getCurrentMeasure()));
 ```
 
 ## Performance
 
-- `getAvailableNotes()` returns a copy (safe, no mutation risk)
-- Array copy overhead is negligible (8 strings, ~1μs)
-- The palette check runs every `MEASURES_PER_PALETTE_ENTRY` measures (2 today,
-  `scheduleHarmonyCycle`'s own schedule interval); the palette *value* only reassigns when the computed
-  index actually differs from last time — in practice that means every tick, since the index and the
-  check interval move in lockstep
-- No iteration over robot arrays on harmony change
+- `paletteForMeasure` returns a copy (safe, no mutation risk): one array of 8 strings per melody step,
+  negligible
+- No callback of its own on the transport, and no iteration over robot arrays when the palette changes
 
 ## Integration with Melody System
 
@@ -226,14 +190,8 @@ interface MelodyEvent {
 }
 ```
 
-At scheduling time, `note = availableNotes[event.noteIndex] + event.octave` (e.g. `"C" + 4 = "C4"`). This
-means a harmony change silently updates the pitch class while the octave register stays as the robot was
-born with.
+At scheduling time, `note = paletteForMeasure(measure)[event.noteIndex] + event.octave` (e.g. `"C" + 4 =
+"C4"`). This means a palette change silently updates the pitch class while the octave register stays as the
+robot was born with.
 
-At playback:
-```typescript
-const note = getAvailableNotes()[event.noteIndex];
-AudioEngine.scheduleNote({ robotId, note, duration: event.length, time });
-```
-
-The melody event never changes—only the palette swaps.
+The melody event never changes—only the palette its measure reads.

@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const callbacks: Array<(time?: unknown) => void> = [];
+const callbacks: Array<(time: number) => void> = [];
+
+// The mock transport runs at 120 BPM and 192 PPQ from audio-clock time 0: a beat is 0.5 s (384 ticks per second),
+// a sixteenth 0.125 s (48 ticks), a measure 2 s (768 ticks).
+const TICKS_PER_SECOND = 384;
+const SIXTEENTH_SECONDS = 0.125;
+const ticksAt = (time: number) => time * TICKS_PER_SECOND;
+/** The audio-clock time of a transport position, as the mock maps it. */
+const timeAt = (measure: number, beat = 0, sixteenths = 0) => (measure * 16 + beat * 4 + sixteenths) * SIXTEENTH_SECONDS;
 
 const mockTransport = {
-  position: '0:0:0',
-  scheduleRepeat: vi.fn<(cb: (time?: unknown) => void, interval: string) => string>((cb) => {
+  PPQ: 192,
+  getTicksAtTime: vi.fn<(time: number) => number>(ticksAt),
+  scheduleRepeat: vi.fn<(cb: (time: number) => void, interval: string, startTime?: unknown) => string>((cb) => {
     callbacks.push(cb);
     return 'repeat-id';
   }),
@@ -15,21 +24,23 @@ vi.mock('tone', () => ({
   getTransport: () => mockTransport,
 }));
 
-let initBeatClock: (transport?: typeof mockTransport & { toSeconds?: (time: string) => number }) => void;
+let initBeatClock: typeof import('./beatClock').initBeatClock;
 let getTickSeconds: (time?: number) => number | undefined;
 let getCurrentBeat: () => number;
 let getCurrentMeasure: () => number;
 let getCurrentMeasurePrecise: () => number;
-let parseTransportPosition: (rawPosition: unknown) => { measure: number; beat: number; sixteenths: number };
 let subscribeToMeasure: (cb: (m: number) => void) => () => void;
 let resetBeatClock: () => void;
 let scheduleRepeat: (interval: string, callback: (time: number) => void) => string;
 let cancelSchedule: (scheduleId: string) => void;
+let positionFromTicks: typeof import('./beatClock').positionFromTicks;
+let positionAt: typeof import('./beatClock').positionAt;
 
 describe('beatClock', () => {
   beforeEach(async () => {
     callbacks.length = 0;
-    mockTransport.position = '0:0:0';
+    mockTransport.getTicksAtTime.mockReset();
+    mockTransport.getTicksAtTime.mockImplementation(ticksAt);
     mockTransport.scheduleRepeat.mockClear();
     mockTransport.clear.mockClear();
     vi.resetModules();
@@ -38,24 +49,145 @@ describe('beatClock', () => {
       getCurrentBeat,
       getCurrentMeasure,
       getCurrentMeasurePrecise,
-      parseTransportPosition,
       subscribeToMeasure,
       resetBeatClock,
       scheduleRepeat,
       cancelSchedule,
       getTickSeconds,
+      positionFromTicks,
+      positionAt,
     } = await import('./beatClock'));
     // Initialize the beatClock with the mocked transport for tests
     initBeatClock(mockTransport);
   });
 
-  it('initializes once and tracks beat/measure from transport position', () => {
-    initBeatClock(mockTransport);
-    expect(mockTransport.scheduleRepeat).toHaveBeenCalledTimes(1);
-    mockTransport.position = '2:1:2';
-    callbacks[0]?.();
-    expect(getCurrentMeasure()).toBe(2);
-    expect(getCurrentBeat()).toBeCloseTo(9.5);
+  // One music clock Task 2 (docs/specs/ONE_MUSIC_CLOCK.md §4.1, §6.1): the position of a transport tick count.
+  describe('positionFromTicks', () => {
+    const PPQ = 192;
+
+    it('tick 0 is the first sixteenth: measure 0, step 1', () => {
+      expect(positionFromTicks(0, PPQ)).toEqual({ sixteenth: 0, measure: 0, step: 1 });
+    });
+
+    it('one sixteenth (48 ticks at 192 PPQ) is step 2', () => {
+      expect(positionFromTicks(48, PPQ)).toEqual({ sixteenth: 1, measure: 0, step: 2 });
+    });
+
+    it('the last sixteenth of measure 0 (720) is step 16', () => {
+      expect(positionFromTicks(720, PPQ)).toEqual({ sixteenth: 15, measure: 0, step: 16 });
+    });
+
+    it('the bar (768) is measure 1, step 1', () => {
+      expect(positionFromTicks(768, PPQ)).toEqual({ sixteenth: 16, measure: 1, step: 1 });
+    });
+
+    it.each([767.9999, 768.0001])('a hair either side of the bar (%s) rounds to the bar: measure 1, step 1', (ticks) => {
+      expect(positionFromTicks(ticks, PPQ)).toEqual({ sixteenth: 16, measure: 1, step: 1 });
+    });
+
+    it('a hair either side of a mid-measure sixteenth rounds to it', () => {
+      expect(positionFromTicks(4 * 48 - 0.0001, PPQ)).toEqual({ sixteenth: 4, measure: 0, step: 5 });
+      expect(positionFromTicks(4 * 48 + 0.0001, PPQ)).toEqual({ sixteenth: 4, measure: 0, step: 5 });
+    });
+
+    it('the measure never wraps: measure 97, step 4 is sixteenth 1555', () => {
+      const ticks = (97 * 16 + 3) * 48;
+      expect(positionFromTicks(ticks, PPQ)).toEqual({ sixteenth: 1555, measure: 97, step: 4 });
+    });
+
+    it('nothing assumes 192 PPQ: at 96, tick 384 is measure 1, step 1 and tick 24 is step 2', () => {
+      expect(positionFromTicks(384, 96)).toEqual({ sixteenth: 16, measure: 1, step: 1 });
+      expect(positionFromTicks(24, 96)).toEqual({ sixteenth: 1, measure: 0, step: 2 });
+    });
+  });
+
+  // One music clock Task 3 (docs/specs/ONE_MUSIC_CLOCK.md §4.1): the position at a callback's audio-clock time.
+  describe('positionAt', () => {
+    it('is the position of the transport tick count at that time', () => {
+      expect(positionAt(timeAt(5, 0, 3))).toEqual({ sixteenth: 83, measure: 5, step: 4 });
+      expect(mockTransport.getTicksAtTime).toHaveBeenLastCalledWith(timeAt(5, 0, 3));
+    });
+
+    it('reads the transport PPQ, not 192', () => {
+      resetBeatClock();
+      initBeatClock({ ...mockTransport, PPQ: 96, getTicksAtTime: (time: number) => time * 192 });
+      expect(positionAt(2)).toEqual({ sixteenth: 16, measure: 1, step: 1 });
+    });
+
+    it('is undefined with no transport', () => {
+      resetBeatClock();
+      expect(positionAt(timeAt(5))).toBeUndefined();
+    });
+  });
+
+  // One music clock Task 3 (spec §4.2, §6.1): BeatClock's tick sits on the grid and reads its own time.
+  describe('the internal 16n tick', () => {
+    it('registers once, at 16n, with a start of 0 so it fires on the sixteenth grid', () => {
+      initBeatClock(mockTransport);
+      expect(mockTransport.scheduleRepeat).toHaveBeenCalledTimes(1);
+      expect(mockTransport.scheduleRepeat).toHaveBeenCalledWith(expect.any(Function), '16n', 0);
+    });
+
+    it('tracks beat and measure from its own time', () => {
+      callbacks[0](timeAt(2, 1, 2));
+      expect(getCurrentMeasure()).toBe(2);
+      expect(getCurrentBeat()).toBeCloseTo(9.5);
+    });
+
+    it('turns the measure on the bar tick and notifies each listener once', () => {
+      const a = vi.fn();
+      const b = vi.fn();
+      subscribeToMeasure(a);
+      subscribeToMeasure(b);
+      callbacks[0](timeAt(4, 3, 3));
+      a.mockClear();
+      b.mockClear();
+      callbacks[0](timeAt(5));
+      expect(getCurrentMeasure()).toBe(5);
+      expect(a.mock.calls).toEqual([[5]]);
+      expect(b.mock.calls).toEqual([[5]]);
+    });
+
+    it('a sixteenth before the bar does not turn the measure, even with a position field that reads ahead', () => {
+      // Backlog 82: the old tick read transport.position, which could already read the next measure.
+      resetBeatClock();
+      callbacks.length = 0;
+      const readingAhead = { ...mockTransport, position: '5:0:0' };
+      initBeatClock(readingAhead);
+      const listener = vi.fn();
+      subscribeToMeasure(listener);
+      callbacks[0](timeAt(4, 3, 3));
+      expect(getCurrentMeasure()).toBe(4);
+      expect(getCurrentBeat()).toBeCloseTo(19.75);
+      expect(listener.mock.calls).toEqual([[4]]);
+    });
+
+    it.each([767.9999, 768.0001])('a bar tick count a hair off the grid (%s) still turns the measure', (ticks) => {
+      callbacks[0](timeAt(0, 3, 3));
+      mockTransport.getTicksAtTime.mockReturnValueOnce(ticks);
+      callbacks[0](timeAt(1));
+      expect(getCurrentMeasure()).toBe(1);
+      expect(getCurrentBeat()).toBe(4);
+    });
+
+    it('the first tick at time 0 is measure 0, and listeners hear it', () => {
+      const listener = vi.fn();
+      subscribeToMeasure(listener);
+      callbacks[0](0);
+      expect(getCurrentMeasure()).toBe(0);
+      expect(listener.mock.calls).toEqual([[0]]);
+    });
+
+    it('a stale tick after reset changes nothing and does not throw', () => {
+      callbacks[0](timeAt(3));
+      resetBeatClock();
+      const listener = vi.fn();
+      subscribeToMeasure(listener);
+      expect(() => callbacks[0](timeAt(7))).not.toThrow();
+      expect(getCurrentMeasure()).toBe(0);
+      expect(getCurrentBeat()).toBe(0);
+      expect(listener).not.toHaveBeenCalled();
+    });
   });
 
   // docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2: a timed write glides one 16n at the live tempo.
@@ -182,33 +314,28 @@ describe('beatClock', () => {
 
   describe('getCurrentMeasurePrecise', () => {
     it('is getCurrentBeat() / 4 — the continuous, sub-measure-precision measure position', () => {
-      mockTransport.position = '2:1:2';
-      callbacks[0]?.();
+      callbacks[0](timeAt(2, 1, 2));
       expect(getCurrentMeasurePrecise()).toBeCloseTo(getCurrentBeat() / 4);
       expect(getCurrentMeasurePrecise()).toBeCloseTo(2.375); // 2 measures + 1 beat + 2 sixteenths, in measures
     });
 
     it('advances smoothly between measure boundaries, unlike getCurrentMeasure()', () => {
-      mockTransport.position = '5:0:0';
-      callbacks[0]?.();
+      callbacks[0](timeAt(5));
       expect(getCurrentMeasure()).toBe(5);
       expect(getCurrentMeasurePrecise()).toBeCloseTo(5);
 
-      mockTransport.position = '5:2:0'; // halfway through measure 5 — no measure-boundary crossed
-      callbacks[0]?.();
+      callbacks[0](timeAt(5, 2)); // halfway through measure 5 — no measure-boundary crossed
       expect(getCurrentMeasure()).toBe(5); // unchanged — still mid-measure
       expect(getCurrentMeasurePrecise()).toBeCloseTo(5.5); // precise value still moved
     });
 
     it('is monotonic, like getCurrentMeasure() — nothing wraps it', () => {
-      mockTransport.position = '97:1:0';
-      callbacks[0]?.();
+      callbacks[0](timeAt(97, 1));
       expect(getCurrentMeasurePrecise()).toBeCloseTo(97.25);
     });
 
     it('resets to 0 after resetBeatClock', () => {
-      mockTransport.position = '10:2:0';
-      callbacks[0]?.();
+      callbacks[0](timeAt(10, 2));
       resetBeatClock();
       expect(getCurrentMeasurePrecise()).toBe(0);
     });
@@ -224,16 +351,13 @@ describe('beatClock', () => {
     const listener = vi.fn();
     subscribeToMeasure(listener);
 
-    mockTransport.position = '95:0:0';
-    callbacks[0]?.();
+    callbacks[0](timeAt(95));
     expect(listener).toHaveBeenLastCalledWith(95);
 
-    mockTransport.position = '96:0:0';
-    callbacks[0]?.();
+    callbacks[0](timeAt(96));
     expect(listener).toHaveBeenLastCalledWith(96);
 
-    mockTransport.position = '1247:3:0';
-    callbacks[0]?.();
+    callbacks[0](timeAt(1247, 3));
     expect(listener).toHaveBeenLastCalledWith(1247);
     expect(listener).toHaveBeenLastCalledWith(getCurrentMeasure());
   });
@@ -242,14 +366,11 @@ describe('beatClock', () => {
     const listener = vi.fn();
     subscribeToMeasure(listener);
 
-    mockTransport.position = '3:0:0';
-    callbacks[0]?.();
-    mockTransport.position = '3:2:0';
-    callbacks[0]?.();
+    callbacks[0](timeAt(3));
+    callbacks[0](timeAt(3, 2));
     expect(listener).toHaveBeenCalledTimes(1);
 
-    mockTransport.position = '4:0:0';
-    callbacks[0]?.();
+    callbacks[0](timeAt(4));
     expect(listener).toHaveBeenCalledTimes(2);
   });
 
@@ -261,25 +382,9 @@ describe('beatClock', () => {
     subscribeToMeasure(throwing);
     subscribeToMeasure(safe);
 
-    mockTransport.position = '1:0:0';
-    expect(() => callbacks[0]?.()).not.toThrow();
+    expect(() => callbacks[0](timeAt(1))).not.toThrow();
     expect(throwing).toHaveBeenCalled();
     expect(safe).toHaveBeenCalledWith(1);
-  });
-
-  describe('parseTransportPosition', () => {
-    it('parses standard transport position strings', () => {
-      expect(parseTransportPosition('2:1:2')).toEqual({ measure: 2, beat: 1, sixteenths: 2 });
-    });
-
-    it('returns zeros for empty or invalid inputs', () => {
-      expect(parseTransportPosition('')).toEqual({ measure: 0, beat: 0, sixteenths: 0 });
-      expect(parseTransportPosition(undefined)).toEqual({ measure: 0, beat: 0, sixteenths: 0 });
-    });
-
-    it('parses numeric input by treating it as measure only', () => {
-      expect(parseTransportPosition(42)).toEqual({ measure: 42, beat: 0, sixteenths: 0 });
-    });
   });
 
   it('scheduleRepeat registers with transport and returns a schedule id', () => {
@@ -315,6 +420,7 @@ describe('beatClock', () => {
     // Init: should register 16n tick (1) + promote pending '4m' (1) = 2 calls
     initBeatClock(mockTransport);
     expect(mockTransport.scheduleRepeat).toHaveBeenCalledTimes(2);
+    expect(mockTransport.scheduleRepeat).toHaveBeenCalledWith(expect.any(Function), '16n', 0);
     expect(mockTransport.scheduleRepeat).toHaveBeenCalledWith(expect.any(Function), '4m', '4m');
   });
 
@@ -378,8 +484,7 @@ describe('beatClock', () => {
 
   describe('resetBeatClock', () => {
     it('zeroes counters after reset', () => {
-      mockTransport.position = '4:2:0';
-      callbacks[0]?.();
+      callbacks[0](timeAt(4, 2));
       expect(getCurrentMeasure()).toBe(4);
       resetBeatClock();
       expect(getCurrentMeasure()).toBe(0);
@@ -397,8 +502,7 @@ describe('beatClock', () => {
       subscribeToMeasure(listener);
       resetBeatClock();
       initBeatClock(mockTransport);
-      mockTransport.position = '1:0:0';
-      callbacks[callbacks.length - 1]?.();
+      callbacks[callbacks.length - 1](timeAt(1));
       expect(listener).not.toHaveBeenCalled();
     });
 

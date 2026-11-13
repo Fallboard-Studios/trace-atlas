@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../engine/AudioEngine', () => ({ AudioEngine: { start: vi.fn(), killAll: vi.fn(), setBPM: vi.fn(), pause: vi.fn(), resume: vi.fn() } }));
-vi.mock('../engine/harmonySystem', () => ({ resetHarmony: vi.fn() }));
 vi.mock('../stores/audioStore', () => ({ useAudioStore: { getState: () => ({ bpm: 60 }) } }));
 vi.mock('./spawnSystem', () => ({ reRegisterAllRobotsAudio: vi.fn() }));
 vi.mock('./robotSystems', () => ({ stopRobotLifecycle: vi.fn() }));
@@ -25,7 +24,6 @@ vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: () => 'pelagos-def
 import { powerController, __resetPowerControllerForTest } from './powerController';
 import { getWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
-import { resetHarmony } from '../engine/harmonySystem';
 import { reRegisterAllRobotsAudio } from './spawnSystem';
 import { stopRobotLifecycle } from './robotSystems';
 import { stopWorkLoop, pauseWorkLoop, resumeWorkLoop } from './workLoop';
@@ -45,11 +43,10 @@ describe('powerController', () => {
     __resetPowerControllerForTest();
   });
 
-  it('start calls audio start, resetHarmony and reRegisterAllRobotsAudio', async () => {
+  it('start calls audio start, setBPM and reRegisterAllRobotsAudio', async () => {
     await powerController.start();
     expect(AudioEngine.start).toHaveBeenCalled();
     expect(AudioEngine.setBPM).toHaveBeenCalledWith(60);
-    expect(resetHarmony).toHaveBeenCalled();
     expect(reRegisterAllRobotsAudio).toHaveBeenCalled();
   });
 
@@ -141,7 +138,6 @@ describe('powerController', () => {
       expect(order(resumeWorkLoop)).toBeLessThan(order(useUIStore.getState().setPowerOn));
       expect(AudioEngine.start).not.toHaveBeenCalled();
       expect(startLocaleSystems).not.toHaveBeenCalled();
-      expect(resetHarmony).not.toHaveBeenCalled();
       expect(getWorldState()).toBe('running');
     });
   });

@@ -12,8 +12,8 @@ import type { ADSREnvelope, MelodyEvent, NoteDuration, WaveformType, Robot, Robo
 import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
-import { getAvailableNotes, scheduleHarmonyCycle, stopHarmonyCycle } from './harmonySystem';
-import { resetBeatClock, initBeatClock } from './beatClock';
+import { paletteForMeasure } from './harmonySystem';
+import { resetBeatClock, initBeatClock, positionAt, type MusicPosition } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS } from '../constants';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
@@ -89,9 +89,10 @@ export interface NoteParams {
   /** Multiplies the resolved velocity (before clamping to 1). Used for the
    * motif-group accent — see GROUP_ACCENT_MULTIPLIER. */
   accentMultiplier?: number;
-  /** The playback position (processMelodyStep's stepCounter) the velocity roll keys off, together with the
-   * robot's compositionSeed, so a replay from power-on repeats the pattern and two robots at the same tick
-   * differ. Absent: the legacy per-robot counter. Robot Performance, docs/specs/ROBOT_PERFORMANCE.md §1.3. */
+  /** The roll position the velocity roll keys off, together with the robot's compositionSeed: the sixteenths since the
+   * transport's tick 0 at the note's step (processMelodyStep's MusicPosition, docs/specs/ONE_MUSIC_CLOCK.md §4.4), so a
+   * replay from power-on repeats the pattern and two robots at the same tick differ. Absent: the legacy per-robot
+   * counter. Robot Performance, docs/specs/ROBOT_PERFORMANCE.md §1.3. */
   position?: number;
   /** This note's release in seconds, in place of the robot's for this note alone (a cut note's, from
    * processMelodyStep). Absent: the robot's own. docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b. */
@@ -202,7 +203,6 @@ let humanizeMs = 0;
 // Step registry: Map<stepNumber (1-16), events at that step>
 const stepRegistry = new Map<number, MelodyEventEntry[]>();
 
-let stepCounter = 0;
 let scheduledTickId: number | null = null;
 
 // Cache Tone.Transport instance returned by Tone.getTransport() so repeated calls
@@ -603,7 +603,9 @@ export function triggerWithCap(params: NoteParams): boolean {
 
 /**
  * Start the main melody playback loop (16th-note tick — 16 steps = 1 measure,
- * matching melodyGenerator's own subdivision model).
+ * matching melodyGenerator's own subdivision model). A start of 0 puts the tick on the sixteenth grid, and each
+ * firing reads its step, measure and roll position from its own time (docs/specs/ONE_MUSIC_CLOCK.md §4.4): nothing
+ * counts ticks, so a lost or late firing cannot shift the steps after it.
  */
 function startMelodyPlayback(): void {
   if (scheduledTickId !== null) return;
@@ -611,15 +613,16 @@ function startMelodyPlayback(): void {
   const transport = _transport ?? Tone.getTransport();
 
   scheduledTickId = transport.scheduleRepeat((time: number) => {
+    const at = positionAt(time);
+    if (!at) return;
+
     // Update panners once per tick to reduce per-note DOM reads and main-thread work.
     updateAllPanners(time);
 
     // One shared per-step loop (processMelodyStep) — this used to carry its own copy that
     // dropped isGroupAccent, so the motif accent only ever worked through the test helper.
-    AudioEngine.processMelodyStep((stepCounter % 16) + 1, time);
-
-    stepCounter++;
-  }, '16n');
+    AudioEngine.processMelodyStep(at, time);
+  }, '16n', 0);
 }
 
 // ========================================
@@ -727,15 +730,13 @@ export const AudioEngine = {
 
     const transport = Tone.getTransport();
     _transport = transport;
-    // Always start audio transport at 0 so music begins at measure 0 regardless
-    // of the world time. Do NOT realign transport.position with store.
-    if (transport.state !== 'started') {
-      await transport.start();
-    }
+    // The store's tempo, read with the seeded state below; the transport takes it before it starts.
+    let storeBpm: number | undefined;
 
     // Prime the LFO Bank from the current seeded state and link every global target with its
     // stored link (docs/specs/LFO_BANK.md) — this is the one point guaranteed to run after
-    // Tone.start()/transport.start() have succeeded, so it's the only safe place to construct the
+    // Tone.start() has succeeded (a running AudioContext; nothing here needs a started transport, see
+    // docs/tasks/ONE_MUSIC_CLOCK.md Task 1), so it's the only safe place to construct the
     // underlying Tone.LFO lane nodes. AS-sync's regenerateLfoBankFromSeed/
     // regenerateGlobalLfoLinksFromSeed (audioStore.ts) are deliberately data-only for exactly this
     // reason — they run before any user gesture.
@@ -746,6 +747,7 @@ export const AudioEngine = {
     try {
       const { useAudioStore, applyGlobalAudioToEngine } = await import('../stores/audioStore');
       const { globalAudio, lfoBank, globalLfoLinks, bpm } = useAudioStore.getState();
+      storeBpm = bpm;
       // buildGlobalFxChain() (above) just constructed every FX node from its
       // own hardcoded literal defaults — not whatever's already seeded in
       // globalAudio. regenerateGlobalAudioFromSeed's own push (AS-sync,
@@ -783,9 +785,23 @@ export const AudioEngine = {
       devWarn('[AudioEngine] priming robot LFO links failed', err);
     }
 
+    // Register, set the tempo, then start (docs/specs/ONE_MUSIC_CLOCK.md §4.5): both 16n ticks start on the grid at
+    // tick 0, so the first firing is measure 0, step 1, at the world's tempo from the first sixteenth. setBPM cannot
+    // set it here (it waits for `initialized`), so the tempo is written directly.
     initBeatClock(transport);
     startMelodyPlayback();
-    scheduleHarmonyCycle();
+    if (storeBpm !== undefined) {
+      try {
+        transport.bpm.value = storeBpm;
+      } catch (err) {
+        devWarn('[AudioEngine] setting the tempo before start failed', err);
+      }
+    }
+    // Always start audio transport at 0 so music begins at measure 0 regardless
+    // of the world time. Do NOT realign transport.position with store.
+    if (transport.state !== 'started') {
+      transport.start();
+    }
 
     initialized = true;
   },
@@ -1424,15 +1440,15 @@ export const AudioEngine = {
    * drifted (the live copy dropped `isGroupAccent`, so the accent never played in the app).
    * Tests drive it directly because it's synchronous and transport-free.
    *
-   * @param currentStep - 1..16 step to process
+   * @param at - where the tick sits in the music: `at.step` (1..16) picks the events, `at.measure` the palette, and
+   *   `at.sixteenth` is the roll position for velocity and Humanize (docs/specs/ONE_MUSIC_CLOCK.md §4.4)
    * @param time - absolute AudioContext time passed through from transport
    */
-  processMelodyStep(currentStep: number, time: number): void {
-    const events = stepRegistry.get(currentStep) || [];
-    const notes = getAvailableNotes();
-    // Robot Performance: the tick position every roll keys off (velocity, Humanize). The live tick calls this
-    // before advancing stepCounter, so it is the number of ticks since playback started.
-    const position = stepCounter;
+  processMelodyStep(at: MusicPosition, time: number): void {
+    const events = stepRegistry.get(at.step) || [];
+    const notes = paletteForMeasure(at.measure);
+    // Robot Performance: the position every roll keys off (velocity, Humanize), sixteenths since the transport's tick 0.
+    const position = at.sixteenth;
     const humanizeOffset = humanizeOffsetFor(position);
 
     events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
@@ -1482,11 +1498,10 @@ export const AudioEngine = {
 
 
 
-  getPolyphonyStats(): { voices: number; maxVoices: number; step: number } {
+  getPolyphonyStats(): { voices: number; maxVoices: number } {
     return {
       voices: activeVoices,
       maxVoices: polyphonyCap,
-      step: (stepCounter % 16) + 1,
     };
   },
 
@@ -1592,7 +1607,7 @@ export const AudioEngine = {
 
   /**
    * Power is a pause (docs/specs/OFF_SCREEN.md assumption 2): suspend the AudioContext itself, so the transport, the
-   * BeatClock's 16n tick (and with it the battery lifecycle, the harmony and the swells), every LFO, every sounding
+   * BeatClock's 16n tick (and with it the battery lifecycle), the melody and swell ticks, every LFO, every sounding
    * voice and every tail freeze together — and resume() continues them all from where they stopped, mid-note. The
    * transport is never told anything. A no-op before start(); a rejected suspend (the context already closed) is logged.
    */
@@ -1630,8 +1645,6 @@ export const AudioEngine = {
       const transport = _transport ?? Tone.getTransport();
       try { transport.cancel(); } catch (err) { devWarn('[AudioEngine] transport.cancel failed', err); }
 
-      stopHarmonyCycle();
-
       try {
         if (transport.state === 'started') {
           try { transport.stop(); } catch { /* ignore */ }
@@ -1649,7 +1662,6 @@ export const AudioEngine = {
         scheduledTickId = null;
       }
 
-      stepCounter = 0;
       activeVoices = 0;
       initialized = false;
       // Reset beatClock so initBeatClock() re-registers its internal tick on next start.

@@ -249,7 +249,7 @@ export const PingControlsFrequencySection = memo(PingControlsFrequencySectionInn
 
 // ========================================
 // COMPOSITION (docs/reference/layout-updates.md — merges Rhythm/Pitches into one "Composition"
-// accordion, 3 two-field rows, Click Track's UI toggle removed entirely)
+// accordion, 3 two-field rows; the dev-only Click Track toggle back on top for the robot screen)
 // ========================================
 // Row schemas hoisted to module scope, same "schema is always a stable reference" convention
 // PingContourDrawer.tsx's own TOP_ROW_SCHEMA/BOTTOM_ROW_SCHEMA already establish.
@@ -258,7 +258,10 @@ const COMPOSITION_ROW2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.comp
 const COMPOSITION_ROW3_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row3', type: 'directionalPanel', orientation: 'responsive' };
 
 export interface PingControlsCompositionSectionProps {
-  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents'>;
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents' | 'clickTrackActive'>;
+  /** The dev-only Click Track toggle renders only when this is given (the robot screen, and the company and All
+   *  Probes screens' broadcast, docs/tasks/ONE_MUSIC_CLOCK.md Task 10b) and DEV_TUNING is on. */
+  onClickTrackActiveChange?: (active: boolean) => void;
   onDensityChange: (value: number) => void;
   onMotifLengthChange: (value: number) => void;
   onPitchRepeatChange: (value: number) => void;
@@ -275,13 +278,14 @@ export interface PingControlsCompositionSectionProps {
  * Replaces the old Rhythm/Pitches split (2 separate accordions) with one "Composition" accordion's
  * worth of plain content, laid out as 3 rows of 2 fields each: Density+Motif Length, Pitch
  * Repeat+Note Variance, Octave Min+Octave Max (docs/reference/layout-updates.md), then a labelled Articulation
- * panel (Rests, Accents) of Robot Performance. The dev-only
- * Click Track toggle is dropped entirely, per that same instruction — `clickTrackActive` itself
- * (the underlying store field/engine wiring, `src/engine/clickTrack.ts`) is untouched, just no
- * longer reachable from this UI.
+ * panel (Rests, Accents) of Robot Performance. The dev-only Click Track toggle comes first when the caller passes
+ * `onClickTrackActiveChange` (the robot, company and All Probes screens; docs/tasks/ONE_MUSIC_CLOCK.md Tasks 10a and
+ * 10b, so the downbeat can be heard). The sliders stay live while it plays: the engine registers the click pattern in place of any melody while
+ * the flag is on (`AudioEngine.registerRobotMelody`), so an edit changes the stored melody heard once it is off.
  */
 function PingControlsCompositionSectionInner({
   value,
+  onClickTrackActiveChange,
   onDensityChange,
   onMotifLengthChange,
   onPitchRepeatChange,
@@ -300,6 +304,11 @@ function PingControlsCompositionSectionInner({
 
   return (
     <div style={style}>
+      {DEV_TUNING && onClickTrackActiveChange && (
+        <Toggle schema={CLICK_TRACK_SCHEMA} value={value.clickTrackActive} onChange={onClickTrackActiveChange} disabled={disabled}>
+          {CONTENT['probe.composition.clickTrack'].human}
+        </Toggle>
+      )}
       <DirectionalPanel schema={COMPOSITION_ROW1_SCHEMA}>
         <SliderLinear schema={DENSITY_SCHEMA} value={value.rhythmicDensity} onChange={onDensityChange} disabled={disabled} />
         <SliderLinear schema={MOTIF_LENGTH_SCHEMA} value={value.rhythmicMotifLength} onChange={onMotifLengthChange} disabled={disabled} />

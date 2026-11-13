@@ -7,6 +7,8 @@ vi.mock('@/engine/beatClock', () => ({
   scheduleRepeat: vi.fn(() => 'schedule-id'),
   cancelSchedule: vi.fn(),
   getCurrentMeasurePrecise: vi.fn(() => 0),
+  // One music clock Task 8: the swell tick reads its measure from its own time, through positionAt.
+  positionAt: vi.fn((_time: number) => ({ sixteenth: 0, measure: 0, step: 1 })),
 }));
 
 // Wraps the REAL getAttenuationStyleNoiseMap by default (real, deterministic
@@ -47,7 +49,7 @@ import {
   LPF_SWELL_DOWNWARD_FLOOR_HZ,
 } from './audioSwells';
 import * as robotOptionsActions from './robotOptionsActions';
-import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
+import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise, positionAt } from '@/engine/beatClock';
 import { evictAttenuationStyleNoiseMap, getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
 import { getSeededVal, getUniformSeededVal } from '@/utils/getSeededVal';
 import { constantNoiseMap, noiseMapForDataIds } from '@/testUtils/seededDraws';
@@ -1803,17 +1805,77 @@ describe('isGlobalTargetSwelling / isRobotAttributeSwelling (read-only swell-in-
 });
 
 // ========================================
+// ONE MUSIC CLOCK (docs/specs/ONE_MUSIC_CLOCK.md §4.6, Task 8)
+// ========================================
+
+describe('the swell tick reads its own position, not BeatClock\'s last tick', () => {
+  /** Start the swells and return the 16n callback they registered. */
+  function swellTick(): (time: number) => void {
+    startAudioSwells(LOCALE_ID);
+    return (vi.mocked(scheduleRepeat).mock.calls[0] as unknown[])[1] as (time: number) => void;
+  }
+
+  // The swell tick no longer reads getCurrentMeasurePrecise, so a value queued for it here is never used: drop any
+  // left over (mockReset returns each to its factory implementation) so none reaches a later test.
+  afterEach(() => {
+    vi.mocked(getCurrentMeasurePrecise).mockReset();
+    vi.mocked(positionAt).mockReset();
+  });
+
+  it('a swell started on the tick starts at its own time\'s precise measure (sixteenth 83 = 5.1875), not BeatClock\'s 4', () => {
+    const tick = swellTick();
+    vi.mocked(positionAt).mockReturnValueOnce({ sixteenth: 83, measure: 5, step: 4 });
+    vi.mocked(getCurrentMeasurePrecise).mockReturnValueOnce(4);
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+
+    tick(10.375);
+
+    expect(positionAt).toHaveBeenCalledWith(10.375);
+    expect(getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')?.startMeasure).toBe(5.1875);
+  });
+
+  it('a tick on the bar reads the whole measure: sixteenth 80 is measure 5, not 4.9375 a read behind', () => {
+    const tick = swellTick();
+    vi.mocked(positionAt).mockReturnValueOnce({ sixteenth: 80, measure: 5, step: 1 });
+    vi.mocked(getCurrentMeasurePrecise).mockReturnValueOnce(4.9375);
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+
+    tick(10);
+
+    expect(getActiveSwellSnapshot('global').find((s) => s.globalTarget === 'eq3.low')?.startMeasure).toBe(5);
+  });
+
+  it('a tick with no position (no transport) does nothing: no throw, no swell write, the swell unmoved', () => {
+    useLocaleStore.getState().addRobot(LOCALE_ID, makeRobot({ masterVolume: 0.1 }));
+    const tick = swellTick();
+    vi.mocked(positionAt).mockReturnValueOnce({ sixteenth: 0, measure: 0, step: 1 });
+    vi.mocked(getAttenuationStyleNoiseMap).mockReturnValueOnce(ALWAYS_MIN);
+    tick(9); // creates the swell
+    const before = getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === 'volume');
+    expect(before).toBeDefined();
+    vi.mocked(AudioEngine.updateRobotMasterVolume).mockClear();
+    vi.mocked(positionAt).mockReturnValueOnce(undefined);
+
+    expect(() => tick(9.5)).not.toThrow();
+
+    expect(vi.mocked(AudioEngine.updateRobotMasterVolume)).not.toHaveBeenCalled();
+    expect(getActiveSwellSnapshot('robot').find((s) => s.robotAttribute === 'volume')).toEqual(before);
+  });
+});
+
+// ========================================
 // BEATCLOCK TRANSPORT TIME (docs/specs/BEATCLOCK_TRANSPORT_TIME.md §5.1 item 8, Task 8)
 // ========================================
 
 describe('the 16n callback carries the Transport time to every swell write', () => {
   /** Start the swells and return a driver for the 16n callback they registered: each call is one Transport tick at
-   *  `measure` (what getCurrentMeasurePrecise reads) with the audio-clock `time` the Transport hands it. */
+   *  `measure` (the position positionAt reads for the tick's time) with the audio-clock `time` the Transport hands it. */
   function registeredTick(): (measure: number, time: number) => void {
     startAudioSwells(LOCALE_ID);
     const callback = (vi.mocked(scheduleRepeat).mock.calls[0] as unknown[])[1] as (time: number) => void;
     return (measure, time) => {
-      vi.mocked(getCurrentMeasurePrecise).mockReturnValueOnce(measure);
+      const sixteenth = Math.round(measure * 16);
+      vi.mocked(positionAt).mockReturnValueOnce({ sixteenth, measure: Math.floor(sixteenth / 16), step: (sixteenth % 16) + 1 });
       callback(time);
     };
   }

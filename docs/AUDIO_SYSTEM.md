@@ -31,7 +31,8 @@ User Click Play
     ↓
 AudioEngine.start()
     ↓
-Tone.start() + Transport.start()
+Tone.start() → prime (FX, LFO bank, rooms, robot links)
+    → register the 16n ticks + set the store's tempo → Transport.start()
     ↓
 ┌─────────────────────────────────────┐
 │         AudioEngine                 │
@@ -74,7 +75,7 @@ export const AudioEngine = {
   now: () => number,
 
   // Scheduling
-  scheduleNote: (params: { robotId: string; note: string; duration: NoteDuration | number; time?: number; velocity?: number; accentMultiplier?: number; position?: number }) => void,  // duration: a note value, or seconds for a rested/clipped note; position: the tick the velocity roll keys off (Robot Performance)
+  scheduleNote: (params: { robotId: string; note: string; duration: NoteDuration | number; time?: number; velocity?: number; accentMultiplier?: number; position?: number }) => void,  // duration: a note value, or seconds for a rested/clipped note; position: the roll position the velocity roll keys off (Robot Performance), sixteenths since the transport's tick 0
 
   // Voice management
   reserveVoice: (robotId: string, descriptor: OscillatorLayer[] | { base?: WaveformType; layers?: OscillatorLayer[] }, adsr: ADSREnvelope, phase?: number, detune?: number, pulseWidth?: number, masterVolume?: number, filterFreq?: number, articulation?: { portamento?: number; filterQ?: number; filterType?: RobotFilterType }) => boolean,  // filterFreq = the robot's bus filter cutoff (Hz); 0 = fully open; omitted = legacy fixed 1,200 Hz. articulation = glide seconds plus the bus filter's Q and type; absent = no glide, Q 1, lowpass
@@ -92,8 +93,8 @@ export const AudioEngine = {
   registerRobotMelody: (robotId: string, melody: MelodyEvent[]) => void,  // `melody` is superseded by the fixed Click Track pattern while the robot's `clickTrackActive` is true — see MELODY_SYSTEM.md's Click Track note
   unregisterRobotMelody: (robotId: string) => void,
   getRegisteredMelody: (robotId: string) => MelodyEvent[],   // test helper
-  processMelodyStep: (currentStep: number, time: number) => void, // test helper
-  getPolyphonyStats: () => { voices: number; maxVoices: number; step: number },
+  processMelodyStep: (at: MusicPosition, time: number) => void, // the live per-step loop (the melody tick calls it); tests drive it directly
+  getPolyphonyStats: () => { voices: number; maxVoices: number },
 
   // Global FX control (all no-ops if the underlying Tone node wasn't constructed, e.g. headless tests; the ten bypass-cell
   // effects' setters record into the effect's settings mirror while it is absent, see The bypass cells)
@@ -129,12 +130,12 @@ Note: `note` is resolved to a validated pitch string (`/^[A-Ga-g][b#]{0,2}\d+$/`
 - **Polyphony Control**: The engine caps active voices at `MAX_POLYPHONY = 16` and skips additional notes when the cap is reached.
 - **Lookahead**: Scheduling uses the shared `MIN_LEAD` constant (default `0.1s`) so notes are prepared ahead of playback time.
 - **Idempotence**: `AudioEngine.start()` exits early once initialization has completed, so repeated calls do not duplicate setup.
-- **Cleanup**: `AudioEngine.killAll()` performs the full reset: it cancels transport events, stops and rewinds the transport, clears the playback tick, the step counter and `initialized`, and resets beat-clock state. It disposes nothing. A plain power-off never calls it (power is a pause, below). Its one caller is `worldTransition.ts`'s `tearDownPausedWorld`, when a world change replaces a paused world ([OFF_SCREEN_REVIEW_FOLLOWUPS](tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R1), so the next power-on is a full start. A live world change tears down through `removeLocale` (which releases each robot's voice) and `initializeLocale`'s stop/start pairs. (`AudioEngine.stop()`, a smaller reset nothing called, went at R31.)
+- **Cleanup**: `AudioEngine.killAll()` performs the full reset: it cancels transport events, stops and rewinds the transport, clears the playback tick and `initialized`, and resets beat-clock state. (There is no step counter to clear: every step is read from the transport.) It disposes nothing. A plain power-off never calls it (power is a pause, below). Its one caller is `worldTransition.ts`'s `tearDownPausedWorld`, when a world change replaces a paused world ([OFF_SCREEN_REVIEW_FOLLOWUPS](tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R1), so the next power-on is a full start. A live world change tears down through `removeLocale` (which releases each robot's voice) and `initializeLocale`'s stop/start pairs. (`AudioEngine.stop()`, a smaller reset nothing called, went at R31.)
 - **Pause**: `AudioEngine.pause()` / `resume()` suspend and resume the raw `AudioContext` and nothing else — see the next section.
 
 ### Power is a pause
 
-Flipping the rocker off does not tear the world down; it pauses it (`docs/specs/OFF_SCREEN.md` §1.2, assumptions 2 and 5). `AudioEngine.pause()` is `Tone.getContext().rawContext.suspend()`: the transport, the BeatClock's `16n` tick (and with it measures, battery drain and recharge, the harmony and the swells), every Tone LFO, every sounding voice and every reverb tail freeze together, and a suspended context renders nothing, so the off state costs no audio CPU. `resume()` is the context's `resume()`: all of it continues from where it stopped, mid-note, mid-ramp — the measure count carries on from the measure it was in (Checkpoint 0 watched 20 s of suspension land on the next measure at the tempo's rate, no jump, no double tick). The transport is never told anything; `killAll` is not called. Both are no-ops before `start()` and log a rejected promise (a context already closed; a browser refusing to resume after a long suspend) rather than throw. Nothing falls back on a refused resume yet: whether a long pause on iOS Safari refuses it is unmeasured ([backlog 42](todo/backlog.md#42-audio-does-a-long-pause-on-ios-safari-come-back-measure-first)). The in-world **day is not paused**: it is wall clock (`DAY_DURATION_MS` from the locale's `dayStartTimestamp`), so the light moves on while the music waits — the time-model guardrail, applied.
+Flipping the rocker off does not tear the world down; it pauses it (`docs/specs/OFF_SCREEN.md` §1.2, assumptions 2 and 5). `AudioEngine.pause()` is `Tone.getContext().rawContext.suspend()`: the transport, the BeatClock and melody `16n` ticks (and with them measures, battery drain and recharge, the melody's steps and chords, and the swells), every Tone LFO, every sounding voice and every reverb tail freeze together, and a suspended context renders nothing, so the off state costs no audio CPU. `resume()` is the context's `resume()`: all of it continues from where it stopped, mid-note, mid-ramp — the measure count carries on from the measure it was in (Checkpoint 0 watched 20 s of suspension land on the next measure at the tempo's rate, no jump, no double tick). The transport is never told anything; `killAll` is not called. Both are no-ops before `start()` and log a rejected promise (a context already closed; a browser refusing to resume after a long suspend) rather than throw. Nothing falls back on a refused resume yet: whether a long pause on iOS Safari refuses it is unmeasured ([backlog 42](todo/backlog.md#42-audio-does-a-long-pause-on-ios-safari-come-back-measure-first)). The in-world **day is not paused**: it is wall clock (`DAY_DURATION_MS` from the locale's `dayStartTimestamp`), so the light moves on while the music waits — the time-model guardrail, applied.
 
 `powerController` (`src/systems/powerController.ts`) owns the order. Its world state is a three-way module value in `src/systems/worldState.ts` — `'cold' | 'running' | 'paused'`, read by `getWorldState()`; runtime, never Zustand, since it mirrors the audio graph — written by the controller and by `worldTransition.ts`'s `initializeLocale` (the one place that knows whether a rebuilt world's systems started or were held).
 
@@ -142,19 +143,26 @@ Flipping the rocker off does not tear the world down; it pauses it (`docs/specs/
 |---|---|---|
 | `pause()` (from `'running'`) | `pauseWorkLoop()` — the loop's clock freezes, so no site cooldown runs out → `pauseWorldTimelines()` — every `'world'` GSAP timeline stops in place → `AudioEngine.pause()` → `setPowerOff()` | `'paused'`; the lifecycle subscription stands, no voice is released, no robot moves |
 | `resume()` (from `'paused'`) | the reverse: `AudioEngine.resume()` → `resumeWorldTimelines()` → `resumeWorkLoop()` → `setPowerOn()` | `'running'` |
-| `powerOnSequence()` | `await fadeOffScreen()` first, on either path (the off screen's veil is gone before the power flag unmounts it; while the fade runs the world is still paused or cold, so a second flip in that window cannot cross the states); then a world already `'running'` is left alone (a second "on" press after the first one's start: [OFF_SCREEN_REVIEW_FOLLOWUPS](tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R18); from `'paused'` → `resume()`; a press whose fade ends while another press's cold start is still running joins that start instead of starting again (the module's `coldStart` promise, cleared when it settles; [OFF_SCREEN_FINAL_FIXES](tasks/OFF_SCREEN_FINAL_FIXES.md) F1); otherwise `start()` (idempotent — `Tone.start()`, BPM, harmony reset, every robot's voice re-registered; a replaced paused world was torn down by `killAll`, so this is a full start: R1), `startLocaleSystems(localeId)` (lifecycle tick, work loop, swells), `markHeardWorld()` on the device's very first start (the off screen's gate), `setPowerOn()`. A `start()` that rejects gives the off screen back (`restoreOffScreen`) once and rejects on, for a joined press too (R19) | `'running'` |
+| `powerOnSequence()` | `await fadeOffScreen()` first, on either path (the off screen's veil is gone before the power flag unmounts it; while the fade runs the world is still paused or cold, so a second flip in that window cannot cross the states); then a world already `'running'` is left alone (a second "on" press after the first one's start: [OFF_SCREEN_REVIEW_FOLLOWUPS](tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R18); from `'paused'` → `resume()`; a press whose fade ends while another press's cold start is still running joins that start instead of starting again (the module's `coldStart` promise, cleared when it settles; [OFF_SCREEN_FINAL_FIXES](tasks/OFF_SCREEN_FINAL_FIXES.md) F1); otherwise `start()` (idempotent — `AudioEngine.start()`, BPM, every robot's voice re-registered; nothing resets the harmony, which is a function of the measure; a replaced paused world was torn down by `killAll`, so this is a full start: R1), `startLocaleSystems(localeId)` (lifecycle tick, work loop, swells), `markHeardWorld()` on the device's very first start (the off screen's gate), `setPowerOn()`. A `start()` that rejects gives the off screen back (`restoreOffScreen`) once and rejects on, for a joined press too (R19) | `'running'` |
 
 A world change while paused — a save pick or an editor commit on the off screen, a Scan, or a Current restore once another world has landed — first tears the paused world down (`tearDownPausedWorld`, `worldTransition.ts`: the lifecycle tick, the work loop and the swells stop, `killAll` rewinds the transport and resets the BeatClock, and the world timelines' paused span ends; R1), then removes the old locale and rebuilds through `initializeLocale(..., { startSystems: isPoweredOn })`, which with the tablet off holds the systems and writes `'cold'`: the next flip is a full `start`, never a resume. An aspect pick rebuilds nothing: the live roster is re-dealt in place (`aspectsOnly`, R33), so the world stays `'paused'` and resumes on the next flip. Nor does a theme pick: it re-derives the live world in place (`loadingOnly`, [OFF_SCREEN_FINAL_FIXES](tasks/OFF_SCREEN_FINAL_FIXES.md) F7), so it too stays `'paused'`. Foundry's Retransmit and a session Load live in the Settings drawers, which only render while the power is on (`ScreenViewport`), so they never meet a paused world. There is no path from `'paused'` to a different world that resumes. `shutdown()` is gone; the rocker's off-click calls `pause()` after its 0.18 s hold, with no confirm dialog (assumption 6). `?debug`'s HUD logs `context running → suspended` and back. The diagnostics sample's own `expectSound` (`audioDiagnostics.ts`: the master above 0, the transport started, the context running) reads false while suspended, so a pause is never counted as a silent-master fault, and the clock-stall check runs only while the context reports `running`. Measured on desktop: main-thread busy 34 % running → 12 % paused → 37 % resumed (`docs/tasks/OFF_SCREEN.md`, Checkpoint A).
 
 ### Musical Time Authority
 
-`beatClock.ts` does not wrap or proxy Tone.Transport — it has no Tone import at all. It polls `transport.position` off whatever transport-like instance `AudioEngine.start()` hands it via `initBeatClock(transport)`, and there is no `BeatClock` object to import; every function below is a **named export** from `beatClock.ts`. It serves as the single source of truth for musical time:
+`beatClock.ts` does not wrap or proxy Tone.Transport — it has no Tone import at all. It reads the transport's tick count at a callback's own time (`positionAt(time)`, a `MusicPosition` of sixteenth, measure and step) off whatever transport-like instance `AudioEngine.start()` hands it via `initBeatClock(transport)`, and there is no `BeatClock` object to import; every function is a **named export** from `beatClock.ts`. It serves as the single source of truth for musical time ([specs/ONE_MUSIC_CLOCK.md](specs/ONE_MUSIC_CLOCK.md)):
+- Every musical value — the measure, the melody step, the chord palette, the velocity and humanize roll, the swells' measure — is read from the transport at the reader's own callback time; nothing keeps a running count beside it, and nothing reads `transport.position`
 - All timing expressed in beats/measures, not seconds
 - 1 beat = quarter note at current BPM
 - 1 measure = 4 beats (4/4 time signature)
 - Measures count music and the fleet's lifecycle, never a day: the in-world day is wall-clock (`DAY_DURATION_MS`, 6 real minutes), see [BEAT_CLOCK.md](BEAT_CLOCK.md)
 
 **Never use `setTimeout`, `setInterval`, `requestAnimationFrame`, or `queueMicrotask` for musical timing.**
+
+**The power-on order.** `AudioEngine.start()` awaits `Tone.start()`, the instruments and the reverb's impulse response; primes the global chain, the LFO bank and its links, the rooms and the robot links (none of these needs a started transport, only a running context: [tasks/ONE_MUSIC_CLOCK.md](tasks/ONE_MUSIC_CLOCK.md) Task 1); then calls `initBeatClock(transport)` and `startMelodyPlayback()`, both of which register a `16n` repeat with a start of `0`; writes the store's tempo straight to `transport.bpm.value` (`setBPM` is a no-op until `initialized`); and only then calls `transport.start()`. So the first firing of both ticks is tick 0 — measure 0, step 1, palette entry 0 — at the world's tempo from the first sixteenth, and every later firing sits on the sixteenth grid. `powerController.start`'s `setBPM` afterwards writes the same value again. A pause and resume suspends and resumes the context, so the ticks and every position read from them continue from where they stopped (expected; not yet measured, [backlog 83](todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure)).
+
+### Playback loop
+
+The melody tick (`startMelodyPlayback`, private to `AudioEngine.ts`) is a `16n` repeat on the transport from `0`. Each firing reads `positionAt(time)` for its own time, updates the panners once, and calls `AudioEngine.processMelodyStep(at, time)`: the events registered at `at.step` (`stepRegistry`, O(1)), the palette `paletteForMeasure(at.measure)` ([HARMONY_SYSTEM.md](HARMONY_SYSTEM.md)), and `at.sixteenth` as the roll position for velocity and Humanize (the Note Resolution Pipeline, below). A firing with no position (no transport) does nothing. Step 1 is the measure's first sixteenth, so the chord changes on the bar with the step that starts it; a lost or late firing cannot shift the steps after it, because nothing counts firings.
 
 **For complete BeatClock implementation details, see [BEAT_CLOCK.md](BEAT_CLOCK.md).**
 
@@ -185,9 +193,9 @@ The Harmony System provides dynamic 8-note palettes that cycle sequentially thro
 
 **Key concepts:**
 - Robots store note **indices (0-7)**, not pitch strings
-- The active palette index is derived fresh from the transport's measure position every tick (never accumulated), so a missed tick self-corrects rather than drifting
+- The palette is `paletteForMeasure(measure)`, a pure function of the measure the note sounds in (read from the note's own callback time), so it changes on the bar and nothing can leave it out of step
 - Melody events remain immutable; only the palette changes
-- Updates are driven by BeatClock/Transport rather than timers, via `beatClock.ts`'s own `scheduleRepeat`/`cancelSchedule` — no locally-owned transport handle
+- There is no harmony repeat and no harmony state: nothing to schedule, stop or reset
 
 **For complete Harmony System implementation details, see [HARMONY_SYSTEM.md](HARMONY_SYSTEM.md).**
 
@@ -599,7 +607,7 @@ Both leaves are in `voiceEntry.ts`. Without a tick length (no transport: the hea
 
 The robot bus filter takes no time, since no tick writes it. A ramp makes a write reach its value one sixteenth later, which is accepted. `AudioEngine.now()` is for work that starts outside a callback. A hand edit passes no time and lands now, unchanged: a two-argument `rampTo`, or `.value =`. App code should normally stay on the `BeatClock`/`AudioEngine` path rather than reaching for `Tone.Transport` directly.
 
-**Three consumers stay on "now" by decision** (backlog 35, [specs/BEATCLOCK_TRANSPORT_TIME.md](specs/BEATCLOCK_TRANSPORT_TIME.md)): the harmony tick (`harmonySystem.ts`) takes `(_time)` because it makes no Tone call, only changes the notes the note tick reads; the docking lifecycle (`startRobotLifecycle` in `robotSystems.ts`) runs on `subscribeToMeasure`, which hands no time, because its audio reactions are store subscriptions (`audioBudgetSystem.ts`) to a state change, not calls the tick makes; and the bypass ramps of `setRoomFeeder` (private to `AudioEngine.ts`) are a room going light or dark, a room-state change rather than a swell value, so a send swell that reaches 0 does not pass its time there.
+**Two consumers stay on "now" by decision** (backlog 35, [specs/BEATCLOCK_TRANSPORT_TIME.md](specs/BEATCLOCK_TRANSPORT_TIME.md); a third, the harmony tick, went with [specs/ONE_MUSIC_CLOCK.md](specs/ONE_MUSIC_CLOCK.md)): the docking lifecycle (`startRobotLifecycle` in `robotSystems.ts`) runs on `subscribeToMeasure`, which hands no time, because its audio reactions are store subscriptions (`audioBudgetSystem.ts`) to a state change, not calls the tick makes; and the bypass ramps of `setRoomFeeder` (private to `AudioEngine.ts`) are a room going light or dark, a room-state change rather than a swell value, so a send swell that reaches 0 does not pass its time there.
 
 **Key patterns:**
 - Use the step registry for O(1) melody lookups rather than iterating over robots each tick
@@ -737,11 +745,11 @@ Each robot follows a compact lifecycle:
 ## Debug Tools
 
 ```typescript
-import { getCurrentMeasure, getCurrentBeat } from '../engine/beatClock';
+import { getCurrentMeasure, getCurrentBeat, positionAt } from '../engine/beatClock';
 
 console.log('Transport state:', Tone.Transport.state);
 console.log('BPM:', Tone.Transport.bpm.value);
-console.log('Position:', Tone.Transport.position);
+console.log('Position:', positionAt(Tone.now())); // { sixteenth, measure, step } the clock reads
 console.log('Polyphony:', AudioEngine.getPolyphonyStats());
 console.log('Voice for robot:', AudioEngine.getVoiceForRobot(robotId));
 console.log('Current measure:', getCurrentMeasure());
