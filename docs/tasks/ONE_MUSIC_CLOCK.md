@@ -251,7 +251,7 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** XS
 
-- [ ] **Task 5: `AudioEngine.ts` — the melody tick plays the clock's position; `stepCounter` goes**
+- [x] **Task 5: `AudioEngine.ts` — the melody tick plays the clock's position; `stepCounter` goes**
 
   **Description:** The melody tick in `startMelodyPlayback` registers with a start of `0`, reads `positionAt(time)`,
   and calls `processMelodyStep(position, time)`; with no position it does nothing. `processMelodyStep(at, time)` plays
@@ -265,19 +265,33 @@ Task 6 and do not depend on each other.
   palette entry 2 at roll position 83.
 
   **Acceptance criteria:**
-  - [ ] `processMelodyStep({ sixteenth: 83, measure: 5, step: 4 }, t)` schedules only step 4's events, with pitches
+  - [x] `processMelodyStep({ sixteenth: 83, measure: 5, step: 4 }, t)` schedules only step 4's events, with pitches
         from palette entry 2, `position: 83`, and a humanize offset drawn at 83.
-  - [ ] The same position twice gives identical `scheduleNote` arguments.
-  - [ ] The melody tick registers with interval `16n` and a start of `0`; its callback hands `processMelodyStep` the
+  - [x] The same position twice gives identical `scheduleNote` arguments.
+  - [x] The melody tick registers with interval `16n` and a start of `0`; its callback hands `processMelodyStep` the
         position `positionAt` returns for its own time, and does nothing when that is undefined.
-  - [ ] `getPolyphonyStats()` returns `{ voices, maxVoices }`; the existing cap and voice tests pass unchanged.
-  - [ ] Mutation: `at.sixteenth` → `0` fails the position-83 case; `paletteForMeasure(at.measure)` →
+  - [x] `getPolyphonyStats()` returns `{ voices, maxVoices }`; the existing cap and voice tests pass unchanged.
+  - [x] Mutation: `at.sixteenth` → `0` fails the position-83 case; `paletteForMeasure(at.measure)` →
         `paletteForMeasure(0)` fails the palette case.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts src/systems/spawnSystem.test.ts src/systems/worldTransition.test.ts`
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts src/systems/spawnSystem.test.ts src/systems/worldTransition.test.ts`
         passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Done 2026-11-12.** The palette case swaps the real `paletteForMeasure` into the file's harmony mock, so "entry 2"
+  is a real note (D at measure 5, where measure 0 plays C). The existing callers moved to an `atStep(step, measure =
+  0)` helper in AudioEngine.test.ts (sixteenth `step - 1`) and an inline position in spawnSystem and worldTransition.
+  The old live-tick test (20 ticks all at time 0 gave positions `[0, 2, 16, 18]` from the count) now ticks at real
+  times through the actual `positionFromTicks`. RED: 10 of 12 new cases failed; the 20-tick case and the Humanize-0
+  case passed under the old code too (evenly spaced ticks look the same to a counter), and the new "same time twice
+  plays the same position" case is the one that tells a count from a clock (old code: `[2]` for `[2, 2, 18]`). Edge
+  cases beyond the list: the step a measure later plays palette entry 3 at 99; nothing counts ticks; a tick with no
+  position neither throws nor schedules. With no position the tick skips the panner update too (no transport, nothing
+  sounds). Mutants: `at.sixteenth` → `0` killed 5 (position 83 among them), `paletteForMeasure(0)` killed 2 (the
+  palette case among them), no start of `0` killed 1, the dropped `if (!at) return` killed 1. Blast radius: the 17
+  files that mock `beatClock` or `harmonySystem`, or call `processMelodyStep`, 2,466 passed, 0 failed.
+  audioDiagnostics.test's engine mock lost its `step: 1`.
 
   **Dependencies:** Tasks 3, 4.
 

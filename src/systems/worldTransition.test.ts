@@ -488,7 +488,7 @@ describe('worldTransition', () => {
       const schedule = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
       for (const { robot, step } of openings) {
         schedule.mockClear();
-        AudioEngine.processMelodyStep(step, 0);
+        AudioEngine.processMelodyStep({ sixteenth: step - 1, measure: 0, step }, 0);
         const note = schedule.mock.calls.map(([params]) => params).find((params) => params.robotId === robot.id);
         expect(note?.accentMultiplier, robot.id).toBe(1.25);
       }

@@ -247,6 +247,9 @@ vi.mock('tone', () => ({
 // Mock harmony system
 vi.mock('./harmonySystem', () => ({
   getAvailableNotes: () => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
+  // One music clock Task 5: processMelodyStep reads the palette of its measure. Every measure plays the same names here
+  // (they carry an octave digit, so a note reads e.g. 'C43'); the palette cases swap in the real function.
+  paletteForMeasure: vi.fn((_measure: number) => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']),
   scheduleHarmonyCycle: vi.fn((_transport?: unknown) => undefined),
   stopHarmonyCycle: vi.fn(),
 }));
@@ -262,7 +265,13 @@ vi.mock('./beatClock', () => ({
   subscribeToMeasure: vi.fn((_cb?: unknown) => undefined),  // ← add
   resetBeatClock: vi.fn(() => undefined),
   getTickSeconds: () => tick.seconds,
+  // One music clock Task 5: the melody tick reads its position from its own time. By default every time reads as the
+  // first sixteenth; the position cases map time to a position themselves.
+  positionAt: vi.fn((_time: number) => ({ sixteenth: 0, measure: 0, step: 1 })),
 }));
+
+/** Melody step `step` of `measure` as a MusicPosition (processMelodyStep's first argument since one music clock Task 5). */
+const atStep = (step: number, measure = 0) => ({ sixteenth: measure * 16 + step - 1, measure, step });
 
 // Mock refs utility
 vi.mock('../utils/refs', () => ({
@@ -1668,7 +1677,7 @@ describe('AudioEngine - Melody Lifecycle', () => {
       AudioEngine.registerRobotMelody('int-1', melody);
 
       // Simulate a transport tick for step 7 at time 0
-      AudioEngine.processMelodyStep(7, 0);
+      AudioEngine.processMelodyStep(atStep(7), 0);
 
       expect(spy).toHaveBeenCalled();
 
@@ -1740,9 +1749,9 @@ describe('AudioEngine - Motif Group Accent', () => {
     const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
     AudioEngine.registerRobotMelody('accent-robot', melody);
 
-    AudioEngine.processMelodyStep(2, 0);
-    AudioEngine.processMelodyStep(3, 0);
-    AudioEngine.processMelodyStep(6, 0);
+    AudioEngine.processMelodyStep(atStep(2), 0);
+    AudioEngine.processMelodyStep(atStep(3), 0);
+    AudioEngine.processMelodyStep(atStep(6), 0);
 
     expect(spy).toHaveBeenCalledTimes(3);
     const [step2Params, step3Params, step6Params] = spy.mock.calls.map((c) => c[0]);
@@ -1764,7 +1773,7 @@ describe('AudioEngine - Motif Group Accent', () => {
     /** The accent multiplier each of steps 2, 3 and 6 schedules for `robotId`, 1 when none. */
     const accentsOf = (AudioEngine: typeof import('./AudioEngine').AudioEngine, robotId: string) => {
       const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
-      for (const step of [2, 3, 6]) AudioEngine.processMelodyStep(step, 0);
+      for (const step of [2, 3, 6]) AudioEngine.processMelodyStep(atStep(step), 0);
       const out = spy.mock.calls.map((c) => c[0]).filter((p) => p.robotId === robotId).map((p) => p.accentMultiplier ?? 1);
       spy.mockRestore();
       return out;
@@ -1863,8 +1872,8 @@ describe('AudioEngine - Motif Group Accent', () => {
 
     const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => { });
     AudioEngine.registerRobotMelody('scatter-robot', melody);
-    AudioEngine.processMelodyStep(2, 0);
-    AudioEngine.processMelodyStep(6, 0);
+    AudioEngine.processMelodyStep(atStep(2), 0);
+    AudioEngine.processMelodyStep(atStep(6), 0);
 
     spy.mock.calls.forEach((c) => {
       expect(c[0].accentMultiplier ?? 1).toBe(1);
@@ -1972,7 +1981,7 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
     const melody = [{ id: 'real-1', startStep: 3, length: '8n' as const, noteIndex: 5, octave: 4 }];
     const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
     AudioEngine.registerRobotMelody('r1', melody);
-    AudioEngine.processMelodyStep(3, 0);
+    AudioEngine.processMelodyStep(atStep(3), 0);
 
     expect(spy).toHaveBeenCalledTimes(1);
     spy.mockRestore();
@@ -1988,14 +1997,14 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
     AudioEngine.registerRobotMelody('r2', realMelody);
 
     // The real melody's own step never fires...
-    AudioEngine.processMelodyStep(7, 0);
+    AudioEngine.processMelodyStep(atStep(7), 0);
     expect(spy).not.toHaveBeenCalled();
 
     // ...but the click track's downbeats do, at the robot's own octave-range minimum (3).
-    AudioEngine.processMelodyStep(1, 0);
-    AudioEngine.processMelodyStep(5, 0);
-    AudioEngine.processMelodyStep(9, 0);
-    AudioEngine.processMelodyStep(13, 0);
+    AudioEngine.processMelodyStep(atStep(1), 0);
+    AudioEngine.processMelodyStep(atStep(5), 0);
+    AudioEngine.processMelodyStep(atStep(9), 0);
+    AudioEngine.processMelodyStep(atStep(13), 0);
 
     expect(spy).toHaveBeenCalledTimes(4);
     const notes = spy.mock.calls.map((c) => c[0].note);
@@ -2019,8 +2028,8 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
     // click track is still toggled on.
     AudioEngine.registerRobotMelody('r3', [{ id: 'drifted-1', startStep: 2, length: '8n' as const, noteIndex: 3, octave: 5 }]);
 
-    AudioEngine.processMelodyStep(2, 0); // the drifted melody's own step — must NOT fire
-    AudioEngine.processMelodyStep(1, 0); // a click-track downbeat — must fire
+    AudioEngine.processMelodyStep(atStep(2), 0); // the drifted melody's own step — must NOT fire
+    AudioEngine.processMelodyStep(atStep(1), 0); // a click-track downbeat — must fire
 
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy.mock.calls[0][0].note).toBe('C43'); // 'C4' (mocked note name) + octave 3
@@ -2034,8 +2043,8 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
 
     const spy = vi.spyOn(AudioEngine, 'scheduleNote').mockImplementation(() => {});
     AudioEngine.registerRobotMelody('r4', []);
-    AudioEngine.processMelodyStep(1, 0);
-    AudioEngine.processMelodyStep(5, 0);
+    AudioEngine.processMelodyStep(atStep(1), 0);
+    AudioEngine.processMelodyStep(atStep(5), 0);
 
     spy.mock.calls.forEach((c) => expect(c[0].accentMultiplier ?? 1).toBe(1));
     spy.mockRestore();
@@ -6555,7 +6564,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('a staccato 8n event schedules half its length in seconds, as a number', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'staccato' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBe(0.15 * 0.5);
       expect(typeof params()[0].duration).toBe('number');
     });
@@ -6563,35 +6572,35 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('a plain event schedules its NoteDuration string unchanged', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBe('8n');
     });
 
     it('a rest alone leaves the remainder of the length (0.5 of an 8n is 0.075 s)', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.5 })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBeCloseTo(0.075, 10);
     });
 
     it('a rest and a staccato: the shorter wins (0.4 of an 8n beats half)', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.6, mark: 'staccato' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBeCloseTo(0.06, 10);
     });
 
     it('a staccatissimo 16n at 200 BPM is floored at MIN_SOUNDING_SECONDS, not 0.019 s', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', mark: 'staccatissimo' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBe(0.03);
     });
 
     it('a rested 16n is floored too', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ length: '16n', rest: 0.75 })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBe(0.03);
     });
 
@@ -6601,7 +6610,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const releaseOf = async (event: Record<string, unknown>, robot: Record<string, unknown> = {}) => {
         const { AudioEngine, params } = await setup([robotFixture('r', robot)]);
         AudioEngine.registerRobotMelody('r', [eventFixture(event)] as never);
-        AudioEngine.processMelodyStep(1, 0);
+        AudioEngine.processMelodyStep(atStep(1), 0);
         return params()[0].release;
       };
 
@@ -6630,14 +6639,14 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('the floor never lengthens a note past its written length (a 0.02 s note stays 0.02 s, not 0.03 s)', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ length: '32n', mark: 'staccato' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBe(0.02);
     });
 
     it('a rest with a tenuto keeps the full length as the NoteDuration string, and tenuto leans 1.2 louder', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ rest: 0.6, mark: 'tenuto' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].duration).toBe('8n');
       expect(params()[0].accentMultiplier).toBe(1.2);
     });
@@ -6645,8 +6654,8 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('accent and tenuto marks keep the full length string', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ id: 'a', startStep: 1, mark: 'accent' }), eventFixture({ id: 'b', startStep: 2, mark: 'tenuto' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
-      AudioEngine.processMelodyStep(2, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
+      AudioEngine.processMelodyStep(atStep(2), 0);
       expect(params().map((p) => p.duration)).toEqual(['8n', '8n']);
     });
   });
@@ -6655,62 +6664,193 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
     it('a plain non-accent event passes undefined, as today', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].accentMultiplier).toBeUndefined();
     });
 
     it('a mark alone passes its velocity multiplier', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'accent' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].accentMultiplier).toBe(1.5);
     });
 
     it('a staccato (velocity 1) passes undefined, not 1', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'staccato' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].accentMultiplier).toBeUndefined();
     });
 
     it('a marcato that is also the motif-group accent passes 1.25 x 1.65', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r', { rhythmicMotifLength: { active: true, value: 4 } })]);
       AudioEngine.registerRobotMelody('r', [eventFixture({ mark: 'marcato' })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].accentMultiplier).toBe(1.25 * 1.65);
     });
 
     it('a motif-group accent with no mark still passes exactly 1.25', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r', { rhythmicMotifLength: { active: true, value: 4 } })]);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].accentMultiplier).toBe(1.25);
     });
   });
 
   describe('position and time', () => {
-    it('every note carries the tick position, which keeps counting past the 16-step measure', async () => {
-      const Tone = await import('tone');
-      const { AudioEngine, params } = await setup([robotFixture('r')]);
+    /** The live melody tick after a fresh start, with the transport mock it was registered on. */
+    async function liveMelodyTick(AudioEngine: typeof import('./AudioEngine').AudioEngine, Tone: typeof import('tone')) {
       AudioEngine.killAll();
       await AudioEngine.start();
       const transport = (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results.at(-1)?.value;
-      const tick = transport.scheduleRepeat.mock.calls.filter((c: unknown[]) => c[1] === '16n').map((c: unknown[]) => c[0] as (time: number) => void)[0];
+      // initBeatClock is mocked here, so the only 16n repeat on the transport is the melody tick.
+      const calls = transport.scheduleRepeat.mock.calls.filter((c: unknown[]) => c[1] === '16n');
+      return { calls, tick: calls[0][0] as (time: number) => void };
+    }
+
+    /** positionAt as the real clock reads it at 120 BPM and 192 PPQ from time 0: a sixteenth every 0.125 s. */
+    async function clockAt120() {
+      const { positionFromTicks } = await vi.importActual<typeof import('./beatClock')>('./beatClock');
+      const beatClock = await import('./beatClock');
+      vi.mocked(beatClock.positionAt).mockImplementation((time: number) => positionFromTicks(time * 384, 192));
+      return beatClock;
+    }
+
+    it('every note carries its sixteenth since tick 0, read from the tick time, past the 16-step measure', async () => {
+      const { AudioEngine, Tone, params } = await setup([robotFixture('r')]);
+      const { tick } = await liveMelodyTick(AudioEngine, Tone);
+      await clockAt120();
       AudioEngine.registerRobotMelody('r', [eventFixture({ id: 'a', startStep: 1 }), eventFixture({ id: 'b', startStep: 3 })] as never);
 
-      for (let i = 0; i < 20; i++) tick(0);
+      for (let i = 0; i < 20; i++) tick(i * 0.125);
 
-      const positions = params().map((p) => p.position);
-      // Step 1 sounds at ticks 0 and 16, step 3 at ticks 2 and 18.
-      expect(positions).toEqual([0, 2, 16, 18]);
+      // Step 1 sounds at sixteenths 0 and 16, step 3 at 2 and 18.
+      expect(params().map((p) => p.position)).toEqual([0, 2, 16, 18]);
       AudioEngine.killAll();
+    });
+
+    it('nothing counts ticks: the same time twice plays the same step at the same position', async () => {
+      const { AudioEngine, Tone, params } = await setup([robotFixture('r')]);
+      const { tick } = await liveMelodyTick(AudioEngine, Tone);
+      await clockAt120();
+      AudioEngine.registerRobotMelody('r', [eventFixture({ id: 'a', startStep: 3 })] as never);
+
+      tick(2 * 0.125);
+      tick(2 * 0.125);
+      tick(18 * 0.125);
+
+      expect(params().map((p) => p.position)).toEqual([2, 2, 18]);
+      AudioEngine.killAll();
+    });
+
+    it('the melody tick registers on 16n with a start of 0, so it fires on the sixteenth grid', async () => {
+      const { AudioEngine, Tone } = await setup([robotFixture('r')]);
+      const { calls } = await liveMelodyTick(AudioEngine, Tone);
+      expect(calls).toHaveLength(1);
+      expect(calls[0][2]).toBe(0);
+      AudioEngine.killAll();
+    });
+
+    it('the melody tick hands processMelodyStep the position of its own time, and the time itself', async () => {
+      const { AudioEngine, Tone } = await setup([robotFixture('r')]);
+      const { tick } = await liveMelodyTick(AudioEngine, Tone);
+      const beatClock = await import('./beatClock');
+      const at = { sixteenth: 83, measure: 5, step: 4 };
+      vi.mocked(beatClock.positionAt).mockImplementation((time: number) => (time === 10.375 ? at : undefined));
+      const step = vi.spyOn(AudioEngine, 'processMelodyStep');
+
+      tick(10.375);
+
+      expect(beatClock.positionAt).toHaveBeenCalledWith(10.375);
+      expect(step).toHaveBeenCalledTimes(1);
+      expect(step).toHaveBeenCalledWith(at, 10.375);
+      AudioEngine.killAll();
+    });
+
+    it('the melody tick does nothing when there is no position (no transport)', async () => {
+      const { AudioEngine, Tone, params } = await setup([robotFixture('r')]);
+      const { tick } = await liveMelodyTick(AudioEngine, Tone);
+      const beatClock = await import('./beatClock');
+      vi.mocked(beatClock.positionAt).mockReturnValue(undefined);
+      const step = vi.spyOn(AudioEngine, 'processMelodyStep');
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+
+      expect(() => tick(0)).not.toThrow();
+
+      expect(step).not.toHaveBeenCalled();
+      expect(params()).toHaveLength(0);
+      AudioEngine.killAll();
+    });
+
+    describe('processMelodyStep at measure 5, step 4 (sixteenth 83)', () => {
+      const AT = { sixteenth: 83, measure: 5, step: 4 };
+
+      /** setup, with the real palette in place of this file's fixed one, and three events: steps 1, 4 and 5. */
+      async function setupWithRealPalette() {
+        const ctx = await setup([robotFixture('r')]);
+        const { paletteForMeasure } = await vi.importActual<typeof import('./harmonySystem')>('./harmonySystem');
+        const harmony = await import('./harmonySystem');
+        vi.mocked(harmony.paletteForMeasure).mockImplementation(paletteForMeasure);
+        ctx.AudioEngine.registerRobotMelody('r', [
+          eventFixture({ id: 'one', startStep: 1, noteIndex: 0 }),
+          eventFixture({ id: 'four', startStep: 4, noteIndex: 0 }),
+          eventFixture({ id: 'five', startStep: 5, noteIndex: 0 }),
+        ] as never);
+        return { ...ctx, harmony };
+      }
+
+      it('plays only step 4, with pitches from palette entry 2 (D, where measure 0 plays C)', async () => {
+        const { AudioEngine, params, harmony } = await setupWithRealPalette();
+        AudioEngine.processMelodyStep(AT, 0);
+        expect(params()).toHaveLength(1);
+        expect(params()[0].note).toBe('D4');
+        expect(harmony.paletteForMeasure).toHaveBeenCalledWith(5);
+      });
+
+      it('passes position 83 to scheduleNote (the velocity roll)', async () => {
+        const { AudioEngine, params } = await setupWithRealPalette();
+        AudioEngine.processMelodyStep(AT, 0);
+        expect(params()[0].position).toBe(83);
+      });
+
+      it('draws the Humanize offset at 83: alea(`0:humanize:83`), not the draw at 0', async () => {
+        const { default: alea } = await import('alea');
+        const { AudioEngine, params } = await setupWithRealPalette();
+        AudioEngine.setHumanize(20);
+        AudioEngine.processMelodyStep(AT, 1.5);
+        const at83 = (alea('0:humanize:83')() * 2 - 1) * 0.02;
+        const at0 = (alea('0:humanize:0')() * 2 - 1) * 0.02;
+        expect(Math.abs(at83 - at0)).toBeGreaterThan(0.001); // the oracle tells the two apart
+        expect((params()[0].time as number) - (1.5 + MIN_LEAD)).toBeCloseTo(at83, 10);
+      });
+
+      it('the same position twice gives identical scheduleNote arguments', async () => {
+        const { AudioEngine, params } = await setupWithRealPalette();
+        AudioEngine.setHumanize(20);
+        AudioEngine.processMelodyStep(AT, 1.5);
+        AudioEngine.processMelodyStep(AT, 1.5);
+        expect(params()).toHaveLength(2);
+        expect(params()[1]).toEqual(params()[0]);
+      });
+
+      it('the step a measure later plays the same event in palette entry 3 (F) at position 99', async () => {
+        const { AudioEngine, params } = await setupWithRealPalette();
+        AudioEngine.processMelodyStep({ sixteenth: 99, measure: 6, step: 4 }, 0);
+        expect(params()[0].note).toBe('F4');
+        expect(params()[0].position).toBe(99);
+      });
+    });
+
+    it('getPolyphonyStats reports voices and maxVoices only (the step count is gone)', async () => {
+      const { AudioEngine } = await setup([robotFixture('r')]);
+      expect(Object.keys(AudioEngine.getPolyphonyStats()).sort()).toEqual(['maxVoices', 'voices']);
     });
 
     it('with Humanize at 0 the time is exactly time + MIN_LEAD', async () => {
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.setHumanize(0);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 1.5);
+      AudioEngine.processMelodyStep(atStep(1), 1.5);
       expect(params()[0].time).toBe(1.5 + MIN_LEAD);
     });
   });
@@ -6720,7 +6860,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 1.5);
+      AudioEngine.processMelodyStep(atStep(1), 1.5);
       const offset = (params()[0].time as number) - (1.5 + MIN_LEAD);
       expect(Math.abs(offset)).toBeLessThanOrEqual(0.02 + 1e-12);
       expect(offset).not.toBe(0);
@@ -6733,9 +6873,9 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
       AudioEngine.setHumanize(20);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       AudioEngine.setHumanize(5);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       const unit = alea('0:humanize:0')() * 2 - 1;
       expect(Math.abs(unit)).toBeGreaterThan(0.05); // the oracle is a real offset, not a near-zero draw
       expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo(unit * 0.02, 10);
@@ -6747,7 +6887,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup(robots);
       AudioEngine.setHumanize(20);
       for (const r of robots) AudioEngine.registerRobotMelody(r.id, [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       const offsets = params().map((p) => (p.time as number) - MIN_LEAD);
       expect(offsets).toHaveLength(12);
       expect(Math.max(...offsets) - Math.min(...offsets)).toBeGreaterThan(0.02);
@@ -6759,7 +6899,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('a', [eventFixture()] as never);
       AudioEngine.registerRobotMelody('b', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       const [a, b] = params().map((p) => (p.time as number) - MIN_LEAD);
       expect(Math.abs(a - b)).toBeGreaterThan(0.005);
     });
@@ -6769,8 +6909,8 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('a', [eventFixture()] as never);
       AudioEngine.registerRobotMelody('b', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       const times = params().map((p) => [p.robotId, p.time]);
       expect(times[0]).toEqual(times[2]);
       expect(times[1]).toEqual(times[3]);
@@ -6781,7 +6921,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup([robotFixture('r', { clickTrackActive: true })]);
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 1.5);
+      AudioEngine.processMelodyStep(atStep(1), 1.5);
       expect(params()).toHaveLength(1);
       expect(params()[0].time).toBe(1.5 + MIN_LEAD);
     });
@@ -6791,10 +6931,10 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup(robots);
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1 })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       (robots[0] as Record<string, unknown>).clickTrackActive = false;
       AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 1 })] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].time).toBe(MIN_LEAD);
       expect(params()[1].time).not.toBe(MIN_LEAD);
     });
@@ -6803,13 +6943,13 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
       AudioEngine.setHumanize(20);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       AudioEngine.setHumanize(99);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       AudioEngine.setHumanize(-5);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       AudioEngine.setHumanize(NaN);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].time).not.toBe(MIN_LEAD);
       expect(params()[1].time).toBe(params()[0].time); // 99 clamps to 20: the same draw, the same range
       expect(params()[2].time).toBe(MIN_LEAD);
@@ -6820,10 +6960,10 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup([robotFixture('r')]);
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       AudioEngine.killAll();
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].time).not.toBe(MIN_LEAD);
       expect(params()[1].time).toBe(params()[0].time); // the setting survived the power cycle
     });
@@ -6832,7 +6972,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup([robotFixture('r')], null);
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(params()[0].time).toBe(MIN_LEAD);
     });
 
@@ -6841,7 +6981,7 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       const { AudioEngine, params } = await setup([robotFixture('known')]);
       AudioEngine.setHumanize(20);
       AudioEngine.registerRobotMelody('ghost', [eventFixture()] as never);
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect((params()[0].time as number) - MIN_LEAD).toBeCloseTo((alea('0:humanize:0')() * 2 - 1) * 0.02, 10);
     });
 
@@ -6851,12 +6991,12 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
 
       AudioEngine.setHumanize(0);
       stateSpy.mockClear();
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(stateSpy).toHaveBeenCalledTimes(0);
 
       AudioEngine.setHumanize(20);
       stateSpy.mockClear();
-      AudioEngine.processMelodyStep(1, 0);
+      AudioEngine.processMelodyStep(atStep(1), 0);
       expect(stateSpy).toHaveBeenCalledTimes(1);
     });
   });
