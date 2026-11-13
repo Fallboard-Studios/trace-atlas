@@ -683,6 +683,11 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** XS
 
+  **Revised 2026-11-13 (Crawford: "75% of their current opacity", the whole cloud):** the peak is
+  `NOTE_PEAK_STRENGTH` (0.75), not 1. Every "1" above now reads as the peak: 0.75 at 100 and 50 and whenever woken,
+  0.375 at 25, 0.15 at 10, 0 at 0. The dim, the battery fade and the white sit under it, because strength is the
+  layers' opacity. RED first (`noteStrength.test.ts` and Task 23's cases in `RobotBody.test.tsx` re-pinned to 0.75).
+
 - [x] **Task 19: `robotAttention.ts` — the pointed-at robot, the singled-out robot, the woken set**
 
   **Description:** New `src/systems/robotAttention.ts`, runtime module state shaped like `deckCamera.ts`'s
@@ -963,7 +968,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 - [ ] **Task 28: `RobotBody.tsx` — the avatar's cloud**
 
-  **Description:** A body with `motion === 'avatar'` calls the hook too: strength 1 and `--note-dim` 1 whatever the
+  **Description:** A body with `motion === 'avatar'` calls the hook too: strength `NOTE_PEAK_STRENGTH` (0.75, revised 2026-11-13) and `--note-dim` 1 whatever the
   battery or the attention, the roll at 2.5 times the robot at the avatar's scale of 1 (`ignoreScale`), `pxPerUnit`
   from Task 27, timelines `note-belt-avatar-<id>` and `note-strength-avatar-<id>` under `'world'` (spec §1.8, §7.2
   A9). It subscribes to the same model, so its notes are the world's notes. It never clears the model.
@@ -971,7 +976,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   **Proof:** RED test — `src/components/panels/screen/screens/RobotScreen.test.tsx`.
 
   **Acceptance criteria:**
-  - [ ] An event for the robot on screen places a bar in the avatar's layers at full strength at 10% battery.
+  - [ ] An event for the robot on screen places a bar in the avatar's layers at the peak strength (0.75) at 10% battery.
   - [ ] With the world's robot and the avatar both mounted, one event places a bar in the same layer (front or
         behind) in each, and a repeat in neither.
   - [ ] Closing the screen removes the avatar's bars and timelines and leaves the world's cloud and the model's

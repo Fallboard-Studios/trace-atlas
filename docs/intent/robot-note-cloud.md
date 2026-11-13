@@ -56,6 +56,8 @@ It is there on every robot but quiet about it, and it comes forward for the robo
 
 - **Bright now, faint after.** A note is at full strength where it sounds and falls to about a third as it moves
   on. So every robot shows a bright blip on the beat and a ghost of what it just played.
+- **Full strength is three quarters.** The cloud at its strongest is 75% opaque, and everything else (the dim, the
+  battery fade, the white of a sounding note) sits under that (Crawford, 2026-11-13).
 - **Overlapping notes look like one shape.** The dimming belongs to the whole cloud, not to each note.
 - **The robot the player turns to is at full strength.** A robot under the pointer, selected, soloed or highlighted
   shows its whole cloud undimmed.

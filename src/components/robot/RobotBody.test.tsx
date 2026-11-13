@@ -891,6 +891,7 @@ describe('RobotBody — the singled-out robot\'s cloud is undimmed (note cloud T
 describe('RobotBody — the battery thins the cloud, attention wakes it (note cloud Task 23)', () => {
   let cloudSpy: MockInstance<typeof useNoteCloudModule.useNoteCloud>;
   const strength = () => cloudSpy.mock.lastCall![0].strength;
+  const PEAK = 0.75; // the cloud at its strongest (Crawford, 2026-11-13)
 
   function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
     const tree = (r: Robot) => (
@@ -920,37 +921,37 @@ describe('RobotBody — the battery thins the cloud, attention wakes it (note cl
     useUIStore.getState().selectRobot(null);
   });
 
-  it('at full battery the cloud is at full strength; at 25% and not woken, half', () => {
+  it('at full battery the cloud is at its peak strength; at 25% and not woken, half that', () => {
     const { unmount } = drawInCloud(makeRobot({ batteryLevel: 100, activity: 'working' }), 'world');
-    expect(strength()).toBe(1);
+    expect(strength()).toBe(PEAK);
     unmount();
     drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
-    expect(strength()).toBe(0.5);
+    expect(strength()).toBe(PEAK / 2);
   });
 
-  it('pointing at the robot brings it to 1, and it stays at 1 after the pointer leaves', () => {
+  it('pointing at the robot brings it to its peak, and it stays there after the pointer leaves', () => {
     drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
     act(() => setPointedRobot('r1'));
-    expect(strength()).toBe(1);
+    expect(strength()).toBe(PEAK);
     act(() => setPointedRobot(null));
-    expect(strength()).toBe(1);
+    expect(strength()).toBe(PEAK);
   });
 
   it('selecting the robot wakes it; deselecting leaves it woken', () => {
     drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
     act(() => useUIStore.getState().selectRobot('r1'));
     expect(isRobotNotesWoken('r1')).toBe(true);
-    expect(strength()).toBe(1);
+    expect(strength()).toBe(PEAK);
     act(() => useUIStore.getState().selectRobot(null));
     expect(isRobotNotesWoken('r1')).toBe(true);
-    expect(strength()).toBe(1);
+    expect(strength()).toBe(PEAK);
   });
 
   it('selecting another robot wakes nothing here', () => {
     drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
     act(() => useUIStore.getState().selectRobot('r2'));
     expect(isRobotNotesWoken('r1')).toBe(false);
-    expect(strength()).toBe(0.5);
+    expect(strength()).toBe(PEAK / 2);
     sleepRobotNotes('r2');
   });
 
@@ -961,19 +962,19 @@ describe('RobotBody — the battery thins the cloud, attention wakes it (note cl
     act(() => setPointedRobot(null));
     redraw({ ...robot, activity: 'returning' });
     expect(isRobotNotesWoken('r1')).toBe(true);
-    expect(strength()).toBe(1);
+    expect(strength()).toBe(PEAK);
     redraw({ ...robot, activity: 'entering' });
     expect(isRobotNotesWoken('r1')).toBe(true);
     redraw({ ...robot, activity: 'charging' });
     expect(isRobotNotesWoken('r1')).toBe(false);
-    expect(strength()).toBe(0.5);
+    expect(strength()).toBe(PEAK / 2);
   });
 
   it('the Deck camera following the robot does not wake it', () => {
     drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
     act(() => camera.follow('r1'));
     expect(isRobotNotesWoken('r1')).toBe(false);
-    expect(strength()).toBe(0.5);
+    expect(strength()).toBe(PEAK / 2);
   });
 
   it('the world body\'s unmount ends its wake', () => {

@@ -199,17 +199,19 @@ and what the approved settings still cost is taken back here.
 ### 1.7 Attention (Part C)
 
 Two separate things set how strongly a robot's cloud shows. **Dim** is how faint a note becomes once it has sounded.
-**Strength** is the opacity of the whole cloud.
+**Strength** is the opacity of the whole cloud. "Full strength" below means the cloud's peak, 0.75 (Crawford,
+2026-11-13: "75% of their current opacity"); every other level, the dim, the battery fade and a note's white while
+it sounds, sits under that ceiling.
 
 - **Bright now, faint after.** For a robot nobody has turned to, a note is at full strength where it sounds and
   falls to 0.35 as it moves on. The dimming is the layer's mask, so overlapping notes look like one shape.
 - **The robot the player turns to is undimmed.** A robot is *singled out* while it is under the pointer, or the Deck
   camera is following it, or it is selected, soloed or highlighted. Its whole cloud is at full strength (dim = 1).
   One custom property on the mover (`--note-dim`), read by both masks; a change rebuilds nothing.
-- **The battery thins the population.** Strength is 1 down to 50% battery, then falls in a straight line to 0 at a
-  flat battery (Crawford, 2026-11-12: zero at flat, not at the recall line). A robot recalled at 10% heads home at a
-  fifth strength. At strength 0 no notes are placed.
-- **Attention brings them back.** Pointing at a robot or selecting it *wakes* its notes: strength 1 whatever the
+- **The battery thins the population.** Strength is the peak (0.75) down to 50% battery, then falls in a straight
+  line to 0 at a flat battery (Crawford, 2026-11-12: zero at flat, not at the recall line). A robot recalled at 10%
+  heads home at a fifth of the peak. At strength 0 no notes are placed.
+- **Attention brings them back.** Pointing at a robot or selecting it *wakes* its notes: the peak whatever the
   battery, and it stays there after the pointer leaves or the selection moves, until the robot is next in its station
   (`activity === 'charging'`). The Deck camera following a robot singles it out but does not wake it.
 - **Strength changes are eased, never a step:** a rise over 0.3 s, a fall over 1 s (the battery steps once a
@@ -234,7 +236,8 @@ nothing.
 
 - **The same notes.** The avatar's cloud reads the same events and the same per-robot model (§4) as the world's, so
   a note has the same row, the same layer and the same colour in both, and the repeat rule drops the same notes.
-- **Always full strength, undimmed.** The player has turned to this robot by opening its screen. No battery fade.
+- **Always full strength (the peak, 0.75), undimmed.** The player has turned to this robot by opening its screen. No
+  battery fade.
 - **Only what sounds.** A muted or docked robot's avatar shows no notes, as in the world.
 - **Mounting.** `AvatarGem` gains a positioned box that takes the avatar's present size and holds the behind layer,
   the `<svg>` and the front layer. The avatar's box does not change size (Crawford's rule: a control holds its
@@ -491,7 +494,8 @@ export interface DrawnNote {
 export function nextDrawnNote(robotId: string, event: RobotNoteEvent): DrawnNote | null;
 
 // noteStrength.ts
-/** 1 down to NOTE_BATTERY_FULL, then a straight line to 0 at a flat battery; 1 whenever woken (§1.7). */
+/** NOTE_PEAK_STRENGTH down to NOTE_BATTERY_FULL, then a straight line to 0 at a flat battery; the peak whenever
+ *  woken (§1.7). */
 export function noteStrength(batteryLevel: number, woken: boolean): number;
 ```
 
@@ -702,7 +706,8 @@ His answers to this spec's first open questions, the same day:
   | `NOTE_BRIGHT_BAND` | 0.14 | how far past "now" a note is still at full strength |
   | `NOTE_HOT_COLOR` | `#fffbe6` | a sounding note; 0.05 s in, 0.25 s to cool |
   | `NOTE_RANGE_MIN_SEMITONES` | 12 | the least range the roll's height stands for |
-  | `NOTE_BATTERY_FULL` | 50 | the battery level down to which strength is 1 |
+  | `NOTE_PEAK_STRENGTH` | 0.75 | the cloud at its strongest (Crawford, 2026-11-13) |
+  | `NOTE_BATTERY_FULL` | 50 | the battery level down to which strength is the peak |
   | `NOTE_WAKE_SECONDS` / `NOTE_EBB_SECONDS` | 0.3 / 1 | a strength rise / fall |
   | complement | S 100, L 70 | a freelancer's note colour |
 

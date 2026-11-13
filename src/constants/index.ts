@@ -409,6 +409,10 @@ export const NOTE_COOL_SECONDS = 0.25;
 /** The battery thins the cloud (§1.7): full strength down to this battery level (%), then a straight line to none at
  *  a flat battery (Crawford, 2026-11-12: zero at flat, not at the recall line). */
 export const NOTE_BATTERY_FULL = 50;
+/** The cloud at its strongest (§1.7): the layers' opacity at a full battery or woken. Every other level (the battery
+ *  fade, the dim a note falls to once it has sounded, its white while it sounds) sits under it (Crawford, 2026-11-13:
+ *  "75% of their current opacity"). */
+export const NOTE_PEAK_STRENGTH = 0.75;
 /** A change of strength is eased, never a step (§1.7): a rise over NOTE_WAKE_SECONDS, a fall over NOTE_EBB_SECONDS
  *  (the battery steps once a measure). */
 export const NOTE_WAKE_SECONDS = 0.3;
