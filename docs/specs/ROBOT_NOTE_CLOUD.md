@@ -17,8 +17,8 @@ the same day (§7.1 records each answer), with his answers to this spec's first 
 second table). Paused that day at Crawford's word until backlog 82 and 83 were finished. **Picked up again
 2026-11-12:** both closed with the one music clock (PR #635), and §1.1, §1.2 and §1.9 have been re-read against the
 engine as it now is. §1.1 gained the music clock and §1.9 is rewritten on it. Asked whether Part E should now move
-into the first branch, Crawford kept it last (§7.1). **Awaiting
-Crawford's approval; not yet planned.** Backlog
+into the first branch, Crawford kept it last (§7.1). **Planned 2026-11-12:**
+[docs/tasks/ROBOT_NOTE_CLOUD.md](../tasks/ROBOT_NOTE_CLOUD.md), 37 tasks, awaiting his read; nothing built. Backlog
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
 **Who it is for:** a player watching the world, on the desk shell and on a phone, who wants to see which robot is
