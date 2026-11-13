@@ -139,7 +139,7 @@ Task 6 and do not depend on each other.
 
 ### Phase 2: The position foundation
 
-- [ ] **Task 2: `beatClock.ts` — `MusicPosition` and `positionFromTicks`**
+- [x] **Task 2: `beatClock.ts` — `MusicPosition` and `positionFromTicks`**
 
   **Description:** Add the type and the pure function exactly as spec §4.1 gives them. No caller yet; independently
   testable.
@@ -147,14 +147,18 @@ Task 6 and do not depend on each other.
   **Proof:** RED test — `src/engine/beatClock.test.ts`: the positions of spec §6.1's tick counts.
 
   **Acceptance criteria:**
-  - [ ] Tick 0 gives sixteenth 0, measure 0, step 1; 48 gives step 2; 720 gives step 16; 768 gives measure 1, step 1.
-  - [ ] 767.9999 and 768.0001 both give measure 1, step 1 (rounding to the nearest sixteenth).
-  - [ ] At a PPQ of 96, tick 384 gives measure 1, step 1 (nothing assumes 192).
-  - [ ] Mutation: `Math.round` → `Math.floor` fails the 767.9999 case; the measure length 16 → 12 fails the 768 case.
+  - [x] Tick 0 gives sixteenth 0, measure 0, step 1; 48 gives step 2; 720 gives step 16; 768 gives measure 1, step 1.
+  - [x] 767.9999 and 768.0001 both give measure 1, step 1 (rounding to the nearest sixteenth).
+  - [x] At a PPQ of 96, tick 384 gives measure 1, step 1 (nothing assumes 192).
+  - [x] Mutation: `Math.round` → `Math.floor` fails the 767.9999 case; the measure length 16 → 12 fails the 768 case.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/beatClock.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/beatClock.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Done 2026-11-12.** RED: 9 new cases, all "positionFromTicks is not a function". Edge cases beyond the list: a hair
+  either side of a mid-measure sixteenth (192 ± 0.0001 → step 5), measure 97 step 4 (no wrap), tick 24 at PPQ 96.
+  Mutants: floor killed 2 (767.9999 and the mid-measure hair), 16 → 12 killed 6 (768 among them).
 
   **Dependencies:** None.
 

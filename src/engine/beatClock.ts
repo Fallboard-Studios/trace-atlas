@@ -33,6 +33,30 @@ const scheduleMap = new Map<string, { transportId?: string | number; interval: s
 const measureListeners: Array<(measure: number) => void> = [];
 
 // ========================================
+// MUSIC POSITION
+// ========================================
+
+/** Where a moment sits in the music, counted from the transport's tick 0. */
+export interface MusicPosition {
+  /** Sixteenths since tick 0: the roll position for velocity and humanize. */
+  sixteenth: number;
+  /** Measures since tick 0, never wrapping. */
+  measure: number;
+  /** 1..16, the melody step this sixteenth plays. */
+  step: number;
+}
+
+/**
+ * Pure: the position of a tick count. Rounds to the nearest sixteenth, so a tick a hair either side of the grid
+ * (float error in getTicksAtTime) reads as the sixteenth it is on (docs/specs/ONE_MUSIC_CLOCK.md §4.1).
+ */
+export function positionFromTicks(ticks: number, ppq: number): MusicPosition {
+  const sixteenth = Math.round(ticks / (ppq / 4));
+  const perMeasure = BEATS_PER_MEASURE * 4;
+  return { sixteenth, measure: Math.floor(sixteenth / perMeasure), step: (sixteenth % perMeasure) + 1 };
+}
+
+// ========================================
 // BEATCLOCK API
 // ========================================
 

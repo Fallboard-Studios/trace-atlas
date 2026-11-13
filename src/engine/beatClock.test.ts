@@ -25,6 +25,7 @@ let subscribeToMeasure: (cb: (m: number) => void) => () => void;
 let resetBeatClock: () => void;
 let scheduleRepeat: (interval: string, callback: (time: number) => void) => string;
 let cancelSchedule: (scheduleId: string) => void;
+let positionFromTicks: typeof import('./beatClock').positionFromTicks;
 
 describe('beatClock', () => {
   beforeEach(async () => {
@@ -44,9 +45,50 @@ describe('beatClock', () => {
       scheduleRepeat,
       cancelSchedule,
       getTickSeconds,
+      positionFromTicks,
     } = await import('./beatClock'));
     // Initialize the beatClock with the mocked transport for tests
     initBeatClock(mockTransport);
+  });
+
+  // One music clock Task 2 (docs/specs/ONE_MUSIC_CLOCK.md §4.1, §6.1): the position of a transport tick count.
+  describe('positionFromTicks', () => {
+    const PPQ = 192;
+
+    it('tick 0 is the first sixteenth: measure 0, step 1', () => {
+      expect(positionFromTicks(0, PPQ)).toEqual({ sixteenth: 0, measure: 0, step: 1 });
+    });
+
+    it('one sixteenth (48 ticks at 192 PPQ) is step 2', () => {
+      expect(positionFromTicks(48, PPQ)).toEqual({ sixteenth: 1, measure: 0, step: 2 });
+    });
+
+    it('the last sixteenth of measure 0 (720) is step 16', () => {
+      expect(positionFromTicks(720, PPQ)).toEqual({ sixteenth: 15, measure: 0, step: 16 });
+    });
+
+    it('the bar (768) is measure 1, step 1', () => {
+      expect(positionFromTicks(768, PPQ)).toEqual({ sixteenth: 16, measure: 1, step: 1 });
+    });
+
+    it.each([767.9999, 768.0001])('a hair either side of the bar (%s) rounds to the bar: measure 1, step 1', (ticks) => {
+      expect(positionFromTicks(ticks, PPQ)).toEqual({ sixteenth: 16, measure: 1, step: 1 });
+    });
+
+    it('a hair either side of a mid-measure sixteenth rounds to it', () => {
+      expect(positionFromTicks(4 * 48 - 0.0001, PPQ)).toEqual({ sixteenth: 4, measure: 0, step: 5 });
+      expect(positionFromTicks(4 * 48 + 0.0001, PPQ)).toEqual({ sixteenth: 4, measure: 0, step: 5 });
+    });
+
+    it('the measure never wraps: measure 97, step 4 is sixteenth 1555', () => {
+      const ticks = (97 * 16 + 3) * 48;
+      expect(positionFromTicks(ticks, PPQ)).toEqual({ sixteenth: 1555, measure: 97, step: 4 });
+    });
+
+    it('nothing assumes 192 PPQ: at 96, tick 384 is measure 1, step 1 and tick 24 is step 2', () => {
+      expect(positionFromTicks(384, 96)).toEqual({ sixteenth: 16, measure: 1, step: 1 });
+      expect(positionFromTicks(24, 96)).toEqual({ sixteenth: 1, measure: 0, step: 2 });
+    });
   });
 
   it('initializes once and tracks beat/measure from transport position', () => {
