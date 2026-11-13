@@ -358,6 +358,10 @@ export const NOTE_LATENCY_MAX_SECONDS = 0.5;
 /** The least range, in semitones, a robot's roll height stands for (§1.3, §7.2 A1), so its first note sits at
  *  mid-height and a two-note melody does not leap the whole roll. */
 export const NOTE_RANGE_MIN_SEMITONES = 12;
+/** A rest, for the cloud's repeat rule (§1.3, §7.2 A4): more than this many seconds of silence between one note's
+ *  sounding end and the next note's start. Humanize moves a note by 20 ms at most, so two notes written to touch can
+ *  sit 40 ms apart and are still a run. */
+export const NOTE_REST_MIN_SECONDS = 0.05;
 
 /** hoverPulse (spec §1.9): orbiters gather this far round the point (scene units), then pulse in
  *  turn to this multiple of their rest scale. Kept as sketched (Phase 43 Task 0b). */
