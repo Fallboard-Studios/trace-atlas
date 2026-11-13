@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi, type MockInstance } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
 import { Profiler, useLayoutEffect } from 'react';
 
@@ -16,6 +16,7 @@ import type { ArcDecorator } from './gem/useHaloMotion';
 import { NoteCloudLayer } from './notes/NoteCloudLayers';
 import { clearNoteCloudModel } from './notes/noteCloudModel';
 import { noteColor } from './notes/noteRows';
+import * as useNoteCloudModule from './notes/useNoteCloud';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import type { Locale } from '@/types/locale';
@@ -26,7 +27,7 @@ import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import { emitRobotNote, hasRobotNoteListener } from '@/engine/noteEvents';
 import { setWorldState } from '@/systems/worldState';
-import { setPointedRobot, sleepRobotNotes } from '@/systems/robotAttention';
+import { isRobotNotesWoken, setPointedRobot, sleepRobotNotes, wakeRobotNotes } from '@/systems/robotAttention';
 
 // The Deck camera's followed robot, as a fake the attention cases drive (note cloud Tasks 21, 23); the rest of the
 // module is the real one.
@@ -879,6 +880,117 @@ describe('RobotBody — the singled-out robot\'s cloud is undimmed (note cloud T
     act(() => setPointedRobot('r1'));
     act(() => camera.follow('r1'));
     expect(dim()).toBe('');
+    expect(renderSpy.mock.calls.length).toBe(afterMount);
+    renderSpy.mockRestore();
+  });
+});
+
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.7 (note cloud Task 23): a world body hands its cloud noteStrength(battery, woken);
+// pointing at it or selecting it wakes it, and its station ends the wake. The global gsap mock runs no tween, so these
+// cases read the strength the body hands useNoteCloud; the easing itself is the hook's (useNoteCloud.test.tsx, Task 22).
+describe('RobotBody — the battery thins the cloud, attention wakes it (note cloud Task 23)', () => {
+  let cloudSpy: MockInstance<typeof useNoteCloudModule.useNoteCloud>;
+  const strength = () => cloudSpy.mock.lastCall![0].strength;
+
+  function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
+    const tree = (r: Robot) => (
+      <div data-note-cloud="">
+        <NoteCloudLayer side="behind" />
+        <svg><RobotBody robot={r} motion={motion} /></svg>
+        <NoteCloudLayer side="front" />
+      </div>
+    );
+    const result = render(tree(robot));
+    return { ...result, redraw: (r: Robot) => result.rerender(tree(r)) };
+  }
+
+  beforeEach(() => {
+    setWorldState('running');
+    clearNoteCloudModel('r1');
+    cloudSpy = vi.spyOn(useNoteCloudModule, 'useNoteCloud');
+  });
+
+  afterEach(() => {
+    cleanup();
+    cloudSpy.mockRestore();
+    setWorldState('cold');
+    setPointedRobot(null);
+    camera.follow(null);
+    sleepRobotNotes('r1');
+    useUIStore.getState().selectRobot(null);
+  });
+
+  it('at full battery the cloud is at full strength; at 25% and not woken, half', () => {
+    const { unmount } = drawInCloud(makeRobot({ batteryLevel: 100, activity: 'working' }), 'world');
+    expect(strength()).toBe(1);
+    unmount();
+    drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
+    expect(strength()).toBe(0.5);
+  });
+
+  it('pointing at the robot brings it to 1, and it stays at 1 after the pointer leaves', () => {
+    drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
+    act(() => setPointedRobot('r1'));
+    expect(strength()).toBe(1);
+    act(() => setPointedRobot(null));
+    expect(strength()).toBe(1);
+  });
+
+  it('selecting the robot wakes it; deselecting leaves it woken', () => {
+    drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
+    act(() => useUIStore.getState().selectRobot('r1'));
+    expect(isRobotNotesWoken('r1')).toBe(true);
+    expect(strength()).toBe(1);
+    act(() => useUIStore.getState().selectRobot(null));
+    expect(isRobotNotesWoken('r1')).toBe(true);
+    expect(strength()).toBe(1);
+  });
+
+  it('selecting another robot wakes nothing here', () => {
+    drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
+    act(() => useUIStore.getState().selectRobot('r2'));
+    expect(isRobotNotesWoken('r1')).toBe(false);
+    expect(strength()).toBe(0.5);
+    sleepRobotNotes('r2');
+  });
+
+  it('a woken robot stays woken while returning and entering; charging sleeps it and the battery sets the strength again', () => {
+    const robot = makeRobot({ batteryLevel: 25, activity: 'working' });
+    const { redraw } = drawInCloud(robot, 'world');
+    act(() => setPointedRobot('r1'));
+    act(() => setPointedRobot(null));
+    redraw({ ...robot, activity: 'returning' });
+    expect(isRobotNotesWoken('r1')).toBe(true);
+    expect(strength()).toBe(1);
+    redraw({ ...robot, activity: 'entering' });
+    expect(isRobotNotesWoken('r1')).toBe(true);
+    redraw({ ...robot, activity: 'charging' });
+    expect(isRobotNotesWoken('r1')).toBe(false);
+    expect(strength()).toBe(0.5);
+  });
+
+  it('the Deck camera following the robot does not wake it', () => {
+    drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
+    act(() => camera.follow('r1'));
+    expect(isRobotNotesWoken('r1')).toBe(false);
+    expect(strength()).toBe(0.5);
+  });
+
+  it('the world body\'s unmount ends its wake', () => {
+    const { unmount } = drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }), 'world');
+    act(() => setPointedRobot('r1'));
+    act(() => setPointedRobot(null));
+    unmount();
+    expect(isRobotNotesWoken('r1')).toBe(false);
+  });
+
+  it('a card neither wakes on selection nor re-renders on a wake', () => {
+    const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
+    drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }));
+    const afterMount = renderSpy.mock.calls.length;
+    act(() => useUIStore.getState().selectRobot('r1'));
+    expect(isRobotNotesWoken('r1')).toBe(false);
+    act(() => wakeRobotNotes('r1'));
     expect(renderSpy.mock.calls.length).toBe(afterMount);
     renderSpy.mockRestore();
   });

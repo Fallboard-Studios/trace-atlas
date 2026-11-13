@@ -1,7 +1,7 @@
 // ========================================
 // IMPORTS
 // ========================================
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 
 import type { Robot } from '../../types/Robot';
 import {
@@ -29,7 +29,15 @@ import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { useNoteCloud } from './notes/useNoteCloud';
 import { noteColor } from './notes/noteRows';
 import { getStageScale } from '../panels/screen/worldView/useStageFit';
-import { getSingledOutRobotId, subscribeSingledOut } from '../../systems/robotAttention';
+import { noteStrength } from './notes/noteStrength';
+import {
+  getSingledOutRobotId,
+  isRobotNotesWoken,
+  sleepRobotNotes,
+  subscribeSingledOut,
+  subscribeWokenNotes,
+  wakeRobotNotes,
+} from '../../systems/robotAttention';
 import { BACK_LAYER_SCALE, NOTE_DIM } from '../../constants';
 
 // ========================================
@@ -214,21 +222,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     enabled: motionEnabled,
   });
 
-  // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.6), world only for now (the avatar is Part D). Its colour
-  // is the company's, else the identity hue's complement; a pixel on screen is the stage's scale times the row's.
-  const rowScale = robot.layer === 'background' ? BACK_LAYER_SCALE : 1;
-  useNoteCloud({
-    root: gemRef,
-    robotId: robot.id,
-    context: motion ?? 'world',
-    enabled: motion === 'world',
-    gem,
-    scale: ignoreScale ? 1 : audio.scale,
-    color: noteColor(robot.identityColor || FALLBACK_IDENTITY, companyColor),
-    pxPerUnit: () => getStageScale() * rowScale,
-    strength: 1,
-  });
-
   // Attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7), world only: a body is singled out while it is under the pointer
   // or followed by the Deck camera (robotAttention), selected, soloed or highlighted. The snapshots are booleans
   // about this robot, so the pointer moving between two other robots re-renders nothing here. A singled-out robot's
@@ -243,6 +236,38 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     const box = gemRef.current?.closest<HTMLElement>('[data-note-cloud]');
     box?.style.setProperty('--note-dim', String(singledOut ? 1 : NOTE_DIM));
   }, [isWorld, singledOut]);
+
+  // Woken (§1.7): pointing at the robot (robotAttention) or selecting it wakes its notes, and it stays woken until it
+  // is next in its station (`activity === 'charging'`). The Deck camera following it does not wake it. The world
+  // body's unmount ends the wake (plan, Architecture Decisions: keyed on the robot id alone).
+  const isWokenHere = useCallback(() => isWorld && isRobotNotesWoken(robot.id), [isWorld, robot.id]);
+  const woken = useSyncExternalStore(isWorld ? subscribeWokenNotes : subscribeNothing, isWokenHere);
+  useEffect(() => {
+    if (isWorld && selected) wakeRobotNotes(robot.id);
+  }, [isWorld, selected, robot.id]);
+  useEffect(() => {
+    if (isWorld && robot.activity === 'charging') sleepRobotNotes(robot.id);
+  }, [isWorld, robot.activity, robot.id]);
+  useEffect(() => {
+    if (!isWorld) return;
+    return () => sleepRobotNotes(robot.id);
+  }, [isWorld, robot.id]);
+
+  // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.7), world only for now (the avatar is Part D). Its colour
+  // is the company's, else the identity hue's complement; a pixel on screen is the stage's scale times the row's; its
+  // strength is the battery's, or full while woken.
+  const rowScale = robot.layer === 'background' ? BACK_LAYER_SCALE : 1;
+  useNoteCloud({
+    root: gemRef,
+    robotId: robot.id,
+    context: motion ?? 'world',
+    enabled: motion === 'world',
+    gem,
+    scale: ignoreScale ? 1 : audio.scale,
+    color: noteColor(robot.identityColor || FALLBACK_IDENTITY, companyColor),
+    pxPerUnit: () => getStageScale() * rowScale,
+    strength: noteStrength(robot.batteryLevel, woken),
+  });
 
   return (
     <RobotGem
