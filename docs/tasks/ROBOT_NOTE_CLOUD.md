@@ -1172,7 +1172,17 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
 ### Phase 6: The record
 
-- [ ] **Task 29: docs — the cloud as shipped**
+- [x] **Task 29: docs — the cloud as shipped**
+
+  **As built (2026-11-13):** ROBOT_DESIGN.md gains "The note cloud — the third overlay", the cloud in the overview,
+  the render contexts (the world mover and the desk avatar's box draw it; the phone band, roster tile and company
+  screen do not), the data flow and a forbidden-patterns line. ANIMATION_SYSTEM.md gains "The note cloud" (layers,
+  belt, the per-frame pass, strength and re-size, the dim, the row scale, pixels per unit) and the two keys in the
+  robot timeline table. AUDIO_SYSTEM.md gains "Note events — audio to the picture" and a fifth forbidden pattern.
+  Stale lines found on the way and corrected: the avatar was `RobotDisplaySection` (now `RobotScreen.tsx`'s
+  `AvatarGem`), a "selection card" (now the roster tile and the company screen's gem), and the marker as the Deck
+  camera's only (now the singled-out robot's, so it appears on hover on a desktop). CLAUDE.md's ROBOT_DESIGN.md
+  reference line names the third overlay. Every name was taken from the source as read; `npm run lint` clean.
 
   **Description:** ROBOT_DESIGN.md: the note cloud as the third overlay beside day/night and the battery, the
   render contexts (world and desk avatar yes; phone band, cards and tiles no), and the forbidden-patterns line.
