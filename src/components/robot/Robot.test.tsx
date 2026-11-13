@@ -12,6 +12,12 @@ vi.mock('@/components/robot/RobotBody', () => ({
 vi.mock('@/systems/workLoop', () => ({
   onRobotMounted: vi.fn(),
 }));
+// The note cloud's ?notes=off switch is read once at load; the flag lets a case turn it off.
+const noteCloudSwitch = vi.hoisted(() => ({ on: true }));
+vi.mock('@/utils/debugParams', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/utils/debugParams')>()),
+  isNoteCloudEnabled: () => noteCloudSwitch.on,
+}));
 
 import { Robot } from './Robot';
 import { GEM_CANVAS_H, gemWidth, getRobotGem } from './gem/polygon';
@@ -313,8 +319,9 @@ describe('Robot — the mover (Phase 53 Task 13)', () => {
     expect(mover.classList.contains('mover--robot')).toBe(true);
     expect(mover.getAttribute('data-robot-id')).toBe('r1');
     expect(container.children).toHaveLength(1);
-    expect(mover.children).toHaveLength(1);
-    const svg = mover.firstElementChild!;
+    // The svg and the note cloud's two layers round it (note cloud Task 12, below).
+    expect(mover.querySelectorAll(':scope > svg')).toHaveLength(1);
+    const svg = mover.querySelector(':scope > svg')!;
     expect(svg.tagName.toLowerCase()).toBe('svg');
     expect(svg.getAttribute('class')).toBe('mover__svg');
     expect(svg.children).toHaveLength(1);
@@ -395,6 +402,90 @@ describe('Robot — the mover (Phase 53 Task 13)', () => {
     expect(container.querySelector('.mover--robot')!.getAttribute('data-scene-slot')).toBe('robots-back');
     expect(setSpy).not.toHaveBeenCalled();
     setSpy.mockRestore();
+  });
+});
+
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.5 (note cloud Task 12): React renders the cloud's two layers as
+// children of the mover, one before the svg (behind the body) and one after it (in front), each a
+// wrapper holding an empty belt the hook fills. Nothing is drawn under reduced motion or ?notes=off.
+describe('Robot — the note cloud layers (note cloud Task 12)', () => {
+  function setReducedMotion(reduced: boolean) {
+    window.matchMedia = ((query: string) => ({
+      matches: reduced && query.includes('prefers-reduced-motion'),
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })) as unknown as typeof window.matchMedia;
+  }
+
+  beforeEach(() => {
+    noteCloudSwitch.on = true;
+    setReducedMotion(false);
+    useUIStore.getState().selectRobot(null);
+    useUIStore.getState().setActiveHubTile(null);
+    useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
+  });
+
+  it('the mover is the cloud box the hook finds: it carries data-note-cloud', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    const mover = container.querySelector('.mover--robot')!;
+    expect(mover.hasAttribute('data-note-cloud')).toBe(true);
+  });
+
+  it('holds a behind layer before its svg and a front layer after it', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    const mover = container.querySelector('.mover--robot')!;
+    const kids = [...mover.children];
+    expect(kids).toHaveLength(3);
+    expect(kids[0].classList.contains('note-layer')).toBe(true);
+    expect(kids[0].classList.contains('note-layer--behind')).toBe(true);
+    expect(kids[1].tagName.toLowerCase()).toBe('svg');
+    expect(kids[2].classList.contains('note-layer')).toBe(true);
+    expect(kids[2].classList.contains('note-layer--front')).toBe(true);
+  });
+
+  it('each layer is aria-hidden and holds one empty belt', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    const layers = container.querySelectorAll('.mover--robot > .note-layer');
+    expect(layers).toHaveLength(2);
+    for (const layer of layers) {
+      expect(layer.getAttribute('aria-hidden')).toBe('true');
+      expect(layer.children).toHaveLength(1);
+      const belt = layer.firstElementChild!;
+      expect(belt.classList.contains('note-layer__belt')).toBe(true);
+      expect(belt.children).toHaveLength(0);
+    }
+  });
+
+  it('a re-render keeps the same layers (React never replaces them under the hook)', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    const before = [...container.querySelectorAll('.note-layer__belt')];
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 30 }));
+    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { layer: 'background' }));
+    expect([...container.querySelectorAll('.note-layer__belt')]).toEqual(before);
+  });
+
+  it('with reduced motion the mover holds no note layer', () => {
+    setReducedMotion(true);
+    const { container } = renderRobot({ id: 'r1' });
+    const mover = container.querySelector('.mover--robot')!;
+    expect(mover.querySelector('.note-layer')).toBeNull();
+    expect(mover.children).toHaveLength(1);
+  });
+
+  it('with ?notes=off the mover holds no note layer', () => {
+    noteCloudSwitch.on = false;
+    const { container } = renderRobot({ id: 'r1' });
+    const mover = container.querySelector('.mover--robot')!;
+    expect(mover.querySelector('.note-layer')).toBeNull();
+    expect(mover.children).toHaveLength(1);
+  });
+
+  it('the robot still takes a click with the layers in place', () => {
+    const { container } = renderRobot({ id: 'r1' });
+    expect(container.querySelectorAll('.note-layer')).toHaveLength(2);
+    fireEvent.click(container.querySelector('.robot') as Element);
+    expect(useUIStore.getState().selectedRobotId).toBe('r1');
   });
 });
 
