@@ -406,6 +406,9 @@ export const NOTE_QUANTUM_DEGREES = 0.25;
 export const NOTE_HOT_COLOR = '#fffbe6';
 export const NOTE_HOT_IN_SECONDS = 0.05;
 export const NOTE_COOL_SECONDS = 0.25;
+/** The battery thins the cloud in bands (§1.7, Crawford 2026-11-13): a band's width (%). A robot places notes in every
+ *  other band from 10% (10–20, 30–40, 50–60, 70–80, 90–100) and none in the bands between. */
+export const NOTE_BATTERY_BAND = 10;
 /** The battery thins the cloud (§1.7): full strength down to this battery level (%), then a straight line to none at
  *  a flat battery (Crawford, 2026-11-12: zero at flat, not at the recall line). */
 export const NOTE_BATTERY_FULL = 50;

@@ -673,7 +673,7 @@ His three answers: the bands replace the battery fade (every note placed shows a
 robot's notes whatever its band; at a band's edge the notes in flight finish their crossing. Built after Phase 4,
 so these tasks revise Tasks 18, 22 and 23.
 
-- [ ] **Task 17a: `noteBands.ts` — whether notes are placed, from the battery and the wake**
+- [x] **Task 17a: `noteBands.ts` — whether notes are placed, from the battery and the wake**
 
   **Description:** New pure `notesShown(batteryLevel, woken)` in place of Task 18's `noteStrength`: true while woken;
   otherwise true only in an odd band of `NOTE_BATTERY_BAND` (10): 10–20%, 30–40%, 50–60%, 70–80%, 90–100%, each from
@@ -682,9 +682,14 @@ so these tasks revise Tasks 18, 22 and 23.
 
   **Proof:** RED test — `src/components/robot/notes/noteBands.test.ts` (new).
 
+  **As built:** `noteStrength.ts`, its test and `NOTE_BATTERY_FULL` stay until Task 17c, which takes the body off
+  them, so every commit builds. No guard for a negative level or NaN: neither gives an odd band (two mutants that
+  removed such a guard survived as equivalents, so it went). Mutations: 4 killed (even bands, no top-band clamp, the
+  wake ignored, ceil for floor).
+
   **Acceptance criteria:**
-  - [ ] Shown at 10, 15, 30, 55, 79.9, 90, 100 and 120; not at 0, 9.9, 20, 45, 60, 89.9, −5 or NaN.
-  - [ ] Shown at every level while woken.
+  - [x] Shown at 10, 15, 30, 55, 79.9, 90, 100 and 120; not at 0, 9.9, 20, 45, 60, 89.9, −5 or NaN.
+  - [x] Shown at every level while woken.
 
   **Dependencies:** Gate 1's answer. **Files:** `noteBands.ts`, `noteBands.test.ts` (new); `noteStrength.ts`,
   `noteStrength.test.ts` (removed); `src/constants/index.ts`. **Estimated scope:** XS
