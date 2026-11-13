@@ -106,9 +106,14 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
   const strengthRef = useRef(strength);
   const layersRef = useRef<HTMLElement[] | null>(null);
   const strengthKey = `note-strength-${context}-${robotId}`;
+  // The size the roll is built at or is fading to (the latest gem and scale), the built cloud's rebuild (null when it
+  // is not built), and whether a re-size's fade has yet to reach its rebuild.
+  const sizeRef = useRef({ gem, scale });
+  const rebuildRef = useRef<(() => void) | null>(null);
+  const resizePendingRef = useRef(false);
 
-  // The roll, the layers and the listener. A gem or body-scale change re-runs it and rebuilds the roll at once,
-  // dropping the notes in flight (Task 24 puts a fade round it).
+  // The roll, the layers, the belt and the listener. A gem or body-scale change does not re-run this: the re-size
+  // effect below fades the layers out, calls the rebuild, and fades them back (§1.5).
   useEffect(() => {
     if (!enabled || reducedMotion || !isNoteCloudEnabled() || typeof window === 'undefined') return;
     const box = root.current?.closest('[data-note-cloud]');
@@ -125,9 +130,10 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     layersRef.current = layers;
     for (const layer of layers) layer.style.opacity = String(strengthRef.current);
 
-    const roll = rollBox(gem, scale);
-    const speed = roll.w / NOTE_CROSSING_SECONDS; // canvas units a second
-    const nowX = roll.w * (1 - NOTE_NOW);
+    // The roll at the latest size; the rebuild replaces all three.
+    let roll = rollBox(sizeRef.current.gem, sizeRef.current.scale);
+    let speed = roll.w / NOTE_CROSSING_SECONDS; // canvas units a second
+    let nowX = roll.w * (1 - NOTE_NOW);
     const mask = noteMask(NOTE_KNOWN_AHEAD_SECONDS);
 
     // The thickness and the rows follow the screen scale; re-derived only when it has changed (a number compare).
@@ -214,17 +220,43 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       if (live.length === 0) idle();
     };
 
-    const clock = { t: 0 };
-    const tween = gsap.to(clock, {
-      t: NOTE_CROSSING_SECONDS,
-      duration: NOTE_CROSSING_SECONDS,
-      ease: 'none',
-      repeat: -1,
-      paused: true,
-      onUpdate: pass,
-    });
-    setTimeline(key, tween as unknown as ReturnType<typeof gsap.timeline>, 'world');
+    /** A new belt tween from the left of its roll (playhead 0), registered under 'world' in place of any before it. */
+    const makeBelt = () => {
+      const belt = gsap.to({ t: 0 }, {
+        t: NOTE_CROSSING_SECONDS,
+        duration: NOTE_CROSSING_SECONDS,
+        ease: 'none',
+        repeat: -1,
+        paused: true,
+        onUpdate: pass,
+      });
+      setTimeline(key, belt as unknown as ReturnType<typeof gsap.timeline>, 'world');
+      return belt;
+    };
+    let tween = makeBelt();
     idle();
+
+    /** Drops every note and leaves the belts at the left of the roll, idle. */
+    const clearNotes = () => {
+      live.length = 0;
+      belts.front!.replaceChildren();
+      belts.behind!.replaceChildren();
+      for (const belt of beltEls) belt.style.transform = '';
+      beltTime = 0;
+    };
+
+    // The rebuild (§1.5, §7.2 A6), called by the re-size fade once the layers are out: the roll at the latest size,
+    // the notes in flight dropped, a new belt from the left of the new roll.
+    rebuildRef.current = () => {
+      clearNotes();
+      roll = rollBox(sizeRef.current.gem, sizeRef.current.scale);
+      speed = roll.w / NOTE_CROSSING_SECONDS;
+      nowX = roll.w * (1 - NOTE_NOW);
+      px = Number.NaN;
+      fit();
+      tween = makeBelt();
+      idle();
+    };
 
     const unsubscribe = subscribeDrawnNotes(robotId, (note, event) => {
       // The model has counted it already (the run and the range), drawn or not.
@@ -266,26 +298,46 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     return () => {
       unsubscribe();
       killTimeline(key);
+      // A re-size fade in flight is killed by the strength timeline's own cleanup; its rebuild finds nothing.
       layersRef.current = null;
-      belts.front!.replaceChildren();
-      belts.behind!.replaceChildren();
+      rebuildRef.current = null;
+      resizePendingRef.current = false;
+      clearNotes();
       for (const layer of layers) layer.style.display = '';
-      // A rebuilt roll's new belt starts from the left of its roll, as its playhead does.
-      for (const belt of beltEls) {
-        belt.style.transform = '';
-        belt.style.willChange = '';
-      }
+      for (const belt of beltEls) belt.style.willChange = '';
     };
-  }, [root, robotId, context, enabled, reducedMotion, gem, scale]);
+  }, [root, robotId, context, enabled, reducedMotion]);
+
+  // A re-size never pops (§1.5, §7.2 A6): a gem or body-scale change fades both layers out over NOTE_WAKE_SECONDS,
+  // rebuilds the roll at the latest size (the notes in flight are dropped), and fades them back to the strength over
+  // NOTE_WAKE_SECONDS, all on the strength timeline. A second change mid-fade replaces it, starting from wherever the
+  // layers are; the rebuild always reads the latest size. A colour edit changes neither and starts nothing.
+  useEffect(() => {
+    if (sizeRef.current.gem === gem && sizeRef.current.scale === scale) return;
+    sizeRef.current = { gem, scale };
+    const layers = layersRef.current;
+    if (!layers) return; // not built: the next build reads the latest size
+    resizePendingRef.current = true;
+    const fade = gsap.timeline();
+    fade
+      .to(layers, { opacity: 0, duration: NOTE_WAKE_SECONDS, ease: 'sine.inOut' })
+      .call(() => {
+        resizePendingRef.current = false;
+        rebuildRef.current?.();
+      })
+      .to(layers, { opacity: () => strengthRef.current, duration: NOTE_WAKE_SECONDS, ease: 'sine.inOut' });
+    setTimeline(strengthKey, fade, 'world');
+  }, [gem, scale, strengthKey]);
 
   // Strength (§1.7): a change eases both wrappers' opacity from wherever they are to the new strength, on a
   // registered 'world' tween, so a power-off pause holds it: a rise over NOTE_WAKE_SECONDS, a fall over
-  // NOTE_EBB_SECONDS. Never a step. A new change replaces the tween in flight (setTimeline kills the old one).
+  // NOTE_EBB_SECONDS. Never a step. A new change replaces the tween in flight (setTimeline kills the old one), except
+  // a re-size fade that has yet to rebuild: that one comes back to the new strength itself.
   useEffect(() => {
     if (strength === strengthRef.current) return;
     strengthRef.current = strength;
     const layers = layersRef.current;
-    if (!layers) return;
+    if (!layers || resizePendingRef.current) return;
     const from = Number(layers[0].style.opacity);
     const tween = gsap.to(layers, {
       opacity: strength,

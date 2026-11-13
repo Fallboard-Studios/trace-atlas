@@ -298,17 +298,6 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
     expect(bars(container, 'front')[1].style.backgroundColor).toBe('rgb(0, 255, 0)');
   });
 
-  it('a body-scale change rebuilds the roll at once: the notes in flight go, the wrappers re-size', () => {
-    const { container, rerender } = render(<Harness scale={1} />);
-    emitRobotNote('r1', noteEvent('C4'));
-    rerender(<Harness scale={1.5} />);
-    expect(allBars(container)).toHaveLength(0);
-    const wrapper = container.querySelector('.note-layer--front') as HTMLElement;
-    expect(parseFloat(wrapper.style.width)).toBeCloseTo(rollBox(GEM, 1.5).w, 3);
-    emitRobotNote('r1', noteEvent('D4'));
-    expect(allBars(container)).toHaveLength(1);
-  });
-
   it('unmount removes every bar and the listener', () => {
     const { container, unmount } = render(<Harness />);
     emitRobotNote('r1', noteEvent('C4'));
@@ -344,10 +333,11 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
       expect(allBars(container)).toHaveLength(0);
     });
 
-    it('an effect re-run (a scale edit) clears nothing: the repeat is dropped', () => {
+    it('a re-size (a scale edit) clears nothing: the repeat is dropped', () => {
       const { container, rerender } = render(<Harness context="world" scale={1} />);
       emitRobotNote('r1', first);
       rerender(<Harness context="world" scale={1.2} />);
+      getTimeline('note-strength-world-r1')!.progress(1); // the roll rebuilt at its new size (Task 24)
       emitRobotNote('r1', repeat);
       expect(allBars(container)).toHaveLength(0);
     });
@@ -486,8 +476,10 @@ describe('useNoteCloud — the belt (Task 14)', () => {
     emitRobotNote('r1', noteEvent('C4'));
     advance(1);
     rerender(<Harness scale={1.5} />);
+    getTimeline('note-strength-world-r1')!.progress(1); // past the fade's rebuild (Task 24)
     expect(beltX(container)).toBe(0);
     expect(belt()!.paused()).toBe(true);
+    expect(belt()!.totalTime()).toBe(0);
   });
 });
 
@@ -664,5 +656,111 @@ describe('useNoteCloud — strength (Task 22)', () => {
     const { rerender } = render(<Harness enabled={false} strength={1} />);
     rerender(<Harness enabled={false} strength={0.5} />);
     expect(strengthTimeline()).toBeUndefined();
+  });
+});
+
+// ========================================
+// TASK 24: an edit that re-sizes the roll never pops
+// ========================================
+describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
+  const STRENGTH_KEY = 'note-strength-world-r1';
+  const strengthTimeline = () => getTimeline(STRENGTH_KEY);
+  const frontWrapper = (container: HTMLElement) => container.querySelector('.note-layer--front') as HTMLElement;
+  const width = (container: HTMLElement) => parseFloat(frontWrapper(container).style.width);
+  const opacities = (container: HTMLElement) =>
+    [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
+  /** Where the fade-out ends and the rebuild happens: half the strength timeline (out, then back in). */
+  const PAST_FADE_OUT = 0.6;
+
+  it('straight after a scale change the wrappers keep their old size and the bar in flight is still there', () => {
+    const { container, rerender } = render(<Harness scale={1} />);
+    emitRobotNote('r1', noteEvent('C4'));
+    rerender(<Harness scale={1.5} />);
+    expect(width(container)).toBeCloseTo(rollBox(GEM, 1).w, 3);
+    expect(allBars(container)).toHaveLength(1);
+    expect(getTimelineScope(STRENGTH_KEY)).toBe('world');
+  });
+
+  it('the fade out and back in each take NOTE_WAKE_SECONDS', () => {
+    const { rerender } = render(<Harness scale={1} />);
+    rerender(<Harness scale={1.5} />);
+    expect(strengthTimeline()!.duration()).toBeCloseTo(2 * NOTE_WAKE_SECONDS, 5);
+  });
+
+  it('past the fade-out the wrappers have the new size, faded out, with no bars; a new note lands on the new roll', () => {
+    const { container, rerender } = render(<Harness scale={1} />);
+    emitRobotNote('r1', noteEvent('C4'));
+    rerender(<Harness scale={1.5} />);
+    strengthTimeline()!.progress(PAST_FADE_OUT);
+    expect(width(container)).toBeCloseTo(rollBox(GEM, 1.5).w, 3);
+    expect(allBars(container)).toHaveLength(0);
+    expect(opacities(container)[0]).toBeLessThan(0.5);
+    emitRobotNote('r1', noteEvent('D4'));
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('at its end the wrappers are back at the strength', () => {
+    const { container, rerender } = render(<Harness scale={1} strength={0.7} />);
+    rerender(<Harness scale={1.5} strength={0.7} />);
+    strengthTimeline()!.progress(1);
+    expect(opacities(container)).toEqual([0.7, 0.7]);
+  });
+
+  it('a strength change during the fade-out is where the fade comes back to', () => {
+    const { container, rerender } = render(<Harness scale={1} strength={1} />);
+    rerender(<Harness scale={1.5} strength={1} />);
+    const resize = strengthTimeline()!;
+    resize.progress(0.25);
+    rerender(<Harness scale={1.5} strength={0.4} />);
+    expect(strengthTimeline()).toBe(resize); // the re-size is not cut short
+    resize.progress(1);
+    expect(width(container)).toBeCloseTo(rollBox(GEM, 1.5).w, 3);
+    expect(opacities(container)).toEqual([0.4, 0.4]);
+  });
+
+  it('a second scale change mid-fade ends at the latest size, with one strength timeline', () => {
+    const { container, rerender } = render(<Harness scale={1} />);
+    rerender(<Harness scale={1.5} />);
+    const first = strengthTimeline()!;
+    first.progress(0.25);
+    rerender(<Harness scale={2} />);
+    const second = strengthTimeline()!;
+    expect(second).not.toBe(first);
+    expect(gsap.globalTimeline.getChildren(false, true, true)).not.toContain(first);
+    second.progress(1);
+    expect(width(container)).toBeCloseTo(rollBox(GEM, 2).w, 3);
+    expect(opacities(container)).toEqual([1, 1]);
+  });
+
+  it('a colour edit starts no fade and keeps the bar', () => {
+    const { container, rerender } = render(<Harness color="#ff0000" />);
+    emitRobotNote('r1', noteEvent('C4'));
+    rerender(<Harness color="#00ff00" />);
+    expect(strengthTimeline()).toBeUndefined();
+    expect(allBars(container)).toHaveLength(1);
+  });
+
+  it('a disabled cloud starts no fade on a scale change', () => {
+    const { rerender } = render(<Harness enabled={false} scale={1} />);
+    rerender(<Harness enabled={false} scale={1.5} />);
+    expect(strengthTimeline()).toBeUndefined();
+  });
+
+  it('enabled later, the cloud is built at the latest size', () => {
+    const { container, rerender } = render(<Harness enabled={false} scale={1} />);
+    rerender(<Harness enabled={false} scale={1.5} />);
+    rerender(<Harness enabled scale={1.5} />);
+    expect(width(container)).toBeCloseTo(rollBox(GEM, 1.5).w, 3);
+  });
+
+  it('unmount mid-fade kills the fade, and the rebuild never runs', () => {
+    const { container, rerender, unmount } = render(<Harness scale={1} />);
+    rerender(<Harness scale={1.5} />);
+    const fade = strengthTimeline()!;
+    const wrapper = frontWrapper(container);
+    unmount();
+    expect(strengthTimeline()).toBeUndefined();
+    expect(() => fade.progress(1)).not.toThrow();
+    expect(parseFloat(wrapper.style.width)).toBeCloseTo(rollBox(GEM, 1).w, 3);
   });
 });
