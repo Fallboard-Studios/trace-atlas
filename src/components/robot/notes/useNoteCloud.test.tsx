@@ -23,7 +23,7 @@ import { NoteCloudLayer } from './NoteCloudLayers';
 import { clearNoteCloudModel } from './noteCloudModel';
 import { noteLength, noteRowGeometry, noteThickness, rollBox } from './noteRows';
 import { getRobotGem } from '../gem/polygon';
-import { emitRobotNote, hasRobotNoteListener, type RobotNoteEvent } from '@/engine/noteEvents';
+import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener, type RobotNoteEvent } from '@/engine/noteEvents';
 import { setWorldState } from '@/systems/worldState';
 import {
   getTimeline,
@@ -36,6 +36,7 @@ import {
   NOTE_COOL_SECONDS,
   NOTE_CROSSING_SECONDS,
   NOTE_HOT_IN_SECONDS,
+  NOTE_KNOWN_AHEAD_SECONDS,
   NOTE_NOW,
   NOTE_PEAK_STRENGTH,
   NOTE_QUANTUM_UNITS,
@@ -754,5 +755,81 @@ describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
     expect(fadeTimeline()).toBeUndefined();
     expect(() => fade.progress(1)).not.toThrow();
     expect(parseFloat(wrapper.style.width)).toBeCloseTo(rollBox(GEM, 1).w, 3);
+  });
+});
+
+// ========================================
+// TASK 35: the cloud asks for the run-in, and the mask opens the right-hand fan (spec §1.9, §1.4)
+// ========================================
+describe('useNoteCloud — the early notes (Task 35)', () => {
+  /** The run-in from the roll's right edge to "now", less the lead every note already has (§1.9): 1.125 − 0.2 s. */
+  const PREVIEW = NOTE_NOW * NOTE_CROSSING_SECONDS - NOTE_KNOWN_AHEAD_SECONDS;
+
+  it('mounting a cloud asks the engine for the run-in: 0.925 s', () => {
+    expect(getNotePreviewSeconds()).toBe(0);
+    render(<Harness />);
+    expect(PREVIEW).toBeCloseTo(0.925, 10);
+    expect(getNotePreviewSeconds()).toBeCloseTo(0.925, 10);
+  });
+
+  it('with ?notes=off nothing asks', () => {
+    noteCloudSwitch.on = false;
+    render(<Harness />);
+    expect(getNotePreviewSeconds()).toBe(0);
+  });
+
+  it('under reduced motion nothing asks', () => {
+    setReducedMotion(true);
+    render(<Harness />);
+    expect(getNotePreviewSeconds()).toBe(0);
+  });
+
+  it('a disabled cloud, and one with no layers to find, ask nothing', () => {
+    function Bare() {
+      const root = useRef<SVGGElement>(null);
+      useNoteCloud({ root, robotId: 'r1', context: 'world', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1 });
+      return <svg><g ref={root} /></svg>;
+    }
+    render(<Harness enabled={false} />);
+    render(<Bare />);
+    expect(getNotePreviewSeconds()).toBe(0);
+  });
+
+  it('the ask stands while any cloud is mounted, and the last to go withdraws it', () => {
+    const world = render(<Harness robotId="r1" context="world" />);
+    const avatar = render(<Harness robotId="r1" context="avatar" />);
+    world.unmount();
+    expect(getNotePreviewSeconds()).toBeCloseTo(PREVIEW, 10);
+    avatar.unmount();
+    expect(getNotePreviewSeconds()).toBe(0);
+  });
+
+  it('a re-run of the cloud (enabled off, then on) leaves one ask, not two', () => {
+    const { rerender, unmount } = render(<Harness />);
+    rerender(<Harness enabled={false} />);
+    expect(getNotePreviewSeconds()).toBe(0);
+    rerender(<Harness enabled />);
+    expect(getNotePreviewSeconds()).toBeCloseTo(PREVIEW, 10);
+    unmount();
+    expect(getNotePreviewSeconds()).toBe(0);
+  });
+
+  it('the wrappers\' mask ends clear at the right edge (100%), so a note fades in across the whole fan', () => {
+    const { container } = render(<Harness />);
+    for (const side of ['front', 'behind'] as const) {
+      const wrapper = container.querySelector(`.note-layer--${side}`) as HTMLElement;
+      const mask = wrapper.style.getPropertyValue('-webkit-mask-image') || wrapper.style.getPropertyValue('mask-image');
+      expect(mask).toMatch(/transparent 100%\)$/);
+    }
+  });
+
+  it('an event with a 1.2 s lead places its bar right of the roll, and the belt brings its left end to now as the lead passes', () => {
+    const { container } = render(<Harness />);
+    emitRobotNote('r1', noteEvent('C4', { lead: 1.2 }));
+    const [bar] = bars(container, 'front');
+    const roll = rollBox(GEM, 1);
+    expect(translateOf(bar).x).toBeGreaterThan(roll.w);
+    advance(1.2);
+    expect(translateOf(bar).x + beltX(container)).toBeCloseTo(roll.w * (1 - NOTE_NOW), 1);
   });
 });

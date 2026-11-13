@@ -20,14 +20,15 @@ import {
   NOTE_CROSSING_SECONDS,
   NOTE_HOT_COLOR,
   NOTE_HOT_IN_SECONDS,
-  NOTE_KNOWN_AHEAD_SECONDS,
   NOTE_NOW,
   NOTE_PEAK_STRENGTH,
+  NOTE_PREVIEW_SECONDS,
   NOTE_QUANTUM_DEGREES,
   NOTE_QUANTUM_UNITS,
   NOTE_WAKE_SECONDS,
 } from '../../../constants';
 import { killTimeline, setTimeline } from '../../../animation/timelineMap';
+import { setNotePreviewSeconds } from '../../../engine/noteEvents';
 import { getWorldState } from '../../../systems/worldState';
 import { isNoteCloudEnabled } from '../../../utils/debugParams';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
@@ -92,6 +93,16 @@ function hotLevel(since: number, duration: number): number {
   return Number(Math.min(rise, fall).toFixed(2));
 }
 
+/** The clouds built now, in any context. The first asks the engine for its early notes (§1.9) and the last to go
+ *  withdraws the ask, so with no cloud the engine announces nothing and the trigger tells its listeners as before. */
+let builtClouds = 0;
+function askForEarlyNotes(): () => void {
+  if (builtClouds++ === 0) setNotePreviewSeconds(NOTE_PREVIEW_SECONDS);
+  return () => {
+    if (--builtClouds === 0) setNotePreviewSeconds(0);
+  };
+}
+
 // ========================================
 // HOOK
 // ========================================
@@ -137,7 +148,8 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     let roll = rollBox(sizeRef.current.gem, sizeRef.current.scale);
     let speed = roll.w / NOTE_CROSSING_SECONDS; // canvas units a second
     let nowX = roll.w * (1 - NOTE_NOW);
-    const mask = noteMask(NOTE_KNOWN_AHEAD_SECONDS);
+    // Notes are known from the roll's right edge (§1.9): the mask is given the whole run-in, so it clears at 100%.
+    const mask = noteMask(NOTE_NOW * NOTE_CROSSING_SECONDS);
 
     // The thickness and the rows follow the screen scale; re-derived only when it has changed (a number compare).
     // Null until the first fit. Object.is, so a scale not yet known (the avatar's NaN before its box is measured)
@@ -263,6 +275,8 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       idle();
     };
 
+    // A bar whose lead puts it past the roll's right edge is placed there and rides in under the mask.
+    const withdrawAsk = askForEarlyNotes();
     const unsubscribe = subscribeDrawnNotes(robotId, (note, event) => {
       // The model has counted it already (the run and the range), drawn or not.
       if (document.hidden || getWorldState() !== 'running' || !placingRef.current) return;
@@ -302,6 +316,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
 
     return () => {
       unsubscribe();
+      withdrawAsk();
       killTimeline(key);
       // A re-size fade in flight is killed by its own cleanup below; its rebuild finds nothing.
       layersRef.current = null;
