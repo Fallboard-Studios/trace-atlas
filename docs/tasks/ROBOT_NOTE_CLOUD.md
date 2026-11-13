@@ -6,7 +6,9 @@ Source spec: [docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Sou
 branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over without its test).
 
 **Status:** building. Phase 1 (Tasks 1 to 3) built 2026-11-12; Checkpoint: Events awaits Crawford's look at the bob
-and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits his review. Next: Task 10.
+and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits his review. Phase 3 (Tasks 10 to
+16) built 2026-11-12; Checkpoint: Cloud's checks pass and its look awaits him (hard reload first: `workLoop.ts`
+changed). Next: Task 17, the cost run, then Gate 1.
 
 ## Overview
 
@@ -390,7 +392,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
 ### Phase 3: The cloud on a world robot (Part B, mounted)
 
-- [ ] **Task 10: `debugParams.ts` — `?notes=off`**
+- [x] **Task 10: `debugParams.ts` — `?notes=off`**
 
   **Description:** `parseNotesParam(raw)` and `isNoteCloudEnabled()`, read once at load beside `?debug` and
   `?latency=` (spec §1.6, §7.2 A8). Only `off`, `0` and `false` turn the cloud off; absent means on. Checked first:
@@ -412,7 +414,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** XS
 
-- [ ] **Task 11: `useStageFit.ts` — the stage's scale as a number anyone can read**
+- [x] **Task 11: `useStageFit.ts` — the stage's scale as a number anyone can read**
 
   **Description:** `useStageFit` already works the stage's scale out on every resize and writes `--stage-scale`. It
   also keeps the number in module state, and `getStageScale()` returns it (1 until the first resize). No
@@ -436,7 +438,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** XS
 
-- [ ] **Task 12: `NoteCloudLayers.tsx`, `Robot.tsx` — the two layers in the mover**
+- [x] **Task 12: `NoteCloudLayers.tsx`, `Robot.tsx` — the two layers in the mover**
 
   **Description:** New `NoteCloudLayer({ side })`: a wrapper `div.note-layer.note-layer--behind|front`,
   `aria-hidden`, holding an empty `div.note-layer__belt`; it renders nothing when `isNoteCloudEnabled()` is false or
@@ -444,6 +446,9 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   `<svg>` and one after (spec §1.5). New `NoteCloud.css`: the wrappers are absolutely placed, `pointer-events:
   none`, `display: none` until the hook shows them, z-index −1 and 1; the belt is absolutely placed at the origin.
   React renders no children in a belt and never reconciles what the hook appends there.
+
+  **As built:** the Phase 53 mover-structure case counted the mover's children (one svg); it now asks for exactly
+  one svg child, since the layers sit beside it. The mutations also dropped the reduced-motion check (killed).
 
   **Proof:** RED test — `src/components/robot/Robot.test.tsx`. The CSS is seen at Checkpoint: Cloud.
 
@@ -464,7 +469,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 13: `useNoteCloud.ts` — a triggered note places a bar**
+- [x] **Task 13: `useNoteCloud.ts` — a triggered note places a bar**
 
   **Description:** New hook beside `useOrbiterMotion` (options `root`, `robotId`, `context`, `enabled`, plus `gem`,
   `scale`, `color`, `pxPerUnit`), called from `RobotBody` for `motion === 'world'`. It finds the layers
@@ -476,6 +481,12 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   not `running` (`getWorldState`). A gem or body-scale change re-runs the effect and rebuilds the roll at once
   (Task 24 adds the fade). The world-context mount clears the robot's model on unmount (Architecture Decisions).
   The belts do not move yet (Task 14).
+
+  **As built:** the stopgap's 0.2 s is a constant, `NOTE_KNOWN_AHEAD_SECONDS`, which Part E replaces. A wrapper is
+  the roll's box grown by the rows' `pad` above and below (not to the sides). The bar's row height and tilt are read
+  at its middle. Beyond the plan's cases, the tests also pin the 4-pixel floor, the wrappers' box, a world that is
+  `cold`, a box with no layers (no listener), and that an avatar's unmount and a scale re-run clear no model; twelve
+  mutants, all killed.
 
   **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx` (new), a harness that renders a
   `data-note-cloud` box with two layers and a `g` root, real GSAP, events through `emitRobotNote`;
@@ -504,7 +515,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 14: `useNoteCloud.ts` — the belt carries the notes across and takes them off**
+- [x] **Task 14: `useNoteCloud.ts` — the belt carries the notes across and takes them off**
 
   **Description:** One linear, repeating tween per robot moves both belts at the roll's speed, registered as
   `note-belt-<context>-<robotId>` under `'world'` and killed on unmount (spec §1.6). Its `onUpdate` makes one pass
@@ -513,6 +524,13 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   (§7.2 A7); a note whose right end has passed the roll's left edge is removed. When the tween wraps, every live
   note is re-based so nothing jumps. With no live notes the wrappers are `display: none`, the belts carry no
   `will-change`, and the tween is paused; the first note shows them and plays it.
+
+  **As built:** the tween runs on a plain clock object, and the pass writes both belts' `translate` from its
+  playhead. A note's place is kept in unwrapped belt units, so its x on the belt changes only at a wrap (written to
+  four decimals); only its row height and tilt are quantised. The playhead is kept from the tween's last render, so
+  placing a note reads no tween time (the global GSAP mock's tween has none). Placement goes through the same
+  quantised writer, so Task 13's row case checks y to within half a quantum. A `writeBelts(0)` at mount survived its
+  mutant (the cleanup already clears the belts before a rebuild) and was removed as dead code.
 
   **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx`, advancing the registered timeline's
   time by hand.
@@ -538,11 +556,14 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** M
 
-- [ ] **Task 15: `useNoteCloud.ts` — a note is white while it sounds**
+- [x] **Task 15: `useNoteCloud.ts` — a note is white while it sounds**
 
   **Description:** The same per-frame pass sets each note's white copy (`NOTE_HOT_COLOR`, `#fffbe6`) from the belt's
   own time: clear until the note sounds, opaque over `NOTE_HOT_IN_SECONDS` (0.05), held for the note's length, clear
   again over `NOTE_COOL_SECONDS` (0.25); written only on a change (spec §1.4, §1.6). No tween and no timer per note.
+
+  **As built:** the level is written to two decimals. A note shorter than the rise never reaches full white and
+  still cools to clear (tested).
 
   **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx`.
 
@@ -563,12 +584,17 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Estimated scope:** S
 
-- [ ] **Task 16: `workLoop.ts` — the back row's scale reaches the note layers**
+- [x] **Task 16: `workLoop.ts` — the back row's scale reaches the note layers**
 
   **Description:** `placeRow` and `easeRowWith` write the row's scale to the mover's two note layers as well as to
   `.robot__row`, about the same point (the gem canvas centre, as a CSS `transformOrigin` in each layer's own box),
   in the same call and the same tween (spec §1.5). A mover with no note layers (reduced motion, `?notes=off`)
   behaves as today.
+
+  **As built:** the origin is `50% 50%`: the roll is centred on the gem canvas centre and a layer is the roll grown
+  evenly, so the layer's own centre is that point. The front-to-back case checks the layers against the row a
+  quarter of the way as well as half way: at half way the sine ease and a linear one agree, and a linear-ease
+  mutant survived until the quarter-way check was added.
 
   **Proof:** RED test — `src/systems/workLoop.test.ts`.
 
@@ -589,7 +615,9 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   **Estimated scope:** S
 
 ### Checkpoint: Cloud
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. 2026-11-12: 359 files, 14,135
+      passed, 2 skipped (skipped before this branch), 0 failed; lint has the 4 old warnings only; the build's
+      chunk-size warnings predate this branch.
 - [ ] Look (Crawford, after a hard reload), beside `spike/note-pulse` at `?trail=all&noPreview`: bars at pitch
       heights round every sounding robot, half in front and half behind, right to left, white as each sounds, fading
       in just right of "now" and out at the left edge; the right-hand fan empty (the stopgap, spec §1.4); a back-row
