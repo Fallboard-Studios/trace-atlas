@@ -246,12 +246,9 @@ vi.mock('tone', () => ({
 
 // Mock harmony system
 vi.mock('./harmonySystem', () => ({
-  getAvailableNotes: () => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5'],
-  // One music clock Task 5: processMelodyStep reads the palette of its measure. Every measure plays the same names here
+  // processMelodyStep reads the palette of its measure (one music clock). Every measure plays the same names here
   // (they carry an octave digit, so a note reads e.g. 'C43'); the palette cases swap in the real function.
   paletteForMeasure: vi.fn((_measure: number) => ['C4', 'D4', 'E4', 'F4', 'G4', 'A4', 'B4', 'C5']),
-  scheduleHarmonyCycle: vi.fn((_transport?: unknown) => undefined),
-  stopHarmonyCycle: vi.fn(),
 }));
 
 // Mock beat clock
@@ -2008,7 +2005,7 @@ describe('AudioEngine.registerRobotMelody — Click Track override', () => {
 
     expect(spy).toHaveBeenCalledTimes(4);
     const notes = spy.mock.calls.map((c) => c[0].note);
-    // This file's getAvailableNotes() mock (line ~126) returns note NAMES that already carry
+    // This file's paletteForMeasure() mock returns note NAMES that already carry
     // their own octave digit (['C4','D4',...]) — scheduleNote's `${noteName}${event.octave}`
     // concatenation then appends the click track's own octave (3) after that, e.g. 'C4' + 3 =
     // 'C43'. Odd-looking but consistent with every other note-string assertion in this file.
@@ -3450,40 +3447,6 @@ describe('AudioEngine.start — primes and links the LFO Bank (docs/tasks/LFO_BA
 
     expect(beatClock.initBeatClock).toHaveBeenCalled();
     expect(beatClock.subscribeToMeasure).not.toHaveBeenCalled();
-  });
-});
-
-// One music clock Task 6 (docs/specs/ONE_MUSIC_CLOCK.md §4.3): each step reads its measure's palette, so nothing
-// schedules, stops or remembers one. Task 7 deletes these with the names.
-describe('AudioEngine — the chord palette is read, never scheduled (one music clock Task 6)', () => {
-  beforeEach(() => {
-    vi.resetModules();
-  });
-
-  it('start does not schedule the harmony cycle', async () => {
-    const { AudioEngine } = await import('./AudioEngine');
-    const harmony = await import('./harmonySystem');
-    vi.mocked(harmony.scheduleHarmonyCycle).mockClear();
-
-    await AudioEngine.start();
-
-    expect(harmony.scheduleHarmonyCycle).not.toHaveBeenCalled();
-    AudioEngine.killAll();
-  });
-
-  it('killAll does not stop a harmony cycle, and the power-on after it schedules none either', async () => {
-    const { AudioEngine } = await import('./AudioEngine');
-    const harmony = await import('./harmonySystem');
-    await AudioEngine.start();
-    vi.mocked(harmony.scheduleHarmonyCycle).mockClear();
-    vi.mocked(harmony.stopHarmonyCycle).mockClear();
-
-    AudioEngine.killAll();
-    await AudioEngine.start();
-
-    expect(harmony.stopHarmonyCycle).not.toHaveBeenCalled();
-    expect(harmony.scheduleHarmonyCycle).not.toHaveBeenCalled();
-    AudioEngine.killAll();
   });
 });
 

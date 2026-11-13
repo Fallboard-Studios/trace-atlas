@@ -335,7 +335,7 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** S (removing three calls and the assertions on them)
 
-- [ ] **Task 7: `harmonySystem.ts` — the stored palette and the old exports go**
+- [x] **Task 7: `harmonySystem.ts` — the stored palette and the old exports go**
 
   **Description:** Delete `availableNotes`, `lastPaletteIndex`, `scheduleId`, `scheduleHarmonyCycle`,
   `stopHarmonyCycle`, `resetHarmony`, `setAvailableNotes` and `getAvailableNotes`, with their tests and the test file's
@@ -346,12 +346,20 @@ Task 6 and do not depend on each other.
   **Proof:** Read — a deletion. The suite staying green with the names gone is the check.
 
   **Acceptance criteria:**
-  - [ ] None of the eight names appears in `src/` (Task 6's mock assertions go with them).
-  - [ ] `harmonySystem.ts` imports nothing from `beatClock.ts`.
+  - [x] None of the eight names appears in `src/` (Task 6's mock assertions go with them).
+  - [x] `harmonySystem.ts` imports nothing from `beatClock.ts`.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/harmonySystem.test.ts src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/harmonySystem.test.ts src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Done 2026-11-12.** A grep of `src` finds none of the eight names (the only `scheduleId` left is BeatClock's own
+  local name for its schedule map, unrelated). `harmonySystem.ts` imports nothing at all (`devWarn` went with the
+  repeat). harmonySystem.test.ts is the `paletteForMeasure` cases alone, with no clock mock; Task 4's "reads no
+  module state" case went with `setAvailableNotes`, since the state it guarded no longer exists. Task 6's describe
+  in AudioEngine.test.ts went with the names; the comment above the click-track note assertion now names
+  `paletteForMeasure`. `MEASURES_PER_PALETTE_ENTRY`'s comment no longer mentions a schedule interval. The two files:
+  453 passed.
 
   **Dependencies:** Task 6.
 
