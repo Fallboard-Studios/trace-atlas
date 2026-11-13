@@ -1,10 +1,10 @@
 // ========================================
 // noteCloudModel (docs/specs/ROBOT_NOTE_CLOUD.md §1.3, §4, §7.2 A3; plan Tasks 4–6)
 // ========================================
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RobotNoteEvent } from '../../../engine/noteEvents';
-import { nextDrawnNote } from './noteCloudModel';
+import { emitRobotNote, hasRobotNoteListener, type RobotNoteEvent } from '../../../engine/noteEvents';
+import { clearNoteCloudModel, nextDrawnNote, subscribeDrawnNotes, type DrawnNote } from './noteCloudModel';
 
 /** Each test plays on robots of its own, so no model is shared between tests. */
 let robotCount = 0;
@@ -178,6 +178,129 @@ describe('noteCloudModel: a repeated note is not drawn twice (§1.3, §7.2 A2, A
     expect(drawnOf(a, touching('C4', 1))).toEqual([true]);
     expect(drawnOf(b, touching('C4', 1, 100.25))).toEqual([true]);
     expect(drawnOf(a, touching('C4', 1, 100.25))).toEqual([false]);
+  });
+});
+
+const unsubscribes: Array<() => void> = [];
+function subscribe(robot: string, listener: (note: DrawnNote, event: RobotNoteEvent) => void): () => void {
+  const off = subscribeDrawnNotes(robot, listener);
+  unsubscribes.push(off);
+  return off;
+}
+
+afterEach(() => {
+  unsubscribes.splice(0).forEach((off) => off());
+  vi.restoreAllMocks();
+});
+
+describe('noteCloudModel: one engine listener per robot, shared by its clouds (plan Task 6)', () => {
+  it('two subscribers on one robot each get the same row and layer for one event, with the event', () => {
+    const robot = freshRobot();
+    const world = vi.fn();
+    const avatar = vi.fn();
+    subscribe(robot, world);
+    subscribe(robot, avatar);
+    const played = event('C4');
+    emitRobotNote(robot, played);
+    expect(world).toHaveBeenCalledTimes(1);
+    expect(world).toHaveBeenCalledWith({ row: 0, layer: 'front', duration: 0.25 }, played);
+    expect(avatar.mock.calls).toEqual(world.mock.calls);
+  });
+
+  it('a repeat reaches neither subscriber', () => {
+    const robot = freshRobot();
+    const world = vi.fn();
+    const avatar = vi.fn();
+    subscribe(robot, world);
+    subscribe(robot, avatar);
+    for (const [note, at, duration] of touching('D4', 2)) emitRobotNote(robot, { lead: 0.2, note, at, duration });
+    expect(world).toHaveBeenCalledTimes(1);
+    expect(avatar).toHaveBeenCalledTimes(1);
+  });
+
+  it('with two subscribers a run of four still draws the first and third (counted once per note)', () => {
+    const robot = freshRobot();
+    const world = vi.fn();
+    const avatar = vi.fn();
+    subscribe(robot, world);
+    subscribe(robot, avatar);
+    const run = touching('G4', 4);
+    for (const [note, at, duration] of run) emitRobotNote(robot, { lead: 0.2, note, at, duration });
+    const heardAt = (listener: typeof world) => listener.mock.calls.map(([, played]) => played.at);
+    expect(heardAt(world)).toEqual([run[0][1], run[2][1]]);
+    expect(heardAt(avatar)).toEqual([run[0][1], run[2][1]]);
+  });
+
+  it('hears its own robot only', () => {
+    const a = freshRobot();
+    const b = freshRobot();
+    const listener = vi.fn();
+    subscribe(a, listener);
+    emitRobotNote(b, event('C4'));
+    expect(listener).not.toHaveBeenCalled();
+  });
+
+  it('the engine listener is there while any subscriber remains and gone after the last leaves', () => {
+    const robot = freshRobot();
+    expect(hasRobotNoteListener(robot)).toBe(false);
+    const offWorld = subscribe(robot, vi.fn());
+    const offAvatar = subscribe(robot, vi.fn());
+    expect(hasRobotNoteListener(robot)).toBe(true);
+    offWorld();
+    expect(hasRobotNoteListener(robot)).toBe(true);
+    offAvatar();
+    expect(hasRobotNoteListener(robot)).toBe(false);
+    offAvatar(); // a spent unsubscribe removes nothing more
+    expect(hasRobotNoteListener(robot)).toBe(false);
+  });
+
+  it('an unsubscribed cloud hears nothing more; the other still does', () => {
+    const robot = freshRobot();
+    const world = vi.fn();
+    const avatar = vi.fn();
+    subscribe(robot, world);
+    const offAvatar = subscribe(robot, avatar);
+    offAvatar();
+    emitRobotNote(robot, event('C4'));
+    expect(world).toHaveBeenCalledTimes(1);
+    expect(avatar).not.toHaveBeenCalled();
+  });
+
+  it('a subscriber that leaves and returns finds the range kept; after clearNoteCloudModel the next note sits at mid-height', () => {
+    const robot = freshRobot();
+    const rows: number[] = [];
+    const off = subscribe(robot, (note) => rows.push(note.row));
+    emitRobotNote(robot, event('C4'));
+    emitRobotNote(robot, event('C5'));
+    off();
+    subscribe(robot, (note) => rows.push(note.row));
+    emitRobotNote(robot, event('C4'));
+    clearNoteCloudModel(robot);
+    emitRobotNote(robot, event('C5'));
+    expect(rows).toEqual([0, 0.5, -0.5, 0]);
+  });
+
+  it('clearNoteCloudModel forgets the run too', () => {
+    const robot = freshRobot();
+    const listener = vi.fn();
+    subscribe(robot, listener);
+    const [first, second] = touching('C4', 2);
+    emitRobotNote(robot, { lead: 0.2, note: first[0], at: first[1], duration: first[2] });
+    clearNoteCloudModel(robot);
+    emitRobotNote(robot, { lead: 0.2, note: second[0], at: second[1], duration: second[2] });
+    expect(listener).toHaveBeenCalledTimes(2);
+  });
+
+  it('a throwing subscriber does not cost the next one its note', () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const robot = freshRobot();
+    const after = vi.fn();
+    subscribe(robot, () => {
+      throw new Error('boom');
+    });
+    subscribe(robot, after);
+    expect(() => emitRobotNote(robot, event('C4'))).not.toThrow();
+    expect(after).toHaveBeenCalledTimes(1);
   });
 });
 

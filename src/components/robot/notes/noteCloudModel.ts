@@ -3,14 +3,16 @@
 // ========================================
 // What a robot's next note becomes in its note cloud: its row (the pitch within the robot's own range so far), its
 // layer (in front of the body or behind it), or nothing (an even-numbered note of a run of repeats). One model per
-// robot id, runtime only, shared by the world's cloud and the avatar's. Pure of the DOM, GSAP, the engine and Tone:
-// it reads nothing but the events it is handed.
+// robot id, runtime only, shared by the world's cloud and the avatar's: the model holds the robot's one note-event
+// listener and hands each drawn note to every cloud subscribed (subscribeDrawnNotes), so a run is counted once per
+// note however many clouds are mounted. Free of the DOM, GSAP, AudioEngine and Tone: it reads nothing but the
+// events noteEvents hands it.
 
 // ========================================
 // IMPORTS
 // ========================================
 import { NOTE_RANGE_MIN_SEMITONES, NOTE_REST_MIN_SECONDS } from '../../../constants';
-import type { RobotNoteEvent } from '../../../engine/noteEvents';
+import { onRobotNote, type RobotNoteEvent } from '../../../engine/noteEvents';
 
 // ========================================
 // TYPES
@@ -34,10 +36,23 @@ interface RobotModel {
   run: number;
 }
 
+/** A cloud's side: one drawn note, with the event it came from (the hook needs its `lead`). */
+export type DrawnNoteListener = (note: DrawnNote, event: RobotNoteEvent) => void;
+
+interface RobotSubscribers {
+  /** Each subscription is its own entry, as in noteEvents, so a spent unsubscribe removes nothing but its own. */
+  entries: Set<{ listener: DrawnNoteListener }>;
+  /** Removes the robot's one engine listener. */
+  off: () => void;
+}
+
 // ========================================
 // STATE
 // ========================================
+/** The range and the run, per robot. Outlives its subscribers; forgotten by clearNoteCloudModel. */
 const models = new Map<string, RobotModel>();
+/** The clouds listening to each robot, and that robot's one engine listener. Deleted with the last subscriber. */
+const subscribers = new Map<string, RobotSubscribers>();
 
 // ========================================
 // HELPERS
@@ -99,4 +114,45 @@ export function nextDrawnNote(robotId: string, event: RobotNoteEvent): DrawnNote
   const row = (midi - (model.low + model.high) / 2) / range;
   // An octave is twelve semitones, so a pitch's class is even exactly when its MIDI number is.
   return { row, layer: midi % 2 === 0 ? 'front' : 'behind', duration: event.duration };
+}
+
+/**
+ * A cloud listens to one robot's drawn notes (plan, Architecture Decisions: one engine listener per robot). The first
+ * subscriber registers the robot's one `onRobotNote` listener; each event goes through nextDrawnNote once and every
+ * subscriber gets the same DrawnNote with its event, and nothing for a dropped repeat. A throwing subscriber is
+ * reported and does not cost the next its note. The last unsubscribe removes the engine listener and keeps the
+ * robot's range and run. Returns the unsubscribe.
+ */
+export function subscribeDrawnNotes(robotId: string, listener: DrawnNoteListener): () => void {
+  let robot = subscribers.get(robotId);
+  if (!robot) {
+    const entries = new Set<{ listener: DrawnNoteListener }>();
+    const off = onRobotNote(robotId, (event) => {
+      const note = nextDrawnNote(robotId, event);
+      if (!note) return;
+      for (const entry of entries) {
+        try {
+          entry.listener(note, event);
+        } catch (error) {
+          console.error('noteCloudModel: a cloud threw on a note', error);
+        }
+      }
+    });
+    subscribers.set(robotId, (robot = { entries, off }));
+  }
+  const entry = { listener };
+  robot.entries.add(entry);
+  return () => {
+    const current = subscribers.get(robotId);
+    if (!current?.entries.delete(entry)) return;
+    if (current.entries.size > 0) return;
+    current.off();
+    subscribers.delete(robotId);
+  };
+}
+
+/** Forgets a robot's range and run, so its next note sits at mid-height and starts a new run. Called when the
+ *  robot's world body unmounts for good (plan, Architecture Decisions); subscribers are left as they are. */
+export function clearNoteCloudModel(robotId: string): void {
+  models.delete(robotId);
 }
