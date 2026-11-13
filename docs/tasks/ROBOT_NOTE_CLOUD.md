@@ -1043,11 +1043,16 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
       the roll.
 - [x] The unmeasured cost runs (spec §5.3): his desktop at full screen, a phone, and twelve robots sounding at the
       Full tier, each with the `?debug` HUD up against `?notes=off`. No added crackle; the underrun count no worse.
-- [ ] He names any of §7.2 A1's numbers to re-pin, says whether the repeat rule thins enough (§7.3 Q3), and gives
-      the guardrail sentence its wording. None re-pinned, the rule kept (4 of 498 dropped); **the sentence is
-      still to come.**
+- [x] He names any of §7.2 A1's numbers to re-pin, says whether the repeat rule thins enough (§7.3 Q3), and gives
+      the guardrail sentence its wording. None re-pinned, the rule kept (4 of 498 dropped); the sentence given
+      2026-11-13 (Task 26).
 
-- [ ] **Task 26: `CLAUDE.md` — the Visual Mapping guardrail names the cloud**
+- [x] **Task 26: `CLAUDE.md` — the Visual Mapping guardrail names the cloud**
+
+  **As built (2026-11-13):** his sentence, word for word, closes the guardrail. On his word ("change it so there's a
+  third overlay allowed") the line before it now reads "remain the first two overlay exceptions" in place of "the
+  two overlay exceptions", so the guardrail allows the third. The older phase docs that quote the old wording
+  (GEM_POLYGON_ROBOTS.md, ROBOT_HALO_AND_LIT_LINES.md) are left as their phases' record.
 
   **Description:** The sentence Crawford words at Gate 2, added to the Visual Mapping guardrail (spec §7.1 point 1).
   Nothing else in CLAUDE.md changes. `.github/copilot-instructions.md` is a pointer and is not edited.
