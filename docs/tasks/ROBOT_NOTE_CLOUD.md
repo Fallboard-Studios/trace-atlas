@@ -757,6 +757,30 @@ so these tasks revise Tasks 18, 22 and 23.
 
   **Dependencies:** 17c. **Files:** `docs/PERFORMANCE.md`. **Estimated scope:** S
 
+- [x] **Task 17e: the bands re-drawn (Crawford, 2026-11-13, after 17d)**
+
+  **Description:** The on bands become 10–28%, 38–55%, 65–73% and 83–100% (spec §1.7), a table
+  `NOTE_BATTERY_BANDS` in place of `NOTE_BATTERY_BAND`'s odd tens. Each band runs from its lower edge up to, not
+  including, its upper one; a full 100% (and above) counts as the top band; below 0 or not a number is off. 60% of
+  the range is on, against the odd tens' 50%, so 17d's +3.7% is expected to rise a little.
+
+  **Proof:** RED test — `noteBands.test.ts` (the new edges) and `RobotBody.test.tsx` (its on and off levels moved
+  to the new bands).
+
+  **As built:** `notesShown` asks whether the level is in any band of the table; the band ending at 100 has no upper
+  edge, so no clamp is needed (a clamp at 100 survived as an equivalent mutant and went). 8 cases RED first (3 in
+  `noteBands.test.ts`, 5 in `RobotBody.test.tsx`, whose levels moved: on 45, off 30, the edge step 74 → 72).
+  Mutations: 7 killed (either edge flipped, the top band's 100 not counted, every upper edge counting, the wake
+  ignored, a band widened, a band dropped). Not re-measured: 17d's +3.7% was the odd tens' half-on; these bands are
+  60% on.
+
+  **Acceptance criteria:**
+  - [x] Shown at 10, 27.9, 38, 54.9, 65, 72.9, 83, 100 and 120; not at 0, 9.9, 28, 37.9, 55, 64.9, 73, 82.9, −5 or
+        NaN; shown at every level while woken.
+
+  **Dependencies:** 17c. **Files:** `noteBands.ts`, `noteBands.test.ts`, `src/constants/index.ts`,
+  `RobotBody.test.tsx`. **Estimated scope:** XS
+
 ---
 
 ### Phase 4: Attention (Part C)

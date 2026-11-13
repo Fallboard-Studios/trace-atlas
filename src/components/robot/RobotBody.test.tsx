@@ -893,8 +893,8 @@ describe('RobotBody — the battery bands thin the cloud, attention wakes it (no
   const strength = () => cloudSpy.mock.lastCall![0].strength;
   const placing = () => cloudSpy.mock.lastCall![0].placing;
   const PEAK = 0.75; // the cloud at its strongest (Crawford, 2026-11-13)
-  const OFF_BAND = 25; // 20–30%: no notes unless woken
-  const ON_BAND = 55; // 50–60%
+  const OFF_BAND = 30; // 28–38%: no notes unless woken
+  const ON_BAND = 45; // 38–55%
 
   function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
     const tree = (r: Robot) => (
@@ -924,8 +924,8 @@ describe('RobotBody — the battery bands thin the cloud, attention wakes it (no
     useUIStore.getState().selectRobot(null);
   });
 
-  it('places notes in an on band (100, 55, 15) and none in an off band (45, 25, 5), at the peak strength in all six', () => {
-    for (const [level, shown] of [[100, true], [55, true], [15, true], [45, false], [25, false], [5, false]] as const) {
+  it('places notes in an on band (100, 45, 15) and none in an off band (60, 30, 5), at the peak strength in all six', () => {
+    for (const [level, shown] of [[100, true], [45, true], [15, true], [60, false], [30, false], [5, false]] as const) {
       const { unmount } = drawInCloud(makeRobot({ batteryLevel: level, activity: 'working' }), 'world');
       expect(placing(), `${level}%`).toBe(shown);
       expect(strength(), `${level}%`).toBe(PEAK);
@@ -934,10 +934,10 @@ describe('RobotBody — the battery bands thin the cloud, attention wakes it (no
   });
 
   it('a battery step across a band edge switches placing and leaves the strength at the peak', () => {
-    const robot = makeRobot({ batteryLevel: 61, activity: 'working' });
+    const robot = makeRobot({ batteryLevel: 74, activity: 'working' });
     const { redraw } = drawInCloud(robot, 'world');
     expect(placing()).toBe(false);
-    redraw({ ...robot, batteryLevel: 59 });
+    redraw({ ...robot, batteryLevel: 72 });
     expect(placing()).toBe(true);
     expect(strength()).toBe(PEAK);
   });

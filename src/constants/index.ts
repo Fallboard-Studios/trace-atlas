@@ -406,9 +406,15 @@ export const NOTE_QUANTUM_DEGREES = 0.25;
 export const NOTE_HOT_COLOR = '#fffbe6';
 export const NOTE_HOT_IN_SECONDS = 0.05;
 export const NOTE_COOL_SECONDS = 0.25;
-/** The battery thins the cloud in bands (§1.7, Crawford 2026-11-13): a band's width (%). A robot places notes in every
- *  other band from 10% (10–20, 30–40, 50–60, 70–80, 90–100) and none in the bands between. */
-export const NOTE_BATTERY_BAND = 10;
+/** The battery thins the cloud in bands (§1.7, Crawford 2026-11-13): the on bands (%), low to high, each from its lower
+ *  edge up to, not including, its upper one; the top band's upper edge is a full battery and counts. A robot places no
+ *  notes below the first band or in the gaps between. */
+export const NOTE_BATTERY_BANDS: readonly (readonly [number, number])[] = [
+  [10, 28],
+  [38, 55],
+  [65, 73],
+  [83, 100],
+];
 /** The cloud at its strongest (§1.7): the layers' opacity, in the world and on the avatar. Every other level (the dim
  *  a note falls to once it has sounded, its white while it sounds) sits under it (Crawford, 2026-11-13: "75% of their
  *  current opacity"). */

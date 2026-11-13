@@ -209,17 +209,18 @@ how strongly they show.
 - **The robot the player turns to is undimmed.** A robot is *singled out* while it is under the pointer, or the Deck
   camera is following it, or it is selected, soloed or highlighted. Its whole cloud is at full strength (dim = 1).
   One custom property on the mover (`--note-dim`), read by both masks; a change rebuilds nothing.
-- **The battery thins the population, in bands** (Crawford, 2026-11-13, at Gate 1, to take back the cost). A robot
-  places notes only while its battery is in an odd ten: 10–20%, 30–40%, 50–60%, 70–80% and 90–100%. A band runs
-  from its lower edge up to, not including, its upper one, and a full 100% counts as the top band. Below 10% and in
-  20–30%, 40–50%, 60–70% and 80–90% it places none. So a robot recalled at 10% heads home in an off band. The robots'
-  seeded battery sizes keep the fleet's bands out of step.
+- **The battery thins the population, in bands** (Crawford, 2026-11-13, at Gate 1, to take back the cost; the bands
+  re-drawn by him the same day). A robot places notes only while its battery is in 10–28%, 38–55%, 65–73% or
+  83–100%. A band runs from its lower edge up to, not including, its upper one, and a full 100% counts as the top
+  band. Below 10% and in 28–38%, 55–65% and 73–83% it places none: 60% of the battery's range is on, 40% off. A robot
+  recalled at 10% heads home in an on band and goes quiet below it. The robots' seeded battery sizes keep the fleet's
+  bands out of step. (The first bands, the odd tens 10–20% … 90–100%, were half on; measured at +3.7%.)
 - **A band's edge never touches a note on screen.** Leaving a band stops new notes only: the notes in flight finish
   their crossing at full strength, so the cloud goes quiet rather than switching off. Entering one, the next note
   starts at "now" as any note does. The battery steps once a measure, so an edge is crossed between two notes.
 - **The bands replace the battery fade.** The fade (Crawford, 2026-11-12: the peak down to 50%, then a straight line to
   0 at a flat battery) dimmed a cloud but placed every note until the battery was flat, so it took no cost back. The
-  bands halve the notes placed over a discharge, and every note placed shows at full strength. They are not the
+  bands place about three fifths of the notes over a discharge, and every note placed shows at full strength. They are not the
   spike's switch-off at 50% (§1.13), which emptied the lower half of every battery.
 - **Attention brings them back.** Pointing at a robot or selecting it *wakes* its notes: placed whatever its
   battery's band, and it stays woken after the pointer leaves or the selection moves, until the robot is next in its
@@ -304,8 +305,8 @@ Both closed the same day (PR #635), and this section is rewritten on what they s
   played drifting left. The rhythm reads in the spacing and the melody in the heights.
 - Point at a robot, or select it: its cloud is undimmed, the marker frames it, and its notes stay woken until it is
   back in its station.
-- A robot's notes come and go with its battery: they show in every other ten (10–20%, 30–40%, … 90–100%) and go quiet
-  in the tens between, unless the player woke them.
+- A robot's notes come and go with its battery: they show in 10–28%, 38–55%, 65–73% and 83–100% and go quiet in the
+  gaps between and below 10%, unless the player woke them.
 - Open a robot's screen on the desk: its avatar sits in the same cloud at full strength.
 - Mute a robot, or let it dock: its notes stop arriving and the last ones finish crossing.
 - Power off: every cloud freezes. Power on: they carry on.
@@ -509,8 +510,8 @@ export interface DrawnNote {
 export function nextDrawnNote(robotId: string, event: RobotNoteEvent): DrawnNote | null;
 
 // noteBands.ts
-/** Whether a world cloud places notes (§1.7): always while woken; otherwise only while the battery is in an odd band
- *  of NOTE_BATTERY_BAND (10–20%, 30–40%, … 90–100%, a full 100% included). */
+/** Whether a world cloud places notes (§1.7): always while woken; otherwise only while the battery is in one of
+ *  NOTE_BATTERY_BANDS (10–28%, 38–55%, 65–73%, 83–100%, a full 100% included). */
 export function notesShown(batteryLevel: number, woken: boolean): boolean;
 ```
 
@@ -570,8 +571,9 @@ export function notesShown(batteryLevel: number, woken: boolean): boolean;
 - `workLoop.test.ts`: `placeRow` and the swim's ease write the row's scale to the note layers as to `.robot__row`.
 
 **Part C**
-- `noteBands.test.ts`: shown at 10, 15, 30, 55, 79.9, 90 and 100; not at 0, 9.9, 20, 45, 60, 89.9; shown at any
-  level when woken; a level above 100 counts as the top band, one below 0 or not a number as off.
+- `noteBands.test.ts`: shown at each band's lower edge and just under its upper one (10, 27.9, 38, 54.9, 65, 72.9,
+  83) and at 100; not at 0, 9.9, 28, 37.9, 55, 64.9, 73, 82.9; shown at any level when woken; a level above 100
+  counts as the top band, one below 0 or not a number as off.
 - `useNoteCloud.test.tsx`: with `placing` false an event places no bar; turning it false leaves the notes in flight
   on their belts, moving, at the layers' strength; turning it true again places the next note.
 - `RobotBody.test.tsx`: a world body hands its cloud the peak strength at any battery, and places notes in an on band,
@@ -729,7 +731,7 @@ His answers to this spec's first open questions, the same day:
   | `NOTE_HOT_COLOR` | `#fffbe6` | a sounding note; 0.05 s in, 0.25 s to cool |
   | `NOTE_RANGE_MIN_SEMITONES` | 12 | the least range the roll's height stands for |
   | `NOTE_PEAK_STRENGTH` | 0.75 | the cloud at its strongest (Crawford, 2026-11-13) |
-  | `NOTE_BATTERY_BAND` | 10 | a battery band's width; notes in every other band from 10% (Crawford, 2026-11-13) |
+  | `NOTE_BATTERY_BANDS` | 10–28, 38–55, 65–73, 83–100 | the battery's on bands, % (Crawford, 2026-11-13) |
   | `NOTE_WAKE_SECONDS` / `NOTE_EBB_SECONDS` | 0.3 / 1 | a strength rise / fall |
   | complement | S 100, L 70 | a freelancer's note colour |
 
