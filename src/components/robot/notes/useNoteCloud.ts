@@ -116,10 +116,11 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
   // effect below fades the layers out, calls the rebuild, and fades them back (§1.5).
   useEffect(() => {
     if (!enabled || reducedMotion || !isNoteCloudEnabled() || typeof window === 'undefined') return;
+    // In the world the layers are the mover's own children; in the desk avatar each hangs in a frame inside the box.
     const box = root.current?.closest('[data-note-cloud]');
     const wrappers = {
-      front: box?.querySelector<HTMLElement>(':scope > .note-layer--front') ?? null,
-      behind: box?.querySelector<HTMLElement>(':scope > .note-layer--behind') ?? null,
+      front: box?.querySelector<HTMLElement>('.note-layer--front') ?? null,
+      behind: box?.querySelector<HTMLElement>('.note-layer--behind') ?? null,
     };
     const belts = {
       front: wrappers.front?.querySelector<HTMLElement>(':scope > .note-layer__belt') ?? null,

@@ -1,6 +1,6 @@
 import { memo, Profiler, type ComponentProps } from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act, within } from '@testing-library/react';
+import { render, screen, fireEvent, act, within, cleanup } from '@testing-library/react';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 16 (spec §1.3, §1.4): the robot screen — the avatar column (desk) or
@@ -290,7 +290,11 @@ vi.mock('@/components/ui/controls/RadioButton', async (importOriginal) => {
 
 // Task 9: the gem button's click wiring is tested here; the module's own pan/idle/target behaviour
 // has its own suite (deckCamera.test.ts).
-vi.mock('@/animation/deckCamera', () => ({ moveCameraTo: vi.fn() }));
+// Partial: a world robot's body (note cloud Task 28) reads the followed robot through robotAttention.
+vi.mock('@/animation/deckCamera', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/animation/deckCamera')>()),
+  moveCameraTo: vi.fn(),
+}));
 
 // The note cloud's ?notes=off switch is read once at load; the flag lets a case turn it off (note cloud Task 27).
 const noteCloudSwitch = vi.hoisted(() => ({ on: true }));
@@ -307,7 +311,15 @@ import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/ui
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
-import { AudioEngine } from '@/engine/AudioEngine';
+import { AudioEngine, triggerWithCap } from '@/engine/AudioEngine';
+import { emitRobotNote, hasRobotNoteListener } from '@/engine/noteEvents';
+import { RobotBody } from '@/components/robot/RobotBody';
+import { NoteCloudLayer } from '@/components/robot/notes/NoteCloudLayers';
+import { clearNoteCloudModel, subscribeDrawnNotes } from '@/components/robot/notes/noteCloudModel';
+import { noteThickness, rollBox } from '@/components/robot/notes/noteRows';
+import { getTimeline, getTimelineScope } from '@/animation/timelineMap';
+import { setWorldState } from '@/systems/worldState';
+import { sleepRobotNotes } from '@/systems/robotAttention';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
@@ -2282,28 +2294,29 @@ describe('RobotScreen — the phone band (spec §1.4: small form only)', () => {
 // (data-note-cloud, clipped) between a behind note layer and a front one. Each layer hangs in a frame whose origin
 // is the gem canvas's (0, 0), placed and scaled by the box's fit: the meet-and-centre fit the svg itself makes of
 // its viewBox, measured by a ResizeObserver and written as custom properties. The phone band's gem has no box.
-describe('RobotScreen — the desk avatar holds the note cloud (note cloud Task 27)', () => {
-  class FitObserver {
-    static instances: FitObserver[] = [];
-    callback: ResizeObserverCallback;
-    observed: Element[] = [];
-    disconnected = false;
-    constructor(callback: ResizeObserverCallback) {
-      this.callback = callback;
-      FitObserver.instances.push(this);
-    }
-    observe(target: Element) {
-      this.observed.push(target);
-    }
-    unobserve() {}
-    disconnect() {
-      this.disconnected = true;
-    }
-    fire(width: number, height: number) {
-      this.callback([{ contentRect: { width, height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
-    }
+/** A ResizeObserver a case can fire by hand, for the avatar box's fit (note cloud Tasks 27, 28). */
+class FitObserver {
+  static instances: FitObserver[] = [];
+  callback: ResizeObserverCallback;
+  observed: Element[] = [];
+  disconnected = false;
+  constructor(callback: ResizeObserverCallback) {
+    this.callback = callback;
+    FitObserver.instances.push(this);
   }
+  observe(target: Element) {
+    this.observed.push(target);
+  }
+  unobserve() {}
+  disconnect() {
+    this.disconnected = true;
+  }
+  fire(width: number, height: number) {
+    this.callback([{ contentRect: { width, height } } as ResizeObserverEntry], this as unknown as ResizeObserver);
+  }
+}
 
+describe('RobotScreen — the desk avatar holds the note cloud (note cloud Task 27)', () => {
   let originalObserver: typeof ResizeObserver;
   let originalMatchMedia: typeof window.matchMedia | undefined;
 
@@ -2534,6 +2547,141 @@ describe('RobotScreen — the desk avatar holds the note cloud (note cloud Task 
       unmount();
       expect(observer.disconnected).toBe(true);
     });
+  });
+});
+
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.8 (note cloud Task 28): the avatar's body calls the cloud too, at the peak
+// strength (0.75) and undimmed whatever its battery or attention, through the same per-robot model as the world, so
+// the two draw the same notes. Its timelines are its own ('avatar' ids); closing the screen takes them and its bars
+// and leaves the world's cloud and the model alone. C4 is an even pitch class, so it crosses in front.
+describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
+  const C4 = { lead: 0.2, duration: 0.25, at: 1, note: 'C4' };
+  const PEAK = 0.75; // the cloud at its strongest (Crawford, 2026-11-13)
+  let originalObserver: typeof ResizeObserver;
+
+  /** A world robot's body as Robot.tsx mounts it: a cloud box with a layer either side of its svg. */
+  function renderWorldRobot(robot: Robot) {
+    return render(
+      <div data-note-cloud="" data-testid="world-cloud">
+        <NoteCloudLayer side="behind" />
+        <svg><RobotBody robot={robot} motion="world" /></svg>
+        <NoteCloudLayer side="front" />
+      </div>,
+    );
+  }
+  const avatarBox = (container: HTMLElement) => container.querySelector<HTMLElement>('.robot-screen__gem-box')!;
+  const bars = (root: Element, side: 'front' | 'behind') => root.querySelectorAll(`.note-layer--${side} .note`);
+
+  beforeEach(() => {
+    noteCloudSwitch.on = true;
+    FitObserver.instances = [];
+    originalObserver = globalThis.ResizeObserver;
+    (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = FitObserver;
+    setWorldState('running');
+    clearNoteCloudModel('r1');
+  });
+
+  afterEach(() => {
+    cleanup();
+    (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = originalObserver;
+    setWorldState('cold');
+    sleepRobotNotes('r1');
+    clearNoteCloudModel('r1');
+  });
+
+  it('an event for the robot on screen places a bar in the avatar, whose layers are at the peak at 10% battery', () => {
+    selectRobot(makeRobot('r1', { batteryLevel: 10 }));
+    const { container } = render(<RobotScreen />);
+    const box = avatarBox(container);
+    const layers = [...box.querySelectorAll<HTMLElement>('.note-layer')];
+    expect(layers).toHaveLength(2);
+    for (const layer of layers) expect(layer.style.opacity).toBe(String(PEAK));
+    emitRobotNote('r1', C4);
+    expect(bars(box, 'front')).toHaveLength(1);
+    expect(bars(box, 'behind')).toHaveLength(0);
+  });
+
+  it('the avatar registers its belt under the avatar id, as a world timeline', () => {
+    selectRobot(makeRobot());
+    render(<RobotScreen />);
+    expect(getTimeline('note-belt-avatar-r1')).toBeDefined();
+    expect(getTimelineScope('note-belt-avatar-r1')).toBe('world');
+  });
+
+  it('with the world robot and the avatar both mounted, one event places a bar in the same layer of each, a repeat in neither', () => {
+    const robot = makeRobot('r1', { batteryLevel: 90 });
+    selectRobot(robot);
+    const world = renderWorldRobot(robot);
+    const screenView = render(<RobotScreen />);
+    const worldCloud = world.getByTestId('world-cloud');
+    const box = avatarBox(screenView.container);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'B3' }); // odd pitch class: behind
+    emitRobotNote('r1', C4);
+    emitRobotNote('r1', { ...C4, at: 1.25 }); // the same note straight after: a repeat
+    for (const root of [worldCloud, box]) {
+      expect(bars(root, 'behind')).toHaveLength(1);
+      expect(bars(root, 'front')).toHaveLength(1);
+    }
+  });
+
+  it('closing the screen takes the avatar bars and timeline, and leaves the world cloud and the model as they were', () => {
+    const robot = makeRobot('r1', { batteryLevel: 90 });
+    selectRobot(robot);
+    const world = renderWorldRobot(robot);
+    const screenView = render(<RobotScreen />);
+    const worldCloud = world.getByTestId('world-cloud');
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 0, note: 'C3' });
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 0.5, note: 'C5' });
+    emitRobotNote('r1', C4);
+    const box = avatarBox(screenView.container);
+    expect(box.querySelectorAll('.note')).toHaveLength(3);
+    screenView.unmount();
+    expect(box.querySelectorAll('.note')).toHaveLength(0);
+    expect(getTimeline('note-belt-avatar-r1')).toBeUndefined();
+    expect(getTimeline('note-strength-avatar-r1')).toBeUndefined();
+    expect(worldCloud.querySelectorAll('.note')).toHaveLength(3);
+    expect(getTimeline('note-belt-world-r1')).toBeDefined();
+    // The model kept its run: C4 again straight after is the second of a run, not drawn.
+    emitRobotNote('r1', { ...C4, at: 1.25 });
+    expect(worldCloud.querySelectorAll('.note')).toHaveLength(3);
+    // And its range, C3 to C5: G4 sits seven semitones above its middle, in a range of 24.
+    const rows: number[] = [];
+    const off = subscribeDrawnNotes('r1', (note) => rows.push(note.row));
+    emitRobotNote('r1', { lead: 0.2, duration: 0.5, at: 3, note: 'G4' });
+    off();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toBeCloseTo(7 / 24, 9);
+  });
+
+  it('the avatar 4-pixel floor reads the avatar own fit, not the stage', () => {
+    let seed = 0;
+    while (getRobotGem(seed).widthFactor !== 1) seed++;
+    selectRobot(makeRobot('r1', { gemSeed: seed }));
+    const { container } = render(<RobotScreen />);
+    const box = avatarBox(container);
+    const observer = FitObserver.instances.find((o) => o.observed.includes(box))!;
+    const rollH = rollBox(getRobotGem(seed), 1).h;
+    act(() => observer.fire(8, 8)); // a tenth of a pixel per unit: the floor is 40 units
+    emitRobotNote('r1', C4);
+    const small = bars(box, 'front')[0] as HTMLElement;
+    expect(parseFloat(small.style.height)).toBeCloseTo(noteThickness(rollH, 0.1), 3);
+    expect(parseFloat(small.style.height)).toBeCloseTo(40, 3);
+    act(() => observer.fire(400, 300)); // 3.75 px a unit: the share of the roll
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 2, note: 'E4' });
+    const large = bars(box, 'front')[1] as HTMLElement;
+    expect(parseFloat(large.style.height)).toBeCloseTo(noteThickness(rollH, 3.75), 3);
+    expect(parseFloat(large.style.height)).toBeLessThan(40);
+  });
+
+  // The engine's gate (AudioEngine.test.ts, "refused notes emit nothing") is what keeps a muted robot's notes off
+  // every cloud; here the real trigger refuses the muted robot on screen and its avatar stays empty. jsdom has no
+  // audio context, so this case cannot tell the mute gate from a missing voice: it checks the wiring, not the gate.
+  it('a muted robot avatar gains no bars: the trigger refuses it and nothing is emitted', () => {
+    selectRobot(makeRobot('r1', { audioMode: 'mute' }));
+    const { container } = render(<RobotScreen />);
+    expect(hasRobotNoteListener('r1')).toBe(true);
+    expect(triggerWithCap({ robotId: 'r1', note: 'C4', duration: 0.25, time: 0 })).toBe(false);
+    expect(avatarBox(container).querySelectorAll('.note')).toHaveLength(0);
   });
 });
 
