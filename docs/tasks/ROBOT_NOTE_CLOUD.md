@@ -12,7 +12,8 @@ changed). Phase 4 (Tasks 18 to 25) built 2026-11-13 on Crawford's word ("impleme
 Gate 1, which are still to run; Checkpoint: Attention's checks pass. Phase 5 (Tasks 27 and 28) built 2026-11-13 on
 Crawford's word, ahead of Gates 1 and 2; Checkpoint: Avatar's checks pass, and Gate 3 passed 2026-11-13 with the
 cloud spilling past the avatar's box. Task 17 ran 2026-11-13: main-thread time +17.6 % with the cloud on (the spike's
-+19 %), over the working 10 %, so Gate 1 waits on Crawford's line. Still to run: Gate 1, Gate 2 and Task 26.
++19 %), over the working 10 %. Crawford's answer was the battery bands (Tasks 17a to 17d, built and run the same day):
++3.7 %, inside it. Gate 1's line is his to confirm; still to run: Gate 2 and Task 26.
 
 ## Overview
 
@@ -665,7 +666,8 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 - [x] Task 17's figures reported with the spike's beside them (2026-11-13).
 - [ ] **Crawford sets the line.** Over the working 10%, the build does not go on to Phase 4 without his decision:
       take more back (the quantum of Task 14 is the first lever), or accept the figure. 2026-11-13: he chose to take
-      more back with the battery bands (spec §1.7), Tasks 17a to 17d below. The line itself waits on Task 17d's run.
+      more back with the battery bands (spec §1.7), Tasks 17a to 17d below. The line itself waits on Task 17d's run:
+      +3.7 % with the bands, inside the working 10 %.
 
 ### Gate 1 follow-up: the battery bands (spec §1.7, Crawford 2026-11-13)
 
@@ -738,13 +740,20 @@ so these tasks revise Tasks 18, 22 and 23.
 
   **Dependencies:** 17a, 17b. **Files:** `RobotBody.tsx`, `RobotBody.test.tsx`. **Estimated scope:** S
 
-- [ ] **Task 17d: the cost run again**
+- [x] **Task 17d: the cost run again**
 
   **Description:** Task 17's run, the same command, world and window order, against the bands' build, with Task 17's
   build beside it (or its figures, if the session matches). The windows count which robots are in an on band, since
   a 6 s window samples that. PERFORMANCE.md gains the rows.
 
   **Proof:** Run. No test file.
+
+  **As run (2026-11-13):** a same-session A/B, two rounds of off, Task 17's build (3e91a1b6, a scratch worktree, the
+  same bundle hash) and the bands (6bd2a82e). Main busy against off: **bands +3.7 %** (+2.7 % and +4.8 % in-round),
+  Task 17's cloud +15.1 % (+7.3 % and +23.4 %). Compositor::Update +10 % against +30 %. Frames and rastered area are
+  inside the off runs' spread, and paint is 5 ms over it. No long tasks with the bands; Task 17's cloud had 1 and 2.
+  The layer counts (39 and 43 against 46) are the proxy for robots with notes in a window. PERFORMANCE.md, "Note
+  cloud — the battery bands".
 
   **Dependencies:** 17c. **Files:** `docs/PERFORMANCE.md`. **Estimated scope:** S
 

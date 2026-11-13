@@ -3005,6 +3005,52 @@ events and to its drawn notes. **4 of 498 notes were dropped (0.8 %), all from o
 dropped 88 of 373 (24 %) in a similar window. Counting length and rests leaves the rule almost nothing to thin on this
 world.
 
+## Note cloud — the battery bands, the Task 17d cost run (2026-11-13, backlog 79)
+
+Gate 1's answer to the run above: a robot places notes only while its battery is in 10–20%, 30–40%, 50–60%, 70–80% or
+90–100%, or whenever it is woken ([specs/ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md) §1.7; plan Tasks 17a–17c).
+
+**What was run.** Two production builds served side by side: the bands at 6bd2a82e (port 4173), and Task 17's code
+at 3e91a1b6 from a scratch worktree (port 4174; the same `index-BZB0cdvA.js` Task 17 served, so the same bytes). Same
+command, world and window as Task 17. There were two rounds of three arms, in the order off, old, bands and then
+bands, old, off. Off is the bands' build with `&notes=off`. All were headless, in the foreground one at a time, and
+left no orphaned Chrome.
+
+| Window | Main busy (ms) | Long tasks | Frames | Paint (ms) | Compositor::Update (ms) | Rastered screens/frame | Layers (drawing) | FunctionCall (ms) | Animation frame (ms) | UpdateLayoutTree (ms) | Layout (ms) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| off | 2 576 | 0 | 356 | 151 | 188 | 0.50 | 29 (24) | 1 870 | 1 045 | 203 | 117 |
+| old cloud | 2 765 | 1 | 349 | 156 | 228 | 0.48 | 46 (34) | 2 065 | 1 183 | 248 | 135 |
+| bands | 2 645 | 0 | 353 | 156 | 191 | 0.48 | 39 (30) | 1 912 | 1 056 | 223 | 124 |
+| bands | 2 514 | 0 | 355 | 149 | 202 | 0.47 | 43 (32) | 1 836 | 1 081 | 225 | 119 |
+| old cloud | 2 962 | 2 | 345 | 162 | 235 | 0.49 | 46 (34) | 2 173 | 1 280 | 266 | 147 |
+| off | 2 400 | 0 | 351 | 144 | 169 | 0.47 | 29 (24) | 1 781 | 972 | 194 | 103 |
+
+| Against off (means) | Old cloud | Bands |
+|---|---|---|
+| Main busy | +15.1 % (+7.3 % and +23.4 % in-round) | **+3.7 %** (+2.7 % and +4.8 % in-round) |
+| Compositor::Update | +30 % | +10 % |
+| Animation frame | +22 % | +6 % |
+| UpdateLayoutTree / Layout | +29 % / +28 % | +13 % / +10 % |
+| Frames | 347 against 353.5 | 354, inside the off runs' spread |
+| Rastered screens/frame | 0.48–0.49 | 0.47–0.48, inside the off runs' spread (0.47–0.50) |
+| Paint | 156–162 ms | 149–156 ms; the off runs read 144–151 |
+| Long tasks | 1 and 2 | 0 and 0 |
+
+**Against the working target.** Main-thread time with the bands is **+3.7 %, inside the 10 %**. Each bands window is
+within 5 % of the off window in its own round. Crossed with the other round, the spread runs from −2.4 % to +10.2 %
+(2 645 against 2 400). Frame rate and rastered area are inside the off runs' spread. Paint's 156 ms sits 5 ms over the
+off runs' 151.
+
+**Read with these in mind.**
+- **The old cloud read +15.1 % this session, against +17.6 % in Task 17's.** One of its rounds read +7.3 % and the other
+  +23.4 %, so a single pair is noisy. The bands read +2.7 % and +4.8 %.
+- **A 6 s window samples which robots are in an on band.** The layer count stands in for how many robots had notes
+  when the layers were read: the bands' 39 and 43 against the old cloud's 46 (about four layers a robot) means one or
+  two robots fewer here. Over a whole discharge a robot's cloud is off about half the time, so a longer window, or
+  another world, could read higher or lower than these two. Gate 2's runs on Crawford's desktop and a phone, with all
+  twelve sounding, are the next look.
+- **No early notes**, as in Task 17. Gate 4 runs this again with Part E built.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.
