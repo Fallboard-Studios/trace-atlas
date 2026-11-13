@@ -7,9 +7,11 @@ Source spec: [docs/specs/ONE_MUSIC_CLOCK.md](../specs/ONE_MUSIC_CLOCK.md) (appro
 [CHORD_CYCLE_TIMING.md](CHORD_CYCLE_TIMING.md). Part two is backlog
 [86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure).
 
-**Status:** Phases 1 and 2 done 2026-11-12 (Task 1: nothing needs a started transport; Tasks 2–3: `positionFromTicks`,
-`positionAt`, BeatClock's tick on its own time). Checkpoint: Foundation's suite is clean; waiting for Crawford's read
-before Phase 3 (Task 4).
+**Status:** Phases 1–3 done 2026-11-12 (Task 1: nothing needs a started transport; Tasks 2–3: `positionFromTicks`,
+`positionAt`, BeatClock's tick on its own time; Tasks 4–9: `paletteForMeasure`, the melody and swell ticks on their
+own positions, the harmony repeat and its state gone, the ticks registered before the transport starts at the
+store's tempo). Checkpoint: Core's suite and build are clean; waiting for Crawford's hard reload and listen, and his
+review, before Phase 4 (Task 10).
 
 ## Overview
 
@@ -443,8 +445,11 @@ Task 6 and do not depend on each other.
   **Estimated scope:** S
 
 ### Checkpoint: Core
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (full suite, foreground, logged to the
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (full suite, foreground, logged to the
       scratchpad; any pre-existing, unrelated failure named).
+      2026-11-12 at 9c1d5877: 13,950 passed, 2 skipped, 0 failed; types clean; lint 0 errors (the 4 existing
+      `react-refresh` warnings); build clean (its existing warnings: `audioStore` and `robotLfoLinks` imported both
+      dynamically and statically, and the 1.3 MB chunk).
 - [ ] Crawford hard-reloads his dev page and powers on a world: it plays, and nothing sounds broken.
 - [ ] Reviewed with Crawford before Phase 4.
 
