@@ -11,7 +11,8 @@ and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits
 changed). Phase 4 (Tasks 18 to 25) built 2026-11-13 on Crawford's word ("implement phase 4"), ahead of Task 17 and
 Gate 1, which are still to run; Checkpoint: Attention's checks pass. Phase 5 (Tasks 27 and 28) built 2026-11-13 on
 Crawford's word, ahead of Gates 1 and 2; Checkpoint: Avatar's checks pass, and Gate 3 passed 2026-11-13 with the
-cloud spilling past the avatar's box. Still to run: Task 17 (the cost run), Gate 1, Gate 2 and Task 26.
+cloud spilling past the avatar's box. Task 17 ran 2026-11-13: main-thread time +17.6 % with the cloud on (the spike's
++19 %), over the working 10 %, so Gate 1 waits on Crawford's line. Still to run: Gate 1, Gate 2 and Task 26.
 
 ## Overview
 
@@ -628,7 +629,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 - [ ] The pause: power off with notes mid-flight and they freeze; power on and they carry on, none stranded.
 - [ ] `?notes=off` draws nothing. Every cloud is at full strength and undimmed for now (attention is Phase 4).
 
-- [ ] **Task 17: the cost run (spec §5.3) and its record**
+- [x] **Task 17: the cost run (spec §5.3) and its record**
 
   **Description:** Headless, one session, nothing else running: `npm run perf:idle -- --only stock --throttle 1`,
   6-second windows, off / on / off / on with `?notes=off` against the default. Record main-thread time, the
@@ -639,13 +640,20 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 
   **Proof:** Run — the four windows' figures in PERFORMANCE.md and reported at Gate 1. No test file.
 
+  **As run (2026-11-13, 3e91a1b6, `?seed=charlie&x=200&y=-30`, the spike's world):** main busy 2 799 and 2 684 ms off
+  against 3 242 and 3 205 on, **+17.6 %** (the spike +19 %). Compositor::Update +27 % (the spike +33 %). Paint +2 %,
+  rastered 0.47 → 0.48 and 58.6 → 57.0 frames a second, each just outside the off runs' spread. Most of the added
+  time is script in the animation-frame callbacks (+315 ms of +482). The repeat rule dropped 4 of 498 notes in 50 s
+  (the spike's rule: 88 of 373). The figures and the caveats are in PERFORMANCE.md, "Note cloud — the Task 17 cost run".
+
   **Acceptance criteria:**
-  - [ ] The table is in PERFORMANCE.md with the command, the world and the date.
-  - [ ] The report says plainly whether main-thread time with the cloud on is within 10% of off, and whether paint
-        time, rastered area and frame rate are inside the off runs' own spread.
+  - [x] The table is in PERFORMANCE.md with the command, the world and the date.
+  - [x] The report says plainly whether main-thread time with the cloud on is within 10% of off, and whether paint
+        time, rastered area and frame rate are inside the off runs' own spread. Main thread: no, +17.6 %. The other
+        three: each just outside, by a few percent or less.
 
   **Verification:**
-  - [ ] The runs were taken in the foreground, one at a time, with no orphaned Chrome left behind.
+  - [x] The runs were taken in the foreground, one at a time, with no orphaned Chrome left behind.
 
   **Dependencies:** Tasks 13 to 16.
 
@@ -654,7 +662,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
   **Estimated scope:** S (a run and a record)
 
 ### Gate 1: cost (spec §5.4)
-- [ ] Task 17's figures reported with the spike's beside them.
+- [x] Task 17's figures reported with the spike's beside them (2026-11-13).
 - [ ] **Crawford sets the line.** Over the working 10%, the build does not go on to Phase 4 without his decision:
       take more back (the quantum of Task 14 is the first lever), or accept the figure.
 
@@ -1296,7 +1304,8 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
 1. **The avatar's clip (spec §7.3 Q1).** **Answered** at Gate 3, 2026-11-13: no clip at the box, the cloud spills
    and the console pane cuts it; the phone band has no cloud.
 2. **The cost line (spec §7.3 Q2).** **Open** — Crawford at Gate 1, with Task 17's figures.
-3. **How much the repeat rule thins (spec §7.3 Q3).** **Open** — Task 17 records the count; Crawford at Gate 2.
+3. **How much the repeat rule thins (spec §7.3 Q3).** **Open** — Task 17 recorded the count, 4 of 498 notes in
+   50 s (the spike's rule: 88 of 373); Crawford at Gate 2.
 4. **Part E's place (spec §7.3 Q4).** **Resolved** — last, on its own branch (Crawford, 2026-11-12); Phase 7.
 5. **Where the model is cleared, and how two clouds share one run.** **Resolved** (Architecture Decisions): the
    world body's unmount; one engine listener per robot in the model.
