@@ -716,7 +716,7 @@ so these tasks revise Tasks 18, 22 and 23.
 
   **Dependencies:** none. **Files:** `useNoteCloud.ts`, `useNoteCloud.test.tsx`. **Estimated scope:** S
 
-- [ ] **Task 17c: `RobotBody.tsx` — the bands in place of the fade**
+- [x] **Task 17c: `RobotBody.tsx` — the bands in place of the fade**
 
   **Description:** A world body hands its cloud `strength: NOTE_PEAK_STRENGTH` at any battery and
   `placing: notesShown(robot.batteryLevel, woken)`; the avatar places always. Task 23's wake and sleep are
@@ -724,10 +724,17 @@ so these tasks revise Tasks 18, 22 and 23.
 
   **Proof:** RED test — `src/components/robot/RobotBody.test.tsx` (Task 23's cases re-pinned to the bands).
 
+  **As built:** the avatar passes `placing: true` explicitly. `noteStrength.ts`, its test and `NOTE_BATTERY_FULL`
+  are removed here (held back from Task 17a so every commit builds). Eight cases RED first, among them a battery step
+  from 61 to 59 switching placing on and the avatar placing in an off band. Mutations: 4 killed (the world placing in
+  every band, the wake ignored, the avatar following the bands, the world's strength below the peak). Full suite:
+  361 files, 14,227 passed, 2 skipped, 0 failed. One run under the JSON reporter exited 1 with `success: true` and
+  no failure in its report; the plain re-run of the same code exited 0. Not chased.
+
   **Acceptance criteria:**
-  - [ ] At 100, 55 and 15 a world body places; at 45, 25 and 5 it does not; the strength is the peak at all six.
-  - [ ] Pointed at or selected in an off band it places, and stays placing until charging sleeps it.
-  - [ ] The Deck camera following it in an off band does not make it place.
+  - [x] At 100, 55 and 15 a world body places; at 45, 25 and 5 it does not; the strength is the peak at all six.
+  - [x] Pointed at or selected in an off band it places, and stays placing until charging sleeps it.
+  - [x] The Deck camera following it in an off band does not make it place.
 
   **Dependencies:** 17a, 17b. **Files:** `RobotBody.tsx`, `RobotBody.test.tsx`. **Estimated scope:** S
 

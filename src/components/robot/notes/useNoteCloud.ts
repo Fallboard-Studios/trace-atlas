@@ -52,7 +52,8 @@ export interface UseNoteCloudOptions {
   color: string;
   /** Screen pixels per canvas unit, for the 4-pixel floor. A getter, read when a note arrives: no layout read. */
   pxPerUnit: () => number;
-  /** How strongly the whole cloud shows, 0 to 1 (§1.7, noteStrength): the layers' opacity, eased to on a change. At
+  /** How strongly the whole cloud shows, 0 to 1 (§1.7; the peak, in the world and on the avatar): the layers'
+   *  opacity, eased to on a change. At
    *  0 no note is placed, though the model still counts it. */
   strength: number;
   /** Whether a drawn note is placed (§1.7, the battery bands; default true). While false no bar is placed, though the

@@ -29,7 +29,7 @@ import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { useNoteCloud } from './notes/useNoteCloud';
 import { noteColor } from './notes/noteRows';
 import { getStageScale } from '../panels/screen/worldView/useStageFit';
-import { noteStrength } from './notes/noteStrength';
+import { notesShown } from './notes/noteBands';
 import {
   getSingledOutRobotId,
   isRobotNotesWoken,
@@ -255,9 +255,10 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
 
   // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.8), in the world and on the desk avatar; never on a card.
   // Its colour is the company's, else the identity hue's complement. In the world a pixel on screen is the stage's
-  // scale times the row's, and its strength is the battery's, or the peak while woken. The avatar is always at the
-  // peak (the player turned to it by opening its screen; its box sets the dim to 1), and its pixel is the fit its box
-  // wrote (`--note-fit-scale`), read from the inline style when a note arrives: no layout read.
+  // scale times the row's. It is always at the peak strength, and places notes only in its battery's on bands, or
+  // whenever woken (§1.7, notesShown). The avatar places every note (the player turned to it by opening its screen;
+  // its box sets the dim to 1), and its pixel is the fit its box wrote (`--note-fit-scale`), read from the inline style
+  // when a note arrives: no layout read.
   const rowScale = robot.layer === 'background' ? BACK_LAYER_SCALE : 1;
   useNoteCloud({
     root: gemRef,
@@ -270,7 +271,8 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     pxPerUnit: isWorld
       ? () => getStageScale() * rowScale
       : () => parseFloat(gemRef.current?.closest<HTMLElement>('[data-note-cloud]')?.style.getPropertyValue('--note-fit-scale') ?? ''),
-    strength: isWorld ? noteStrength(robot.batteryLevel, woken) : NOTE_PEAK_STRENGTH,
+    strength: NOTE_PEAK_STRENGTH,
+    placing: isWorld ? notesShown(robot.batteryLevel, woken) : true,
   });
 
   return (
