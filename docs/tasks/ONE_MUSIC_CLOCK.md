@@ -166,7 +166,7 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** XS (one pure function and its tests)
 
-- [ ] **Task 3: `beatClock.ts` — BeatClock's tick reads its own time and starts on the grid**
+- [x] **Task 3: `beatClock.ts` — BeatClock's tick reads its own time and starts on the grid**
 
   **Description:** `TransportLike` gains `getTicksAtTime(time)` and `PPQ` and loses `position`. Add `positionAt(time)`
   (undefined with no transport). The internal `16n` tick registers with a start of `0`, takes its `time`, and sets the
@@ -178,19 +178,28 @@ Task 6 and do not depend on each other.
   `position`.
 
   **Acceptance criteria:**
-  - [ ] `initBeatClock` registers its tick with interval `16n` and a start of `0`.
-  - [ ] A tick callback whose time maps to the bar's tick count turns the measure and notifies each listener once.
-  - [ ] A tick callback a sixteenth before the bar does not turn the measure, even with a mock `position` field that
+  - [x] `initBeatClock` registers its tick with interval `16n` and a start of `0`.
+  - [x] A tick callback whose time maps to the bar's tick count turns the measure and notifies each listener once.
+  - [x] A tick callback a sixteenth before the bar does not turn the measure, even with a mock `position` field that
         reads the next measure (the read-ahead backlog 82 measured cannot happen).
-  - [ ] `getCurrentBeat`, `getCurrentMeasure`, `getCurrentMeasurePrecise` read the last tick's position; the existing
+  - [x] `getCurrentBeat`, `getCurrentMeasure`, `getCurrentMeasurePrecise` read the last tick's position; the existing
         `subscribeToMeasure`, `scheduleRepeat`, `cancelSchedule`, `getTickSeconds` and `resetBeatClock` tests pass
         with only the mock's shape changed.
-  - [ ] Mutation: drop the start of `0` fails the registration test; read `getTicksAtTime(time + 0.1)` fails the
+  - [x] Mutation: drop the start of `0` fails the registration test; read `getTicksAtTime(time + 0.1)` fails the
         before-the-bar test.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/beatClock.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/beatClock.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Done 2026-11-12.** The mock transport runs at 120 BPM, 192 PPQ from time 0 (`timeAt(measure, beat, sixteenth)`
+  gives a callback's time); the existing tick tests moved from setting `position` to calling the tick with a time.
+  RED: 18 failures, among them the read-ahead case reading measure 5 a sixteenth before the bar under the old code.
+  Edge cases beyond the list: `positionAt` reads the transport's PPQ and is undefined with no transport; a bar tick
+  count a hair off the grid (767.9999, 768.0001) still turns the measure; the first tick at time 0 notifies measure 0;
+  a stale tick called after `resetBeatClock` changes nothing and does not throw. Mutants: no start killed 2, `time +
+  0.1` killed 8 (the before-the-bar case among them), the dropped `if (!at) return` killed 1 (the stale tick).
+  `initBeatClock`'s comment no longer says "after Transport starts".
 
   **Dependencies:** Task 2.
 

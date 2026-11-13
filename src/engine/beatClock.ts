@@ -7,8 +7,10 @@ import { generateUUID } from '../utils/randomId';
 
 // Minimal transport-like interface to avoid importing Tone.js here.
 interface TransportLike {
-  // Tone.Transport.position can be a Tone.Time (string/number-like), accept unknown
-  position?: unknown;
+  /** Pulses per quarter note: the transport's ticks in one beat. */
+  PPQ: number;
+  /** The transport's tick count at an audio-clock time (seconds), e.g. a callback's `time`. */
+  getTicksAtTime(time: number): number;
   /** Tone hands each callback the audio-clock time (seconds) the tick is FOR, about `lookAhead` ahead of now. */
   scheduleRepeat(callback: (time: number) => void, interval: string, startTime?: unknown): string | number;
   clear(id: string | number): void;
@@ -56,12 +58,22 @@ export function positionFromTicks(ticks: number, ppq: number): MusicPosition {
   return { sixteenth, measure: Math.floor(sixteenth / perMeasure), step: (sixteenth % perMeasure) + 1 };
 }
 
+/**
+ * The position at an audio-clock time (a transport callback's `time`), or undefined with no transport. Each reader
+ * passes its own callback's time, so none depends on another tick having run first on the same sixteenth.
+ */
+export function positionAt(time: number): MusicPosition | undefined {
+  if (!transportInstance) return undefined;
+  return positionFromTicks(transportInstance.getTicksAtTime(time), transportInstance.PPQ);
+}
+
 // ========================================
 // BEATCLOCK API
 // ========================================
 
 /**
- * Initializes beat tracking. Should be called after Transport starts.
+ * Initializes beat tracking. Works with the transport stopped or started: the internal tick starts on the sixteenth
+ * grid either way (from tick 0 if the transport has not started, else from the next sixteenth).
  */
 export function initBeatClock(transport?: TransportLike): void {
   if (initialized) return;
@@ -70,11 +82,13 @@ export function initBeatClock(transport?: TransportLike): void {
   }
   transportInstance = transport;
   const transportLocal = transportInstance as TransportLike;
-  // Register a 16n tick and remember its id so we can clear it on reset
-  internalTickId = transportLocal.scheduleRepeat(() => {
-    const { measure, beat, sixteenths } = parseTransportPosition(transportLocal.position);
-    currentBeat = measure * BEATS_PER_MEASURE + beat + sixteenths / 4;
-    currentMeasure = measure;
+  // Register a 16n tick on the grid (start 0) and remember its id so we can clear it on reset. It reads the position
+  // of its own callback's time, so the measure turns on the bar's own tick (docs/specs/ONE_MUSIC_CLOCK.md §4.2).
+  internalTickId = transportLocal.scheduleRepeat((time) => {
+    const at = positionAt(time);
+    if (!at) return;
+    currentBeat = at.sixteenth / 4;
+    currentMeasure = at.measure;
     if (currentMeasure !== lastNotifiedMeasure) {
       lastNotifiedMeasure = currentMeasure;
       measureListeners.forEach(fn => {
@@ -85,7 +99,7 @@ export function initBeatClock(transport?: TransportLike): void {
         }
       });
     }
-  }, '16n');
+  }, '16n', 0);
   initialized = true;
   // Register any schedules that were requested before transport initialization
   scheduleMap.forEach((entry, scheduleId) => {
@@ -100,16 +114,6 @@ export function initBeatClock(transport?: TransportLike): void {
       }
     }
   });
-}
-
-// exported for testing
-export function parseTransportPosition(rawPosition: unknown): { measure: number; beat: number; sixteenths: number } {
-  const pos = String(rawPosition).split(':');
-  return {
-    measure: parseInt(pos[0], 10) || 0,
-    beat: parseInt(pos[1], 10) || 0,
-    sixteenths: parseInt(pos[2], 10) || 0,
-  };
 }
 
 /**
