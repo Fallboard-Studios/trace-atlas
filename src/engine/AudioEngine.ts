@@ -756,6 +756,66 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
   };
 }
 
+/**
+ * A step's notes (note cloud spec §1.9; plan Task 32): every registered event on `at.step`, read as it will sound.
+ * The one place that turns a step into notes, so the trigger (processMelodyStep) and an early announcement read the
+ * same thing and cannot drift. Pure as far as the audio goes: it schedules nothing and counts no voice.
+ *
+ * - pitch: `paletteForMeasure(at.measure)` at the event's note index, with its octave (4 if none);
+ * - length: the written NoteDuration, or, for a rested or clipped note, its sounding length in seconds at the live
+ *   tempo (floored at MIN_SOUNDING_SECONDS, never longer than written) with a short release (docs/specs/
+ *   ROBOT_PERFORMANCE.md §1.3; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b);
+ * - accent: the motif-group accent times the mark's velocity, absent when 1;
+ * - start: `time + MIN_LEAD` plus the Humanize roll at `at.sixteenth` (none for a Click Track entry);
+ * - position: `at.sixteenth`, the roll position the velocity roll keys off (docs/specs/ONE_MUSIC_CLOCK.md §4.4).
+ *
+ * A bad note index is skipped with a dev warning; an event that throws while it is read is skipped alone.
+ */
+export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
+  const events = stepRegistry.get(at.step) || [];
+  if (events.length === 0) return [];
+  const notes = paletteForMeasure(at.measure);
+  const position = at.sixteenth;
+  const humanizeOffset = humanizeOffsetFor(position);
+  const out: NoteParams[] = [];
+
+  events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
+    // Each event is isolated: one robot's bad event must not cost the rest of the step.
+    try {
+      const noteName = notes[event.noteIndex];
+      if (!noteName) {
+        devWarn(`[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`);
+        return;
+      }
+      const octave = event.octave ?? 4;
+
+      const art = resolveArticulation(event);
+      let duration: NoteDuration | number = event.length;
+      let release: number | undefined;
+      if (art.length < 1) {
+        const writtenSeconds = Tone.Time(event.length).toSeconds();
+        duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
+        const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
+        release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
+      }
+      const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
+
+      out.push({
+        robotId,
+        note: `${noteName}${octave}`,
+        duration,
+        time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
+        accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
+        position,
+        ...(release !== undefined ? { release } : {}),
+      });
+    } catch (err) {
+      devWarn(`[AudioEngine] Failed to read the note for robot ${robotId}`, err);
+    }
+  });
+  return out;
+}
+
 export const AudioEngine = {
   async start(): Promise<void> {
     if (initialized) return;
@@ -1483,55 +1543,15 @@ export const AudioEngine = {
    * @param time - absolute AudioContext time passed through from transport
    */
   processMelodyStep(at: MusicPosition, time: number): void {
-    const events = stepRegistry.get(at.step) || [];
-    const notes = paletteForMeasure(at.measure);
-    // Robot Performance: the position every roll keys off (velocity, Humanize), sixteenths since the transport's tick 0.
-    const position = at.sixteenth;
-    const humanizeOffset = humanizeOffsetFor(position);
-
-    events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
-      // Each event is isolated in its own try/catch — an uncaught exception from one robot's
-      // scheduleNote call must not abort the forEach and silently drop every remaining event
-      // in this same step.
+    // Resolve, then schedule each (note cloud plan Task 32): stepNotes is the one place a step becomes notes.
+    for (const params of stepNotes(at, time)) {
+      // Each note is isolated: an exception from one robot's scheduleNote must not drop the rest of the step.
       try {
-        const noteName = notes[event.noteIndex];
-        if (!noteName) {
-          devWarn(`[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`);
-          return;
-        }
-        const octave = event.octave ?? 4;
-        const note = `${noteName}${octave}`;
-
-        // What the event's rest and mark mean (docs/specs/ROBOT_PERFORMANCE.md §1.3): a sounding-length factor
-        // and a velocity multiplier. An unstamped event keeps its NoteDuration string exactly as before; a
-        // shortened one becomes seconds at the live tempo, floored so it never collapses to a click and
-        // never longer than the note as written.
-        // A cut note also releases in CUT_RELEASE_SECONDS, or the robot's own release if that is shorter
-        // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b): with the robot's whole release after it, the cut was hidden.
-        const art = resolveArticulation(event);
-        let duration: NoteDuration | number = event.length;
-        let release: number | undefined;
-        if (art.length < 1) {
-          const writtenSeconds = Tone.Time(event.length).toSeconds();
-          duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
-          const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
-          release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
-        }
-        const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
-
-        AudioEngine.scheduleNote({
-          robotId,
-          note,
-          duration,
-          time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
-          accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
-          position,
-          ...(release !== undefined ? { release } : {}),
-        });
+        AudioEngine.scheduleNote(params);
       } catch (err) {
-        devWarn(`[AudioEngine] Failed to schedule note for robot ${robotId}`, err);
+        devWarn(`[AudioEngine] Failed to schedule note for robot ${params.robotId}`, err);
       }
-    });
+    }
   },
 
 
