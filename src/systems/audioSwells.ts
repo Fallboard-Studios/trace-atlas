@@ -25,7 +25,7 @@
 import type { NoiseFunction2D } from 'simplex-noise';
 
 import { applyVolume, applyLayersContinuous, applyAdsr, applySendValue } from './robotOptionsActions';
-import { scheduleRepeat, cancelSchedule, getCurrentMeasurePrecise } from '@/engine/beatClock';
+import { scheduleRepeat, cancelSchedule, positionAt } from '@/engine/beatClock';
 import { getUniformSeededVal } from '@/utils/getSeededVal';
 import { timeArg } from '@/utils/timeArg';
 import { getAttenuationStyleNoiseMap } from '@/utils/noiseMaps';
@@ -423,8 +423,14 @@ export function startAudioSwells(localeId: string): void {
   // every one of those same ticks (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md
   // §1.3 — frequencyToPerTickChance derives its per-tick probability from
   // this exact TICKS_PER_MEASURE cadence). The callback's `time` (the audio-clock time this tick is for) rides down
-  // to every engine write the tick makes, both pools (docs/specs/BEATCLOCK_TRANSPORT_TIME.md).
-  swellScheduleId = scheduleRepeat('16n', (time) => tickAudioSwells(localeId, getCurrentMeasurePrecise(), time));
+  // to every engine write the tick makes, both pools (docs/specs/BEATCLOCK_TRANSPORT_TIME.md). The measure is read from
+  // that same time (docs/specs/ONE_MUSIC_CLOCK.md §4.6), not from BeatClock's last tick, so nothing depends on BeatClock's
+  // tick having run first on the same sixteenth. With no position (no transport) the tick does nothing.
+  swellScheduleId = scheduleRepeat('16n', (time) => {
+    const at = positionAt(time);
+    if (!at) return;
+    tickAudioSwells(localeId, at.sixteenth / TICKS_PER_MEASURE, time);
+  });
 }
 
 export function stopAudioSwells(): void {

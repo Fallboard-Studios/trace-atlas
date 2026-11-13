@@ -367,7 +367,7 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** XS (deletions)
 
-- [ ] **Task 8: `audioSwells.ts` — the swell tick reads its own position**
+- [x] **Task 8: `audioSwells.ts` — the swell tick reads its own position**
 
   **Description:** `startAudioSwells` passes `positionAt(time)`'s precise measure (`sixteenth / 16`) to
   `tickAudioSwells`, not `getCurrentMeasurePrecise()` (spec §4.6). With no position the tick does nothing. What the
@@ -377,14 +377,25 @@ Task 6 and do not depend on each other.
   own time, while BeatClock's last measure says something else.
 
   **Acceptance criteria:**
-  - [ ] With `positionAt` returning sixteenth 83 and `getCurrentMeasurePrecise` returning 4, the swell tick advances
+  - [x] With `positionAt` returning sixteenth 83 and `getCurrentMeasurePrecise` returning 4, the swell tick advances
         swells at measure 5.1875.
-  - [ ] The existing swell tests pass with only the mock extended.
-  - [ ] Mutation: restore `getCurrentMeasurePrecise()` fails the test.
+  - [x] The existing swell tests pass with only the mock extended.
+  - [x] Mutation: restore `getCurrentMeasurePrecise()` fails the test.
+
+  **Done 2026-11-12.** The measure is `at.sixteenth / TICKS_PER_MEASURE` (the file's own 16). The test reads the
+  measure the tick handed `tickAudioSwells` off the `startMeasure` of a swell created on that tick. One deviation
+  from "only the mock extended": the transport-time block's `registeredTick` helper queued its measure on
+  `getCurrentMeasurePrecise`; it now queues the same measure as a position on `positionAt`, and every case in it
+  passes unchanged. RED: all three new cases failed on the old code (4, 4.9375, and a write on a tick with no
+  position). Edge cases beyond the list: a tick on the bar reads measure 5 where BeatClock's last tick says 4.9375; a
+  tick with no position neither throws, writes, nor moves a swell. The new block resets both clock mocks after each
+  case, since a value queued for `getCurrentMeasurePrecise` is now never used and would otherwise reach a later test.
+  Mutants: the restored `getCurrentMeasurePrecise()` killed 3 (the 5.1875 case among them), the dropped `if (!at)
+  return` killed 1. The 12 files that mock `beatClock` (AudioEngine's ran in Task 5): 1,628 passed, 0 failed.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/audioSwells.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/audioSwells.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 3.
 
