@@ -5,7 +5,7 @@ Source spec: [docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Sou
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4. The look's reference is the
 branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over without its test).
 
-**Status:** building. Phase 1 (Tasks 1 to 3) built 2026-11-12; Checkpoint: Events awaits Crawford's look at the bob
+**Status:** branch one complete; Checkpoint: Complete passed 2026-11-13. Phase 1 (Tasks 1 to 3) built 2026-11-12; Checkpoint: Events awaits Crawford's look at the bob
 and his review. Phase 2 (Tasks 4 to 9) built 2026-11-12; Checkpoint: Pure awaits his review. Phase 3 (Tasks 10 to
 16) built 2026-11-12; Checkpoint: Cloud's checks pass and its look awaits him (hard reload first: `workLoop.ts`
 changed). Phase 4 (Tasks 18 to 25) built 2026-11-13 on Crawford's word ("implement phase 4"), ahead of Task 17 and
@@ -16,8 +16,9 @@ cloud spilling past the avatar's box. Task 17 ran 2026-11-13: main-thread time +
 +3.7 %, inside it; he then re-drew the bands (Task 17e, 60% on, not re-measured). Gate 1 passed 2026-11-13 ("no,
 that's ok" to a re-run) and Gate 2 passed the same day on his word ("i'm happy with gate 2, i believe"). Task 26 (his
 guardrail sentence) and Phase 6 (Tasks 29 and 30, the record) done 2026-11-13: **branch one's Tasks 1 to 30 are all
-built.** Next: Checkpoint: Complete (the full checks and a five-axis review), then Crawford's PR; Part E (Tasks 31
-to 37) after the merge, on its own branch.
+built.** Checkpoint: Complete passed 2026-11-13: the looks and reviews the earlier checkpoints waited on were
+answered there, and the five-axis review approved (four fixes). Next: Crawford's PR; Part E (Tasks 31 to 37) after
+the merge, on its own branch.
 
 How the boxes read: a task's own box is ticked when it was built and committed. The acceptance and verification
 boxes inside Tasks 1 to 16, 18 to 25, 27 and 28 were left as written while building; each is pinned by the task's
@@ -1252,11 +1253,29 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete (branch one)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every acceptance criterion of Tasks 1 to 30 is met; Gates 1 to 3 have passed.
-- [ ] Any Look or run not done in session is named here, never skipped silently.
-- [ ] A five-axis review (`code-review-and-quality`) of the branch, its findings fixed or recorded.
-- [ ] Ready for Crawford's PR. The PR body links the spec's sections.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (2026-11-13, after the review's
+  fixes): 14,219 passed, 2 skipped, 0 failed. The build's warnings (dynamic imports, the 500 kB chunk) predate the branch.
+- [x] Every acceptance criterion of Tasks 1 to 30 is met; Gates 1 to 3 have passed. The per-task boxes read as the
+  note under this plan's status says: each is pinned by its task's tests.
+- [x] Any Look or run not done in session is named here, never skipped silently. Put to Crawford on 2026-11-13 and
+  answered "everything is fine":
+  - The bob (±3 px on a 2.4 s cycle, Checkpoint: Events) and the Task 8 tilt departure (level through the middle,
+    tilting only in the fan): looked at in the browser, accepted.
+  - Checkpoints Events, Pure and Cloud, never reviewed item by item: covered by the five-axis review below.
+  - Runs never made, accepted without a harness number: the re-drawn bands' cost (Task 17e, 60 % on; Task 17d's
+    +3.7 % was the odd tens, 50 % on), his desktop at full screen, a phone, and twelve robots sounding at once.
+- [x] A five-axis review (`code-review-and-quality`) of the branch, its findings fixed or recorded. Verdict: approve.
+  Ten mutants against the branch's tests, nine killed; the survivor was dead code. Fixed on Crawford's word:
+  - a520363f: the avatar's pixels per unit is NaN until its box is measured, and NaN never equals itself, so every
+    note re-fitted both layers. RED test first; `fit()` now compares with `Object.is` against a null "not fitted".
+  - 7c8f4e1c: the unmount's display and will-change resets removed (the surviving mutant: dead on every path).
+  - db32a91e: `parseNotesParam` reads through `parseDebugParam`.
+  - 94324efc: spec §1.6 and this plan's Architecture Decisions name the `note-resize-…` timeline.
+
+  Recorded, not fixed: `RobotBody` imports `getStageScale` from a panel's hook file (`useStageFit.ts`), whose module
+  state it is; a small `stageScale` module both import would turn the dependency the right way. `AudioEngine.ts` is
+  1,741 lines; Part E's Tasks 32 and 33 take pieces out of it before adding.
+- [x] Ready for Crawford's PR. The PR body links the spec's sections.
 
 ---
 

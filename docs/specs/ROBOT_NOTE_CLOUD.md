@@ -857,5 +857,8 @@ to the picture").
   the belt is the re-size fade, `note-resize-{context}-{id}` (was `note-strength-…`). Task 22's ease tests went;
   one case pins the peak at mount.
 - **Checkpoint looks not itemised:** the bob at ±3 on 2.4 s, the reviews after Phases 1 and 2, and the Cloud
-  checkpoint's look, pause and `?notes=off` checks. Gate 2's word covers the look as a whole.
+  checkpoint's look, pause and `?notes=off` checks. Gate 2's word covers the look as a whole. **Answered at the
+  plan's Checkpoint: Complete (2026-11-13):** the bob and the level-in-the-middle tilt looked at and accepted, the
+  reviews covered by the five-axis review (approve; four fixes), and the runs never made (the re-drawn bands, his
+  desktop full screen, a phone, twelve sounding) accepted without a number.
 - **Part E** (§1.9; plan Tasks 31 to 37, Gate 4) on its own branch after this one merges.
