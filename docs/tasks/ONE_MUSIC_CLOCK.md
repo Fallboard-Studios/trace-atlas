@@ -16,8 +16,7 @@ ten. Tasks 10a–10c put the Click Track back on the robot, company and All Prob
 beat with the downbeat an octave up. Checkpoint: By ear passed 2026-11-12; backlog 83 stays open for pause and resume
 (his call). Phase 5 done 2026-11-12: the five docs say what shipped (Task 11), and backlog 82 carries Task 10's figures
 as fixed, 83 is fixed for a power-on and open for a pause and resume, and backlog 7 names `paletteForMeasure` (Task
-12). Next: Checkpoint: Complete, then Crawford's PR. His reads of Task 1, Core, Task 10's table and Tasks 11–12 are
-still unticked.
+12). Crawford read and accepted every checkpoint 2026-11-12. Next: Checkpoint: Complete, then Crawford's PR.
 
 ## Overview
 
@@ -108,7 +107,7 @@ Task 6 and do not depend on each other.
         named and the build stops for Crawford (spec §8, "Ask first").
 
   **Verification:**
-  - [ ] Crawford reads the outcome at Checkpoint: Foundation.
+  - [x] Crawford reads the outcome at Checkpoint: Foundation. (Read 2026-11-12, after Phase 5.)
 
   **Dependencies:** None.
 
@@ -221,10 +220,11 @@ Task 6 and do not depend on each other.
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; any pre-existing, unrelated failure named).
       2026-11-12 at 451855a5: 355 files, 13,912 passed, 2 skipped, 0 failed (257 s); types clean; lint 0 errors (4
       existing `react-refresh` warnings in the scenery files, untouched).
-- [ ] Task 1's outcome read by Crawford.
-- [ ] What is true now: BeatClock's measure turns on the bar's own tick. The chord is still the old repeat, which now
+- [x] Task 1's outcome read by Crawford.
+- [x] What is true now: BeatClock's measure turns on the bar's own tick. The chord is still the old repeat, which now
       reads a measure that has turned, so the chord changes on time already; the melody is still off the grid.
-- [ ] Reviewed with Crawford before Phase 3.
+      (Superseded by Phase 3; ticked 2026-11-12.)
+- [x] Reviewed with Crawford before Phase 3. (His go-ahead for Phase 3, and his read after Phase 5.)
 
 ---
 
@@ -456,14 +456,15 @@ Task 6 and do not depend on each other.
       2026-11-12 at 9c1d5877: 13,950 passed, 2 skipped, 0 failed; types clean; lint 0 errors (the 4 existing
       `react-refresh` warnings); build clean (its existing warnings: `audioStore` and `robotLfoLinks` imported both
       dynamically and statically, and the 1.3 MB chunk).
-- [ ] Crawford hard-reloads his dev page and powers on a world: it plays, and nothing sounds broken.
-- [ ] Reviewed with Crawford before Phase 4.
+- [x] Crawford hard-reloads his dev page and powers on a world: it plays, and nothing sounds broken. (Covered by
+      Checkpoint: By ear, a hard reload and a power-on with Phase 3 in.)
+- [x] Reviewed with Crawford before Phase 4. (His go-ahead for Phase 4, and his read after Phase 5.)
 
 ---
 
 ### Phase 4: The proof
 
-- [ ] **Task 10: the proof run — ten power-ons on the clock (spec §6.2)**
+- [x] **Task 10: the proof run — ten power-ons on the clock (spec §6.2)**
 
   **Description:** Backlog 82's probe (rewritten in the scratchpad, recipe in
   [CHORD_CYCLE_TIMING.md](CHORD_CYCLE_TIMING.md) Task 1), with the harmony rows replaced: at each melody firing it logs
@@ -484,7 +485,7 @@ Task 6 and do not depend on each other.
         tempo row; the tempo is the transport's.)
 
   **Verification:**
-  - [ ] The table, read by Crawford at the checkpoint below.
+  - [x] The table, read by Crawford at the checkpoint below.
 
   **Done 2026-11-12.** Measured on this branch at 4b99707a (Tasks 2–9 in), dev server, headless Chrome,
   `?debug&seed=charlie&x=200&y=-30`. Ten runs, each a fresh Chrome, one at a time in the foreground (two or three per
@@ -670,7 +671,7 @@ Task 6 and do not depend on each other.
   - [x] No doc still describes the `2m` cycle, `stepCounter` or `transport.position` as current.
 
   **Verification:**
-  - [ ] Manual review against the source (Crawford's read).
+  - [x] Manual review against the source (Crawford's read).
   - [x] `npm run lint` clean (0 errors; the 4 old fast-refresh warnings).
 
   **Done 2026-11-12.** Each name checked against the source at ae23cc59: `MusicPosition`, `positionFromTicks`,
@@ -718,7 +719,7 @@ Task 6 and do not depend on each other.
   - [x] Each entry states what was measured and heard, with the figures, and nothing it did not show.
 
   **Verification:**
-  - [ ] Crawford's read.
+  - [x] Crawford's read.
 
   **Done 2026-11-12.** Backlog 82 gains a "Fixed" paragraph: what was built, Task 10's figures (the grid, tick 0, the
   25 turns on the bar, all 260 step 1s on the right entry, one sequence in ten runs against six before, the console)
@@ -735,10 +736,15 @@ Task 6 and do not depend on each other.
   **Estimated scope:** XS (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every acceptance criterion above met, or flagged here with the reason.
-- [ ] Docs match the shipped source.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+      2026-11-12 at a7d53c13: types clean; lint 0 errors (the 4 existing `react-refresh` warnings); build clean (the
+      existing 500 kB chunk warning). Full suite, run twice: 355 files, 13,968 passed, 2 skipped, 0 failed (258 s and
+      268 s). Each run exits 1 on one unhandled `[vitest-worker]: Timeout calling "onTaskUpdate"`, the runner error of
+      backlog 66 (it reproduces on `main`, and earlier checkpoints passed with it), not a test failure.
+- [x] Every acceptance criterion above met, or flagged here with the reason. (Task 10's overlay criterion carries its
+      note: no pre-change overlay was recorded and there is no tempo row.)
+- [x] Docs match the shipped source (Task 11, read by Crawford).
+- [x] Ready for Crawford's PR.
 
 - [ ] **Task 13: archive, after the merge**
 
