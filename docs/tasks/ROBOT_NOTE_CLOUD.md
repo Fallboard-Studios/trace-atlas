@@ -14,8 +14,16 @@ Crawford's word, ahead of Gates 1 and 2; Checkpoint: Avatar's checks pass, and G
 cloud spilling past the avatar's box. Task 17 ran 2026-11-13: main-thread time +17.6 % with the cloud on (the spike's
 +19 %), over the working 10 %. Crawford's answer was the battery bands (Tasks 17a to 17d, built and run the same day):
 +3.7 %, inside it; he then re-drew the bands (Task 17e, 60% on, not re-measured). Gate 1 passed 2026-11-13 ("no,
-that's ok" to a re-run) and Gate 2 passed the same day on his word ("i'm happy with gate 2, i believe"). Next: Task
-26 (it needs his guardrail sentence, not yet worded) and Phase 6, in a fresh session.
+that's ok" to a re-run) and Gate 2 passed the same day on his word ("i'm happy with gate 2, i believe"). Task 26 (his
+guardrail sentence) and Phase 6 (Tasks 29 and 30, the record) done 2026-11-13: **branch one's Tasks 1 to 30 are all
+built.** Next: Checkpoint: Complete (the full checks and a five-axis review), then Crawford's PR; Part E (Tasks 31
+to 37) after the merge, on its own branch.
+
+How the boxes read: a task's own box is ticked when it was built and committed. The acceptance and verification
+boxes inside Tasks 1 to 16, 18 to 25, 27 and 28 were left as written while building; each is pinned by the task's
+tests (its Proof line), and every checkpoint's full suite passed. From Task 17 on they were ticked as built. The
+checkpoint boxes still open are looks and reviews Crawford never went through item by item; each is marked where it
+stands.
 
 ## Overview
 
@@ -201,8 +209,9 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
       356 files, 13,988 passed, 2 skipped (skipped before this branch), 0 failed; lint has the 4 old warnings only.
 - [x] Nothing is drawn yet and nothing is heard differently: the engine emits only when something listens, and
       nothing does.
-- [ ] Crawford looks at a working robot's bob at ±3 on 2.4 s (Task 1's Look; a hard reload first).
-- [ ] Reviewed with Crawford before Phase 2.
+- [ ] Crawford looks at a working robot's bob at ±3 on 2.4 s (Task 1's Look; a hard reload first). Not looked at
+      on its own; Gate 2's word covers the world as a whole.
+- [ ] Reviewed with Crawford before Phase 2. Not done before Phase 2 was built.
 
 ---
 
@@ -393,7 +402,7 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
       (skipped before this branch), 0 failed; lint has the 4 old warnings only; `npm run build` clean.
 - [x] Everything that decides what is drawn is a tested pure function, and nothing is drawn yet: nothing in `src`
       imports `src/components/robot/notes/`.
-- [ ] Reviewed with Crawford before Phase 3.
+- [ ] Reviewed with Crawford before Phase 3. Not done before Phase 3 was built.
 
 ---
 
@@ -631,6 +640,10 @@ Task 31 (preview asked) ── Task 32 (a step's notes, one place) ── Task 3
       robot's cloud at its size; nothing on a silent robot.
 - [ ] The pause: power off with notes mid-flight and they freeze; power on and they carry on, none stranded.
 - [ ] `?notes=off` draws nothing. Every cloud is at full strength and undimmed for now (attention is Phase 4).
+
+  These three were never gone through one by one. The look was judged as a whole at Gate 2; the pause and
+  `?notes=off` are pinned by tests (Task 14's `'world'` registration, Task 10, Task 12) and `?notes=off` was the
+  off arm of every cost run, but neither was watched in a browser as a look.
 
 - [x] **Task 17: the cost run (spec §5.3) and its record**
 
@@ -1207,7 +1220,12 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 30: the record — the spec's "As built", backlog 79, this plan**
+- [x] **Task 30: the record — the spec's "As built", backlog 79, this plan**
+
+  **As built (2026-11-13):** the spec gains §8 "As built" (the gates and what Crawford changed, where the code
+  departs and why, what is left for him), its status line and Gate 2's line current, and §7.1 point 1 answered.
+  Backlog 79's status says what the first branch ships and that Part E follows; not archived. This plan's status
+  line is current, and how its boxes read is stated under it.
 
   **Description:** The spec gains an "As built" section: what differs from it and why (names, any number re-pinned
   at a gate, the gates' outcomes). Backlog 79's entry says what shipped and that Part E follows; it is not archived.

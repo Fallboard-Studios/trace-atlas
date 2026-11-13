@@ -18,7 +18,9 @@ second table). Paused that day at Crawford's word until backlog 82 and 83 were f
 2026-11-12:** both closed with the one music clock (PR #635), and §1.1, §1.2 and §1.9 have been re-read against the
 engine as it now is. §1.1 gained the music clock and §1.9 is rewritten on it. Asked whether Part E should now move
 into the first branch, Crawford kept it last (§7.1). **Planned 2026-11-12:**
-[docs/tasks/ROBOT_NOTE_CLOUD.md](../tasks/ROBOT_NOTE_CLOUD.md), 37 tasks, awaiting his read; nothing built. Backlog
+[docs/tasks/ROBOT_NOTE_CLOUD.md](../tasks/ROBOT_NOTE_CLOUD.md), 37 tasks. **Built 2026-11-12 to 2026-11-13:** Parts 0
+to D on `feature/note-cloud` (plan Tasks 1 to 30), Gates 1 to 3 passed; §8 records what differs from this spec. Part
+E (plan Tasks 31 to 37) follows on its own branch after the merge. Backlog
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
 **Who it is for:** a player watching the world, on the desk shell and on a phone, who wants to see which robot is
@@ -639,7 +641,7 @@ export function notesShown(batteryLevel: number, woken: boolean): boolean;
   runs; the row switch, the layer switch's dissolve and an edit that re-sizes the roll; the marker on hover. He
   names any of §7.2 A1's numbers he wants re-pinned (he chose a re-check on a phone, 2026-11-12), and gives the
   guardrail sentence its wording. **Passed 2026-11-13 on his word** ("i'm happy with gate 2, i believe"): no number
-  re-pinned, the repeat rule kept. The guardrail sentence is still to be worded (plan Task 26).
+  re-pinned, the repeat rule kept. The guardrail sentence was given the same day and is in CLAUDE.md (plan Task 26).
 - **Gate 3, the avatar** — after Part D: his look at the desk avatar with the roll clipped by its box (§1.8: where
   "now" falls, and the top and bottom rows), and his answer to §7.3 Q1. Parts 0 to D merge when it passes.
   **Passed 2026-11-13:** he looked at the clip and at the spill, and chose the spill (§1.8).
@@ -685,7 +687,7 @@ announcement, and backlog 79 is archived with its plan.md line deleted.
 
 | # | Point | Answer |
 |---|---|---|
-| 1 | The Visual Mapping guardrail | Add a sentence naming the cloud as a third overlay. His wording, at Gate 2 |
+| 1 | The Visual Mapping guardrail | Add a sentence naming the cloud as a third overlay. His wording, at Gate 2. Given 2026-11-13 (§8.1) |
 | 2 | The engine announcing notes early | Approved. Built after backlog 82 and 83; the cloud ships first on trigger-time events (§1.4, §1.9) |
 | 3 | The marker on a robot under the pointer | Keep it, as seen (§1.7) |
 | 4 | Ducking the others, the tour | Neither |
@@ -787,3 +789,70 @@ answered and kept for the record.
   run again with early notes on (§5.4).
 - **Q5. What 82 and 83 left: answered.** The palette is a pure function of the measure and the steps sit on the bar
   (§1.1), which is what §1.9 hoped for; it is rewritten on that and nothing in Parts A to D changed.
+
+---
+
+## 8. As built (Parts 0 to D, `feature/note-cloud`, 2026-11-12 to 2026-11-13)
+
+What shipped is this spec, except where this section says otherwise. Each task's own "As built" note in
+[the plan](../tasks/ROBOT_NOTE_CLOUD.md) has the detail; the shipped design is described in ROBOT_DESIGN.md ("The
+note cloud — the third overlay"), ANIMATION_SYSTEM.md ("The note cloud") and AUDIO_SYSTEM.md ("Note events — audio
+to the picture").
+
+### 8.1 The gates, and what Crawford changed
+
+- **Gate 1 (cost)** read +17.6 % main-thread time with the cloud on (the spike: +19 %), compositor update +27 %,
+  over the working 10 %. His answer was the **battery bands**, which replace the battery fade of §1.7's first draft:
+  a world cloud places notes only in `NOTE_BATTERY_BANDS`, or while woken (`notesShown`, `noteBands.ts`); the cloud
+  shows every placed note at the peak; leaving a band lets the notes in flight finish (the hook's `placing` switch).
+  `noteStrength.ts` and `NOTE_BATTERY_FULL` went with the fade. Measured on the odd tens (half on): +3.7 % main
+  thread, +10 % compositor. He then re-drew the bands to 10–28, 38–55, 65–73 and 83–100 % (60 % on) and declined a
+  re-run, so the shipped bands are not measured. Passed 2026-11-13.
+- **`NOTE_PEAK_STRENGTH` 0.75** (after Phase 4, "75% of their current opacity"): the whole cloud's opacity, in the
+  world and on the avatar.
+- **Gate 2 (eye and ear)** passed on his overall word ("i'm happy with gate 2, i believe"): no number in §7.2 A1
+  re-pinned, and the repeat rule kept (4 of 498 notes dropped in 50 s, PERFORMANCE.md; §7.3 Q3). He did not go
+  through the gate's items one by one, and no figures from his desktop, a phone or twelve robots sounding were
+  recorded.
+- **The guardrail sentence** (§7.1 point 1), his words, closes the Visual Mapping guardrail in CLAUDE.md: "The note
+  cloud is the third overlay: the robot's own notes drawn around its body, fed only by the engine's note events, so
+  audio flows to the picture and never back. It never changes the body's geometry, colour or dials, and a note enters
+  and leaves without a pop." At his word the line before it now reads "remain the first two overlay exceptions".
+- **Gate 3 (the avatar):** the spill, not the clip (§1.8). The robot screen's column no longer scrolls as a whole;
+  the details under the gem (`.robot-screen__avatar-details`) scroll, and the gem still shrinks to its 120 px first.
+- **Part 0:** a job holds three or four bob cycles, not "two to four" (§1.11 corrected at Task 1).
+
+### 8.2 Where the code departs from this spec, and why
+
+- **The tilt is weighted by the fan** (§1.3): level through the straight middle, easing in to the row's full slope
+  at the edge. Tilting everywhere, as the spike did, gives up to about 8° in the middle of a square roll. Beyond the
+  roll the fan holds its edge value, so the layer's `pad` holds every row.
+- **Pitch is compared as a MIDI number** in the row and the repeat rule, so `Bb4` and `A#4` are one pitch.
+- **A cloud that throws on a note** is reported and does not cost the next cloud its note (`subscribeDrawnNotes`),
+  the rule `noteEvents` keeps.
+- **The belt** is one linear `gsap.to` over a plain clock object; a note's x on its belt changes only when the belt
+  wraps, so only its row height and tilt are quantised. The mask's clear right-hand end is
+  `NOTE_KNOWN_AHEAD_SECONDS` (0.2), which Part E replaces.
+- **Attention:** `getPointedRobotId()` was added, so a robot's unmount clears the pointer only if it is still that
+  robot's; the camera's subscription is held only while the singled-out id has a subscriber. `RobotBody` subscribes
+  through booleans about its own robot, so the pointer moving between two other robots re-renders nothing. The world
+  body's unmount ends the wake from `RobotBody`, not the hook, so the hook never imports `robotAttention`.
+- **Strength** eases `sine.inOut` (the spec names no ease), rise or fall judged against the layers' opacity at the
+  change, so a change mid-fade eases on from where it had got to.
+- **A re-size** does not re-run the hook's main effect: the latest size is kept in a ref, and the re-size fade's
+  timeline calls the rebuild between the fade out and the fade in.
+- **The avatar's layers** each hang in a frame (`.robot-screen__note-frame--behind` / `--front`), a zero-size origin
+  at the gem canvas's (0, 0) that CSS moves and scales from `--note-fit-x`, `--note-fit-y` and `--note-fit-scale`,
+  which the box's `ResizeObserver` writes. So the hook finds a layer anywhere in its box, and the avatar's pixels per
+  unit read `--note-fit-scale`.
+- **The output latency** treats 0 as "not reported" (a device's output cannot have none) and falls through to
+  `baseLatency`.
+
+### 8.3 Left for Crawford
+
+- **The strength ease now runs for nothing.** With the bands in place the strength is always the peak, so the
+  hook's strength-change ease and `NOTE_EBB_SECONDS` never fire; kept for a strength that changes (§1.7). Proposed
+  for removal on his say-so, not cut.
+- **Checkpoint looks not itemised:** the bob at ±3 on 2.4 s, the reviews after Phases 1 and 2, and the Cloud
+  checkpoint's look, pause and `?notes=off` checks. Gate 2's word covers the look as a whole.
+- **Part E** (§1.9; plan Tasks 31 to 37, Gate 4) on its own branch after this one merges.
