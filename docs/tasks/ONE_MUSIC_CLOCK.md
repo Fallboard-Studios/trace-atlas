@@ -12,8 +12,10 @@ Source spec: [docs/specs/ONE_MUSIC_CLOCK.md](../specs/ONE_MUSIC_CLOCK.md) (appro
 own positions, the harmony repeat and its state gone, the ticks registered before the transport starts at the
 store's tempo). Checkpoint: Core's suite and build are clean. Phase 4's Task 10 done 2026-11-12: ten power-ons, every
 firing on the grid from tick 0, every measure turned on its bar, every step 1 on the right chord, one sequence in all
-ten. Waiting at Checkpoint: By ear (Crawford's hard reload and Click Track listen), and his reads of Task 1, Core and
-Task 10's table.
+ten. Tasks 10a–10c put the Click Track back on the robot, company and All Probes screens, as sixteenths a note per
+beat with the downbeat an octave up. Checkpoint: By ear passed 2026-11-12; backlog 83 stays open for pause and resume
+(his call). Next: Phase 5 (Tasks 11–12, docs and the record). His reads of Task 1, Core and Task 10's table are still
+unticked.
 
 ## Overview
 
@@ -635,10 +637,15 @@ Task 6 and do not depend on each other.
   `src/systems/robotOptionsActions.test.ts`, `src/systems/robotSystems.test.ts`, `docs/MELODY_SYSTEM.md`
 
 ### Checkpoint: By ear (spec §6.3)
-- [ ] Crawford, after a hard reload: a robot on the testing-only Click Track (the toggle at the top of the
+- [x] Crawford, after a hard reload: a robot on the testing-only Click Track (the toggle at the top of the
       Composition section on a robot, company or All Probes screen, dev server only, Tasks 10a and 10b), the downbeat
       heard where the chords change. Recorded here.
-- [ ] His call: backlog 83 closes with 82, or stays open with what the listen found.
+      **Passed 2026-11-12**, the Click Track robot sounding alone, on Task 10c's pattern. He first heard a
+      sixteenth's difference, then put it down to the first note of the measure sounding accented (it is Task 10c's
+      downbeat, an octave up): "I think we're good." Nothing else was heard off.
+- [x] His call: backlog 83 closes with 82, or stays open with what the listen found.
+      **Stays open** (2026-11-12). The listen and Task 10 cover a power-on; a pause and resume is neither measured nor
+      heard (Open Question 2). Task 12 records 83 with that open, not as fixed.
 
 ---
 
