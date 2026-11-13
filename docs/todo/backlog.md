@@ -91,11 +91,14 @@ an aspect can override. Sequenced post-launch in plan.md.
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
 sequentially at `MEASURES_PER_PALETTE_ENTRY = 2`, so one lap is 24 measures. The active index is
-derived statelessly from `getCurrentMeasure()` on every tick and wraps by array length (the
-September 2026 rewrite that replaced the hour-keyed `TIME_PITCHES`; merged). Nothing seeds it,
-nothing selects it, nothing persists it; `powerController.start` calls `resetHarmony()` back to
-entry 0. Two production consumers only: `AudioEngine.processMelodyStep` reads `getAvailableNotes()`
-per step, and `powerController`. Palette **slot position carries musical weight**:
+derived statelessly from the measure and wraps by array length (the September 2026 rewrite that
+replaced the hour-keyed `TIME_PITCHES`; merged). Nothing seeds it, nothing selects it, nothing persists
+it. **Since one music clock (2026-11-12, [spec](../specs/ONE_MUSIC_CLOCK.md) §4.3)** the palette is a
+pure function of the measure, `paletteForMeasure(measure)`, with no module state, no `2m` repeat and
+no `resetHarmony()`: a power-on plays entry 0 because the transport starts at tick 0. One production
+consumer: `AudioEngine.processMelodyStep` calls it per step with the measure of that step's own
+callback time, so the chord changes on the bar; a palette setting would enter there, and keeps no
+history (an earlier measure plays the palettes as they are then set). Palette **slot position carries musical weight**:
 `melodyGenerator.ts`'s `NOTE_INDEX_WEIGHTS` (0.35 → 0.03) biases melodies toward low indices, and
 the existing palettes put the root at slots 0 and 5 and the fifth at slot 1 — every new progression
 must honour that slot convention or every melody changes character.
@@ -724,6 +727,29 @@ count that does not know the transport moved. It changes the timing path CLAUDE.
 interview and a spec come first, starting from those features. Backlog
 [83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) is folded in.
 
+**Fixed, 2026-11-12** ([spec](../specs/ONE_MUSIC_CLOCK.md), [plan](../tasks/ONE_MUSIC_CLOCK.md); intent
+[one-music-clock.md](../intent/one-music-clock.md)), on `docs/backlog-82-measurement-plan`, waiting for the merge. The
+measure, the step, the palette and the roll position are read from the transport's tick count at each callback's own
+time (`positionAt` in `beatClock.ts`); the palette is `paletteForMeasure(measure)`; the harmony repeat, its state and
+`resetHarmony` are gone; BeatClock's tick and the melody tick start on the grid (a start of `0`) and are registered,
+with the store's tempo set, before the transport starts. **Measured the same day** (the plan's Task 10 table): ten
+power-ons of the same world on a dev server, about 88 s each (to measure 25, step 1), 406 or 407 firings of each `16n`
+tick per run, 71 BPM:
+
+- Every BeatClock, melody and swell firing sat on a multiple of 48 ticks (the largest offset in any run about 1e-11
+  ticks, float error), consecutive firings 48 ticks apart throughout. The first firing of both `16n` ticks was tick 0 in
+  every run (37 to 83 ticks after the start before, by the old registration).
+- BeatClock turned the measure 25 times a run, each on the bar's own firing, never before or after it.
+- Every step 1 (26 a run, 260 in all) played entry `floor(measure / 2) % 12`: no late chord change. The entries at step
+  1 read `0 0 1 1 2 2 … 11 11 0 0` in every run.
+- The (measure, step, palette entry) sequence for measures 0 to 24, 400 steps, was identical in all ten runs. Before,
+  ten power-ons gave six different chord sequences.
+- Three repeats registered (BeatClock's, the melody's, the swells'); no harmony repeat, nothing unexpected. The console
+  showed one Tone warning per power-on, the same one seen before the change, and nothing else.
+
+By ear (the plan's Checkpoint: By ear): Crawford, on a Click Track robot sounding alone, heard the downbeat where the
+chords change: "I think we're good." Not measured: a pause and resume (see 83), and a tempo change mid-run.
+
 **To find out:**
 
 - ~~Reproduce on `main`.~~ **Answered:** reproduced, above.
@@ -736,10 +762,11 @@ interview and a spec come first, starting from those features. Backlog
 - What depends on the answer: backlog [7](#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (tagged
   progressions and a seeded mood chain, which need the cycle to be predictable), and backlog 79's early announcements,
   which today read the cycle's lag off the palette in force instead of assuming it. **Open:** each is re-read against
-  the spec once it is written.
+  the spec once it is written. Backlog 7's "What exists" now names `paletteForMeasure`; 79 is re-read against the
+  spec when work on it resumes.
 
 Related: backlog [83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), seen in the same log. Plan.md
-Stage 3.
+Stage 3. Closes on the merge (archived the usual way, the plan's Task 13).
 
 ### 83. Audio: Melody Steps May Sit One Sixteenth off the Measure
 
@@ -786,13 +813,28 @@ power-ons of one world on `main`, every melody tick's and BeatClock tick's own t
 
 - ~~Reproduce on `main` and see which of the two clocks is off the sixteenth it claims.~~ **Answered:** both run off
   the sixteenth by the same per-power-on offset; the melody's step numbering is what puts step 1 late (above).
-- Hear it: a robot's testing-only Click Track (`src/engine/clickTrack.ts`: quarter notes on steps 1, 5, 9 and 13,
-  never humanized) against a reference click on the transport's bar. **Moved:** a check after 82's fix, not an
-  investigation.
-- ~~Whether the first melody tick is lost at power-on.~~ **Answered:** in two of ten. Whether a pause and resume keeps
-  or moves the offset: **open**, not measured.
+- ~~Hear it.~~ **Heard, 2026-11-12, after 82's fix** (below).
+- ~~Whether the first melody tick is lost at power-on.~~ **Answered:** in two of ten before the fix; in none of ten
+  after it (below).
+- Whether a pause and resume keeps the steps on the bar: **open**, neither measured nor heard. Expected yes (suspending
+  the context freezes the transport's ticks and every position is read from them), but nothing has checked it.
 - ~~Whether 82's fix covers this.~~ **Answered at 82's Gate A, 2026-11-12: yes.** This item is folded into 82's fix,
   in which the melody's step is read from the music clock and not counted.
+
+**Fixed for a power-on, 2026-11-12; open for a pause and resume** ([plan](../tasks/ONE_MUSIC_CLOCK.md), Task 10 and
+Checkpoint: By ear). With 82's fix the melody tick starts on the grid, is registered before the transport starts, and
+reads its step from its own time (`positionAt(time).step`); `stepCounter` is gone. Measured in 82's ten power-ons
+after the fix:
+
+- The melody tick's first firing was tick 0, measure 0, step 1, in every run (before: 0.87 to 1.87 sixteenths after
+  the bar). Every firing sat on a multiple of 48 ticks, consecutive firings 48 apart: no firing lost.
+- At all 4,064 steps the position the engine was handed (sixteenth, measure, step) equalled the one worked out from
+  the step's own tick count, and BeatClock's measure equalled the step's: step 16 now carries its own measure.
+
+Heard: the Click Track, now a sixteenth on every step with each beat on its own note and step 1 an octave up (the
+plan's Task 10c, for this listen), on one robot sounding alone after a hard reload. Crawford first heard a sixteenth's
+difference, then put it down to the accented downbeat: "I think we're good." Nothing else was heard off. His call: 83
+**stays open** until a pause and resume is checked, since the measurement and the listen cover a power-on only.
 
 Plan.md Stage 3.
 

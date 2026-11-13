@@ -14,8 +14,10 @@ store's tempo). Checkpoint: Core's suite and build are clean. Phase 4's Task 10 
 firing on the grid from tick 0, every measure turned on its bar, every step 1 on the right chord, one sequence in all
 ten. Tasks 10a–10c put the Click Track back on the robot, company and All Probes screens, as sixteenths a note per
 beat with the downbeat an octave up. Checkpoint: By ear passed 2026-11-12; backlog 83 stays open for pause and resume
-(his call). Next: Phase 5 (Tasks 11–12, docs and the record). His reads of Task 1, Core and Task 10's table are still
-unticked.
+(his call). Phase 5 done 2026-11-12: the five docs say what shipped (Task 11), and backlog 82 carries Task 10's figures
+as fixed, 83 is fixed for a power-on and open for a pause and resume, and backlog 7 names `paletteForMeasure` (Task
+12). Next: Checkpoint: Complete, then Crawford's PR. His reads of Task 1, Core, Task 10's table and Tasks 11–12 are
+still unticked.
 
 ## Overview
 
@@ -704,7 +706,7 @@ Task 6 and do not depend on each other.
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 12: backlog — 82's figures, 83's outcome, backlog 7's note**
+- [x] **Task 12: backlog — 82's figures, 83's outcome, backlog 7's note**
 
   **Description:** Backlog 82's entry gets Task 10's figures and is marked fixed. Backlog 83's gets the listen's outcome
   (fixed, or what stays open). Backlog 7's line that `powerController.start` calls `resetHarmony()` is updated to the
@@ -713,10 +715,18 @@ Task 6 and do not depend on each other.
   **Proof:** Read — Crawford's review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Each entry states what was measured and heard, with the figures, and nothing it did not show.
+  - [x] Each entry states what was measured and heard, with the figures, and nothing it did not show.
 
   **Verification:**
   - [ ] Crawford's read.
+
+  **Done 2026-11-12.** Backlog 82 gains a "Fixed" paragraph: what was built, Task 10's figures (the grid, tick 0, the
+  25 turns on the bar, all 260 step 1s on the right entry, one sequence in ten runs against six before, the console)
+  and the listen, with what was not measured (a pause and resume, a tempo change mid-run); it closes on the merge.
+  Backlog 83 is "fixed for a power-on, open for a pause and resume": the first firing at tick 0, the 4,064 steps whose
+  position matched their tick count, the listen and his call; the Click Track bullet now describes Task 10c's pattern,
+  and the pause question stays an open bullet. Backlog 7's "What exists" names `paletteForMeasure` in place of
+  `resetHarmony()` and `getAvailableNotes()`. This file's status line and the spec's.
 
   **Dependencies:** Task 10, Checkpoint: By ear.
 

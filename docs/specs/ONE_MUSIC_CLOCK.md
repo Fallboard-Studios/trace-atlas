@@ -15,7 +15,10 @@ Backlog items [82](../todo/backlog.md#82-audio-the-chord-cycle-does-not-always-c
 [83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure). Part one only; part two is backlog
 [86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure). **Approved by Crawford 2026-11-12**, with §9's
 three questions resolved as recommended: the ticks register before the transport starts, `getPolyphonyStats().step`
-goes, and the named removals go. Plan: [docs/tasks/ONE_MUSIC_CLOCK.md](../tasks/ONE_MUSIC_CLOCK.md).
+goes, and the named removals go. Plan: [docs/tasks/ONE_MUSIC_CLOCK.md](../tasks/ONE_MUSIC_CLOCK.md). **Built
+2026-11-12** (plan Tasks 1–12): §6.1 green, §6.2 met in ten of ten runs (figures in backlog 82's entry), §6.3 passed by
+ear with backlog 83 left open for a pause and resume (his call), §7's docs updated. Waiting for Checkpoint: Complete
+and Crawford's PR.
 
 ---
 
