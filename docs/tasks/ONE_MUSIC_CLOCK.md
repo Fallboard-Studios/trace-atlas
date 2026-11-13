@@ -651,7 +651,7 @@ Task 6 and do not depend on each other.
 
 ### Phase 5: The record
 
-- [ ] **Task 11: docs — what shipped (spec §7)**
+- [x] **Task 11: docs — what shipped (spec §7)**
 
   **Description:** [HARMONY_SYSTEM.md](../HARMONY_SYSTEM.md) (the palette is `paletteForMeasure`; the `2m` cycle,
   `resetHarmony` and `getAvailableNotes` sections go), [BEAT_CLOCK.md](../BEAT_CLOCK.md) (`MusicPosition`,
@@ -664,12 +664,39 @@ Task 6 and do not depend on each other.
   **Proof:** Read — Crawford's review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Each named function, type and order matches the shipped source.
-  - [ ] No doc still describes the `2m` cycle, `stepCounter` or `transport.position` as current.
+  - [x] Each named function, type and order matches the shipped source.
+  - [x] No doc still describes the `2m` cycle, `stepCounter` or `transport.position` as current.
 
   **Verification:**
-  - [ ] Manual review against the source.
-  - [ ] `npm run lint` clean.
+  - [ ] Manual review against the source (Crawford's read).
+  - [x] `npm run lint` clean (0 errors; the 4 old fast-refresh warnings).
+
+  **Done 2026-11-12.** Each name checked against the source at ae23cc59: `MusicPosition`, `positionFromTicks`,
+  `positionAt` and the tick's start of `0` in `beatClock.ts`; `paletteForMeasure` the one export of
+  `harmonySystem.ts` besides `EighthNotes`; `processMelodyStep(at: MusicPosition, time)` and `startMelodyPlayback`;
+  `getPolyphonyStats(): { voices, maxVoices }`; `AudioEngine.start`'s order (prime, `initBeatClock`,
+  `startMelodyPlayback`, `transport.bpm.value`, `transport.start()`); `killAll` with no step counter;
+  `powerController.start` with no `resetHarmony`; the swell tick's `positionAt(time)`. What changed:
+  - *HARMONY_SYSTEM.md*, mostly rewritten: the API is `paletteForMeasure`; the `availableNotes`, `2m` cycle,
+    `resetHarmony`, `setAvailableNotes`/`getAvailableNotes` and stop sections went; the playback example is the
+    engine's own tick and step; Index Safety says what the engine does (an index with no name is warned and skipped),
+    not the clamp it suggested; Testing names `paletteForMeasure` and `atStep`.
+  - *BEAT_CLOCK.md*: `TransportLike`'s members; a new "The music position" section (the type, both functions, the
+    rounding, why `transport.position` is not read); `initBeatClock`'s grid start and own-time read; the getters are
+    the last tick's position, and a callback reads `positionAt(time)` for its own; the swell example is the shipped
+    one, the harmony example gone; a new Forbidden line; the playback-tick note (it said `8n` and
+    `getAvailableNotes()`).
+  - *AUDIO_SYSTEM.md*: the architecture sketch's start order; `scheduleNote`'s `position`; `processMelodyStep`'s and
+    `getPolyphonyStats`' signatures; `killAll` without the step counter; what a pause freezes; `powerController`'s
+    start without the harmony reset; Musical Time Authority (no polling); a new power-on order paragraph and a new
+    "Playback loop" section (BEAT_CLOCK.md and POLYPHONY_GUIDE.md linked `#playback-loop`, which did not exist); the
+    harmony summary; "Two consumers stay on now" (the harmony tick went); the debug snippet reads `positionAt`.
+  - *POLYPHONY_GUIDE.md*: `getPolyphonyStats`' shape, twice; the playback tick reads its step from the transport.
+  - *MELODY_SYSTEM.md*: the palette of the note's own measure; a paragraph on step 1 as the measure's first
+    sixteenth, read from the clock (with backlog 83's measured 0.87–1.87 sixteenths before).
+
+  Noticed, not touched: `getCurrentBeat` and `getCurrentMeasurePrecise` have no production caller since Task 8 moved
+  the swell tick onto `positionAt` (tests only). Cut only on Crawford's word.
 
   **Dependencies:** Tasks 2–10.
 
