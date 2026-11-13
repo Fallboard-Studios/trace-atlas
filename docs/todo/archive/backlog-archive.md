@@ -1694,8 +1694,8 @@ its own branch from `main` after 60 merges. Plan.md Stage 3.
 `a7d53c13`). The measure, the melody step and the chord palette are read from the transport at each callback's own
 time; the harmony repeat and every running count are gone. Ten power-ons played the same chord sequence, every chord
 change on the bar, and Crawford heard the downbeat where the chords change. Backlog
-[83](../backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), folded into the same fix, stays open
-for a pause and resume. The original request follows.
+[83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), folded into the same fix, closed the same day after
+his pause-and-resume listen. The original request follows.
 
 Found on 2026-11-12 during backlog [79](../backlog.md#79-robots-move-in-time-with-their-own-melody)'s spike, and asked for by
 Crawford the same day: "definitely sounds like it's something worth investigating to make sure we're not running
@@ -1754,7 +1754,7 @@ note is scheduled, the measure at each tick's own time with the tick started on 
 tracking measures, moving the player to a measure and changing chord palettes are coming soon, and each breaks on a
 count that does not know the transport moved. It changes the timing path CLAUDE.md asks about before changing, so an
 interview and a spec come first, starting from those features. Backlog
-[83](../backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) is folded in.
+[83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) is folded in.
 
 **Fixed, 2026-11-12** ([spec](../../specs/ONE_MUSIC_CLOCK.md), [plan](../../tasks/ONE_MUSIC_CLOCK.md); intent
 [one-music-clock.md](../../intent/one-music-clock.md)), merged via PR #635. The
@@ -1794,4 +1794,77 @@ chords change: "I think we're good." Not measured: a pause and resume (see 83), 
   the spec once it is written. Backlog 7's "What exists" now names `paletteForMeasure`; 79 is re-read against the
   spec when work on it resumes.
 
-Related: backlog [83](../backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), seen in the same log.
+Related: backlog [83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), seen in the same log.
+
+## 83. Audio: Melody Steps May Sit One Sixteenth off the Measure
+
+**Closed** 2026-11-12 (with backlog [82](#82-audio-the-chord-cycle-does-not-always-change-on-time), merged PR #635; one
+music clock). The melody's step is read from the transport at each tick's own time, and the tick starts on the grid at
+tick 0, so step 1 falls on the bar: measured in ten power-ons and heard on the Click Track. The last open question, a
+pause and resume, was checked by Crawford's ear the same day after the merge ("it sounded fine"); it was not measured.
+The original request follows.
+
+Found on 2026-11-12 in the same log as backlog [82](#82-audio-the-chord-cycle-does-not-always-change-on-time), and
+asked for by Crawford the same day. He cannot tell by ear where the audio's downbeat is, so listening has neither
+confirmed nor ruled it out. An investigation: measure first.
+
+**What is intended.** A melody is sixteen steps, one measure ([MELODY_SYSTEM.md](../../MELODY_SYSTEM.md)). The melody's
+`16n` tick plays step `(stepCounter % 16) + 1` (`startMelodyPlayback`, `src/engine/AudioEngine.ts`), and `stepCounter`
+starts at 0, so step 1 is meant to fall on a measure's first sixteenth.
+
+**What was seen.** In the log, taken at note triggers, a measure's steps 1 to 15 carried BeatClock's measure *m* and
+step 16 carried *m + 1*: by the time step 16 is triggered, BeatClock has already moved to the next measure. Read at
+face value, step 16 sounds on a measure's first sixteenth and step 1 on its second. Seen in each of the three runs
+whose log held a step 16, on the spike branch only.
+
+**Two readings, and the log cannot tell them apart:**
+
+- The melody loop runs one sixteenth late: its first tick, at transport time 0, never fires, so `stepCounter` 0 lands
+  on the second sixteenth.
+- BeatClock turns the measure over one sixteenth early: it reads `transport.position` inside a callback that runs a
+  lookahead ahead of the time it is scheduled for.
+
+**Why it matters.** If the melody is late, a chord change lands on step 16 and not on step 1, and the motif accent on
+a repeat window's first event (MELODY_SYSTEM.md's "downbeat") is a sixteenth after the bar. If BeatClock is early,
+everything that runs on the measure (the docking tick, the swells, the harmony cycle of backlog 82) acts a sixteenth
+before the bar. Either way two clocks that should agree do not.
+
+**Measured in backlog 82's runs, 2026-11-12** ([plan](../../tasks/CHORD_CYCLE_TIMING.md), Findings, "Backlog 83"). Ten
+power-ons of one world on `main`, every melody tick's and BeatClock tick's own tick count logged:
+
+- **The melody loop is late.** Step 1 is the melody tick's first firing, and that tick passes no start time, so it
+  starts where the transport has reached when it is registered. Step 1 sat 0.87 to 1.87 sixteenths after the bar (185
+  to 396 ms at 71 BPM), the same in every measure of a power-on and different on the next.
+- **BeatClock is early only now and then, by a fraction of a sixteenth.** It shares the melody's offset and turns the
+  measure 1.3 to 41.9 ticks after the bar (a sixteenth is 48), or 6 to 13 ticks before it when it reads
+  `transport.position` ahead (backlog 82).
+- **The sighting reproduces.** In seven runs step 16 fell in the next bar and carried the next measure in every cycle.
+  In three it sat 6 ticks before the bar and carried the next measure only when BeatClock read ahead (10 or 11 of 24).
+- **A first firing was lost** by both ticks in two runs and by BeatClock alone in one, where BeatClock then runs about
+  a tick before the melody tick in each sixteenth.
+
+**To find out:**
+
+- ~~Reproduce on `main` and see which of the two clocks is off the sixteenth it claims.~~ **Answered:** both run off
+  the sixteenth by the same per-power-on offset; the melody's step numbering is what puts step 1 late (above).
+- ~~Hear it.~~ **Heard, 2026-11-12, after 82's fix** (below).
+- ~~Whether the first melody tick is lost at power-on.~~ **Answered:** in two of ten before the fix; in none of ten
+  after it (below).
+- ~~Whether a pause and resume keeps the steps on the bar.~~ **Heard, 2026-11-12, after the merge:** Crawford powered
+  off and on again and "it sounded fine". Not measured.
+- ~~Whether 82's fix covers this.~~ **Answered at 82's Gate A, 2026-11-12: yes.** This item is folded into 82's fix,
+  in which the melody's step is read from the music clock and not counted.
+
+**Fixed for a power-on, 2026-11-12** ([plan](../../tasks/ONE_MUSIC_CLOCK.md), Task 10 and Checkpoint: By ear). With
+82's fix the melody tick starts on the grid, is registered before the transport starts, and reads its step from its
+own time (`positionAt(time).step`); `stepCounter` is gone. Measured in 82's ten power-ons after the fix:
+
+- The melody tick's first firing was tick 0, measure 0, step 1, in every run (before: 0.87 to 1.87 sixteenths after
+  the bar). Every firing sat on a multiple of 48 ticks, consecutive firings 48 apart: no firing lost.
+- At all 4,064 steps the position the engine was handed (sixteenth, measure, step) equalled the one worked out from
+  the step's own tick count, and BeatClock's measure equalled the step's: step 16 now carries its own measure.
+
+Heard: the Click Track, now a sixteenth on every step with each beat on its own note and step 1 an octave up (the
+plan's Task 10c, for this listen), on one robot sounding alone after a hard reload. Crawford first heard a sixteenth's
+difference, then put it down to the accented downbeat: "I think we're good." Nothing else was heard off. His call then:
+83 stays open until a pause and resume is checked; his listen across one after the merge closed it.

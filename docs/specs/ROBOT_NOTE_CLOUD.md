@@ -246,7 +246,7 @@ nothing.
 
 Crawford approved this engine interface on 2026-11-12, to be built once backlog
 [82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
-[83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) are closed (the two entries
+[83](../todo/archive/backlog-archive.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) are closed (the two entries
 are on `main` since PR #632; this branch has them once rebased). **Before this work is planned, this section is
 re-read against what 82 and 83 shipped,** and corrected first.
 

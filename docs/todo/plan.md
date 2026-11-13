@@ -21,9 +21,7 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Backlog [83](backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure) **Melody steps against the
-  measure** — fixed for a power-on with 82 (PR #635); one check left: whether a pause and resume keeps the steps on
-  the bar.
+- Empty: its two items, backlog 82 and 83, merged 2026-11-12 (PR #635, one music clock). Stage 4 is next.
 
 ## Stage 4 — Visual refinement
 

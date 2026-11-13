@@ -3,7 +3,7 @@
 Source spec: [docs/specs/ONE_MUSIC_CLOCK.md](../specs/ONE_MUSIC_CLOCK.md) (approved 2026-11-12). Source intent:
 [docs/intent/one-music-clock.md](../intent/one-music-clock.md). Backlog
 [82](../todo/archive/backlog-archive.md#82-audio-the-chord-cycle-does-not-always-change-on-time) and
-[83](../todo/backlog.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure); measured in
+[83](../todo/archive/backlog-archive.md#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure); measured in
 [CHORD_CYCLE_TIMING.md](CHORD_CYCLE_TIMING.md). Part two is backlog
 [86](../todo/backlog.md#86-world-move-the-whole-world-to-a-measure).
 
@@ -16,7 +16,8 @@ ten. Tasks 10a–10c put the Click Track back on the robot, company and All Prob
 beat with the downbeat an octave up. Checkpoint: By ear passed 2026-11-12; backlog 83 stays open for pause and resume
 (his call). Phase 5 done 2026-11-12: the five docs say what shipped (Task 11), and backlog 82 carries Task 10's figures
 as fixed, 83 is fixed for a power-on and open for a pause and resume, and backlog 7 names `paletteForMeasure` (Task
-12). Crawford read and accepted every checkpoint 2026-11-12. Next: Checkpoint: Complete, then Crawford's PR.
+12). Crawford read and accepted every checkpoint 2026-11-12. Merged PR #635 the same day; Task 13 archived backlog
+82, and backlog 83 after his listen across a pause and resume ("it sounded fine"). Done.
 
 ## Overview
 
@@ -763,8 +764,10 @@ Task 6 and do not depend on each other.
   **Done 2026-11-12, after PR #635 merged.** Backlog 82 moved whole to the archive under a "Closed" line, its links
   rebased (`../X` → `../../X`, live backlog anchors → `../backlog.md#…`), with no stub left. Every inbound link
   repointed: three in backlog.md (in 83, 86 and 87) and one each in plan.md (deleted with the line), the intent, the
-  spec, this plan, CHORD_CYCLE_TIMING.md and ROBOT_NOTE_CLOUD.md. Backlog 83 stays live (open for a pause and resume,
-  Crawford's call), so its links are unchanged; its plan.md line now names only that check.
+  spec, this plan, CHORD_CYCLE_TIMING.md and ROBOT_NOTE_CLOUD.md. Backlog 83 first stayed live for a pause and resume; the
+  same day Crawford powered off and on with the fix in and "it sounded fine" (heard, not measured), so 83 followed 82
+  into the archive the same way, its inbound links repointed (the intent, the spec, this plan, CHORD_CYCLE_TIMING.md,
+  ROBOT_NOTE_CLOUD.md, AUDIO_SYSTEM.md's power-on paragraph) and plan.md's Stage 3 left empty.
 
   **Dependencies:** The PR merged.
 
@@ -787,6 +790,5 @@ Task 6 and do not depend on each other.
 ## Open Questions
 
 1. The spec's three questions: **resolved** 2026-11-12, all as recommended (Architecture Decisions).
-2. Whether a pause and resume keeps every position in step: **expected yes** (the context's suspend freezes the
-   transport's ticks), not measured by Task 10. Backlog 83 lists it as open; Task 12 carries it forward if the listen
-   does not settle it.
+2. Whether a pause and resume keeps every position in step: **heard yes**, 2026-11-12 after the merge (Crawford,
+   power off and on: "it sounded fine"). Not measured; Task 10 covered a power-on only. Backlog 83 closed on it.
