@@ -307,8 +307,6 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       layersRef.current = null;
       rebuildRef.current = null;
       clearNotes();
-      for (const layer of layers) layer.style.display = '';
-      for (const belt of beltEls) belt.style.willChange = '';
     };
   }, [root, robotId, context, enabled, reducedMotion]);
 
