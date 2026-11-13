@@ -114,7 +114,7 @@ function advance(seconds: number, id = 'r1') {
 }
 
 /** Counts writes to one style property of one element (an own accessor over the prototype's). */
-function countWrites(el: HTMLElement, prop: 'transform' | 'opacity') {
+function countWrites(el: HTMLElement, prop: 'transform' | 'opacity' | 'left') {
   let proto: object | null = Object.getPrototypeOf(el.style);
   let desc: PropertyDescriptor | undefined;
   while (proto && !(desc = Object.getOwnPropertyDescriptor(proto, prop))) proto = Object.getPrototypeOf(proto);
@@ -188,6 +188,18 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
     emitRobotNote('r1', noteEvent('C4'));
     const [bar] = bars(container, 'front');
     expect(parseFloat(bar.style.height)).toBeCloseTo(4 / 0.1, 3);
+  });
+
+  // The avatar's scale is NaN until its box is first measured (its --note-fit-scale is unset).
+  it('a scale not yet known sizes the wrappers once, at the mount, and not again on each note', () => {
+    const { container } = render(<Harness px={Number.NaN} />);
+    const wrapper = container.querySelector('.note-layer--front') as HTMLElement;
+    const writes = countWrites(wrapper, 'left');
+    emitRobotNote('r1', noteEvent('C4'));
+    emitRobotNote('r1', noteEvent('D4'));
+    expect(writes.writes).toBe(0);
+    const roll = rollBox(GEM, 1);
+    expect(parseFloat(bars(container, 'front')[0].style.height)).toBeCloseTo(noteThickness(roll.h, Number.NaN), 3);
   });
 
   it('places the bar lead seconds of travel right of now, on its row', () => {

@@ -140,12 +140,14 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     const mask = noteMask(NOTE_KNOWN_AHEAD_SECONDS);
 
     // The thickness and the rows follow the screen scale; re-derived only when it has changed (a number compare).
-    let px = Number.NaN;
+    // Null until the first fit. Object.is, so a scale not yet known (the avatar's NaN before its box is measured)
+    // counts as unchanged and does not re-fit on every note.
+    let px: number | null = null;
     let thickness = 0;
     let rows: NoteRowGeometry = noteRowGeometry(roll, 0);
     const fit = () => {
       const next = pxPerUnitRef.current();
-      if (next === px) return;
+      if (Object.is(next, px)) return;
       px = next;
       thickness = noteThickness(roll.h, px);
       rows = noteRowGeometry(roll, thickness);
@@ -255,7 +257,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       roll = rollBox(sizeRef.current.gem, sizeRef.current.scale);
       speed = roll.w / NOTE_CROSSING_SECONDS;
       nowX = roll.w * (1 - NOTE_NOW);
-      px = Number.NaN;
+      px = null;
       fit();
       tween = makeBelt();
       idle();
