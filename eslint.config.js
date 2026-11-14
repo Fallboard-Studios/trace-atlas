@@ -72,7 +72,9 @@ export default [
   // Content layer guard (docs/specs/CONTENT_LAYER.md §1.7): user-facing text lives in src/content,
   // never as a literal in a component or data config. Tests and src/content itself are exempt.
   // A legitimate punctuation-only text node (e.g. an em dash between two content reads) is written
-  // as `{' — '}`, never exempted from the rule.
+  // as `{' — '}`, never exempted from the rule. The attribute rule reads a literal in braces too
+  // (`aria-label={"…"}`, or a template literal), but only as the braces' own child: a content key
+  // handed to CONTENT[…] or fill(…) inside them is a literal as well, and is the right thing to write.
   {
     files: ['src/components/**/*.{ts,tsx}', 'src/data/**/*.{ts,tsx}'],
     ignores: ['**/*.test.*'],
@@ -88,7 +90,9 @@ export default [
           message: 'User-facing text belongs in src/content — read CONTENT[key] or fill(key, vars) instead (docs/CONTENT_LAYER.md).',
         },
         {
-          selector: "JSXAttribute[name.name=/^(aria-label|title|placeholder|alt)$/] > Literal",
+          selector:
+            "JSXAttribute[name.name=/^(aria-label|title|placeholder|alt)$/] > Literal, " +
+            "JSXAttribute[name.name=/^(aria-label|title|placeholder|alt)$/] > JSXExpressionContainer > :matches(Literal, TemplateLiteral)",
           message: 'User-facing text belongs in src/content — read CONTENT[key].human instead (docs/CONTENT_LAYER.md).',
         },
       ],

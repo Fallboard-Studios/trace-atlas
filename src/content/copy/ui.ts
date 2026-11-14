@@ -19,6 +19,8 @@ export const ui = {
   'ui.intro.less': { human: 'Less ▴', template: 'Less about {name}' },
   'ui.stepper.increment': { human: 'Increment', template: 'Increment {name}' },
   'ui.stepper.decrement': { human: 'Decrement', template: 'Decrement {name}' },
+  /** The sleeve's accessible name: the decorative frame around the screen, whose one control is the power rocker. */
+  'ui.sleeve': { human: 'Device controls' },
   'ui.power.controls': { human: 'Device power controls' },
   'ui.power.on': { human: 'Power on' },
   'ui.power.off': { human: 'Power off' },
