@@ -2583,7 +2583,26 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
 
     AudioEngine.cancelStationFade('home');
 
-    expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), STATION_FADE_RECOVER_SECONDS]]);
+    // Timed at now, explicitly (the mocked Tone.now() is 0): an untimed ramp inside a Transport callback is what Tone
+    // warns about, and landOnActive's tick stays on "now" by decision (robotSystems.ts startRobotLifecycle).
+    expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), STATION_FADE_RECOVER_SECONDS, 0]]);
+  });
+
+  it('cancelStationFade given a time (a Transport tick\'s) ramps back from that time, over the whole recovery', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    home.gain.rampTo = vi.fn();
+
+    tick.seconds = 0.137; // a tick length is known: the ramp still lasts STATION_FADE_RECOVER_SECONDS, not one tick
+    try {
+      AudioEngine.cancelStationFade('home', 3.5);
+    } finally {
+      tick.seconds = undefined;
+    }
+
+    expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.55), STATION_FADE_RECOVER_SECONDS, 3.5]]);
   });
 
   it('the cancel\'s target keeps the Highlight dip on a robot outside the live set', async () => {
@@ -2598,7 +2617,7 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
 
     expect(home.gain.rampTo.mock.calls).toHaveLength(1);
     expect(home.gain.rampTo.mock.calls[0][0]).toBeCloseTo(robotBusGain(0.55) * HIGHLIGHT_DIP_GAIN, 12);
-    expect(home.gain.rampTo.mock.calls[0].slice(1)).toEqual([STATION_FADE_RECOVER_SECONDS]);
+    expect(home.gain.rampTo.mock.calls[0].slice(1)).toEqual([STATION_FADE_RECOVER_SECONDS, 0]);
   });
 
   it('after a cancel the fade is gone: a Volume write and a rebuilt voice are at their Volume again', async () => {
@@ -2727,7 +2746,7 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
 
       AudioEngine.cancelStationFade('home');
 
-      expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.3), STATION_FADE_RECOVER_SECONDS]]);
+      expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.3), STATION_FADE_RECOVER_SECONDS, 0]]);
     });
 
     it('a robot with no fade is written as before, beside a fading one', async () => {

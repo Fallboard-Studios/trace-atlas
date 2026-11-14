@@ -1698,15 +1698,18 @@ export const AudioEngine = {
 
   /**
    * The station fade is off (§1.5): the record goes and the bus ramps back to its target over
-   * `STATION_FADE_RECOVER_SECONDS`. A no-op with no fade recorded, so every `Active` landing may call it.
+   * `STATION_FADE_RECOVER_SECONDS`, from `time` (a Transport tick's, the fade system's Solo cancel) or else from
+   * `Tone.now()`, named rather than left out: both callers run inside Transport callbacks, where an untimed ramp is
+   * what Tone warns about, and `landOnActive`'s measure tick stays on "now" by decision (robotSystems.ts). A no-op with
+   * no fade recorded, so every `Active` landing may call it.
    */
-  cancelStationFade(robotId: string): void {
+  cancelStationFade(robotId: string, time?: number): void {
     if (!stationFades.delete(robotId)) return;
     const entry = compositeVoices.get(robotId);
     if (!entry) return;
     try {
       const target = busGainTarget(robotId, entry.masterVolume);
-      rampOrSet(entry.busGain.gain as unknown as RampableParam, target, STATION_FADE_RECOVER_SECONDS);
+      rampOver(entry.busGain.gain as unknown as RampableParam, target, STATION_FADE_RECOVER_SECONDS, time ?? Tone.now());
     } catch (err) {
       devWarn('[AudioEngine] cancelStationFade failed', err);
     }

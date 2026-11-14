@@ -205,9 +205,9 @@ describe('stationFadeSystem — the grid starts each entry on the half-measure r
       tick(2);
       expect(cancel).not.toHaveBeenCalled();
       update('r1', { audioMode: 'solo' });
-      tick(3);
+      const at = tick(3);
       expect(cancel).toHaveBeenCalledTimes(1);
-      expect(cancel).toHaveBeenCalledWith('r1');
+      expect(cancel).toHaveBeenCalledWith('r1', at); // timed at the tick: no untimed ramp inside a Transport callback
       tick(4);
       tick(5);
       expect(cancel).toHaveBeenCalledTimes(1);

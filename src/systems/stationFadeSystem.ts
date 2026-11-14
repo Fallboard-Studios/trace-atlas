@@ -49,7 +49,7 @@ function onTick(localeId: string, time: number): void {
     const soloed = robot.audioMode === 'solo';
     const was = started.get(robot.id);
     if (was === 'fade' && soloed) {
-      AudioEngine.cancelStationFade(robot.id); // a Solo mid-fade: heard at its regular volume (spec §1.5)
+      AudioEngine.cancelStationFade(robot.id, time); // a Solo mid-fade: heard at its regular volume (spec §1.5)
       started.set(robot.id, 'arc');
     }
     if (was !== undefined || left < STATION_FADE_MIN_STEPS) continue; // started, or the hold
