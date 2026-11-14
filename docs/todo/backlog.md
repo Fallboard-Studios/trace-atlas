@@ -640,6 +640,11 @@ his eye, docs, archive). Building on `feature/monitor-mode-trustworthy`. Plan.md
 
 ### 84. Audio: Keep a Robot Playing until It Is in the Station
 
+**Status (2026-11-14): intent confirmed** ([intent](../intent/play-until-in-the-station.md)): at the port the robot
+holds, still playing, until the next bar line, then fades to silence over one entire measure while its entry arc
+stretches to the same measure; the docking machine and the way out are untouched; the overlap of robots at one station
+is judged by eye at a gate, no rule up front. Spec next.
+
 Raised by Crawford on 2026-11-12, during backlog [79](archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody)'s spike. 79's
 notes show what a robot is playing, so they stop when it goes quiet, and a robot heading home goes quiet long before
 it disappears. He wants it to keep playing until it is in its station.
