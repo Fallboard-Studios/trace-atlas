@@ -372,8 +372,9 @@ export const NOTE_HEIGHT_SHARE = 1 / 14;
 export const NOTE_MIN_PX = 4;
 /** A bar is never longer than this share of the roll's width (§1.3). */
 export const NOTE_MAX_LENGTH_SHARE = 0.8;
-/** The rows (§1.3): straight, but for a wave of NOTE_WAVE of the roll's height, until NOTE_EDGE_START of the way
- *  from the centre (0) to an edge (1). Past it the rows spread apart by up to NOTE_FAN of their middle spread at the
+/** The rows (§1.3): straight, but for a wave of NOTE_WAVE of the roll's height, across the right half (where a note
+ *  enters: Gate 4, the lead runs in flat) and on the left until NOTE_EDGE_START of the way from the centre (0) to the
+ *  left edge (1), where a note leaves. Past it the rows spread apart by up to NOTE_FAN of their middle spread at the
  *  edge, the wave grows to NOTE_WAVE_EDGE_GAIN times, and a bar tilts to its row's slope. NOTE_WAVE_COUNT waves
  *  cross the roll. */
 export const NOTE_WAVE = 0.015;
@@ -382,7 +383,7 @@ export const NOTE_FAN = 0.6;
 export const NOTE_WAVE_EDGE_GAIN = 5;
 export const NOTE_WAVE_COUNT = 1.5;
 /** "Now" (§1.4): where a note's leading end is as it leaves the speakers, this share of the roll's width in from
- *  the right edge, where the right-hand fan ends. */
+ *  the right edge. */
 export const NOTE_NOW = 0.225;
 /** The layers' mask (§1.4, §1.7): clear at the left edge, the dim level from NOTE_DIM_FROM of the width, full
  *  strength from NOTE_BRIGHT_BAND of the width left of "now" up to "now". */

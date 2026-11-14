@@ -57,14 +57,15 @@ const DEGREES = 180 / Math.PI;
 /** A gradient stop's place, in percent to two decimals. */
 const pct = (share: number) => `${Number((share * 100).toFixed(2))}%`;
 
-/** How far into the fan `across` is: 0 through the straight middle, rising to 1 at either edge (and held there
- *  beyond it), with its rate of change along `across`. */
+/** How far into the fan `across` is: 0 through the straight middle and the whole right half (where a note enters:
+ *  the lead runs in flat), rising to 1 at the left edge, where a note leaves (and held there beyond it), with its
+ *  rate of change along `across`. */
 function fanReach(across: number): { past: number; rate: number } {
-  const fromCentre = Math.abs(2 * across - 1);
+  const fromCentre = 1 - 2 * across; // toward the left edge only: the right half is negative, so it never fans
   const raw = (fromCentre - NOTE_EDGE_START) / (1 - NOTE_EDGE_START);
   if (raw <= 0) return { past: 0, rate: 0 };
   if (raw > 1) return { past: 1, rate: 0 };
-  return { past: raw, rate: (Math.sign(2 * across - 1) * 2) / (1 - NOTE_EDGE_START) };
+  return { past: raw, rate: -2 / (1 - NOTE_EDGE_START) };
 }
 
 // ========================================
@@ -90,8 +91,10 @@ export function rollBox(gem: RobotGem, scale: number): RollBox {
 }
 
 /**
- * The rows across a roll (§1.3). A row holds its pitch height, bar a wave of NOTE_WAVE of the roll's height, until
- * NOTE_EDGE_START of the way from the centre to an edge. Past it the fan opens as the square of how far in it is
+ * The rows across a roll (§1.3). A row holds its pitch height, bar a wave of NOTE_WAVE of the roll's height, across
+ * the whole right half, where a note enters (Crawford, Gate 4: the lead runs in flat), and on the left until
+ * NOTE_EDGE_START of the way from the centre to the left edge, where a note leaves. Past it the fan opens as the
+ * square of how far in it is
  * (so it grows from nothing, with no kink): the rows spread apart by up to NOTE_FAN of their middle spread, the wave
  * grows to NOTE_WAVE_EDGE_GAIN times, and a bar tilts toward its row's slope, by the same weight. NOTE_WAVE_COUNT
  * waves cross the roll, each row's shifted by its pitch, so the top and bottom rows wave together. Beyond the roll

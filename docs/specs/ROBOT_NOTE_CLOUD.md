@@ -912,3 +912,8 @@ the picture" describes the shipped design.
   `NOTE_KNOWN_AHEAD_SECONDS + NOTE_PREVIEW_SECONDS` of travel right of "now" (90.75 % of the width), not at the
   edge; the outer half of the right-hand fan carries nothing. The forecast and cost above were run at the full
   run-in.
+- **Gate 4, the entry runs flat** (his second note the same day: "the lead shouldn't balloon out ... on exit they
+  should keep the effect"). §1.3's fan is now one-sided: the right half, where a note enters, holds every row at its
+  pitch height with the middle's wave, no fan, no wave growth and no tilt; the left, where a note leaves, fans as
+  before. `noteRowGeometry`'s `fanReach` measures toward the left edge only. The layer's `pad` still allows for
+  the left-hand fan.

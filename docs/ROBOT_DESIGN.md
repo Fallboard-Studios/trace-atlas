@@ -217,8 +217,9 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   `NOTE_CROSSING_SECONDS` (5), so a bar's length is its sounding length at that speed (`noteLength`:
   at least its thickness, at most `NOTE_MAX_LENGTH_SHARE` (0.8) of the width). A bar is
   `NOTE_HEIGHT_SHARE` (1/14) of the roll's height, never under `NOTE_MIN_PX` (4) on screen
-  (`noteThickness`). The rows run straight through the middle but for a faint wave, and fan apart past
-  `NOTE_EDGE_START` (0.55) of the way to each edge, where a bar tilts to its row's slope
+  (`noteThickness`). The rows run straight but for a faint wave across the right half, where a note
+  enters, and through the middle; on the left, where a note leaves, they fan apart past
+  `NOTE_EDGE_START` (0.55) of the way to the edge, where a bar tilts to its row's slope
   (`noteRowGeometry`).
 - **Its colour** (`noteColor`). The robot's company colour, or for a freelancer the complement of its
   identity hue at `NOTE_COMPLEMENT_S` / `NOTE_COMPLEMENT_L` (100 / 70). A note turns `NOTE_HOT_COLOR`

@@ -83,7 +83,7 @@ describe('noteRows: a bar’s thickness (§1.3)', () => {
   });
 });
 
-describe('noteRows: rows that run straight and fan at the edges (§1.3)', () => {
+describe('noteRows: rows that run in flat and fan on the way out (§1.3, Gate 4)', () => {
   // A roll 200 wide and 140 high with 10-unit bars: the rows spread over 130 in the middle.
   const BOX = { x: 0, y: 0, w: 200, h: 140 };
   const THICK = 10;
@@ -112,21 +112,28 @@ describe('noteRows: rows that run straight and fan at the edges (§1.3)', () => 
     for (const across of [0.23, 0.35, 0.5, 0.65, 0.77]) expect(spread(across)).toBeCloseTo(TRAVEL, 10);
   });
 
-  it('at either edge the top and bottom rows are 1.6 times as far apart as at the centre', () => {
+  it('at the left edge, where a note leaves, the top and bottom rows are 1.6 times as far apart as at the centre', () => {
     expect(spread(0)).toBeCloseTo(1.6 * TRAVEL, 10);
-    expect(spread(1)).toBeCloseTo(1.6 * TRAVEL, 10);
   });
 
-  it('a place beyond the roll fans no further than its edge', () => {
+  it('a place beyond the left edge fans no further than the edge', () => {
     expect(spread(-0.3)).toBeCloseTo(1.6 * TRAVEL, 10);
-    expect(spread(1.3)).toBeCloseTo(1.6 * TRAVEL, 10);
   });
 
-  it('the rows are the same on the left as on the right', () => {
-    for (const [left, right] of [[0.2, 0.8], [0.1, 0.9], [0.05, 0.95]]) expect(spread(left)).toBeCloseTo(spread(right), 10);
+  it('the right half, where a note enters, does not fan: the rows hold their spread to the edge and beyond', () => {
+    for (let i = 0; i <= 80; i++) expect(spread(0.5 + i / 100)).toBeCloseTo(TRAVEL, 10);
   });
 
-  it('the wave grows to five times its middle amplitude at the edges, 1.5 waves across', () => {
+  it('on the right half every row stays within the middle’s wave of its pitch height', () => {
+    for (const row of ROWS) {
+      for (let i = 0; i <= 60; i++) {
+        const across = 0.5 + i / 100;
+        expect(Math.abs(rows.y(row, across) - pitchY(row))).toBeLessThanOrEqual(WAVE + 1e-9);
+      }
+    }
+  });
+
+  it('the wave grows to five times its middle amplitude at the left edge, 1.5 waves across', () => {
     // The quarter row's wave is at its crest at the left edge (sin(2π · (1.5 · 0 + 0.25)) = 1): it sits at its
     // fanned height (spread 1.6) plus five times the middle's wave.
     expect(rows.y(0.25, 0)).toBeCloseTo(rows.pad + TRAVEL / 2 - 0.25 * 1.6 * TRAVEL + 5 * WAVE, 10);
@@ -152,17 +159,22 @@ describe('noteRows: rows that run straight and fan at the edges (§1.3)', () => 
     }
   });
 
-  it('past the fan’s start a bar tilts the way its row slopes, all the way to the slope at the edge', () => {
+  it('past the fan’s start on the left a bar tilts the way its row slopes, all the way to the slope at the edge', () => {
     for (const row of ROWS) {
-      for (const across of [0.05, 0.12, 0.88, 0.95]) {
+      for (const across of [0.05, 0.12]) {
         const slope = slopeDegrees(row, across);
         if (Math.abs(slope) > 0.5) expect(Math.sign(rows.tilt(row, across))).toBe(Math.sign(slope));
       }
       expect(rows.tilt(row, 0)).toBeCloseTo(slopeDegrees(row, 0), 1);
-      expect(rows.tilt(row, 1)).toBeCloseTo(slopeDegrees(row, 1), 1);
     }
     // the fan opens the top row upward on the left (rising toward the centre: y grows left to right)
     expect(rows.tilt(0.5, 0.02)).toBeGreaterThan(5);
+  });
+
+  it('a bar is level across the whole right half, to the edge and beyond', () => {
+    for (const row of ROWS) {
+      for (let i = 0; i <= 70; i++) expect(rows.tilt(row, 0.5 + i / 100)).toBe(0);
+    }
   });
 
   it('a bar thicker than the roll puts every row at one height', () => {

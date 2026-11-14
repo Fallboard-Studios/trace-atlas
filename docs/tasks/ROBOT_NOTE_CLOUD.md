@@ -1478,8 +1478,9 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 - [ ] Crawford's eye: a note enters at the roll's edge and rides the fan in to "now", as in the spike. Hard reload
   first (Ctrl+Shift+R): `AudioEngine.ts` changed. 2026-11-13, his first look: "a little too much lead", split the
   difference. `NOTE_PREVIEW_SECONDS` halved to 0.4625 s (a note known about 0.7 s ahead, entering about halfway
-  between the edge and "now") and the mask clears where a note is first known (90.75 %); spec §8.4. His look at the
-  split is open.
+  between the edge and "now") and the mask clears where a note is first known (90.75 %); spec §8.4. Then "the lead
+  shouldn't balloon out": the right half runs flat (no fan, wave growth or tilt), the left keeps the fan. His look
+  at both is open.
 - [ ] Task 36's forecast counts and cost figures reported; he accepts the cost or names what to take back. Reported
   2026-11-13; his answer is open.
 - [ ] Ready for his PR.
