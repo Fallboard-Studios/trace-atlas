@@ -2815,6 +2815,25 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
 
   // Task 8 (§1.5): a bus-gain write that lands during the ramp re-issues it from the write's time to the same end, so
   // no Volume or Highlight write mid-fade raises the bus; the write's Volume is still kept for the cancel.
+  it('hasStationFade reads the record: set by the schedule (voice or none), kept through a released voice, gone at the cancel and at killAll', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(AudioEngine.hasStationFade('home')).toBe(false);
+
+    AudioEngine.scheduleStationFade('home', 0, 2); // no voice: recorded only
+    expect(AudioEngine.hasStationFade('home')).toBe(true);
+    expect(AudioEngine.hasStationFade('other')).toBe(false);
+    AudioEngine.cancelStationFade('home');
+    expect(AudioEngine.hasStationFade('home')).toBe(false);
+
+    await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1); // completed
+    AudioEngine.releaseVoice('home');
+    expect(AudioEngine.hasStationFade('home')).toBe(true);
+    AudioEngine.killAll();
+    expect(AudioEngine.hasStationFade('home')).toBe(false);
+  });
+
   describe('a bus-gain write during the fade re-issues the fade', () => {
     it('a Volume write mid-fade ramps to 0 ending at the fade\'s end, from now or from its own time', async () => {
       const { AudioEngine } = await import('./AudioEngine');

@@ -18,6 +18,7 @@ import {
   onLifecycleChange,
   onRobotMounted,
   enterOnBar,
+  arcRunning,
 } from './workLoop';
 import { siteCooldown } from './siteChoice';
 import { placeDistrict } from './districts';
@@ -1283,6 +1284,19 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
       expect(getTimeline('station-r1')).toBeUndefined();
       expect(get('r1').activity).toBe(activity);
       expect(isShown(el!)).toBe(true);
+    });
+
+    it('arcRunning (the station fade system reads it): false with no arc or a finished one, true part-way, paused too', () => {
+      enteringAt();
+      expect(arcRunning('r1')).toBe(false);
+      enterOnBar('r1', SECONDS);
+      const arc = getTimeline('station-r1')!;
+      expect(arcRunning('r1')).toBe(true);
+      arc.progress(0.5);
+      arc.pause();
+      expect(arcRunning('r1')).toBe(true);
+      arc.progress(1);
+      expect(arcRunning('r1')).toBe(false);
     });
 
     it('an arc already running: nothing (the first arc is kept)', () => {

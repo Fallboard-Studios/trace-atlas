@@ -685,8 +685,10 @@ function enter(loop: LoopRun, robotId: string): void {
 }
 
 /** Whether the robot's station arc is part-way: a finished arc stays registered under its key until the next one
- *  replaces it, so being set is not enough. A paused one (power off) is still running. */
-function arcRunning(robotId: string): boolean {
+ *  replaces it, so being set is not enough. A paused one (power off) is still running. Exported for the station fade
+ *  system, which reads it for an 'entering' robot as "this entry's arc has started" (an arc ends at 'charging', or is
+ *  killed at the end of a turn-back's reverse, so none outlives an entry into the next one). */
+export function arcRunning(robotId: string): boolean {
   const arc = getTimeline(`station-${robotId}`);
   return arc !== undefined && arc.progress() < 1;
 }

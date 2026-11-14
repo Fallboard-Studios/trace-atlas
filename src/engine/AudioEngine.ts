@@ -1741,6 +1741,16 @@ export const AudioEngine = {
   },
 
   /**
+   * Whether a station fade is recorded for the robot: set by `scheduleStationFade` (voice or none), kept through
+   * `'charging'` and a released voice, gone at `cancelStationFade` and `killAll`. The station fade system reads it for
+   * an `'entering'` robot as "this entry's fade has started": every Active landing cancels, so no record outlives an
+   * entry into the next one.
+   */
+  hasStationFade(robotId: string): boolean {
+    return stationFades.has(robotId);
+  },
+
+  /**
    * Audio Load Budget: the simultaneous-note ceiling, clamped to [0, MAX_POLYPHONY] (NaN → MAX_POLYPHONY).
    * Applies to NEW triggers only — lowering it below the notes already sounding never forcibly releases
    * them (that could strand the voice counter); the counter drains as each release fires. Survives killAll().
