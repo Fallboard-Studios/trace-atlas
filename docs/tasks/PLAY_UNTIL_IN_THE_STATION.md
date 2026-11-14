@@ -58,7 +58,9 @@ onTick)`, `positionAt(time).step` for the sixteenths left to the bar, `getTickSe
 - **The system, not the engine, remembers which robots it has started.** A module-level `started: Set<string>`; on each
   tick an id whose robot is no longer `'entering'` is dropped, and an `'entering'` robot not in the set is started when
   the rule allows (`scheduleStationFade` unless soloed, then `enterOnBar`). The engine's `stationFades` is the audio
-  record; the system's set is the scheduling record. Neither is in Zustand.
+  record; the system's set is the scheduling record. Neither is in Zustand. **Superseded after the merge (review R1,
+  2026-11-14):** the system keeps no record; an entry has started while `AudioEngine.hasStationFade(id)` or
+  `workLoop.arcRunning(id)` holds, both already truthful for a re-entry (see "After the review", below).
 - **A Solo that arrives mid-fade is cancelled on the next tick** (spec §1.5's "the plan pins the seam"): `onTick` also
   calls `cancelStationFade` for a started robot that is now soloed. Within a sixteenth, which the grid gives for free;
   no store subscription.
@@ -514,6 +516,7 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
   "existing turn-back tests unmodified" box stays open); `worldTransition.test.ts`'s `scheduleRepeat` count goes from 2
   to 4 (two `'16n'` systems, each restarted).
 - **`started` is a `Map` (`'fade' | 'arc'`), not a `Set`,** so a Solo mid-fade cancels once, not on every tick.
+  (Removed after the merge, review R1: see "After the review", below.)
 - **Equivalent mutants:** dropping the `onComplete` unhook before `reverse()` (GSAP never fires `onComplete` while
   reversing and nothing now plays it forward; kept as the Risks table's mitigation); a `reversed()` guard against a
   second `'active'` was removed as equivalent (`reverse()` sets the direction, it does not toggle it).
@@ -710,6 +713,29 @@ in its station with `docking` alone and now say `'charging'`), Task 4 (one `useR
 old "the arc finishes, then it exits again" case, rewritten as the reverse). The Listen and Look boxes of Tasks 12–13
 are ticked by Crawford's Checkpoint B pass. Open for Crawford: the "Manual review" boxes of Tasks 14–17, and his
 answers to Q1–Q2 are recorded as "acceptable as is" / "not wanted now" on his "ok" to that reading (spec §8.1).
+
+**After the review (2026-11-14, on `fix/station-fade-review` from `main` after the merge; the review itself is
+[docs/todo/play-until-in-the-station-findings.md](../todo/play-until-in-the-station-findings.md)).** Crawford asked for
+R1, the three nits and F1; each RED-tested where it has behaviour and committed on its own:
+
+- **R1, the stale `started` record** (44181fbe, bac27a6b). The system's own record was dropped only when a tick saw
+  the robot not `'entering'`; a turn-back's reverse ending on the port while the robot was recalled again re-enters
+  `'entering'` in the same call (the zero-length swim home), so the record stayed and the robot held at its port for
+  ever at full volume. A probe test proved it (one fade call where two were due). Now `AudioEngine.hasStationFade(id)`
+  (new) and `workLoop.arcRunning(id)` (exported) say whether an entry has started; the `Map`, its type and the forget
+  loop are gone, and a Solo mid-fade still cancels once because the cancel deletes the record it read. The suite's
+  fake engine and loop keep the two records; the re-entry, mid-reverse and soloed-arc cases are new; the restart case
+  now expects an entry in flight to be left alone. Mutant (the arc read dropped) killed by three cases.
+- **F1, the re-issue** (2e036934). `writeBusGain` writes nothing for a robot with a fade recorded, by Crawford's call
+  ("once its volume starts fading it can safely ignore swells"): the bus is on its ramp, at 0 past the end, or built
+  where the ramp is and continued, and nothing may raise it. The Volume still lands in `entry.masterVolume` for the
+  cancel. The re-issue block's four cases and the rebuild block's Volume case say so.
+- **N1** (bd8c1ffd): `inside` is `finishEntry`. **N2** (6b30441d, 6f15f689): `isRobotEmitting` takes
+  `isRobotAudible`'s four arguments in its order, then `isSounding`; the compiler named the two components and the
+  test's calls, and the required-argument pin now omits `isSounding` too. **N3** (5ab6ef02): `secondsUntilHeard` says
+  why it reads the clock itself (`readContextSeconds` treats 0 as "not reported"; a clock at 0 is a reading).
+- Docs: AUDIO_SYSTEM.md's station-fade passage, the spec's §8.4, this file. Not asked for and not built: C1 (the fade
+  unit out of `AudioEngine.ts`), C2 (the boundary tests derived from the constant).
 
 ---
 
