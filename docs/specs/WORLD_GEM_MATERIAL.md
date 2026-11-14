@@ -256,7 +256,8 @@ In pixel space, with `W = width × scaleX`, `H = height × scaleY`, `fcPx = fron
 - **Facade grid** (assumption 8): the facade layout contexts shrink their zone bounds by the ring
   margin per axis so the grid is centred inside the ring; proven on the rendered rects.
 - **Light:** `worldLightVector(eastLMultiplier, westLMultiplier)` once per render, beside
-  `roofLMultiplier`. The debug `LIGHTING_PRESETS` drive it the same way they drive the fills.
+  `roofLMultiplier`. (The debug `LIGHTING_PRESETS` that could drive it were removed on 2026-11-14;
+  the hour is the only input.)
 - **Nothing else moves:** `staticVisual`'s dependency list, `bottomAnchorTransform`, the facade
   renderers, `BubbleLayer`, the item-21 memo split.
 

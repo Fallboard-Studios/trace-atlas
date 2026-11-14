@@ -17,28 +17,6 @@ import { GemRing } from './material/GemRing';
 import { WORLD_GEM, ringFacets, worldBevel, worldLightVector } from './material/worldGemMaterial';
 
 // ========================================
-// DEBUG LIGHTING
-// ========================================
-
-/** Named lighting presets for visual testing.
- * east = sun-facing side multiplier, west = shadow-side multiplier.
- * Values >1 are valid (boost lightness beyond base).
- */
-const LIGHTING_PRESETS = {
-  dawn: { east: 1.1, west: 0.45 },
-  morning: { east: 1.0, west: 0.6 },
-  noon: { east: 0.9, west: 0.85 },
-  evening: { east: 0.55, west: 1.0 },
-  night: { east: 0.3, west: 0.3 },
-} as const;
-
-/**
- * Set to one of the preset keys to preview lighting.
- * Set to `null` to use the live day/night cycle driven by the locale's local hour.
- */
-const DEBUG_LIGHTING_PRESET = null as keyof typeof LIGHTING_PRESETS | null;
-
-// ========================================
 // CONSTANTS
 // ========================================
 
@@ -276,10 +254,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
 
   // Everything below is cheap and recomputed every render, in step with the once/sec tick.
 
-  // Resolve east/west lightness multipliers:
-  // debug preset overrides the live cycle (useful for visual testing).
-  //
-  // Light from the active locale's local time so building
+  // Resolve east/west lightness multipliers from the active locale's local time, so building
   // lighting tracks Attenuation Style day/night, not the audio transport position.
   // activeLocaleLocalTime is a 0..24 float written by AttenuationStyleView every second.
   const localTime = useUIStore((s) => s.activeLocaleLocalTime ?? 12);
@@ -287,11 +262,7 @@ const FactoryInner: React.FC<FactoryProps> = ({ actor }) => {
   // one FLICKER_PERIOD rather than all firing at once.
   const flickerEpoch = getFlickerEpoch(localTime, buildingPhase);
 
-  const preset = DEBUG_LIGHTING_PRESET ? LIGHTING_PRESETS[DEBUG_LIGHTING_PRESET] : null;
-
-  const { eastL: eastLMultiplier, westL: westLMultiplier } = preset
-    ? { eastL: preset.east, westL: preset.west }
-    : getLighting(localTime);
+  const { eastL: eastLMultiplier, westL: westLMultiplier } = getLighting(localTime);
 
   const derelict = !!actor.config?.derelict;
 
