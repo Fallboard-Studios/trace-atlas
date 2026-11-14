@@ -212,7 +212,7 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
 
   **Estimated scope:** S (two pass-throughs and their tests)
 
-- [ ] **Task 5: `robotAudibility.ts`, `Robot.ts` — `activity` required; the comment names the exception**
+- [x] **Task 5: `robotAudibility.ts`, `Robot.ts` — `activity` required; the comment names the exception**
 
   **Description:** With every caller passing it, `activity` becomes required and the `undefined` branch goes
   (`undefined` now means "not in the station", the natural reading for a robot not yet in the store). `Robot.ts`'s

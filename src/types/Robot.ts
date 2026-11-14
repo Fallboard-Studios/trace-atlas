@@ -37,8 +37,10 @@ export const JobType = {
 export type JobType = (typeof JobType)[keyof typeof JobType];
 
 /**
- * The work loop's live visual state (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.2). Never replayed;
- * nothing audio-side reads it. Stored on `Robot.activity`.
+ * The work loop's live visual state (docs/specs/ROBOT_JOBS_AND_STATIONS.md §1.2). Never replayed. Audio reads one
+ * thing from it, whether the robot is in its station (`'charging'`): the dock's silence begins there, not at the
+ * Docked landing (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3, robotAudibility.ts's isDockMuted). The docking
+ * machine never reads it. Stored on `Robot.activity`.
  */
 export type RobotActivity = 'charging' | 'exiting' | 'transit' | 'working' | 'waiting' | 'returning' | 'entering';
 
@@ -251,8 +253,9 @@ export interface Robot {
    *  and heldJobs ignores it there. */
   job?: JobType;
   /** The work loop's visual state (spec §1.2). Set at spawn from `docking` (Docked → 'charging',
-   *  Active → 'exiting'), the work loop's from then on. Live only — never replayed, nothing
-   *  audio-side reads it. */
+   *  Active → 'exiting'), the work loop's from then on. Live only — never replayed. Audibility reads
+   *  whether it is `'charging'` (in the station, where the dock's silence begins; isDockMuted); the
+   *  docking machine never reads it. */
   activity: RobotActivity;
   /** The station the robot is in, heading to, or last left (spec §1.6). Assigned at locale load. */
   stationId?: string;

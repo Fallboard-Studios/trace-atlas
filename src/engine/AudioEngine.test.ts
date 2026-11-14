@@ -333,6 +333,10 @@ import { robotSendLevels } from '../data/robotSends';
  * reserveVoice's adsr parameter is required (Roadmap Phase 9), so every call needs one. */
 const TEST_ADSR = { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 };
 
+/** The activity a test robot rests in for its docking state: in its station ('charging') when Docked or Undocking, out
+ *  at work otherwise. The dock's silence begins in the station (backlog 84), so a fixture names where the robot is. */
+const restingActivity = (docking: string): string => (docking === 'docked' || docking === 'undocking' ? 'charging' : 'transit');
+
 describe('AudioEngine.reReserveVoice', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -1452,7 +1456,7 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
   // The dock mutes through the docking state, not audioMode, and a Solo beats it (Crawford, 2026-11-11).
   describe('the dock mutes on its own; Solo beats it', () => {
     const robotAt = (id: string, audioMode: string, docking: string) => ({
-      id, audioMode, docking, audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
+      id, audioMode, docking, activity: restingActivity(docking),audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
       masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
     });
 
@@ -7330,7 +7334,7 @@ describe('AudioEngine.pause / resume — the AudioContext suspends and resumes',
 describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
   const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
   const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
-    id, audioMode, docking, audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
+    id, audioMode, docking, activity: restingActivity(docking),audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
     masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
   });
   type Heard = import('./noteEvents').RobotNoteEvent;
@@ -7549,7 +7553,7 @@ describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
 describe('mayRobotTrigger: the gates before the polyphony cap (note cloud Task 33)', () => {
   const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
   const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
-    id, audioMode, docking, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    id, audioMode, docking, activity: restingActivity(docking),audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
     masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
   });
 
@@ -7635,7 +7639,7 @@ describe('the engine announces a step ahead of its trigger (note cloud Task 34)'
   const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
   const SIXTEENTH = 0.125;
   const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
-    id, audioMode, docking, compositionSeed: 0.3, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    id, audioMode, docking, activity: restingActivity(docking),compositionSeed: 0.3, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
     masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
   });
   const eventAt = (startStep: number, extra: Record<string, unknown> = {}) =>

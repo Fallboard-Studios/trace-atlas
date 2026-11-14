@@ -7,12 +7,11 @@ import { DockingState, type Robot, type RobotActivity } from '@/types/Robot';
  *
  * "In the station" is read from the work loop's `activity` too (backlog 84, docs/specs/PLAY_UNTIL_IN_THE_STATION.md
  * §1.3): the battery lands a robot on Docked while it is still swimming home, so a Docked robot that is `'returning'`
- * or `'entering'` is heard; the silence begins at `'charging'`. An absent `activity` reads as in the station, so a
- * caller that does not pass it keeps the old rule (until every caller passes it; plan Task 5).
+ * or `'entering'` is heard; the silence begins at `'charging'`. `activity` is required so no reader can leave it out;
+ * an undefined one (a robot not yet in the store) is not in the station, as an undefined `docking` is not.
  */
-export function isDockMuted(docking: DockingState | undefined, activity?: RobotActivity): boolean {
-  if (docking !== DockingState.Docked && docking !== DockingState.Undocking) return false;
-  return activity === undefined || activity === 'charging';
+export function isDockMuted(docking: DockingState | undefined, activity: RobotActivity | undefined): boolean {
+  return (docking === DockingState.Docked || docking === DockingState.Undocking) && activity === 'charging';
 }
 
 /**
@@ -37,7 +36,7 @@ export function isRobotAudible(
   audioMode: Robot['audioMode'],
   anySolo: boolean,
   docking: DockingState | undefined,
-  activity?: RobotActivity,
+  activity: RobotActivity | undefined,
 ): boolean {
   if (audioMode === 'mute') return false;
   if (anySolo) return audioMode === 'solo';
@@ -54,7 +53,7 @@ export function isRobotEmitting(
   anySolo: boolean,
   docking: DockingState | undefined,
   isSounding: boolean,
-  activity?: RobotActivity,
+  activity: RobotActivity | undefined,
 ): boolean {
   return isRobotAudible(audioMode, anySolo, docking, activity) && isSounding;
 }
