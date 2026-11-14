@@ -188,7 +188,7 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
 
   **Estimated scope:** M (three edits and a test block in a 112-test file)
 
-- [ ] **Task 4: `useRobotMeta.ts`, `MetaBox.tsx` — the light and the count pass `activity`**
+- [x] **Task 4: `useRobotMeta.ts`, `MetaBox.tsx` — the light and the count pass `activity`**
 
   **Description:** `useRobotMeta`'s `lit` and `MetaBox`'s `useEmittingCount` pass `robot.activity` to
   `isRobotEmitting`, so the mode light is lit and the Deck's "n of m" counts a homebound `Docked` robot.

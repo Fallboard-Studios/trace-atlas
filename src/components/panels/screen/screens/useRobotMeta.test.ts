@@ -95,8 +95,21 @@ describe('useRobotMeta — lit', () => {
 
   it('is dim in the station, lit for a soloed robot in it', () => {
     expect(metaOf(makeRobot('r0', { docking: 'docked', activity: 'charging' })).lit).toBe(false);
-    expect(metaOf(makeRobot('r0', { docking: 'undocking', activity: 'exiting', audioMode: 'highlight' })).lit).toBe(false);
+    expect(metaOf(makeRobot('r0', { docking: 'undocking', activity: 'charging', audioMode: 'highlight' })).lit).toBe(false);
     expect(metaOf(makeRobot('r0', { docking: 'docked', activity: 'charging', audioMode: 'solo' })).lit).toBe(true);
+  });
+
+  // Backlog 84 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3): the dock's silence begins in the station ('charging').
+  it('is lit for a Docked robot still on its way home, dim once it is charging', () => {
+    useAudioStore.setState({ soundingRobotIds: ['r0'] });
+    expect(metaOf(makeRobot('r0', { docking: 'docked', activity: 'returning' })).lit).toBe(true);
+    expect(metaOf(makeRobot('r0', { docking: 'docked', activity: 'entering', audioMode: 'highlight' })).lit).toBe(true);
+    expect(metaOf(makeRobot('r0', { docking: 'docked', activity: 'charging' })).lit).toBe(false);
+  });
+
+  it('is dim for a homebound Docked robot the budget holds standing by', () => {
+    useAudioStore.setState({ soundingRobotIds: ['r1'] });
+    expect(metaOf(makeRobot('r0', { docking: 'docked', activity: 'returning' }), makeRobot('r1')).lit).toBe(false);
   });
 
   it('is dim while the budget holds the robot standing by', () => {

@@ -36,6 +36,6 @@ export function useRobotMeta(robot: Robot, localeId: string): RobotMeta {
       status: MODE_LABELS[mode].humanLabel,
     },
     mode,
-    lit: isRobotEmitting(robot.audioMode, anySolo, robot.docking, isSounding),
+    lit: isRobotEmitting(robot.audioMode, anySolo, robot.docking, isSounding, robot.activity),
   };
 }

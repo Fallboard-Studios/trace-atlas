@@ -154,6 +154,29 @@ describe('MetaBox — the world line (NavStatusBlock’s telemetry, moved verbat
     act(() => setRobots([makeRobot('r1', { docking: DockingState.Docked, audioMode: 'solo' }), makeRobot('r2', { docking: DockingState.Docked, audioMode: 'solo' })]));
     expect(screen.getByText(/^2 of \d+ Probes active\.$/)).toBeTruthy();
   });
+
+  // Backlog 84 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3): the dock's silence begins in the station ('charging').
+  it('counts a Docked robot on its way home, and not one charging in its station', () => {
+    useLocaleStore.setState((s) => ({
+      locales: {
+        ...s.locales,
+        [DEFAULT_LOCALE_ID]: {
+          ...s.locales[DEFAULT_LOCALE_ID],
+          robots: [
+            makeRobot('r1', { docking: DockingState.Docked, activity: 'returning' }),
+            makeRobot('r2', { docking: DockingState.Docked, activity: 'entering' }),
+            makeRobot('r3', { docking: DockingState.Docked, activity: 'charging' }),
+            makeRobot('r4', { docking: DockingState.Active, activity: 'transit' }),
+          ],
+        },
+      },
+    }));
+    useAudioStore.setState({ soundingRobotIds: ['r1', 'r2', 'r3', 'r4'] });
+    render(<MetaBox />);
+    expect(screen.getByText(/^3 of \d+ Probes active\.$/)).toBeTruthy();
+    act(() => useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r2', { activity: 'charging' }));
+    expect(screen.getByText(/^2 of \d+ Probes active\.$/)).toBeTruthy();
+  });
 });
 
 describe('MetaBox — the Deck’s well on the desk shell', () => {
