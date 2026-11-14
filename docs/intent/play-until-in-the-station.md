@@ -40,7 +40,14 @@ for one more entire measure, but the volume should ramp down to 0 during that me
   `Docked` at the next measure tick wherever it is; the battery starts to recharge, the pitch drift is stored and the
   melody re-registered at that landing exactly as today (`landOnDocked`, [robotSystems.ts](../../src/systems/robotSystems.ts)).
   Deterministic replay (World Clock, [intent](world-clock-deterministic-lifecycle-replay.md)) re-derives docking from
-  measures only and is unchanged. Only the mute moves: it follows the work loop's arrival instead of the docking state.
+  measures only and is unchanged. The mute functionality does not change either (Crawford, 2026-11-14: "it's just
+  volume ramping down"); the one thing that moves is when the dock's existing silence begins, from the `Docked` landing
+  to the robot being in its station, since the landing is what silences the swim today (spec §1.3).
+- **A turn-back ramps the volume back up.** A robot that goes `Active` again during the hold or the fade has its volume
+  ramp back up to its regular level (Crawford, 2026-11-14: "the volume just ramps back up to normal"); the body comes
+  back the way it went. No measure is waited for on the way back out.
+- **The audio stays the same** (Crawford, 2026-11-14): the melody, its registration, the drift, the note events, the
+  Highlight dip, Volume and the sends are untouched. The ramp is one more multiplier on the robot's bus gain.
 - **The way out stays as it is.** `Undocking` is silent and hidden; the landing on `Active` makes the robot heard at its
   regular volume at once, with the one-second exit arc fading the body in. No ramp up.
 - **Solo still beats the dock.** A soloed robot is heard in its station today and stays heard; its fade measure is
@@ -80,14 +87,13 @@ for one more entire measure, but the volume should ramp down to 0 during that me
 
 ## Known implementation notes (not yet spec'd)
 
-- **How the mute follows the arrival.** Today audibility is `isRobotAudible(audioMode, anySolo, docking)`, read at the
-  note trigger (`triggerWithCap`), by the Audio Load budget's eligibility and standing-by filters
-  ([audioBudgetSystem.ts](../../src/systems/audioBudgetSystem.ts), whose subscription key is `id:audioMode:docking` per
-  robot), by `useRobotMeta`, `MetaBox` and `audioDiagnostics`. Nothing in audibility reads `activity`. The spec chooses
-  between a stored robot field the work loop writes when the fade measure ends (keeps the rule "the docking machine never
-  reads `activity`" and the budget key cheap) and audibility reading `activity` directly. Either way the budget key,
-  the trigger check and the three readers move together, and ROBOT_LIFECYCLE.md's "Two state machines" principle gets
-  the sentence.
+- **When the dock's silence begins** (answered 2026-11-14, spec §1.3). Today audibility is
+  `isRobotAudible(audioMode, anySolo, docking)`, read at the note trigger (`triggerWithCap`), by the Audio Load budget's
+  eligibility and standing-by filters ([audioBudgetSystem.ts](../../src/systems/audioBudgetSystem.ts), whose
+  subscription key is `id:audioMode:docking` per robot), by `useRobotMeta`, `MetaBox` and `audioDiagnostics`. Nothing in
+  audibility reads `activity`. The spec has the dock's silence begin at `'charging'` (the robot in its station) with no
+  new mute, the budget key, the trigger check and the readers moving together, and ROBOT_LIFECYCLE.md's "Two state
+  machines" principle naming the one exception.
 - **Standing by.** The budget stands a dock-muted robot by and releases its voice after its last note. The release
   must not come before the ramp has reached zero, or the fade ends in a cut; the ramp's end is the moment the robot
   becomes dock-muted.
@@ -99,10 +105,9 @@ for one more entire measure, but the volume should ramp down to 0 during that me
   activity and a fade activity; the station's occupancy set (`'returning' | 'entering' | 'charging'`) must still hold
   the slot through both. Reduced motion today shortens the arc to `STATION_REDUCED_ARC_SECONDS` (0.3 s) with no scale;
   the spec says whether the fade measure is also shortened under reduced motion (the sound's length is not a motion).
-- **Turn-back during the hold or fade.** Today an `Active` landing during `'entering'` lets the arc finish and turns
-  the robot back at the port. With a measure-long fade the turn-back is the live case: the spec says whether the robot
-  turns back at once (volume back to regular with no ramp up, the arc reversed from where it is) or finishes the fade
-  and exits as today. Crawford's "no ramp up" on the way out points at the former.
+- **Turn-back during the hold or fade** (answered 2026-11-14, spec §1.2 step 5). Today an `Active` landing during
+  `'entering'` lets the arc finish and turns the robot back at the port. Now the robot turns back at once: the arc is
+  reversed from where it is and the volume ramps back up to its regular level over a short constant.
 - **Power-off mid-fade.** The world's timelines pause as a set and the transport pauses; the ramp is a transport
   automation, so it should pause with them. To be checked, not assumed.
 - **Tempo.** The fade measure's length follows the tempo, so at 60 BPM in 4/4 it is four seconds and the station
