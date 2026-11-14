@@ -258,20 +258,15 @@ function busGainTarget(robotId: string, masterVolume: number): number {
 
 /**
  * Write a robot's bus gain: ramp to `target` over `seconds` (`rampOrSet`, from `time` when a tick gives one). A robot
- * with a station fade is never raised (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): a write landing before the fade's
- * end re-issues the fade from the write's time to that same end, and one landing at or after it writes 0, even when
- * the engine's now is still short of the end (a timed swell write). Volume and Highlight writes both come through here.
+ * with a station fade recorded is left alone (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5, §8.4): its bus is on the
+ * fade's ramp, at 0 past its end, or built where the ramp is (`continueStationFade`), and nothing may raise it, so there
+ * is nothing to write. Re-issuing the ramp from each write's time, as first built, kept the same line and added a ramp
+ * point per swell tick for it (review F1). The Volume itself still lands in `entry.masterVolume` (the caller's), which
+ * the cancel returns to. Volume and Highlight writes both come through here.
  */
 function writeBusGain(robotId: string, entry: VoiceEntry, target: number, seconds: number, time?: number): void {
-  const gain = entry.busGain.gain as unknown as RampableParam;
-  const fade = stationFades.get(robotId);
-  if (fade === undefined) {
-    rampOrSet(gain, target, seconds, time);
-    return;
-  }
-  const writeTime = time ?? Tone.now();
-  if (writeTime < fade.end) rampOver(gain, 0, fade.end - writeTime, writeTime);
-  else rampOrSet(gain, 0, seconds, time);
+  if (stationFades.has(robotId)) return;
+  rampOrSet(entry.busGain.gain as unknown as RampableParam, target, seconds, time);
 }
 
 /** Store a robot's new voice, tearing down the one it replaces so a second reservation never orphans a live graph. */
