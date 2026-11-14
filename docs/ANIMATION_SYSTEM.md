@@ -81,7 +81,7 @@ Its caller is the work loop, for every leg to a work site's park or a station po
 `onComplete` writes the robot's `position` (the destination) and then continues the loop.
 
 Sequence:
-- Resolves the robot SVG via `getRef(`robot-${robot.id}`)`. **If the ref isn't registered yet**, the function still returns an (empty) timeline and schedules `onComplete` via `gsap.delayedCall(estimatedDuration, ...)` so callers waiting on the callback don't hang.
+- Resolves the robot's body via `getRef(`robot-${robot.id}`)`. **If no ref is registered**, the function returns `null` and does nothing else: no timeline, no key, and `onComplete` is never called. The caller owns that case (the work loop times the leg itself under the same key, see "Robot timeline keys" below).
 - Kills any existing `swim-${robot.id}` timeline, sets `transformOrigin: '50% 50%'` once (the tilt below rotates about the centre).
 - Animates to the destination over `distance / SWIM_SPEED` seconds, starting at position 0, eased `sine.inOut` (every leg starts and ends at rest).
 - Applies a body tilt (`± TILT_ANGLE`, direction-dependent) that ramps in over the first 30% of the duration and back out over the last 30%.
@@ -422,8 +422,8 @@ no motion in it, which keeps the `'ui'` default on purpose and is pinned so in i
 no longer reaches it, since power is a pause), removes
 every dissolve copy; no robot is ever re-mounted for a row switch, so there is nothing else to clear. Per robot there is at most one live job and one swim,
 and no standing per-robot or per-building GSAP object (spec §1.12). A robot with no mounted body
-gets a target-less timeline of the same length under the same key, because `createSwimTimeline`'s
-no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
+gets a target-less timeline of the same length under the same key: `createSwimTimeline` returns
+`null` for it, and the loop times the leg itself so `stopWorkLoop` can find it.
 
 ### Scene stack — the stage, the sheets and the movers
 The ocean scene (`OceanScene.tsx`) is one **stage**, `div.ocean-scene__stage`, 1920 × 1080 scene units, inside `.ocean-scene`. The stage carries the `xMidYMax slice` fit as a single CSS transform: `sceneFit(box)` (pure, `sceneFit.ts`) returns the scale and offsets that fill the box with the world, cropping the top of it and never the ground, and `useStageFit` (a `ResizeObserver` on `.ocean-scene`) writes them as `--stage-scale`, `--stage-x` and `--stage-y`, once per resize and never per frame. Every child of the stage is positioned in scene units and wears a `data-scene-slot`, which `OceanScene.css` gives a `z-index`; `SCENE_SLOTS` (`sceneStack.ts`) is the one ordered list. Four slots are static `<svg class="ocean-scene__sheet">` sheets; the rest hold **movers**, small `div`s that are compositor layers of their own. (Phase 43 J4 split the old back sheet around a second robot row, spec §1.10; Phase 53 made each robot, each bubble stream and the marker a mover, so the old robot, bubbles and marker sheets are gone and no sheet moves.) The slots, back to front:

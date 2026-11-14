@@ -154,6 +154,11 @@ cleanup, and nothing looks the key up). Low.
 
 ### 10. `createSwimTimeline`'s no-ref fallback schedules an unkeyed `gsap.delayedCall`
 
+**Done 2026-11-14** on `fix/gsap-finds`: the fallback is gone. With no ref the function returns
+`null` and does nothing; the work loop's `swimTo` branches on that return instead of checking the
+body first, so there is one check, in the function that builds the swim. The two tests that covered
+the fallback are replaced, and both `ANIMATION_SYSTEM.md` passages are updated.
+
 [swimAnimation.ts:178-186](../../src/animation/swimAnimation.ts#L178-L186). The only caller
 ([workLoop.ts:476-486](../../src/systems/workLoop.ts#L476-L486)) checks for the body first and builds
 its own keyed `swim-` timeline precisely because this fallback can't be killed by `stopWorkLoop`. The
