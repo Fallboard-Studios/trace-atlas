@@ -177,42 +177,13 @@ export const PAN_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
 // PING CONTROLS
 // ========================================
 
-/**
- * Density, Motif Length, Pitch Repeat, plus the dev-only Click Track toggle and Reset Melody
- * button — a new label, not inherited from the old flat "Ping Controls" accordion (that whole
- * accordion is split into 2 differently-labeled panels, not moved as one unit).
- */
-export const PHRASING_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.phrasing',
-  type: 'directionalPanel',
-  ...labels('probe.composition.phrasing', { surface: 'heading' }),
-  orientation: 'column',
-};
-
-// 'responsive', not fixed 'row' — Density/Motif Length/Pitch Repeat each get their own row on
-// mobile/tablet, share one row on desktop. docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4.
-export const RHYTHM_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.rhythm',
-  type: 'directionalPanel',
-  ...labels('probe.composition.rhythm', { surface: 'heading' }),
-  orientation: 'responsive',
-};
-
-/** Rests and Accents (docs/specs/ROBOT_PERFORMANCE.md §1.6) — a row inside PHRASING_PANEL_SCHEMA, after
- *  the Rhythm row. 'responsive' like the Rhythm and Pitches panels: one row each on mobile, side by side on desktop. */
+/** Rests and Accents (docs/specs/ROBOT_PERFORMANCE.md §1.6) — the one labelled panel of the Composition section
+ *  (PingControlsCompositionSection), under its three plain rows. 'responsive': one row each on mobile, side by side
+ *  on desktop. */
 export const ARTICULATION_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.articulation',
   type: 'directionalPanel',
   ...labels('probe.composition.articulation', { surface: 'heading' }),
-  orientation: 'responsive',
-};
-
-/** Octave Min, Octave Max, Note Variance — the other half of the old Ping Controls accordion.
- *  'responsive', not fixed 'row' — same treatment as RHYTHM_PANEL_SCHEMA above. */
-export const FREQUENCY_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.frequency',
-  type: 'directionalPanel',
-  ...labels('probe.composition.pitches', { surface: 'heading' }),
   orientation: 'responsive',
 };
 

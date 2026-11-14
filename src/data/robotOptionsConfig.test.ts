@@ -20,9 +20,6 @@ import {
   SIGNATURE_ARRAY_CONFIG,
   VOLUME_ROW_PANEL_SCHEMA,
   VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
-  PHRASING_PANEL_SCHEMA,
-  RHYTHM_PANEL_SCHEMA,
-  FREQUENCY_PANEL_SCHEMA,
   PING_CONTOUR_PANEL_SCHEMA,
   PORTAMENTO_SCHEMA,
   ATTACK_CURVE_SCHEMA,
@@ -603,39 +600,6 @@ describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/t
   });
 });
 
-describe('PHRASING_PANEL_SCHEMA / FREQUENCY_PANEL_SCHEMA (Task 3)', () => {
-  it('carry the confirmed humanLabels and directionalPanel type — new labels, not derived from the old flat "Ping Controls" accordion', () => {
-    expect(PHRASING_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column', humanLabel: CONTENT['probe.composition.phrasing'].human });
-    expect(FREQUENCY_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: CONTENT['probe.composition.pitches'].human });
-  });
-
-  it('neither reuses "Ping Controls" as its own label text', () => {
-    expect(PHRASING_PANEL_SCHEMA.humanLabel).not.toBe('Ping Controls');
-    expect(FREQUENCY_PANEL_SCHEMA.humanLabel).not.toBe('Ping Controls');
-  });
-
-  it('each has a non-empty invented loreLabel and a unique id', () => {
-    expect(PHRASING_PANEL_SCHEMA.loreLabel).toBeTruthy();
-    expect(FREQUENCY_PANEL_SCHEMA.loreLabel).toBeTruthy();
-    expect(PHRASING_PANEL_SCHEMA.id).not.toBe(FREQUENCY_PANEL_SCHEMA.id);
-  });
-});
-
-describe('RHYTHM_PANEL_SCHEMA (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — no prior test coverage existed for this schema)', () => {
-  it('is a responsive-orientation directionalPanel with humanLabel Rhythm', () => {
-    expect(RHYTHM_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'responsive', humanLabel: CONTENT['probe.composition.rhythm'].human });
-  });
-
-  it('has a non-empty loreLabel and an id distinct from PHRASING_PANEL_SCHEMA\'s (its own outer wrapper)', () => {
-    expect(RHYTHM_PANEL_SCHEMA.loreLabel).toBeTruthy();
-    expect(RHYTHM_PANEL_SCHEMA.id).not.toBe(PHRASING_PANEL_SCHEMA.id);
-  });
-
-  it('remains JSON-serializable', () => {
-    expect(() => JSON.stringify(RHYTHM_PANEL_SCHEMA)).not.toThrow();
-  });
-});
-
 describe('PING_CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () => {
   it('is a column-orientation directionalPanel — wraps 2 responsive sub-rows instead of 4 sliders directly (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4)', () => {
     expect(PING_CONTOUR_PANEL_SCHEMA.type).toBe('directionalPanel');
@@ -688,7 +652,6 @@ describe('robotOptionsConfig reads its copy from src/content (docs/specs/CONTENT
     const { CONTENT } = await import('@/content');
     expect(VOLUME_SCHEMA.humanLabel).toBe(CONTENT['probe.volume'].human);
     expect(VOLUME_SCHEMA.unit).toBe(CONTENT['probe.volume'].unit);
-    expect(RHYTHM_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.composition.rhythm'].heading);
     expect(SIGNATURE_ARRAY_CONFIG[0].humanLabel).toBe(CONTENT['probe.source.core'].human);
     expect(SIGNATURE_ARRAY_CONFIG[1].params[0].schema.humanLabel).toBe(CONTENT['probe.source.companion.type'].human);
   });
