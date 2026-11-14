@@ -829,7 +829,12 @@ to the picture").
 - **The tilt is weighted by the fan** (§1.3): level through the straight middle, easing in to the row's full slope
   at the edge. Tilting everywhere, as the spike did, gives up to about 8° in the middle of a square roll. Beyond the
   roll the fan holds its edge value, so the layer's `pad` holds every row.
-- **Pitch is compared as a MIDI number** in the row and the repeat rule, so `Bb4` and `A#4` are one pitch.
+- **Pitch is compared as a pitch class, the octave stripped** (2026-11-13, Crawford's call), in the row and the
+  repeat rule, so `Bb4` and `A#4` are one pitch and so are `C4` and `C5`. §1.3's "its row is its pitch" now reads
+  "its pitch class": C lowest, B highest, centred on the middle of the lowest and highest class played, over
+  `NOTE_RANGE_MIN_SEMITONES` (12), which the classes' eleven-semitone span never passes. It was a MIDI number until
+  then; a melody that leapt between octaves (the melody generator's old jump rule, fixed the same day) drew two bands
+  with an empty middle. One class in two octaves draws on one row, so it counts as a repeat.
 - **A cloud that throws on a note** is reported and does not cost the next cloud its note (`subscribeDrawnNotes`),
   the rule `noteEvents` keeps.
 - **The belt** is one linear `gsap.to` over a plain clock object; a note's x on its belt changes only when the belt

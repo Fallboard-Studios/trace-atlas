@@ -522,6 +522,59 @@ describe('generateMelodyForRobot — GenerateMelodyForRobotOptions', () => {
     });
   });
 
+  describe('an octave jump lands on any other octave in the range', () => {
+    const seeds = Array.from({ length: 200 }, (_, i) => i + 1);
+    const octavesOf = (octaveMin: number, octaveMax: number, seed: number) =>
+      generateMelodyForRobot({ rhythmicDensity: 100, octaveMin, octaveMax, seed }).map((e) => e.octave);
+    /** Every move between successive notes, as [from, to]. */
+    const moves = (octaves: number[]) =>
+      octaves.slice(1).flatMap((to, i) => (to === octaves[i] ? [] : [[octaves[i], to] as const]));
+
+    it.each([
+      [3, 5],
+      [2, 6],
+      [1, 7],
+    ])('in %i–%i every note stays inside the range', (min, max) => {
+      for (const seed of seeds) {
+        for (const octave of octavesOf(min, max, seed)) {
+          expect(octave).toBeGreaterThanOrEqual(min);
+          expect(octave).toBeLessThanOrEqual(max);
+        }
+      }
+    });
+
+    it('from an edge of a three-octave range it lands on the middle and on the far edge', () => {
+      const fromBottom = seeds.flatMap((s) => moves(octavesOf(3, 5, s))).filter(([from]) => from === 3);
+      expect(fromBottom.map(([, to]) => to)).toEqual(expect.arrayContaining([4, 5]));
+      const fromTop = seeds.flatMap((s) => moves(octavesOf(3, 5, s))).filter(([from]) => from === 5);
+      expect(fromTop.map(([, to]) => to)).toEqual(expect.arrayContaining([3, 4]));
+    });
+
+    it('in a wide range it lands on every other octave, near and far', () => {
+      const fromBottom = seeds.flatMap((s) => moves(octavesOf(1, 7, s))).filter(([from]) => from === 1);
+      expect(new Set(fromBottom.map(([, to]) => to))).toEqual(new Set([2, 3, 4, 5, 6, 7]));
+    });
+
+    it('a melody starting in the middle of a three-octave range still jumps', () => {
+      const fromMiddle = seeds.map((s) => octavesOf(3, 5, s)).filter((o) => o[0] === 4);
+      expect(fromMiddle.some((o) => new Set(o).size > 1)).toBe(true);
+    });
+
+    it('a two-octave range jumps between its two octaves', () => {
+      const all = seeds.map((s) => octavesOf(3, 4, s));
+      expect(all.some((o) => o.includes(3) && o.includes(4))).toBe(true);
+    });
+
+    it('jumps both up and down', () => {
+      const all = seeds.flatMap((s) => {
+        const o = octavesOf(2, 6, s);
+        return o.slice(1).map((v, i) => v - o[i]);
+      });
+      expect(all).toContain(1);
+      expect(all).toContain(-1);
+    });
+  });
+
   it('all startStep values are in [1, 16]', () => {
     const melody = generateMelodyForRobot({ rhythmicDensity: 50, octaveMin: 3, octaveMax: 4, seed: 10 });
     melody.forEach((e) => {
