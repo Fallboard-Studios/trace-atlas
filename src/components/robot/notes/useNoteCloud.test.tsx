@@ -762,14 +762,15 @@ describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
 // TASK 35: the cloud asks for the run-in, and the mask opens the right-hand fan (spec §1.9, §1.4)
 // ========================================
 describe('useNoteCloud — the early notes (Task 35)', () => {
-  /** The run-in from the roll's right edge to "now", less the lead every note already has (§1.9): 1.125 − 0.2 s. */
-  const PREVIEW = NOTE_NOW * NOTE_CROSSING_SECONDS - NOTE_KNOWN_AHEAD_SECONDS;
+  /** Half the run-in from the roll's right edge to "now", less the lead every note already has (§1.9, split at
+   *  Gate 4): (1.125 − 0.2) / 2 s. */
+  const PREVIEW = (NOTE_NOW * NOTE_CROSSING_SECONDS - NOTE_KNOWN_AHEAD_SECONDS) / 2;
 
-  it('mounting a cloud asks the engine for the run-in: 0.925 s', () => {
+  it('mounting a cloud asks the engine for half the run-in: 0.4625 s', () => {
     expect(getNotePreviewSeconds()).toBe(0);
     render(<Harness />);
-    expect(PREVIEW).toBeCloseTo(0.925, 10);
-    expect(getNotePreviewSeconds()).toBeCloseTo(0.925, 10);
+    expect(PREVIEW).toBeCloseTo(0.4625, 10);
+    expect(getNotePreviewSeconds()).toBeCloseTo(0.4625, 10);
   });
 
   it('with ?notes=off nothing asks', () => {
@@ -814,12 +815,13 @@ describe('useNoteCloud — the early notes (Task 35)', () => {
     expect(getNotePreviewSeconds()).toBe(0);
   });
 
-  it('the wrappers\' mask ends clear at the right edge (100%), so a note fades in across the whole fan', () => {
+  it('the wrappers\' mask ends clear where an early note is first known (90.75%), so it fades in from there', () => {
+    // "now" at 77.5%, plus (0.2 + 0.4625) s of a 5 s crossing: 77.5 + 13.25
     const { container } = render(<Harness />);
     for (const side of ['front', 'behind'] as const) {
       const wrapper = container.querySelector(`.note-layer--${side}`) as HTMLElement;
       const mask = wrapper.style.getPropertyValue('-webkit-mask-image') || wrapper.style.getPropertyValue('mask-image');
-      expect(mask).toMatch(/transparent 100%\)$/);
+      expect(mask).toMatch(/transparent 90\.75%\)$/);
     }
   });
 

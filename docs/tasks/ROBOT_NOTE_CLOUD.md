@@ -1476,7 +1476,10 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (2026-11-13: 14,261 passed, 2 skipped,
   0 failed; lint 0 errors, its 4 warnings in scenery files this branch does not touch; the build's warnings predate it).
 - [ ] Crawford's eye: a note enters at the roll's edge and rides the fan in to "now", as in the spike. Hard reload
-  first (Ctrl+Shift+R): `AudioEngine.ts` changed.
+  first (Ctrl+Shift+R): `AudioEngine.ts` changed. 2026-11-13, his first look: "a little too much lead", split the
+  difference. `NOTE_PREVIEW_SECONDS` halved to 0.4625 s (a note known about 0.7 s ahead, entering about halfway
+  between the edge and "now") and the mask clears where a note is first known (90.75 %); spec §8.4. His look at the
+  split is open.
 - [ ] Task 36's forecast counts and cost figures reported; he accepts the cost or names what to take back. Reported
   2026-11-13; his answer is open.
 - [ ] Ready for his PR.

@@ -905,4 +905,10 @@ the picture" describes the shipped design.
   (−0.5 %; the rounds disagree in sign). This was also the first measurement of the re-drawn bands, read in a window
   where every sounding robot was in an on band. Figures in PERFORMANCE.md ("Note cloud — early notes, the Task 36
   runs").
-- **Gate 4** waits on Crawford's eye: a note entering at the roll's edge and riding the fan in to "now".
+- **Gate 4, his eye** (2026-11-13): the whole run-in was "a little too much lead"; he split the difference.
+  `NOTE_PREVIEW_SECONDS` is now half of it, `(NOTE_NOW × NOTE_CROSSING_SECONDS − NOTE_KNOWN_AHEAD_SECONDS) / 2`
+  (0.4625 s), so a note is known about 0.7 s ahead (0.2 s on Part A, about 1.1 s at the full run-in) and enters
+  about halfway between the right edge and "now". The mask clears where a note is first known,
+  `NOTE_KNOWN_AHEAD_SECONDS + NOTE_PREVIEW_SECONDS` of travel right of "now" (90.75 % of the width), not at the
+  edge; the outer half of the right-hand fan carries nothing. The forecast and cost above were run at the full
+  run-in.

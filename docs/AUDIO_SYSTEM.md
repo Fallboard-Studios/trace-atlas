@@ -195,8 +195,8 @@ Visual Mapping guardrail's third overlay).
   (`NOTE_KNOWN_AHEAD_SECONDS`).
 - **Early notes** (spec §1.9, Part E). A listener asks for notes earlier with
   `setNotePreviewSeconds(seconds)` (`getNotePreviewSeconds()` reads it; 0 until asked, a negative or
-  non-finite value is 0). The note cloud asks for `NOTE_PREVIEW_SECONDS`, the run-in from its roll's
-  right edge to "now" less the fifth of a second every note already has (0.925 s): the first cloud built
+  non-finite value is 0). The note cloud asks for `NOTE_PREVIEW_SECONDS`, half the run-in from its roll's
+  right edge to "now" less the fifth of a second every note already has (0.4625 s): the first cloud built
   asks and the last to go sets it back to 0. While it is above 0, each firing of the melody tick also
   runs `announceUpcomingStep(time)`: the step `ceil(preview / getTickSeconds(time))` sixteenths on,
   placed by `positionAt` of its own time, its notes from the same `stepNotes` the trigger calls, and

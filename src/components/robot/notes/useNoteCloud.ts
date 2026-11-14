@@ -20,6 +20,7 @@ import {
   NOTE_CROSSING_SECONDS,
   NOTE_HOT_COLOR,
   NOTE_HOT_IN_SECONDS,
+  NOTE_KNOWN_AHEAD_SECONDS,
   NOTE_NOW,
   NOTE_PEAK_STRENGTH,
   NOTE_PREVIEW_SECONDS,
@@ -148,8 +149,8 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     let roll = rollBox(sizeRef.current.gem, sizeRef.current.scale);
     let speed = roll.w / NOTE_CROSSING_SECONDS; // canvas units a second
     let nowX = roll.w * (1 - NOTE_NOW);
-    // Notes are known from the roll's right edge (§1.9): the mask is given the whole run-in, so it clears at 100%.
-    const mask = noteMask(NOTE_NOW * NOTE_CROSSING_SECONDS);
+    // A note is known the trigger's lead plus the early notes' preview ahead of "now" (§1.9): the mask clears there.
+    const mask = noteMask(NOTE_KNOWN_AHEAD_SECONDS + NOTE_PREVIEW_SECONDS);
 
     // The thickness and the rows follow the screen scale; re-derived only when it has changed (a number compare).
     // Null until the first fit. Object.is, so a scale not yet known (the avatar's NaN before its box is measured)

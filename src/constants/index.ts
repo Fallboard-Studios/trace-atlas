@@ -397,10 +397,11 @@ export const NOTE_COMPLEMENT_L = 70;
 /** How far ahead of its sound a note is known when it comes from the trigger (§1.4): about a fifth of a second (the
  *  transport's lookahead, MIN_LEAD and the output's latency). Every note has this lead before any preview. */
 export const NOTE_KNOWN_AHEAD_SECONDS = 0.2;
-/** The early notes the cloud asks the engine for (§1.9, Part E): the run-in from the roll's right edge to "now"
+/** The early notes the cloud asks the engine for (§1.9, Part E): half the run-in from the roll's right edge to "now"
  *  (NOTE_NOW of a NOTE_CROSSING_SECONDS crossing, 1.125 s) less the NOTE_KNOWN_AHEAD_SECONDS every note already has,
- *  so a note enters at the right edge and fades in across the whole right-hand fan. About 0.925 s. */
-export const NOTE_PREVIEW_SECONDS = NOTE_NOW * NOTE_CROSSING_SECONDS - NOTE_KNOWN_AHEAD_SECONDS;
+ *  so a note enters about halfway between the edge and "now" and fades in from there. About 0.4625 s. Crawford split
+ *  the difference at Gate 4: the whole run-in (0.925 s) was a little too much lead. */
+export const NOTE_PREVIEW_SECONDS = (NOTE_NOW * NOTE_CROSSING_SECONDS - NOTE_KNOWN_AHEAD_SECONDS) / 2;
 /** The per-frame pass writes a note's place only when it moves by a whole quantum (§1.6, §7.2 A7): a quarter of a
  *  canvas unit across its row, a quarter of a degree in its tilt. Through the straight middle most frames write nothing. */
 export const NOTE_QUANTUM_UNITS = 0.25;
