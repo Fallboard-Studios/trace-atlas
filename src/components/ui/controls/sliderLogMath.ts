@@ -27,6 +27,19 @@ export function sliderLogTToValue(t: number, min: number, max: number): number {
   return floor * Math.pow(max / floor, t);
 }
 
+/** How near a track end (in t) a keyboard step counts as having reached it: the float drift of a value -> t -> value
+ *  round trip, so a run of presses ends exactly on the bound. */
+const KEY_STEP_END_TOLERANCE = 1e-9;
+
+/** A keyboard step on the log track: a hundredth of the track (`page`: a tenth), landing exactly on `min` or `max` at
+ *  an end and holding there. `direction` is +1 or -1. */
+export function sliderLogKeyStep(value: number, direction: 1 | -1, page: boolean, min: number, max: number): number {
+  const t = sliderLogValueToT(value, min, max) + direction * (page ? 0.1 : 0.01);
+  if (t <= KEY_STEP_END_TOLERANCE) return min;
+  if (t >= 1 - KEY_STEP_END_TOLERANCE) return max;
+  return sliderLogTToValue(t, min, max);
+}
+
 /**
  * Discrete-stops variant (a SliderLog schema's own `steps` list, e.g. Automation Rate's fixed set
  * of allowed frequencies) — used in place of the continuous log curve above whenever a schema

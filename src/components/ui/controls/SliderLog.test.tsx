@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
 
 // Spied (real cross-module call, wrapped so it still delegates to the actual
 // implementation) so a render-count test (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
@@ -56,6 +56,7 @@ vi.mock('./VoxelTrack', () => ({
   ),
 }));
 
+import { useState } from 'react';
 import gsap from 'gsap';
 import { SliderLog } from './SliderLog';
 import { resolveAccessibleName } from './accessibleName';
@@ -73,10 +74,26 @@ import {
 // above, which existing tests already use directly to compute expected
 // values, unspied.
 import * as voxelTrackMath from '@/utils/voxelTrackMath';
+import { SWELL_FREQUENCY_SCHEMA, SWELL_FREQUENCY_STEPS } from '@/data/audioRigConfig';
 import type { SliderLogSchema } from '@/types/controls';
 
 // Attack/Decay/Release bounds (docs/reference/ROBOT_DATA_GRID.md), the min = 0 fixture.
 const schema: SliderLogSchema = { id: 'attack', type: 'sliderLog', min: 0, max: 10, humanLabel: 'Attack', unit: 's', orientation: 'horizontal' };
+
+/** A SliderLog that holds its own value, as a screen does, so a run of key presses each start from the last one. */
+function Walk({ schema: walkSchema, start, seen }: { schema: SliderLogSchema; start: number; seen: number[] }) {
+  const [value, setValue] = useState(start);
+  return (
+    <SliderLog
+      schema={walkSchema}
+      value={value}
+      onChange={(next) => {
+        seen.push(next);
+        setValue(next);
+      }}
+    />
+  );
+}
 
 // Desktop-tier box geometry (no window.matchMedia in this jsdom environment
 // -> useCabinetBoxHeight()/useVoxelTrackGap() both fall back to 'desktop',
@@ -250,15 +267,78 @@ describe('SliderLog component', () => {
     render(<SliderLog schema={schema} value={0} onChange={onChange} />);
     const thumb = screen.getByRole('slider');
     thumb.focus();
-    // Starting at value 0 (t = 0), one ArrowRight step advances the internal
-    // t by the Slider.Root `step` (0.001) — the mapped display value at that
-    // t is a genuine log-curve point, not the raw 0.001 t-delta itself.
+    // Starting at value 0 (t = 0), one ArrowRight moves the thumb a hundredth of the track — the
+    // mapped display value at that t is a genuine log-curve point, not the raw 0.01 t-delta itself.
     fireEvent.keyDown(thumb, { key: 'ArrowRight' });
     expect(onChange).toHaveBeenCalledTimes(1);
     const received = onChange.mock.calls[0][0];
-    const rawTDelta = 0.001;
-    expect(received).not.toBe(rawTDelta);
-    expect(received).toBeCloseTo(sliderLogTToValue(rawTDelta, schema.min, schema.max), 10);
+    const keyTDelta = 0.01;
+    expect(received).not.toBe(keyTDelta);
+    expect(received).toBeCloseTo(sliderLogTToValue(keyTDelta, schema.min, schema.max), 10);
+  });
+
+  // Radix steps a key by Slider.Root's `step`, a thousandth of this track (the pointer's resolution): 1,000 arrow
+  // presses from end to end. SliderLog steps the keys itself, as SliderCenteredZero's signed-log track does.
+  describe('keyboard steps: a hundredth of the track per arrow, a tenth per page key or Shift+arrow', () => {
+    const tOf = (value: number) => sliderLogValueToT(value, schema.min, schema.max);
+    const START = sliderLogTToValue(0.5, schema.min, schema.max);
+
+    function press(value: number, init: { key: string; shiftKey?: boolean }) {
+      const onChange = vi.fn();
+      render(<SliderLog schema={schema} value={value} onChange={onChange} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      fireEvent.keyDown(thumb, init);
+      return onChange;
+    }
+
+    it.each([
+      ['ArrowRight', 1],
+      ['ArrowUp', 1],
+      ['ArrowLeft', -1],
+      ['ArrowDown', -1],
+    ])('%s moves the thumb a hundredth of the track', (key, direction) => {
+      const onChange = press(START, { key });
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(tOf(onChange.mock.calls[0][0])).toBeCloseTo(0.5 + direction * 0.01, 10);
+    });
+
+    it.each([
+      ['PageUp', false, 1],
+      ['PageDown', false, -1],
+      ['ArrowRight', true, 1],
+      ['ArrowLeft', true, -1],
+    ])('%s (shift: %s) moves the thumb a tenth of the track', (key, shiftKey, direction) => {
+      const onChange = press(START, { key, shiftKey });
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(tOf(onChange.mock.calls[0][0])).toBeCloseTo(0.5 + direction * 0.1, 10);
+    });
+
+    it('crosses the whole track in 100 arrow presses and holds at the end', () => {
+      const seen: number[] = [];
+      render(<Walk schema={schema} start={schema.min} seen={seen} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      for (let i = 0; i < 100; i++) fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+      expect(seen).toHaveLength(100);
+      expect(seen[99]).toBe(schema.max);
+      fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+      expect(seen[seen.length - 1]).toBe(schema.max);
+    });
+
+    it('leaves Home and End to the track ends', () => {
+      const home = press(START, { key: 'Home' });
+      expect(home).toHaveBeenCalledTimes(1);
+      expect(home.mock.calls[0][0]).toBe(schema.min);
+      cleanup();
+      const end = press(START, { key: 'End' });
+      expect(end).toHaveBeenCalledTimes(1);
+      expect(end.mock.calls[0][0]).toBeCloseTo(schema.max, 10);
+    });
+
+    it('ignores every other key', () => {
+      expect(press(START, { key: 'a' })).not.toHaveBeenCalled();
+    });
   });
 
   describe('schema.steps — a fixed set of allowed values (e.g. Automation Rate) instead of the continuous log curve', () => {
@@ -271,14 +351,41 @@ describe('SliderLog component', () => {
       expect(thumb.getAttribute('aria-valuenow')).toBe(String(stepsValueToT(STEPS[3], STEPS)));
     });
 
-    it('a keyboard step always lands exactly on an allowed value, never a fine continuous in-between number — even though Slider.Root\'s own internal step (0.001) is far finer than the gap between 2 real steps', () => {
-      const onChange = vi.fn();
-      render(<SliderLog schema={stepsSchema} value={STEPS[0]} onChange={onChange} />);
+    it('an arrow key moves exactly one stop, either way', () => {
+      const up = vi.fn();
+      render(<SliderLog schema={stepsSchema} value={STEPS[0]} onChange={up} />);
+      screen.getByRole('slider').focus();
+      fireEvent.keyDown(screen.getByRole('slider'), { key: 'ArrowRight' });
+      expect(up).toHaveBeenCalledTimes(1);
+      expect(up.mock.calls[0][0]).toBe(STEPS[1]);
+      cleanup();
+
+      const down = vi.fn();
+      render(<SliderLog schema={stepsSchema} value={STEPS[3]} onChange={down} />);
+      screen.getByRole('slider').focus();
+      fireEvent.keyDown(screen.getByRole('slider'), { key: 'ArrowLeft' });
+      expect(down).toHaveBeenCalledTimes(1);
+      expect(down.mock.calls[0][0]).toBe(STEPS[2]);
+    });
+
+    it('walks every stop in order with the arrow keys and holds at the last one', () => {
+      const seen: number[] = [];
+      render(<Walk schema={stepsSchema} start={STEPS[0]} seen={seen} />);
       const thumb = screen.getByRole('slider');
       thumb.focus();
+      for (let i = 1; i < STEPS.length; i++) fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+      expect(seen).toEqual(STEPS.slice(1));
       fireEvent.keyDown(thumb, { key: 'ArrowRight' });
-      expect(onChange).toHaveBeenCalledTimes(1);
-      expect(STEPS).toContain(onChange.mock.calls[0][0]);
+      expect(seen[seen.length - 1]).toBe(STEPS[STEPS.length - 1]);
+    });
+
+    it('the real Automation Rate list (14 stops) walks one stop per arrow too', () => {
+      const seen: number[] = [];
+      render(<Walk schema={SWELL_FREQUENCY_SCHEMA} start={SWELL_FREQUENCY_STEPS[0]} seen={seen} />);
+      const thumb = screen.getByRole('slider');
+      thumb.focus();
+      for (let i = 1; i < SWELL_FREQUENCY_STEPS.length; i++) fireEvent.keyDown(thumb, { key: 'ArrowRight' });
+      expect(seen).toEqual(SWELL_FREQUENCY_STEPS.slice(1));
     });
 
     it('displays the raw value via formatValue exactly as any other SliderLog would — steps only change positioning/snapping, not display', () => {
@@ -437,7 +544,7 @@ describe('SliderLog component', () => {
       fireEvent.keyDown(thumb, { key: 'ArrowRight' });
       expect(onChange).toHaveBeenCalledTimes(1);
       const received = onChange.mock.calls[0][0];
-      expect(received).toBeCloseTo(sliderLogTToValue(0.001, schema.min, schema.max), 10);
+      expect(received).toBeCloseTo(sliderLogTToValue(0.01, schema.min, schema.max), 10);
     });
   });
 

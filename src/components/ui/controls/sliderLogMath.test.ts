@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   sliderLogValueToT,
   sliderLogTToValue,
+  sliderLogKeyStep,
   stepsValueToT,
   stepsTToValue,
   signedLogValueToT,
@@ -52,6 +53,49 @@ describe('round-trip', () => {
       }
     });
   }
+});
+
+// A keyboard step on the log track: Radix's own step is a thousandth of the track, which is 1,000 arrow presses from end
+// to end, so SliderLog steps the keys itself.
+describe('sliderLogKeyStep', () => {
+  const tOf = (value: number, min: number, max: number) => sliderLogValueToT(value, min, max);
+
+  it('moves a hundredth of the track per arrow, either way', () => {
+    for (const [min, max] of [[0, 10], [20, 20000]] as const) {
+      const from = sliderLogTToValue(0.5, min, max);
+      expect(tOf(sliderLogKeyStep(from, 1, false, min, max), min, max)).toBeCloseTo(0.51, 10);
+      expect(tOf(sliderLogKeyStep(from, -1, false, min, max), min, max)).toBeCloseTo(0.49, 10);
+    }
+  });
+
+  it('takes a page step of a tenth of the track', () => {
+    const from = sliderLogTToValue(0.5, 0, 10);
+    expect(tOf(sliderLogKeyStep(from, 1, true, 0, 10), 0, 10)).toBeCloseTo(0.6, 10);
+    expect(tOf(sliderLogKeyStep(from, -1, true, 0, 10), 0, 10)).toBeCloseTo(0.4, 10);
+  });
+
+  it('leaves a min of 0 on the first press and returns to exactly 0', () => {
+    const up = sliderLogKeyStep(0, 1, false, 0, 10);
+    expect(up).toBeGreaterThan(0);
+    expect(sliderLogKeyStep(up, -1, false, 0, 10)).toBe(0);
+  });
+
+  it('lands exactly on a bound and holds there', () => {
+    const nearTop = sliderLogTToValue(0.995, 20, 20000);
+    expect(sliderLogKeyStep(nearTop, 1, false, 20, 20000)).toBe(20000);
+    expect(sliderLogKeyStep(20000, 1, true, 20, 20000)).toBe(20000);
+    const nearBottom = sliderLogTToValue(0.05, 20, 20000);
+    expect(sliderLogKeyStep(nearBottom, -1, true, 20, 20000)).toBe(20);
+    expect(sliderLogKeyStep(20, -1, false, 20, 20000)).toBe(20);
+  });
+
+  it('crosses the whole track in 100 arrow presses, ending exactly on each bound', () => {
+    let value = 0;
+    for (let i = 0; i < 100; i++) value = sliderLogKeyStep(value, 1, false, 0, 10);
+    expect(value).toBe(10);
+    for (let i = 0; i < 100; i++) value = sliderLogKeyStep(value, -1, false, 0, 10);
+    expect(value).toBe(0);
+  });
 });
 
 // A discrete-stops variant (docs: Automation Rate's fixed set of allowed frequencies) — used
