@@ -404,8 +404,8 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `orbiters-${context}-${robotId}` `` | `useOrbiterMotion` | the mount | unmount (a no-op stub, see above) |
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
 | `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
-| `` `note-belt-${context}-${robotId}` `` | `useNoteCloud` | the mount; a re-size's rebuild replaces it | the rebuild (`setTimeline`), unmount |
-| `` `note-resize-${context}-${robotId}` `` | `useNoteCloud` | one re-size fade (out, rebuild, back in) | the next re-size, unmount |
+| `` `note-belt-${robotId}` `` | `useNoteCloud` | the mount; a re-size's rebuild replaces it | the rebuild (`setTimeline`), unmount |
+| `` `note-resize-${robotId}` `` | `useNoteCloud` | one re-size fade (out, rebuild, back in) | the next re-size, unmount |
 
 Every key in this table is registered as `'world'` (the registry's scope, above): the work loop's six
 `setTimeline` calls, `swimAnimation.ts`, `buildJobTimeline.ts`, `stationRipple.ts`, `useHaloMotion`,
@@ -437,7 +437,7 @@ The ocean scene (`OceanScene.tsx`) is one **stage**, `div.ocean-scene__stage`, 1
 | `front` | static sheet | `#station-front-layer` (each station's front fragment: halo and ripple), first, then tint D, foreground factories/scenery and pipe bridges |
 | `marker` | mover | the singled-out robot's marker (`FollowedRobotMarker`: the robot under the pointer, else the Deck camera's followed robot), a `div.mover.mover--marker` in front of every building |
 
-A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A robot's mover also holds its two note layers, one each side of the svg ("The note cloud" below). A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the singled-out robot's canvas centre each frame. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
+A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the singled-out robot's canvas centre each frame. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
 
 Each station's three fragments are plain groups in three sheets, not sheets of their own: `#station-l4-layer` is the last child of `back`, `#station-l3-layer` is all of `stations`, and `#station-front-layer` is the first child of `front` (before tint D). All three are static; only the one-second ripple animates one.
 
@@ -470,22 +470,23 @@ Measure with `npm run perf:idle` before and after any change to what moves in th
 Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the cloud draws and why is in
 [ROBOT_DESIGN.md](ROBOT_DESIGN.md#the-note-cloud--the-third-overlay); where its notes come from is in
 [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-events--audio-to-the-picture). This is how it moves.
-`src/components/robot/notes/useNoteCloud.ts`, called by `RobotBody` with the world or avatar context
-(never on a card), owns it all. Its cost was measured at Gate 1 (PERFORMANCE.md, "Note cloud — the Task
-17 cost run" and "Note cloud — the battery bands, the Task 17d cost run").
+`src/components/robot/notes/useNoteCloud.ts`, called by `RobotBody` on the robot screen's desk avatar
+alone (never in the world since 2026-11-13, spec §8.4; never on a card), owns it all. Its cost was
+measured for world clouds at Gate 1 (PERFORMANCE.md, "Note cloud — the Task 17 cost run" and "Note
+cloud — the battery bands, the Task 17d cost run") and with early notes at Gate 4 ("Note cloud — early
+notes, the Task 36 runs"); with one cloud on screen those figures no longer apply.
 
 - **The layers.** `NoteCloudLayer` (`NoteCloudLayers.tsx`) renders a wrapper (`.note-layer`, masked,
-  `pointer-events: none`, `aria-hidden`) holding an empty belt (`.note-layer__belt`). In the world a
-  robot's mover holds a pair: `.note-layer--behind` before the svg (z-index −1) and
-  `.note-layer--front` after it (z-index 1); the mover is its own stacking context. The box holding a
-  pair carries `data-note-cloud`, and the hook finds it from inside the svg
+  `pointer-events: none`, `aria-hidden`) holding an empty belt (`.note-layer__belt`). The avatar's
+  box holds a pair, `.note-layer--behind` in a frame before the svg and `.note-layer--front` in one
+  after it. The box holding a pair carries `data-note-cloud`, and the hook finds it from inside the svg
   (`closest('[data-note-cloud]')`), then the pair under it, so nothing is passed down. React renders
   no children in a belt and never reconciles what the hook appends. A wrapper is `display: none` and
   its belt drops `will-change` while it has no live note, so an idle cloud costs no layer. Neither is
   rendered under reduced motion or `?notes=off` (`isNoteCloudEnabled`, `debugParams.ts`).
 - **The belt.** One `gsap.to` per robot per context, linear and `repeat: -1`, moves both belts left by
   the roll's width each `NOTE_CROSSING_SECONDS`; it is registered `'world'` as
-  `` `note-belt-${context}-${robotId}` ``, so a power-off pause freezes the cloud mid-flight. Its
+  `` `note-belt-${robotId}` ``, so a power-off pause freezes the cloud mid-flight. Its
   `onUpdate` is the one pass a frame: it writes both belts' `translate`, removes a note whose right end
   has crossed the roll's left edge, and settles each live note. A note's place is kept in unwrapped
   belt units, so its x changes only when the belt wraps, and the rows' wave and fan move it across
@@ -494,29 +495,25 @@ Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the clou
   opacity from the belt's own time: up over `NOTE_HOT_IN_SECONDS` as the note leaves the speakers,
   held for its length, down over `NOTE_COOL_SECONDS`. No tween and no timer per note.
 - **A note arriving.** `subscribeDrawnNotes` hands the hook a drawn note and its event. It places
-  nothing while the tab is hidden, the world is not `'running'` (`getWorldState()`), or `placing` is
-  false (the battery bands); the model has counted the note either way. Otherwise one
+  nothing while the tab is hidden or the world is not `'running'` (`getWorldState()`); the model has
+  counted the note either way. Otherwise one
   `div.note` with its `.note__hot` child is appended to the front or behind belt at "now" plus the
-  event's `lead` at the belt's speed, and the first live note wakes the layers.
-- **Strength and re-size.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.75), set when the cloud is
+  event's `lead` at the belt's speed, and the first live note wakes the layers. The lead is about
+  0.7 s, because the first cloud built asks the engine for early notes (`setNotePreviewSeconds` with
+  `NOTE_PREVIEW_SECONDS`, 0.4625 s, and the last cloud to go withdraws the ask). So a bar lands about
+  halfway between the roll's right edge and "now" and rides in under the mask, which clears where it
+  lands (`NOTE_KNOWN_AHEAD_SECONDS + NOTE_PREVIEW_SECONDS` of travel right of "now").
+- **Strength and re-size.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.5625), set when the cloud is
   built; nothing else changes it but a re-size. A gem or body-scale change fades both layers out over
   `NOTE_WAKE_SECONDS`, rebuilds the roll at the latest size from a `.call` (dropping the notes in
   flight and starting a new belt), and fades back to the peak, on
-  `` `note-resize-${context}-${robotId}` `` (`'world'`). A second change mid-fade replaces it from
+  `` `note-resize-${robotId}` `` (`'world'`). A second change mid-fade replaces it from
   wherever the layers are.
-- **The singled-out dim.** `RobotBody` writes `--note-dim` on the cloud's box (`NOTE_DIM`, or 1 when
-  singled out); both masks read it, so a flip rebuilds nothing.
-- **The row scale.** The work loop's `placeRow` and `easeRowWith` scale a robot's `.note-layer`s with
-  `.robot__row`, about each layer's own centre (the gem canvas centre), in the same tween as the row,
-  so a row switch never pops the cloud.
 - **Pixels per unit.** A bar's 4-pixel floor needs the screen scale, read when a note arrives and never
-  by a layout read: in the world `getStageScale()` (`useStageFit.ts`, the value it last wrote to
-  `--stage-scale`) times the row's scale; on the desk avatar `--note-fit-scale`, which the avatar's
-  box writes from its `ResizeObserver` and its frames' CSS reads to place the layers on the svg's
-  fit.
-- **The model's life.** `noteCloudModel` outlives an effect re-run and the avatar's mount; only the
-  world body's unmount forgets the robot's range and run (`clearNoteCloudModel`). The world body's
-  unmount also ends the robot's wake (`sleepRobotNotes`).
+  by a layout read: `--note-fit-scale`, which the avatar's box writes from its `ResizeObserver` and its
+  frames' CSS reads to place the layers on the svg's fit.
+- **The model's life.** `noteCloudModel` outlives an effect re-run; the cloud's unmount (closing the
+  robot screen) forgets the robot's range and run (`clearNoteCloudModel`).
 
 ### Layout-rework timelines (Phase 45)
 

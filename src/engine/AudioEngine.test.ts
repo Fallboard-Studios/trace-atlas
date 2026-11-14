@@ -7102,6 +7102,122 @@ describe('AudioEngine — articulation, Humanize and the click-track exemption i
       expect(getContext).toHaveBeenCalled();
     });
   });
+
+  // The note cloud's Part E (docs/specs/ROBOT_NOTE_CLOUD.md §1.9; plan Task 32): one place turns a step into its notes,
+  // so the trigger and an early announcement read the same thing. processMelodyStep is "resolve, then schedule each".
+  describe('stepNotes: one place turns a step into its notes (note cloud Task 32)', () => {
+    const AT = { sixteenth: 83, measure: 5, step: 4 };
+
+    /** setup, with the real palette in place of this file's fixed one; returns the real palette for the oracle. */
+    async function setupWithRealPalette(robots: Array<ReturnType<typeof robotFixture>>) {
+      const ctx = await setup(robots);
+      const real = await vi.importActual<typeof import('./harmonySystem')>('./harmonySystem');
+      const harmony = await import('./harmonySystem');
+      vi.mocked(harmony.paletteForMeasure).mockImplementation(real.paletteForMeasure);
+      return { ...ctx, palette: real.paletteForMeasure };
+    }
+
+    it('returns each registered robot\'s note on the step, with the pitch of that measure\'s palette', async () => {
+      const { AudioEngine, stepNotes, palette } = await setupWithRealPalette([robotFixture('a'), robotFixture('b')]);
+      AudioEngine.registerRobotMelody('a', [eventFixture({ id: 'a4', startStep: 4, noteIndex: 0, octave: 4 })] as never);
+      AudioEngine.registerRobotMelody('b', [
+        eventFixture({ id: 'b4', startStep: 4, noteIndex: 2, octave: 3 }),
+        eventFixture({ id: 'b5', startStep: 5, noteIndex: 1 }),
+      ] as never);
+
+      // Measure 6 opens a palette entry (each holds two measures), so the measure before it plays another chord.
+      const notes = stepNotes({ sixteenth: 99, measure: 6, step: 4 }, 0);
+
+      // The oracle tells the measure apart from the one before it, for both indices.
+      expect(palette(5)[0]).not.toBe(palette(6)[0]);
+      expect(palette(5)[2]).not.toBe(palette(6)[2]);
+      expect(notes.map((n) => [n.robotId, n.note])).toEqual([
+        ['a', `${palette(6)[0]}4`],
+        ['b', `${palette(6)[2]}3`],
+      ]);
+    });
+
+    it('a plain note keeps its written length; it carries the step\'s roll position and no accent', async () => {
+      const { AudioEngine, stepNotes } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 4 })] as never);
+      const [note] = stepNotes(AT, 0);
+      expect(note.duration).toBe('8n');
+      expect(note.position).toBe(83);
+      expect(note.accentMultiplier).toBeUndefined();
+      expect('release' in note).toBe(false);
+    });
+
+    it('an articulated note has its sounding length in seconds, its short release and its mark\'s accent', async () => {
+      const { AudioEngine, stepNotes } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 4, mark: 'marcato' })] as never);
+      const [note] = stepNotes(AT, 0);
+      expect(note.duration).toBeCloseTo(0.15 * 0.75, 10);
+      expect(note.release).toBe(0.03);
+      expect(note.accentMultiplier).toBe(1.65);
+    });
+
+    it('the start is time + MIN_LEAD plus the Humanize roll at the step\'s sixteenth', async () => {
+      const { default: alea } = await import('alea');
+      const { AudioEngine, stepNotes } = await setup([robotFixture('r')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 4 })] as never);
+      const [note] = stepNotes(AT, 1.5);
+      const at83 = (alea('0:humanize:83')() * 2 - 1) * 0.02;
+      expect(Math.abs(at83)).toBeGreaterThan(0.001); // a real offset, not a near-zero draw
+      expect((note.time as number) - (1.5 + MIN_LEAD)).toBeCloseTo(at83, 10);
+    });
+
+    it('a Click Track event carries no Humanize offset', async () => {
+      const { AudioEngine, stepNotes } = await setup([robotFixture('r', { clickTrackActive: true })]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('r', [eventFixture()] as never);
+      const notes = stepNotes(atStep(1), 1.5);
+      expect(notes).toHaveLength(1);
+      expect(notes[0].time).toBe(1.5 + MIN_LEAD);
+    });
+
+    it('a bad note index is skipped and warned about, and the others on the step still come back', async () => {
+      const { AudioEngine, stepNotes } = await setup([robotFixture('a'), robotFixture('b')]);
+      const { devWarn } = await import('../utils/helpers');
+      vi.mocked(devWarn).mockClear();
+      AudioEngine.registerRobotMelody('a', [eventFixture({ startStep: 4, noteIndex: 9 })] as never);
+      AudioEngine.registerRobotMelody('b', [eventFixture({ startStep: 4, noteIndex: 1 })] as never);
+      const notes = stepNotes(AT, 0);
+      expect(notes.map((n) => n.robotId)).toEqual(['b']);
+      expect(devWarn).toHaveBeenCalledWith(expect.stringContaining('Invalid note index 9'));
+    });
+
+    it('an event that throws while it is read is skipped, and the others still come back', async () => {
+      const { AudioEngine, Tone, stepNotes } = await setup([robotFixture('a'), robotFixture('b')]);
+      (Tone.Time as unknown as ReturnType<typeof vi.fn>).mockImplementation((d: string | number) => ({
+        toSeconds: () => {
+          if (d === '4n') throw new Error('a bad length');
+          return typeof d === 'number' ? d : SECONDS[d] ?? 1;
+        },
+      }));
+      AudioEngine.registerRobotMelody('a', [eventFixture({ startStep: 4, length: '4n', mark: 'staccato' })] as never);
+      AudioEngine.registerRobotMelody('b', [eventFixture({ startStep: 4 })] as never);
+      expect(stepNotes(AT, 0).map((n) => n.robotId)).toEqual(['b']);
+    });
+
+    it('a step with no events gives nothing; resolving schedules nothing', async () => {
+      const { AudioEngine, stepNotes, scheduled } = await setup([robotFixture('r')]);
+      AudioEngine.registerRobotMelody('r', [eventFixture({ startStep: 4 })] as never);
+      expect(stepNotes(atStep(2), 0)).toEqual([]);
+      expect(stepNotes(AT, 0)).toHaveLength(1);
+      expect(scheduled).not.toHaveBeenCalled();
+    });
+
+    it('processMelodyStep schedules exactly what stepNotes resolves', async () => {
+      const { AudioEngine, stepNotes, params } = await setup([robotFixture('a'), robotFixture('b')]);
+      AudioEngine.setHumanize(20);
+      AudioEngine.registerRobotMelody('a', [eventFixture({ startStep: 4, mark: 'accent' })] as never);
+      AudioEngine.registerRobotMelody('b', [eventFixture({ startStep: 4, rest: 0.5, noteIndex: 2 })] as never);
+      const resolved = stepNotes(AT, 2);
+      AudioEngine.processMelodyStep(AT, 2);
+      expect(params()).toEqual(resolved);
+    });
+  });
 });
 
 // Power is a pause (docs/specs/OFF_SCREEN.md assumption 2, docs/tasks/OFF_SCREEN.md Task 1): the rocker suspends the
@@ -7370,5 +7486,281 @@ describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
     triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 });
     triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0.5 });
     expect(heard.map((e) => e.at)).toEqual([0, 0.5]);
+  });
+});
+
+// ========================================
+// The note cloud's Part E (docs/specs/ROBOT_NOTE_CLOUD.md §1.9; plan Task 33): one place answers "may this robot
+// trigger now?", so the trigger and an early announcement ask the same gates. The polyphony cap is not one of them.
+// ========================================
+describe('mayRobotTrigger: the gates before the polyphony cap (note cloud Task 33)', () => {
+  const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
+  const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
+    id, audioMode, docking, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
+  });
+
+  /** Puts `robots` in the active locale, starts the engine and reserves a voice for each id in `reserve`. */
+  async function setUp(robots = [robotAt('n')], reserve = robots.map((r) => r.id)) {
+    const { AudioEngine, mayRobotTrigger, triggerWithCap } = await import('./AudioEngine');
+    const helpers = await import('../utils/localeHelpers');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const { DEFAULT_LOCALE_ID } = await import('../stores/attenuationStyleStore');
+    vi.mocked(helpers.getActiveLocaleId).mockReturnValue(DEFAULT_LOCALE_ID);
+    store.getState().setLocaleData(DEFAULT_LOCALE_ID, { robots: robots as any });
+    await AudioEngine.start();
+    for (const id of reserve) AudioEngine.reserveVoice(id, LAYER, TEST_ADSR);
+    return { AudioEngine, mayRobotTrigger, triggerWithCap };
+  }
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it('is true for a robot that is audible, admitted by the budget and holds a voice', async () => {
+    const { mayRobotTrigger } = await setUp();
+    expect(mayRobotTrigger('n')).toBe(true);
+  });
+
+  it('is false for a muted robot', async () => {
+    const { mayRobotTrigger } = await setUp([robotAt('n', 'mute')]);
+    expect(mayRobotTrigger('n')).toBe(false);
+  });
+
+  it('is false for a robot soloed away, and true for the soloist', async () => {
+    const { mayRobotTrigger } = await setUp([robotAt('n'), robotAt('s', 'solo')]);
+    expect(mayRobotTrigger('n')).toBe(false);
+    expect(mayRobotTrigger('s')).toBe(true);
+  });
+
+  it('is false for a docked robot and an undocking one', async () => {
+    const docked = await setUp([robotAt('n', 'none', 'docked')]);
+    expect(docked.mayRobotTrigger('n')).toBe(false);
+    vi.resetModules();
+    const undocking = await setUp([robotAt('n', 'none', 'undocking')]);
+    expect(undocking.mayRobotTrigger('n')).toBe(false);
+  });
+
+  it('is false for a robot standing by (outside the budget\'s sounding set), true again once admitted', async () => {
+    const { AudioEngine, mayRobotTrigger } = await setUp([robotAt('n'), robotAt('m')]);
+    AudioEngine.setSoundingRobots(['m']);
+    expect(mayRobotTrigger('n')).toBe(false);
+    expect(mayRobotTrigger('m')).toBe(true);
+    AudioEngine.setSoundingRobots(null);
+    expect(mayRobotTrigger('n')).toBe(true);
+  });
+
+  it('is false for a robot with no voice reserved', async () => {
+    const { mayRobotTrigger } = await setUp([robotAt('n')], []);
+    expect(mayRobotTrigger('n')).toBe(false);
+  });
+
+  it('is true at a full polyphony count: the cap is not one of its gates', async () => {
+    const { AudioEngine, mayRobotTrigger, triggerWithCap } = await setUp();
+    AudioEngine.setPolyphonyCap(1);
+    expect(triggerWithCap({ robotId: 'n', note: 'C4', duration: '4n', time: 0 })).toBe(true);
+    expect(triggerWithCap({ robotId: 'n', note: 'D4', duration: '4n', time: 0 })).toBe(false); // the cap refuses
+    expect(mayRobotTrigger('n')).toBe(true);
+  });
+
+  it('changes no voice count, whatever it answers', async () => {
+    const { AudioEngine, mayRobotTrigger } = await setUp([robotAt('n'), robotAt('q', 'mute')]);
+    const before = AudioEngine.getPolyphonyStats().voices;
+    mayRobotTrigger('n');
+    mayRobotTrigger('q');
+    mayRobotTrigger('nobody');
+    expect(AudioEngine.getPolyphonyStats().voices).toBe(before);
+  });
+});
+
+// ========================================
+// The note cloud's Part E (docs/specs/ROBOT_NOTE_CLOUD.md §1.9; plan Task 34): with a preview asked for, each firing
+// of the melody's 16n tick also announces a later step, the first whole sixteenth at least the preview ahead, and the
+// trigger emits nothing. Driven through the real tick on a 120 BPM clock (a sixteenth every 0.125 s).
+// ========================================
+describe('the engine announces a step ahead of its trigger (note cloud Task 34)', () => {
+  const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
+  const SIXTEENTH = 0.125;
+  const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
+    id, audioMode, docking, compositionSeed: 0.3, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
+  });
+  const eventAt = (startStep: number, extra: Record<string, unknown> = {}) =>
+    ({ id: `e${startStep}`, startStep, length: '8n', noteIndex: 2, octave: 4, ...extra }) as never;
+  type Heard = import('./noteEvents').RobotNoteEvent;
+
+  /** Puts `robots` in the active locale with a noise map (so Humanize rolls), the real palette and a 120 BPM clock;
+   *  starts the engine, reserves a voice for each, listens to robot `n`, and hands back the live melody tick. */
+  async function setUp(robots = [robotAt('n')]) {
+    vi.doMock('../utils/noiseMaps', async () => {
+      const actual = await vi.importActual<typeof import('../utils/noiseMaps')>('../utils/noiseMaps');
+      return { ...actual, tryGetLocaleNoiseMap: () => () => 0 };
+    });
+    const Tone = await import('tone');
+    const { AudioEngine } = await import('./AudioEngine');
+    const noteEvents = await import('./noteEvents');
+    const harmony = await import('./harmonySystem');
+    const realHarmony = await vi.importActual<typeof import('./harmonySystem')>('./harmonySystem');
+    vi.mocked(harmony.paletteForMeasure).mockImplementation(realHarmony.paletteForMeasure);
+    const beatClock = await import('./beatClock');
+    const { positionFromTicks } = await vi.importActual<typeof import('./beatClock')>('./beatClock');
+    vi.mocked(beatClock.positionAt).mockImplementation((time: number) => positionFromTicks(time * 384, 192));
+    tick.seconds = SIXTEENTH;
+    const helpers = await import('../utils/localeHelpers');
+    const { useLocaleStore: store } = await import('../stores/localeStore');
+    const { DEFAULT_LOCALE_ID } = await import('../stores/attenuationStyleStore');
+    vi.mocked(helpers.getActiveLocaleId).mockReturnValue(DEFAULT_LOCALE_ID);
+    store.getState().setLocaleData(DEFAULT_LOCALE_ID, { robots: robots as any });
+    await AudioEngine.start();
+    for (const r of robots) AudioEngine.reserveVoice(r.id, LAYER, TEST_ADSR);
+    // The tone mock outlives resetModules, so earlier tests' transports are still in its results: take this engine's,
+    // the last one given a 16n repeat.
+    const transport = (Tone.getTransport as unknown as ReturnType<typeof vi.fn>).mock.results
+      .map((r) => r.value)
+      .filter((t) => t?.scheduleRepeat?.mock.calls.some((c: unknown[]) => c[1] === '16n'))
+      .at(-1);
+    const melodyTick = transport.scheduleRepeat.mock.calls.find((c: unknown[]) => c[1] === '16n')[0] as (time: number) => void;
+    const heard: Heard[] = [];
+    noteEvents.onRobotNote('n', (event) => heard.push(event));
+    return { AudioEngine, noteEvents, harmony, melodyTick, heard };
+  }
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  afterEach(() => {
+    tick.seconds = undefined;
+    vi.doUnmock('../utils/noiseMaps');
+  });
+
+  it('with 0.9 s asked at 120 BPM, a tick announces the step eight sixteenths on, as that step\'s own trigger gives it', async () => {
+    const { AudioEngine, noteEvents, melodyTick, heard } = await setUp();
+    AudioEngine.setHumanize(20);
+    AudioEngine.registerRobotMelody('n', [eventAt(9, { mark: 'staccato' })]);
+
+    noteEvents.setNotePreviewSeconds(0.9);
+    melodyTick(0); // sixteenth 0: 0.9 s is 7.2 sixteenths, so the step announced is sixteenth 8 (step 9)
+    expect(heard).toHaveLength(1);
+    const announced = heard[0];
+
+    // What step 9's own trigger gives it, with no preview asked for.
+    noteEvents.setNotePreviewSeconds(0);
+    melodyTick(8 * SIXTEENTH);
+    expect(heard).toHaveLength(2);
+    const triggered = heard[1];
+
+    expect(announced.note).toBe(triggered.note);
+    expect(announced.duration).toBeCloseTo(triggered.duration, 12);
+    expect(announced.at).toBeCloseTo(triggered.at, 12);
+    expect(Math.abs(announced.at - (8 * SIXTEENTH + MIN_LEAD))).toBeGreaterThan(0.0005); // Humanize moved it
+    expect(announced.lead).toBeCloseTo(announced.at, 12); // Tone.now() is 0 and no latency is reported
+  });
+
+  it('an exact multiple of a sixteenth is not rounded up past it: 1 s ahead is eight sixteenths', async () => {
+    const { AudioEngine, noteEvents, melodyTick, heard } = await setUp();
+    AudioEngine.setHumanize(0);
+    AudioEngine.registerRobotMelody('n', [eventAt(9)]);
+    noteEvents.setNotePreviewSeconds(1);
+    melodyTick(0);
+    expect(heard).toHaveLength(1);
+    expect(heard[0].at).toBeCloseTo(8 * SIXTEENTH + MIN_LEAD, 12);
+  });
+
+  it('across a measure\'s end and a palette change the announced pitch is the triggered pitch', async () => {
+    const { AudioEngine, noteEvents, melodyTick, heard } = await setUp();
+    // Sixteenth 28 is measure 1, step 13; eight on is sixteenth 36, measure 2, step 5, where palette entry 1 begins
+    // (entry 0 plays E at index 2, entry 1 plays F).
+    AudioEngine.registerRobotMelody('n', [eventAt(5)]);
+    noteEvents.setNotePreviewSeconds(0.9);
+    melodyTick(28 * SIXTEENTH);
+    noteEvents.setNotePreviewSeconds(0);
+    melodyTick(36 * SIXTEENTH);
+    expect(heard.map((e) => e.note)).toEqual(['F4', 'F4']);
+  });
+
+  it('an announced note is not emitted again at its trigger, and it still sounds', async () => {
+    const { AudioEngine, noteEvents, melodyTick, heard } = await setUp();
+    AudioEngine.registerRobotMelody('n', [eventAt(9)]);
+    noteEvents.setNotePreviewSeconds(0.9);
+    melodyTick(0);
+    expect(heard).toHaveLength(1); // announced at sixteenth 0
+    const voices = AudioEngine.getPolyphonyStats().voices;
+    melodyTick(8 * SIXTEENTH); // step 9 triggers here (and sixteenth 16, empty, is announced)
+    expect(heard).toHaveLength(1);
+    expect(AudioEngine.getPolyphonyStats().voices).toBe(voices + 1);
+  });
+
+  it('a robot muted, soloed away, docked or standing by at the announcing tick announces nothing', async () => {
+    const cases: Array<{ robots: ReturnType<typeof robotAt>[]; standBy?: boolean }> = [
+      { robots: [robotAt('n', 'mute')] },
+      { robots: [robotAt('n'), robotAt('s', 'solo')] },
+      { robots: [robotAt('n', 'none', 'docked')] },
+      { robots: [robotAt('n'), robotAt('m')], standBy: true },
+    ];
+    for (const { robots, standBy } of cases) {
+      vi.resetModules();
+      const { AudioEngine, noteEvents, melodyTick, heard } = await setUp(robots);
+      if (standBy) AudioEngine.setSoundingRobots(['m']);
+      AudioEngine.registerRobotMelody('n', [eventAt(9)]);
+      noteEvents.setNotePreviewSeconds(0.9);
+      melodyTick(0);
+      expect(heard).toEqual([]);
+    }
+  });
+
+  it('a full polyphony count stops no announcement', async () => {
+    const { AudioEngine, noteEvents, melodyTick, heard } = await setUp();
+    AudioEngine.setHumanize(0);
+    AudioEngine.setPolyphonyCap(1);
+    AudioEngine.registerRobotMelody('n', [eventAt(1, { length: '2n' }), eventAt(9)]);
+    noteEvents.setNotePreviewSeconds(0.9);
+    melodyTick(0); // step 1 takes the only voice; step 9 is announced
+    expect(AudioEngine.getPolyphonyStats().voices).toBe(1);
+    expect(heard).toHaveLength(1);
+    expect(heard[0].at).toBeCloseTo(8 * SIXTEENTH + MIN_LEAD, 12);
+  });
+
+  it('with no preview asked for, no step is resolved twice and the trigger emits as before', async () => {
+    const { AudioEngine, harmony, melodyTick, heard } = await setUp();
+    AudioEngine.setHumanize(0);
+    AudioEngine.registerRobotMelody('n', [eventAt(1), eventAt(9)]);
+    vi.mocked(harmony.paletteForMeasure).mockClear();
+    melodyTick(0);
+    expect(harmony.paletteForMeasure).toHaveBeenCalledTimes(1);
+    expect(heard).toHaveLength(1);
+    expect(heard[0].at).toBeCloseTo(MIN_LEAD, 12);
+  });
+
+  it('with a preview asked for, a tick resolves its own step and the one it announces', async () => {
+    const { AudioEngine, noteEvents, harmony, melodyTick } = await setUp();
+    AudioEngine.registerRobotMelody('n', [eventAt(1), eventAt(9)]);
+    noteEvents.setNotePreviewSeconds(0.9);
+    vi.mocked(harmony.paletteForMeasure).mockClear();
+    melodyTick(0);
+    expect(harmony.paletteForMeasure).toHaveBeenCalledTimes(2);
+  });
+
+  it('a robot nobody listens to is not announced: no event is built and the latency is never read', async () => {
+    const { AudioEngine, noteEvents, melodyTick } = await setUp([robotAt('n'), robotAt('m')]);
+    AudioEngine.registerRobotMelody('m', [eventAt(9)]);
+    noteEvents.setNotePreviewSeconds(0.9);
+    const latencyRead = vi.fn(() => 0.03);
+    Object.defineProperty(rawContextMock, 'outputLatency', { get: latencyRead, configurable: true });
+    try {
+      melodyTick(0);
+      expect(latencyRead).not.toHaveBeenCalled();
+    } finally {
+      delete (rawContextMock as any).outputLatency;
+    }
+  });
+
+  it('with no tick length known, nothing is announced and nothing throws', async () => {
+    const { AudioEngine, noteEvents, melodyTick, heard } = await setUp();
+    AudioEngine.registerRobotMelody('n', [eventAt(9)]);
+    noteEvents.setNotePreviewSeconds(0.9);
+    tick.seconds = undefined;
+    expect(() => melodyTick(0)).not.toThrow();
+    expect(heard).toEqual([]);
   });
 });

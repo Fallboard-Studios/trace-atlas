@@ -2,7 +2,8 @@
 // noteEvents (docs/specs/ROBOT_NOTE_CLOUD.md §1.2, §4)
 // ========================================
 // Written by the engine, read by the animation layer, keyed by robot id. AudioEngine's `triggerWithCap` emits one
-// event per note that will sound; the note cloud listens. A listener is handed what a note is and never the engine,
+// event per note that will sound; the note cloud listens. A listener may ask to hear of notes earlier
+// (`setNotePreviewSeconds`, §1.9). A listener is handed what a note is and never the engine,
 // so the arrow runs audio to visual only and Strict Separation stands. Not a store: twelve robots on sixteenths is
 // about a hundred events a second, none of it through Zustand or React.
 //
@@ -33,6 +34,9 @@ type Listener = (event: RobotNoteEvent) => void;
  *  nothing but its own. A robot's set is deleted with its last listener. */
 const listeners = new Map<string, Set<{ listener: Listener }>>();
 
+/** How many seconds before its trigger a listener wants to hear of a note (spec §1.9). 0: told at the trigger. */
+let previewSeconds = 0;
+
 // ========================================
 // EXPORTS
 // ========================================
@@ -52,6 +56,18 @@ export function onRobotNote(robotId: string, listener: Listener): () => void {
 /** Whether anything listens to this robot, so the engine builds no event nobody reads. */
 export function hasRobotNoteListener(robotId: string): boolean {
   return listeners.has(robotId);
+}
+
+/** A listener asks to hear of notes this many seconds earlier than their trigger (spec §1.9). The engine then
+ *  announces a later step at each tick, rounded up to a whole sixteenth. 0 turns it off; a negative or non-finite
+ *  value is 0. */
+export function setNotePreviewSeconds(seconds: number): void {
+  previewSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
+}
+
+/** What was last asked for (0 until then). Read by the engine at each tick. */
+export function getNotePreviewSeconds(): number {
+  return previewSeconds;
 }
 
 /** The engine's side. A throwing listener is reported and never reaches the caller or the next listener: a

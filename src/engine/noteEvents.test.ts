@@ -3,7 +3,14 @@
 // ========================================
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { emitRobotNote, hasRobotNoteListener, onRobotNote, type RobotNoteEvent } from './noteEvents';
+import {
+  emitRobotNote,
+  getNotePreviewSeconds,
+  hasRobotNoteListener,
+  onRobotNote,
+  setNotePreviewSeconds,
+  type RobotNoteEvent,
+} from './noteEvents';
 
 const EVENT: RobotNoteEvent = { lead: 0.2, duration: 0.25, at: 12.5, note: 'C4' };
 
@@ -96,5 +103,37 @@ describe('noteEvents: the listener registry', () => {
     listen('r1', after);
     emitRobotNote('r1', EVENT);
     expect(after).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('noteEvents: a listener asks for notes earlier (spec §1.9; plan Task 31)', () => {
+  afterEach(() => setNotePreviewSeconds(0));
+
+  it('the preview is 0 until asked', () => {
+    expect(getNotePreviewSeconds()).toBe(0);
+  });
+
+  it('reads back what was asked, and the latest ask wins', () => {
+    setNotePreviewSeconds(0.925);
+    expect(getNotePreviewSeconds()).toBe(0.925);
+    setNotePreviewSeconds(0.5);
+    expect(getNotePreviewSeconds()).toBe(0.5);
+  });
+
+  it('asking for 0 turns it off again', () => {
+    setNotePreviewSeconds(0.925);
+    setNotePreviewSeconds(0);
+    expect(getNotePreviewSeconds()).toBe(0);
+  });
+
+  it.each([
+    ['a negative value', -0.4],
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+    ['minus Infinity', Number.NEGATIVE_INFINITY],
+  ])('%s reads back 0, even over an earlier good ask', (_label, bad) => {
+    setNotePreviewSeconds(0.925);
+    setNotePreviewSeconds(bad);
+    expect(getNotePreviewSeconds()).toBe(0);
   });
 });

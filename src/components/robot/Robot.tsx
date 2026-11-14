@@ -7,7 +7,6 @@ import gsap from 'gsap';
 
 import { RobotBody } from './RobotBody';
 import { GEM_CANVAS_H, gemViewBox, gemWidth, getRobotGem } from './gem/polygon';
-import { NoteCloudLayer } from './notes/NoteCloudLayers';
 import { setRef, deleteRef } from '../../utils/refs';
 import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
@@ -97,7 +96,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
     return () => deleteRef(`robot-${robotId}`);
   }, { scope: ref, dependencies: [robotId] });
 
-  // The note cloud's attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7): a robot that goes while the pointer is on it
+  // The marker's attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7): a robot that goes while the pointer is on it
   // takes the pointer with it, and leaves another robot's alone.
   useEffect(() => () => {
     if (getPointedRobotId() === robotId) setPointedRobot(null);
@@ -136,16 +135,13 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   // by the work loop about the gem canvas centre — the frame sceneToOrbiterLocal assumes — so it
   // never shares a transform with the swim's x/y/rotation, which are the mover's.
   //
-  // The pointer entering `.robot` singles the robot out and wakes its notes, whatever the pointer type (spec §1.7,
-  // §7.2 A5); leaving clears the pointed-at robot, and the wake stays.
+  // The pointer entering `.robot` singles the robot out for the marker, whatever the pointer type (spec §1.7,
+  // §7.2 A5); leaving clears the pointed-at robot.
   //
   // The svg is the gem canvas, so the wrapper is exactly the canvas (OceanScene.css `.mover__svg` is a
   // block) and the swim's tilt turns about the canvas centre; `overflow="visible"` lets the halo, the
   // orbiters' flights and the job decorations draw outside it (spec §1.3). Only `.robot` takes clicks.
-  //
-  // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.5): the mover is the cloud's box
-  // (`data-note-cloud`), with one note layer before the svg (behind the body) and one after it (in
-  // front). The body's useNoteCloud finds them from inside the svg and fills their belts.
+  // The world draws no note cloud: it is the robot screen's alone (docs/specs/ROBOT_NOTE_CLOUD.md §8.4).
   const gem = getRobotGem(robot.gemSeed);
   return (
     <div
@@ -153,9 +149,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
       className="mover mover--robot"
       data-robot-id={robotId}
       data-scene-slot={slotForLayer(robot.layer)}
-      data-note-cloud=""
     >
-      <NoteCloudLayer side="behind" />
       <svg
         className="mover__svg"
         width={gemWidth(gem)}
@@ -176,7 +170,6 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
           </g>
         </g>
       </svg>
-      <NoteCloudLayer side="front" />
     </div>
   );
 });

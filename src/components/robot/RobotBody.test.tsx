@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, beforeEach, vi, type MockInstance } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
 import { Profiler, useLayoutEffect } from 'react';
 
@@ -14,9 +14,8 @@ import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
 import type { ArcDecorator } from './gem/useHaloMotion';
 import { NoteCloudLayer } from './notes/NoteCloudLayers';
-import { clearNoteCloudModel } from './notes/noteCloudModel';
+import { clearNoteCloudModel, nextDrawnNote } from './notes/noteCloudModel';
 import { noteColor } from './notes/noteRows';
-import * as useNoteCloudModule from './notes/useNoteCloud';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import type { Locale } from '@/types/locale';
@@ -27,32 +26,6 @@ import type { Robot } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import { emitRobotNote, hasRobotNoteListener } from '@/engine/noteEvents';
 import { setWorldState } from '@/systems/worldState';
-import { isRobotNotesWoken, setPointedRobot, sleepRobotNotes, wakeRobotNotes } from '@/systems/robotAttention';
-
-// The Deck camera's followed robot, as a fake the attention cases drive (note cloud Tasks 21, 23); the rest of the
-// module is the real one.
-const camera = vi.hoisted(() => {
-  let followed: string | null = null;
-  const listeners = new Set<() => void>();
-  return {
-    follow(id: string | null) {
-      followed = id;
-      for (const listener of [...listeners]) listener();
-    },
-    getFollowedRobotId: () => followed,
-    subscribeFollowedRobot(listener: () => void) {
-      listeners.add(listener);
-      return () => {
-        listeners.delete(listener);
-      };
-    },
-  };
-});
-vi.mock('@/animation/deckCamera', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/animation/deckCamera')>()),
-  getFollowedRobotId: camera.getFollowedRobotId,
-  subscribeFollowedRobot: camera.subscribeFollowedRobot,
-}));
 
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
@@ -725,9 +698,9 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
   });
 });
 
-// docs/specs/ROBOT_NOTE_CLOUD.md §1.5 (note cloud Task 13): a world body calls useNoteCloud enabled, so its notes are
-// placed on the layers Robot.tsx renders round its svg; a card (no motion) never listens.
-describe('RobotBody — the note cloud (note cloud Task 13)', () => {
+// docs/specs/ROBOT_NOTE_CLOUD.md §8.4 (Crawford, 2026-11-13): the note cloud is the robot screen's alone. The desk
+// avatar's body calls useNoteCloud enabled and places every note; a world body and a card never listen.
+describe('RobotBody — the note cloud is the avatar’s alone', () => {
   function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
     return render(
       <div data-note-cloud="">
@@ -748,8 +721,8 @@ describe('RobotBody — the note cloud (note cloud Task 13)', () => {
     setWorldState('cold');
   });
 
-  it('a world body listens, and a note lands on its cloud in the freelancer complement colour', () => {
-    const { container } = drawInCloud(makeRobot({ identityColor: '#428d95' }), 'world');
+  it('the avatar listens, and a note lands on its cloud in the freelancer complement colour', () => {
+    const { container } = drawInCloud(makeRobot({ identityColor: '#428d95' }), 'avatar');
     expect(hasRobotNoteListener('r1')).toBe(true);
     emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
     const bar = container.querySelector('.note-layer--front .note') as HTMLElement;
@@ -761,10 +734,23 @@ describe('RobotBody — the note cloud (note cloud Task 13)', () => {
 
   it('a company member\'s notes wear the company colour', () => {
     useLocaleStore.getState().addCompany(getActiveLocaleId(), { id: 'cn', name: 'Notes', color: '#123456', robotIds: [] });
-    const { container } = drawInCloud(makeRobot({ companyId: 'cn' }), 'world');
+    const { container } = drawInCloud(makeRobot({ companyId: 'cn' }), 'avatar');
     emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
     const bar = container.querySelector('.note-layer--front .note') as HTMLElement;
     expect(bar.style.backgroundColor).toBe('rgb(18, 52, 86)');
+  });
+
+  it('the avatar places a note at any battery level (no bands on the robot screen)', () => {
+    const { container } = drawInCloud(makeRobot({ batteryLevel: 30, activity: 'working' }), 'avatar');
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
+    expect(container.querySelectorAll('.note')).toHaveLength(1);
+  });
+
+  it('a world body draws no cloud: it does not listen, and a note places nothing, even inside a cloud box', () => {
+    const { container } = drawInCloud(makeRobot(), 'world');
+    expect(hasRobotNoteListener('r1')).toBe(false);
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
+    expect(container.querySelector('.note')).toBeNull();
   });
 
   it('a card (no motion) does not listen and places nothing', () => {
@@ -774,239 +760,14 @@ describe('RobotBody — the note cloud (note cloud Task 13)', () => {
     expect(container.querySelector('.note')).toBeNull();
   });
 
-  it('the world body\'s unmount drops its listener', () => {
-    const { unmount } = drawInCloud(makeRobot(), 'world');
+  it('the avatar\'s unmount drops its listener and forgets the robot\'s range', () => {
+    const { unmount } = drawInCloud(makeRobot(), 'avatar');
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 2, note: 'B4' });
     unmount();
     expect(hasRobotNoteListener('r1')).toBe(false);
+    // a forgotten model puts the next note at mid-height; a kept one would put B at the top of C…B
+    expect(nextDrawnNote('r1', { lead: 0.2, duration: 0.25, at: 3, note: 'B4' })?.row).toBe(0);
   });
 });
 
-// docs/specs/ROBOT_NOTE_CLOUD.md §1.7 (note cloud Task 21): a world body that is singled out writes --note-dim 1 on
-// its cloud's box, any other NOTE_DIM; both masks read it, so a flip rebuilds nothing.
-describe('RobotBody — the singled-out robot\'s cloud is undimmed (note cloud Task 21)', () => {
-  function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
-    const result = render(
-      <div data-note-cloud="">
-        <NoteCloudLayer side="behind" />
-        <svg><RobotBody robot={robot} motion={motion} /></svg>
-        <NoteCloudLayer side="front" />
-      </div>,
-    );
-    const box = result.container.querySelector('[data-note-cloud]') as HTMLElement;
-    return { ...result, dim: () => box.style.getPropertyValue('--note-dim') };
-  }
-
-  beforeEach(() => {
-    setWorldState('running');
-    clearNoteCloudModel('r1');
-  });
-
-  afterEach(() => {
-    cleanup();
-    setWorldState('cold');
-    setPointedRobot(null);
-    camera.follow(null);
-    sleepRobotNotes('r1');
-    sleepRobotNotes('r2');
-    useUIStore.getState().selectRobot(null);
-  });
-
-  it('a robot nobody has turned to is dimmed', () => {
-    const { dim } = drawInCloud(makeRobot(), 'world');
-    expect(dim()).toBe('0.35');
-  });
-
-  it('the pointed-at robot is undimmed, and the value flips back when the pointer leaves', () => {
-    const { dim } = drawInCloud(makeRobot(), 'world');
-    act(() => setPointedRobot('r1'));
-    expect(dim()).toBe('1');
-    act(() => setPointedRobot(null));
-    expect(dim()).toBe('0.35');
-  });
-
-  it('the robot the Deck camera follows is undimmed', () => {
-    const { dim } = drawInCloud(makeRobot(), 'world');
-    act(() => camera.follow('r1'));
-    expect(dim()).toBe('1');
-  });
-
-  it('the selected robot is undimmed', () => {
-    const { dim } = drawInCloud(makeRobot(), 'world');
-    act(() => useUIStore.getState().selectRobot('r1'));
-    expect(dim()).toBe('1');
-  });
-
-  it('a soloed and a highlighted robot are undimmed; a muted one is not', () => {
-    const solo = drawInCloud(makeRobot({ audioMode: 'solo' }), 'world');
-    expect(solo.dim()).toBe('1');
-    solo.unmount();
-    const highlight = drawInCloud(makeRobot({ audioMode: 'highlight' }), 'world');
-    expect(highlight.dim()).toBe('1');
-    highlight.unmount();
-    const mute = drawInCloud(makeRobot({ audioMode: 'mute' }), 'world');
-    expect(mute.dim()).toBe('0.35');
-  });
-
-  it('another robot singled out leaves this one dimmed', () => {
-    const { dim } = drawInCloud(makeRobot(), 'world');
-    act(() => setPointedRobot('r2'));
-    act(() => useUIStore.getState().selectRobot('r2'));
-    expect(dim()).toBe('0.35');
-  });
-
-  it('a flip removes no note bar', () => {
-    const { container } = drawInCloud(makeRobot(), 'world');
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'C4' });
-    expect(container.querySelectorAll('.note')).toHaveLength(1);
-    act(() => setPointedRobot('r1'));
-    act(() => setPointedRobot(null));
-    expect(container.querySelectorAll('.note')).toHaveLength(1);
-  });
-
-  it('a world body is not re-rendered when another robot becomes the singled-out one', () => {
-    const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
-    drawInCloud(makeRobot(), 'world');
-    const afterMount = renderSpy.mock.calls.length;
-    act(() => setPointedRobot('r2'));
-    act(() => camera.follow('r3'));
-    expect(renderSpy.mock.calls.length).toBe(afterMount);
-    renderSpy.mockRestore();
-  });
-
-  it('a card writes no --note-dim and is not re-rendered when the singled-out robot changes', () => {
-    const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
-    const { dim } = drawInCloud(makeRobot());
-    const afterMount = renderSpy.mock.calls.length;
-    act(() => setPointedRobot('r1'));
-    act(() => camera.follow('r1'));
-    expect(dim()).toBe('');
-    expect(renderSpy.mock.calls.length).toBe(afterMount);
-    renderSpy.mockRestore();
-  });
-});
-
-// docs/specs/ROBOT_NOTE_CLOUD.md §1.7 (note cloud Tasks 23 and 17c): a world body hands its cloud
-// notesShown(battery, woken) as `placing`; pointing at it or selecting it wakes it, and its station ends the wake. These
-// cases read what the body hands useNoteCloud; the switch itself is the hook's (useNoteCloud.test.tsx, Task 17b).
-describe('RobotBody — the battery bands thin the cloud, attention wakes it (note cloud Tasks 23 and 17c)', () => {
-  let cloudSpy: MockInstance<typeof useNoteCloudModule.useNoteCloud>;
-  const placing = () => cloudSpy.mock.lastCall![0].placing;
-  const OFF_BAND = 30; // 28–38%: no notes unless woken
-  const ON_BAND = 45; // 38–55%
-
-  function drawInCloud(robot: Robot, motion?: 'world' | 'avatar') {
-    const tree = (r: Robot) => (
-      <div data-note-cloud="">
-        <NoteCloudLayer side="behind" />
-        <svg><RobotBody robot={r} motion={motion} /></svg>
-        <NoteCloudLayer side="front" />
-      </div>
-    );
-    const result = render(tree(robot));
-    return { ...result, redraw: (r: Robot) => result.rerender(tree(r)) };
-  }
-
-  beforeEach(() => {
-    setWorldState('running');
-    clearNoteCloudModel('r1');
-    cloudSpy = vi.spyOn(useNoteCloudModule, 'useNoteCloud');
-  });
-
-  afterEach(() => {
-    cleanup();
-    cloudSpy.mockRestore();
-    setWorldState('cold');
-    setPointedRobot(null);
-    camera.follow(null);
-    sleepRobotNotes('r1');
-    useUIStore.getState().selectRobot(null);
-  });
-
-  it('places notes in an on band (100, 45, 15) and none in an off band (60, 30, 5)', () => {
-    for (const [level, shown] of [[100, true], [45, true], [15, true], [60, false], [30, false], [5, false]] as const) {
-      const { unmount } = drawInCloud(makeRobot({ batteryLevel: level, activity: 'working' }), 'world');
-      expect(placing(), `${level}%`).toBe(shown);
-      unmount();
-    }
-  });
-
-  it('a battery step across a band edge switches placing', () => {
-    const robot = makeRobot({ batteryLevel: 74, activity: 'working' });
-    const { redraw } = drawInCloud(robot, 'world');
-    expect(placing()).toBe(false);
-    redraw({ ...robot, batteryLevel: 72 });
-    expect(placing()).toBe(true);
-  });
-
-  it('pointing at the robot in an off band makes it place, and it stays placing after the pointer leaves', () => {
-    drawInCloud(makeRobot({ batteryLevel: OFF_BAND, activity: 'working' }), 'world');
-    act(() => setPointedRobot('r1'));
-    expect(placing()).toBe(true);
-    act(() => setPointedRobot(null));
-    expect(placing()).toBe(true);
-  });
-
-  it('selecting the robot wakes it; deselecting leaves it woken', () => {
-    drawInCloud(makeRobot({ batteryLevel: OFF_BAND, activity: 'working' }), 'world');
-    act(() => useUIStore.getState().selectRobot('r1'));
-    expect(isRobotNotesWoken('r1')).toBe(true);
-    expect(placing()).toBe(true);
-    act(() => useUIStore.getState().selectRobot(null));
-    expect(isRobotNotesWoken('r1')).toBe(true);
-    expect(placing()).toBe(true);
-  });
-
-  it('selecting another robot wakes nothing here', () => {
-    drawInCloud(makeRobot({ batteryLevel: OFF_BAND, activity: 'working' }), 'world');
-    act(() => useUIStore.getState().selectRobot('r2'));
-    expect(isRobotNotesWoken('r1')).toBe(false);
-    expect(placing()).toBe(false);
-    sleepRobotNotes('r2');
-  });
-
-  it('a woken robot stays woken while returning and entering; charging sleeps it and the band decides again', () => {
-    const robot = makeRobot({ batteryLevel: OFF_BAND, activity: 'working' });
-    const { redraw } = drawInCloud(robot, 'world');
-    act(() => setPointedRobot('r1'));
-    act(() => setPointedRobot(null));
-    redraw({ ...robot, activity: 'returning' });
-    expect(isRobotNotesWoken('r1')).toBe(true);
-    expect(placing()).toBe(true);
-    redraw({ ...robot, activity: 'entering' });
-    expect(isRobotNotesWoken('r1')).toBe(true);
-    redraw({ ...robot, activity: 'charging' });
-    expect(isRobotNotesWoken('r1')).toBe(false);
-    expect(placing()).toBe(false);
-  });
-
-  it('the Deck camera following the robot in an off band does not make it place', () => {
-    drawInCloud(makeRobot({ batteryLevel: OFF_BAND, activity: 'working' }), 'world');
-    act(() => camera.follow('r1'));
-    expect(isRobotNotesWoken('r1')).toBe(false);
-    expect(placing()).toBe(false);
-  });
-
-  it('the avatar places in any band', () => {
-    drawInCloud(makeRobot({ batteryLevel: OFF_BAND, activity: 'working' }), 'avatar');
-    expect(placing()).toBe(true);
-  });
-
-  it('the world body\'s unmount ends its wake', () => {
-    const { unmount } = drawInCloud(makeRobot({ batteryLevel: ON_BAND, activity: 'working' }), 'world');
-    act(() => setPointedRobot('r1'));
-    act(() => setPointedRobot(null));
-    unmount();
-    expect(isRobotNotesWoken('r1')).toBe(false);
-  });
-
-  it('a card neither wakes on selection nor re-renders on a wake', () => {
-    const renderSpy = vi.spyOn(gemPaletteModule, 'gemPalette');
-    drawInCloud(makeRobot({ batteryLevel: 25, activity: 'working' }));
-    const afterMount = renderSpy.mock.calls.length;
-    act(() => useUIStore.getState().selectRobot('r1'));
-    expect(isRobotNotesWoken('r1')).toBe(false);
-    act(() => wakeRobotNotes('r1'));
-    expect(renderSpy.mock.calls.length).toBe(afterMount);
-    renderSpy.mockRestore();
-  });
-});

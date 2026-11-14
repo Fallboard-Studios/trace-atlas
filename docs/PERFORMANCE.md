@@ -3051,6 +3051,90 @@ off runs' 151.
   twelve sounding, are the next look.
 - **No early notes**, as in Task 17. Gate 4 runs this again with Part E built.
 
+## Note cloud — early notes, the Task 36 runs (2026-11-13, backlog 79)
+
+Part E of the note cloud: the engine announces each note about 1.1 s ahead of its trigger, so a note enters at the
+roll's right edge ([specs/ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md) §1.9;
+[tasks/ROBOT_NOTE_CLOUD.md](tasks/ROBOT_NOTE_CLOUD.md) Task 36). Two runs, for Gate 4: does the announcement match
+the note that then plays, and what does it cost.
+
+### The forecast
+
+**What was run.** `feature/note-cloud-early-notes` at bcc39943 on the dev server, world `?seed=charlie&x=200&y=-30`,
+two power-ons in two fresh headless Chromes with no input, each a 60 s window after an 8 s settle. A page-side
+probe (scratchpad only, never committed: spec §1.9 says no forecast check ships) heard every robot's announcements
+through `onRobotNote`. It also wrapped `AudioEngine.scheduleNote` on the page's own module, counting a note as
+played only when the voice count rose across the call. Each played note was matched to its announcement by robot and
+scheduled start. The probe was first run against a doctored copy of a saved run (5 pitches corrupted, 5
+announcements removed) and reported exactly those 5 and 5.
+
+| Power-on | Played | Matched | Wrong pitch | Wrong length | Unannounced | Announced, not played | Palette entries | Lead (s) |
+|---|---|---|---|---|---|---|---|---|
+| 1 | 625 | 610 | 0 | 0 | 15 | 5 | 9 | 1.094–1.180 |
+| 2 | 625 | 610 | 0 | 0 | 15 | 5 | 9 | 1.057–1.181 |
+
+Not counted: the 9 notes played in the probe's first 1.5 s, which were announced before it listened. The two
+power-ons gave the same counts, note for note: the world replays.
+
+- **No wrong pitch and no wrong length** across 9 palette entries a run. The spike measured 330 right, 23 wrong and
+  13 unannounced, then 352, 1 and 13. Its wrong notes followed a chord change; backlog 82 and 83 removed the cause.
+- **All 15 unannounced notes were a robot that had just started sounding**, each within 0.85 s of its first note
+  (eight robots, first heard between 17 s and 68 s on the audio clock; the probe did not record why each began). Spec §1.9 accepts
+  this.
+- **All 5 announced, unplayed notes were a gate closing inside the lead.** Robots 1 and 2 were docking. Each robot's
+  melody was re-registered at that same moment (robot 1 at 64.10 s, robot 2 at 67.49 s), so for 3 of the 5 the
+  trigger would have resolved another pitch. None sounded, and spec §1.9 accepts both.
+
+### The cost
+
+**What was run.** Two production builds served side by side: this branch at bcc39943 (`index-BZ3sK713.js`, port
+4173), and `main` at 944db28a (`index-C310Gdh8.js`, port 4174). `main` is branch one as merged: the re-drawn bands
+of Task 17e and no early notes. Off is this branch's build with `&notes=off`. The command and world were Task 17's
+(`npm run perf:idle -- --only stock --throttle 1`, one 6 s window each). There were two rounds of three arms, in the
+order off, main, early and then early, main, off. All were headless, in the foreground one at a time, and left no
+orphaned Chrome. Every window read 12 robots and an undimmed world.
+
+| Window | Main busy (ms) | Long tasks | Frames | Paint (ms) | Compositor::Update (ms) | Rastered screens/frame | Layers (drawing) | FunctionCall (ms) | Animation frame (ms) | UpdateLayoutTree (ms) | Layout (ms) |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| off | 2 301 | 0 | 334 | 136 | 166 | 0.49 | 29 (24) | 1 694 | 931 | 184 | 106 |
+| main | 2 544 | 1 | 333 | 142 | 208 | 0.50 | 46 (34) | 1 896 | 1 104 | 240 | 121 |
+| early notes | 2 637 | 0 | 332 | 143 | 215 | 0.52 | 46 (34) | 1 941 | 1 122 | 254 | 121 |
+| early notes | 2 558 | 0 | 331 | 136 | 202 | 0.51 | 46 (34) | 1 946 | 1 095 | 223 | 118 |
+| main | 2 676 | 0 | 333 | 139 | 208 | 0.52 | 46 (34) | 1 987 | 1 116 | 235 | 124 |
+| off | 2 444 | 0 | 355 | 145 | 169 | 0.48 | 29 (24) | 1 792 | 976 | 190 | 108 |
+
+| Against off (means) | main (bands, no early notes) | Early notes |
+|---|---|---|
+| Main busy | +10.0 % (+10.6 % and +9.5 % in-round) | **+9.5 %** (+14.6 % and +4.7 % in-round) |
+| Compositor::Update | +24 % | +24 % |
+| Animation frame | +16 % | +16 % |
+| UpdateLayoutTree / Layout | +27 % / +14 % | +28 % / +12 % |
+| Frames | 333 and 333 | 332 and 331; the off runs read 334 and 355 |
+| Rastered screens/frame | 0.50–0.52 | 0.51–0.52; the off runs read 0.48–0.49 |
+| Paint | 139–142 ms | 136–143 ms, inside the off runs' 136–145 |
+| Long tasks | 1 and 0 | 0 and 0 |
+
+| Main busy, against off | Task 17 (no bands) | Task 17d (odd-tens bands) | This run, main (re-drawn bands) | This run, early notes | The spike (early notes, no bands) |
+|---|---|---|---|---|---|
+| | +17.6 % | +3.7 % | +10.0 % | +9.5 % | +19 % |
+
+**Early notes against no early notes: no difference this harness can see.** The means are −0.5 %, and the rounds
+disagree in sign (+3.7 % and −4.4 %). Every column but main busy sits within a few percent of `main`.
+
+**Against the working target** (spec §5.3: main-thread time within 10 % of off). Both on arms sit at the line,
++9.5 % and +10.0 %. Frame rate and rastered area are just outside the off runs' spread, as in Task 17. Paint is
+inside it.
+
+**Read with these in mind.**
+- **The re-drawn bands cost more than Task 17d's odd tens.** This is the first measurement of Task 17e's bands
+  (60 % on; 17d's were 50 % on): +10.0 % against 17d's +3.7 %, in different sessions. In both windows of both on
+  arms the layer count was 46, the same as the old cloud without bands, so every sounding robot was in an on band
+  for these 6 s. A 6 s window samples the bands, and a longer window or another world could read lower.
+- **Why early notes no longer cost what the spike's did.** The spike's +19 % had early notes and rewrote every live
+  note every frame for the wavy rows. This build writes a note's place only when it moves by a whole quantum (spec
+  §1.6). Early notes keep a note on the roll about a fifth longer, and main-thread time did not move with them.
+- **Not measured:** Crawford's desktop at full screen, a phone, and twelve robots sounding at once.
+
 ## Recording a new baseline
 
 After a fix from 17.2.2–17.2.5, re-run `npm run perf` 3× at the same settings, compare medians against the table above, and add a dated row/section here rather than overwriting it, so the history of what each fix bought stays visible.

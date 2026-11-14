@@ -456,9 +456,6 @@ function AvatarGem({ robot, cloud = false }: { robot: Robot; cloud?: boolean }) 
 
 const roundTo = (value: number, places: number) => Number(value.toFixed(places));
 
-/** The avatar's dim: always 1, the singled-out look (spec §1.8). Both masks read it. */
-const AVATAR_CLOUD_STYLE = { '--note-dim': 1 } as CSSProperties;
-
 /**
  * The desk avatar's note cloud box (spec §1.8; docs/tasks/ROBOT_NOTE_CLOUD.md Task 27): the avatar's present size,
  * clipping, holding a behind frame, the svg and a front frame. useNoteCloud places each layer in gem canvas units, so
@@ -488,7 +485,7 @@ function AvatarCloudBox({ viewBox, children }: { viewBox: string; children: Reac
   }, [viewBox]);
 
   return (
-    <div ref={boxRef} className="robot-screen__gem-box" data-note-cloud="" style={AVATAR_CLOUD_STYLE}>
+    <div ref={boxRef} className="robot-screen__gem-box" data-note-cloud="">
       <div className="robot-screen__note-frame robot-screen__note-frame--behind">
         <NoteCloudLayer side="behind" />
       </div>

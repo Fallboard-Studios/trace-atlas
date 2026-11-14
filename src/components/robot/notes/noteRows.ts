@@ -8,7 +8,6 @@
 // IMPORTS
 // ========================================
 import {
-  NOTE_BRIGHT_BAND,
   NOTE_COMPLEMENT_L,
   NOTE_COMPLEMENT_S,
   NOTE_CROSSING_SECONDS,
@@ -57,14 +56,15 @@ const DEGREES = 180 / Math.PI;
 /** A gradient stop's place, in percent to two decimals. */
 const pct = (share: number) => `${Number((share * 100).toFixed(2))}%`;
 
-/** How far into the fan `across` is: 0 through the straight middle, rising to 1 at either edge (and held there
- *  beyond it), with its rate of change along `across`. */
+/** How far into the fan `across` is: 0 through the straight middle and the whole right half (where a note enters:
+ *  the lead runs in flat), rising to 1 at the left edge, where a note leaves (and held there beyond it), with its
+ *  rate of change along `across`. */
 function fanReach(across: number): { past: number; rate: number } {
-  const fromCentre = Math.abs(2 * across - 1);
+  const fromCentre = 1 - 2 * across; // toward the left edge only: the right half is negative, so it never fans
   const raw = (fromCentre - NOTE_EDGE_START) / (1 - NOTE_EDGE_START);
   if (raw <= 0) return { past: 0, rate: 0 };
   if (raw > 1) return { past: 1, rate: 0 };
-  return { past: raw, rate: (Math.sign(2 * across - 1) * 2) / (1 - NOTE_EDGE_START) };
+  return { past: raw, rate: -2 / (1 - NOTE_EDGE_START) };
 }
 
 // ========================================
@@ -90,8 +90,10 @@ export function rollBox(gem: RobotGem, scale: number): RollBox {
 }
 
 /**
- * The rows across a roll (§1.3). A row holds its pitch height, bar a wave of NOTE_WAVE of the roll's height, until
- * NOTE_EDGE_START of the way from the centre to an edge. Past it the fan opens as the square of how far in it is
+ * The rows across a roll (§1.3). A row holds its pitch height, bar a wave of NOTE_WAVE of the roll's height, across
+ * the whole right half, where a note enters (Crawford, Gate 4: the lead runs in flat), and on the left until
+ * NOTE_EDGE_START of the way from the centre to the left edge, where a note leaves. Past it the fan opens as the
+ * square of how far in it is
  * (so it grows from nothing, with no kink): the rows spread apart by up to NOTE_FAN of their middle spread, the wave
  * grows to NOTE_WAVE_EDGE_GAIN times, and a bar tilts toward its row's slope, by the same weight. NOTE_WAVE_COUNT
  * waves cross the roll, each row's shifted by its pitch, so the top and bottom rows wave together. Beyond the roll
@@ -160,17 +162,13 @@ export function noteColor(identityColor: string, companyColor: string | undefine
 }
 
 /**
- * The mask both layers wear (§1.4, §1.7), left to right: clear at the left edge; `--note-dim` (set on the mover,
- * 1 when unset) from NOTE_DIM_FROM of the width to NOTE_BRIGHT_BAND left of "now"; full at "now" (NOTE_NOW in from
- * the right); clear again where a note is first known, `knownAheadSeconds` of travel right of "now" and never past
- * the right edge. The mask dims the layer as a whole, so overlapping bars never show a darker patch.
+ * The mask both layers wear (§1.4), left to right: clear at the left edge; full from NOTE_DIM_FROM of the width to
+ * "now" (NOTE_NOW in from the right); clear again where a note is first known, `knownAheadSeconds` of travel right of
+ * "now" and never past the right edge. The mask fades the layer as a whole, so overlapping bars never show a darker
+ * patch.
  */
 export function noteMask(knownAheadSeconds: number): string {
   const now = 1 - NOTE_NOW;
   const known = Math.min(1, now + Math.max(0, knownAheadSeconds) / NOTE_CROSSING_SECONDS);
-  const dim = 'rgba(0, 0, 0, var(--note-dim, 1))';
-  return (
-    `linear-gradient(to right, transparent 0%, ${dim} ${pct(NOTE_DIM_FROM)}, ` +
-    `${dim} ${pct(now - NOTE_BRIGHT_BAND)}, #000 ${pct(now)}, transparent ${pct(known)})`
-  );
+  return `linear-gradient(to right, transparent 0%, #000 ${pct(NOTE_DIM_FROM)}, #000 ${pct(now)}, transparent ${pct(known)})`;
 }

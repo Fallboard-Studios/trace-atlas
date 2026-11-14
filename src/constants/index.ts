@@ -372,8 +372,9 @@ export const NOTE_HEIGHT_SHARE = 1 / 14;
 export const NOTE_MIN_PX = 4;
 /** A bar is never longer than this share of the roll's width (§1.3). */
 export const NOTE_MAX_LENGTH_SHARE = 0.8;
-/** The rows (§1.3): straight, but for a wave of NOTE_WAVE of the roll's height, until NOTE_EDGE_START of the way
- *  from the centre (0) to an edge (1). Past it the rows spread apart by up to NOTE_FAN of their middle spread at the
+/** The rows (§1.3): straight, but for a wave of NOTE_WAVE of the roll's height, across the right half (where a note
+ *  enters: Gate 4, the lead runs in flat) and on the left until NOTE_EDGE_START of the way from the centre (0) to the
+ *  left edge (1), where a note leaves. Past it the rows spread apart by up to NOTE_FAN of their middle spread at the
  *  edge, the wave grows to NOTE_WAVE_EDGE_GAIN times, and a bar tilts to its row's slope. NOTE_WAVE_COUNT waves
  *  cross the roll. */
 export const NOTE_WAVE = 0.015;
@@ -382,21 +383,22 @@ export const NOTE_FAN = 0.6;
 export const NOTE_WAVE_EDGE_GAIN = 5;
 export const NOTE_WAVE_COUNT = 1.5;
 /** "Now" (§1.4): where a note's leading end is as it leaves the speakers, this share of the roll's width in from
- *  the right edge, where the right-hand fan ends. */
+ *  the right edge. */
 export const NOTE_NOW = 0.225;
-/** The layers' mask (§1.4, §1.7): clear at the left edge, the dim level from NOTE_DIM_FROM of the width, full
- *  strength from NOTE_BRIGHT_BAND of the width left of "now" up to "now". */
+/** The layers' mask (§1.4): clear at the left edge, rising to full strength at NOTE_DIM_FROM of the width, where a
+ *  sounded note fades out on its way off the roll. */
 export const NOTE_DIM_FROM = 0.3;
-/** The dim level (§1.7): how faint a note becomes once it has sounded, on a robot nobody has turned to. The robot
- *  that is singled out is undimmed (1). Written on the cloud's box as `--note-dim`, which both masks read. */
-export const NOTE_DIM = 0.35;
-export const NOTE_BRIGHT_BAND = 0.14;
 /** A freelancer's notes wear its identity hue's complement at this saturation and lightness (§1.3). */
 export const NOTE_COMPLEMENT_S = 100;
 export const NOTE_COMPLEMENT_L = 70;
-/** How far ahead of its sound a note is known, for the mask's clear right-hand end (§1.4): about a fifth of a second
- *  while notes come from the trigger. Part E (early announcements) replaces it with the asked-for preview. */
+/** How far ahead of its sound a note is known when it comes from the trigger (§1.4): about a fifth of a second (the
+ *  transport's lookahead, MIN_LEAD and the output's latency). Every note has this lead before any preview. */
 export const NOTE_KNOWN_AHEAD_SECONDS = 0.2;
+/** The early notes the cloud asks the engine for (§1.9, Part E): half the run-in from the roll's right edge to "now"
+ *  (NOTE_NOW of a NOTE_CROSSING_SECONDS crossing, 1.125 s) less the NOTE_KNOWN_AHEAD_SECONDS every note already has,
+ *  so a note enters about halfway between the edge and "now" and fades in from there. About 0.4625 s. Crawford split
+ *  the difference at Gate 4: the whole run-in (0.925 s) was a little too much lead. */
+export const NOTE_PREVIEW_SECONDS = (NOTE_NOW * NOTE_CROSSING_SECONDS - NOTE_KNOWN_AHEAD_SECONDS) / 2;
 /** The per-frame pass writes a note's place only when it moves by a whole quantum (§1.6, §7.2 A7): a quarter of a
  *  canvas unit across its row, a quarter of a degree in its tilt. Through the straight middle most frames write nothing. */
 export const NOTE_QUANTUM_UNITS = 0.25;
@@ -406,19 +408,10 @@ export const NOTE_QUANTUM_DEGREES = 0.25;
 export const NOTE_HOT_COLOR = '#fffbe6';
 export const NOTE_HOT_IN_SECONDS = 0.05;
 export const NOTE_COOL_SECONDS = 0.25;
-/** The battery thins the cloud in bands (§1.7, Crawford 2026-11-13): the on bands (%), low to high, each from its lower
- *  edge up to, not including, its upper one; the top band's upper edge is a full battery and counts. A robot places no
- *  notes below the first band or in the gaps between. */
-export const NOTE_BATTERY_BANDS: readonly (readonly [number, number])[] = [
-  [10, 28],
-  [38, 55],
-  [65, 73],
-  [83, 100],
-];
-/** The cloud at its strongest (§1.7): the layers' opacity, in the world and on the avatar. Every other level (the dim
- *  a note falls to once it has sounded, its white while it sounds) sits under it (Crawford, 2026-11-13: "75% of their
- *  current opacity"). */
-export const NOTE_PEAK_STRENGTH = 0.75;
+/** The cloud at its strongest (§1.7): the layers' opacity on the robot screen's avatar. Every other level (its white
+ *  while a note sounds) sits under it. Crawford, 2026-11-13: first "75% of their current opacity" (0.75), then, once
+ *  the cloud was the avatar's alone, "down by 25%" (0.75 × 0.75). */
+export const NOTE_PEAK_STRENGTH = 0.5625;
 /** A re-size never pops (§1.5): the layers fade out over NOTE_WAKE_SECONDS, the roll is rebuilt, and they fade back
  *  to NOTE_PEAK_STRENGTH over the same. */
 export const NOTE_WAKE_SECONDS = 0.3;

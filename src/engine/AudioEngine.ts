@@ -13,10 +13,10 @@ import type { OscillatorLayer } from '../types/layeredAudio';
 import { GLOBAL_LFO_TARGET_IDS, type RobotLfoTargetId } from '../types/lfo';
 import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type SendEngineKey } from '../data/robotSends';
 import { paletteForMeasure } from './harmonySystem';
-import { resetBeatClock, initBeatClock, positionAt, type MusicPosition } from './beatClock';
+import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPosition } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS } from '../constants';
-import { emitRobotNote, hasRobotNoteListener } from './noteEvents';
+import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './noteEvents';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
 
@@ -551,16 +551,43 @@ function announceTriggeredNote(robotId: string, note: string, at: number, end: n
 }
 
 /**
- * Trigger note with polyphony cap enforcement.
- * Applies per-robot synth selection and ADSR envelope when provided.
- * Returns true if note was triggered, false if skipped due to cap.
+ * Announce a later step's notes ahead of their trigger (note cloud spec §1.9; plan Task 34). Run by the melody's 16n
+ * tick, only while a listener has asked for a preview (`setNotePreviewSeconds`). The step announced is the first whole
+ * sixteenth at least the preview on; its place in the music is `positionAt` of its own time, its notes come from
+ * `stepNotes` (the reads the trigger makes), and each robot with a listener is asked `mayRobotTrigger` as things stand
+ * now. The polyphony cap refuses no announcement. While a preview is asked for, triggerWithCap emits nothing.
  */
-export function triggerWithCap(params: NoteParams): boolean {
-  const { robotId, note, duration, time } = params;
+function announceUpcomingStep(time: number): void {
+  const preview = getNotePreviewSeconds();
+  if (preview <= 0) return;
+  try {
+    const sixteenth = getTickSeconds(time);
+    if (sixteenth === undefined) return;
+    // Rounded up to a whole sixteenth: never less than asked (a float error can only make it one more).
+    const ahead = Math.ceil(preview / sixteenth);
+    const laterTime = time + ahead * sixteenth;
+    const later = positionAt(laterTime);
+    if (!later) return;
+    for (const params of stepNotes(later, laterTime)) {
+      if (!hasRobotNoteListener(params.robotId) || !mayRobotTrigger(params.robotId)) continue;
+      const at = params.time ?? laterTime;
+      announceTriggeredNote(params.robotId, params.note, at, at + Tone.Time(params.duration).toSeconds());
+    }
+  } catch (err) {
+    devWarn('[AudioEngine] announceUpcomingStep failed', err);
+  }
+}
 
+/**
+ * May this robot trigger now? (note cloud spec §1.9; plan Task 33.) The gates that come before the polyphony cap, in
+ * one place, so triggerWithCap and an early announcement ask the same thing: Mute, Solo and the dock
+ * (`isRobotAudible`), the Audio Load budget (`soundingRobots`) and a reserved voice. Reads only; it counts no voice.
+ * The cap, the voice count and the note-string check stay in triggerWithCap.
+ */
+export function mayRobotTrigger(robotId: string): boolean {
   // Enforce audioMode (mute/solo) here — this is the sole enforcement point,
   // not a backup: scheduleNote's own audioMode block only handles highlight
-  // attenuation. Checked before the polyphony cap below so a muted/non-solo
+  // attenuation. Checked before the polyphony cap so a muted/non-solo
   // robot's note never consumes a polyphony slot — that note was never going
   // to play either way. No devLog on the mute/solo branches below —
   // muted/non-solo robots hit this on every note attempt, and that's
@@ -583,34 +610,44 @@ export function triggerWithCap(params: NoteParams): boolean {
   }
 
   // Audio-load budget: a robot standing by (eligible, but over the budget) neither triggers nor takes a
-  // polyphony slot. After the mute/solo check above and before the cap below, so it never counts against it.
+  // polyphony slot. After the mute/solo check above and before the cap, so it never counts against it.
   if (soundingRobots !== null && !soundingRobots.has(robotId)) {
     return false;
   }
+
+  if (!compositeVoices.has(robotId)) {
+    devWarn(`[AudioEngine] No composite voice reserved for ${robotId}, skipping note`);
+    return false;
+  }
+  if (!compositeVoices.get(robotId)?.composite) {
+    devWarn('[AudioEngine] No composite voice available, skipping note');
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Trigger note with polyphony cap enforcement.
+ * Applies per-robot synth selection and ADSR envelope when provided.
+ * Returns true if note was triggered, false if skipped by a gate (mayRobotTrigger), the cap or a bad note string.
+ */
+export function triggerWithCap(params: NoteParams): boolean {
+  const { robotId, note, duration, time } = params;
+
+  if (!mayRobotTrigger(robotId)) return false;
 
   if (activeVoices >= polyphonyCap) {
     return false;
   }
 
+  // mayRobotTrigger has just found the voice; this only narrows the type.
+  const synth = compositeVoices.get(robotId)?.composite;
+  if (!synth) return false;
+
   const scheduleTime = time ?? Tone.now();
   activeVoices++;
 
   try {
-    if (!compositeVoices.has(robotId)) {
-      activeVoices = Math.max(0, activeVoices - 1);
-      devWarn(`[AudioEngine] No composite voice reserved for ${robotId}, skipping note`);
-      return false;
-    }
-
-    const comp = compositeVoices.get(robotId);
-    const synth = comp?.composite ?? null;
-
-    if (!synth) {
-      activeVoices = Math.max(0, activeVoices - 1);
-      devWarn('[AudioEngine] No composite voice available, skipping note');
-      return false;
-    }
-
     // Validate note string before touching the synth — an invalid note can start
     // an oscillator attack before throwing, leaving voices permanently open.
     if (!NOTE_RE.test(note)) {
@@ -629,8 +666,9 @@ export function triggerWithCap(params: NoteParams): boolean {
     const noteEnd = scheduleVoiceRelease(duration, scheduleTime);
     standingBy.recordNoteEnd(robotId, noteEnd);
     // Past every gate: the note will sound, so its listeners hear of it (the note cloud, spec §1.2). Free when nobody
-    // listens; its own guard, so nothing here can un-count the voice that is now sounding.
-    if (hasRobotNoteListener(robotId)) announceTriggeredNote(robotId, note, scheduleTime, noteEnd);
+    // listens; its own guard, so nothing here can un-count the voice that is now sounding. While a preview is asked
+    // for, the tick has already announced it (announceUpcomingStep, spec §1.9), so it is not told twice.
+    if (getNotePreviewSeconds() <= 0 && hasRobotNoteListener(robotId)) announceTriggeredNote(robotId, note, scheduleTime, noteEnd);
     return true;
   } catch (err) {
     console.error('[AudioEngine] Failed to trigger note:', err);
@@ -660,6 +698,9 @@ function startMelodyPlayback(): void {
     // One shared per-step loop (processMelodyStep) — this used to carry its own copy that
     // dropped isGroupAccent, so the motif accent only ever worked through the test helper.
     AudioEngine.processMelodyStep(at, time);
+
+    // The note cloud's early notes (spec §1.9): a later step, announced only while a listener asks for a preview.
+    announceUpcomingStep(time);
   }, '16n', 0);
 }
 
@@ -754,6 +795,66 @@ function humanizeOffsetFor(position: number): (robotId: string) => number {
     const seed = roster.find((r) => r.id === robotId)?.compositionSeed ?? 0;
     return (performanceRoll(seed, 'humanize', position) * 2 - 1) * range;
   };
+}
+
+/**
+ * A step's notes (note cloud spec §1.9; plan Task 32): every registered event on `at.step`, read as it will sound.
+ * The one place that turns a step into notes, so the trigger (processMelodyStep) and an early announcement read the
+ * same thing and cannot drift. Pure as far as the audio goes: it schedules nothing and counts no voice.
+ *
+ * - pitch: `paletteForMeasure(at.measure)` at the event's note index, with its octave (4 if none);
+ * - length: the written NoteDuration, or, for a rested or clipped note, its sounding length in seconds at the live
+ *   tempo (floored at MIN_SOUNDING_SECONDS, never longer than written) with a short release (docs/specs/
+ *   ROBOT_PERFORMANCE.md §1.3; docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b);
+ * - accent: the motif-group accent times the mark's velocity, absent when 1;
+ * - start: `time + MIN_LEAD` plus the Humanize roll at `at.sixteenth` (none for a Click Track entry);
+ * - position: `at.sixteenth`, the roll position the velocity roll keys off (docs/specs/ONE_MUSIC_CLOCK.md §4.4).
+ *
+ * A bad note index is skipped with a dev warning; an event that throws while it is read is skipped alone.
+ */
+export function stepNotes(at: MusicPosition, time: number): NoteParams[] {
+  const events = stepRegistry.get(at.step) || [];
+  if (events.length === 0) return [];
+  const notes = paletteForMeasure(at.measure);
+  const position = at.sixteenth;
+  const humanizeOffset = humanizeOffsetFor(position);
+  const out: NoteParams[] = [];
+
+  events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
+    // Each event is isolated: one robot's bad event must not cost the rest of the step.
+    try {
+      const noteName = notes[event.noteIndex];
+      if (!noteName) {
+        devWarn(`[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`);
+        return;
+      }
+      const octave = event.octave ?? 4;
+
+      const art = resolveArticulation(event);
+      let duration: NoteDuration | number = event.length;
+      let release: number | undefined;
+      if (art.length < 1) {
+        const writtenSeconds = Tone.Time(event.length).toSeconds();
+        duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
+        const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
+        release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
+      }
+      const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
+
+      out.push({
+        robotId,
+        note: `${noteName}${octave}`,
+        duration,
+        time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
+        accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
+        position,
+        ...(release !== undefined ? { release } : {}),
+      });
+    } catch (err) {
+      devWarn(`[AudioEngine] Failed to read the note for robot ${robotId}`, err);
+    }
+  });
+  return out;
 }
 
 export const AudioEngine = {
@@ -1483,55 +1584,15 @@ export const AudioEngine = {
    * @param time - absolute AudioContext time passed through from transport
    */
   processMelodyStep(at: MusicPosition, time: number): void {
-    const events = stepRegistry.get(at.step) || [];
-    const notes = paletteForMeasure(at.measure);
-    // Robot Performance: the position every roll keys off (velocity, Humanize), sixteenths since the transport's tick 0.
-    const position = at.sixteenth;
-    const humanizeOffset = humanizeOffsetFor(position);
-
-    events.forEach(({ robotId, event, isGroupAccent, clickTrack }) => {
-      // Each event is isolated in its own try/catch — an uncaught exception from one robot's
-      // scheduleNote call must not abort the forEach and silently drop every remaining event
-      // in this same step.
+    // Resolve, then schedule each (note cloud plan Task 32): stepNotes is the one place a step becomes notes.
+    for (const params of stepNotes(at, time)) {
+      // Each note is isolated: an exception from one robot's scheduleNote must not drop the rest of the step.
       try {
-        const noteName = notes[event.noteIndex];
-        if (!noteName) {
-          devWarn(`[AudioEngine] Invalid note index ${event.noteIndex} for robot ${robotId}`);
-          return;
-        }
-        const octave = event.octave ?? 4;
-        const note = `${noteName}${octave}`;
-
-        // What the event's rest and mark mean (docs/specs/ROBOT_PERFORMANCE.md §1.3): a sounding-length factor
-        // and a velocity multiplier. An unstamped event keeps its NoteDuration string exactly as before; a
-        // shortened one becomes seconds at the live tempo, floored so it never collapses to a click and
-        // never longer than the note as written.
-        // A cut note also releases in CUT_RELEASE_SECONDS, or the robot's own release if that is shorter
-        // (docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md R2b): with the robot's whole release after it, the cut was hidden.
-        const art = resolveArticulation(event);
-        let duration: NoteDuration | number = event.length;
-        let release: number | undefined;
-        if (art.length < 1) {
-          const writtenSeconds = Tone.Time(event.length).toSeconds();
-          duration = Math.min(writtenSeconds, Math.max(MIN_SOUNDING_SECONDS, writtenSeconds * art.length));
-          const ownRelease = findActiveRobot(robotId)?.audioAttributes?.adsr?.release;
-          release = typeof ownRelease === 'number' ? Math.min(CUT_RELEASE_SECONDS, ownRelease) : CUT_RELEASE_SECONDS;
-        }
-        const accentMultiplier = (isGroupAccent ? GROUP_ACCENT_MULTIPLIER : 1) * art.velocity;
-
-        AudioEngine.scheduleNote({
-          robotId,
-          note,
-          duration,
-          time: time + MIN_LEAD + (clickTrack ? 0 : humanizeOffset(robotId)),
-          accentMultiplier: accentMultiplier === 1 ? undefined : accentMultiplier,
-          position,
-          ...(release !== undefined ? { release } : {}),
-        });
+        AudioEngine.scheduleNote(params);
       } catch (err) {
-        devWarn(`[AudioEngine] Failed to schedule note for robot ${robotId}`, err);
+        devWarn(`[AudioEngine] Failed to schedule note for robot ${params.robotId}`, err);
       }
-    });
+    }
   },
 
 
