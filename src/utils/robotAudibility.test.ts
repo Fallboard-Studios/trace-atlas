@@ -48,8 +48,8 @@ describe('isDockMuted reads whether the robot is in its station (backlog 84, spe
     expect(isDockMuted(DockingState.Docked)).toBe(false);
     // @ts-expect-error activity is required
     expect(isRobotAudible('none', false, DockingState.Docked)).toBe(true);
-    // @ts-expect-error activity is required (and isSounding after it)
-    expect(isRobotEmitting('none', false, DockingState.Docked, true)).toBe(true);
+    // @ts-expect-error activity is required, and isSounding after it
+    expect(isRobotEmitting('none', false, DockingState.Docked)).toBeFalsy(); // audible, but no sounding set given
   });
 
   it('only charging mutes a Docked or Undocking robot; every other activity is heard', () => {
