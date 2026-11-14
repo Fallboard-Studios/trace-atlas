@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Source intent:
 [docs/intent/robot-note-cloud.md](../intent/robot-note-cloud.md). Backlog
-[79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4. The look's reference is the
+[79](../todo/archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody), archived 2026-11-14. The look's reference is the
 branch `spike/note-pulse` at `?trail=all` (never merges; no code is carried over without its test).
 
 **Status:** branch one complete; Checkpoint: Complete passed 2026-11-13. Phase 1 (Tasks 1 to 3) built 2026-11-12; Checkpoint: Events awaits Crawford's look at the bob
@@ -20,7 +20,7 @@ built.** Checkpoint: Complete passed 2026-11-13: the looks and reviews the earli
 answered there, and the five-axis review approved (four fixes). Branch one merged (PR #637). **Phase 7 (Tasks 31 to
 36) built 2026-11-13** on `feature/note-cloud-early-notes`, one commit each. **Gate 4 passed 2026-11-13**, after
 his look moved the cloud: half the lead, a flat entry, the cloud on the robot screen only (always on, a quarter
-fainter), and the world cloud's leftovers removed (spec §8.4). Task 37 (the archive) follows the merge.
+fainter), and the world cloud's leftovers removed (spec §8.4). Branch two merged 2026-11-14 (PR #640) and Task 37 (the archive) was done the same day: **every task is built.**
 
 How the boxes read: a task's own box is ticked when it was built and committed. The acceptance and verification
 boxes inside Tasks 1 to 16, 18 to 25, 27 and 28 were left as written while building; each is pinned by the task's
@@ -1487,7 +1487,7 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   2026-11-13: the cost was twelve world clouds, and the world draws none now (spec §8.4).
 - [x] Ready for his PR (2026-11-13: 14,221 passed, 2 skipped, 0 failed; lint 0 errors; types clean).
 
-- [ ] **Task 37: archive, after the merge**
+- [x] **Task 37: archive, after the merge**
 
   **Description:** Backlog 79 moves to the archive with what shipped; its plan.md line is deleted; the spec's and
   this plan's status lines say done; links rebased on the move (the archive conventions).
@@ -1495,10 +1495,10 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Proof:** Read. No test file.
 
   **Acceptance criteria:**
-  - [ ] Plan.md Stage 4 no longer lists 79; no link to the entry is dead.
+  - [x] Plan.md Stage 4 no longer lists 79; no link to the entry is dead.
 
   **Verification:**
-  - [ ] Crawford's PR for the docs branch.
+  - [ ] Crawford's PR for the docs branch (`docs/archive-note-cloud`).
 
   **Dependencies:** PR two merged.
 

@@ -6,8 +6,8 @@ Behavior is what he decided by looking, as built. What he had never been asked w
 answered all twelve points the same day, and each answer is written under its point. Three answers changed the
 Behavior above them (a repeat, where the cloud shows, the bob's cycle) and those bullets are corrected. The spec is
 [docs/specs/ROBOT_NOTE_CLOUD.md](../specs/ROBOT_NOTE_CLOUD.md). Paused the same day, at his word, until backlog 82 and
-83 were finished; both closed that day (PR #635) and the work is picked up again. Backlog
-[79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
+83 were finished; both closed that day (PR #635) and the work is picked up again. **Built and merged** (PRs #637 and #640; the spec's §8 records what differs). Backlog
+[79](../todo/archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody), archived 2026-11-14.
 
 The spike is the branch `spike/note-pulse` (local, fifteen commits, never merges). It is the reference for how
 everything below looks; none of its code is to be carried over as it stands (no tests, no timeline registration).

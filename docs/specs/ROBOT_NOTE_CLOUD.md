@@ -21,8 +21,8 @@ into the first branch, Crawford kept it last (§7.1). **Planned 2026-11-12:**
 [docs/tasks/ROBOT_NOTE_CLOUD.md](../tasks/ROBOT_NOTE_CLOUD.md), 37 tasks. **Built 2026-11-12 to 2026-11-13:** Parts 0
 to D on `feature/note-cloud` (plan Tasks 1 to 30), Gates 1 to 3 passed; §8 records what differs from this spec. Part
 E (plan Tasks 31 to 37) follows on its own branch after the merge. **Part E built 2026-11-13** on
-`feature/note-cloud-early-notes` (plan Tasks 31 to 36, §8.4); Gate 4 waits on Crawford's eye. Backlog
-[79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
+`feature/note-cloud-early-notes` (plan Tasks 31 to 36, §8.4); Gate 4 passed 2026-11-13 (§8.4), merged 2026-11-14 (PR #640). Backlog
+[79](../todo/archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody), archived 2026-11-14.
 
 **Who it is for:** a player watching the world, on the desk shell and on a phone, who wants to see which robot is
 playing which sound.

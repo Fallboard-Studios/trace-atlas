@@ -25,10 +25,8 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 4 — Visual refinement
 
-- Backlog [79](backlog.md#79-robots-move-in-time-with-their-own-melody) **Robots move in time with their melody** — a
-  new animated dial and a transport-to-tween path; interview, then Crawford's approval of the architecture.
 - Backlog [84](backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station) **A robot plays until it is in
-  its station** — interview first: a recalled robot goes silent within a measure, mid-swim, and 79's notes stop with it.
+  its station** — interview first: a recalled robot goes silent within a measure, mid-swim, and its note cloud stops with it.
 - Backlog [85](backlog.md#85-robots-fixed-width-boundary-lines-no-edit-flicker) **Fixed-width boundary lines, no edit
   flicker** — a short interview first: the line-width dials draw differences too small to see, and the flicker's
   triggers go with them.

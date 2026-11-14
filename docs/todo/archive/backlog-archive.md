@@ -1688,6 +1688,70 @@ Gate C his ear). **Built only after Stage 1's Gate B passes.** It changes every 
 backlog [45](../backlog.md#45-off-screen-crawfords-three-preset-links). B12–B15 answered 2026-11-11 (every default stands); built on
 its own branch from `main` after 60 merges. Plan.md Stage 3.
 
+
+## 79. Robots: Move in Time with Their Own Melody
+
+**Closed** 2026-11-14 (`feature/note-cloud`, merged PR #637, and `feature/note-cloud-early-notes`, merged PR #640;
+the note cloud). What shipped is **the note cloud on the robot screen**: a small piano
+roll of the selected robot's own notes around the desk avatar, a bar per note at its pitch height, crossing right to
+left in 5 s, white while it sounds, in the company colour or a freelancer's complement, always on there, off under
+reduced motion and with `?notes=off`. The engine tells a robot's listeners about each note that will sound, past every
+gate (`src/engine/noteEvents.ts`), and announces a step about 0.7 s ahead so a note runs in flat from the right and
+leaves through the left-hand fan; the arrow runs audio to picture only. The world cloud built first (Gates 1 to 3, the
+battery bands, the attention rules) was taken out again at Gate 4 on Crawford's call ("it doesn't make sense there lore
+wise or visually"), and its machinery removed with it, so the cost gates are moot. The working bob is ±3 on a 2.4 s
+cycle. The record: [intent](../../intent/robot-note-cloud.md), [spec](../../specs/ROBOT_NOTE_CLOUD.md) (§8 "As built",
+§8.4 for Gate 4), [plan](../../tasks/ROBOT_NOTE_CLOUD.md), ROBOT_DESIGN.md ("The note cloud — the third overlay"),
+AUDIO_SYSTEM.md ("Note events — audio to the picture"). Backlog
+[84](../backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station) and
+[85](../backlog.md#85-robots-fixed-width-boundary-lines-no-edit-flicker) came out of its spike and stay open. The
+original request and its branch-one status follow.
+
+
+Raised by Crawford on 2026-11-11 (item 10 of his list): an animation on each robot, in time with its melody, so a
+player can tell which robot is playing which melody. Today nothing on a robot moves per note. The three audio dials
+(the lights, each Mid's lit level, the body scale, ROBOT_DESIGN.md) follow settings, not notes. The selected robot's
+glow (`Robot.tsx`) marks the selection, and Monitor Mode's Highlight only turns the other probes down. Nothing in `src/`
+uses `Tone.Draw`.
+
+Architecture it touches, so the interview comes first, then Crawford's approval (CLAUDE.md: ask before changing the
+audio or animation architecture):
+
+- **Visual Mapping guardrail.** Audio reaches the body only through the dials ROBOT_DESIGN.md lists, each continuous or
+  animated, never a pop. A note pulse would be a new animated dial, written into that list.
+- **Timing.** The pulse must land on the note's audible time (the note is scheduled `MIN_LEAD` ahead), with no
+  `requestAnimationFrame` loop. The path from the transport to a GSAP tween is the design question: `Tone.Draw` or a
+  semantic note event. Under Strict Separation the arrow only runs audio → visual, never the reverse.
+- **Who pulses.** Only a robot that sounds: not one muted by the dock (`isDockMuted`), Mute or another robot's Solo,
+  nor one capped by the Audio Load Budget.
+- **Cost.** Up to twelve robots, several notes a second each, on the per-mover compositor layers (roadmap 53).
+  Transform or opacity on a mover stays on the compositor. A fill or palette change repaints, and desktop underruns
+  have been raster-bound before.
+
+**Status (2026-11-13): Parts 0 to D built on `feature/note-cloud`; Part E follows.** A throwaway spike
+(`spike/note-pulse`, local, never merges) settled the direction by eye: a pulse on the lit strips was rejected, and
+what Crawford ended happy with is **the note cloud**, a small piano roll of each robot's own notes around it, in time
+with the sound. [Intent](../../intent/robot-note-cloud.md), [spec](../../specs/ROBOT_NOTE_CLOUD.md) (its §8 "As built"),
+[plan](../../tasks/ROBOT_NOTE_CLOUD.md). What the first branch ships:
+
+- **Note events** (`src/engine/noteEvents.ts`): `triggerWithCap` tells a robot's listeners about each note that will
+  sound, past every gate (mute, Solo, dock mute, the Audio Load Budget, the polyphony cap), so only a robot that
+  sounds is drawn. The arrow runs audio to picture only (AUDIO_SYSTEM.md, "Note events — audio to the picture").
+- **The cloud** round every sounding robot in the world and on the desk's detail avatar (where it spills past the
+  gem's box): a bar per note at its pitch height, half in front of the body and half behind, crossing right to left
+  in 5 s, white while it sounds, in the company colour or a freelancer's complement. A robot places notes only while
+  its battery is in an on band (10–28, 38–55, 65–73, 83–100 %), or once woken by the pointer or a selection until it
+  is next in its station. The robot under the pointer, followed, selected, soloed or highlighted shows its cloud
+  undimmed, and the marker frames the robot under the pointer. None under reduced motion; `?notes=off` for the cost
+  A/B (ROBOT_DESIGN.md, "The note cloud — the third overlay").
+- **The Visual Mapping guardrail** names the cloud as the third overlay, in Crawford's words (CLAUDE.md).
+- **The working bob** at ±3 on a 2.4 s cycle.
+
+Gates 1 to 3 passed 2026-11-13 (cost: +3.7 % main thread with the bands, measured on the odd tens before he re-drew
+them). **Next:** the branch's Checkpoint: Complete and Crawford's PR; then **Part E**, the engine announcing notes
+early so they run in through the right-hand fan (plan Tasks 31 to 37, branch `feature/note-cloud-early-notes`, Gate
+4). Not archived until Part E is done. Plan.md Stage 4.
+
 ## 82. Audio: The Chord Cycle Does Not Always Change on Time
 
 **Closed** 2026-11-12 (`docs/backlog-82-measurement-plan`, merged PR #635; one music clock, Tasks 1–12, `997b7a03`..
@@ -1697,7 +1761,7 @@ change on the bar, and Crawford heard the downbeat where the chords change. Back
 [83](#83-audio-melody-steps-may-sit-one-sixteenth-off-the-measure), folded into the same fix, closed the same day after
 his pause-and-resume listen. The original request follows.
 
-Found on 2026-11-12 during backlog [79](../backlog.md#79-robots-move-in-time-with-their-own-melody)'s spike, and asked for by
+Found on 2026-11-12 during backlog [79](#79-robots-move-in-time-with-their-own-melody)'s spike, and asked for by
 Crawford the same day: "definitely sounds like it's something worth investigating to make sure we're not running
 redundant code." By ear he does not hear mixed-chord outcomes, so nothing sounds broken. An investigation: measure
 first, and build only what the cause calls for.
