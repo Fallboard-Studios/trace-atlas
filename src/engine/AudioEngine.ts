@@ -1765,6 +1765,24 @@ export const AudioEngine = {
   },
 
   /**
+   * Seconds from now until audio scheduled at `time` leaves the speakers: `time` less the context clock (its
+   * `currentTime`, not `Tone.now()`, which already runs a lookahead ahead of it), never below 0, plus the output latency
+   * (`outputLatencySeconds`, as the note events count it). The station fade system stretches a robot's entry arc by it,
+   * so the body is gone when the fade is heard to end, not a lookahead early (backlog 84, after Checkpoint B). With no
+   * readable clock (headless), the latency alone.
+   */
+  secondsUntilHeard(time: number): number {
+    let ahead = 0;
+    try {
+      const clock = (Tone.getContext().rawContext as unknown as { currentTime?: unknown }).currentTime;
+      if (typeof clock === 'number' && Number.isFinite(clock)) ahead = Math.max(0, time - clock);
+    } catch {
+      // No context to read: the latency alone.
+    }
+    return ahead + outputLatencySeconds();
+  },
+
+  /**
    * Update Tone.Transport BPM. No-op if AudioEngine has not been started
    * (audio context not yet running) to avoid errors in headless environments.
    *

@@ -62,6 +62,8 @@ const activity = (id: string, a: RobotActivity) => update(id, { activity: a });
 
 const fade = vi.spyOn(AudioEngine, 'scheduleStationFade').mockImplementation(() => {});
 const cancel = vi.spyOn(AudioEngine, 'cancelStationFade').mockImplementation(() => {});
+/** The lead from the context clock to a tick's time leaving the speakers; 0 unless a test sets one. */
+const heard = vi.spyOn(AudioEngine, 'secondsUntilHeard');
 
 /** Run the system's '16n' callback for a tick on `step` (1..16) at audio time `time`. */
 function tick(step: number, time = 10 + step * TICK): number {
@@ -78,6 +80,7 @@ function tick(step: number, time = 10 + step * TICK): number {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getTickSeconds).mockReturnValue(TICK);
+  heard.mockReturnValue(0);
   setRoster([makeRobot('r1')]);
 });
 
@@ -124,6 +127,23 @@ describe('stationFadeSystem — the grid starts each entry on the half-measure r
     expect(fade).toHaveBeenCalledTimes(1);
     expect(fade).toHaveBeenCalledWith('r1', bar, SIXTEENTHS * TICK);
     expect(enterOnBar).toHaveBeenCalledWith('r1', SIXTEENTHS * TICK);
+  });
+
+  it('the arc ends when the fade is heard: longer by the lead from the context clock to the tick, the fade unchanged', () => {
+    heard.mockReturnValue(0.09); // the tick runs a lookahead ahead of the audio, plus the output latency
+    startStationFades(DEFAULT_LOCALE_ID);
+    const time = tick(5);
+    expect(heard).toHaveBeenCalledWith(time);
+    expect(fade).toHaveBeenCalledWith('r1', time, 12 * TICK);
+    expect(enterOnBar).toHaveBeenCalledWith('r1', 12 * TICK + 0.09);
+  });
+
+  it('a soloed robot (an arc, no fade) gets the same lead', () => {
+    heard.mockReturnValue(0.09);
+    setRoster([makeRobot('r1', { audioMode: 'solo' })]);
+    startStationFades(DEFAULT_LOCALE_ID);
+    tick(1);
+    expect(enterOnBar).toHaveBeenCalledWith('r1', SIXTEENTHS * TICK + 0.09);
   });
 
   it("the fade's length is read at the tick that starts it (a tempo change reaches the next fade)", () => {

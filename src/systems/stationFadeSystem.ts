@@ -55,7 +55,8 @@ function onTick(localeId: string, time: number): void {
     if (was !== undefined || left < STATION_FADE_MIN_STEPS) continue; // started, or the hold
     const seconds = left * tick;
     if (!soloed) AudioEngine.scheduleStationFade(robot.id, time, seconds);
-    enterOnBar(robot.id, seconds);
+    // The tick runs a lookahead ahead of its audio: the arc, which starts now, runs on until the fade is heard to end.
+    enterOnBar(robot.id, seconds + AudioEngine.secondsUntilHeard(time));
     started.set(robot.id, soloed ? 'arc' : 'fade');
   }
   // A robot no longer 'entering' (charging, turned back, gone) is forgotten, so its next entry starts afresh.

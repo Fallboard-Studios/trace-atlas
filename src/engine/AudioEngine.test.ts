@@ -2539,6 +2539,45 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
     expect(await lastBuiltBusGain()).toBe(0);
   });
 
+  // Backlog 84, after Checkpoint B: the station fade's arc ends when its audio is heard, not a lookahead early.
+  describe('secondsUntilHeard — from the context clock to a scheduled time leaving the speakers', () => {
+    afterEach(() => {
+      delete (rawContextMock as any).currentTime;
+      delete (rawContextMock as any).outputLatency;
+    });
+
+    it('is the time ahead of the context clock plus the output latency', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      (rawContextMock as any).currentTime = 10;
+      (rawContextMock as any).outputLatency = 0.02;
+      expect(AudioEngine.secondsUntilHeard(10.08)).toBeCloseTo(0.1, 9);
+    });
+
+    it('a time already passed leads by the latency alone, never below it', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      (rawContextMock as any).currentTime = 10;
+      (rawContextMock as any).outputLatency = 0.02;
+      expect(AudioEngine.secondsUntilHeard(9.5)).toBeCloseTo(0.02, 9);
+    });
+
+    it('reads the context clock, not Tone.now() (which runs a lookahead ahead of it)', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      const Tone = await import('tone');
+      vi.mocked(Tone.now).mockImplementation(() => 10.1);
+      try {
+        (rawContextMock as any).currentTime = 10;
+        expect(AudioEngine.secondsUntilHeard(10.08)).toBeCloseTo(0.08, 9);
+      } finally {
+        vi.mocked(Tone.now).mockImplementation(() => 0);
+      }
+    });
+
+    it('with no readable clock (headless), the latency alone, and no throw', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      expect(AudioEngine.secondsUntilHeard(3)).toBe(0);
+    });
+  });
+
   // Backlog 84, after Checkpoint B: a voice rebuilt mid-fade (a budget admit, a structural edit) used to come up at its
   // full Volume and never fade, since the factor was 1 until the end. It now starts where the ramp is and carries on.
   describe('a voice built during a fade carries the fade on', () => {
