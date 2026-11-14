@@ -2658,6 +2658,103 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
     expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
   });
 
+  // Task 8 (§1.5): a bus-gain write that lands during the ramp re-issues it from the write's time to the same end, so
+  // no Volume or Highlight write mid-fade raises the bus; the write's Volume is still kept for the cancel.
+  describe('a bus-gain write during the fade re-issues the fade', () => {
+    it('a Volume write mid-fade ramps to 0 ending at the fade\'s end, from now or from its own time', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+      AudioEngine.updateRobotMasterVolume('home', 0.4, 0.5);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 2, 0], [0, 1.5, 0.5]]);
+    });
+
+    it('a Highlight set change mid-fade re-issues the fade on the fading robot, highlighted or dipped', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      const other = await reserveWithBus(AudioEngine, 'other', 0.7);
+      AudioEngine.scheduleStationFade('home', -1, 3); // end 2
+      home.gain.rampTo = vi.fn();
+      other.gain.rampTo = vi.fn();
+
+      AudioEngine.setHighlightedRobots(['other']);
+      AudioEngine.setHighlightedRobots(['home']);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 2, 0], [0, 2, 0]]);
+      expect(other.gain.rampTo.mock.calls).toHaveLength(2);
+      expect(other.gain.rampTo.mock.calls[0]).toEqual([robotBusGain(0.7), 0.15]);
+    });
+
+    it('a timed write that lands at or after the end writes 0, even while now is still before the end', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4, 2);
+      AudioEngine.updateRobotMasterVolume('home', 0.4, 3);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 0.05, 2], [0, 0.05, 3]]);
+    });
+
+    it('after the end a Volume write and a Highlight change both write the faded target, 0', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', -2, 1);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+      AudioEngine.setHighlightedRobots(['h']);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 0.05], [0, 0.15]]);
+    });
+
+    it('a Volume written mid-fade is the one the cancel returns to', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      AudioEngine.updateRobotMasterVolume('home', 0.3);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.cancelStationFade('home');
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.3), STATION_FADE_RECOVER_SECONDS]]);
+    });
+
+    it('a robot with no fade is written as before, beside a fading one', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      await reserveWithBus(AudioEngine, 'home', 0.55);
+      const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      other.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('other', 0.4, 0.5);
+
+      expect(other.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), 0.05, 0.5]]);
+    });
+
+    it('a stub bus mid-fade is assigned 0 by a Volume write, never its Volume', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+
+      expect(home.gain.value).toBe(0);
+    });
+  });
+
   it('a stub bus (no rampTo) is assigned 0 by the fade and its target by the cancel', async () => {
     const { AudioEngine } = await import('./AudioEngine');
     await AudioEngine.start();

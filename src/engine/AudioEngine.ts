@@ -232,6 +232,24 @@ function busGainTarget(robotId: string, masterVolume: number): number {
   return robotBusGain(masterVolume) * (dipped ? HIGHLIGHT_DIP_GAIN : 1) * stationFadeFactor(robotId);
 }
 
+/**
+ * Write a robot's bus gain: ramp to `target` over `seconds` (`rampOrSet`, from `time` when a tick gives one). A robot
+ * with a station fade is never raised (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): a write landing before the fade's
+ * end re-issues the fade from the write's time to that same end, and one landing at or after it writes 0, even when
+ * the engine's now is still short of the end (a timed swell write). Volume and Highlight writes both come through here.
+ */
+function writeBusGain(robotId: string, entry: VoiceEntry, target: number, seconds: number, time?: number): void {
+  const gain = entry.busGain.gain as unknown as RampableParam;
+  const fade = stationFades.get(robotId);
+  if (fade === undefined) {
+    rampOrSet(gain, target, seconds, time);
+    return;
+  }
+  const writeTime = time ?? Tone.now();
+  if (writeTime < fade.end) rampOver(gain, 0, fade.end - writeTime, writeTime);
+  else rampOrSet(gain, 0, seconds, time);
+}
+
 /** Store a robot's new voice, tearing down the one it replaces so a second reservation never orphans a live graph. */
 function storeVoice(robotId: string, entry: VoiceEntry): void {
   const previous = compositeVoices.get(robotId);
@@ -1386,7 +1404,7 @@ export const AudioEngine = {
     try {
       entry.masterVolume = masterVolume;
       const targetGain = busGainTarget(robotId, masterVolume);
-      rampOrSet(entry.busGain.gain as unknown as RampableParam, targetGain, VOLUME_RAMP_SECONDS, time);
+      writeBusGain(robotId, entry, targetGain, VOLUME_RAMP_SECONDS, time);
     } catch (err) {
       devWarn('[AudioEngine] updateRobotMasterVolume failed', err);
     }
@@ -1655,7 +1673,7 @@ export const AudioEngine = {
     for (const [robotId, entry] of compositeVoices) {
       try {
         const target = busGainTarget(robotId, entry.masterVolume);
-        rampOrSet(entry.busGain.gain as unknown as RampableParam, target, HIGHLIGHT_RAMP_SECONDS);
+        writeBusGain(robotId, entry, target, HIGHLIGHT_RAMP_SECONDS);
       } catch (err) {
         devWarn('[AudioEngine] setHighlightedRobots failed', err);
       }
