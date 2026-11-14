@@ -14,8 +14,7 @@
 Crawford's three answers of the same day to the intent's open notes: (1) "I don't think we need to change the mute
 functionality, it's just volume ramping down"; (2) "if re-activated, the volume just ramps back up to normal";
 (3) "audio stays the same". Backlog [84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station),
-first item of [plan.md](../todo/plan.md)'s Stage 4. Plan: not yet written; `docs/tasks/PLAY_UNTIL_IN_THE_STATION.md`
-once this spec is approved.
+first item of [plan.md](../todo/plan.md)'s Stage 4. **Plan written the same day:** [docs/tasks/PLAY_UNTIL_IN_THE_STATION.md](../tasks/PLAY_UNTIL_IN_THE_STATION.md), eighteen tasks in five phases, every §7.1 default kept, Q1–Q3 for the gate; awaiting Crawford's approval before the build.
 
 **Where the facts come from.** Everything marked **(code)** was read in the repo on 2026-11-14 while writing this spec.
 Nothing here is measured; the gate (§5.4) is by eye and ear.
