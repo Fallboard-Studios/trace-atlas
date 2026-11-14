@@ -48,8 +48,8 @@ describe('isDockMuted reads whether the robot is in its station (backlog 84, spe
     expect(isDockMuted(DockingState.Docked)).toBe(false);
     // @ts-expect-error activity is required
     expect(isRobotAudible('none', false, DockingState.Docked)).toBe(true);
-    // @ts-expect-error activity is required
-    expect(isRobotEmitting('none', false, DockingState.Docked, true)).toBe(true);
+    // @ts-expect-error activity is required, and isSounding after it
+    expect(isRobotEmitting('none', false, DockingState.Docked)).toBeFalsy(); // audible, but no sounding set given
   });
 
   it('only charging mutes a Docked or Undocking robot; every other activity is heard', () => {
@@ -81,10 +81,10 @@ describe('isDockMuted reads whether the robot is in its station (backlog 84, spe
   });
 
   it('isRobotEmitting passes it through, and still needs the sounding set', () => {
-    expect(isRobotEmitting('none', false, DockingState.Docked, true, 'returning')).toBe(true);
-    expect(isRobotEmitting('none', false, DockingState.Docked, false, 'returning')).toBe(false);
-    expect(isRobotEmitting('none', false, DockingState.Docked, true, 'charging')).toBe(false);
-    expect(isRobotEmitting('solo', true, DockingState.Docked, true, 'charging')).toBe(true);
+    expect(isRobotEmitting('none', false, DockingState.Docked, 'returning', true)).toBe(true);
+    expect(isRobotEmitting('none', false, DockingState.Docked, 'returning', false)).toBe(false);
+    expect(isRobotEmitting('none', false, DockingState.Docked, 'charging', true)).toBe(false);
+    expect(isRobotEmitting('solo', true, DockingState.Docked, 'charging', true)).toBe(true);
   });
 });
 
@@ -145,37 +145,37 @@ describe('isRobotAudible', () => {
 describe('isRobotEmitting (monitor mode spec §1.5: the light is lit only while the robot is heard)', () => {
   it('is true for an audible robot in the sounding set, whatever its own mode but Mute', () => {
     for (const audioMode of ['none', 'highlight', undefined] as const) {
-      expect(isRobotEmitting(audioMode, false, OUT, true, OUT_ACT), String(audioMode)).toBe(true);
+      expect(isRobotEmitting(audioMode, false, OUT, OUT_ACT, true), String(audioMode)).toBe(true);
     }
-    expect(isRobotEmitting('solo', true, OUT, true, OUT_ACT)).toBe(true);
-    expect(isRobotEmitting('solo', false, OUT, true, OUT_ACT)).toBe(true);
+    expect(isRobotEmitting('solo', true, OUT, OUT_ACT, true)).toBe(true);
+    expect(isRobotEmitting('solo', false, OUT, OUT_ACT, true)).toBe(true);
   });
 
   it('is false for a muted robot, sounding or not, under a Solo or not', () => {
     for (const anySolo of [false, true]) {
-      for (const isSounding of [false, true]) expect(isRobotEmitting('mute', anySolo, OUT, isSounding, OUT_ACT)).toBe(false);
+      for (const isSounding of [false, true]) expect(isRobotEmitting('mute', anySolo, OUT, OUT_ACT, isSounding)).toBe(false);
     }
   });
 
   it('is false for a robot silenced by another robot Solo, even in the sounding set', () => {
     for (const audioMode of ['none', 'highlight', undefined] as const) {
-      expect(isRobotEmitting(audioMode, true, OUT, true, OUT_ACT), String(audioMode)).toBe(false);
+      expect(isRobotEmitting(audioMode, true, OUT, OUT_ACT, true), String(audioMode)).toBe(false);
     }
   });
 
   it('is false in the station unless soloed; a soloed robot in its station that is sounding is true', () => {
     for (const docking of [DockingState.Docked, DockingState.Undocking]) {
-      expect(isRobotEmitting('none', false, docking, true, 'charging')).toBe(false);
-      expect(isRobotEmitting('highlight', false, docking, true, 'charging')).toBe(false);
-      expect(isRobotEmitting('solo', true, docking, true, 'charging')).toBe(true);
+      expect(isRobotEmitting('none', false, docking, 'charging', true)).toBe(false);
+      expect(isRobotEmitting('highlight', false, docking, 'charging', true)).toBe(false);
+      expect(isRobotEmitting('solo', true, docking, 'charging', true)).toBe(true);
     }
-    expect(isRobotEmitting('none', false, DockingState.Recalled, true, 'returning')).toBe(true); // heard on its way home
+    expect(isRobotEmitting('none', false, DockingState.Recalled, 'returning', true)).toBe(true); // heard on its way home
   });
 
   it('is false for an audible robot the budget holds standing by', () => {
-    expect(isRobotEmitting('none', false, OUT, false, OUT_ACT)).toBe(false);
-    expect(isRobotEmitting('highlight', false, OUT, false, OUT_ACT)).toBe(false);
-    expect(isRobotEmitting('solo', true, DockingState.Docked, false, 'charging')).toBe(false);
+    expect(isRobotEmitting('none', false, OUT, OUT_ACT, false)).toBe(false);
+    expect(isRobotEmitting('highlight', false, OUT, OUT_ACT, false)).toBe(false);
+    expect(isRobotEmitting('solo', true, DockingState.Docked, 'charging', false)).toBe(false);
   });
 
   it('is isRobotAudible && isSounding for every combination', () => {
@@ -184,7 +184,7 @@ describe('isRobotEmitting (monitor mode spec §1.5: the light is lit only while 
         for (const docking of DOCKINGS) {
           for (const activity of ['charging', 'returning', 'entering', OUT_ACT, undefined] as const) {
             for (const isSounding of [false, true]) {
-              expect(isRobotEmitting(audioMode, anySolo, docking, isSounding, activity), `${audioMode}/${anySolo}/${docking}/${activity}/${isSounding}`)
+              expect(isRobotEmitting(audioMode, anySolo, docking, activity, isSounding), `${audioMode}/${anySolo}/${docking}/${activity}/${isSounding}`)
                 .toBe(isRobotAudible(audioMode, anySolo, docking, activity) && isSounding);
             }
           }

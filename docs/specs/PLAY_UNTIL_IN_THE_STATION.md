@@ -538,6 +538,13 @@ exit arc only), `STATION_REDUCED_ARC_SECONDS` = 0.3 (now the reduced-motion exit
 - **What `'charging'` does to the sound**, for the record: it stops *new* notes (the dock mute at the trigger, then the
   budget's stand-down after the last note); notes already sounding keep fading on the bus. So an early `'charging'`
   skips a quiet last note; it does not cut the sound.
+- **After the review (2026-11-14, [todo/play-until-in-the-station-findings.md](../todo/play-until-in-the-station-findings.md)):**
+  §1.4's "the system marks a robot started" is gone. The system keeps no record of its own: an entry has started while
+  the engine holds the robot's fade (`AudioEngine.hasStationFade`) or the loop runs its arc (`workLoop.arcRunning`,
+  exported). Its own record went stale when a turn-back's reverse ended on the port while the robot was recalled
+  again, which re-enters `'entering'` in the same call; the robot then held at its port for ever (R1). And §1.5's
+  "a write during a ramp re-issues the ramp" is gone too: a bus-gain write under a recorded fade writes nothing, since
+  the bus is on its ramp or at 0 and nothing may raise it (F1; the re-issue added a ramp point per swell tick).
 
 ### 8.5 Left open
 

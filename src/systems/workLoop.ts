@@ -685,14 +685,16 @@ function enter(loop: LoopRun, robotId: string): void {
 }
 
 /** Whether the robot's station arc is part-way: a finished arc stays registered under its key until the next one
- *  replaces it, so being set is not enough. A paused one (power off) is still running. */
-function arcRunning(robotId: string): boolean {
+ *  replaces it, so being set is not enough. A paused one (power off) is still running. Exported for the station fade
+ *  system, which reads it for an 'entering' robot as "this entry's arc has started" (an arc ends at 'charging', or is
+ *  killed at the end of a turn-back's reverse, so none outlives an entry into the next one). */
+export function arcRunning(robotId: string): boolean {
   const arc = getTimeline(`station-${robotId}`);
   return arc !== undefined && arc.progress() < 1;
 }
 
 /** The entry arc's end: charging, or out again if the robot went Active on the way in (a guard). */
-function inside(loop: LoopRun, robotId: string): void {
+function finishEntry(loop: LoopRun, robotId: string): void {
   const robot = robotOf(loop, robotId);
   if (!robot) return;
   if (robot.docking === DockingState.Active) exitStation(loop, robot);
@@ -864,7 +866,7 @@ export function enterOnBar(robotId: string, seconds: number): void {
   const robot = robotOf(loop, robotId);
   if (!robot || robot.activity !== 'entering' || arcRunning(robotId)) return;
   const station = loop.stations.find((s) => s.id === robot.stationId);
-  stationArc(loop, robot, 'despawn', station, () => inside(loop, robotId), seconds);
+  stationArc(loop, robot, 'despawn', station, () => finishEntry(loop, robotId), seconds);
 }
 
 /**

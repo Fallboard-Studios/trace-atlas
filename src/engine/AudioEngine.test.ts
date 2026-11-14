@@ -2672,7 +2672,7 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
       expect(bus.gain.value).not.toBe(0); // the shared mock keeps 1 whatever it is built at; an assignment would show
     });
 
-    it('a Volume write after the rebuild keeps fading to the same end (the re-issue, Task 8)', async () => {
+    it('a Volume write after the rebuild leaves the continued ramp alone, and the cancel returns to that Volume', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
       AudioEngine.scheduleStationFade('home', -1, 2);
@@ -2680,8 +2680,10 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
       bus.gain.rampTo.mockClear();
 
       AudioEngine.updateRobotMasterVolume('home', 0.4);
+      expect(bus.gain.rampTo).not.toHaveBeenCalled();
 
-      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1, 0]]);
+      AudioEngine.cancelStationFade('home');
+      expect(bus.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), STATION_FADE_RECOVER_SECONDS, 0]]);
     });
   });
 
@@ -2815,8 +2817,27 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
 
   // Task 8 (§1.5): a bus-gain write that lands during the ramp re-issues it from the write's time to the same end, so
   // no Volume or Highlight write mid-fade raises the bus; the write's Volume is still kept for the cancel.
-  describe('a bus-gain write during the fade re-issues the fade', () => {
-    it('a Volume write mid-fade ramps to 0 ending at the fade\'s end, from now or from its own time', async () => {
+  it('hasStationFade reads the record: set by the schedule (voice or none), kept through a released voice, gone at the cancel and at killAll', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    expect(AudioEngine.hasStationFade('home')).toBe(false);
+
+    AudioEngine.scheduleStationFade('home', 0, 2); // no voice: recorded only
+    expect(AudioEngine.hasStationFade('home')).toBe(true);
+    expect(AudioEngine.hasStationFade('other')).toBe(false);
+    AudioEngine.cancelStationFade('home');
+    expect(AudioEngine.hasStationFade('home')).toBe(false);
+
+    await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1); // completed
+    AudioEngine.releaseVoice('home');
+    expect(AudioEngine.hasStationFade('home')).toBe(true);
+    AudioEngine.killAll();
+    expect(AudioEngine.hasStationFade('home')).toBe(false);
+  });
+
+  describe('a bus-gain write during the fade leaves the bus to its ramp (review F1: no ramp point per swell tick)', () => {
+    it('a Volume write mid-fade writes nothing, from now or from its own time', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
       const home = await reserveWithBus(AudioEngine, 'home', 0.55);
@@ -2826,10 +2847,10 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
       AudioEngine.updateRobotMasterVolume('home', 0.4);
       AudioEngine.updateRobotMasterVolume('home', 0.4, 0.5);
 
-      expect(home.gain.rampTo.mock.calls).toEqual([[0, 2, 0], [0, 1.5, 0.5]]);
+      expect(home.gain.rampTo).not.toHaveBeenCalled();
     });
 
-    it('a Highlight set change mid-fade re-issues the fade on the fading robot, highlighted or dipped', async () => {
+    it('a Highlight set change mid-fade leaves the fading robot\'s bus alone, highlighted or dipped, and writes the others', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
       const home = await reserveWithBus(AudioEngine, 'home', 0.55);
@@ -2841,12 +2862,12 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
       AudioEngine.setHighlightedRobots(['other']);
       AudioEngine.setHighlightedRobots(['home']);
 
-      expect(home.gain.rampTo.mock.calls).toEqual([[0, 2, 0], [0, 2, 0]]);
+      expect(home.gain.rampTo).not.toHaveBeenCalled();
       expect(other.gain.rampTo.mock.calls).toHaveLength(2);
       expect(other.gain.rampTo.mock.calls[0]).toEqual([robotBusGain(0.7), 0.15]);
     });
 
-    it('a timed write that lands at or after the end writes 0, even while now is still before the end', async () => {
+    it('a timed write that lands at or after the end writes nothing either: the ramp has reached 0', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
       const home = await reserveWithBus(AudioEngine, 'home', 0.55);
@@ -2856,10 +2877,10 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
       AudioEngine.updateRobotMasterVolume('home', 0.4, 2);
       AudioEngine.updateRobotMasterVolume('home', 0.4, 3);
 
-      expect(home.gain.rampTo.mock.calls).toEqual([[0, 0.05, 2], [0, 0.05, 3]]);
+      expect(home.gain.rampTo).not.toHaveBeenCalled();
     });
 
-    it('after the end a Volume write and a Highlight change both write the faded target, 0', async () => {
+    it('after the end a Volume write and a Highlight change write nothing: the record keeps the bus at 0', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
       const home = await reserveWithBus(AudioEngine, 'home', 0.55);
@@ -2869,7 +2890,7 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
       AudioEngine.updateRobotMasterVolume('home', 0.4);
       AudioEngine.setHighlightedRobots(['h']);
 
-      expect(home.gain.rampTo.mock.calls).toEqual([[0, 0.05], [0, 0.15]]);
+      expect(home.gain.rampTo).not.toHaveBeenCalled();
     });
 
     it('a Volume written mid-fade is the one the cancel returns to', async () => {
@@ -2898,11 +2919,12 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
       expect(other.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), 0.05, 0.5]]);
     });
 
-    it('a stub bus mid-fade is assigned 0 by a Volume write, never its Volume', async () => {
+    it('a stub bus mid-fade (assigned 0 by the fade) is not raised to its Volume by a Volume write', async () => {
       const { AudioEngine } = await import('./AudioEngine');
       await AudioEngine.start();
       const home = await reserveWithBus(AudioEngine, 'home', 0.55);
       AudioEngine.scheduleStationFade('home', 0, 2);
+      expect(home.gain.value).toBe(0);
 
       AudioEngine.updateRobotMasterVolume('home', 0.4);
 
