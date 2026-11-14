@@ -683,13 +683,14 @@ AudioEngine.scheduleNote({
   velocity: 0.6,
 });
 
-// App-facing recurring scheduling uses BeatClock rather than direct Tone.Transport calls.
-const scheduleId = scheduleRepeat('4n', () => {
+// App-facing recurring scheduling uses BeatClock rather than direct Transport calls. Inside the callback, schedule
+// from the `time` it is handed (the audio-clock time the tick is for), never from AudioEngine.now().
+const scheduleId = scheduleRepeat('4n', (time) => {
   AudioEngine.scheduleNote({
     robotId: 'robot-123',
     note: 'E4',
     duration: '8n',
-    time: AudioEngine.now() + MIN_LEAD,
+    time: time + MIN_LEAD,
   });
 });
 
@@ -787,8 +788,8 @@ Each robot follows a compact lifecycle:
 
 ## Quick Troubleshooting
 
-- If audio does not start, verify that `AudioEngine.start()` was triggered by a user gesture and that `Tone.context.state` is `'running'`. While the tablet is off the state is `'suspended'` by design (power is a pause); the `?debug` HUD logs each change. Tone's own `The AudioContext is "suspended"` console warning on a world rebuilt while off (a pick or Scan on the off screen) is expected: the world comes up on the next flip.
-- If notes drift, use the beat-based scheduler and pass the scheduled time or `AudioEngine.now() + MIN_LEAD` into `AudioEngine.scheduleNote()`.
+- If audio does not start, verify that `AudioEngine.start()` was triggered by a user gesture and that `Tone.getContext().state` is `'running'` (not the deprecated `Tone.context`, which is bound to Tone's default context; `audioContextSetup.ts` replaces and closes that context at boot). While the tablet is off the state is `'suspended'` by design (power is a pause); the `?debug` HUD logs each change. Tone's own `The AudioContext is "suspended"` console warning on a world rebuilt while off (a pick or Scan on the off screen) is expected: the world comes up on the next flip.
+- If notes drift, use the beat-based scheduler and pass the callback's `time + MIN_LEAD` into `AudioEngine.scheduleNote()`; `AudioEngine.now() + MIN_LEAD` is only for a note started outside a Transport callback.
 - If playback becomes crackly, keep polyphony capped in `AudioEngine`; do not add ad hoc voice counters in components or utilities.
 - If schedules multiply on hot reload, cancel them with `cancelSchedule()` before re-registering.
 
@@ -797,8 +798,10 @@ Each robot follows a compact lifecycle:
 ```typescript
 import { getCurrentMeasure, getCurrentBeat, positionAt } from '../engine/beatClock';
 
-console.log('Transport state:', Tone.Transport.state);
-console.log('BPM:', Tone.Transport.bpm.value);
+// Tone.getTransport(), not the deprecated Tone.Transport: that global is bound to Tone's default context, which
+// audioContextSetup.ts replaces and closes at boot, so it reports a dead transport.
+console.log('Transport state:', Tone.getTransport().state);
+console.log('BPM:', Tone.getTransport().bpm.value);
 console.log('Position:', positionAt(Tone.now())); // { sixteenth, measure, step } the clock reads
 console.log('Polyphony:', AudioEngine.getPolyphonyStats());
 console.log('Voice for robot:', AudioEngine.getVoiceForRobot(robotId));
