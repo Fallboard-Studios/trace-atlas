@@ -14,6 +14,7 @@ import gsap from 'gsap';
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 
 import { startWorkLoop, stopWorkLoop, onRobotMounted } from './workLoop';
+import { startStationFades, stopStationFades } from './stationFadeSystem';
 import * as decorTierModule from '../animation/jobMoves/decor/decorTier';
 import { tickRobotLifecycle } from './robotSystems';
 import { placeDistrict } from './districts';
@@ -35,6 +36,25 @@ import type { Vec2 } from '../types/Vec2';
 
 // Real tween values and callbacks; the global timeline is stepped by hand.
 vi.unmock('gsap');
+
+// The station fade system's grid (backlog 84 Task 12): the real system sends a robot holding at its port into its
+// station. Its '16n' repeat is captured so step() runs it at every sixteenth the simulated Transport crosses; the
+// position and the tick length are read off that Transport.
+const grid = vi.hoisted(() => ({ onTick: null as ((time: number) => void) | null, seconds: 1 }));
+vi.mock('../engine/beatClock', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../engine/beatClock')>();
+  const PPQ = 192;
+  return {
+    ...actual,
+    scheduleRepeat: vi.fn((_interval: string, callback: (time: number) => void) => {
+      grid.onTick = callback;
+      return 'station-fades';
+    }),
+    cancelSchedule: vi.fn(),
+    positionAt: (time: number) => actual.positionFromTicks(Math.round(time / grid.seconds) * (PPQ / 4), PPQ),
+    getTickSeconds: () => grid.seconds,
+  };
+});
 
 // ========================================
 // FIXTURES
@@ -113,9 +133,12 @@ function simulate(bpm: number) {
 
   let gsapT = 0;
   let transportT = 0;
-  let measure = 0;
+  let sixteenth = 0;
   const t0 = gsap.globalTimeline.time();
+  const measureSeconds = (4 * 60) / bpm;
+  grid.seconds = measureSeconds / 16;
   startWorkLoop(LOCALE, { now: () => gsapT, rand: () => 0.5 });
+  startStationFades(LOCALE);
 
   // r1's body: a mover (Phase 53 Task 13) holding a `.robot` group with a `.robot__row` holding two
   // orbiters, as Robot.tsx draws it. The mover is what the loop moves, hides and registers.
@@ -154,15 +177,16 @@ function simulate(bpm: number) {
   onRobotMounted(LOCALE, 'r1');
   record();
 
-  const measureSeconds = (4 * 60) / bpm;
-  /** One GSAP frame; the Transport moves `rate` times as far, ticking each measure it crosses. */
+  /** One GSAP frame; the Transport moves `rate` times as far, running the station fade grid at each sixteenth it
+   *  crosses and the lifecycle tick first at each measure. */
   const step = (rate = 1) => {
     gsapT += DT;
     gsap.globalTimeline.time(t0 + gsapT);
     transportT += DT * rate;
-    while (transportT >= (measure + 1) * measureSeconds) {
-      measure += 1;
-      tickRobotLifecycle(LOCALE, measure);
+    while (transportT >= (sixteenth + 1) * grid.seconds) {
+      sixteenth += 1;
+      if (sixteenth % 16 === 0) tickRobotLifecycle(LOCALE, sixteenth / 16);
+      grid.onTick?.(sixteenth * grid.seconds);
     }
   };
   /** Step until `done()` (true) or `maxSeconds` of GSAP time pass (false). */
@@ -226,6 +250,7 @@ beforeEach(() => {
 
 afterEach(() => {
   sim?.unsubscribe();
+  stopStationFades();
   stopWorkLoop();
   killAllTimelines();
   clearRefs();
