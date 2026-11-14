@@ -100,7 +100,10 @@ several related keys per instance, not just one:
   satisfies it.
 - **Size-tween key** `orbiter-size-${context}-${robotId}` — `setTimeline` re-targets this one on
   every `size` dial edit rather than stacking a second tween, the standard "one key per concern"
-  pattern this file's intro recommends.
+  pattern this file's intro recommends. `setTimeline` kills the old tween where it stands and the
+  new one eases on from there. Its `useGSAP` passes no `revertOnUpdate`: a revert writes the scale
+  back to what it was before the reverted tween first ran, which snapped the orbiters to their
+  mount size on every edit after the first (`useOrbiterMotion.size.test.tsx`, on real GSAP).
 - **No per-element key at all for the attach/detach hop itself** — each corner's `gsap.to()` is
   tracked in a local `Map<corner, killFn>` inside the closure, killed on unmount alongside the
   tracked keys above, but never registered in the shared `timelineMap`. A hook-local resource that

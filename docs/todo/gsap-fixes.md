@@ -20,6 +20,12 @@ then the cleanup functions a `useGSAP` callback returned) — that order is what
 
 ### 1. The orbiter Size tween pops on every edit after the first
 
+**Fixed 2026-11-14** on `fix/gsap-finds`: `revertOnUpdate` dropped from the size tween's `useGSAP`.
+Reproduced first on real GSAP (`useOrbiterMotion.size.test.tsx`): every edit after the first snapped
+to the *mount* size, not the previous one, because each new tween is created after a revert to it.
+One correction to the text below: without `revertOnUpdate` the returned kill runs only on unmount;
+the re-target on an edit is `setTimeline` killing the old tween under the same key.
+
 [useOrbiterMotion.ts:135-146](../../src/components/robot/gem/useOrbiterMotion.ts#L135-L146). The size
 tween's `useGSAP` passes `revertOnUpdate: true` **and** returns `() => killTimeline(key)`. On a
 `dials.size` change the context reverts the previous `gsap.to` first, which writes the locals' `scale`

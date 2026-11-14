@@ -131,7 +131,14 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
   }, [robotId, context, enabled]);
 
   // Size tween — every local group (shown and hidden, so a later spawn is already the right
-  // size), keyed so a second change re-targets rather than stacking a second tween.
+  // size), keyed so a second change re-targets rather than stacking a second tween: `setTimeline`
+  // kills the tween the key held, where it stands, and the new one eases on from there.
+  //
+  // No `revertOnUpdate` here. A revert writes each local's scale back to what it was before the
+  // reverted tween first ran, and that is the mount size for every tween this effect makes, so each
+  // edit after the first snapped the orbiters to the mount size before easing (a pop, which
+  // CLAUDE.md "Visual Mapping" forbids). Without it `useGSAP` reverts once, on unmount, and the
+  // returned kill runs then.
   useGSAP(
     () => {
       if (!enabled || !root.current) return;
@@ -142,7 +149,7 @@ export function useOrbiterMotion({ root, robotId, context, gem, plan, dials, ena
       setTimeline(key, tween as unknown as ReturnType<typeof gsap.timeline>, 'world');
       return () => killTimeline(key);
     },
-    { scope: root, dependencies: [dials.size, enabled, reducedMotion], revertOnUpdate: true },
+    { scope: root, dependencies: [dials.size, enabled, reducedMotion] },
   );
 
   useGSAP(
