@@ -18,29 +18,39 @@ function event(note: string, overrides: Partial<RobotNoteEvent> = {}): RobotNote
 }
 
 describe('noteCloudModel: a note’s row (§1.3, §7.2 A3)', () => {
-  it('the first note sits at mid-height; a second an octave up sits at the top and moves nothing already returned', () => {
+  it('the first note sits at mid-height; a second a fifth up sits above it and moves nothing already returned', () => {
     const robot = freshRobot();
     const first = nextDrawnNote(robot, event('C4'));
     expect(first?.row).toBe(0);
-    const second = nextDrawnNote(robot, event('C5'));
-    expect(second?.row).toBe(0.5);
+    // classes low 0, high 7, centre 3.5, range 12: (7 − 3.5) / 12
+    const second = nextDrawnNote(robot, event('G4'));
+    expect(second?.row).toBeCloseTo(3.5 / 12, 10);
     expect(first?.row).toBe(0);
   });
 
-  it('the range is at least an octave: a fifth up does not leap the whole roll', () => {
+  it('the octave is stripped: one pitch class draws on one row in every octave', () => {
     const robot = freshRobot();
     nextDrawnNote(robot, event('C4'));
-    // low 60, high 67, centre 63.5, range 12: (67 − 63.5) / 12
-    expect(nextDrawnNote(robot, event('G4'))?.row).toBeCloseTo(3.5 / 12, 10);
+    nextDrawnNote(robot, event('G4'));
+    const rows = ['G1', 'G4', 'G7'].map((note) => nextDrawnNote(robot, event(note))?.row);
+    expect(rows).toEqual([rows[1], rows[1], rows[1]]);
+    expect(nextDrawnNote(robot, event('C6'))?.row).toBeCloseTo(-3.5 / 12, 10);
   });
 
-  it('a pitch above the range so far widens it for the notes after it', () => {
+  it('B sits above C whatever their octaves: the row is the place in C…B', () => {
     const robot = freshRobot();
     nextDrawnNote(robot, event('C4'));
-    expect(nextDrawnNote(robot, event('C5'))?.row).toBe(0.5);
-    expect(nextDrawnNote(robot, event('C6'))?.row).toBe(0.5); // low 60, high 84, centre 72, range 24
-    expect(nextDrawnNote(robot, event('C5'))?.row).toBe(0);
-    expect(nextDrawnNote(robot, event('C4'))?.row).toBe(-0.5);
+    // B3 is a semitone below C4, but its class (11) is above C’s (0)
+    expect(nextDrawnNote(robot, event('B3'))?.row).toBeCloseTo(5.5 / 12, 10);
+    expect(nextDrawnNote(robot, event('C5'))?.row).toBeCloseTo(-5.5 / 12, 10);
+  });
+
+  it('a class beyond the range so far widens it for the notes after it', () => {
+    const robot = freshRobot();
+    nextDrawnNote(robot, event('C4'));
+    expect(nextDrawnNote(robot, event('D4'))?.row).toBeCloseTo(1 / 12, 10); // low 0, high 2, centre 1
+    expect(nextDrawnNote(robot, event('A5'))?.row).toBeCloseTo(4.5 / 12, 10); // low 0, high 9, centre 4.5
+    expect(nextDrawnNote(robot, event('C2'))?.row).toBeCloseTo(-4.5 / 12, 10);
   });
 
   it('rows never leave −0.5 to 0.5, wherever the melody wanders', () => {
@@ -57,17 +67,25 @@ describe('noteCloudModel: a note’s row (§1.3, §7.2 A3)', () => {
   it('a flat and its sharp are the same pitch', () => {
     const robot = freshRobot();
     nextDrawnNote(robot, event('C4'));
-    nextDrawnNote(robot, event('C5'));
+    nextDrawnNote(robot, event('E5'));
     expect(nextDrawnNote(robot, event('Bb4'))?.row).toBe(nextDrawnNote(robot, event('A#4'))?.row);
+  });
+
+  it('the classes past the octave’s ends wrap: B# is C and Cb is B', () => {
+    const robot = freshRobot();
+    nextDrawnNote(robot, event('C4'));
+    nextDrawnNote(robot, event('B4'));
+    expect(nextDrawnNote(robot, event('B#3'))?.row).toBe(nextDrawnNote(robot, event('C2'))?.row);
+    expect(nextDrawnNote(robot, event('Cb5'))?.row).toBe(nextDrawnNote(robot, event('B2'))?.row);
   });
 
   it('a note that does not parse draws at mid-height, behind, and does not move the range', () => {
     const robot = freshRobot();
     expect(nextDrawnNote(robot, event('nonsense'))).toMatchObject({ row: 0, layer: 'behind' });
     nextDrawnNote(robot, event('C4'));
-    expect(nextDrawnNote(robot, event('C5'))?.row).toBe(0.5);
+    expect(nextDrawnNote(robot, event('G4'))?.row).toBeCloseTo(3.5 / 12, 10);
     expect(nextDrawnNote(robot, event('H4'))).toMatchObject({ row: 0, layer: 'behind' });
-    expect(nextDrawnNote(robot, event('C4'))?.row).toBe(-0.5);
+    expect(nextDrawnNote(robot, event('C4'))?.row).toBeCloseTo(-3.5 / 12, 10);
   });
 
   it('carries the note’s sounding length', () => {
@@ -78,9 +96,9 @@ describe('noteCloudModel: a note’s row (§1.3, §7.2 A3)', () => {
     const a = freshRobot();
     const b = freshRobot();
     nextDrawnNote(a, event('C4'));
-    nextDrawnNote(a, event('C6'));
+    nextDrawnNote(a, event('B4'));
     expect(nextDrawnNote(b, event('C5'))?.row).toBe(0);
-    expect(nextDrawnNote(b, event('C6'))?.row).toBe(0.5);
+    expect(nextDrawnNote(b, event('G5'))?.row).toBeCloseTo(3.5 / 12, 10);
   });
 });
 
@@ -106,6 +124,11 @@ describe('noteCloudModel: a repeated note is not drawn twice (§1.3, §7.2 A2, A
   it('a flat and its sharp spelling are one pitch, so they make a run', () => {
     const robot = freshRobot();
     expect(drawnOf(robot, [['Bb4', 100, 0.25], ['A#4', 100.25, 0.25]])).toEqual([true, false]);
+  });
+
+  it('one pitch class in two octaves draws on one row, so it makes a run', () => {
+    const robot = freshRobot();
+    expect(drawnOf(robot, [['C4', 100, 0.25], ['C5', 100.25, 0.25], ['C3', 100.5, 0.25]])).toEqual([true, false, true]);
   });
 
   it('the same pitch at a different length is drawn and starts a new run', () => {
@@ -271,13 +294,13 @@ describe('noteCloudModel: one engine listener per robot, shared by its clouds (p
     const rows: number[] = [];
     const off = subscribe(robot, (note) => rows.push(note.row));
     emitRobotNote(robot, event('C4'));
-    emitRobotNote(robot, event('C5'));
+    emitRobotNote(robot, event('B4'));
     off();
     subscribe(robot, (note) => rows.push(note.row));
     emitRobotNote(robot, event('C4'));
     clearNoteCloudModel(robot);
-    emitRobotNote(robot, event('C5'));
-    expect(rows).toEqual([0, 0.5, -0.5, 0]);
+    emitRobotNote(robot, event('B4'));
+    expect(rows).toEqual([0, 5.5 / 12, -5.5 / 12, 0]);
   });
 
   it('clearNoteCloudModel forgets the run too', () => {
