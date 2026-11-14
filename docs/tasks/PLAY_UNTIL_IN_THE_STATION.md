@@ -138,7 +138,7 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
 
   **Estimated scope:** S (one module and its test)
 
-- [ ] **Task 2: `AudioEngine.ts`, `audioDiagnostics.ts` — the trigger and the diagnostics pass `activity`**
+- [x] **Task 2: `AudioEngine.ts`, `audioDiagnostics.ts` — the trigger and the diagnostics pass `activity`**
 
   **Description:** `triggerWithCap` (~line 601) passes `robotFromStore?.activity`; `audioDiagnostics.ts` line 176 passes
   `r.activity`. From this task a `Docked` robot still on its way home triggers its notes.

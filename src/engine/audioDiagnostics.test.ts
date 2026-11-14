@@ -96,6 +96,8 @@ vi.mock('../stores/audioStore', () => ({
 type FakeRobot = {
   id: string;
   audioMode?: 'none' | 'solo' | 'mute' | 'highlight';
+  docking?: 'active' | 'recalled' | 'docked' | 'undocking';
+  activity?: 'charging' | 'exiting' | 'transit' | 'working' | 'waiting' | 'returning' | 'entering';
   /** docs/tasks/LFO_BANK.md Task 8 — Robot.lfoLinks itself arrives in Task 9; until then this is a
    *  test-only shape, read defensively by readLfoLinkCounts the same way it will once the real field exists. */
   lfoLinks?: Record<string, { lane: string | null; depth: number }>;
@@ -287,6 +289,22 @@ describe('audioDiagnostics runtime', () => {
     it('counts only the soloed robots while any robot is soloed', () => {
       fakeLocales = { L1: { robots: roster(['none', 'solo', 'highlight', 'solo', 'mute']) } };
       expect(audible()).toEqual({ audibleRobots: 2, totalRobots: 5 });
+    });
+
+    // Backlog 84 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3): the dock's silence begins at 'charging'.
+    it('counts a Docked robot on its way home, and not one charging in its station', () => {
+      fakeLocales = {
+        L1: {
+          robots: [
+            { id: 'r', audioMode: 'none', docking: 'docked', activity: 'returning' },
+            { id: 'e', audioMode: 'none', docking: 'docked', activity: 'entering' },
+            { id: 'c', audioMode: 'none', docking: 'docked', activity: 'charging' },
+            { id: 'u', audioMode: 'none', docking: 'undocking', activity: 'charging' },
+            { id: 'a', audioMode: 'none', docking: 'active', activity: 'transit' },
+          ],
+        },
+      };
+      expect(audible()).toEqual({ audibleRobots: 3, totalRobots: 5 });
     });
 
     it('reads 0 of the roster when every robot is muted', () => {

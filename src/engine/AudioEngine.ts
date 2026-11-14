@@ -598,7 +598,7 @@ export function mayRobotTrigger(robotId: string): boolean {
       // actually reads (bugfix, found live via RobotSelectionCard's own re-render storm); this
       // call site isn't React-rendered so it wasn't part of that bug, but keeps the same contract.
       const anySolo = localeRobots.some((r) => r.audioMode === 'solo');
-      if (!isRobotAudible(robotFromStore?.audioMode, anySolo, robotFromStore?.docking)) {
+      if (!isRobotAudible(robotFromStore?.audioMode, anySolo, robotFromStore?.docking, robotFromStore?.activity)) {
         return false;
       }
       // Highlight attenuation is handled in scheduleNote; skip here to avoid double-attenuation.

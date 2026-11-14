@@ -1487,6 +1487,21 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
       expect(recalled).toBeDefined();
     });
 
+    // Backlog 84 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3): the dock's silence begins when the robot is in its
+    // station ('charging'), not at the battery's Docked landing, which comes while it is still swimming home.
+    it('a Docked robot on its way home triggers; a Docked or Undocking one that is charging does not', async () => {
+      const at = (id: string, docking: string, activity: string) => ({ ...robotAt(id, 'none', docking), activity });
+      const [returning, entering, charging, undockingCharging, active] = await velocities(
+        [at('r', 'docked', 'returning'), at('e', 'docked', 'entering'), at('c', 'docked', 'charging'), at('u', 'undocking', 'charging'), at('a', 'active', 'transit')],
+        [{ robotId: 'r', note: 'C9' }, { robotId: 'e', note: 'D9' }, { robotId: 'c', note: 'E9' }, { robotId: 'u', note: 'F9' }, { robotId: 'a', note: 'G9' }],
+      );
+      expect(returning).toBe(0.8);
+      expect(entering).toBe(0.8);
+      expect(charging).toBeUndefined();
+      expect(undockingCharging).toBeUndefined();
+      expect(active).toBe(0.8);
+    });
+
     it('a soloed robot in the station is heard, and the robots out of it are silenced by its solo', async () => {
       const [soloed, other] = await velocities(
         [robotAt('s', 'solo', 'docked'), robotAt('o', 'none', 'active')],

@@ -173,7 +173,7 @@ function readRobotAudibility(): { audibleRobots: number; totalRobots: number } {
   const robots = useLocaleStore.getState().locales[getActiveLocaleId()]?.robots ?? [];
   const anySolo = robots.some((r) => r.audioMode === 'solo');
   return {
-    audibleRobots: robots.filter((r) => isRobotAudible(r.audioMode, anySolo, r.docking)).length,
+    audibleRobots: robots.filter((r) => isRobotAudible(r.audioMode, anySolo, r.docking, r.activity)).length,
     totalRobots: robots.length,
   };
 }
