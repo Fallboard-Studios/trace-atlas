@@ -7,8 +7,8 @@ Source spec: [docs/specs/PLAY_UNTIL_IN_THE_STATION.md](../specs/PLAY_UNTIL_IN_TH
 **Status:** plan written 2026-11-14 from the spec, with every §7.1 assumption at its default and §7.2 Q1–Q2 open for
 the gate; revised the same day for Crawford's answer 4 (the hold only when less than half a measure is left; otherwise
 the fade starts at once and ends on the bar line), which resolved Q3 and moved the fade system to the sixteenth grid.
-Phases 1 and 2 (Tasks 1–9) built 2026-11-14; next is Crawford's review at "Checkpoint: the engine's fade", then
-Task 10.
+Phases 1 and 2 (Tasks 1–9) built 2026-11-14; Checkpoint A and the engine's-fade checkpoint passed with Crawford the same
+day. Next: Task 10.
 
 ## Overview
 
@@ -239,11 +239,11 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
 
 ### Checkpoint A: the swim is heard (Listen)
 
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean.
-- [ ] In the browser: recall a robot (or wait for one). It plays through its whole swim home and its one-second arc,
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean.
+- [x] In the browser: recall a robot (or wait for one). It plays through its whole swim home and its one-second arc,
       its mode light lit and the Deck's count holding, and cuts at `'charging'`. Its station-exit is unchanged.
-- [ ] `lifecycleSim.test.ts` green and unmodified (spec §7.1 A6).
-- [ ] Reviewed with Crawford before Phase 2. This checkpoint is itself an improvement he can keep if the fade is cut.
+- [x] `lifecycleSim.test.ts` green and unmodified (spec §7.1 A6).
+- [x] Reviewed with Crawford before Phase 2. This checkpoint is itself an improvement he can keep if the fade is cut.
 
 ---
 
@@ -353,7 +353,7 @@ time?)` that both call, so the rule lives once.
 
 - [x] `npm run build:types`, `npm run lint`, `npm test` all clean.
 - [x] The app behaves exactly as at Checkpoint A: nothing schedules a fade yet; `landOnActive`'s cancel is a no-op.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Reviewed with Crawford before Phase 3.
 
 ---
 
