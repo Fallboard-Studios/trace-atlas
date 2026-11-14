@@ -5,6 +5,7 @@ import gsap from 'gsap';
 import * as Tone from 'tone';
 
 import { AudioEngine } from './AudioEngine';
+import { contextHolders, readContextSeconds } from './nativeContext';
 import {
   attachOutputTaps,
   detachOutputTaps,
@@ -42,6 +43,9 @@ export interface DiagInfo {
   latencyHint: string;
   lookAheadMs: number;
   baseLatencyMs: number | null;
+  /** `AudioContext.outputLatency`, read from the native context behind Tone's wrapper (which has none); null when no
+   *  holder reports one. The number a note event's `lead` carries (outputLatencySeconds, before its cap). */
+  outputLatencyMs: number | null;
   voices: number;
   maxVoices: number;
   transport: string;
@@ -116,6 +120,7 @@ function emptyInfo(): DiagInfo {
     latencyHint: '?',
     lookAheadMs: 0,
     baseLatencyMs: null,
+    outputLatencyMs: null,
     voices: 0,
     maxVoices: 0,
     transport: '?',
@@ -228,6 +233,7 @@ function readInfo(): DiagInfo {
     latencyHint: String(context.latencyHint ?? '?'),
     lookAheadMs: Math.round(context.lookAhead * 1000),
     baseLatencyMs: toMs(raw.baseLatency),
+    outputLatencyMs: toMs(readContextSeconds(raw, 'outputLatency')),
     voices: poly.voices,
     maxVoices: poly.maxVoices,
     transport: Tone.getTransport().state,
@@ -254,19 +260,13 @@ function publish(): void {
 }
 
 /**
- * Tone's `rawContext` is a `standardized-audio-context` wrapper, not the browser's own AudioContext, and it does not
- * forward `playbackStats` (found in the real browser: the overlay read `underruns n/a` on Chrome 153). The wrapper
- * keeps the native context in TypeScript-private fields, so look there too — reading a private field of a
- * dependency is fragile, which is why every step is defensive and the worst case is `n/a`.
+ * The first `playbackStats` object found on the context itself (a later wrapper may forward it) or on its native
+ * context. Tone's wrapper does not forward it (found in the real browser: the overlay read `underruns n/a` on Chrome
+ * 153), so the native context behind it is read too (contextHolders); the worst case is `n/a`.
  */
-const NATIVE_CONTEXT_FIELDS = ['_nativeAudioContext', '_nativeContext'] as const;
-
-/** The first `playbackStats` object found on the context itself (a later wrapper may forward it) or on its native context. */
 function findPlaybackStats(raw: RawContext): Record<string, unknown> | null {
-  const holders: unknown[] = [raw, ...NATIVE_CONTEXT_FIELDS.map((key) => (raw as unknown as Record<string, unknown>)[key])];
-  for (const holder of holders) {
+  for (const holder of contextHolders(raw)) {
     try {
-      if (!holder || typeof holder !== 'object') continue;
       const stats = (holder as { playbackStats?: unknown }).playbackStats;
       if (stats && typeof stats === 'object') return stats as Record<string, unknown>;
     } catch {

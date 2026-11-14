@@ -35,6 +35,7 @@ const makeSnapshot = (ctxState = 'running'): DiagSnapshot => ({
     latencyHint: 'playback',
     lookAheadMs: 100,
     baseLatencyMs: 10,
+    outputLatencyMs: 30,
     voices: 2,
     maxVoices: 16,
     transport: 'started',

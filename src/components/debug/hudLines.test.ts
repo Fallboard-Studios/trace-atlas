@@ -16,6 +16,7 @@ const baseInfo: DiagInfo = {
   latencyHint: 'interactive',
   lookAheadMs: 100,
   baseLatencyMs: 10,
+  outputLatencyMs: 30,
   voices: 3,
   maxVoices: 16,
   transport: 'started',
@@ -125,6 +126,13 @@ describe('buildHudLines', () => {
     const text = buildHudLines(snap({}, { transportEvents: null }), world, 0).join('\n');
     expect(text).toContain('events -');
     expect(text).not.toMatch(/null|NaN/);
+  });
+
+  it('shows the output latency after the base latency, and a dash when the browser reports none', () => {
+    const line = (outputLatencyMs: number | null) =>
+      buildHudLines(snap({}, { latencyHint: 'playback', lookAheadMs: 100, baseLatencyMs: 10, outputLatencyMs }), world, 0)[2];
+    expect(line(42)).toBe('latency playback   ahead 100ms   base 10ms   output 42ms');
+    expect(line(null)).toBe('latency playback   ahead 100ms   base 10ms   output -');
   });
 
   it('shows latency hint, lookahead, and base latency', () => {

@@ -381,7 +381,9 @@ patch is safe on a fixed Tone too (its repeated disconnects are swallowed), so t
 **When a release with the fix becomes `latest`:** upgrade on its own branch: read the changelog from 15.1.22, run the
 full suite, listen, and run the perf runs against the old version. In the same change, delete
 `src/engine/tonePatches.ts`, its test, its call in `src/engine/audioContextSetup.ts` and `oscillatorLeakPatched`, and
-the "Tone patch: the per-note oscillator leak" section of [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md).
+the "Tone patch: the per-note oscillator leak" section of [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md). Re-check the private
+Tone and wrapper fields the engine reads, each guarded with a fallback; the list is item 11 of
+[the Tone.js fixes](archive/tonejs-fixes.md#11-the-private-tone-surface-in-one-place-for-the-upgrade) (2026-11-14).
 
 ### 42. Audio: Does a Long Pause on iOS Safari Come Back? (Measure First)
 

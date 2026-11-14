@@ -352,8 +352,9 @@ export const BOB_CYCLE_SECONDS = 2.4;
 // ========================================
 // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md)
 // ========================================
-/** The most output latency a note event's `lead` carries (§7.2 A11): the raw context's `outputLatency`, else its
- *  `baseLatency`, is capped here so a device that reports nonsense cannot push a note seconds off its sound. */
+/** The most output latency a note event's `lead` carries (§7.2 A11): the context's `outputLatency`, else its
+ *  `baseLatency` (read behind Tone's wrapper, src/engine/nativeContext.ts), is capped here so a device that reports
+ *  nonsense cannot push a note seconds off its sound. */
 export const NOTE_LATENCY_MAX_SECONDS = 0.5;
 /** The least range, in semitones, a robot's roll height stands for (§1.3, §7.2 A1), so its first note sits at
  *  mid-height and a two-note melody does not leap the whole roll. */
