@@ -537,6 +537,43 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
     system re-issues each live fade from the paused value on `resumeWorkLoop`'s counterpart. RED test in
     `stationFadeSystem.test.ts`. S.
 
+**Measured before the gate (2026-11-14, headless Chrome over CDP, Crawford remote).** Two runs on a dev server, at 45
+and 68 BPM, three recalls each (forced by setting the battery to critical): the app's own module instances imported
+page-side, `scheduleStationFade` / `cancelStationFade` / `reserveVoice` and the budget's two setters wrapped, each
+voice's bus gain (the native `AudioParam`) sampled every 50 ms against the arc's progress and the transport. Figures,
+not verdicts; the boxes above stay Crawford's.
+
+- **The rule and the bar line hold.** Six fades: arrivals on steps 10 and 13 held and started on step 1 over 16
+  sixteenths; arrivals on steps 1, 2, 7 and 8 started on the next sixteenth (0.7–0.9 of a sixteenth after the arrival)
+  over 15, 14, 9 and 8 sixteenths (step 9, 8 left, inclusive). Every fade's end lands on a bar line to 0 ticks, and the
+  arc's duration equals the fade's to the millisecond.
+- **The ramp is the plan's.** The bus gain follows the linear ramp to three decimals all the way down; the arc's
+  progress tracks it about one `lookAhead` ahead (0.06–0.10 s), because GSAP starts the arc when the callback runs and
+  the audio starts at the callback's time. So `'charging'` (and the dock mute) is written 0.004–0.09 s before the
+  audio's fade ends, with the bus at 2–4% of its starting gain (about −30 dB): the tail is cut, not faded, by that much.
+  A possible follow-up is to delay the arc's start by `time − now`.
+- **Solo mid-fade.** Cancelled on the next sixteenth (0.16 s after the Solo at 68 BPM); the bus came back to its
+  starting gain over the half second; the soloed robot then charged at its regular volume (A8).
+- **Power off mid-fade (A5): the audio pauses, so Task 13b as written is not needed.** The context suspends, its clock
+  and the bus gain freeze (0.105 and 0.064 held for 3 s), the arc is paused at the matching point, and after the
+  power-on the ramp carries on from where it was and still ends on the bar line. **But the arc resumes about 0.2–0.3 s
+  before the audio clock does** (its progress jumped by that much in the first frames), so after a power cycle
+  `'charging'` came 0.29–0.31 s before the fade's end, with the bus still at 8–16% of its start (about −16 to −22 dB):
+  an audible cut is likely. Measured headless only; a real device's resume may be quicker. It is the general order of
+  `powerOnSequence` (world timelines resume while the context is still starting), not this feature's alone.
+- **Tone's warning: one of the fade's own writes does trigger it.** `cancelStationFade`'s recovery ramp is untimed
+  (`rampOrSet(…, STATION_FADE_RECOVER_SECONDS)`) and runs inside Transport callbacks (the fade system's Solo cancel,
+  seen; `landOnActive` in the measure tick, by reading). Tone prints the warning **once per page**
+  (`printedScheduledWarning` in `tone/build/esm/core/util/Debug.js`), so the console shows only the first offender:
+  run 1 showed an older one (`updateRobotSends` in `reReserveVoice`, from a budget admit), run 2 the cancel. The fix is
+  to pass the callback's time to `cancelStationFade`. `scheduleStationFade` is timed and never appeared.
+- **A frozen bus in run 1 is most likely the Solo, not the open gap.** Robot A's bus stopped at 0.006 (13% of its start)
+  for its last 0.7 s while another robot was soloed. Run 1 did not log rebuilds; run 2 did, saw none, and showed the same
+  freeze pattern when a voice is released. So A was most likely stood by under the Solo and its voice released, which
+  is silence anyway. The mid-fade rebuild gap (a voice rebuilt during a fade comes up at full) was not hit in either
+  run and stays open.
+- Not covered: the Deck's count, the mode light and the robot screen's cloud (no UI was read), and anything by ear or eye.
+
 ---
 
 ### Phase 4: Docs
