@@ -1,7 +1,7 @@
 /**
  * Tone's `rawContext` is a `standardized-audio-context` wrapper, not the browser's own AudioContext. The wrapper forwards
  * only what it implements: `baseLatency` yes, `outputLatency` and `playbackStats` no (both found missing in the real
- * browser; docs/todo/tonejs-fixes.md item 1). It keeps the native context in TypeScript-private fields, so a reader looks
+ * browser; docs/todo/archive/tonejs-fixes.md item 1). It keeps the native context in TypeScript-private fields, so a reader looks
  * there too. Reading a private field of a dependency is fragile, which is why every step is defensive.
  */
 const NATIVE_CONTEXT_FIELDS = ['_nativeAudioContext', '_nativeContext'] as const;

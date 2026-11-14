@@ -301,7 +301,7 @@ Combine them, e.g. `?debug&latency=playback&seed=bravo&x=-150&y=90`. Known world
 ```
 bravo @ -150,90   up 1:32
 ctx running   clock x1.00   transport started   events 37
-latency interactive   ahead 100ms   base 11ms
+latency interactive   ahead 100ms   base 11ms   output 32ms
 voices 3/16   audible 5/12   LFOs 5/7
 load 100%·fx 100% · sounding 5/12 · standing by 0 · poly 3/16 · fx in 2/10
 fps 58   lag 4ms (max 220ms)

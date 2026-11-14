@@ -522,7 +522,7 @@ function updateAllPanners(time?: number): void {
  * The output's own latency in seconds (note cloud spec §7.2 A11): the context's `outputLatency`, else its
  * `baseLatency`, else 0, capped at NOTE_LATENCY_MAX_SECONDS. A 0, a negative or a non-number is "not reported" (a
  * device's output cannot have no latency), so it falls through to the next. Tone's wrapper has no `outputLatency`, so
- * each is read from the native context behind it too (readContextSeconds; docs/todo/tonejs-fixes.md item 1).
+ * each is read from the native context behind it too (readContextSeconds; docs/todo/archive/tonejs-fixes.md item 1).
  */
 function outputLatencySeconds(): number {
   const raw = Tone.getContext().rawContext;

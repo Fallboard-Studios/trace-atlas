@@ -763,7 +763,7 @@ His answers to this spec's first open questions, the same day:
 - **A11. The output latency in `lead`** is the raw context's `outputLatency`, else `baseLatency`, else 0, capped at
   half a second, as the spike read it. As built, the first read never answered: Tone's raw context is
   standardized-audio-context's wrapper, which has no `outputLatency`, so the lead carried `baseLatency` alone. Since
-  2026-11-14 (docs/todo/tonejs-fixes.md item 1) both are read from the native context behind the wrapper too
+  2026-11-14 ([the Tone.js fixes](../todo/archive/tonejs-fixes.md), item 1) both are read from the native context behind the wrapper too
   (`src/engine/nativeContext.ts`).
 - **A12. The Click Track is drawn like any other sound.** A robot with Click Track on plays the test pattern on its
   own voice through `triggerWithCap` (back on the robot, company and All Probes screens since PR #635), so its
