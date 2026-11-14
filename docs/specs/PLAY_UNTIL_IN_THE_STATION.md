@@ -17,6 +17,8 @@ functionality, it's just volume ramping down"; (2) "if re-activated, the volume 
 measure left when the robot hits the station", otherwise the fade starts at once and runs to the next bar line (his
 pick of the two readings offered). Backlog [84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station),
 first item of [plan.md](../todo/plan.md)'s Stage 4. **Plan written the same day:** [docs/tasks/PLAY_UNTIL_IN_THE_STATION.md](../tasks/PLAY_UNTIL_IN_THE_STATION.md), eighteen tasks in five phases, every §7.1 default kept, Q1–Q3 for the gate; awaiting Crawford's approval before the build.
+**Built 2026-11-14; Checkpoint B passed the same day.** What shipped, the gate's answers and what is left open are in
+§8, "As built".
 
 **Where the facts come from.** Everything marked **(code)** was read in the repo on 2026-11-14 while writing this spec.
 Nothing here is measured; the gate (§5.4) is by eye and ear.
@@ -478,3 +480,71 @@ robot holds at the port until the bar (Task 4)`), ending with the attribution li
 - **Q3. The hold's upper bound.** **Answered 2026-11-14** (Crawford's answer 4, §1.2 step 3): the hold happens only
   when less than half a measure is left at arrival, so it is under half a measure plus a sixteenth and `lookAhead`;
   otherwise the fade starts at once and ends on the bar line. The boundary (8 sixteenths) is the gate's to move.
+
+---
+
+## 8. As built (2026-11-14)
+
+Built on `feature/play-until-in-the-station` in one day: Phases 1–3 (Tasks 1–13), the docs (Tasks 14–16), and three
+fixes Crawford asked for at the gate. Commits, deviations and every measurement are in the plan
+([docs/tasks/PLAY_UNTIL_IN_THE_STATION.md](../tasks/PLAY_UNTIL_IN_THE_STATION.md): "Phase 3 as built" and Checkpoint B).
+Full suite 14,356 passed / 0 failed at the last code commit.
+
+### 8.1 The gate (§5.4)
+
+Checkpoint A (Phase 1 alone, by ear) and the engine's-fade checkpoint passed with Crawford on 2026-11-14. Checkpoint B
+passed the same day: its measurable half was probed headless (Crawford remote) and recorded in the plan, and he passed
+the eye-and-ear half and asked for three fixes (§8.4). His answers:
+
+- **Q1, the overlap at one station: acceptable as is.** He passed the gate with no change to the exit and accepted
+  "fine as is" when asked. Task 13a (the exit waits for a fading occupant) is **not built**.
+- **Q2, a ramp up on the way out: not wanted now.** Same: no change asked. The exit is as it was; a fade-in stays
+  backlog [74](../todo/backlog.md#74-audio-fade-a-robot-in-and-out-on-its-station-arcs)'s follow-up, off the plan.
+- **Q3, the hold:** answered before the build (§7.2): the hold only with less than half a measure left.
+- **The provisional items of the intent** (the stretched arc, the half-measure boundary, the fade's length): all kept
+  as specified.
+
+### 8.2 The §7.1 defaults
+
+| | Default | As built |
+|---|---|---|
+| A1 | The dock's silence begins at `'charging'` (`isDockMuted(docking, activity)`) | **Kept**; not vetoed at Checkpoint A, where Phase 1 alone was audible. `activity` is a required parameter. |
+| A2 | `STATION_FADE_RECOVER_SECONDS` = 0.5 | **Kept.** The cancel ramp is now timed (§8.4). |
+| A3 | Fade length fixed at the tick that starts it; `STATION_FADE_MIN_STEPS` = 8, inclusive | **Kept.** Measured: every fade ends on a bar line to 0 ticks, the step-9 arrival (8 left) fades at once. |
+| A4 | Reduced motion fades the body over the whole fade | **Kept.** |
+| A5 | Power-off mid-fade pauses the ramp | **Holds for the audio** (measured: the bus gain freezes with the context and the ramp continues on the bar line), so Task 13b is **not built**. **Not for the picture:** the world timelines resume before the context clock runs again, so the arc can get ahead (0.1–0.3 s headless); backlog [88](../todo/backlog.md#88-power-the-world-timelines-resume-before-the-audio-clock). |
+| A6 | The cover sim stays docking-only | **Kept**; `lifecycleSim.ts`'s `isSounding` comment now says it under-counts a homebound robot. |
+| A7 | The `'16n'` repeat is on the grid and `positionAt` names the step | **Confirmed** by the probe. |
+| A8 | A soloed robot never fades | **Kept**; a Solo mid-fade cancels on the next sixteenth (measured 0.16 s at 68 BPM). |
+
+### 8.3 Constants as shipped (`src/constants/index.ts`)
+
+`STATION_FADE_MIN_STEPS` = 8 (new), `STATION_FADE_RECOVER_SECONDS` = 0.5 (new), `STATION_ARC_SECONDS` = 1 (now the
+exit arc only), `STATION_REDUCED_ARC_SECONDS` = 0.3 (now the reduced-motion exit only), `STATION_PORT_SCALE` = 0.15
+(unchanged).
+
+### 8.4 Beyond the spec
+
+- **"An arc is running" is the key set and part-way** (`arcRunning`, `progress() < 1`): a finished arc stays registered
+  under `station-${id}`, so the plan's "the timeline is set" left every robot that had exited earlier at its port.
+- **`resumeWorldTimelines()` uses `resume()`, not `play()`**, which would turn a turn-back's reversed arc forward after
+  a power cycle (`src/animation/timelineMap.ts`).
+- **The reversed arc is killed at its end**, so a robot recalled again during the reverse gets a fresh entry.
+- **The three fixes asked for at the gate:** `cancelStationFade(robotId, time?)` ramps from an explicit time (the fade
+  system's tick, or `Tone.now()` for `landOnActive`, whose tick stays on "now" by decision); a voice rebuilt mid-fade
+  is built where the ramp is and carries it on (`stationFadeFactor` is the ramp's share; `continueStationFade`); the
+  entry arc is stretched by `AudioEngine.secondsUntilHeard(time)` so it ends when the fade is heard to end. Re-measured:
+  `'charging'` 0.06–0.11 s after each fade's end at gain 0.
+- **What `'charging'` does to the sound**, for the record: it stops *new* notes (the dock mute at the trigger, then the
+  budget's stand-down after the last note); notes already sounding keep fading on the bus. So an early `'charging'`
+  skips a quiet last note; it does not cut the sound.
+
+### 8.5 Left open
+
+- Backlog [88](../todo/backlog.md#88-power-the-world-timelines-resume-before-the-audio-clock): after a power cycle the
+  world timelines resume before the context clock runs, so the entry arc can get ahead of its fade.
+- Backlog [89](../todo/backlog.md#89-audio-the-note-events-lead-counts-from-tonenow): the note events' `lead` counts
+  from `Tone.now()`, which already runs a lookahead ahead of the context clock (noticed while building §8.4, not
+  measured).
+- A robot un-soloed after its fade was cancelled stays at its regular volume until `'charging'`; the spec does not
+  cover it, and nobody has heard it.

@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 88.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 90.
 
 ## Open items
 
@@ -481,6 +481,11 @@ read-only strip first, or the editor with it. Plan.md Post-launch.
 **Status (2026-11-11): off plan.md, not sequenced.** Crawford: no longer needed after backlog 60's changes (the last
 robot stays up, battery sizes); possibly folded into the composition feature later.
 
+**Update (2026-11-14): its fade-out shipped with backlog [84](#84-audio-keep-a-robot-playing-until-it-is-in-the-station).**
+A homebound robot now plays until it is in its station and fades to silence over its entry arc, ending on the bar line
+([spec](../specs/PLAY_UNTIL_IN_THE_STATION.md) §8). What is left here is the fade-in on the way out: an exiting robot
+is heard at its regular volume at once, and Crawford did not ask for a ramp up at 84's gate (its Q2). Off the plan.
+
 Moved out of backlog [60](archive/backlog-archive.md#60-audio-cover-the-silence-when-every-active-robot-is-charging) on 2026-11-11 (spec open
 question A4), where it sat as a complementary note; 60's build did not touch it. As robots exit and enter stations,
 their audio presence should fade in and out to mirror their visual presence — *Semantic Fade on Lifecycle Change*
@@ -492,7 +497,8 @@ sonic presence mirrors when it materializes and vanishes.
 
 Since 60 the dock mutes a robot in `Docked` and `Undocking` (`isDockMuted`, `src/utils/robotAudibility.ts`) and a Solo
 overrides it, so today a robot cuts in and out on those state changes; the fade would smooth exactly that edge. Needs a
-short interview before a spec. Plan.md Stage 3.
+short interview before a spec. Off the plan (this line said "Plan.md Stage 3" until 2026-11-14; it was taken off on
+2026-11-11).
 
 ### 75. Navigation: Close, Back, the Browser's Back Button, and the Nav's Width
 
@@ -647,7 +653,10 @@ the overlap of robots at one station is judged by eye at a gate, no rule up fron
 day** ([spec](../specs/PLAY_UNTIL_IN_THE_STATION.md), [plan](../tasks/PLAY_UNTIL_IN_THE_STATION.md)): the dock's
 silence begins at `'charging'`, not at the `Docked` landing; a station fade system on the sixteenth grid applies the
 half-measure rule and schedules the ramp and the arc; a turn-back reverses the arc and ramps the volume back.
-Eighteen tasks; awaiting Crawford's approval of the plan.
+Eighteen tasks. **Built 2026-11-14** on `feature/play-until-in-the-station` (Tasks 1–17; Checkpoints A, the engine's
+fade and B passed with Crawford, B with three fixes he asked for); what shipped and what is left open are in the
+spec's §8, "As built". Two follow-ups split off as [88](#88-power-the-world-timelines-resume-before-the-audio-clock)
+and [89](#89-audio-the-note-events-lead-counts-from-tonenow). Archived after the merge (Task 18).
 
 Raised by Crawford on 2026-11-12, during backlog [79](archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody)'s spike. 79's
 notes show what a robot is playing, so they stop when it goes quiet, and a robot heading home goes quiet long before
@@ -776,4 +785,31 @@ built against the clock from now on should keep it true.
   two to arrive there.
 
 Interview first, when Crawford has a vision for it. Depends on 82's fix and on 86. Not yet placed in plan.md.
+
+### 88. Power: The World Timelines Resume Before the Audio Clock
+
+Found by backlog [84](#84-audio-keep-a-robot-playing-until-it-is-in-the-station)'s headless probe on 2026-11-14
+([plan](../tasks/PLAY_UNTIL_IN_THE_STATION.md), Checkpoint B). On a power-on after a pause, `powerController.resume()`
+calls `AudioEngine.resume()`, which starts the context's `resume()` without waiting for it, then `resumeWorldTimelines()`
+at once. So every `'world'` timeline runs again while the context clock is still stopped: a station arc measured 0.1–0.3 s
+ahead of its fade afterwards (three runs, headless Chrome; a real device may resume faster). For 84 that means a quiet
+last note can be skipped when the skew is larger than the arc's lead (`AudioEngine.secondsUntilHeard`), and it is not
+84's alone: anything drawn against the audio (the note cloud, the swims against the music) starts out of step by the
+same amount.
+
+The obvious shape is to resume the world timelines (and the loop clock) when the context reports `'running'`, not
+before; the order and the "a no-op unless paused" guard in `powerController.ts` would have to survive a resume that
+never comes (backlog [42](#42-audio-does-a-long-pause-on-ios-safari-come-back-measure-first)). Measure on a real
+device first. Not yet placed in plan.md.
+
+### 89. Audio: The Note Events' Lead Counts from Tone.now()
+
+Noticed while building backlog [84](#84-audio-keep-a-robot-playing-until-it-is-in-the-station)'s fixes on 2026-11-14,
+not measured. `announceTriggeredNote` (`src/engine/AudioEngine.ts`) gives each note event a `lead` of
+`max(0, at − Tone.now()) + outputLatencySeconds()`, the time until the note leaves the speakers. But `Tone.now()` is the
+context's `currentTime` plus Tone's `lookAhead` (0.1 s), so a note scheduled at its Transport callback's time reads a
+lead about one lookahead short: the note cloud ([backlog 79](archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody))
+may draw each note that much early. 84's `AudioEngine.secondsUntilHeard(time)` counts from `currentTime` instead; the
+probe confirmed that convention for the station fade. Check against the cloud's own timing tests and by eye before
+changing anything: the cloud's lead may have been tuned with the offset in it. Not yet placed in plan.md.
 

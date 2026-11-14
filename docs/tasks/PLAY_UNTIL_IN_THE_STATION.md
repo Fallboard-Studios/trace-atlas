@@ -11,7 +11,8 @@ Phases 1 and 2 (Tasks 1–9) built 2026-11-14; Checkpoint A and the engine's-fad
 day. Phase 3 (Tasks 10–13) built 2026-11-14, with two fixes beyond the plan (Phase 3 as built, below). With Crawford
 remote, Checkpoint B's measurable parts were probed headless and recorded under it, and Tasks 14–16 (docs) were
 written ahead of the gate (their "Manual review" boxes are his). Checkpoint B passed with Crawford the same day, and
-his three fixes are built and re-measured (under Checkpoint B). Next: Task 17.
+his three fixes are built and re-measured (under Checkpoint B). Task 17 done and Checkpoint: Complete ticked the same
+day. Next: Crawford's PR; Task 18 after the merge.
 
 ## Overview
 
@@ -128,13 +129,13 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
   pass-through in `isRobotAudible` / `isRobotEmitting`.
 
   **Acceptance criteria:**
-  - [ ] A `Docked` robot that is `'returning'` or `'entering'` is not dock-muted; one that is `'charging'` is.
-  - [ ] Mute still wins and Solo still beats the dock, with `activity` given or not (the existing tests pass unmodified).
-  - [ ] Mutant: the `activity` condition dropped (today's rule) fails the new tests.
+  - [x] A `Docked` robot that is `'returning'` or `'entering'` is not dock-muted; one that is `'charging'` is.
+  - [x] Mute still wins and Solo still beats the dock, with `activity` given or not (the existing tests pass unmodified).
+  - [x] Mutant: the `activity` condition dropped (today's rule) fails the new tests.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/robotAudibility.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/robotAudibility.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
@@ -151,14 +152,14 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
   `Docked` + `'charging'` robot's is refused; an `Active` robot's is triggered as before.
 
   **Acceptance criteria:**
-  - [ ] The trigger accepts `Docked` + `'returning'` / `'entering'` and refuses `Docked` + `'charging'`.
-  - [ ] `audibleRobots` in the diagnostics counts a homebound `Docked` robot.
-  - [ ] Every existing AudioEngine test passes unmodified.
+  - [x] The trigger accepts `Docked` + `'returning'` / `'entering'` and refuses `Docked` + `'charging'`.
+  - [x] `audibleRobots` in the diagnostics counts a homebound `Docked` robot.
+  - [x] Every existing AudioEngine test passes unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts src/engine/audioDiagnostics.test.ts` passes (the second if it
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts src/engine/audioDiagnostics.test.ts` passes (the second if it
         exists).
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1.
 
@@ -178,13 +179,13 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
   `activity` change `'transit'` → `'working'` triggers no reconcile (the engine's set calls are not repeated).
 
   **Acceptance criteria:**
-  - [ ] A `Docked` robot on its way home sounds and is not stood by; at `'charging'` it is stood by.
-  - [ ] The key changes on `'charging'` and on leaving it, and on nothing else about `activity`.
+  - [x] A `Docked` robot on its way home sounds and is not stood by; at `'charging'` it is stood by.
+  - [x] The key changes on `'charging'` and on leaving it, and on nothing else about `activity`.
   - [ ] Mutant: the key reading `activity` whole fails the no-reconcile test; the existing 112 tests pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/audioBudgetSystem.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/audioBudgetSystem.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1.
 
@@ -201,13 +202,13 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
   `'returning'` robot in the sounding set is `lit` and counted; `Docked` + `'charging'` is dim and not counted.
 
   **Acceptance criteria:**
-  - [ ] The light is lit for a homebound `Docked` robot and dim once it is `'charging'`.
-  - [ ] The count includes a homebound `Docked` robot.
+  - [x] The light is lit for a homebound `Docked` robot and dim once it is `'charging'`.
+  - [x] The count includes a homebound `Docked` robot.
   - [ ] Existing tests pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/worldView/MetaBox.test.tsx src/components/panels/screen/screens` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/worldView/MetaBox.test.tsx src/components/panels/screen/screens` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 1.
 
@@ -227,12 +228,12 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
   longer accepts a missing argument (a `@ts-expect-error` line in the test).
 
   **Acceptance criteria:**
-  - [ ] No caller omits `activity`; `build:types` is clean with the parameter required.
-  - [ ] The two comments in `Robot.ts` match the shipped rule.
+  - [x] No caller omits `activity`; `build:types` is clean with the parameter required.
+  - [x] The two comments in `Robot.ts` match the shipped rule.
 
   **Verification:**
-  - [ ] `npx vitest run src/utils/robotAudibility.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/utils/robotAudibility.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 2, 3, 4.
 
@@ -452,7 +453,7 @@ tick`; a started robot gets nothing on later ticks; a soloed `'entering'` robot 
   **Verification:**
   - [x] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
   - [x] `npm run build:types`, `npm run lint` clean.
-  - [ ] Listen and Look: two recalls. One arriving early in a bar shrinks and fades at once and is gone and silent on
+  - [x] Listen and Look: two recalls. One arriving early in a bar shrinks and fades at once and is gone and silent on
         the bar line; one arriving late in a bar stands at its port, still playing, then takes the whole next bar; both
         slots light at the end.
 
@@ -482,7 +483,7 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
   **Verification:**
   - [x] `npx vitest run src/systems/workLoop.test.ts` passes.
   - [x] `npm run build:types`, `npm run lint` clean.
-  - [ ] Look: a robot called back mid-fade grows back the way it went and swims off; the volume returns over half a
+  - [x] Look: a robot called back mid-fade grows back the way it went and swims off; the volume returns over half a
         second (Task 9).
 
   **Dependencies:** Task 12.
@@ -674,7 +675,7 @@ clock, where `secondsUntilHeard` counts from `currentTime`.
 
   **Estimated scope:** XS
 
-- [ ] **Task 17: `docs/specs/PLAY_UNTIL_IN_THE_STATION.md`, `docs/todo/backlog.md` — "As built" and backlog 74's line**
+- [x] **Task 17: `docs/specs/PLAY_UNTIL_IN_THE_STATION.md`, `docs/todo/backlog.md` — "As built" and backlog 74's line**
 
   **Description:** An "As built" section in the spec: the gate's answers (Q1–Q3), each §7.1 default kept or changed,
   the constants as shipped, 13a / 13b built or not. Backlog 74's entry: its fade-out shipped here, its fade-in is the
@@ -683,7 +684,7 @@ clock, where `secondsUntilHeard` counts from `currentTime`.
   **Proof:** Read — human review.
 
   **Acceptance criteria:**
-  - [ ] Every provisional item of the intent has a recorded answer.
+  - [x] Every provisional item of the intent has a recorded answer.
 
   **Verification:**
   - [ ] Manual review; `npm run lint` clean.
@@ -696,11 +697,19 @@ clock, where `secondsUntilHeard` counts from `currentTime`.
 
 ### Checkpoint: Complete
 
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] All automated acceptance criteria across Tasks 1–13 met; Checkpoint B's answers recorded.
-- [ ] Docs reflect the shipped API, every name spot-checked.
-- [ ] Any Look or Listen not done this session flagged here, never silently skipped.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] All automated acceptance criteria across Tasks 1–13 met; Checkpoint B's answers recorded.
+- [x] Docs reflect the shipped API, every name spot-checked.
+- [x] Any Look or Listen not done this session flagged here, never silently skipped.
+- [x] Ready for Crawford's PR.
+
+Notes (2026-11-14): the full suite is 14,356 passed / 0 failed, with the one unhandled vitest-worker "Timeout calling
+onTaskUpdate" of a full run's startup burst (backlog 66, closed). Three "existing tests pass unmodified" boxes stay
+open because they could not hold, each change deliberate and in its commit: Task 3 (seven budget fixtures put a robot
+in its station with `docking` alone and now say `'charging'`), Task 4 (one `useRobotMeta` fixture) and Task 13 (the
+old "the arc finishes, then it exits again" case, rewritten as the reverse). The Listen and Look boxes of Tasks 12–13
+are ticked by Crawford's Checkpoint B pass. Open for Crawford: the "Manual review" boxes of Tasks 14–17, and his
+answers to Q1–Q2 are recorded as "acceptable as is" / "not wanted now" on his "ok" to that reading (spec §8.1).
 
 ---
 
