@@ -5,11 +5,10 @@ import { Profiler, useLayoutEffect } from 'react';
 import { RobotBody } from './RobotBody';
 import * as robotVisualHelpers from './robotVisualHelpers';
 import * as orbiterDialsModule from './gem/orbiterDials';
-import * as bodyLineDialsModule from './gem/bodyLineDials';
 import * as gemPaletteModule from './gem/gemPalette';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
-import { BODY_STRIP_OPACITY } from './gem/bodyLineDials';
+import { BODY_LINE_WIDTH, BODY_STRIP_OPACITY, ORBITER_LINE_WIDTH, ORBITER_STRIP_OPACITY } from './gem/gemLines';
 import { GEM_FACET_CONTRAST } from './gem/gemShading';
 import { orbiterPlan } from './gem/orbiterMotion';
 import type { ArcDecorator } from './gem/useHaloMotion';
@@ -324,18 +323,6 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       expect(local.getAttribute('transform')).toBe('scale(0.75)');
     });
 
-    it('noteVariance.value 8 sets the orbiter line width to 1.1', () => {
-      const { container } = draw(makeRobot({ noteVariance: { active: true, value: 8 } }));
-      const lines = container.querySelector('.gem__orbiter .gem__lines')!;
-      expect(lines.getAttribute('stroke-width')).toBe('1.1');
-    });
-
-    it('pitchRepeat 100 sets the orbiter strip opacity to 1', () => {
-      const { container } = draw(makeRobot({ pitchRepeat: 100 }));
-      const strip = container.querySelector('.gem__orbiter .gem__strip')!;
-      expect(strip.getAttribute('opacity')).toBe('1');
-    });
-
     it('motion undefined renders the static path — only the seeded count shown', () => {
       const { container } = draw(makeRobot());
       expect(container.querySelectorAll('.gem__orbiter')).toHaveLength(2); // DEFAULT_RHYTHMIC_DENSITY 50 -> count 2
@@ -486,37 +473,52 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
       });
     });
 
-    describe('body lines from lfoLinks', () => {
-      it('layer1.gain depth 100 → mid--left lines 0.7, mid--right and top 0.3', () => {
-        const { container } = draw(makeRobot({ lfoLinks: links({ 'layer1.gain': { lane: 'b', depth: 100 } }) }));
-        expect(lineWidth(container, '.gem__mid--left')).toBe('0.7');
-        expect(lineWidth(container, '.gem__mid--right')).toBe('0.3');
-        expect(lineWidth(container, '.gem__top')).toBe('0.3');
+    describe('boundary lines are one fixed width (backlog 85)', () => {
+      const lineEls = (c: HTMLElement) => [...c.querySelectorAll('.gem__lines, .gem__strip')].map((el) => [el.getAttribute('d'), el.getAttribute('stroke-width'), el.getAttribute('opacity')]);
+
+      it('Top and both Mids are 0.7 wide with no lfoLinks, and still 0.7 with a gain link at depth 100', () => {
+        for (const robot of [makeRobot(), makeRobot({ lfoLinks: links({ 'layer1.gain': { lane: 'b', depth: 100 } }) })]) {
+          const { container } = draw(robot);
+          expect(lineWidth(container, '.gem__mid--left')).toBe(String(BODY_LINE_WIDTH));
+          expect(lineWidth(container, '.gem__mid--right')).toBe('0.7');
+          expect(lineWidth(container, '.gem__top')).toBe('0.7');
+          cleanup();
+        }
       });
 
-      it('no lfoLinks at all → every body line 0.3', () => {
-        const { container } = draw(makeRobot());
-        expect(lineWidth(container, '.gem__mid--left')).toBe('0.3');
-        expect(lineWidth(container, '.gem__mid--right')).toBe('0.3');
-        expect(lineWidth(container, '.gem__top')).toBe('0.3');
+      it('every orbiter is 1.1 wide whatever Note Variance is', () => {
+        for (const value of [0, 8]) {
+          const { container } = draw(makeRobot({ noteVariance: { active: true, value } }));
+          const lines = [...container.querySelectorAll('.gem__orbiter .gem__lines')];
+          expect(lines.length).toBeGreaterThan(0);
+          lines.forEach((el) => expect(el.getAttribute('stroke-width')).toBe(String(ORBITER_LINE_WIDTH)));
+          cleanup();
+        }
       });
 
-      it('every body strip is at BODY_STRIP_OPACITY (0.6), fixed, regardless of gains or depth', () => {
-        const { container } = draw(withLayers([1, 0, 1], { lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 100 } }) }));
-        ['top', 'midLeft', 'midRight'].forEach((line) => {
-          const strip = container.querySelector(`.gem__strip[data-line="${line}"]`)!;
-          expect(strip.getAttribute('opacity')).toBe(String(BODY_STRIP_OPACITY));
-          expect(strip.getAttribute('data-base')).toBe(String(BODY_STRIP_OPACITY));
+      it('body strips are at BODY_STRIP_OPACITY (0.6) and orbiter strips at ORBITER_STRIP_OPACITY (1), regardless of gains, depth or Pitch Repeat', () => {
+        const { container } = draw(withLayers([1, 0, 1], { pitchRepeat: 0, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 100 } }) }));
+        ['.gem__top', '.gem__mid--left', '.gem__mid--right'].forEach((sel) => {
+          expect(container.querySelector(`${sel} .gem__strip`)!.getAttribute('opacity')).toBe(String(BODY_STRIP_OPACITY));
+        });
+        container.querySelectorAll('.gem__orbiter .gem__strip').forEach((strip) => {
+          expect(strip.getAttribute('opacity')).toBe(String(ORBITER_STRIP_OPACITY));
         });
       });
 
-      it('orbiter strips keep their own Pitch Repeat opacity, not the body constant', () => {
-        const { container } = draw(makeRobot({ pitchRepeat: 100 }));
-        expect(container.querySelector('.gem__strip[data-line="orbiters"]')!.getAttribute('opacity')).toBe('1');
+      it('an edit to a link depth, a layer gain, Note Variance or Pitch Repeat leaves every line and strip the same width and opacity (colour still follows the lit level)', () => {
+        const robot = withLayers([1, 0.2, 0.2], { lfoLinks: links({ 'layer1.gain': { lane: 'a', depth: 0 } }), noteVariance: { active: true, value: 0 }, pitchRepeat: 0 });
+        const { container, rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
+        const before = lineEls(container);
+        expect(before.length).toBeGreaterThan(0);
+        rerender(<svg><RobotBody robot={
+          withLayers([1, 0.9, 0.9], { lfoLinks: links({ 'layer1.gain': { lane: 'b', depth: 100 } }), noteVariance: { active: true, value: 8 }, pitchRepeat: 100 })
+        } motion="world" /></svg>);
+        expect(lineEls(container)).toEqual(before);
       });
     });
 
-    describe('motion wiring: useHaloMotion, decorateArc into useOrbiterMotion, useStripFlicker (Phase 41, Task 13)', () => {
+    describe('motion wiring: useHaloMotion and decorateArc into useOrbiterMotion (Phase 41, Task 13)', () => {
       it('motion="world": a volume or envelope edit registers no halo key — only a station arc starts the waves', () => {
         const robot = makeRobot({ id: 'r1', masterVolume: 0.5 });
         const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
@@ -524,20 +526,18 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         expect([...timelineMap.keys()].some((k) => k.startsWith('halo-'))).toBe(false);
       });
 
-      it('motion="world": an lfoLinks depth edit registers flicker-world-<id>-top, not any other line’s key', () => {
-        const robot = makeRobot({ id: 'r1', lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }) });
+      it('motion="world": an edit to a link depth, Note Variance or Pitch Repeat registers no flicker timeline, nothing flickers any more', () => {
+        const robot = makeRobot({ id: 'r1', lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }), noteVariance: { active: true, value: 0 }, pitchRepeat: 0 });
         const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
-        rerender(<svg><RobotBody robot={{ ...robot, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }) }} motion="world" /></svg>);
-        expect(timelineMap.has('flicker-world-r1-top')).toBe(true);
-        expect(timelineMap.has('flicker-world-r1-midLeft')).toBe(false);
-        expect(timelineMap.has('flicker-world-r1-midRight')).toBe(false);
+        rerender(<svg><RobotBody robot={{ ...robot, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }), noteVariance: { active: true, value: 8 }, pitchRepeat: 90 }} motion="world" /></svg>);
+        expect([...timelineMap.keys()].some((k) => k.startsWith('flicker-'))).toBe(false);
       });
 
-      it('without motion: no halo or flicker keys, ever — cards stay fully static', () => {
+      it('without motion: no halo keys, ever, cards stay fully static', () => {
         const robot = makeRobot({ id: 'r1', masterVolume: 0.5, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }) });
         const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
         rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }) }} /></svg>);
-        expect([...timelineMap.keys()].some((k) => k.startsWith('halo-') || k.startsWith('flicker-'))).toBe(false);
+        expect([...timelineMap.keys()].some((k) => k.startsWith('halo-'))).toBe(false);
       });
 
       describe('the motion registry (Phase 43 Task 17, spec §1.8)', () => {
@@ -625,17 +625,14 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         });
       });
 
-      it('motion="avatar" uses its own context throughout — flicker-avatar-<id>-top / orbiters-avatar-<id>', () => {
-        const robot = makeRobot({ id: 'r1', masterVolume: 0.5, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 0 } }) });
-        const { rerender } = render(<svg><RobotBody robot={robot} motion="avatar" /></svg>);
+      it('motion="avatar" uses its own context throughout: orbiters-avatar-<id>, not the world key', () => {
+        render(<svg><RobotBody robot={makeRobot({ id: 'r1' })} motion="avatar" /></svg>);
         expect(timelineMap.has('orbiters-avatar-r1')).toBe(true);
-        rerender(<svg><RobotBody robot={{ ...robot, masterVolume: 0.9, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 80 } }) }} motion="avatar" /></svg>);
-        expect(timelineMap.has('flicker-avatar-r1-top')).toBe(true);
-        expect(timelineMap.has('flicker-world-r1-top')).toBe(false);
+        expect(timelineMap.has('orbiters-world-r1')).toBe(false);
       });
     });
 
-    describe('the composition and bodyLines memos recompute only for their own inputs', () => {
+    describe('the composition memo recomputes only for its own inputs', () => {
       it('an envelope edit does not recompute the composition memo', () => {
         const compositionSpy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
         const robot = makeRobot();
@@ -647,41 +644,14 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         compositionSpy.mockRestore();
       });
 
-      it('a density edit does not recompute the bodyLines memo', () => {
-        const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
-        const robot = makeRobot({ rhythmicDensity: 10 });
-        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
-        const linesAfterMount = linesSpy.mock.calls.length;
-        expect(linesAfterMount).toBeGreaterThan(0);
-        rerender(<svg><RobotBody robot={{ ...robot, rhythmicDensity: 80 }} /></svg>);
-        expect(linesSpy.mock.calls.length).toBe(linesAfterMount);
-        linesSpy.mockRestore();
-      });
-
-      it('an lfoLinks replacement recomputes the bodyLines memo; an ADSR edit does not', () => {
-        const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
-        const robot = makeRobot();
-        const { rerender } = render(<svg><RobotBody robot={robot} /></svg>);
-        const afterMount = linesSpy.mock.calls.length;
-        rerender(<svg><RobotBody robot={{ ...robot, audioAttributes: { ...robot.audioAttributes, adsr: { ...ADSR, attack: 3 } } }} /></svg>);
-        expect(linesSpy.mock.calls.length).toBe(afterMount);
-        rerender(<svg><RobotBody robot={{ ...robot, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 50 } }) }} /></svg>);
-        expect(linesSpy.mock.calls.length).toBeGreaterThan(afterMount);
-        linesSpy.mockRestore();
-      });
-
-      it('daylight ticks recompute neither memo (item-22 discipline extends to the new memos)', () => {
+      it('a daylight tick does not recompute the composition memo (item-22 discipline)', () => {
         const compositionSpy = vi.spyOn(orbiterDialsModule, 'orbiterDials');
-        const linesSpy = vi.spyOn(bodyLineDialsModule, 'bodyLineDials');
         useUIStore.getState().setActiveLocaleLocalTime(12);
         draw(makeRobot());
         const compositionAfterMount = compositionSpy.mock.calls.length;
-        const linesAfterMount = linesSpy.mock.calls.length;
         act(() => { useUIStore.getState().setActiveLocaleLocalTime(0); });
         expect(compositionSpy.mock.calls.length).toBe(compositionAfterMount);
-        expect(linesSpy.mock.calls.length).toBe(linesAfterMount);
         compositionSpy.mockRestore();
-        linesSpy.mockRestore();
       });
     });
 

@@ -7,33 +7,22 @@ import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as R
 import { GEM_LIGHT_COLOR, type GemPalette, type GemPartPaint } from './gemPalette';
 import { facetPaths, linesPath } from './gemPaths';
 import { WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TRAIL_SIDES, trailGradient } from './haloWaves';
+import { BODY_LINE_WIDTH, BODY_STRIP_OPACITY, ORBITER_LINE_WIDTH, ORBITER_STRIP_OPACITY } from './gemLines';
 
 // ========================================
 // TYPES
 // ========================================
-/** The orbiter dials and seeded layout RobotBody computes (docs/specs/ORBITING_POLYGONS.md §1.3).
+/** The orbiter dials (count, size) and seeded layout RobotBody computes (docs/specs/ORBITING_POLYGONS.md §1.3).
  *  `motion: false` (cards) renders the first `count` corners of `cornerOrder`, statically, at
  *  `scale(size)`. `motion: true` (world/avatar) renders all four corners, one copy each, ignoring
  *  `count` and `size` — `useOrbiterMotion` owns which copy is shown (attached) and its transform
  *  (Phase 40 amendment: no more depth copies — orbiters dock on the hull, they no longer pass in front of or
  *  behind it). */
 export interface RobotGemOrbiters {
-  lineWidth: number;
-  stripOpacity: number;
   size: number;
   count: 1 | 2 | 3 | 4;
   cornerOrder: readonly number[];
   motion: boolean;
-}
-
-/** The Top/Mid line-width dials and the fixed strip opacity RobotBody computes
- *  (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.2/§1.4): each body line's `.gem__lines` width is its
- *  own dial; its `.gem__strip` is ⅓ as wide at `stripOpacity`. */
-export interface RobotGemBodyLines {
-  top: number;
-  midLeft: number;
-  midRight: number;
-  stripOpacity: number;
 }
 
 /** The halo RobotBody computes (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.1/§1.4): the colour of the triangular
@@ -48,9 +37,6 @@ export interface RobotGemHalo {
   gradientId: string;
 }
 
-/** `data-line` on a `.gem__strip` — which flicker trigger tuple it answers to (useStripFlicker). */
-type StripLine = 'top' | 'midLeft' | 'midRight' | 'orbiters';
-
 interface RobotGemProps {
   /** getRobotGem(robot.gemSeed) — runtime-only geometry. */
   gem: RobotGemGeometry;
@@ -62,8 +48,6 @@ interface RobotGemProps {
   scale: number;
   /** Orbiter dials and layout (docs/specs/ORBITING_POLYGONS.md §1.1–§1.3). */
   orbiters: RobotGemOrbiters;
-  /** Top/Mid line widths and strip opacity (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
-  bodyLines: RobotGemBodyLines;
   /** The gradient halo behind the Mids (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4). */
   halo: RobotGemHalo;
   /** Forwarded to the root `g.gem` — the `useOrbiterMotion` hook's GSAP scope (Task 8). */
@@ -90,9 +74,8 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor, lineWi
   lightOpacity?: number;
   lightColor?: string;
   lineWidth: number;
-  /** The lit centre stroke in `palette.light`, ⅓ of the line's width. `line` names the flicker
-   *  trigger it answers to; `data-base` carries the dial opacity so a flicker timeline can restore it. */
-  strip?: { opacity: number; color: string; line: StripLine };
+  /** The lit centre stroke in `palette.light`, ⅓ of the line's width. */
+  strip?: { opacity: number; color: string };
 }) {
   const { pts, inner } = part;
   const lines = linesPath(part.lines);
@@ -131,8 +114,6 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor, lineWi
           stroke={strip.color}
           strokeWidth={r2(lineWidth / 3)}
           opacity={strip.opacity}
-          data-line={strip.line}
-          data-base={strip.opacity}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
@@ -171,8 +152,8 @@ function OrbiterCopy({ gem, palette, orbiters, corner, motion }: {
           part={part}
           paint={palette.orbiters[corner]}
           className=""
-          lineWidth={orbiters.lineWidth}
-          strip={{ opacity: orbiters.stripOpacity, color: palette.light, line: 'orbiters' }}
+          lineWidth={ORBITER_LINE_WIDTH}
+          strip={{ opacity: ORBITER_STRIP_OPACITY, color: palette.light }}
         />
       </g>
     </g>
@@ -233,11 +214,11 @@ function HaloLayer({ cx, cy, halo }: { cx: number; cy: number; halo: RobotGemHal
  * RobotGem — draw-only memo for a gem polygon robot (Roadmap Phase 39/40/41). Z order is DOM order:
  * backing, halo (its <defs> trail gradients then the waves), mid--left, mid--right, docked orbiters, top
  * — the waves read as light from behind the body, orbiters sit nestled between Mid and Top (Phase 40
- * amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout, the Top/Mid
- * line dials and the halo (Phase 41) from RobotBody; nothing here derives any of them. No SVG
+ * amendment). Geometry from getRobotGem, colours from gemPalette, orbiter dials/layout and the halo (Phase 41)
+ * from RobotBody; nothing here derives any of them. Every boundary line is one fixed width (gemLines.ts). No SVG
  * filter anywhere: the trails are plain linear gradients (spec Assumption 5).
  */
-export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, bodyLines, halo, ref }: RobotGemProps) {
+export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, scale, orbiters, halo, ref }: RobotGemProps) {
   const cx = gemWidth(gem) / 2;
   const cy = GEM_CANVAS_H / 2;
   const { backing } = gem;
@@ -259,15 +240,15 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
         part={gem.midLeft}
         paint={palette.midLeft}
         className="gem__mid gem__mid--left"
-        lineWidth={bodyLines.midLeft}
-        strip={{ opacity: bodyLines.stripOpacity, color: palette.light, line: 'midLeft' }}
+        lineWidth={BODY_LINE_WIDTH}
+        strip={{ opacity: BODY_STRIP_OPACITY, color: palette.light }}
       />
       <BevelledPart
         part={gem.midRight}
         paint={palette.midRight}
         className="gem__mid gem__mid--right"
-        lineWidth={bodyLines.midRight}
-        strip={{ opacity: bodyLines.stripOpacity, color: palette.light, line: 'midRight' }}
+        lineWidth={BODY_LINE_WIDTH}
+        strip={{ opacity: BODY_STRIP_OPACITY, color: palette.light }}
       />
       {orbiters.motion
         ? ALL_CORNERS.map((corner) => (
@@ -282,8 +263,8 @@ export const RobotGem = memo(function RobotGem({ gem, palette, lightOpacity, sca
         className="gem__top"
         lightOpacity={lightOpacity}
         lightColor={palette.light}
-        lineWidth={bodyLines.top}
-        strip={{ opacity: bodyLines.stripOpacity, color: palette.light, line: 'top' }}
+        lineWidth={BODY_LINE_WIDTH}
+        strip={{ opacity: BODY_STRIP_OPACITY, color: palette.light }}
       />
     </g>
   );

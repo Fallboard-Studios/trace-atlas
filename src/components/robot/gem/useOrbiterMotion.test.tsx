@@ -133,7 +133,7 @@ const PALETTE = gemPalette(getRobotGem(GEM_SEED), '#41ad9f', 1, [1, 0.15], 20);
 const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 
 function dials(overrides: Partial<OrbiterDials> = {}): OrbiterDials {
-  return { count: 2, size: 1, lineWidth: 0.5, stripOpacity: 0.4, ...overrides };
+  return { count: 2, size: 1, ...overrides };
 }
 
 function Harness({
@@ -165,8 +165,7 @@ function Harness({
         palette={PALETTE}
         lightOpacity={0.7}
         scale={1}
-        orbiters={{ lineWidth: d.lineWidth, stripOpacity: d.stripOpacity, size: d.size, count: d.count, cornerOrder: plan.cornerOrder, motion: true }}
-        bodyLines={{ top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 }}
+        orbiters={{ size: d.size, count: d.count, cornerOrder: plan.cornerOrder, motion: true }}
         halo={{ color: '#41ad9f', gradientId: `halo-${context}-${robotId}` }}
       />
     </svg>
