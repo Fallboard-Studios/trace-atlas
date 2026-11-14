@@ -15,7 +15,7 @@ import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { getTimeline, killTimeline, setTimeline } from '@/animation/timelineMap';
 import { useLocaleStore } from '@/stores/localeStore';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { getActiveLocaleId, useActiveLocaleId } from '@/utils/localeHelpers';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
 import { useStableSelector } from '@/utils/useStableSelector';
 import { rosterRows, type RosterRow } from '@/utils/rosterRows';
@@ -66,7 +66,7 @@ function membersEqual(a: readonly MemberEntry[], b: readonly MemberEntry[]): boo
  * own robots.
  */
 function useMembership(): MemberEntry[] {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   return useStableSelector(
     useLocaleStore,
     (s) => (s.locales[localeId]?.robots ?? []).map((robot) => ({ id: robot.id, companyId: robot.companyId })),

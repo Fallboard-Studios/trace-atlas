@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
 
 import { CompanyCreateForm, CompanyRenameDeleteForm } from './CompanyCrudControls';
+import { useAttenuationStyleStore } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -538,5 +539,80 @@ describe('CompanyRenameDeleteForm — the delete confirm stays inside the screen
     fireEvent.click(screen.getByRole('button', { name: /^cancel$/i }));
     await act(() => new Promise((r) => setTimeout(r, 0)));
     expect(document.activeElement).toBe(del);
+  });
+});
+
+// A store selector must hand React the same value while nothing changed. With the locale missing (a cold store, or
+// one swapped out from under a mounted form) the company list falls back to "none", and that fallback has to be one
+// shared empty list: a new array per read makes React report an unstable snapshot and re-render in a loop.
+describe('the company forms with no locale under them', () => {
+  let savedLocales: ReturnType<typeof useLocaleStore.getState>['locales'];
+
+  beforeEach(() => {
+    savedLocales = useLocaleStore.getState().locales;
+    useLocaleStore.setState({ locales: {} });
+  });
+
+  afterEach(() => {
+    useLocaleStore.setState({ locales: savedLocales });
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['CompanyCreateForm', CompanyCreateForm],
+    ['CompanyRenameDeleteForm', CompanyRenameDeleteForm],
+  ])('%s renders with nothing reported and no render loop', (_name, Form) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => render(<Form />)).not.toThrow();
+    expect(errors.mock.calls.map((call) => String(call[0]))).toEqual([]);
+  });
+});
+
+// The forms read the active locale's id through a subscription (useActiveLocaleId), never a one-off store read in
+// the render body: a form that is mounted when the active locale changes moves to the new locale's companies.
+describe('the company forms follow the active locale', () => {
+  const startLocaleId = getActiveLocaleId();
+  const styleId = useAttenuationStyleStore.getState().currentAttenuationStyleId;
+  const FULL: Company[] = Array.from({ length: MAX_COMPANIES }, (_, i) => ({ id: `c${i}`, name: `Company ${i}`, color: '#4f6d7a', robotIds: [] }));
+  let savedLocales: ReturnType<typeof useLocaleStore.getState>['locales'];
+
+  beforeEach(() => {
+    savedLocales = useLocaleStore.getState().locales;
+    const start = savedLocales[startLocaleId];
+    useLocaleStore.setState({
+      locales: {
+        ...savedLocales,
+        [startLocaleId]: { ...start, companies: FULL },
+        'next-locale': { ...start, id: 'next-locale', companies: [{ id: 'n1', name: 'Next Works', color: '#4f6d7a', robotIds: [] }] },
+      },
+    });
+  });
+
+  afterEach(() => {
+    useAttenuationStyleStore.getState().setCurrentLocale(styleId, startLocaleId);
+    useLocaleStore.setState({ locales: savedLocales });
+    useUIStore.getState().selectAllRobots();
+  });
+
+  it('CompanyCreateForm leaves the company cap behind with the locale that was at it', () => {
+    render(<CompanyCreateForm />);
+    const create = () => screen.getByRole('button', { name: /^create\b/i }) as HTMLButtonElement;
+    expect(create().disabled).toBe(true);
+
+    act(() => useAttenuationStyleStore.getState().setCurrentLocale(styleId, 'next-locale'));
+
+    expect(create().disabled).toBe(false);
+  });
+
+  it('CompanyRenameDeleteForm finds the selected company in the new locale', () => {
+    useUIStore.getState().selectCompany('n1');
+    render(<CompanyRenameDeleteForm />);
+    const del = () => screen.getByRole('button', { name: /^delete\b/i }) as HTMLButtonElement;
+    expect(del().disabled).toBe(true); // n1 is not one of the full locale's companies
+
+    act(() => useAttenuationStyleStore.getState().setCurrentLocale(styleId, 'next-locale'));
+
+    expect(del().disabled).toBe(false);
+    expect(del().textContent).toContain('Next Works');
   });
 });

@@ -3,7 +3,7 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/store
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useUIStore } from '@/stores/uiStore';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { isRobotEmitting, isRobotSounding } from '@/utils/robotAudibility';
 import { robotLoadToLimits } from '@/utils/audioBudget';
 import { getTraitColorStyle } from '@/utils/traitColors';
@@ -32,7 +32,7 @@ function formatClock(localTime: number | null): string {
  * sounding set comes in through the closure; a change to it re-renders through its own subscription.
  */
 function useEmittingCount(): number {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const soundingRobotIds = useAudioStore((s) => s.soundingRobotIds);
   return useLocaleStore((s) => {
     const robots = s.locales[localeId]?.robots ?? NO_ROBOTS;
@@ -50,7 +50,7 @@ function useEmittingCount(): number {
  */
 export function WorldLine() {
   const attenuationStyle = useAttenuationStyleStore(selectCurrentAttenuationStyle);
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const coordinates = useLocaleStore((s) => s.locales[localeId]?.coordinates);
   const emittingCount = useEmittingCount();
   const robotLoad = useAudioStore((s) => s.robotLoad);

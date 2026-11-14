@@ -14,7 +14,7 @@ import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { type RobotOptionsTrait } from '@/data/robotSubsectionConfig';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
 import { describeLoadedUnder } from '@/utils/loadingNames';
 import { CONTENT, fill, introProps, labels, optionsRecord } from '@/content';
@@ -73,7 +73,7 @@ export function CompanyScreen() {
 
 function CompanyScreenPanel({ target }: { target: string }) {
   const shell = useShell();
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const all = target === ALL_TARGET;
   const { company, members, options } = useCompanyOptions(target);
   const renderSubsection = useCompanySubsectionRenderer(options);

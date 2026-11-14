@@ -1,17 +1,22 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, type KeyboardEvent } from 'react';
 import * as Slider from '@radix-ui/react-slider';
 
 import { DualLabel } from './DualLabel';
 import { VoxelTrack } from './VoxelTrack';
 import { resolveAccessibleName } from './accessibleName';
 import { formatDisplayValue } from './formatDisplayValue';
-import { sliderLogTToValue, sliderLogValueToT, stepsTToValue, stepsValueToT } from './sliderLogMath';
+import { sliderLogKeyStep, sliderLogTToValue, sliderLogValueToT, stepsTToValue, stepsValueToT } from './sliderLogMath';
 import { useAutoSliderOrientation } from './useAutoSliderOrientation';
 import { useVoxelTrackSlider } from './useVoxelTrackSlider';
 import { useEasedControlValue } from './useEasedControlValue';
 import { computeVoxelBoxStates } from '@/utils/voxelTrackMath';
 import type { SliderLogSchema } from '@/types/controls';
 import './SliderLog.css';
+
+/** The continuous track's Radix step, for pointer drags: a thousandth of the track. */
+const LOG_TRACK_STEP = 0.001;
+const LOG_FORWARD_KEYS = ['ArrowRight', 'ArrowUp', 'PageUp'];
+const LOG_BACK_KEYS = ['ArrowLeft', 'ArrowDown', 'PageDown'];
 
 interface SliderLogProps {
   schema: SliderLogSchema;
@@ -63,6 +68,23 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight, swe
   // otherwise returns a fresh array every render.
   const states = useMemo(() => computeVoxelBoxStates(t, 0, 1, boxCount), [t, boxCount]);
 
+  // Keyboard. Radix moves one `step` per arrow and ten per page key or Shift+arrow. A `steps` list makes one stop the
+  // step, so Radix's own handling walks the stops. The continuous track's step is the pointer's resolution, a
+  // thousandth of the track and 1,000 arrow presses end to end, so the arrow and page keys are stepped here instead: a
+  // hundredth of the track, a tenth for a page key or Shift+arrow (Radix skips its own handler once this one prevents
+  // the default). Home and End stay Radix's: the track ends are the bounds. As SliderCenteredZero's signed-log track.
+  const stopCount = schema.steps?.length ?? 0;
+  const trackStep = stopCount > 1 ? 1 / (stopCount - 1) : LOG_TRACK_STEP;
+  const handleLogKeyDown = schema.steps
+    ? undefined
+    : (event: KeyboardEvent) => {
+        const direction = LOG_FORWARD_KEYS.includes(event.key) ? 1 : LOG_BACK_KEYS.includes(event.key) ? -1 : 0;
+        if (direction === 0 || disabled) return;
+        event.preventDefault();
+        const page = event.key === 'PageUp' || event.key === 'PageDown' || event.shiftKey;
+        handleValueChange(sliderLogKeyStep(value, direction, page, schema.min, schema.max), onChange);
+      };
+
   // Computed once and shared: the visible readout and the thumb's aria-valuetext must never disagree.
   const formattedValue = schema.formatValue?.(displayValue);
   const valueLabel = (
@@ -80,12 +102,13 @@ function SliderLogInner({ schema, value, onChange, disabled, verticalHeight, swe
         orientation={orientation}
         min={0}
         max={1}
-        step={0.001}
+        step={trackStep}
         value={[t]}
         onValueChange={(values) => {
           const next = schema.steps ? stepsTToValue(values[0], schema.steps) : sliderLogTToValue(values[0], schema.min, schema.max);
           handleValueChange(next, onChange);
         }}
+        onKeyDown={handleLogKeyDown}
         disabled={disabled}
         style={rootStyle}
       >

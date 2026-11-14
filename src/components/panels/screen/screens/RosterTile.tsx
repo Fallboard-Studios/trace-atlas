@@ -15,7 +15,7 @@ import { FREELANCE_VALUE, buildCompanyAssignmentSchema } from '@/data/companyCon
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { getScreenViewportDomNode } from '@/utils/helpers';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { getRobotColorStyle } from '@/utils/traitColors';
 import { computeVoxelBoxStates, computeVoxelTrackLength, computeVoxelTrackTrailingReserve } from '@/utils/voxelTrackMath';
 import { CONTENT, fill } from '@/content';
@@ -62,7 +62,7 @@ interface RosterTileProps {
  * re-renders only on membership, and a tile only on its own robot's writes or its own panel opening.
  */
 export const RosterTile = memo(function RosterTile({ robotId, onMove }: RosterTileProps) {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const robot = useLocaleStore((s) => s.locales[localeId]?.robots?.find((r) => r.id === robotId));
   if (!robot) return null;
   return <RosterTileFace robot={robot} localeId={localeId} onMove={onMove} />;
@@ -233,7 +233,7 @@ function MoveChipButton({ label, name, timelineKey, onClick, ...trigger }: MoveC
  * tile subscribes to the company list.
  */
 function MovePanelBody({ robot, name, onMove, close }: { robot: Robot; name: string; onMove: RosterMoveHandler; close: () => void }) {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? NO_COMPANIES);
   const schema = useMemo(() => {
     const { help: _help, ...base } = buildCompanyAssignmentSchema(companies);

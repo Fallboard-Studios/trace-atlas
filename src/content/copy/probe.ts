@@ -226,7 +226,6 @@ export const probe = {
     },
   },
   'probe.composition.rhythm': { human: 'Rhythm', lore: 'Payload Map', heading: 'RHYTHMIC PHRASING MATRIX' },
-  'probe.composition.phrasing': { human: 'Phrasing', heading: 'RHYTHMIC PHRASING MATRIX' },
   'probe.composition.clickTrack': {
     human: 'Click Track',
     lore: 'CALIBRATION PULSE',

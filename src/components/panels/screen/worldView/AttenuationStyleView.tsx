@@ -1,4 +1,4 @@
-import { useState, useEffect, startTransition } from 'react';
+import { useEffect, startTransition } from 'react';
 import LocaleView from './LocaleView';
 import { computeLocaleHour } from '@/constants/time';
 import { computeLocaleTemperature } from '@/utils/localeTemperature';
@@ -18,11 +18,9 @@ function AttenuationStyleView({ attenuationStyleId }: AttenuationStyleViewProps)
   const attenuationStyle = useAttenuationStyleStore((s) => s.attenuationStyles.find((p) => p.id === attenuationStyleId));
   const localeId = attenuationStyle?.currentLocaleId ?? '';
 
-  const [currentHour, setCurrentHour] = useState(() => {
-    const locale = useLocaleStore.getState().locales[localeId];
-    return locale ? computeLocaleHour(locale.dayStartTimestamp) : 0;
-  });
-
+  // The hour lives in uiStore only, never in this component's state: its readers (the water column, the
+  // terrain, the light shafts, each factory and robot) subscribe to it there, so the tick below re-renders
+  // those and not the whole scene tree under this view.
   useEffect(() => {
     // Temperature rides this same 1s interval (no second timer — see
     // docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3) but only steps when the
@@ -50,10 +48,8 @@ function AttenuationStyleView({ attenuationStyleId }: AttenuationStyleViewProps)
       // Purely a scheduling hint: the store values themselves (read via `.getState()`) update
       // synchronously as always: this only affects how React-subscribed consumers re-render.
       startTransition(() => {
-        setCurrentHour(hour);
         // No second computeLocalTime pass — hour already IS this locale's own
-        // local time, computed directly from its own dayStartTimestamp. One
-        // computation, two consumers (local state below, uiStore here).
+        // local time, computed directly from its own dayStartTimestamp.
         useUIStore.getState().setActiveLocaleLocalTime(hour);
 
         if (temperature === null) {
@@ -82,7 +78,7 @@ function AttenuationStyleView({ attenuationStyleId }: AttenuationStyleViewProps)
 
   return (
     <div className="attenuation-style-view">
-      <LocaleView localeId={localeId} localTime={currentHour} />
+      <LocaleView localeId={localeId} />
     </div>
   );
 }

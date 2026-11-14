@@ -12,8 +12,15 @@ import type { Locale } from '@/types/locale';
 
 // LocaleView renders the full world-view stack (robots, actors, ...) — out
 // of scope for this file, which only exercises AttenuationStyleView's own
-// tick/store-wiring logic (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3).
-vi.mock('./LocaleView', () => ({ default: () => null }));
+// tick/store-wiring logic (docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.3). The stub counts its
+// renders: it stands for the whole scene tree, which the tick must not re-render.
+const localeViewRenders = vi.hoisted(() => ({ count: 0 }));
+vi.mock('./LocaleView', () => ({
+  default: () => {
+    localeViewRenders.count += 1;
+    return null;
+  },
+}));
 
 const TEST_ATTENUATION_STYLE: AttenuationStyle = {
   id: 'test-attenuation-style',
@@ -115,6 +122,24 @@ describe('AttenuationStyleView — temperature wiring (docs/specs/archive/HEADER
     expect(stepSpy.mock.calls.length).toBe(1); // exactly one step, on the tick that crosses the boundary
     expect(stepSpy).toHaveBeenCalledWith(TEST_LOCALE.id, TEST_LOCALE.coordinates.x, TEST_LOCALE.coordinates.y, 3, seeded);
     expect(computeSpy.mock.calls.length).toBe(1); // never re-sampled from noise after the initial seed
+  });
+
+  // The hour's readers (the water column, the terrain, the light shafts, each factory and robot) subscribe to
+  // uiStore.activeLocaleLocalTime themselves. The view holds no copy of it, so a tick re-renders only those.
+  it('the once-a-second tick writes the hour to the store without re-rendering the scene under it', async () => {
+    vi.useFakeTimers({ now: Date.now() });
+    render(<AttenuationStyleView attenuationStyleId={TEST_ATTENUATION_STYLE.id} />);
+    const hourAtMount = useUIStore.getState().activeLocaleLocalTime;
+    const rendersAtMount = localeViewRenders.count;
+    expect(hourAtMount).not.toBeNull();
+    expect(rendersAtMount).toBeGreaterThan(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(useUIStore.getState().activeLocaleLocalTime).toBeGreaterThan(hourAtMount!); // the tick ran
+    expect(localeViewRenders.count).toBe(rendersAtMount);
   });
 
   it('does not set temperature to a stale/garbage value when the locale is not found (early-return branch)', () => {

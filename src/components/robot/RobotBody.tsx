@@ -15,7 +15,7 @@ import {
 import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { registerArcDecorator, deleteArcDecorator } from '../../animation/robotMotionRegistry';
-import { getActiveLocaleId } from '../../utils/localeHelpers';
+import { useActiveLocaleId } from '../../utils/localeHelpers';
 import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
 import { useHaloMotion } from './gem/useHaloMotion';
@@ -48,8 +48,8 @@ interface RobotBodyProps {
   ignoreScale?: boolean;
   /**
    * 'world' | 'avatar' enables orbiter motion — passed through to `RobotGem`'s `orbiters.motion`.
-   * Not yet wired by any caller (Task 12 wires `Robot.tsx`/`RobotDisplaySection.tsx`); until then
-   * every real caller stays on the static path by omitting this prop.
+   * `Robot.tsx` passes 'world' and `RobotScreen.tsx`'s avatar passes 'avatar'; a caller that omits it
+   * (the roster's gems) stays on the static path.
    */
   motion?: 'world' | 'avatar';
 }
@@ -120,7 +120,7 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
 
   // Company colour — the halo's one non-audio input (spec Assumption 2). The selector returns a
   // single string, so only a colour change of *this* robot's company re-renders the body.
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const companyColor = useLocaleStore((s) => s.locales[localeId]?.companies?.find((c) => c.id === robot.companyId)?.color);
 
   // Body line widths only — the gain-LFO link depths (spec §1.2). `lfoLinks` is replaced wholesale

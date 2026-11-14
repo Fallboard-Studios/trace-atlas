@@ -64,7 +64,7 @@ Names are data, not copy: robot names, company names, attenuation-style names an
 
 Two layers keep literal copy out:
 
-- **ESLint** (`eslint.config.js`, the "Content layer guard" block): under `src/components/**` and `src/data/**`, a `loreLabel`/`humanLabel`/`label`/`placeholder`/`unit`/`loreDescription`/`humanDescription` property with a literal value, JSX text with three or more letters, or a literal `aria-label`/`title`/`placeholder`/`alt` is an error pointing here. Tests and `src/content` are exempt. A punctuation-only text node between two content reads is written as `{' — '}`, never exempted.
+- **ESLint** (`eslint.config.js`, the "Content layer guard" block): under `src/components/**` and `src/data/**`, a `loreLabel`/`humanLabel`/`label`/`placeholder`/`unit`/`loreDescription`/`humanDescription` property with a literal value, JSX text with three or more letters, or a literal `aria-label`/`title`/`placeholder`/`alt` (bare, or a string or template literal in braces) is an error pointing here. Tests and `src/content` are exempt. A punctuation-only text node between two content reads is written as `{' — '}`, never exempted.
 - **`src/content/content.test.ts`**: every `ContentKey` is referenced from `src/` outside `src/content/` (an unreferenced key is a lost consumer or a key never wired); every `human` is non-empty; keys follow the grammar and the area list; no surface-named keys; no two same-area entries share a `human`+`lore` pair (the two filters' Resonance pair is allowlisted, see the inventory).
 
 Both were mutation-checked when they landed: a planted `humanLabel: 'X'` and `<p>Hello there</p>` produce two lint errors; a planted orphan key fails the test by name.

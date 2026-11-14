@@ -34,7 +34,6 @@ import { hslToString } from '@/utils/colorUtils';
 interface OceanSceneProps {
   width?: number;
   height?: number;
-  localTime?: number;
 }
 
 // ========================================
@@ -156,7 +155,6 @@ function TintRect({ slot, width, height }: { slot: TintSlot; width: number; heig
 export function OceanScene({
   width = 1920,
   height = 1080,
-  localTime: _localTime,
 }: OceanSceneProps) {
 
   const localeId = useAttenuationStyleStore((s) => selectCurrentAttenuationStyle(s)?.currentLocaleId ?? '');
@@ -378,7 +376,6 @@ export function OceanScene({
             {foregroundActors.map(renderActor)}
           </g>
           <PipeBridges factories={foregroundFactories} />
-          <g id="ui-layer" />
         </Sheet>
 
         {/* Mover: the Deck camera's followed-robot marker (square + "name | job"), in front of every

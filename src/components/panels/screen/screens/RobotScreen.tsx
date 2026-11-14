@@ -21,7 +21,7 @@ import { useUIStore, type RobotSection, type RobotSubsection } from '@/stores/ui
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useRobotPanReadoutStore } from '@/stores/robotPanReadoutStore';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { isNoteCloudEnabled } from '@/utils/debugParams';
 import { prefersReducedMotion } from '@/utils/reducedMotion';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
@@ -89,7 +89,7 @@ const setSubsection = (sub: RobotSubsection) => useUIStore.getState().setSelecte
  */
 export function RobotScreen() {
   const selectedRobotId = useUIStore((s) => s.selectedRobotId);
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   // The robot's own object, so another robot's battery tick does not re-render this screen.
   const robot = useLocaleStore((s) => (selectedRobotId ? s.locales[localeId]?.robots?.find((r) => r.id === selectedRobotId) : undefined));
 
