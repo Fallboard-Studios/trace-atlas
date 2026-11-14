@@ -1,5 +1,5 @@
 import { useLocaleStore } from '@/stores/localeStore';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { useStableSelector } from '@/utils/useStableSelector';
 
 /** What the nav shows of an entity: a robot's identityColor or a company's color as `color`. */
@@ -22,7 +22,7 @@ function rosterEqual(a: readonly RosterEntry[], b: readonly RosterEntry[]): bool
  * stands.
  */
 export function useEntityRoster(key: 'robots' | 'companies'): RosterEntry[] {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   return useStableSelector(
     useLocaleStore,
     (s): RosterEntry[] => {

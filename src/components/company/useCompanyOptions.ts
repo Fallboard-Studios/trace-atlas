@@ -6,7 +6,7 @@ import type { BusFilterPatch, BusFilterValue } from '@/components/robot/BusFilte
 import { useLocaleStore } from '@/stores/localeStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { useHeldOffSends } from '@/components/robot/useHeldOffSends';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { resolveCompanyOptions, diffCompoundField } from '@/systems/companyOptions';
 import {
   applyAudioMode, applyVolume, applyPan, applyPanAuto, applySend,
@@ -171,7 +171,7 @@ export interface CompanyOptionsResult {
  * latest roster from a ref and are stable across every edit.
  */
 export function useCompanyOptions(target: string): CompanyOptionsResult {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const all = target === ALL_TARGET;
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? NO_COMPANIES);
   // Subscribe to the raw robots array (a stable reference — Zustand's default equality check is

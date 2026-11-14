@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/controls/Button';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
 import { selectBranch } from '@/components/panels/screen/nav/navActions';
-import { getActiveLocaleId } from '@/utils/localeHelpers';
+import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { getScreenViewportDomNode } from '@/utils/helpers';
 import { generateCompanyName } from '@/systems/spawnSystem';
 import { COMPANY_NAME_INPUT_SCHEMA, CREATE_COMPANY_SCHEMA, RENAME_COMPANY_SCHEMA, DELETE_COMPANY_SCHEMA } from '@/data/companyConfig';
@@ -73,7 +73,7 @@ function pickRandomCompanyColor(existingColors: string[]): string {
  * right tool here, not a violation of the app's seeded-generation rule.
  */
 export function CompanyCreateForm() {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? NO_COMPANIES);
 
   const [createNameDraft, setCreateNameDraft] = useState(suggestCompanyName);
@@ -133,7 +133,7 @@ export function CompanyCreateForm() {
  * dialog is what actually commits or discards.
  */
 export function CompanyRenameDeleteForm() {
-  const localeId = getActiveLocaleId();
+  const localeId = useActiveLocaleId();
   const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? NO_COMPANIES);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
