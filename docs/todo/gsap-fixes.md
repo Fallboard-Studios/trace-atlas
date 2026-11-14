@@ -44,6 +44,13 @@ real `gsap` (the global mock never renders), so `vi.unmock('gsap')` in a file of
 
 ### 2. CabinetBox's geometry effect depends on `width` and `boxHeight`, which its own comment and body say it must not
 
+**Fixed 2026-11-14** on `fix/gsap-finds`: both left the array. Visible change to check by eye: a box
+that mounts engaged and is not square (a selected radio option, the active section tab, the current
+nav box) now eases its 2 px pop in on mount, as a Toggle (square, so never cut) always has. A resting
+box is unchanged: its mount tween runs from 0.5 to 0.5. Four tests pinned the width-only re-run; two
+became the new "a size change alone leaves a pop in flight alone" cases, two now drive the instant
+reposition branch through a pop-distance change, which still reaches it.
+
 [CabinetBox.tsx:269](../../src/components/ui/controls/CabinetBox.tsx#L269) says `width` "is deliberately
 NOT a dependency of the geometry effect below"; [CabinetBox.tsx:402](../../src/components/ui/controls/CabinetBox.tsx#L402)
 lists `width` and `boxHeight` in that effect's `dependencies`. Neither is read in the effect body (the
