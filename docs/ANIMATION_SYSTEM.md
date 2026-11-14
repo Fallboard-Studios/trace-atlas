@@ -503,7 +503,7 @@ notes, the Task 36 runs"); with one cloud on screen those figures no longer appl
   `NOTE_PREVIEW_SECONDS`, 0.4625 s, and the last cloud to go withdraws the ask). So a bar lands about
   halfway between the roll's right edge and "now" and rides in under the mask, which clears where it
   lands (`NOTE_KNOWN_AHEAD_SECONDS + NOTE_PREVIEW_SECONDS` of travel right of "now").
-- **Strength and re-size.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.75), set when the cloud is
+- **Strength and re-size.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.5625), set when the cloud is
   built; nothing else changes it but a re-size. A gem or body-scale change fades both layers out over
   `NOTE_WAKE_SECONDS`, rebuilds the roll at the latest size from a `.call` (dropping the notes in
   flight and starting a new belt), and fades back to the peak, on

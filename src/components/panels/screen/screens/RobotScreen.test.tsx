@@ -2556,7 +2556,7 @@ describe('RobotScreen — the desk avatar holds the note cloud (note cloud Task 
 // even pitch class, so it crosses in front.
 describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
   const C4 = { lead: 0.2, duration: 0.25, at: 1, note: 'C4' };
-  const PEAK = 0.75; // the cloud at its strongest (Crawford, 2026-11-13)
+  const PEAK = 0.5625; // the cloud at its strongest: 0.75, then down by a quarter (Crawford, 2026-11-13)
   let originalObserver: typeof ResizeObserver;
 
   /** A world robot's body as Robot.tsx mounts it: a cloud box with a layer either side of its svg. */

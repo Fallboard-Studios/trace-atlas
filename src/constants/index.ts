@@ -421,10 +421,10 @@ export const NOTE_BATTERY_BANDS: readonly (readonly [number, number])[] = [
   [65, 73],
   [83, 100],
 ];
-/** The cloud at its strongest (§1.7): the layers' opacity, in the world and on the avatar. Every other level (the dim
- *  a note falls to once it has sounded, its white while it sounds) sits under it (Crawford, 2026-11-13: "75% of their
- *  current opacity"). */
-export const NOTE_PEAK_STRENGTH = 0.75;
+/** The cloud at its strongest (§1.7): the layers' opacity on the robot screen's avatar. Every other level (its white
+ *  while a note sounds) sits under it. Crawford, 2026-11-13: first "75% of their current opacity" (0.75), then, once
+ *  the cloud was the avatar's alone, "down by 25%" (0.75 × 0.75). */
+export const NOTE_PEAK_STRENGTH = 0.5625;
 /** A re-size never pops (§1.5): the layers fade out over NOTE_WAKE_SECONDS, the roll is rebuilt, and they fade back
  *  to NOTE_PEAK_STRENGTH over the same. */
 export const NOTE_WAKE_SECONDS = 0.3;

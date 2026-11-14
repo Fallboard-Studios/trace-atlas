@@ -927,3 +927,5 @@ the picture" describes the shipped design.
   twelve world clouds; one avatar cloud makes them moot. The world-only machinery left without a caller (the battery
   bands, the woken set, the world dim, the stage-scale read, the row scale of note layers) is listed for Crawford's
   say-so, not removed with this change.
+- **Gate 4, the avatar's notes a quarter fainter** (his word with the move: "bring the opacity on those note cloud
+  notes down by 25%"). `NOTE_PEAK_STRENGTH` is 0.5625, three quarters of 0.75.
