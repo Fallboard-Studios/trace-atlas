@@ -8,8 +8,10 @@ Source spec: [docs/specs/PLAY_UNTIL_IN_THE_STATION.md](../specs/PLAY_UNTIL_IN_TH
 the gate; revised the same day for Crawford's answer 4 (the hold only when less than half a measure is left; otherwise
 the fade starts at once and ends on the bar line), which resolved Q3 and moved the fade system to the sixteenth grid.
 Phases 1 and 2 (Tasks 1–9) built 2026-11-14; Checkpoint A and the engine's-fade checkpoint passed with Crawford the same
-day. Phase 3 (Tasks 10–13) built 2026-11-14, with two fixes beyond the plan (Phase 3 as built, below). Next: Checkpoint
-B, Crawford's eye and ear.
+day. Phase 3 (Tasks 10–13) built 2026-11-14, with two fixes beyond the plan (Phase 3 as built, below). With Crawford
+remote, Checkpoint B's measurable parts were probed headless and recorded under it, and Tasks 14–16 (docs) were
+written ahead of the gate (their "Manual review" boxes are his; a gate change may need a touch-up). Next: Checkpoint
+B, Crawford's eye and ear, then Task 17.
 
 ## Overview
 
@@ -578,7 +580,7 @@ not verdicts; the boxes above stay Crawford's.
 
 ### Phase 4: Docs
 
-- [ ] **Task 14: `docs/ROBOT_LIFECYCLE.md` — the hold, the fade measure, the one exception**
+- [x] **Task 14: `docs/ROBOT_LIFECYCLE.md` — the hold, the fade measure, the one exception**
 
   **Description:** Principle 2 gains the exception (audibility reads whether the robot is in its station; the docking
   machine still never reads `activity`); rule 6 says the dock's silence begins at `'charging'`; the activity machine's
@@ -589,7 +591,7 @@ not verdicts; the boxes above stay Crawford's.
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every named function, file and constant exists as written.
+  - [x] Every named function, file and constant exists as written.
 
   **Verification:**
   - [ ] Manual review against the code; `npm run lint` clean.
@@ -600,7 +602,7 @@ not verdicts; the boxes above stay Crawford's.
 
   **Estimated scope:** XS
 
-- [ ] **Task 15: `docs/AUDIO_SYSTEM.md` — the station fade beside the Highlight dip; the budget's timing**
+- [x] **Task 15: `docs/AUDIO_SYSTEM.md` — the station fade beside the Highlight dip; the budget's timing**
 
   **Description:** The budget paragraph: a homebound `Docked` robot keeps its voice until `'charging'`; a new short
   passage on the station fade (`scheduleStationFade` / `cancelStationFade`, the factor in `busGainTarget`, the mid-ramp
@@ -609,7 +611,7 @@ not verdicts; the boxes above stay Crawford's.
   **Proof:** Read — human review.
 
   **Acceptance criteria:**
-  - [ ] Names and the ramp constant match the shipped source.
+  - [x] Names and the ramp constant match the shipped source.
 
   **Verification:**
   - [ ] Manual review; `npm run lint` clean.
@@ -620,7 +622,7 @@ not verdicts; the boxes above stay Crawford's.
 
   **Estimated scope:** XS
 
-- [ ] **Task 16: `docs/ANIMATION_SYSTEM.md` — the station arc's two durations**
+- [x] **Task 16: `docs/ANIMATION_SYSTEM.md` — the station arc's two durations**
 
   **Description:** The station-arc passage: the exit arc one second; the entry arc half a measure to a whole one, ending
   on the bar line, started by the station fade system through `enterOnBar`; the reverse on a turn-back.
@@ -628,7 +630,7 @@ not verdicts; the boxes above stay Crawford's.
   **Proof:** Read — human review.
 
   **Acceptance criteria:**
-  - [ ] Matches `stationArc`'s shipped signature and `enterOnBar`.
+  - [x] Matches `stationArc`'s shipped signature and `enterOnBar`.
 
   **Verification:**
   - [ ] Manual review; `npm run lint` clean.
