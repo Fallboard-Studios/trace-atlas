@@ -424,6 +424,30 @@ checks on every PR; roadmap 18 (Cabinetry Verification: Accessibility & Performa
 cut on 2026-10-22 before it ran, and the UI has been rebuilt since (roadmap 45, 57). Not yet scoped: a short interview
 decides the checklist and the tools (an axe run in the browser, a keyboard walk, a screen-reader pass). Plan.md Stage 5.
 
+Inputs from the 2026-11-14 component review ([archive/component-fixes.md](archive/component-fixes.md), items M8, M10,
+L4, L7, L8 and L25 to L28). Each was read from the code, none was seen in a browser, so each is a thing to check, not
+yet a thing to build:
+
+- **The phone nav sheet has no close control inside it** (M10). It is a modal `Dialog` opened by the phone bar's
+  `Toggle`, which sits outside it, so while the sheet is open the menu's ✕ is hidden from assistive tech and Escape is
+  the only way out from inside. The roster's Move sheet has the same gap. A `Dialog.Close` in each sheet is the fix.
+- **Delete and Factory Reset do not say they open a dialog** (M8). `Button` already takes `expanded` and `controls`,
+  so the attributes can be added without making `Button` a Radix `Trigger`; the hand-rolled focus return in
+  `CompanyCrudControls`, `OffScreen` and `OffScreenConfirm` works and can stay.
+- **A primitive disabled on its own may show no change** (L4). `Toggle`, the three sliders and `SectionTabs` have no
+  `[data-disabled]` rule; their dimmed look comes from a `.sc-held-off` ancestor. Check whether any of them is ever
+  disabled outside one (the review's own example, the company cap, disables a `TextInput` and a `Button`, which do
+  have rules).
+- **The switch's name repeats its visible label** (L7): `aria-labelledby` to the `DualLabel` would do, and would keep
+  the lore line out of the name.
+- **A long press on a roster tile returns focus to the Move chip**, not the tile face that was held (L8).
+- **The power rocker ignores reduced motion** (L25): its 0.06 s thunk and 1.0 s motor return always animate.
+- **The rocker's `role="status"` announces nothing** (L26): only its `aria-label` changes, and a live region
+  announces content.
+- **The boot theatre skips on a pointer press only** (L27): no key skips it (reduced motion already does).
+- **Radio options and section tabs pop on hover but not on focus** (L28), where `Button` and `NavBox` pop on both.
+  Check the `:focus-visible` styles first; the review did not read the CSS.
+
 ### 62. Misc Review Items (a Bucket)
 
 Opened by Crawford at the 2026-11-02 plan review: a place to add small review findings as he finds them, text content
@@ -448,6 +472,11 @@ own commit, and the item archives when the list is empty.
   a player dragging Accents past 34 (or Dramatic's 75-100, or a theme's rests) still gets it, with no setting that shows
   why. Options considered: release short only when the robot's attack fits inside the written note (recommended), a
   release that spans the gap to the next note, or reverting R2b.
+- 2026-11-14 — `SignatureArrayDrawer` (`src/components/robot/SignatureArrayDrawer.tsx`) is rendered by no screen: the
+  robot and company screens map `SignatureArrayLayer` themselves. It was left in when the unused Ping Controls drawer
+  went (component review L12, [archive/component-fixes.md](archive/component-fixes.md)) because its test file renders
+  it 38 times and is the main coverage of `SignatureArrayLayer`, which is in use. Removing it means re-pointing those
+  tests at the layer (or at the screens) first. Crawford's call: do that, or keep the drawer as the tests' harness.
 
 ### 63. Style Fixes (a Bucket)
 
