@@ -7,9 +7,11 @@ spike ([intent](robot-note-cloud.md)): the cloud shows what a robot plays, so a 
 
 ## Outcome
 
-A recalled robot is heard all the way home. When it reaches its station's port it holds there, still playing at its
-regular volume, until the next bar line; then over that one entire measure its volume ramps to zero while its body
-shrinks and fades into the port on an arc stretched to the same measure. Sound and body leave together, on the bar.
+A recalled robot is heard all the way home. When it reaches its station's port its volume ramps to zero while its body
+shrinks and fades into the port on an arc of the same length, both ending on the next bar line. If less than half a
+measure is left when it arrives, it holds there instead, still playing at its regular volume, until the bar line, and
+then takes the whole next measure to go (Crawford, 2026-11-14, revising the interview's answer). Sound and body leave
+together, on the bar.
 Today ([ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md)) the robot lands on `Docked` within a measure of its recall,
 wherever it is, and `Docked` is the dock's mute (`isDockMuted`, [robotAudibility.ts](../../src/utils/robotAudibility.ts)),
 so for most of the swim home the robot is in view and silent, and its entry arc is one second
@@ -27,13 +29,15 @@ for one more entire measure, but the volume should ramp down to 0 during that me
 - **No robot in motion is silent.** A `Recalled` robot, and a robot that has landed on `Docked` while still returning,
   is heard exactly as an `Active` one: audible by the mute/solo/dock rule, in the Audio Load budget's sounding set,
   its voice kept, its mode light lit, counted in the Deck's "n of m".
-- **The hold.** On reaching the port the robot stays at full volume, body visible at full scale at the port, until the
-  next bar line (up to one measure). The measure is the music clock's, on the grid (the one music clock,
-  [intent](one-music-clock.md)), never a timer.
-- **The fade measure.** From that bar line to the next, the volume ramps from its regular level to zero and the entry
-  arc plays over the same measure (scale 1 → `STATION_PORT_SCALE`, alpha 1 → 0, the halo and station ripple riding on
-  it as today). Both end on the bar line; the last notes fall inside the measure. The robot is then hidden and silent in
-  its station, `'charging'`, as today.
+- **The fade, to the bar line.** On reaching the port with half a measure or more left before the bar line, the volume
+  ramps from its regular level to zero and the entry arc plays over the same time (scale 1 → `STATION_PORT_SCALE`,
+  alpha 1 → 0, the halo and station ripple riding on it as today), both ending on the bar line. The fade lasts between
+  half a measure and a whole one. The robot is then hidden and silent in its station, `'charging'`, as today.
+- **The hold, only when less than half a measure is left** (Crawford, 2026-11-14: "can we have this trigger only if
+  there's less than half a measure left when the robot hits the station?"). Then the robot stays at full volume, body
+  visible at full scale at the port, until the bar line, and the fade and arc take the whole next measure. The
+  interview's first answer, a hold for the bar on every arrival, is replaced by this. The measure is the music clock's,
+  on the grid (the one music clock, [intent](one-music-clock.md)), never a timer.
 - **The fade is heard as a ramp, not a cut.** The volume moves continuously over the measure; no step at the start or
   end.
 - **The docking machine is untouched.** `beginRecall` still sets the one-measure hold and the robot still lands on
@@ -67,7 +71,7 @@ for one more entire measure, but the volume should ramp down to 0 during that me
 - Pre-v1: no "keep the existing sound" clause. The fleet's sound is allowed to change; a homebound robot now plays for
   up to two measures longer.
 - **Provisional, judged by eye and ear at a gate** (Crawford, 2026-11-14: "subject to change upon visual review"): the
-  measure-long arc, the bar-line hold and the fade's length. The spec names the gate and what it looks at.
+  stretched arc, the half-measure boundary and the fade's length. The spec names the gate and what it looks at.
 - **No collision rule up front.** Crawford is worried about robots colliding as they fade in and out at one station.
   The slots cannot double-book (a slot is reserved on the turn home and held through `'returning'`, `'entering'` and
   `'charging'`), so the collision is visual: two bodies at one station's ports for longer than today. It is judged at

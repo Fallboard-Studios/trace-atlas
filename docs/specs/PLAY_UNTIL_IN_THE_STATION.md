@@ -1,4 +1,4 @@
-# Phase Spec: Play until in the Station — a recalled robot plays all the way home and fades out over one measure
+# Phase Spec: Play until in the Station — a recalled robot plays all the way home and fades out to the bar line
 
 > **Execution Commands**
 >
@@ -13,7 +13,9 @@
 [docs/intent/play-until-in-the-station.md](../intent/play-until-in-the-station.md) (`interview-me`, 2026-11-14) and
 Crawford's three answers of the same day to the intent's open notes: (1) "I don't think we need to change the mute
 functionality, it's just volume ramping down"; (2) "if re-activated, the volume just ramps back up to normal";
-(3) "audio stays the same". Backlog [84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station),
+(3) "audio stays the same"; and his fourth, on reading the plan: (4) the hold happens "only if there's less than half a
+measure left when the robot hits the station", otherwise the fade starts at once and runs to the next bar line (his
+pick of the two readings offered). Backlog [84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station),
 first item of [plan.md](../todo/plan.md)'s Stage 4. **Plan written the same day:** [docs/tasks/PLAY_UNTIL_IN_THE_STATION.md](../tasks/PLAY_UNTIL_IN_THE_STATION.md), eighteen tasks in five phases, every §7.1 default kept, Q1–Q3 for the gate; awaiting Crawford's approval before the build.
 
 **Where the facts come from.** Everything marked **(code)** was read in the repo on 2026-11-14 while writing this spec.
@@ -23,7 +25,7 @@ Nothing here is measured; the gate (§5.4) is by eye and ear.
 
 ## 0. Scope check
 
-One capability: a recalled robot's sound follows its body home and leaves with it. The ramp, the measure-long arc and
+One capability: a recalled robot's sound follows its body home and leaves with it. The ramp, the stretched arc and
 the budget's timing are three faces of the same edge and cannot ship or be judged apart, so no capability map. The
 follow-up the intent names (a ramp up on the way out) is out of scope (§1.8) and is not a module of this.
 
@@ -55,8 +57,10 @@ follow-up the intent names (a ramp up on the way out) is out of scope (§1.8) an
   × the Highlight dip; `setHighlightedRobots` ramps each voice to its target with `rampOrSet(param, target,
 HIGHLIGHT_RAMP_SECONDS)` (`src/engine/audioEngine/voiceEntry.ts`, which also takes a `time`).
 - **The clock.** `BeatClock.scheduleRepeat(interval, cb(time))` fires with the tick's audio time; since the one music
-  clock a `'1m'` repeat lands on the bar (`docs/specs/ONE_MUSIC_CLOCK.md`). `getTickSeconds(time)` is one `16n` at the
-  live tempo; a measure is `BEATS_PER_MEASURE * 4` of them. The work loop's own clock is GSAP's ticker, paused and
+  clock a `'16n'` repeat lands on the sixteenth grid from the bar (`docs/specs/ONE_MUSIC_CLOCK.md`), and
+  `positionAt(time)` gives that tick's `step`, 1 to 16 within its measure (the swells read it this way,
+  `src/systems/audioSwells.ts`). `getTickSeconds(time)` is one `16n` at the live tempo; a measure is
+  `BEATS_PER_MEASURE * 4` (16) of them. The work loop's own clock is GSAP's ticker, paused and
   offset by `pauseWorkLoop` / `resumeWorkLoop`; it has no measure.
 - **Strict Separation** (CLAUDE.md): a GSAP callback never calls AudioEngine; `workLoop.test.ts` pins that the loop
   never touches the engine through a full cycle. A transport or BeatClock callback may call into animation (the seam
@@ -66,14 +70,23 @@ HIGHLIGHT_RAMP_SECONDS)` (`src/engine/audioEngine/voiceEntry.ts`, which also tak
 
 1. **Recall.** Unchanged: `Recalled`, the hold, the swim home. The robot is heard the whole way, including after it
    lands on `Docked` mid-swim (§1.3).
-2. **Arrival at the port.** `enter` writes `'entering'` and **starts no arc**. The robot holds at the port, visible at
-   full scale, at its regular volume, in the sounding set.
-3. **The bar line.** On the first bar-line tick at or after the arrival, the station fade system (§1.4) does two things
-   for every robot that is `'entering'` and not yet fading: it schedules the robot's volume ramp from its current bus
-   gain to 0 starting at the tick's time and lasting one measure (`AudioEngine.scheduleStationFade`), and it tells the
-   work loop to play the entry arc over the same number of seconds (`workLoop.enterOnBar`). The arc is today's
-   `'despawn'` arc with its duration the measure's length instead of `STATION_ARC_SECONDS`.
-4. **The end of the measure.** The arc's `onComplete` writes `'charging'` as today. From that write the robot is in its
+2. **Arrival at the port.** `enter` writes `'entering'` and **starts no arc**. The robot stands at the port, visible at
+   full scale, at its regular volume, in the sounding set, until the next sixteenth tick decides.
+3. **The decision, on the next tick** (Crawford's answer 4). The station fade system (§1.4) runs on the sixteenth grid.
+   On the first tick after the arrival it reads how many sixteenths are left to the bar line, `left = 17 − step`
+   (16 on the bar itself, 1 on the last sixteenth):
+   - **Half a measure or more left** (`left ≥ STATION_FADE_MIN_STEPS`, 8): the fade starts **now**. The system schedules
+     the robot's volume ramp from its current bus gain to 0 starting at the tick's time and lasting `left` sixteenths
+     (`AudioEngine.scheduleStationFade`), and tells the work loop to play the entry arc over the same number of seconds
+     (`workLoop.enterOnBar`). Both end on the bar line.
+   - **Less than half a measure left** (`left < 8`): the robot **holds** at the port, still playing, and the system does
+     the same two things on the bar-line tick (`step === 1`, `left = 16`) with a whole measure as the length.
+
+   So the fade always ends on a bar line and lasts between half a measure and one measure; the hold is under half a
+   measure (plus up to one sixteenth and `lookAhead`). The arc is today's `'despawn'` arc with its duration the fade's
+   length instead of `STATION_ARC_SECONDS`.
+
+4. **The bar line.** The arc's `onComplete` writes `'charging'` as today. From that write the robot is in its
    station: dock-muted (§1.3), stood by by the budget, its voice released after the last note, exactly as a `Docked`
    robot is today. The ramp has reached 0 by then, so the hand-over is silent.
 5. **A turn-back during the hold or the fade** (Crawford's answer 2). The seam's `'active'` finds the robot `'entering'`.
@@ -109,16 +122,19 @@ which is what silences the swim. So:
 
 A small transport-side module beside `audioBudgetSystem.ts`, started and stopped where the work loop is:
 
-- **Start:** `scheduleRepeat('1m', onBar)` through BeatClock. **Stop:** `cancelSchedule`, and every live fade is
-  forgotten (the engine's `killAll` / voice teardown already resets the bus).
-- **`onBar(time)`:** for each robot of the active locale with `activity === 'entering'`, `audioMode !== 'solo'` (§1.5)
-  and no fade live for it: `seconds = measureSeconds(time)` (16 × `getTickSeconds(time)`);
-  `AudioEngine.scheduleStationFade(robot.id, time, seconds)`; `workLoop.enterOnBar(robot.id, seconds)`. A soloed robot
-  that is `'entering'` gets `enterOnBar` and no fade.
+- **Start:** `scheduleRepeat('16n', onTick)` through BeatClock, the swells' cadence. **Stop:** `cancelSchedule`, and
+  every robot it had started is forgotten (the engine's `killAll` / voice teardown already resets the bus).
+- **`onTick(time)`:** `at = positionAt(time)` (return with none); `left = BEATS_PER_MEASURE * 4 − (at.step − 1)`;
+  `tick = getTickSeconds(time)` (return with none). For each robot of the active locale with `activity === 'entering'`
+  that the system has not started: if `left ≥ STATION_FADE_MIN_STEPS` (8), `seconds = left × tick`, then
+  `AudioEngine.scheduleStationFade(robot.id, time, seconds)` unless `audioMode === 'solo'` (§1.5), then
+  `workLoop.enterOnBar(robot.id, seconds)`, and the robot is marked started; otherwise nothing this tick (the hold), and
+  the bar-line tick, where `left = 16`, starts it with a whole measure. A soloed robot gets the arc on the same timing
+  and no fade. A started robot that is no longer `'entering'` is forgotten; one that is now soloed is cancelled.
 - It is a transport callback, so it may call both the engine and the loop (§1.1's last bullet). The loop still never
   calls the engine.
-- A robot that reaches the port inside the bar's lookahead window waits for the next bar: the hold is "up to one
-  measure" plus up to `lookAhead`.
+- A robot that reaches the port inside a tick's lookahead window is seen on the tick after: the decision is late by at
+  most one sixteenth plus `lookAhead`, and the hold is under half a measure.
 
 ### 1.5 The engine's fade (`AudioEngine.ts`)
 
@@ -162,10 +178,11 @@ time + seconds }`) and ramps the voice's `busGain.gain` from its current value t
 
 ### 1.7 What a listener and a viewer meet
 
-A robot recalled mid-job turns and swims home with its notes running on and its cloud full. At the port it stops,
-still playing, for up to a bar. On the bar line it starts to shrink and dim, and its notes thin out with it; by the next
-bar line it is gone and silent, and its station's slot is lit. If it was called back to work during that bar it grows
-back the way it went, its volume returns over half a second, and it swims off. A robot leaving its station is exactly
+A robot recalled mid-job turns and swims home with its notes running on and its cloud full. At the port it starts to
+shrink and dim at once, its notes thinning with it, and by the bar line it is gone and silent and its station's slot is
+lit; a robot that arrives in the last half of a bar stands at the port, still playing, for that short while and then
+takes the whole next bar to go. If it was called back to work during the fade it grows back the way it went, its
+volume returns over half a second, and it swims off. A robot leaving its station is exactly
 as today: full volume at the landing, a one-second appearance.
 
 ### 1.8 What does not change
@@ -185,12 +202,13 @@ as today: full volume at the landing, a one-second appearance.
 
 ```text
 src/systems/
-├── stationFadeSystem.ts          # NEW (§1.4): the '1m' repeat; per bar, scheduleStationFade + enterOnBar for every
-│                                 #   'entering' robot not yet fading; start/stop beside the work loop
+├── stationFadeSystem.ts          # NEW (§1.4): the '16n' repeat; per tick, the half-measure rule, then
+│                                 #   scheduleStationFade + enterOnBar for every 'entering' robot not yet started;
+│                                 #   start/stop beside the work loop
 ├── stationFadeSystem.test.ts     # NEW
 ├── workLoop.ts                   # enter() holds (no arc); enterOnBar(robotId, seconds); stationArc(duration?);
 │                                 #   the seam's 'active' during 'entering': resume or reverse (§1.6)
-├── workLoop.test.ts              # the hold, the measure-long arc, the reverse, the engine-never-touched pin kept
+├── workLoop.test.ts              # the port with no arc, the stretched arc, the reverse, the engine-never-touched pin kept
 ├── workLoop.integration.test.ts
 ├── audioBudgetSystem.ts          # isDockMuted(docking, activity); the key's inStation bit (§1.3)
 ├── audioBudgetSystem.test.ts
@@ -210,7 +228,8 @@ src/utils/
 src/components/panels/screen/
 ├── screens/useRobotMeta.ts       # lit through the new signature
 └── worldView/MetaBox.tsx         # the count through the new signature
-src/constants/index.ts            # STATION_FADE_RECOVER_SECONDS (§7.1 A2); STATION_ARC_SECONDS keeps the exit arc
+src/constants/index.ts            # STATION_FADE_RECOVER_SECONDS (§7.1 A2), STATION_FADE_MIN_STEPS = 8 (§1.2 step 3);
+                                  #   STATION_ARC_SECONDS keeps the exit arc
 src/types/Robot.ts                # activity's comment: audibility reads whether the robot is in its station
 
 docs/ROBOT_LIFECYCLE.md           # principle 2 (the one exception), rule 6 (the dock's silence begins at 'charging'),
@@ -237,7 +256,8 @@ arc decorator (it already takes a duration) and every content file are untouched
 - The ramp is a bus-gain write in `AudioEngine.ts`, scheduled at a transport callback's `time`; the arc is a GSAP
   timeline in `timelineMap`'s `'world'` scope. The work loop never calls the engine (its test keeps pinning it); the
   fade system, a transport callback, is the only place that reaches both.
-- No timer: the bar comes from `scheduleRepeat('1m')`, the measure's length from `getTickSeconds(time)`.
+- No timer: the grid comes from `scheduleRepeat('16n')`, the step from `positionAt(time)`, the fade's length from
+  `getTickSeconds(time)`.
 - The docking machine does not read `activity`. `stepRobotLifecycle`, `landOnDocked` and the replay are untouched.
 - `audioMode` is never written by this work.
 - Run the focused tests per task, then the full suite, `build:types`, `lint` and `build` at each checkpoint.
@@ -347,10 +367,14 @@ the fade completed keeps the bus at 0; a rebuilt voice after a completed fade st
 `triggerWithCap` refuses a `Docked` + `'charging'` robot and accepts a `Docked` + `'returning'` one. Mutants: the factor
 applied before the end; the factor lost on `reReserveVoice`.
 
-**`stationFadeSystem.test.ts`** — with a fake BeatClock repeat: on a bar, every `'entering'` robot without a fade gets one
-`scheduleStationFade(id, time, 16 × tick)` and one `enterOnBar(id, 16 × tick)`; a robot already fading gets nothing on
-the next bar; a soloed `'entering'` robot gets `enterOnBar` and no fade; `'returning'` and `'charging'` robots get nothing;
-stop cancels the repeat. Mutants: the fade scheduled every bar; the solo skipped.
+**`stationFadeSystem.test.ts`** — with a fake BeatClock repeat and a fake position: an `'entering'` robot seen on step 1
+gets one `scheduleStationFade(id, time, 16 × tick)` and one `enterOnBar(id, 16 × tick)`; seen on step 5 (12 left) it gets
+both with `12 × tick`; seen on step 9 (8 left, the boundary) it gets both with `8 × tick`; seen on step 10 (7 left) it
+gets nothing until the step-1 tick, then both with `16 × tick`; a started robot gets nothing on later ticks; a soloed
+`'entering'` robot gets `enterOnBar` and no fade; `'returning'` and `'charging'` robots get nothing; a started robot that
+becomes soloed is cancelled on the next tick; one that left `'entering'` and re-enters later is started again; stop
+cancels the repeat; no transport or no position does nothing. Mutants: the boundary at 7 or 9; the fade scheduled every
+tick; the solo skipped.
 
 **`workLoop.test.ts`** — arrival at the port writes `'entering'` and starts no `station-*` timeline (the body stays at
 alpha 1, scale 1 for the hold); `enterOnBar(id, s)` plays the despawn arc with duration `s` (the body's alpha and scale
@@ -382,8 +406,10 @@ the fade, and the console clear of Tone's "scheduled inside of scheduled callbac
 Three worlds, Light tier and Full: one at a slow tempo (the longest measure, so the longest hold, fade and overlap), one
 busy (twelve robots, several recalls close together), one with a Solo on a homebound robot. He judges:
 
-- the hold at the port (up to a bar at full volume, still): too long, right, or should the fade start on arrival;
-- the measure-long arc and ramp together: do sound and body leave as one; is a ramp heard, not a cut;
+- the two arrivals: one in the first half of a bar (the fade starts at once and runs to the bar line, half a measure
+  or more) and one in the last half (a short hold, then a whole bar); is the half-measure boundary right, and does the
+  shorter fade still read as a fade;
+- the arc and ramp together: do sound and body leave as one on the bar line; is a ramp heard, not a cut;
 - the overlap of a fading robot and an exiting one at the same station (the intent's worry): acceptable as is, or the
   exit waits for the fade to end (then a follow-up task, §7.2 Q1);
 - a turn-back mid-fade: the body growing back and the volume returning over `STATION_FADE_RECOVER_SECONDS`.
@@ -422,9 +448,10 @@ robot holds at the port until the bar (Task 4)`), ending with the attribution li
 - **A2. `STATION_FADE_RECOVER_SECONDS` = 0.5.** "Just ramps back up to normal" named no length. Half a second is long
   enough to be a ramp, short enough that a robot swimming off is at full volume before it has left the port. The gate
   hears it.
-- **A3. The hold waits for the bar line; the fade lasts exactly one measure at the tempo of that bar.** A tempo change
-  mid-fade does not stretch the ramp or the arc; both end where they were set to end, which may be off the new bar.
-  Rare, and the gate's slow world does not change tempo.
+- **A3. The fade's length is fixed at the tick that starts it, at that tick's tempo.** A tempo change mid-fade does not
+  stretch the ramp or the arc; both end where they were set to end, which may be off the new bar. Rare, and the gate's
+  slow world does not change tempo. The half-measure boundary is `STATION_FADE_MIN_STEPS = 8` sixteenths, inclusive:
+  exactly half a measure left fades at once.
 - **A4. Reduced motion fades the body over the whole measure.** A fade is not a motion; the scale and the ripple stay
   off as today. If Crawford prefers the 0.3 s alpha fade kept under reduced motion, it is one constant.
 - **A5. Power-off mid-fade pauses the ramp.** The ramp is an AudioParam automation on the context's clock; a suspended
@@ -434,9 +461,10 @@ robot holds at the port until the bar (Task 4)`), ending with the attribution li
 - **A6. The cover sim stays docking-only.** `lifecycleSim.ts`'s `isSounding` counts `Active` and `Recalled`; a `Docked`
   robot on its way home now also sounds, so the sim under-counts sounding robots and its "never silent" result still
   holds (more sound, not less). Its comment says so; its arithmetic does not change.
-- **A7. One `'1m'` repeat is the bar.** Since the one music clock a `'1m'` repeat registered after the transport started
-  lands on the bar from its first tick (ONE_MUSIC_CLOCK.md §4); the fade system is started with the loop, after
-  `AudioEngine.start`. The plan's first task proves it with the CDP probe from backlog 82 if there is any doubt.
+- **A7. The `'16n'` repeat is on the grid and `positionAt` names the step.** Since the one music clock a `'16n'` repeat
+  lands on the sixteenth grid and `positionAt(time)` rounds to the sixteenth it is on (ONE_MUSIC_CLOCK.md §4.1); the
+  swells rely on exactly this. The fade system is started with the loop, after `AudioEngine.start`. Backlog 82's CDP
+  probe is the measurement if there is any doubt.
 - **A8. A soloed robot never fades** (§1.5). Solo means "hear this one", and a Solo already keeps a robot audible in
   its station; fading it to silence and then unmuting it at `'charging'` would be a dip for nothing.
 
@@ -447,7 +475,6 @@ robot holds at the port until the bar (Task 4)`), ending with the attribution li
   here.
 - **Q2. A ramp up on the way out** — the intent's follow-up, out of scope. Noted so the gate's third look (the exit
   beside a fade) can raise it.
-- **Q3. The hold's upper bound.** With `lookAhead` the hold can reach a measure plus ~100 ms. If a full measure of a
-  silent-looking robot standing at the port is too long on the slow world, the alternative is to start the fade on
-  arrival (a measure long, off the bar), the option Crawford turned down in the interview; it is one line in the fade
-  system.
+- **Q3. The hold's upper bound.** **Answered 2026-11-14** (Crawford's answer 4, §1.2 step 3): the hold happens only
+  when less than half a measure is left at arrival, so it is under half a measure plus a sixteenth and `lookAhead`;
+  otherwise the fade starts at once and ends on the bar line. The boundary (8 sixteenths) is the gate's to move.

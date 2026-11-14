@@ -4,23 +4,25 @@ Source spec: [docs/specs/PLAY_UNTIL_IN_THE_STATION.md](../specs/PLAY_UNTIL_IN_TH
 [docs/intent/play-until-in-the-station.md](../intent/play-until-in-the-station.md). Backlog slot:
 [84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station), first item of plan.md Stage 4.
 
-**Status:** plan written 2026-11-14 from the spec, with every §7.1 assumption at its default and §7.2 Q1–Q3 open for
-the gate. Nothing built.
+**Status:** plan written 2026-11-14 from the spec, with every §7.1 assumption at its default and §7.2 Q1–Q2 open for
+the gate; revised the same day for Crawford's answer 4 (the hold only when less than half a measure is left; otherwise
+the fade starts at once and ends on the bar line), which resolved Q3 and moved the fade system to the sixteenth grid.
+Nothing built.
 
 ## Overview
 
-A recalled robot is heard all the way home; at the port it holds until the bar line, then fades to silence over one
-measure while its entry arc stretches to the same measure. Nineteen tasks in five phases, each phase leaving the app
-working:
+A recalled robot is heard all the way home; at the port its fade to silence starts at once and ends on the bar line,
+its entry arc stretched to the same length, unless less than half a measure is left, when it holds for the bar and
+takes the whole next measure. Eighteen tasks in five phases, each phase leaving the app working:
 
 1. **The silence begins in the station** (Tasks 1–5): `isDockMuted` gains the `'charging'` condition behind an optional
    parameter, each caller passes `activity` in turn, then the parameter is made required. After this phase a recalled
    robot plays through its whole swim and its one-second arc, and cuts at `'charging'`. Then an ear checkpoint.
 2. **The engine's fade** (Tasks 6–9): a timed ramp helper, `scheduleStationFade` / `cancelStationFade` with the fade
    factor in `busGainTarget`, the mid-ramp re-issue, and `landOnActive`'s cancel. Nothing calls the fade yet.
-3. **The hold, the bar and the measure-long arc** (Tasks 10–13): `stationArc` takes a duration and `enterOnBar` is
-   exported; the station fade system runs on a `'1m'` repeat; then `enter` stops starting the arc; then the turn-back
-   resumes or reverses. Then Crawford's gate (spec §5.4), with two reserved follow-ups.
+3. **The port, the grid and the stretched arc** (Tasks 10–13): `stationArc` takes a duration and `enterOnBar` is
+   exported; the station fade system runs on a `'16n'` repeat and applies the half-measure rule; then `enter` stops
+   starting the arc; then the turn-back resumes or reverses. Then Crawford's gate (spec §5.4), with two reserved follow-ups.
 4. **Docs** (Tasks 14–17).
 5. **The records** (Task 18), after the merge.
 
@@ -41,21 +43,28 @@ target, seconds, time)` in `voiceEntry.ts`: `rampTo(target, seconds, time)` when
   164–165 and 183), not from inside the loop: the system imports both the engine and the loop, and the loop must never
   import the engine (its Strict Separation pin). `audioSwells.ts`'s `startAudioSwells` / `stopAudioSwells` is the shape
   (a `scheduleRepeat` id kept in module state, `cancelSchedule` on stop).
+- **The system runs on the sixteenth grid, as the swells do** (spec §1.4, Crawford's answer 4): `scheduleRepeat('16n',
+onTick)`, `positionAt(time).step` for the sixteenths left to the bar, `getTickSeconds(time)` for their length. A `'1m'`
+  repeat could not start a fade on arrival; a store subscription to `'entering'` would act from a chain that begins in
+  a GSAP callback. The tick is the actor, and it costs one roster scan per sixteenth, which the swells already pay.
+- **The half-measure rule is one constant and one comparison.** `STATION_FADE_MIN_STEPS = 8` in `constants/index.ts`
+  beside the station constants; `left = BEATS_PER_MEASURE * 4 − (step − 1)`; `left >= STATION_FADE_MIN_STEPS` starts the
+  fade now over `left` sixteenths, else the robot waits for the step-1 tick (`left = 16`). Inclusive at 8 (spec §7.1 A3).
 - **The system, not the engine, remembers which robots it has started.** A module-level `started: Set<string>`; on each
-  bar an id whose robot is no longer `'entering'` is dropped, and an `'entering'` robot not in the set is started
-  (`scheduleStationFade` unless soloed, then `enterOnBar`). The engine's `stationFades` is the audio record; the
-  system's set is the scheduling record. Neither is in Zustand.
-- **A Solo that arrives mid-fade is cancelled at the next bar** (spec §1.5's "the plan pins the seam"): `onBar` also
-  calls `cancelStationFade` for a started robot that is now soloed. Up to one measure late, for a user action during a
-  one-measure fade; a store subscription for that edge is not worth its cost. Named in Risks.
-- **The hold lands after the fade system (Task 12 after Task 11).** With `enter` still starting the arc at once (today's
-  code), Task 11's `enterOnBar` is a no-op in the app (an arc is already running) and its fade ramps under a one-second
-  arc that ends in `'charging'` anyway, so the app works between the two tasks. Were the hold first, every homebound
-  robot would stand at its port for ever until the system existed.
+  tick an id whose robot is no longer `'entering'` is dropped, and an `'entering'` robot not in the set is started when
+  the rule allows (`scheduleStationFade` unless soloed, then `enterOnBar`). The engine's `stationFades` is the audio
+  record; the system's set is the scheduling record. Neither is in Zustand.
+- **A Solo that arrives mid-fade is cancelled on the next tick** (spec §1.5's "the plan pins the seam"): `onTick` also
+  calls `cancelStationFade` for a started robot that is now soloed. Within a sixteenth, which the grid gives for free;
+  no store subscription.
+- **The port change lands after the fade system (Task 12 after Task 11).** With `enter` still starting the arc at once
+  (today's code), Task 11's `enterOnBar` is a no-op in the app (an arc is already running) and its fade ramps under a
+  one-second arc that ends in `'charging'` anyway, so the app works between the two tasks. Were Task 12 first, every
+  homebound robot would stand at its port for ever until the system existed.
 - **"An arc is running" is `getTimeline(`station-${id}`)` being set**, the same key `stopWorkLoop` kills and
   `stationRipple.ts` names; no new flag on the loop or the robot.
-- **A measure's seconds are `BEATS_PER_MEASURE * 4 * getTickSeconds(time)`** in the fade system, read once per bar from
-  the callback's own time, so a tempo change reaches the next bar (the swells' convention).
+- **A fade's seconds are `left × getTickSeconds(time)`** in the fade system, read from the callback's own time at the
+  tick that starts it, so a tempo change reaches the next fade (the swells' convention).
 - **The reversed arc resumes the robot from the reverse's `onReverseComplete`**, the timeline's own callback, and the
   original `onComplete` (the `'charging'` write) is cleared first so a reversed arc never writes `'charging'`. The
   volume's return is the engine's alone (`landOnActive` → `cancelStationFade`, Task 9), already in place before the
@@ -347,7 +356,7 @@ time?)` that both call, so the rule lives once.
 
 ---
 
-### Phase 3: The hold, the bar and the measure-long arc (spec §1.4, §1.6)
+### Phase 3: The port, the grid and the stretched arc (spec §1.2 step 3, §1.4, §1.6)
 
 - [ ] **Task 10: `workLoop.ts` — `stationArc` takes a duration; `enterOnBar(robotId, seconds)` exported**
 
@@ -379,28 +388,34 @@ time?)` that both call, so the rule lives once.
 
   **Estimated scope:** M (a signature, a new export, a reduced-motion branch)
 
-- [ ] **Task 11: `stationFadeSystem.ts` (new), `worldTransition.ts` — the bar schedules the fade and the arc**
+- [ ] **Task 11: `stationFadeSystem.ts` (new), `worldTransition.ts`, `constants/index.ts` — the grid schedules the fade
+      and the arc by the half-measure rule**
 
-  **Description:** `startStationFades(localeId)` / `stopStationFades()`: a `scheduleRepeat('1m', onBar)` id in module
-  state and a `started: Set<string>`. `onBar(time)`: `seconds = BEATS_PER_MEASURE * 4 * getTickSeconds(time)` (return
-  if undefined); for each robot of `localeId`: drop from `started` if not `'entering'`; if `'entering'` and not started:
-  `AudioEngine.scheduleStationFade(id, time, seconds)` unless `audioMode === 'solo'`, then `enterOnBar(id, seconds)`,
-  and add to `started`; if started and now soloed: `cancelStationFade(id)` (Architecture Decisions). Stop cancels the
-  repeat and clears the set. `worldTransition.ts` starts it right after `startWorkLoop(localeId)` (line 165) and stops it
+  **Description:** `STATION_FADE_MIN_STEPS = 8` beside the station constants. `startStationFades(localeId)` /
+  `stopStationFades()`: a `scheduleRepeat('16n', onTick)` id in module state and a `started: Set<string>`.
+  `onTick(time)`: `at = positionAt(time)` and `tick = getTickSeconds(time)` (return if either is undefined); `left =
+  BEATS_PER_MEASURE * 4 − (at.step − 1)`; for each robot of `localeId`: drop from `started` if not `'entering'`; if
+  `'entering'`, not started and `left >= STATION_FADE_MIN_STEPS`: `seconds = left × tick`,
+  `AudioEngine.scheduleStationFade(id, time, seconds)` unless `audioMode === 'solo'`, then `enterOnBar(id, seconds)`, and
+  add to `started`; if started and now soloed: `cancelStationFade(id)` (Architecture Decisions). Stop cancels the repeat
+  and clears the set. `worldTransition.ts` starts it right after `startWorkLoop(localeId)` (line 165) and stops it
   beside each `stopWorkLoop()` (lines 164, 183). With `enter` still arcing at once, in the app this task's `enterOnBar` is
   a no-op and its fade ends under the one-second arc.
 
   **Proof:** RED test — `src/systems/stationFadeSystem.test.ts` (new; the budget test's fake-engine idiom, a fake
-  `scheduleRepeat` capturing the callback): on a bar every `'entering'` robot without a fade gets one
-  `scheduleStationFade(id, time, 16 × tick)` and one `enterOnBar(id, 16 × tick)`; the next bar schedules nothing for
-  it; a soloed `'entering'` robot gets `enterOnBar` only; `'returning'` / `'charging'` robots get nothing; a started robot
-  that becomes soloed is cancelled on the next bar; a robot that left `'entering'` and re-enters later is started again;
-  stop cancels the repeat; no transport registers nothing. `worldTransition.test.ts`: start and stop called with the loop.
+  `scheduleRepeat` capturing the callback, `positionAt` and `getTickSeconds` mocked): an `'entering'` robot seen on step 1
+  gets one `scheduleStationFade(id, time, 16 × tick)` and one `enterOnBar(id, 16 × tick)`; on step 5 both with `12 ×
+tick`; on step 9 (8 left) both with `8 × tick`; on step 10 (7 left) nothing until the step-1 tick, then both with `16 ×
+tick`; a started robot gets nothing on later ticks; a soloed `'entering'` robot gets `enterOnBar` only; `'returning'` /
+  `'charging'` robots get nothing; a started robot that becomes soloed is cancelled on the next tick; a robot that left
+  `'entering'` and re-enters later is started again; stop cancels the repeat; no transport, or no position, does nothing.
+  `worldTransition.test.ts`: start and stop called with the loop.
 
   **Acceptance criteria:**
-  - [ ] One fade and one arc per entry, on the bar, for the measure's length; none for Solo; none repeated.
+  - [ ] One fade and one arc per entry, ending on the bar line: started at once with half a measure or more left, else
+        on the bar-line tick with a whole measure; none for Solo; none repeated.
   - [ ] Started and stopped with the work loop; idempotent stop.
-  - [ ] Mutants: the fade scheduled every bar; the Solo check dropped; `started` never cleared.
+  - [ ] Mutants: the boundary at 7 or 9; the fade scheduled every tick; the Solo check dropped; `started` never cleared.
 
   **Verification:**
   - [ ] `npx vitest run src/systems/stationFadeSystem.test.ts src/systems/worldTransition.test.ts` passes.
@@ -409,14 +424,14 @@ time?)` that both call, so the rule lives once.
   **Dependencies:** Tasks 7, 10.
 
   **Files:** `src/systems/stationFadeSystem.ts`, `src/systems/stationFadeSystem.test.ts`, `src/systems/worldTransition.ts`,
-  `src/systems/worldTransition.test.ts`
+  `src/systems/worldTransition.test.ts`, `src/constants/index.ts`
 
-  **Estimated scope:** M (one new module, its test, two call sites)
+  **Estimated scope:** M (one new module, its test, two call sites, one constant)
 
-- [ ] **Task 12: `workLoop.ts` — `enter` holds at the port**
+- [ ] **Task 12: `workLoop.ts` — `enter` leaves the arc to the grid**
 
-  **Description:** `enter` writes `'entering'` and returns; no arc. The robot holds at the port, visible, until Task 11's
-  bar calls `enterOnBar`. `stopWorkLoop` already kills `station-*` timelines; `adopt` of an `'entering'` robot on a
+  **Description:** `enter` writes `'entering'` and returns; no arc. The robot stands at the port, visible, until Task 11's
+  tick calls `enterOnBar` (at once with half a measure or more left, else on the bar). `stopWorkLoop` already kills `station-*` timelines; `adopt` of an `'entering'` robot on a
   restart resumes from `resume` as today (it is not `Active`, so it returns to its station and holds again).
 
   **Proof:** RED test — `src/systems/workLoop.test.ts`: arrival at the port writes `'entering'` and creates no
@@ -433,8 +448,9 @@ time?)` that both call, so the rule lives once.
   **Verification:**
   - [ ] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
   - [ ] `npm run build:types`, `npm run lint` clean.
-  - [ ] Listen and Look: a recall; the robot plays home, stops at its port still playing, and on the bar shrinks and
-        fades over one measure as its sound ramps to silence; its slot lights at the end.
+  - [ ] Listen and Look: two recalls. One arriving early in a bar shrinks and fades at once and is gone and silent on
+        the bar line; one arriving late in a bar stands at its port, still playing, then takes the whole next bar; both
+        slots light at the end.
 
   **Dependencies:** Task 11.
 
@@ -479,8 +495,9 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
       scheduled callbacks" warning from the fade's writes.
 - [ ] Power off mid-fade, wait, power on: body and volume continue from where they were (spec §7.1 A5). If the ramp did
       not pause, Task 13b.
-- [ ] Crawford judges the four points of §5.4 on a slow world, a busy world and a soloed homebound robot; his answers to
-      §7.2 Q1–Q3 and every §7.1 default are recorded in the spec's "As built" (Task 17).
+- [ ] Crawford judges the four points of §5.4 on a slow world, a busy world and a soloed homebound robot, the
+      half-measure boundary among them; his answers to §7.2 Q1–Q2 and every §7.1 default are recorded in the spec's
+      "As built" (Task 17).
 - [ ] **Reserved, built only if the gate says so:**
   - **Task 13a: the exit waits for a fading occupant** (Q1) — `exitStation` holds a robot hidden while its station has an
     `'entering'` occupant with a started fade, and exits on that occupant's `'charging'` write. RED test in
@@ -519,7 +536,7 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
 
   **Description:** The budget paragraph: a homebound `Docked` robot keeps its voice until `'charging'`; a new short
   passage on the station fade (`scheduleStationFade` / `cancelStationFade`, the factor in `busGainTarget`, the mid-ramp
-  re-issue, the `'1m'` system).
+  re-issue, the `'16n'` system and the half-measure rule).
 
   **Proof:** Read — human review.
 
@@ -537,8 +554,8 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
 
 - [ ] **Task 16: `docs/ANIMATION_SYSTEM.md` — the station arc's two durations**
 
-  **Description:** The station-arc passage: the exit arc one second; the entry arc one measure, started on the bar by the
-  station fade system through `enterOnBar`; the reverse on a turn-back.
+  **Description:** The station-arc passage: the exit arc one second; the entry arc half a measure to a whole one, ending
+  on the bar line, started by the station fade system through `enterOnBar`; the reverse on a turn-back.
 
   **Proof:** Read — human review.
 
@@ -608,26 +625,28 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
 
 ## Risks and Mitigations
 
-| Risk                                                                                    | Impact                                    | Mitigation                                                                                                                                                                         |
-| --------------------------------------------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| A caller of `isDockMuted` is missed, so some reader still mutes at the `Docked` landing | Medium                                    | Task 5 makes the parameter required: `build:types` names any caller left; the six call sites are listed in Tasks 2–4 from a repo grep on 2026-11-14.                               |
-| `rampOrSet` is used for the fade and the ramp lasts one tick                            | High (a cut, not a fade)                  | Task 6's helper and its test pin `rampTo(target, seconds, time)`; Task 7's test asserts the ramp call's arguments.                                                                 |
-| A Volume or Highlight write mid-fade jumps the bus back up                              | Medium                                    | Task 8's re-issue rule and tests; one private `writeBusGain` so the rule lives once.                                                                                               |
-| The budget releases the voice before the ramp reaches 0                                 | Medium (a click at the end)               | The robot is stood by only at `'charging'` (Task 3), which the arc's `onComplete` writes at the same moment the ramp ends; `standingBy` then waits for the last note end as today. |
-| Robots stand at their ports for ever between the hold and the system                    | High during the build                     | Task 12 (the hold) lands after Task 11 (the system); the app never has the hold without the bar.                                                                                   |
-| The `'1m'` repeat is off the bar                                                        | Medium (fades start mid-bar)              | Spec §7.1 A7: ONE_MUSIC_CLOCK.md's result; Checkpoint B's `?debug` run watches a fade start against the Click Track, and backlog 82's CDP probe is the fallback measurement.       |
-| A reversed arc writes `'charging'`                                                      | High (a visible robot muted and stood by) | Task 13 clears `onComplete` before `reverse()`; its test asserts `'charging'` is never written mid-reverse.                                                                        |
-| A Solo during a fade is honoured a bar late                                             | Low                                       | Architecture Decisions; named for the gate. A store subscription is the fix if Crawford hears it.                                                                                  |
-| A tempo change mid-fade leaves the end off the bar                                      | Low                                       | Spec §7.1 A3; the gate's slow world does not change tempo.                                                                                                                         |
-| The suspended context does not pause the automation (A5)                                | Medium                                    | Checkpoint B checks it; Task 13b reserved.                                                                                                                                         |
-| Two robots overlap at one station for longer                                            | Unknown until seen                        | Spec §7.2 Q1; Task 13a reserved for the exit-waits rule.                                                                                                                           |
+| Risk                                                                                    | Impact                                    | Mitigation                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A caller of `isDockMuted` is missed, so some reader still mutes at the `Docked` landing | Medium                                    | Task 5 makes the parameter required: `build:types` names any caller left; the six call sites are listed in Tasks 2–4 from a repo grep on 2026-11-14.                                                         |
+| `rampOrSet` is used for the fade and the ramp lasts one tick                            | High (a cut, not a fade)                  | Task 6's helper and its test pin `rampTo(target, seconds, time)`; Task 7's test asserts the ramp call's arguments.                                                                                           |
+| A Volume or Highlight write mid-fade jumps the bus back up                              | Medium                                    | Task 8's re-issue rule and tests; one private `writeBusGain` so the rule lives once.                                                                                                                         |
+| The budget releases the voice before the ramp reaches 0                                 | Medium (a click at the end)               | The robot is stood by only at `'charging'` (Task 3), which the arc's `onComplete` writes at the same moment the ramp ends; `standingBy` then waits for the last note end as today.                           |
+| Robots stand at their ports for ever between the hold and the system                    | High during the build                     | Task 12 (the hold) lands after Task 11 (the system); the app never has the hold without the bar.                                                                                                             |
+| `positionAt`'s step is off the grid, so fades end off the bar                           | Medium                                    | Spec §7.1 A7: ONE_MUSIC_CLOCK.md's result, which the swells already rely on; Checkpoint B's `?debug` run watches a fade end against the Click Track, and backlog 82's CDP probe is the fallback measurement. |
+| The half-measure boundary is off by one (`step` is 1-based)                             | Medium (a 7- or 9-sixteenth fade)         | Task 11's boundary tests at steps 9 and 10 and their mutants.                                                                                                                                                |
+| A reversed arc writes `'charging'`                                                      | High (a visible robot muted and stood by) | Task 13 clears `onComplete` before `reverse()`; its test asserts `'charging'` is never written mid-reverse.                                                                                                  |
+| A Solo during a fade is honoured a sixteenth late                                       | Low                                       | Architecture Decisions: the grid tick cancels it on the next sixteenth.                                                                                                                                      |
+| A tempo change mid-fade leaves the end off the bar                                      | Low                                       | Spec §7.1 A3; the gate's slow world does not change tempo.                                                                                                                                                   |
+| The suspended context does not pause the automation (A5)                                | Medium                                    | Checkpoint B checks it; Task 13b reserved.                                                                                                                                                                   |
+| Two robots overlap at one station for longer                                            | Unknown until seen                        | Spec §7.2 Q1; Task 13a reserved for the exit-waits rule.                                                                                                                                                     |
 
 ## Open Questions
 
 1. **The overlap at one station (spec §7.2 Q1).** **Open** — Checkpoint B; Task 13a if the exit must wait.
 2. **A ramp up on the way out (Q2).** **Open** — out of scope; raised at the gate if the asymmetry shows.
-3. **The hold's length (Q3).** **Open** — Checkpoint B on the slow world; the alternative (fade from arrival, off the
-   bar) is one branch in `onBar`.
+3. **The hold's length (Q3).** **Resolved** by Crawford's answer 4 (2026-11-14): the hold only when less than half a
+   measure is left at arrival, else the fade starts at once and ends on the bar line. The boundary constant is the
+   gate's to move.
 4. **"Don't change the mute" (spec §7.1 A1).** **Resolved by default** — the dock's silence begins at `'charging'`
    (Phase 1); Crawford can veto at Checkpoint A, where Phase 1 alone is audible.
 5. **`STATION_FADE_RECOVER_SECONDS` (A2).** **Resolved by default** — 0.5 s; re-pinned at Checkpoint B.

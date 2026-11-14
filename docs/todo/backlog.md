@@ -641,12 +641,13 @@ his eye, docs, archive). Building on `feature/monitor-mode-trustworthy`. Plan.md
 ### 84. Audio: Keep a Robot Playing until It Is in the Station
 
 **Status (2026-11-14): intent confirmed** ([intent](../intent/play-until-in-the-station.md)): at the port the robot
-holds, still playing, until the next bar line, then fades to silence over one entire measure while its entry arc
-stretches to the same measure; the docking machine and the way out are untouched; the overlap of robots at one station
-is judged by eye at a gate, no rule up front. **Spec written the same day**
-([spec](../specs/PLAY_UNTIL_IN_THE_STATION.md)): the dock's silence begins at `'charging'`, not at the `Docked`
-landing; a station fade system on a `'1m'` repeat schedules the ramp and the measure-long arc; a turn-back reverses the
-arc and ramps the volume back. Plan next, after Crawford's approval.
+fades to silence by the next bar line while its entry arc stretches to the same length, or, with less than half a
+measure left, holds for the bar and takes the whole next measure; the docking machine and the way out are untouched;
+the overlap of robots at one station is judged by eye at a gate, no rule up front. **Spec and plan written the same
+day** ([spec](../specs/PLAY_UNTIL_IN_THE_STATION.md), [plan](../tasks/PLAY_UNTIL_IN_THE_STATION.md)): the dock's
+silence begins at `'charging'`, not at the `Docked` landing; a station fade system on the sixteenth grid applies the
+half-measure rule and schedules the ramp and the arc; a turn-back reverses the arc and ramps the volume back.
+Eighteen tasks; awaiting Crawford's approval of the plan.
 
 Raised by Crawford on 2026-11-12, during backlog [79](archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody)'s spike. 79's
 notes show what a robot is playing, so they stop when it goes quiet, and a robot heading home goes quiet long before
