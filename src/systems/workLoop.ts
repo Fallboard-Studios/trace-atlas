@@ -694,7 +694,7 @@ export function arcRunning(robotId: string): boolean {
 }
 
 /** The entry arc's end: charging, or out again if the robot went Active on the way in (a guard). */
-function inside(loop: LoopRun, robotId: string): void {
+function finishEntry(loop: LoopRun, robotId: string): void {
   const robot = robotOf(loop, robotId);
   if (!robot) return;
   if (robot.docking === DockingState.Active) exitStation(loop, robot);
@@ -866,7 +866,7 @@ export function enterOnBar(robotId: string, seconds: number): void {
   const robot = robotOf(loop, robotId);
   if (!robot || robot.activity !== 'entering' || arcRunning(robotId)) return;
   const station = loop.stations.find((s) => s.id === robot.stationId);
-  stationArc(loop, robot, 'despawn', station, () => inside(loop, robotId), seconds);
+  stationArc(loop, robot, 'despawn', station, () => finishEntry(loop, robotId), seconds);
 }
 
 /**
