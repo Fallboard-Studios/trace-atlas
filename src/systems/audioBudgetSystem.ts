@@ -60,14 +60,15 @@ function activeRobots() {
 }
 
 /**
- * The active locale plus `id:audioMode:docking` per robot. `updateRobot` rewrites the locale on every
+ * The active locale plus `id:audioMode:docking:inStation` per robot. `updateRobot` rewrites the locale on every
  * battery tick and swell write (backlog items 21–27), so subscribing to the robots themselves would run
- * this 12×/measure; the signature only changes when a robot's audibility can.
+ * this 12×/measure; the signature only changes when a robot's audibility can. `inStation` is one bit of `activity`
+ * (`'charging'`, backlog 84: the dock's silence begins there), so the work loop's other legs change nothing.
  */
 function signature(): string {
   const localeId = getActiveLocaleId();
   const robots = useLocaleStore.getState().locales[localeId]?.robots ?? [];
-  return `${localeId}|${robots.map((r) => `${r.id}:${r.audioMode ?? ''}:${r.docking}`).join(',')}`;
+  return `${localeId}|${robots.map((r) => `${r.id}:${r.audioMode ?? ''}:${r.docking}:${r.activity === 'charging' ? 1 : 0}`).join(',')}`;
 }
 
 function applySet(next: readonly string[]): void {
@@ -110,13 +111,14 @@ function applyHighlighted(next: readonly string[], force: boolean): void {
 function reconcile(force = false): void {
   const robots = activeRobots();
   const anySolo = robots.some((r) => r.audioMode === 'solo');
-  const eligible = robots.filter((r) => isRobotAudible(r.audioMode, anySolo, r.docking)).map((r) => r.id);
+  const eligible = robots.filter((r) => isRobotAudible(r.audioMode, anySolo, r.docking, r.activity)).map((r) => r.id);
   const soloIds = robots.filter((r) => r.audioMode === 'solo').map((r) => r.id);
   const highlighted = new Set(robots.filter((r) => r.audioMode === 'highlight').map((r) => r.id));
   // G1: a muted robot triggers nothing, so it stands by at every tier — muted by the user, or by the dock unless it is
   // soloed (Solo beats the dock). A solo-silenced one keeps its voice, since an un-solo would readmit eleven at once.
+  // The dock mutes only once the robot is in its station (backlog 84), so a homebound Docked robot keeps its voice.
   const mutedIds = robots
-    .filter((r) => r.audioMode === 'mute' || (isDockMuted(r.docking) && r.audioMode !== 'solo'))
+    .filter((r) => r.audioMode === 'mute' || (isDockMuted(r.docking, r.activity) && r.audioMode !== 'solo'))
     .map((r) => r.id);
   const { robotLoad, effectsLoad } = useAudioStore.getState();
   const limits: LoadLimits = { ...robotLoadToLimits(robotLoad), ...effectsLoadToLimits(effectsLoad) };

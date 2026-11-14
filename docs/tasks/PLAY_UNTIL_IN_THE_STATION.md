@@ -162,7 +162,7 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
 
   **Estimated scope:** S (two call sites and a test)
 
-- [ ] **Task 3: `audioBudgetSystem.ts` — eligibility, standing-by and the key read whether the robot is in its station**
+- [x] **Task 3: `audioBudgetSystem.ts` — eligibility, standing-by and the key read whether the robot is in its station**
 
   **Description:** `reconcile`'s `eligible` and `mutedIds` pass `r.activity`; `signature()` appends one bit per robot,
   `inStation` (`activity === 'charging'`), so the budget recomputes on the `'charging'` write and on the exit, and not

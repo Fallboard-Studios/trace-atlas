@@ -336,10 +336,18 @@ describe('audioBudgetSystem', () => {
         batteries.map((batteryLevel, i) =>
           i < 4
             ? makeRobot(`r${i + 1}`, { batteryLevel })
-            : makeRobot(`r${i + 1}`, { batteryLevel, docking: DockingState.Docked, audioMode: 'mute' }),
+            : makeRobot(`r${i + 1}`, { batteryLevel, docking: DockingState.Docked, activity: 'charging', audioMode: 'mute' }),
         ),
       );
       startAudioBudget();
+      // The work loop's part, which this test does not run (backlog 84: the dock mutes at 'charging', not at the
+      // Docked landing): a robot that lands Docked is put in its station, and one that lands Active leaves it.
+      const arriveAndLeave = (): void => {
+        for (const r of useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots) {
+          if (r.docking === DockingState.Docked && r.activity !== 'charging') update(r.id, { activity: 'charging' });
+          if (r.docking === DockingState.Active && r.activity === 'charging') update(r.id, { activity: 'exiting' });
+        }
+      };
 
       const writes: string[][] = [];
       let localeNotifications = 0;
@@ -349,7 +357,10 @@ describe('audioBudgetSystem', () => {
       const unsubscribeLocale = useLocaleStore.subscribe(() => localeNotifications++);
       engineSet.mockClear();
 
-      for (let measure = 1; measure <= 200; measure++) tickRobotLifecycle(DEFAULT_LOCALE_ID, measure);
+      for (let measure = 1; measure <= 200; measure++) {
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, measure);
+        arriveAndLeave();
+      }
 
       unsubscribeAudio();
       unsubscribeLocale();
@@ -367,7 +378,7 @@ describe('audioBudgetSystem', () => {
       const finalRobots = useLocaleStore.getState().getLocaleById(DEFAULT_LOCALE_ID)!.robots;
       sounding().forEach((id) => {
         const robot = finalRobots.find((r) => r.id === id)!;
-        expect(isRobotAudible(robot.audioMode, false, robot.docking)).toBe(true);
+        expect(isRobotAudible(robot.audioMode, false, robot.docking, robot.activity)).toBe(true);
       });
     });
   });
@@ -504,6 +515,8 @@ describe('audioBudgetSystem', () => {
       expect(engineStandBy).toHaveBeenLastCalledWith([]);
 
       landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      expect(engineStandBy).toHaveBeenLastCalledWith([]); // still swimming home (backlog 84)
+      update('r4', { activity: 'charging' }); // the work loop puts it in its station
 
       expect(engineStandBy).toHaveBeenLastCalledWith(['r4']);
       expect(engineSet).toHaveBeenLastCalledWith(ids12.filter((id) => id !== 'r4'));
@@ -513,6 +526,7 @@ describe('audioBudgetSystem', () => {
       setRoster(roster(12));
       startAudioBudget();
       landOnDocked(DEFAULT_LOCALE_ID, 'r4', []);
+      update('r4', { activity: 'charging' }); // in its station (backlog 84)
       engineSet.mockClear();
 
       landOnActive(DEFAULT_LOCALE_ID, 'r4');
@@ -554,7 +568,15 @@ describe('audioBudgetSystem', () => {
 
     // The dock mutes on its own, not through audioMode, and a Solo beats it (Crawford, 2026-11-11).
     it('a Docked or Undocking robot with no mute set is named and never sounds', () => {
-      setRoster(roster(12).map((r, i) => (i === 0 ? { ...r, docking: DockingState.Docked } : i === 1 ? { ...r, docking: DockingState.Undocking } : r)));
+      setRoster(
+        roster(12).map((r, i) =>
+          i === 0
+            ? { ...r, docking: DockingState.Docked, activity: 'charging' as const }
+            : i === 1
+              ? { ...r, docking: DockingState.Undocking, activity: 'charging' as const }
+              : r,
+        ),
+      );
       startAudioBudget();
 
       expect(engineStandBy).toHaveBeenLastCalledWith(['r1', 'r2']);
@@ -563,7 +585,7 @@ describe('audioBudgetSystem', () => {
     });
 
     it('a soloed robot in the station sounds alone; the other docked robots are named, the solo-silenced ones are not', () => {
-      setRoster(roster(12).map((r, i) => (i < 3 ? { ...r, docking: DockingState.Docked } : r)));
+      setRoster(roster(12).map((r, i) => (i < 3 ? { ...r, docking: DockingState.Docked, activity: 'charging' as const } : r)));
       startAudioBudget();
 
       update('r2', { audioMode: 'solo' });
@@ -632,6 +654,63 @@ describe('audioBudgetSystem', () => {
     });
   });
 
+  // Backlog 84 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3): the battery lands a robot on Docked while it is still
+  // swimming home; the dock's silence begins when it is in its station ('charging'). The key reads one bit of activity.
+  describe('a homebound Docked robot sounds until it is in its station (backlog 84)', () => {
+    const homebound = (activity: Robot['activity']): Robot[] =>
+      roster(12).map((r) => (r.id === 'r4' ? { ...r, docking: DockingState.Docked, activity } : r));
+
+    it('a Docked robot that is returning or entering is in the sounding set and not stood by', () => {
+      for (const activity of ['returning', 'entering'] as const) {
+        stopAudioBudget();
+        setRoster(homebound(activity));
+        startAudioBudget();
+
+        expect(sounding(), activity).toContain('r4');
+        expect(engineStandBy, activity).toHaveBeenLastCalledWith([]);
+      }
+    });
+
+    it('its charging write stands it by and takes it out of the sounding set', () => {
+      setRoster(homebound('returning'));
+      startAudioBudget();
+      update('r4', { activity: 'entering' });
+      expect(sounding()).toContain('r4');
+
+      update('r4', { activity: 'charging' });
+
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r4']);
+      expect(sounding()).not.toContain('r4');
+    });
+
+    it('leaving charging recomputes too: the robot sounds again', () => {
+      setRoster(homebound('charging'));
+      startAudioBudget();
+      expect(engineStandBy).toHaveBeenLastCalledWith(['r4']);
+
+      update('r4', { activity: 'exiting' });
+
+      expect(engineStandBy).toHaveBeenLastCalledWith([]);
+      expect(sounding()).toContain('r4');
+    });
+
+    it('a change of activity that is not in or out of the station does not re-evaluate (transit to working)', () => {
+      setRoster(roster(12).map((r) => ({ ...r, activity: 'transit' as const })));
+      startAudioBudget();
+      vi.mocked(isRobotAudible).mockClear();
+      engineSet.mockClear();
+      engineStandBy.mockClear();
+
+      update('r1', { activity: 'working' });
+      update('r2', { activity: 'waiting' });
+      update('r1', { activity: 'returning' });
+
+      expect(isRobotAudible).not.toHaveBeenCalled();
+      expect(engineSet).not.toHaveBeenCalled();
+      expect(engineStandBy).not.toHaveBeenCalled();
+    });
+  });
+
   // docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.3–§1.4 (Task 4): the live Highlight set is the highlighted robots in the
   // sounding set, pushed to the engine before the sounding set and only when it changes.
   describe('the live Highlight set', () => {
@@ -652,7 +731,7 @@ describe('audioBudgetSystem', () => {
     });
 
     it('does not push a highlighted robot in its station', () => {
-      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight', docking: DockingState.Docked })]);
+      setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight', docking: DockingState.Docked, activity: 'charging' })]);
       startAudioBudget();
 
       expect(lastHighlight()).toEqual([]);
@@ -662,7 +741,7 @@ describe('audioBudgetSystem', () => {
       setRoster([makeRobot('a'), makeRobot('h', { audioMode: 'highlight' })]);
       startAudioBudget();
 
-      update('h', { docking: DockingState.Docked });
+      update('h', { docking: DockingState.Docked, activity: 'charging' });
       expect(lastHighlight()).toEqual([]);
 
       update('h', { docking: DockingState.Active });
