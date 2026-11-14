@@ -1,10 +1,20 @@
 # GSAP fixes
 
+**Closed 2026-11-14.** Crawford picked items 1, 2, 3 and 10, and they were built on `fix/gsap-finds`
+(`5f7b792f`, `2e2984ce`, `af64d3c5`, `e00c1d9c`); each carries a note saying what was found. Items 4 to
+9 and 11 were read against the code the same day and left unbuilt; each carries a "Not built" note with
+the reason, and two of them (5 and 7) propose a fix that would break something. A bug the audit did not
+list, a station wave left drawn on a robot, was fixed on the same branch (`c99bda65`, last section). The
+line links were re-pointed at the code as it stands on that branch: about half pointed at the wrong
+lines when written (the files had not changed since the audit's commit).
+
+The audit as written follows.
+
 A read of every GSAP consumer against GSAP's own best practices (`useGSAP`, `gsap.context`,
 `contextSafe`, `quickSetter`/`quickTo`, `gsap.matchMedia`) and the repo's rules (CLAUDE.md, the
 "Contributor Rules" and "What to Avoid" in `docs/ANIMATION_SYSTEM.md`). Audit date 2026-11-13, on
-`feature/note-cloud` at `9a1d3bca`; GSAP 3.14.2, `@gsap/react` 2.1.2. Nothing here is built — each item
-is a proposal for Crawford to pick up or cut. Line numbers are as of that commit.
+`feature/note-cloud` at `9a1d3bca`; GSAP 3.14.2, `@gsap/react` 2.1.2. When written, nothing here was
+built: each item was a proposal for Crawford to pick up or cut.
 
 Scope: the 27 non-test files that import `gsap` or `@gsap/react`, plus `RobotBody.tsx` (wires the
 hooks) and `powerController.ts` (drives the world pause). What was checked for each: the
@@ -26,7 +36,7 @@ to the *mount* size, not the previous one, because each new tween is created aft
 One correction to the text below: without `revertOnUpdate` the returned kill runs only on unmount;
 the re-target on an edit is `setTimeline` killing the old tween under the same key.
 
-[useOrbiterMotion.ts:135-146](../../src/components/robot/gem/useOrbiterMotion.ts#L135-L146). The size
+[useOrbiterMotion.ts:143-153](../../../src/components/robot/gem/useOrbiterMotion.ts#L143-L153). The size
 tween's `useGSAP` passes `revertOnUpdate: true` **and** returns `() => killTimeline(key)`. On a
 `dials.size` change the context reverts the previous `gsap.to` first, which writes the locals' `scale`
 back to the value recorded when *that* tween started, and only then runs the kill and the new callback.
@@ -51,8 +61,8 @@ box is unchanged: its mount tween runs from 0.5 to 0.5. Four tests pinned the wi
 became the new "a size change alone leaves a pop in flight alone" cases, two now drive the instant
 reposition branch through a pop-distance change, which still reaches it.
 
-[CabinetBox.tsx:269](../../src/components/ui/controls/CabinetBox.tsx#L269) says `width` "is deliberately
-NOT a dependency of the geometry effect below"; [CabinetBox.tsx:402](../../src/components/ui/controls/CabinetBox.tsx#L402)
+[CabinetBox.tsx:270](../../../src/components/ui/controls/CabinetBox.tsx#L270) says `width` "is deliberately
+NOT a dependency of the geometry effect below"; [CabinetBox.tsx:407](../../../src/components/ui/controls/CabinetBox.tsx#L407)
 lists `width` and `boxHeight` in that effect's `dependencies`. Neither is read in the effect body (the
 walls scale by `poppedT`, the front offset by `resolvedPopDistance`). Each re-run calls `killTimeline`
 and, with `poppedT` unchanged, takes the `!isTransition` path and `gsap.set`s the target state:
@@ -69,14 +79,13 @@ fire it mid-pop and assert the registered timeline is the same object and still 
 ### 3. The followed-robot marker does three `gsap.getProperty` reads and a `gsap.set` per frame
 
 **Done 2026-11-14** on `fix/gsap-finds`: two `quickSetter`s made once in the effect. The frame was
-two `getProperty` reads by then, not three, and the code is at lines 74-97 of the file, not 309-322.
-Checked on real GSAP first that a quick setter keeps the `xPercent`/`yPercent` centring (the
+two `getProperty` reads, not three. Checked on real GSAP first that a quick setter keeps the `xPercent`/`yPercent` centring (the
 transform it writes is the one `gsap.set` wrote). No perf number taken: one element, no long task.
 
-[FollowedRobotMarker.tsx:309-322](../../src/components/panels/screen/worldView/FollowedRobotMarker.tsx#L309-L322).
+[FollowedRobotMarker.tsx:78-97](../../../src/components/panels/screen/worldView/FollowedRobotMarker.tsx#L78-L97).
 The `gsap.ticker` listener is the right loop (no `requestAnimationFrame`), but each frame builds a
 vars object and runs a full `gsap.set` (a zero-duration tween: parse, init, render, kill). The work loop
-does the identical job for a dissolve copy with `gsap.quickSetter` ([workLoop.ts:372-379](../../src/systems/workLoop.ts#L372-L379)),
+does the identical job for a dissolve copy with `gsap.quickSetter` ([workLoop.ts:356-363](../../../src/systems/workLoop.ts#L356-L363)),
 which is GSAP's documented tool for a value written every frame. Fix: two `quickSetter`s (x, y in px)
 created once in the effect, plus the `xPercent`/`yPercent` set that is already once-only. Proof: by
 read; `npm run perf` if a number is wanted (the marker is one mover, so expect a small one).
@@ -85,19 +94,24 @@ read; `npm run perf` if a number is wanted (the marker is one mover, so expect a
 
 ### 4. Four component hooks build GSAP animations outside `useGSAP` / `gsap.context`
 
+**Not built** (read 2026-11-14). Nothing leaks, so the gain is the idiom alone, and each conversion
+changes behaviour: `useGSAP` reverts its tweens on unmount, and `NavPanel`'s tween would move from a
+passive effect to a layout effect. The marker makes no tween at all, so a context would own nothing
+there. The note cloud has merged since (PR #640), so that is no longer the reason to wait.
+
 CLAUDE.md: "Use `useGSAP` in components". These create tweens in plain effects and clean up by hand
 through `timelineMap`, so nothing leaks; what is missing is the context (automatic revert on unmount,
 `contextSafe` for handlers, a `scope`), and with it the one idiom for the whole app:
 
-- [useNoteCloud.ts:118](../../src/components/robot/notes/useNoteCloud.ts#L118) (the belt, a `useEffect`)
-  and [useNoteCloud.ts:318](../../src/components/robot/notes/useNoteCloud.ts#L318) (the re-size fade).
+- [useNoteCloud.ts:123](../../../src/components/robot/notes/useNoteCloud.ts#L123) (the belt, a `useEffect`)
+  and [useNoteCloud.ts:327](../../../src/components/robot/notes/useNoteCloud.ts#L327) (the re-size fade).
   **Active branch** (backlog 79): leave until that PR merges, then decide.
-- [NavPanel.tsx:51-66](../../src/components/panels/screen/nav/NavPanel.tsx#L51-L66) `useNavPanelWidth`,
+- [NavPanel.tsx:51-66](../../../src/components/panels/screen/nav/NavPanel.tsx#L51-L66) `useNavPanelWidth`,
   a `useEffect` tweening a CSS variable on `#screen-viewport` found by a DOM query.
-- [RosterBoard.tsx:128-147](../../src/components/panels/screen/screens/RosterBoard.tsx#L128-L147)
+- [RosterBoard.tsx:128-147](../../../src/components/panels/screen/screens/RosterBoard.tsx#L128-L147)
   `useRosterGlide`, `Flip.from` in a `useLayoutEffect`. A `gsap.context` knows Flip timelines (it pushes
   them to their end on revert), so this one gains the most from the wrap.
-- [FollowedRobotMarker.tsx:304](../../src/components/panels/screen/worldView/FollowedRobotMarker.tsx#L304)
+- [FollowedRobotMarker.tsx:78](../../../src/components/panels/screen/worldView/FollowedRobotMarker.tsx#L78)
   (item 3's effect).
 
 Fix: `useGSAP(callback, { scope, dependencies })` in each, keeping the registry registration as it is
@@ -107,9 +121,16 @@ at once" and the roster glide's before-paint `Flip.from` keep their timing.
 
 ### 5. `revertOnUpdate: true` beside a returned kill, in three places
 
-[useStripFlicker.ts:426](../../src/components/robot/gem/useStripFlicker.ts#L426),
-[BubbleStream.tsx:491](../../src/components/actors/BubbleStream.tsx#L491),
-[useOrbiterMotion.ts:312](../../src/components/robot/gem/useOrbiterMotion.ts#L312) (the mount effect).
+**Not built, and not to be done as written** (read 2026-11-14). In `@gsap/react` 2.1.2, with a
+dependency array and no `revertOnUpdate`, the function a callback returns runs only on unmount, not on
+a dependency change. So "the registry's kill, then no `revertOnUpdate`" is not a free choice: the
+orbiter mount effect needs the flag for its cleanup (kill the hop tweens, reset the lock) to run when
+`gem` changes, and `useStripFlicker` needs it to kill a running flicker when it is disabled. Item 1's
+tween could drop the flag only because `setTimeline` kills the old tween under the same key.
+
+[useStripFlicker.ts:112](../../../src/components/robot/gem/useStripFlicker.ts#L112),
+[BubbleStream.tsx:247](../../../src/components/actors/BubbleStream.tsx#L247),
+[useOrbiterMotion.ts:319](../../../src/components/robot/gem/useOrbiterMotion.ts#L319) (the mount effect).
 Each callback returns `() => killTimeline(key)`, and `revertOnUpdate` reverts the same tweens a moment
 earlier. Harmless in these three (the reverted values are the rest values), but it is the same mechanism
 that bites in item 1, and two teardowns for one timeline is one too many. Decide one idiom per hook: the
@@ -118,10 +139,13 @@ context's revert (then the returned function only tidies the registry), or the r
 
 ### 6. Reduced motion is read three ways
 
+**Not built** (read 2026-11-14). Accurate. The two inline copies ask the same query as the util, so
+nothing behaves differently; a two-line tidy for whoever is next in those files.
+
 `prefersReducedMotion()` (`src/utils/reducedMotion.ts`) in most places; an inline
 `window.matchMedia('(prefers-reduced-motion: reduce)')` copy in
-[CabinetBox.tsx:377](../../src/components/ui/controls/CabinetBox.tsx#L377) and
-[useEasedControlValue.ts:398](../../src/components/ui/controls/useEasedControlValue.ts#L398);
+[CabinetBox.tsx:382](../../../src/components/ui/controls/CabinetBox.tsx#L382) and
+[useEasedControlValue.ts:58](../../../src/components/ui/controls/useEasedControlValue.ts#L58);
 `gsap.matchMedia()` in `offScreenTheatre.ts` alone. The two inline copies are the duplicate-value class
 `docs/DUPLICATE_VALUE_AUDIT.md` tracks. And only the theatre reacts to the preference changing
 mid-session: every hook reads the flag once per effect run. Fix: the util in the two inline spots; a
@@ -129,7 +153,12 @@ mid-session: every hook reads the flag once per effect run. Fix: the util in the
 
 ### 7. `useStripFlicker` flickers on mount under StrictMode
 
-[useStripFlicker.ts:401-404](../../src/components/robot/gem/useStripFlicker.ts#L401-L404). The
+**Not built** (read 2026-11-14). Real, and dev-only. The first fix below is wrong: with
+`revertOnUpdate` the returned cleanup runs on every trigger change, so resetting `mountedRef` there
+would stop every flicker, not just the mount one. The second (compare with the previous trigger tuple)
+works, as would an unmount-only effect of its own that resets the ref.
+
+[useStripFlicker.ts:87-90](../../../src/components/robot/gem/useStripFlicker.ts#L87-L90). The
 "skip the first run" guard sets `mountedRef` on the first effect run. `main.tsx` wraps the app in
 `StrictMode`, which in development mounts, reverts and re-runs every effect, so the re-run sees
 `mountedRef` true and plays all four lines' flicker on every robot's mount. Dev-only. Fix: reset
@@ -137,7 +166,11 @@ mid-session: every hook reads the flag once per effect run. Fix: the util in the
 
 ### 8. `jobDecor` overrides `kill()` on a timeline instance
 
-[jobDecor.ts:490-494](../../src/animation/jobMoves/decor/jobDecor.ts#L490-L494). The comment is right
+**Not built** (read 2026-11-14). The override puts the group's removal in one place, on every path
+that ends the timeline. The fix below moves it to the callers, one per kill path, and a missed one
+leaves a group in the DOM, which is the fault the last section of this file records for the halo's waves.
+
+[jobDecor.ts:189-193](../../../src/animation/jobMoves/decor/jobDecor.ts#L189-L193). The comment is right
 that GSAP has no "on kill" callback and that `onInterrupt` misses `progress(1, true)` then `kill()`. But
 replacing a method on a GSAP object is fragile across upgrades (the Context's revert and the registry
 both call `kill`). The timeline already carries `tl.data` (`JobTimelineData`); a `remove` on it, called by
@@ -146,7 +179,10 @@ the ends are decided. Low.
 
 ### 9. The orbiter master key registers a `{ kill }` stub cast to a Timeline
 
-[useOrbiterMotion.ts:304](../../src/components/robot/gem/useOrbiterMotion.ts#L304). Deliberate and
+**Not built** (read 2026-11-14). It works as documented, and `pauseWorldTimelines` already skips
+`'ui'` entries. Dropping the registration is a removal (three tests pin the key), so it is Crawford's call.
+
+[useOrbiterMotion.ts:311](../../../src/components/robot/gem/useOrbiterMotion.ts#L311). Deliberate and
 documented (ANIMATION_SYSTEM.md). It is safe only because the stub stays `'ui'`: any future registry
 pass that calls `.paused()` or `.pause()` on every entry would throw on it. Fix: give `timelineMap` an
 honest `Killable` entry type, or drop the registration (the hop tweens are already killed from the
@@ -159,17 +195,20 @@ cleanup, and nothing looks the key up). Low.
 body first, so there is one check, in the function that builds the swim. The two tests that covered
 the fallback are replaced, and both `ANIMATION_SYSTEM.md` passages are updated.
 
-[swimAnimation.ts:178-186](../../src/animation/swimAnimation.ts#L178-L186). The only caller
-([workLoop.ts:476-486](../../src/systems/workLoop.ts#L476-L486)) checks for the body first and builds
+[swimAnimation.ts:61-62](../../../src/animation/swimAnimation.ts#L61-L62) (the `null` return that
+replaced it). The only caller
+([workLoop.ts:456-473](../../../src/systems/workLoop.ts#L456-L473)) checks for the body first and builds
 its own keyed `swim-` timeline precisely because this fallback can't be killed by `stopWorkLoop`. The
 fallback is dead code that would leak a callback if ever reached. Fix: remove it (return `null`, or
 throw) and update ANIMATION_SYSTEM.md's "Swim animation" sequence, which still describes it. Low.
 
 ### 11. Small
 
-- [BubbleStream.tsx:494](../../src/components/actors/BubbleStream.tsx#L494) reads `timelineMap.get`
+**Not built** (read 2026-11-14). Both accurate; neither changes anything.
+
+- [BubbleStream.tsx:250](../../../src/components/actors/BubbleStream.tsx#L250) reads `timelineMap.get`
   directly; every other consumer goes through `getTimeline`.
-- [useEasedControlValue.ts:403](../../src/components/ui/controls/useEasedControlValue.ts#L403) sets
+- [useEasedControlValue.ts:63](../../../src/components/ui/controls/useEasedControlValue.ts#L63) sets
   React state on every `quickTo` frame. Deliberate (the slider primitives render `displayValue`), and
   the file documents why; noted so the per-frame `setState` is a known cost, not a surprise.
 
@@ -193,7 +232,29 @@ Checked and found to follow the rules, so nobody re-audits them:
   `attr` tweens (rocker `points`, ripple gradient `stop`s) are the documented exceptions.
 - **`contextSafe`.** `PowerRockerSwitch` is the one component that animates from event handlers, and it
   wraps all three in `contextSafe` as GSAP prescribes.
-- **Worth knowing, not a violation.** `AudioEngine.getRobotVisualX` ([AudioEngine.ts:369-387](../../src/engine/AudioEngine.ts#L369-L387))
+- **Worth knowing, not a violation.** `AudioEngine.getRobotVisualX` ([AudioEngine.ts:367-389](../../../src/engine/AudioEngine.ts#L367-L389))
   reads a robot's GSAP `x` for its pan — the picture feeding the audio. That is the Robot Pan design
   (roadmap 49), outside the note cloud's "audio to the picture, never back" rule, which is about the
   cloud alone.
+
+## Found afterwards: a station wave left drawn on a robot
+
+Not in the audit; Crawford reported it on 2026-11-14 and it was fixed on the same branch (`c99bda65`).
+The triangular waves a robot wears as it enters or leaves a station sometimes stayed drawn after a view
+change, and the last triangle rode the robot around.
+
+Cause: `RobotBody` hands a card (a roster tile, a company member) the world context
+(`context: motion ?? 'world'`), so a card's `useHaloMotion` shares the world body's key,
+`halo-waves-world-<id>`. The hook killed that key on unmount whether or not it had started a run, so
+leaving the roster or a company screen mid-arc killed the world body's run. A killed run never reaches
+the `onComplete` that clears its lines, so the last frame stayed, drawn in the gem's own space.
+
+Fix: the hook remembers the run it started and kills only that one, and only while the key still holds
+it ([useHaloMotion.ts:57-72](../../../src/components/robot/gem/useHaloMotion.ts#L57-L72)). A card
+never plays a run, so its unmount kills nothing. Tests in `RobotBody.test.tsx` and
+`useHaloMotion.test.tsx`.
+
+Still true, and worth knowing for the next timeline that draws by hand: GSAP has no "on kill"
+callback, so a timeline whose `onComplete` does the tidying leaves its last frame behind when it is
+killed. Here nothing kills a wave run early any more except its own body's unmount, which takes the
+drawing with it. `jobDecor` (item 8) handles the same problem by overriding `kill`.

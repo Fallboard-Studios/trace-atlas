@@ -128,6 +128,11 @@ as `refs.ts`:
   — `RobotBody` registers its world-context `decorateArc` (from `useHaloMotion`, memoised so an
   audio edit doesn't re-register it). The work loop calls it on every station arc; it plays the halo's
   triangular waves on a timeline of their own (`halo-waves-{context}-{robotId}`), not on the arc's.
+  The key is not one body's alone: `RobotBody` hands a card (a roster tile, a company member) the
+  world context, so a card shares the world body's key. `useHaloMotion` therefore kills, on unmount,
+  only the run it started itself; a card never plays one. (Until 2026-11-14 it killed by key, so
+  leaving the roster mid-arc killed the world body's run, and a killed run never reaches the
+  `onComplete` that clears its lines: the last frame stayed on the robot and rode it around.)
 - `registerOrbiterWork(robotId, control)` / `getOrbiterWork(robotId)` / `deleteOrbiterWork(robotId, owner?)`
   — `useOrbiterMotion` (world context only) registers `{ lock(), unlock() }`. `lock()` finishes
   any attach/detach hop in flight (`progress(1)`), makes `reconcile()` return early and returns the
@@ -440,7 +445,7 @@ The ocean scene (`OceanScene.tsx`) is one **stage**, `div.ocean-scene__stage`, 1
 | `front` | static sheet | `#station-front-layer` (each station's front fragment: halo and ripple), first, then tint D, foreground factories/scenery and pipe bridges |
 | `marker` | mover | the singled-out robot's marker (`FollowedRobotMarker`: the robot under the pointer, else the Deck camera's followed robot), a `div.mover.mover--marker` in front of every building |
 
-A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the singled-out robot's canvas centre each frame. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
+A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the singled-out robot's canvas centre each frame, through two `gsap.quickSetter`s made once (x and y; a `gsap.set` per frame would be a whole zero-length tween), as the dissolve copy follows its robot. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
 
 Each station's three fragments are plain groups in three sheets, not sheets of their own: `#station-l4-layer` is the last child of `back`, `#station-l3-layer` is all of `stations`, and `#station-front-layer` is the first child of `front` (before tint D). All three are static; only the one-second ripple animates one.
 
