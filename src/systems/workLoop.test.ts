@@ -1498,23 +1498,12 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
   const midway = (p: Vec2, q: Vec2): Vec2 => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
 
   /** As Robot.tsx draws it (Phase 53 Task 13): `div.mover.mover--robot` (the registered body, which GSAP
-   *  moves) › the gem canvas svg › `g#world-robot-{id}.robot` › `g.robot__row` › the body (two orbiters).
-   *  With `noteLayers`, the note cloud's two layers sit either side of the svg (note cloud Task 12). */
-  function mountRow(id: string, { noteLayers = false } = {}) {
+   *  moves) › the gem canvas svg › `g#world-robot-{id}.robot` › `g.robot__row` › the body (two orbiters). */
+  function mountRow(id: string) {
     const mover = document.body.appendChild(document.createElement('div'));
     mover.className = 'mover mover--robot';
     const r = get(id);
-    const layers = noteLayers
-      ? (['behind', 'front'] as const).map((side) => {
-          const layer = document.createElement('div');
-          layer.className = `note-layer note-layer--${side}`;
-          layer.appendChild(document.createElement('div')).className = 'note-layer__belt';
-          return layer;
-        })
-      : [];
-    if (layers[0]) mover.appendChild(layers[0]);
     const svg = mover.appendChild(document.createElementNS(SVG_NS, 'svg'));
-    if (layers[1]) mover.appendChild(layers[1]);
     svg.setAttribute('width', String(gemWidth(gem)));
     svg.setAttribute('height', String(GEM_CANVAS_H));
     const group = svg.appendChild(document.createElementNS(SVG_NS, 'g'));
@@ -1531,7 +1520,7 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       return local;
     });
     registerOrbiterWork(id, { lock: vi.fn(() => locals), unlock: vi.fn() });
-    return { mover, el, row, layers };
+    return { mover, el, row };
   }
 
   /** OceanScene's dissolve div (`data-scene-slot="dissolve"`, a stage child), registered as `robot-dissolve-layer`. */
@@ -2077,88 +2066,6 @@ describe('workLoop — layer-aware legs and the dissolve (Phase 43 Task 34, spec
       finish('dissolve-r1');
       expect(get('r1').layer).toBe('foreground');
       expect(get('r1').activity).toBe('entering');
-    });
-  });
-
-  // docs/specs/ROBOT_NOTE_CLOUD.md §1.5 (note cloud Task 16): the row's scale reaches the note layers too, about the
-  // same point (the gem canvas centre, which is each layer's own centre: the roll is centred on it), in the same call
-  // and the same tween, so the cloud eases with the body on a row switch and never pops.
-  describe('the note layers take the row scale (note cloud Task 16)', () => {
-    const layerScale = (layer: Element) => Number(gsap.getProperty(layer, 'scaleX'));
-
-    it('adopting a back-row robot puts both note layers at BACK_LAYER_SCALE, about their centre', () => {
-      const back = backSite();
-      registerLocale([back.actor], [robot('r1', back.site.park, { layer: 'background', activity: 'waiting' })]);
-      startWorkLoop(LOCALE, { now, backHosts: true });
-      const { layers } = mountRow('r1', { noteLayers: true });
-      onRobotMounted(LOCALE, 'r1');
-      expect(layers).toHaveLength(2);
-      for (const layer of layers) {
-        expect(layerScale(layer)).toBeCloseTo(BACK_LAYER_SCALE, 6);
-        expect((layer as HTMLElement).style.transformOrigin).toBe('50% 50%');
-      }
-    });
-
-    it('adopting a front-row robot puts its note layers at 1, even after an ease cut off mid-way', () => {
-      registerLocale([frontSite().actor], [robot('r2', OPEN_WATER, { activity: 'waiting' })]);
-      startWorkLoop(LOCALE, { now, backHosts: false });
-      const { layers } = mountRow('r2', { noteLayers: true });
-      for (const layer of layers) gsap.set(layer, { scale: 0.9, immediateRender: true });
-      onRobotMounted(LOCALE, 'r2');
-      for (const layer of layers) expect(layerScale(layer)).toBeCloseTo(1, 6);
-    });
-
-    it('front → back: the layers ease 1 → BACK_LAYER_SCALE with the row, equal to it half way and a quarter way', () => {
-      const { actor, site } = backSite();
-      registerLocale([actor], [robot('r1', OPEN_WATER)]);
-      switchSpy.mockReturnValue(midway(get('r1').position, parkOf(site)));
-      dissolveLayer();
-      startWorkLoop(LOCALE, { now, backHosts: true });
-      const { row, layers } = mountRow('r1', { noteLayers: true });
-      next('r1');
-      finish('swim-r1'); // to the switch point; the second swim eases the row
-      for (const layer of layers) expect(layerScale(layer)).toBeCloseTo(1, 6);
-      getTimeline('swim-r1')!.progress(0.5);
-      const mid = rowScale(row);
-      expect(mid).toBeLessThan(1);
-      expect(mid).toBeGreaterThan(BACK_LAYER_SCALE);
-      for (const layer of layers) expect(layerScale(layer)).toBeCloseTo(mid, 6);
-      // Off the midpoint too, where the row's sine ease and any other ease part.
-      getTimeline('swim-r1')!.progress(0.25);
-      for (const layer of layers) expect(layerScale(layer)).toBeCloseTo(rowScale(row), 6);
-      finish('swim-r1');
-      for (const layer of layers) expect(layerScale(layer)).toBeCloseTo(BACK_LAYER_SCALE, 6);
-    });
-
-    it('back → front: the layers ease BACK_LAYER_SCALE → 1 with the row', () => {
-      const back = backSite();
-      const front = frontSite();
-      registerLocale([back.actor, front.actor], [robot('r1', back.site.park, { layer: 'background', activity: 'waiting' })]);
-      switchSpy.mockReturnValue(midway(get('r1').position, parkOf(front.site)));
-      dissolveLayer();
-      startWorkLoop(LOCALE, { now, backHosts: false });
-      const { row, layers } = mountRow('r1', { noteLayers: true });
-      onRobotMounted(LOCALE, 'r1');
-      finish('swim-r1');
-      getTimeline('swim-r1')!.progress(0.5);
-      for (const layer of layers) expect(layerScale(layer)).toBeCloseTo(rowScale(row), 6);
-      expect(rowScale(row)).toBeGreaterThan(BACK_LAYER_SCALE);
-      finish('swim-r1');
-      for (const layer of layers) expect(layerScale(layer)).toBeCloseTo(1, 6);
-    });
-
-    it('a mover with no note layers still eases its row (reduced motion, ?notes=off)', () => {
-      const { actor, site } = backSite();
-      registerLocale([actor], [robot('r1', OPEN_WATER)]);
-      switchSpy.mockReturnValue(midway(get('r1').position, parkOf(site)));
-      dissolveLayer();
-      startWorkLoop(LOCALE, { now, backHosts: true });
-      const { row, layers } = mountRow('r1');
-      expect(layers).toEqual([]);
-      next('r1');
-      finish('swim-r1');
-      finish('swim-r1');
-      expect(rowScale(row)).toBeCloseTo(BACK_LAYER_SCALE, 6);
     });
   });
 

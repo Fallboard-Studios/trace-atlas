@@ -12,7 +12,7 @@ import { fill } from '@/content';
 import { BACK_LAYER_SCALE } from '@/constants';
 import { JOB_TYPE_LABELS, UNASSIGNED_JOB_LABEL } from '@/data/robotSelectionConfig';
 import { getRobotGem, gemWidth, GEM_CANVAS_H } from '@/components/robot/gem/polygon';
-import { setPointedRobot, sleepRobotNotes } from '@/systems/robotAttention';
+import { setPointedRobot } from '@/systems/robotAttention';
 import { JobType, type Robot } from '@/types/Robot';
 
 // ========================================
@@ -333,7 +333,6 @@ describe('FollowedRobotMarker', () => {
 
     afterEach(() => {
       setPointedRobot(null);
-      for (const id of ['a', 'b', 'c']) sleepRobotNotes(id);
     });
 
     it('frames the pointed-at robot with no robot followed', () => {

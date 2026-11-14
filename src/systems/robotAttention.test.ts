@@ -1,5 +1,5 @@
 // ========================================
-// robotAttention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7; plan Task 19)
+// robotAttention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7, §8.4; plan Task 19)
 // ========================================
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -28,16 +28,7 @@ vi.mock('../animation/deckCamera', () => ({
   subscribeFollowedRobot: camera.subscribeFollowedRobot,
 }));
 
-import {
-  getPointedRobotId,
-  getSingledOutRobotId,
-  isRobotNotesWoken,
-  setPointedRobot,
-  sleepRobotNotes,
-  subscribeSingledOut,
-  subscribeWokenNotes,
-  wakeRobotNotes,
-} from './robotAttention';
+import { getPointedRobotId, getSingledOutRobotId, setPointedRobot, subscribeSingledOut } from './robotAttention';
 
 const cleanups: Array<() => void> = [];
 const subscribe = (fn: (listener: () => void) => () => void, listener: () => void) => cleanups.push(fn(listener));
@@ -45,7 +36,6 @@ const subscribe = (fn: (listener: () => void) => () => void, listener: () => voi
 beforeEach(() => {
   camera.follow(null);
   setPointedRobot(null);
-  for (const id of ['r1', 'r2', 'r3']) sleepRobotNotes(id);
 });
 
 afterEach(() => {
@@ -116,51 +106,5 @@ describe('robotAttention: the singled-out robot (§1.7)', () => {
     camera.follow('r3');
     expect(listener).toHaveBeenCalledTimes(1);
     expect(getSingledOutRobotId()).toBe('r3');
-  });
-});
-
-describe('robotAttention: the woken set (§1.7)', () => {
-  it('pointing at a robot wakes it, and it stays woken after the pointer leaves', () => {
-    setPointedRobot('r1');
-    expect(isRobotNotesWoken('r1')).toBe(true);
-    setPointedRobot(null);
-    expect(isRobotNotesWoken('r1')).toBe(true);
-    expect(isRobotNotesWoken('r2')).toBe(false);
-  });
-
-  it('sleepRobotNotes ends the wake', () => {
-    wakeRobotNotes('r1');
-    sleepRobotNotes('r1');
-    expect(isRobotNotesWoken('r1')).toBe(false);
-  });
-
-  it('calls a woken subscriber on a wake and a sleep, and never for a robot already in that state', () => {
-    const listener = vi.fn();
-    subscribe(subscribeWokenNotes, listener);
-    wakeRobotNotes('r1');
-    expect(listener).toHaveBeenCalledTimes(1);
-    wakeRobotNotes('r1');
-    setPointedRobot('r1');
-    expect(listener).toHaveBeenCalledTimes(1);
-    sleepRobotNotes('r1');
-    expect(listener).toHaveBeenCalledTimes(2);
-    sleepRobotNotes('r1');
-    expect(listener).toHaveBeenCalledTimes(2);
-  });
-
-  it('the followed robot is singled out but not woken', () => {
-    const listener = vi.fn();
-    subscribe(subscribeSingledOut, listener);
-    camera.follow('r2');
-    expect(getSingledOutRobotId()).toBe('r2');
-    expect(isRobotNotesWoken('r2')).toBe(false);
-  });
-
-  it('an unsubscribed listener is not called', () => {
-    const listener = vi.fn();
-    const stop = subscribeWokenNotes(listener);
-    stop();
-    wakeRobotNotes('r3');
-    expect(listener).not.toHaveBeenCalled();
   });
 });

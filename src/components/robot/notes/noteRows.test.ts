@@ -240,14 +240,12 @@ function maskStops(mask: string): Array<{ color: string; at: number }> {
   });
 }
 
-describe('noteRows: the layer’s mask (§1.4, §1.7)', () => {
-  const DIM = 'rgba(0, 0, 0, var(--note-dim, 1))';
-
-  it('clear at the left edge, the dim level from 30%, full from 14% left of “now” to “now”, clear 0.2 s ahead', () => {
+describe('noteRows: the layer’s mask (§1.4)', () => {
+  it('clear at the left edge, full from 30% to “now”, clear 0.2 s ahead', () => {
     const stops = maskStops(noteMask(0.2));
-    expect(stops.map((s) => s.color)).toEqual(['transparent', DIM, DIM, '#000', 'transparent']);
+    expect(stops.map((s) => s.color)).toEqual(['transparent', '#000', '#000', 'transparent']);
     const at = stops.map((s) => s.at);
-    [0, 30, 63.5, 77.5, 81.5].forEach((expected, i) => expect(at[i]).toBeCloseTo(expected, 6));
+    [0, 30, 77.5, 81.5].forEach((expected, i) => expect(at[i]).toBeCloseTo(expected, 6));
   });
 
   it('a note known 2 s ahead ends the mask at the right edge, not past it', () => {

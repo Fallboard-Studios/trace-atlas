@@ -319,7 +319,6 @@ import { clearNoteCloudModel, subscribeDrawnNotes } from '@/components/robot/not
 import { noteThickness, rollBox } from '@/components/robot/notes/noteRows';
 import { getTimeline, getTimelineScope } from '@/animation/timelineMap';
 import { setWorldState } from '@/systems/worldState';
-import { sleepRobotNotes } from '@/systems/robotAttention';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
@@ -2379,12 +2378,6 @@ describe('RobotScreen — the desk avatar holds the note cloud (note cloud Task 
     }
   });
 
-  it('the box sets the dim to 1: the avatar is always undimmed (spec §1.8)', () => {
-    selectRobot(makeRobot());
-    const { container } = render(<RobotScreen />);
-    expect(box(container)!.style.getPropertyValue('--note-dim')).toBe('1');
-  });
-
   it('the phone band gem has no box and no note layers', () => {
     shell.set('phone');
     selectRobot(makeRobot());
@@ -2551,9 +2544,8 @@ describe('RobotScreen — the desk avatar holds the note cloud (note cloud Task 
 });
 
 // docs/specs/ROBOT_NOTE_CLOUD.md §1.8 (note cloud Task 28) and §8.4: the avatar's body is the only cloud, at the peak
-// strength and undimmed whatever its battery or attention; a world body beside it draws nothing. Its timelines are
-// its own ('avatar' ids); closing the screen takes them, its bars and its listener, and forgets the model. C4 is an
-// even pitch class, so it crosses in front.
+// strength whatever its battery or attention; a world body beside it draws nothing. Closing the screen takes its
+// timelines, its bars and its listener, and forgets the model. C4 is an even pitch class, so it crosses in front.
 describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
   const C4 = { lead: 0.2, duration: 0.25, at: 1, note: 'C4' };
   const PEAK = 0.5625; // the cloud at its strongest: 0.75, then down by a quarter (Crawford, 2026-11-13)
@@ -2585,7 +2577,6 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     cleanup();
     (globalThis as unknown as { ResizeObserver: unknown }).ResizeObserver = originalObserver;
     setWorldState('cold');
-    sleepRobotNotes('r1');
     clearNoteCloudModel('r1');
   });
 
@@ -2601,11 +2592,11 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     expect(bars(box, 'behind')).toHaveLength(0);
   });
 
-  it('the avatar registers its belt under the avatar id, as a world timeline', () => {
+  it('the avatar registers its belt under the robot id, as a world timeline', () => {
     selectRobot(makeRobot());
     render(<RobotScreen />);
-    expect(getTimeline('note-belt-avatar-r1')).toBeDefined();
-    expect(getTimelineScope('note-belt-avatar-r1')).toBe('world');
+    expect(getTimeline('note-belt-r1')).toBeDefined();
+    expect(getTimelineScope('note-belt-r1')).toBe('world');
   });
 
   it('with the world robot and the avatar both mounted, one event places a bar in the avatar only (§8.4)', () => {
@@ -2621,7 +2612,6 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     expect(bars(box, 'behind')).toHaveLength(1);
     expect(bars(box, 'front')).toHaveLength(1);
     expect(worldCloud.querySelectorAll('.note')).toHaveLength(0);
-    expect(getTimeline('note-belt-world-r1')).toBeUndefined();
   });
 
   it('closing the screen takes the avatar bars, timeline and listener, and forgets the model', () => {
@@ -2635,8 +2625,8 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     expect(box.querySelectorAll('.note')).toHaveLength(3);
     screenView.unmount();
     expect(box.querySelectorAll('.note')).toHaveLength(0);
-    expect(getTimeline('note-belt-avatar-r1')).toBeUndefined();
-    expect(getTimeline('note-resize-avatar-r1')).toBeUndefined();
+    expect(getTimeline('note-belt-r1')).toBeUndefined();
+    expect(getTimeline('note-resize-r1')).toBeUndefined();
     expect(hasRobotNoteListener('r1')).toBe(false);
     // The model forgot its run and its range: C4 again straight after is drawn, and at mid-height.
     const rows: number[] = [];

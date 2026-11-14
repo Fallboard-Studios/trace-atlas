@@ -8,7 +8,6 @@
 // IMPORTS
 // ========================================
 import {
-  NOTE_BRIGHT_BAND,
   NOTE_COMPLEMENT_L,
   NOTE_COMPLEMENT_S,
   NOTE_CROSSING_SECONDS,
@@ -163,17 +162,13 @@ export function noteColor(identityColor: string, companyColor: string | undefine
 }
 
 /**
- * The mask both layers wear (§1.4, §1.7), left to right: clear at the left edge; `--note-dim` (set on the mover,
- * 1 when unset) from NOTE_DIM_FROM of the width to NOTE_BRIGHT_BAND left of "now"; full at "now" (NOTE_NOW in from
- * the right); clear again where a note is first known, `knownAheadSeconds` of travel right of "now" and never past
- * the right edge. The mask dims the layer as a whole, so overlapping bars never show a darker patch.
+ * The mask both layers wear (§1.4), left to right: clear at the left edge; full from NOTE_DIM_FROM of the width to
+ * "now" (NOTE_NOW in from the right); clear again where a note is first known, `knownAheadSeconds` of travel right of
+ * "now" and never past the right edge. The mask fades the layer as a whole, so overlapping bars never show a darker
+ * patch.
  */
 export function noteMask(knownAheadSeconds: number): string {
   const now = 1 - NOTE_NOW;
   const known = Math.min(1, now + Math.max(0, knownAheadSeconds) / NOTE_CROSSING_SECONDS);
-  const dim = 'rgba(0, 0, 0, var(--note-dim, 1))';
-  return (
-    `linear-gradient(to right, transparent 0%, ${dim} ${pct(NOTE_DIM_FROM)}, ` +
-    `${dim} ${pct(now - NOTE_BRIGHT_BAND)}, #000 ${pct(now)}, transparent ${pct(known)})`
-  );
+  return `linear-gradient(to right, transparent 0%, #000 ${pct(NOTE_DIM_FROM)}, #000 ${pct(now)}, transparent ${pct(known)})`;
 }

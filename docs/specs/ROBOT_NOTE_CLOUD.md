@@ -924,8 +924,13 @@ the picture" describes the shipped design.
   holds no note layer. The avatar already placed every note at `--note-dim` 1, so "always on" needed no change there;
   `?notes=off` and reduced motion still turn it off. With the world body gone the cloud's own unmount forgets the
   model, so closing the robot screen forgets the robot's range and run. The cost runs of Gates 1 and 4 measured
-  twelve world clouds; one avatar cloud makes them moot. The world-only machinery left without a caller (the battery
-  bands, the woken set, the world dim, the stage-scale read, the row scale of note layers) is listed for Crawford's
-  say-so, not removed with this change.
+  twelve world clouds; one avatar cloud makes them moot. The world-only machinery left without a caller was then
+  removed on his word: `noteBands.ts` and `NOTE_BATTERY_BANDS`; `robotAttention`'s woken set (the pointed-at and
+  singled-out robot stay, for the marker); `NOTE_DIM`, `NOTE_BRIGHT_BAND` and the mask's `--note-dim` stops (the mask
+  is now clear, full from `NOTE_DIM_FROM` to "now", clear where a note is known: what the avatar's dim of 1 drew);
+  `getStageScale()`; the work loop's row scale of `.note-layer`s; the layers' z-index rules (the avatar's frames
+  carry them); and the hook's `context` and `placing` options (its timelines are `note-belt-${robotId}` and
+  `note-resize-${robotId}`). §1.7's attention and bands, §1.5's world layers and the files of §2 that name them are
+  history from here.
 - **Gate 4, the avatar's notes a quarter fainter** (his word with the move: "bring the opacity on those note cloud
   notes down by 25%"). `NOTE_PEAK_STRENGTH` is 0.5625, three quarters of 0.75.

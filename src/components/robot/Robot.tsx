@@ -96,7 +96,7 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
     return () => deleteRef(`robot-${robotId}`);
   }, { scope: ref, dependencies: [robotId] });
 
-  // The note cloud's attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7): a robot that goes while the pointer is on it
+  // The marker's attention (docs/specs/ROBOT_NOTE_CLOUD.md §1.7): a robot that goes while the pointer is on it
   // takes the pointer with it, and leaves another robot's alone.
   useEffect(() => () => {
     if (getPointedRobotId() === robotId) setPointedRobot(null);
@@ -135,8 +135,8 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   // by the work loop about the gem canvas centre — the frame sceneToOrbiterLocal assumes — so it
   // never shares a transform with the swim's x/y/rotation, which are the mover's.
   //
-  // The pointer entering `.robot` singles the robot out and wakes its notes, whatever the pointer type (spec §1.7,
-  // §7.2 A5); leaving clears the pointed-at robot, and the wake stays.
+  // The pointer entering `.robot` singles the robot out for the marker, whatever the pointer type (spec §1.7,
+  // §7.2 A5); leaving clears the pointed-at robot.
   //
   // The svg is the gem canvas, so the wrapper is exactly the canvas (OceanScene.css `.mover__svg` is a
   // block) and the swim's tilt turns about the canvas centre; `overflow="visible"` lets the halo, the

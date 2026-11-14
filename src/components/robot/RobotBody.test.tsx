@@ -753,12 +753,6 @@ describe('RobotBody — the note cloud is the avatar’s alone', () => {
     expect(container.querySelector('.note')).toBeNull();
   });
 
-  it('a world body writes no --note-dim on a cloud box', () => {
-    const { container } = drawInCloud(makeRobot(), 'world');
-    const box = container.querySelector('[data-note-cloud]') as HTMLElement;
-    expect(box.style.getPropertyValue('--note-dim')).toBe('');
-  });
-
   it('a card (no motion) does not listen and places nothing', () => {
     const { container } = drawInCloud(makeRobot());
     expect(hasRobotNoteListener('r1')).toBe(false);

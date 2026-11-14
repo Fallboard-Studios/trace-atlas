@@ -230,14 +230,12 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   the speakers, is `NOTE_NOW` (0.225) of the width in from the right edge.
 - **Its strength.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.5625: 0.75, then down by a quarter
   once the cloud was the avatar's alone, Crawford 2026-11-13). One mask on each layer
-  (`noteMask`) takes a note in from clear where it is first known, to full at "now", down to `--note-dim`
-  once it has sounded, to clear at the left edge. The engine announces each note about 0.7 s ahead (the
-  cloud's early notes, AUDIO_SYSTEM.md), so a note enters about halfway between the right edge and
-  "now" and fades in from there: the mask dims a layer as a whole, so overlapping bars never
-  show a darker patch. The avatar's box sets `--note-dim` to 1, so a note that has sounded keeps its
-  full strength.
-- **Always on.** The avatar places every note the robot plays, whatever its battery or attention. (The
-  battery bands and the singled-out dim were the world cloud's, which is gone.)
+  (`noteMask`) takes a note in from clear where it is first known, to full at "now", holds it full
+  until `NOTE_DIM_FROM` (0.3) of the width, then to clear at the left edge. The engine announces each
+  note about 0.7 s ahead (the cloud's early notes, AUDIO_SYSTEM.md), so a note enters about halfway
+  between the right edge and "now" and fades in from there: the mask fades a layer as a whole, so
+  overlapping bars never show a darker patch.
+- **Always on.** The avatar places every note the robot plays, whatever its battery or attention.
 - **Never a pop.** Notes enter and leave through the mask. A body-scale or gem change fades both layers
   out over `NOTE_WAKE_SECONDS` (0.3 s), rebuilds the roll and fades back; a row switch scales the
   layers with the row. A colour edit colours only later notes.
@@ -274,7 +272,7 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   - **The desk column** draws the note cloud, the only one there is: the svg sits in
     `.robot-screen__gem-box` (`data-note-cloud`) between a behind and a front frame, which a
     `ResizeObserver` places on the svg's fit (`--note-fit-x`, `--note-fit-y`, `--note-fit-scale`). It
-    places every note at `--note-dim` 1. The box does not clip: the
+    places every note. The box does not clip: the
     cloud spills over the details under the gem and only the console pane's edge cuts it (Gate 3,
     2026-11-13), so the column does not scroll; `.robot-screen__avatar-details` does.
   - **The phone band** draws no cloud.

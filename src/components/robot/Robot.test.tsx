@@ -27,13 +27,7 @@ import { useAttenuationStyleStore, selectCurrentAttenuationStyle } from '@/store
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
-import {
-  getPointedRobotId,
-  getSingledOutRobotId,
-  isRobotNotesWoken,
-  setPointedRobot,
-  sleepRobotNotes,
-} from '@/systems/robotAttention';
+import { getPointedRobotId, getSingledOutRobotId, setPointedRobot } from '@/systems/robotAttention';
 import type { Robot as RobotType } from '@/types/Robot';
 import type { Locale } from '@/types/locale';
 
@@ -538,27 +532,23 @@ describe('Robot halo colour (--halo)', () => {
   });
 });
 
-// docs/specs/ROBOT_NOTE_CLOUD.md §1.7, plan Task 20: the pointer singles a robot out and wakes its notes.
-describe('Robot: the pointer sets the pointed-at robot (note cloud)', () => {
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.7, plan Task 20: the pointer singles a robot out, for the followed-robot marker.
+describe('Robot: the pointer sets the pointed-at robot', () => {
   beforeEach(() => {
     setPointedRobot(null);
-    sleepRobotNotes('r1');
-    sleepRobotNotes('r2');
     useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
   });
 
   const robotGroup = (container: HTMLElement) => container.querySelector('g.robot') as SVGGElement;
 
-  it('pointer enter singles this robot out and wakes it; pointer leave clears the pointer and leaves it woken', () => {
+  it('pointer enter singles this robot out; pointer leave clears the pointer', () => {
     const { container } = renderRobot({ id: 'r1' });
     fireEvent.pointerEnter(robotGroup(container));
     expect(getSingledOutRobotId()).toBe('r1');
-    expect(isRobotNotesWoken('r1')).toBe(true);
 
     fireEvent.pointerLeave(robotGroup(container));
     expect(getPointedRobotId()).toBeNull();
     expect(getSingledOutRobotId()).toBeNull();
-    expect(isRobotNotesWoken('r1')).toBe(true);
   });
 
   it('whatever the pointer type: a touch or a pen enters like a mouse', () => {

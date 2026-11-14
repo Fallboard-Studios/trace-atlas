@@ -1,7 +1,7 @@
 // ========================================
 // useNoteCloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.6)
 // ========================================
-// One robot's note cloud in one render context: listens for the robot's drawn notes (noteCloudModel's
+// One robot's note cloud, on the robot screen's desk avatar (§8.4): listens for the robot's drawn notes (noteCloudModel's
 // subscribeDrawnNotes) and places a bar for each on the front or behind belt of the two layers React rendered round
 // the robot's svg (NoteCloudLayers.tsx). The layers are found, not passed: the box that holds them carries
 // `data-note-cloud`, and the hook reaches it from its root inside the svg. Everything that decides what a note
@@ -44,8 +44,7 @@ export interface UseNoteCloudOptions {
   /** A node inside the robot's svg (`g.gem`); the layers are found from it with `closest('[data-note-cloud]')`. */
   root: RefObject<SVGGElement | null>;
   robotId: string;
-  context: 'world' | 'avatar';
-  /** False on a card or roster tile: the hook registers nothing. */
+  /** False on a card, a roster tile or in the world (§8.4): the hook registers nothing. */
   enabled: boolean;
   /** The robot's seeded geometry and its body scale, which together size the roll (§1.3). */
   gem: RobotGem;
@@ -54,10 +53,6 @@ export interface UseNoteCloudOptions {
   color: string;
   /** Screen pixels per canvas unit, for the 4-pixel floor. A getter, read when a note arrives: no layout read. */
   pxPerUnit: () => number;
-  /** Whether a drawn note is placed (§1.7, the battery bands; default true). While false no bar is placed, though the
-   *  model still counts the note; turning it false leaves the notes in flight to finish their crossing. Read when a
-   *  note arrives: a switch starts nothing and re-runs nothing. */
-  placing?: boolean;
 }
 
 type Side = 'front' | 'behind';
@@ -94,7 +89,7 @@ function hotLevel(since: number, duration: number): number {
   return Number(Math.min(rise, fall).toFixed(2));
 }
 
-/** The clouds built now, in any context. The first asks the engine for its early notes (§1.9) and the last to go
+/** The clouds built now. The first asks the engine for its early notes (§1.9) and the last to go
  *  withdraws the ask, so with no cloud the engine announces nothing and the trigger tells its listeners as before. */
 let builtClouds = 0;
 function askForEarlyNotes(): () => void {
@@ -107,19 +102,17 @@ function askForEarlyNotes(): () => void {
 // ========================================
 // HOOK
 // ========================================
-export function useNoteCloud({ root, robotId, context, enabled, gem, scale, color, pxPerUnit, placing = true }: UseNoteCloudOptions): void {
+export function useNoteCloud({ root, robotId, enabled, gem, scale, color, pxPerUnit }: UseNoteCloudOptions): void {
   const reducedMotion = prefersReducedMotion();
   const colorRef = useRef(color);
   const pxPerUnitRef = useRef(pxPerUnit);
-  const placingRef = useRef(placing);
   useLayoutEffect(() => {
     colorRef.current = color;
     pxPerUnitRef.current = pxPerUnit;
-    placingRef.current = placing;
   });
   // The two wrappers while the roll is built (null when it is not), and the re-size fade's key.
   const layersRef = useRef<HTMLElement[] | null>(null);
-  const fadeKey = `note-resize-${context}-${robotId}`;
+  const fadeKey = `note-resize-${robotId}`;
   // The size the roll is built at or is fading to (the latest gem and scale), and the built cloud's rebuild (null when
   // it is not built).
   const sizeRef = useRef({ gem, scale });
@@ -129,7 +122,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
   // effect below fades the layers out, calls the rebuild, and fades them back (§1.5).
   useEffect(() => {
     if (!enabled || reducedMotion || !isNoteCloudEnabled() || typeof window === 'undefined') return;
-    // In the world the layers are the mover's own children; in the desk avatar each hangs in a frame inside the box.
+    // Each layer hangs in a frame inside the avatar's box.
     const box = root.current?.closest('[data-note-cloud]');
     const wrappers = {
       front: box?.querySelector<HTMLElement>('.note-layer--front') ?? null,
@@ -183,7 +176,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     // pause freezes the cloud mid-flight.
     const beltEls = [belts.front, belts.behind];
     const live: LiveNote[] = [];
-    const key = `note-belt-${context}-${robotId}`;
+    const key = `note-belt-${robotId}`;
     let beltTime = 0; // the belt's playhead, as its last render left it
 
     const writeBelts = (time: number) => {
@@ -280,7 +273,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
     const withdrawAsk = askForEarlyNotes();
     const unsubscribe = subscribeDrawnNotes(robotId, (note, event) => {
       // The model has counted it already (the run and the range), drawn or not.
-      if (document.hidden || getWorldState() !== 'running' || !placingRef.current) return;
+      if (document.hidden || getWorldState() !== 'running') return;
       fit();
       const length = noteLength(note.duration, roll.w, thickness);
       const lead = Math.max(0, event.lead);
@@ -324,7 +317,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
       rebuildRef.current = null;
       clearNotes();
     };
-  }, [root, robotId, context, enabled, reducedMotion]);
+  }, [root, robotId, enabled, reducedMotion]);
 
   // A re-size never pops (§1.5, §7.2 A6): a gem or body-scale change fades both layers out over NOTE_WAKE_SECONDS,
   // rebuilds the roll at the latest size (the notes in flight are dropped), and fades them back to NOTE_PEAK_STRENGTH

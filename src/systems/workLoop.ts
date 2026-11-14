@@ -290,36 +290,20 @@ function rowOrigin(robot: Robot): string {
   return `${gemWidth(gem) / 2} ${GEM_CANVAS_H / 2}`;
 }
 
-/** Robot.tsx's two note layers, beside the svg in the mover (docs/specs/ROBOT_NOTE_CLOUD.md §1.5); none under
- *  reduced motion or `?notes=off`. */
-const noteLayersOf = (robotId: string) => [...(bodyOf(robotId)?.querySelectorAll<HTMLElement>(':scope > .note-layer') ?? [])];
-
-/** The note layers scale about the gem canvas centre too, which is each layer's own centre: the roll is centred on
- *  it, and the layer is the roll grown evenly each way. */
-const NOTE_LAYER_ORIGIN = '50% 50%';
-
-/** The row at `scale` now (an adoption, or a body that mounted mid-ease), and the note layers with it. */
+/** The row at `scale` now (an adoption, or a body that mounted mid-ease). */
 function placeRow(robot: Robot, scale: number): void {
   const row = rowGroupOf(robot.id);
   if (row) place(row, { scale, svgOrigin: rowOrigin(robot) });
-  const layers = noteLayersOf(robot.id);
-  if (layers.length) gsap.set(layers, { scale, transformOrigin: NOTE_LAYER_ORIGIN, immediateRender: true });
 }
 
-/** Ease the row to `scale` over the whole of `tl` (a swim), if it isn't there already, and the note layers with it
- *  in the same tween's span, so the cloud never pops on a row switch. */
+/** Ease the row to `scale` over the whole of `tl` (a swim), if it isn't there already. */
 function easeRowWith(tl: gsap.core.Timeline, robot: Robot, scale: number): void {
   const row = rowGroupOf(robot.id);
   if (!row) return;
   const from = Number(gsap.getProperty(row, 'scaleX'));
   if (from === scale) return;
   const svgOrigin = rowOrigin(robot);
-  const ease = { duration: tl.duration(), ease: 'sine.inOut', immediateRender: false };
-  tl.fromTo(row, { scale: from, svgOrigin }, { scale, svgOrigin, ...ease }, 0);
-  const layers = noteLayersOf(robot.id);
-  if (layers.length) {
-    tl.fromTo(layers, { scale: from, transformOrigin: NOTE_LAYER_ORIGIN }, { scale, transformOrigin: NOTE_LAYER_ORIGIN, ...ease }, 0);
-  }
+  tl.fromTo(row, { scale: from, svgOrigin }, { scale, svgOrigin, duration: tl.duration(), ease: 'sine.inOut', immediateRender: false }, 0);
 }
 
 const dissolveLayer = () => getRef('robot-dissolve-layer');

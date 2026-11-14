@@ -215,7 +215,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
   useNoteCloud({
     root: gemRef,
     robotId: robot.id,
-    context: 'avatar',
     enabled: motion === 'avatar',
     gem,
     scale: ignoreScale ? 1 : audio.scale,

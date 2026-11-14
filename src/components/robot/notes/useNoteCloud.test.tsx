@@ -51,17 +51,15 @@ const GEM = getRobotGem(GEM_SEED);
 
 interface HarnessProps {
   robotId?: string;
-  context?: 'world' | 'avatar';
   enabled?: boolean;
   scale?: number;
   color?: string;
   px?: number;
-  placing?: boolean;
 }
 
-function Harness({ robotId = 'r1', context = 'world', enabled = true, scale = 1, color = '#ff0000', px = 1, placing }: HarnessProps) {
+function Harness({ robotId = 'r1', enabled = true, scale = 1, color = '#ff0000', px = 1 }: HarnessProps) {
   const root = useRef<SVGGElement>(null);
-  useNoteCloud({ root, robotId, context, enabled, gem: GEM, scale, color, pxPerUnit: () => px, placing });
+  useNoteCloud({ root, robotId, enabled, gem: GEM, scale, color, pxPerUnit: () => px });
   return (
     <div data-note-cloud="">
       <NoteCloudLayer side="behind" />
@@ -104,8 +102,8 @@ function setHidden(hidden: boolean) {
   Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
 }
 
-/** The belt's registered timeline for robot r1 in the world context. */
-const belt = (id = 'r1', context = 'world') => getTimeline(`note-belt-${context}-${id}`);
+/** The belt's registered timeline for robot r1. */
+const belt = (id = 'r1') => getTimeline(`note-belt-${id}`);
 
 /** Moves the belt's playhead on by `seconds`, as the ticker would. */
 function advance(seconds: number, id = 'r1') {
@@ -292,7 +290,7 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
   it('with no note layers to find it registers no listener', () => {
     function Bare() {
       const root = useRef<SVGGElement>(null);
-      useNoteCloud({ root, robotId: 'r1', context: 'world', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1 });
+      useNoteCloud({ root, robotId: 'r1', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1 });
       return <svg><g ref={root} /></svg>;
     }
     render(<Bare />);
@@ -329,29 +327,20 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
     const first = { lead: 0.2, duration: 0.25, at: 200, note: 'C4' };
     const repeat = { lead: 0.2, duration: 0.25, at: 200.25, note: 'C4' };
 
-    it('a world cloud\'s unmount clears it: the repeat after a re-mount is drawn', () => {
-      const { unmount } = render(<Harness context="world" />);
+    it('a cloud\'s unmount clears it: the repeat after a re-mount is drawn', () => {
+      const { unmount } = render(<Harness />);
       emitRobotNote('r1', first);
       unmount();
-      const { container } = render(<Harness context="world" />);
-      emitRobotNote('r1', repeat);
-      expect(allBars(container)).toHaveLength(1);
-    });
-
-    it('an avatar cloud\'s unmount clears it too: the repeat after a re-mount is drawn', () => {
-      const { unmount } = render(<Harness context="avatar" />);
-      emitRobotNote('r1', first);
-      unmount();
-      const { container } = render(<Harness context="avatar" />);
+      const { container } = render(<Harness />);
       emitRobotNote('r1', repeat);
       expect(allBars(container)).toHaveLength(1);
     });
 
     it('a re-size (a scale edit) clears nothing: the repeat is dropped', () => {
-      const { container, rerender } = render(<Harness context="world" scale={1} />);
+      const { container, rerender } = render(<Harness scale={1} />);
       emitRobotNote('r1', first);
-      rerender(<Harness context="world" scale={1.2} />);
-      getTimeline('note-resize-world-r1')!.progress(1); // the roll rebuilt at its new size (Task 24)
+      rerender(<Harness scale={1.2} />);
+      getTimeline('note-resize-r1')!.progress(1); // the roll rebuilt at its new size (Task 24)
       emitRobotNote('r1', repeat);
       expect(allBars(container)).toHaveLength(0);
     });
@@ -370,7 +359,7 @@ describe('useNoteCloud — the belt (Task 14)', () => {
   it('idle: the belt is registered under world, paused, the wrappers hidden and the belts without will-change', () => {
     const { container } = render(<Harness />);
     expect(belt()).toBeDefined();
-    expect(getTimelineScope('note-belt-world-r1')).toBe('world');
+    expect(getTimelineScope('note-belt-r1')).toBe('world');
     expect(belt()!.paused()).toBe(true);
     for (const w of wrappers(container)) expect(w.style.display).toBe('none');
     for (const b of belts(container)) expect(b.style.willChange).toBe('');
@@ -478,19 +467,12 @@ describe('useNoteCloud — the belt (Task 14)', () => {
     expect(belt()).toBeUndefined();
   });
 
-  it('the avatar context registers its own belt', () => {
-    render(<Harness context="avatar" />);
-    expect(belt('r1', 'avatar')).toBeDefined();
-    expect(getTimelineScope('note-belt-avatar-r1')).toBe('world');
-    expect(belt('r1', 'world')).toBeUndefined();
-  });
-
   it('a body-scale rebuild starts the new belt at the left of its roll', () => {
     const { container, rerender } = render(<Harness scale={1} />);
     emitRobotNote('r1', noteEvent('C4'));
     advance(1);
     rerender(<Harness scale={1.5} />);
-    getTimeline('note-resize-world-r1')!.progress(1); // past the fade's rebuild (Task 24)
+    getTimeline('note-resize-r1')!.progress(1); // past the fade's rebuild (Task 24)
     expect(beltX(container)).toBe(0);
     expect(belt()!.paused()).toBe(true);
     expect(belt()!.totalTime()).toBe(0);
@@ -588,80 +570,7 @@ describe('useNoteCloud — the peak strength (Task 22)', () => {
     const { container } = render(<Harness />);
     const opacities = [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
     expect(opacities).toEqual([NOTE_PEAK_STRENGTH, NOTE_PEAK_STRENGTH]);
-    expect(getTimeline('note-resize-world-r1')).toBeUndefined();
-  });
-});
-
-// ========================================
-// TASK 17a–17c: the battery bands — the placing switch
-// ========================================
-describe('useNoteCloud — the placing switch (Task 17b)', () => {
-  const opacities = (container: HTMLElement) =>
-    [...container.querySelectorAll('.note-layer')].map((w) => Number((w as HTMLElement).style.opacity));
-
-  it('places by default', () => {
-    const { container } = render(<Harness />);
-    emitRobotNote('r1', noteEvent('C4'));
-    expect(allBars(container)).toHaveLength(1);
-  });
-
-  it('while placing is false an event places no bar', () => {
-    const { container } = render(<Harness placing={false} />);
-    emitRobotNote('r1', noteEvent('C4'));
-    emitRobotNote('r1', noteEvent('B3'));
-    expect(allBars(container)).toHaveLength(0);
-  });
-
-  it('turning it false leaves the notes in flight on their belts, moving, at the layers\' strength', () => {
-    const { container, rerender } = render(<Harness placing />);
-    emitRobotNote('r1', noteEvent('C4'));
-    emitRobotNote('r1', noteEvent('B3'));
-    const [front] = bars(container, 'front');
-    const beltBefore = beltX(container);
-    rerender(<Harness placing={false} />);
-    expect(allBars(container)).toHaveLength(2);
-    expect(opacities(container)).toEqual([NOTE_PEAK_STRENGTH, NOTE_PEAK_STRENGTH]);
-    expect(getTimeline('note-resize-world-r1')).toBeUndefined();
-    advance(1);
-    expect(beltX(container)).toBeLessThan(beltBefore);
-    expect(front.isConnected).toBe(true);
-    emitRobotNote('r1', noteEvent('D4'));
-    expect(allBars(container)).toHaveLength(2);
-  });
-
-  it('the notes in flight still leave at the left edge, and the cloud goes idle', () => {
-    const { container, rerender } = render(<Harness placing />);
-    emitRobotNote('r1', noteEvent('C4'));
-    rerender(<Harness placing={false} />);
-    advance(NOTE_CROSSING_SECONDS + 1);
-    expect(allBars(container)).toHaveLength(0);
-    for (const layer of container.querySelectorAll<HTMLElement>('.note-layer')) expect(layer.style.display).toBe('none');
-  });
-
-  it('turning it true again places the next note', () => {
-    const { container, rerender } = render(<Harness placing={false} />);
-    emitRobotNote('r1', noteEvent('C4'));
-    rerender(<Harness placing />);
-    emitRobotNote('r1', noteEvent('D4'));
-    expect(allBars(container)).toHaveLength(1);
-  });
-
-  it('a run counted while not placing is honoured: the second of the run is still a repeat', () => {
-    const { container, rerender } = render(<Harness placing={false} />);
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 400, note: 'C4' });
-    rerender(<Harness placing />);
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 400.25, note: 'C4' });
-    expect(allBars(container)).toHaveLength(0);
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 400.5, note: 'C4' });
-    expect(allBars(container)).toHaveLength(1);
-  });
-
-  it('a switch re-runs nothing: the belt is the same timeline before and after', () => {
-    const { rerender } = render(<Harness placing />);
-    const before = belt();
-    rerender(<Harness placing={false} />);
-    rerender(<Harness placing />);
-    expect(belt()).toBe(before);
+    expect(getTimeline('note-resize-r1')).toBeUndefined();
   });
 });
 
@@ -669,7 +578,7 @@ describe('useNoteCloud — the placing switch (Task 17b)', () => {
 // TASK 24: an edit that re-sizes the roll never pops
 // ========================================
 describe('useNoteCloud — a re-size under a fade (Task 24)', () => {
-  const FADE_KEY = 'note-resize-world-r1';
+  const FADE_KEY = 'note-resize-r1';
   const fadeTimeline = () => getTimeline(FADE_KEY);
   const frontWrapper = (container: HTMLElement) => container.querySelector('.note-layer--front') as HTMLElement;
   const width = (container: HTMLElement) => parseFloat(frontWrapper(container).style.width);
@@ -789,7 +698,7 @@ describe('useNoteCloud — the early notes (Task 35)', () => {
   it('a disabled cloud, and one with no layers to find, ask nothing', () => {
     function Bare() {
       const root = useRef<SVGGElement>(null);
-      useNoteCloud({ root, robotId: 'r1', context: 'world', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1 });
+      useNoteCloud({ root, robotId: 'r1', enabled: true, gem: GEM, scale: 1, color: '#fff', pxPerUnit: () => 1 });
       return <svg><g ref={root} /></svg>;
     }
     render(<Harness enabled={false} />);
@@ -798,11 +707,11 @@ describe('useNoteCloud — the early notes (Task 35)', () => {
   });
 
   it('the ask stands while any cloud is mounted, and the last to go withdraws it', () => {
-    const world = render(<Harness robotId="r1" context="world" />);
-    const avatar = render(<Harness robotId="r1" context="avatar" />);
-    world.unmount();
+    const first = render(<Harness robotId="r1" />);
+    const second = render(<Harness robotId="r2" />);
+    first.unmount();
     expect(getNotePreviewSeconds()).toBeCloseTo(PREVIEW, 10);
-    avatar.unmount();
+    second.unmount();
     expect(getNotePreviewSeconds()).toBe(0);
   });
 
