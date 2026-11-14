@@ -917,3 +917,13 @@ the picture" describes the shipped design.
   pitch height with the middle's wave, no fan, no wave growth and no tilt; the left, where a note leaves, fans as
   before. `noteRowGeometry`'s `fanReach` measures toward the left edge only. The layer's `pad` still allows for
   the left-hand fan.
+- **Gate 4, the cloud leaves the world** (his call the same day: "the note cloud shouldn't be in the world view. it
+  doesn't make sense there lore wise or visually. i do like it on the detail page, though, and want it to just always
+  be on there"). This reverses §1.5's world cloud and §1.7's attention and battery bands. `RobotBody` calls
+  `useNoteCloud` for the desk avatar alone (`enabled: motion === 'avatar'`); `Robot.tsx`'s mover is no cloud box and
+  holds no note layer. The avatar already placed every note at `--note-dim` 1, so "always on" needed no change there;
+  `?notes=off` and reduced motion still turn it off. With the world body gone the cloud's own unmount forgets the
+  model, so closing the robot screen forgets the robot's range and run. The cost runs of Gates 1 and 4 measured
+  twelve world clouds; one avatar cloud makes them moot. The world-only machinery left without a caller (the battery
+  bands, the woken set, the world dim, the stage-scale read, the row scale of note layers) is listed for Crawford's
+  say-so, not removed with this change.

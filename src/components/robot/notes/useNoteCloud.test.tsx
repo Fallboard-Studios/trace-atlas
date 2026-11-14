@@ -322,9 +322,10 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
     expect(hasRobotNoteListener('r1')).toBe(false);
   });
 
-  // The model is cleared only when a world body unmounts for good (plan, Architecture Decisions). Seen through the
-  // repeat rule: a note identical to the last, straight after it, is dropped while the model remembers the last.
-  describe('the model is cleared by the world body\'s unmount', () => {
+  // The model is cleared when a cloud unmounts (since §8.4 the avatar is the only cloud, so closing the robot screen
+  // forgets it). Seen through the repeat rule: a note identical to the last, straight after it, is dropped while the
+  // model remembers the last.
+  describe('the model is cleared by a cloud\'s unmount', () => {
     const first = { lead: 0.2, duration: 0.25, at: 200, note: 'C4' };
     const repeat = { lead: 0.2, duration: 0.25, at: 200.25, note: 'C4' };
 
@@ -337,13 +338,13 @@ describe('useNoteCloud — a note places a bar (Task 13)', () => {
       expect(allBars(container)).toHaveLength(1);
     });
 
-    it('an avatar cloud\'s unmount clears nothing: the repeat is dropped', () => {
+    it('an avatar cloud\'s unmount clears it too: the repeat after a re-mount is drawn', () => {
       const { unmount } = render(<Harness context="avatar" />);
       emitRobotNote('r1', first);
       unmount();
       const { container } = render(<Harness context="avatar" />);
       emitRobotNote('r1', repeat);
-      expect(allBars(container)).toHaveLength(0);
+      expect(allBars(container)).toHaveLength(1);
     });
 
     it('a re-size (a scale edit) clears nothing: the repeat is dropped', () => {

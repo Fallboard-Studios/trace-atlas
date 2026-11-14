@@ -1479,10 +1479,10 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   first (Ctrl+Shift+R): `AudioEngine.ts` changed. 2026-11-13, his first look: "a little too much lead", split the
   difference. `NOTE_PREVIEW_SECONDS` halved to 0.4625 s (a note known about 0.7 s ahead, entering about halfway
   between the edge and "now") and the mask clears where a note is first known (90.75 %); spec §8.4. Then "the lead
-  shouldn't balloon out": the right half runs flat (no fan, wave growth or tilt), the left keeps the fan. His look
-  at both is open.
-- [ ] Task 36's forecast counts and cost figures reported; he accepts the cost or names what to take back. Reported
-  2026-11-13; his answer is open.
+  shouldn't balloon out": the right half runs flat (no fan, wave growth or tilt), the left keeps the fan. Then the
+  cloud leaves the world: the robot screen's avatar is the only cloud, always on (spec §8.4). His look is open.
+- [x] Task 36's forecast counts and cost figures reported; he accepts the cost or names what to take back. Moot
+  2026-11-13: the cost was twelve world clouds, and the world draws none now (spec §8.4).
 - [ ] Ready for his PR.
 
 - [ ] **Task 37: archive, after the merge**

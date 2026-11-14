@@ -347,10 +347,7 @@ export function useNoteCloud({ root, robotId, context, enabled, gem, scale, colo
   // The re-size fade goes with the hook.
   useEffect(() => () => killTimeline(fadeKey), [fadeKey]);
 
-  // The model outlives an effect re-run and the avatar's mount: only the world body's unmount, keyed on the robot
-  // alone, forgets the robot's range and run (plan, Architecture Decisions).
-  useEffect(() => {
-    if (context !== 'world') return;
-    return () => clearNoteCloudModel(robotId);
-  }, [robotId, context]);
+  // The model outlives an effect re-run; the cloud's unmount, keyed on the robot alone, forgets the robot's range and
+  // run (the avatar is the only cloud since §8.4, so closing the robot screen forgets them).
+  useEffect(() => () => clearNoteCloudModel(robotId), [robotId]);
 }

@@ -412,87 +412,22 @@ describe('Robot — the mover (Phase 53 Task 13)', () => {
   });
 });
 
-// docs/specs/ROBOT_NOTE_CLOUD.md §1.5 (note cloud Task 12): React renders the cloud's two layers as
-// children of the mover, one before the svg (behind the body) and one after it (in front), each a
-// wrapper holding an empty belt the hook fills. Nothing is drawn under reduced motion or ?notes=off.
-describe('Robot — the note cloud layers (note cloud Task 12)', () => {
-  function setReducedMotion(reduced: boolean) {
-    window.matchMedia = ((query: string) => ({
-      matches: reduced && query.includes('prefers-reduced-motion'),
-      media: query,
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    })) as unknown as typeof window.matchMedia;
-  }
-
+// docs/specs/ROBOT_NOTE_CLOUD.md §8.4 (Crawford, 2026-11-13): the note cloud is the robot screen's alone, so the
+// world's mover is no cloud box and holds no note layer, with the cloud switched on.
+describe('Robot — the world draws no note cloud', () => {
   beforeEach(() => {
     noteCloudSwitch.on = true;
-    setReducedMotion(false);
     useUIStore.getState().selectRobot(null);
     useUIStore.getState().setActiveHubTile(null);
     useLocaleStore.getState().setLocaleData(localeId, { robots: [] } as unknown as Partial<Locale>);
   });
 
-  it('the mover is the cloud box the hook finds: it carries data-note-cloud', () => {
+  it('the mover carries no data-note-cloud and holds only its svg', () => {
     const { container } = renderRobot({ id: 'r1' });
     const mover = container.querySelector('.mover--robot')!;
-    expect(mover.hasAttribute('data-note-cloud')).toBe(true);
-  });
-
-  it('holds a behind layer before its svg and a front layer after it', () => {
-    const { container } = renderRobot({ id: 'r1' });
-    const mover = container.querySelector('.mover--robot')!;
-    const kids = [...mover.children];
-    expect(kids).toHaveLength(3);
-    expect(kids[0].classList.contains('note-layer')).toBe(true);
-    expect(kids[0].classList.contains('note-layer--behind')).toBe(true);
-    expect(kids[1].tagName.toLowerCase()).toBe('svg');
-    expect(kids[2].classList.contains('note-layer')).toBe(true);
-    expect(kids[2].classList.contains('note-layer--front')).toBe(true);
-  });
-
-  it('each layer is aria-hidden and holds one empty belt', () => {
-    const { container } = renderRobot({ id: 'r1' });
-    const layers = container.querySelectorAll('.mover--robot > .note-layer');
-    expect(layers).toHaveLength(2);
-    for (const layer of layers) {
-      expect(layer.getAttribute('aria-hidden')).toBe('true');
-      expect(layer.children).toHaveLength(1);
-      const belt = layer.firstElementChild!;
-      expect(belt.classList.contains('note-layer__belt')).toBe(true);
-      expect(belt.children).toHaveLength(0);
-    }
-  });
-
-  it('a re-render keeps the same layers (React never replaces them under the hook)', () => {
-    const { container } = renderRobot({ id: 'r1' });
-    const before = [...container.querySelectorAll('.note-layer__belt')];
-    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { batteryLevel: 30 }));
-    act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { layer: 'background' }));
-    expect([...container.querySelectorAll('.note-layer__belt')]).toEqual(before);
-  });
-
-  it('with reduced motion the mover holds no note layer', () => {
-    setReducedMotion(true);
-    const { container } = renderRobot({ id: 'r1' });
-    const mover = container.querySelector('.mover--robot')!;
+    expect(mover.hasAttribute('data-note-cloud')).toBe(false);
     expect(mover.querySelector('.note-layer')).toBeNull();
-    expect(mover.children).toHaveLength(1);
-  });
-
-  it('with ?notes=off the mover holds no note layer', () => {
-    noteCloudSwitch.on = false;
-    const { container } = renderRobot({ id: 'r1' });
-    const mover = container.querySelector('.mover--robot')!;
-    expect(mover.querySelector('.note-layer')).toBeNull();
-    expect(mover.children).toHaveLength(1);
-  });
-
-  it('the robot still takes a click with the layers in place', () => {
-    const { container } = renderRobot({ id: 'r1' });
-    expect(container.querySelectorAll('.note-layer')).toHaveLength(2);
-    fireEvent.click(container.querySelector('.robot') as Element);
-    expect(useUIStore.getState().selectedRobotId).toBe('r1');
+    expect([...mover.children].map((kid) => kid.tagName.toLowerCase())).toEqual(['svg']);
   });
 });
 

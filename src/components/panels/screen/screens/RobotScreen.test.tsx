@@ -2550,10 +2550,10 @@ describe('RobotScreen — the desk avatar holds the note cloud (note cloud Task 
   });
 });
 
-// docs/specs/ROBOT_NOTE_CLOUD.md §1.8 (note cloud Task 28): the avatar's body calls the cloud too, at the peak
-// strength (0.75) and undimmed whatever its battery or attention, through the same per-robot model as the world, so
-// the two draw the same notes. Its timelines are its own ('avatar' ids); closing the screen takes them and its bars
-// and leaves the world's cloud and the model alone. C4 is an even pitch class, so it crosses in front.
+// docs/specs/ROBOT_NOTE_CLOUD.md §1.8 (note cloud Task 28) and §8.4: the avatar's body is the only cloud, at the peak
+// strength and undimmed whatever its battery or attention; a world body beside it draws nothing. Its timelines are
+// its own ('avatar' ids); closing the screen takes them, its bars and its listener, and forgets the model. C4 is an
+// even pitch class, so it crosses in front.
 describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
   const C4 = { lead: 0.2, duration: 0.25, at: 1, note: 'C4' };
   const PEAK = 0.75; // the cloud at its strongest (Crawford, 2026-11-13)
@@ -2608,7 +2608,7 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     expect(getTimelineScope('note-belt-avatar-r1')).toBe('world');
   });
 
-  it('with the world robot and the avatar both mounted, one event places a bar in the same layer of each, a repeat in neither', () => {
+  it('with the world robot and the avatar both mounted, one event places a bar in the avatar only (§8.4)', () => {
     const robot = makeRobot('r1', { batteryLevel: 90 });
     selectRobot(robot);
     const world = renderWorldRobot(robot);
@@ -2618,20 +2618,18 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 1, note: 'B3' }); // odd pitch class: behind
     emitRobotNote('r1', C4);
     emitRobotNote('r1', { ...C4, at: 1.25 }); // the same note straight after: a repeat
-    for (const root of [worldCloud, box]) {
-      expect(bars(root, 'behind')).toHaveLength(1);
-      expect(bars(root, 'front')).toHaveLength(1);
-    }
+    expect(bars(box, 'behind')).toHaveLength(1);
+    expect(bars(box, 'front')).toHaveLength(1);
+    expect(worldCloud.querySelectorAll('.note')).toHaveLength(0);
+    expect(getTimeline('note-belt-world-r1')).toBeUndefined();
   });
 
-  it('closing the screen takes the avatar bars and timeline, and leaves the world cloud and the model as they were', () => {
+  it('closing the screen takes the avatar bars, timeline and listener, and forgets the model', () => {
     const robot = makeRobot('r1', { batteryLevel: 90 });
     selectRobot(robot);
-    const world = renderWorldRobot(robot);
     const screenView = render(<RobotScreen />);
-    const worldCloud = world.getByTestId('world-cloud');
     emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 0, note: 'C3' });
-    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 0.5, note: 'C5' });
+    emitRobotNote('r1', { lead: 0.2, duration: 0.25, at: 0.5, note: 'B5' });
     emitRobotNote('r1', C4);
     const box = avatarBox(screenView.container);
     expect(box.querySelectorAll('.note')).toHaveLength(3);
@@ -2639,18 +2637,13 @@ describe('RobotScreen — the avatar cloud (note cloud Task 28)', () => {
     expect(box.querySelectorAll('.note')).toHaveLength(0);
     expect(getTimeline('note-belt-avatar-r1')).toBeUndefined();
     expect(getTimeline('note-resize-avatar-r1')).toBeUndefined();
-    expect(worldCloud.querySelectorAll('.note')).toHaveLength(3);
-    expect(getTimeline('note-belt-world-r1')).toBeDefined();
-    // The model kept its run: C4 again straight after is the second of a run, not drawn.
-    emitRobotNote('r1', { ...C4, at: 1.25 });
-    expect(worldCloud.querySelectorAll('.note')).toHaveLength(3);
-    // And its range, C3 to C5: G4 sits seven semitones above its middle, in a range of 24.
+    expect(hasRobotNoteListener('r1')).toBe(false);
+    // The model forgot its run and its range: C4 again straight after is drawn, and at mid-height.
     const rows: number[] = [];
     const off = subscribeDrawnNotes('r1', (note) => rows.push(note.row));
-    emitRobotNote('r1', { lead: 0.2, duration: 0.5, at: 3, note: 'G4' });
+    emitRobotNote('r1', { ...C4, at: 1.25 });
     off();
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toBeCloseTo(7 / 24, 9);
+    expect(rows).toEqual([0]);
   });
 
   it('the avatar 4-pixel floor reads the avatar own fit, not the stage', () => {

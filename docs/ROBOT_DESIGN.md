@@ -193,9 +193,11 @@ Both are read outside the audio memo, so the once-a-second daylight tick never r
 
 ## The note cloud — the third overlay
 
-Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). Around a robot, its own melody crosses
-a piano roll: a solid rounded bar for each note it plays, right to left, white while the note sounds.
-It answers "which robot is playing what?" without touching the body. The Visual Mapping guardrail
+Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). Around a robot on its own screen,
+its melody crosses a piano roll: a solid rounded bar for each note it plays, right to left, white while
+the note sounds. It answers "what is this robot playing?" without touching the body. It is drawn on the
+robot screen's desk avatar only: the world draws none (Crawford, 2026-11-13: it made no sense there, by
+the lore or to the eye; spec §8.4). The Visual Mapping guardrail
 (CLAUDE.md) names it: fed only by the engine's note events, audio flows to the picture and never back;
 it never changes the body's geometry, colour or dials; a note enters and leaves without a pop.
 
@@ -211,7 +213,8 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   cross **in front** of the body, the other six **behind**. In a run of identical notes (same pitch
   class, so one class in two octaves is a repeat; same sounding length to the millisecond, no rest of
   more than `NOTE_REST_MIN_SECONDS` (0.05 s) between) the first, third, fifth… are drawn. One model per robot, shared by every cloud of it
-  (`subscribeDrawnNotes`), forgotten when its world body unmounts (`clearNoteCloudModel`).
+  (`subscribeDrawnNotes`), forgotten when the cloud unmounts, that is, when the robot screen closes
+  (`clearNoteCloudModel`).
 - **Its shape** (`noteRows.ts`). The roll is `NOTE_ROLL_SIZE` (2.5) times the box the robot's parts
   fill at its body scale, centred on the gem canvas centre (`rollBox`). A note crosses it in
   `NOTE_CROSSING_SECONDS` (5), so a bar's length is its sounding length at that speed (`noteLength`:
@@ -230,14 +233,10 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   once it has sounded, to clear at the left edge. The engine announces each note about 0.7 s ahead (the
   cloud's early notes, AUDIO_SYSTEM.md), so a note enters about halfway between the right edge and
   "now" and fades in from there: the mask dims a layer as a whole, so overlapping bars never
-  show a darker patch. `--note-dim` is `NOTE_DIM` (0.35), or 1 on the **singled-out** robot: under the
-  pointer or followed by the Deck camera (`src/systems/robotAttention.ts`), selected, soloed or
-  highlighted.
-- **The battery bands.** A world cloud places notes only while the robot's battery is in one of
-  `NOTE_BATTERY_BANDS` (10–28, 38–55, 65–73, 83–100 %), or while it is **woken**: pointed at or
-  selected, until it is next in its station (`notesShown`, `noteBands.ts`). Leaving a band places no
-  new note and lets the ones in flight finish crossing. The bands thin the cloud; they never dim the
-  body (that is the battery overlay's job).
+  show a darker patch. The avatar's box sets `--note-dim` to 1, so a note that has sounded keeps its
+  full strength.
+- **Always on.** The avatar places every note the robot plays, whatever its battery or attention. (The
+  battery bands and the singled-out dim were the world cloud's, which is gone.)
 - **Never a pop.** Notes enter and leave through the mask. A body-scale or gem change fades both layers
   out over `NOTE_WAKE_SECONDS` (0.3 s), rebuilds the roll and fades back; a row switch scales the
   layers with the row. A colour edit colours only later notes.
@@ -255,27 +254,26 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   The swim tilts about the gem canvas centre, which is the mover's centre. `.robot` renders
   `RobotBody`, which composes `RobotGem` with the audio scale. `motion="world"` enables
   `useOrbiterMotion`. A robot changes rows by changing the mover's `data-scene-slot`, not by being
-  re-mounted ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)). The mover is also the note
-  cloud's box (`data-note-cloud`): one note layer before the svg (behind the body) and one after it
-  (in front).
+  re-mounted ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)). The world draws no note
+  cloud.
   - **The back row** (Roadmap Phase 43 J4). A robot working at a background building, or exiting a
     station, is drawn in the back robot row, behind the midground, at `BACK_LAYER_SCALE` (0.75).
     That scale is on `.robot__row`, a wrapper between the root `<g>` and `RobotBody`, about the
     gem canvas centre, so it multiplies the body scale (0.735–1.69 becomes 0.55–1.27) without
     touching any dial. It is depth, not audio: the work loop eases it over the swim into or out of
     the row, never a pop, and the scene's depth tints haze that row like the buildings around it.
-    Neither is a robot overlay, so the overlays stay day/night, battery and the note cloud (whose
-    layers the work loop scales with the row). The root `<g>` carries
+    Neither is a robot overlay, so the overlays in the world stay day/night and battery. The root
+    `<g>` carries
     `id="world-robot-{id}"`, which the layer switch's dissolve copy points at
     ([ANIMATION_SYSTEM.md](ANIMATION_SYSTEM.md#layer-switch)).
 - **Detail avatar** — `RobotScreen.tsx`'s `AvatarGem` passes `motion="avatar"` (orbiters
   attach/detach here too) and `viewBox={gemMotionViewBox(gem)}` — the plain `gemViewBox` canvas, padded
   for an orbiter's dock position at its maximum size and its attach/detach flight; usually a small or
   zero pad, since the docks sit close to Top's own corners.
-  - **The desk column** draws the note cloud: the svg sits in `.robot-screen__gem-box`
-    (`data-note-cloud`) between a behind and a front frame, which a `ResizeObserver` places on the
-    svg's fit (`--note-fit-x`, `--note-fit-y`, `--note-fit-scale`). It places every note (no battery
-    bands: opening the robot's screen is turning to it) at `--note-dim` 1. The box does not clip: the
+  - **The desk column** draws the note cloud, the only one there is: the svg sits in
+    `.robot-screen__gem-box` (`data-note-cloud`) between a behind and a front frame, which a
+    `ResizeObserver` places on the svg's fit (`--note-fit-x`, `--note-fit-y`, `--note-fit-scale`). It
+    places every note at `--note-dim` 1. The box does not clip: the
     cloud spills over the details under the gem and only the console pane's edge cuts it (Gate 3,
     2026-11-13), so the column does not scroll; `.robot-screen__avatar-details` does.
   - **The phone band** draws no cloud.

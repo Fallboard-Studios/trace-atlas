@@ -470,16 +470,16 @@ Measure with `npm run perf:idle` before and after any change to what moves in th
 Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the cloud draws and why is in
 [ROBOT_DESIGN.md](ROBOT_DESIGN.md#the-note-cloud--the-third-overlay); where its notes come from is in
 [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-events--audio-to-the-picture). This is how it moves.
-`src/components/robot/notes/useNoteCloud.ts`, called by `RobotBody` with the world or avatar context
-(never on a card), owns it all. Its cost was measured at Gate 1 (PERFORMANCE.md, "Note cloud — the Task
-17 cost run" and "Note cloud — the battery bands, the Task 17d cost run") and with early notes at Gate 4
-("Note cloud — early notes, the Task 36 runs").
+`src/components/robot/notes/useNoteCloud.ts`, called by `RobotBody` on the robot screen's desk avatar
+alone (never in the world since 2026-11-13, spec §8.4; never on a card), owns it all. Its cost was
+measured for world clouds at Gate 1 (PERFORMANCE.md, "Note cloud — the Task 17 cost run" and "Note
+cloud — the battery bands, the Task 17d cost run") and with early notes at Gate 4 ("Note cloud — early
+notes, the Task 36 runs"); with one cloud on screen those figures no longer apply.
 
 - **The layers.** `NoteCloudLayer` (`NoteCloudLayers.tsx`) renders a wrapper (`.note-layer`, masked,
-  `pointer-events: none`, `aria-hidden`) holding an empty belt (`.note-layer__belt`). In the world a
-  robot's mover holds a pair: `.note-layer--behind` before the svg (z-index −1) and
-  `.note-layer--front` after it (z-index 1); the mover is its own stacking context. The box holding a
-  pair carries `data-note-cloud`, and the hook finds it from inside the svg
+  `pointer-events: none`, `aria-hidden`) holding an empty belt (`.note-layer__belt`). The avatar's
+  box holds a pair, `.note-layer--behind` in a frame before the svg and `.note-layer--front` in one
+  after it. The box holding a pair carries `data-note-cloud`, and the hook finds it from inside the svg
   (`closest('[data-note-cloud]')`), then the pair under it, so nothing is passed down. React renders
   no children in a belt and never reconciles what the hook appends. A wrapper is `display: none` and
   its belt drops `will-change` while it has no live note, so an idle cloud costs no layer. Neither is
@@ -496,7 +496,7 @@ Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the clou
   held for its length, down over `NOTE_COOL_SECONDS`. No tween and no timer per note.
 - **A note arriving.** `subscribeDrawnNotes` hands the hook a drawn note and its event. It places
   nothing while the tab is hidden, the world is not `'running'` (`getWorldState()`), or `placing` is
-  false (the battery bands); the model has counted the note either way. Otherwise one
+  false (the hook's option, which the avatar never turns off); the model has counted the note either way. Otherwise one
   `div.note` with its `.note__hot` child is appended to the front or behind belt at "now" plus the
   event's `lead` at the belt's speed, and the first live note wakes the layers. The lead is about
   0.7 s, because the first cloud built asks the engine for early notes (`setNotePreviewSeconds` with
@@ -509,19 +509,13 @@ Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the clou
   flight and starting a new belt), and fades back to the peak, on
   `` `note-resize-${context}-${robotId}` `` (`'world'`). A second change mid-fade replaces it from
   wherever the layers are.
-- **The singled-out dim.** `RobotBody` writes `--note-dim` on the cloud's box (`NOTE_DIM`, or 1 when
-  singled out); both masks read it, so a flip rebuilds nothing.
-- **The row scale.** The work loop's `placeRow` and `easeRowWith` scale a robot's `.note-layer`s with
-  `.robot__row`, about each layer's own centre (the gem canvas centre), in the same tween as the row,
-  so a row switch never pops the cloud.
+- **The dim.** The avatar's box sets `--note-dim` to 1, which both masks read (the dim was the world
+  cloud's, for the robot nobody had turned to).
 - **Pixels per unit.** A bar's 4-pixel floor needs the screen scale, read when a note arrives and never
-  by a layout read: in the world `getStageScale()` (`useStageFit.ts`, the value it last wrote to
-  `--stage-scale`) times the row's scale; on the desk avatar `--note-fit-scale`, which the avatar's
-  box writes from its `ResizeObserver` and its frames' CSS reads to place the layers on the svg's
-  fit.
-- **The model's life.** `noteCloudModel` outlives an effect re-run and the avatar's mount; only the
-  world body's unmount forgets the robot's range and run (`clearNoteCloudModel`). The world body's
-  unmount also ends the robot's wake (`sleepRobotNotes`).
+  by a layout read: `--note-fit-scale`, which the avatar's box writes from its `ResizeObserver` and its
+  frames' CSS reads to place the layers on the svg's fit.
+- **The model's life.** `noteCloudModel` outlives an effect re-run; the cloud's unmount (closing the
+  robot screen) forgets the robot's range and run (`clearNoteCloudModel`).
 
 ### Layout-rework timelines (Phase 45)
 
