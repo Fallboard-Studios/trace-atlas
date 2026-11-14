@@ -1774,7 +1774,8 @@ export const AudioEngine = {
    * `currentTime`, not `Tone.now()`, which already runs a lookahead ahead of it), never below 0, plus the output latency
    * (`outputLatencySeconds`, as the note events count it). The station fade system stretches a robot's entry arc by it,
    * so the body is gone when the fade is heard to end, not a lookahead early (backlog 84, after Checkpoint B). With no
-   * readable clock (headless), the latency alone.
+   * readable clock (headless), the latency alone. The clock is read here, not through `readContextSeconds`: that reads
+   * a latency and treats 0 as "not reported", while a clock at 0 (a context just started) is a real reading.
    */
   secondsUntilHeard(time: number): number {
     let ahead = 0;
