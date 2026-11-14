@@ -522,6 +522,46 @@ describe('generateMelodyForRobot — GenerateMelodyForRobotOptions', () => {
     });
   });
 
+  describe('an octave jump moves to the adjacent octave only', () => {
+    const seeds = Array.from({ length: 200 }, (_, i) => i + 1);
+    const octavesOf = (octaveMin: number, octaveMax: number, seed: number) =>
+      generateMelodyForRobot({ rhythmicDensity: 100, octaveMin, octaveMax, seed }).map((e) => e.octave);
+    const steps = (octaves: number[]) => octaves.slice(1).map((o, i) => Math.abs(o - octaves[i]));
+
+    it.each([
+      [3, 5],
+      [2, 6],
+      [1, 7],
+    ])('in %i–%i no two successive notes are more than one octave apart', (min, max) => {
+      for (const seed of seeds) expect(Math.max(0, ...steps(octavesOf(min, max, seed)))).toBeLessThanOrEqual(1);
+    });
+
+    it('in a three-octave range a melody that leaves an edge octave passes through the middle one', () => {
+      const leftAnEdge = seeds.map((s) => octavesOf(3, 5, s)).filter((o) => new Set(o).size > 1);
+      expect(leftAnEdge.length).toBeGreaterThan(0);
+      for (const octaves of leftAnEdge) expect(octaves).toContain(4);
+    });
+
+    it('a melody starting in the middle of a three-octave range still jumps', () => {
+      const fromMiddle = seeds.map((s) => octavesOf(3, 5, s)).filter((o) => o[0] === 4);
+      expect(fromMiddle.some((o) => new Set(o).size > 1)).toBe(true);
+    });
+
+    it('a two-octave range jumps between its two octaves', () => {
+      const all = seeds.map((s) => octavesOf(3, 4, s));
+      expect(all.some((o) => o.includes(3) && o.includes(4))).toBe(true);
+    });
+
+    it('jumps both up and down', () => {
+      const all = seeds.flatMap((s) => {
+        const o = octavesOf(2, 6, s);
+        return o.slice(1).map((v, i) => v - o[i]);
+      });
+      expect(all).toContain(1);
+      expect(all).toContain(-1);
+    });
+  });
+
   it('all startStep values are in [1, 16]', () => {
     const melody = generateMelodyForRobot({ rhythmicDensity: 50, octaveMin: 3, octaveMax: 4, seed: 10 });
     melody.forEach((e) => {
@@ -946,15 +986,16 @@ describe('generateMelodyForRobot — rhythmRand', () => {
   }
 
   // Captured from the generator before rhythmRand existed: a one-stream caller (every caller
-  // until Task 3) gets today's melody bit for bit.
+  // until Task 3) gets today's melody bit for bit. The octave column re-pinned when an octave jump
+  // became one octave at most (it was 6 → 4 here, and 3 → 5 below); the draws are unchanged.
   it('parity: one stream gives the melody it gave before rhythmRand (free)', () => {
     const melody = generateMelodyForRobot({ ...configs.free, rand: alea('parity-a') });
     expect(shape(melody)).toEqual([
       [8, '16n', 0, 6, 0],
-      [9, '16n', 6, 4, 0],
-      [10, '16n', 5, 4, 0],
-      [11, '8n', 5, 4, 0],
-      [13, '16n', 3, 4, 0],
+      [9, '16n', 6, 5, 0],
+      [10, '16n', 5, 5, 0],
+      [11, '8n', 5, 5, 0],
+      [13, '16n', 3, 5, 0],
     ]);
   });
 
@@ -965,10 +1006,10 @@ describe('generateMelodyForRobot — rhythmRand', () => {
       [3, '8n', 5, 3, 0],
       [6, '16n', 1, 3, 1],
       [7, '16n', 5, 3, 1],
-      [10, '16n', 3, 5, 0],
-      [11, '8n', 5, 5, 1],
-      [14, '16n', 1, 5, 0],
-      [15, '8n', 5, 5, 1],
+      [10, '16n', 3, 4, 0],
+      [11, '8n', 5, 4, 1],
+      [14, '16n', 1, 4, 0],
+      [15, '8n', 5, 4, 1],
     ]);
   });
 });
