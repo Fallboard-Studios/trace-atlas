@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MAX_POLYPHONY, MIN_LEAD } from '../constants';
+import { MAX_POLYPHONY, MIN_LEAD, STATION_FADE_RECOVER_SECONDS } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
@@ -332,6 +332,10 @@ import { robotSendLevels } from '../data/robotSends';
 /** Shared placeholder ADSR for tests that don't care about specific envelope values —
  * reserveVoice's adsr parameter is required (Roadmap Phase 9), so every call needs one. */
 const TEST_ADSR = { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.5 };
+
+/** The activity a test robot rests in for its docking state: in its station ('charging') when Docked or Undocking, out
+ *  at work otherwise. The dock's silence begins in the station (backlog 84), so a fixture names where the robot is. */
+const restingActivity = (docking: string): string => (docking === 'docked' || docking === 'undocking' ? 'charging' : 'transit');
 
 describe('AudioEngine.reReserveVoice', () => {
   afterEach(() => {
@@ -1452,7 +1456,7 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
   // The dock mutes through the docking state, not audioMode, and a Solo beats it (Crawford, 2026-11-11).
   describe('the dock mutes on its own; Solo beats it', () => {
     const robotAt = (id: string, audioMode: string, docking: string) => ({
-      id, audioMode, docking, audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
+      id, audioMode, docking, activity: restingActivity(docking),audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
       masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
     });
 
@@ -1485,6 +1489,21 @@ describe('AudioEngine - audioMode enforcement (solo/mute/highlight)', () => {
       expect(undocking).toBeUndefined();
       expect(active).toBeDefined();
       expect(recalled).toBeDefined();
+    });
+
+    // Backlog 84 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3): the dock's silence begins when the robot is in its
+    // station ('charging'), not at the battery's Docked landing, which comes while it is still swimming home.
+    it('a Docked robot on its way home triggers; a Docked or Undocking one that is charging does not', async () => {
+      const at = (id: string, docking: string, activity: string) => ({ ...robotAt(id, 'none', docking), activity });
+      const [returning, entering, charging, undockingCharging, active] = await velocities(
+        [at('r', 'docked', 'returning'), at('e', 'docked', 'entering'), at('c', 'docked', 'charging'), at('u', 'undocking', 'charging'), at('a', 'active', 'transit')],
+        [{ robotId: 'r', note: 'C9' }, { robotId: 'e', note: 'D9' }, { robotId: 'c', note: 'E9' }, { robotId: 'u', note: 'F9' }, { robotId: 'a', note: 'G9' }],
+      );
+      expect(returning).toBe(0.8);
+      expect(entering).toBe(0.8);
+      expect(charging).toBeUndefined();
+      expect(undockingCharging).toBeUndefined();
+      expect(active).toBe(0.8);
     });
 
     it('a soloed robot in the station is heard, and the robots out of it are silenced by its solo', async () => {
@@ -2430,6 +2449,477 @@ describe('AudioEngine.setHighlightedRobots — the Highlight dip is one bus-gain
 
     expect(() => AudioEngine.setHighlightedRobots(['h'])).not.toThrow();
     expect(gone.gain.rampTo).not.toHaveBeenCalled();
+  });
+});
+
+// Play until in the Station T7 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): a homebound robot's bus ramps to silence
+// over the fade it was given, and stays silent once the fade has run its course (the fade factor in busGainTarget). The
+// Tone mock's now() is 0, so a fade ending at or before 0 has completed and one ending after 0 is live.
+describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fade', () => {
+  type BusGain = { gain: { value: number; rampTo?: ReturnType<typeof vi.fn> } };
+  const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function reserveWithBus(AudioEngine: any, robotId: string, volume: number): Promise<BusGain> {
+    const Tone = await import('tone');
+    AudioEngine.reserveVoice(robotId, layered, TEST_ADSR, undefined, undefined, undefined, volume);
+    const results = (Tone.Gain as unknown as { mock: { results: { value: BusGain }[] } }).mock.results;
+    return results[results.length - BUS_GAIN_FROM_END].value;
+  }
+
+  /** The initial gain the most recent bus was built at. */
+  async function lastBuiltBusGain(): Promise<unknown> {
+    const Tone = await import('tone');
+    const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return gainCalls[gainCalls.length - BUS_GAIN_FROM_END][0];
+  }
+
+  it('ramps the voice\'s bus to 0 from the given time over the given seconds, not one tick', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const bus = await reserveWithBus(AudioEngine, 'home', 0.55);
+    bus.gain.rampTo = vi.fn();
+
+    tick.seconds = 0.137;
+    try {
+      AudioEngine.scheduleStationFade('home', 3.25, 1.5);
+    } finally {
+      tick.seconds = undefined;
+    }
+
+    expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1.5, 3.25]]);
+  });
+
+  it('touches no other robot\'s bus', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+    await reserveWithBus(AudioEngine, 'home', 0.55);
+    other.gain.rampTo = vi.fn();
+
+    AudioEngine.scheduleStationFade('home', 3.25, 1.5);
+
+    expect(other.gain.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('a robot with no voice is recorded only: no throw, and a voice built after the end comes up at 0', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+
+    expect(() => AudioEngine.scheduleStationFade('voiceless', -2, 1)).not.toThrow();
+    AudioEngine.reserveVoice('voiceless', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    expect(await lastBuiltBusGain()).toBe(0);
+  });
+
+  it('after a completed fade a Volume write keeps the bus at 0, and another robot\'s Volume is untouched', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.updateRobotMasterVolume('home', 0.4);
+    AudioEngine.updateRobotMasterVolume('other', 0.4);
+
+    expect(home.gain.value).toBe(0);
+    expect(other.gain.value).toBe(robotBusGain(0.4));
+  });
+
+  it('the fade has completed at its end exactly (inclusive)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.scheduleStationFade('home', -1, 1); // end = 0 = now
+
+    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    expect(await lastBuiltBusGain()).toBe(0);
+  });
+
+  // Backlog 84, after Checkpoint B: the station fade's arc ends when its audio is heard, not a lookahead early.
+  describe('secondsUntilHeard — from the context clock to a scheduled time leaving the speakers', () => {
+    afterEach(() => {
+      delete (rawContextMock as any).currentTime;
+      delete (rawContextMock as any).outputLatency;
+    });
+
+    it('is the time ahead of the context clock plus the output latency', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      (rawContextMock as any).currentTime = 10;
+      (rawContextMock as any).outputLatency = 0.02;
+      expect(AudioEngine.secondsUntilHeard(10.08)).toBeCloseTo(0.1, 9);
+    });
+
+    it('a time already passed leads by the latency alone, never below it', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      (rawContextMock as any).currentTime = 10;
+      (rawContextMock as any).outputLatency = 0.02;
+      expect(AudioEngine.secondsUntilHeard(9.5)).toBeCloseTo(0.02, 9);
+    });
+
+    it('reads the context clock, not Tone.now() (which runs a lookahead ahead of it)', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      const Tone = await import('tone');
+      vi.mocked(Tone.now).mockImplementation(() => 10.1);
+      try {
+        (rawContextMock as any).currentTime = 10;
+        expect(AudioEngine.secondsUntilHeard(10.08)).toBeCloseTo(0.08, 9);
+      } finally {
+        vi.mocked(Tone.now).mockImplementation(() => 0);
+      }
+    });
+
+    it('with no readable clock (headless), the latency alone, and no throw', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      expect(AudioEngine.secondsUntilHeard(3)).toBe(0);
+    });
+  });
+
+  // Backlog 84, after Checkpoint B: a voice rebuilt mid-fade (a budget admit, a structural edit) used to come up at its
+  // full Volume and never fade, since the factor was 1 until the end. It now starts where the ramp is and carries on.
+  describe('a voice built during a fade carries the fade on', () => {
+    type RampingGain = { gain: { value: number; rampTo: ReturnType<typeof vi.fn> } };
+
+    /** Reserve with every Gain able to ramp (the shared mock's cannot), and hand back the new bus. */
+    async function reserveRamping(AudioEngine: any, robotId: string, volume: number): Promise<RampingGain> {
+      const Tone = await import('tone');
+      const Gain = Tone.Gain as unknown as ReturnType<typeof vi.fn>;
+      const shared = Gain.getMockImplementation(); // the mocked module outlives resetModules: put it back after
+      Gain.mockImplementation((value?: number) => ({
+        connect: vi.fn().mockReturnThis(),
+        disconnect: vi.fn(),
+        toDestination: vi.fn(),
+        gain: { value: value ?? 1, rampTo: vi.fn() },
+      }));
+      try {
+        AudioEngine.reserveVoice(robotId, layered, TEST_ADSR, undefined, undefined, undefined, volume);
+      } finally {
+        Gain.mockImplementation(shared!);
+      }
+      const results = Gain.mock.results as { value: RampingGain }[];
+      return results[results.length - BUS_GAIN_FROM_END].value;
+    }
+
+    it('half-way through: built at half its Volume, ramping to 0 from now by the same end', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -1, 2); // start -1, end 1; Tone.now() is 0
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBeCloseTo(robotBusGain(0.8) * 0.5, 12);
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1, 0]]);
+    });
+
+    it('a quarter of the way: built at three quarters', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -0.5, 2); // end 1.5
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBeCloseTo(robotBusGain(0.8) * 0.75, 12);
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1.5, 0]]);
+    });
+
+    it('before the ramp starts (a fade scheduled ahead, inside the lookahead): built at its Volume, ramping from the start', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', 0.25, 2); // start 0.25, after now
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 2, 0.25]]);
+    });
+
+    it('after the end: built at 0, with no ramp', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -2, 1);
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBe(0);
+      expect(bus.gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('no fade, or a cancelled one: built at its Volume, with no ramp', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const plain = await reserveRamping(AudioEngine, 'plain', 0.8);
+      expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+      expect(plain.gain.rampTo).not.toHaveBeenCalled();
+
+      AudioEngine.scheduleStationFade('home', -1, 2);
+      AudioEngine.cancelStationFade('home');
+      const home = await reserveRamping(AudioEngine, 'home', 0.8);
+      expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+      expect(home.gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('a bus that cannot ramp (the shared stub) is left at its built level, never cut to 0', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -1, 2);
+
+      const bus = await reserveWithBus(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBeCloseTo(robotBusGain(0.8) * 0.5, 12);
+      expect(bus.gain.value).not.toBe(0); // the shared mock keeps 1 whatever it is built at; an assignment would show
+    });
+
+    it('a Volume write after the rebuild keeps fading to the same end (the re-issue, Task 8)', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -1, 2);
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+      bus.gain.rampTo.mockClear();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1, 0]]);
+    });
+  });
+
+  it('the fade outlives a released voice: a voice rebuilt after a completed fade starts at 0', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+
+    AudioEngine.releaseVoice('home');
+    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    expect(await lastBuiltBusGain()).toBe(0);
+  });
+
+  it('the fade still multiplies with the Highlight dip: a completed fade under a live Highlight is 0', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.setHighlightedRobots(['h']);
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.updateRobotMasterVolume('home', 0.4);
+
+    expect(home.gain.value).toBe(0);
+  });
+
+  it('cancelStationFade ramps the bus back to its target over STATION_FADE_RECOVER_SECONDS, from now', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.updateRobotMasterVolume('home', 0.4); // at 0 under the completed fade; the cancel returns to 0.4
+    home.gain.rampTo = vi.fn();
+
+    AudioEngine.cancelStationFade('home');
+
+    // Timed at now, explicitly (the mocked Tone.now() is 0): an untimed ramp inside a Transport callback is what Tone
+    // warns about, and landOnActive's tick stays on "now" by decision (robotSystems.ts startRobotLifecycle).
+    expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), STATION_FADE_RECOVER_SECONDS, 0]]);
+  });
+
+  it('cancelStationFade given a time (a Transport tick\'s) ramps back from that time, over the whole recovery', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    home.gain.rampTo = vi.fn();
+
+    tick.seconds = 0.137; // a tick length is known: the ramp still lasts STATION_FADE_RECOVER_SECONDS, not one tick
+    try {
+      AudioEngine.cancelStationFade('home', 3.5);
+    } finally {
+      tick.seconds = undefined;
+    }
+
+    expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.55), STATION_FADE_RECOVER_SECONDS, 3.5]]);
+  });
+
+  it('the cancel\'s target keeps the Highlight dip on a robot outside the live set', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.setHighlightedRobots(['h']);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    home.gain.rampTo = vi.fn();
+
+    AudioEngine.cancelStationFade('home');
+
+    expect(home.gain.rampTo.mock.calls).toHaveLength(1);
+    expect(home.gain.rampTo.mock.calls[0][0]).toBeCloseTo(robotBusGain(0.55) * HIGHLIGHT_DIP_GAIN, 12);
+    expect(home.gain.rampTo.mock.calls[0].slice(1)).toEqual([STATION_FADE_RECOVER_SECONDS, 0]);
+  });
+
+  it('after a cancel the fade is gone: a Volume write and a rebuilt voice are at their Volume again', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+
+    AudioEngine.cancelStationFade('home');
+    AudioEngine.updateRobotMasterVolume('home', 0.4);
+    expect(home.gain.value).toBe(robotBusGain(0.4));
+
+    AudioEngine.releaseVoice('home');
+    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+  });
+
+  it('cancelStationFade with no fade live writes nothing, and a second cancel writes nothing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    home.gain.rampTo = vi.fn();
+
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.rampTo).not.toHaveBeenCalled();
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.cancelStationFade('home');
+    home.gain.rampTo.mockClear();
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('cancelStationFade on a robot with no voice forgets the fade without throwing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.scheduleStationFade('voiceless', -2, 1);
+
+    expect(() => AudioEngine.cancelStationFade('voiceless')).not.toThrow();
+    AudioEngine.reserveVoice('voiceless', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+  });
+
+  it('killAll forgets every fade: a voice built after it is at its Volume, and a cancel then writes nothing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.scheduleStationFade('other', -2, 1);
+
+    AudioEngine.killAll();
+
+    home.gain.rampTo = vi.fn();
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.rampTo).not.toHaveBeenCalled();
+    AudioEngine.reserveVoice('other', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+  });
+
+  // Task 8 (§1.5): a bus-gain write that lands during the ramp re-issues it from the write's time to the same end, so
+  // no Volume or Highlight write mid-fade raises the bus; the write's Volume is still kept for the cancel.
+  describe('a bus-gain write during the fade re-issues the fade', () => {
+    it('a Volume write mid-fade ramps to 0 ending at the fade\'s end, from now or from its own time', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+      AudioEngine.updateRobotMasterVolume('home', 0.4, 0.5);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 2, 0], [0, 1.5, 0.5]]);
+    });
+
+    it('a Highlight set change mid-fade re-issues the fade on the fading robot, highlighted or dipped', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      const other = await reserveWithBus(AudioEngine, 'other', 0.7);
+      AudioEngine.scheduleStationFade('home', -1, 3); // end 2
+      home.gain.rampTo = vi.fn();
+      other.gain.rampTo = vi.fn();
+
+      AudioEngine.setHighlightedRobots(['other']);
+      AudioEngine.setHighlightedRobots(['home']);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 2, 0], [0, 2, 0]]);
+      expect(other.gain.rampTo.mock.calls).toHaveLength(2);
+      expect(other.gain.rampTo.mock.calls[0]).toEqual([robotBusGain(0.7), 0.15]);
+    });
+
+    it('a timed write that lands at or after the end writes 0, even while now is still before the end', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4, 2);
+      AudioEngine.updateRobotMasterVolume('home', 0.4, 3);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 0.05, 2], [0, 0.05, 3]]);
+    });
+
+    it('after the end a Volume write and a Highlight change both write the faded target, 0', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', -2, 1);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+      AudioEngine.setHighlightedRobots(['h']);
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[0, 0.05], [0, 0.15]]);
+    });
+
+    it('a Volume written mid-fade is the one the cancel returns to', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      AudioEngine.updateRobotMasterVolume('home', 0.3);
+      home.gain.rampTo = vi.fn();
+
+      AudioEngine.cancelStationFade('home');
+
+      expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.3), STATION_FADE_RECOVER_SECONDS, 0]]);
+    });
+
+    it('a robot with no fade is written as before, beside a fading one', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      await reserveWithBus(AudioEngine, 'home', 0.55);
+      const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+      other.gain.rampTo = vi.fn();
+
+      AudioEngine.updateRobotMasterVolume('other', 0.4, 0.5);
+
+      expect(other.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), 0.05, 0.5]]);
+    });
+
+    it('a stub bus mid-fade is assigned 0 by a Volume write, never its Volume', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+      AudioEngine.scheduleStationFade('home', 0, 2);
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+
+      expect(home.gain.value).toBe(0);
+    });
+  });
+
+  it('a stub bus (no rampTo) is assigned 0 by the fade and its target by the cancel', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    expect(home.gain.value).toBe(0);
+
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.value).toBe(robotBusGain(0.55));
   });
 });
 
@@ -7315,7 +7805,7 @@ describe('AudioEngine.pause / resume — the AudioContext suspends and resumes',
 describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
   const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
   const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
-    id, audioMode, docking, audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
+    id, audioMode, docking, activity: restingActivity(docking),audioAttributes: { adsr: { attack: 0.01, decay: 0.1, sustain: 0.8, release: 0.2 }, waveform: 'sine', filterFreq: 100 },
     masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
   });
   type Heard = import('./noteEvents').RobotNoteEvent;
@@ -7534,7 +8024,7 @@ describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
 describe('mayRobotTrigger: the gates before the polyphony cap (note cloud Task 33)', () => {
   const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
   const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
-    id, audioMode, docking, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    id, audioMode, docking, activity: restingActivity(docking),audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
     masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
   });
 
@@ -7620,7 +8110,7 @@ describe('the engine announces a step ahead of its trigger (note cloud Task 34)'
   const LAYER = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }] as any;
   const SIXTEENTH = 0.125;
   const robotAt = (id: string, audioMode = 'none', docking = 'active') => ({
-    id, audioMode, docking, compositionSeed: 0.3, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
+    id, audioMode, docking, activity: restingActivity(docking),compositionSeed: 0.3, audioAttributes: { adsr: TEST_ADSR, waveform: 'sine', filterFreq: 100 },
     masterVolume: 0.8, melody: [], octaveRange: [3, 4], position: { x: 960, y: 0 }, name: '', state: 'idle', direction: 'right',
   });
   const eventAt = (startStep: number, extra: Record<string, unknown> = {}) =>

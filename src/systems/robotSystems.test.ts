@@ -532,6 +532,52 @@ describe('robotSystems', () => {
 
       expect(seam).not.toHaveBeenCalled();
     });
+
+    // Play until in the Station T9 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.2 step 5, §1.5): every Active landing
+    // cancels the robot's station fade, so a robot exiting its station or turning back mid-fade sounds at its regular
+    // volume. The cancel is a no-op with no fade live, so it is called unconditionally.
+    describe('the station fade', () => {
+      it('cancels the robot\'s fade once, with its id, before the seam', () => {
+        const robot = makeRobot({ id: 'homebound', docking: DockingState.Undocking, job: undefined });
+        setupLocaleWithRobots([robot]);
+        const order: string[] = [];
+        const cancel = vi.spyOn(AudioEngine, 'cancelStationFade').mockImplementation(() => { order.push('cancel'); });
+        seam.mockImplementationOnce(() => { order.push('seam'); });
+        try {
+          landOnActive(DEFAULT_LOCALE_ID, robot.id);
+
+          expect(cancel.mock.calls).toEqual([['homebound']]);
+          expect(order).toEqual(['cancel', 'seam']);
+        } finally {
+          cancel.mockRestore();
+        }
+      });
+
+      it('the tick\'s Active landing cancels the fade', () => {
+        const robot = makeRobot({ id: 'exiting', docking: DockingState.Undocking, dockingHoldUntilMeasure: 10, job: undefined });
+        setupLocaleWithRobots([robot]);
+        const cancel = vi.spyOn(AudioEngine, 'cancelStationFade');
+        try {
+          tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+          expect(cancel.mock.calls).toEqual([['exiting']]);
+        } finally {
+          cancel.mockRestore();
+        }
+      });
+
+      it('a robot not in the locale cancels nothing', () => {
+        setupLocaleWithRobots([]);
+        const cancel = vi.spyOn(AudioEngine, 'cancelStationFade');
+        try {
+          landOnActive(DEFAULT_LOCALE_ID, 'ghost');
+
+          expect(cancel).not.toHaveBeenCalled();
+        } finally {
+          cancel.mockRestore();
+        }
+      });
+    });
   });
 
   describe('landOnDocked', () => {
@@ -658,6 +704,24 @@ describe('robotSystems', () => {
 
       expect(seam).not.toHaveBeenCalled();
       expect(getDockCycleCount('ghost-docked')).toBe(0);
+    });
+
+    // Play until in the Station T9 (§1.5): the Docked landing leaves the fade alone (the fade is the homebound robot's
+    // way into the station); nor does the tick's Docked landing cancel one.
+    it('never cancels a station fade, directly or from the tick', () => {
+      const robot = makeRobot({ id: 'landing', docking: DockingState.Recalled, dockingHoldUntilMeasure: 10, batteryLevel: 5 });
+      setupLocaleWithRobots([robot]);
+      const cancel = vi.spyOn(AudioEngine, 'cancelStationFade');
+      try {
+        landOnDocked(DEFAULT_LOCALE_ID, robot.id, robot.melody);
+        setupLocaleWithRobots([robot]);
+        tickRobotLifecycle(DEFAULT_LOCALE_ID, 10);
+
+        expect(useLocaleStore.getState().getRobotById(DEFAULT_LOCALE_ID, robot.id)?.docking).toBe(DockingState.Docked);
+        expect(cancel).not.toHaveBeenCalled();
+      } finally {
+        cancel.mockRestore();
+      }
     });
   });
 

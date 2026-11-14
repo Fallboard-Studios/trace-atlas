@@ -23,11 +23,11 @@ either state machine.
 ## Core Principles
 
 1. **Fixed roster, created once**: every locale spawns exactly `MAX_ROBOTS` (12) robots at load — no dynamic spawn scheduler, no manual spawn action, no removal.
-2. **Two state machines, two clocks**: `Robot.docking` (Docked/Undocking/Active/Recalled) is battery-driven and ticks once per measure. `Robot.activity` (charging/exiting/transit/working/waiting/returning/entering) is the work loop's and runs on wall-clock GSAP time. The docking machine never reads `activity`; the work loop reads `docking` at every decision.
+2. **Two state machines, two clocks**: `Robot.docking` (Docked/Undocking/Active/Recalled) is battery-driven and ticks once per measure. `Robot.activity` (charging/exiting/transit/working/waiting/returning/entering) is the work loop's and runs on wall-clock GSAP time. The docking machine never reads `activity`; the work loop reads `docking` at every decision. One exception, outside both machines: audibility reads whether the robot is in its station from `activity` (rule 6, backlog 84), because the battery lands a robot on `Docked` while it is still swimming home.
 3. **Battery-driven, not job-driven**: every Active robot drains at its own rate, the flat base divided by its seeded battery size, whatever it is doing, and charges the same way (see "Battery size"). The job, the site, the station and the position are live visual state; nothing in the lifecycle reads them.
 4. **Measure-quantized transitions**: every docking change is evaluated once per measure via BeatClock — never `setTimeout`/`setInterval`. This is what makes battery, docking and pitch drift headlessly replayable — see "Deterministic Replay" below.
 5. **One seam to the visuals**: the tick writes docking, battery and melody, then calls `onLifecycleChange(localeId, robotId, to)` for the transitions that have a visual consequence. It never starts a swim, writes a position or picks a job itself.
-6. **The dock mutes; Solo beats it**: a robot in its station (`Docked`, or `Undocking` on its way out) is silent because of its docking state (`isDockMuted` in `src/utils/robotAudibility.ts`), never because of its `audioMode`. `audioMode` is the user's alone (Robot Options' and the company screen's Monitor Mode: Auto, Mute, Solo, Highlight; Auto is `'none'`), and nothing in the lifecycle writes it, so a Solo, Mute or Highlight survives every dock and undock (Crawford, 2026-11-11; until then the landings wrote `'mute'` and `'none'` over it). A soloed robot is heard even in its station; Auto and Highlight never make a docked robot heard. A Highlight counts only while its robot is heard: one in its station, silenced by another robot's Solo, or standing by is not in the live Highlight set the Audio Load budget pushes, so it dips nobody (backlog 81, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). The melody stays registered the whole time, exactly like an `Active` robot's. The `AudioEngine` voice does not: the Audio Load budget stands every muted robot by — muted by the user, or by the dock unless soloed — so the voice is released after its last note and rebuilt when the budget admits the robot again (backlog 67's G1, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). The rule is enforced at the note trigger (`isRobotAudible` in `triggerWithCap`).
+6. **The dock mutes; Solo beats it**: a robot in its station (`Docked`, or `Undocking` on its way out, and `'charging'`) is silent because of where it is (`isDockMuted(docking, activity)` in `src/utils/robotAudibility.ts`), never because of its `audioMode`. The silence begins at `'charging'`, not at the `Docked` landing: a recalled robot is heard all the way home, through the swim and its station fade, and a `Docked` robot that is `'returning'` or `'entering'` still sounds (backlog 84, [specs/PLAY_UNTIL_IN_THE_STATION.md](specs/PLAY_UNTIL_IN_THE_STATION.md) §1.3; `activity` is a required parameter, so no reader can leave it out). `audioMode` is the user's alone (Robot Options' and the company screen's Monitor Mode: Auto, Mute, Solo, Highlight; Auto is `'none'`), and nothing in the lifecycle writes it, so a Solo, Mute or Highlight survives every dock and undock (Crawford, 2026-11-11; until then the landings wrote `'mute'` and `'none'` over it). A soloed robot is heard even in its station; Auto and Highlight never make a robot in its station heard. A Highlight counts only while its robot is heard: one in its station, silenced by another robot's Solo, or standing by is not in the live Highlight set the Audio Load budget pushes, so it dips nobody (backlog 81, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). The melody stays registered the whole time, exactly like an `Active` robot's. The `AudioEngine` voice does not: the Audio Load budget stands every muted robot by — muted by the user, or by the dock unless soloed — so the voice is released after its last note and rebuilt when the budget admits the robot again (backlog 67's G1, [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). The rule is enforced at the note trigger (`isRobotAudible` in `triggerWithCap`).
 7. **Animation never touches audio**: every work-loop timeline callback calls only work-loop functions or store writes, never `AudioEngine` (the Strict Separation guardrail). Animation speed doesn't follow the music, except that a job's length is read from the tempo when it starts (`jobDuration(bpm)`).
 8. **A pause freezes measures; the day runs**: the power rocker pauses the world rather than tearing it down (`docs/specs/OFF_SCREEN.md` assumption 5; [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause)). The AudioContext is suspended, so the measure tick, and with it battery drain and recharge, the transition hold, pitch drift and the harmony, stop where they are and continue from there on resume — a replay by elapsed measures is unaffected, since no measure elapsed. The work loop's clock is shifted by the paused span and its `'world'` timelines are paused in place, so every robot is where it was and every site cooldown means what it did. The in-world day is wall clock (`DAY_DURATION_MS` from `dayStartTimestamp`) and is never gated: the light moves on while the tablet is off, and a world resumed after ten minutes resumes into a later hour.
 
@@ -154,7 +154,7 @@ reads `docking`:
 | `'working'` | Its job timeline: bob, orbiters detach, work, reattach | the timeline ends → release → `next()` |
 | `'waiting'` | No ready site: one finite bob of `WAIT_RETRY_SECONDS` (2 s) | the bob ends → `next()` |
 | `'returning'` | Swimming to a station port, its slot reserved | arrival → `'entering'` |
-| `'entering'` | The entry arc: vanishing into the port | the arc ends → `'charging'` (or `'exiting'`, see "Turn-back") |
+| `'entering'` | At the port, still playing: a hold of under half a measure, then the entry arc over the station fade, ending on the bar line (see "Charging Stations") | the arc ends → `'charging'`; the seam's `'active'` turns it back (see "Turn-back") |
 
 A robot appears and disappears only at a station port. There's no off-screen spot any more.
 
@@ -173,7 +173,7 @@ allowed (Strict Separation forbids the reverse: GSAP callbacks calling `AudioEng
 | `to` | What the work loop does |
 |---|---|
 | `'recalled'` | In `'transit'` or `'waiting'`: the swim or bob is killed, the site released with no cooldown, and the robot heads home now. In `'working'` or `'exiting'`: nothing — the leg finishes and its `next()` sends the robot home. |
-| `'active'` | In `'charging'`: it exits. In `'returning'`: the swim home is killed and it goes back to work (turn-back). In `'entering'`: nothing — the arc finishes, then turns it back at the port. |
+| `'active'` | In `'charging'`: it exits. In `'returning'`: the swim home is killed and it goes back to work (turn-back). In `'entering'`: it turns back at the port — at once while it holds there, else the entry arc reverses from where it is and the robot goes back to work when the reverse ends (`turnBackAtPort`). |
 | `'docked'` | Nothing. The robot is already returning, entering or charging, and the entry ends in `'charging'` on its own. |
 
 ## The Work Loop
@@ -263,16 +263,26 @@ and the art are in [BUILDING_DESIGN.md](BUILDING_DESIGN.md#robot-jobs--hosts-wor
   below capacity, ties to the earlier station. The slot is reserved by writing `stationId` and
   `'returning'`, and frees itself when the activity changes. Every station full can't happen with
   12 robots; if it ever did, the robot would wait and ask again.
-- **Entering** (`'entering'`), the robot vanishes into the port over `STATION_ARC_SECONDS` (1 s):
-  scale 1 → `STATION_PORT_SCALE` (0.15) and opacity 1 → 0. Its halo ripple runs inward and the
-  station's ripple (`playStationRipple`) plays beside it. It is then `'charging'`: hidden, `visibility: hidden`, out of
-  the raster.
+- **Entering** (`'entering'`, backlog 84): on arrival the robot **holds** at the port, visible at full
+  size and still playing, its slot held. The station fade system
+  ([`stationFadeSystem.ts`](../src/systems/stationFadeSystem.ts)), a `'16n'` repeat started and stopped
+  with the work loop, decides on the next sixteenth: with `STATION_FADE_MIN_STEPS` (8, half a measure,
+  inclusive) or more sixteenths left to the bar line, the robot goes in at once; with fewer, it holds
+  until the bar-line tick and takes the whole next measure. Either way the system starts the robot's
+  volume ramp to 0 (`AudioEngine.scheduleStationFade`, none for a soloed robot) and the entry arc
+  (`enterOnBar(robotId, seconds)`) over the same seconds plus the lead until the tick's audio is heard
+  (`AudioEngine.secondsUntilHeard`), so the body is gone when the ramp is heard to end on the bar line. The arc vanishes
+  the robot into the port: scale 1 → `STATION_PORT_SCALE` (0.15) and opacity 1 → 0, its halo ripple
+  running inward and the station's ripple (`playStationRipple`) beside it, all over the fade's length
+  (half a measure to a whole one). It is then `'charging'`: hidden, `visibility: hidden`, out of the
+  raster, and dock-muted.
 - **Exiting** (`'exiting'`), the reverse: it appears at the port (scale 0.15 → 1, opacity 0 → 1),
   ripples outward, then `next()`. A robot exits through the station it last entered, in the back
   robot row (J4): hidden, moved there, then the arc plays between the station's back plate and the
   rest of it, ending at the row's 0.75.
-- **Reduced motion**: both arcs are a `STATION_REDUCED_ARC_SECONDS` (0.3 s) fade in place, with no
-  scale and no station ripple.
+- **Reduced motion**: both arcs are a fade in place, with no scale and no station ripple: the exit
+  over `STATION_REDUCED_ARC_SECONDS` (0.3 s), the entry over the station fade's whole length (a fade
+  is not a motion; spec assumption A4).
 - **Slot lights** are the occupancy display: a station lights one slot per robot with its
   `stationId` and activity `'charging'`, in the robot's identity colour, back to front in roster
   order. The selector key is `chargingColorsKey` (`stationOccupancy.ts`), so only a change to that
@@ -286,7 +296,7 @@ The measure tick recalls a robot (`'recalled'`). What happens depends on what it
 
 - **Working**: the job runs to its full length (the orbiters reattach and the bob ends at rest),
   then the job's own `next()` sees `docking` isn't Active and sends it home. The site gets its
-  normal cooldown. It is muted from the tick, so it may finish silently.
+  normal cooldown. It is heard throughout, and on the swim home, until it is in its station (rule 6).
 - **In transit or waiting**: the swim or bob is killed and the robot heads home at once. It never
   worked at the site it held, so the site is released with **no cooldown** (`readyAt = now`).
 - **Exiting**: the arc finishes, and its `next()` sends it straight back.
@@ -299,9 +309,12 @@ If a robot lands on `Active` again before it is inside its station, it turns bac
 
 - **Returning**: the swim home is killed and the robot decides again from where its body is. The
   slot frees with the activity.
-- **Entering**: killing the arc mid-way would pop the robot back to full size, so the arc
-  finishes. Its end sees `docking` Active and plays the exit arc from where the entry left it.
-  The robot never becomes `'charging'`.
+- **Entering** (`turnBackAtPort`, backlog 84): holding at the port, it goes back to work at once.
+  Mid-arc, the arc's `'charging'` end is unhooked and the arc reverses from where it is, so the robot
+  grows back the way it went; when the reverse reaches its start, the reversed arc is killed and the
+  robot goes back to work. The robot never becomes `'charging'`. Its volume comes back on its own:
+  `landOnActive` cancels the station fade (see "Landing Effects"). The arc's own end keeps an
+  `Active` guard (exit again) for a landing that skipped the seam.
 
 **A turn-back can't happen on its own.** From a critical recall back to Active takes at least 16
 measures (the smallest battery, size 0.67: the hold, 14 measures of recharge, and the undocking
@@ -397,7 +410,10 @@ these rows, so a change that moves them has to say so.
 **`landOnActive(localeId, robotId)`** — called when an `Undocking` robot's hold elapses:
 1. Sets `docking: Active` and clears `dockingHoldUntilMeasure`. Leaving the station unmutes it; its
    `audioMode` is the user's and is left alone.
-2. Calls `onLifecycleChange(localeId, robotId, 'active')`.
+2. Calls `AudioEngine.cancelStationFade(robotId)` (backlog 84): a robot turning back mid-fade, or
+   exiting after one, sounds at its regular volume again, its bus ramping back over
+   `STATION_FADE_RECOVER_SECONDS` (0.5 s). A no-op with no fade recorded. `landOnDocked` does not call it.
+3. Calls `onLifecycleChange(localeId, robotId, 'active')`.
 
 Voice reservation and melody registration are **not** done here — every robot gets both once, at
 spawn (`spawnSystem.ts`'s `spawnRobot`), regardless of docking state, and they stay put across
@@ -583,7 +599,7 @@ locale load:
 
 ## Audibility and the Audio Load Budget
 
-Whether a robot is *heard* is now two independent things. **Eligibility** (`isRobotAudible` in `src/utils/robotAudibility.ts`) reads the user's `audioMode` and the robot's docking: Mute always silences; under any Solo only the soloed robots are heard, in their station or not; otherwise a robot in its station is silent (rule 6). **The Audio Load budget** ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)) then caps how many *eligible* robots may sound at once (2–12 by the Robot Load slider; all 12 at Full — the separate Effects Load slider doesn't affect this cap): `audioBudgetSystem` admits them first come, first served, ranked Solo, then Highlight, then Auto, and one that is eligible but over the cap **stands by** — silent, its card's mode light dim, otherwise unchanged.
+Whether a robot is *heard* is now two independent things. **Eligibility** (`isRobotAudible` in `src/utils/robotAudibility.ts`) reads the user's `audioMode`, the robot's docking and its `activity`: Mute always silences; under any Solo only the soloed robots are heard, in their station or not; otherwise a robot in its station (`Docked` or `Undocking`, and `'charging'`) is silent (rule 6). On the way in, the volume does not cut at `'charging'`: the station fade system ramps the robot's bus to 0 over the entry arc, ending on the bar line where `'charging'` is written (see "Charging Stations"; the engine's side is [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). A homebound `Docked` robot keeps its budget slot and its voice until `'charging'`; only then is it stood by. **The Audio Load budget** ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)) then caps how many *eligible* robots may sound at once (2–12 by the Robot Load slider; all 12 at Full — the separate Effects Load slider doesn't affect this cap): `audioBudgetSystem` admits them first come, first served, ranked Solo, then Highlight, then Auto, and one that is eligible but over the cap **stands by** — silent, its card's mode light dim, otherwise unchanged.
 
 Standing-by robots keep the whole lifecycle: they work, drain, dock, recharge, drift pitch and keep their registered melody. Only the sound stops: the note trigger is gated (`triggerWithCap`), and the voice is released after the last note and rebuilt on admission ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget)). So the battery cycle is what supplies the turnover — a robot docking frees its slot for the earliest waiter within a measure or two. An explicit unmute of a robot when the set is full does not jump the queue (its light stays dim until a slot frees); a soloed robot evicts the newest Auto robot, else the newest Highlight, and waits only when every slot holds a Solo; a highlighted robot evicts the newest Auto robot only. The lifecycle code itself is untouched — the budget system only reads `audioMode` and `docking` through a signature and writes nothing back to a robot.
 
@@ -597,7 +613,8 @@ The robot's cards show its own Monitor Mode, never an audibility word ([specs/MO
 `startLocaleSystems` — the START half of `initializeLocale`, run when its `startSystems` option is
 true and by `powerController.powerOnSequence()` for a world built while the tablet was off — calls
 `stopRobotLifecycle(); startRobotLifecycle(localeId);`, then `stopWorkLoop(); startWorkLoop(localeId);`,
-then the swells' pair, unconditionally, and writes the world state `'running'`. The unconditional
+then the station fade system's pair (`stopStationFades(); startStationFades(localeId);`, backlog 84), then the swells'
+pair, unconditionally, and writes the world state `'running'`. The unconditional
 stop first is what lets a repeat start (a second cold start, a retransmit) re-subscribe: without
 `stopRobotLifecycle()` nulling the module's `lifecycleUnsubscribe` reference, a later
 `startRobotLifecycle()` would see it as "already running" and never resubscribe.
@@ -606,6 +623,9 @@ stop first is what lets a repeat start (a second cold start, a retransmit) re-su
 states are in [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause)). `powerController.pause()` freezes
 the work loop's clock, pauses every `'world'` timeline and suspends the AudioContext; the lifecycle
 subscription stands with its tick frozen, no timeline is killed, no site is released, no voice goes.
+A station fade pauses with the context (its ramp is automation on the context's clock), and its arc
+with the world timelines, which `resumeWorldTimelines` resumes in the direction each was going, so a
+turn-back's reversed arc carries on backwards (spec assumption A5).
 `resume()` undoes it in reverse, and the measure tick continues from the measure it was in.
 `AudioEngine.killAll()` is no longer called by anything in the app. A world **change** is the teardown:
 `removeLocale` releases each robot's voice, `initializeLocale(..., { startSystems: isPoweredOn })`
@@ -654,6 +674,13 @@ robots silent afterward.
   on `scale`.
 - **The station ignores daylight**: the robots dim at night, the station doesn't. No spec rule asks
   for it.
+- **The station fade after a power cycle** (backlog 84; figures in
+  [tasks/PLAY_UNTIL_IN_THE_STATION.md](tasks/PLAY_UNTIL_IN_THE_STATION.md#checkpoint-b--gate-crawfords-eye-and-ear-spec-54-stop)):
+  the world timelines resume before the context clock runs again, so the entry arc gets ahead of
+  its fade (0.1–0.3 s, measured headless). The arc already runs on past the fade's end by the lead
+  from the context clock to the tick's time plus the output latency (`AudioEngine.secondsUntilHeard`),
+  which covers a small skew; a larger one writes `'charging'` early, so a quiet last note (8–16% of
+  the robot's level) is skipped. The order is `powerOnSequence`'s, not this feature's alone.
 
 ## Testing Notes
 
@@ -669,7 +696,8 @@ cover:
 - `stepRobotLifecycle`/`replayLifecycle` (the injected `DrainRule`, pitch drift matching the live seed formula, no cross-robot seed collision, compounding drift, the no-op case, `fromMeasure` excluded) and the prove-it test: a real 12-robot roster, every robot a different battery size, run for N real ticks and separately replayed, asserted identical field for field, through a stay and its relief, with a drained battery that never floored, charged ones that never capped and fractional ones (mutation-checked against the pre-drift melody, a job surcharge, a snapshot without the size and a store that truncates)
 - the work loop: one robot per site, the cooldown, the job sticking until no ready site hosts it, recall in each activity, both turn-backs, adoption on mount and on start, settling, the body-less timelines, stop finishing a job silently, and callbacks that never touch `AudioEngine` (spy); every mutant run in Tasks 22–24 is killed
 - the two robot rows (J4; plus `layerSwitch.test.ts` and `midgroundSilhouettes.test.tsx`): front → back and back → front legs, the switch point's clear run, the skip with no switch point, the 0.75 row scale, the dissolve copy in both directions and every interruption of it (stop, recall, a dropped leg's re-mount, an overlapping fade), exits into the back row, and `stations.test.ts`' guards that no station box or exiting robot overlaps a midground silhouette (0 of 284 over the grid). The J1–J3 loop tests run with `backHosts: false`
-- the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case)
+- the real tick into the real loop at 20/110/200 BPM: exit → transit → working → recall → the job finishes at full length → returning → entering → charging (hidden, slot lit) → undock → exit → working, plus the two hidden-tab turn-backs at 200 BPM (removing the returning turn-back fails that case; the entering one now turns back from the port with no `'exiting'` and no `'charging'`). Since backlog 84 the integration test runs the real station fade system: a partial `beatClock` mock captures its `'16n'` callback and the simulated Transport runs it at every sixteenth it crosses, the lifecycle tick first on a bar line
+- the station fade (backlog 84): `stationFadeSystem.test.ts` (the half-measure rule at steps 1, 5, 9 and 10–16, the fade and the arc started once per entry with the same seconds, the tick's own length, Solo getting the arc only and a Solo mid-fade cancelled once, a re-entry started again, the edges with no position or tick length, stop and restart; mutants at the boundary, a fade every tick, the Solo check and the set never cleared all killed); `workLoop.test.ts` (`enterOnBar` over the given seconds with the halo, the ripple and reduced motion, its no-op cases including a finished earlier arc not counting as running; the hold at the port; the turn-back in the hold and mid-arc, a power-off during the reverse, a re-recall during it; the `AudioEngine` pin through a hold, an `enterOnBar` and a charge); `robotAudibility.test.ts` and the budget's tests for the silence beginning at `'charging'`; `robotSystems.test.ts` for `landOnActive`'s cancel
 - `spawnInitialRoster`'s active/docked split, seeded battery variation, every robot's battery size inside the band and filling it evenly (mutation-checked: a plain draw), determinism, every robot at its station's port with the right `activity`, one store write, and every robot (Docked included) holding a reserved voice/registered melody, every one with `audioMode: 'none'`
 - `startRobotLifecycle`/`stopRobotLifecycle` and `startWorkLoop`/`stopWorkLoop` idempotency; `pauseWorkLoop`/`resumeWorkLoop` (a cooldown stamped before a pause is unexpired after it, two pauses accumulate, a start resets); `powerController.test.ts`'s pause and resume orders, the cold path, `markHeardWorld` once, and the fade awaited before either path
 - `types/Robot.test.ts`: the deleted files are gone and no file in `src/` names a deleted identifier (below)

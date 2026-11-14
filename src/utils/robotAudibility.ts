@@ -1,12 +1,17 @@
-import { DockingState, type Robot } from '@/types/Robot';
+import { DockingState, type Robot, type RobotActivity } from '@/types/Robot';
 
 /**
  * The dock's own mute: a robot in the station — Docked, or Undocking on its way out — is silent whatever its
  * audioMode, which stays the user's alone (Crawford, 2026-11-11: the dock used to write `audioMode` itself, which
  * overwrote a Solo, Mute or Highlight at every landing). A Recalled robot is still heard on its way home.
+ *
+ * "In the station" is read from the work loop's `activity` too (backlog 84, docs/specs/PLAY_UNTIL_IN_THE_STATION.md
+ * §1.3): the battery lands a robot on Docked while it is still swimming home, so a Docked robot that is `'returning'`
+ * or `'entering'` is heard; the silence begins at `'charging'`. `activity` is required so no reader can leave it out;
+ * an undefined one (a robot not yet in the store) is not in the station, as an undefined `docking` is not.
  */
-export function isDockMuted(docking: DockingState | undefined): boolean {
-  return docking === DockingState.Docked || docking === DockingState.Undocking;
+export function isDockMuted(docking: DockingState | undefined, activity: RobotActivity | undefined): boolean {
+  return (docking === DockingState.Docked || docking === DockingState.Undocking) && activity === 'charging';
 }
 
 /**
@@ -27,18 +32,30 @@ export function isDockMuted(docking: DockingState | undefined): boolean {
  * selector — a primitive Zustand can bail out on with its own default equality check, unlike an
  * array reference that changes every tick regardless of whether solo state itself changed).
  */
-export function isRobotAudible(audioMode: Robot['audioMode'], anySolo: boolean, docking: DockingState | undefined): boolean {
+export function isRobotAudible(
+  audioMode: Robot['audioMode'],
+  anySolo: boolean,
+  docking: DockingState | undefined,
+  activity: RobotActivity | undefined,
+): boolean {
   if (audioMode === 'mute') return false;
   if (anySolo) return audioMode === 'solo';
-  return !isDockMuted(docking);
+  return !isDockMuted(docking, activity);
 }
 
 /**
  * True while a robot is heard right now: audible by the mute/solo/dock rule AND in the Audio Load budget's sounding
  * set (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.5). The Deck's "n of m" counts it; the mode light is lit by it.
+ * `activity` comes last (after the required `isSounding`), passed through to `isDockMuted`.
  */
-export function isRobotEmitting(audioMode: Robot['audioMode'], anySolo: boolean, docking: DockingState | undefined, isSounding: boolean): boolean {
-  return isRobotAudible(audioMode, anySolo, docking) && isSounding;
+export function isRobotEmitting(
+  audioMode: Robot['audioMode'],
+  anySolo: boolean,
+  docking: DockingState | undefined,
+  isSounding: boolean,
+  activity: RobotActivity | undefined,
+): boolean {
+  return isRobotAudible(audioMode, anySolo, docking, activity) && isSounding;
 }
 
 /**

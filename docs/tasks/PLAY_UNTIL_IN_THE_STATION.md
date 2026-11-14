@@ -1,0 +1,765 @@
+# Implementation Plan: Play until in the Station
+
+Source spec: [docs/specs/PLAY_UNTIL_IN_THE_STATION.md](../specs/PLAY_UNTIL_IN_THE_STATION.md). Source intent:
+[docs/intent/play-until-in-the-station.md](../intent/play-until-in-the-station.md). Backlog slot:
+[84](../todo/backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station), first item of plan.md Stage 4.
+
+**Status:** plan written 2026-11-14 from the spec, with every §7.1 assumption at its default and §7.2 Q1–Q2 open for
+the gate; revised the same day for Crawford's answer 4 (the hold only when less than half a measure is left; otherwise
+the fade starts at once and ends on the bar line), which resolved Q3 and moved the fade system to the sixteenth grid.
+Phases 1 and 2 (Tasks 1–9) built 2026-11-14; Checkpoint A and the engine's-fade checkpoint passed with Crawford the same
+day. Phase 3 (Tasks 10–13) built 2026-11-14, with two fixes beyond the plan (Phase 3 as built, below). With Crawford
+remote, Checkpoint B's measurable parts were probed headless and recorded under it, and Tasks 14–16 (docs) were
+written ahead of the gate (their "Manual review" boxes are his). Checkpoint B passed with Crawford the same day, and
+his three fixes are built and re-measured (under Checkpoint B). Task 17 done and Checkpoint: Complete ticked the same
+day. Next: Crawford's PR; Task 18 after the merge.
+
+## Overview
+
+A recalled robot is heard all the way home; at the port its fade to silence starts at once and ends on the bar line,
+its entry arc stretched to the same length, unless less than half a measure is left, when it holds for the bar and
+takes the whole next measure. Eighteen tasks in five phases, each phase leaving the app working:
+
+1. **The silence begins in the station** (Tasks 1–5): `isDockMuted` gains the `'charging'` condition behind an optional
+   parameter, each caller passes `activity` in turn, then the parameter is made required. After this phase a recalled
+   robot plays through its whole swim and its one-second arc, and cuts at `'charging'`. Then an ear checkpoint.
+2. **The engine's fade** (Tasks 6–9): a timed ramp helper, `scheduleStationFade` / `cancelStationFade` with the fade
+   factor in `busGainTarget`, the mid-ramp re-issue, and `landOnActive`'s cancel. Nothing calls the fade yet.
+3. **The port, the grid and the stretched arc** (Tasks 10–13): `stationArc` takes a duration and `enterOnBar` is
+   exported; the station fade system runs on a `'16n'` repeat and applies the half-measure rule; then `enter` stops
+   starting the arc; then the turn-back resumes or reverses. Then Crawford's gate (spec §5.4), with two reserved follow-ups.
+4. **Docs** (Tasks 14–17).
+5. **The records** (Task 18), after the merge.
+
+## Architecture Decisions
+
+- **The `activity` parameter is optional first, required last (Tasks 1 → 5).** An absent `activity` reads as "in the
+  station" (`undefined` behaves like `'charging'`), so a caller not yet updated keeps today's rule exactly and every
+  task's suite is green with no half-state. Task 5 removes the `undefined` branch once the five callers (Tasks 2–4)
+  pass it. The alternative, one task touching eight files, is over the template's limit.
+- **The timed ramp is a sibling of `rampOrSet`, not a change to it** (spec §4's note). `rampOrSet(param, target,
+seconds, time)` ramps over **one tick** from `time`, which its swell callers need. Task 6 adds `rampOver(param,
+target, seconds, time)` in `voiceEntry.ts`: `rampTo(target, seconds, time)` when the param can ramp, else
+  `setValueAtTime`, else assign, so the headless stub path is the same as every other write.
+- **The fade factor reads the fade's end against the engine's `now`.** `busGainTarget(robotId, masterVolume)` multiplies
+  by 0 once `Tone.now() >= stationFades.get(robotId).end`. In tests the Tone mock's `now` is what it already is for the
+  other timed writes; the tests set a fade with an `end` in the past or the future rather than advancing a clock.
+- **The station fade system is started from `worldTransition.ts` beside `startWorkLoop` / `stopWorkLoop`** (lines
+  164–165 and 183), not from inside the loop: the system imports both the engine and the loop, and the loop must never
+  import the engine (its Strict Separation pin). `audioSwells.ts`'s `startAudioSwells` / `stopAudioSwells` is the shape
+  (a `scheduleRepeat` id kept in module state, `cancelSchedule` on stop).
+- **The system runs on the sixteenth grid, as the swells do** (spec §1.4, Crawford's answer 4): `scheduleRepeat('16n',
+onTick)`, `positionAt(time).step` for the sixteenths left to the bar, `getTickSeconds(time)` for their length. A `'1m'`
+  repeat could not start a fade on arrival; a store subscription to `'entering'` would act from a chain that begins in
+  a GSAP callback. The tick is the actor, and it costs one roster scan per sixteenth, which the swells already pay.
+- **The half-measure rule is one constant and one comparison.** `STATION_FADE_MIN_STEPS = 8` in `constants/index.ts`
+  beside the station constants; `left = BEATS_PER_MEASURE * 4 − (step − 1)`; `left >= STATION_FADE_MIN_STEPS` starts the
+  fade now over `left` sixteenths, else the robot waits for the step-1 tick (`left = 16`). Inclusive at 8 (spec §7.1 A3).
+- **The system, not the engine, remembers which robots it has started.** A module-level `started: Set<string>`; on each
+  tick an id whose robot is no longer `'entering'` is dropped, and an `'entering'` robot not in the set is started when
+  the rule allows (`scheduleStationFade` unless soloed, then `enterOnBar`). The engine's `stationFades` is the audio
+  record; the system's set is the scheduling record. Neither is in Zustand.
+- **A Solo that arrives mid-fade is cancelled on the next tick** (spec §1.5's "the plan pins the seam"): `onTick` also
+  calls `cancelStationFade` for a started robot that is now soloed. Within a sixteenth, which the grid gives for free;
+  no store subscription.
+- **The port change lands after the fade system (Task 12 after Task 11).** With `enter` still starting the arc at once
+  (today's code), Task 11's `enterOnBar` is a no-op in the app (an arc is already running) and its fade ramps under a
+  one-second arc that ends in `'charging'` anyway, so the app works between the two tasks. Were Task 12 first, every
+  homebound robot would stand at its port for ever until the system existed.
+- **"An arc is running" is `getTimeline(`station-${id}`)` being set**, the same key `stopWorkLoop` kills and
+  `stationRipple.ts` names; no new flag on the loop or the robot.
+- **A fade's seconds are `left × getTickSeconds(time)`** in the fade system, read from the callback's own time at the
+  tick that starts it, so a tempo change reaches the next fade (the swells' convention).
+- **The reversed arc resumes the robot from the reverse's `onReverseComplete`**, the timeline's own callback, and the
+  original `onComplete` (the `'charging'` write) is cleared first so a reversed arc never writes `'charging'`. The
+  volume's return is the engine's alone (`landOnActive` → `cancelStationFade`, Task 9), already in place before the
+  loop's reverse exists.
+
+## Dependency Graph
+
+```
+Task 1 (isDockMuted + optional activity)
+   │
+   ├── Task 2 (trigger + diagnostics pass activity)
+   ├── Task 3 (budget: eligibility, mutedIds, key)
+   └── Task 4 (useRobotMeta, MetaBox pass activity)
+            │
+       Task 5 (activity required; Robot.ts comment)
+            │
+      Checkpoint A (ear: the swim is heard)
+
+Task 6 (rampOver)
+   │
+Task 7 (scheduleStationFade / cancelStationFade / factor / killAll)
+   ├── Task 8 (mid-ramp re-issue)
+   └── Task 9 (landOnActive cancels)
+
+Task 10 (stationArc duration; enterOnBar)
+   │
+Task 11 (stationFadeSystem — needs 7 + 10)
+   │
+Task 12 (enter holds)
+   │
+Task 13 (turn-back: resume or reverse)
+   │
+Checkpoint B / Gate (Crawford, spec §5.4) ── Task 13a, 13b reserved
+   │
+Tasks 14–17 (docs) ── Task 18 (records, after the merge)
+```
+
+Tasks 1–5, 6–9 and 10 are independent of one another and can be built in any interleaving; Task 11 needs 7 and 10.
+
+## Task List
+
+Every task names its **Proof**: **RED test** for a behaviour change, **Look** or **Listen** for a visual or audible
+check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts` in its Files.
+
+### Phase 1: The silence begins in the station (spec §1.3)
+
+- [x] **Task 1: `robotAudibility.ts` — `isDockMuted(docking, activity?)`**
+
+  **Description:** `isDockMuted` takes a second, optional `activity: RobotActivity | undefined` and is true only when the
+  robot is `Docked` or `Undocking` **and** `activity` is `'charging'` or `undefined` (Architecture Decisions: optional
+  first). `isRobotAudible(audioMode, anySolo, docking, activity?)` and `isRobotEmitting(…, activity?, isSounding)` pass
+  it through; the plan pins the argument order so Tasks 2–4 are mechanical. No caller changes in this task; every
+  existing call compiles and behaves as today.
+
+  **Proof:** RED test — `src/utils/robotAudibility.test.ts`: `isDockMuted(Docked, 'returning')` and `(Docked,
+'entering')` are false; `(Docked, 'charging')`, `(Undocking, 'charging')` and `(Docked, undefined)` are true; the
+  pass-through in `isRobotAudible` / `isRobotEmitting`.
+
+  **Acceptance criteria:**
+  - [x] A `Docked` robot that is `'returning'` or `'entering'` is not dock-muted; one that is `'charging'` is.
+  - [x] Mute still wins and Solo still beats the dock, with `activity` given or not (the existing tests pass unmodified).
+  - [x] Mutant: the `activity` condition dropped (today's rule) fails the new tests.
+
+  **Verification:**
+  - [x] `npx vitest run src/utils/robotAudibility.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** None.
+
+  **Files:** `src/utils/robotAudibility.ts`, `src/utils/robotAudibility.test.ts`
+
+  **Estimated scope:** S (one module and its test)
+
+- [x] **Task 2: `AudioEngine.ts`, `audioDiagnostics.ts` — the trigger and the diagnostics pass `activity`**
+
+  **Description:** `triggerWithCap` (~line 601) passes `robotFromStore?.activity`; `audioDiagnostics.ts` line 176 passes
+  `r.activity`. From this task a `Docked` robot still on its way home triggers its notes.
+
+  **Proof:** RED test — `src/engine/AudioEngine.test.ts`: a `Docked` + `'returning'` robot's note is triggered; a
+  `Docked` + `'charging'` robot's is refused; an `Active` robot's is triggered as before.
+
+  **Acceptance criteria:**
+  - [x] The trigger accepts `Docked` + `'returning'` / `'entering'` and refuses `Docked` + `'charging'`.
+  - [x] `audibleRobots` in the diagnostics counts a homebound `Docked` robot.
+  - [x] Every existing AudioEngine test passes unmodified.
+
+  **Verification:**
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts src/engine/audioDiagnostics.test.ts` passes (the second if it
+        exists).
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 1.
+
+  **Files:** `src/engine/AudioEngine.ts`, `src/engine/AudioEngine.test.ts`, `src/engine/audioDiagnostics.ts`
+
+  **Estimated scope:** S (two call sites and a test)
+
+- [x] **Task 3: `audioBudgetSystem.ts` — eligibility, standing-by and the key read whether the robot is in its station**
+
+  **Description:** `reconcile`'s `eligible` and `mutedIds` pass `r.activity`; `signature()` appends one bit per robot,
+  `inStation` (`activity === 'charging'`), so the budget recomputes on the `'charging'` write and on the exit, and not
+  on `'transit'` → `'working'`. A homebound `Docked` robot is eligible, in the sounding set, and keeps its voice until it
+  is in.
+
+  **Proof:** RED test — `src/systems/audioBudgetSystem.test.ts`: a `Docked` + `'returning'` robot is in the sounding set
+  and not in the standing-by set; its `'charging'` write stands it by (`setStandingByRobots` called with it); an
+  `activity` change `'transit'` → `'working'` triggers no reconcile (the engine's set calls are not repeated).
+
+  **Acceptance criteria:**
+  - [x] A `Docked` robot on its way home sounds and is not stood by; at `'charging'` it is stood by.
+  - [x] The key changes on `'charging'` and on leaving it, and on nothing else about `activity`.
+  - [ ] Mutant: the key reading `activity` whole fails the no-reconcile test; the existing 112 tests pass unmodified.
+
+  **Verification:**
+  - [x] `npx vitest run src/systems/audioBudgetSystem.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 1.
+
+  **Files:** `src/systems/audioBudgetSystem.ts`, `src/systems/audioBudgetSystem.test.ts`
+
+  **Estimated scope:** M (three edits and a test block in a 112-test file)
+
+- [x] **Task 4: `useRobotMeta.ts`, `MetaBox.tsx` — the light and the count pass `activity`**
+
+  **Description:** `useRobotMeta`'s `lit` and `MetaBox`'s `useEmittingCount` pass `robot.activity` to
+  `isRobotEmitting`, so the mode light is lit and the Deck's "n of m" counts a homebound `Docked` robot.
+
+  **Proof:** RED test — the existing `useRobotMeta` / `RobotScreen` test and `MetaBox.test.tsx`: a `Docked` +
+  `'returning'` robot in the sounding set is `lit` and counted; `Docked` + `'charging'` is dim and not counted.
+
+  **Acceptance criteria:**
+  - [x] The light is lit for a homebound `Docked` robot and dim once it is `'charging'`.
+  - [x] The count includes a homebound `Docked` robot.
+  - [ ] Existing tests pass unmodified.
+
+  **Verification:**
+  - [x] `npx vitest run src/components/panels/screen/worldView/MetaBox.test.tsx src/components/panels/screen/screens` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 1.
+
+  **Files:** `src/components/panels/screen/screens/useRobotMeta.ts`, `src/components/panels/screen/worldView/MetaBox.tsx`,
+  `src/components/panels/screen/worldView/MetaBox.test.tsx`, the robot screen's test that renders `useRobotMeta`
+
+  **Estimated scope:** S (two pass-throughs and their tests)
+
+- [x] **Task 5: `robotAudibility.ts`, `Robot.ts` — `activity` required; the comment names the exception**
+
+  **Description:** With every caller passing it, `activity` becomes required and the `undefined` branch goes
+  (`undefined` now means "not in the station", the natural reading for a robot not yet in the store). `Robot.ts`'s
+  `activity` comment ("nothing audio-side reads it") and `RobotActivity`'s say: audibility reads whether the robot is in
+  its station (spec §1.3); the docking machine still never reads it.
+
+  **Proof:** RED test — `src/utils/robotAudibility.test.ts`: `isDockMuted(Docked, undefined)` is now false; the type no
+  longer accepts a missing argument (a `@ts-expect-error` line in the test).
+
+  **Acceptance criteria:**
+  - [x] No caller omits `activity`; `build:types` is clean with the parameter required.
+  - [x] The two comments in `Robot.ts` match the shipped rule.
+
+  **Verification:**
+  - [x] `npx vitest run src/utils/robotAudibility.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Tasks 2, 3, 4.
+
+  **Files:** `src/utils/robotAudibility.ts`, `src/utils/robotAudibility.test.ts`, `src/types/Robot.ts`
+
+  **Estimated scope:** XS
+
+### Checkpoint A: the swim is heard (Listen)
+
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean.
+- [x] In the browser: recall a robot (or wait for one). It plays through its whole swim home and its one-second arc,
+      its mode light lit and the Deck's count holding, and cuts at `'charging'`. Its station-exit is unchanged.
+- [x] `lifecycleSim.test.ts` green and unmodified (spec §7.1 A6).
+- [x] Reviewed with Crawford before Phase 2. This checkpoint is itself an improvement he can keep if the fade is cut.
+
+---
+
+### Phase 2: The engine's fade (spec §1.5)
+
+- [x] **Task 6: `voiceEntry.ts` — `rampOver(param, target, seconds, time)`**
+
+  **Description:** A sibling of `rampOrSet` that ramps `param` to `target` **over `seconds` from `time`**: `rampTo(target,
+seconds, time)` when the param ramps; else `setValueAtTime(target, time + seconds)`; else assign. `rampOrSet` and its
+  callers are untouched (Architecture Decisions). Ships as independently testable code; Task 7 is its caller.
+
+  **Proof:** RED test — `src/engine/audioEngine/voiceEntry.test.ts` (or a new file beside it): the three paths' calls and
+  arguments.
+
+  **Acceptance criteria:**
+  - [x] A rampable param gets `rampTo(target, seconds, time)` — not one tick.
+  - [x] A param with only `setValueAtTime` gets a point at `time + seconds`; a bare stub is assigned.
+  - [x] `rampOrSet`'s existing tests pass unmodified.
+
+  **Verification:**
+  - [x] `npx vitest run src/engine/audioEngine` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** None.
+
+  **Files:** `src/engine/audioEngine/voiceEntry.ts`, its test
+
+  **Estimated scope:** XS
+
+- [x] **Task 7: `AudioEngine.ts`, `constants/index.ts` — `scheduleStationFade`, `cancelStationFade`, the fade factor**
+
+  **Description:** Module state `stationFades: Map<robotId, { end }>`; `scheduleStationFade(robotId, time, seconds)`
+  records `end = time + seconds` and `rampOver`s the voice's `busGain.gain` to 0 (a robot with no voice is recorded
+  only); `cancelStationFade(robotId)` deletes the record and ramps the bus to `busGainTarget` over
+  `STATION_FADE_RECOVER_SECONDS` (0.5, spec §7.1 A2, beside `STATION_ARC_SECONDS`), a no-op with no record;
+  `busGainTarget` multiplies by `stationFadeFactor(robotId, Tone.now())` (0 once the end has passed); `killAll` clears
+  the map. `reserveVoice` / `reReserveVoice` already build from `busGainTarget`, so a voice rebuilt after a completed fade
+  starts at 0 with no further change.
+
+  **Proof:** RED test — `src/engine/AudioEngine.test.ts`: the ramp call's arguments; the cancel's ramp and its no-op;
+  the factor 1 before the end and after a cancel, 0 after the end; a rebuilt voice after a completed fade at gain 0;
+  `killAll` forgetting the fades.
+
+  **Acceptance criteria:**
+  - [x] `scheduleStationFade` ramps the bus to 0 from `time` over `seconds`; `cancelStationFade` ramps back over the
+        constant and is a no-op with no fade.
+  - [x] `busGainTarget` is 0 after a completed fade (a Volume write then keeps the bus at 0) and 1 otherwise.
+  - [x] Mutants: the factor applied before the end; the record surviving `killAll`.
+
+  **Verification:**
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 6.
+
+  **Files:** `src/engine/AudioEngine.ts`, `src/engine/AudioEngine.test.ts`, `src/constants/index.ts`
+
+  **Estimated scope:** M (new public API, module state, one constant)
+
+- [x] **Task 8: `AudioEngine.ts` — a bus-gain write during a ramp re-issues the ramp**
+
+  **Description:** `updateRobotMasterVolume` and `setHighlightedRobots` land their write on a bus mid-fade. For a robot
+  with a live fade whose end has not passed, the write re-issues the fade: `rampOver(gain, 0, end − writeTime, writeTime)`
+  instead of ramping to the un-faded target (spec §1.5). One private helper `writeBusGain(robotId, entry, target, seconds,
+time?)` that both call, so the rule lives once.
+
+  **Proof:** RED test — `src/engine/AudioEngine.test.ts`: a Volume write mid-fade ramps to 0 ending at the fade's end,
+  not to the Volume target; a Highlight set change mid-fade does the same; after the end both write the faded target (0).
+
+  **Acceptance criteria:**
+  - [x] No bus-gain write mid-fade raises the bus; the fade's end is kept.
+  - [x] Existing Volume and Highlight tests pass unmodified.
+
+  **Verification:**
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 7.
+
+  **Files:** `src/engine/AudioEngine.ts`, `src/engine/AudioEngine.test.ts`
+
+  **Estimated scope:** S
+
+- [x] **Task 9: `robotSystems.ts` — `landOnActive` cancels the fade**
+
+  **Description:** `landOnActive` calls `AudioEngine.cancelStationFade(robotId)` before the seam (spec §1.2 step 5): a
+  robot exiting its station, or turning back mid-fade, sounds at its regular volume with the ramp back over the constant.
+  `landOnDocked` does not call it.
+
+  **Proof:** RED test — `src/systems/robotSystems.test.ts`: `landOnActive` calls `cancelStationFade` with the id;
+  `landOnDocked` does not; the existing "tick's only route to visuals is the seam" pin passes.
+
+  **Acceptance criteria:**
+  - [x] Every `Active` landing cancels; no `Docked` landing does.
+
+  **Verification:**
+  - [x] `npx vitest run src/systems/robotSystems.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Task 7.
+
+  **Files:** `src/systems/robotSystems.ts`, `src/systems/robotSystems.test.ts`
+
+  **Estimated scope:** XS
+
+### Checkpoint: the engine's fade
+
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean.
+- [x] The app behaves exactly as at Checkpoint A: nothing schedules a fade yet; `landOnActive`'s cancel is a no-op.
+- [x] Reviewed with Crawford before Phase 3.
+
+---
+
+### Phase 3: The port, the grid and the stretched arc (spec §1.2 step 3, §1.4, §1.6)
+
+- [x] **Task 10: `workLoop.ts` — `stationArc` takes a duration; `enterOnBar(robotId, seconds)` exported**
+
+  **Description:** `stationArc(loop, robot, kind, station, onDone, seconds?)`: `seconds` is the arc's duration when given
+  (body alpha and scale, the decorator's and the ripple's duration); absent, today's `STATION_ARC_SECONDS` /
+  `STATION_REDUCED_ARC_SECONDS`. Under reduced motion with `seconds` given the alpha fades over the full `seconds`, no
+  scale, no ripple (spec §7.1 A4). `enterOnBar(robotId, seconds)` (exported): a no-op unless the loop is live for the
+  robot's locale, the robot is `'entering'` and no `station-${id}` timeline exists; else it plays the `'despawn'` arc over
+  `seconds` with today's `onDone` (the `'charging'` write, or `exitStation` if `Active`). `enter` is unchanged in this
+  task, so in the app `enterOnBar` is always a no-op until Task 12.
+
+  **Proof:** RED test — `src/systems/workLoop.test.ts`: `enterOnBar` for an `'entering'` robot with no arc plays an arc of
+  the given duration (the body's alpha and scale tweens, the ripple's and decorator's duration) ending in `'charging'`;
+  for a `'returning'` robot, or one whose arc is running, it does nothing; reduced motion fades alpha over the full
+  seconds with no scale; the exit arc's duration is unchanged.
+
+  **Acceptance criteria:**
+  - [x] An arc given a duration lasts exactly that long, decorator and ripple included.
+  - [x] `enterOnBar` is a no-op for the wrong activity, a running arc, a dead loop or an unknown robot.
+  - [x] The existing 133 work-loop tests pass unmodified (the exit arc and today's entry are untouched).
+
+  **Verification:**
+  - [x] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** None.
+
+  **Files:** `src/systems/workLoop.ts`, `src/systems/workLoop.test.ts`
+
+  **Estimated scope:** M (a signature, a new export, a reduced-motion branch)
+
+- [x] **Task 11: `stationFadeSystem.ts` (new), `worldTransition.ts`, `constants/index.ts` — the grid schedules the fade
+      and the arc by the half-measure rule**
+
+  **Description:** `STATION_FADE_MIN_STEPS = 8` beside the station constants. `startStationFades(localeId)` /
+  `stopStationFades()`: a `scheduleRepeat('16n', onTick)` id in module state and a `started: Set<string>`.
+  `onTick(time)`: `at = positionAt(time)` and `tick = getTickSeconds(time)` (return if either is undefined); `left =
+  BEATS_PER_MEASURE * 4 − (at.step − 1)`; for each robot of `localeId`: drop from `started` if not `'entering'`; if
+  `'entering'`, not started and `left >= STATION_FADE_MIN_STEPS`: `seconds = left × tick`,
+  `AudioEngine.scheduleStationFade(id, time, seconds)` unless `audioMode === 'solo'`, then `enterOnBar(id, seconds)`, and
+  add to `started`; if started and now soloed: `cancelStationFade(id)` (Architecture Decisions). Stop cancels the repeat
+  and clears the set. `worldTransition.ts` starts it right after `startWorkLoop(localeId)` (line 165) and stops it
+  beside each `stopWorkLoop()` (lines 164, 183). With `enter` still arcing at once, in the app this task's `enterOnBar` is
+  a no-op and its fade ends under the one-second arc.
+
+  **Proof:** RED test — `src/systems/stationFadeSystem.test.ts` (new; the budget test's fake-engine idiom, a fake
+  `scheduleRepeat` capturing the callback, `positionAt` and `getTickSeconds` mocked): an `'entering'` robot seen on step 1
+  gets one `scheduleStationFade(id, time, 16 × tick)` and one `enterOnBar(id, 16 × tick)`; on step 5 both with `12 ×
+tick`; on step 9 (8 left) both with `8 × tick`; on step 10 (7 left) nothing until the step-1 tick, then both with `16 ×
+tick`; a started robot gets nothing on later ticks; a soloed `'entering'` robot gets `enterOnBar` only; `'returning'` /
+  `'charging'` robots get nothing; a started robot that becomes soloed is cancelled on the next tick; a robot that left
+  `'entering'` and re-enters later is started again; stop cancels the repeat; no transport, or no position, does nothing.
+  `worldTransition.test.ts`: start and stop called with the loop.
+
+  **Acceptance criteria:**
+  - [x] One fade and one arc per entry, ending on the bar line: started at once with half a measure or more left, else
+        on the bar-line tick with a whole measure; none for Solo; none repeated.
+  - [x] Started and stopped with the work loop; idempotent stop.
+  - [x] Mutants: the boundary at 7 or 9; the fade scheduled every tick; the Solo check dropped; `started` never cleared.
+
+  **Verification:**
+  - [x] `npx vitest run src/systems/stationFadeSystem.test.ts src/systems/worldTransition.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **Dependencies:** Tasks 7, 10.
+
+  **Files:** `src/systems/stationFadeSystem.ts`, `src/systems/stationFadeSystem.test.ts`, `src/systems/worldTransition.ts`,
+  `src/systems/worldTransition.test.ts`, `src/constants/index.ts`
+
+  **Estimated scope:** M (one new module, its test, two call sites, one constant)
+
+- [x] **Task 12: `workLoop.ts` — `enter` leaves the arc to the grid**
+
+  **Description:** `enter` writes `'entering'` and returns; no arc. The robot stands at the port, visible, until Task 11's
+  tick calls `enterOnBar` (at once with half a measure or more left, else on the bar). `stopWorkLoop` already kills `station-*` timelines; `adopt` of an `'entering'` robot on a
+  restart resumes from `resume` as today (it is not `Active`, so it returns to its station and holds again).
+
+  **Proof:** RED test — `src/systems/workLoop.test.ts`: arrival at the port writes `'entering'` and creates no
+  `station-${id}` timeline; the body stays at alpha 1, scale 1; the slot stays held; a later `enterOnBar` plays the arc.
+  The existing "a recalled robot enters and charges" tests are updated to call `enterOnBar` where they waited on the arc
+  (the one place behaviour changes on purpose).
+
+  **Acceptance criteria:**
+  - [x] No arc at arrival; the robot is `'entering'`, visible and at full scale.
+  - [x] The occupancy set still holds the slot through the hold.
+  - [x] The "never touches AudioEngine through a full cycle" pin passes with a hold, an `enterOnBar` and a `'charging'`
+        in the cycle.
+
+  **Verification:**
+  - [x] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] Listen and Look: two recalls. One arriving early in a bar shrinks and fades at once and is gone and silent on
+        the bar line; one arriving late in a bar stands at its port, still playing, then takes the whole next bar; both
+        slots light at the end.
+
+  **Dependencies:** Task 11.
+
+  **Files:** `src/systems/workLoop.ts`, `src/systems/workLoop.test.ts`
+
+  **Estimated scope:** S (one function body, several tests updated)
+
+- [x] **Task 13: `workLoop.ts` — a turn-back during the hold resumes, during the arc reverses**
+
+  **Description:** `onLifecycleChange(…, 'active')` for an `'entering'` robot: with no `station-${id}` timeline, `resume(loop,
+settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseComplete` to a `live` callback that
+  resumes, and `reverse()`. The ripple is left to finish. The volume's return is already Task 9's. `enter`'s old `Active`
+  guard in `onDone` stays as a guard.
+
+  **Proof:** RED test — `src/systems/workLoop.test.ts`: `'active'` during the hold → the robot leaves `'entering'` for a
+  site or a wait with no arc; `'active'` mid-arc → the timeline reverses (body back to alpha 1, scale 1), `'charging'` is
+  never written, and the robot resumes on the reverse's end; `'active'` for a `'returning'` robot still turns back as
+  today; the engine is never touched.
+
+  **Acceptance criteria:**
+  - [x] A turn-back mid-hold is immediate; mid-arc it reverses and never writes `'charging'`.
+  - [x] Mutant: letting the arc finish (today's code) fails the mid-arc test.
+  - [ ] Existing turn-back tests pass unmodified.
+
+  **Verification:**
+  - [x] `npx vitest run src/systems/workLoop.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+  - [x] Look: a robot called back mid-fade grows back the way it went and swims off; the volume returns over half a
+        second (Task 9).
+
+  **Dependencies:** Task 12.
+
+  **Files:** `src/systems/workLoop.ts`, `src/systems/workLoop.test.ts`
+
+  **Estimated scope:** S
+
+**Phase 3 as built (2026-11-14; a6a3c247, e4a2e5c4, eced4515, fb510243):**
+
+- **"An arc is running" is not "a `station-${id}` timeline is set"** (the Architecture Decision was wrong). A finished
+  arc stays registered under its key until the next one replaces it, so every robot that had exited its station earlier
+  got no entry arc: the integration run left each recalled robot standing at its port for ever. `arcRunning(id)` is the
+  timeline set **and** part-way (`progress() < 1`); `enterOnBar` and the turn-back both read it. Fixed in Task 12's
+  commit with its own RED case.
+- **`resumeWorldTimelines()` now calls `resume()`, not `play()`** (`src/animation/timelineMap.ts`, outside the plan's
+  files). GSAP 3's `play()` also sets `reversed(false)`, so a power-off during a turn-back's reverse would have played the
+  arc forward on power-on, to a robot hidden at its port that never charges (spec A5). `vitest.setup.ts`'s gsap mock
+  gains a `resume()` stub. Task 13's commit, RED case "a power-off during the reverse".
+- **The reversed arc is killed at its `onReverseComplete`**, so a robot recalled again during the reverse gets a fresh
+  entry arc (a reversed arc at progress 0 would count as running).
+- **The integration test runs the real fade system** (`workLoop.integration.test.ts`, outside the plan's files): a
+  partial `beatClock` mock captures its `'16n'` callback, and `step()` runs it at every sixteenth the simulated
+  Transport crosses (the lifecycle tick first on a bar line). Its "hidden tab during the entry" case now expects a
+  turn-back with no `'exiting'` and no `'charging'`.
+- **Tests changed on purpose:** eight work-loop cases that waited on the arrival arc call `enterOnBar` (Task 12); the old
+  "while entering: the arc finishes, then it exits again" case is rewritten as the mid-arc reverse (Task 13, so its
+  "existing turn-back tests unmodified" box stays open); `worldTransition.test.ts`'s `scheduleRepeat` count goes from 2
+  to 4 (two `'16n'` systems, each restarted).
+- **`started` is a `Map` (`'fade' | 'arc'`), not a `Set`,** so a Solo mid-fade cancels once, not on every tick.
+- **Equivalent mutants:** dropping the `onComplete` unhook before `reverse()` (GSAP never fires `onComplete` while
+  reversing and nothing now plays it forward; kept as the Risks table's mitigation); a `reversed()` guard against a
+  second `'active'` was removed as equivalent (`reverse()` sets the direction, it does not toggle it).
+- **Noted, not built:** a robot un-soloed after its fade was cancelled stays at full volume until `'charging'`, then
+  cuts at the dock mute; the spec does not cover it.
+- Full suite 14343 passed / 0 failed; `build:types`, `lint` (4 old warnings) and `build` clean.
+
+### Checkpoint B / Gate: Crawford's eye and ear (spec §5.4; stop)
+
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] The §5.3 runs: `?debug` on, a recall end to end; the Deck's count and the mode light lit until the body is gone;
+      the robot screen's cloud running through the swim and thinning over the fade; no Tone "scheduled inside of
+      scheduled callbacks" warning from the fade's writes. (The warning from the cancel ramp is fixed after the gate,
+      below.)
+- [x] Power off mid-fade, wait, power on: body and volume continue from where they were (spec §7.1 A5). The ramp
+      pauses (measured), so Task 13b is not needed.
+- [x] Crawford judges the four points of §5.4 on a slow world, a busy world and a soloed homebound robot, the
+      half-measure boundary among them. **Passed, Crawford, 2026-11-14**, with three fixes asked for (below). His
+      answers to §7.2 Q1–Q2 and every §7.1 default go in the spec's "As built" (Task 17).
+- [ ] **Reserved, built only if the gate says so** (neither asked for at the gate):
+  - **Task 13a: the exit waits for a fading occupant** (Q1) — `exitStation` holds a robot hidden while its station has an
+    `'entering'` occupant with a started fade, and exits on that occupant's `'charging'` write. RED test in
+    `workLoop.test.ts`. S.
+  - **Task 13b: the ramp re-issued on resume** (A5) — if a suspended context does not pause the automation, the fade
+    system re-issues each live fade from the paused value on `resumeWorkLoop`'s counterpart. RED test in
+    `stationFadeSystem.test.ts`. S.
+
+**Measured before the gate (2026-11-14, headless Chrome over CDP, Crawford remote).** Two runs on a dev server, at 45
+and 68 BPM, three recalls each (forced by setting the battery to critical): the app's own module instances imported
+page-side, `scheduleStationFade` / `cancelStationFade` / `reserveVoice` and the budget's two setters wrapped, each
+voice's bus gain (the native `AudioParam`) sampled every 50 ms against the arc's progress and the transport. Figures,
+not verdicts; the boxes above stay Crawford's.
+
+- **The rule and the bar line hold.** Six fades: arrivals on steps 10 and 13 held and started on step 1 over 16
+  sixteenths; arrivals on steps 1, 2, 7 and 8 started on the next sixteenth (0.7–0.9 of a sixteenth after the arrival)
+  over 15, 14, 9 and 8 sixteenths (step 9, 8 left, inclusive). Every fade's end lands on a bar line to 0 ticks, and the
+  arc's duration equals the fade's to the millisecond.
+- **The ramp is the plan's.** The bus gain follows the linear ramp to three decimals all the way down; the arc's
+  progress tracks it about one `lookAhead` ahead (0.06–0.10 s), because GSAP starts the arc when the callback runs and
+  the audio starts at the callback's time. So `'charging'` (and the dock mute) is written 0.004–0.09 s before the
+  audio's fade ends, with the bus at 2–4% of its starting gain (about −30 dB). *Corrected after the gate:* this said
+  "the tail is cut", which overstated it. `'charging'` stops *new* notes (the dock mute at the trigger, then the
+  budget's stand-down after the last note ends); notes already sounding keep fading on the bus ramp. What the early
+  write costs is a note due in the last ~0.1 s, at about −30 dB, and a body gone before its sound. Fixed after the gate
+  (below).
+- **Solo mid-fade.** Cancelled on the next sixteenth (0.16 s after the Solo at 68 BPM); the bus came back to its
+  starting gain over the half second; the soloed robot then charged at its regular volume (A8).
+- **Power off mid-fade (A5): the audio pauses, so Task 13b as written is not needed.** The context suspends, its clock
+  and the bus gain freeze (0.105 and 0.064 held for 3 s), the arc is paused at the matching point, and after the
+  power-on the ramp carries on from where it was and still ends on the bar line. **But the arc resumes about 0.2–0.3 s
+  before the audio clock does** (its progress jumped by that much in the first frames), so after a power cycle
+  `'charging'` came 0.29–0.31 s before the fade's end, with the bus still at 8–16% of its start (about −16 to −22 dB),
+  so a note due in that last 0.3 s is skipped (not a cut: see the correction above). Measured headless only; a real device's resume may be quicker. It is the general order of
+  `powerOnSequence` (world timelines resume while the context is still starting), not this feature's alone.
+- **Tone's warning: one of the fade's own writes does trigger it.** `cancelStationFade`'s recovery ramp is untimed
+  (`rampOrSet(…, STATION_FADE_RECOVER_SECONDS)`) and runs inside Transport callbacks (the fade system's Solo cancel,
+  seen; `landOnActive` in the measure tick, by reading). Tone prints the warning **once per page**
+  (`printedScheduledWarning` in `tone/build/esm/core/util/Debug.js`), so the console shows only the first offender:
+  run 1 showed an older one (`updateRobotSends` in `reReserveVoice`, from a budget admit), run 2 the cancel. The fix is
+  to pass the callback's time to `cancelStationFade`. `scheduleStationFade` is timed and never appeared.
+- **A frozen bus in run 1 is most likely the Solo, not the open gap.** Robot A's bus stopped at 0.006 (13% of its start)
+  for its last 0.7 s while another robot was soloed. Run 1 did not log rebuilds; run 2 did, saw none, and showed the same
+  freeze pattern when a voice is released. So A was most likely stood by under the Solo and its voice released, which
+  is silence anyway. The mid-fade rebuild gap (a voice rebuilt during a fade comes up at full) was not hit in either
+  run and stays open.
+- Not covered: the Deck's count, the mode light and the robot screen's cloud (no UI was read), and anything by ear or eye.
+
+**After the gate: the three fixes (Crawford, 2026-11-14).** Each RED-tested, mutation-checked and committed on its own;
+full suite 14356 passed / 0 failed after the last.
+
+- **The cancel ramp is timed** (c61374dc). `cancelStationFade(robotId, time?)` ramps back with `rampOver` over the
+  whole `STATION_FADE_RECOVER_SECONDS`, from `time` when given, else from `Tone.now()` named explicitly. The fade
+  system's Solo cancel passes its tick's time. `landOnActive` passes none: the lifecycle tick stays on "now" by
+  decision (`startRobotLifecycle`'s comment, BEATCLOCK_TRANSPORT_TIME), so its "now" is now stated, not left out.
+- **A voice rebuilt mid-fade carries the fade on** (a38014c1). The fade record keeps its `start`; `stationFadeFactor`
+  is the ramp's own share at the engine's now (1 before the start, 0 from the end, linear between), so `reserveVoice`
+  builds the bus where the ramp is, and `continueStationFade` ramps it on to 0 by the same end. A bus that cannot ramp
+  (the headless stub) keeps its built level.
+- **The arc ends when the fade is heard to end** (2993a2f2). `AudioEngine.secondsUntilHeard(time)`: `time` less the
+  context's `currentTime` (not `Tone.now()`, which already includes the lookahead), never below 0, plus the output
+  latency the note events count. The fade system stretches the arc by it; the fade is unchanged. The arc still
+  *starts* at once, about a lookahead before the sound starts falling: delaying its start would mean re-timing the halo
+  decorator and the ripple, which a reverse would re-fire.
+
+Re-measured with the same probe (91 BPM, three recalls, robot A's voice rebuilt by hand half-way through its fade):
+`'charging'` now lands 0.06–0.11 s *after* each fade's end, with the bus at 0 (before: up to 0.09 s before it, at
+2–4%); A's rebuilt bus picked up at 0.0273 where the old one stood at 0.0271 and ramped to 0 by the same end (before:
+back to its full 0.055); no untimed ramp inside a Transport callback came from the fade (the one Tone warning was the
+documented `updateRobotSends` on a budget admit, [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget)). After the
+power cycle the arc ran about 0.1 s ahead of the audio this time, which the new lead covered (`'charging'` 0.11 s after
+the end, at 0); in the earlier runs it was 0.2–0.3 s. **Still open:** that power-on order (world timelines resuming
+before the context clock runs) is not fixed; a skew larger than the lead still skips a quiet last note.
+
+Noticed, not chased: the note events' `lead` counts from `Tone.now()`, which runs a lookahead ahead of the context
+clock, where `secondsUntilHeard` counts from `currentTime`.
+
+---
+
+### Phase 4: Docs
+
+- [x] **Task 14: `docs/ROBOT_LIFECYCLE.md` — the hold, the fade measure, the one exception**
+
+  **Description:** Principle 2 gains the exception (audibility reads whether the robot is in its station; the docking
+  machine still never reads `activity`); rule 6 says the dock's silence begins at `'charging'`; the activity machine's
+  `'entering'` is the hold plus the fade measure; the seam table's `'active'` row reads "in `'entering'`: resumes at once,
+  or reverses the arc"; the Audibility section names the station fade system; the Testing Notes list the new tests.
+  Every identifier spot-checked against the shipped source.
+
+  **Proof:** Read — human review. No test file.
+
+  **Acceptance criteria:**
+  - [x] Every named function, file and constant exists as written.
+
+  **Verification:**
+  - [ ] Manual review against the code; `npm run lint` clean.
+
+  **Dependencies:** Tasks 1–13.
+
+  **Files:** `docs/ROBOT_LIFECYCLE.md`
+
+  **Estimated scope:** XS
+
+- [x] **Task 15: `docs/AUDIO_SYSTEM.md` — the station fade beside the Highlight dip; the budget's timing**
+
+  **Description:** The budget paragraph: a homebound `Docked` robot keeps its voice until `'charging'`; a new short
+  passage on the station fade (`scheduleStationFade` / `cancelStationFade`, the factor in `busGainTarget`, the mid-ramp
+  re-issue, the `'16n'` system and the half-measure rule).
+
+  **Proof:** Read — human review.
+
+  **Acceptance criteria:**
+  - [x] Names and the ramp constant match the shipped source.
+
+  **Verification:**
+  - [ ] Manual review; `npm run lint` clean.
+
+  **Dependencies:** Tasks 1–13.
+
+  **Files:** `docs/AUDIO_SYSTEM.md`
+
+  **Estimated scope:** XS
+
+- [x] **Task 16: `docs/ANIMATION_SYSTEM.md` — the station arc's two durations**
+
+  **Description:** The station-arc passage: the exit arc one second; the entry arc half a measure to a whole one, ending
+  on the bar line, started by the station fade system through `enterOnBar`; the reverse on a turn-back.
+
+  **Proof:** Read — human review.
+
+  **Acceptance criteria:**
+  - [x] Matches `stationArc`'s shipped signature and `enterOnBar`.
+
+  **Verification:**
+  - [ ] Manual review; `npm run lint` clean.
+
+  **Dependencies:** Tasks 10–13.
+
+  **Files:** `docs/ANIMATION_SYSTEM.md`
+
+  **Estimated scope:** XS
+
+- [x] **Task 17: `docs/specs/PLAY_UNTIL_IN_THE_STATION.md`, `docs/todo/backlog.md` — "As built" and backlog 74's line**
+
+  **Description:** An "As built" section in the spec: the gate's answers (Q1–Q3), each §7.1 default kept or changed,
+  the constants as shipped, 13a / 13b built or not. Backlog 74's entry: its fade-out shipped here, its fade-in is the
+  follow-up, and its stale "Plan.md Stage 3" line becomes "off plan".
+
+  **Proof:** Read — human review.
+
+  **Acceptance criteria:**
+  - [x] Every provisional item of the intent has a recorded answer.
+
+  **Verification:**
+  - [ ] Manual review; `npm run lint` clean.
+
+  **Dependencies:** Checkpoint B.
+
+  **Files:** `docs/specs/PLAY_UNTIL_IN_THE_STATION.md`, `docs/todo/backlog.md`
+
+  **Estimated scope:** XS
+
+### Checkpoint: Complete
+
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] All automated acceptance criteria across Tasks 1–13 met; Checkpoint B's answers recorded.
+- [x] Docs reflect the shipped API, every name spot-checked.
+- [x] Any Look or Listen not done this session flagged here, never silently skipped.
+- [x] Ready for Crawford's PR.
+
+Notes (2026-11-14): the full suite is 14,356 passed / 0 failed, with the one unhandled vitest-worker "Timeout calling
+onTaskUpdate" of a full run's startup burst (backlog 66, closed). Three "existing tests pass unmodified" boxes stay
+open because they could not hold, each change deliberate and in its commit: Task 3 (seven budget fixtures put a robot
+in its station with `docking` alone and now say `'charging'`), Task 4 (one `useRobotMeta` fixture) and Task 13 (the
+old "the arc finishes, then it exits again" case, rewritten as the reverse). The Listen and Look boxes of Tasks 12–13
+are ticked by Crawford's Checkpoint B pass. Open for Crawford: the "Manual review" boxes of Tasks 14–17, and his
+answers to Q1–Q2 are recorded as "acceptable as is" / "not wanted now" on his "ok" to that reading (spec §8.1).
+
+---
+
+### Phase 5: The records (after the merge)
+
+- [ ] **Task 18: `docs/todo/` — archive backlog 84**
+
+  **Description:** On a docs branch after the merge: entry 84 moves to `archive/backlog-archive.md` with a status line (no
+  stub in `backlog.md`, the backlog convention), links rebased; its line in `plan.md` Stage 4 deleted; the memory index
+  updated.
+
+  **Proof:** Read.
+
+  **Acceptance criteria:**
+  - [ ] 84 is in the archive and nowhere else; plan.md Stage 4 opens with 85.
+
+  **Verification:**
+  - [ ] Manual review; `npm run lint` clean.
+
+  **Dependencies:** The merge.
+
+  **Files:** `docs/todo/backlog.md`, `docs/todo/archive/backlog-archive.md`, `docs/todo/plan.md`
+
+  **Estimated scope:** XS
+
+## Risks and Mitigations
+
+| Risk                                                                                    | Impact                                    | Mitigation                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A caller of `isDockMuted` is missed, so some reader still mutes at the `Docked` landing | Medium                                    | Task 5 makes the parameter required: `build:types` names any caller left; the six call sites are listed in Tasks 2–4 from a repo grep on 2026-11-14.                                                         |
+| `rampOrSet` is used for the fade and the ramp lasts one tick                            | High (a cut, not a fade)                  | Task 6's helper and its test pin `rampTo(target, seconds, time)`; Task 7's test asserts the ramp call's arguments.                                                                                           |
+| A Volume or Highlight write mid-fade jumps the bus back up                              | Medium                                    | Task 8's re-issue rule and tests; one private `writeBusGain` so the rule lives once.                                                                                                                         |
+| The budget releases the voice before the ramp reaches 0                                 | Medium (a click at the end)               | The robot is stood by only at `'charging'` (Task 3), which the arc's `onComplete` writes at the same moment the ramp ends; `standingBy` then waits for the last note end as today.                           |
+| Robots stand at their ports for ever between the hold and the system                    | High during the build                     | Task 12 (the hold) lands after Task 11 (the system); the app never has the hold without the bar.                                                                                                             |
+| `positionAt`'s step is off the grid, so fades end off the bar                           | Medium                                    | Spec §7.1 A7: ONE_MUSIC_CLOCK.md's result, which the swells already rely on; Checkpoint B's `?debug` run watches a fade end against the Click Track, and backlog 82's CDP probe is the fallback measurement. |
+| The half-measure boundary is off by one (`step` is 1-based)                             | Medium (a 7- or 9-sixteenth fade)         | Task 11's boundary tests at steps 9 and 10 and their mutants.                                                                                                                                                |
+| A reversed arc writes `'charging'`                                                      | High (a visible robot muted and stood by) | Task 13 clears `onComplete` before `reverse()`; its test asserts `'charging'` is never written mid-reverse.                                                                                                  |
+| A Solo during a fade is honoured a sixteenth late                                       | Low                                       | Architecture Decisions: the grid tick cancels it on the next sixteenth.                                                                                                                                      |
+| A tempo change mid-fade leaves the end off the bar                                      | Low                                       | Spec §7.1 A3; the gate's slow world does not change tempo.                                                                                                                                                   |
+| The suspended context does not pause the automation (A5)                                | Medium                                    | Checkpoint B checks it; Task 13b reserved.                                                                                                                                                                   |
+| Two robots overlap at one station for longer                                            | Unknown until seen                        | Spec §7.2 Q1; Task 13a reserved for the exit-waits rule.                                                                                                                                                     |
+
+## Open Questions
+
+1. **The overlap at one station (spec §7.2 Q1).** **Open** — Checkpoint B; Task 13a if the exit must wait.
+2. **A ramp up on the way out (Q2).** **Open** — out of scope; raised at the gate if the asymmetry shows.
+3. **The hold's length (Q3).** **Resolved** by Crawford's answer 4 (2026-11-14): the hold only when less than half a
+   measure is left at arrival, else the fade starts at once and ends on the bar line. The boundary constant is the
+   gate's to move.
+4. **"Don't change the mute" (spec §7.1 A1).** **Resolved by default** — the dock's silence begins at `'charging'`
+   (Phase 1); Crawford can veto at Checkpoint A, where Phase 1 alone is audible.
+5. **`STATION_FADE_RECOVER_SECONDS` (A2).** **Resolved by default** — 0.5 s; re-pinned at Checkpoint B.
+6. **Reduced motion (A4).** **Resolved by default** — the alpha fades over the whole measure; one constant to change.

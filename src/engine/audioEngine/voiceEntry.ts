@@ -73,6 +73,17 @@ export function rampOrSet(param: RampableParam, target: number, rampSeconds: num
 }
 
 /**
+ * Ramp `param` to `target` over `seconds` from `time` — `rampOrSet`'s sibling for a ramp whose length is its own, not
+ * one tick (a station fade over half to one measure, docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5). With no ramp, a
+ * timed point at the ramp's end; with neither, assign (headless / test stubs).
+ */
+export function rampOver(param: RampableParam, target: number, seconds: number, time: number): void {
+  if (typeof param.rampTo === 'function') param.rampTo(target, seconds, time);
+  else if (typeof param.setValueAtTime === 'function') param.setValueAtTime(target, time + seconds);
+  else param.value = target;
+}
+
+/**
  * Write `value` to a live Param / Signal that a UI edit sets with no ramp. Given a `time` (a Transport tick), it glides
  * one tick from there when the node can ramp and a tick length is known, so a per-tick write does not step
  * (docs/specs/SWELL_PHASE_PULSE_WIDTH_CUT.md §8.2), else it is a point at `time`. With no time, or on a headless / test

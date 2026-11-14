@@ -16,6 +16,7 @@ import { spawnInitialRoster, spawnInitialCompanies } from './spawnSystem';
 import { applyAspectDeal, rederiveLoading } from './aspectDeal';
 import { startRobotLifecycle, stopRobotLifecycle } from './robotSystems';
 import { startWorkLoop, stopWorkLoop } from './workLoop';
+import { startStationFades, stopStationFades } from './stationFadeSystem';
 import { startAudioSwells, stopAudioSwells, cancelGlobalSwellsMovedBy, cancelSwellForRobotAttribute } from './audioSwells';
 import { getWorldState, setWorldState } from './worldState';
 import { AudioEngine } from '../engine/AudioEngine';
@@ -148,7 +149,7 @@ export function initializeLocale(localeId: string, { startSystems = true }: { st
 
 /**
  * The START half of bringing a locale online: the robot-lifecycle tick, the
- * work loop and the Audio Swells tick, each as an unconditional stop+start
+ * work loop with its station fade tick, and the Audio Swells tick, each as an unconditional stop+start
  * pair so a repeat call (a second power-on, a retransmit) never double-starts
  * and BeatClock's post-killAll empty listener table is re-subscribed. Builds
  * nothing: the world and roster must already exist (the work loop reads the
@@ -163,6 +164,10 @@ export function startLocaleSystems(localeId: string): void {
   // and adopts any robot already mounted (WorldView mounts before power-on now, so it always has).
   stopWorkLoop();
   startWorkLoop(localeId);
+  // The grid that sends a homebound robot into its station on the bar (backlog 84): with the loop, whose
+  // enterOnBar it calls, and never from inside it (the loop must not reach the engine).
+  stopStationFades();
+  startStationFades(localeId);
   stopAudioSwells();
   startAudioSwells(localeId);
   setWorldState('running');
@@ -170,7 +175,7 @@ export function startLocaleSystems(localeId: string): void {
 
 /**
  * The STOP half, for a paused world that a world change replaces (docs/specs/OFF_SCREEN.md §1.2,
- * docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R1): the lifecycle tick, the work loop and the swells stop, killAll
+ * docs/tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md R1): the lifecycle tick, the work loop, its station fade tick and the swells stop, killAll
  * rewinds the transport and resets the BeatClock, and the paused span ends. Runs before the old locale is removed,
  * while it still exists, as main's power-off shutdown() did; the new world then builds held and initializeLocale
  * leaves it cold. The lifecycle stops before killAll because killAll's resetBeatClock silently drops every measure
@@ -181,6 +186,7 @@ export function startLocaleSystems(localeId: string): void {
 function tearDownPausedWorld(): void {
   stopRobotLifecycle();
   stopWorkLoop();
+  stopStationFades();
   stopAudioSwells();
   AudioEngine.killAll();
   resumeWorldTimelines();

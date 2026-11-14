@@ -80,6 +80,7 @@ import { stopRobotLifecycle } from './robotSystems';
 import { stopAudioSwells } from './audioSwells';
 import * as audioSwellsModule from './audioSwells';
 import * as workLoopModule from './workLoop';
+import * as stationFadesModule from './stationFadeSystem';
 import * as robotSystemsModule from './robotSystems';
 import { MAX_ROBOTS } from '../constants';
 import { computeLocaleHour, DAY_DURATION_MS } from '../constants/time';
@@ -132,6 +133,7 @@ describe('worldTransition', () => {
     stopRobotLifecycle();
     stopAudioSwells();
     workLoopModule.stopWorkLoop();
+    stationFadesModule.stopStationFades();
     useLoadingStore.getState().setLoading(DEFAULT_LOADING);
   });
 
@@ -199,11 +201,25 @@ describe('worldTransition', () => {
       expect(subscribeToMeasure).toHaveBeenCalledTimes(2);
     });
 
-    it('also restarts the audio swells tick (its own 16n schedule, not subscribeToMeasure) on a second call', async () => {
+    it('also restarts the audio swells tick and the station fade tick (their own 16n schedules, not subscribeToMeasure) on a second call', async () => {
       const { scheduleRepeat } = await import('../engine/beatClock');
       initializeLocale(DEFAULT_LOCALE_ID);
       initializeLocale(DEFAULT_LOCALE_ID);
-      expect(scheduleRepeat).toHaveBeenCalledTimes(2);
+      expect(scheduleRepeat).toHaveBeenCalledTimes(4); // two systems, each started twice
+    });
+
+    it('calls stopStationFades then startStationFades(localeId) right after the work loop starts (backlog 84 Task 11)', () => {
+      const workStart = vi.spyOn(workLoopModule, 'startWorkLoop');
+      const fadesStop = vi.spyOn(stationFadesModule, 'stopStationFades');
+      const fadesStart = vi.spyOn(stationFadesModule, 'startStationFades');
+
+      initializeLocale(DEFAULT_LOCALE_ID);
+
+      expect(fadesStop).toHaveBeenCalledTimes(1);
+      expect(fadesStart).toHaveBeenCalledTimes(1);
+      expect(fadesStart).toHaveBeenCalledWith(DEFAULT_LOCALE_ID);
+      expect(fadesStop.mock.invocationCallOrder[0]).toBeLessThan(fadesStart.mock.invocationCallOrder[0]);
+      expect(workStart.mock.invocationCallOrder[0]).toBeLessThan(fadesStart.mock.invocationCallOrder[0]);
     });
 
     it('calls stopAudioSwells then startAudioSwells(localeId), alongside the existing robot-lifecycle restart', () => {
@@ -771,6 +787,23 @@ describe('worldTransition', () => {
       expect(lifecycleStop.mock.invocationCallOrder[0]).toBeLessThan(lifecycleStart.mock.invocationCallOrder[0]);
       expect(workStop.mock.invocationCallOrder[0]).toBeLessThan(workStart.mock.invocationCallOrder[0]);
       expect(swellsStop.mock.invocationCallOrder[0]).toBeLessThan(swellsStart.mock.invocationCallOrder[0]);
+    });
+
+    it('a paused world replaced by a rebuild stops the station fade tick with the work loop, before killAll (backlog 84 Task 11)', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      setWorldState('paused');
+      const workStop = vi.spyOn(workLoopModule, 'stopWorkLoop');
+      const fadesStop = vi.spyOn(stationFadesModule, 'stopStationFades');
+      const fadesStart = vi.spyOn(stationFadesModule, 'startStationFades');
+      const killAll = vi.spyOn(AudioEngine, 'killAll');
+
+      retransmitWorld({ coordinates: { x: 500, y: 500 } });
+
+      expect(workStop).toHaveBeenCalledTimes(1);
+      expect(fadesStop).toHaveBeenCalledTimes(1);
+      expect(fadesStop.mock.invocationCallOrder[0]).toBeLessThan(killAll.mock.invocationCallOrder[0]);
+      expect(fadesStart).not.toHaveBeenCalled(); // the new world is cold: the next flip starts it
+      expect(getWorldState()).toBe('cold');
     });
 
     it('builds nothing: it never places a district or spawns a roster', () => {

@@ -287,6 +287,10 @@ export function landOnActive(localeId: string, robotId: string): void {
     dockingHoldUntilMeasure: undefined,
   });
 
+  // An Active robot sounds at its regular volume: its station fade, if one is live, ramps back
+  // (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.2 step 5, §1.5). A no-op with no fade.
+  AudioEngine.cancelStationFade(robotId);
+
   onLifecycleChange(localeId, robotId, 'active');
 }
 

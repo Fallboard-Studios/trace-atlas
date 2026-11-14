@@ -145,13 +145,37 @@ describe('MetaBox — the world line (NavStatusBlock’s telemetry, moved verbat
     const setRobots = (robots: Robot[]) => useLocaleStore.setState((s) => ({
       locales: { ...s.locales, [DEFAULT_LOCALE_ID]: { ...s.locales[DEFAULT_LOCALE_ID], robots } },
     }));
-    setRobots([makeRobot('r1', { docking: DockingState.Docked }), makeRobot('r2', { docking: DockingState.Active })]);
+    const docked = { docking: DockingState.Docked, activity: 'charging' as const }; // in its station (backlog 84)
+    setRobots([makeRobot('r1', docked), makeRobot('r2', { docking: DockingState.Active })]);
     useAudioStore.setState({ soundingRobotIds: ['r1', 'r2'] });
     render(<MetaBox />);
     expect(screen.getByText(/^1 of \d+ Probes active\.$/)).toBeTruthy();
-    act(() => setRobots([makeRobot('r1', { docking: DockingState.Docked, audioMode: 'solo' }), makeRobot('r2', { docking: DockingState.Active })]));
+    act(() => setRobots([makeRobot('r1', { ...docked, audioMode: 'solo' }), makeRobot('r2', { docking: DockingState.Active })]));
     expect(screen.getByText(/^1 of \d+ Probes active\.$/)).toBeTruthy();
-    act(() => setRobots([makeRobot('r1', { docking: DockingState.Docked, audioMode: 'solo' }), makeRobot('r2', { docking: DockingState.Docked, audioMode: 'solo' })]));
+    act(() => setRobots([makeRobot('r1', { ...docked, audioMode: 'solo' }), makeRobot('r2', { ...docked, audioMode: 'solo' })]));
+    expect(screen.getByText(/^2 of \d+ Probes active\.$/)).toBeTruthy();
+  });
+
+  // Backlog 84 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.3): the dock's silence begins in the station ('charging').
+  it('counts a Docked robot on its way home, and not one charging in its station', () => {
+    useLocaleStore.setState((s) => ({
+      locales: {
+        ...s.locales,
+        [DEFAULT_LOCALE_ID]: {
+          ...s.locales[DEFAULT_LOCALE_ID],
+          robots: [
+            makeRobot('r1', { docking: DockingState.Docked, activity: 'returning' }),
+            makeRobot('r2', { docking: DockingState.Docked, activity: 'entering' }),
+            makeRobot('r3', { docking: DockingState.Docked, activity: 'charging' }),
+            makeRobot('r4', { docking: DockingState.Active, activity: 'transit' }),
+          ],
+        },
+      },
+    }));
+    useAudioStore.setState({ soundingRobotIds: ['r1', 'r2', 'r3', 'r4'] });
+    render(<MetaBox />);
+    expect(screen.getByText(/^3 of \d+ Probes active\.$/)).toBeTruthy();
+    act(() => useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r2', { activity: 'charging' }));
     expect(screen.getByText(/^2 of \d+ Probes active\.$/)).toBeTruthy();
   });
 });

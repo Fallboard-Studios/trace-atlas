@@ -12,7 +12,7 @@ vi.mock('../beatClock', () => ({
   },
 }));
 
-import { disposeVoiceNodes, rampOrSet, setOrGlide, type VoiceEntry } from './voiceEntry';
+import { disposeVoiceNodes, rampOrSet, rampOver, setOrGlide, type VoiceEntry } from './voiceEntry';
 import type { CompositeVoice } from './compositeVoice';
 import type { SendEngineKey } from '../../data/robotSends';
 
@@ -163,6 +163,51 @@ describe('rampOrSet', () => {
     const untimed = { value: 0 };
     rampOrSet(untimed, 0.75, 0.1);
     expect(untimed.value).toBe(0.75);
+  });
+});
+
+// Play until in the Station T6 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5, §4's note): rampOrSet's sibling ramps over
+// its own seconds from its time, never one tick, so a station fade lasts the half to whole measure it was given.
+describe('rampOver', () => {
+  beforeEach(() => {
+    tick.seconds = 0.137;
+    tick.askedAt.length = 0;
+  });
+
+  it('a param with rampTo ramps to the target over the given seconds from the given time', () => {
+    const param = { rampTo: vi.fn(), setValueAtTime: vi.fn(), value: 1 };
+    rampOver(param, 0, 1.75, 12.25);
+    expect(param.rampTo.mock.calls).toEqual([[0, 1.75, 12.25]]);
+    expect(param.setValueAtTime).not.toHaveBeenCalled();
+    expect(param.value).toBe(1);
+  });
+
+  it('never reads the tick length: the ramp is its own seconds whatever one tick is', () => {
+    const param = { rampTo: vi.fn(), value: 1 };
+    rampOver(param, 0, 1.75, 12.25);
+    tick.seconds = undefined;
+    rampOver(param, 0, 0.9, 13);
+    expect(param.rampTo.mock.calls).toEqual([[0, 1.75, 12.25], [0, 0.9, 13]]);
+    expect(tick.askedAt).toEqual([]);
+  });
+
+  it('a time of 0 is a time', () => {
+    const param = { rampTo: vi.fn(), value: 1 };
+    rampOver(param, 0, 2, 0);
+    expect(param.rampTo).toHaveBeenCalledWith(0, 2, 0);
+  });
+
+  it('a param with only setValueAtTime gets a point at the ramp end, and its value is untouched', () => {
+    const param = { setValueAtTime: vi.fn(), value: 1 };
+    rampOver(param, 0, 1.75, 12.25);
+    expect(param.setValueAtTime.mock.calls).toEqual([[0, 14]]);
+    expect(param.value).toBe(1);
+  });
+
+  it('a stub with neither is assigned (headless)', () => {
+    const param = { value: 1 };
+    rampOver(param, 0.25, 1.75, 12.25);
+    expect(param.value).toBe(0.25);
   });
 });
 

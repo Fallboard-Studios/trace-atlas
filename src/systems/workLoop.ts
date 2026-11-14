@@ -8,8 +8,10 @@
 // next(). No ready site → 'waiting' (one finite bob of WAIT_RETRY_SECONDS) → next().
 //
 // Stations (Task 23): a robot that isn't Active goes home — 'returning' (the nearest station with a
-// free slot, reserved on decision, swim to its port) → 'entering' (the arc: scale down to
-// STATION_PORT_SCALE and fade out) → 'charging' (hidden at the port, its slot lit). Going Active
+// free slot, reserved on decision, swim to its port) → 'entering' (it holds at the port, visible and
+// playing, until the station fade system's sixteenth tick calls enterOnBar: the arc, scale down to
+// STATION_PORT_SCALE and fade out, over the seconds left to the bar line, backlog 84) → 'charging'
+// (hidden at the port, its slot lit). Going Active
 // again, it exits — 'exiting' (the arc reversed) → next(). Each arc carries the robot's halo
 // ripple (its registered decorateArc) and the station's own ripple (stationRipple.ts).
 //
@@ -597,15 +599,23 @@ function wait(loop: LoopRun, robot: Robot): void {
 /**
  * The station arc, keyed `station-${robotId}`: `'spawn'` appears at the port (scale
  * STATION_PORT_SCALE → 1 on √v, autoAlpha 0 → 1), `'despawn'` vanishes into it (scale 1 →
- * STATION_PORT_SCALE on v², autoAlpha 1 → 0), both over STATION_ARC_SECONDS. The robot's halo
- * ripple rides on the arc and the station's ripple plays beside it. Reduced motion: a
- * STATION_REDUCED_ARC_SECONDS fade in place, no scale and no station ripple.
+ * STATION_PORT_SCALE on v², autoAlpha 1 → 0), both over STATION_ARC_SECONDS unless `seconds` is
+ * given (the entry over the station fade, backlog 84). The robot's halo ripple rides on the arc and
+ * the station's ripple plays beside it, both over the same duration. Reduced motion: a fade in place
+ * over `seconds`, or STATION_REDUCED_ARC_SECONDS without it, no scale and no station ripple.
  */
-function stationArc(loop: LoopRun, robot: Robot, kind: ArcKind, station: Station | undefined, onDone: () => void): void {
+function stationArc(
+  loop: LoopRun,
+  robot: Robot,
+  kind: ArcKind,
+  station: Station | undefined,
+  onDone: () => void,
+  seconds?: number,
+): void {
   const key = `station-${robot.id}`;
   const done = live(loop, onDone);
   const reduced = prefersReducedMotion();
-  const duration = reduced ? STATION_REDUCED_ARC_SECONDS : STATION_ARC_SECONDS;
+  const duration = seconds ?? (reduced ? STATION_REDUCED_ARC_SECONDS : STATION_ARC_SECONDS);
   const el = bodyOf(robot.id);
   if (!el) {
     const tl = timed(duration, done);
@@ -662,20 +672,31 @@ function returnToStation(loop: LoopRun, robot: Robot): void {
   }
   write(loop, robot.id, { activity: 'returning', stationId: station.id, siteId: undefined });
   // Stations are in the front row: a back-row robot switches on the way.
-  legTo(loop, robot, portPosition(station, robot), 'foreground', () => enter(loop, robot.id, station));
+  legTo(loop, robot, portPosition(station, robot), 'foreground', () => enter(loop, robot.id));
 }
 
-/** Into the station. If the robot went Active again on the way in, it turns back at the port. */
-function enter(loop: LoopRun, robotId: string, station: Station): void {
+/**
+ * At the port: 'entering', and the robot holds there, visible at full size and still playing, its slot held. The
+ * station fade system's sixteenth tick starts the arc (enterOnBar) so that it ends on the bar line with the fade
+ * (backlog 84, spec §1.2 steps 2–3).
+ */
+function enter(loop: LoopRun, robotId: string): void {
+  write(loop, robotId, { activity: 'entering' });
+}
+
+/** Whether the robot's station arc is part-way: a finished arc stays registered under its key until the next one
+ *  replaces it, so being set is not enough. A paused one (power off) is still running. */
+function arcRunning(robotId: string): boolean {
+  const arc = getTimeline(`station-${robotId}`);
+  return arc !== undefined && arc.progress() < 1;
+}
+
+/** The entry arc's end: charging, or out again if the robot went Active on the way in (a guard). */
+function inside(loop: LoopRun, robotId: string): void {
   const robot = robotOf(loop, robotId);
   if (!robot) return;
-  write(loop, robotId, { activity: 'entering' });
-  stationArc(loop, robot, 'despawn', station, () => {
-    const inside = robotOf(loop, robotId);
-    if (!inside) return;
-    if (inside.docking === DockingState.Active) exitStation(loop, inside);
-    else write(loop, robotId, { activity: 'charging' });
-  });
+  if (robot.docking === DockingState.Active) exitStation(loop, robot);
+  else write(loop, robotId, { activity: 'charging' });
 }
 
 /** Docked or Undocking: hidden at its station's port (the nearest free one if it has none), charging. */
@@ -832,12 +853,28 @@ export function next(robotId: string): void {
 }
 
 /**
+ * The entry arc over the station fade (backlog 84, spec §1.6), called by the station fade system on
+ * the sixteenth that starts the robot's fade: the `'despawn'` arc over `seconds`, ending in
+ * `'charging'` (or out again if the robot is Active by then). A no-op unless the loop is running, the
+ * robot is one of its locale's, `'entering'`, and has no `station-${id}` arc already playing.
+ */
+export function enterOnBar(robotId: string, seconds: number): void {
+  const loop = run;
+  if (!loop) return;
+  const robot = robotOf(loop, robotId);
+  if (!robot || robot.activity !== 'entering' || arcRunning(robotId)) return;
+  const station = loop.stations.find((s) => s.id === robot.stationId);
+  stationArc(loop, robot, 'despawn', station, () => inside(loop, robotId), seconds);
+}
+
+/**
  * The lifecycle tick's visual seam (spec §1.7), called after the tick's own store writes.
  * `'recalled'`: in transit, the swim is dropped and the site released with no cooldown; waiting,
  * the bob is dropped — either way it heads home now. Working or exiting, the leg finishes first
  * and its next() sends it home. `'active'`: charging, it exits; returning, it turns back (the slot
- * frees with the activity) and goes to work; entering, the arc finishes and turns it back at the
- * port. `'docked'`: nothing — the entry ends in 'charging' on its own.
+ * frees with the activity) and goes to work; entering, it turns back at the port — at once while it
+ * holds there, else the arc reverses and it resumes at the reverse's end (turnBackAtPort). `'docked'`:
+ * nothing — the entry ends in 'charging' on its own.
  */
 export function onLifecycleChange(localeId: string, robotId: string, to: LifecycleChange): void {
   const loop = run;
@@ -856,8 +893,36 @@ export function onLifecycleChange(localeId: string, robotId: string, to: Lifecyc
     } else if (robot.activity === 'returning') {
       dropLeg(robotId);
       resume(loop, settle(loop, robot));
+    } else if (robot.activity === 'entering') {
+      turnBackAtPort(loop, robot);
     }
   }
+}
+
+/**
+ * Active again before it is inside (backlog 84, spec §1.2 step 5). Holding at the port, it resumes at once. Mid-arc,
+ * the arc runs backwards from where it is: its 'charging' end is unhooked, and the robot resumes when the reverse
+ * reaches the start, the reversed arc killed so a later entry can start a fresh one. Already reversing, the same again
+ * (GSAP's reverse() sets the direction, it does not toggle it). The station ripple is left to finish; the volume's
+ * return is the engine's (landOnActive → cancelStationFade).
+ */
+function turnBackAtPort(loop: LoopRun, robot: Robot): void {
+  const key = `station-${robot.id}`;
+  const arc = getTimeline(key);
+  if (!arcRunning(robot.id) || !arc) {
+    resume(loop, settle(loop, robot));
+    return;
+  }
+  arc.eventCallback('onComplete', null);
+  arc.eventCallback(
+    'onReverseComplete',
+    live(loop, () => {
+      killTimeline(key);
+      const here = robotOf(loop, robot.id);
+      if (here) resume(loop, settle(loop, here));
+    }),
+  );
+  arc.reverse();
 }
 
 /**
