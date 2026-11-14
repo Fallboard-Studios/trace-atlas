@@ -7,7 +7,8 @@ Source spec: [docs/specs/PLAY_UNTIL_IN_THE_STATION.md](../specs/PLAY_UNTIL_IN_TH
 **Status:** plan written 2026-11-14 from the spec, with every §7.1 assumption at its default and §7.2 Q1–Q2 open for
 the gate; revised the same day for Crawford's answer 4 (the hold only when less than half a measure is left; otherwise
 the fade starts at once and ends on the bar line), which resolved Q3 and moved the fade system to the sixteenth grid.
-Nothing built.
+Phases 1 and 2 (Tasks 1–9) built 2026-11-14; next is Crawford's review at "Checkpoint: the engine's fade", then
+Task 10.
 
 ## Overview
 
@@ -248,7 +249,7 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
 
 ### Phase 2: The engine's fade (spec §1.5)
 
-- [ ] **Task 6: `voiceEntry.ts` — `rampOver(param, target, seconds, time)`**
+- [x] **Task 6: `voiceEntry.ts` — `rampOver(param, target, seconds, time)`**
 
   **Description:** A sibling of `rampOrSet` that ramps `param` to `target` **over `seconds` from `time`**: `rampTo(target,
 seconds, time)` when the param ramps; else `setValueAtTime(target, time + seconds)`; else assign. `rampOrSet` and its
@@ -258,13 +259,13 @@ seconds, time)` when the param ramps; else `setValueAtTime(target, time + second
   arguments.
 
   **Acceptance criteria:**
-  - [ ] A rampable param gets `rampTo(target, seconds, time)` — not one tick.
-  - [ ] A param with only `setValueAtTime` gets a point at `time + seconds`; a bare stub is assigned.
-  - [ ] `rampOrSet`'s existing tests pass unmodified.
+  - [x] A rampable param gets `rampTo(target, seconds, time)` — not one tick.
+  - [x] A param with only `setValueAtTime` gets a point at `time + seconds`; a bare stub is assigned.
+  - [x] `rampOrSet`'s existing tests pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/audioEngine` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/audioEngine` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
@@ -272,7 +273,7 @@ seconds, time)` when the param ramps; else `setValueAtTime(target, time + second
 
   **Estimated scope:** XS
 
-- [ ] **Task 7: `AudioEngine.ts`, `constants/index.ts` — `scheduleStationFade`, `cancelStationFade`, the fade factor**
+- [x] **Task 7: `AudioEngine.ts`, `constants/index.ts` — `scheduleStationFade`, `cancelStationFade`, the fade factor**
 
   **Description:** Module state `stationFades: Map<robotId, { end }>`; `scheduleStationFade(robotId, time, seconds)`
   records `end = time + seconds` and `rampOver`s the voice's `busGain.gain` to 0 (a robot with no voice is recorded
@@ -287,14 +288,14 @@ seconds, time)` when the param ramps; else `setValueAtTime(target, time + second
   `killAll` forgetting the fades.
 
   **Acceptance criteria:**
-  - [ ] `scheduleStationFade` ramps the bus to 0 from `time` over `seconds`; `cancelStationFade` ramps back over the
+  - [x] `scheduleStationFade` ramps the bus to 0 from `time` over `seconds`; `cancelStationFade` ramps back over the
         constant and is a no-op with no fade.
-  - [ ] `busGainTarget` is 0 after a completed fade (a Volume write then keeps the bus at 0) and 1 otherwise.
-  - [ ] Mutants: the factor applied before the end; the record surviving `killAll`.
+  - [x] `busGainTarget` is 0 after a completed fade (a Volume write then keeps the bus at 0) and 1 otherwise.
+  - [x] Mutants: the factor applied before the end; the record surviving `killAll`.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 6.
 
@@ -302,7 +303,7 @@ seconds, time)` when the param ramps; else `setValueAtTime(target, time + second
 
   **Estimated scope:** M (new public API, module state, one constant)
 
-- [ ] **Task 8: `AudioEngine.ts` — a bus-gain write during a ramp re-issues the ramp**
+- [x] **Task 8: `AudioEngine.ts` — a bus-gain write during a ramp re-issues the ramp**
 
   **Description:** `updateRobotMasterVolume` and `setHighlightedRobots` land their write on a bus mid-fade. For a robot
   with a live fade whose end has not passed, the write re-issues the fade: `rampOver(gain, 0, end − writeTime, writeTime)`
@@ -313,12 +314,12 @@ time?)` that both call, so the rule lives once.
   not to the Volume target; a Highlight set change mid-fade does the same; after the end both write the faded target (0).
 
   **Acceptance criteria:**
-  - [ ] No bus-gain write mid-fade raises the bus; the fade's end is kept.
-  - [ ] Existing Volume and Highlight tests pass unmodified.
+  - [x] No bus-gain write mid-fade raises the bus; the fade's end is kept.
+  - [x] Existing Volume and Highlight tests pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 7.
 
@@ -326,7 +327,7 @@ time?)` that both call, so the rule lives once.
 
   **Estimated scope:** S
 
-- [ ] **Task 9: `robotSystems.ts` — `landOnActive` cancels the fade**
+- [x] **Task 9: `robotSystems.ts` — `landOnActive` cancels the fade**
 
   **Description:** `landOnActive` calls `AudioEngine.cancelStationFade(robotId)` before the seam (spec §1.2 step 5): a
   robot exiting its station, or turning back mid-fade, sounds at its regular volume with the ramp back over the constant.
@@ -336,11 +337,11 @@ time?)` that both call, so the rule lives once.
   `landOnDocked` does not; the existing "tick's only route to visuals is the seam" pin passes.
 
   **Acceptance criteria:**
-  - [ ] Every `Active` landing cancels; no `Docked` landing does.
+  - [x] Every `Active` landing cancels; no `Docked` landing does.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/robotSystems.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/robotSystems.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 7.
 
@@ -350,8 +351,8 @@ time?)` that both call, so the rule lives once.
 
 ### Checkpoint: the engine's fade
 
-- [ ] `npm run build:types`, `npm run lint`, `npm test` all clean.
-- [ ] The app behaves exactly as at Checkpoint A: nothing schedules a fade yet; `landOnActive`'s cancel is a no-op.
+- [x] `npm run build:types`, `npm run lint`, `npm test` all clean.
+- [x] The app behaves exactly as at Checkpoint A: nothing schedules a fade yet; `landOnActive`'s cancel is a no-op.
 - [ ] Reviewed with Crawford before Phase 3.
 
 ---
