@@ -1704,7 +1704,7 @@ cycle. The record: [intent](../../intent/robot-note-cloud.md), [spec](../../spec
 §8.4 for Gate 4), [plan](../../tasks/ROBOT_NOTE_CLOUD.md), ROBOT_DESIGN.md ("The note cloud — the third overlay"),
 AUDIO_SYSTEM.md ("Note events — audio to the picture"). Backlog
 [84](../backlog.md#84-audio-keep-a-robot-playing-until-it-is-in-the-station) and
-[85](../backlog.md#85-robots-fixed-width-boundary-lines-no-edit-flicker) came out of its spike and stay open. The
+[85](#85-robots-fixed-width-boundary-lines-no-edit-flicker) came out of its spike; 85 has since closed. The
 original request and its branch-one status follow.
 
 
@@ -1932,3 +1932,41 @@ Heard: the Click Track, now a sixteenth on every step with each beat on its own 
 plan's Task 10c, for this listen), on one robot sounding alone after a hard reload. Crawford first heard a sixteenth's
 difference, then put it down to the accented downbeat: "I think we're good." Nothing else was heard off. His call then:
 83 stays open until a pause and resume is checked; his listen across one after the merge closed it.
+
+## 85. Robots: Fixed-Width Boundary Lines, No Edit Flicker
+
+**Closed** 2026-11-14 (`fixes/robot-fixed-lines`: `c340dd71` the code and tests, `935191b9` the docs; Crawford's PR). Every boundary line is one fixed width, the top of the range it had: Top and both Mids 0.7, an orbiter 1.1, the lit strip a third of the line (0.6 opacity on the body, 1 on an orbiter). `gem/gemLines.ts` holds the four constants; `bodyLineDials`, the orbiters' `lineWidth` and `stripOpacity` dials, `useStripFlicker` and `stripFlicker` are gone, and Note Variance and Pitch Repeat no longer reach the body. The interview's three questions were settled by Crawford's brief ("the upper range of all the options allowed by those lines") and his OK of two defaults: one width for the body and one for the orbiters, both at the top (the brief); the orbiters' strip opacity fixed at the top of its range, 1, and no sign for a Mid's layer-gain edit, whose lit level already moves (the defaults). ROBOT_DESIGN.md has the rule, and the Halo and Orbiting specs carry an amendment note. The original request follows.
+
+Agreed by Crawford on 2026-11-12, twice: first during backlog [79](#79-robots-move-in-time-with-their-own-melody)'s
+spike, when a note pulse was going to take over the lit strips, and again once that pulse was rejected and the note
+cloud replaced it ("yes, as its own item"). Two cleanups on the robot's body, wanted for their own sake: the
+differences they draw are too small to see below a 4K screen.
+
+**Today.**
+
+- **Line widths follow settings.** A Top or Mid boundary line is 0.3 to 0.7 gem units wide, from the depth of that
+  layer's gain-LFO link (`BODY_LINE_MIN` / `BODY_LINE_MAX`, `src/components/robot/gem/bodyLineDials.ts`). An
+  orbiter's is 0.3 to 1.1, from Note Variance (`(ORBITER_LINE_BASE + value) / 10`,
+  `src/components/robot/gem/orbiterDials.ts`). The lit strip down a line is a third of its width (`RobotGem.tsx`), so
+  0.1 to 0.37 gem units: under a CSS pixel in the world.
+- **An edit flickers a line.** `useStripFlicker` (`src/components/robot/gem/useStripFlicker.ts`) plays a two-second
+  flicker on a line's strips when one of its values changes: the link's depth or lane, a Mid's layer gain, Note
+  Variance, Pitch Repeat. Two of those, the depth and Note Variance, are the values the widths read.
+
+**Wanted.**
+
+- Every boundary line a fixed width; `bodyLineDials` and the orbiters' `lineWidth` dial go.
+- `useStripFlicker` goes, with its trigger tuples in `RobotBody.tsx`.
+
+**To settle in a short interview first:**
+
+- The one width, or one for the body and one for the orbiters. Today's ranges overlap at 0.3 to 0.7.
+- The orbiters' strip opacity (0.35 to 1 from Pitch Repeat, `ORBITER_STRIP_OPACITY_MIN`). It was to be taken over by
+  the note pulse; with the pulse rejected, Crawford has not said whether it stays a dial or becomes fixed like the
+  body's (`BODY_STRIP_OPACITY`, 0.6).
+- Whether an edit to a Mid's layer gain, which also moves that Mid's lit level, needs any sign once the flicker is
+  gone.
+
+**What it touches.** [ROBOT_DESIGN.md](../../ROBOT_DESIGN.md) lists the dials, and CLAUDE.md's Visual Mapping guardrail
+points at that list, so the list is edited with the code. The guardrail's own sentence does not change: removing a
+dial relaxes nothing. No audio, no state, nothing in a session or on a link.

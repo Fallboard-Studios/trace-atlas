@@ -25,9 +25,7 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 4 — Visual refinement
 
-- Backlog [85](backlog.md#85-robots-fixed-width-boundary-lines-no-edit-flicker) **Fixed-width boundary lines, no edit
-  flicker** — a short interview first: the line-width dials draw differences too small to see, and the flicker's
-  triggers go with them.
+- Empty: its one item, backlog 85, built 2026-11-14 on `fixes/robot-fixed-lines` (Crawford's PR). Stage 5 is next.
 
 ## Stage 5 — UX refinement
 
