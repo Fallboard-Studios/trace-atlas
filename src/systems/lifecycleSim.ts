@@ -211,7 +211,9 @@ export interface CoverTally {
   result(): CoverTallyResult;
 }
 
-/** Spec §1.1: a robot is sounding while Active or Recalled. */
+/** Spec §1.1: a robot is sounding while Active or Recalled. Since backlog 84 a Docked robot still on its way home also
+ *  sounds (the silence begins at 'charging'), and this docking-only sim cannot see that, so it under-counts sounding
+ *  robots: its "never silent" result is a floor and still holds (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §7.1 A6). */
 const isSounding = (r: CoverSnapshot) => r.docking === DockingState.Active || r.docking === DockingState.Recalled;
 
 /** Spec §1.1: a stay is a robot still Active at or below critical after a tick. */
