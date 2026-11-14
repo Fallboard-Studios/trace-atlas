@@ -540,3 +540,29 @@ describe('CompanyRenameDeleteForm — the delete confirm stays inside the screen
     expect(document.activeElement).toBe(del);
   });
 });
+
+// A store selector must hand React the same value while nothing changed. With the locale missing (a cold store, or
+// one swapped out from under a mounted form) the company list falls back to "none", and that fallback has to be one
+// shared empty list: a new array per read makes React report an unstable snapshot and re-render in a loop.
+describe('the company forms with no locale under them', () => {
+  let savedLocales: ReturnType<typeof useLocaleStore.getState>['locales'];
+
+  beforeEach(() => {
+    savedLocales = useLocaleStore.getState().locales;
+    useLocaleStore.setState({ locales: {} });
+  });
+
+  afterEach(() => {
+    useLocaleStore.setState({ locales: savedLocales });
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['CompanyCreateForm', CompanyCreateForm],
+    ['CompanyRenameDeleteForm', CompanyRenameDeleteForm],
+  ])('%s renders with nothing reported and no render loop', (_name, Form) => {
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect(() => render(<Form />)).not.toThrow();
+    expect(errors.mock.calls.map((call) => String(call[0]))).toEqual([]);
+  });
+});

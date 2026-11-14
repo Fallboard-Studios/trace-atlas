@@ -26,6 +26,11 @@ import './CompanyCrudControls.css';
 const CREATE_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.create', ...labels('company.name.create') };
 const RENAME_NAME_SCHEMA = { ...COMPANY_NAME_INPUT_SCHEMA, id: 'company.name.rename', ...labels('company.name.rename') };
 
+// The one "no companies" list both forms' selectors fall back to while the locale is missing. A selector must hand
+// React the same reference while nothing changed: a fresh `[]` per read is a new snapshot every time, and the form
+// re-renders until React stops it ("Maximum update depth exceeded"). As useCompanyOptions.ts's NO_COMPANIES.
+const NO_COMPANIES: Company[] = [];
+
 /**
  * A fresh "Adjective Noun" suggestion, reusing generateCompanyName's exact word-list logic
  * (Roadmap Phase 10 spawn generation) but fed by Math.random() instead of a seeded noise map —
@@ -69,7 +74,7 @@ function pickRandomCompanyColor(existingColors: string[]): string {
  */
 export function CompanyCreateForm() {
   const localeId = getActiveLocaleId();
-  const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
+  const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? NO_COMPANIES);
 
   const [createNameDraft, setCreateNameDraft] = useState(suggestCompanyName);
 
@@ -129,7 +134,7 @@ export function CompanyCreateForm() {
  */
 export function CompanyRenameDeleteForm() {
   const localeId = getActiveLocaleId();
-  const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? []);
+  const companies = useLocaleStore((s) => s.locales[localeId]?.companies ?? NO_COMPANIES);
   const selectedCompanyId = useUIStore((s) => s.selectedCompanyId);
   const selectedCompany = companies.find((c) => c.id === selectedCompanyId);
 
