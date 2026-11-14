@@ -323,6 +323,11 @@ export const WAIT_RETRY_SECONDS = 2;
  *  seconds (spec §1.6/§1.7). 1.0 from the station sketch (Task 0a; was 0.9), landed at Task 20. */
 export const STATION_ARC_SECONDS = 1;
 
+/** How long a cancelled station fade takes to bring a robot's bus back to its regular volume, in seconds: a turn-back
+ *  or an exit (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5, assumption A2). Long enough to be a ramp, short enough
+ *  that a robot swimming off is at full volume before it has left the port. The gate hears it. */
+export const STATION_FADE_RECOVER_SECONDS = 0.5;
+
 /** A robot's scale at the station port, where it vanishes on entry and appears on exit (spec §1.6,
  *  the station sketch's 0.15 — superseding §1.7's first-draft 0.4). */
 export const STATION_PORT_SCALE = 0.15;

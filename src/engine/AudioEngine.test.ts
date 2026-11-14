@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { MAX_POLYPHONY, MIN_LEAD } from '../constants';
+import { MAX_POLYPHONY, MIN_LEAD, STATION_FADE_RECOVER_SECONDS } from '../constants';
 
 vi.mock('../utils/localeHelpers', () => ({ getActiveLocaleId: vi.fn(() => 'testLocale') }));
 
@@ -2449,6 +2449,225 @@ describe('AudioEngine.setHighlightedRobots — the Highlight dip is one bus-gain
 
     expect(() => AudioEngine.setHighlightedRobots(['h'])).not.toThrow();
     expect(gone.gain.rampTo).not.toHaveBeenCalled();
+  });
+});
+
+// Play until in the Station T7 (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): a homebound robot's bus ramps to silence
+// over the fade it was given, and stays silent once the fade has run its course (the fade factor in busGainTarget). The
+// Tone mock's now() is 0, so a fade ending at or before 0 has completed and one ending after 0 is live.
+describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fade', () => {
+  type BusGain = { gain: { value: number; rampTo?: ReturnType<typeof vi.fn> } };
+  const layered: any[] = [{ type: 'sine', gain: 0.8, detune: 0, phase: 0 }];
+
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  async function reserveWithBus(AudioEngine: any, robotId: string, volume: number): Promise<BusGain> {
+    const Tone = await import('tone');
+    AudioEngine.reserveVoice(robotId, layered, TEST_ADSR, undefined, undefined, undefined, volume);
+    const results = (Tone.Gain as unknown as { mock: { results: { value: BusGain }[] } }).mock.results;
+    return results[results.length - BUS_GAIN_FROM_END].value;
+  }
+
+  /** The initial gain the most recent bus was built at. */
+  async function lastBuiltBusGain(): Promise<unknown> {
+    const Tone = await import('tone');
+    const gainCalls = (Tone.Gain as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    return gainCalls[gainCalls.length - BUS_GAIN_FROM_END][0];
+  }
+
+  it('ramps the voice\'s bus to 0 from the given time over the given seconds, not one tick', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const bus = await reserveWithBus(AudioEngine, 'home', 0.55);
+    bus.gain.rampTo = vi.fn();
+
+    tick.seconds = 0.137;
+    try {
+      AudioEngine.scheduleStationFade('home', 3.25, 1.5);
+    } finally {
+      tick.seconds = undefined;
+    }
+
+    expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1.5, 3.25]]);
+  });
+
+  it('touches no other robot\'s bus', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+    await reserveWithBus(AudioEngine, 'home', 0.55);
+    other.gain.rampTo = vi.fn();
+
+    AudioEngine.scheduleStationFade('home', 3.25, 1.5);
+
+    expect(other.gain.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('a robot with no voice is recorded only: no throw, and a voice built after the end comes up at 0', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+
+    expect(() => AudioEngine.scheduleStationFade('voiceless', -2, 1)).not.toThrow();
+    AudioEngine.reserveVoice('voiceless', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    expect(await lastBuiltBusGain()).toBe(0);
+  });
+
+  it('after a completed fade a Volume write keeps the bus at 0, and another robot\'s Volume is untouched', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    const other = await reserveWithBus(AudioEngine, 'other', 0.55);
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.updateRobotMasterVolume('home', 0.4);
+    AudioEngine.updateRobotMasterVolume('other', 0.4);
+
+    expect(home.gain.value).toBe(0);
+    expect(other.gain.value).toBe(robotBusGain(0.4));
+  });
+
+  it('the fade has completed at its end exactly (inclusive)', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.scheduleStationFade('home', -1, 1); // end = 0 = now
+
+    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    expect(await lastBuiltBusGain()).toBe(0);
+  });
+
+  it('before its end the fade does not cut the target: a voice built mid-fade starts at its Volume', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.scheduleStationFade('home', -1, 1.001);
+
+    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+  });
+
+  it('the fade outlives a released voice: a voice rebuilt after a completed fade starts at 0', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+
+    AudioEngine.releaseVoice('home');
+    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+
+    expect(await lastBuiltBusGain()).toBe(0);
+  });
+
+  it('the fade still multiplies with the Highlight dip: a completed fade under a live Highlight is 0', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.setHighlightedRobots(['h']);
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.updateRobotMasterVolume('home', 0.4);
+
+    expect(home.gain.value).toBe(0);
+  });
+
+  it('cancelStationFade ramps the bus back to its target over STATION_FADE_RECOVER_SECONDS, from now', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.updateRobotMasterVolume('home', 0.4); // at 0 under the completed fade; the cancel returns to 0.4
+    home.gain.rampTo = vi.fn();
+
+    AudioEngine.cancelStationFade('home');
+
+    expect(home.gain.rampTo.mock.calls).toEqual([[robotBusGain(0.4), STATION_FADE_RECOVER_SECONDS]]);
+  });
+
+  it('the cancel\'s target keeps the Highlight dip on a robot outside the live set', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.setHighlightedRobots(['h']);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    home.gain.rampTo = vi.fn();
+
+    AudioEngine.cancelStationFade('home');
+
+    expect(home.gain.rampTo.mock.calls).toHaveLength(1);
+    expect(home.gain.rampTo.mock.calls[0][0]).toBeCloseTo(robotBusGain(0.55) * HIGHLIGHT_DIP_GAIN, 12);
+    expect(home.gain.rampTo.mock.calls[0].slice(1)).toEqual([STATION_FADE_RECOVER_SECONDS]);
+  });
+
+  it('after a cancel the fade is gone: a Volume write and a rebuilt voice are at their Volume again', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+
+    AudioEngine.cancelStationFade('home');
+    AudioEngine.updateRobotMasterVolume('home', 0.4);
+    expect(home.gain.value).toBe(robotBusGain(0.4));
+
+    AudioEngine.releaseVoice('home');
+    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+  });
+
+  it('cancelStationFade with no fade live writes nothing, and a second cancel writes nothing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    home.gain.rampTo = vi.fn();
+
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.rampTo).not.toHaveBeenCalled();
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.cancelStationFade('home');
+    home.gain.rampTo.mockClear();
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.rampTo).not.toHaveBeenCalled();
+  });
+
+  it('cancelStationFade on a robot with no voice forgets the fade without throwing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    AudioEngine.scheduleStationFade('voiceless', -2, 1);
+
+    expect(() => AudioEngine.cancelStationFade('voiceless')).not.toThrow();
+    AudioEngine.reserveVoice('voiceless', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+  });
+
+  it('killAll forgets every fade: a voice built after it is at its Volume, and a cancel then writes nothing', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    AudioEngine.scheduleStationFade('other', -2, 1);
+
+    AudioEngine.killAll();
+
+    home.gain.rampTo = vi.fn();
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.rampTo).not.toHaveBeenCalled();
+    AudioEngine.reserveVoice('other', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+  });
+
+  it('a stub bus (no rampTo) is assigned 0 by the fade and its target by the cancel', async () => {
+    const { AudioEngine } = await import('./AudioEngine');
+    await AudioEngine.start();
+    const home = await reserveWithBus(AudioEngine, 'home', 0.55);
+
+    AudioEngine.scheduleStationFade('home', -2, 1);
+    expect(home.gain.value).toBe(0);
+
+    AudioEngine.cancelStationFade('home');
+    expect(home.gain.value).toBe(robotBusGain(0.55));
   });
 });
 

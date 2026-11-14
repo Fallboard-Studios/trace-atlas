@@ -15,7 +15,7 @@ import { ROBOT_SENDS, isRoomSendKey, recordByEngineKey, robotSendLevels, type Se
 import { paletteForMeasure } from './harmonySystem';
 import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPosition } from './beatClock';
 import { buildClickTrackMelody } from './clickTrack';
-import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS } from '../constants';
+import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS, STATION_FADE_RECOVER_SECONDS } from '../constants';
 import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './noteEvents';
 import { readContextSeconds } from './nativeContext';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
@@ -43,7 +43,7 @@ import {
 import { HIGHLIGHT_DIP_GAIN, robotBusGain } from './audioEngine/headroom';
 import { getToneCtor, toneHasWebAudio, makeStubPanner, makeStubGain, makeStubFilter, type MinimalToneNode, type ModulationTarget } from './audioEngine/toneHelpers';
 import { createCompositeVoice, type CompositeVoice } from './audioEngine/compositeVoice';
-import { disposeVoiceNodes, rampOrSet, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
+import { disposeVoiceNodes, rampOrSet, rampOver, type RampableParam, type VoiceEntry } from './audioEngine/voiceEntry';
 import { ROOM_KEYS, setRoomFed, type RoomKey } from './audioEngine/bypassCell';
 import { createStandingBy } from './audioEngine/standingBy';
 import {
@@ -213,11 +213,23 @@ let _transport: ReturnType<typeof Tone.getTransport> | null = null;
 // Composite voices (created from LayeredWave descriptors, src/engine/audioEngine/compositeVoice.ts) stored separately
 const compositeVoices: Map<string, VoiceEntry> = new Map();
 
+// The station fades live (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): robotId → the audio time its bus reaches 0.
+// Outlives a released voice; goes only through cancelStationFade and killAll.
+const stationFades = new Map<string, { end: number }>();
+
+/** 0 once a robot's station fade has run its course (its end at or before the engine's now), else 1 (§1.5). The clock
+ *  is read only for a robot with a fade, so the per-tick Volume writes and the headless stub path never touch it. */
+function stationFadeFactor(robotId: string): number {
+  const fade = stationFades.get(robotId);
+  return fade !== undefined && Tone.now() >= fade.end ? 0 : 1;
+}
+
 /** A robot's bus gain target: its Volume through `robotBusGain`, dipped by `HIGHLIGHT_DIP_GAIN` while a Highlight is
- *  live and this robot is not one (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2). Every bus-gain write goes through it. */
+ *  live and this robot is not one (docs/specs/MONITOR_MODE_TRUSTWORTHY.md §1.2), and 0 once its station fade has run
+ *  its course (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5). Every bus-gain write goes through it. */
 function busGainTarget(robotId: string, masterVolume: number): number {
   const dipped = highlightedLive.size > 0 && !highlightedLive.has(robotId);
-  return robotBusGain(masterVolume) * (dipped ? HIGHLIGHT_DIP_GAIN : 1);
+  return robotBusGain(masterVolume) * (dipped ? HIGHLIGHT_DIP_GAIN : 1) * stationFadeFactor(robotId);
 }
 
 /** Store a robot's new voice, tearing down the one it replaces so a second reservation never orphans a live graph. */
@@ -1651,6 +1663,38 @@ export const AudioEngine = {
   },
 
   /**
+   * A homebound robot's station fade (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): its bus ramps to silence from
+   * `time` over `seconds`, and `busGainTarget` keeps it at 0 once the fade has run its course, so a later Volume or
+   * Highlight write, or a voice rebuilt in the station, stays silent. A robot with no voice is recorded only.
+   */
+  scheduleStationFade(robotId: string, time: number, seconds: number): void {
+    stationFades.set(robotId, { end: time + seconds });
+    const entry = compositeVoices.get(robotId);
+    if (!entry) return;
+    try {
+      rampOver(entry.busGain.gain as unknown as RampableParam, 0, seconds, time);
+    } catch (err) {
+      devWarn('[AudioEngine] scheduleStationFade failed', err);
+    }
+  },
+
+  /**
+   * The station fade is off (§1.5): the record goes and the bus ramps back to its target over
+   * `STATION_FADE_RECOVER_SECONDS`. A no-op with no fade recorded, so every `Active` landing may call it.
+   */
+  cancelStationFade(robotId: string): void {
+    if (!stationFades.delete(robotId)) return;
+    const entry = compositeVoices.get(robotId);
+    if (!entry) return;
+    try {
+      const target = busGainTarget(robotId, entry.masterVolume);
+      rampOrSet(entry.busGain.gain as unknown as RampableParam, target, STATION_FADE_RECOVER_SECONDS);
+    } catch (err) {
+      devWarn('[AudioEngine] cancelStationFade failed', err);
+    }
+  },
+
+  /**
    * Audio Load Budget: the simultaneous-note ceiling, clamped to [0, MAX_POLYPHONY] (NaN → MAX_POLYPHONY).
    * Applies to NEW triggers only — lowering it below the notes already sounding never forcibly releases
    * them (that could strand the voice counter); the counter drains as each release fires. Survives killAll().
@@ -1761,6 +1805,7 @@ export const AudioEngine = {
 
       activeVoices = 0;
       initialized = false;
+      stationFades.clear();
       // Reset beatClock so initBeatClock() re-registers its internal tick on next start.
       // transport.cancel() above cleared the old 16n tick; resetBeatClock() lets it be recreated.
       resetBeatClock();
