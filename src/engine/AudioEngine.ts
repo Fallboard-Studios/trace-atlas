@@ -213,15 +213,39 @@ let _transport: ReturnType<typeof Tone.getTransport> | null = null;
 // Composite voices (created from LayeredWave descriptors, src/engine/audioEngine/compositeVoice.ts) stored separately
 const compositeVoices: Map<string, VoiceEntry> = new Map();
 
-// The station fades live (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): robotId → the audio time its bus reaches 0.
-// Outlives a released voice; goes only through cancelStationFade and killAll.
-const stationFades = new Map<string, { end: number }>();
+// The station fades live (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.5): robotId → the audio times its bus ramp starts
+// and reaches 0. Outlives a released voice; goes only through cancelStationFade and killAll.
+const stationFades = new Map<string, { start: number; end: number }>();
 
-/** 0 once a robot's station fade has run its course (its end at or before the engine's now), else 1 (§1.5). The clock
- *  is read only for a robot with a fade, so the per-tick Volume writes and the headless stub path never touch it. */
+/**
+ * The share of its regular level a robot's bus has under its station fade at the engine's now (§1.5): 1 with no fade or
+ * before the ramp starts, 0 from its end, and the ramp's own straight line between, so a voice built mid-fade starts
+ * where the ramp is. The clock is read only for a robot with a fade, so the per-tick Volume writes and the headless
+ * stub path never touch it.
+ */
 function stationFadeFactor(robotId: string): number {
   const fade = stationFades.get(robotId);
-  return fade !== undefined && Tone.now() >= fade.end ? 0 : 1;
+  if (fade === undefined) return 1;
+  const now = Tone.now();
+  if (now >= fade.end) return 0;
+  if (now <= fade.start) return 1;
+  return (fade.end - now) / (fade.end - fade.start);
+}
+
+/**
+ * A voice built while its robot's station fade is live carries the ramp on to the same end (§1.5, after Checkpoint B):
+ * from now, or from the ramp's start when that is still ahead. Built at `busGainTarget`, which already holds the fade's
+ * share, so the ramp continues from where it is. A bus that can neither ramp nor take a timed point (the headless
+ * stub) is left at its built level rather than cut to 0.
+ */
+function continueStationFade(robotId: string, busGain: Tone.Gain): void {
+  const fade = stationFades.get(robotId);
+  if (fade === undefined) return;
+  const gain = busGain.gain as unknown as RampableParam;
+  if (typeof gain.rampTo !== 'function' && typeof gain.setValueAtTime !== 'function') return;
+  const from = Math.max(Tone.now(), fade.start);
+  if (from >= fade.end) return;
+  rampOver(gain, 0, fade.end - from, from);
 }
 
 /** A robot's bus gain target: its Volume through `robotBusGain`, dipped by `HIGHLIGHT_DIP_GAIN` while a Highlight is
@@ -1111,6 +1135,7 @@ export const AudioEngine = {
       }
 
       storeVoice(robotId, { composite, panner, busGain, masterVolume: volume, busFilter, sends });
+      continueStationFade(robotId, busGain);
       // Apply optional top-level detune/phase/pulseWidth across composite layers when provided
       try {
         if (typeof detune === 'number' || typeof phase === 'number' || typeof pulseWidth === 'number') {
@@ -1686,7 +1711,7 @@ export const AudioEngine = {
    * Highlight write, or a voice rebuilt in the station, stays silent. A robot with no voice is recorded only.
    */
   scheduleStationFade(robotId: string, time: number, seconds: number): void {
-    stationFades.set(robotId, { end: time + seconds });
+    stationFades.set(robotId, { start: time, end: time + seconds });
     const entry = compositeVoices.get(robotId);
     if (!entry) return;
     try {

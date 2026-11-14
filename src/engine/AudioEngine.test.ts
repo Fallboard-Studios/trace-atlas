@@ -2539,14 +2539,111 @@ describe('AudioEngine.scheduleStationFade / cancelStationFade — the station fa
     expect(await lastBuiltBusGain()).toBe(0);
   });
 
-  it('before its end the fade does not cut the target: a voice built mid-fade starts at its Volume', async () => {
-    const { AudioEngine } = await import('./AudioEngine');
-    await AudioEngine.start();
-    AudioEngine.scheduleStationFade('home', -1, 1.001);
+  // Backlog 84, after Checkpoint B: a voice rebuilt mid-fade (a budget admit, a structural edit) used to come up at its
+  // full Volume and never fade, since the factor was 1 until the end. It now starts where the ramp is and carries on.
+  describe('a voice built during a fade carries the fade on', () => {
+    type RampingGain = { gain: { value: number; rampTo: ReturnType<typeof vi.fn> } };
 
-    AudioEngine.reserveVoice('home', layered as any, TEST_ADSR, undefined, undefined, undefined, 0.8);
+    /** Reserve with every Gain able to ramp (the shared mock's cannot), and hand back the new bus. */
+    async function reserveRamping(AudioEngine: any, robotId: string, volume: number): Promise<RampingGain> {
+      const Tone = await import('tone');
+      const Gain = Tone.Gain as unknown as ReturnType<typeof vi.fn>;
+      const shared = Gain.getMockImplementation(); // the mocked module outlives resetModules: put it back after
+      Gain.mockImplementation((value?: number) => ({
+        connect: vi.fn().mockReturnThis(),
+        disconnect: vi.fn(),
+        toDestination: vi.fn(),
+        gain: { value: value ?? 1, rampTo: vi.fn() },
+      }));
+      try {
+        AudioEngine.reserveVoice(robotId, layered, TEST_ADSR, undefined, undefined, undefined, volume);
+      } finally {
+        Gain.mockImplementation(shared!);
+      }
+      const results = Gain.mock.results as { value: RampingGain }[];
+      return results[results.length - BUS_GAIN_FROM_END].value;
+    }
 
-    expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+    it('half-way through: built at half its Volume, ramping to 0 from now by the same end', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -1, 2); // start -1, end 1; Tone.now() is 0
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBeCloseTo(robotBusGain(0.8) * 0.5, 12);
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1, 0]]);
+    });
+
+    it('a quarter of the way: built at three quarters', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -0.5, 2); // end 1.5
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBeCloseTo(robotBusGain(0.8) * 0.75, 12);
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1.5, 0]]);
+    });
+
+    it('before the ramp starts (a fade scheduled ahead, inside the lookahead): built at its Volume, ramping from the start', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', 0.25, 2); // start 0.25, after now
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 2, 0.25]]);
+    });
+
+    it('after the end: built at 0, with no ramp', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -2, 1);
+
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBe(0);
+      expect(bus.gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('no fade, or a cancelled one: built at its Volume, with no ramp', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      const plain = await reserveRamping(AudioEngine, 'plain', 0.8);
+      expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+      expect(plain.gain.rampTo).not.toHaveBeenCalled();
+
+      AudioEngine.scheduleStationFade('home', -1, 2);
+      AudioEngine.cancelStationFade('home');
+      const home = await reserveRamping(AudioEngine, 'home', 0.8);
+      expect(await lastBuiltBusGain()).toBe(robotBusGain(0.8));
+      expect(home.gain.rampTo).not.toHaveBeenCalled();
+    });
+
+    it('a bus that cannot ramp (the shared stub) is left at its built level, never cut to 0', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -1, 2);
+
+      const bus = await reserveWithBus(AudioEngine, 'home', 0.8);
+
+      expect(await lastBuiltBusGain()).toBeCloseTo(robotBusGain(0.8) * 0.5, 12);
+      expect(bus.gain.value).not.toBe(0); // the shared mock keeps 1 whatever it is built at; an assignment would show
+    });
+
+    it('a Volume write after the rebuild keeps fading to the same end (the re-issue, Task 8)', async () => {
+      const { AudioEngine } = await import('./AudioEngine');
+      await AudioEngine.start();
+      AudioEngine.scheduleStationFade('home', -1, 2);
+      const bus = await reserveRamping(AudioEngine, 'home', 0.8);
+      bus.gain.rampTo.mockClear();
+
+      AudioEngine.updateRobotMasterVolume('home', 0.4);
+
+      expect(bus.gain.rampTo.mock.calls).toEqual([[0, 1, 0]]);
+    });
   });
 
   it('the fade outlives a released voice: a voice rebuilt after a completed fade starts at 0', async () => {
