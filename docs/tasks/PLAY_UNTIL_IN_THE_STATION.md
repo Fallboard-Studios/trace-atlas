@@ -8,7 +8,8 @@ Source spec: [docs/specs/PLAY_UNTIL_IN_THE_STATION.md](../specs/PLAY_UNTIL_IN_TH
 the gate; revised the same day for Crawford's answer 4 (the hold only when less than half a measure is left; otherwise
 the fade starts at once and ends on the bar line), which resolved Q3 and moved the fade system to the sixteenth grid.
 Phases 1 and 2 (Tasks 1–9) built 2026-11-14; Checkpoint A and the engine's-fade checkpoint passed with Crawford the same
-day. Next: Task 10.
+day. Phase 3 (Tasks 10–13) built 2026-11-14, with two fixes beyond the plan (Phase 3 as built, below). Next: Checkpoint
+B, Crawford's eye and ear.
 
 ## Overview
 
@@ -359,7 +360,7 @@ time?)` that both call, so the rule lives once.
 
 ### Phase 3: The port, the grid and the stretched arc (spec §1.2 step 3, §1.4, §1.6)
 
-- [ ] **Task 10: `workLoop.ts` — `stationArc` takes a duration; `enterOnBar(robotId, seconds)` exported**
+- [x] **Task 10: `workLoop.ts` — `stationArc` takes a duration; `enterOnBar(robotId, seconds)` exported**
 
   **Description:** `stationArc(loop, robot, kind, station, onDone, seconds?)`: `seconds` is the arc's duration when given
   (body alpha and scale, the decorator's and the ripple's duration); absent, today's `STATION_ARC_SECONDS` /
@@ -375,13 +376,13 @@ time?)` that both call, so the rule lives once.
   seconds with no scale; the exit arc's duration is unchanged.
 
   **Acceptance criteria:**
-  - [ ] An arc given a duration lasts exactly that long, decorator and ripple included.
-  - [ ] `enterOnBar` is a no-op for the wrong activity, a running arc, a dead loop or an unknown robot.
-  - [ ] The existing 133 work-loop tests pass unmodified (the exit arc and today's entry are untouched).
+  - [x] An arc given a duration lasts exactly that long, decorator and ripple included.
+  - [x] `enterOnBar` is a no-op for the wrong activity, a running arc, a dead loop or an unknown robot.
+  - [x] The existing 133 work-loop tests pass unmodified (the exit arc and today's entry are untouched).
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** None.
 
@@ -389,7 +390,7 @@ time?)` that both call, so the rule lives once.
 
   **Estimated scope:** M (a signature, a new export, a reduced-motion branch)
 
-- [ ] **Task 11: `stationFadeSystem.ts` (new), `worldTransition.ts`, `constants/index.ts` — the grid schedules the fade
+- [x] **Task 11: `stationFadeSystem.ts` (new), `worldTransition.ts`, `constants/index.ts` — the grid schedules the fade
       and the arc by the half-measure rule**
 
   **Description:** `STATION_FADE_MIN_STEPS = 8` beside the station constants. `startStationFades(localeId)` /
@@ -413,14 +414,14 @@ tick`; a started robot gets nothing on later ticks; a soloed `'entering'` robot 
   `worldTransition.test.ts`: start and stop called with the loop.
 
   **Acceptance criteria:**
-  - [ ] One fade and one arc per entry, ending on the bar line: started at once with half a measure or more left, else
+  - [x] One fade and one arc per entry, ending on the bar line: started at once with half a measure or more left, else
         on the bar-line tick with a whole measure; none for Solo; none repeated.
-  - [ ] Started and stopped with the work loop; idempotent stop.
-  - [ ] Mutants: the boundary at 7 or 9; the fade scheduled every tick; the Solo check dropped; `started` never cleared.
+  - [x] Started and stopped with the work loop; idempotent stop.
+  - [x] Mutants: the boundary at 7 or 9; the fade scheduled every tick; the Solo check dropped; `started` never cleared.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/stationFadeSystem.test.ts src/systems/worldTransition.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/stationFadeSystem.test.ts src/systems/worldTransition.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 7, 10.
 
@@ -429,7 +430,7 @@ tick`; a started robot gets nothing on later ticks; a soloed `'entering'` robot 
 
   **Estimated scope:** M (one new module, its test, two call sites, one constant)
 
-- [ ] **Task 12: `workLoop.ts` — `enter` leaves the arc to the grid**
+- [x] **Task 12: `workLoop.ts` — `enter` leaves the arc to the grid**
 
   **Description:** `enter` writes `'entering'` and returns; no arc. The robot stands at the port, visible, until Task 11's
   tick calls `enterOnBar` (at once with half a measure or more left, else on the bar). `stopWorkLoop` already kills `station-*` timelines; `adopt` of an `'entering'` robot on a
@@ -441,14 +442,14 @@ tick`; a started robot gets nothing on later ticks; a soloed `'entering'` robot 
   (the one place behaviour changes on purpose).
 
   **Acceptance criteria:**
-  - [ ] No arc at arrival; the robot is `'entering'`, visible and at full scale.
-  - [ ] The occupancy set still holds the slot through the hold.
-  - [ ] The "never touches AudioEngine through a full cycle" pin passes with a hold, an `enterOnBar` and a `'charging'`
+  - [x] No arc at arrival; the robot is `'entering'`, visible and at full scale.
+  - [x] The occupancy set still holds the slot through the hold.
+  - [x] The "never touches AudioEngine through a full cycle" pin passes with a hold, an `enterOnBar` and a `'charging'`
         in the cycle.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/workLoop.test.ts src/systems/workLoop.integration.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
   - [ ] Listen and Look: two recalls. One arriving early in a bar shrinks and fades at once and is gone and silent on
         the bar line; one arriving late in a bar stands at its port, still playing, then takes the whole next bar; both
         slots light at the end.
@@ -459,7 +460,7 @@ tick`; a started robot gets nothing on later ticks; a soloed `'entering'` robot 
 
   **Estimated scope:** S (one function body, several tests updated)
 
-- [ ] **Task 13: `workLoop.ts` — a turn-back during the hold resumes, during the arc reverses**
+- [x] **Task 13: `workLoop.ts` — a turn-back during the hold resumes, during the arc reverses**
 
   **Description:** `onLifecycleChange(…, 'active')` for an `'entering'` robot: with no `station-${id}` timeline, `resume(loop,
 settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseComplete` to a `live` callback that
@@ -472,13 +473,13 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
   today; the engine is never touched.
 
   **Acceptance criteria:**
-  - [ ] A turn-back mid-hold is immediate; mid-arc it reverses and never writes `'charging'`.
-  - [ ] Mutant: letting the arc finish (today's code) fails the mid-arc test.
+  - [x] A turn-back mid-hold is immediate; mid-arc it reverses and never writes `'charging'`.
+  - [x] Mutant: letting the arc finish (today's code) fails the mid-arc test.
   - [ ] Existing turn-back tests pass unmodified.
 
   **Verification:**
-  - [ ] `npx vitest run src/systems/workLoop.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/systems/workLoop.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
   - [ ] Look: a robot called back mid-fade grows back the way it went and swims off; the volume returns over half a
         second (Task 9).
 
@@ -488,9 +489,38 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
 
   **Estimated scope:** S
 
+**Phase 3 as built (2026-11-14; a6a3c247, e4a2e5c4, eced4515, fb510243):**
+
+- **"An arc is running" is not "a `station-${id}` timeline is set"** (the Architecture Decision was wrong). A finished
+  arc stays registered under its key until the next one replaces it, so every robot that had exited its station earlier
+  got no entry arc: the integration run left each recalled robot standing at its port for ever. `arcRunning(id)` is the
+  timeline set **and** part-way (`progress() < 1`); `enterOnBar` and the turn-back both read it. Fixed in Task 12's
+  commit with its own RED case.
+- **`resumeWorldTimelines()` now calls `resume()`, not `play()`** (`src/animation/timelineMap.ts`, outside the plan's
+  files). GSAP 3's `play()` also sets `reversed(false)`, so a power-off during a turn-back's reverse would have played the
+  arc forward on power-on, to a robot hidden at its port that never charges (spec A5). `vitest.setup.ts`'s gsap mock
+  gains a `resume()` stub. Task 13's commit, RED case "a power-off during the reverse".
+- **The reversed arc is killed at its `onReverseComplete`**, so a robot recalled again during the reverse gets a fresh
+  entry arc (a reversed arc at progress 0 would count as running).
+- **The integration test runs the real fade system** (`workLoop.integration.test.ts`, outside the plan's files): a
+  partial `beatClock` mock captures its `'16n'` callback, and `step()` runs it at every sixteenth the simulated
+  Transport crosses (the lifecycle tick first on a bar line). Its "hidden tab during the entry" case now expects a
+  turn-back with no `'exiting'` and no `'charging'`.
+- **Tests changed on purpose:** eight work-loop cases that waited on the arrival arc call `enterOnBar` (Task 12); the old
+  "while entering: the arc finishes, then it exits again" case is rewritten as the mid-arc reverse (Task 13, so its
+  "existing turn-back tests unmodified" box stays open); `worldTransition.test.ts`'s `scheduleRepeat` count goes from 2
+  to 4 (two `'16n'` systems, each restarted).
+- **`started` is a `Map` (`'fade' | 'arc'`), not a `Set`,** so a Solo mid-fade cancels once, not on every tick.
+- **Equivalent mutants:** dropping the `onComplete` unhook before `reverse()` (GSAP never fires `onComplete` while
+  reversing and nothing now plays it forward; kept as the Risks table's mitigation); a `reversed()` guard against a
+  second `'active'` was removed as equivalent (`reverse()` sets the direction, it does not toggle it).
+- **Noted, not built:** a robot un-soloed after its fade was cancelled stays at full volume until `'charging'`, then
+  cuts at the dock mute; the spec does not cover it.
+- Full suite 14343 passed / 0 failed; `build:types`, `lint` (4 old warnings) and `build` clean.
+
 ### Checkpoint B / Gate: Crawford's eye and ear (spec §5.4; stop)
 
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
 - [ ] The §5.3 runs: `?debug` on, a recall end to end; the Deck's count and the mode light lit until the body is gone;
       the robot screen's cloud running through the swim and thinning over the fade; no Tone "scheduled inside of
       scheduled callbacks" warning from the fade's writes.
