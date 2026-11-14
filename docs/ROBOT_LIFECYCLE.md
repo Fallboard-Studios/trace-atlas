@@ -270,7 +270,8 @@ and the art are in [BUILDING_DESIGN.md](BUILDING_DESIGN.md#robot-jobs--hosts-wor
   inclusive) or more sixteenths left to the bar line, the robot goes in at once; with fewer, it holds
   until the bar-line tick and takes the whole next measure. Either way the system starts the robot's
   volume ramp to 0 (`AudioEngine.scheduleStationFade`, none for a soloed robot) and the entry arc
-  (`enterOnBar(robotId, seconds)`) over the same seconds, so both end on the bar line. The arc vanishes
+  (`enterOnBar(robotId, seconds)`) over the same seconds plus the lead until the tick's audio is heard
+  (`AudioEngine.secondsUntilHeard`), so the body is gone when the ramp is heard to end on the bar line. The arc vanishes
   the robot into the port: scale 1 → `STATION_PORT_SCALE` (0.15) and opacity 1 → 0, its halo ripple
   running inward and the station's ripple (`playStationRipple`) beside it, all over the fade's length
   (half a measure to a whole one). It is then `'charging'`: hidden, `visibility: hidden`, out of the
@@ -673,14 +674,13 @@ robots silent afterward.
   on `scale`.
 - **The station ignores daylight**: the robots dim at night, the station doesn't. No spec rule asks
   for it.
-- **The station fade's edges** (backlog 84, measured 2026-11-14 and open at its Checkpoint B; figures in
+- **The station fade after a power cycle** (backlog 84; figures in
   [tasks/PLAY_UNTIL_IN_THE_STATION.md](tasks/PLAY_UNTIL_IN_THE_STATION.md#checkpoint-b--gate-crawfords-eye-and-ear-spec-54-stop)):
-  the arc starts when the tick's callback runs, about one `lookAhead` before the audio, so `'charging'`
-  cuts the last 2–4% of the ramp; after a power cycle the arc resumes 0.2–0.3 s before the audio clock,
-  so the cut is larger (8–16%); a voice rebuilt mid-fade (a budget admit, a structural edit) comes up
-  at full volume, since `busGainTarget`'s fade factor is 1 until the fade's end; and
-  `cancelStationFade`'s recovery ramp is untimed inside Transport callbacks (Tone's "scheduled inside
-  of scheduled callbacks" warning).
+  the world timelines resume before the context clock runs again, so the entry arc gets ahead of
+  its fade (0.1–0.3 s, measured headless). The arc already runs on past the fade's end by the lead
+  from the context clock to the tick's time plus the output latency (`AudioEngine.secondsUntilHeard`),
+  which covers a small skew; a larger one writes `'charging'` early, so a quiet last note (8–16% of
+  the robot's level) is skipped. The order is `powerOnSequence`'s, not this feature's alone.
 
 ## Testing Notes
 

@@ -330,8 +330,10 @@ switch. The entry plays in the front row, between L3 and L2.
 **The entry waits for the grid** (backlog 84, [specs/PLAY_UNTIL_IN_THE_STATION.md](specs/PLAY_UNTIL_IN_THE_STATION.md)
 §1.6). Arriving at its port, a robot is written `'entering'` and holds there at full size, still playing. The station
 fade system's `'16n'` tick ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget), "The station fade") calls the
-exported `enterOnBar(robotId, seconds)` on the sixteenth that starts the robot's volume ramp, with the same seconds,
-so the arc and the ramp both end on the bar line. `enterOnBar` is a no-op unless the loop is running, the robot is
+exported `enterOnBar(robotId, seconds)` on the sixteenth that starts the robot's volume ramp, with the ramp's seconds
+plus the lead until that tick's audio is heard (`AudioEngine.secondsUntilHeard(time)`: the tick runs a lookahead
+ahead of its audio, and GSAP starts the arc at once), so the body is gone when the ramp is heard to end on the bar
+line. `enterOnBar` is a no-op unless the loop is running, the robot is
 one of its locale's and `'entering'`, and no arc is part-way: a finished arc stays registered under its key until the
 next replaces it, so "running" is the key set **and** `progress() < 1` (`arcRunning`). The duration reaches
 everything the arc carries: the body's scale and opacity, the halo decorator's `duration` and the station ripple's.

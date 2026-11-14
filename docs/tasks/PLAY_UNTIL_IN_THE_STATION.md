@@ -10,8 +10,8 @@ the fade starts at once and ends on the bar line), which resolved Q3 and moved t
 Phases 1 and 2 (Tasks 1–9) built 2026-11-14; Checkpoint A and the engine's-fade checkpoint passed with Crawford the same
 day. Phase 3 (Tasks 10–13) built 2026-11-14, with two fixes beyond the plan (Phase 3 as built, below). With Crawford
 remote, Checkpoint B's measurable parts were probed headless and recorded under it, and Tasks 14–16 (docs) were
-written ahead of the gate (their "Manual review" boxes are his; a gate change may need a touch-up). Next: Checkpoint
-B, Crawford's eye and ear, then Task 17.
+written ahead of the gate (their "Manual review" boxes are his). Checkpoint B passed with Crawford the same day, and
+his three fixes are built and re-measured (under Checkpoint B). Next: Task 17.
 
 ## Overview
 
@@ -523,15 +523,16 @@ settle(loop, robot))` at once; with one, clear its `onComplete`, set `onReverseC
 ### Checkpoint B / Gate: Crawford's eye and ear (spec §5.4; stop)
 
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] The §5.3 runs: `?debug` on, a recall end to end; the Deck's count and the mode light lit until the body is gone;
+- [x] The §5.3 runs: `?debug` on, a recall end to end; the Deck's count and the mode light lit until the body is gone;
       the robot screen's cloud running through the swim and thinning over the fade; no Tone "scheduled inside of
-      scheduled callbacks" warning from the fade's writes.
-- [ ] Power off mid-fade, wait, power on: body and volume continue from where they were (spec §7.1 A5). If the ramp did
-      not pause, Task 13b.
-- [ ] Crawford judges the four points of §5.4 on a slow world, a busy world and a soloed homebound robot, the
-      half-measure boundary among them; his answers to §7.2 Q1–Q2 and every §7.1 default are recorded in the spec's
-      "As built" (Task 17).
-- [ ] **Reserved, built only if the gate says so:**
+      scheduled callbacks" warning from the fade's writes. (The warning from the cancel ramp is fixed after the gate,
+      below.)
+- [x] Power off mid-fade, wait, power on: body and volume continue from where they were (spec §7.1 A5). The ramp
+      pauses (measured), so Task 13b is not needed.
+- [x] Crawford judges the four points of §5.4 on a slow world, a busy world and a soloed homebound robot, the
+      half-measure boundary among them. **Passed, Crawford, 2026-11-14**, with three fixes asked for (below). His
+      answers to §7.2 Q1–Q2 and every §7.1 default go in the spec's "As built" (Task 17).
+- [ ] **Reserved, built only if the gate says so** (neither asked for at the gate):
   - **Task 13a: the exit waits for a fading occupant** (Q1) — `exitStation` holds a robot hidden while its station has an
     `'entering'` occupant with a started fade, and exits on that occupant's `'charging'` write. RED test in
     `workLoop.test.ts`. S.
@@ -552,16 +553,19 @@ not verdicts; the boxes above stay Crawford's.
 - **The ramp is the plan's.** The bus gain follows the linear ramp to three decimals all the way down; the arc's
   progress tracks it about one `lookAhead` ahead (0.06–0.10 s), because GSAP starts the arc when the callback runs and
   the audio starts at the callback's time. So `'charging'` (and the dock mute) is written 0.004–0.09 s before the
-  audio's fade ends, with the bus at 2–4% of its starting gain (about −30 dB): the tail is cut, not faded, by that much.
-  A possible follow-up is to delay the arc's start by `time − now`.
+  audio's fade ends, with the bus at 2–4% of its starting gain (about −30 dB). *Corrected after the gate:* this said
+  "the tail is cut", which overstated it. `'charging'` stops *new* notes (the dock mute at the trigger, then the
+  budget's stand-down after the last note ends); notes already sounding keep fading on the bus ramp. What the early
+  write costs is a note due in the last ~0.1 s, at about −30 dB, and a body gone before its sound. Fixed after the gate
+  (below).
 - **Solo mid-fade.** Cancelled on the next sixteenth (0.16 s after the Solo at 68 BPM); the bus came back to its
   starting gain over the half second; the soloed robot then charged at its regular volume (A8).
 - **Power off mid-fade (A5): the audio pauses, so Task 13b as written is not needed.** The context suspends, its clock
   and the bus gain freeze (0.105 and 0.064 held for 3 s), the arc is paused at the matching point, and after the
   power-on the ramp carries on from where it was and still ends on the bar line. **But the arc resumes about 0.2–0.3 s
   before the audio clock does** (its progress jumped by that much in the first frames), so after a power cycle
-  `'charging'` came 0.29–0.31 s before the fade's end, with the bus still at 8–16% of its start (about −16 to −22 dB):
-  an audible cut is likely. Measured headless only; a real device's resume may be quicker. It is the general order of
+  `'charging'` came 0.29–0.31 s before the fade's end, with the bus still at 8–16% of its start (about −16 to −22 dB),
+  so a note due in that last 0.3 s is skipped (not a cut: see the correction above). Measured headless only; a real device's resume may be quicker. It is the general order of
   `powerOnSequence` (world timelines resume while the context is still starting), not this feature's alone.
 - **Tone's warning: one of the fade's own writes does trigger it.** `cancelStationFade`'s recovery ramp is untimed
   (`rampOrSet(…, STATION_FADE_RECOVER_SECONDS)`) and runs inside Transport callbacks (the fade system's Solo cancel,
@@ -575,6 +579,35 @@ not verdicts; the boxes above stay Crawford's.
   is silence anyway. The mid-fade rebuild gap (a voice rebuilt during a fade comes up at full) was not hit in either
   run and stays open.
 - Not covered: the Deck's count, the mode light and the robot screen's cloud (no UI was read), and anything by ear or eye.
+
+**After the gate: the three fixes (Crawford, 2026-11-14).** Each RED-tested, mutation-checked and committed on its own;
+full suite 14356 passed / 0 failed after the last.
+
+- **The cancel ramp is timed** (c61374dc). `cancelStationFade(robotId, time?)` ramps back with `rampOver` over the
+  whole `STATION_FADE_RECOVER_SECONDS`, from `time` when given, else from `Tone.now()` named explicitly. The fade
+  system's Solo cancel passes its tick's time. `landOnActive` passes none: the lifecycle tick stays on "now" by
+  decision (`startRobotLifecycle`'s comment, BEATCLOCK_TRANSPORT_TIME), so its "now" is now stated, not left out.
+- **A voice rebuilt mid-fade carries the fade on** (a38014c1). The fade record keeps its `start`; `stationFadeFactor`
+  is the ramp's own share at the engine's now (1 before the start, 0 from the end, linear between), so `reserveVoice`
+  builds the bus where the ramp is, and `continueStationFade` ramps it on to 0 by the same end. A bus that cannot ramp
+  (the headless stub) keeps its built level.
+- **The arc ends when the fade is heard to end** (2993a2f2). `AudioEngine.secondsUntilHeard(time)`: `time` less the
+  context's `currentTime` (not `Tone.now()`, which already includes the lookahead), never below 0, plus the output
+  latency the note events count. The fade system stretches the arc by it; the fade is unchanged. The arc still
+  *starts* at once, about a lookahead before the sound starts falling: delaying its start would mean re-timing the halo
+  decorator and the ripple, which a reverse would re-fire.
+
+Re-measured with the same probe (91 BPM, three recalls, robot A's voice rebuilt by hand half-way through its fade):
+`'charging'` now lands 0.06–0.11 s *after* each fade's end, with the bus at 0 (before: up to 0.09 s before it, at
+2–4%); A's rebuilt bus picked up at 0.0273 where the old one stood at 0.0271 and ramped to 0 by the same end (before:
+back to its full 0.055); no untimed ramp inside a Transport callback came from the fade (the one Tone warning was the
+documented `updateRobotSends` on a budget admit, [AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#audio-load-budget)). After the
+power cycle the arc ran about 0.1 s ahead of the audio this time, which the new lead covered (`'charging'` 0.11 s after
+the end, at 0); in the earlier runs it was 0.2–0.3 s. **Still open:** that power-on order (world timelines resuming
+before the context clock runs) is not fixed; a skew larger than the lead still skips a quiet last note.
+
+Noticed, not chased: the note events' `lead` counts from `Tone.now()`, which runs a lookahead ahead of the context
+clock, where `secondsUntilHeard` counts from `currentTime`.
 
 ---
 
