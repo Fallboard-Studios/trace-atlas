@@ -17,6 +17,7 @@ import {
   getSiteState,
   onLifecycleChange,
   onRobotMounted,
+  enterOnBar,
 } from './workLoop';
 import { siteCooldown } from './siteChoice';
 import { placeDistrict } from './districts';
@@ -1080,6 +1081,126 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
     expect(getTimeline('station-r1')!.duration()).toBeCloseTo(STATION_ARC_SECONDS, 6);
     finish('station-r1');
     expect(get('r1').activity).toBe('transit');
+  });
+
+  describe('enterOnBar — the entry arc over the fade (backlog 84 Task 10, spec §1.6)', () => {
+    /** Not STATION_ARC_SECONDS nor STATION_REDUCED_ARC_SECONDS, so a duration that ignores `seconds` shows. */
+    const SECONDS = 2.4;
+
+    /** r1 'entering' at a station port with no arc (the hold), mounted after the start so the loop has not adopted it. */
+    function enteringAt(over: Partial<Robot> = {}, { body = true } = {}) {
+      const { a } = sitesForSwitch();
+      registerLocale([a], []);
+      const s = stations()[0];
+      setRobots([robot('r1', s.port, { docking: 'recalled', activity: 'entering', stationId: s.id, ...over })]);
+      startWorkLoop(LOCALE, { now, backHosts: false });
+      mountFront(s.id);
+      const el = body ? mount('r1').el : undefined;
+      const deco = decorate('r1');
+      return { s, el, deco };
+    }
+
+    it("an 'entering' robot with no arc shrinks and fades over the given seconds, halo and ripple with it, then charges", () => {
+      const { s, el, deco } = enteringAt();
+      expect(getTimeline('station-r1')).toBeUndefined();
+      enterOnBar('r1', SECONDS);
+
+      const arc = getTimeline('station-r1')!;
+      expect(arc.duration()).toBeCloseTo(SECONDS, 6);
+      expect(getTimelineScope('station-r1')).toBe('world');
+      expect(deco).toHaveBeenCalledTimes(1);
+      expect(deco).toHaveBeenCalledWith('despawn', SECONDS, arc);
+      expect(getTimeline(stationRippleKey(s.id))!.duration()).toBeCloseTo(SECONDS, 6);
+
+      arc.progress(0.5);
+      expect(opacity(el!)).toBeCloseTo(0.5, 2); // opacity is linear
+      expect(scale(el!)).toBeCloseTo(1 + (STATION_PORT_SCALE - 1) * 0.25, 3); // scale on v², as today
+      expect(get('r1').activity).toBe('entering');
+      arc.progress(1);
+      expect(isHidden(el!)).toBe(true);
+      expect(scale(el!)).toBeCloseTo(STATION_PORT_SCALE, 3);
+      expect(get('r1').activity).toBe('charging');
+      expect(chargingColorsKey(robots(), s.id)).toBe('#88ccff');
+    });
+
+    it('an Active robot at the end of the arc exits again instead of charging (the guard)', () => {
+      const { deco } = enteringAt({ docking: 'active' });
+      enterOnBar('r1', SECONDS);
+      const enter = getTimeline('station-r1')!;
+      enter.progress(1);
+      expect(get('r1').activity).toBe('exiting');
+      const exit = getTimeline('station-r1')!;
+      expect(exit).not.toBe(enter);
+      expect(exit.duration()).toBeCloseTo(STATION_ARC_SECONDS, 6); // the exit arc keeps its own length
+      expect(deco).toHaveBeenLastCalledWith('spawn', STATION_ARC_SECONDS, exit);
+    });
+
+    it('with no mounted body it still takes the given seconds, then charges', () => {
+      enteringAt({}, { body: false });
+      enterOnBar('r1', SECONDS);
+      expect(getTimeline('station-r1')!.duration()).toBeCloseTo(SECONDS, 6);
+      finish('station-r1');
+      expect(get('r1').activity).toBe('charging');
+    });
+
+    it.each(['returning', 'charging', 'exiting', 'transit'] as const)('a %s robot: nothing', (activity) => {
+      const { el } = enteringAt({ activity });
+      enterOnBar('r1', SECONDS);
+      expect(getTimeline('station-r1')).toBeUndefined();
+      expect(get('r1').activity).toBe(activity);
+      expect(isShown(el!)).toBe(true);
+    });
+
+    it('an arc already running: nothing (the first arc is kept)', () => {
+      const { deco } = enteringAt();
+      enterOnBar('r1', SECONDS);
+      const arc = getTimeline('station-r1')!;
+      arc.progress(0.5);
+      enterOnBar('r1', 1.7);
+      expect(getTimeline('station-r1')).toBe(arc);
+      expect(arc.duration()).toBeCloseTo(SECONDS, 6);
+      expect(arc.progress()).toBeCloseTo(0.5, 6);
+      expect(deco).toHaveBeenCalledTimes(1);
+    });
+
+    it('no loop running: nothing', () => {
+      enteringAt();
+      stopWorkLoop();
+      enterOnBar('r1', SECONDS);
+      expect(getTimeline('station-r1')).toBeUndefined();
+      expect(get('r1').activity).toBe('entering');
+    });
+
+    it("an unknown robot, or one of another locale: nothing", () => {
+      enteringAt();
+      const here = useLocaleStore.getState().locales[LOCALE];
+      useLocaleStore.setState({
+        locales: {
+          ...useLocaleStore.getState().locales,
+          elsewhere: { ...here, id: 'elsewhere', robots: [robot('r9', stations()[0].port, { docking: 'recalled', activity: 'entering' })] },
+        },
+      });
+      expect(() => enterOnBar('nobody', SECONDS)).not.toThrow();
+      enterOnBar('r9', SECONDS);
+      expect(timelineMap.size).toBe(0);
+    });
+
+    it('reduced motion: the alpha fades over the whole seconds at full size, with no station ripple', () => {
+      withReducedMotion(() => {
+        const { s, el } = enteringAt();
+        enterOnBar('r1', SECONDS);
+        const arc = getTimeline('station-r1')!;
+        expect(arc.duration()).toBeCloseTo(SECONDS, 6);
+        expect(getTimeline(stationRippleKey(s.id))).toBeUndefined();
+        arc.progress(0.5);
+        expect(opacity(el!)).toBeCloseTo(0.5, 2);
+        expect(scale(el!)).toBe(1);
+        arc.progress(1);
+        expect(isHidden(el!)).toBe(true);
+        expect(scale(el!)).toBe(1);
+        expect(get('r1').activity).toBe('charging');
+      });
+    });
   });
 
   it('onLifecycleChange with no loop running, or for another locale, does nothing', () => {

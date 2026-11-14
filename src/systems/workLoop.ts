@@ -597,15 +597,23 @@ function wait(loop: LoopRun, robot: Robot): void {
 /**
  * The station arc, keyed `station-${robotId}`: `'spawn'` appears at the port (scale
  * STATION_PORT_SCALE → 1 on √v, autoAlpha 0 → 1), `'despawn'` vanishes into it (scale 1 →
- * STATION_PORT_SCALE on v², autoAlpha 1 → 0), both over STATION_ARC_SECONDS. The robot's halo
- * ripple rides on the arc and the station's ripple plays beside it. Reduced motion: a
- * STATION_REDUCED_ARC_SECONDS fade in place, no scale and no station ripple.
+ * STATION_PORT_SCALE on v², autoAlpha 1 → 0), both over STATION_ARC_SECONDS unless `seconds` is
+ * given (the entry over the station fade, backlog 84). The robot's halo ripple rides on the arc and
+ * the station's ripple plays beside it, both over the same duration. Reduced motion: a fade in place
+ * over `seconds`, or STATION_REDUCED_ARC_SECONDS without it, no scale and no station ripple.
  */
-function stationArc(loop: LoopRun, robot: Robot, kind: ArcKind, station: Station | undefined, onDone: () => void): void {
+function stationArc(
+  loop: LoopRun,
+  robot: Robot,
+  kind: ArcKind,
+  station: Station | undefined,
+  onDone: () => void,
+  seconds?: number,
+): void {
   const key = `station-${robot.id}`;
   const done = live(loop, onDone);
   const reduced = prefersReducedMotion();
-  const duration = reduced ? STATION_REDUCED_ARC_SECONDS : STATION_ARC_SECONDS;
+  const duration = seconds ?? (reduced ? STATION_REDUCED_ARC_SECONDS : STATION_ARC_SECONDS);
   const el = bodyOf(robot.id);
   if (!el) {
     const tl = timed(duration, done);
@@ -670,12 +678,15 @@ function enter(loop: LoopRun, robotId: string, station: Station): void {
   const robot = robotOf(loop, robotId);
   if (!robot) return;
   write(loop, robotId, { activity: 'entering' });
-  stationArc(loop, robot, 'despawn', station, () => {
-    const inside = robotOf(loop, robotId);
-    if (!inside) return;
-    if (inside.docking === DockingState.Active) exitStation(loop, inside);
-    else write(loop, robotId, { activity: 'charging' });
-  });
+  stationArc(loop, robot, 'despawn', station, () => inside(loop, robotId));
+}
+
+/** The entry arc's end: charging, or out again if the robot went Active on the way in (a guard). */
+function inside(loop: LoopRun, robotId: string): void {
+  const robot = robotOf(loop, robotId);
+  if (!robot) return;
+  if (robot.docking === DockingState.Active) exitStation(loop, robot);
+  else write(loop, robotId, { activity: 'charging' });
 }
 
 /** Docked or Undocking: hidden at its station's port (the nearest free one if it has none), charging. */
@@ -829,6 +840,21 @@ export function next(robotId: string): void {
     return;
   }
   resume(loop, robot);
+}
+
+/**
+ * The entry arc over the station fade (backlog 84, spec §1.6), called by the station fade system on
+ * the sixteenth that starts the robot's fade: the `'despawn'` arc over `seconds`, ending in
+ * `'charging'` (or out again if the robot is Active by then). A no-op unless the loop is running, the
+ * robot is one of its locale's, `'entering'`, and has no `station-${id}` arc already playing.
+ */
+export function enterOnBar(robotId: string, seconds: number): void {
+  const loop = run;
+  if (!loop) return;
+  const robot = robotOf(loop, robotId);
+  if (!robot || robot.activity !== 'entering' || getTimeline(`station-${robotId}`)) return;
+  const station = loop.stations.find((s) => s.id === robot.stationId);
+  stationArc(loop, robot, 'despawn', station, () => inside(loop, robotId), seconds);
 }
 
 /**
