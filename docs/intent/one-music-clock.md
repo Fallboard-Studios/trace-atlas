@@ -78,7 +78,7 @@ same world at the same measure gives the same music", and each breaks on a count
 - Read from Tone 15.1.22's source, not measured: a repeat moved by a `ticks` change keeps its original offset
   (`TransportRepeatEvent._restart` adds whole intervals to its start). Part two will meet this; part one should not lean
   on an offset staying put.
-- Backlog [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody)'s early announcements read the cycle's lag
+- Backlog [79](../todo/archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody)'s early announcements read the cycle's lag
   off the palette in force; once the chord is a function of position they can compute it. Backlog
   [7](../todo/backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (tagged progressions, a seeded
   mood chain) is the likely shape of "changing chord palettes" and should be read against the spec.

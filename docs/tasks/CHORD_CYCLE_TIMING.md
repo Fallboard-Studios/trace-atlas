@@ -308,6 +308,6 @@ callback. Not this plan's question.
 2. Does a replay from power-on give the same chords? **Answered: no.** Five of ten power-ons played 0 to 11, one entry
    late throughout; the other five each played a different sequence, three of them from the same start offset (runs
    5, 9, 10). A mixed run skips entries: run 5 never plays entries 3, 6 or 9.
-3. What backlog [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody)'s early announcements should
-   read once the cycle is predictable. **Open**, and not this plan's: it is settled when 79 is picked up again,
-   against whatever the gate decides.
+3. What backlog [79](../todo/archive/backlog-archive.md#79-robots-move-in-time-with-their-own-melody)'s early announcements should
+   read once the cycle is predictable. **Settled 2026-11-13** by the note cloud's Part E (its spec §8.4): the announcement reads
+   `positionAt` of the step's own time and the palette of that measure, as the step itself will.
