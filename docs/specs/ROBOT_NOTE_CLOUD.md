@@ -20,7 +20,8 @@ engine as it now is. §1.1 gained the music clock and §1.9 is rewritten on it. 
 into the first branch, Crawford kept it last (§7.1). **Planned 2026-11-12:**
 [docs/tasks/ROBOT_NOTE_CLOUD.md](../tasks/ROBOT_NOTE_CLOUD.md), 37 tasks. **Built 2026-11-12 to 2026-11-13:** Parts 0
 to D on `feature/note-cloud` (plan Tasks 1 to 30), Gates 1 to 3 passed; §8 records what differs from this spec. Part
-E (plan Tasks 31 to 37) follows on its own branch after the merge. Backlog
+E (plan Tasks 31 to 37) follows on its own branch after the merge. **Part E built 2026-11-13** on
+`feature/note-cloud-early-notes` (plan Tasks 31 to 36, §8.4); Gate 4 waits on Crawford's eye. Backlog
 [79](../todo/backlog.md#79-robots-move-in-time-with-their-own-melody), plan.md Stage 4.
 
 **Who it is for:** a player watching the world, on the desk shell and on a phone, who wants to see which robot is
@@ -861,4 +862,42 @@ to the picture").
   plan's Checkpoint: Complete (2026-11-13):** the bob and the level-in-the-middle tilt looked at and accepted, the
   reviews covered by the five-axis review (approve; four fixes), and the runs never made (the re-drawn bands, his
   desktop full screen, a phone, twelve sounding) accepted without a number.
-- **Part E** (§1.9; plan Tasks 31 to 37, Gate 4) on its own branch after this one merges.
+- **Part E** (§1.9; plan Tasks 31 to 37, Gate 4) on its own branch after this one merges. Built: §8.4.
+
+### 8.4 As built (Part E, `feature/note-cloud-early-notes`, 2026-11-13)
+
+Plan Tasks 31 to 36, one commit each, after branch one merged (PR #637). AUDIO_SYSTEM.md's "Note events — audio to
+the picture" describes the shipped design.
+
+- **The ask** (Task 31): `setNotePreviewSeconds(seconds)` and `getNotePreviewSeconds()` on `noteEvents.ts`, 0 until
+  asked, a negative or non-finite value 0.
+- **One place for a step's notes** (Task 32): `stepNotes(at, time)` in `AudioEngine.ts` returns the step's notes as
+  `NoteParams` (the palette of `at.measure`, the articulated length and release, the accent, the start at
+  `time + MIN_LEAD` plus the Humanize roll at `at.sixteenth`, none for a Click Track entry). `processMelodyStep` is
+  "resolve, then `scheduleNote` each". One read changed: an empty step returns before the Humanize roster read.
+- **One place for the gates** (Task 33, the ask-first item of §3): `mayRobotTrigger(robotId)` holds the gates before
+  the cap (`isRobotAudible`, the budget's sounding set, a reserved voice). They are moved, not changed, and every
+  `triggerWithCap` test passes unmodified. One order change: the reserved-voice check now comes before the cap rather
+  than after it (it used to bump the voice count and take it back). A robot with no voice is refused either way, and
+  at a full cap it now also logs the dev warning.
+- **The announcement** (Task 34): `announceUpcomingStep(time)`, run by the melody tick after `processMelodyStep`,
+  only while the preview is above 0. The step `ceil(preview / getTickSeconds(time))` sixteenths on, read through
+  `positionAt` of its own time, `stepNotes`, and `mayRobotTrigger` for each robot with a listener. The cap refuses no
+  announcement. While a preview is asked for, `triggerWithCap` emits nothing. Departures: the round-up has no
+  epsilon, so a float error can only announce one sixteenth more and never less than asked. With no tick length
+  known nothing is announced (the trigger still emits nothing).
+- **The cloud** (Task 35): `NOTE_PREVIEW_SECONDS` = `NOTE_NOW × NOTE_CROSSING_SECONDS − NOTE_KNOWN_AHEAD_SECONDS`
+  (0.925 s). The layers' mask is given the whole run-in, so it clears at the right edge (100 %), replacing §8.2's
+  `NOTE_KNOWN_AHEAD_SECONDS` end. Beyond the plan, the ask is counted: the first cloud built asks, and the last to go
+  sets the preview back to 0, so with no cloud the engine announces nothing and the trigger emits as in Part A.
+- **The forecast** (Task 36, §5.3): two power-ons, 625 notes played each (9 palette entries). 610 were matched, with
+  **no wrong pitch and no wrong length**. All 15 unannounced notes were a robot that had just started sounding. All 5
+  announced, unplayed notes were a gate closing inside the lead (robots 1 and 2 docking, each re-registering its
+  melody at that moment). Every miss is one §1.9 accepts. The two power-ons gave the same counts. **The probe does
+  not ship** (plan Open Question 6): it lived in the session's scratchpad, as §1.9 says.
+- **The cost** (Task 36): main-thread time +9.5 % against off with early notes, +10.0 % for `main` (branch one,
+  re-drawn bands, no early notes) in the same session. The early notes add nothing the harness can tell from noise
+  (−0.5 %; the rounds disagree in sign). This was also the first measurement of the re-drawn bands, read in a window
+  where every sounding robot was in an on band. Figures in PERFORMANCE.md ("Note cloud — early notes, the Task 36
+  runs").
+- **Gate 4** waits on Crawford's eye: a note entering at the roll's edge and riding the fan in to "now".

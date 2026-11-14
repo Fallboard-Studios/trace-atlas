@@ -223,8 +223,10 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   (near-white) while it sounds and fades back after. "Now", where a note's leading end is as it leaves
   the speakers, is `NOTE_NOW` (0.225) of the width in from the right edge.
 - **Its strength.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.75). One mask on each layer
-  (`noteMask`) takes a note in from clear at the right, to full at "now", down to `--note-dim` once it
-  has sounded, to clear at the left edge: the mask dims a layer as a whole, so overlapping bars never
+  (`noteMask`) takes a note in from clear at the right edge, to full at "now", down to `--note-dim` once
+  it has sounded, to clear at the left edge. The engine announces each note about 1.1 s ahead (the
+  cloud's early notes, AUDIO_SYSTEM.md), so a note enters at the right edge and fades in across the
+  whole right-hand fan: the mask dims a layer as a whole, so overlapping bars never
   show a darker patch. `--note-dim` is `NOTE_DIM` (0.35), or 1 on the **singled-out** robot: under the
   pointer or followed by the Deck camera (`src/systems/robotAttention.ts`), selected, soloed or
   highlighted.

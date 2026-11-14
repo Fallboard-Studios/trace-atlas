@@ -472,7 +472,8 @@ Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the clou
 [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#note-events--audio-to-the-picture). This is how it moves.
 `src/components/robot/notes/useNoteCloud.ts`, called by `RobotBody` with the world or avatar context
 (never on a card), owns it all. Its cost was measured at Gate 1 (PERFORMANCE.md, "Note cloud — the Task
-17 cost run" and "Note cloud — the battery bands, the Task 17d cost run").
+17 cost run" and "Note cloud — the battery bands, the Task 17d cost run") and with early notes at Gate 4
+("Note cloud — early notes, the Task 36 runs").
 
 - **The layers.** `NoteCloudLayer` (`NoteCloudLayers.tsx`) renders a wrapper (`.note-layer`, masked,
   `pointer-events: none`, `aria-hidden`) holding an empty belt (`.note-layer__belt`). In the world a
@@ -497,7 +498,10 @@ Backlog 79, spec [ROBOT_NOTE_CLOUD.md](specs/ROBOT_NOTE_CLOUD.md). What the clou
   nothing while the tab is hidden, the world is not `'running'` (`getWorldState()`), or `placing` is
   false (the battery bands); the model has counted the note either way. Otherwise one
   `div.note` with its `.note__hot` child is appended to the front or behind belt at "now" plus the
-  event's `lead` at the belt's speed, and the first live note wakes the layers.
+  event's `lead` at the belt's speed, and the first live note wakes the layers. The lead is about
+  1.1 s, because the first cloud built asks the engine for early notes (`setNotePreviewSeconds` with
+  `NOTE_PREVIEW_SECONDS`, 0.925 s, and the last cloud to go withdraws the ask). So a bar lands at the
+  roll's right edge, or a little past it, and rides in under the mask, which clears at the right edge.
 - **Strength and re-size.** The layers' opacity is `NOTE_PEAK_STRENGTH` (0.75), set when the cloud is
   built; nothing else changes it but a re-size. A gem or body-scale change fades both layers out over
   `NOTE_WAKE_SECONDS`, rebuilds the roll at the latest size from a `.call` (dropping the notes in

@@ -17,8 +17,9 @@ cloud spilling past the avatar's box. Task 17 ran 2026-11-13: main-thread time +
 that's ok" to a re-run) and Gate 2 passed the same day on his word ("i'm happy with gate 2, i believe"). Task 26 (his
 guardrail sentence) and Phase 6 (Tasks 29 and 30, the record) done 2026-11-13: **branch one's Tasks 1 to 30 are all
 built.** Checkpoint: Complete passed 2026-11-13: the looks and reviews the earlier checkpoints waited on were
-answered there, and the five-axis review approved (four fixes). Next: Crawford's PR; Part E (Tasks 31 to 37) after
-the merge, on its own branch.
+answered there, and the five-axis review approved (four fixes). Branch one merged (PR #637). **Phase 7 (Tasks 31 to
+36) built 2026-11-13** on `feature/note-cloud-early-notes`, one commit each. Gate 4's checks pass, and its look and
+cost answer wait on Crawford. Task 37 (the archive) follows the merge.
 
 How the boxes read: a task's own box is ticked when it was built and committed. The acceptance and verification
 boxes inside Tasks 1 to 16, 18 to 25, 27 and 28 were left as written while building; each is pinned by the task's
@@ -1281,7 +1282,7 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
 ### Phase 7: Early announcements (Part E; branch `feature/note-cloud-early-notes`, off `main` after the merge)
 
-- [ ] **Task 31: `noteEvents.ts` — a listener asks for notes earlier**
+- [x] **Task 31: `noteEvents.ts` — a listener asks for notes earlier** (51910b07)
 
   **Description:** `setNotePreviewSeconds(seconds)` and `getNotePreviewSeconds()` (spec §1.9). 0 until asked; a
   negative or non-finite value is 0.
@@ -1289,12 +1290,12 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Proof:** RED test — `src/engine/noteEvents.test.ts`.
 
   **Acceptance criteria:**
-  - [ ] The preview is 0 until asked, reads back what was asked, and a bad value reads back 0.
-  - [ ] Mutation: no clamp fails the bad-value case.
+  - [x] The preview is 0 until asked, reads back what was asked, and a bad value reads back 0.
+  - [x] Mutation: no clamp fails the bad-value case (4 cases fail: negative, NaN, ±Infinity).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/noteEvents.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/noteEvents.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Branch one merged.
 
@@ -1302,7 +1303,7 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
   **Estimated scope:** XS
 
-- [ ] **Task 32: `AudioEngine.ts` — one place turns a step into its notes**
+- [x] **Task 32: `AudioEngine.ts` — one place turns a step into its notes** (ceca175d)
 
   **Description:** The reads inside `processMelodyStep` (the events of `at.step` from `stepRegistry`, the pitch from
   `paletteForMeasure(at.measure)`, the sounding length and release after articulation, the accent, and the start at
@@ -1314,15 +1315,20 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   the file's `atStep` helper and its mocked `positionAt` / `paletteForMeasure`.
 
   **Acceptance criteria:**
-  - [ ] For a step it returns each registered robot's note with the pitch of that measure's palette, the articulated
+  - [x] For a step it returns each registered robot's note with the pitch of that measure's palette, the articulated
         length, and the humanized start; a bad note index is skipped, and the others still come back.
-  - [ ] A Click Track event carries no Humanize offset.
-  - [ ] Every existing `processMelodyStep` test passes unmodified.
-  - [ ] Mutation: reading the palette of `at.measure − 1` fails the pitch case.
+  - [x] A Click Track event carries no Humanize offset.
+  - [x] Every existing `processMelodyStep` test passes unmodified.
+  - [x] Mutation: reading the palette of `at.measure − 1` fails the pitch case (the case reads measure 6, which
+        opens a palette entry; at measure 5 the measure before plays the same entry, as the oracle guard found).
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **As built:** `stepNotes(at, time): NoteParams[]`, a module export. An event that throws while it is read is
+  skipped alone. An empty step returns before the Humanize roster read. Two more mutants killed: the Click Track
+  humanized, and a throwing event aborting the step.
 
   **Dependencies:** Branch one merged.
 
@@ -1330,7 +1336,7 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
   **Estimated scope:** S
 
-- [ ] **Task 33: `AudioEngine.ts` — one place answers "may this robot trigger now?"**
+- [x] **Task 33: `AudioEngine.ts` — one place answers "may this robot trigger now?"** (1a3f2269)
 
   **Description:** `triggerWithCap`'s gates before the polyphony cap (Mute, Solo and the dock through
   `isRobotAudible`; the budget's `soundingRobots`; a reserved voice) move into one function that `triggerWithCap`
@@ -1341,14 +1347,20 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Proof:** RED test — `src/engine/AudioEngine.test.ts`: the new function's own cases.
 
   **Acceptance criteria:**
-  - [ ] It is false for a muted robot, a robot soloed away, a docked robot, a robot standing by and a robot with no
+  - [x] It is false for a muted robot, a robot soloed away, a docked robot, a robot standing by and a robot with no
         voice, and true otherwise; it changes no voice count.
-  - [ ] Every existing `triggerWithCap` test, Task 3's included, passes unmodified.
-  - [ ] Mutation: leaving the budget out of it fails the standing-by case.
+  - [x] Every existing `triggerWithCap` test, Task 3's included, passes unmodified.
+  - [x] Mutation: leaving the budget out of it fails the standing-by case.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **As built:** `mayRobotTrigger(robotId)`, a module export. One order change, for Crawford's read of the diff: the
+  reserved-voice check now runs before the cap rather than after it (it used to bump the voice count and take it
+  back). A robot with no voice is refused either way, and at a full cap it now also logs the dev warning. A case pins
+  that it is true at a full polyphony count. Three more mutants killed: audibility left out, the voice check left
+  out, and the cap moved in.
 
   **Dependencies:** Task 32.
 
@@ -1356,7 +1368,7 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
   **Estimated scope:** S
 
-- [ ] **Task 34: `AudioEngine.ts` — the engine announces a step ahead of its trigger**
+- [x] **Task 34: `AudioEngine.ts` — the engine announces a step ahead of its trigger** (e63f2250)
 
   **Description:** With a preview asked for, each firing of the melody's 16n tick also announces a later step: the
   first whole sixteenth at least the preview ahead (`getTickSeconds(time)` gives a sixteenth's length; the later
@@ -1368,19 +1380,26 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Proof:** RED test — `src/engine/AudioEngine.test.ts`.
 
   **Acceptance criteria:**
-  - [ ] With 0.9 s asked at 120 BPM, a tick announces the step eight sixteenths on, with the pitch, the length and
+  - [x] With 0.9 s asked at 120 BPM, a tick announces the step eight sixteenths on, with the pitch, the length and
         the scheduled start that step's own trigger then gives it.
-  - [ ] Across a palette change and across a measure's end the announced pitch is the triggered pitch.
-  - [ ] An announced note is not emitted again at its trigger.
-  - [ ] A robot muted, soloed away, docked or standing by at the announcing tick announces nothing; a full
+  - [x] Across a palette change and across a measure's end the announced pitch is the triggered pitch.
+  - [x] An announced note is not emitted again at its trigger.
+  - [x] A robot muted, soloed away, docked or standing by at the announcing tick announces nothing; a full
         polyphony count stops no announcement.
-  - [ ] With no preview asked for, no step is resolved twice and the trigger emits as in Task 3.
-  - [ ] Mutation: `Math.floor` for the sixteenths ahead fails the eight-sixteenths case; emitting at the trigger as
+  - [x] With no preview asked for, no step is resolved twice and the trigger emits as in Task 3.
+  - [x] Mutation: `Math.floor` for the sixteenths ahead fails the eight-sixteenths case; emitting at the trigger as
         well fails the third.
 
   **Verification:**
-  - [ ] `npx vitest run src/engine/AudioEngine.test.ts src/engine/noteEvents.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/engine/AudioEngine.test.ts src/engine/noteEvents.test.ts` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **As built:** `announceUpcomingStep(time)`, private, run by the melody tick after `processMelodyStep`. The cases
+  drive the real tick on a 120 BPM clock. The round-up has no epsilon: at a 0.125 s sixteenth no case could pin one,
+  and a float error can only announce one sixteenth more. Added cases: an exact multiple (1 s is eight, not nine);
+  no tick length known announces nothing; a robot nobody listens to builds no event (the latency is never read).
+  Nine mutants, all killed. Test gotcha: the `tone` mock outlives `resetModules`, so the harness takes the last
+  transport given a `16n` repeat (the first would be an earlier test's engine).
 
   **Dependencies:** Tasks 31, 32, 33.
 
@@ -1388,7 +1407,7 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
   **Estimated scope:** M
 
-- [ ] **Task 35: `useNoteCloud.ts` — the cloud asks for the run-in, and the mask opens the right-hand fan**
+- [x] **Task 35: `useNoteCloud.ts` — the cloud asks for the run-in, and the mask opens the right-hand fan** (bcc39943)
 
   **Description:** The first cloud to mount asks for `NOTE_PREVIEW_SECONDS`: the run-in from the roll's right edge
   to "now" (`NOTE_NOW × NOTE_CROSSING_SECONDS`, 1.125 s) less the 0.2 s every note already has. `noteMask` is given
@@ -1398,15 +1417,20 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Proof:** RED test — `src/components/robot/notes/useNoteCloud.test.tsx`.
 
   **Acceptance criteria:**
-  - [ ] Mounting a cloud leaves `getNotePreviewSeconds()` at 0.925; with `?notes=off` it stays 0.
-  - [ ] The wrappers' mask ends at the right edge (100%).
-  - [ ] An event with a 1.2 s lead places its bar right of the roll's right edge, and the belt brings its left end
-        to "now" when the lead has passed.
-  - [ ] Mutation: asking for the whole 1.125 s fails the first case.
+  - [x] Mounting a cloud leaves `getNotePreviewSeconds()` at 0.925; with `?notes=off` it stays 0.
+  - [x] The wrappers' mask ends at the right edge (100%).
+  - [x] An event with a 1.2 s lead places its bar right of the roll's right edge, and the belt brings its left end
+        to "now" when the lead has passed. (It already did; the case pins it.)
+  - [x] Mutation: asking for the whole 1.125 s fails the first case.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/robot/notes` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/robot/notes` passes.
+  - [x] `npm run build:types`, `npm run lint` clean.
+
+  **As built:** beyond the plan, the ask is counted. The first cloud built asks, and the last to go sets the preview
+  back to 0, so with no cloud the engine announces nothing. Cases: two clouds and the last withdraws; an effect re-run
+  leaves one ask; a disabled cloud and one with no layers ask nothing. Mutants killed: no withdrawal, no count, the
+  old mask. Full suite after this task: 14,261 passed, 2 skipped, 0 failed.
 
   **Dependencies:** Task 34.
 
@@ -1415,7 +1439,7 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 
   **Estimated scope:** S
 
-- [ ] **Task 36: the forecast run, the cost run again, and the docs**
+- [x] **Task 36: the forecast run, the cost run again, and the docs**
 
   **Description:** The forecast (spec §5.3): two power-ons of one world with no input, a few hundred notes each, a
   palette change included, with a scratch probe that checks each announced note against its trigger (the probe
@@ -1426,13 +1450,21 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Proof:** Run — the forecast's counts and the cost table, recorded and reported at Gate 4. No test file.
 
   **Acceptance criteria:**
-  - [ ] The forecast: no wrong pitch, and no unannounced note outside the lead after a robot starts sounding; or
+  - [x] The forecast: no wrong pitch, and no unannounced note outside the lead after a robot starts sounding; or
         each miss is named with its cause.
-  - [ ] The cost table sits beside Gate 1's and the spike's in PERFORMANCE.md.
-  - [ ] AUDIO_SYSTEM.md's names match the source.
+  - [x] The cost table sits beside Gate 1's and the spike's in PERFORMANCE.md.
+  - [x] AUDIO_SYSTEM.md's names match the source.
 
   **Verification:**
-  - [ ] The runs were taken in the foreground, one at a time.
+  - [x] The runs were taken in the foreground, one at a time.
+
+  **As built:** the probe does **not** ship (Open Question 6). It was a scratchpad script that wrapped
+  `AudioEngine.scheduleNote` on the page's module and listened through `onRobotNote`, checked first against a doctored
+  copy of a saved run. Forecast, two power-ons: 625 played, 610 matched, 0 wrong pitch, 0 wrong length, 15
+  unannounced (all a robot just started sounding), 5 announced and not played (all a gate closing inside the lead,
+  robots docking), the same both times. Cost, same session, off / `main` / early notes: +10.0 % and +9.5 % main
+  busy against off. The early notes add nothing the harness can tell from noise, and this was the first measurement
+  of the re-drawn bands. ROBOT_DESIGN.md and ANIMATION_SYSTEM.md also gained a line each on where a note now enters.
 
   **Dependencies:** Task 35.
 
@@ -1441,9 +1473,12 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
   **Estimated scope:** S
 
 ### Gate 4: Part E (spec §5.4)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Crawford's eye: a note enters at the roll's edge and rides the fan in to "now", as in the spike.
-- [ ] Task 36's forecast counts and cost figures reported; he accepts the cost or names what to take back.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (2026-11-13: 14,261 passed, 2 skipped,
+  0 failed; lint 0 errors, its 4 warnings in scenery files this branch does not touch; the build's warnings predate it).
+- [ ] Crawford's eye: a note enters at the roll's edge and rides the fan in to "now", as in the spike. Hard reload
+  first (Ctrl+Shift+R): `AudioEngine.ts` changed.
+- [ ] Task 36's forecast counts and cost figures reported; he accepts the cost or names what to take back. Reported
+  2026-11-13; his answer is open.
 - [ ] Ready for his PR.
 
 - [ ] **Task 37: archive, after the merge**
@@ -1492,5 +1527,5 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 4. **Part E's place (spec §7.3 Q4).** **Resolved** — last, on its own branch (Crawford, 2026-11-12); Phase 7.
 5. **Where the model is cleared, and how two clouds share one run.** **Resolved** (Architecture Decisions): the
    world body's unmount; one engine listener per robot in the model.
-6. **Does the forecast probe ship?** **Open** — decided in Task 36 (behind `?debug` or not at all), reported at
-   Gate 4.
+6. **Does the forecast probe ship?** **Decided in Task 36: not at all.** It lived in the session's scratchpad, as
+   spec §1.9 says ("No forecast check ships"); PERFORMANCE.md records how it worked.
