@@ -234,6 +234,49 @@ describe('useHaloMotion.decorateArc — the triangular waves (haloWaves.ts, halo
     expect(timelineMap.has('halo-waves-world-r1')).toBe(false);
   });
 
+  // A hook kills the run it started and no other. Two bodies can share a key (RobotBody hands a card the
+  // world context), and a killed run never clears what it drew: the last frame would stay on the robot.
+  describe('a second body under the same key', () => {
+    function mountTwo() {
+      let first!: ReturnType<typeof useHaloMotion>['decorateArc'];
+      let second!: ReturnType<typeof useHaloMotion>['decorateArc'];
+      const a = render(<Harness withWaves onDecorateArc={(dec) => { first = dec; }} />);
+      const b = render(<Harness withWaves onDecorateArc={(dec) => { second = dec; }} />);
+      return { a, b, first: () => first, second: () => second };
+    }
+
+    it('one that never played leaves the other’s run alone when it unmounts', () => {
+      const { b, first } = mountTwo();
+      const { waves } = arcOf(first(), 'spawn');
+
+      b.unmount();
+
+      expect(waves.kill).not.toHaveBeenCalled();
+      expect(timelineMap.get('halo-waves-world-r1') === (waves as unknown)).toBe(true);
+    });
+
+    it('one whose run was replaced by the other’s leaves the newer run alone when it unmounts', () => {
+      const { a, first, second } = mountTwo();
+      arcOf(first(), 'spawn');
+      const newer = arcOf(second(), 'spawn').waves;
+
+      a.unmount();
+
+      expect(newer.kill).not.toHaveBeenCalled();
+      expect(timelineMap.get('halo-waves-world-r1') === (newer as unknown)).toBe(true);
+    });
+
+    it('the one that started the run still kills it on its own unmount', () => {
+      const { a, first } = mountTwo();
+      const { waves } = arcOf(first(), 'spawn');
+
+      a.unmount();
+
+      expect(waves.kill).toHaveBeenCalled();
+      expect(timelineMap.has('halo-waves-world-r1')).toBe(false);
+    });
+  });
+
   it('spawn: mid-arc the first wave is drawn at its own strength, the second fainter, the third not yet launched', () => {
     const { decorateArc, paths } = mount(1);
     const tl = arcOf(decorateArc, 'spawn').waves;
