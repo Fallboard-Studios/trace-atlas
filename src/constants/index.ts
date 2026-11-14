@@ -328,6 +328,11 @@ export const STATION_ARC_SECONDS = 1;
  *  that a robot swimming off is at full volume before it has left the port. The gate hears it. */
 export const STATION_FADE_RECOVER_SECONDS = 0.5;
 
+/** The fewest sixteenths left to the bar line for a homebound robot's station fade to start at once, inclusive: half
+ *  a measure (docs/specs/PLAY_UNTIL_IN_THE_STATION.md §1.2 step 3, assumption A3). With fewer left the robot holds at
+ *  its port, still playing, and the bar-line tick starts it over the whole measure. The gate's to move. */
+export const STATION_FADE_MIN_STEPS = 8;
+
 /** A robot's scale at the station port, where it vanishes on entry and appears on exit (spec §1.6,
  *  the station sketch's 0.15 — superseding §1.7's first-draft 0.4). */
 export const STATION_PORT_SCALE = 0.15;
