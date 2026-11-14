@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { startStationFades, stopStationFades } from './stationFadeSystem';
-import { enterOnBar } from './workLoop';
+import { arcRunning, enterOnBar } from './workLoop';
 import { AudioEngine } from '../engine/AudioEngine';
 import { cancelSchedule, getTickSeconds, positionAt, scheduleRepeat } from '../engine/beatClock';
 import { DEFAULT_LOCALE_ID } from '../stores/attenuationStyleStore';
@@ -26,8 +26,9 @@ vi.mock('../engine/beatClock', () => ({
   getTickSeconds: vi.fn(),
 }));
 
-// The loop's side is its own suite's (workLoop.test.ts); here only the call is read.
-vi.mock('./workLoop', () => ({ enterOnBar: vi.fn() }));
+// The loop's side is its own suite's (workLoop.test.ts); here enterOnBar's call is read, and arcRunning answers from
+// `arcs` (below), which enterOnBar fills and a test empties when the arc ends.
+vi.mock('./workLoop', () => ({ enterOnBar: vi.fn(), arcRunning: vi.fn() }));
 
 // ========================================
 // HELPERS
@@ -60,10 +61,20 @@ const update = (id: string, patch: Partial<Robot>): void =>
 
 const activity = (id: string, a: RobotActivity) => update(id, { activity: a });
 
-const fade = vi.spyOn(AudioEngine, 'scheduleStationFade').mockImplementation(() => {});
-const cancel = vi.spyOn(AudioEngine, 'cancelStationFade').mockImplementation(() => {});
+// The two records the system reads an entry's start from, faked where they are kept: the engine's fade record (set by
+// the schedule, deleted by the cancel) and the loop's running arc (set by enterOnBar, gone when a test ends it).
+const fades = new Set<string>();
+const arcs = new Set<string>();
+const fade = vi.spyOn(AudioEngine, 'scheduleStationFade').mockImplementation((id) => void fades.add(id));
+const cancel = vi.spyOn(AudioEngine, 'cancelStationFade').mockImplementation((id) => void fades.delete(id));
+vi.spyOn(AudioEngine, 'hasStationFade').mockImplementation((id) => fades.has(id));
 /** The lead from the context clock to a tick's time leaving the speakers; 0 unless a test sets one. */
 const heard = vi.spyOn(AudioEngine, 'secondsUntilHeard');
+
+/** The arc reached its end ('charging' written) or was reversed and killed: the loop no longer runs one. */
+const arcEnds = (id: string): void => void arcs.delete(id);
+/** The engine's side of an Active landing: landOnActive's cancelStationFade, without counting as this system's cancel. */
+const landedActive = (id: string): void => void fades.delete(id);
 
 /** Run the system's '16n' callback for a tick on `step` (1..16) at audio time `time`. */
 function tick(step: number, time = 10 + step * TICK): number {
@@ -79,6 +90,10 @@ function tick(step: number, time = 10 + step * TICK): number {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  fades.clear();
+  arcs.clear();
+  vi.mocked(enterOnBar).mockImplementation((id) => void arcs.add(id));
+  vi.mocked(arcRunning).mockImplementation((id) => arcs.has(id));
   vi.mocked(getTickSeconds).mockReturnValue(TICK);
   heard.mockReturnValue(0);
   setRoster([makeRobot('r1')]);
@@ -189,8 +204,10 @@ describe('stationFadeSystem — the grid starts each entry on the half-measure r
   it('a robot that left entering and comes back later is started again', () => {
     startStationFades(DEFAULT_LOCALE_ID);
     tick(1);
+    arcEnds('r1'); // the arc's end wrote 'charging'
     activity('r1', 'charging');
     tick(2);
+    landedActive('r1'); // Active again: landOnActive cancelled the fade, then the exit
     activity('r1', 'exiting');
     tick(3);
     activity('r1', 'entering');
@@ -198,6 +215,39 @@ describe('stationFadeSystem — the grid starts each entry on the half-measure r
     expect(fade).toHaveBeenCalledTimes(2);
     expect(fade).toHaveBeenLastCalledWith('r1', again, 13 * TICK);
     expect(enterOnBar).toHaveBeenCalledTimes(2);
+  });
+
+  describe('the system keeps no record of its own: an entry has started while the engine holds its fade or the loop runs its arc (review R1)', () => {
+    it("a robot that leaves 'entering' and re-enters between two ticks is started again (a turn-back's reverse ending on the port while recalled again)", () => {
+      startStationFades(DEFAULT_LOCALE_ID);
+      tick(1);
+      landedActive('r1'); // the turn-back: the fade cancelled, the arc reversing
+      arcEnds('r1'); // the reverse reached its start and the arc was killed; recalled meanwhile, the robot heads home
+      activity('r1', 'returning'); // ... and the zero-length swim lands at once, within one GSAP tick:
+      activity('r1', 'entering'); // no sixteenth saw the gap
+      const again = tick(2);
+      expect(fade).toHaveBeenCalledTimes(2);
+      expect(fade).toHaveBeenLastCalledWith('r1', again, 15 * TICK);
+      expect(enterOnBar).toHaveBeenCalledTimes(2);
+    });
+
+    it('a turn-back mid-arc (the fade cancelled, the arc still reversing) is not started again while the arc runs', () => {
+      startStationFades(DEFAULT_LOCALE_ID);
+      tick(1);
+      landedActive('r1');
+      tick(2);
+      tick(3);
+      expect(fade).toHaveBeenCalledTimes(1);
+      expect(enterOnBar).toHaveBeenCalledTimes(1);
+    });
+
+    it('a soloed entry (an arc, no fade) is not started again while its arc runs', () => {
+      setRoster([makeRobot('r1', { audioMode: 'solo' })]);
+      startStationFades(DEFAULT_LOCALE_ID);
+      tick(1);
+      tick(2);
+      expect(enterOnBar).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Solo beats the fade (spec §1.5, A8)', () => {
@@ -271,7 +321,7 @@ describe('stationFadeSystem — the grid starts each entry on the half-measure r
       expect(enterOnBar).not.toHaveBeenCalled();
     });
 
-    it('stop cancels the repeat, is idempotent, and a restart starts a fresh record', () => {
+    it('stop cancels the repeat and is idempotent; a restart does not start again an entry whose fade and arc still run', () => {
       startStationFades(DEFAULT_LOCALE_ID);
       tick(1);
       stopStationFades();
@@ -282,7 +332,7 @@ describe('stationFadeSystem — the grid starts each entry on the half-measure r
 
       startStationFades(DEFAULT_LOCALE_ID);
       tick(2);
-      expect(fade).toHaveBeenCalledTimes(2); // the restart forgot r1, which is still entering
+      expect(fade).toHaveBeenCalledTimes(1); // nothing of its own to forget: the records are the engine's and the loop's
     });
 
     it('start while running does not schedule a second repeat', () => {

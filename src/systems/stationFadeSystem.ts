@@ -9,12 +9,13 @@
 // seconds and end on the bar line, where the arc's end writes 'charging'.
 //
 // A transport callback, so it may call both the engine and the loop; the loop never calls the engine (Strict
-// Separation). Started and stopped beside the work loop (worldTransition.ts). Runtime state only, none in Zustand.
+// Separation). Started and stopped beside the work loop (worldTransition.ts). No record of its own beyond the repeat's
+// id: whether an entry has started is read where it is kept, the engine's fade record and the loop's running arc.
 
 // ========================================
 // IMPORTS
 // ========================================
-import { enterOnBar } from './workLoop';
+import { arcRunning, enterOnBar } from './workLoop';
 import { AudioEngine } from '../engine/AudioEngine';
 import { cancelSchedule, getTickSeconds, positionAt, scheduleRepeat } from '../engine/beatClock';
 import { useLocaleStore } from '../stores/localeStore';
@@ -24,12 +25,7 @@ import { BEATS_PER_MEASURE, STATION_FADE_MIN_STEPS } from '../constants';
 // STATE
 // ========================================
 
-/** What this system started for an 'entering' robot: its fade and its arc, or (soloed, or a Solo since) the arc
- *  alone. The scheduling record; the engine's own `stationFades` is the audio one. */
-type Started = 'fade' | 'arc';
-
 let scheduleId: string | null = null;
-const started = new Map<string, Started>();
 
 // ========================================
 // THE TICK
@@ -42,25 +38,21 @@ function onTick(localeId: string, time: number): void {
   const left = BEATS_PER_MEASURE * 4 - (at.step - 1);
   const robots = useLocaleStore.getState().getLocaleById(localeId)?.robots ?? [];
 
-  const entering = new Set<string>();
   for (const robot of robots) {
     if (robot.activity !== 'entering') continue;
-    entering.add(robot.id);
     const soloed = robot.audioMode === 'solo';
-    const was = started.get(robot.id);
-    if (was === 'fade' && soloed) {
-      AudioEngine.cancelStationFade(robot.id, time); // a Solo mid-fade: heard at its regular volume (spec §1.5)
-      started.set(robot.id, 'arc');
-    }
-    if (was !== undefined || left < STATION_FADE_MIN_STEPS) continue; // started, or the hold
+    // An entry has started while the engine holds the robot's fade (gone at every Active landing) or the loop runs its
+    // arc (gone at 'charging', or at the end of a turn-back's reverse). Not remembered here: a record of this system's
+    // own went stale when a robot left and re-entered 'entering' between two ticks (the reverse of a turn-back ending on
+    // the port while recalled again), and it then held at its port for ever (review R1).
+    const fading = AudioEngine.hasStationFade(robot.id);
+    if (fading && soloed) AudioEngine.cancelStationFade(robot.id, time); // a Solo mid-fade: heard at its regular volume (spec §1.5)
+    if (fading || arcRunning(robot.id) || left < STATION_FADE_MIN_STEPS) continue; // started, or the hold
     const seconds = left * tick;
     if (!soloed) AudioEngine.scheduleStationFade(robot.id, time, seconds);
     // The tick runs a lookahead ahead of its audio: the arc, which starts now, runs on until the fade is heard to end.
     enterOnBar(robot.id, seconds + AudioEngine.secondsUntilHeard(time));
-    started.set(robot.id, soloed ? 'arc' : 'fade');
   }
-  // A robot no longer 'entering' (charging, turned back, gone) is forgotten, so its next entry starts afresh.
-  for (const id of [...started.keys()]) if (!entering.has(id)) started.delete(id);
 }
 
 // ========================================
@@ -73,12 +65,10 @@ export function startStationFades(localeId: string): void {
   scheduleId = scheduleRepeat('16n', (time) => onTick(localeId, time));
 }
 
-/** Stop the tick and forget every robot it started. Idempotent. The engine's records go with its own teardown
- *  (killAll) or the robot's next Active landing (cancelStationFade). */
+/** Stop the tick. Idempotent. An entry in flight keeps its fade and its arc: the engine's records go with its own
+ *  teardown (killAll) or the robot's next Active landing (cancelStationFade); the loop's arcs go with stopWorkLoop. */
 export function stopStationFades(): void {
-  if (scheduleId !== null) {
-    cancelSchedule(scheduleId);
-    scheduleId = null;
-  }
-  started.clear();
+  if (scheduleId === null) return;
+  cancelSchedule(scheduleId);
+  scheduleId = null;
 }
