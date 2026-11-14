@@ -5,6 +5,11 @@ Roadmap [Phase 40](../todo/roadmap.md#40-orbiting-polygons). Intent:
 ([GEM_POLYGON_ROBOTS.md](GEM_POLYGON_ROBOTS.md)); replaces Branch C of
 [docs/ideas/gem-polygon-robots.md](../ideas/gem-polygon-robots.md).
 
+**Amendment (2026-11-14, backlog 85): the line-width and strip-opacity dials are gone.** An orbiter's boundary line is a
+fixed 1.1 wide and its strip a fixed 1 opacity (`gem/gemLines.ts`); `orbiterDials` keeps only count and size, and Note
+Variance and Pitch Repeat no longer reach the body. Wherever this spec gives those two dials, it describes what was built
+and then taken out; [ROBOT_DESIGN.md](../ROBOT_DESIGN.md) has the current rule.
+
 **Shipped, redesigned mid-build (2026-10-05).** This spec describes the docking design as it
 actually shipped. The original design — drift near the corners, a paired ring orbit through the
 body, spawn/despawn by that same ring — passed Gate 1 (the motion sketch) and was fully built, then
