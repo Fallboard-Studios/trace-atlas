@@ -318,22 +318,24 @@ describe('the work loop under the real lifecycle tick (Phase 43 Task 24)', () =>
     expect(sim.charging).toEqual([]);
   }, 30_000);
 
-  it('200 BPM, a hidden tab during the entry: the arc finishes, then it exits again without charging', () => {
+  it('200 BPM, a hidden tab during the entry: it turns back from the port to work, never exiting or charging (backlog 84 Task 13)', () => {
     sim = simulate(200);
     expect(sim.runUntil(() => sim!.activity() === 'working', 120)).toBe(true);
     useLocaleStore.getState().updateRobot(LOCALE, 'r1', { batteryLevel: BATTERY_CRITICAL_THRESHOLD + BATTERY_DRAIN_ACTIVE });
     expect(sim.runUntil(() => sim!.activity() === 'entering', 120)).toBe(true);
     const from = sim.trace.length - 1;
 
-    // Throttled only until it lands Active (inside the first half of the arc) — any longer and the
-    // fast Transport would drain it into a second recall before the arc ends.
+    // Throttled only until it lands Active (in the hold or the arc) — any longer and the fast Transport would drain it
+    // into a second recall before it is back at work.
     const rate = Math.ceil((MEASURES_TO_ACTIVE + 1) * sim.measureSeconds / 0.5);
     expect(sim.runUntil(() => get('r1').docking === 'active', 0.9, rate)).toBe(true);
-    expect(sim.activity()).toBe('entering');
-    expect(sim.runUntil(() => sim!.activity() !== 'entering', 2)).toBe(true);
-    expect(sim.activity()).toBe('exiting');
+    // At once from the hold; from the arc, once the reverse has run back to its start (at most the arc's length).
+    expect(sim.runUntil(() => sim!.activity() !== 'entering', sim.measureSeconds + 0.5)).toBe(true);
+    expect(['transit', 'waiting']).toContain(sim.activity());
     expect(sim.runUntil(() => sim!.activity() === 'working', 60)).toBe(true);
-    expect(activitiesAfter(sim.trace, from)).not.toContain('charging');
+    const after = activitiesAfter(sim.trace, from);
+    expect(after).not.toContain('charging');
+    expect(after).not.toContain('exiting');
     expect(sim.charging).toEqual([]);
   }, 30_000);
 });

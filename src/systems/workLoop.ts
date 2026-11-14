@@ -872,8 +872,9 @@ export function enterOnBar(robotId: string, seconds: number): void {
  * `'recalled'`: in transit, the swim is dropped and the site released with no cooldown; waiting,
  * the bob is dropped — either way it heads home now. Working or exiting, the leg finishes first
  * and its next() sends it home. `'active'`: charging, it exits; returning, it turns back (the slot
- * frees with the activity) and goes to work; entering, the arc finishes and turns it back at the
- * port. `'docked'`: nothing — the entry ends in 'charging' on its own.
+ * frees with the activity) and goes to work; entering, it turns back at the port — at once while it
+ * holds there, else the arc reverses and it resumes at the reverse's end (turnBackAtPort). `'docked'`:
+ * nothing — the entry ends in 'charging' on its own.
  */
 export function onLifecycleChange(localeId: string, robotId: string, to: LifecycleChange): void {
   const loop = run;
@@ -892,8 +893,36 @@ export function onLifecycleChange(localeId: string, robotId: string, to: Lifecyc
     } else if (robot.activity === 'returning') {
       dropLeg(robotId);
       resume(loop, settle(loop, robot));
+    } else if (robot.activity === 'entering') {
+      turnBackAtPort(loop, robot);
     }
   }
+}
+
+/**
+ * Active again before it is inside (backlog 84, spec §1.2 step 5). Holding at the port, it resumes at once. Mid-arc,
+ * the arc runs backwards from where it is: its 'charging' end is unhooked, and the robot resumes when the reverse
+ * reaches the start, the reversed arc killed so a later entry can start a fresh one. Already reversing, the same again
+ * (GSAP's reverse() sets the direction, it does not toggle it). The station ripple is left to finish; the volume's
+ * return is the engine's (landOnActive → cancelStationFade).
+ */
+function turnBackAtPort(loop: LoopRun, robot: Robot): void {
+  const key = `station-${robot.id}`;
+  const arc = getTimeline(key);
+  if (!arcRunning(robot.id) || !arc) {
+    resume(loop, settle(loop, robot));
+    return;
+  }
+  arc.eventCallback('onComplete', null);
+  arc.eventCallback(
+    'onReverseComplete',
+    live(loop, () => {
+      killTimeline(key);
+      const here = robotOf(loop, robot.id);
+      if (here) resume(loop, settle(loop, here));
+    }),
+  );
+  arc.reverse();
 }
 
 /**

@@ -71,11 +71,13 @@ export function pauseWorldTimelines(): void {
   });
 }
 
-/** Play again every world timeline pauseWorldTimelines() paused (and none it did not), and end the paused span. */
+/** Play again every world timeline pauseWorldTimelines() paused (and none it did not), and end the paused span. Each
+ *  carries on in the direction it was going: `resume()`, not `play()`, which would turn a reversed one forward (a
+ *  station arc a turn-back reverses, backlog 84). */
 export function resumeWorldTimelines(): void {
   worldPaused = false;
   pausedByWorld.forEach((id) => {
-    timelineMap.get(id)?.play();
+    timelineMap.get(id)?.resume();
   });
   pausedByWorld.clear();
 }

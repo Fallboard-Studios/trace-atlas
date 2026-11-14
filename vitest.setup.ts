@@ -99,6 +99,9 @@ vi.mock('gsap', () => {
       // Task 8) became the first test to invoke createSwimTimeline for real
       // rather than mocking swimAnimation.ts itself.
       play: () => { paused = false; return obj as TimelineObj; },
+      // timelineMap.ts's resumeWorldTimelines() unpauses with resume(), which keeps a reversed timeline reversed
+      // (backlog 84's turn-back arc); this stub has no direction, so it is play() here.
+      resume: () => { paused = false; return obj as TimelineObj; },
       // BubbleStream.tsx nests one child timeline per bubble via tl.add() and rewinds with
       // tl.pause(0) when its building is inactive. Its own test file swaps in a recording
       // mock, but any file that renders a real Factory without stubbing BubbleStream (see
@@ -123,6 +126,7 @@ vi.mock('gsap', () => {
       kill: () => { },
       pause: () => { paused = true; },
       play: () => { paused = false; },
+      resume: () => { paused = false; },
       paused: () => paused,
     };
   };

@@ -26,7 +26,9 @@ import { getWorkSite, type WorkSite } from './workSites';
 import { getStations, type Station } from './stations';
 import { getMidgroundSilhouettes } from './midgroundSilhouettes';
 import * as stationsModule from './stations';
-import { getTimeline, getTimelineScope, killAllTimelines, timelineMap } from '../animation/timelineMap';
+import {
+  getTimeline, getTimelineScope, killAllTimelines, pauseWorldTimelines, resumeWorldTimelines, timelineMap,
+} from '../animation/timelineMap';
 import { registerOrbiterWork, registerArcDecorator, clearRobotMotionRegistry } from '../animation/robotMotionRegistry';
 import * as buildJobTimelineModule from '../animation/jobMoves/buildJobTimeline';
 import * as decorTierModule from '../animation/jobMoves/decor/decorTier';
@@ -987,29 +989,155 @@ describe('workLoop — stations, recall and mounts (Phase 43 Task 23, spec §1.6
       expect(occupants).toHaveLength(0);
     });
 
-    it('while entering: the arc finishes, then it exits again without ever charging', () => {
-      const { el } = workingAtA();
-      const deco = decorate('r1');
+    /** r1 recalled from work at a, home at its port and holding there ('entering', no arc); every activity it is
+     *  written from here on, in order. */
+    function holdingAtPort() {
+      const w = workingAtA();
       land('r1', 'recalled', 'recalled');
       finish('work-r1');
       finish('swim-r1');
-      enterOnBar('r1', STATION_ARC_SECONDS); // the grid's call (stationFadeSystem.ts)
-      const enter = getTimeline('station-r1')!;
-      enter.progress(0.5);
-
-      land('r1', 'active', 'active');
-      expect(getTimeline('station-r1')).toBe(enter);
       expect(get('r1').activity).toBe('entering');
-      enter.progress(1);
-      expect(get('r1').activity).toBe('exiting');
-      const exit = getTimeline('station-r1')!;
-      expect(exit).not.toBe(enter);
-      expect(deco).toHaveBeenLastCalledWith('spawn', STATION_ARC_SECONDS, exit);
-      exit.progress(0);
-      expect(scale(el)).toBeCloseTo(STATION_PORT_SCALE, 3); // picks up where the entry left it: no pop
+      expect(getTimeline('station-r1')).toBeUndefined();
+      const written: (string | undefined)[] = [];
+      const unsubscribe = useLocaleStore.subscribe((state, prev) => {
+        const now = state.locales[LOCALE]?.robots.find((r) => r.id === 'r1')?.activity;
+        const was = prev.locales[LOCALE]?.robots.find((r) => r.id === 'r1')?.activity;
+        if (now !== was) written.push(now);
+      });
+      return { ...w, written, unsubscribe };
+    }
+
+    it("'active' during the hold: it leaves the port at once for a ready site, with no arc (backlog 84 Task 13)", () => {
+      const { a, el, written, unsubscribe } = holdingAtPort();
       clock = 1e6; // past a's cooldown from the job
-      exit.progress(1);
+      land('r1', 'active', 'active');
+      unsubscribe();
       expect(get('r1').activity).toBe('transit');
+      expect(get('r1').siteId).toBe(a.id);
+      expect(getTimeline('station-r1')).toBeUndefined();
+      expect(getTimeline('swim-r1')).toBeDefined();
+      expect(isShown(el)).toBe(true);
+      expect(scale(el)).toBe(1);
+      expect(written).toEqual(['transit']);
+    });
+
+    it("'active' during the hold with no ready site: it waits by the port instead", () => {
+      const { written, unsubscribe } = holdingAtPort();
+      land('r1', 'active', 'active'); // a is still cooling down from the job
+      unsubscribe();
+      expect(get('r1').activity).toBe('waiting');
+      expect(getTimeline('station-r1')).toBeUndefined();
+      expect(written).toEqual(['waiting']);
+    });
+
+    it("'active' mid-arc: the arc reverses from where it is, never writes 'charging', and the robot resumes at its start", () => {
+      const { a, el, written, unsubscribe } = holdingAtPort();
+      const deco = decorate('r1');
+      mountFront(nearestStation(siteOf(a).park).id);
+      enterOnBar('r1', 2); // the grid's call (stationFadeSystem.ts)
+      const arc = getTimeline('station-r1')!;
+      arc.progress(0.5);
+      expect(opacity(el)).toBeCloseTo(0.5, 2);
+
+      clock = 1e6;
+      land('r1', 'active', 'active');
+      expect(getTimeline('station-r1')).toBe(arc); // the same arc, not a new exit arc
+      expect(arc.reversed()).toBe(true);
+      expect(get('r1').activity).toBe('entering'); // until the reverse ends
+      expect(deco).toHaveBeenCalledTimes(1); // no 'spawn' arc
+
+      arc.progress(0.25); // on the way back: the body grows and shows again the way it went
+      expect(opacity(el)).toBeCloseTo(0.75, 2);
+      expect(scale(el)).toBeCloseTo(1 + (STATION_PORT_SCALE - 1) * 0.0625, 3);
+      expect(get('r1').activity).toBe('entering');
+
+      arc.progress(0);
+      unsubscribe();
+      expect(isShown(el)).toBe(true);
+      expect(scale(el)).toBe(1);
+      expect(get('r1').activity).toBe('transit');
+      expect(get('r1').siteId).toBe(a.id);
+      expect(getTimeline('station-r1')).toBeUndefined(); // the reversed arc is done and gone
+      expect(written).toEqual(['transit']); // never 'charging', never 'exiting'
+    });
+
+    it('a power-off during the reverse: the arc keeps running backwards after the power-on, and the robot resumes', () => {
+      const { el } = holdingAtPort();
+      enterOnBar('r1', 2);
+      const arc = getTimeline('station-r1')!;
+      arc.progress(0.5);
+      clock = 1e6;
+      land('r1', 'active', 'active');
+      pauseWorldTimelines();
+      expect(arc.paused()).toBe(true);
+      resumeWorldTimelines();
+      expect(arc.paused()).toBe(false);
+      expect(arc.reversed()).toBe(true); // GSAP's play() would have turned it forward, to a hidden robot that never charges
+      arc.progress(0);
+      expect(isShown(el)).toBe(true);
+      expect(get('r1').activity).toBe('transit');
+    });
+
+    it('a second Active landing during the reverse does not turn it forward again', () => {
+      holdingAtPort();
+      enterOnBar('r1', 2);
+      const arc = getTimeline('station-r1')!;
+      arc.progress(0.5);
+      land('r1', 'active', 'active');
+      land('r1', 'recalled', 'recalled'); // 'recalled' leaves an entering robot alone
+      land('r1', 'active', 'active');
+      expect(arc.reversed()).toBe(true);
+    });
+
+    it('recalled again during the reverse: at its end it heads home and holds at the port for a fresh entry', () => {
+      holdingAtPort();
+      enterOnBar('r1', 2);
+      const arc = getTimeline('station-r1')!;
+      arc.progress(0.5);
+      land('r1', 'active', 'active');
+      land('r1', 'recalled', 'recalled');
+      arc.progress(0);
+      // Still on the port, so the swim home is zero-length and lands at once.
+      expect(get('r1').activity).toBe('entering');
+      expect(getTimeline('station-r1')).toBeUndefined();
+      enterOnBar('r1', 1.5);
+      expect(getTimeline('station-r1')).not.toBe(arc);
+      expect(getTimeline('station-r1')!.duration()).toBeCloseTo(1.5, 6);
+    });
+
+    it('with no mounted body the arc reverses and the robot resumes all the same', () => {
+      const { a } = sitesForSwitch();
+      registerLocale([a], []);
+      const s = stations()[0];
+      setRobots([robot('r1', s.port, { docking: 'recalled', activity: 'entering', stationId: s.id })]);
+      startWorkLoop(LOCALE, { now, backHosts: false });
+      enterOnBar('r1', 2);
+      const arc = getTimeline('station-r1')!;
+      arc.progress(0.5);
+      land('r1', 'active', 'active');
+      expect(arc.reversed()).toBe(true);
+      arc.progress(0);
+      expect(get('r1').activity).toBe('transit');
+    });
+
+    it('never touches AudioEngine through a turn-back in the hold or in the arc (Strict Separation)', () => {
+      const spies = Object.entries(AudioEngine)
+        .filter(([, v]) => typeof v === 'function')
+        .map(([k]) => vi.spyOn(AudioEngine, k as keyof typeof AudioEngine));
+      const { unsubscribe } = holdingAtPort();
+      unsubscribe();
+      enterOnBar('r1', 2);
+      getTimeline('station-r1')!.progress(0.5);
+      clock = 1e6;
+      land('r1', 'active', 'active');
+      getTimeline('station-r1')!.progress(0);
+      expect(get('r1').activity).toBe('transit');
+      land('r1', 'recalled', 'recalled');
+      finish('swim-r1');
+      expect(get('r1').activity).toBe('entering');
+      land('r1', 'active', 'active');
+      expect(get('r1').activity).not.toBe('entering');
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
     });
   });
 
