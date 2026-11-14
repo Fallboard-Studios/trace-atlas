@@ -18,8 +18,9 @@ that's ok" to a re-run) and Gate 2 passed the same day on his word ("i'm happy w
 guardrail sentence) and Phase 6 (Tasks 29 and 30, the record) done 2026-11-13: **branch one's Tasks 1 to 30 are all
 built.** Checkpoint: Complete passed 2026-11-13: the looks and reviews the earlier checkpoints waited on were
 answered there, and the five-axis review approved (four fixes). Branch one merged (PR #637). **Phase 7 (Tasks 31 to
-36) built 2026-11-13** on `feature/note-cloud-early-notes`, one commit each. Gate 4's checks pass, and its look and
-cost answer wait on Crawford. Task 37 (the archive) follows the merge.
+36) built 2026-11-13** on `feature/note-cloud-early-notes`, one commit each. **Gate 4 passed 2026-11-13**, after
+his look moved the cloud: half the lead, a flat entry, the cloud on the robot screen only (always on, a quarter
+fainter), and the world cloud's leftovers removed (spec §8.4). Task 37 (the archive) follows the merge.
 
 How the boxes read: a task's own box is ticked when it was built and committed. The acceptance and verification
 boxes inside Tasks 1 to 16, 18 to 25, 27 and 28 were left as written while building; each is pinned by the task's
@@ -1475,15 +1476,16 @@ the repeat rule. The guardrail sentence is still to be worded: Task 26 asks him 
 ### Gate 4: Part E (spec §5.4)
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (2026-11-13: 14,261 passed, 2 skipped,
   0 failed; lint 0 errors, its 4 warnings in scenery files this branch does not touch; the build's warnings predate it).
-- [ ] Crawford's eye: a note enters at the roll's edge and rides the fan in to "now", as in the spike. Hard reload
+- [x] Crawford's eye: a note enters at the roll's edge and rides the fan in to "now", as in the spike. Hard reload
   first (Ctrl+Shift+R): `AudioEngine.ts` changed. 2026-11-13, his first look: "a little too much lead", split the
   difference. `NOTE_PREVIEW_SECONDS` halved to 0.4625 s (a note known about 0.7 s ahead, entering about halfway
   between the edge and "now") and the mask clears where a note is first known (90.75 %); spec §8.4. Then "the lead
   shouldn't balloon out": the right half runs flat (no fan, wave growth or tilt), the left keeps the fan. Then the
-  cloud leaves the world: the robot screen's avatar is the only cloud, always on (spec §8.4). His look is open.
+  cloud leaves the world: the robot screen's avatar is the only cloud, always on, a quarter fainter, and the world
+  cloud's leftovers removed (spec §8.4). Then "otherwise i'm happy": passed.
 - [x] Task 36's forecast counts and cost figures reported; he accepts the cost or names what to take back. Moot
   2026-11-13: the cost was twelve world clouds, and the world draws none now (spec §8.4).
-- [ ] Ready for his PR.
+- [x] Ready for his PR (2026-11-13: 14,221 passed, 2 skipped, 0 failed; lint 0 errors; types clean).
 
 - [ ] **Task 37: archive, after the merge**
 
