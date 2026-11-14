@@ -50,7 +50,7 @@ Further exports: `getTimeline(id): Timeline | undefined` (plain lookup, no side 
 
 **The two scopes (`docs/specs/OFF_SCREEN.md` assumption 3).** `'world'` is everything that moves in the world — swims, job moves, station arcs and ripples, halo waves, orbiters, bubbles, strip flicker, the note clouds, the deck camera's float — and pauses as one set when the power rocker pauses the world. `'ui'`, the default, is the tablet's own chrome — the rocker, the nav, cabinet pops, the roster glide, the section tabs, the off screen's own theatre — which keeps running while the world is paused. **The rule: every world mover passes `'world'`; nothing else does.** The default is `'ui'` on purpose: a mover that forgets its scope keeps moving through a pause, which is visible, rather than a UI timeline freezing, which would look broken (spec §7 Q7). Each registration's scope is pinned in its module's test through `getTimelineScope`.
 
-`pauseWorldTimelines()` pauses every `'world'` entry that is playing and remembers which (a module-level set), then raises a flag; while the flag is up a `'world'` timeline that is already playing when it is registered is paused on registration. *Corrected 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R26, item 1):* this used to say a robot that re-renders while the tablet is off does not start swimming, and the guard does not promise that. A timeline built `{ paused: true }` and played after `setTimeline`, as the swims, the work loop's dissolve and work moves, the station ripples and the deck camera's float are, is not playing when it is registered, so its `play()` runs under the pause. While the world is paused nothing starts those but the deck camera, whose tick runs on `gsap.ticker`, so the tick does nothing while the world is paused: measured headless, its float otherwise played from 0 to 1 behind the off screen. A module that can start a `'world'` timeline during a pause must check `getWorldState()` itself. `resumeWorldTimelines()` plays exactly the entries it paused — one a module had paused on purpose stays paused across a power cycle — and lowers the flag. Both are idempotent and touch no `'ui'` entry. `powerController.pause()` / `resume()` (`src/systems/powerController.ts`) are their only callers, in the order [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause) gives.
+`pauseWorldTimelines()` pauses every `'world'` entry that is playing and remembers which (a module-level set), then raises a flag; while the flag is up a `'world'` timeline that is already playing when it is registered is paused on registration. *Corrected 2026-10-31 ([OFF_SCREEN_REVIEW_FOLLOWUPS](tasks/OFF_SCREEN_REVIEW_FOLLOWUPS.md) R26, item 1):* this used to say a robot that re-renders while the tablet is off does not start swimming, and the guard does not promise that. A timeline built `{ paused: true }` and played after `setTimeline`, as the swims, the work loop's dissolve and work moves, the station ripples and the deck camera's float are, is not playing when it is registered, so its `play()` runs under the pause. While the world is paused nothing starts those but the deck camera, whose tick runs on `gsap.ticker`, so the tick does nothing while the world is paused: measured headless, its float otherwise played from 0 to 1 behind the off screen. A module that can start a `'world'` timeline during a pause must check `getWorldState()` itself. `resumeWorldTimelines()` plays exactly the entries it paused — one a module had paused on purpose stays paused across a power cycle — with `resume()`, so each carries on in the direction it was going (a station arc a turn-back reversed, backlog 84; GSAP's `play()` would turn it forward), and lowers the flag. Both are idempotent and touch no `'ui'` entry. `powerController.pause()` / `resume()` (`src/systems/powerController.ts`) are their only callers, in the order [AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#power-is-a-pause) gives.
 
 This is the supported pattern for keeping timelines out of React state and cleaning them up reliably.
 
@@ -311,7 +311,9 @@ with it.
 
 ### Station arcs
 A robot enters and leaves a charging station through one arc timeline, keyed
-`` `station-${robotId}` `` (`workLoop.ts`'s `stationArc`), over `STATION_ARC_SECONDS` (1 s):
+`` `station-${robotId}` `` (`workLoop.ts`'s `stationArc(loop, robot, kind, station, onDone, seconds?)`), with two
+lengths (backlog 84): the exit over `STATION_ARC_SECONDS` (1 s); the entry over its station fade, half a measure
+to a whole one, ending on the bar line:
 
 | Arc | Scale | Opacity (`autoAlpha`) | Ease (scale) |
 |---|---|---|---|
@@ -325,6 +327,22 @@ body in the same call, with `.robot__row` at `BACK_LAYER_SCALE`, so the robot gr
 0.75 overall. Its next leg to a front-row site or a station is then an ordinary back → front
 switch. The entry plays in the front row, between L3 and L2.
 
+**The entry waits for the grid** (backlog 84, [specs/PLAY_UNTIL_IN_THE_STATION.md](specs/PLAY_UNTIL_IN_THE_STATION.md)
+§1.6). Arriving at its port, a robot is written `'entering'` and holds there at full size, still playing. The station
+fade system's `'16n'` tick ([AUDIO_SYSTEM.md](AUDIO_SYSTEM.md#audio-load-budget), "The station fade") calls the
+exported `enterOnBar(robotId, seconds)` on the sixteenth that starts the robot's volume ramp, with the same seconds,
+so the arc and the ramp both end on the bar line. `enterOnBar` is a no-op unless the loop is running, the robot is
+one of its locale's and `'entering'`, and no arc is part-way: a finished arc stays registered under its key until the
+next replaces it, so "running" is the key set **and** `progress() < 1` (`arcRunning`). The duration reaches
+everything the arc carries: the body's scale and opacity, the halo decorator's `duration` and the station ripple's.
+
+**A turn-back mid-arc reverses it** (`turnBackAtPort`, from the seam's `'active'` while `'entering'`). The arc's
+`onComplete` (the `'charging'` write) is cleared, an `onReverseComplete` set that kills the reversed arc and resumes
+the robot, and `reverse()` runs it backwards from where it is, so the robot grows back the way it went. A ripple
+already playing finishes. During the hold there is no arc, and the robot resumes at once. A reversed arc keeps its
+direction across a power cycle: `resumeWorldTimelines()` calls `resume()`, which keeps a timeline's direction, where
+`play()` would have turned it forward.
+
 Opacity is linear both ways, and the robot's halo waves are started by its registered
 `decorateArc(kind, duration, tl)` (outward on exit, inward on entry) on a timeline of their own, since a spawn run
 outlasts the arc. Beside it,
@@ -335,8 +353,9 @@ rest) and finds through the `station-front-${stationId}` ref. A ripple already r
 the new one is skipped, so twelve robots exiting at world open play one. A charging robot is left
 at `autoAlpha: 0` (`visibility: hidden`), out of the per-frame raster.
 
-Reduced motion: both arcs are a `STATION_REDUCED_ARC_SECONDS` (0.3 s) opacity fade at scale 1,
-with the halo decorator still called and no station ripple.
+Reduced motion: both arcs are an opacity fade at scale 1, with the halo decorator still called and
+no station ripple: the exit over `STATION_REDUCED_ARC_SECONDS` (0.3 s), the entry over its station
+fade's whole length (a fade is not a motion; spec assumption A4).
 
 The station itself never animates: its geometry dials follow the global Audio Rig through React
 renders, not tweens (spec §1.6).
