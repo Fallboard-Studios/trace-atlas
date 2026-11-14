@@ -28,8 +28,8 @@ vi.mock('@/animation/deckCamera', () => ({
   },
 }));
 
-// A recording gsap: `set`/`getProperty` share a prop store, and `ticker` holds its handlers so a
-// test can run a frame. (The global mock in vitest.setup.ts has neither.)
+// A recording gsap: `set`/`quickSetter`/`getProperty` share a prop store, and `ticker` holds its
+// handlers so a test can run a frame. (The global mock in vitest.setup.ts has none of them.)
 const tickers = vi.hoisted(() => new Set<() => void>());
 vi.mock('gsap', () => {
   const props = new WeakMap<object, Record<string, number>>();
@@ -41,6 +41,9 @@ vi.mock('gsap', () => {
   const mocked = {
     set: vi.fn((target: object, vars: Record<string, number>) => Object.assign(propsOf(target), vars)),
     getProperty: vi.fn((target: object, prop: string) => propsOf(target)[prop] ?? 0),
+    quickSetter: vi.fn((target: object, prop: string) => (value: number) => {
+      propsOf(target)[prop] = value;
+    }),
     ticker: {
       add: vi.fn((fn: () => void) => tickers.add(fn)),
       remove: vi.fn((fn: () => void) => tickers.delete(fn)),
@@ -476,6 +479,40 @@ describe('FollowedRobotMarker', () => {
       unmount();
 
       expect(tickers.size).toBe(0);
+    });
+
+    // A `gsap.set` is a whole zero-length tween; the marker moves every frame, so it writes x and y
+    // through two quick setters instead, as the work loop's dissolve copy does.
+    it('makes its two setters once, and a frame then writes through them with no tween', () => {
+      vi.mocked(gsap.quickSetter).mockClear();
+      follow('a');
+      const { container } = renderMarker();
+      const el = marker(container)!;
+      expect(vi.mocked(gsap.quickSetter).mock.calls.map(([target, prop, unit]) => [target, prop, unit])).toEqual([
+        [el, 'x', 'px'],
+        [el, 'y', 'px'],
+      ]);
+      vi.mocked(gsap.set).mockClear();
+      vi.mocked(gsap.quickSetter).mockClear();
+
+      frame();
+      frame();
+
+      expect(gsap.set).not.toHaveBeenCalled();
+      expect(gsap.quickSetter).not.toHaveBeenCalled();
+    });
+
+    it('a frame with no robot ref writes nothing at all', () => {
+      follow('a');
+      renderMarker();
+      clearRefs();
+      vi.mocked(gsap.set).mockClear();
+      vi.mocked(gsap.getProperty).mockClear();
+
+      frame();
+
+      expect(gsap.set).not.toHaveBeenCalled();
+      expect(gsap.getProperty).not.toHaveBeenCalled();
     });
   });
 });

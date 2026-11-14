@@ -68,6 +68,11 @@ fire it mid-pop and assert the registered timeline is the same object and still 
 
 ### 3. The followed-robot marker does three `gsap.getProperty` reads and a `gsap.set` per frame
 
+**Done 2026-11-14** on `fix/gsap-finds`: two `quickSetter`s made once in the effect. The frame was
+two `getProperty` reads by then, not three, and the code is at lines 74-97 of the file, not 309-322.
+Checked on real GSAP first that a quick setter keeps the `xPercent`/`yPercent` centring (the
+transform it writes is the one `gsap.set` wrote). No perf number taken: one element, no long task.
+
 [FollowedRobotMarker.tsx:309-322](../../src/components/panels/screen/worldView/FollowedRobotMarker.tsx#L309-L322).
 The `gsap.ticker` listener is the right loop (no `requestAnimationFrame`), but each frame builds a
 vars object and runs a full `gsap.set` (a zero-duration tween: parse, init, render, kill). The work loop
