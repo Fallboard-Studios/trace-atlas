@@ -458,12 +458,13 @@ function swimTo(loop: LoopRun, robot: Robot, destination: Vec2, scale: number, o
     write(loop, robot.id, { position: destination });
     onArrive();
   });
-  if (bodyOf(robot.id)) {
-    easeRowWith(createSwimTimeline(robot, destination, arrive), robot, scale);
+  const swim = createSwimTimeline(robot, destination, arrive);
+  if (swim) {
+    easeRowWith(swim, robot, scale);
     return;
   }
-  // No body to swim (createSwimTimeline would fall back to an unkeyed delayedCall that stop
-  // can't kill): the same travel time, keyed like a swim.
+  // No body to swim (createSwimTimeline returned null and did nothing): the same travel time,
+  // keyed like a swim, so stop can kill it.
   const distance = Math.hypot(destination.x - robot.position.x, destination.y - robot.position.y);
   const tl = timed(distance / SWIM_SPEED, arrive);
   setTimeline(`swim-${robot.id}`, tl, 'world');

@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useRef, type RefObject } from 'react';
 import type gsap from 'gsap';
 
-import { setTimeline, killTimeline } from '../../../animation/timelineMap';
+import { getTimeline, setTimeline, killTimeline } from '../../../animation/timelineMap';
 import { prefersReducedMotion } from '../../../utils/reducedMotion';
 import { playHaloWaves } from './haloWavesMotion';
 
@@ -54,8 +54,22 @@ export function useHaloMotion({ root, robotId, context, dimOpacity }: UseHaloMot
     dimOpacityRef.current = dimOpacity;
   }, [dimOpacity]);
 
-  // The robot's body unmounting kills a run still in flight.
-  useEffect(() => () => killTimeline(wavesKey), [wavesKey]);
+  // The run this body started, if any. The key is not this body's alone: `RobotBody` hands a card (a
+  // roster tile, a company member) the world context, so the card shares the world body's key.
+  const runRef = useRef<ReturnType<typeof gsap.timeline> | null>(null);
+
+  // The robot's body unmounting kills a run still in flight: the run it started, and no other. A card
+  // never plays one, so its unmount (leaving the roster) kills nothing. Before 2026-11-14 it killed
+  // the world body's run by the shared key, and a killed run never reaches the `onComplete` that
+  // clears the lines, so the last frame stayed drawn on the robot and rode it around.
+  useEffect(
+    () => () => {
+      const run = runRef.current;
+      runRef.current = null;
+      if (run && getTimeline(wavesKey) === run) killTimeline(wavesKey);
+    },
+    [wavesKey],
+  );
 
   // Plays the waves on a timeline of their own, registered under `wavesKey`: a new run replaces the old
   // one. Reduced motion: a no-op (the arc's own 0.3s fade plays alone). Memoised (Phase 43): `RobotBody`
@@ -65,7 +79,9 @@ export function useHaloMotion({ root, robotId, context, dimOpacity }: UseHaloMot
     (kind, duration) => {
       if (reducedMotion || !root.current) return;
       const waves = playHaloWaves({ group: root.current, kind, duration, dimOpacity: () => dimOpacityRef.current });
-      if (waves) setTimeline(wavesKey, waves, 'world');
+      if (!waves) return;
+      runRef.current = waves;
+      setTimeline(wavesKey, waves, 'world');
     },
     [reducedMotion, root, wavesKey],
   );

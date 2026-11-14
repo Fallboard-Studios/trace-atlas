@@ -81,7 +81,7 @@ Its caller is the work loop, for every leg to a work site's park or a station po
 `onComplete` writes the robot's `position` (the destination) and then continues the loop.
 
 Sequence:
-- Resolves the robot SVG via `getRef(`robot-${robot.id}`)`. **If the ref isn't registered yet**, the function still returns an (empty) timeline and schedules `onComplete` via `gsap.delayedCall(estimatedDuration, ...)` so callers waiting on the callback don't hang.
+- Resolves the robot's body via `getRef(`robot-${robot.id}`)`. **If no ref is registered**, the function returns `null` and does nothing else: no timeline, no key, and `onComplete` is never called. The caller owns that case (the work loop times the leg itself under the same key, see "Robot timeline keys" below).
 - Kills any existing `swim-${robot.id}` timeline, sets `transformOrigin: '50% 50%'` once (the tilt below rotates about the centre).
 - Animates to the destination over `distance / SWIM_SPEED` seconds, starting at position 0, eased `sine.inOut` (every leg starts and ends at rest).
 - Applies a body tilt (`± TILT_ANGLE`, direction-dependent) that ramps in over the first 30% of the duration and back out over the last 30%.
@@ -100,7 +100,10 @@ several related keys per instance, not just one:
   satisfies it.
 - **Size-tween key** `orbiter-size-${context}-${robotId}` — `setTimeline` re-targets this one on
   every `size` dial edit rather than stacking a second tween, the standard "one key per concern"
-  pattern this file's intro recommends.
+  pattern this file's intro recommends. `setTimeline` kills the old tween where it stands and the
+  new one eases on from there. Its `useGSAP` passes no `revertOnUpdate`: a revert writes the scale
+  back to what it was before the reverted tween first ran, which snapped the orbiters to their
+  mount size on every edit after the first (`useOrbiterMotion.size.test.tsx`, on real GSAP).
 - **No per-element key at all for the attach/detach hop itself** — each corner's `gsap.to()` is
   tracked in a local `Map<corner, killFn>` inside the closure, killed on unmount alongside the
   tracked keys above, but never registered in the shared `timelineMap`. A hook-local resource that
@@ -125,6 +128,11 @@ as `refs.ts`:
   — `RobotBody` registers its world-context `decorateArc` (from `useHaloMotion`, memoised so an
   audio edit doesn't re-register it). The work loop calls it on every station arc; it plays the halo's
   triangular waves on a timeline of their own (`halo-waves-{context}-{robotId}`), not on the arc's.
+  The key is not one body's alone: `RobotBody` hands a card (a roster tile, a company member) the
+  world context, so a card shares the world body's key. `useHaloMotion` therefore kills, on unmount,
+  only the run it started itself; a card never plays one. (Until 2026-11-14 it killed by key, so
+  leaving the roster mid-arc killed the world body's run, and a killed run never reaches the
+  `onComplete` that clears its lines: the last frame stayed on the robot and rode it around.)
 - `registerOrbiterWork(robotId, control)` / `getOrbiterWork(robotId)` / `deleteOrbiterWork(robotId, owner?)`
   — `useOrbiterMotion` (world context only) registers `{ lock(), unlock() }`. `lock()` finishes
   any attach/detach hop in flight (`progress(1)`), makes `reconcile()` return early and returns the
@@ -403,7 +411,7 @@ Every robot key in `timelineMap`, and who kills it:
 | `` `dissolve-${robotId}` `` | the work loop's `dissolve` | one layer-switch fade | its own end, the robot's next dissolve, a recall or turn-back (`dropLeg`), an adoption (`killLegs`), `stopWorkLoop` — each removes the `.mover--dissolve` copy too |
 | `` `orbiters-${context}-${robotId}` `` | `useOrbiterMotion` | the mount | unmount (a no-op stub, see above) |
 | `` `orbiter-size-${context}-${robotId}` `` | `useOrbiterMotion` | one Size tween | the next Size edit, unmount |
-| `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, unmount |
+| `` `halo-waves-${context}-${robotId}` `` | `useHaloMotion` (`playHaloWaves`) | one station arc's triangular waves; a spawn run outlasts the 1 s arc | its own end, the next arc's run, the unmount of the body that started it (a card of the same robot shares the key and kills nothing: a killed run leaves its last frame drawn) |
 | `` `note-belt-${robotId}` `` | `useNoteCloud` | the mount; a re-size's rebuild replaces it | the rebuild (`setTimeline`), unmount |
 | `` `note-resize-${robotId}` `` | `useNoteCloud` | one re-size fade (out, rebuild, back in) | the next re-size, unmount |
 
@@ -419,8 +427,8 @@ no motion in it, which keeps the `'ui'` default on purpose and is pinned so in i
 no longer reaches it, since power is a pause), removes
 every dissolve copy; no robot is ever re-mounted for a row switch, so there is nothing else to clear. Per robot there is at most one live job and one swim,
 and no standing per-robot or per-building GSAP object (spec §1.12). A robot with no mounted body
-gets a target-less timeline of the same length under the same key, because `createSwimTimeline`'s
-no-ref fallback is an unkeyed `delayedCall` that `stopWorkLoop` couldn't find.
+gets a target-less timeline of the same length under the same key: `createSwimTimeline` returns
+`null` for it, and the loop times the leg itself so `stopWorkLoop` can find it.
 
 ### Scene stack — the stage, the sheets and the movers
 The ocean scene (`OceanScene.tsx`) is one **stage**, `div.ocean-scene__stage`, 1920 × 1080 scene units, inside `.ocean-scene`. The stage carries the `xMidYMax slice` fit as a single CSS transform: `sceneFit(box)` (pure, `sceneFit.ts`) returns the scale and offsets that fill the box with the world, cropping the top of it and never the ground, and `useStageFit` (a `ResizeObserver` on `.ocean-scene`) writes them as `--stage-scale`, `--stage-x` and `--stage-y`, once per resize and never per frame. Every child of the stage is positioned in scene units and wears a `data-scene-slot`, which `OceanScene.css` gives a `z-index`; `SCENE_SLOTS` (`sceneStack.ts`) is the one ordered list. Four slots are static `<svg class="ocean-scene__sheet">` sheets; the rest hold **movers**, small `div`s that are compositor layers of their own. (Phase 43 J4 split the old back sheet around a second robot row, spec §1.10; Phase 53 made each robot, each bubble stream and the marker a mover, so the old robot, bubbles and marker sheets are gone and no sheet moves.) The slots, back to front:
@@ -437,7 +445,7 @@ The ocean scene (`OceanScene.tsx`) is one **stage**, `div.ocean-scene__stage`, 1
 | `front` | static sheet | `#station-front-layer` (each station's front fragment: halo and ripple), first, then tint D, foreground factories/scenery and pipe bridges |
 | `marker` | mover | the singled-out robot's marker (`FollowedRobotMarker`: the robot under the pointer, else the Deck camera's followed robot), a `div.mover.mover--marker` in front of every building |
 
-A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the singled-out robot's canvas centre each frame. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
+A **mover** is `div.mover` (`position: absolute; will-change: transform; pointer-events: none`) holding an `<svg overflow="visible">` sized to its own drawing, so a mover's compositor layer is only as big as what it draws, halo, orbiters and job decorations included. A robot's svg is its gem canvas and the `.robot` group inside carries no transform; `getRef('robot-<id>')` is the mover, and the swim, the job's bob and the station arc write its `x`, `y` and rotation in scene units, which the stage's one scale turns into pixels. A bubble strip is sized once from its stream's seeded rise and wobble, with the vent at its bottom-centre. The marker is placed on the singled-out robot's canvas centre each frame, through two `gsap.quickSetter`s made once (x and y; a `gsap.set` per frame would be a whole zero-length tween), as the dissolve copy follows its robot. The dissolve copy holds an SVG `<use>` of the robot's group. A robot changing rows changes only its `data-scene-slot` (see "Layer switch").
 
 Each station's three fragments are plain groups in three sheets, not sheets of their own: `#station-l4-layer` is the last child of `back`, `#station-l3-layer` is all of `stations`, and `#station-front-layer` is the first child of `front` (before tint D). All three are static; only the one-second ripple animates one.
 

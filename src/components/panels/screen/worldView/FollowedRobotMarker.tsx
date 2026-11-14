@@ -71,20 +71,25 @@ function Marker({ robotId, localeId }: MarkerProps) {
   // The drawing's origin is the middle of its svg (the viewBox is origin-centred), but a mover's
   // translate puts its top-left corner at (x, y); pulling the wrapper back by half itself puts the
   // origin on (x, y) instead, so x and y stay the robot's centre exactly.
+  //
+  // Two quick setters, made once, so a frame costs two writes and no tween (a `gsap.set` is a whole
+  // zero-length tween); the work loop's dissolve copy follows its robot the same way.
   useLayoutEffect(() => {
-    if (gemSeed === undefined) return undefined;
+    const el = ref.current;
+    if (gemSeed === undefined || !el) return undefined;
     const gem = getRobotGem(gemSeed);
     const half = { x: gemWidth(gem) / 2, y: GEM_CANVAS_H / 2 };
-    if (ref.current) gsap.set(ref.current, { xPercent: -50, yPercent: -50 });
+    gsap.set(el, { xPercent: -50, yPercent: -50 });
+    const setX = gsap.quickSetter(el, 'x', 'px');
+    const setY = gsap.quickSetter(el, 'y', 'px');
     const place = () => {
-      const el = ref.current;
-      if (!el) return;
       const body = getRef(`robot-${robotId}`);
       if (!body) {
         el.style.visibility = 'hidden';
         return;
       }
-      gsap.set(el, { x: Number(gsap.getProperty(body, 'x')) + half.x, y: Number(gsap.getProperty(body, 'y')) + half.y });
+      setX(Number(gsap.getProperty(body, 'x')) + half.x);
+      setY(Number(gsap.getProperty(body, 'y')) + half.y);
       el.style.visibility = 'visible';
     };
     place();

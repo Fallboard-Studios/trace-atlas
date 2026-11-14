@@ -7,7 +7,7 @@ import type { Robot } from '../types/Robot';
 import type { Vec2 } from '../types/Vec2';
 import { getRef } from '../utils/refs';
 import { setTimeline, killTimeline } from './timelineMap';
-import { DEV_TUNING, SWIM_SPEED } from '../constants';
+import { SWIM_SPEED } from '../constants';
 
 // ========================================
 // CONSTANTS
@@ -45,6 +45,10 @@ function calculateDuration(from: Vec2, to: Vec2): number {
  * Robots have no discernible front (Roadmap Phase 40, docs/specs/ORBITING_POLYGONS.md §1.6), so
  * there is no orientation/flip phase any more — propulsion starts immediately.
  *
+ * Returns null, and does nothing else, for a robot with no mounted body (no `robot-${id}` ref):
+ * there is nothing to swim, and `onComplete` is never called. The caller owns that case (the work
+ * loop times the leg itself under the swim key, where `stopWorkLoop` can kill it).
+ *
  * @param robot Robot to animate
  * @param destination Target destination
  * @param onComplete Optional callback when animation completes
@@ -53,20 +57,9 @@ export function createSwimTimeline(
   robot: Robot,
   destination: Vec2,
   onComplete?: (robotId: string) => void
-): gsap.core.Timeline {
+): gsap.core.Timeline | null {
   const ref = getRef(`robot-${robot.id}`);
-
-  // If ref not found, log warning and still create timeline with callback
-  // (for edge cases where ref might be registered late)
-  if (!ref) {
-    if (DEV_TUNING) console.warn(`[SwimAnimation] No ref found for robot ${robot.id}, deferring animation`);
-    const tl = gsap.timeline();
-    if (onComplete) {
-      const estimatedDuration = calculateDuration(robot.position, destination);
-      gsap.delayedCall(estimatedDuration, () => onComplete(robot.id));
-    }
-    return tl;
-  }
+  if (!ref) return null;
 
   killTimeline(`swim-${robot.id}`);
 

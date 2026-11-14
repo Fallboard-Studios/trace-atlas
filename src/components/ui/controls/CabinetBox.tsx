@@ -228,10 +228,10 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   const poppedT = typeof popped === 'number' ? popped : (popped ? 1 : 0);
   // Tracks the `poppedT` value the geometry effect last actually ran for —
   // null means "hasn't run yet". Lets the effect tell a real popped
-  // transition apart from a width/boxHeight-only re-run (e.g. a
-  // breakpoint-crossing resize while already popped), which must reposition
-  // instantly rather than replay the pop/flat animation from the opposite
-  // state — see the effect below.
+  // transition apart from a re-run for another dependency (a new pop
+  // distance while already popped), which must reposition instantly rather
+  // than replay the pop/flat animation from the opposite state — see the
+  // effect below.
   const prevPoppedRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -250,8 +250,9 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
       // Rounded to a whole pixel — real browser sub-pixel layout rounding can report a
       // fractionally different border-box width across consecutive observations of the exact same
       // rendered size (no real resize happened). Without rounding, that jitter changes `width`
-      // state on every callback, reruns the geometry effect below (width is in its dependency
-      // array) and rewrites the top-face wall's own inline style every time — a self-sustaining
+      // state on every callback, re-renders the box (and, until width left its dependency array
+      // on 2026-11-14, re-ran the geometry effect below) and rewrites the top-face wall's own
+      // inline style every time — a self-sustaining
       // ResizeObserver retrigger loop with nothing to ever stop it. Rounding makes two
       // sub-pixel-different measurements of the same real size resolve to an identical number, so
       // React's own `Object.is` bail-out on an unchanged state value stops the loop at its source.
@@ -271,7 +272,8 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
   // nothing that effect computes (the wall scales, the front-face offset)
   // depends on width at all — only the old SVG-polygon math did. See that
   // effect's own comment for the bug this caused before being fixed,
-  // 2026-09-09.
+  // 2026-09-09. (The array went on listing `width` and `boxHeight` until
+  // 2026-11-14, when both came out: see the note above the array.)
 
   // GSAP's own context.revert() (from the useGSAP calls below) only kills the underlying GSAP
   // tween it tracked — it has no knowledge of our separate timelineMap registry, so this manual
@@ -330,11 +332,11 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
     const target = computeCabinetFrontFaceOffset(poppedT, resolvedPopDistance);
 
     if (!isTransition) {
-      // width/boxHeight changed while `poppedT` stayed the same (e.g. a
-      // breakpoint-crossing resize while hovered/focused) — reposition
-      // instantly to the same target state. Replaying the pop/flat tween
-      // here would incorrectly assume the box is coming from the *opposite*
-      // state and visibly flatten-then-re-pop an already-popped box.
+      // Another dependency changed while `poppedT` stayed the same (the pop
+      // distance, say) — reposition instantly to the target state. Replaying
+      // the pop/flat tween here would incorrectly assume the box is coming
+      // from the *opposite* state and visibly flatten-then-re-pop an
+      // already-popped box.
       gsap.set(topFaceRef.current, { scaleY: poppedT });
       gsap.set(leftFaceInnerRef.current, { scaleX: poppedT });
       gsap.set(frontRef.current, { x: target.frontFaceOffsetX, y: target.frontFaceOffsetY });
@@ -399,7 +401,10 @@ function CabinetBoxInner({ popped, timelineKey, boxHeight: boxHeightOverride, po
         { '--cabinet-glow': fromPopped },
         { '--cabinet-glow': poppedT, duration, ease }, 0);
     setTimeline(timelineKey, tl);
-  }, { scope: wrapperRef, dependencies: [poppedT, width, boxHeight, timelineKey, resolvedPopDistance, skipMountAnimation, delay] });
+    // Neither `width` nor `boxHeight` is a dependency: nothing above reads them, and a re-run for
+    // one killed the registered timeline and set the end state, cutting a pop in flight short (the
+    // observer's first measurement did it to every mount pop of a box that is not square).
+  }, { scope: wrapperRef, dependencies: [poppedT, timelineKey, resolvedPopDistance, skipMountAnimation, delay] });
 
   // Both custom properties are computed here, in the one place that already
   // resolves the breakpoint tier for the geometry math (useCabinetBoxHeight)

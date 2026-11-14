@@ -252,6 +252,15 @@ A schema's `formatValue` replaces this cap. `SliderLog`'s, like `SliderLinear`'s
 
 Two additive, opt-in props, both default-preserving (every other consumer is byte-for-byte unaffected). `color?: string` is a single already-resolved CSS colour that overrides `--color-accent`/`--color-surface` for the backing, both walls and the front face, implemented as a `--cabinet-box-color` custom property read as `var(--cabinet-box-color, <existing default>)`. `enforceMinTouchHeight?: boolean` (default `true`) controls whether `--cabinet-box-height` keeps its 44 px floor; `false` only when the `CabinetBox` is not itself the touch target, as in the roster tile's Move chip, where the wrapping button is.
 
+### What re-runs `CabinetBox`'s pop
+
+The geometry effect (the wall scales, the front offset, the glow) depends on the popped value, the pop distance, the timeline key, `skipMountAnimation` and `delay`. It does not depend on the measured width or the box height: it reads neither, and until 2026-11-14 listing them made every size change kill the registered timeline and set the end state. The measured width only sizes the top-face wall. Two things follow:
+
+- A box that mounts engaged (`popped` true) eases its pop in on mount unless it passes `skipMountAnimation`, whatever its shape. Before the fix only a square box (a `Toggle`) did: the observer's first measurement cut the mount pop of every other box. A resting box (`CABINET_REST_POP`) shows nothing on mount either way, since its mount tween runs from 0.5 to 0.5.
+- A resize or a breakpoint crossing leaves a pop in flight alone.
+
+A change to the pop distance (or another dependency) while the popped value stays the same still repositions at once, with no tween.
+
 ## Shared composition components
 
 Not part of the 13-primitive `ControlSchema` inventory above — these compose several already-rendered primitives (caller-rendered sliders, one `LfoLink`) rather than rendering from a single schema-driven leaf. No new `ControlSchema` variant was added for this one, but a new discriminant (`'lfoLink'`) was added to the schema union it's built from — see below.

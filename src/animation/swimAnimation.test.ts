@@ -18,28 +18,41 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+// A robot with no mounted body has nothing to swim. The work loop, the one caller, times that leg
+// itself under the swim key, where `stopWorkLoop` can kill it; an arrival scheduled here would be
+// an unkeyed `delayedCall` nothing could cancel.
 describe('createSwimTimeline — no ref registered', () => {
-  it('does not throw and returns a timeline when no ref is registered for the robot', () => {
+  it('returns null', () => {
     const robot = fakeRobot({ id: 'no-ref-robot' });
-    expect(() => createSwimTimeline(robot, { x: 100, y: 0 })).not.toThrow();
-    const tl = createSwimTimeline(robot, { x: 100, y: 0 });
-    expect(tl).toBeDefined();
+
+    expect(createSwimTimeline(robot, { x: 100, y: 0 })).toBeNull();
   });
 
-  it('schedules onComplete via gsap.delayedCall (not fired synchronously) when no ref exists', () => {
+  it('builds, schedules and registers nothing, and never calls onComplete', async () => {
     const delayedCallSpy = vi.spyOn(gsap, 'delayedCall');
+    const timelineSpy = vi.spyOn(gsap, 'timeline');
     const robot = fakeRobot({ id: 'no-ref-robot', position: { x: 0, y: 0 } });
     const onComplete = vi.fn();
 
     createSwimTimeline(robot, { x: 120, y: 0 }, onComplete);
+    await Promise.resolve(); // the mock fires a timeline's onComplete on a microtask
 
-    expect(delayedCallSpy).toHaveBeenCalledTimes(1);
-    const [estimatedDuration, scheduledFn] = delayedCallSpy.mock.calls[0];
-    expect(estimatedDuration).toBeCloseTo(120 / 120); // distance 120 / SWIM_SPEED 120
-    // Per vitest.setup.ts's mock, delayedCall does NOT auto-fire — assert it
-    // was merely scheduled, not that onComplete has already run.
+    expect(delayedCallSpy).not.toHaveBeenCalled();
+    expect(timelineSpy).not.toHaveBeenCalled();
+    expect(getTimeline('swim-no-ref-robot')).toBeUndefined();
     expect(onComplete).not.toHaveBeenCalled();
-    expect(typeof scheduledFn).toBe('function');
+  });
+
+  it('leaves a timeline already registered under the swim key alone', () => {
+    const robot = fakeRobot({ id: 'no-ref-robot' });
+    const prior = gsap.timeline();
+    const killSpy = vi.spyOn(prior, 'kill');
+    setTimeline('swim-no-ref-robot', prior);
+
+    createSwimTimeline(robot, { x: 100, y: 0 });
+
+    expect(killSpy).not.toHaveBeenCalled();
+    expect(getTimeline('swim-no-ref-robot')).toBe(prior);
   });
 });
 

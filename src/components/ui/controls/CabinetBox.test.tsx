@@ -218,31 +218,62 @@ describe('CabinetBox', () => {
     expect(wrapper.style.getPropertyValue('--cabinet-pop-distance')).toBe(`${CABINET_POP_DISTANCE}px`);
   });
 
-  it('does not replay the pop/flat animation when only the measured width changes while popped stays the same — repositions instantly instead', () => {
-    render(<CabinetBox popped={true} timelineKey="test-box">x</CabinetBox>);
-    const observer = MockResizeObserver.instances[0];
-    act(() => observer.fire(100, 48)); // initial measurement — a real popped transition, animates
-    expect(fromToMock).toHaveBeenCalled();
+  // The geometry effect reads neither the measured width nor the box height (the walls scale by
+  // poppedT, the front offset by the pop distance), so neither may re-run it: a re-run kills the
+  // registered timeline and sets the end state, which cut a pop in flight short.
+  describe('a size change alone leaves a pop in flight alone', () => {
+    function clearGeometryCalls() {
+      fromToMock.mockClear();
+      setMock.mockClear();
+      (setTimeline as ReturnType<typeof vi.fn>).mockClear();
+      (killTimeline as ReturnType<typeof vi.fn>).mockClear();
+    }
 
-    fromToMock.mockClear();
-    setMock.mockClear();
-    (setTimeline as ReturnType<typeof vi.fn>).mockClear();
+    function expectPopUntouched() {
+      expect(killTimeline).not.toHaveBeenCalled();
+      expect(setMock).not.toHaveBeenCalled();
+      expect(fromToMock).not.toHaveBeenCalled();
+      expect(setTimeline).not.toHaveBeenCalled();
+    }
 
-    // A breakpoint-crossing resize (or any width change) while `popped`
-    // hasn't changed — must NOT re-run the flat↔full tween (that would
-    // visibly flatten and re-pop an already-popped box for no reason).
-    act(() => observer.fire(120, 48));
+    it('the first width measurement after mount does not kill the mount pop or set its end state', () => {
+      render(<CabinetBox popped={true} timelineKey="test-box">x</CabinetBox>);
+      expect(setTimeline).toHaveBeenCalledTimes(1); // the mount pop, registered and in flight
+      clearGeometryCalls();
 
-    expect(fromToMock).not.toHaveBeenCalled();
-    expect(setTimeline).not.toHaveBeenCalled();
-    expect(setMock).toHaveBeenCalled();
+      // The observer's first callback: the real width (100) is not the box height it started from.
+      act(() => MockResizeObserver.instances[0].fire(100, 48));
+
+      expectPopUntouched();
+    });
+
+    it('a later width change (a resize) while a pop is in flight does not either', () => {
+      const { rerender } = render(<CabinetBox popped={false} timelineKey="test-box">x</CabinetBox>);
+      const observer = MockResizeObserver.instances[0];
+      act(() => observer.fire(100, 48));
+      rerender(<CabinetBox popped={true} timelineKey="test-box">x</CabinetBox>); // a real pop, in flight
+      clearGeometryCalls();
+
+      act(() => observer.fire(120, 48));
+
+      expectPopUntouched();
+    });
+
+    it('a box height change (a breakpoint crossing) does not either', () => {
+      const { rerender } = render(<CabinetBox popped={true} timelineKey="test-box" boxHeight={48}>x</CabinetBox>);
+      clearGeometryCalls();
+
+      rerender(<CabinetBox popped={true} timelineKey="test-box" boxHeight={40}>x</CabinetBox>);
+
+      expectPopUntouched();
+    });
   });
 
-  it('still animates a real transition normally after a width-only reposition has occurred', () => {
+  it('still animates a real transition normally after a width change', () => {
     const { rerender } = render(<CabinetBox popped={true} timelineKey="test-box">x</CabinetBox>);
     const observer = MockResizeObserver.instances[0];
     act(() => observer.fire(100, 48));
-    act(() => observer.fire(120, 48)); // width-only reposition, no tween
+    act(() => observer.fire(120, 48));
     fromToMock.mockClear();
     (setTimeline as ReturnType<typeof vi.fn>).mockClear();
 
@@ -539,19 +570,22 @@ describe('CabinetBox', () => {
         expect(topTo.scaleY).toBe(0.7);
       });
 
-      it('the dependency-only reposition branch (width changes, popped unchanged) sets both wall scales instantly via gsap.set(), not an animated tween', () => {
-        render(<CabinetBox popped={true} timelineKey="test-box">x</CabinetBox>);
-        const observer = MockResizeObserver.instances[0];
-        act(() => observer.fire(100, 48));
+      it('the dependency-only reposition branch (the pop distance changes, popped unchanged) sets both wall scales and the new front offset instantly via gsap.set(), not an animated tween', () => {
+        const { container, rerender } = render(<CabinetBox popped={true} timelineKey="test-box" popDistance={8}>x</CabinetBox>);
         fromToMock.mockClear();
         setMock.mockClear();
 
-        act(() => observer.fire(120, 48));
+        rerender(<CabinetBox popped={true} timelineKey="test-box" popDistance={20}>x</CabinetBox>);
 
         const scaleSetCalls = setMock.mock.calls.filter(
           ([, vars]) => vars && ('scaleY' in (vars as object) || 'scaleX' in (vars as object)),
         );
         expect(scaleSetCalls.length).toBeGreaterThan(0);
+        const offset = computeCabinetFrontFaceOffset(1, 20);
+        expect(setMock).toHaveBeenCalledWith(
+          container.querySelector('.sc-cabinet-box__front'),
+          { x: offset.frontFaceOffsetX, y: offset.frontFaceOffsetY },
+        );
         expect(fromToMock).not.toHaveBeenCalled();
       });
 
@@ -865,13 +899,13 @@ describe('CabinetBox', () => {
       expect(computeCabinetFrontFaceOffset).toHaveBeenCalledWith(0, CABINET_POP_DISTANCE);
     });
 
-    it('a width-only reposition after a skip-mount render still uses the instant gsap.set() path, unaffected by the flag', () => {
-      render(<CabinetBox popped={true} timelineKey="test-box" skipMountAnimation>x</CabinetBox>);
-      const observer = MockResizeObserver.instances[0];
-      act(() => observer.fire(100, 48));
+    it('a pop-distance-only reposition after a skip-mount render still uses the instant gsap.set() path, unaffected by the flag', () => {
+      const { rerender } = render(
+        <CabinetBox popped={true} timelineKey="test-box" skipMountAnimation popDistance={8}>x</CabinetBox>,
+      );
       setMock.mockClear();
 
-      act(() => observer.fire(120, 48));
+      rerender(<CabinetBox popped={true} timelineKey="test-box" skipMountAnimation popDistance={20}>x</CabinetBox>);
 
       expect(fromToMock).not.toHaveBeenCalled();
       expect(setMock).toHaveBeenCalled();

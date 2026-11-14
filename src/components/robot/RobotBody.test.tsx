@@ -599,6 +599,21 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
           expect(getOrbiterWork('r-both')).toBe(work);
         });
 
+        // A card (a roster tile, a company member) is handed the world context, so it shares the world
+        // body's waves key. Leaving the roster mid-arc unmounted twelve cards, each killing its robot's
+        // run; a killed run never clears what it drew, so the last frame rode the robot from then on.
+        it('unmounting a card of a robot leaves its world body’s waves running', () => {
+          const robot = makeRobot({ id: 'r-both' });
+          draw(robot, false, 'world');
+          getArcDecorator('r-both')!('spawn', 1, { to: vi.fn() } as unknown as Parameters<ArcDecorator>[2]);
+          const waves = timelineMap.get('halo-waves-world-r-both');
+          expect(waves).toBeDefined();
+
+          draw(robot).unmount();
+
+          expect(timelineMap.get('halo-waves-world-r-both') === waves).toBe(true);
+        });
+
         it('an audio edit re-renders without re-registering — the same decorator and control stay', () => {
           const robot = makeRobot({ id: 'r-reg', masterVolume: 0.5 });
           const { rerender } = render(<svg><RobotBody robot={robot} motion="world" /></svg>);
