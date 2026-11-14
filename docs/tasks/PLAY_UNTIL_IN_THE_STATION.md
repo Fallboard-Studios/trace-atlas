@@ -111,7 +111,7 @@ check in the browser, **Read** for docs. Only a RED-test task lists a `*.test.ts
 
 ### Phase 1: The silence begins in the station (spec §1.3)
 
-- [ ] **Task 1: `robotAudibility.ts` — `isDockMuted(docking, activity?)`**
+- [x] **Task 1: `robotAudibility.ts` — `isDockMuted(docking, activity?)`**
 
   **Description:** `isDockMuted` takes a second, optional `activity: RobotActivity | undefined` and is true only when the
   robot is `Docked` or `Undocking` **and** `activity` is `'charging'` or `undefined` (Architecture Decisions: optional

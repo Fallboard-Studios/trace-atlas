@@ -17,6 +17,61 @@ describe('isDockMuted', () => {
   });
 });
 
+describe('isDockMuted reads whether the robot is in its station (backlog 84, spec §1.3)', () => {
+  const IN_STATION = [DockingState.Docked, DockingState.Undocking] as const;
+  const NOT_IN = ['exiting', 'transit', 'working', 'waiting', 'returning', 'entering'] as const;
+
+  it('a Docked robot still on its way home, swimming or at its port, is not dock-muted', () => {
+    expect(isDockMuted(DockingState.Docked, 'returning')).toBe(false);
+    expect(isDockMuted(DockingState.Docked, 'entering')).toBe(false);
+  });
+
+  it('a Docked or Undocking robot that is charging is dock-muted', () => {
+    expect(isDockMuted(DockingState.Docked, 'charging')).toBe(true);
+    expect(isDockMuted(DockingState.Undocking, 'charging')).toBe(true);
+  });
+
+  it('an absent activity reads as in the station (a caller not yet updated keeps the old rule)', () => {
+    expect(isDockMuted(DockingState.Docked, undefined)).toBe(true);
+    expect(isDockMuted(DockingState.Undocking, undefined)).toBe(true);
+  });
+
+  it('only charging mutes a Docked or Undocking robot; every other activity is heard', () => {
+    for (const docking of IN_STATION) {
+      for (const activity of NOT_IN) expect(isDockMuted(docking, activity), `${docking}/${activity}`).toBe(false);
+    }
+  });
+
+  it('a robot out of the station is never dock-muted, whatever its activity', () => {
+    for (const docking of [DockingState.Active, DockingState.Recalled, undefined]) {
+      for (const activity of [...NOT_IN, 'charging', undefined] as const) {
+        expect(isDockMuted(docking, activity), `${docking}/${activity}`).toBe(false);
+      }
+    }
+  });
+
+  it('isRobotAudible passes it through: a homebound Docked robot is heard, a charging one is not', () => {
+    expect(isRobotAudible('none', false, DockingState.Docked, 'returning')).toBe(true);
+    expect(isRobotAudible('highlight', false, DockingState.Docked, 'entering')).toBe(true);
+    expect(isRobotAudible('none', false, DockingState.Docked, 'charging')).toBe(false);
+    expect(isRobotAudible('none', false, DockingState.Undocking, 'charging')).toBe(false);
+  });
+
+  it('isRobotAudible: Mute still wins and Solo still beats the dock, with an activity given', () => {
+    expect(isRobotAudible('mute', false, DockingState.Docked, 'returning')).toBe(false);
+    expect(isRobotAudible('mute', false, DockingState.Active, 'transit')).toBe(false);
+    expect(isRobotAudible('solo', true, DockingState.Docked, 'charging')).toBe(true);
+    expect(isRobotAudible('none', true, DockingState.Docked, 'returning')).toBe(false); // another robot's Solo
+  });
+
+  it('isRobotEmitting passes it through, and still needs the sounding set', () => {
+    expect(isRobotEmitting('none', false, DockingState.Docked, true, 'returning')).toBe(true);
+    expect(isRobotEmitting('none', false, DockingState.Docked, false, 'returning')).toBe(false);
+    expect(isRobotEmitting('none', false, DockingState.Docked, true, 'charging')).toBe(false);
+    expect(isRobotEmitting('solo', true, DockingState.Docked, true, 'charging')).toBe(true);
+  });
+});
+
 describe('isRobotAudible', () => {
   it('returns false when audioMode is mute, regardless of anySolo', () => {
     expect(isRobotAudible('mute', false, OUT)).toBe(false);
