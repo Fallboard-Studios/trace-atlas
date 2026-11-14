@@ -231,7 +231,7 @@ export function applyPerformanceMarks(
 export const REST_MIN_FRACTION = 0.25;
 export const REST_SPAN = 0.5;
 
-/** Probability that a successive note jumps more than one octave (when range allows). */
+/** Probability that a successive note jumps to another octave in the range (when the range has one). */
 const OCTAVE_JUMP_CHANCE = 0.15;
 
 const NOTE_INDEX_WEIGHTS = [0.35, 0.2, 0.15, 0.1, 0.07, 0.06, 0.04, 0.03];
@@ -586,11 +586,11 @@ export function generateMelodyForRobot(
   const basePositionNoteIndex = new Map<number, number>();
 
   for (let i = 0; i < onsets.length; i++) {
-    // 15% chance to jump to a non-adjacent octave when range allows
+    // 15% chance to jump to any other octave in the range, near or far, picked evenly
     if (i > 0 && rand() < OCTAVE_JUMP_CHANCE) {
       const jumpCandidates: number[] = [];
       for (let oct = octMin; oct <= octMax; oct++) {
-        if (Math.abs(oct - currentOctave) > 1) jumpCandidates.push(oct);
+        if (oct !== currentOctave) jumpCandidates.push(oct);
       }
       if (jumpCandidates.length > 0) {
         currentOctave = jumpCandidates[Math.floor(rand() * jumpCandidates.length)];

@@ -335,7 +335,10 @@ imply. A restored session regenerates and therefore re-stamps (SESSION_STORAGE.m
 - `PITCH_REPEAT_MIN = 0`, `PITCH_REPEAT_MAX = 100` (`src/constants/index.ts`) — the shared 0-100% lock-strength range.
 - `DEFAULT_PITCH_REPEAT = 0` — the neutral/off state (unlike the other three defaults, `0` isn't a mid-range compromise; it's what makes generation at the default statistically indistinguishable from having no Pitch Repeat).
 - `DEFAULT_SUBDIVISIONS = 16`
-- `OCTAVE_JUMP_CHANCE = 0.15`
+- `OCTAVE_JUMP_CHANCE = 0.15` — before each note after the first, the chance the melody jumps to another octave: any octave
+  inside Octave Min–Max other than the one it is in, near or far, picked evenly. Until 2026-11-13 a jump went only to an octave
+  more than one away: in the three-octave registers a melody that started at an edge leapt straight to the other edge and never
+  played the middle (a hollow note cloud), one that started in the middle never jumped, and a two-octave range never jumped.
 - `DURATION_UNIT_VALUES`: `[[1,'16n'], [2,'8n'], [4,'4n'], [8,'2n']]` — grid-unit lengths used to weight `pickDurationForGap()`'s choice (weight = unit value, so `2n` is ~8x more likely than `16n` whenever both fit)
 
 ## Integration at Spawn

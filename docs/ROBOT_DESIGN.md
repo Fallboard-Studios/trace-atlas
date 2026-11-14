@@ -204,11 +204,13 @@ it never changes the body's geometry, colour or dials; a note enters and leaves 
   capped robot draws nothing because it plays nothing. The cloud reads no audio setting and writes
   nothing to `RobotGem`.
 - **What a note becomes** (`src/components/robot/notes/noteCloudModel.ts`, `nextDrawnNote`). Its
-  **row** is its pitch within the robot's own range so far, at least `NOTE_RANGE_MIN_SEMITONES` (12)
-  tall; the range only grows, so a note keeps its row. The even pitch classes (C, D, E, F♯, G♯, A♯)
-  cross **in front** of the body, the other six **behind**. In a run of identical notes (same pitch,
-  same sounding length to the millisecond, no rest of more than `NOTE_REST_MIN_SECONDS` (0.05 s)
-  between) the first, third, fifth… are drawn. One model per robot, shared by every cloud of it
+  **row** is its pitch class, the octave stripped (C lowest, B highest), centred on the middle of
+  the lowest and highest class the robot has played, on a scale of `NOTE_RANGE_MIN_SEMITONES` (12):
+  the classes span eleven semitones at most, so every robot's scale is the same and only the centre
+  moves; the centre only widens, so a note keeps its row. The even pitch classes (C, D, E, F♯, G♯, A♯)
+  cross **in front** of the body, the other six **behind**. In a run of identical notes (same pitch
+  class, so one class in two octaves is a repeat; same sounding length to the millisecond, no rest of
+  more than `NOTE_REST_MIN_SECONDS` (0.05 s) between) the first, third, fifth… are drawn. One model per robot, shared by every cloud of it
   (`subscribeDrawnNotes`), forgotten when its world body unmounts (`clearNoteCloudModel`).
 - **Its shape** (`noteRows.ts`). The roll is `NOTE_ROLL_SIZE` (2.5) times the box the robot's parts
   fill at its body scale, centred on the gem canvas centre (`rollBox`). A note crosses it in
