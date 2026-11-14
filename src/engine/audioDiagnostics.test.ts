@@ -225,6 +225,25 @@ describe('audioDiagnostics runtime', () => {
     });
   });
 
+  describe('output latency (the wrapper has none; the native context behind it does)', () => {
+    it('reads outputLatency from the native context in _nativeAudioContext', () => {
+      fakeRaw._nativeAudioContext = { outputLatency: 0.084 };
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.outputLatencyMs).toBe(84);
+    });
+
+    it('falls back to _nativeContext', () => {
+      fakeRaw._nativeContext = { outputLatency: 0.031 };
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.outputLatencyMs).toBe(31);
+    });
+
+    it('is null when no holder reports one (the wrapper alone, as on a browser without outputLatency)', () => {
+      advance();
+      expect(diag.getDiagnosticsSnapshot().info.outputLatencyMs).toBeNull();
+    });
+  });
+
   describe('pending Transport events (backlog 27, the long-run column)', () => {
     it('reads the one-shot and repeated timelines together', () => {
       advance();

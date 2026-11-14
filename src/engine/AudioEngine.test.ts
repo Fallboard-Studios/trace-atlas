@@ -7358,6 +7358,8 @@ describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
     vi.mocked(Tone.now).mockImplementation(() => 0);
     delete (rawContextMock as any).outputLatency;
     delete (rawContextMock as any).baseLatency;
+    delete (rawContextMock as any)._nativeAudioContext;
+    delete (rawContextMock as any)._nativeContext;
   });
 
   it('a triggered note emits one event: the pitch, its sounding length, its start, and the lead to the speakers', async () => {
@@ -7412,6 +7414,42 @@ describe('triggerWithCap tells the note listeners (note cloud §1.2)', () => {
     expect(leadWith({ outputLatency: Number.NaN })).toBe(0);
     expect(leadWith({})).toBe(0);
     expect(leadWith({ outputLatency: 2 })).toBe(0.5);
+  });
+
+  describe('the output latency behind Tone’s wrapper (standardized-audio-context has baseLatency and no outputLatency)', () => {
+    const leadOf = async (raw: Record<string, unknown>) => {
+      const { triggerWithCap, heard } = await setUp();
+      Object.assign(rawContextMock, raw);
+      triggerWithCap({ robotId: 'n', note: 'C4', duration: '8n', time: 0 });
+      return heard.at(-1)!.lead;
+    };
+
+    it('reads outputLatency from the native context the wrapper keeps in _nativeAudioContext, ahead of the wrapper’s baseLatency', async () => {
+      expect(await leadOf({ baseLatency: 0.02, _nativeAudioContext: { outputLatency: 0.08, baseLatency: 0.02 } })).toBeCloseTo(0.08, 9);
+    });
+
+    it('falls back to _nativeContext (the base-class field) when _nativeAudioContext is not there', async () => {
+      expect(await leadOf({ baseLatency: 0.02, _nativeContext: { outputLatency: 0.06 } })).toBeCloseTo(0.06, 9);
+    });
+
+    it('a native outputLatency of 0 is "not reported": the lead falls back to baseLatency', async () => {
+      expect(await leadOf({ baseLatency: 0.02, _nativeAudioContext: { outputLatency: 0 } })).toBeCloseTo(0.02, 9);
+    });
+
+    it('a native context whose outputLatency throws, or that is not an object, is skipped', async () => {
+      const throwing = {};
+      Object.defineProperty(throwing, 'outputLatency', {
+        get() {
+          throw new Error('not allowed here');
+        },
+      });
+      expect(await leadOf({ baseLatency: 0.02, _nativeAudioContext: throwing, _nativeContext: { outputLatency: 0.05 } })).toBeCloseTo(0.05, 9);
+      expect(await leadOf({ baseLatency: 0.02, _nativeAudioContext: 'not a context', _nativeContext: undefined })).toBeCloseTo(0.02, 9);
+    });
+
+    it('a native outputLatency is capped at half a second like any other', async () => {
+      expect(await leadOf({ _nativeAudioContext: { outputLatency: 3 } })).toBe(0.5);
+    });
   });
 
   it('refused notes emit nothing: Mute, another robot\'s Solo, the dock', async () => {

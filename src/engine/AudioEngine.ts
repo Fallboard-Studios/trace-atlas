@@ -17,6 +17,7 @@ import { resetBeatClock, initBeatClock, positionAt, getTickSeconds, type MusicPo
 import { buildClickTrackMelody } from './clickTrack';
 import { MIN_LEAD, MAX_POLYPHONY, FILTER_RAMP_SECONDS, PERFORMANCE_MIN, PERFORMANCE_MAX, HUMANIZE_MIN_MS, HUMANIZE_MAX_MS, MIN_SOUNDING_SECONDS, CUT_RELEASE_SECONDS, NOTE_LATENCY_MAX_SECONDS } from '../constants';
 import { emitRobotNote, getNotePreviewSeconds, hasRobotNoteListener } from './noteEvents';
+import { readContextSeconds } from './nativeContext';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
 
@@ -518,18 +519,15 @@ function updateAllPanners(time?: number): void {
   }
 }
 /**
- * The output's own latency in seconds (note cloud spec §7.2 A11): the raw context's `outputLatency`, else its
+ * The output's own latency in seconds (note cloud spec §7.2 A11): the context's `outputLatency`, else its
  * `baseLatency`, else 0, capped at NOTE_LATENCY_MAX_SECONDS. A 0, a negative or a non-number is "not reported" (a
- * device's output cannot have no latency), so it falls through to the next.
+ * device's output cannot have no latency), so it falls through to the next. Tone's wrapper has no `outputLatency`, so
+ * each is read from the native context behind it too (readContextSeconds; docs/todo/tonejs-fixes.md item 1).
  */
 function outputLatencySeconds(): number {
-  const raw = Tone.getContext().rawContext as { outputLatency?: unknown; baseLatency?: unknown } | undefined;
-  for (const latency of [raw?.outputLatency, raw?.baseLatency]) {
-    if (typeof latency === 'number' && Number.isFinite(latency) && latency > 0) {
-      return Math.min(latency, NOTE_LATENCY_MAX_SECONDS);
-    }
-  }
-  return 0;
+  const raw = Tone.getContext().rawContext;
+  const latency = readContextSeconds(raw, 'outputLatency') ?? readContextSeconds(raw, 'baseLatency');
+  return latency === undefined ? 0 : Math.min(latency, NOTE_LATENCY_MAX_SECONDS);
 }
 
 /**

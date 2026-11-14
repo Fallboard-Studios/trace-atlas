@@ -189,8 +189,12 @@ Visual Mapping guardrail's third overlay).
   an invalid note. A robot that does not sound is not drawn. The call is skipped when nobody listens,
   and has its own guard, so nothing in it can un-count the voice that is now sounding.
 - **The lead.** `max(0, at − Tone.now())`, the transport's lookahead plus `MIN_LEAD` plus Humanize,
-  plus `outputLatencySeconds()`: the raw context's `outputLatency`, else its `baseLatency`, capped at
-  `NOTE_LATENCY_MAX_SECONDS` (0.5); a 0, negative or non-number value counts as not reported. At the
+  plus `outputLatencySeconds()`: the context's `outputLatency`, else its `baseLatency`, capped at
+  `NOTE_LATENCY_MAX_SECONDS` (0.5); a 0, negative or non-number value counts as not reported. Tone's
+  `rawContext` is standardized-audio-context's wrapper, which has `baseLatency` but no `outputLatency`, so
+  each is read from the wrapper, then from the native context it keeps in `_nativeAudioContext` or
+  `_nativeContext` (`readContextSeconds` in `src/engine/nativeContext.ts`, which the `?debug` HUD's
+  `output` reading shares). At the
   trigger a note is therefore known about a fifth of a second before it is heard
   (`NOTE_KNOWN_AHEAD_SECONDS`).
 - **Early notes** (spec §1.9, Part E). A listener asks for notes earlier with
