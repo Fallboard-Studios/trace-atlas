@@ -1,3 +1,5 @@
+import type { ControlSchemaBase } from '@/types/controls';
+
 /**
  * Shared implementation behind the `isActive` CSS hook documented in
  * docs/COMPONENT_LIBRARY.md — appends a plain `isActive` class when a
@@ -18,4 +20,16 @@ export function withActiveClass(base: string, active: boolean): string {
  */
 export function withHeldOffClass(base: string, heldOff: boolean): string {
   return heldOff ? `${base} sc-held-off` : base;
+}
+
+/**
+ * Control layout (docs/specs/CONTENT_LAYOUT.md §1.4): appends `sc-featured` to a cell wrapper when
+ * the control's schema is flagged `featured` — the panel's lead control. Composes with
+ * `withHeldOffClass` in either order. No stylesheet names the class in this pass.
+ */
+export function withFeaturedClass(
+  base: string,
+  schema: Pick<ControlSchemaBase, 'featured'> | undefined,
+): string {
+  return schema?.featured ? `${base} sc-featured` : base;
 }

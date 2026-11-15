@@ -66,7 +66,7 @@ and re-render tests stay unedited and green.
 
 ### Phase 1: Foundation
 
-- [ ] **Task 1: `featured` flag and `withFeaturedClass`**
+- [x] **Task 1: `featured` flag and `withFeaturedClass`**
 
   **Description:** Add `featured?: boolean` to `ControlSchemaBase` and `withFeaturedClass(base, schema)`
   beside `withHeldOffClass`. No caller yet.
