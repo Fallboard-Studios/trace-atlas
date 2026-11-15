@@ -269,7 +269,7 @@ selector change only). Every task's manual check is folded into the look below.
 
 ### Phase 3: Fleet Params tabs
 
-- [ ] **Task 8: The World tab**
+- [x] **Task 8: The World tab** (c4568f3b)
 
   **Description:** `FleetParamsGroup` loses `pacing` and `quality` and gains `world`;
   `SelectedFleetParamsEffect` gains `'pacing'` and `'quality'`; `FLEET_PARAMS_SUBSECTIONS.world` lists
@@ -300,7 +300,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** M
 
-- [ ] **Task 9: Pacing — two boxes**
+- [x] **Task 9: Pacing — two boxes** (c93a1c41)
 
   **Description:** Re-box `PacingPanel` to §1.2: Tempo over Humanize, then Automation Rate over Length
   beside Range. Flag Tempo and Automation Rate. A wrapper spaces the two boxes.
@@ -322,7 +322,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** S
 
-- [ ] **Task 10: Settings — box and row ids on the sheet scheme**
+- [x] **Task 10: Settings — box and row ids on the sheet scheme** (b0067c69)
 
   **Description:** In `AudioLoadPanel`, move the box and row ids to the sheet scheme
   (`fleetParams.settings.p1`, `.p1.r1`, `.p1.r2`). The order stays as today, Preset then the readout
@@ -346,7 +346,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** XS
 
-- [ ] **Task 11: LFO lanes — two boxes**
+- [x] **Task 11: LFO lanes — two boxes** (ae1fee83)
 
   **Description:** Each lane becomes two boxes: Shape beside Rate, then Rate Drift beside Depth Drift,
   with the drift held-off note in the second. The lane heading stays, on the first box (spec
@@ -369,12 +369,33 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** S
 
-### Checkpoint: Fleet Params
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Mutation check: put `quality` back as a top-level tab and the tab-order test goes red. Restore.
+**As built (Phase 3, 2026-11-15):**
+
+- **World (Task 8).** `SINGLE_PANEL` is gone; World's two sub-tabs render `PacingPanel` and a `SettingsPanel`
+  that wraps `AudioLoadPanel` in Seed's trait style, so Settings' box keeps its colour while its trigger wears
+  World's Composition like every sub-tab trigger. Pacing's boxes sit in a `.fleet-params-screen__boxes` wrapper,
+  added in Task 8 rather than 9 because Pacing's rows lost the section's flex gap the moment they became a
+  sub-tab. `fleet.world`'s intro is a **draft** from Pacing's and Settings' own, flagged for Crawford's copy pass.
+  Pacing's and Settings' intro entries stay (their `human` names the sub-tabs).
+- **Settings (Task 10)** moved `AUDIO_LOAD_PANEL_SCHEMA.id` in `audioRigConfig.ts` (a file the task did not
+  list) and re-pinned `audioRigConfig.test.ts`'s `audioRig.*` namespace case to `fleetParams.settings.p1`.
+- **Lanes (Task 11).** `LfoBankLaneSchema.panel` became `p1` (the heading) and `p2`; `topRow` and `driftRow`
+  keep their names with the ids `.p1.r1` and `.p2.r1`. A new co-located `LfoBankLanePanel.css` spaces the two
+  boxes. The fleet-wide featured test walks every export of `audioRigConfig.ts` at any depth, so a flag added
+  anywhere in the module is caught.
+- Tests pinned to the old default tab (LFO Bank), to Pacing and Audio Quality as tabs, or to the old one-box
+  lane and two-row Pacing shapes were re-pinned in the task that moved them; no wiring, value, swell or
+  re-render case was edited.
+
+### Checkpoint: Fleet Params — tests, build and mutation passed 2026-11-15; look and review outstanding
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (14,374 tests, 0 failed; lint's 4
+      pre-existing warnings; the build's usual chunk-size notice).
+- [x] Mutation check: put `quality` back as a top-level tab and the tab-order test goes red. Restore. (Seven
+      cases red across `navActions.test.ts` and `FleetParamsScreen.test.tsx`; restored from git.)
 - [ ] Look, phone, tablet and desktop: all seven tabs and every sub-tab against §1.2; the breadcrumb
-      names World and its sub-tab.
-- [ ] Reviewed with Crawford before Phase 4.
+      names World and its sub-tab. (Not done: no browser pass this session. The Effect panels look above is
+      outstanding too.)
+- [ ] Reviewed with Crawford before Phase 4, including the draft World intro.
 
 ---
 
