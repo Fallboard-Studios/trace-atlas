@@ -64,9 +64,8 @@ and no control changes what it does.
 
 **What goes**
 
-- **Every intro panel leaves the views**: the screen-level and per-tab intros on Fleet Params, and the
-  per-tab intros on the robot, company and All Probes screens. The `IntroPanel` component stays, and so
-  does the intro copy in `src/content/`.
+- ~~**Every intro panel leaves the views**~~ **Changed 2026-11-15: the intro panels stay**, for visual
+  separation until a later pass changes them (spec §1.6). The removal was built and reversed.
 - **The Articulation panel and its heading go.** Rests and Accents are plain rows of Composition >
   Details.
 - The Rhythm and Pitches sub-section names go with the sub-tabs that replace them.
@@ -111,7 +110,8 @@ The sheets' tab and sub-tab names are the names. These differ from the app today
 ## Out of scope
 
 - **The content sweep**: help text, lore names and intro copy are a separate pass. Only the names in the
-  table above change here.
+  table above change here, plus (2026-11-15) any help or intro sentence this pass would leave naming
+  something not on screen (spec assumption 9).
 - **Any visual treatment for featured** beyond the class.
 - **Deleting `IntroPanel`** or the intro copy.
 - **New controls, removed controls, or changed ranges.**

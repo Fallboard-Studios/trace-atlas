@@ -45,23 +45,27 @@ ASSUMPTIONS I'm making beyond the intent (correct now or I'll proceed with these
 
 1. **"Stack on phones" is the house tier:** rows are `'responsive'`, so they also stack on tablet (below
    1024 px). No new breakpoint.
-2. **Headings.** A box keeps today's heading when it still holds everything the heading names: Settings
-   (Audio Load), Reverb, Delay, Distortion, Chebyshev, Bit Crusher, Tremolo, Vibrato, Shifter, Width,
-   Limiter and Contour. Where one sub-tab is now several boxes, no box takes the heading and the sub-tab
-   names the group: the four lanes, 3-Band EQ, both filters, Auto Wah, Phaser, Chorus, Compressor, the
-   three oscillators and the robot Filter. Every control's own label stays with it inside its box.
+2. **Headings: every one stays** (Crawford, 2026-11-15: "keep it all for now"). A single-box sub-tab
+   keeps today's heading on its box: Settings (Audio Load), Reverb, Delay, Distortion, Chebyshev, Bit
+   Crusher, Tremolo, Vibrato, Shifter, Width, Limiter and Contour. A sub-tab that is now several boxes
+   keeps its heading too, on its first box (P1): the four lanes, 3-Band EQ, both filters, Auto Wah,
+   Phaser, Chorus, Compressor, the three oscillators and the robot Filter. Every control's own label
+   stays with it inside its box.
 3. **Boxes stack** in number order on every tier, spaced as today's stacked boxes are.
 4. **Featured is a class on the control's cell**, the wrapper that holds the control and its label, with
    no CSS rule yet. The flag is `featured` on the control's schema.
-5. **"Description" on Settings is the live limits readout** (`.audio-load-panel__readout`), now left of
-   Preset, as the sheet orders them.
+5. **"Description" on Settings is the live limits readout** (`.audio-load-panel__readout`), and it stays
+   right of Preset, as today (Crawford, 2026-11-15: the sheet's order there is just the order the rows
+   were typed in).
 6. **Pan and Auto stay side by side on every tier**, as today: the row is a fixed `'row'` because the
    toggle holds a 44 px box.
 7. **World wears Pacing's trait** (Composition). Inside it, Pacing's boxes keep Composition and
    Settings' box keeps Seed, so no box changes colour.
-8. **Fleet Params still opens on LFOs** (`DEFAULT_FLEET_PARAMS_SECTION` unchanged), not on World.
-9. **Renames reach copy that names the label.** Where help text names a renamed label word for word,
-   that mention changes with it. Nothing else in the copy changes.
+8. **Fleet Params opens on World** (Crawford, 2026-11-15): `DEFAULT_FLEET_PARAMS_SECTION` becomes
+   `world`, so the screen opens on World > Pacing.
+9. **No wrong info on screen** (Crawford, 2026-11-15). Where help or intro copy names a renamed label,
+   tab or sub-tab, or describes a section's layout that this pass moves, it changes with the move, so no
+   sentence names something that is not on screen. Copy this pass does not make wrong stays as it is.
 10. **New names get no lore yet.** World, Mix, Sends, Rhythm & Melody, Details and Character are
     entries with a `human` only; lore is the content sweep's.
 11. **Unchanged, as the intent's two open label groups:** Auto stays "Auto", and the oscillator controls
@@ -91,7 +95,7 @@ Tabs, in order: **World, LFOs, EQ & Filters, Time & Space, Color, Modulation, Ou
 | Sub-tab | Panels and rows |
 |---|---|
 | World > Pacing | P1: R1 Tempo★ · R2 Humanize. P2: R1 Automation Rate★ · R2 Automation Length \| Automation Range |
-| World > Settings | P1: R1 Description \| Preset · R2 Voice Limit \| Effects Limit |
+| World > Settings | P1: R1 Preset \| Description · R2 Voice Limit \| Effects Limit |
 | LFOs > each lane | P1: R1 Shape \| Rate★ (sync). P2: R1 Rate Drift \| Depth Drift |
 | 3-Band EQ | P1: R1 Bass★ · R2 link. P2: R1 Mid★ · R2 link. P3: R1 Treble★ · R2 link |
 | High-Pass Filter | P1: R1 Cutoff★ · R2 link. P2: R1 Resonance · R2 link |
@@ -329,17 +333,14 @@ oscillator's third box growing and shrinking with Interval; nothing else in the 
 
 ## 8. Open Questions & Risks
 
-**For Crawford, before planning:**
+**Answered by Crawford, 2026-11-15** (each folded into its assumption):
 
-1. **Headings (assumption 2).** Twelve single-box sub-tabs keep their heading and fifteen multi-box ones
-   lose it, so Reverb has a heading and the EQ does not. The alternative is no box heading anywhere,
-   with the sub-tab as the only name. Which?
-2. **Renames in help text (assumption 9).** Is it right to change a renamed label where help copy names
-   it, or should every word of help wait for the content sweep?
-3. **Where Fleet Params opens (assumption 8).** It opens on LFOs today. Should it open on World now
-   that World is first?
-4. **Settings row 1 (assumption 5).** The readout moves to the left of Preset, following the sheet's
-   order. Intended, or just the order the rows were typed in?
+1. **Headings (assumption 2):** keep them all for now; a multi-box sub-tab's heading sits on its first
+   box.
+2. **Renames in help text (assumption 9):** make the changes, so there is no wrong info on screen.
+3. **Where Fleet Params opens (assumption 8):** World.
+4. **Settings row 1 (assumption 5):** the sheet's order was just the order the rows were typed in;
+   Preset stays first.
 
 **Risks:**
 
