@@ -492,7 +492,7 @@ describe('global colour copy', () => {
   });
 
   it('the group name is the one the tab and the breadcrumb show', () => {
-    expect(labels('fleet.colour').humanLabel).toBe('Colour');
+    expect(labels('fleet.colour').humanLabel).toBe('Color');
   });
 });
 

@@ -88,7 +88,7 @@ and re-render tests stay unedited and green.
 
   **Estimated scope:** XS
 
-- [ ] **Task 2: Rename ten labels**
+- [x] **Task 2: Rename ten labels**
 
   **Description:** Change `human` on the ten existing entries in spec §1.5 (`fleet.quality`,
   `fleet.lfoBank`, `fleet.colour`, `fleet.output.decayMode`, the two octave sliders, the four envelope

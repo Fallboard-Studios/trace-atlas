@@ -61,8 +61,8 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     expect(screen.getByRole('slider', { name: /phrase length/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /pitch repeat/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /note variance/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /lowest octave/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /highest octave/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /octave min/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /octave max/i })).toBeTruthy();
     expect(screen.queryByRole('switch', { name: /Click Track/i })).toBeNull();
   });
 
@@ -95,8 +95,8 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
     fireEvent.keyDown(screen.getByRole('slider', { name: /density/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /phrase length/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /pitch repeat/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /lowest octave/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /highest octave/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /octave min/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /octave max/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /note variance/i }), { key: 'ArrowRight' });
 
     expect(onDensityChange).toHaveBeenCalledWith(51);
@@ -156,7 +156,7 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
 
     it('leaves every slider live while the Click Track plays: an edit changes the melody heard once it is off', () => {
       renderSection({ clickTrackActive: true, rhythmicMotifLength: 4 }, { onClickTrackActiveChange: () => {} });
-      for (const name of [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i, /lowest octave/i, /highest octave/i, /^rests/i, /^accents/i]) {
+      for (const name of [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i, /octave min/i, /octave max/i, /^rests/i, /^accents/i]) {
         expect(screen.getByRole('slider', { name }).getAttribute('data-disabled')).toBeNull();
       }
     });
@@ -214,7 +214,7 @@ describe('PingControlsCompositionSection — Articulation row (Robot Performance
     renderRow();
 
     expect(screen.getByText(CONTENT['probe.composition.articulation'].human)).toBeTruthy();
-    expect(before(screen.getByRole('slider', { name: /highest octave/i }), restsSlider())).toBe(true);
+    expect(before(screen.getByRole('slider', { name: /octave max/i }), restsSlider())).toBe(true);
     expect(before(restsSlider(), accentsSlider())).toBe(true);
   });
 

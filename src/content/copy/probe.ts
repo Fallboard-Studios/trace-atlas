@@ -141,7 +141,7 @@ export const probe = {
     intro: {
       lore: 'Levels — this probe’s signal strength.',
       loreDescription: 'Fine-tune how loudly this probe transmits, or silence it from the mesh entirely.',
-      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats. Grit, Shimmer and Double send it into the shared Colour, Shifter and Chorus — 0% keeps it out of them, higher settings give it more fuzz, ring and doubling. Dynamics sets how much louder and softer this probe’s notes swing from one to the next — 0% plays every note at the same level.',
+      humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats. Grit, Shimmer and Double send it into the shared Color, Shifter and Chorus — 0% keeps it out of them, higher settings give it more fuzz, ring and doubling. Dynamics sets how much louder and softer this probe’s notes swing from one to the next — 0% plays every note at the same level.',
     },
   },
   'probe.monitorMode': {
@@ -190,7 +190,7 @@ export const probe = {
     human: 'Grit',
     lore: 'Carrier Bleed Send',
     unit: '%',
-    help: { human: 'How much of this probe’s sound is sent into the shared Colour room, where the Distortion, Chebyshev and Bit Crusher wear it down. 0% keeps the probe out of the room entirely; higher settings give it more fuzz and grain.' },
+    help: { human: 'How much of this probe’s sound is sent into the shared Color room, where the Distortion, Chebyshev and Bit Crusher wear it down. 0% keeps the probe out of the room entirely; higher settings give it more fuzz and grain.' },
   },
   'probe.shimmerSend': {
     human: 'Shimmer',
@@ -222,7 +222,7 @@ export const probe = {
       loreDescription: 'Each probe draws its own melody from a curated set of notes, shaped by the settings below.',
       humanDescription: '<p><strong>Rhythm</strong>: Note Density controls how many notes play versus rest. Phrase Length sets how many notes repeat together as one phrase before moving on. Pitch Repeat Chance controls how likely a repeated phrase is to reuse the same pitches instead of picking new ones.</p>'
         + '<p><strong>Articulation</strong>: Rests sets how often a note stops early and leaves a gap before the next. Accents sets how often a note is struck differently — pushed, clipped short, or leaned on. Neither changes which notes play or when.</p>'
-        + '<p><strong>Pitches</strong>: Note Variance controls how far notes can wander from the probe’s core pitch set. Lowest/Highest Octave set the pitch range notes are drawn from.</p>',
+        + '<p><strong>Pitches</strong>: Note Variance controls how far notes can wander from the probe’s core pitch set. Octave Min/Max set the pitch range notes are drawn from.</p>',
     },
   },
   'probe.composition.rhythm': { human: 'Rhythm', lore: 'Payload Map', heading: 'RHYTHMIC PHRASING MATRIX' },
@@ -264,12 +264,12 @@ export const probe = {
   },
   'probe.composition.pitches': { human: 'Pitches', lore: 'Payload Allocation', heading: 'PITCH FREQUENCY MATRIX' },
   'probe.composition.lowestOctave': {
-    human: 'Lowest Octave',
+    human: 'Octave Min',
     lore: 'Ping Floor',
     help: { human: 'The lowest octave this probe’s notes can play in, from 1 (deep) to 7 (high). Raise it to keep the melody out of the low end.' },
   },
   'probe.composition.highestOctave': {
-    human: 'Highest Octave',
+    human: 'Octave Max',
     lore: 'Ping Ceiling',
     help: { human: 'The highest octave this probe’s notes can play in, from 1 (deep) to 7 (high). Lower it to keep the melody out of the high end.' },
   },
@@ -286,30 +286,30 @@ export const probe = {
     intro: {
       lore: 'Envelope — the shape of a single note.',
       loreDescription: 'Every ping this probe emits rises, holds, and fades in its own signature shape.',
-      humanDescription: 'An ADSR envelope shapes the volume of every note this probe plays, over its lifetime. Attack Time: how quickly a note reaches full volume. Decay Time: how quickly it settles from that peak down to its sustained level. Sustain Level: the volume it holds at while a note continues. Release Time: how quickly it fades out once the note ends. Attack Shape and Release Shape: the curve the rise and the fade follow. Portamento: how long a note takes to glide from the previous note’s pitch.',
+      humanDescription: 'An ADSR envelope shapes the volume of every note this probe plays, over its lifetime. Attack: how quickly a note reaches full volume. Decay: how quickly it settles from that peak down to its sustained level. Sustain: the volume it holds at while a note continues. Release: how quickly it fades out once the note ends. Attack Shape and Release Shape: the curve the rise and the fade follow. Portamento: how long a note takes to glide from the previous note’s pitch.',
     },
   },
   'probe.envelope.contour': { human: 'Contour', lore: 'Ping Profile' },
   'probe.envelope.attack': {
-    human: 'Attack Time',
+    human: 'Attack',
     lore: 'Ping Onset',
     unit: 's',
     help: { human: 'How long each note takes to rise from silence to full volume. Short gives a sharp, plucked start; long fades each note in.' },
   },
   'probe.envelope.decay': {
-    human: 'Decay Time',
+    human: 'Decay',
     lore: 'Ping Settling',
     unit: 's',
-    help: { human: 'How long each note takes to fall from its peak to the Sustain Level. Short makes a quick drop; long lets the peak linger.' },
+    help: { human: 'How long each note takes to fall from its peak to the Sustain level. Short makes a quick drop; long lets the peak linger.' },
   },
   'probe.envelope.sustain': {
-    human: 'Sustain Level',
+    human: 'Sustain',
     lore: 'Ping Hold',
     unit: '%',
     help: { human: 'The volume a note holds at after its peak, for as long as it plays, as a share of that peak. 100% holds it at full volume; 0% lets it die away during the Decay.' },
   },
   'probe.envelope.release': {
-    human: 'Release Time',
+    human: 'Release',
     lore: 'Ping Fade',
     unit: 's',
     help: { human: 'How long each note takes to fade to silence once it ends. Short cuts it off cleanly; long lets it ring on.' },
@@ -325,13 +325,13 @@ export const probe = {
     human: 'Attack Shape',
     lore: 'Onset Profile',
     options: CURVES,
-    help: { human: 'The curve each note follows as it rises to full volume. Linear is a straight ramp; Exponential starts slowly and speeds up; Sine and Cosine round it off in two different ways; Bounce, Ripple and Step give the rise a bouncing, rippling or stair-stepped feel. You will only hear it when Attack Time is long enough.' },
+    help: { human: 'The curve each note follows as it rises to full volume. Linear is a straight ramp; Exponential starts slowly and speeds up; Sine and Cosine round it off in two different ways; Bounce, Ripple and Step give the rise a bouncing, rippling or stair-stepped feel. You will only hear it when Attack is long enough.' },
   },
   'probe.envelope.releaseShape': {
     human: 'Release Shape',
     lore: 'Fade Profile',
     options: CURVES,
-    help: { human: 'The curve each note follows as it fades to silence. Linear is a straight ramp down; Exponential drops quickly then trails off; Sine and Cosine round it off in two different ways; Bounce, Ripple and Step give the fade a bouncing, rippling or stair-stepped feel. You will only hear it when Release Time is long enough.' },
+    help: { human: 'The curve each note follows as it fades to silence. Linear is a straight ramp down; Exponential drops quickly then trails off; Sine and Cosine round it off in two different ways; Bounce, Ripple and Step give the fade a bouncing, rippling or stair-stepped feel. You will only hear it when Release is long enough.' },
   },
 
   // ---------------------------------------------------------------- Source

@@ -148,7 +148,7 @@ describe('PingContourDrawer', () => {
     it('preserves ADSR order: Attack, Decay, Sustain, Release, then Portamento beneath them', () => {
       render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
       const sliders = screen.getAllByRole('slider');
-      expect(sliders.map((s) => s.getAttribute('aria-label'))).toEqual(['Attack Time', 'Decay Time', 'Sustain Level', 'Release Time', 'Portamento']);
+      expect(sliders.map((s) => s.getAttribute('aria-label'))).toEqual(['Attack', 'Decay', 'Sustain', 'Release', 'Portamento']);
     });
   });
 
