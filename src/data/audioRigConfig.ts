@@ -527,6 +527,7 @@ export const SWELL_FREQUENCY_SCHEMA: SliderLogSchema = {
   steps: SWELL_FREQUENCY_STEPS,
   orientation: 'horizontal',
   formatValue: formatSwellFrequency,
+  featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
 };
 
 /**
@@ -565,6 +566,7 @@ export const BPM_SCHEMA: SliderLinearSchema = {
   max: 200,
   step: 1,
   orientation: 'horizontal',
+  featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
 };
 
 /**

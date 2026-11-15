@@ -5,6 +5,7 @@ import { LfoBankLanePanel } from '../console/LfoBankLanePanel';
 import { useShell, type Shell } from '../useShell';
 import { FLEET_PARAMS_GROUP_CONTENT, FLEET_PARAMS_SUBSECTIONS, activeFleetParamsSubsection } from '../nav/navActions';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
+import { withFeaturedClass } from '@/components/ui/controls/activeClass';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/SectionTabs';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -48,12 +49,17 @@ const SETTINGS_TRAIT_STYLE = getTraitColorStyle('seed');
 const INTRO = introProps('fleet.root');
 const INTRO_NAME = labels('fleet.root').humanLabel;
 
-/** Pacing's five leaves as two rows (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md): Tempo, Humanize
- *  (docs/specs/ROBOT_PERFORMANCE.md §1.6) and Automation Rate across the top, Automation Length beside the
- *  intensity drawer below. 'responsive' rows, side by side on desktop and stacked below it, as the
- *  Compressor rows. */
-const PACING_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.topRow', type: 'directionalPanel', orientation: 'responsive' };
-const PACING_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
+/** Pacing's five leaves as two boxes (docs/specs/CONTENT_LAYOUT.md §1.2): P1 Tempo over Humanize
+ *  (docs/specs/ROBOT_PERFORMANCE.md §1.6); P2 Automation Rate over Automation Length beside the intensity drawer
+ *  (Automation Range), that pair a 'responsive' row, side by side on desktop and stacked below it. No heading:
+ *  Pacing's boxes never had one. Tempo and Automation Rate are featured (§1.4, on their schemas). */
+const PACING_P1_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.p1', type: 'directionalPanel', orientation: 'column' };
+const PACING_P2_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.p2', type: 'directionalPanel', orientation: 'column' };
+const PACING_P2_R2_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.p2.r2', type: 'directionalPanel', orientation: 'responsive' };
+const TEMPO_CELL = withFeaturedClass('audio-rig-drawer__param-row', BPM_SCHEMA);
+const HUMANIZE_CELL = withFeaturedClass('audio-rig-drawer__param-row', HUMANIZE_SCHEMA);
+const RATE_CELL = withFeaturedClass('audio-rig-drawer__param-row', SWELL_FREQUENCY_SCHEMA);
+const LENGTH_CELL = withFeaturedClass('audio-rig-drawer__param-row', SWELL_DURATION_SCHEMA);
 
 // Module-level, so each is one stable function (the sliders are React.memo'd), and each reads the
 // store's action at call time.
@@ -74,22 +80,24 @@ function PacingPanel() {
   const swellDuration = useAudioStore((s) => s.swellDuration);
   return (
     <div className="fleet-params-screen__boxes">
-      <DirectionalPanel schema={PACING_TOP_ROW_SCHEMA}>
-        <div className="audio-rig-drawer__param-row">
+      <DirectionalPanel schema={PACING_P1_SCHEMA}>
+        <div className={TEMPO_CELL}>
           <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={setBPM} />
         </div>
-        <div className="audio-rig-drawer__param-row">
+        <div className={HUMANIZE_CELL}>
           <SliderLinear schema={HUMANIZE_SCHEMA} value={humanize} onChange={setHumanize} />
         </div>
-        <div className="audio-rig-drawer__param-row">
+      </DirectionalPanel>
+      <DirectionalPanel schema={PACING_P2_SCHEMA}>
+        <div className={RATE_CELL}>
           <SliderLog schema={SWELL_FREQUENCY_SCHEMA} value={swellFrequency} onChange={setSwellFrequency} />
         </div>
-      </DirectionalPanel>
-      <DirectionalPanel schema={PACING_BOTTOM_ROW_SCHEMA}>
-        <div className="audio-rig-drawer__param-row">
-          <SliderLinear schema={SWELL_DURATION_SCHEMA} value={swellDuration} onChange={setSwellDuration} />
-        </div>
-        <AudioRigDrawer />
+        <DirectionalPanel schema={PACING_P2_R2_SCHEMA}>
+          <div className={LENGTH_CELL}>
+            <SliderLinear schema={SWELL_DURATION_SCHEMA} value={swellDuration} onChange={setSwellDuration} />
+          </div>
+          <AudioRigDrawer />
+        </DirectionalPanel>
       </DirectionalPanel>
     </div>
   );

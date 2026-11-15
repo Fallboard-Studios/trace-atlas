@@ -1,5 +1,5 @@
 import { Profiler } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 import { FleetParamsScreen } from './FleetParamsScreen';
@@ -260,22 +260,6 @@ describe('FleetParamsScreen — World > Pacing, five controls (docs/specs/CONTEN
     expect(useUIStore.getState().fleetParamsSubsection).toBe(stale);
   });
 
-  it('Tempo and Automation Rate share the top row; Automation Length and the intensity drawer the bottom one', () => {
-    render(<FleetParamsScreen />);
-    const tempo = screen.getByRole('slider', { name: /tempo/i });
-    const rate = screen.getByRole('slider', { name: /automation rate/i });
-    const length = screen.getByRole('slider', { name: /automation length/i });
-    const drawer = screen.getByTestId('audio-rig-drawer-stub');
-    const top = tempo.closest('.sc-directional-panel')!;
-    const bottom = length.closest('.sc-directional-panel')!;
-    expect(top).not.toBeNull();
-    expect(bottom).not.toBeNull();
-    expect(top).not.toBe(bottom);
-    expect(top.contains(rate)).toBe(true);
-    expect(bottom.contains(drawer)).toBe(true);
-    expect(top.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-  });
-
   it('reads tempo, automation rate and automation length from audioStore', () => {
     useAudioStore.setState({ bpm: 88, swellFrequency: 8, swellDuration: 6 });
     render(<FleetParamsScreen />);
@@ -314,6 +298,97 @@ describe('FleetParamsScreen — World > Pacing, five controls (docs/specs/CONTEN
 });
 
 // docs/specs/ROBOT_PERFORMANCE.md §1.6 (docs/tasks/ROBOT_PERFORMANCE.md Task 13) — Humanize, the third control of the top row.
+// docs/specs/CONTENT_LAYOUT.md §1.2 (Task 9): Pacing is two boxes — P1: Tempo★ · Humanize; P2: Automation Rate★ ·
+// Automation Length | Automation Range. The intensity drawer (Automation Range) is stubbed in this file.
+describe('FleetParamsScreen — World > Pacing, two boxes (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+  function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('639px') ? state.mobile : state.tablet,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    });
+  }
+
+  beforeEach(() => {
+    useUIStore.setState({ fleetParamsSection: 'world', fleetParamsSubsection: 'pacing' });
+  });
+  afterEach(() => {
+    if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+    else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  const box = (container: HTMLElement, n: number) => container.querySelector(`[data-panel-id="fleetParams.pacing.p${n}"]`) as HTMLElement;
+  const contentOf = (panel: Element) => panel.querySelector(':scope > .sc-directional-panel__content')!;
+  const slider = (name: RegExp) => screen.getByRole('slider', { name });
+
+  it('renders exactly two boxes, P1 before P2', () => {
+    const { container } = render(<FleetParamsScreen />);
+    expect(box(container, 1)).not.toBeNull();
+    expect(box(container, 2)).not.toBeNull();
+    expect(box(container, 3)).toBeNull();
+    expect(box(container, 1).compareDocumentPosition(box(container, 2)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("P1 holds Tempo then Humanize, a row each, and Tempo's cell is featured", () => {
+    const { container } = render(<FleetParamsScreen />);
+    const rows = [...contentOf(box(container, 1)).children];
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0] as HTMLElement).getByRole('slider', { name: /tempo/i })).toBeTruthy();
+    expect(within(rows[1] as HTMLElement).getByRole('slider', { name: new RegExp('^' + human('fleet.pacing.humanize'), 'i') })).toBeTruthy();
+    expect(rows[0].classList.contains('sc-featured')).toBe(true);
+    expect(rows[1].classList.contains('sc-featured')).toBe(false);
+  });
+
+  it("P2 holds Automation Rate, featured, then one shared row: Automation Length beside Automation Range", () => {
+    const { container } = render(<FleetParamsScreen />);
+    const rows = [...contentOf(box(container, 2)).children];
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0] as HTMLElement).getByRole('slider', { name: /automation rate/i })).toBeTruthy();
+    expect(rows[0].classList.contains('sc-featured')).toBe(true);
+    expect(rows[1].getAttribute('data-panel-id')).toBe('fleetParams.pacing.p2.r2');
+    const cells = [...contentOf(rows[1]).children];
+    expect(cells).toHaveLength(2);
+    expect(within(cells[0] as HTMLElement).getByRole('slider', { name: /automation length/i })).toBeTruthy();
+    expect(cells[1].getAttribute('data-testid')).toBe('audio-rig-drawer-stub');
+  });
+
+  it('Tempo and Automation Rate are the only featured cells', () => {
+    const { container } = render(<FleetParamsScreen />);
+    const featured = [...container.querySelectorAll('.sc-featured')];
+    expect(featured).toHaveLength(2);
+    expect(featured[0].contains(slider(/tempo/i))).toBe(true);
+    expect(featured[1].contains(slider(/automation rate/i))).toBe(true);
+  });
+
+  it('the shared row is side by side (row) on desktop and stacks (column) on tablet and phone', () => {
+    const orientationOf = (container: HTMLElement) =>
+      container.querySelector('[data-panel-id="fleetParams.pacing.p2.r2"] > .sc-directional-panel__content')!.getAttribute('data-orientation');
+    stubMatchMedia({ mobile: false, tablet: false });
+    const desktop = render(<FleetParamsScreen />);
+    expect(orientationOf(desktop.container)).toBe('row');
+    desktop.unmount();
+    for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
+      stubMatchMedia(tier);
+      const { container, unmount } = render(<FleetParamsScreen />);
+      expect(orientationOf(container), JSON.stringify(tier)).toBe('column');
+      unmount();
+    }
+  });
+
+  it('no Pacing box carries a heading (none did): its content is its first child', () => {
+    const { container } = render(<FleetParamsScreen />);
+    for (const n of [1, 2]) {
+      expect(box(container, n).firstElementChild, `p${n}`).toBe(contentOf(box(container, n)));
+    }
+  });
+});
+
 // docs/tasks/OFF_SCREEN_CONSOLE.md Task 12 (spec §1.9): Audio Quality left Settings for Fleet Params' last
 // tab; docs/specs/CONTENT_LAYOUT.md §1.2 made it World's second sub-tab, Settings.
 describe("FleetParamsScreen — World > Settings, the Audio Load panel", () => {
@@ -362,25 +437,6 @@ describe('FleetParamsScreen — Pacing: Humanize (Robot Performance Task 13)', (
   });
 
   const humanizeSlider = () => screen.getByRole('slider', { name: new RegExp('^' + CONTENT['fleet.pacing.humanize'].human, 'i') });
-  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-
-  it('sits in the top row between Tempo and Automation Rate, in that order', () => {
-    render(<FleetParamsScreen />);
-    const tempo = screen.getByRole('slider', { name: /tempo/i });
-    const rate = screen.getByRole('slider', { name: /automation rate/i });
-    const top = tempo.closest('.sc-directional-panel')!;
-
-    expect(top.contains(humanizeSlider())).toBe(true);
-    expect(top.contains(rate)).toBe(true);
-    expect(before(tempo, humanizeSlider())).toBe(true);
-    expect(before(humanizeSlider(), rate)).toBe(true);
-  });
-
-  it('is not in the bottom row, beside Automation Length', () => {
-    render(<FleetParamsScreen />);
-    const bottom = screen.getByRole('slider', { name: /automation length/i }).closest('.sc-directional-panel')!;
-    expect(bottom.contains(humanizeSlider())).toBe(false);
-  });
 
   it('reads its value from audioStore, with a 0..20 range', () => {
     useAudioStore.setState({ humanize: 12 });

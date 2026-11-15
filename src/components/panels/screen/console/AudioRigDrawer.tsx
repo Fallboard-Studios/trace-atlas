@@ -133,7 +133,8 @@ interface LfoTargetedParamSchema extends AudioRigParamSchema {
  * wrapper (`.audio-rig-drawer` div + its own Speed & Automation DirectionalPanel) is gone too —
  * Intensity now shares a 2x2 Pacing row with Frequency/Duration/Tempo, and a panel-inside-a-panel
  * would result if this component kept wrapping itself. FleetParamsScreen.tsx's own
- * `PACING_BOTTOM_ROW_SCHEMA` DirectionalPanel is the only panel wrapping this slider now — same
+ * `PACING_P2_R2_SCHEMA` row (Pacing's second box, docs/specs/CONTENT_LAYOUT.md §1.2) is the only panel wrapping
+ * this slider now, beside Automation Length — same
  * "the call site owns the panel, not the leaf" shape AudioRigEffectPanel's siblings already use.
  * The Composition trait color reaches this slider purely via cascade, from FleetParamsScreen's
  * Pacing section panel — this component applies no trait style of its own anymore.
