@@ -10,7 +10,9 @@ vi.mock('@/constants', async (importOriginal) => {
   return { ...actual, get DEV_TUNING() { return mockDevTuning; } };
 });
 
-import { PingControlsCompositionSection, type PingControlsValue } from './PingControlsDrawer';
+import {
+  CompositionDetailsSection, CompositionRhythmMelodySection, PingControlsCompositionSection, type PingControlsValue,
+} from './PingControlsDrawer';
 import { CONTENT, fill } from '@/content';
 
 
@@ -27,6 +29,137 @@ function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValu
     ...overrides,
   };
 }
+
+/** Stubs window.matchMedia for the viewport tiers ('640px' is the phone query; every other query reads `tablet`), the
+ *  shape AudioSettingSection.test.tsx's stub has, since a 'responsive' row resolves through the same tier hooks. */
+function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
+  Object.defineProperty(window, 'matchMedia', {
+    writable: true,
+    configurable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query.includes('640px') ? state.mobile : state.tablet,
+      media: query,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    })),
+  });
+}
+
+// docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 14): Composition splits into Rhythm & Melody and
+// Details, each one box and its own memoised component. PingControlsCompositionSection shows both until Task 16.
+describe('Composition split into Rhythm & Melody and Details (control layout Task 14)', () => {
+  const DESKTOP = { mobile: false, tablet: false };
+  const TABLET = { mobile: false, tablet: true };
+  const panel = (container: HTMLElement, id: string) => container.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
+  const orientationOf = (p: HTMLElement) => p.querySelector(':scope > .sc-directional-panel__content')!.getAttribute('data-orientation');
+  const boxes = (container: HTMLElement) => container.querySelectorAll('.sc-directional-panel-facade');
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const slider = (name: RegExp) => screen.getByRole('slider', { name });
+  const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {} };
+  const DETAILS_HANDLERS = { onRestsChange: () => {}, onAccentsChange: () => {}, onOctaveMinChange: () => {}, onOctaveMaxChange: () => {} };
+
+  beforeEach(() => {
+    mockDevTuning = true;
+  });
+
+  describe('Rhythm & Melody', () => {
+    it('is one box: Note Density beside Phrase Length, then Pitch Repeat Chance beside Note Variance', () => {
+      stubMatchMedia(DESKTOP);
+      const { container } = render(<CompositionRhythmMelodySection value={makeValue()} {...RHYTHM_HANDLERS} />);
+      expect(boxes(container)).toHaveLength(1);
+
+      const p1 = panel(container, 'robotOptions.rhythmMelody.p1');
+      const r1 = panel(container, 'robotOptions.rhythmMelody.p1.r1');
+      const r2 = panel(container, 'robotOptions.rhythmMelody.p1.r2');
+      expect(p1.contains(r1) && p1.contains(r2)).toBe(true);
+      expect(r1.contains(slider(/density/i)) && r1.contains(slider(/phrase length/i))).toBe(true);
+      expect(r2.contains(slider(/pitch repeat/i)) && r2.contains(slider(/note variance/i))).toBe(true);
+      const order = [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i].map(slider);
+      for (let i = 1; i < order.length; i++) expect(before(order[i - 1], order[i]), `slider ${i}`).toBe(true);
+      expect(screen.getAllByRole('slider')).toHaveLength(4);
+    });
+
+    it.each([['desktop', 'row', DESKTOP], ['tablet', 'column', TABLET]] as const)('on %s, both rows are a %s', (_tier, expected, state) => {
+      stubMatchMedia(state);
+      const { container } = render(<CompositionRhythmMelodySection value={makeValue()} {...RHYTHM_HANDLERS} />);
+      expect(orientationOf(panel(container, 'robotOptions.rhythmMelody.p1.r1'))).toBe(expected);
+      expect(orientationOf(panel(container, 'robotOptions.rhythmMelody.p1.r2'))).toBe(expected);
+    });
+
+    it('Click Track (dev only, with a handler) is the last row of the box, below the sliders', () => {
+      const { container } = render(<CompositionRhythmMelodySection value={makeValue()} {...RHYTHM_HANDLERS} onClickTrackActiveChange={() => {}} />);
+      const clickTrack = screen.getByRole('switch', { name: /Click Track/i });
+      expect(panel(container, 'robotOptions.rhythmMelody.p1').contains(clickTrack)).toBe(true);
+      expect(panel(container, 'robotOptions.rhythmMelody.p1.r2').contains(clickTrack)).toBe(false);
+      for (const name of [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i]) expect(before(slider(name), clickTrack), String(name)).toBe(true);
+    });
+
+    it('has no Click Track when DEV_TUNING is false, handler or not', () => {
+      mockDevTuning = false;
+      render(<CompositionRhythmMelodySection value={makeValue()} {...RHYTHM_HANDLERS} onClickTrackActiveChange={() => {}} />);
+      expect(screen.queryByRole('switch', { name: /Click Track/i })).toBeNull();
+    });
+
+    it('Pitch Repeat Chance is disabled while Phrase Length is 0, and only then', () => {
+      const off = render(<CompositionRhythmMelodySection value={makeValue({ rhythmicMotifLength: 0 })} {...RHYTHM_HANDLERS} />);
+      expect(slider(/pitch repeat/i).getAttribute('data-disabled')).toBe('');
+      expect(slider(/phrase length/i).getAttribute('data-disabled')).toBeNull();
+      off.unmount();
+      render(<CompositionRhythmMelodySection value={makeValue({ rhythmicMotifLength: 1 })} {...RHYTHM_HANDLERS} />);
+      expect(slider(/pitch repeat/i).getAttribute('data-disabled')).toBeNull();
+    });
+
+    it('is a React.memo-wrapped component', () => {
+      expect((CompositionRhythmMelodySection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+  });
+
+  describe('Details', () => {
+    it('is one box: Rests beside Accents, then Octave Min beside Octave Max, with no Articulation heading', () => {
+      stubMatchMedia(DESKTOP);
+      const { container } = render(<CompositionDetailsSection value={makeValue()} {...DETAILS_HANDLERS} />);
+      expect(boxes(container)).toHaveLength(1);
+
+      const p1 = panel(container, 'robotOptions.details.p1');
+      const r1 = panel(container, 'robotOptions.details.p1.r1');
+      const r2 = panel(container, 'robotOptions.details.p1.r2');
+      expect(p1.contains(r1) && p1.contains(r2)).toBe(true);
+      expect(r1.contains(slider(/^rests/i)) && r1.contains(slider(/^accents/i))).toBe(true);
+      expect(r2.contains(slider(/octave min/i)) && r2.contains(slider(/octave max/i))).toBe(true);
+      const order = [/^rests/i, /^accents/i, /octave min/i, /octave max/i].map(slider);
+      for (let i = 1; i < order.length; i++) expect(before(order[i - 1], order[i]), `slider ${i}`).toBe(true);
+      expect(screen.getAllByRole('slider')).toHaveLength(4);
+      expect(screen.queryByText('Articulation')).toBeNull();
+      expect(container.querySelector('[data-panel-id="robotOptions.articulation"]')).toBeNull();
+    });
+
+    it.each([['desktop', 'row', DESKTOP], ['tablet', 'column', TABLET]] as const)('on %s, both rows are a %s', (_tier, expected, state) => {
+      stubMatchMedia(state);
+      const { container } = render(<CompositionDetailsSection value={makeValue()} {...DETAILS_HANDLERS} />);
+      expect(orientationOf(panel(container, 'robotOptions.details.p1.r1'))).toBe(expected);
+      expect(orientationOf(panel(container, 'robotOptions.details.p1.r2'))).toBe(expected);
+    });
+
+    it('shows the stored octave range, Min from its first value and Max from its second', () => {
+      render(<CompositionDetailsSection value={makeValue({ octaveRange: [2, 6] })} {...DETAILS_HANDLERS} />);
+      expect(slider(/octave min/i).getAttribute('aria-valuenow')).toBe('2');
+      expect(slider(/octave max/i).getAttribute('aria-valuenow')).toBe('6');
+    });
+
+    it('is a React.memo-wrapped component', () => {
+      expect((CompositionDetailsSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+  });
+
+  it('PingControlsCompositionSection shows Rhythm & Melody then Details, two boxes and no heading', () => {
+    const { container } = render(
+      <PingControlsCompositionSection value={makeValue()} {...RHYTHM_HANDLERS} {...DETAILS_HANDLERS} onClickTrackActiveChange={() => {}} />,
+    );
+    expect(boxes(container)).toHaveLength(2);
+    expect(before(panel(container, 'robotOptions.rhythmMelody.p1'), panel(container, 'robotOptions.details.p1'))).toBe(true);
+    expect(before(screen.getByRole('switch', { name: /Click Track/i }), slider(/^rests/i))).toBe(true);
+  });
+});
 
 describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion', () => {
   beforeEach(() => {
@@ -123,11 +256,11 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
   describe('Click Track (dev only, with a handler)', () => {
     const clickTrack = () => screen.getByRole('switch', { name: /Click Track/i });
 
-    it('renders a Click Track toggle, labelled Click Track, first in the section, before Density', () => {
+    it('renders a Click Track toggle, labelled Click Track, after Note Variance (control layout Task 14: the last row of Rhythm & Melody)', () => {
       renderSection({}, { onClickTrackActiveChange: () => {} });
       expect(clickTrack().textContent).toBe(CONTENT['probe.composition.clickTrack'].human);
-      const density = screen.getByRole('slider', { name: /density/i });
-      expect(!!(clickTrack().compareDocumentPosition(density) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+      const noteVariance = screen.getByRole('slider', { name: /note variance/i });
+      expect(!!(noteVariance.compareDocumentPosition(clickTrack()) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     });
 
     it('reads off while the robot plays its melody and on while it plays the Click Track', () => {
@@ -210,18 +343,17 @@ describe('PingControlsCompositionSection — Articulation row (Robot Performance
   }
   const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-  it('renders Rests then Accents under an Articulation heading, after the Octave sliders', () => {
+  it('renders Rests then Accents, ahead of the Octave sliders (control layout Task 14: Details, no Articulation heading)', () => {
     renderRow();
 
-    expect(screen.getByText(CONTENT['probe.composition.articulation'].human)).toBeTruthy();
-    expect(before(screen.getByRole('slider', { name: /octave max/i }), restsSlider())).toBe(true);
     expect(before(restsSlider(), accentsSlider())).toBe(true);
+    expect(before(accentsSlider(), screen.getByRole('slider', { name: /octave min/i }))).toBe(true);
   });
 
-  it('puts both sliders in one panel of their own, apart from Density and Pitch Repeat', () => {
+  it('puts both sliders in one row of their own, apart from Density and Pitch Repeat', () => {
     renderRow();
 
-    const panel = restsSlider().closest('[data-panel-id="robotOptions.articulation"]')!;
+    const panel = restsSlider().closest('[data-panel-id="robotOptions.details.p1.r1"]')!;
     expect(panel).not.toBeNull();
     expect(panel.contains(accentsSlider())).toBe(true);
     expect(panel.contains(screen.getByRole('slider', { name: /density/i }))).toBe(false);

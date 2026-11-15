@@ -38,7 +38,6 @@ import {
   DYNAMICS_SCHEMA,
   RESTS_SCHEMA,
   ACCENTS_SCHEMA,
-  ARTICULATION_PANEL_SCHEMA,
 } from './robotOptionsConfig';
 // Namespace import (not named) so Task 9's cleanup assertions below can check for the 3 old
 // accordion consts' absence at runtime, without a named import that would itself fail to compile
@@ -858,7 +857,7 @@ describe.each([
 
 describe('Robot Performance schemas — shared', () => {
   it('the three ids are unique robotOptions.* ids that collide with no other top-level schema', () => {
-    const ids = [DYNAMICS_SCHEMA.id, RESTS_SCHEMA.id, ACCENTS_SCHEMA.id, ARTICULATION_PANEL_SCHEMA.id];
+    const ids = [DYNAMICS_SCHEMA.id, RESTS_SCHEMA.id, ACCENTS_SCHEMA.id];
     ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
     const others = ALL_TOP_LEVEL_SCHEMAS.map((s) => s.id);
     expect(new Set([...ids, ...others]).size).toBe(ids.length + others.length);
@@ -868,13 +867,6 @@ describe('Robot Performance schemas — shared', () => {
     const sliders = [DYNAMICS_SCHEMA, RESTS_SCHEMA, ACCENTS_SCHEMA];
     expect(new Set(sliders.map((s) => s.humanLabel)).size).toBe(3);
     expect(new Set(sliders.map((s) => s.help?.human)).size).toBe(3);
-  });
-
-  it('ARTICULATION_PANEL_SCHEMA is a responsive directionalPanel headed from probe.composition.articulation', () => {
-    expect(ARTICULATION_PANEL_SCHEMA.type).toBe('directionalPanel');
-    expect(ARTICULATION_PANEL_SCHEMA.orientation).toBe('responsive');
-    expect(ARTICULATION_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.composition.articulation'].human);
-    expect(JSON.parse(JSON.stringify(ARTICULATION_PANEL_SCHEMA))).toEqual(ARTICULATION_PANEL_SCHEMA);
   });
 
   it('the Levels intro names Dynamics and the Composition intro names Rests and Accents, so the sentences the user reads cover the new rows', () => {

@@ -166,16 +166,6 @@ export const SENDS_ROW_PANEL_SCHEMAS: readonly (DirectionalPanelSchema | undefin
 // PING CONTROLS
 // ========================================
 
-/** Rests and Accents (docs/specs/ROBOT_PERFORMANCE.md §1.6) — the one labelled panel of the Composition section
- *  (PingControlsCompositionSection), under its three plain rows. 'responsive': one row each on mobile, side by side
- *  on desktop. */
-export const ARTICULATION_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.articulation',
-  type: 'directionalPanel',
-  ...labels('probe.composition.articulation', { surface: 'heading' }),
-  orientation: 'responsive',
-};
-
 /**
  * Testing-only toggle (see PingControlsDrawer.tsx's clickTrackActive value field and
  * robotOptionsActions.ts's applyClickTrackActive) — overrides the robot's real melody with a

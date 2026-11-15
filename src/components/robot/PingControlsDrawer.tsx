@@ -4,7 +4,6 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import {
-  ARTICULATION_PANEL_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -55,14 +54,87 @@ export interface PingControlsValue {
 }
 
 // ========================================
-// COMPOSITION (docs/reference/layout-updates.md — merges Rhythm/Pitches into one "Composition"
-// accordion, 3 two-field rows; the dev-only Click Track toggle back on top for the robot screen)
+// COMPOSITION (docs/specs/CONTENT_LAYOUT.md §1.3): two one-box halves, Rhythm & Melody and Details
 // ========================================
-// Row schemas hoisted to module scope, same "schema is always a stable reference" convention
-// PingContourDrawer.tsx's own TOP_ROW_SCHEMA/BOTTOM_ROW_SCHEMA already establish.
-const COMPOSITION_ROW1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row1', type: 'directionalPanel', orientation: 'responsive' };
-const COMPOSITION_ROW2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row2', type: 'directionalPanel', orientation: 'responsive' };
-const COMPOSITION_ROW3_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.composition.row3', type: 'directionalPanel', orientation: 'responsive' };
+// Panel schemas hoisted to module scope, same "schema is always a stable reference" convention
+// PingContourDrawer.tsx's own TOP_ROW_SCHEMA/BOTTOM_ROW_SCHEMA already establish. A top-level panel is the box; its
+// 'responsive' rows sit side by side on desktop and stack below it.
+const RHYTHM_MELODY_P1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1', type: 'directionalPanel', orientation: 'column' };
+const RHYTHM_MELODY_P1_R1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1.r1', type: 'directionalPanel', orientation: 'responsive' };
+const RHYTHM_MELODY_P1_R2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
+const DETAILS_P1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1', type: 'directionalPanel', orientation: 'column' };
+const DETAILS_P1_R1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1.r1', type: 'directionalPanel', orientation: 'responsive' };
+const DETAILS_P1_R2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
+
+type RhythmMelodyProps = Pick<
+  PingControlsCompositionSectionProps,
+  'onClickTrackActiveChange' | 'onDensityChange' | 'onMotifLengthChange' | 'onPitchRepeatChange' | 'onNoteVarianceChange' | 'disabled'
+> & { value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive'> };
+
+/**
+ * Composition > Rhythm & Melody (docs/specs/CONTENT_LAYOUT.md §1.3): one box, Note Density beside Phrase Length, then
+ * Pitch Repeat Chance beside Note Variance, then the dev-only Click Track as its last row when the caller passes
+ * `onClickTrackActiveChange` (the robot, company and All Probes screens; docs/tasks/ONE_MUSIC_CLOCK.md Tasks 10a and 10b,
+ * so the downbeat can be heard). The sliders stay live while it plays: the engine registers the click pattern in place
+ * of any melody while the flag is on (`AudioEngine.registerRobotMelody`), so an edit changes the stored melody heard
+ * once it is off.
+ */
+export const CompositionRhythmMelodySection = memo(function CompositionRhythmMelodySection({
+  value, onClickTrackActiveChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange, onNoteVarianceChange, disabled,
+}: RhythmMelodyProps) {
+  // Pitch Repeat still needs a tiled motif to lock cells within — no cell concept exists when
+  // Motif Length is off (docs/specs/archive/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
+  const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
+  return (
+    <DirectionalPanel schema={RHYTHM_MELODY_P1_SCHEMA}>
+      <DirectionalPanel schema={RHYTHM_MELODY_P1_R1_SCHEMA}>
+        <SliderLinear schema={DENSITY_SCHEMA} value={value.rhythmicDensity} onChange={onDensityChange} disabled={disabled} />
+        <SliderLinear schema={MOTIF_LENGTH_SCHEMA} value={value.rhythmicMotifLength} onChange={onMotifLengthChange} disabled={disabled} />
+      </DirectionalPanel>
+      <DirectionalPanel schema={RHYTHM_MELODY_P1_R2_SCHEMA}>
+        <SliderLinear schema={PITCH_REPEAT_SCHEMA} value={value.pitchRepeat} onChange={onPitchRepeatChange} disabled={pitchRepeatDisabled} />
+        {/* The wrapper held the retired "Pitches" scroll anchor (docs/tasks/LAYOUT_REWORK.md Task 18);
+            kept so the row lays out exactly as it did. */}
+        <div>
+          <SliderLinear schema={NOTE_VARIANCE_SCHEMA} value={value.noteVariance} onChange={onNoteVarianceChange} disabled={disabled} />
+        </div>
+      </DirectionalPanel>
+      {DEV_TUNING && onClickTrackActiveChange && (
+        <Toggle schema={CLICK_TRACK_SCHEMA} value={value.clickTrackActive} onChange={onClickTrackActiveChange} disabled={disabled}>
+          {CONTENT['probe.composition.clickTrack'].human}
+        </Toggle>
+      )}
+    </DirectionalPanel>
+  );
+});
+
+type DetailsProps = Pick<
+  PingControlsCompositionSectionProps,
+  'onRestsChange' | 'onAccentsChange' | 'onOctaveMinChange' | 'onOctaveMaxChange' | 'disabled'
+> & { value: Pick<PingControlsValue, 'rests' | 'accents' | 'octaveRange'> };
+
+/**
+ * Composition > Details (docs/specs/CONTENT_LAYOUT.md §1.3): one box, Rests beside Accents (docs/specs/ROBOT_PERFORMANCE.md
+ * §1.6; a plain row now, the Articulation panel and its heading gone), then Octave Min beside Octave Max. Neither Rests
+ * nor Accents needs a tiled motif, so unlike Pitch Repeat they are gated by `disabled` alone.
+ */
+export const CompositionDetailsSection = memo(function CompositionDetailsSection({
+  value, onRestsChange, onAccentsChange, onOctaveMinChange, onOctaveMaxChange, disabled,
+}: DetailsProps) {
+  const [octMin, octMax] = value.octaveRange;
+  return (
+    <DirectionalPanel schema={DETAILS_P1_SCHEMA}>
+      <DirectionalPanel schema={DETAILS_P1_R1_SCHEMA}>
+        <SliderLinear schema={RESTS_SCHEMA} value={value.rests} onChange={onRestsChange} disabled={disabled} />
+        <SliderLinear schema={ACCENTS_SCHEMA} value={value.accents} onChange={onAccentsChange} disabled={disabled} />
+      </DirectionalPanel>
+      <DirectionalPanel schema={DETAILS_P1_R2_SCHEMA}>
+        <SliderLinear schema={OCTAVE_RANGE_MIN_SCHEMA} value={octMin} onChange={onOctaveMinChange} disabled={disabled} />
+        <SliderLinear schema={OCTAVE_RANGE_MAX_SCHEMA} value={octMax} onChange={onOctaveMaxChange} disabled={disabled} />
+      </DirectionalPanel>
+    </DirectionalPanel>
+  );
+});
 
 export interface PingControlsCompositionSectionProps {
   value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents' | 'clickTrackActive'>;
@@ -82,13 +154,9 @@ export interface PingControlsCompositionSectionProps {
 }
 
 /**
- * Replaces the old Rhythm/Pitches split (2 separate accordions) with one "Composition" accordion's
- * worth of plain content, laid out as 3 rows of 2 fields each: Density+Motif Length, Pitch
- * Repeat+Note Variance, Octave Min+Octave Max (docs/reference/layout-updates.md), then a labelled Articulation
- * panel (Rests, Accents) of Robot Performance. The dev-only Click Track toggle comes first when the caller passes
- * `onClickTrackActiveChange` (the robot, company and All Probes screens; docs/tasks/ONE_MUSIC_CLOCK.md Tasks 10a and
- * 10b, so the downbeat can be heard). The sliders stay live while it plays: the engine registers the click pattern in place of any melody while
- * the flag is on (`AudioEngine.registerRobotMelody`), so an edit changes the stored melody heard once it is off.
+ * The Composition tab's two halves, Rhythm & Melody then Details, under the one 'rhythm' id both screens render
+ * (docs/tasks/CONTENT_LAYOUT.md Task 14) until Task 16 gives each half its own sub-tab. The `style` is forwarded to
+ * its root.
  */
 function PingControlsCompositionSectionInner({
   value,
@@ -104,40 +172,25 @@ function PingControlsCompositionSectionInner({
   disabled,
   style,
 }: PingControlsCompositionSectionProps) {
-  const [octMin, octMax] = value.octaveRange;
-  // Pitch Repeat still needs a tiled motif to lock cells within — no cell concept exists when
-  // Motif Length is off (docs/specs/archive/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
-  const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
-
   return (
     <div style={style}>
-      {DEV_TUNING && onClickTrackActiveChange && (
-        <Toggle schema={CLICK_TRACK_SCHEMA} value={value.clickTrackActive} onChange={onClickTrackActiveChange} disabled={disabled}>
-          {CONTENT['probe.composition.clickTrack'].human}
-        </Toggle>
-      )}
-      <DirectionalPanel schema={COMPOSITION_ROW1_SCHEMA}>
-        <SliderLinear schema={DENSITY_SCHEMA} value={value.rhythmicDensity} onChange={onDensityChange} disabled={disabled} />
-        <SliderLinear schema={MOTIF_LENGTH_SCHEMA} value={value.rhythmicMotifLength} onChange={onMotifLengthChange} disabled={disabled} />
-      </DirectionalPanel>
-      <DirectionalPanel schema={COMPOSITION_ROW2_SCHEMA}>
-        <SliderLinear schema={PITCH_REPEAT_SCHEMA} value={value.pitchRepeat} onChange={onPitchRepeatChange} disabled={pitchRepeatDisabled} />
-        {/* The wrapper held the retired "Pitches" scroll anchor (docs/tasks/LAYOUT_REWORK.md Task 18);
-            kept so the row lays out exactly as it did. */}
-        <div>
-          <SliderLinear schema={NOTE_VARIANCE_SCHEMA} value={value.noteVariance} onChange={onNoteVarianceChange} disabled={disabled} />
-        </div>
-      </DirectionalPanel>
-      <DirectionalPanel schema={COMPOSITION_ROW3_SCHEMA}>
-        <SliderLinear schema={OCTAVE_RANGE_MIN_SCHEMA} value={octMin} onChange={onOctaveMinChange} disabled={disabled} />
-        <SliderLinear schema={OCTAVE_RANGE_MAX_SCHEMA} value={octMax} onChange={onOctaveMaxChange} disabled={disabled} />
-      </DirectionalPanel>
-      {/* Articulation (docs/specs/ROBOT_PERFORMANCE.md §1.6): Rests and Accents, a labelled panel of their own. Neither needs a
-          tiled motif, so unlike Pitch Repeat they are gated by `disabled` alone. */}
-      <DirectionalPanel schema={ARTICULATION_PANEL_SCHEMA}>
-        <SliderLinear schema={RESTS_SCHEMA} value={value.rests} onChange={onRestsChange} disabled={disabled} />
-        <SliderLinear schema={ACCENTS_SCHEMA} value={value.accents} onChange={onAccentsChange} disabled={disabled} />
-      </DirectionalPanel>
+      <CompositionRhythmMelodySection
+        value={value}
+        onClickTrackActiveChange={onClickTrackActiveChange}
+        onDensityChange={onDensityChange}
+        onMotifLengthChange={onMotifLengthChange}
+        onPitchRepeatChange={onPitchRepeatChange}
+        onNoteVarianceChange={onNoteVarianceChange}
+        disabled={disabled}
+      />
+      <CompositionDetailsSection
+        value={value}
+        onRestsChange={onRestsChange}
+        onAccentsChange={onAccentsChange}
+        onOctaveMinChange={onOctaveMinChange}
+        onOctaveMaxChange={onOctaveMaxChange}
+        disabled={disabled}
+      />
     </div>
   );
 }

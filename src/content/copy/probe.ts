@@ -217,9 +217,8 @@ export const probe = {
     intro: {
       lore: 'Composition — how this probe builds its melody.',
       loreDescription: 'Each probe draws its own melody from a curated set of notes, shaped by the settings below.',
-      humanDescription: '<p><strong>Rhythm</strong>: Note Density controls how many notes play versus rest. Phrase Length sets how many notes repeat together as one phrase before moving on. Pitch Repeat Chance controls how likely a repeated phrase is to reuse the same pitches instead of picking new ones.</p>'
-        + '<p><strong>Articulation</strong>: Rests sets how often a note stops early and leaves a gap before the next. Accents sets how often a note is struck differently — pushed, clipped short, or leaned on. Neither changes which notes play or when.</p>'
-        + '<p><strong>Pitches</strong>: Note Variance controls how far notes can wander from the probe’s core pitch set. Octave Min/Max set the pitch range notes are drawn from.</p>',
+      humanDescription: '<p><strong>Rhythm &amp; Melody</strong>: Note Density controls how many notes play versus rest. Phrase Length sets how many notes repeat together as one phrase before moving on. Pitch Repeat Chance controls how likely a repeated phrase is to reuse the same pitches instead of picking new ones. Note Variance controls how far notes can wander from the probe’s core pitch set.</p>'
+        + '<p><strong>Details</strong>: Rests sets how often a note stops early and leaves a gap before the next. Accents sets how often a note is struck differently — pushed, clipped short, or leaned on. Neither changes which notes play or when. Octave Min/Max set the pitch range notes are drawn from.</p>',
     },
   },
   'probe.composition.clickTrack': {
@@ -244,7 +243,6 @@ export const probe = {
     unit: '%',
     help: { human: 'How often a repeat of the rhythm pattern also repeats its notes. 0 picks fresh notes for every repeat; 100% plays the same notes every time. It does nothing while Phrase Length is 0.' },
   },
-  'probe.composition.articulation': { human: 'Articulation', heading: 'ARTICULATION MATRIX' },
   // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PERFORMANCE.md assumption 14).
   'probe.composition.rests': {
     human: 'Rests',
