@@ -161,7 +161,7 @@ flickers on an edit (backlog 85; the widths and the flicker used to follow setti
 look good). The constants are in `src/components/robot/gem/gemLines.ts`, each the top of the range it had: Top and
 both Mids 0.7 (`BODY_LINE_WIDTH`, was 0.3 … 0.7 from the layer's gain-LFO depth), an orbiter 1.1
 (`ORBITER_LINE_WIDTH`, was 0.3 … 1.1 from Note Variance). The lit strip down a line, in `palette.light` and never
-battery-dimmed, is a third of its width: 0.6 opacity on the body (`BODY_STRIP_OPACITY`), 1 on an orbiter
+battery-dimmed, is half its width (`STRIP_WIDTH_FRACTION`, a third before Crawford widened it): 0.6 opacity on the body (`BODY_STRIP_OPACITY`), 1 on an orbiter
 (`ORBITER_STRIP_OPACITY`, was 0.35 … 1 from Pitch Repeat). An edit to a Mid's layer gain still moves that Mid's lit
 level ("What audio drives"), and nothing else shows it.
 

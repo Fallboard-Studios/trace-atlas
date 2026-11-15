@@ -7,7 +7,7 @@ import { gemWidth, GEM_CANVAS_H, type GemPart, type GemPoint, type RobotGem as R
 import { GEM_LIGHT_COLOR, type GemPalette, type GemPartPaint } from './gemPalette';
 import { facetPaths, linesPath } from './gemPaths';
 import { WAVE_COUNTER_INDEX, WAVE_LINE_WIDTH, WAVE_PATH_COUNT, WAVE_TRAIL_SIDES, trailGradient } from './haloWaves';
-import { BODY_LINE_WIDTH, BODY_STRIP_OPACITY, ORBITER_LINE_WIDTH, ORBITER_STRIP_OPACITY } from './gemLines';
+import { BODY_LINE_WIDTH, BODY_STRIP_OPACITY, ORBITER_LINE_WIDTH, ORBITER_STRIP_OPACITY, STRIP_WIDTH_FRACTION } from './gemLines';
 
 // ========================================
 // TYPES
@@ -112,7 +112,7 @@ function BevelledPart({ part, paint, className, lightOpacity, lightColor, lineWi
           d={lines}
           fill="none"
           stroke={strip.color}
-          strokeWidth={r2(lineWidth / 3)}
+          strokeWidth={r2(lineWidth * STRIP_WIDTH_FRACTION)}
           opacity={strip.opacity}
           strokeLinecap="round"
           strokeLinejoin="round"

@@ -240,7 +240,7 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
     lines.forEach((el) => expect(el.getAttribute('stroke-width')).toBe('1.1'));
   });
 
-  it('each orbiter strip is a third of the line wide (0.37) at ORBITER_STRIP_OPACITY (1), on the same path in palette.light', () => {
+  it('each orbiter strip is half the line wide (0.55) at ORBITER_STRIP_OPACITY (1), on the same path in palette.light', () => {
     expect(ORBITER_STRIP_OPACITY).toBe(1);
     const container = draw();
     ['tl', 'tr', 'bl', 'br'].forEach((corner) => {
@@ -249,7 +249,7 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
       expect(strips).toHaveLength(1);
       expect(strips[0].getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strips[0].getAttribute('stroke')).toBe(palette.light);
-      expect(strips[0].getAttribute('stroke-width')).toBe('0.37'); // 1.1 / 3, 2dp
+      expect(strips[0].getAttribute('stroke-width')).toBe('0.55'); // 1.1 / 2
       expect(strips[0].getAttribute('opacity')).toBe(String(ORBITER_STRIP_OPACITY));
     });
   });
@@ -273,7 +273,7 @@ describe('RobotGem — body lines: one fixed width and lit strips', () => {
     }
   });
 
-  it('one .gem__strip per body part: same d as its .gem__lines, palette.light, 0.23 wide (a third of 0.7), BODY_STRIP_OPACITY (0.6), round caps', () => {
+  it('one .gem__strip per body part: same d as its .gem__lines, palette.light, 0.35 wide (half of 0.7), BODY_STRIP_OPACITY (0.6), round caps', () => {
     expect(BODY_STRIP_OPACITY).toBe(0.6);
     const container = draw();
     for (const [sel] of LINES) {
@@ -283,7 +283,7 @@ describe('RobotGem — body lines: one fixed width and lit strips', () => {
       const strip = strips[0];
       expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strip.getAttribute('stroke')).toBe(palette.light);
-      expect(strip.getAttribute('stroke-width')).toBe('0.23');
+      expect(strip.getAttribute('stroke-width')).toBe('0.35');
       expect(strip.getAttribute('opacity')).toBe('0.6');
       expect(strip.getAttribute('fill')).toBe('none');
       expect(strip.getAttribute('stroke-linecap')).toBe('round');
@@ -481,7 +481,7 @@ describe('RobotGem — motion mode: docked orbiters, GSAP-owned (Phase 40 amendm
       expect(lines.getAttribute('stroke-width')).toBe('1.1');
       expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strip.getAttribute('stroke')).toBe(palette.light);
-      expect(strip.getAttribute('stroke-width')).toBe('0.37');
+      expect(strip.getAttribute('stroke-width')).toBe('0.55');
       expect(strip.getAttribute('opacity')).toBe('1');
     });
   });
