@@ -285,11 +285,6 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       },
     );
 
-    it('renders nothing for an id it has no panel for (\'frequency\', folded into Composition)', () => {
-      const { container } = render(<Sections target="all" ids={['frequency']} />);
-      expect(container.firstChild).toBeNull();
-    });
-
     it('renders nothing for an oscillator whose layer is absent', () => {
       addRobot(makeRobot({ id: 'r1', companyId: 'c1', audioAttributes: { adsr: { attack: 0.2, decay: 0.3, sustain: 0.8, release: 1.5 }, filterFreq: 0, waveform: 'sine', layers: [{ type: 'sine', gain: 1, detune: 0, phase: 0 }] } }));
       addCompany('c1', ['r1']);

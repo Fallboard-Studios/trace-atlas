@@ -370,9 +370,9 @@ describe('uiStore — selectedSubsection (docs/tasks/archive/NAV_PANEL_VIEWS_AND
 
   it('is independent of selectedSection', () => {
     useUIStore.getState().setSelectedSection('melody');
-    useUIStore.getState().setSelectedSubsection('frequency');
+    useUIStore.getState().setSelectedSubsection('busFilter');
     expect(useUIStore.getState().selectedSection).toBe('melody');
-    expect(useUIStore.getState().selectedSubsection).toBe('frequency');
+    expect(useUIStore.getState().selectedSubsection).toBe('busFilter');
   });
 
   it('selectRobot(id) resets selectedSubsection to null — mirrors the existing selectedSection reset so a stale subsection never leaks onto the next robot', () => {

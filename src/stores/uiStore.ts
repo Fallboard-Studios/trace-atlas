@@ -39,7 +39,6 @@ export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automatic
 export type RobotSubsection =
   | 'audioSettings'
   | 'rhythm'
-  | 'frequency'
   | 'pingContour'
   | 'baselineOscillator'
   | 'coaxialOscillator'

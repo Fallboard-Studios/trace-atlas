@@ -7,7 +7,6 @@ import {
   ROBOT_SECTIONS_CONFIG,
   SOURCE_OSCILLATOR_SUBSECTIONS,
   DEFAULT_ROBOT_SECTION,
-  sectionTabContent,
   sectionSubTabs,
   activeRobotSection,
   activeRobotSubsection,
@@ -24,95 +23,46 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     expect(ROBOT_SECTIONS_CONFIG.map((s) => s.id)).toEqual(['volume', 'melody', 'envelope', 'source']);
   });
 
-  it('every row and accordion is a content key that exists (docs/specs/CONTENT_LAYER.md, Task 11)', () => {
+  it('every section and sub-tab content is a content key that exists (docs/specs/CONTENT_LAYER.md, Task 11)', () => {
     for (const section of ROBOT_SECTIONS_CONFIG) {
       expect(CONTENT, section.id).toHaveProperty(section.content);
-      if (section.accordion) expect(CONTENT).toHaveProperty(section.accordion);
-      for (const sub of section.subsections) {
-        expect(CONTENT, sub.id).toHaveProperty(sub.content);
-        if (sub.accordion) expect(CONTENT).toHaveProperty(sub.accordion);
-      }
+      for (const sub of section.subsections) expect(CONTENT, sub.id).toHaveProperty(sub.content);
     }
   });
 
-  it('gives every section its nav-row concept and trait', () => {
-    const byId = Object.fromEntries(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s]));
-    expect(byId.volume).toMatchObject({ content: 'probe.dynamics', trait: 'output' });
-    expect(byId.melody).toMatchObject({ content: 'probe.composition', trait: 'composition' });
-    expect(byId.envelope).toMatchObject({ content: 'probe.envelope', trait: 'timeSpace' });
-    expect(byId.source).toMatchObject({ content: 'probe.source', trait: 'spectral' });
-    expect(labels(byId.volume.content).humanLabel).toBe(CONTENT['probe.dynamics'].human);
-  });
-
-  it('only "source" wraps its subsections in its own accordion — volume/melody/envelope have none', () => {
-    const byId = Object.fromEntries(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s]));
-    expect(byId.volume.accordion).toBeUndefined();
-    expect(byId.melody.accordion).toBeUndefined();
-    expect(byId.envelope.accordion).toBeUndefined();
-    expect(byId.source.accordion).toBe('probe.source');
-  });
-
-  it("volume's one subsection is Levels' own accordion, with Level Control as its row concept", () => {
-    const volume = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'volume')!;
-    expect(volume.subsections).toEqual([{ id: 'audioSettings', content: 'probe.dynamics.levelControl', accordion: 'probe.levels' }]);
-    expect(CONTENT['probe.dynamics.levelControl'].human).not.toBe(CONTENT['probe.levels'].human);
-  });
-
-  it("melody's rhythm row and its Composition accordion are two distinct concepts", () => {
-    const melody = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'melody')!;
-    const rhythm = melody.subsections.find((s) => s.id === 'rhythm')!;
-    expect(rhythm.content).toBe('probe.composition.rhythm');
-    expect(rhythm.accordion).toBe('probe.composition');
-    expect(rhythm.mergedInto).toBeUndefined();
-    expect(labels(rhythm.content).humanLabel).toBe(CONTENT['probe.composition.rhythm'].human);
-    expect(labels(rhythm.accordion!).humanLabel).toBe(CONTENT['probe.composition'].human);
-    expect(CONTENT['probe.composition.rhythm'].human).not.toBe(CONTENT['probe.composition'].human);
-  });
-
-  it('melody\'s frequency ("Pitches") has no accordion of its own — merged into rhythm', () => {
-    const melody = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'melody')!;
-    const frequency = melody.subsections.find((s) => s.id === 'frequency')!;
-    expect(frequency.content).toBe('probe.composition.pitches');
-    expect(frequency.accordion).toBeUndefined();
-    expect(frequency.mergedInto).toBe('rhythm');
-  });
-
-  it("melody's subsections are ordered rhythm then frequency", () => {
-    const melody = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'melody')!;
-    expect(melody.subsections.map((s) => s.id)).toEqual(['rhythm', 'frequency']);
-  });
-
-  it("envelope's one subsection is Envelope's own accordion, with Contour as its row concept", () => {
-    const envelope = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'envelope')!;
-    expect(envelope.subsections).toEqual([{ id: 'pingContour', content: 'probe.envelope.contour', accordion: 'probe.envelope' }]);
-  });
-
-  it("source's 4 subsections each keep their own accordion (same concept as the row): the 3 oscillators in order, then the bus filter last (docs/specs/ROBOT_ARTICULATION.md §1.6)", () => {
-    const source = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'source')!;
-    expect(source.subsections).toEqual([
-      { id: 'baselineOscillator', content: 'probe.source.core', accordion: 'probe.source.core' },
-      { id: 'coaxialOscillator', content: 'probe.source.companion', accordion: 'probe.source.companion' },
-      { id: 'harmonicOscillator', content: 'probe.source.accent', accordion: 'probe.source.accent' },
-      { id: 'busFilter', content: 'probe.source.filter', accordion: 'probe.source.filter' },
+  // docs/tasks/CONTENT_LAYOUT.md Task 12: a section carries its tab's content key, each subsection its sub-tab's.
+  it("every section's content is its tab's name — Levels, Composition, Envelope, Source — in its trait", () => {
+    expect(ROBOT_SECTIONS_CONFIG.map((s) => [s.content, s.trait])).toEqual([
+      ['probe.levels', 'output'],
+      ['probe.composition', 'composition'],
+      ['probe.envelope', 'timeSpace'],
+      ['probe.source', 'spectral'],
     ]);
   });
 
-  it('busFilter is the only new subsection: every other section keeps exactly the subsections it had', () => {
-    const idsOf = (sectionId: RobotSection) => ROBOT_SECTIONS_CONFIG.find((s) => s.id === sectionId)!.subsections.map((s) => s.id);
-    expect(idsOf('volume')).toEqual(['audioSettings']);
-    expect(idsOf('melody')).toEqual(['rhythm', 'frequency']);
-    expect(idsOf('envelope')).toEqual(['pingContour']);
-    expect(ROBOT_SECTIONS_CONFIG.flatMap((s) => s.subsections).filter((s) => s.id === 'busFilter')).toHaveLength(1);
+  it('no section or subsection carries an accordion or a mergedInto: a section is id, content, trait, subsections; a subsection id and content', () => {
+    for (const section of ROBOT_SECTIONS_CONFIG) {
+      expect(Object.keys(section).sort(), section.id).toEqual(['content', 'id', 'subsections', 'trait']);
+      for (const sub of section.subsections) expect(Object.keys(sub).sort(), sub.id).toEqual(['content', 'id']);
+    }
   });
 
-  it('every subsection other than frequency has its own accordion and no mergedInto', () => {
-    for (const section of ROBOT_SECTIONS_CONFIG) {
-      for (const sub of section.subsections) {
-        if (sub.id === 'frequency') continue;
-        expect(sub.accordion, `${sub.id} should have an accordion`).toBeDefined();
-        expect(sub.mergedInto, `${sub.id} should have no mergedInto`).toBeUndefined();
-      }
-    }
+  it("each section's subsections, in order: one each for Levels, Composition and Envelope (Pitches' 'frequency' is gone), Source's four", () => {
+    const idsOf = (sectionId: RobotSection) => ROBOT_SECTIONS_CONFIG.find((s) => s.id === sectionId)!.subsections.map((s) => s.id);
+    expect(idsOf('volume')).toEqual(['audioSettings']);
+    expect(idsOf('melody')).toEqual(['rhythm']);
+    expect(idsOf('envelope')).toEqual(['pingContour']);
+    expect(idsOf('source')).toEqual([...SOURCE_OSCILLATOR_SUBSECTIONS, 'busFilter']);
+  });
+
+  it("source's 4 sub-tabs read Core, Companion and Accent Oscillator, then Filter (docs/specs/ROBOT_ARTICULATION.md §1.6)", () => {
+    const source = ROBOT_SECTIONS_CONFIG.find((s) => s.id === 'source')!;
+    expect(source.subsections).toEqual([
+      { id: 'baselineOscillator', content: 'probe.source.core' },
+      { id: 'coaxialOscillator', content: 'probe.source.companion' },
+      { id: 'harmonicOscillator', content: 'probe.source.accent' },
+      { id: 'busFilter', content: 'probe.source.filter' },
+    ]);
   });
 
   it('remains JSON-serializable', () => {
@@ -132,8 +82,8 @@ describe('SOURCE_OSCILLATOR_SUBSECTIONS', () => {
 describe('the robot screen tabs', () => {
   const section = (id: RobotSection) => ROBOT_SECTIONS_CONFIG.find((s) => s.id === id)!;
 
-  it('names each tab after the panel it shows, as the accordions did: Levels, Composition, Envelope, Source', () => {
-    expect(ROBOT_SECTIONS_CONFIG.map((s) => labels(sectionTabContent(s)).humanLabel)).toEqual([
+  it('names each tab Levels, Composition, Envelope, Source', () => {
+    expect(ROBOT_SECTIONS_CONFIG.map((s) => labels(s.content).humanLabel)).toEqual([
       CONTENT['probe.levels'].human,
       CONTENT['probe.composition'].human,
       CONTENT['probe.envelope'].human,
@@ -144,14 +94,8 @@ describe('the robot screen tabs', () => {
   it('gives only Source a sub-tab row (its three oscillators, then Filter); a section with one panel has none', () => {
     expect(sectionSubTabs(section('source')).map((sub) => sub.id)).toEqual([...SOURCE_OSCILLATOR_SUBSECTIONS, 'busFilter']);
     expect(sectionSubTabs(section('volume'))).toEqual([]);
-    expect(sectionSubTabs(section('envelope'))).toEqual([]);
-  });
-
-  it("never gives a merged subsection (Pitches, inside Composition's panel) a tab of its own", () => {
     expect(sectionSubTabs(section('melody'))).toEqual([]);
-    for (const s of ROBOT_SECTIONS_CONFIG) {
-      expect(sectionSubTabs(s).some((sub) => sub.mergedInto)).toBe(false);
-    }
+    expect(sectionSubTabs(section('envelope'))).toEqual([]);
   });
 
   it('opens on Source when no section is stored (the plan: Source, Core Oscillator)', () => {
@@ -178,7 +122,6 @@ describe('the robot screen tabs', () => {
     ['volume', null, 'audioSettings'],
     ['volume', 'coaxialOscillator', 'audioSettings'],
     ['melody', null, 'rhythm'],
-    ['melody', 'frequency', 'rhythm'],
     ['envelope', 'baselineOscillator', 'pingContour'],
   ])('on %s with %s stored, the panel shown is %s', (sectionId, stored, expected) => {
     expect(activeRobotSubsection(sectionId, stored)).toBe(expected);

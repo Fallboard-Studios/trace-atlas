@@ -545,7 +545,7 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
 
   it.each<[RobotSection | null, RobotSubsection | null, string]>([
     ['volume', 'coaxialOscillator', 'audio-setting-section-stub'],
-    ['melody', 'frequency', 'ping-controls-composition-stub'],
+    ['melody', 'busFilter', 'ping-controls-composition-stub'],
     ['source', 'rhythm', 'signature-array-layer-stub-0'],
     [null, 'harmonicOscillator', 'signature-array-layer-stub-2'],
   ])('a stored %s / %s shows %s, without a store write', (section, subsection, stub) => {

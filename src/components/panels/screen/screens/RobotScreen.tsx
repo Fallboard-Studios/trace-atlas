@@ -31,7 +31,7 @@ import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import {
   ROBOT_SECTIONS_CONFIG, SOURCE_OSCILLATOR_SUBSECTIONS,
-  activeRobotSection, activeRobotSubsection, sectionSubTabs, sectionTabContent,
+  activeRobotSection, activeRobotSubsection, sectionSubTabs,
   type RobotOptionsTrait,
 } from '@/data/robotSubsectionConfig';
 import {
@@ -146,26 +146,26 @@ export function RobotSectionTabs({ label, renderSubsection, traitStyle = fullTra
     const open = activeRobotSubsection(entry.id, storedSubsection);
     const subItems: readonly SectionTabItem<RobotSubsection>[] = subTabs.map((sub) => ({
       id: sub.id,
-      content: sub.accordion ?? sub.content,
+      content: sub.content,
       trait: entry.trait,
       render: () => renderSubsection(sub.id),
     }));
     return {
       id: entry.id,
-      content: sectionTabContent(entry),
+      content: entry.content,
       trait: entry.trait,
       render: () => (
         <div className="robot-screen__section" style={traitStyle(entry.trait)}>
           <IntroPanel
-            {...introProps(sectionTabContent(entry))}
-            name={labels(sectionTabContent(entry)).humanLabel}
+            {...introProps(entry.content)}
+            name={labels(entry.content).humanLabel}
             trait={entry.trait}
             collapsible
           />
           {subTabs.length > 0 ? (
             <SectionTabs
               variant="sub"
-              label={labels(sectionTabContent(entry)).humanLabel}
+              label={labels(entry.content).humanLabel}
               items={subItems}
               value={open}
               onValueChange={setSubsection}

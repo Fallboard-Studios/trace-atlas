@@ -134,8 +134,6 @@ export const probe = {
   },
 
   // ---------------------------------------------------------------- Dynamics / Levels
-  'probe.dynamics': { human: 'Dynamics', lore: 'Output' },
-  'probe.dynamics.levelControl': { human: 'Level Control', lore: 'Ops Clarity' },
   'probe.levels': {
     human: 'Levels',
     intro: {
@@ -204,8 +202,7 @@ export const probe = {
     unit: '%',
     help: { human: 'How much of this probe’s sound is sent into the shared Chorus, a doubled, slightly wavering copy that makes it sound wider. 0% keeps the probe out of the Chorus entirely; higher settings double it more strongly.' },
   },
-  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PERFORMANCE.md assumption 14). The human
-  // word clashes with the nav row above ('probe.dynamics', "Dynamics / Output") — one key to rename (spec §7).
+  // The lore words are placeholders until Crawford's copy pass (docs/specs/ROBOT_PERFORMANCE.md assumption 14).
   'probe.levels.dynamics': {
     human: 'Dynamics',
     lore: 'Pressure Swing',
@@ -225,7 +222,6 @@ export const probe = {
         + '<p><strong>Pitches</strong>: Note Variance controls how far notes can wander from the probe’s core pitch set. Octave Min/Max set the pitch range notes are drawn from.</p>',
     },
   },
-  'probe.composition.rhythm': { human: 'Rhythm', lore: 'Payload Map', heading: 'RHYTHMIC PHRASING MATRIX' },
   'probe.composition.clickTrack': {
     human: 'Click Track',
     lore: 'CALIBRATION PULSE',
@@ -262,7 +258,6 @@ export const probe = {
     unit: '%',
     help: { human: 'How often a note is struck differently — pushed harder, clipped short, or leaned on — and how many of those ways are used. 0% plays every note plainly; higher settings mark more notes and bring in more kinds of mark.' },
   },
-  'probe.composition.pitches': { human: 'Pitches', lore: 'Payload Allocation', heading: 'PITCH FREQUENCY MATRIX' },
   'probe.composition.lowestOctave': {
     human: 'Octave Min',
     lore: 'Ping Floor',

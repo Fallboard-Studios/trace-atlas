@@ -864,11 +864,6 @@ describe('Robot Performance schemas — shared', () => {
     expect(new Set(sliders.map((s) => s.help?.human)).size).toBe(3);
   });
 
-  it('Dynamics shares its human word with the Levels nav row yet differs in lore, so the duplicate-concept guard holds', () => {
-    // The naming clash is flagged in docs/specs/ROBOT_PERFORMANCE.md §7 — one content key to rename.
-    expect(CONTENT['probe.levels.dynamics'].lore).not.toBe(CONTENT['probe.dynamics'].lore);
-  });
-
   it('ARTICULATION_PANEL_SCHEMA is a responsive directionalPanel headed from probe.composition.articulation', () => {
     expect(ARTICULATION_PANEL_SCHEMA.type).toBe('directionalPanel');
     expect(ARTICULATION_PANEL_SCHEMA.orientation).toBe('responsive');

@@ -7,7 +7,7 @@ import {
   type SelectedFleetParamsEffect,
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
-import { ROBOT_SECTIONS_CONFIG, activeRobotSection, sectionTabContent } from '@/data/robotSubsectionConfig';
+import { ROBOT_SECTIONS_CONFIG, activeRobotSection } from '@/data/robotSubsectionConfig';
 import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { labels, type ContentKey } from '@/content';
 
@@ -286,6 +286,6 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
   // A robot's screen is tabs (Task 16), and so are a company's and All Probes' (Task 23: the same
   // SectionTabs), so one is always open: Source when none is stored.
   const section = ROBOT_SECTIONS_CONFIG.find((s) => s.id === activeRobotSection(state.selectedSection));
-  if (section) trail.push({ label: name(sectionTabContent(section)) });
+  if (section) trail.push({ label: name(section.content) });
   return trail;
 }
