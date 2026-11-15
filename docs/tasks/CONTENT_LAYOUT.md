@@ -135,10 +135,11 @@ and re-render tests stay unedited and green.
 
   **Files:** `src/content/copy/fleet.ts`
 
-### Checkpoint: Foundation
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] The app looks as before except for the ten names and the Settings intro's two slider names.
-- [ ] Reviewed with Crawford before Phase 2.
+### Checkpoint: Foundation — passed 2026-11-15 (next: Task 4)
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (but for 7 RobotGem/RobotBody line-width
+      cases that fail on `main` too: fa2b854a's hand-set widths, outside this plan).
+- [x] The app looks as before except for the ten names and the Settings intro's two slider names.
+- [x] Reviewed with Crawford before Phase 2.
 
 ---
 
