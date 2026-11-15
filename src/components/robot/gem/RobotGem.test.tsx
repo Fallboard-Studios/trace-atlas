@@ -232,16 +232,16 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
     expect(local.getAttribute('transform')).toBe('scale(1.25)');
   });
 
-  it('every orbiter .gem__lines is ORBITER_LINE_WIDTH (1.1) wide, the top of the old Note Variance range', () => {
-    expect(ORBITER_LINE_WIDTH).toBe(1.1);
+  it('every orbiter .gem__lines is ORBITER_LINE_WIDTH (1) wide', () => {
+    expect(ORBITER_LINE_WIDTH).toBe(1);
     const container = draw();
     const lines = [...container.querySelectorAll('.gem__orbiter .gem__lines')];
     expect(lines).toHaveLength(4);
-    lines.forEach((el) => expect(el.getAttribute('stroke-width')).toBe('1.1'));
+    lines.forEach((el) => expect(el.getAttribute('stroke-width')).toBe('1'));
   });
 
-  it('each orbiter strip is half the line wide (0.55) at ORBITER_STRIP_OPACITY (1), on the same path in palette.light', () => {
-    expect(ORBITER_STRIP_OPACITY).toBe(1);
+  it('each orbiter strip is half the line wide (0.5) at ORBITER_STRIP_OPACITY (0.8), on the same path in palette.light', () => {
+    expect(ORBITER_STRIP_OPACITY).toBe(0.8);
     const container = draw();
     ['tl', 'tr', 'bl', 'br'].forEach((corner) => {
       const lines = container.querySelector(`.gem__orbiter--${corner} .gem__lines`)!;
@@ -249,7 +249,7 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
       expect(strips).toHaveLength(1);
       expect(strips[0].getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strips[0].getAttribute('stroke')).toBe(palette.light);
-      expect(strips[0].getAttribute('stroke-width')).toBe('0.55'); // 1.1 / 2
+      expect(strips[0].getAttribute('stroke-width')).toBe('0.5'); // 1 / 2
       expect(strips[0].getAttribute('opacity')).toBe(String(ORBITER_STRIP_OPACITY));
     });
   });
@@ -265,15 +265,15 @@ describe('RobotGem — body lines: one fixed width and lit strips', () => {
     ['.gem__mid--right', 'midRight'],
   ];
 
-  it('every body part .gem__lines is BODY_LINE_WIDTH (0.7) wide, the top of the old gain-depth range', () => {
-    expect(BODY_LINE_WIDTH).toBe(0.7);
+  it('every body part .gem__lines is BODY_LINE_WIDTH (0.8) wide', () => {
+    expect(BODY_LINE_WIDTH).toBe(0.8);
     const container = draw();
     for (const [sel] of LINES) {
-      expect(container.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width')).toBe('0.7');
+      expect(container.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width')).toBe('0.8');
     }
   });
 
-  it('one .gem__strip per body part: same d as its .gem__lines, palette.light, 0.35 wide (half of 0.7), BODY_STRIP_OPACITY (0.6), round caps', () => {
+  it('one .gem__strip per body part: same d as its .gem__lines, palette.light, 0.4 wide (half of 0.8), BODY_STRIP_OPACITY (0.6), round caps', () => {
     expect(BODY_STRIP_OPACITY).toBe(0.6);
     const container = draw();
     for (const [sel] of LINES) {
@@ -283,7 +283,7 @@ describe('RobotGem — body lines: one fixed width and lit strips', () => {
       const strip = strips[0];
       expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strip.getAttribute('stroke')).toBe(palette.light);
-      expect(strip.getAttribute('stroke-width')).toBe('0.35');
+      expect(strip.getAttribute('stroke-width')).toBe('0.4');
       expect(strip.getAttribute('opacity')).toBe('0.6');
       expect(strip.getAttribute('fill')).toBe('none');
       expect(strip.getAttribute('stroke-linecap')).toBe('round');
@@ -302,8 +302,8 @@ describe('RobotGem — body lines: one fixed width and lit strips', () => {
   it('motion: true draws the same widths', () => {
     const container = draw(palette, 0.7, 0.9, MOTION);
     expect(container.querySelector('.gem__top .gem__strip')).not.toBeNull();
-    expect(container.querySelector('.gem__mid--left .gem__lines')!.getAttribute('stroke-width')).toBe('0.7');
-    expect(container.querySelector('.gem__orbiter--tl .gem__lines')!.getAttribute('stroke-width')).toBe('1.1');
+    expect(container.querySelector('.gem__mid--left .gem__lines')!.getAttribute('stroke-width')).toBe('0.8');
+    expect(container.querySelector('.gem__orbiter--tl .gem__lines')!.getAttribute('stroke-width')).toBe('1');
   });
 });
 
@@ -478,11 +478,11 @@ describe('RobotGem — motion mode: docked orbiters, GSAP-owned (Phase 40 amendm
     container.querySelectorAll('.gem__orbiter').forEach((wrapper) => {
       const lines = wrapper.querySelector('.gem__lines')!;
       const strip = wrapper.querySelector('.gem__strip')!;
-      expect(lines.getAttribute('stroke-width')).toBe('1.1');
+      expect(lines.getAttribute('stroke-width')).toBe('1');
       expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strip.getAttribute('stroke')).toBe(palette.light);
-      expect(strip.getAttribute('stroke-width')).toBe('0.55');
-      expect(strip.getAttribute('opacity')).toBe('1');
+      expect(strip.getAttribute('stroke-width')).toBe('0.5');
+      expect(strip.getAttribute('opacity')).toBe('0.8');
     });
   });
 
