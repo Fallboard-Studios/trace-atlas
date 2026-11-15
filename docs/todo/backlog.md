@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 90.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 91.
 
 ## Open items
 
@@ -87,6 +87,10 @@ means only the note options: which `HARMONY_PALETTES` entries (or, once this ite
 world may draw from. Whether a theme limits the moods is undecided and likely later. The overlap rule between a theme
 and an aspect is aspect-wins (`resolveBands` replaces whole bands, the aspect last), so theme copy must not promise what
 an aspect can override. Sequenced post-launch in plan.md.
+
+**Note 2026-11-14:** roadmap [90](roadmap.md#90-the-score-editable-chords-a-clock-with-two-rulers-hand-edited-parts)
+(the score) takes this item in: its lean is that the seeded chain fills a user-editable arrangement in place of being a
+system of its own. Read [the idea](../ideas/the-score.md) before this item's interview.
 
 **What exists (verified 2026-10-09).** `src/engine/harmonySystem.ts` holds one fixed progression,
 `HARMONY_PALETTES`: 12 entries of 8 pitch-class names (`EighthNotes`, no octave), cycled
@@ -268,6 +272,11 @@ where a user could easily create their own palettes and tags?" Crawford's verdic
 interviewed, not specced. Strictly phase two of item 7 — the chain and a built-in catalogue ship
 first — and, if it ever graduates, it is its own roadmap phase rather than a backlog line. Lands on
 the reworked layout (roadmap 22), never the current drawers.
+
+**Note 2026-11-14 (Crawford):** no longer only a maybe. Roadmap
+[90](roadmap.md#90-the-score-editable-chords-a-clock-with-two-rulers-hand-edited-parts) (the score) takes it in, and he
+chose the editor's form: eight slots, each with a note picker, "lots of education", and maybe a gradient behind the
+picker as a heat map. That replaces "author chords, not slots" below as the starting point.
 
 **The design problem is musical, not technical.** A palette is 8 *weighted* slots, not a chord:
 `melodyGenerator.ts`'s `NOTE_INDEX_WEIGHTS` gives slot 0 about a third of all melody notes and slot
@@ -504,6 +513,10 @@ the session diff), the content layer (the mark names and legend), and long melod
 narrower cells, and the cells must hold their size). Neighbours: roadmap
 [32](roadmap.md#32-robot-melody-history--configuration-scrubber) (Melody history). Needs an interview before a spec:
 read-only strip first, or the editor with it. Plan.md Post-launch.
+
+**Note 2026-11-14:** the note and rhythm editing half belongs to roadmap
+[90](roadmap.md#90-the-score-editable-chords-a-clock-with-two-rulers-hand-edited-parts) (the score), where whether an
+edit lasts is a question of who owns the data, the seed or the hand ([the idea](../ideas/the-score.md)).
 
 ### 74. Audio: Fade a Robot In and Out on Its Station Arcs
 
