@@ -551,3 +551,32 @@ prices are in [scratchy-audio-phones.md](scratchy-audio-phones.md#backlog-67-the
   closed), so this waits on a need; parked in [plan.md](plan.md#parked-not-sequenced).
 - Whether a native envelope keeps the stored ADSR curves exactly, which is the listen's question.
 
+## 90. The Score: Editable Chords, a Clock with Two Rulers, Hand-Edited Parts
+
+Raised by Crawford on 2026-11-14 as "make the chord palette editable", with more behind it: time signature changes,
+several chord palettes to rotate through or arrange, and, eventually, users editing a robot's note indices and rhythms.
+Not yet interviewed or specced. The idea, his points, the leans and the open questions are in
+[docs/ideas/the-score.md](../ideas/the-score.md).
+
+### About
+
+One model for the whole of it, built in pieces. The music is three layers of plain data (the clock, the harmony, each
+robot's part), each read through a position, and each piece of data owned by the seed or by the user's hand. The clock
+gets two rulers: bars, which follow the tempo, for anything musical; and pace, which does not, for the battery and
+docking cycle. Crawford's complaint about today's timing is that everything is counted in measures, so a faster tempo
+makes the docking cycle too quick (a full shift and charge is 2.7 to 5.3 minutes at 40 BPM and 32 to 64 seconds at
+200), and he sometimes wants the chords to last twice as long at faster tempos.
+
+It takes in backlog [7](backlog.md#7-audio-tagged-chord-progressions-seeded-mood-chain--tag-filter) (the seeded
+chain would fill the arrangement), [20](backlog.md#20-audio-user-authored-progressions-and-tags-editor-ui--maybe) (the
+chord editor: eight slots with a note picker each, his call of 2026-11-14) and
+[65](backlog.md#65-robot-a-melody-strip-under-the-accents-slider-and-later-editing-the-notes) (editing a robot's notes),
+and its pace ruler changes what backlog [86](backlog.md#86-world-move-the-whole-world-to-a-measure) replays.
+
+### Open
+
+- The eight questions at the end of the idea doc; the interview starts from them.
+- Its order against the nav and views layout redo. Crawford's lean: this first, because it informs that redesign.
+  Claude's lean: the design and the sketches first, the editors built onto the new layout.
+- Not yet placed in [plan.md](plan.md).
+
