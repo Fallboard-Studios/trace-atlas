@@ -145,7 +145,7 @@ and re-render tests stay unedited and green.
 
 ### Phase 2: Effect panels
 
-- [ ] **Task 4: Effect layout as data, drawing today's layout**
+- [x] **Task 4: Effect layout as data, drawing today's layout** (5839adcc)
 
   **Description:** Add `layout` (panels > rows > cell tokens) to `AudioRigEffectBlock`, filled in so
   each effect draws exactly as today, and build the box and row schemas from it at module load.
@@ -173,7 +173,7 @@ and re-render tests stay unedited and green.
 
   **Estimated scope:** M
 
-- [ ] **Task 5: EQ and filters — a box per slider**
+- [x] **Task 5: EQ and filters — a box per slider** (2d6bb9e9)
 
   **Description:** Add the `'<field>.link'` cell and multi-box support to the walk, then set the EQ's
   and both filters' layouts to spec §1.2: one box per band or param, slider on row 1, link on row 2.
@@ -200,7 +200,7 @@ and re-render tests stay unedited and green.
 
   **Estimated scope:** M
 
-- [ ] **Task 6: The ten single-box effects**
+- [x] **Task 6: The ten single-box effects** (937dd02f)
 
   **Description:** Set the layouts of Reverb, Delay, Distortion, Chebyshev, Bit Crusher, Tremolo,
   Vibrato, Shifter, Width and Limiter to §1.2 and flag their featured control. A table edit only.
@@ -224,7 +224,7 @@ and re-render tests stay unedited and green.
 
   **Estimated scope:** S
 
-- [ ] **Task 7: Auto Wah, Phaser, Chorus and Compressor — two boxes each**
+- [x] **Task 7: Auto Wah, Phaser, Chorus and Compressor — two boxes each** (72e011b1)
 
   **Description:** Set the four two-box layouts to §1.2 and flag the three pedals' Mix or Return. The
   Compressor has no featured control.
@@ -247,10 +247,20 @@ and re-render tests stay unedited and green.
 
   **Estimated scope:** S
 
-### Checkpoint: Effect panels
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Mutation check: swap two cells in the Phaser's `layout` and the order test goes red; drop one
-      `featured` flag and its test goes red. Restore both.
+**As built (Phase 2, 2026-11-15):** `AudioRigEffectBlock`'s single `panel` field became `heading` (the content
+key) plus `boxes`, built from `layout` at module load by `effect()` in `audioRigConfig.ts`; a layout token that
+names no param, or links a param with no LFO target, throws at load. A link cell's wrapper is
+`.audio-rig-drawer__link-row` (no stylesheet names it). Tests that pinned the old shapes were re-pinned in the
+task that moved them; the three Knee-beside-Decay cases were removed in Task 7 (§1.2 splits the pair across
+the Compressor's boxes), and two wiring describes' `rowOf` helper now selects the param's box (Task 5, a
+selector change only). Every task's manual check is folded into the look below.
+
+### Checkpoint: Effect panels — tests and mutations passed 2026-11-15; look and review outstanding
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (14,352 tests, 0 failed; lint's 4
+      pre-existing Scenery/gemShape warnings).
+- [x] Mutation check: swap two cells in the Phaser's `layout` and the order test goes red; drop one
+      `featured` flag and its test goes red. Restore both. (Base Frequency and Rate swapped: three order
+      tests red; the Chorus's flag dropped: its featured test red.)
 - [ ] Look, desktop and phone: all seventeen effect sub-tabs against §1.2. At 1024 px, the Phaser's
       Rate beside Base Frequency keeps its toggle's size and no slider drops under three boxes.
 - [ ] Reviewed with Crawford before Phase 3.
