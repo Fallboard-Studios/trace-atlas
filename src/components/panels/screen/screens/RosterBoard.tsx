@@ -12,6 +12,7 @@ import { RosterTile, type RosterMoveHandler } from './RosterTile';
 import { CompanyCreateForm } from '@/components/company/CompanyCrudControls';
 import { Button } from '@/components/ui/controls/Button';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
+import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { getTimeline, killTimeline, setTimeline } from '@/animation/timelineMap';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId, useActiveLocaleId } from '@/utils/localeHelpers';
@@ -19,10 +20,12 @@ import { prefersReducedMotion } from '@/utils/reducedMotion';
 import { useStableSelector } from '@/utils/useStableSelector';
 import { rosterRows, type RosterRow } from '@/utils/rosterRows';
 import { getRobotColorStyle, getTraitColorStyle } from '@/utils/traitColors';
-import { CONTENT, labels } from '@/content';
+import { CONTENT, introProps, labels } from '@/content';
 import type { ButtonSchema } from '@/types/controls';
 import './RosterBoard.css';
 
+const INTRO = introProps('probe.root');
+const INTRO_NAME = CONTENT['probe.root'].human;
 const BOARD_STYLE = getTraitColorStyle('output');
 /** The sketch draws All Probes in the Deck's colour (the whole fleet), + New Company and Freelance in the
  *  companies trait — as the nav's entity list does. */
@@ -228,6 +231,7 @@ export function RosterBoard() {
       <div id={formId} className="roster-board__create" style={COMPANY_TRAIT_ACCENT} hidden={!creating}>
         {creating && <CompanyCreateForm />}
       </div>
+      <IntroPanel {...INTRO} name={INTRO_NAME} trait="output" collapsible />
       <div className="roster-board__rows">
         {rows.map((row) => (
           <RosterRowView key={row.companyId ?? 'freelance'} row={row} company={row.companyId ? companyById.get(row.companyId) : undefined} onMove={onMove} />

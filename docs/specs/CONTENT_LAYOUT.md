@@ -73,8 +73,8 @@ ASSUMPTIONS I'm making beyond the intent (correct now or I'll proceed with these
 
 A layout pass with no behaviour change. Fleet Params goes from eight tabs to seven, every robot tab
 gains sub-tabs, and every sub-tab becomes one or more cabinetry boxes whose rows match Crawford's
-sheets. Thirty-two controls gain a `featured` class, ten labels are renamed, and every intro panel
-but the company screen's leaves the views (§1.6). No store action, audio call, schema range or saved value changes. The mechanism is
+sheets. Thirty-two controls gain a `featured` class, ten labels are renamed, and the intro panels
+stay (§1.6). No store action, audio call, schema range or saved value changes. The mechanism is
 the one the code already has: `SectionTabs` for tabs, a top-level `DirectionalPanel` per box, and a
 nested `'responsive'` one per shared row.
 
@@ -188,11 +188,12 @@ guard fails an orphan. The plan checks each of `probe.dynamics`, `probe.dynamics
 
 ### 1.6 Intro panels
 
-Four render sites lose their `<IntroPanel>`: the two in Fleet Params, the robot's sections and the
-roster. The company screen keeps its intro, `company.profile` on a company and `probe.all` on All Probes
-(Crawford, 2026-11-15: removing it left `company.profile` with no consumer, and intro copy is never
-deleted). `IntroPanel.tsx`, its CSS and tests, `intro()`, `introProps()` and every `intro` field in
-`src/content/copy/` stay.
+**The intro panels stay, at all five render sites** (Crawford, 2026-11-15: they give the screens some
+visual separation for now and will change later). An earlier draft removed them; Task 3 did, and was
+reversed the same day. A tab's intro still sits first in its panel, above any sub-tab row, so World
+needs an intro of its own (Task 8). `IntroPanel.tsx`, its CSS and tests, `intro()`, `introProps()` and
+every `intro` field in `src/content/copy/` stay, and the copy is kept accurate as the layout moves
+(assumption 9).
 
 ---
 
@@ -211,9 +212,8 @@ src/
     ├── ui/controls/activeClass.ts          withFeaturedClass
     ├── panels/screen/
     │   ├── nav/navActions.ts               world's sub-tabs, group content
-    │   ├── screens/FleetParamsScreen.tsx   seven tabs, World's sub-tabs, PacingPanel's two boxes, no intros
-    │   ├── screens/RobotScreen.tsx         renderer on the new ids, no intro
-    │   ├── screens/RosterBoard.tsx         no intro
+    │   ├── screens/FleetParamsScreen.tsx   seven tabs, World's sub-tabs, PacingPanel's two boxes
+    │   ├── screens/RobotScreen.tsx         renderer on the new ids
     │   └── console/AudioRigDrawer.tsx, LfoBankLanePanel.tsx, AudioLoadPanel.tsx
     ├── robot/AudioSettingSection.tsx, PingControlsDrawer.tsx, PingContourDrawer.tsx,
     │         SignatureArrayDrawer.tsx, BusFilterDrawer.tsx
@@ -291,9 +291,10 @@ No test reads a sheet, a stylesheet or a source file.
 - **Carried behaviour:** Pitch Repeat Chance disabled at Phrase Length 0; Click Track only under
   `DEV_TUNING`; Interval only for `pulse`; held-off notes beside their control; every existing wiring,
   swell and re-render test green and unedited.
-- **No test for:** removing the intro panels (a deletion), the renames (copy), spacing, or any CSS.
-  Those are a look in the browser or a read, named on the task's Proof line. The tests that pin
-  today's intros go with the intros.
+- **Intros:** the existing intro tests stay; World's intro joins the per-tab intro case when World
+  becomes a tab (Task 8).
+- **No test for:** the renames or any other copy edit, spacing, or any CSS. Those are a look in the
+  browser or a read, named on the task's Proof line.
 
 **Manual (Crawford, final checkpoint, real Chrome at phone, tablet and desktop widths):** every sub-tab
 against its row in §1.2 and §1.3; pairs side by side on desktop and stacked below it; no slider under
@@ -318,7 +319,8 @@ oscillator's third box growing and shrinking with Interval; nothing else in the 
 2. The robot, company and All Probes screens show §1.3's sub-tabs and rows, identically.
 3. Exactly the thirty-two cells of §1.4 carry `sc-featured`.
 4. Every name in §1.5 reads as its "New" column in tabs, sub-tabs, labels and the breadcrumb.
-5. No screen but the company screen renders an intro panel (§1.6); `IntroPanel` and its copy still exist.
+5. Every screen that had an intro panel still has it, World included, and no intro or help sentence
+   names a control, tab or sub-tab that is not on screen (§1.6, assumption 9).
 6. Every control still reads and writes the value it did; no behaviour test was edited to pass.
 7. `npm run lint`, `npm run build:types`, `npm test` and `npm run build` are clean.
 8. Crawford's manual pass at three widths finds each pair side by side on desktop and stacked below it.

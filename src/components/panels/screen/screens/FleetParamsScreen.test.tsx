@@ -5,7 +5,7 @@ import { render, screen, fireEvent, act, within } from '@testing-library/react';
 import { FleetParamsScreen } from './FleetParamsScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
 import { FLEET_PARAMS_SUBSECTIONS } from '../nav/navActions';
-import { CONTENT, fill, labels } from '@/content';
+import { CONTENT, fill, labels, type ContentEntry } from '@/content';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { laneTitle } from '@/data/lfoConfig';
@@ -14,8 +14,8 @@ import type { LfoLaneId } from '@/types/lfo';
 import type { Trait } from '@/types/traits';
 
 /*
- * docs/tasks/LAYOUT_REWORK.md Task 15 (spec §1.3, §1.4, §1.10): Fleet Params as section tabs, one
- * section in the DOM at a time; no intro (docs/specs/CONTENT_LAYOUT.md §1.6). The lane titles follow the shell, so useShell is
+ * docs/tasks/LAYOUT_REWORK.md Task 15 (spec §1.3, §1.4, §1.10): Fleet Params as one collapsible intro
+ * over section tabs, one section in the DOM at a time. The lane titles follow the shell, so useShell is
  * mocked: desk unless a test says phone (jsdom has no matchMedia, which would make every test phone).
  */
 // A subscribing mock, as the real hook is (useSyncExternalStore over matchMedia): a memoized row
@@ -98,12 +98,6 @@ describe('FleetParamsScreen — the default view', () => {
     expect(mountedPanels()).toHaveLength(1);
     expect(lanePanels()[0].getAttribute('data-lane')).toBe('a');
     expect(screen.queryByRole('slider')).toBeNull();
-  });
-
-  // Kept from the removed intro block (docs/specs/CONTENT_LAYOUT.md §1.6): the tabs are the only chrome.
-  it('has no accordion', () => {
-    const { container } = render(<FleetParamsScreen />);
-    expect(container.querySelector('.sc-accordion')).toBeNull();
   });
 
   it('the section row is the eight groups in order, Colour then Modulation between Time & Space and Output, Audio Quality last, each trigger in its trait colour', () => {
@@ -455,6 +449,51 @@ describe('FleetParamsScreen — trait colours', () => {
     for (const tab of within(subRow(key)).getAllByRole('tab')) {
       expect(tab.style.getPropertyValue('--color-accent'), tab.textContent ?? '').toBe(expected['--color-accent']);
     }
+  });
+});
+
+// Crawford, 2026-10-10 (spec §1.3 amended): the intros are back — the screen's, and each section's at the
+// top of its panel — and each is an expander (IntroPanel `collapsible`): the headline shows, a More
+// button reveals the rest. No accordion.
+describe('FleetParamsScreen — the intros, each an expander (spec §1.3)', () => {
+  const more = (key: keyof typeof CONTENT) => screen.getByRole('button', { name: fill('ui.intro.more', { name: human(key) }) });
+  const less = (key: keyof typeof CONTENT) => screen.getByRole('button', { name: fill('ui.intro.less', { name: human(key) }) });
+
+  it('the screen intro is fleet.root\'s headline and a collapsed More, with no accordion', () => {
+    const { container } = render(<FleetParamsScreen />);
+    expect(container.querySelector('.sc-accordion')).toBeNull();
+    expect(screen.getByText(CONTENT['fleet.root'].intro.lore)).toBeTruthy();
+    expect(more('fleet.root').getAttribute('aria-expanded')).toBe('false');
+    fireEvent.click(more('fleet.root'));
+    expect(less('fleet.root').getAttribute('aria-expanded')).toBe('true');
+  });
+
+  it('sits above the section row', () => {
+    render(<FleetParamsScreen />);
+    expect(more('fleet.root').compareDocumentPosition(sectionRow()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it.each(GROUPS)('%s opens with its own intro first in its panel, collapsed', (group, key) => {
+    useUIStore.setState({ fleetParamsSection: group });
+    const { container } = render(<FleetParamsScreen />);
+    const entry: ContentEntry = CONTENT[key];
+    const section = container.querySelector('.fleet-params-screen__section') as HTMLElement;
+    const intro = section.firstElementChild as HTMLElement;
+    expect(intro.classList.contains('sc-intro-panel')).toBe(true);
+    expect(within(intro).getByText(entry.intro!.lore)).toBeTruthy();
+    const body = intro.querySelector('.sc-intro-panel__body') as HTMLElement;
+    expect(body.hidden).toBe(true);
+    fireEvent.click(more(key));
+    expect(body.hidden).toBe(false);
+  });
+
+  it('an expanded screen intro stays expanded across a tab switch; the new section\'s starts collapsed', () => {
+    render(<FleetParamsScreen />);
+    fireEvent.click(more('fleet.root'));
+    fireEvent.click(more('fleet.lfoBank'));
+    pick(human('fleet.output'));
+    expect(less('fleet.root').getAttribute('aria-expanded')).toBe('true');
+    expect(more('fleet.output').getAttribute('aria-expanded')).toBe('false');
   });
 });
 

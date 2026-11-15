@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 21 (spec §1.5): the roster board — the head (All Probes, + New
- * Company), then a row per group from rosterRows(): the company's name box and count, then its
+ * Company), one intro, then a row per group from rosterRows(): the company's name box and count, then its
  * member tiles. No filter.
  */
 
@@ -250,6 +250,12 @@ describe('RosterBoard — the head', () => {
     expect(all.textContent).not.toContain(ALL_PROBES);
     expect(create.textContent).toContain(CONTENT['company.new'].short);
     expect(container.querySelector('.roster-board--phone')).toBeTruthy();
+  });
+
+  it('opens with the Probes intro, as an expander', () => {
+    render(<RosterBoard />);
+    expect(screen.getByText(CONTENT['probe.root'].intro.lore)).toBeTruthy();
+    expect(screen.getByRole('button', { name: fill('ui.intro.more', { name: CONTENT['probe.root'].human }) })).toBeTruthy();
   });
 });
 
