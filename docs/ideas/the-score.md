@@ -20,6 +20,8 @@ Crawford's points, Claude's leans and the open questions are kept apart below. A
 - **Timing:** "i want to do an overhaul of all of that timing anyways, it's not holding up as is." The problem: things
   are timed to measures, the BPM changes, and some things then happen too quickly. "The big problem was the docking
   cycle, but sometimes i wished the chords lasted twice as long at the faster speeds as well."
+- **A part's length:** asked what a robot plays in a bar that is not 16 steps, "it plays as many notes as it needs to,
+  there's no mandate about measure length." A part has its own length and is not tied to the bar.
 - **Whether an edit lasts:** "a tough one - i think we might end up having modes to control it."
 - **Order:** all of it can be planned now, and what is built when is worked out during the planning. He wants the mental
   model first, so it can be built in pieces. He has another big piece, redoing the layout of the nav and the views, and
@@ -116,6 +118,14 @@ the hand?
 - **The heat map from the fleet, not from a formula:** count how many of the robots' current melody events sit on each
   slot. The fixed weights apply only under some Note Variance settings (above), so the live count is what the world
   plays.
+- **A part loops on its own length, counted from the clock's start.** Following Crawford's "no mandate about measure
+  length": a robot's step is `sixteenth % its part's length`, read from the same position every other reader uses, so
+  it stays a pure function of the clock and replays. Today every robot shares one lookup, `stepRegistry.get(at.step)`
+  with `at.step` 1..16 (`AudioEngine.ts`); that becomes a lookup per part length. The generator's 16 is already a local
+  (`subdivisions`), so a part's length is one more input to it. Parts of different lengths drift against each other and
+  against the bar, so the fleet's combined pattern repeats far less often than every bar, as it does today.
+- **A time signature is then a matter for the clock and the harmony only.** It moves the bar lines: where a chord
+  changes, where a robot docks, the swells' and synced LFOs' measure. It regenerates no melody.
 - **Backlog 7's seeded chain fills the arrangement** when the user has not, in place of being a second system.
 - **An edited note reuses `pitchLocked`,** so docking drift already leaves it alone.
 - **Order.** Design the whole model first. Sketch the surfaces (the eight-slot editor with its heat map, an arrangement
@@ -127,8 +137,10 @@ the hand?
 
 1. How fine ownership goes: a whole progression or one chord, a whole robot or one note. And what the modes are.
 2. A hand-edited part against its sliders: when the density slider moves, is the edit dropped, or do the sliders dim?
-3. What a robot plays in a bar that is not 16 steps: a melody generated at that length, the 16-step one cut short, or
-   the 16-step loop running across the bar lines.
+3. ~~What a robot plays in a bar that is not 16 steps~~ — answered by Crawford, 2026-11-14: a part has its own length
+   (above). What it leaves open: what sets a seeded part's length (a seeded draw, a slider, or both); where a part's
+   count starts (the clock's start, the lean, or the robot's undocking, so each shift begins on its first note); and
+   whether a part's first note should ever be made to meet a bar line or a chord change.
 4. Which ruler the swells are on. Their frequency and length are counted in measures today.
 5. Whether a chord's hold follows the tempo by default, and where it doubles.
 6. What the pace change does to the lifecycle's whole-measure cycle lengths (fifteen of them today) and to the holds.
