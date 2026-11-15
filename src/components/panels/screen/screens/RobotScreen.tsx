@@ -13,7 +13,6 @@ import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
 import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { BusFilterDrawer, type BusFilterPatch, type BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
-import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/SectionTabs';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -48,7 +47,7 @@ import { cancelSwellForRobotAttribute, isRobotAttributeSwelling } from '@/system
 import { useAdsrSwellingFlags, useLayerSwellingFlags, useSendSwellingFlags } from '@/components/robot/useSwellingFlags';
 import type { RobotSendField } from '@/data/robotSends';
 import { describeLoadedUnder } from '@/utils/loadingNames';
-import { CONTENT, fill, introProps, labels } from '@/content';
+import { CONTENT, fill, labels } from '@/content';
 import type { DualLabelSchema, LfoLinkValue } from '@/types/controls';
 import type { SwellRobotAttributeId } from '@/types/audioSwell';
 import type { RobotLfoTargetId } from '@/types/lfo';
@@ -134,9 +133,8 @@ interface RobotSectionTabsProps {
 }
 
 /** The section row, and Source's sub-tab row nested in its panel. Each section's panel sits in its trait,
- *  the colour its accordion gave it, and opens with the section's intro as an expander (Crawford,
- *  2026-10-10, spec §1.3) — above Source's sub-tabs, so it stays while the oscillator changes. Shared with
- *  the company screen, which hands its own accessible name, renderer and trait colours. */
+ *  the colour its accordion gave it, with no intro (docs/specs/CONTENT_LAYOUT.md §1.6). Shared with the
+ *  company screen, which hands its own accessible name, renderer and trait colours. */
 export function RobotSectionTabs({ label, renderSubsection, traitStyle = fullTraitStyle }: RobotSectionTabsProps) {
   const storedSection = useUIStore((s) => s.selectedSection);
   const storedSubsection = useUIStore((s) => s.selectedSubsection);
@@ -156,12 +154,6 @@ export function RobotSectionTabs({ label, renderSubsection, traitStyle = fullTra
       trait: entry.trait,
       render: () => (
         <div className="robot-screen__section" style={traitStyle(entry.trait)}>
-          <IntroPanel
-            {...introProps(sectionTabContent(entry))}
-            name={labels(sectionTabContent(entry)).humanLabel}
-            trait={entry.trait}
-            collapsible
-          />
           {subTabs.length > 0 ? (
             <SectionTabs
               variant="sub"

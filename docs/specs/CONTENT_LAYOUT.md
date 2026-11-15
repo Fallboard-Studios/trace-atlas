@@ -74,7 +74,7 @@ ASSUMPTIONS I'm making beyond the intent (correct now or I'll proceed with these
 A layout pass with no behaviour change. Fleet Params goes from eight tabs to seven, every robot tab
 gains sub-tabs, and every sub-tab becomes one or more cabinetry boxes whose rows match Crawford's
 sheets. Thirty-two controls gain a `featured` class, ten labels are renamed, and every intro panel
-leaves the views. No store action, audio call, schema range or saved value changes. The mechanism is
+but the company screen's leaves the views (§1.6). No store action, audio call, schema range or saved value changes. The mechanism is
 the one the code already has: `SectionTabs` for tabs, a top-level `DirectionalPanel` per box, and a
 nested `'responsive'` one per shared row.
 
@@ -188,8 +188,11 @@ guard fails an orphan. The plan checks each of `probe.dynamics`, `probe.dynamics
 
 ### 1.6 Intro panels
 
-All five render sites lose their `<IntroPanel>`. `IntroPanel.tsx`, its CSS and tests, `intro()`,
-`introProps()` and every `intro` field in `src/content/copy/` stay.
+Four render sites lose their `<IntroPanel>`: the two in Fleet Params, the robot's sections and the
+roster. The company screen keeps its intro, `company.profile` on a company and `probe.all` on All Probes
+(Crawford, 2026-11-15: removing it left `company.profile` with no consumer, and intro copy is never
+deleted). `IntroPanel.tsx`, its CSS and tests, `intro()`, `introProps()` and every `intro` field in
+`src/content/copy/` stay.
 
 ---
 
@@ -210,7 +213,6 @@ src/
     │   ├── nav/navActions.ts               world's sub-tabs, group content
     │   ├── screens/FleetParamsScreen.tsx   seven tabs, World's sub-tabs, PacingPanel's two boxes, no intros
     │   ├── screens/RobotScreen.tsx         renderer on the new ids, no intro
-    │   ├── screens/CompanyScreen.tsx       no intro
     │   ├── screens/RosterBoard.tsx         no intro
     │   └── console/AudioRigDrawer.tsx, LfoBankLanePanel.tsx, AudioLoadPanel.tsx
     ├── robot/AudioSettingSection.tsx, PingControlsDrawer.tsx, PingContourDrawer.tsx,
@@ -316,7 +318,7 @@ oscillator's third box growing and shrinking with Interval; nothing else in the 
 2. The robot, company and All Probes screens show §1.3's sub-tabs and rows, identically.
 3. Exactly the thirty-two cells of §1.4 carry `sc-featured`.
 4. Every name in §1.5 reads as its "New" column in tabs, sub-tabs, labels and the breadcrumb.
-5. No screen renders an intro panel; `IntroPanel` and its copy still exist.
+5. No screen but the company screen renders an intro panel (§1.6); `IntroPanel` and its copy still exist.
 6. Every control still reads and writes the value it did; no behaviour test was edited to pass.
 7. `npm run lint`, `npm run build:types`, `npm test` and `npm run build` are clean.
 8. Crawford's manual pass at three widths finds each pair side by side on desktop and stacked below it.

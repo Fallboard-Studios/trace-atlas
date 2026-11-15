@@ -5,7 +5,6 @@ import { LfoBankLanePanel } from '../console/LfoBankLanePanel';
 import { useShell, type Shell } from '../useShell';
 import { FLEET_PARAMS_GROUP_CONTENT, FLEET_PARAMS_SUBSECTIONS, activeFleetParamsSubsection } from '../nav/navActions';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
-import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/SectionTabs';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
@@ -14,7 +13,7 @@ import { laneTitle } from '@/data/lfoConfig';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { getTraitColorStyle } from '@/utils/traitColors';
-import { introProps, labels } from '@/content';
+import { labels } from '@/content';
 import type { DirectionalPanelSchema } from '@/types/controls';
 import type { LfoLaneId } from '@/types/lfo';
 import type { Trait } from '@/types/traits';
@@ -38,11 +37,6 @@ const SECTION_TRAIT = Object.fromEntries(SECTIONS) as Record<FleetParamsGroup, T
 
 /** LFO Bank's four sub-tabs are the store's lanes. */
 const LANE_OF: Partial<Record<SelectedFleetParamsEffect, LfoLaneId>> = { laneA: 'a', laneB: 'b', laneC: 'c', laneD: 'd' };
-
-// The screen's intro, in Fleet Params' own colour (the nav box's), and each section's own at the top of
-// its panel — every one an expander (IntroPanel `collapsible`; Crawford, 2026-10-10, spec §1.3).
-const INTRO = introProps('fleet.root');
-const INTRO_NAME = labels('fleet.root').humanLabel;
 
 /** Pacing's five leaves as two rows (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md): Tempo, Humanize
  *  (docs/specs/ROBOT_PERFORMANCE.md §1.6) and Automation Rate across the top, Automation Length beside the
@@ -137,12 +131,11 @@ function SectionBody({ section }: { section: FleetParamsGroup }) {
   return Panel ? <Panel /> : <SubTabs section={section} />;
 }
 
-/** One section's panel, in its group's trait so the panels inside keep the colour they had. */
+/** One section's panel, in its group's trait so the panels inside keep the colour they had. No intro
+ *  (docs/specs/CONTENT_LAYOUT.md §1.6). */
 function SectionPanel({ section }: { section: FleetParamsGroup }) {
-  const key = FLEET_PARAMS_GROUP_CONTENT[section];
   return (
     <div className="fleet-params-screen__section" style={getTraitColorStyle(SECTION_TRAIT[section])}>
-      <IntroPanel {...introProps(key)} name={labels(key).humanLabel} trait={SECTION_TRAIT[section]} collapsible />
       <SectionBody section={section} />
     </div>
   );
@@ -158,19 +151,17 @@ const SECTIONS_LABEL = labels('fleet.root').humanLabel;
 
 /**
  * Fleet Params (docs/specs/LAYOUT_REWORK.md §1.3–§1.4; docs/tasks/LAYOUT_REWORK.md Task 15): the
- * screen's intro, then the eight sections as tabs — Pacing, LFO Bank, EQ & Filters, Time & Space,
- * Colour, Modulation, Output, Audio Quality — with a nested sub-tab row for the four lanes and the effect leaves. One section and one
+ * eight sections as tabs — Pacing, LFOs, EQ & Filters, Time & Space, Color, Modulation, Output,
+ * Settings — with a nested sub-tab row for the four lanes and the effect leaves. One section and one
  * sub-tab are in the DOM at a time (SectionTabs, no forceMount), which carries roadmap 17.2.2's
  * lazy-mount forward. The open tab is `fleetParamsSection` / `fleetParamsSubsection` in uiStore, read
- * by the breadcrumb through navActions' same table. The panels are the existing ones, unchanged. Each
- * section's panel opens with its group's intro; every intro is an expander that starts collapsed, its
- * headline showing (Crawford, 2026-10-10, spec §1.3 amended — Task 15 had kept one intro per screen).
+ * by the breadcrumb through navActions' same table. The panels are the existing ones, unchanged. No
+ * intro, on the screen or a section (docs/specs/CONTENT_LAYOUT.md §1.6).
  */
 export function FleetParamsScreen() {
   const section = useUIStore((s) => s.fleetParamsSection);
   return (
     <div className="fleet-params-screen">
-      <IntroPanel {...INTRO} name={INTRO_NAME} trait="spectral" collapsible />
       <SectionTabs label={SECTIONS_LABEL} items={SECTION_ITEMS} value={section} onValueChange={setSection} />
     </div>
   );

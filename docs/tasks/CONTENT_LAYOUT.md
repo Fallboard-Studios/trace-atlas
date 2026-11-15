@@ -112,18 +112,19 @@ and re-render tests stay unedited and green.
 
   **Estimated scope:** S
 
-- [ ] **Task 3: Take the intro panels out of the views**
+- [x] **Task 3: Take the intro panels out of the views**
 
-  **Description:** Remove the five `<IntroPanel>` renders (two in `FleetParamsScreen.tsx`, one each in
-  `RobotSectionTabs`, `CompanyScreen.tsx` and `RosterBoard.tsx`) with their now-unused constants and
-  imports, and the tests that pin those intros. `IntroPanel`, `intro()`, `introProps()` and all intro
-  copy stay.
+  **Description:** Remove four `<IntroPanel>` renders (two in `FleetParamsScreen.tsx`, one each in
+  `RobotSectionTabs` and `RosterBoard.tsx`) with their now-unused constants and imports, and the tests
+  that pin those intros. `IntroPanel`, `intro()`, `introProps()` and all intro copy stay.
+  **Decision (Crawford, 2026-11-15):** `CompanyScreen.tsx` keeps its intro. Removing it left
+  `company.profile` with no consumer, so the content guard failed, and intro copy is never deleted.
 
-  **Proof:** Look — Fleet Params, a robot, a company, All Probes and the roster show no intro, on desk
-  and phone. No test: a deletion.
+  **Proof:** Look — Fleet Params, a robot and the roster show no intro; a company and All Probes still
+  show theirs; desk and phone. No test: a deletion.
 
   **Acceptance criteria:**
-  - [ ] None of the five views renders an intro.
+  - [ ] None of the four views renders an intro; the company screen's is unchanged.
   - [ ] `IntroPanel.tsx`, its tests and every `intro` field in `src/content/copy/` are unchanged.
 
   **Verification:**
@@ -132,8 +133,7 @@ and re-render tests stay unedited and green.
 
   **Dependencies:** None.
 
-  **Files:** `FleetParamsScreen.tsx`, `RobotScreen.tsx`, `CompanyScreen.tsx`, `RosterBoard.tsx`, their
-  tests
+  **Files:** `FleetParamsScreen.tsx`, `RobotScreen.tsx`, `RosterBoard.tsx`, their tests
 
   **Estimated scope:** S
 
