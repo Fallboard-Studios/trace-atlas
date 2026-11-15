@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from 'react';
+import { Fragment, useCallback, useMemo, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAudioStore } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -8,7 +8,7 @@ import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { Stepper } from '@/components/ui/controls/Stepper';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
-import { withHeldOffClass } from '@/components/ui/controls/activeClass';
+import { withFeaturedClass, withHeldOffClass } from '@/components/ui/controls/activeClass';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
 import { TempoSyncSlider } from '@/components/ui/controls/TempoSyncSlider';
 import type { NoteValue } from '@/data/noteValues';
@@ -17,16 +17,20 @@ import {
   AUDIO_RIG_CONFIG,
   DECAY_MODE_SCHEMA,
   PING_VARIANCE_AUTOMATION_SCHEMA,
+  type AudioRigCell,
   type AudioRigParamSchema,
   type AudioRigEffectKey,
 } from '@/data/audioRigConfig';
 import { getTraitColorStyle } from '@/utils/traitColors';
 import { cancelSwellForGlobalField, isGlobalTargetSwelling } from '@/systems/audioSwells';
 import type { Trait } from '@/types/traits';
-import type { DirectionalPanelSchema, LfoLinkSchema, LfoLinkValue, SliderLinearSchema } from '@/types/controls';
+import type { LfoLinkSchema, LfoLinkValue, SliderLinearSchema } from '@/types/controls';
 import { PEDAL_RATE_RANGE_HZ, isSyncedRateKey, type GlobalAudioSettings } from '@/types/globalAudio';
 import type { GlobalLfoTargetId } from '@/types/lfo';
 import './AudioRigDrawer.css';
+
+/** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
+const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
 
 /**
  * Trait per individual effect (Roadmap Phase 14, docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md
@@ -35,25 +39,6 @@ import './AudioRigDrawer.css';
  * docs/tasks/archive/NAV_LAYOUT_REWRITE.md — each effect is its own tree leaf, standalone, with no group
  * accordion left to inherit the color from).
  */
-// Hoisted to module scope (docs/todo/backlog.md #27 follow-up, 2026-09-15) — these 2 don't depend
-// on any prop/state, so a plain module-level constant is the correct, minimal fix, matching this
-// file's own established "schema is always a stable reference" convention (every other schema
-// here is a config import or `useMemo`) — the only 2 inline schema literals left in this file.
-const COMPRESSOR_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.topRow', type: 'directionalPanel', orientation: 'responsive' };
-const COMPRESSOR_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
-// Knee + Decay Mode's own row (Crawford's own request) — same 'responsive' shape as the 2 rows
-// above: side-by-side on desktop, stacked on mobile/tablet.
-const COMPRESSOR_KNEE_DECAY_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.compressor.kneeDecayRow', type: 'directionalPanel', orientation: 'responsive' };
-/** Delay Time (over its Tempo Sync toggle) beside Repeats — side by side on desktop, stacked on
- *  mobile/tablet (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3). Delay Amount keeps its own
- *  full-width row. Reverses AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.7's "every slider own row" for Delay. */
-const DELAY_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.delay.topRow', type: 'directionalPanel', orientation: 'responsive' };
-/** Reverb Length beside Pre-Delay, the same way; Reverb Amount keeps its own row (§1.3). */
-const REVERB_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.reverb.topRow', type: 'directionalPanel', orientation: 'responsive' };
-
-/** Stable (and frozen) empty list for every non-Delay panel's `allowed` — see AudioRigEffectPanel's Delay selectors. */
-const NO_NOTE_VALUES: readonly NoteValue[] = Object.freeze([]);
-
 const AUDIO_RIG_EFFECT_TRAIT: Record<AudioRigEffectKey, Trait> = {
   eq3: 'spectral',
   filterLPF: 'spectral',
@@ -120,23 +105,16 @@ function renderParamControl(param: AudioRigParamSchema, value: number, onChange:
  *  fresh function every render, which defeated every memoized primitive's own React.memo bail-out
  *  regardless of how many of them got memoized (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
  *  Task 12). `heldOff` (the Effects Load dial holding this effect dark) disables the control and greys the row, the
- *  stored value kept on the control; `note` adds the panel's one HeldOffNote under it. */
+ *  stored value kept on the control; `note` adds the panel's one HeldOffNote under it. The cell carries `sc-featured`
+ *  when the param's schema is flagged (docs/specs/CONTENT_LAYOUT.md §1.4). */
 function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode, heldOff = false, note = false) {
   return (
-    <div className={withHeldOffClass('audio-rig-drawer__param-row', heldOff)} key={param.field}>
+    <div className={withFeaturedClass(withHeldOffClass('audio-rig-drawer__param-row', heldOff), param.schema)} key={param.field}>
       {renderParamControl(param, effect[param.field], onChange, isGlobalTargetSwelling(effectKey, param.field), heldOff)}
       {lfoLink}
       {note && <HeldOffNote />}
     </div>
   );
-}
-
-/** Looks up one param by its field name — used by AudioRigEffectPanel's hand-composed compressor,
- *  delay and reverb layouts below to pull a specific control out of block.params by name, rather
- *  than mapping the array in bulk. Non-null assertion is safe: every call site names fields that
- *  AUDIO_RIG_CONFIG's own blocks are guaranteed to carry (audioRigConfig.test.ts guards the field list). */
-function findParam(params: AudioRigParamSchema[], field: string): AudioRigParamSchema {
-  return params.find((p) => p.field === field)!;
 }
 
 /** AudioRigParamSchema narrowed to the lfoTarget-bearing case — AudioRigEffectPanel's own
@@ -191,8 +169,9 @@ interface AudioRigEffectPanelProps {
 }
 
 /**
- * One effect's own full content (a plain params map, each with its own inline `LfoLink` row where
- * `lfoTarget` is present, plus the compressor-only Decay Mode radio) — as of Task 14 (docs/tasks/
+ * One effect's own full content, drawn by one walk over its `boxes` (built from the block's `layout`,
+ * docs/specs/CONTENT_LAYOUT.md §1.2): each param with its own inline `LfoLink` where `lfoTarget` is
+ * present, plus the compressor-only Decay radio — as of Task 14 (docs/tasks/
  * LFO_BANK.md, inside the standalone-leaf shape docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 14 set up),
  * this is a standalone,
  * exported component: FleetParamsScreen.tsx renders exactly one instance, for whichever effect
@@ -242,9 +221,12 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // panels subscribe to the flip; every row of theirs greys, and the Mix row carries the note.
   const mixField = EFFECT_MIX_FIELD[effectKey];
   const effectsHeldOff = useAudioStore((s) => mixField !== undefined && s.effectsHeldOff);
-  const notesHeldOff = (field: string): boolean => effectsHeldOff && field === mixField;
   // The Reverb tier (T19), the same shape: only the Reverb's panel subscribes; its three rows grey, Amount carries the note.
   const reverbHeldOff = useAudioStore((s) => effectKey === 'reverb' && s.reverbHeldOff);
+  // At most one of the two is live on any panel (each is a constant `false` off its own effects), so the walk reads one
+  // flag for every cell, and the one note goes on the Mix field (the Reverb's Amount).
+  const heldOff = effectsHeldOff || reverbHeldOff;
+  const noteField = effectKey === 'reverb' ? 'wet' : mixField;
   const compressorBeforeDelay = useAudioStore((s) => (effectKey === 'compressor' ? s.globalAudio.compressorBeforeDelay : undefined));
   const setCompressorBeforeDelay = useAudioStore((s) => s.setCompressorBeforeDelay);
   // Delay Time's Tempo Sync (docs/specs/FREE_SYNC_TOGGLE.md §1.4): `sync` and `bpm` get their own selectors
@@ -298,9 +280,8 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
   // reconstructed), and updateParam is now stable per effectKey (above), so this whole map is
   // referentially stable across any re-render that doesn't change effectKey — which is every
   // re-render of a mounted AudioRigEffectPanel instance in practice. Chosen over a `useCallback`
-  // at each of this file's call shapes (paramRow's loop, the compressor special case's 5 direct
-  // calls, the LfoLink maps' own per-field loop below, the Decay Mode radio) since block.params'
-  // field set is already a stable, closed list per effect.
+  // per cell of the layout walk (renderCell below) since block.params' field set is already a
+  // stable, closed list per effect.
   const fieldOnChange = useMemo(() => {
     const map: Record<string, (v: number) => void> = {};
     for (const p of block.params) {
@@ -333,107 +314,67 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
     [setCompressorBeforeDelay],
   );
 
+  /** One cell of the layout (docs/specs/CONTENT_LAYOUT.md §1.2): the Decay radio, a Free | Sync rate (the Delay's
+   *  Time, or a synced pedal's Rate: the toggle sits in a row of its own under the slider, inside this one cell), or a
+   *  plain param through paramRow with its inline LfoLink where it has an LFO target. Every value, handler and schema
+   *  passed down is the stable one the selectors and memo maps above hold. */
+  function renderCell(cell: AudioRigCell) {
+    if (cell.kind === 'decayMode') {
+      return (
+        <div className={withFeaturedClass('audio-rig-drawer__param-row', DECAY_MODE_SCHEMA)} key="decayMode">
+          <RadioButton schema={DECAY_MODE_SCHEMA} value={compressorBeforeDelay ? 'controlled' : 'natural'} onChange={handleDecayModeChange} />
+        </div>
+      );
+    }
+    const { param } = cell;
+    const { field } = param;
+    // Chorus also has a `delayTime` (its own ms slider), so the Delay's Free | Sync is keyed on the Delay alone.
+    const isDelayTime = isDelay && field === 'delayTime';
+    if (isDelayTime || (hasSyncedRate && field === 'rate')) {
+      return (
+        <div className={withFeaturedClass(withHeldOffClass('audio-rig-drawer__param-row', heldOff), param.schema)} key={field}>
+          <TempoSyncSlider
+            // Safe cast: audioRigConfig.ts declares delayTime and every synced rate as a sliderLinear (the Free-mode schema).
+            schema={param.schema as SliderLinearSchema}
+            freeValue={effect[field]}
+            syncValue={isDelayTime ? delaySync : rateSync}
+            allowed={isDelayTime ? delayNoteValues : rateNoteValues}
+            onFreeChange={fieldOnChange[field]}
+            onSyncChange={isDelayTime ? handleDelaySyncChange : handleRateSyncChange}
+            onModeChange={isDelayTime ? setDelaySyncMode : handleRateModeChange}
+            swelling={isGlobalTargetSwelling(effectKey, field)}
+            disabled={heldOff}
+          />
+        </div>
+      );
+    }
+    const lfoLink = param.lfoTarget !== undefined ? (
+      <>
+        <LfoLink
+          schema={lfoLinkSchemas[field]}
+          value={lfoLinkValueByField[field]}
+          onChange={lfoLinkOnChange[field]}
+          heldOff={filterLinksHeldOff}
+        />
+        {filterLinksHeldOff && <HeldOffNote />}
+      </>
+    ) : undefined;
+    return paramRow(param, effect, fieldOnChange[field], effectKey, lfoLink, heldOff, heldOff && field === noteField);
+  }
+
+  // One walk over the effect's boxes (built from its layout at module load): each box a top-level column panel, each
+  // shared row a nested 'responsive' panel (side by side on desktop, stacked below), a row of one the cell alone.
   return (
     <div className="audio-rig-drawer__effect-block" style={getTraitColorStyle(AUDIO_RIG_EFFECT_TRAIT[effectKey])}>
-      <DirectionalPanel schema={block.panel}>
-        {block.key === 'compressor' ? (
-          // Threshold+Ratio, Attack+Release, and Knee+Decay Mode (Crawford's own request) are the
-          // 3 paired sub-rows that stay side-by-side on desktop — 'responsive' stacks each pair on
-          // mobile/tablet. This also resolves a pre-existing duplicate id ('audioRig.compressor.
-          // bottomRow' used to be shared by 2 different panels).
-          <>
-            <DirectionalPanel schema={COMPRESSOR_TOP_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'threshold'), effect, fieldOnChange.threshold, effectKey)}
-              {paramRow(findParam(block.params, 'ratio'), effect, fieldOnChange.ratio, effectKey)}
-            </DirectionalPanel>
-            <DirectionalPanel schema={COMPRESSOR_BOTTOM_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'attack'), effect, fieldOnChange.attack, effectKey)}
-              {paramRow(findParam(block.params, 'release'), effect, fieldOnChange.release, effectKey)}
-            </DirectionalPanel>
-            <DirectionalPanel schema={COMPRESSOR_KNEE_DECAY_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'knee'), effect, fieldOnChange.knee, effectKey)}
-              <div className="audio-rig-drawer__param-row">
-                <RadioButton
-                  schema={DECAY_MODE_SCHEMA}
-                  value={compressorBeforeDelay ? 'controlled' : 'natural'}
-                  onChange={handleDecayModeChange}
-                />
-              </div>
-            </DirectionalPanel>
-          </>
-        ) : block.key === 'delay' ? (
-          // Delay Time goes through TempoSyncSlider (Free = seconds, Sync = a note value; the toggle is
-          // in a row of its own under the slider, inside this one param-row) and shares the top row with
-          // Repeats; Delay Amount is its own full-width row (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
-          <>
-            <DirectionalPanel schema={DELAY_TOP_ROW_SCHEMA}>
-              <div className="audio-rig-drawer__param-row">
-                <TempoSyncSlider
-                  // Safe cast: audioRigConfig.ts declares delayTime as a sliderLinear (the Free-mode schema).
-                  schema={findParam(block.params, 'delayTime').schema as SliderLinearSchema}
-                  freeValue={effect.delayTime}
-                  syncValue={delaySync}
-                  allowed={delayNoteValues}
-                  onFreeChange={fieldOnChange.delayTime}
-                  onSyncChange={handleDelaySyncChange}
-                  onModeChange={setDelaySyncMode}
-                  swelling={isGlobalTargetSwelling(effectKey, 'delayTime')}
-                />
-              </div>
-              {paramRow(findParam(block.params, 'feedback'), effect, fieldOnChange.feedback, effectKey)}
-            </DirectionalPanel>
-            {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey)}
-          </>
-        ) : hasSyncedRate ? (
-          // Phaser, Chorus, Tremolo, Vibrato: Rate goes through TempoSyncSlider (Free = Hz, Sync = a note value that
-          // follows the Tempo; the toggle is in a row of its own under the slider, inside this one param-row), first
-          // in the block; the other rows are plain, in block order. No LfoLink on any of them: no pedal is an LFO target.
-          <>
-            <div className={withHeldOffClass('audio-rig-drawer__param-row', effectsHeldOff)}>
-              <TempoSyncSlider
-                // Safe cast: audioRigConfig.ts declares every synced rate as a sliderLinear (the Free-mode schema).
-                schema={findParam(block.params, 'rate').schema as SliderLinearSchema}
-                freeValue={effect.rate}
-                syncValue={rateSync}
-                allowed={rateNoteValues}
-                onFreeChange={fieldOnChange.rate}
-                onSyncChange={handleRateSyncChange}
-                onModeChange={handleRateModeChange}
-                swelling={isGlobalTargetSwelling(effectKey, 'rate')}
-                disabled={effectsHeldOff}
-              />
-            </div>
-            {block.params.filter((param) => param.field !== 'rate').map((param) => paramRow(param, effect, fieldOnChange[param.field], effectKey, undefined, effectsHeldOff, notesHeldOff(param.field)))}
-          </>
-        ) : block.key === 'reverb' ? (
-          // Reverb Length beside Pre-Delay on a responsive top row; Reverb Amount its own full-width row
-          // (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
-          <>
-            <DirectionalPanel schema={REVERB_TOP_ROW_SCHEMA}>
-              {paramRow(findParam(block.params, 'decay'), effect, fieldOnChange.decay, effectKey, undefined, reverbHeldOff)}
-              {paramRow(findParam(block.params, 'preDelay'), effect, fieldOnChange.preDelay, effectKey, undefined, reverbHeldOff)}
-            </DirectionalPanel>
-            {paramRow(findParam(block.params, 'wet'), effect, fieldOnChange.wet, effectKey, undefined, reverbHeldOff, reverbHeldOff)}
-          </>
-        ) : (
-          block.params.map((param) => paramRow(
-            param, effect, fieldOnChange[param.field], effectKey,
-            param.lfoTarget !== undefined ? (
-              <>
-                <LfoLink
-                  schema={lfoLinkSchemas[param.field]}
-                  value={lfoLinkValueByField[param.field]}
-                  onChange={lfoLinkOnChange[param.field]}
-                  heldOff={isFilterBlock && filterLinksHeldOff}
-                />
-                {isFilterBlock && filterLinksHeldOff && <HeldOffNote />}
-              </>
-            ) : undefined,
-            effectsHeldOff,
-            notesHeldOff(param.field),
-          ))
-        )}
-      </DirectionalPanel>
+      {block.boxes.map((box) => (
+        <DirectionalPanel key={box.schema.id} schema={box.schema}>
+          {box.rows.map((row, r) => (row.schema ? (
+            <DirectionalPanel key={row.schema.id} schema={row.schema}>{row.cells.map(renderCell)}</DirectionalPanel>
+          ) : (
+            <Fragment key={r}>{row.cells.map(renderCell)}</Fragment>
+          )))}
+        </DirectionalPanel>
+      ))}
     </div>
   );
 }

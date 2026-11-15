@@ -15,7 +15,7 @@
  * carries a per-param accordion schema of its own.
  */
 import { LFO_BANK_LANE_CONTENT } from './lfoConfig';
-import type { ControlSchema, DirectionalPanelSchema, PanelOrientation, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
+import type { ControlSchema, DirectionalPanelSchema, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
 import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ } from '@/types/globalAudio';
@@ -40,25 +40,68 @@ export interface AudioRigParamSchema {
   lfoTarget?: GlobalLfoTargetId;
 }
 
+/** One cell token in an effect's `layout`: a param's `field`, or `'decayMode'` for the Compressor's Decay radio
+ *  (docs/specs/CONTENT_LAYOUT.md §1.2). */
+export type AudioRigCellToken = string;
+
+/** Panels > rows > cell tokens, read like the effect's row in docs/specs/CONTENT_LAYOUT.md §1.2. Each panel is one
+ *  cabinetry box; a row of two or more cells is a nested 'responsive' panel, a row of one is the cell alone. */
+export type AudioRigLayout = readonly (readonly (readonly AudioRigCellToken[])[])[];
+
+/** A layout token resolved at module load: the block's own param object, or the Decay radio. */
+export type AudioRigCell = { kind: 'param'; param: AudioRigParamSchema } | { kind: 'decayMode' };
+
+export interface AudioRigRow {
+  /** The nested 'responsive' panel of a shared row (`audioRig.<key>.p<n>.r<m>`); absent on a row of one. */
+  schema?: DirectionalPanelSchema;
+  cells: readonly AudioRigCell[];
+}
+
+export interface AudioRigBox {
+  /** A top-level 'column' panel, `audioRig.<key>.p<n>`; the effect's heading rides on the first box alone. */
+  schema: DirectionalPanelSchema;
+  rows: readonly AudioRigRow[];
+}
+
 export interface AudioRigEffectBlock {
   /** Matches GlobalAudioSettings' own key. */
   key: AudioRigEffectKey;
-  /** DirectionalPanel wiring (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md) — supersedes this block's
-   *  old `accordion:` field (its own accordion-typed schema, removed Task 2); every block's own
-   *  top-level accordion wrapper was later removed too (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 14). */
-  panel: DirectionalPanelSchema;
+  /** The effect's heading, worn by its first box. */
+  heading: ContentKey;
   params: AudioRigParamSchema[];
+  layout: AudioRigLayout;
+  /** Built once from `layout` at module load, so every schema the panel renders is a stable reference. */
+  boxes: readonly AudioRigBox[];
 }
 
 // ========================================
 // HELPERS
 // ========================================
 
-/** DirectionalPanel counterpart to the old accordionSchema() helper (removed
- *  docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 21) — same id/loreLabel/humanLabel
- *  shape, plus the orientation every DirectionalPanel needs. */
-function panelSchema(key: AudioRigEffectKey, content: ContentKey, orientation: PanelOrientation): DirectionalPanelSchema {
-  return { id: `audioRig.${key}`, type: 'directionalPanel', ...labels(content, { surface: 'heading' }), orientation };
+type AudioRigEffectDef = Omit<AudioRigEffectBlock, 'boxes'>;
+
+function resolveCell(def: AudioRigEffectDef, token: AudioRigCellToken): AudioRigCell {
+  if (token === 'decayMode') return { kind: 'decayMode' };
+  const param = def.params.find((p) => p.field === token);
+  if (!param) throw new Error(`audioRig.${def.key}: layout names "${token}", which is not one of its params`);
+  return { kind: 'param', param };
+}
+
+/** Builds an effect block's box and row schemas from its `layout` (docs/specs/CONTENT_LAYOUT.md §1.2, §4): box
+ *  `audioRig.<key>.p<n>`, shared row `audioRig.<key>.p<n>.r<m>`, the heading on P1 alone. */
+function effect(def: AudioRigEffectDef): AudioRigEffectBlock {
+  const boxes = def.layout.map((panel, p): AudioRigBox => {
+    const id = `audioRig.${def.key}.p${p + 1}`;
+    const heading = p === 0 ? labels(def.heading, { surface: 'heading' }) : {};
+    return {
+      schema: { id, type: 'directionalPanel', ...heading, orientation: 'column' },
+      rows: panel.map((row, r): AudioRigRow => ({
+        ...(row.length > 1 ? { schema: { id: `${id}.r${r + 1}`, type: 'directionalPanel', orientation: 'responsive' } } : {}),
+        cells: row.map((token) => resolveCell(def, token)),
+      })),
+    };
+  });
+  return { ...def, boxes };
 }
 
 /** A log slider's labels plus its fixed-width readout (fixedReadout), the unit read from the same
@@ -73,13 +116,14 @@ function logReadout(key: ContentKey, decimals: number, scale = 1) {
 // ========================================
 
 export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
-  {
+  effect({
   // EQ and both filters: 'column' panels of horizontal sliders, each band/param one stacked row
   // (slider, then its Lane | Depth LfoLink row) — docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md
   // §1.2. They were 'row' panels of vertical sliders (AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3/§1.4);
   // no verticalHeight now, since nothing here is vertical.
     key: 'eq3',
-    panel: panelSchema('eq3', 'fleet.eq', 'column'),
+    heading: 'fleet.eq',
+    layout: [[['low'], ['mid'], ['high']]],
     params: [
       {
         field: 'low',
@@ -97,10 +141,11 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
         lfoTarget: 'eq3.high',
       },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'filterLPF',
-    panel: panelSchema('filterLPF', 'fleet.lpf', 'column'),
+    heading: 'fleet.lpf',
+    layout: [[['frequency'], ['Q']]],
     params: [
       {
         field: 'frequency',
@@ -113,10 +158,11 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
         lfoTarget: 'lpf.Q',
       },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'filterHPF',
-    panel: panelSchema('filterHPF', 'fleet.hpf', 'column'),
+    heading: 'fleet.hpf',
+    layout: [[['frequency'], ['Q']]],
     params: [
       {
         field: 'frequency',
@@ -129,41 +175,45 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
         lfoTarget: 'hpf.Q',
       },
     ],
-  },
+  }),
   // Global Colour (docs/specs/GLOBAL_COLOUR.md §1.4): three dry-chain effects between the filters and the
   // rooms, two sliders each. Ranges are the full seed ranges (globalAudioSeedRanges.ts; a test pins the
   // match). No lfoTarget on any of them — colour is neither LFO-able nor swellable.
-  {
+  effect({
     key: 'distortion',
-    panel: panelSchema('distortion', 'fleet.distortion', 'column'),
+    heading: 'fleet.distortion',
+    layout: [[['amount'], ['wet']]],
     params: [
       { field: 'amount', schema: { id: 'distortion.amount', type: 'sliderLinear', ...labels('fleet.distortion.drive'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'distortion.wet', type: 'sliderLinear', ...labels('fleet.distortion.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'chebyshev',
-    panel: panelSchema('chebyshev', 'fleet.chebyshev', 'column'),
+    heading: 'fleet.chebyshev',
+    layout: [[['order'], ['wet']]],
     params: [
       { field: 'order', schema: { id: 'chebyshev.order', type: 'sliderLinear', ...labels('fleet.chebyshev.harmonics'), min: 1, max: 8, step: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'chebyshev.wet', type: 'sliderLinear', ...labels('fleet.chebyshev.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'bitCrusher',
-    panel: panelSchema('bitCrusher', 'fleet.bitCrusher', 'column'),
+    heading: 'fleet.bitCrusher',
+    layout: [[['bits'], ['wet']]],
     params: [
       { field: 'bits', schema: { id: 'bitCrusher.bits', type: 'sliderLinear', ...labels('fleet.bitCrusher.bits'), min: 1, max: 16, step: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'bitCrusher.wet', type: 'sliderLinear', ...labels('fleet.bitCrusher.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
+  }),
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6): two dry-chain pedals after Colour, every
   // parameter of the Tone node a slider. Ranges are the full seed ranges (globalAudioSeedRanges.ts; a test pins
   // the match). No lfoTarget on any of them — the pedals are neither LFO-able nor swellable. The Phaser's Rate
   // is a sliderLinear because TempoSyncSlider takes a linear schema; the drawer swaps in the Free | Sync row.
-  {
+  effect({
     key: 'autoWah',
-    panel: panelSchema('autoWah', 'fleet.autoWah', 'column'),
+    heading: 'fleet.autoWah',
+    layout: [[['baseFrequency'], ['octaves'], ['sensitivity'], ['Q'], ['gain'], ['follower'], ['wet']]],
     params: [
       { field: 'baseFrequency', schema: { id: 'autoWah.baseFrequency', type: 'sliderLog', ...logReadout('fleet.autoWah.baseFrequency', 0), min: 50, max: 1000, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'autoWah.octaves', type: 'sliderLinear', ...labels('fleet.autoWah.octaves'), min: 1, max: 8, step: 0.5, orientation: 'horizontal' } },
@@ -173,10 +223,11 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       { field: 'follower', schema: { id: 'autoWah.follower', type: 'sliderLog', ...logReadout('fleet.autoWah.follower', 2), min: 0.01, max: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'autoWah.wet', type: 'sliderLinear', ...labels('fleet.autoWah.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'phaser',
-    panel: panelSchema('phaser', 'fleet.phaser', 'column'),
+    heading: 'fleet.phaser',
+    layout: [[['rate'], ['octaves'], ['baseFrequency'], ['stages'], ['Q'], ['wet']]],
     params: [
       { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'phaser.octaves', type: 'sliderLinear', ...labels('fleet.phaser.octaves'), min: 0.5, max: 6, step: 0.5, orientation: 'horizontal' } },
@@ -185,14 +236,15 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       { field: 'Q', schema: { id: 'phaser.Q', type: 'sliderLog', ...logReadout('fleet.phaser.q', 2), min: 0.5, max: 20, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'phaser.wet', type: 'sliderLinear', ...labels('fleet.phaser.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
+  }),
   // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.6, assumption 5): four motion pedals after the Phaser, in chain
   // order, every field a horizontal slider over its full seed range (globalAudioSeedRanges.ts; a test pins the
   // match). No lfoTarget. The three LFO pedals' Rate rows share PEDAL_RATE_RANGE_HZ and are sliderLinear because
   // TempoSyncSlider takes a linear schema; Shift is signed, so it is a centred-zero slider.
-  {
+  effect({
     key: 'chorus',
-    panel: panelSchema('chorus', 'fleet.chorus', 'column'),
+    heading: 'fleet.chorus',
+    layout: [[['rate'], ['delayTime'], ['depth'], ['spread'], ['feedback'], ['wet']]],
     params: [
       { field: 'rate', schema: { id: 'chorus.rate', type: 'sliderLinear', ...labels('fleet.chorus.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'delayTime', schema: { id: 'chorus.delayTime', type: 'sliderLinear', ...labels('fleet.chorus.delay'), min: 1, max: 20, step: 0.5, orientation: 'horizontal' } },
@@ -201,37 +253,41 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       { field: 'feedback', schema: { id: 'chorus.feedback', type: 'sliderLinear', ...labels('fleet.chorus.feedback'), min: 0, max: 0.9, step: 0.01, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'chorus.wet', type: 'sliderLinear', ...labels('fleet.chorus.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'tremolo',
-    panel: panelSchema('tremolo', 'fleet.tremolo', 'column'),
+    heading: 'fleet.tremolo',
+    layout: [[['rate'], ['depth'], ['spread'], ['wet']]],
     params: [
       { field: 'rate', schema: { id: 'tremolo.rate', type: 'sliderLinear', ...labels('fleet.tremolo.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'depth', schema: { id: 'tremolo.depth', type: 'sliderLinear', ...labels('fleet.tremolo.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
       { field: 'spread', schema: { id: 'tremolo.spread', type: 'sliderLinear', ...labels('fleet.tremolo.spread'), min: 0, max: 180, step: 5, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'tremolo.wet', type: 'sliderLinear', ...labels('fleet.tremolo.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'vibrato',
-    panel: panelSchema('vibrato', 'fleet.vibrato', 'column'),
+    heading: 'fleet.vibrato',
+    layout: [[['rate'], ['depth'], ['wet']]],
     params: [
       { field: 'rate', schema: { id: 'vibrato.rate', type: 'sliderLinear', ...labels('fleet.vibrato.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'depth', schema: { id: 'vibrato.depth', type: 'sliderLinear', ...labels('fleet.vibrato.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'vibrato.wet', type: 'sliderLinear', ...labels('fleet.vibrato.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'frequencyShifter',
-    panel: panelSchema('frequencyShifter', 'fleet.frequencyShifter', 'column'),
+    heading: 'fleet.frequencyShifter',
+    layout: [[['shift'], ['wet']]],
     params: [
       { field: 'shift', schema: { id: 'frequencyShifter.shift', type: 'sliderCenteredZero', ...labels('fleet.frequencyShifter.shift'), min: -1000, max: 1000, step: 1, logKnee: 1, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'frequencyShifter.wet', type: 'sliderLinear', ...labels('fleet.frequencyShifter.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'delay',
-    panel: panelSchema('delay', 'fleet.delay', 'column'),
+    heading: 'fleet.delay',
+    layout: [[['delayTime', 'feedback'], ['wet']]],
     params: [
       // No lfoTarget/lfoAccordion — LFO removed from delayTime; the effect
       // still seeds/edits its value normally (GlobalAudioSeedFieldKey is a
@@ -240,10 +296,11 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       { field: 'feedback', schema: { id: 'delay.feedback', type: 'sliderLinear', ...labels('fleet.delay.repeats'), min: 0, max: 0.95, step: 0.01, orientation: 'horizontal' } },
       { field: 'wet', schema: { id: 'delay.wet', type: 'sliderLinear', ...labels('fleet.delay.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'reverb',
-    panel: panelSchema('reverb', 'fleet.reverb', 'column'),
+    heading: 'fleet.reverb',
+    layout: [[['decay', 'preDelay'], ['wet']]],
     params: [
       { field: 'decay', schema: { id: 'reverb.decay', type: 'sliderLog', ...logReadout('fleet.reverb.length', 2), min: 0.1, max: 10, orientation: 'horizontal' } },
       { field: 'preDelay', schema: { id: 'reverb.preDelay', type: 'sliderLinear', ...labels('fleet.reverb.preDelay'), min: 0, max: 0.25, step: 0.01, orientation: 'horizontal' } },
@@ -251,10 +308,11 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       // controlled a dead cast in globalFx.ts since Phase 0.
       { field: 'wet', schema: { id: 'reverb.wet', type: 'sliderLinear', ...labels('fleet.reverb.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'compressor',
-    panel: panelSchema('compressor', 'fleet.compressor', 'column'),
+    heading: 'fleet.compressor',
+    layout: [[['threshold', 'ratio'], ['attack', 'release'], ['knee', 'decayMode']]],
     params: [
       { field: 'threshold', schema: { id: 'compressor.threshold', type: 'sliderLinear', ...labels('fleet.compressor.threshold'), min: -60, max: 0, orientation: 'horizontal' } },
       { field: 'ratio', schema: { id: 'compressor.ratio', type: 'sliderLinear', ...labels('fleet.compressor.ratio'), min: 1, max: 20, step: 1, orientation: 'horizontal' } },
@@ -262,25 +320,27 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       { field: 'release', schema: { id: 'compressor.release', type: 'sliderLog', ...logReadout('fleet.compressor.release', 0, 1000), min: 0.01, max: 1, orientation: 'horizontal' } },
       { field: 'knee', schema: { id: 'compressor.knee', type: 'sliderLinear', ...labels('fleet.compressor.knee'), min: 0, max: 40, orientation: 'horizontal' } },
     ],
-  },
+  }),
   // Width (docs/specs/GLOBAL_PEDALS.md §1.6): the one-slider stage between the Compressor and the Limiter. 0.5 is
   // the sound as recorded, 0 mono, 1 all side; no Mix (the node is held fully wet) and no lfoTarget.
-  {
+  effect({
     key: 'stereoWidener',
-    panel: panelSchema('stereoWidener', 'fleet.stereoWidener', 'column'),
+    heading: 'fleet.stereoWidener',
+    layout: [[['width']]],
     params: [
       { field: 'width', schema: { id: 'stereoWidener.width', type: 'sliderLinear', ...labels('fleet.stereoWidener.width'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
     ],
-  },
-  {
+  }),
+  effect({
     key: 'limiter',
-    panel: panelSchema('limiter', 'fleet.limiter', 'column'),
+    heading: 'fleet.limiter',
+    layout: [[['threshold']]],
     params: [
       // No lfoTarget/lfoAccordion — Limiter never gets an LFO (spec: not a
       // GlobalLfoTargetId member, consistent with Compressor/Reverb having none).
       { field: 'threshold', schema: { id: 'limiter.threshold', type: 'sliderLinear', ...labels('fleet.limiter.ceiling'), min: -20, max: 0, orientation: 'horizontal' } },
     ],
-  },
+  }),
 ];
 
 // ========================================

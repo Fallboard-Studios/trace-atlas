@@ -153,7 +153,7 @@ describe('AudioRigEffectPanel', () => {
     it('the top row holds the Tempo Sync composition (Delay Time over its toggle) first, then Repeats, each in its own param-row', () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
       const topRow = delayContent().querySelector(':scope > .sc-directional-panel')!;
-      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.delay.topRow');
+      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.delay.p1.r1');
       const rows = [...topRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
       expect(rows).toHaveLength(2);
       expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
@@ -208,7 +208,7 @@ describe('AudioRigEffectPanel', () => {
     it('the top row holds Reverb Length then Pre-Delay, each in its own param-row, and keeps Length a log slider', () => {
       render(<AudioRigEffectPanel effectKey="reverb" />);
       const topRow = reverbContent().querySelector(':scope > .sc-directional-panel')!;
-      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.reverb.topRow');
+      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.reverb.p1.r1');
       const rows = [...topRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
       expect(rows).toHaveLength(2);
       const length = within(rows[0] as HTMLElement).getByRole('slider', { name: 'Reverb Length' });
@@ -1198,7 +1198,7 @@ describe('AudioRigEffectPanel', () => {
         expect(within(rows[0] as HTMLElement).getByRole('slider', { name: 'Delay Time' })).toBeTruthy();
         expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Repeats' })).toBeTruthy();
         expect(within(rows[2] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
-        const topRow = container.querySelector('[data-panel-id="audioRig.delay.topRow"]')!;
+        const topRow = container.querySelector('[data-panel-id="audioRig.delay.p1.r1"]')!;
         expect(topRow.contains(rows[0])).toBe(true);
         expect(topRow.contains(rows[1])).toBe(true);
         expect(topRow.contains(rows[2])).toBe(false);

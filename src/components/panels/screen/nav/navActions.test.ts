@@ -669,13 +669,14 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
   it('names each sub-tab with the concept its panel is built from', () => {
     const lanes = FLEET_PARAMS_SUBSECTIONS.lfoBank.map((sub) => sub.content);
     expect(lanes).toEqual([LFO_BANK_LANE_CONTENT.a, LFO_BANK_LANE_CONTENT.b, LFO_BANK_LANE_CONTENT.c, LFO_BANK_LANE_CONTENT.d]);
-    // The effect panels' headings come from the same entries (audioRigConfig's panelSchema).
+    // The effect panels' headings come from the same entries (worn by each effect's first box).
     for (const group of ['eqFilters', 'timeSpace', 'colour', 'modulation', 'output'] as const) {
       for (const sub of FLEET_PARAMS_SUBSECTIONS[group]) {
         const block = AUDIO_RIG_CONFIG.find((b) => b.key === (sub.id as AudioRigEffectKey));
         expect(block, sub.id).toBeDefined();
         const { loreLabel, humanLabel } = labels(sub.content, { surface: 'heading' });
-        expect({ loreLabel: block!.panel.loreLabel, humanLabel: block!.panel.humanLabel }, sub.id).toEqual({ loreLabel, humanLabel });
+        const heading = block!.boxes[0].schema;
+        expect({ loreLabel: heading.loreLabel, humanLabel: heading.humanLabel }, sub.id).toEqual({ loreLabel, humanLabel });
       }
     }
   });
