@@ -17,15 +17,37 @@ const renderCounts = {
   pingContourDrawer: vi.fn(),
 };
 
+// Levels, Composition and Envelope are two halves each since control layout Task 16. The first half keeps its
+// section's stub id; the second has its own, since a case here may mount both. Each shows only what it is given, and
+// both halves of a section count toward that section's renders.
 vi.mock('@/components/robot/AudioSettingSection', () => ({
-  AudioSettingSection: memo((props: {
-    value: { audioMode: string; masterVolume: number; reverbSend: number; delaySend: number; gritSend?: number; shimmerSend?: number; doubleSend?: number };
+  LevelsMixSection: memo((props: {
+    value: { audioMode: string; masterVolume: number };
     onAudioModeChange: (mode: string) => void;
     onVolumeChange: (pct: number) => void;
-    // Robot Send Table T12 (docs/specs/ROBOT_SEND_TABLE.md §1.4): one handler and one flag record for the five sends.
-    onSendChange: (field: string, pct: number) => void;
     onVolumeLfoChange?: unknown;
     volumeSwelling?: boolean;
+    disabled?: boolean;
+  }) => {
+    renderCounts.audioSettingSection();
+    return (
+      <div
+        data-testid="audio-setting-section-stub"
+        data-audio-mode={props.value.audioMode}
+        data-volume={props.value.masterVolume}
+        data-swelling={props.volumeSwelling ? '' : undefined}
+        data-disabled={props.disabled ? '' : undefined}
+      >
+        <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
+        <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
+        {props.onVolumeLfoChange ? <button>probe-volume-lfo</button> : null}
+      </div>
+    );
+  }),
+  LevelsSendsSection: memo((props: {
+    value: { reverbSend: number; delaySend: number; gritSend?: number; shimmerSend?: number; doubleSend?: number };
+    // Robot Send Table T12 (docs/specs/ROBOT_SEND_TABLE.md §1.4): one handler and one flag record for the five sends.
+    onSendChange: (field: string, pct: number) => void;
     sendSwelling?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
     heldOffSends?: Record<'reverbSend' | 'delaySend' | 'gritSend' | 'shimmerSend' | 'doubleSend', boolean>;
     // Captured only so a case can prove the section no longer passes the old per-field props.
@@ -36,12 +58,9 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     renderCounts.audioSettingSection();
     return (
       <div
-        data-testid="audio-setting-section-stub"
-        data-audio-mode={props.value.audioMode}
-        data-volume={props.value.masterVolume}
+        data-testid="levels-sends-stub"
         data-reverb-send={props.value.reverbSend}
         data-delay-send={props.value.delaySend}
-        data-swelling={props.volumeSwelling ? '' : undefined}
         data-reverb-swelling={props.sendSwelling?.reverbSend ? '' : undefined}
         data-delay-swelling={props.sendSwelling?.delaySend ? '' : undefined}
         data-grit-send={props.value.gritSend}
@@ -55,26 +74,21 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
         data-disabled={props.disabled ? '' : undefined}
         data-held-off-sends={Object.entries(props.heldOffSends ?? {}).filter(([, on]) => on).map(([field]) => field).join(',')}
       >
-        <button onClick={() => props.onAudioModeChange('solo')}>probe-audio-mode</button>
-        <button onClick={() => props.onVolumeChange(77)}>probe-volume</button>
         <button onClick={() => props.onSendChange('reverbSend', 40)}>probe-reverb-send</button>
         <button onClick={() => props.onSendChange('delaySend', 40)}>probe-delay-send</button>
         <button onClick={() => props.onSendChange('gritSend', 40)}>probe-grit-send</button>
         <button onClick={() => props.onSendChange('shimmerSend', 40)}>probe-shimmer-send</button>
         <button onClick={() => props.onSendChange('doubleSend', 40)}>probe-double-send</button>
-        {props.onVolumeLfoChange ? <button>probe-volume-lfo</button> : null}
       </div>
     );
   }),
 }));
 vi.mock('@/components/robot/PingControlsDrawer', () => ({
-  PingControlsCompositionSection: memo((props: {
+  CompositionRhythmMelodySection: memo((props: {
     value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number };
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
-    onOctaveMinChange: (v: number) => void;
-    onOctaveMaxChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
     onClickTrackActiveChange?: (active: boolean) => void;
     disabled?: boolean;
@@ -92,20 +106,29 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
         <button onClick={() => props.onDensityChange(77)}>probe-density</button>
         <button onClick={() => props.onMotifLengthChange(12)}>probe-motif-length</button>
         <button onClick={() => props.onPitchRepeatChange(90)}>probe-pitch-repeat</button>
-        <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
-        <button onClick={() => props.onOctaveMaxChange(6)}>probe-octave-max</button>
         <button onClick={() => props.onNoteVarianceChange(33)}>probe-note-variance</button>
         {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
       </div>
     );
   }),
+  CompositionDetailsSection: memo((props: {
+    onOctaveMinChange: (v: number) => void;
+    onOctaveMaxChange: (v: number) => void;
+    disabled?: boolean;
+  }) => {
+    renderCounts.pingControlsComposition();
+    return (
+      <div data-testid="composition-details-stub" data-disabled={props.disabled ? '' : undefined}>
+        <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
+        <button onClick={() => props.onOctaveMaxChange(6)}>probe-octave-max</button>
+      </div>
+    );
+  }),
 }));
 vi.mock('@/components/robot/PingContourDrawer', () => ({
-  PingContourDrawer: memo((props: {
+  EnvelopeContourSection: memo((props: {
     value: { attack: number };
     onChange: (next: unknown) => void;
-    portamento: number;
-    onPortamentoChange: (seconds: number) => void;
     swelling?: { attack: boolean };
     disabled?: boolean;
   }) => {
@@ -114,11 +137,23 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
       <div
         data-testid="ping-contour-drawer-stub"
         data-attack={props.value.attack}
-        data-portamento={props.portamento}
         data-swelling-attack={props.swelling?.attack ? '' : undefined}
         data-disabled={props.disabled ? '' : undefined}
       >
         <button onClick={() => props.onChange({ ...(props.value as object), attack: 0.9 })}>probe-adsr</button>
+      </div>
+    );
+  }),
+  EnvelopeCharacterSection: memo((props: {
+    value: { attack: number };
+    onChange: (next: unknown) => void;
+    portamento: number;
+    onPortamentoChange: (seconds: number) => void;
+    disabled?: boolean;
+  }) => {
+    renderCounts.pingContourDrawer();
+    return (
+      <div data-testid="envelope-character-stub" data-portamento={props.portamento} data-disabled={props.disabled ? '' : undefined}>
         <button onClick={() => props.onPortamentoChange(0.7)}>probe-portamento</button>
         <button onClick={() => props.onChange({ ...(props.value as object), attackCurve: 'bounce' })}>probe-attack-curve</button>
       </div>
@@ -216,7 +251,12 @@ function makeRobot(overrides: Partial<Robot> = {}): Robot {
 }
 
 const ALL_IDS: RobotSubsection[] = [
-  'audioSettings', 'rhythm', 'pingContour', 'baselineOscillator', 'coaxialOscillator', 'harmonicOscillator', 'busFilter',
+  'mix', 'sends', 'rhythmMelody', 'details', 'pingContour', 'envelopeCharacter', 'baselineOscillator', 'coaxialOscillator', 'harmonicOscillator', 'busFilter',
+];
+/** Every panel ALL_IDS mounts, by its stub's test id. */
+const ALL_STUBS = [
+  'audio-setting-section-stub', 'levels-sends-stub', 'ping-controls-composition-stub', 'composition-details-stub', 'ping-contour-drawer-stub',
+  'envelope-character-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub',
 ];
 
 /** The hook and the renderer, wired the way CompanyScreen wires them, with the listed subsections mounted. */
@@ -251,28 +291,27 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
   }
 
   describe('which panel each subsection id renders', () => {
-    it('Levels is the audio-setting panel', () => {
-      render(<Sections target="all" ids={['audioSettings']} />);
-      expect(screen.getByTestId('audio-setting-section-stub')).toBeTruthy();
+    // Control layout Task 16 (docs/specs/CONTENT_LAYOUT.md §1.3): one half per sub-tab id, and only that half.
+    it.each([
+      ['mix', 'audio-setting-section-stub'],
+      ['sends', 'levels-sends-stub'],
+      ['rhythmMelody', 'ping-controls-composition-stub'],
+      ['details', 'composition-details-stub'],
+      ['pingContour', 'ping-contour-drawer-stub'],
+      ['envelopeCharacter', 'envelope-character-stub'],
+    ] as const)('%s renders its own half, and no other', (id, stub) => {
+      render(<Sections target="all" ids={[id]} />);
+      const halves = ['audio-setting-section-stub', 'levels-sends-stub', 'ping-controls-composition-stub', 'composition-details-stub', 'ping-contour-drawer-stub', 'envelope-character-stub'];
+      expect(halves.filter((testId) => screen.queryByTestId(testId))).toEqual([stub]);
     });
 
     // Light tier standing cost T12b: the company's sends into rooms the Audio Load dial holds dark dim too.
-    it('Levels gets the held-off sends, following the store', () => {
-      render(<Sections target="all" ids={['audioSettings']} />);
-      const stub = () => screen.getByTestId('audio-setting-section-stub');
+    it('Sends gets the held-off sends, following the store', () => {
+      render(<Sections target="all" ids={['sends']} />);
+      const stub = () => screen.getByTestId('levels-sends-stub');
       expect(stub().getAttribute('data-held-off-sends')).toBe('');
       act(() => useAudioStore.setState({ effectsHeldOff: true }));
       expect(stub().getAttribute('data-held-off-sends')).toBe('gritSend,shimmerSend,doubleSend');
-    });
-
-    it('Composition (the \'rhythm\' id) is the merged Rhythm-and-Pitches panel', () => {
-      render(<Sections target="all" ids={['rhythm']} />);
-      expect(screen.getByTestId('ping-controls-composition-stub')).toBeTruthy();
-    });
-
-    it('Envelope is the ping-contour panel', () => {
-      render(<Sections target="all" ids={['pingContour']} />);
-      expect(screen.getByTestId('ping-contour-drawer-stub')).toBeTruthy();
     });
 
     it.each([['baselineOscillator', 0], ['coaxialOscillator', 1], ['harmonicOscillator', 2]] as const)(
@@ -298,8 +337,8 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
   describe('disabled state', () => {
     it('hands every panel disabled when the selection has no member robots (\'all\' on an empty roster)', () => {
       render(<Sections target="all" />);
-      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub']) {
-        expect(screen.getByTestId(id).getAttribute('data-disabled')).toBe('');
+      for (const id of ALL_STUBS) {
+        expect(screen.getByTestId(id).getAttribute('data-disabled'), id).toBe('');
       }
     });
 
@@ -313,8 +352,8 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it('hands none of them disabled once the company has a member', () => {
       activeCompany();
       render(<Sections target="c1" />);
-      for (const id of ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub']) {
-        expect(screen.getByTestId(id).getAttribute('data-disabled')).toBeNull();
+      for (const id of ALL_STUBS) {
+        expect(screen.getByTestId(id).getAttribute('data-disabled'), id).toBeNull();
       }
     });
   });
@@ -337,7 +376,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addRobot(makeRobot({ id: 'r1', companyId: 'c1', masterVolume: 0.6 }));
       addRobot(makeRobot({ id: 'r2', companyId: undefined, masterVolume: 0.1 }));
       addCompany('c1', ['r1']);
-      render(<Sections target="all" ids={['audioSettings']} />);
+      render(<Sections target="all" ids={['mix']} />);
 
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-volume')).toBe('0.6');
       expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBeNull();
@@ -361,21 +400,21 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addRobot(makeRobot({ id: 'r1', companyId: 'c1', reverbSend: 0.35, delaySend: 0.2 }));
       addRobot(makeRobot({ id: 'r2', companyId: 'c1', reverbSend: 0.9, delaySend: 0.9 }));
       addCompany('c1', ['r1', 'r2']);
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['sends']} />);
 
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-reverb-send')).toBe('0.35');
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-delay-send')).toBe('0.2');
+      expect(screen.getByTestId('levels-sends-stub').getAttribute('data-reverb-send')).toBe('0.35');
+      expect(screen.getByTestId('levels-sends-stub').getAttribute('data-delay-send')).toBe('0.2');
     });
 
     it('Levels: a company-wide swell on reverbSend shows swelling on the Reverb slider only', () => {
       activeCompany();
       vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === 'reverbSend');
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['mix', 'sends']} />);
 
-      const stub = screen.getByTestId('audio-setting-section-stub');
+      const stub = screen.getByTestId('levels-sends-stub');
       expect(stub.getAttribute('data-reverb-swelling')).toBe('');
       expect(stub.getAttribute('data-delay-swelling')).toBeNull();
-      expect(stub.getAttribute('data-swelling')).toBeNull();
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-swelling')).toBeNull();
     });
 
     // docs/tasks/ROBOT_EFFECT_SENDS.md Task 14: the company screen shows the three rows, from the first member.
@@ -383,9 +422,9 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addRobot(makeRobot({ id: 'r1', companyId: 'c1', gritSend: 0.45, shimmerSend: 0.3, doubleSend: 0.15 }));
       addRobot(makeRobot({ id: 'r2', companyId: 'c1', gritSend: 0.9, shimmerSend: 0.9, doubleSend: 0.9 }));
       addCompany('c1', ['r1', 'r2']);
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['sends']} />);
 
-      const stub = screen.getByTestId('audio-setting-section-stub');
+      const stub = screen.getByTestId('levels-sends-stub');
       expect(stub.getAttribute('data-grit-send')).toBe('0.45');
       expect(stub.getAttribute('data-shimmer-send')).toBe('0.3');
       expect(stub.getAttribute('data-double-send')).toBe('0.15');
@@ -394,21 +433,21 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it.each(['grit', 'shimmer', 'double'] as const)('Levels: a company-wide swell on %sSend shows swelling on that slider only', (name) => {
       activeCompany();
       vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === `${name}Send`);
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['mix', 'sends']} />);
 
-      const stub = screen.getByTestId('audio-setting-section-stub');
+      const stub = screen.getByTestId('levels-sends-stub');
       for (const other of ['grit', 'shimmer', 'double', 'reverb', 'delay'] as const) {
         expect(stub.getAttribute(`data-${other}-swelling`), other).toBe(other === name ? '' : null);
       }
-      expect(stub.getAttribute('data-swelling')).toBeNull();
+      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-swelling')).toBeNull();
     });
 
     it('Levels: a swell on delaySend shows swelling on the Delay slider only', () => {
       activeCompany();
       vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((_id, attr) => attr === 'delaySend');
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['sends']} />);
 
-      const stub = screen.getByTestId('audio-setting-section-stub');
+      const stub = screen.getByTestId('levels-sends-stub');
       expect(stub.getAttribute('data-delay-swelling')).toBe('');
       expect(stub.getAttribute('data-reverb-swelling')).toBeNull();
     });
@@ -416,9 +455,9 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     // docs/tasks/ROBOT_SEND_TABLE.md Task 12: one handler and one flag record, the ten per-field props gone.
     it('Levels: the panel gets onSendChange and the sendSwelling record, and none of the old per-field send props', () => {
       activeCompany();
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['sends']} />);
 
-      const stub = screen.getByTestId('audio-setting-section-stub');
+      const stub = screen.getByTestId('levels-sends-stub');
       expect(stub.getAttribute('data-has-send-swelling')).toBe('');
       expect(stub.getAttribute('data-has-old-send-props')).toBeNull();
     });
@@ -435,7 +474,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it('Levels: audio mode', () => {
       twoMembers();
       const spy = vi.spyOn(robotOptionsActions, 'applyAudioMode').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['mix']} />);
       click('probe-audio-mode');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(spy.mock.calls[0][2]).toBe('solo');
@@ -444,7 +483,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it('Levels: volume — applyVolume once per member, and only masterVolume recorded in the snapshot', () => {
       twoMembers();
       const spy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['mix']} />);
       click('probe-volume');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual({ masterVolume: 0.77 });
@@ -461,7 +500,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     ] as const)('Levels: %s — applySend once per member with its field, and only its field recorded in the snapshot', (_name, probe, field) => {
       twoMembers();
       const spy = vi.spyOn(robotOptionsActions, 'applySend').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['sends']} />);
       click(probe);
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(spy.mock.calls.map((call) => [call[2], call[3]])).toEqual([[field, 40], [field, 40]]);
@@ -478,7 +517,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     ] as const)('Composition: %s calls %s once per member', (probe, action) => {
       twoMembers();
       const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
-      render(<Sections target="c1" ids={['rhythm']} />);
+      render(<Sections target="c1" ids={['rhythmMelody', 'details']} />);
       click(probe);
       expect(ids(spy)).toEqual(['r1', 'r2']);
     });
@@ -487,7 +526,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it('Composition: the Click Track reaches every member with the new state, and is recorded', () => {
       twoMembers();
       const spy = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['rhythm']} />);
+      render(<Sections target="c1" ids={['rhythmMelody', 'details']} />);
       click('probe-click-track');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(spy.mock.calls.map((c) => c[2])).toEqual([true, true]);
@@ -499,7 +538,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addRobot(makeRobot({ id: 'r2', companyId: undefined }));
       addCompany('c1', ['r1']);
       const spy = vi.spyOn(robotOptionsActions, 'applyClickTrackActive').mockImplementation(() => {});
-      render(<Sections target="all" ids={['rhythm']} />);
+      render(<Sections target="all" ids={['rhythmMelody', 'details']} />);
       click('probe-click-track');
       expect(ids(spy)).toEqual(['r1', 'r2']);
     });
@@ -520,8 +559,8 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addCompany('c1', ['r1', 'r2']);
       const portamento = vi.spyOn(robotOptionsActions, 'applyPortamento').mockImplementation(() => {});
       const adsr = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['pingContour']} />);
-      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0.3');
+      render(<Sections target="c1" ids={['envelopeCharacter']} />);
+      expect(screen.getByTestId('envelope-character-stub').getAttribute('data-portamento')).toBe('0.3');
       click('probe-portamento');
       expect(ids(portamento)).toEqual(['r1', 'r2']);
       expect(portamento.mock.calls.every((c) => c[2] === 0.7)).toBe(true);
@@ -531,7 +570,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it('Envelope: a shape edit rides applyAdsr to every member, curve included', () => {
       twoMembers();
       const spy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['pingContour']} />);
+      render(<Sections target="c1" ids={['envelopeCharacter']} />);
       click('probe-attack-curve');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect((spy.mock.calls[0][2] as { attackCurve?: string }).attackCurve).toBe('bounce');
@@ -623,7 +662,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
 
     it('passes no Volume LFO handler to the audio-setting panel (the target was removed, docs/specs/LFO_LOAD_FIX.md)', () => {
       activeCompany();
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['mix']} />);
       expect(screen.queryByText('probe-volume-lfo')).toBeNull();
       expect(screen.getByText('probe-volume')).toBeTruthy();
     });
@@ -633,7 +672,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));
       addRobot(makeRobot({ id: 'r3', companyId: undefined }));
       const spy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-      render(<Sections target="all" ids={['audioSettings']} />);
+      render(<Sections target="all" ids={['mix']} />);
       click('probe-volume');
       expect(ids(spy)).toEqual(['r1', 'r2', 'r3']);
     });
@@ -641,7 +680,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
     it('a disabled panel (no members) broadcasts to nobody', () => {
       addCompany('c1', []);
       const spy = vi.spyOn(robotOptionsActions, 'applyVolume').mockImplementation(() => {});
-      render(<Sections target="c1" ids={['audioSettings']} />);
+      render(<Sections target="c1" ids={['mix']} />);
       click('probe-volume');
       expect(spy).not.toHaveBeenCalled();
     });
@@ -666,7 +705,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));
       addCompany('c1', ['r1']);
       addCompany('c2', ['r2']);
-      render(<Sections target="c1" ids={['audioSettings', 'pingContour']} />);
+      render(<Sections target="c1" ids={['mix', 'sends', 'pingContour', 'envelopeCharacter']} />);
       const afterMount = counts();
 
       act(() => useLocaleStore.getState().updateRobot(localeId, 'r2', { rhythmicDensity: 91 }));
@@ -679,7 +718,7 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       addRobot(r1);
       addRobot(makeRobot({ id: 'r2', companyId: 'c1' }));
       addCompany('c1', ['r1', 'r2']);
-      render(<Sections target="c1" ids={['audioSettings', 'pingContour']} />);
+      render(<Sections target="c1" ids={['mix', 'sends', 'pingContour', 'envelopeCharacter']} />);
       const afterMount = counts();
 
       act(() => {

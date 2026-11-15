@@ -39,20 +39,29 @@ export interface RobotSectionEntry {
 }
 
 /** Render order, for the robot and company screens' tabs (RobotScreen.tsx, CompanyScreen.tsx) — one
- *  array, both consumers iterate it directly instead of each hand-declaring their own order. A section
- *  with one subsection shows it with no sub-tab row, so that subsection's content names nothing on screen. */
+ *  array, both consumers iterate it directly instead of each hand-declaring their own order. Every section
+ *  shows its subsections as a sub-tab row, the first open by default (docs/specs/CONTENT_LAYOUT.md §1.3). */
 export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
     id: 'volume', content: 'probe.levels', trait: 'output',
-    subsections: [{ id: 'audioSettings', content: 'probe.levels' }],
+    subsections: [
+      { id: 'mix', content: 'probe.levels.mix' },
+      { id: 'sends', content: 'probe.levels.sends' },
+    ],
   },
   {
     id: 'melody', content: 'probe.composition', trait: 'composition',
-    subsections: [{ id: 'rhythm', content: 'probe.composition' }],
+    subsections: [
+      { id: 'rhythmMelody', content: 'probe.composition.rhythmMelody' },
+      { id: 'details', content: 'probe.composition.details' },
+    ],
   },
   {
     id: 'envelope', content: 'probe.envelope', trait: 'timeSpace',
-    subsections: [{ id: 'pingContour', content: 'probe.envelope.contour' }],
+    subsections: [
+      { id: 'pingContour', content: 'probe.envelope.contour' },
+      { id: 'envelopeCharacter', content: 'probe.envelope.character' },
+    ],
   },
   {
     id: 'source', content: 'probe.source', trait: 'spectral',
@@ -82,19 +91,13 @@ export const SOURCE_OSCILLATOR_SUBSECTIONS = ['baselineOscillator', 'coaxialOsci
 /** The section the robot screen opens on when none is stored (the plan: Source, Core Oscillator). */
 export const DEFAULT_ROBOT_SECTION: RobotSection = 'source';
 
-/** The sub-tab row: a section's subsections when it has more than one (Source's three oscillators
- *  and Filter); a section with one shows it with no sub row. */
-export function sectionSubTabs(section: RobotSectionEntry): RobotSubsectionEntry[] {
-  return section.subsections.length > 1 ? section.subsections : [];
-}
-
 /** The open section: the stored one, else Source. */
 export function activeRobotSection(stored: RobotSection | null): RobotSection {
   return stored ?? DEFAULT_ROBOT_SECTION;
 }
 
-/** The panel a section shows: the stored sub-tab when it is one of this section's, else its first —
- *  SectionTabs' own stale-value rule. A section with one panel always shows that one. */
+/** The sub-tab a section shows: the stored one when it is one of this section's, else its first —
+ *  SectionTabs' own stale-value rule. */
 export function activeRobotSubsection(sectionId: RobotSection, stored: RobotSubsection | null): RobotSubsection {
   const { subsections } = ROBOT_SECTIONS_CONFIG.find((s) => s.id === sectionId)!;
   return subsections.find((sub) => sub.id === stored)?.id ?? subsections[0].id;

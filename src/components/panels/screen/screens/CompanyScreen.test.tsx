@@ -37,8 +37,10 @@ vi.mock('@/components/panels/screen/useShell', async (importOriginal) => {
 
 // The section components have their own suites; these stubs render probe buttons that call the captured
 // callbacks, so a wiring bug (wrong action, wrong argument) still shows here.
+// Levels, Composition and Envelope are two halves each since control layout Task 16, one in the DOM at a time; both
+// halves of a section share its stub id, and the second half's has a `data-half` to tell them apart.
 vi.mock('@/components/robot/AudioSettingSection', () => ({
-  AudioSettingSection: memo((props: {
+  LevelsMixSection: memo((props: {
     value: { audioMode: string; masterVolume: number };
     onVolumeChange: (pct: number) => void;
     disabled?: boolean;
@@ -47,16 +49,25 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
       <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
     </div>
   )),
+  LevelsSendsSection: memo((props: { disabled?: boolean }) => (
+    <div data-testid="audio-setting-section-stub" data-half="sends" data-disabled={props.disabled ? '' : undefined} />
+  )),
 }));
 vi.mock('@/components/robot/PingControlsDrawer', () => ({
-  PingControlsCompositionSection: memo((props: { value: { rhythmicDensity: number }; onDensityChange: (v: number) => void; disabled?: boolean }) => (
+  CompositionRhythmMelodySection: memo((props: { value: { rhythmicDensity: number }; onDensityChange: (v: number) => void; disabled?: boolean }) => (
     <div data-testid="ping-controls-composition-stub" data-density={props.value.rhythmicDensity} data-disabled={props.disabled ? '' : undefined}>
       <button onClick={() => props.onDensityChange(61)}>probe-density</button>
     </div>
   )),
+  CompositionDetailsSection: memo((props: { disabled?: boolean }) => (
+    <div data-testid="ping-controls-composition-stub" data-half="details" data-disabled={props.disabled ? '' : undefined} />
+  )),
 }));
 vi.mock('@/components/robot/PingContourDrawer', () => ({
-  PingContourDrawer: memo((props: { disabled?: boolean }) => <div data-testid="ping-contour-drawer-stub" data-disabled={props.disabled ? '' : undefined} />),
+  EnvelopeContourSection: memo((props: { disabled?: boolean }) => <div data-testid="ping-contour-drawer-stub" data-disabled={props.disabled ? '' : undefined} />),
+  EnvelopeCharacterSection: memo((props: { disabled?: boolean }) => (
+    <div data-testid="ping-contour-drawer-stub" data-half="character" data-disabled={props.disabled ? '' : undefined} />
+  )),
 }));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
   SignatureArrayLayer: memo((props: { idx: number; layer: { type: string }; disabled?: boolean }) => (

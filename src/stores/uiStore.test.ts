@@ -363,7 +363,7 @@ describe('uiStore — selectedSubsection (docs/tasks/archive/NAV_PANEL_VIEWS_AND
   });
 
   it('setSelectedSubsection(null) clears back to no subsection chosen', () => {
-    useUIStore.getState().setSelectedSubsection('rhythm');
+    useUIStore.getState().setSelectedSubsection('rhythmMelody');
     useUIStore.getState().setSelectedSubsection(null);
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });

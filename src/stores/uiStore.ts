@@ -37,9 +37,12 @@ export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automatic
  *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection
  *  name collides across sections). Shared by robots and companies, same as RobotSection itself. */
 export type RobotSubsection =
-  | 'audioSettings'
-  | 'rhythm'
+  | 'mix'
+  | 'sends'
+  | 'rhythmMelody'
+  | 'details'
   | 'pingContour'
+  | 'envelopeCharacter'
   | 'baselineOscillator'
   | 'coaxialOscillator'
   | 'harmonicOscillator'

@@ -142,6 +142,9 @@ export const probe = {
       humanDescription: 'Monitor Mode lets you Mute, Solo, or Highlight this probe for quick comparison against the rest of the fleet — Auto leaves it playing normally. Volume sets how loud this probe’s own melody plays. Pan sets where it sits between the left and right speakers — Auto follows the probe across the field, or turn it off to place the probe yourself. Reverb and Delay set how much of this probe’s sound is sent into the shared echoes — 0% keeps it dry and close, higher settings push it further away and give it longer-trailing repeats. Grit, Shimmer and Double send it into the shared Color, Shifter and Chorus — 0% keeps it out of them, higher settings give it more fuzz, ring and doubling. Dynamics sets how much louder and softer this probe’s notes swing from one to the next — 0% plays every note at the same level.',
     },
   },
+  // Levels' two sub-tabs (docs/specs/CONTENT_LAYOUT.md §1.5): human words only; lore is the content sweep's.
+  'probe.levels.mix': { human: 'Mix' },
+  'probe.levels.sends': { human: 'Sends' },
   'probe.monitorMode': {
     human: 'Monitor Mode',
     lore: 'Diagnostic Feed',
@@ -221,6 +224,9 @@ export const probe = {
         + '<p><strong>Details</strong>: Rests sets how often a note stops early and leaves a gap before the next. Accents sets how often a note is struck differently — pushed, clipped short, or leaned on. Neither changes which notes play or when. Octave Min/Max set the pitch range notes are drawn from.</p>',
     },
   },
+  // Composition's two sub-tabs (docs/specs/CONTENT_LAYOUT.md §1.5): human words only; lore is the content sweep's.
+  'probe.composition.rhythmMelody': { human: 'Rhythm & Melody' },
+  'probe.composition.details': { human: 'Details' },
   'probe.composition.clickTrack': {
     human: 'Click Track',
     lore: 'CALIBRATION PULSE',
@@ -283,6 +289,8 @@ export const probe = {
     },
   },
   'probe.envelope.contour': { human: 'Contour', lore: 'Ping Profile' },
+  // Envelope's second sub-tab (docs/specs/CONTENT_LAYOUT.md §1.5): a human word only; lore is the content sweep's.
+  'probe.envelope.character': { human: 'Character' },
   'probe.envelope.attack': {
     human: 'Attack',
     lore: 'Ping Onset',
