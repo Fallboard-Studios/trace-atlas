@@ -1,0 +1,47 @@
+Tab,Subtab,Label,Type,Old Locale,New Locale,panel,Row,featured,tempo sync,Notes
+Levels,Mix,Volume,,no tab,,1,1,TRUE,,
+Levels,Mix,Monitor Mode,,no tab,,1,2,FALSE,,
+Levels,Mix,Dynamics,,no tab,,1,2,FALSE,,
+Levels,Mix,Pan,,no tab,,2,1,FALSE,,
+Levels,Mix,Auto (tracking),,no tab,,2,1,FALSE,,
+,,,,,,,,FALSE,,
+Levels,Sends,Reverb,,no tab,,1,1,FALSE,,
+Levels,Sends,Delay,,no tab,,1,1,FALSE,,
+Levels,Sends,Grit,,no tab,,1,2,FALSE,,
+Levels,Sends,Shimmer,,no tab,,1,2,FALSE,,
+Levels,Sends,Double,,no tab,,1,3,FALSE,,
+,,,,,,,,,,
+Composition,Rhythm & Melody,Note Density,,,,1,1,,,
+Composition,Rhythm & Melody,Phrase Length,,,,1,1,,,
+Composition,Rhythm & Melody,Pitch Repeat Chance,,,,1,2,,,
+Composition,Rhythm & Melody,Note Variance,,,,1,2,,,
+,,,,,,,,,,
+Composition,Details,Rests,,,,1,1,,,
+Composition,Details,Accents,,,,1,1,,,
+Composition,Details,Octave Min,,,,1,2,,,
+Composition,Details,Octave Max,,,,1,2,,,
+,,,,,,,,,,
+Envelope,Contour,Attack,,,,1,1,,,
+Envelope,Contour,Decay,,,,1,1,,,
+Envelope,Contour,Sustain,,,,1,2,,,
+Envelope,Contour,Release,,,,1,2,,,
+,,,,,,,,,,
+Envelope,Character,Portamento,,,,1,1,,,
+Envelope,Character,Attack Shape,,,,1,2,,,
+Envelope,Character,Release Shape,,,,1,3,,,
+,,,,,,,,,,
+Source,Oscillator (various),Type,,,,1,1,FALSE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Gain,,,,1,1,TRUE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Gain LFO Lane,,,,1,2,FALSE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Gain LFO Depth,,,,1,2,FALSE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Detune,,,,2,1,TRUE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Detune LFO Lane,,,,2,2,FALSE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Detune LFO Depth,,,,2,2,FALSE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Phase,,,,3,1,FALSE,FALSE,"These all appear three times, once for each oscillator"
+Source,Oscillator (various),Interval,,,,3,2,FALSE,FALSE,"shown dynamically. These all appear three times, once for each oscillator"
+,,,,,,,,FALSE,FALSE,
+Source,Filter,Cutoff,,,,1,1,TRUE,FALSE,
+Source,Filter,Cutoff LFO Lane,,,,1,2,FALSE,FALSE,
+Source,Filter,Cutoff LFO Depth,,,,1,2,FALSE,FALSE,
+Source,Filter,Resonance,,,,2,1,FALSE,FALSE,
+Source,Filter,Type,,,,2,1,FALSE,FALSE,
