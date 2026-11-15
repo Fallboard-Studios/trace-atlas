@@ -262,16 +262,16 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
     useUIStore.setState(INITIAL_STATE, true);
   });
 
-  it('defaults to LFO Bank at no sub-tab — the screen reads null as the group\'s first, lane A', () => {
-    expect(DEFAULT_FLEET_PARAMS_SECTION).toBe('lfoBank');
+  it('defaults to World at no sub-tab — the screen reads null as the group\'s first, Pacing', () => {
+    expect(DEFAULT_FLEET_PARAMS_SECTION).toBe('world');
     expect(useUIStore.getState().fleetParamsSection).toBe(DEFAULT_FLEET_PARAMS_SECTION);
     expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
 
   it('setFleetParamsSubsection round-trips a sub-tab and leaves the section alone', () => {
-    useUIStore.getState().setFleetParamsSubsection('laneC');
-    expect(useUIStore.getState().fleetParamsSubsection).toBe('laneC');
-    expect(useUIStore.getState().fleetParamsSection).toBe('lfoBank');
+    useUIStore.getState().setFleetParamsSubsection('quality');
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('quality');
+    expect(useUIStore.getState().fleetParamsSection).toBe('world');
     useUIStore.getState().setFleetParamsSubsection(null);
     expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });

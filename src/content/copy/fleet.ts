@@ -21,6 +21,21 @@ export const fleet = {
     },
   },
 
+  // ---------------------------------------------------------------- World
+  // The tab holding Pacing and Settings as sub-tabs (docs/specs/CONTENT_LAYOUT.md §1.2). No lore name
+  // yet (assumption 10); the intro is a draft from Pacing's and Settings' own, awaiting the copy pass.
+  'fleet.world': {
+    human: 'World',
+    intro: {
+      lore: 'World — the mesh’s clock, and your terminal’s limits.',
+      loreDescription: 'Every probe keeps time together while the network surges and settles on its own, and your terminal has its own limits on how much of the fleet it can process at once.',
+      humanDescription: '<ul>'
+        + '<li><strong>Pacing</strong>: the tempo every probe plays to, how far off the grid their notes may land, and the automatic swells that nudge the fleet’s effects on their own — how often, how long and how far.</li>'
+        + '<li><strong>Settings</strong>: how many probes and effects your device runs at once. Lower them if the app stutters or sounds glitchy.</li>'
+        + '</ul>',
+    },
+  },
+
   // ---------------------------------------------------------------- Pacing
   'fleet.pacing': {
     human: 'Pacing',

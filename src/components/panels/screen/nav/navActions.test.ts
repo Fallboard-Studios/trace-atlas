@@ -421,13 +421,14 @@ describe('breadcrumbPath', () => {
     expect(path({ selectedRobotId: 'r1', selectedSection: 'source', fleetParamsSection: 'output', fleetParamsSubsection: 'limiter' })).toEqual([]);
   });
 
-  // Task 15: Fleet Params is tabs, so one tab is always open — the default is LFO Bank at lane A.
-  it('reads Root / Fleet Params / LFO Bank / Core LFO on the default tab', () => {
-    expect(path({ activeHubTile: 'audioRig' })).toEqual([ROOT, FLEET, CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneA'].human]);
+  // Task 15: Fleet Params is tabs, so one tab is always open. The default is World at Pacing
+  // (docs/specs/CONTENT_LAYOUT.md assumption 8; docs/tasks/CONTENT_LAYOUT.md Task 8).
+  it('reads Root / Fleet Params / World / Pacing on the default tab with no sub-tab stored', () => {
+    expect(path({ activeHubTile: 'audioRig' })).toEqual([ROOT, FLEET, CONTENT['fleet.world'].human, CONTENT['fleet.pacing'].human]);
   });
 
   it('reads Root / Fleet Params / <group> / <lane> with a lane picked', () => {
-    expect(path({ activeHubTile: 'audioRig', fleetParamsSubsection: 'laneB' })).toEqual([ROOT, FLEET, CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneB'].human]);
+    expect(path({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' })).toEqual([ROOT, FLEET, CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneB'].human]);
   });
 
   it('names the branch alone when no entity is selected', () => {
@@ -435,9 +436,13 @@ describe('breadcrumbPath', () => {
   });
 
   it.each<[FleetParamsGroup, BreadcrumbState['fleetParamsSubsection'], string[]]>([
-    ['pacing', null, [CONTENT['fleet.pacing'].human]],
-    // Pacing's four leaves are one panel, not sub-tabs, so none of them names a fourth segment.
-    ['pacing', 'tempo', [CONTENT['fleet.pacing'].human]],
+    // World's two sub-tabs, Pacing first (docs/tasks/CONTENT_LAYOUT.md Task 8).
+    ['world', null, [CONTENT['fleet.world'].human, CONTENT['fleet.pacing'].human]],
+    ['world', 'pacing', [CONTENT['fleet.world'].human, CONTENT['fleet.pacing'].human]],
+    ['world', 'quality', [CONTENT['fleet.world'].human, CONTENT['fleet.quality'].human]],
+    // A leaf of another group, or one of Pacing's old synthetic leaves, reads as World's first.
+    ['world', 'laneB', [CONTENT['fleet.world'].human, CONTENT['fleet.pacing'].human]],
+    ['world', 'tempo', [CONTENT['fleet.world'].human, CONTENT['fleet.pacing'].human]],
     ['lfoBank', 'laneD', [CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneD'].human]],
     ['eqFilters', null, [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.eq'].human]],
     ['eqFilters', 'filterHPF', [CONTENT['fleet.eqFilters'].human, CONTENT['fleet.hpf'].human]],
@@ -460,10 +465,9 @@ describe('breadcrumbPath', () => {
     ['colour', 'phaser', [CONTENT['fleet.colour'].human, CONTENT['fleet.distortion'].human]],
     // A sub-tab left over from another group reads as the group's first, which is what the screen shows.
     ['output', 'laneC', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
-    // Audio Quality is one panel, like Pacing (off-screen console Task 12): no sub-tab segment, whatever is stored.
-    ['quality', null, [CONTENT['fleet.quality'].human]],
-    ['quality', 'compressor', [CONTENT['fleet.quality'].human]],
-    ['quality', 'tempo', [CONTENT['fleet.quality'].human]],
+    // World's sub-tabs left over on another group read as that group's first.
+    ['lfoBank', 'quality', [CONTENT['fleet.lfoBank'].human, CONTENT['fleet.lfoBank.laneA'].human]],
+    ['output', 'pacing', [CONTENT['fleet.output'].human, CONTENT['fleet.compressor'].human]],
   ])('Fleet Params on %s / %s names %j', (section, subsection, tail) => {
     expect(path({ activeHubTile: 'audioRig', fleetParamsSection: section, fleetParamsSubsection: subsection })).toEqual([ROOT, FLEET, ...tail]);
   });
@@ -609,18 +613,22 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
     expect(ui().activeHubTile).toBe('robots');
   });
 
-  it('a section, a Fleet Params sub-tab, Pacing or Audio Quality goes nowhere: it is only ever the current view', () => {
+  it('a section or a Fleet Params sub-tab goes nowhere: it is only ever the current view', () => {
     useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     expect(trail()[3]?.go).toBeUndefined();
     useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneB' });
     expect(trail()).toHaveLength(4);
     expect(trail()[3]?.go).toBeUndefined();
-    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'pacing', fleetParamsSubsection: null });
-    expect(trail()).toHaveLength(3);
-    expect(trail()[2]?.go).toBeUndefined();
-    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'quality', fleetParamsSubsection: null });
-    expect(trail()).toHaveLength(3);
-    expect(trail()[2]?.go).toBeUndefined();
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'world', fleetParamsSubsection: 'quality' });
+    expect(trail()).toHaveLength(4);
+    expect(trail()[3]?.go).toBeUndefined();
+  });
+
+  it("World is an ancestor now, going to World's first sub-tab, Pacing", () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'world', fleetParamsSubsection: 'quality' });
+    go(2);
+    expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'world', fleetParamsSubsection: null });
+    expect(trail().map((segment) => segment.label)[3]).toBe(CONTENT['fleet.pacing'].human);
   });
 });
 
@@ -629,8 +637,8 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
 describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
   const ids = (group: FleetParamsGroup) => FLEET_PARAMS_SUBSECTIONS[group].map((sub) => sub.id);
 
-  it('lists each group\'s sub-tabs in the sketch\'s order; Pacing has none (its four leaves are one panel)', () => {
-    expect(ids('pacing')).toEqual([]);
+  it('lists each group\'s sub-tabs in the sketch\'s order; World holds Pacing then Settings', () => {
+    expect(ids('world')).toEqual(['pacing', 'quality']);
     expect(ids('lfoBank')).toEqual(['laneA', 'laneB', 'laneC', 'laneD']);
     expect(ids('eqFilters')).toEqual(['eq3', 'filterHPF', 'filterLPF']);
     expect(ids('timeSpace')).toEqual(['reverb', 'delay']);
@@ -647,15 +655,21 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     expect(FLEET_PARAMS_SUBSECTIONS.colour.map((sub) => sub.id as string)).not.toContain('colourRoom');
   });
 
-  it('puts the groups in the tab order: Pacing, LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output, Audio Quality', () => {
-    const order = ['pacing', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output', 'quality'];
+  it('puts the seven groups in the tab order: World, LFOs, EQ & Filters, Time & Space, Color, Modulation, Output', () => {
+    const order = ['world', 'lfoBank', 'eqFilters', 'timeSpace', 'colour', 'modulation', 'output'];
     expect(Object.keys(FLEET_PARAMS_SUBSECTIONS)).toEqual(order);
     expect(Object.keys(FLEET_PARAMS_GROUP_CONTENT)).toEqual(order);
   });
 
-  it('names the Audio Quality group from fleet.quality, with no sub-tabs (one panel, like Pacing)', () => {
-    expect(FLEET_PARAMS_GROUP_CONTENT.quality).toBe('fleet.quality');
-    expect(ids('quality')).toEqual([]);
+  it('names the World group from fleet.world, and its sub-tabs from Pacing\'s and Settings\' own entries', () => {
+    expect(FLEET_PARAMS_GROUP_CONTENT.world).toBe('fleet.world');
+    expect(FLEET_PARAMS_SUBSECTIONS.world.map((sub) => sub.content)).toEqual(['fleet.pacing', 'fleet.quality']);
+  });
+
+  it('every group has a sub-tab row: none is a single panel', () => {
+    for (const group of Object.keys(FLEET_PARAMS_SUBSECTIONS) as FleetParamsGroup[]) {
+      expect(ids(group).length, group).toBeGreaterThan(0);
+    }
   });
 
   it('names the Colour group from fleet.colour', () => {
@@ -723,14 +737,15 @@ describe('FLEET_PARAMS_SUBSECTIONS and activeFleetParamsSubsection', () => {
     ['output', 'laneC', 'compressor'],
     ['lfoBank', 'reverb', 'laneA'],
     ['eqFilters', 'tempo', 'eq3'],
-    // Pacing has no sub-tab, whatever is stored.
-    ['pacing', null, null],
-    ['pacing', 'tempo', null],
-    ['pacing', 'laneB', null],
-    // Nor has Audio Quality.
-    ['quality', null, null],
-    ['quality', 'compressor', null],
-    ['quality', 'laneA', null],
+    // World: Pacing when nothing, or something not World's, is stored.
+    ['world', null, 'pacing'],
+    ['world', 'quality', 'quality'],
+    ['world', 'pacing', 'pacing'],
+    ['world', 'tempo', 'pacing'],
+    ['world', 'laneB', 'pacing'],
+    ['world', 'compressor', 'pacing'],
+    ['lfoBank', 'quality', 'laneA'],
+    ['output', 'pacing', 'compressor'],
   ])('on %s with %s stored, the open sub-tab is %s', (section, stored, expected) => {
     expect(activeFleetParamsSubsection(section, stored)).toBe(expected);
   });
