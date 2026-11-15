@@ -240,7 +240,10 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
     key: 'autoWah',
     heading: 'fleet.autoWah',
-    layout: [[['baseFrequency'], ['octaves'], ['sensitivity'], ['Q'], ['gain'], ['follower'], ['wet']]],
+    layout: [
+      [['wet'], ['baseFrequency', 'octaves']],
+      [['sensitivity', 'Q'], ['gain', 'follower']],
+    ],
     params: [
       { field: 'baseFrequency', schema: { id: 'autoWah.baseFrequency', type: 'sliderLog', ...logReadout('fleet.autoWah.baseFrequency', 0), min: 50, max: 1000, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'autoWah.octaves', type: 'sliderLinear', ...labels('fleet.autoWah.octaves'), min: 1, max: 8, step: 0.5, orientation: 'horizontal' } },
@@ -248,20 +251,23 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
       { field: 'Q', schema: { id: 'autoWah.Q', type: 'sliderLog', ...logReadout('fleet.autoWah.q', 2), min: 0.5, max: 10, orientation: 'horizontal' } },
       { field: 'gain', schema: { id: 'autoWah.gain', type: 'sliderLinear', ...labels('fleet.autoWah.gain'), min: 0, max: 20, step: 0.5, orientation: 'horizontal' } },
       { field: 'follower', schema: { id: 'autoWah.follower', type: 'sliderLog', ...logReadout('fleet.autoWah.follower', 2), min: 0.01, max: 1, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'autoWah.wet', type: 'sliderLinear', ...labels('fleet.autoWah.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'autoWah.wet', type: 'sliderLinear', ...labels('fleet.autoWah.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
     key: 'phaser',
     heading: 'fleet.phaser',
-    layout: [[['rate'], ['octaves'], ['baseFrequency'], ['stages'], ['Q'], ['wet']]],
+    layout: [
+      [['wet'], ['baseFrequency', 'rate'], ['octaves']],
+      [['stages', 'Q']],
+    ],
     params: [
       { field: 'rate', schema: { id: 'phaser.rate', type: 'sliderLinear', ...labels('fleet.phaser.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'octaves', schema: { id: 'phaser.octaves', type: 'sliderLinear', ...labels('fleet.phaser.octaves'), min: 0.5, max: 6, step: 0.5, orientation: 'horizontal' } },
       { field: 'baseFrequency', schema: { id: 'phaser.baseFrequency', type: 'sliderLog', ...logReadout('fleet.phaser.baseFrequency', 0), min: 50, max: 2000, orientation: 'horizontal' } },
       { field: 'stages', schema: { id: 'phaser.stages', type: 'sliderLinear', ...labels('fleet.phaser.stages'), min: 1, max: 12, step: 1, orientation: 'horizontal' } },
       { field: 'Q', schema: { id: 'phaser.Q', type: 'sliderLog', ...logReadout('fleet.phaser.q', 2), min: 0.5, max: 20, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'phaser.wet', type: 'sliderLinear', ...labels('fleet.phaser.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'phaser.wet', type: 'sliderLinear', ...labels('fleet.phaser.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   // Global Pedals (docs/specs/GLOBAL_PEDALS.md §1.6, assumption 5): four motion pedals after the Phaser, in chain
@@ -271,14 +277,17 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
     key: 'chorus',
     heading: 'fleet.chorus',
-    layout: [[['rate'], ['delayTime'], ['depth'], ['spread'], ['feedback'], ['wet']]],
+    layout: [
+      [['wet'], ['rate', 'depth']],
+      [['delayTime', 'spread'], ['feedback']],
+    ],
     params: [
       { field: 'rate', schema: { id: 'chorus.rate', type: 'sliderLinear', ...labels('fleet.chorus.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'delayTime', schema: { id: 'chorus.delayTime', type: 'sliderLinear', ...labels('fleet.chorus.delay'), min: 1, max: 20, step: 0.5, orientation: 'horizontal' } },
       { field: 'depth', schema: { id: 'chorus.depth', type: 'sliderLinear', ...labels('fleet.chorus.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
       { field: 'spread', schema: { id: 'chorus.spread', type: 'sliderLinear', ...labels('fleet.chorus.spread'), min: 0, max: 180, step: 5, orientation: 'horizontal' } },
       { field: 'feedback', schema: { id: 'chorus.feedback', type: 'sliderLinear', ...labels('fleet.chorus.feedback'), min: 0, max: 0.9, step: 0.01, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'chorus.wet', type: 'sliderLinear', ...labels('fleet.chorus.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'chorus.wet', type: 'sliderLinear', ...labels('fleet.chorus.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
@@ -339,7 +348,10 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
     key: 'compressor',
     heading: 'fleet.compressor',
-    layout: [[['threshold', 'ratio'], ['attack', 'release'], ['knee', 'decayMode']]],
+    layout: [
+      [['threshold', 'ratio'], ['knee']],
+      [['attack', 'release'], ['decayMode']],
+    ],
     params: [
       { field: 'threshold', schema: { id: 'compressor.threshold', type: 'sliderLinear', ...labels('fleet.compressor.threshold'), min: -60, max: 0, orientation: 'horizontal' } },
       { field: 'ratio', schema: { id: 'compressor.ratio', type: 'sliderLinear', ...labels('fleet.compressor.ratio'), min: 1, max: 20, step: 1, orientation: 'horizontal' } },

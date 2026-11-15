@@ -439,6 +439,91 @@ describe('AudioRigEffectPanel', () => {
     });
   });
 
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 7): Auto Wah, Phaser, Chorus and Compressor, two boxes each, the heading on the
+  // first (assumption 2); the three pedals' Mix or Return featured, the Compressor nothing. 'decay' is the Decay radio.
+  describe('the four two-box effects (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+    const TWO_BOX = [
+      {
+        key: 'autoWah', featured: 'fleet.autoWah.mix',
+        boxes: [
+          [['fleet.autoWah.mix'], ['fleet.autoWah.baseFrequency', 'fleet.autoWah.octaves']],
+          [['fleet.autoWah.sensitivity', 'fleet.autoWah.q'], ['fleet.autoWah.gain', 'fleet.autoWah.follower']],
+        ],
+      },
+      {
+        key: 'phaser', featured: 'fleet.phaser.mix',
+        boxes: [
+          [['fleet.phaser.mix'], ['fleet.phaser.baseFrequency', 'fleet.phaser.rate'], ['fleet.phaser.octaves']],
+          [['fleet.phaser.stages', 'fleet.phaser.q']],
+        ],
+      },
+      {
+        key: 'chorus', featured: 'fleet.chorus.mix',
+        boxes: [
+          [['fleet.chorus.mix'], ['fleet.chorus.rate', 'fleet.chorus.depth']],
+          [['fleet.chorus.delay', 'fleet.chorus.spread'], ['fleet.chorus.feedback']],
+        ],
+      },
+      {
+        key: 'compressor', featured: null,
+        boxes: [
+          [['fleet.compressor.threshold', 'fleet.compressor.ratio'], ['fleet.compressor.knee']],
+          [['fleet.compressor.attack', 'fleet.compressor.release'], ['decay']],
+        ],
+      },
+    ] as const satisfies ReadonlyArray<{
+      key: AudioRigEffectKey;
+      featured: keyof typeof CONTENT | null;
+      boxes: ReadonlyArray<ReadonlyArray<ReadonlyArray<keyof typeof CONTENT | 'decay'>>>;
+    }>;
+    const contentOf = (el: Element) => [...el.querySelector(':scope > .sc-directional-panel__content')!.children] as HTMLElement[];
+    function expectControl(cell: HTMLElement, name: keyof typeof CONTENT | 'decay', where: string) {
+      if (name === 'decay') expect(within(cell).getByRole('radio', { name: 'Natural Decay' }), where).toBeTruthy();
+      else expect(within(cell).getByRole('slider', { name: CONTENT[name].human }), where).toBeTruthy();
+    }
+
+    it.each(TWO_BOX)('$key renders two boxes whose rows follow §1.2, each shared row its own responsive panel', ({ key, boxes }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(2);
+      boxes.forEach((rows, b) => {
+        const box = container.querySelector(`[data-panel-id="audioRig.${key}.p${b + 1}"]`)!;
+        expect(box, `${key} p${b + 1}`).not.toBeNull();
+        const children = contentOf(box);
+        expect(children, `${key} p${b + 1}`).toHaveLength(rows.length);
+        rows.forEach((row, r) => {
+          const where = `${key} p${b + 1} r${r + 1}`;
+          if (row.length === 1) {
+            expect(children[r].matches('.audio-rig-drawer__param-row'), where).toBe(true);
+            expectControl(children[r], row[0], where);
+          } else {
+            expect(children[r].getAttribute('data-panel-id'), where).toBe(`audioRig.${key}.p${b + 1}.r${r + 1}`);
+            const cells = contentOf(children[r]);
+            expect(cells, where).toHaveLength(row.length);
+            row.forEach((name, c) => expectControl(cells[c], name, `${where} c${c + 1}`));
+          }
+        });
+      });
+    });
+
+    it.each(TWO_BOX)('$key wears its heading on the first box alone', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const heading = CONTENT[`fleet.${key}`].human;
+      expect(screen.getAllByText(heading)).toHaveLength(1);
+      expect(within(container.querySelector(`[data-panel-id="audioRig.${key}.p1"]`) as HTMLElement).getByText(heading)).toBeTruthy();
+    });
+
+    it.each(TWO_BOX)('$key: exactly its Mix or Return cell is featured (the Compressor none)', ({ key, featured }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const marked = [...container.querySelectorAll('.sc-featured')];
+      if (featured === null) {
+        expect(marked).toHaveLength(0);
+      } else {
+        expect(marked).toHaveLength(1);
+        expect(within(marked[0] as HTMLElement).getByRole('slider', { name: CONTENT[featured].human })).toBeTruthy();
+      }
+    });
+  });
+
   it('renders a param control bound to its live store value', () => {
     useAudioStore.setState((s) => ({
       globalAudio: { ...s.globalAudio, compressor: { ...s.globalAudio.compressor, threshold: -12 } },
@@ -707,28 +792,8 @@ describe('AudioRigEffectPanel', () => {
       expect(attackRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
     });
 
-    it('Knee and Decay Mode share a row too — same pairing treatment as Threshold+Ratio/Attack+Release (Crawford\'s own request)', () => {
-      render(<AudioRigEffectPanel effectKey="compressor" />);
-      const kneeRow = screen.getByRole('slider', { name: 'Knee' }).closest('.audio-rig-drawer__param-row')!;
-      const decayModeRow = screen.getByRole('radio', { name: 'Natural Decay' }).closest('.audio-rig-drawer__param-row')!;
-      expect(kneeRow).not.toBe(decayModeRow); // still 2 distinct param-rows, just sharing one DirectionalPanel now
-      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
-      expect(kneeDecayPanel.contains(decayModeRow)).toBe(true);
-    });
-
-    it('Knee and Decay Mode stack (column) on mobile/tablet', () => {
-      stubMatchMedia({ mobile: true, tablet: true });
-      render(<AudioRigEffectPanel effectKey="compressor" />);
-      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
-      expect(kneeDecayPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
-    });
-
-    it('Knee and Decay Mode share a row (row) on desktop', () => {
-      stubMatchMedia({ mobile: false, tablet: false });
-      render(<AudioRigEffectPanel effectKey="compressor" />);
-      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
-      expect(kneeDecayPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
-    });
+    // Knee and Decay no longer share a row: Knee closes the first box and Decay the second (docs/specs/CONTENT_LAYOUT.md
+    // §1.2), pinned by 'the four two-box effects' above.
   });
 
   describe('Decay radio button', () => {
@@ -769,7 +834,8 @@ describe('AudioRigEffectPanel', () => {
     it('lives inside the Compressor panel, under its other params — not a master row', () => {
       render(<AudioRigEffectPanel effectKey="compressor" />);
       const decayRadio = screen.getByRole('radio', { name: 'Natural Decay' });
-      const compressorPanel = screen.getByText('Compressor').closest('.sc-directional-panel');
+      // The Compressor's two boxes share one effect block; Decay is the last row of the second (CONTENT_LAYOUT.md §1.2).
+      const compressorPanel = screen.getByText('Compressor').closest('.audio-rig-drawer__effect-block');
       expect(compressorPanel?.contains(decayRadio)).toBe(true);
       expect(compressorPanel?.textContent).toContain('Threshold');
     });
@@ -1659,24 +1725,28 @@ describe('AudioRigEffectPanel', () => {
         }
       });
 
-      it('Rate is the first row, the switch sits under it in the same row, and no other row has a switch', () => {
+      // DOM order (docs/specs/CONTENT_LAYOUT.md §1.2): Mix; Base Frequency beside Rate; Octaves; then Stages beside Resonance.
+      const RATE_CELL = 2;
+
+      it('Rate is the third cell (beside Base Frequency), the switch sits under it in the same cell, and no other cell has a switch', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="phaser" />);
         const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
         expect(rows).toHaveLength(6);
-        expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
-        expect(rows[0].contains(tempoToggle())).toBe(true);
+        expect(rows[RATE_CELL].querySelector('.sc-tempo-sync')).not.toBeNull();
+        expect(rows[RATE_CELL].contains(tempoToggle())).toBe(true);
         expect(rateThumb().compareDocumentPosition(tempoToggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        for (let i = 1; i < rows.length; i++) expect(rows[i].querySelector('[role="switch"]'), `row ${i}`).toBeNull();
+        for (let i = 0; i < rows.length; i++) if (i !== RATE_CELL) expect(rows[i].querySelector('[role="switch"]'), `row ${i}`).toBeNull();
       });
 
-      it('the other rows follow in the block order: Octaves, Base Frequency, Stages, Resonance, Mix', () => {
+      it('the other cells follow in the layout order: Mix, Base Frequency, Octaves, Stages, Resonance', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="phaser" />);
         const rows = [...container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row')];
         const names = rows.map((r) => within(r as HTMLElement).getAllByRole('slider')[0].getAttribute('aria-label') ?? within(r as HTMLElement).getAllByRole('slider')[0].getAttribute('aria-labelledby'));
         expect(names).toHaveLength(6);
-        const order = ['octaves', 'baseFrequency', 'stages', 'q', 'mix'] as const;
+        const others = rows.filter((_, i) => i !== RATE_CELL);
+        const order = ['mix', 'baseFrequency', 'octaves', 'stages', 'q'] as const;
         order.forEach((key, i) => {
-          expect(within(rows[i + 1] as HTMLElement).getByRole('slider', { name: CONTENT[`fleet.phaser.${key}`].human })).toBeTruthy();
+          expect(within(others[i] as HTMLElement).getByRole('slider', { name: CONTENT[`fleet.phaser.${key}`].human })).toBeTruthy();
         });
       });
 
@@ -1976,10 +2046,10 @@ describe('AudioRigEffectPanel', () => {
   // PEDAL_RATE_RANGE_HZ. Tested against the REAL store, as the Phaser's is, so a wrong key shows up as wrong state.
   describe.each([
     {
-      key: 'chorus', setter: 'setGlobalChorus', cells: ['rate', 'delay', 'depth', 'spread', 'feedback', 'mix'],
+      key: 'chorus', setter: 'setGlobalChorus', cells: ['mix', 'rate', 'depth', 'delay', 'spread', 'feedback'],
       others: { delayTime: 6, depth: 0.4, spread: 120, feedback: 0.15, wet: 0.33 },
     },
-    // In DOM order (docs/specs/CONTENT_LAYOUT.md §1.2): Mix first, then Rate beside Depth.
+    // In DOM order (docs/specs/CONTENT_LAYOUT.md §1.2): Mix or Return first, then Rate beside Depth.
     { key: 'tremolo', setter: 'setGlobalTremolo', cells: ['mix', 'rate', 'depth', 'spread'], others: { depth: 0.6, spread: 90, wet: 0.27 } },
     { key: 'vibrato', setter: 'setGlobalVibrato', cells: ['mix', 'rate', 'depth'], others: { depth: 0.2, wet: 0.31 } },
   ] as const)('$key Rate Tempo Sync (Global Pedals T11)', ({ key, setter, cells, others }) => {
