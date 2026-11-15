@@ -580,3 +580,47 @@ and its pace ruler changes what backlog [86](backlog.md#86-world-move-the-whole-
   Claude's lean: the design and the sketches first, the editors built onto the new layout.
 - Not yet placed in [plan.md](plan.md).
 
+## 91. Control Layout: Tabs, Sub-tabs, Boxes and Rows for Fleet Params and the Probes
+
+Built 2026-11-15 on `features/slider-layout-update`, not yet merged (Crawford opens the PR). Intent
+[control-layout.md](../intent/control-layout.md), spec [CONTENT_LAYOUT.md](../specs/CONTENT_LAYOUT.md), plan
+[CONTENT_LAYOUT.md](../tasks/CONTENT_LAYOUT.md), and Crawford's two sheets,
+[Layout - Params.csv](../reference/Layout%20-%20Params.csv) and [Layout - Robots.csv](../reference/Layout%20-%20Robots.csv).
+A layout pass with no behaviour change: no store action, audio call, schema range or saved value moved.
+
+### Shipped
+
+- **Fleet Params has seven tabs**: World, LFOs, EQ & Filters, Time & Space, Color, Modulation, Output. World holds
+  Pacing and Settings (the Audio Load Budget, formerly the Audio Quality tab) as sub-tabs, and the screen opens on
+  World > Pacing. Every tab is a sub-tab row now, so `SINGLE_PANEL` went.
+- **Every robot tab has sub-tabs**, on the robot, company and All Probes screens alike: Levels (Mix, Sends),
+  Composition (Rhythm & Melody, Details), Envelope (Contour, Character), Source (the three oscillators, then
+  Filter). The section components split in two along the same lines.
+- **Every sub-tab is boxes and rows** as the sheets lay them out: a box is a top-level `DirectionalPanel`, a shared
+  row a nested `'responsive'` one, and ids follow the sheets (`<owner>.p<n>`, `<owner>.p<n>.r<m>`). An effect's
+  layout is data (`AudioRigEffectBlock.layout`, one walk in `AudioRigEffectPanel` replacing five hand-written
+  branches). A sub-tab of several boxes keeps its heading on the first; Composition's Rhythm, Pitches and
+  Articulation headings went.
+- **32 featured controls** (24 fleet, 8 robot): `ControlSchemaBase.featured`, and `withFeaturedClass` puts
+  `sc-featured` on the control's cell.
+- **Ten labels renamed**: Settings (was Audio Quality), LFOs (LFO Bank), Color (Colour), Decay (Decay Mode),
+  Octave Min and Octave Max (Lowest and Highest Octave), Attack, Decay, Sustain and Release (each without "Time" or
+  "Level").
+- **The intro panels stay**, at all five sites (removed and restored the same day); World has its own, and the
+  Settings, Composition, Levels and Envelope intros were kept true as the layout moved.
+
+### Not shipped
+
+- **Featured styling.** No stylesheet names `sc-featured`; the flag and the class are in place for a later pass.
+- **The content sweep.** The new names (World, Mix, Sends, Rhythm & Melody, Details, Character) have no lore, World's
+  intro is a draft from Pacing's and Settings' own, and the open label groups (Auto, "Core Type", "Core Gain" and the
+  like) are unchanged.
+
+### Open
+
+- Crawford's look at phone, tablet and desktop widths over the robot sub-tabs, the oscillators and the filter (the
+  Robots checkpoint's look); the Fleet Params tabs passed theirs on 2026-11-15.
+- The three old composites, `AudioSettingSection`, `PingControlsCompositionSection` and `PingContourDrawer`, are
+  rendered by no screen since the sub-tabs, only by their own tests: delete them, or keep them (Crawford's call).
+- Not placed in [plan.md](plan.md): it was built ahead of the sequence.
+

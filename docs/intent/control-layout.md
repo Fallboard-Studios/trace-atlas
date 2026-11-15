@@ -1,5 +1,10 @@
 # Intent: Control Layout — Tabs, Sub-tabs, Panels and Rows for Params and Probes
 
+> **Status (2026-11-15): built** (roadmap [91](../todo/roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes))
+> on `features/slider-layout-update`, all nineteen tasks of the [plan](../tasks/CONTENT_LAYOUT.md); not yet merged
+> (Crawford opens the PR). Not shipped by design: featured styling and the content sweep. Still open: Crawford's look
+> at the robot sub-tabs at three widths, and whether the three old composite section components go.
+
 Confirmed in conversation on 2026-11-15 (a review of Crawford's two layout sheets, then five questions
 answered), ahead of a `spec-driven-development` pass. Spec: [CONTENT_LAYOUT.md](../specs/CONTENT_LAYOUT.md). The layout itself is recorded in
 [Layout - Params.csv](../reference/Layout%20-%20Params.csv) and

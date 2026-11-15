@@ -18,13 +18,15 @@ Entry shape (`src/content/types.ts`):
 | `human` | yes | the plain-English name → `humanLabel` |
 | `lore` | no | the in-universe name → `loreLabel` |
 | `heading` | no | a panel/accordion heading that differs from the row name; `labels(key, { surface: 'heading' })` resolves `heading ?? lore` |
-| `intro` | no | `{ lore, loreDescription, humanDescription }` for a section's `IntroPanel` (limited HTML allowed, DOMPurify-sanitised as before) |
+| `intro` | no | `{ lore, loreDescription, humanDescription }` for a section's `IntroPanel` (limited HTML allowed, DOMPurify-sanitised as before). The intro panels stay (roadmap 91 kept them): a tab's intro sits first in its panel, above the sub-tab row, so a new tab needs an entry with one (World's `fleet.world`), and `introProps()` throws on an entry without. An intro that names a control, tab or sub-tab changes when the layout moves it, so none names one that is not on screen |
 | `template` | no | a `{slot}` form of the name for dynamic accessible names (`'Delete {company}'`); `human` stays the slot-free label |
 | `placeholder` | no | text-input hint |
 | `unit` | no | value suffix a slider renders (`'Hz'`, `' measures'`) |
 | `options` | no | per-value copy for radios and enum badges, keyed by the stored value: `{ natural: { human, lore?, short? } }`. An option's `short` is a compact form for where the phone shell has no room (the lane letter 'A' on `LfoLink`'s lane row); it is read by its consumer, never spread by `options()` / `optionsRecord()` |
 | `help` | no | `ContentHelp`: `{ human, lore? }`, what the control does, for the "?" on its label. `labels()` carries it into the schema (`SchemaLabels.help`), `DualLabel` renders the `HelpPopover` ([COMPONENT_LIBRARY.md](COMPONENT_LIBRARY.md)). Plain text, never markup. Present on every value control; written in the copy-tone guide's human voice at the length of the existing intro descriptions |
 | `short` | no | a compact form of the name where the phone shell has no room: 'LFO A' for the Core LFO lane. Read by its own helper, `laneTitle(lane, shell)` (`src/data/lfoConfig.ts`: "Core LFO (LFO A)" on the desk, the `short` alone on the phone), never spread by `labels()` |
+
+An entry may be `human` alone. The names roadmap 91's layout pass added are: World (`fleet.world`), Mix and Sends (`probe.levels.mix`, `.sends`), Rhythm & Melody and Details (`probe.composition.rhythmMelody`, `.details`) and Character (`probe.envelope.character`). Their lore, and a copy pass over World's drafted intro, are the content sweep's.
 
 ## Keys
 

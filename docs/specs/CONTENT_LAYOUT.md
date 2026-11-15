@@ -1,5 +1,10 @@
 # Phase Spec: Control Layout (tabs, sub-tabs, panels and rows for Params and Probes)
 
+> **Status (2026-11-15): built** as roadmap [91](../todo/roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes)
+> on `features/slider-layout-update` (not `feature/control-layout`, §6), not yet merged. The plan's "As built" notes
+> record each phase's deviations. The survey below describes `main` before the pass, not the shipped code; the shipped
+> layout is in [UI_SHELL.md](../UI_SHELL.md#the-screens).
+
 > **Execution Commands**
 > - Build check: `npm run build`
 > - Type check: `npm run build:types`

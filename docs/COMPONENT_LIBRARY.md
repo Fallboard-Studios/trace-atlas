@@ -13,6 +13,8 @@ interface ControlSchemaBase {
   id: string;
   loreLabel?: string;   // both optional — a schema entry may supply neither, either, or both
   humanLabel?: string;
+  help?: ContentHelp;   // the "?" popover's text, from the control's content entry
+  featured?: boolean;   // the box's lead control (roadmap 91); see "The sc-featured hook" below
 }
 ```
 
@@ -45,6 +47,10 @@ Because `loreLabel`/`humanLabel` are both optional (`ControlSchemaBase`, exporte
 .sc-stepper-toggle.isActive { }
 .sc-lfo-link.isActive { }
 ```
+
+## The `sc-featured` hook
+
+Roadmap 91 ([spec](specs/CONTENT_LAYOUT.md) §1.4). A schema flagged `featured: true` marks its box's lead control: Tempo, Automation Rate, each lane's Rate, each effect's Mix, Amount or main control, Volume, each oscillator's Gain and Detune, and the robot filter's Cutoff, 32 in all. The primitives never read the flag. The component that lays a box out puts the control in a **cell**, the wrapper that holds the control and its label, and builds the cell's class with `withFeaturedClass(base, schema)` from `activeClass.ts`, which appends `sc-featured` when the flag is set. It composes with `withHeldOffClass` in either order. No stylesheet names `sc-featured` yet; the styling is a later pass. `audioRigConfig.test.ts` and `robotOptionsConfig.test.ts` each walk every export of their module and pin the featured set (24 fleet, 8 robot).
 
 ## `React.memo` boundary (Roadmap Phase 11.1's own follow-up, `docs/tasks/OBLIQUE_CABINETRY_MEMOIZATION.md`)
 
@@ -104,7 +110,7 @@ All 13 live in `src/components/ui/controls/`. Naming: PascalCase files, CSS clas
 - **`'vertical'`** — Radix `orientation="vertical"`, track height defaults to 256px via the `--slider-vertical-height` CSS custom property (`src/index.css`), overridable per-instance through the `verticalHeight` prop. Layout order is label → value readout → track (not the horizontal order's track → value) — the value renders above the track specifically so a dragging thumb can never cover it. **No live consumer since Phase 34** (`docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md`): the EQ/filter sliders and the probe-layer Gain/Detune/Phase/Interval sliders were the only vertical schemas and are horizontal now. The mode and its tests stay in the three primitives; `src/data/sliderOrientation.test.ts` pins that every slider schema in the app is `'horizontal'` with no `verticalHeight`, so a schema going vertical again is a decision, not drift.
 - **`'auto'`** — resolved at render time by `src/components/ui/controls/useAutoSliderOrientation.ts`: a `ResizeObserver` measures the slider's *parent* element (never the slider's own rendered box — flipping orientation changes that box's own size, which would feed back into a self-observed measurement) and resolves to whichever axis, width or height, is longer. Defaults to `'horizontal'` before the first measurement. No real schema uses it either (the same test).
 
-Side-by-side groupings are done with nested `'responsive'` `DirectionalPanel`s, not with slider orientation: the Compressor's paired sub-rows set the shape, and Phase 34 extended it to Delay (Delay Time over its Tempo Sync toggle beside Repeats), Reverb (Length beside Pre-Delay), each LFO Bank lane (Shape beside Rate, Rate Drift beside Depth Drift) and each probe layer (Type beside Gain, Phase beside Interval). The earlier "reworking any drawer's layout into real side-by-side groupings is deferred" note (`docs/specs/VERTICAL_SLIDERS.md` §1.2, §7) is resolved by that pass.
+Side-by-side groupings are done with nested `'responsive'` `DirectionalPanel`s, not with slider orientation: the Compressor's paired sub-rows set the shape, and Phase 34 extended it to Delay (Delay Time over its Tempo Sync toggle beside Repeats), Reverb (Length beside Pre-Delay), each LFO lane (Shape beside Rate, Rate Drift beside Depth Drift) and each probe layer (Type beside Gain, Phase beside Interval). The earlier "reworking any drawer's layout into real side-by-side groupings is deferred" note (`docs/specs/VERTICAL_SLIDERS.md` §1.2, §7) is resolved by that pass. Roadmap 91 ([spec](specs/CONTENT_LAYOUT.md) §1.2–§1.3) then split every sub-tab into boxes, each a top-level `DirectionalPanel`, with the shared rows nested inside them; a probe layer's Phase and Interval became two rows of one in its third box ([UI_SHELL.md](UI_SHELL.md#the-screens)).
 
 ### Panel orientation (`PanelOrientation`)
 
