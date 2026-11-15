@@ -401,7 +401,7 @@ selector change only). Every task's manual check is folded into the look below.
 
 ### Phase 4: Robot, company and All Probes
 
-- [ ] **Task 12: Reshape the robot section config**
+- [x] **Task 12: Reshape the robot section config** (eaa98561)
 
   **Description:** In `ROBOT_SECTIONS_CONFIG`, a section carries its tab's content key and each
   subsection its sub-tab's; `accordion`, `mergedInto` and the `frequency` subsection go. Nothing on
@@ -426,7 +426,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** M
 
-- [ ] **Task 13: Levels — split into Mix and Sends**
+- [x] **Task 13: Levels — split into Mix and Sends** (ed2228e2)
 
   **Description:** Split `AudioSettingSection` into two memoised components in the same file, boxed to
   spec §1.3: Mix (Volume; Monitor Mode beside Dynamics; then Pan beside Auto in a second box) and
@@ -453,7 +453,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** M
 
-- [ ] **Task 14: Composition — split into Rhythm & Melody and Details**
+- [x] **Task 14: Composition — split into Rhythm & Melody and Details** (a9601ff8)
 
   **Description:** Split `PingControlsCompositionSection` in two, each one box, to §1.3. Click Track
   becomes the last row of Rhythm & Melody. The Articulation panel, its schema and its content entry go.
@@ -482,7 +482,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** M
 
-- [ ] **Task 15: Envelope — split into Contour and Character**
+- [x] **Task 15: Envelope — split into Contour and Character** (0275f26a)
 
   **Description:** Split `PingContourDrawer` in two, each one box: Contour (Attack beside Decay,
   Sustain beside Release, keeping its heading) and Character (Portamento, Attack Shape, Release Shape,
@@ -506,7 +506,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** M
 
-- [ ] **Task 16: Give each half its sub-tab**
+- [x] **Task 16: Give each half its sub-tab** (61a8aecc)
 
   **Description:** `RobotSubsection` becomes `mix`, `sends`, `rhythmMelody`, `details`, `pingContour`,
   `envelopeCharacter`, the three oscillators and `busFilter`. The config lists two sub-tabs under
@@ -534,8 +534,32 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** M
 
-### Checkpoint: Robot sub-tabs
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
+**As built (Tasks 12–16, 2026-11-15):**
+
+- **Config (Task 12).** A section's `content` is its tab's key and a subsection's its sub-tab's; `accordion`,
+  `mergedInto`, `frequency` and `sectionTabContent` went (callers read `section.content`, `navActions.ts` among
+  them, a file the task did not list). `sectionSubTabs` went in Task 16, once every section had a sub-tab row.
+- **The halves (Tasks 13–15)** are memoised exports beside the old component in its file: `LevelsMixSection` /
+  `LevelsSendsSection`, `CompositionRhythmMelodySection` / `CompositionDetailsSection`, `EnvelopeContourSection` /
+  `EnvelopeCharacterSection`. Ids on the sheet scheme: `robotOptions.mix.p1` (`.p1.r2`), `.mix.p2` (`.p2.r1`, a fixed
+  row), `robotOptions.sends.p1` (`.r1`, `.r2`, laid out by `SENDS_LAYOUT`), `robotOptions.rhythmMelody.p1`,
+  `robotOptions.details.p1`, `robotOptions.contour.p1` (was `robotOptions.pingContour`), `robotOptions.character.p1`
+  (`CHARACTER_PANEL_SCHEMA` replaced `CURVE_ROW_PANEL_SCHEMA`). Removed: `VOLUME_ROW_PANEL_SCHEMA`,
+  `VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA`, `PAN_ROW_PANEL_SCHEMA`, `ARTICULATION_PANEL_SCHEMA` and the content entries
+  `probe.dynamics`, `probe.dynamics.levelControl`, `probe.composition.rhythm`, `probe.composition.pitches`,
+  `probe.composition.articulation`.
+- **The old components stay as composites.** Through Tasks 13–15 `AudioSettingSection`,
+  `PingControlsCompositionSection` and `PingContourDrawer` rendered both halves, so the renderers needed no change
+  until Task 16. Since Task 16 no screen renders them; only their own tests do. **Open for Crawford:** delete them
+  (and move those tests onto the halves), or keep them.
+- **Screen tests (Task 16).** The section stubs became one stub per half, each showing only the props its half
+  receives. On the robot and company screens a section's two halves share its stub id (one is mounted at a time);
+  `CompanyOptionsSection.test.tsx` mounts several ids at once, so there the second halves have their own ids. Cases
+  that read Volume's swell flag beside the send flags now read the send flags only.
+- Full suite at Task 16: 14,409 passed, 0 failed; types and lint clean (lint's 4 known warnings).
+
+### Checkpoint: Robot sub-tabs — awaiting the look and Crawford's review
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (14,409 tests, 0 failed).
 - [ ] Look: a robot, a company and All Probes each show the six new sub-tabs; an edit on a company
       still reaches every member once.
 - [ ] Reviewed with Crawford before Tasks 17 and 18.
