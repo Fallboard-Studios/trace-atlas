@@ -12,7 +12,7 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { PingContourDrawer } from './PingContourDrawer';
+import { EnvelopeCharacterSection, EnvelopeContourSection, PingContourDrawer } from './PingContourDrawer';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import {
   ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA, PORTAMENTO_SCHEMA, ATTACK_CURVE_SCHEMA, RELEASE_CURVE_SCHEMA,
@@ -39,6 +39,91 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
     })),
   });
 }
+
+// docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 15): Envelope splits into Contour and Character,
+// each one box and its own memoised component. PingContourDrawer shows both until Task 16 gives each its sub-tab.
+describe('Envelope split into Contour and Character (control layout Task 15)', () => {
+  const panel = (container: HTMLElement, id: string) => container.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
+  const orientationOf = (p: HTMLElement) => p.querySelector(':scope > .sc-directional-panel__content')!.getAttribute('data-orientation');
+  const boxes = (container: HTMLElement) => container.querySelectorAll('.sc-directional-panel-facade');
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const group = (name: string) => screen.getByRole('group', { name });
+
+  describe('Contour', () => {
+    it('is one box under its Contour heading: Attack beside Decay, then Sustain beside Release', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      const { container } = render(<EnvelopeContourSection value={adsr} onChange={() => {}} />);
+      expect(boxes(container)).toHaveLength(1);
+
+      const p1 = panel(container, 'robotOptions.contour.p1');
+      const r1 = panel(container, 'robotOptions.contour.p1.r1');
+      const r2 = panel(container, 'robotOptions.contour.p1.r2');
+      expect(screen.getByText('Contour').closest('.sc-directional-panel')).toBe(p1);
+      expect(r1.contains(screen.getByRole('slider', { name: /attack/i })) && r1.contains(screen.getByRole('slider', { name: /decay/i }))).toBe(true);
+      expect(r2.contains(screen.getByRole('slider', { name: /sustain/i })) && r2.contains(screen.getByRole('slider', { name: /release/i }))).toBe(true);
+      expect(orientationOf(r1)).toBe('row');
+      expect(orientationOf(r2)).toBe('row');
+      expect(screen.getAllByRole('slider').map((s) => s.getAttribute('aria-label'))).toEqual(['Attack', 'Decay', 'Sustain', 'Release']);
+      expect(screen.queryByRole('radio')).toBeNull();
+    });
+
+    it('stacks each pair below desktop', () => {
+      stubMatchMedia({ mobile: false, tablet: true });
+      const { container } = render(<EnvelopeContourSection value={adsr} onChange={() => {}} />);
+      expect(orientationOf(panel(container, 'robotOptions.contour.p1.r1'))).toBe('column');
+      expect(orientationOf(panel(container, 'robotOptions.contour.p1.r2'))).toBe('column');
+    });
+
+    it('is a React.memo-wrapped component', () => {
+      expect((EnvelopeContourSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+  });
+
+  describe('Character', () => {
+    it.each([['desktop', { mobile: false, tablet: false }], ['tablet', { mobile: false, tablet: true }]] as const)(
+      'on %s, renders Portamento, Attack Shape and Release Shape as three rows of one, in one box with no heading',
+      (_tier, state) => {
+        stubMatchMedia(state);
+        const { container } = render(<EnvelopeCharacterSection value={adsr} onChange={() => {}} {...PORTA} />);
+        expect(boxes(container)).toHaveLength(1);
+
+        const p1 = panel(container, 'robotOptions.character.p1');
+        expect(orientationOf(p1)).toBe('column');
+        // Rows of one have no nested panel: each control's closest panel is the box itself.
+        const portamento = screen.getByRole('slider', { name: /portamento/i });
+        for (const control of [portamento, group('Attack Shape'), group('Release Shape')]) {
+          expect(control.closest('.sc-directional-panel')).toBe(p1);
+        }
+        expect(p1.querySelectorAll('.sc-directional-panel')).toHaveLength(0);
+        expect(before(portamento, group('Attack Shape'))).toBe(true);
+        expect(before(group('Attack Shape'), group('Release Shape'))).toBe(true);
+        expect(screen.getAllByRole('slider')).toHaveLength(1);
+        expect(screen.queryByText('Contour')).toBeNull();
+      },
+    );
+
+    it('a shape pick spreads the whole envelope it was handed, and Portamento writes seconds only', () => {
+      const onChange = vi.fn();
+      const onPortamentoChange = vi.fn();
+      render(<EnvelopeCharacterSection value={{ ...adsr, releaseCurve: 'ripple' }} onChange={onChange} portamento={0.5} onPortamentoChange={onPortamentoChange} />);
+      fireEvent.click(within(group('Attack Shape')).getByRole('radio', { name: 'Bounce' }));
+      expect(onChange).toHaveBeenCalledWith({ ...adsr, attackCurve: 'bounce', releaseCurve: 'ripple' });
+      fireEvent.keyDown(screen.getByRole('slider', { name: /portamento/i }), { key: 'ArrowRight' });
+      expect(onPortamentoChange).toHaveBeenCalledTimes(1);
+      expect(onChange).toHaveBeenCalledTimes(1);
+    });
+
+    it('is a React.memo-wrapped component', () => {
+      expect((EnvelopeCharacterSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+  });
+
+  it('PingContourDrawer shows Contour then Character: two boxes', () => {
+    const { container } = render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
+    expect(boxes(container)).toHaveLength(2);
+    expect(before(panel(container, 'robotOptions.contour.p1'), panel(container, 'robotOptions.character.p1'))).toBe(true);
+  });
+});
 
 describe('PingContourDrawer', () => {
   it('reads Attack/Decay/Release from the value directly', () => {
@@ -308,10 +393,11 @@ describe('PingContourDrawer', () => {
       expect(onPortamentoChange).not.toHaveBeenCalled();
     });
 
-    it('sits on its own row beneath the ADSR pairs, in the Contour panel', () => {
-      render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
+    it('sits on its own row beneath the ADSR pairs, in the Character box, not the Contour one (control layout Task 15)', () => {
+      const { container } = render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
       const contour = screen.getByText('Contour').closest('.sc-directional-panel')!;
-      expect(contour.contains(portamentoSlider())).toBe(true);
+      expect(contour.contains(portamentoSlider())).toBe(false);
+      expect(container.querySelector('[data-panel-id="robotOptions.character.p1"]')!.contains(portamentoSlider())).toBe(true);
       const portamentoRow = portamentoSlider().closest('.sc-directional-panel')!;
       [/attack/i, /decay/i, /sustain/i, /release/i].forEach((name) => {
         expect(screen.getByRole('slider', { name }).closest('.sc-directional-panel'), String(name)).not.toBe(portamentoRow);
@@ -395,23 +481,12 @@ describe('PingContourDrawer', () => {
       expect(onChange).toHaveBeenCalledWith({ ...adsr, attack: 0.9, [field]: 'sine' });
     });
 
-    it('the two radios share one row, below Portamento, and are told apart by name', () => {
-      stubMatchMedia({ mobile: false, tablet: false });
+    // Their shared row became two rows of Character's box (control layout Task 15, the describe at the top).
+    it('the two radios sit below Portamento and are told apart by name', () => {
       render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
-      const attackRow = group('Attack Shape').closest('.sc-directional-panel')!;
-      expect(group('Release Shape').closest('.sc-directional-panel')).toBe(attackRow);
-      expect(attackRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
-      expect(attackRow).not.toBe(screen.getByRole('slider', { name: /portamento/i }).closest('.sc-directional-panel'));
       const portamento = screen.getByRole('slider', { name: /portamento/i });
       expect(portamento.compareDocumentPosition(group('Attack Shape')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
       expect(group('Attack Shape')).not.toBe(group('Release Shape'));
-    });
-
-    it('stacks the two radios on mobile/tablet', () => {
-      stubMatchMedia({ mobile: true, tablet: true });
-      render(<PingContourDrawer {...PORTA} value={adsr} onChange={() => {}} />);
-      const row = group('Attack Shape').closest('.sc-directional-panel')!;
-      expect(row.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
     });
   });
 

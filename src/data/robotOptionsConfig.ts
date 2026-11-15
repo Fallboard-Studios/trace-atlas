@@ -294,10 +294,11 @@ export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
  * was itself removed docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 16). Fixed 'column' (was 'row') as of
  * docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — wraps 2 responsive sub-rows
  * (Attack+Decay, Sustain+Release — inline in PingContourDrawer.tsx, matching Compressor's own
- * topRow/bottomRow precedent in audioRigConfig.ts) instead of holding all 4 sliders directly.
+ * topRow/bottomRow precedent in audioRigConfig.ts) instead of holding all 4 sliders directly. Envelope > Contour's one
+ * box, keeping its heading (docs/specs/CONTENT_LAYOUT.md §1.3, assumption 2).
  */
 export const PING_CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.pingContour',
+  id: 'robotOptions.contour.p1',
   type: 'directionalPanel',
   ...labels('probe.envelope.contour'),
   orientation: 'column',
@@ -375,11 +376,12 @@ export const RELEASE_CURVE_SCHEMA: RadioButtonSchema = {
   options: options('probe.envelope.releaseShape'),
 };
 
-/** Attack Shape beside Release Shape, unlabeled — pure layout, the Envelope drawer's fourth row. */
-export const CURVE_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.curveRow',
+/** Envelope > Character's one box (docs/specs/CONTENT_LAYOUT.md §1.3): Portamento, Attack Shape, Release Shape, one per
+ *  row. Unlabeled: Character has no heading of its own. */
+export const CHARACTER_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.character.p1',
   type: 'directionalPanel',
-  orientation: 'responsive',
+  orientation: 'column',
 };
 
 /** The Source filter panel: Cutoff, its LFO link, then Resonance beside Type. */

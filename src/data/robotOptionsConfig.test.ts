@@ -28,7 +28,7 @@ import {
   PORTAMENTO_SCHEMA,
   ATTACK_CURVE_SCHEMA,
   RELEASE_CURVE_SCHEMA,
-  CURVE_ROW_PANEL_SCHEMA,
+  CHARACTER_PANEL_SCHEMA,
   BUS_FILTER_PANEL_SCHEMA,
   BUS_FILTER_ROW_PANEL_SCHEMA,
   BUS_CUTOFF_SCHEMA,
@@ -671,7 +671,7 @@ describe('Robot Articulation schemas', () => {
     PORTAMENTO_SCHEMA, ATTACK_CURVE_SCHEMA, RELEASE_CURVE_SCHEMA,
     BUS_CUTOFF_SCHEMA, BUS_RESONANCE_SCHEMA, BUS_FILTER_TYPE_SCHEMA,
   ];
-  const PANEL_SCHEMAS = [BUS_FILTER_PANEL_SCHEMA, CURVE_ROW_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA];
+  const PANEL_SCHEMAS = [BUS_FILTER_PANEL_SCHEMA, CHARACTER_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA];
 
   it('every schema is one of the closed-set ControlSchema variants', () => {
     [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].forEach((schema) => expect(CONTROL_SCHEMA_TYPES).toContain(schema.type));
@@ -776,12 +776,19 @@ describe('Robot Articulation schemas', () => {
 
   describe('row panels', () => {
     it('are unlabeled responsive directionalPanels — pure layout', () => {
-      [CURVE_ROW_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA].forEach((panel) => {
+      [BUS_FILTER_ROW_PANEL_SCHEMA].forEach((panel) => {
         expect(panel).toMatchObject({ type: 'directionalPanel', orientation: 'responsive' });
         expect(panel.humanLabel).toBeUndefined();
         expect(panel.loreLabel).toBeUndefined();
       });
     });
+  });
+
+  // docs/specs/CONTENT_LAYOUT.md §1.3 (control layout Task 15): Character's box replaced the curve row.
+  it("Character's box is an unlabeled column on the sheet scheme, and Contour's box moved to it too", () => {
+    expect(CHARACTER_PANEL_SCHEMA).toMatchObject({ id: 'robotOptions.character.p1', type: 'directionalPanel', orientation: 'column' });
+    expect(CHARACTER_PANEL_SCHEMA.humanLabel).toBeUndefined();
+    expect(PING_CONTOUR_PANEL_SCHEMA.id).toBe('robotOptions.contour.p1');
   });
 
   it('every schema carries a unique robotOptions.* id, none colliding with the existing Envelope or Source ids', () => {

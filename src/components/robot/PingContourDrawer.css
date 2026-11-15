@@ -1,5 +1,7 @@
+/* Contour then Character, spaced as Fleet Params stacks its boxes (docs/specs/CONTENT_LAYOUT.md assumption 3). */
 .ping-contour-drawer {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
+  min-width: 0;
 }

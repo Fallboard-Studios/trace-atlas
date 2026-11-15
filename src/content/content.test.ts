@@ -194,10 +194,10 @@ describe('help coverage — probe and company controls', () => {
       'company.assign', 'company.name']) {
       expect(ids).toContain(id);
     }
-    expect(ids).not.toContain('robotOptions.pingContour'); // a panel
+    expect(ids).not.toContain('robotOptions.contour.p1'); // a panel
     expect(ids).not.toContain('robotOptions.layer0.panel'); // a layer's panel
     expect(ids).not.toContain('robotOptions.busFilter'); // the bus filter's panel
-    expect(ids).not.toContain('robotOptions.curveRow'); // a layout row
+    expect(ids).not.toContain('robotOptions.character.p1'); // an unlabeled panel
   });
 
   it('every value control has help.human', () => {
