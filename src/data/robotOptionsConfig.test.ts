@@ -534,23 +534,51 @@ describe('verticalHeight budget (roadmap 13 — "Vertical Slider Label Overflow"
   });
 });
 
-// docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4: Type | Gain share a top row, Phase | Interval share
-// the last row (only when Interval is shown) — each a nested 'responsive' panel, side by side on
-// desktop, stacked below, unlabeled.
-describe('SignatureArrayLayerBlock.rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4)', () => {
-  it("every layer's rows.typeGain and rows.phaseInterval are unlabeled 'responsive' directionalPanels under the layer's own id", () => {
+// docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 17): each oscillator is three boxes,
+// P1 (Type | Gain, then Gain's link), P2 (Detune, then its link), P3 (Phase, then Interval on a pulse layer).
+// Type | Gain is P1's one shared row, a nested 'responsive' panel, unlabeled.
+describe('SignatureArrayLayerBlock boxes and row (docs/specs/CONTENT_LAYOUT.md §1.3)', () => {
+  it("every layer's three boxes are column directionalPanels on the sheet scheme, robotOptions.<layer>.p1 to .p3", () => {
     for (const block of SIGNATURE_ARRAY_CONFIG) {
-      expect(block.rows.typeGain, `${block.key}.typeGain`).toEqual({ id: `robotOptions.${block.key}.typeGainRow`, type: 'directionalPanel', orientation: 'responsive' });
-      expect(block.rows.phaseInterval, `${block.key}.phaseInterval`).toEqual({ id: `robotOptions.${block.key}.phaseIntervalRow`, type: 'directionalPanel', orientation: 'responsive' });
-      expect('humanLabel' in block.rows.typeGain, `${block.key}.typeGain label`).toBe(false);
-      expect('loreLabel' in block.rows.phaseInterval, `${block.key}.phaseInterval label`).toBe(false);
+      expect([block.panels.p1, block.panels.p2, block.panels.p3].map((p) => p.id), block.key).toEqual([
+        `robotOptions.${block.key}.p1`, `robotOptions.${block.key}.p2`, `robotOptions.${block.key}.p3`,
+      ]);
+      for (const p of [block.panels.p1, block.panels.p2, block.panels.p3]) {
+        expect(p, p.id).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
+      }
     }
   });
 
-  it('row ids are unique across the three layers and distinct from the layer panel ids', () => {
-    const ids = SIGNATURE_ARRAY_CONFIG.flatMap((b) => [b.panel.id, b.rows.typeGain.id, b.rows.phaseInterval.id]);
-    expect(ids).toHaveLength(9);
-    expect(new Set(ids).size).toBe(9);
+  it("only P1 carries the layer's heading — its own labels reused verbatim; P2 and P3 are unlabeled", () => {
+    for (const block of SIGNATURE_ARRAY_CONFIG) {
+      expect(block.panels.p1.loreLabel, block.key).toBe(block.loreLabel);
+      expect(block.panels.p1.humanLabel, block.key).toBe(block.humanLabel);
+      expect('humanLabel' in block.panels.p2, `${block.key}.p2`).toBe(false);
+      expect('loreLabel' in block.panels.p3, `${block.key}.p3`).toBe(false);
+      expect('humanLabel' in block.panels.p3, `${block.key}.p3`).toBe(false);
+    }
+  });
+
+  it("every layer's rows.typeGain is an unlabeled 'responsive' directionalPanel, robotOptions.<layer>.p1.r1", () => {
+    for (const block of SIGNATURE_ARRAY_CONFIG) {
+      expect(block.rows.typeGain, block.key).toEqual({ id: `robotOptions.${block.key}.p1.r1`, type: 'directionalPanel', orientation: 'responsive' });
+    }
+  });
+
+  it('box and row ids are unique across the three layers', () => {
+    const ids = SIGNATURE_ARRAY_CONFIG.flatMap((b) => [b.panels.p1.id, b.panels.p2.id, b.panels.p3.id, b.rows.typeGain.id]);
+    expect(ids).toHaveLength(12);
+    expect(new Set(ids).size).toBe(12);
+  });
+
+  it('Gain and Detune are featured on every layer; Type, Phase and Interval are not', () => {
+    for (const block of SIGNATURE_ARRAY_CONFIG) {
+      const featured = block.params.filter((p) => p.schema.featured).map((p) => p.field);
+      expect(featured, block.key).toEqual(['gain', 'detune']);
+      for (const p of block.params.filter((q) => !featured.includes(q.field))) {
+        expect(p.schema.featured, `${block.key}.${p.field}`).toBeUndefined();
+      }
+    }
   });
 
   it('remains JSON-serializable', () => {
@@ -628,27 +656,6 @@ describe('PING_CONTROLS_ACCORDION_SCHEMA / PING_CONTOUR_ACCORDION_SCHEMA / SIGNA
 describe('RESET_MELODY_SCHEMA no longer exists (Deterministic Robot Melody Generation, Task 6)', () => {
   it('is not exported by the module — full determinism leaves nothing for a Reset Melody control to do', () => {
     expect('RESET_MELODY_SCHEMA' in robotOptionsConfigModule).toBe(false);
-  });
-});
-
-describe('SignatureArrayLayerBlock.panel (additive, Task 3)', () => {
-  it("every layer has a panel field, type directionalPanel, column orientation — it holds one stacked column of rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4; was 'row' with a single child, which did nothing)", () => {
-    for (const block of SIGNATURE_ARRAY_CONFIG) {
-      expect(block.panel, block.key).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
-    }
-  });
-
-  it("every layer's panel loreLabel/humanLabel matches that layer's own loreLabel/humanLabel exactly — reused verbatim, never re-invented", () => {
-    for (const block of SIGNATURE_ARRAY_CONFIG) {
-      expect(block.panel.loreLabel, block.key).toBe(block.loreLabel);
-      expect(block.panel.humanLabel, block.key).toBe(block.humanLabel);
-    }
-  });
-
-  it('every layer panel has a unique id in the robotOptions.* namespace', () => {
-    const ids = SIGNATURE_ARRAY_CONFIG.map((b) => b.panel.id);
-    expect(new Set(ids).size).toBe(3);
-    for (const id of ids) expect(id).toMatch(/^robotOptions\./);
   });
 });
 

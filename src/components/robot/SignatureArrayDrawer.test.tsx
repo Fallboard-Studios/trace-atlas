@@ -62,14 +62,16 @@ function paramRow(section: HTMLElement, sliderName: string | RegExp): HTMLElemen
 }
 
 /** The `.signature-array-drawer__param` wrapper holding the LfoLink that belongs to `sliderName`
- *  (Gain or Detune): the full-width row directly under that slider's own top-level row in the layer
- *  — for Gain that row is the nested Type | Gain panel, for Detune its own wrapper. */
+ *  (Gain or Detune): the full-width row directly under that slider's own top-level row in its box
+ *  (docs/specs/CONTENT_LAYOUT.md §1.3) — for Gain that row is the nested Type | Gain panel, for
+ *  Detune its own wrapper. */
 function linkRow(section: HTMLElement, sliderName: string | RegExp): HTMLElement {
   const own = paramRow(section, sliderName);
-  const layerDiv = own.closest('.signature-array-drawer__layer');
-  if (!layerDiv) throw new Error(`slider "${sliderName}" is not inside a layer`);
+  const box = own.closest('[data-panel-id$=".p1"], [data-panel-id$=".p2"], [data-panel-id$=".p3"]');
+  const boxContent = box?.querySelector(':scope > .sc-directional-panel__content');
+  if (!boxContent) throw new Error(`slider "${sliderName}" is not inside a box`);
   let row: Element = own;
-  while (row.parentElement && row.parentElement !== layerDiv) row = row.parentElement;
+  while (row.parentElement && row.parentElement !== boxContent) row = row.parentElement;
   const next = row.nextElementSibling;
   if (!next || !next.classList.contains('signature-array-drawer__param') || !next.querySelector('.sc-lfo-link')) {
     throw new Error(`no LfoLink row directly under slider "${sliderName}"`);
@@ -87,27 +89,36 @@ describe('SignatureArrayDrawer', () => {
     expect(Array.from(sections).map((s) => s.getAttribute('data-layer-key'))).toEqual(['layer0', 'layer1', 'layer2']);
   });
 
-  it('renders exactly 3 top-level panels — Baseline/Coaxial/Harmonic, no longer including Robot Drift (docs/tasks/LFO_BANK.md Task 12: Robot Drift now lives only as Fleet Params\' own leaf)', () => {
+  it('renders three boxes per layer, nine in all, headed only by each layer\'s name — no Robot Drift (docs/tasks/LFO_BANK.md Task 12: Robot Drift now lives only as Fleet Params\' own leaf)', () => {
     const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
     expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
     expect(screen.queryByText('Source')).toBeNull();
     expect(screen.queryByText('Voice Drift')).toBeNull();
     // Top-level panels only — since Oblique Cabinetry, a top-level panel's own root sits inside
     // its permanently-popped facade (.sc-directional-panel-facade > .sc-cabinet-box >
-    // .sc-cabinet-box__front), no longer a direct child of .signature-array-drawer itself.
+    // .sc-cabinet-box__front); each layer's div holds its three (docs/specs/CONTENT_LAYOUT.md §1.3).
     const panels = Array.from(container.querySelectorAll(
-      '.signature-array-drawer > .sc-directional-panel-facade > .sc-cabinet-box > .sc-cabinet-box__front > .sc-directional-panel',
+      '.signature-array-drawer > .signature-array-drawer__layer > .sc-directional-panel-facade > .sc-cabinet-box > .sc-cabinet-box__front > .sc-directional-panel',
     ));
-    expect(panels).toHaveLength(3);
-    const panelLabels = panels.map((p) => p.querySelector(':scope > .sc-dual-label > .sc-dual-label__human')?.textContent);
-    expect(panelLabels).toEqual([CONTENT['probe.source.core'].human, CONTENT['probe.source.companion'].human, CONTENT['probe.source.accent'].human]);
+    expect(panels).toHaveLength(9);
+    const panelLabels = panels.map((p) => p.querySelector(':scope > .sc-dual-label > .sc-dual-label__human')?.textContent ?? null);
+    expect(panelLabels).toEqual([
+      CONTENT['probe.source.core'].human, null, null,
+      CONTENT['probe.source.companion'].human, null, null,
+      CONTENT['probe.source.accent'].human, null, null,
+    ]);
   });
 
-  it("each layer's data-layer-key div is nested inside its own DirectionalPanel — wrapped around, not replaced", () => {
+  it("each layer's data-layer-key div holds that layer's own three boxes, p1 to p3, and nothing else", () => {
     const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
     (['layer0', 'layer1', 'layer2'] as const).forEach((key) => {
       const layerDiv = layerSection(container, key);
-      expect(layerDiv.closest('.sc-directional-panel')).not.toBeNull();
+      expect(layerDiv.closest('.sc-directional-panel'), key).toBeNull();
+      const children = [...layerDiv.children];
+      expect(children.every((c) => c.classList.contains('sc-directional-panel-facade')), key).toBe(true);
+      expect(children.map((c) => c.querySelector('.sc-directional-panel')?.getAttribute('data-panel-id'))).toEqual([
+        `robotOptions.${key}.p1`, `robotOptions.${key}.p2`, `robotOptions.${key}.p3`,
+      ]);
     });
   });
 
@@ -434,11 +445,11 @@ describe('SignatureArrayDrawer', () => {
     });
   });
 
-  // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4: per layer, Type | Gain share a nested 'responsive'
-  // top row; Gain's Lane | Depth link is the full-width row under it (assumption 3: not inside Gain's
-  // half); then Detune; then Detune's link; then Phase | Interval as a nested row for a pulse layer, or
-  // Phase alone with no nested panel otherwise. Every slider is horizontal.
-  describe('row layout (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4)', () => {
+  // docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 17): each oscillator is three boxes.
+  // P1: Type beside Gain (a nested 'responsive' row), then Gain's link under it, full width. P2: Detune, then
+  // its link. P3: Phase, then Interval as a second row on a pulse layer, or Phase alone otherwise. The
+  // layer's heading sits on P1 alone (spec assumption 2); Gain and Detune are featured (§1.4).
+  describe('three boxes (docs/specs/CONTENT_LAYOUT.md §1.3, Task 17)', () => {
     function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
       Object.defineProperty(window, 'matchMedia', {
         writable: true,
@@ -459,70 +470,90 @@ describe('SignatureArrayDrawer', () => {
 
     const orientationOf = (panel: Element) => panel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation');
     const PARAM = 'signature-array-drawer__param';
+    const box = (container: HTMLElement, id: string) => {
+      const el = container.querySelector(`[data-panel-id="${id}"]`);
+      if (!el) throw new Error(`no panel ${id}`);
+      return el as HTMLElement;
+    };
 
-    function describeChildren(section: HTMLElement): string[] {
-      return [...section.children].map((el) => {
+    /** A box's (or row's) rows, top to bottom: a nested row by its id, a link, the Type radio, or a slider by name. */
+    function describeRows(panel: HTMLElement): string[] {
+      return [...panel.querySelector(':scope > .sc-directional-panel__content')!.children].map((el) => {
         const panelId = el.getAttribute('data-panel-id');
         if (panelId) return `panel:${panelId}`;
         if (!el.classList.contains(PARAM)) return `other:${el.className}`;
         if (el.querySelector('.sc-lfo-link')) return 'link';
+        if (el.querySelector('.sc-radio-button')) return 'type';
         const slider = el.querySelector('[role="slider"]');
         return `slider:${slider?.getAttribute('aria-label') ?? '?'}`;
       });
     }
 
-    it('a non-pulse layer is: [Type | Gain row], Gain link, Detune, Detune link, Phase alone — five children, no Phase | Interval panel', () => {
+    it('P1 is the Type | Gain row, then Gain\'s link under it at full width (not inside Gain\'s half)', () => {
       const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      expect(describeChildren(layerSection(container, 'layer0'))).toEqual([
-        'panel:robotOptions.layer0.typeGainRow', 'link', 'slider:Core Detune', 'link', 'slider:Core Phase',
-      ]);
-      expect(container.querySelector('[data-panel-id="robotOptions.layer0.phaseIntervalRow"]')).toBeNull();
-    });
-
-    it('a pulse layer ends with the Phase | Interval row instead of a bare Phase', () => {
-      const layers = makeLayers();
-      layers[1] = { ...layers[1], type: 'pulse' };
-      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
-      expect(describeChildren(layerSection(container, 'layer1'))).toEqual([
-        'panel:robotOptions.layer1.typeGainRow', 'link', 'slider:Companion Detune', 'link', 'panel:robotOptions.layer1.phaseIntervalRow',
-      ]);
-      const last = container.querySelector('[data-panel-id="robotOptions.layer1.phaseIntervalRow"]')!;
-      const rows = [...last.querySelectorAll(`:scope > .sc-directional-panel__content > .${PARAM}`)];
-      expect(rows).toHaveLength(2);
-      expect(within(rows[0] as HTMLElement).getByRole('slider', { name: /phase/i })).toBeTruthy();
-      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: /interval/i })).toBeTruthy();
-    });
-
-    it('the top row holds the Type options then Gain, each in its own param wrapper, and NOT the Gain link (assumption 3)', () => {
-      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
-      const topRow = container.querySelector('[data-panel-id="robotOptions.layer0.typeGainRow"]')!;
-      const rows = [...topRow.querySelectorAll(`:scope > .sc-directional-panel__content > .${PARAM}`)];
-      expect(rows).toHaveLength(2);
-      expect(rows[0].querySelector('.sc-radio-button')).not.toBeNull();
-      expect(rows[0].querySelector('[role="slider"]')).toBeNull();
-      expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Core Gain' })).toBeTruthy();
+      expect(describeRows(box(container, 'robotOptions.layer0.p1'))).toEqual(['panel:robotOptions.layer0.p1.r1', 'link']);
+      const topRow = box(container, 'robotOptions.layer0.p1.r1');
+      expect(describeRows(topRow)).toEqual(['type', 'slider:Core Gain']);
       expect(topRow.querySelector('.sc-lfo-link')).toBeNull();
     });
 
-    it('both nested rows are side by side (row) on desktop while the layer panel itself is a column', () => {
-      stubMatchMedia({ mobile: false, tablet: false });
-      const layers = makeLayers();
-      layers[0] = { ...layers[0], type: 'pulse' };
-      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
-      const layerPanel = layerSection(container, 'layer0').closest('.sc-directional-panel')!;
-      expect(orientationOf(layerPanel)).toBe('column');
-      expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.typeGainRow"]')!)).toBe('row');
-      expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.phaseIntervalRow"]')!)).toBe('row');
+    it('P2 is Detune, then its link', () => {
+      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+      expect(describeRows(box(container, 'robotOptions.layer2.p2'))).toEqual(['slider:Accent Detune', 'link']);
     });
 
-    it('both nested rows stack (column) on tablet and on mobile', () => {
+    it("a pulse layer's third box holds Phase then Interval as two rows of one", () => {
+      const layers = makeLayers();
+      layers[1] = { ...layers[1], type: 'pulse' };
+      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      expect(describeRows(box(container, 'robotOptions.layer1.p3'))).toEqual(['slider:Companion Phase', 'slider:Companion Interval']);
+    });
+
+    it.each(['sine', 'square', 'triangle', 'sawtooth'] as const)("a %s layer's third box holds Phase alone", (type) => {
+      const layers = makeLayers();
+      layers[1] = { ...layers[1], type };
+      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      expect(describeRows(box(container, 'robotOptions.layer1.p3'))).toEqual(['slider:Companion Phase']);
+    });
+
+    it("the layer's heading is on its first box alone, on every layer", () => {
+      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+      const headingOf = (id: string) => box(container, id).querySelector(':scope > .sc-dual-label > .sc-dual-label__human')?.textContent ?? null;
+      const names = { layer0: 'probe.source.core', layer1: 'probe.source.companion', layer2: 'probe.source.accent' } as const;
+      for (const key of ['layer0', 'layer1', 'layer2'] as const) {
+        expect(headingOf(`robotOptions.${key}.p1`), key).toBe(CONTENT[names[key]].human);
+        expect(headingOf(`robotOptions.${key}.p2`), key).toBeNull();
+        expect(headingOf(`robotOptions.${key}.p3`), key).toBeNull();
+      }
+    });
+
+    it("each layer's Gain and Detune cells are featured, and no other cell is", () => {
+      const layers = makeLayers();
+      layers[1] = { ...layers[1], type: 'pulse' };
+      const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
+      const featured = [...container.querySelectorAll('.sc-featured')];
+      expect(featured.map((cell) => within(cell as HTMLElement).getByRole('slider').getAttribute('aria-label'))).toEqual([
+        'Core Gain', 'Core Detune', 'Companion Gain', 'Companion Detune', 'Accent Gain', 'Accent Detune',
+      ]);
+      for (const cell of featured) {
+        expect(cell.classList.contains(PARAM)).toBe(true);
+        expect(cell.querySelector('.sc-lfo-link')).toBeNull();
+        expect(cell.querySelector('.sc-radio-button')).toBeNull();
+      }
+    });
+
+    it('on desktop the Type | Gain row is side by side while every box is a column', () => {
+      stubMatchMedia({ mobile: false, tablet: false });
+      const { container } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+      expect(orientationOf(box(container, 'robotOptions.layer0.p1.r1'))).toBe('row');
+      for (const n of [1, 2, 3]) expect(orientationOf(box(container, `robotOptions.layer0.p${n}`)), `p${n}`).toBe('column');
+    });
+
+    it('the Type | Gain row stacks (column) on tablet and on mobile', () => {
       for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
         stubMatchMedia(tier);
-        const layers = makeLayers();
-        layers[0] = { ...layers[0], type: 'pulse' };
-        const { container, unmount } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
-        expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.typeGainRow"]')!), JSON.stringify(tier)).toBe('column');
-        expect(orientationOf(container.querySelector('[data-panel-id="robotOptions.layer0.phaseIntervalRow"]')!), JSON.stringify(tier)).toBe('column');
+        const { container, unmount } = render(<SignatureArrayDrawer value={makeValue()} {...noop} />);
+        expect(orientationOf(box(container, 'robotOptions.layer0.p1.r1')), JSON.stringify(tier)).toBe('column');
         unmount();
       }
     });
@@ -536,27 +567,31 @@ describe('SignatureArrayDrawer', () => {
       }
     });
 
-    it('switching a layer to pulse adds the Phase | Interval row, and back removes it — Phase returns to its own wrapper', () => {
+    it('switching a layer to pulse grows its third box by the Interval row, and back shrinks it — the other boxes unchanged', () => {
       const layers = makeLayers();
       const { container, rerender } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
-      expect(describeChildren(layerSection(container, 'layer2')).at(-1)).toBe('slider:Accent Phase');
+      expect(describeRows(box(container, 'robotOptions.layer2.p3'))).toEqual(['slider:Accent Phase']);
 
       const pulse = makeLayers();
       pulse[2] = { ...pulse[2], type: 'pulse', pulseWidth: 0.3 };
       rerender(<SignatureArrayDrawer value={makeValue({ layers: pulse })} {...noop} />);
-      expect(describeChildren(layerSection(container, 'layer2')).at(-1)).toBe('panel:robotOptions.layer2.phaseIntervalRow');
+      expect(describeRows(box(container, 'robotOptions.layer2.p3'))).toEqual(['slider:Accent Phase', 'slider:Accent Interval']);
       expect(within(layerSection(container, 'layer2')).getByRole('slider', { name: /interval/i }).getAttribute('aria-valuenow')).toBe('0.3');
+      expect(describeRows(box(container, 'robotOptions.layer2.p1'))).toEqual(['panel:robotOptions.layer2.p1.r1', 'link']);
+      expect(describeRows(box(container, 'robotOptions.layer2.p2'))).toEqual(['slider:Accent Detune', 'link']);
 
       rerender(<SignatureArrayDrawer value={makeValue({ layers: makeLayers() })} {...noop} />);
-      expect(describeChildren(layerSection(container, 'layer2')).at(-1)).toBe('slider:Accent Phase');
-      expect(container.querySelector('[data-panel-id="robotOptions.layer2.phaseIntervalRow"]')).toBeNull();
+      expect(describeRows(box(container, 'robotOptions.layer2.p3'))).toEqual(['slider:Accent Phase']);
     });
 
-    it('the nested rows render unframed — exactly one Cabinetry facade per layer, three for the drawer', () => {
+    it('the Type | Gain row renders unframed — exactly three Cabinetry facades per layer, nine for the drawer', () => {
       const layers = makeLayers();
       layers[1] = { ...layers[1], type: 'pulse' };
       const { container } = render(<SignatureArrayDrawer value={makeValue({ layers })} {...noop} />);
-      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(3);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(9);
+      for (const key of ['layer0', 'layer1', 'layer2'] as const) {
+        expect(layerSection(container, key).querySelectorAll('.sc-directional-panel-facade'), key).toHaveLength(3);
+      }
     });
   });
 

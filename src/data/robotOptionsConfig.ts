@@ -457,15 +457,13 @@ export interface SignatureArrayLayerBlock {
   /** The layer's own name — content's probe.source.<layer> human/lore (Core Oscillator, …). */
   humanLabel: string;
   loreLabel?: string;
-  /** DirectionalPanel wiring (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md) — this layer's own panel.
-   *  Reuses this block's own humanLabel/loreLabel verbatim (Baseline/Coaxial/Harmonic already had
-   *  exactly the right per-layer label; no new copy). */
-  panel: DirectionalPanelSchema;
-  /** The layer's two paired rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4): Type | Gain
-   *  on top, Phase | Interval last (rendered only while Interval is shown). Nested 'responsive'
-   *  panels — side by side on desktop, stacked below — unlabeled: the layer panel's own label is
-   *  the only heading. */
-  rows: { typeGain: DirectionalPanelSchema; phaseInterval: DirectionalPanelSchema };
+  /** The layer's three boxes (docs/specs/CONTENT_LAYOUT.md §1.3): P1 Type | Gain over Gain's link, P2
+   *  Detune over its link, P3 Phase (then Interval on a pulse layer). Only P1 carries a heading, this
+   *  block's own humanLabel/loreLabel verbatim (spec assumption 2); P2 and P3 are unlabeled. */
+  panels: { p1: DirectionalPanelSchema; p2: DirectionalPanelSchema; p3: DirectionalPanelSchema };
+  /** P1's one shared row, Type | Gain: a nested 'responsive' panel — side by side on desktop, stacked
+   *  below — unlabeled. */
+  rows: { typeGain: DirectionalPanelSchema };
   params: SignatureArrayParamSchema[];
 }
 
@@ -492,13 +490,16 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
     key,
     humanLabel,
     loreLabel,
-    // 'column': the panel holds one stacked column of rows (it was 'row' with a single child, which
-    // did nothing). Sliders are horizontal since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4
-    // (they were vertical at 256px); no verticalHeight, since nothing here is vertical.
-    panel: { id: `robotOptions.${key}.panel`, type: 'directionalPanel', ...labels(c.root), orientation: 'column' },
+    // 'column': each box holds one stacked column of rows. Sliders are horizontal since
+    // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4 (they were vertical at 256px); no
+    // verticalHeight, since nothing here is vertical.
+    panels: {
+      p1: { id: `robotOptions.${key}.p1`, type: 'directionalPanel', ...labels(c.root), orientation: 'column' },
+      p2: { id: `robotOptions.${key}.p2`, type: 'directionalPanel', orientation: 'column' },
+      p3: { id: `robotOptions.${key}.p3`, type: 'directionalPanel', orientation: 'column' },
+    },
     rows: {
-      typeGain: { id: `robotOptions.${key}.typeGainRow`, type: 'directionalPanel', orientation: 'responsive' },
-      phaseInterval: { id: `robotOptions.${key}.phaseIntervalRow`, type: 'directionalPanel', orientation: 'responsive' },
+      typeGain: { id: `robotOptions.${key}.p1.r1`, type: 'directionalPanel', orientation: 'responsive' },
     },
     params: [
       {
@@ -515,6 +516,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
           id: `robotOptions.${key}.gain`, type: 'sliderLinear',
           ...labels(c.gain),
           min: 0, max: 2, step: 0.01, orientation: 'horizontal',
+          featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
         } satisfies SliderLinearSchema,
         lfoTarget: gainTarget,
       },
@@ -524,6 +526,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
           id: `robotOptions.${key}.detune`, type: 'sliderCenteredZero',
           ...labels(c.detune),
           min: -50, max: 50, orientation: 'horizontal',
+          featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
         } satisfies SliderCenteredZeroSchema,
         lfoTarget: detuneTarget,
       },
