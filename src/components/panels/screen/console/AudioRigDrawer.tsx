@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useMemo, type ReactNode } from 'react';
+import { Fragment, useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAudioStore } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
@@ -97,21 +97,18 @@ function renderParamControl(param: AudioRigParamSchema, value: number, onChange:
   }
 }
 
-/** Wraps one param's control in the shared `.audio-rig-drawer__param-row` div, optionally followed
- *  by its own `LfoLink` row (Task 14, docs/tasks/LFO_BANK.md — replaces the old shared per-block
- *  LFO target-group display; a param-row with no lfoLink arg is the plain, non-LFO rendering shape).
- *  Takes the field's own resolved `onChange` directly (AudioRigEffectPanel's `fieldOnChange` map)
+/** Wraps one param's control in the shared `.audio-rig-drawer__param-row` div (its `LfoLink`, where it has
+ *  one, is a cell of its own: docs/specs/CONTENT_LAYOUT.md §1.2). Takes the field's own resolved `onChange` directly (AudioRigEffectPanel's `fieldOnChange` map)
  *  rather than building `(v) => updateParam(param.field, v)` inline here — that inline arrow was a
  *  fresh function every render, which defeated every memoized primitive's own React.memo bail-out
  *  regardless of how many of them got memoized (docs/tasks/archive/OBLIQUE_CABINETRY_MEMOIZATION.md
  *  Task 12). `heldOff` (the Effects Load dial holding this effect dark) disables the control and greys the row, the
  *  stored value kept on the control; `note` adds the panel's one HeldOffNote under it. The cell carries `sc-featured`
  *  when the param's schema is flagged (docs/specs/CONTENT_LAYOUT.md §1.4). */
-function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, lfoLink?: ReactNode, heldOff = false, note = false) {
+function paramRow(param: AudioRigParamSchema, effect: Record<string, number>, onChange: (v: number) => void, effectKey: AudioRigEffectKey, heldOff = false, note = false) {
   return (
     <div className={withFeaturedClass(withHeldOffClass('audio-rig-drawer__param-row', heldOff), param.schema)} key={param.field}>
       {renderParamControl(param, effect[param.field], onChange, isGlobalTargetSwelling(effectKey, param.field), heldOff)}
-      {lfoLink}
       {note && <HeldOffNote />}
     </div>
   );
@@ -326,6 +323,21 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
         </div>
       );
     }
+    if (cell.kind === 'link') {
+      // The param's LfoLink in a cell of its own, under its slider's row; a held-off filter link carries its note.
+      const { field } = cell.param;
+      return (
+        <div className="audio-rig-drawer__link-row" key={`${field}.link`}>
+          <LfoLink
+            schema={lfoLinkSchemas[field]}
+            value={lfoLinkValueByField[field]}
+            onChange={lfoLinkOnChange[field]}
+            heldOff={filterLinksHeldOff}
+          />
+          {filterLinksHeldOff && <HeldOffNote />}
+        </div>
+      );
+    }
     const { param } = cell;
     const { field } = param;
     // Chorus also has a `delayTime` (its own ms slider), so the Delay's Free | Sync is keyed on the Delay alone.
@@ -348,18 +360,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
         </div>
       );
     }
-    const lfoLink = param.lfoTarget !== undefined ? (
-      <>
-        <LfoLink
-          schema={lfoLinkSchemas[field]}
-          value={lfoLinkValueByField[field]}
-          onChange={lfoLinkOnChange[field]}
-          heldOff={filterLinksHeldOff}
-        />
-        {filterLinksHeldOff && <HeldOffNote />}
-      </>
-    ) : undefined;
-    return paramRow(param, effect, fieldOnChange[field], effectKey, lfoLink, heldOff, heldOff && field === noteField);
+    return paramRow(param, effect, fieldOnChange[field], effectKey, heldOff, heldOff && field === noteField);
   }
 
   // One walk over the effect's boxes (built from its layout at module load): each box a top-level column panel, each

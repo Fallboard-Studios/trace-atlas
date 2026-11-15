@@ -960,12 +960,28 @@ describe('AudioRigEffectBlock (DirectionalPanel wiring, Tasks 1-2)', () => {
 describe('AudioRigEffectBlock.layout and boxes (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
   const tokensOf = (block: (typeof AUDIO_RIG_CONFIG)[number]): string[] => block.layout.flat(2);
   const cellToken = (cell: (typeof AUDIO_RIG_CONFIG)[number]['boxes'][number]['rows'][number]['cells'][number]): string =>
-    cell.kind === 'param' ? cell.param.field : cell.kind;
+    cell.kind === 'param' ? cell.param.field : cell.kind === 'link' ? `${cell.param.field}.link` : cell.kind;
 
-  it.each(EFFECT_KEYS)('%s: every param appears exactly once in its layout, and nothing else but Decay', (key) => {
+  it.each(EFFECT_KEYS)('%s: every param appears exactly once in its layout, every LFO target\'s link once, and nothing else but Decay', (key) => {
     const block = findBlock(key);
-    const expected = [...block.params.map((p) => p.field), ...(key === 'compressor' ? ['decayMode'] : [])];
+    const expected = [
+      ...block.params.map((p) => p.field),
+      ...block.params.filter((p) => p.lfoTarget !== undefined).map((p) => `${p.field}.link`),
+      ...(key === 'compressor' ? ['decayMode'] : []),
+    ];
     expect([...tokensOf(block)].sort()).toEqual(expected.sort());
+  });
+
+  it('each link is the row right under its own slider\'s row, in the same box', () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      for (const panel of block.layout) {
+        panel.forEach((row, r) => {
+          for (const token of row.filter((t) => t.endsWith('.link'))) {
+            expect(panel[r - 1], `${block.key} ${token}`).toContain(token.slice(0, -'.link'.length));
+          }
+        });
+      }
+    }
   });
 
   it("Decay sits once in the Compressor's layout and in no other effect's", () => {
@@ -1015,13 +1031,13 @@ describe('AudioRigEffectBlock.layout and boxes (docs/specs/CONTENT_LAYOUT.md §1
     }
   });
 
-  it("each built row holds its layout row's cells in order, every param cell the block's own param object", () => {
+  it("each built row holds its layout row's cells in order, every param and link cell the block's own param object", () => {
     for (const block of AUDIO_RIG_CONFIG) {
       expect(block.boxes.map((box) => box.rows.map((row) => row.cells.map(cellToken))), block.key).toEqual(block.layout);
       for (const box of block.boxes) {
         for (const row of box.rows) {
           for (const cell of row.cells) {
-            if (cell.kind === 'param') expect(block.params, block.key).toContain(cell.param);
+            if (cell.kind !== 'decayMode') expect(block.params, block.key).toContain(cell.param);
           }
         }
       }

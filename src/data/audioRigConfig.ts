@@ -40,16 +40,25 @@ export interface AudioRigParamSchema {
   lfoTarget?: GlobalLfoTargetId;
 }
 
-/** One cell token in an effect's `layout`: a param's `field`, or `'decayMode'` for the Compressor's Decay radio
- *  (docs/specs/CONTENT_LAYOUT.md §1.2). */
+/** One cell token in an effect's `layout`: a param's `field`, `'<field>.link'` for that param's LfoLink (a cell of
+ *  its own, so the slider's cell can be featured without wrapping the link), or `'decayMode'` for the Compressor's
+ *  Decay radio (docs/specs/CONTENT_LAYOUT.md §1.2). */
 export type AudioRigCellToken = string;
+
+const LINK_SUFFIX = '.link';
 
 /** Panels > rows > cell tokens, read like the effect's row in docs/specs/CONTENT_LAYOUT.md §1.2. Each panel is one
  *  cabinetry box; a row of two or more cells is a nested 'responsive' panel, a row of one is the cell alone. */
 export type AudioRigLayout = readonly (readonly (readonly AudioRigCellToken[])[])[];
 
-/** A layout token resolved at module load: the block's own param object, or the Decay radio. */
-export type AudioRigCell = { kind: 'param'; param: AudioRigParamSchema } | { kind: 'decayMode' };
+/** A param that carries an LFO target, so it can have a link cell. */
+export type AudioRigLinkedParamSchema = AudioRigParamSchema & { lfoTarget: GlobalLfoTargetId };
+
+/** A layout token resolved at module load: the block's own param object, that param's LfoLink, or the Decay radio. */
+export type AudioRigCell =
+  | { kind: 'param'; param: AudioRigParamSchema }
+  | { kind: 'link'; param: AudioRigLinkedParamSchema }
+  | { kind: 'decayMode' };
 
 export interface AudioRigRow {
   /** The nested 'responsive' panel of a shared row (`audioRig.<key>.p<n>.r<m>`); absent on a row of one. */
@@ -82,9 +91,17 @@ type AudioRigEffectDef = Omit<AudioRigEffectBlock, 'boxes'>;
 
 function resolveCell(def: AudioRigEffectDef, token: AudioRigCellToken): AudioRigCell {
   if (token === 'decayMode') return { kind: 'decayMode' };
-  const param = def.params.find((p) => p.field === token);
+  const isLink = token.endsWith(LINK_SUFFIX);
+  const field = isLink ? token.slice(0, -LINK_SUFFIX.length) : token;
+  const param = def.params.find((p) => p.field === field);
   if (!param) throw new Error(`audioRig.${def.key}: layout names "${token}", which is not one of its params`);
-  return { kind: 'param', param };
+  if (!isLink) return { kind: 'param', param };
+  if (!isLinkedParam(param)) throw new Error(`audioRig.${def.key}: layout links "${field}", which has no LFO target`);
+  return { kind: 'link', param };
+}
+
+function isLinkedParam(param: AudioRigParamSchema): param is AudioRigLinkedParamSchema {
+  return param.lfoTarget !== undefined;
 }
 
 /** Builds an effect block's box and row schemas from its `layout` (docs/specs/CONTENT_LAYOUT.md §1.2, §4): box
@@ -117,27 +134,31 @@ function logReadout(key: ContentKey, decimals: number, scale = 1) {
 
 export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
-  // EQ and both filters: 'column' panels of horizontal sliders, each band/param one stacked row
-  // (slider, then its Lane | Depth LfoLink row) — docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md
-  // §1.2. They were 'row' panels of vertical sliders (AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3/§1.4);
-  // no verticalHeight now, since nothing here is vertical.
+  // EQ and both filters: horizontal sliders, one box per band or param, the slider on row 1 and its Lane | Depth
+  // LfoLink on row 2 (docs/specs/CONTENT_LAYOUT.md §1.2), the bands and the Cutoffs featured (§1.4). They were
+  // 'row' panels of vertical sliders (AUDIO_RIG_RESPONSIVE_LAYOUT.md §1.3/§1.4), then one box of stacked rows
+  // (POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2); no verticalHeight, since nothing here is vertical.
     key: 'eq3',
     heading: 'fleet.eq',
-    layout: [[['low'], ['mid'], ['high']]],
+    layout: [
+      [['low'], ['low.link']],
+      [['mid'], ['mid.link']],
+      [['high'], ['high.link']],
+    ],
     params: [
       {
         field: 'low',
-        schema: { id: 'eq3.low', type: 'sliderCenteredZero', ...labels('fleet.eq.bass'), min: -12, max: 12, step: 0.5, orientation: 'horizontal' },
+        schema: { id: 'eq3.low', type: 'sliderCenteredZero', ...labels('fleet.eq.bass'), min: -12, max: 12, step: 0.5, orientation: 'horizontal', featured: true },
         lfoTarget: 'eq3.low',
       },
       {
         field: 'mid',
-        schema: { id: 'eq3.mid', type: 'sliderCenteredZero', ...labels('fleet.eq.mid'), min: -12, max: 12, step: 0.5, orientation: 'horizontal' },
+        schema: { id: 'eq3.mid', type: 'sliderCenteredZero', ...labels('fleet.eq.mid'), min: -12, max: 12, step: 0.5, orientation: 'horizontal', featured: true },
         lfoTarget: 'eq3.mid',
       },
       {
         field: 'high',
-        schema: { id: 'eq3.high', type: 'sliderCenteredZero', ...labels('fleet.eq.treble'), min: -12, max: 12, step: 0.5, orientation: 'horizontal' },
+        schema: { id: 'eq3.high', type: 'sliderCenteredZero', ...labels('fleet.eq.treble'), min: -12, max: 12, step: 0.5, orientation: 'horizontal', featured: true },
         lfoTarget: 'eq3.high',
       },
     ],
@@ -145,11 +166,14 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
     key: 'filterLPF',
     heading: 'fleet.lpf',
-    layout: [[['frequency'], ['Q']]],
+    layout: [
+      [['frequency'], ['frequency.link']],
+      [['Q'], ['Q.link']],
+    ],
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterLPF.frequency', type: 'sliderLog', ...logReadout('fleet.lpf.cutoff', 0), min: 20, max: 20000, orientation: 'horizontal' },
+        schema: { id: 'filterLPF.frequency', type: 'sliderLog', ...logReadout('fleet.lpf.cutoff', 0), min: 20, max: 20000, orientation: 'horizontal', featured: true },
         lfoTarget: 'lpf.frequency',
       },
       {
@@ -162,11 +186,14 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
     key: 'filterHPF',
     heading: 'fleet.hpf',
-    layout: [[['frequency'], ['Q']]],
+    layout: [
+      [['frequency'], ['frequency.link']],
+      [['Q'], ['Q.link']],
+    ],
     params: [
       {
         field: 'frequency',
-        schema: { id: 'filterHPF.frequency', type: 'sliderLog', ...logReadout('fleet.hpf.cutoff', 0), min: 20, max: 20000, orientation: 'horizontal' },
+        schema: { id: 'filterHPF.frequency', type: 'sliderLog', ...logReadout('fleet.hpf.cutoff', 0), min: 20, max: 20000, orientation: 'horizontal', featured: true },
         lfoTarget: 'hpf.frequency',
       },
       {

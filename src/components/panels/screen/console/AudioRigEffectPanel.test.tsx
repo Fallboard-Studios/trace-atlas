@@ -300,35 +300,75 @@ describe('AudioRigEffectPanel', () => {
       }
     });
 
-    it('stacks the bands/params as direct param-rows of the block, in config order, with no nested row panel', () => {
-      for (const [key, names] of CASES) {
-        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
-        const content = screen.getByRole('slider', { name: names[0] }).closest('.sc-directional-panel')!
-          .querySelector(':scope > .sc-directional-panel__content')!;
-        const rows = [...content.querySelectorAll(':scope > .audio-rig-drawer__param-row')];
-        expect(rows, key).toHaveLength(names.length);
-        rows.forEach((row, i) => {
-          expect(within(row as HTMLElement).getByRole('slider', { name: names[i] }), `${key} row ${i}`).toBeTruthy();
-        });
-        expect(content.querySelector(':scope > .sc-directional-panel'), key).toBeNull();
+    it("each link keeps the Lane radio before the Depth slider", () => {
+      for (const [key] of CASES) {
+        const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        for (const link of container.querySelectorAll('.sc-lfo-link')) {
+          const lane = within(link as HTMLElement).getByRole('radio', { name: 'Off' });
+          const depth = within(link as HTMLElement).getByRole('slider');
+          expect(lane.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING, `${key}: Lane before Depth`).toBeTruthy();
+        }
         unmount();
       }
     });
+  });
 
-    it("each row is the band's slider, then its LfoLink with the Lane radio before the Depth slider", () => {
-      for (const [key, names] of CASES) {
-        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
-        for (const name of names) {
-          const slider = screen.getByRole('slider', { name });
-          const row = slider.closest('.audio-rig-drawer__param-row') as HTMLElement;
-          const link = row.querySelector('.sc-lfo-link') as HTMLElement;
-          expect(link, `${key} ${name} link`).toBeTruthy();
-          expect(slider.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING, `${key} ${name}: link after slider`).toBeTruthy();
-          const lane = within(link).getByRole('radio', { name: 'Off' });
-          const depth = within(link).getByRole('slider');
-          expect(lane.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING, `${key} ${name}: Lane before Depth`).toBeTruthy();
-        }
-        unmount();
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 5): one box per band or param, the slider on row 1 and its link on row 2,
+  // a cell each; the effect's heading on its first box alone (assumption 2); the bands and the Cutoffs featured (§1.4).
+  describe('EQ & Filters: a box per slider (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+    const CASES = [
+      { key: 'eq3', heading: '3-Band EQ', names: ['Bass', 'Mid', 'Treble'], featured: ['Bass', 'Mid', 'Treble'] },
+      { key: 'filterHPF', heading: 'High-Pass Filter', names: ['Cutoff', 'Resonance'], featured: ['Cutoff'] },
+      { key: 'filterLPF', heading: 'Low-Pass Filter', names: ['Cutoff', 'Resonance'], featured: ['Cutoff'] },
+    ] as const;
+    const boxesOf = (container: HTMLElement) =>
+      ([...container.querySelectorAll('[data-panel-id]')] as HTMLElement[]).filter((el) => /^audioRig\.\w+\.p\d+$/.test(el.dataset.panelId!));
+    const cellsOf = (box: HTMLElement) =>
+      [...box.querySelector(':scope > .sc-directional-panel__content')!.children] as HTMLElement[];
+
+    it.each(CASES)('$key renders one box per slider, p1 on, each its slider cell then its link cell', ({ key, names }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const boxes = boxesOf(container);
+      expect(boxes.map((b) => b.getAttribute('data-panel-id'))).toEqual(names.map((_, i) => `audioRig.${key}.p${i + 1}`));
+      boxes.forEach((box, i) => {
+        const cells = cellsOf(box);
+        expect(cells, `${key} p${i + 1}`).toHaveLength(2);
+        expect(within(cells[0]).getByRole('slider', { name: names[i] }), `${key} p${i + 1}`).toBeTruthy();
+        expect(cells[0].querySelector('.sc-lfo-link'), `${key} p${i + 1}`).toBeNull();
+        expect(cells[1].querySelector('.sc-lfo-link'), `${key} p${i + 1}`).not.toBeNull();
+        expect(within(cells[1]).getAllByRole('slider'), `${key} p${i + 1}: Depth alone`).toHaveLength(1);
+      });
+    });
+
+    it.each(CASES)('$key wears its heading on the first box alone, and every box is framed', ({ key, heading, names }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const boxes = boxesOf(container);
+      expect(screen.getAllByText(heading)).toHaveLength(1);
+      expect(within(boxes[0]).getByText(heading)).toBeTruthy();
+      for (const box of boxes.slice(1)) expect(within(box).queryByText(heading)).toBeNull();
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(names.length);
+    });
+
+    it.each(CASES)('$key: exactly its featured sliders\' cells carry sc-featured, never a link cell', ({ key, names, featured }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      for (const name of names) {
+        const cell = screen.getByRole('slider', { name }).closest('.audio-rig-drawer__param-row')!;
+        expect(cell.classList.contains('sc-featured'), name).toBe((featured as readonly string[]).includes(name));
+      }
+      expect(container.querySelectorAll('.sc-featured')).toHaveLength(featured.length);
+      for (const link of container.querySelectorAll('.sc-lfo-link')) expect(link.closest('.sc-featured')).toBeNull();
+    });
+
+    it.each(CASES.filter((c) => c.key !== 'eq3'))('$key: a held-off link keeps its note under it, in the link cell', ({ key }) => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      for (const box of boxesOf(container)) {
+        const [sliderCell, linkCell] = cellsOf(box);
+        const link = linkCell.querySelector('.sc-lfo-link.sc-held-off')!;
+        expect(link).not.toBeNull();
+        const note = within(linkCell).getByText('Held off by Audio Load');
+        expect(link.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(within(sliderCell).queryByText('Held off by Audio Load')).toBeNull();
       }
     });
   });
@@ -394,8 +434,9 @@ describe('AudioRigEffectPanel', () => {
   });
 
   describe('inline LfoLink rows (Task 14, docs/tasks/LFO_BANK.md — replaces the old shared per-block target-group display)', () => {
+    /** The param's box: its slider cell, then its link cell (docs/specs/CONTENT_LAYOUT.md §1.2). */
     function rowOf(sliderName: string) {
-      return screen.getByRole('slider', { name: sliderName }).closest('.audio-rig-drawer__param-row') as HTMLElement;
+      return screen.getByRole('slider', { name: sliderName }).closest('.sc-directional-panel') as HTMLElement;
     }
 
     it('EQ renders a LfoLink row directly after each of its 3 param rows, never one shared display', () => {
@@ -469,8 +510,9 @@ describe('AudioRigEffectPanel', () => {
 
   describe('Audio Load: filterLinksHeldOff on inline LfoLinks (docs/tasks/LFO_BANK.md Task 3 behavior, Task 14 UI)', () => {
     const HELD_OFF = 'Held off by Audio Load';
+    /** The param's box: its slider cell, then its link cell (docs/specs/CONTENT_LAYOUT.md §1.2). */
     function rowOf(sliderName: string) {
-      return screen.getByRole('slider', { name: sliderName }).closest('.audio-rig-drawer__param-row') as HTMLElement;
+      return screen.getByRole('slider', { name: sliderName }).closest('.sc-directional-panel') as HTMLElement;
     }
     function depthSliderOf(row: HTMLElement) {
       return within(row).getByRole('slider', { name: 'Depth' });
