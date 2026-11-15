@@ -209,28 +209,28 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
     key: 'distortion',
     heading: 'fleet.distortion',
-    layout: [[['amount'], ['wet']]],
+    layout: [[['wet'], ['amount']]],
     params: [
       { field: 'amount', schema: { id: 'distortion.amount', type: 'sliderLinear', ...labels('fleet.distortion.drive'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'distortion.wet', type: 'sliderLinear', ...labels('fleet.distortion.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'distortion.wet', type: 'sliderLinear', ...labels('fleet.distortion.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
     key: 'chebyshev',
     heading: 'fleet.chebyshev',
-    layout: [[['order'], ['wet']]],
+    layout: [[['wet'], ['order']]],
     params: [
       { field: 'order', schema: { id: 'chebyshev.order', type: 'sliderLinear', ...labels('fleet.chebyshev.harmonics'), min: 1, max: 8, step: 1, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'chebyshev.wet', type: 'sliderLinear', ...labels('fleet.chebyshev.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'chebyshev.wet', type: 'sliderLinear', ...labels('fleet.chebyshev.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
     key: 'bitCrusher',
     heading: 'fleet.bitCrusher',
-    layout: [[['bits'], ['wet']]],
+    layout: [[['wet'], ['bits']]],
     params: [
       { field: 'bits', schema: { id: 'bitCrusher.bits', type: 'sliderLinear', ...labels('fleet.bitCrusher.bits'), min: 1, max: 16, step: 1, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'bitCrusher.wet', type: 'sliderLinear', ...labels('fleet.bitCrusher.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'bitCrusher.wet', type: 'sliderLinear', ...labels('fleet.bitCrusher.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   // Global Modulation (docs/specs/GLOBAL_MODULATION_COLOUR.md §1.6): two dry-chain pedals after Colour, every
@@ -284,56 +284,56 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
   effect({
     key: 'tremolo',
     heading: 'fleet.tremolo',
-    layout: [[['rate'], ['depth'], ['spread'], ['wet']]],
+    layout: [[['wet'], ['rate', 'depth'], ['spread']]],
     params: [
       { field: 'rate', schema: { id: 'tremolo.rate', type: 'sliderLinear', ...labels('fleet.tremolo.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'depth', schema: { id: 'tremolo.depth', type: 'sliderLinear', ...labels('fleet.tremolo.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
       { field: 'spread', schema: { id: 'tremolo.spread', type: 'sliderLinear', ...labels('fleet.tremolo.spread'), min: 0, max: 180, step: 5, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'tremolo.wet', type: 'sliderLinear', ...labels('fleet.tremolo.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'tremolo.wet', type: 'sliderLinear', ...labels('fleet.tremolo.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
     key: 'vibrato',
     heading: 'fleet.vibrato',
-    layout: [[['rate'], ['depth'], ['wet']]],
+    layout: [[['wet'], ['rate', 'depth']]],
     params: [
       { field: 'rate', schema: { id: 'vibrato.rate', type: 'sliderLinear', ...labels('fleet.vibrato.rate'), min: PEDAL_RATE_RANGE_HZ.min, max: PEDAL_RATE_RANGE_HZ.max, step: PEDAL_RATE_STEP_HZ, orientation: 'horizontal' } },
       { field: 'depth', schema: { id: 'vibrato.depth', type: 'sliderLinear', ...labels('fleet.vibrato.depth'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'vibrato.wet', type: 'sliderLinear', ...labels('fleet.vibrato.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'vibrato.wet', type: 'sliderLinear', ...labels('fleet.vibrato.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
     key: 'frequencyShifter',
     heading: 'fleet.frequencyShifter',
-    layout: [[['shift'], ['wet']]],
+    layout: [[['wet'], ['shift']]],
     params: [
       { field: 'shift', schema: { id: 'frequencyShifter.shift', type: 'sliderCenteredZero', ...labels('fleet.frequencyShifter.shift'), min: -1000, max: 1000, step: 1, logKnee: 1, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'frequencyShifter.wet', type: 'sliderLinear', ...labels('fleet.frequencyShifter.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'frequencyShifter.wet', type: 'sliderLinear', ...labels('fleet.frequencyShifter.mix'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
     key: 'delay',
     heading: 'fleet.delay',
-    layout: [[['delayTime', 'feedback'], ['wet']]],
+    layout: [[['wet'], ['delayTime', 'feedback']]],
     params: [
       // No lfoTarget/lfoAccordion — LFO removed from delayTime; the effect
       // still seeds/edits its value normally (GlobalAudioSeedFieldKey is a
       // separate, unrelated type from GlobalLfoTargetId).
       { field: 'delayTime', schema: { id: 'delay.delayTime', type: 'sliderLinear', ...labels('fleet.delay.time'), min: DELAY_TIME_RANGE_SECONDS.min, max: DELAY_TIME_RANGE_SECONDS.max, step: DELAY_TIME_STEP_SECONDS, orientation: 'horizontal' } },
       { field: 'feedback', schema: { id: 'delay.feedback', type: 'sliderLinear', ...labels('fleet.delay.repeats'), min: 0, max: 0.95, step: 0.01, orientation: 'horizontal' } },
-      { field: 'wet', schema: { id: 'delay.wet', type: 'sliderLinear', ...labels('fleet.delay.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'delay.wet', type: 'sliderLinear', ...labels('fleet.delay.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
     key: 'reverb',
     heading: 'fleet.reverb',
-    layout: [[['decay', 'preDelay'], ['wet']]],
+    layout: [[['wet'], ['decay', 'preDelay']]],
     params: [
       { field: 'decay', schema: { id: 'reverb.decay', type: 'sliderLog', ...logReadout('fleet.reverb.length', 2), min: 0.1, max: 10, orientation: 'horizontal' } },
       { field: 'preDelay', schema: { id: 'reverb.preDelay', type: 'sliderLinear', ...labels('fleet.reverb.preDelay'), min: 0, max: 0.25, step: 0.01, orientation: 'horizontal' } },
       // dampening removed (V2) — Tone.Reverb has no such property; the slider
       // controlled a dead cast in globalFx.ts since Phase 0.
-      { field: 'wet', schema: { id: 'reverb.wet', type: 'sliderLinear', ...labels('fleet.reverb.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'wet', schema: { id: 'reverb.wet', type: 'sliderLinear', ...labels('fleet.reverb.amount'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
@@ -355,7 +355,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     heading: 'fleet.stereoWidener',
     layout: [[['width']]],
     params: [
-      { field: 'width', schema: { id: 'stereoWidener.width', type: 'sliderLinear', ...labels('fleet.stereoWidener.width'), min: 0, max: 1, step: 0.01, orientation: 'horizontal' } },
+      { field: 'width', schema: { id: 'stereoWidener.width', type: 'sliderLinear', ...labels('fleet.stereoWidener.width'), min: 0, max: 1, step: 0.01, orientation: 'horizontal', featured: true } },
     ],
   }),
   effect({
@@ -365,7 +365,7 @@ export const AUDIO_RIG_CONFIG: AudioRigEffectBlock[] = [
     params: [
       // No lfoTarget/lfoAccordion — Limiter never gets an LFO (spec: not a
       // GlobalLfoTargetId member, consistent with Compressor/Reverb having none).
-      { field: 'threshold', schema: { id: 'limiter.threshold', type: 'sliderLinear', ...labels('fleet.limiter.ceiling'), min: -20, max: 0, orientation: 'horizontal' } },
+      { field: 'threshold', schema: { id: 'limiter.threshold', type: 'sliderLinear', ...labels('fleet.limiter.ceiling'), min: -20, max: 0, orientation: 'horizontal', featured: true } },
     ],
   }),
 ];
