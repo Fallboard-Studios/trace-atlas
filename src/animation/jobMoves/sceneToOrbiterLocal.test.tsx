@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 
 import { robotCentre, positionForCentre, sceneToOrbiterLocal, type OrbiterCorner } from './sceneToOrbiterLocal';
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from '../../components/robot/gem/RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemHalo } from '../../components/robot/gem/RobotGem';
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type RobotGem as RobotGemGeometry } from '../../components/robot/gem/polygon';
 import { gemPalette } from '../../components/robot/gem/gemPalette';
 import type { Vec2 } from '../../types/Vec2';
@@ -15,8 +15,7 @@ import type { Vec2 } from '../../types/Vec2';
 // FIXTURES
 // ========================================
 /** World context: all four corners rendered, `.gem__orbiter-local` left bare for GSAP. */
-const WORLD_ORBITERS: RobotGemOrbiters = { lineWidth: 0.8, stripOpacity: 0, size: 1, count: 4, cornerOrder: [0, 1, 2, 3], motion: true };
-const BODY_LINES: RobotGemBodyLines = { top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 };
+const WORLD_ORBITERS: RobotGemOrbiters = { size: 1, count: 4, cornerOrder: [0, 1, 2, 3], motion: true };
 const HALO: RobotGemHalo = {
   color: '#41ad9f',
   gradientId: 'halo-test-r1',
@@ -60,7 +59,7 @@ function renderChain(gem: RobotGemGeometry, robotPos: Vec2, s: number): (corner:
   const { container } = render(
     <svg>
       <g transform={`translate(${robotPos.x} ${robotPos.y})`}>
-        <RobotGem gem={gem} palette={gemPalette(gem, '#41ad9f', 1, [1, 0.15], 20)} lightOpacity={0.7} scale={s} orbiters={WORLD_ORBITERS} bodyLines={BODY_LINES} halo={HALO} />
+        <RobotGem gem={gem} palette={gemPalette(gem, '#41ad9f', 1, [1, 0.15], 20)} lightOpacity={0.7} scale={s} orbiters={WORLD_ORBITERS} halo={HALO} />
       </g>
     </svg>,
   );
@@ -177,7 +176,7 @@ describe('robotCentre / positionForCentre (correction 5)', () => {
     for (const { bodyScale, layerScale } of SCALES) {
       const { container } = render(
         <svg>
-          <RobotGem gem={gem} palette={gemPalette(gem, '#41ad9f', 1, [1, 0.15], 20)} lightOpacity={0.7} scale={bodyScale * layerScale} orbiters={WORLD_ORBITERS} bodyLines={BODY_LINES} halo={HALO} />
+          <RobotGem gem={gem} palette={gemPalette(gem, '#41ad9f', 1, [1, 0.15], 20)} lightOpacity={0.7} scale={bodyScale * layerScale} orbiters={WORLD_ORBITERS} halo={HALO} />
         </svg>,
       );
       const gemTransform = parseTransform(container.querySelector('g.gem')!.getAttribute('transform'));

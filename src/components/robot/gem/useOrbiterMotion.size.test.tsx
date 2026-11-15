@@ -38,7 +38,7 @@ const ORBITER_CORNERS = ['tl', 'tr', 'bl', 'br'] as const;
 const SIZE_KEY = 'orbiter-size-world-r1';
 
 function dials(size: number): OrbiterDials {
-  return { count: 1, size, lineWidth: 0.5, stripOpacity: 0.4 };
+  return { count: 1, size };
 }
 
 function Harness({ size }: { size: number }) {
@@ -53,8 +53,7 @@ function Harness({ size }: { size: number }) {
         palette={PALETTE}
         lightOpacity={0.7}
         scale={1}
-        orbiters={{ lineWidth: d.lineWidth, stripOpacity: d.stripOpacity, size: d.size, count: d.count, cornerOrder: PLAN.cornerOrder, motion: true }}
-        bodyLines={{ top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 }}
+        orbiters={{ size: d.size, count: d.count, cornerOrder: PLAN.cornerOrder, motion: true }}
         halo={{ color: '#41ad9f', gradientId: 'halo-world-r1' }}
       />
     </svg>

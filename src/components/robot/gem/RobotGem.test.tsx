@@ -5,7 +5,8 @@ import { createRef } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemHalo } from './RobotGem';
+import { BODY_LINE_WIDTH, BODY_STRIP_OPACITY, ORBITER_LINE_WIDTH, ORBITER_STRIP_OPACITY } from './gemLines';
 import { getRobotGem, gemWidth, GEM_CANVAS_H, type GemPart } from './polygon';
 import { gemPalette, GEM_LIGHT_COLOR, type GemPalette, type GemPartPaint } from './gemPalette';
 import { quadPath } from './gemPaths';
@@ -28,20 +29,13 @@ const parts: Array<[string, GemPart]> = [
   ['top', gem.top],
 ];
 
-/** The temporary prop RobotBody passes until Task 7 lands — all four corners, today's fixed line
- *  width, strip fully transparent, no motion. Keeps the live app pixel-identical through T5/T6. */
+/** All four corners, no motion. The line widths and strip opacities are not props: RobotGem fixes them (gemLines.ts). */
 const ALL_FOUR_STATIC: RobotGemOrbiters = {
-  lineWidth: 0.8,
-  stripOpacity: 0,
   size: 1,
   count: 4,
   cornerOrder: [0, 1, 2, 3],
   motion: false,
 };
-
-/** The temporary body-line prop RobotBody passes until Phase 41 Task 7 lands — Phase 40's fixed
- *  0.8 on every body line, strip fully transparent. Keeps the live app pixel-identical through T5/T6. */
-const BODY_LINES_LEGACY: RobotGemBodyLines = { top: 0.8, midLeft: 0.8, midRight: 0.8, stripOpacity: 0 };
 
 /** A default halo for the cases that are not about it. */
 const HALO_LEGACY: RobotGemHalo = {
@@ -54,12 +48,11 @@ function draw(
   lightOpacity = 0.7,
   scale = 0.9,
   orbiters: RobotGemOrbiters = ALL_FOUR_STATIC,
-  bodyLines: RobotGemBodyLines = BODY_LINES_LEGACY,
   halo: RobotGemHalo = HALO_LEGACY,
 ) {
   const { container } = render(
     <svg>
-      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} orbiters={orbiters} bodyLines={bodyLines} halo={halo} />
+      <RobotGem gem={gem} palette={p} lightOpacity={lightOpacity} scale={scale} orbiters={orbiters} halo={halo} />
     </svg>,
   );
   return container;
@@ -185,7 +178,7 @@ describe('RobotGem — draw-only renderer (docs/specs/GEM_POLYGON_ROBOTS.md §1.
     const ref = createRef<SVGGElement>();
     const { container } = render(
       <svg>
-        <RobotGem ref={ref} gem={gem} palette={palette} lightOpacity={0.5} scale={1} orbiters={ALL_FOUR_STATIC} bodyLines={BODY_LINES_LEGACY} halo={HALO_LEGACY} />
+        <RobotGem ref={ref} gem={gem} palette={palette} lightOpacity={0.5} scale={1} orbiters={ALL_FOUR_STATIC} halo={HALO_LEGACY} />
       </svg>,
     );
     expect(ref.current).toBe(container.querySelector('g.gem'));
@@ -239,102 +232,66 @@ describe('RobotGem — static orbiters: count, cornerOrder, size, line width, st
     expect(local.getAttribute('transform')).toBe('scale(1.25)');
   });
 
-  it('an orbiter .gem__lines stroke-width equals the lineWidth dial', () => {
-    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.45 });
-    const lines = container.querySelector('.gem__orbiter--tl .gem__lines')!;
-    expect(lines.getAttribute('stroke-width')).toBe('0.45');
+  it('every orbiter .gem__lines is ORBITER_LINE_WIDTH (1.1) wide, the top of the old Note Variance range', () => {
+    expect(ORBITER_LINE_WIDTH).toBe(1.1);
+    const container = draw();
+    const lines = [...container.querySelectorAll('.gem__orbiter .gem__lines')];
+    expect(lines).toHaveLength(4);
+    lines.forEach((el) => expect(el.getAttribute('stroke-width')).toBe('1.1'));
   });
 
-  it('Mid and Top .gem__lines ignore the orbiter lineWidth dial (they read bodyLines, Phase 41 T5)', () => {
-    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.3 });
-    expect(container.querySelector('.gem__mid--left .gem__lines')!.getAttribute('stroke-width')).toBe('0.8');
-    expect(container.querySelector('.gem__mid--right .gem__lines')!.getAttribute('stroke-width')).toBe('0.8');
-    expect(container.querySelector('.gem__top .gem__lines')!.getAttribute('stroke-width')).toBe('0.8');
-  });
-
-  it('orbiter strips carry data-line="orbiters" and data-base = their opacity (Phase 41 T5, for useStripFlicker)', () => {
-    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, stripOpacity: 0.62 });
-    const strips = [...container.querySelectorAll('.gem__orbiter .gem__strip')];
-    expect(strips).toHaveLength(4);
-    strips.forEach((strip) => {
-      expect(strip.getAttribute('data-line')).toBe('orbiters');
-      expect(strip.getAttribute('data-base')).toBe('0.62');
-    });
-  });
-
-  it('.gem__strip exists per shown orbiter with the same d as .gem__lines, stroke palette.light, width lineWidth/3, opacity stripOpacity', () => {
-    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.9, stripOpacity: 0.62 });
+  it('each orbiter strip is half the line wide (0.55) at ORBITER_STRIP_OPACITY (1), on the same path in palette.light', () => {
+    expect(ORBITER_STRIP_OPACITY).toBe(1);
+    const container = draw();
     ['tl', 'tr', 'bl', 'br'].forEach((corner) => {
       const lines = container.querySelector(`.gem__orbiter--${corner} .gem__lines`)!;
-      const strip = container.querySelector(`.gem__orbiter--${corner} .gem__strip`)!;
-      expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
-      expect(strip.getAttribute('stroke')).toBe(palette.light);
-      expect(strip.getAttribute('stroke-width')).toBe('0.3'); // 0.9 / 3
-      expect(strip.getAttribute('opacity')).toBe('0.62');
+      const strips = container.querySelectorAll(`.gem__orbiter--${corner} .gem__strip`);
+      expect(strips).toHaveLength(1);
+      expect(strips[0].getAttribute('d')).toBe(lines.getAttribute('d'));
+      expect(strips[0].getAttribute('stroke')).toBe(palette.light);
+      expect(strips[0].getAttribute('stroke-width')).toBe('0.55'); // 1.1 / 2
+      expect(strips[0].getAttribute('opacity')).toBe(String(ORBITER_STRIP_OPACITY));
     });
   });
-
-  it('stripOpacity 0 still renders the strip (opacity 0, not absent)', () => {
-    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, stripOpacity: 0 });
-    const strip = container.querySelector('.gem__orbiter--tl .gem__strip');
-    expect(strip).not.toBeNull();
-    expect(strip!.getAttribute('opacity')).toBe('0');
-  });
-
 });
 
 // ========================================
-// BODY LINES — Top/Mid line-width dial and strips (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.4, Task 5)
+// BODY LINES — one fixed width on Top and both Mids (backlog 85)
 // ========================================
-describe('RobotGem — bodyLines: Top/Mid line width dial and lit strips (Phase 41, Task 5)', () => {
-  const BODY = { top: 0.7, midLeft: 0.3, midRight: 0.5, stripOpacity: 0.6 };
-  const LINES: Array<[string, keyof typeof BODY, string]> = [
-    ['.gem__top', 'top', 'top'],
-    ['.gem__mid--left', 'midLeft', 'midLeft'],
-    ['.gem__mid--right', 'midRight', 'midRight'],
+describe('RobotGem — body lines: one fixed width and lit strips', () => {
+  const LINES: Array<[string, string]> = [
+    ['.gem__top', 'top'],
+    ['.gem__mid--left', 'midLeft'],
+    ['.gem__mid--right', 'midRight'],
   ];
 
-  it('each body part\'s .gem__lines stroke-width is its own dial', () => {
-    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY);
-    for (const [sel, key] of LINES) {
-      expect(container.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width')).toBe(String(BODY[key]));
+  it('every body part .gem__lines is BODY_LINE_WIDTH (0.7) wide, the top of the old gain-depth range', () => {
+    expect(BODY_LINE_WIDTH).toBe(0.7);
+    const container = draw();
+    for (const [sel] of LINES) {
+      expect(container.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width')).toBe('0.7');
     }
   });
 
-  it('one .gem__strip per body part with the same d as its .gem__lines, stroke palette.light, width lineWidth / 3 (2 dp), opacity stripOpacity, round caps', () => {
-    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY);
-    for (const [sel, key] of LINES) {
+  it('one .gem__strip per body part: same d as its .gem__lines, palette.light, 0.35 wide (half of 0.7), BODY_STRIP_OPACITY (0.6), round caps', () => {
+    expect(BODY_STRIP_OPACITY).toBe(0.6);
+    const container = draw();
+    for (const [sel] of LINES) {
       const lines = container.querySelector(`${sel} .gem__lines`)!;
       const strips = container.querySelectorAll(`${sel} .gem__strip`);
       expect(strips).toHaveLength(1);
       const strip = strips[0];
       expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strip.getAttribute('stroke')).toBe(palette.light);
-      expect(strip.getAttribute('stroke-width')).toBe(String(fmt(BODY[key] / 3)));
+      expect(strip.getAttribute('stroke-width')).toBe('0.35');
       expect(strip.getAttribute('opacity')).toBe('0.6');
       expect(strip.getAttribute('fill')).toBe('none');
       expect(strip.getAttribute('stroke-linecap')).toBe('round');
     }
   });
 
-  it('the strip follows its own line\'s width: top 0.7 → 0.23, midLeft 0.3 → 0.1, midRight 0.5 → 0.17', () => {
-    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY);
-    expect(container.querySelector('.gem__top .gem__strip')!.getAttribute('stroke-width')).toBe('0.23');
-    expect(container.querySelector('.gem__mid--left .gem__strip')!.getAttribute('stroke-width')).toBe('0.1');
-    expect(container.querySelector('.gem__mid--right .gem__strip')!.getAttribute('stroke-width')).toBe('0.17');
-  });
-
-  it('each body strip carries data-line ∈ top / midLeft / midRight and data-base = its opacity', () => {
-    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY);
-    for (const [sel, , line] of LINES) {
-      const strip = container.querySelector(`${sel} .gem__strip`)!;
-      expect(strip.getAttribute('data-line')).toBe(line);
-      expect(strip.getAttribute('data-base')).toBe('0.6');
-    }
-  });
-
   it('the strip sits directly after its .gem__lines and before the lights (z order)', () => {
-    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY);
+    const container = draw();
     const top = container.querySelector('.gem__top')!;
     const classes = [...top.children].map((c) => c.getAttribute('class'));
     const linesAt = classes.indexOf('gem__lines');
@@ -342,39 +299,11 @@ describe('RobotGem — bodyLines: Top/Mid line width dial and lit strips (Phase 
     expect(classes.indexOf('gem__light')).toBeGreaterThan(linesAt + 1);
   });
 
-  it('stripOpacity 0 still renders every body strip (opacity 0, not absent)', () => {
-    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, { ...BODY, stripOpacity: 0 });
-    for (const [sel] of LINES) {
-      const strip = container.querySelector(`${sel} .gem__strip`);
-      expect(strip).not.toBeNull();
-      expect(strip!.getAttribute('opacity')).toBe('0');
-      expect(strip!.getAttribute('data-base')).toBe('0');
-    }
-  });
-
-  it('body strips are independent of the orbiter strip opacity and vice versa', () => {
-    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, stripOpacity: 0.9 }, { ...BODY, stripOpacity: 0.2 });
-    expect(container.querySelector('.gem__top .gem__strip')!.getAttribute('opacity')).toBe('0.2');
-    expect(container.querySelector('.gem__orbiter--tl .gem__strip')!.getAttribute('opacity')).toBe('0.9');
-  });
-
-  it('the legacy prop (0.8 / 0.8 / 0.8 / strip 0) draws every body line at 0.8 — pixel-identical to Phase 40', () => {
-    const container = draw();
-    for (const [sel] of LINES) {
-      expect(container.querySelector(`${sel} .gem__lines`)!.getAttribute('stroke-width')).toBe('0.8');
-      expect(container.querySelector(`${sel} .gem__strip`)!.getAttribute('opacity')).toBe('0');
-    }
-  });
-
-  it('motion: true also draws the body strips with their dials', () => {
-    const container = draw(palette, 0.7, 0.9, MOTION, BODY);
-    expect(container.querySelector('.gem__top .gem__strip')!.getAttribute('data-line')).toBe('top');
-    expect(container.querySelector('.gem__mid--left .gem__lines')!.getAttribute('stroke-width')).toBe('0.3');
-  });
-
-  it('no stroke falls back to the old fixed 0.8 width — every body line width comes from the dial', () => {
-    const container = draw(palette, 0.7, 0.9, { ...ALL_FOUR_STATIC, lineWidth: 0.9 }, BODY);
-    container.querySelectorAll('[stroke-width]').forEach((el) => expect(el.getAttribute('stroke-width')).not.toBe('0.8'));
+  it('motion: true draws the same widths', () => {
+    const container = draw(palette, 0.7, 0.9, MOTION);
+    expect(container.querySelector('.gem__top .gem__strip')).not.toBeNull();
+    expect(container.querySelector('.gem__mid--left .gem__lines')!.getAttribute('stroke-width')).toBe('0.7');
+    expect(container.querySelector('.gem__orbiter--tl .gem__lines')!.getAttribute('stroke-width')).toBe('1.1');
   });
 });
 
@@ -386,20 +315,20 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
   const W = gemWidth(gem);
 
   it('on cards (motion: false) the halo never renders — no defs, no waves (amendment: halo only appears during a spawn/despawn arc)', () => {
-    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO);
+    const container = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, HALO);
     expect(container.querySelector('defs')).toBeNull();
     expect(container.querySelector('.gem__waves')).toBeNull();
   });
 
   it('draws no gradient ellipse and no radial gradient: the volume/envelope halo was removed (2026-10-12)', () => {
-    const container = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO);
+    const container = draw(palette, 0.7, 0.9, MOTION, HALO);
     expect(container.querySelector('.gem__halo')).toBeNull();
     expect(container.querySelector('.gem__ripple')).toBeNull();
     expect(container.querySelector('radialGradient')).toBeNull();
   });
 
   it('the waves sit directly after the backing and its defs, and before mid--left (motion mode)', () => {
-    const root = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('g.gem')!;
+    const root = draw(palette, 0.7, 0.9, MOTION, HALO).querySelector('g.gem')!;
     const kids = [...root.children];
     const backingAt = kids.findIndex((c) => c.classList.contains('gem__backing'));
     expect(kids[backingAt + 1].tagName).toBe('defs');
@@ -408,32 +337,32 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
   });
 
   it('on cards, nothing sits between the backing and mid--left — no defs, no waves', () => {
-    const root = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO).querySelector('g.gem')!;
+    const root = draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, HALO).querySelector('g.gem')!;
     const kids = [...root.children];
     const backingAt = kids.findIndex((c) => c.classList.contains('gem__backing'));
     expect(kids[backingAt + 1].classList.contains('gem__mid--left')).toBe(true);
   });
 
   it('the waves centre on the canvas (data-cx, data-cy), where the gem scales about', () => {
-    const group = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('g.gem__waves')!;
+    const group = draw(palette, 0.7, 0.9, MOTION, HALO).querySelector('g.gem__waves')!;
     expect(group.getAttribute('data-cx')).toBe(String(W / 2));
     expect(group.getAttribute('data-cy')).toBe(String(GEM_CANVAS_H / 2));
   });
 
   it('no <filter> anywhere (spec Assumption 5)', () => {
-    expect(draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('filter')).toBeNull();
+    expect(draw(palette, 0.7, 0.9, MOTION, HALO).querySelector('filter')).toBeNull();
   });
 
   it('a new halo colour re-renders the waves and their trails (nothing freezes the markup: GSAP only writes attributes React leaves constant)', () => {
     const { container, rerender } = render(
       <svg>
-        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} bodyLines={BODY_LINES_LEGACY} halo={HALO} />
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} halo={HALO} />
       </svg>,
     );
     expect(container.querySelector('g.gem__waves')!.getAttribute('stroke')).toBe('#ae5378');
     rerender(
       <svg>
-        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} bodyLines={BODY_LINES_LEGACY} halo={{ ...HALO, color: '#123456' }} />
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} halo={{ ...HALO, color: '#123456' }} />
       </svg>,
     );
     expect(container.querySelector('g.gem__waves')!.getAttribute('stroke')).toBe('#123456');
@@ -443,8 +372,8 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
   it('two RobotGems with different gradientIds produce two sets of trail gradients, each group naming its own', () => {
     const { container } = render(
       <svg>
-        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} bodyLines={BODY_LINES_LEGACY} halo={{ ...HALO, gradientId: 'halo-world-r1' }} />
-        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} bodyLines={BODY_LINES_LEGACY} halo={{ ...HALO, color: '#123456', gradientId: 'halo-avatar-r1' }} />
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} halo={{ ...HALO, gradientId: 'halo-world-r1' }} />
+        <RobotGem gem={gem} palette={palette} lightOpacity={0.7} scale={1} orbiters={MOTION} halo={{ ...HALO, color: '#123456', gradientId: 'halo-avatar-r1' }} />
       </svg>,
     );
     const groups = [...container.querySelectorAll('g.gem__waves')];
@@ -454,7 +383,7 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
   });
 
   it('triangular waves (haloWaves.ts): the outward waves and the counter wave, all empty, invisible paths in the halo colour, only in the motion contexts (world/avatar)', () => {
-    const group = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO).querySelector('g.gem__waves')!;
+    const group = draw(palette, 0.7, 0.9, MOTION, HALO).querySelector('g.gem__waves')!;
     expect(group.getAttribute('stroke')).toBe(HALO.color);
     const paths = [...group.querySelectorAll('path.gem__wave')];
     expect(paths).toHaveLength(WAVE_PATH_COUNT);
@@ -465,11 +394,11 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
       expect(p.getAttribute('d')).toBe('');
       expect(p.getAttribute('opacity')).toBe('0');
     });
-    expect(draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO).querySelector('g.gem__waves')).toBeNull();
+    expect(draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, HALO).querySelector('g.gem__waves')).toBeNull();
   });
 
   it('the waves trails: a gradient for each half of the tail, in the halo colour and the counter wave own, named by the group; no filter anywhere', () => {
-    const container = draw(palette, 0.7, 0.9, MOTION, BODY_LINES_LEGACY, HALO);
+    const container = draw(palette, 0.7, 0.9, MOTION, HALO);
     const group = container.querySelector('g.gem__waves')!;
     const gradient = (base: string, side: string) => container.querySelector(`linearGradient[id="${base}-${side}"]`)!;
     const trailId = group.getAttribute('data-trail-id')!;
@@ -487,7 +416,7 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
     // none of the trail strips exist at rest: they are made for the length of a run
     expect(container.querySelector('.gem__wave-trail')).toBeNull();
     expect(container.querySelector('filter')).toBeNull();
-    expect(draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, BODY_LINES_LEGACY, HALO).querySelector('linearGradient')).toBeNull();
+    expect(draw(palette, 0.7, 0.9, ALL_FOUR_STATIC, HALO).querySelector('linearGradient')).toBeNull();
   });
 
   it('the halo adds no g.gem__part to the element-count case', () => {
@@ -499,8 +428,6 @@ describe('RobotGem — halo: the triangular waves behind the Mids (Phase 41)', (
 // MOTION MODE — docked, GSAP-owned (Phase 40 amendment: single copy per corner, no depth twins)
 // ========================================
 const MOTION: RobotGemOrbiters = {
-  lineWidth: 0.55,
-  stripOpacity: 0.4,
   size: 1.1, // ignored in motion mode — no React scale
   count: 2, // ignored in motion mode — all 4 copies present regardless
   cornerOrder: [0, 1, 2, 3],
@@ -546,18 +473,16 @@ describe('RobotGem — motion mode: docked orbiters, GSAP-owned (Phase 40 amendm
     expect(inner.getAttribute('transform')).toBe(`translate(${fmt(part.x)} ${fmt(part.y)})`);
   });
 
-  it('each of the 4 copies has its own strip and lines with the dial attributes (T5 assertions hold per copy)', () => {
+  it('each of the 4 copies has its own strip and lines at the fixed orbiter width and opacity', () => {
     const container = draw(palette, 0.7, 0.9, MOTION);
     container.querySelectorAll('.gem__orbiter').forEach((wrapper) => {
       const lines = wrapper.querySelector('.gem__lines')!;
       const strip = wrapper.querySelector('.gem__strip')!;
-      expect(lines.getAttribute('stroke-width')).toBe('0.55');
+      expect(lines.getAttribute('stroke-width')).toBe('1.1');
       expect(strip.getAttribute('d')).toBe(lines.getAttribute('d'));
       expect(strip.getAttribute('stroke')).toBe(palette.light);
-      expect(strip.getAttribute('stroke-width')).toBe('0.18'); // 0.55 / 3, 2dp
-      expect(strip.getAttribute('opacity')).toBe('0.4');
-      expect(strip.getAttribute('data-line')).toBe('orbiters');
-      expect(strip.getAttribute('data-base')).toBe('0.4');
+      expect(strip.getAttribute('stroke-width')).toBe('0.55');
+      expect(strip.getAttribute('opacity')).toBe('1');
     });
   });
 

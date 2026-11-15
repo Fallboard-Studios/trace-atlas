@@ -15,6 +15,11 @@ runs outward repeatedly; during a despawn arc, inward — designed, built and te
 (Amendment 2, §1) with no arc wired to trigger it, so the halo and ripple are invisible everywhere
 today. Nothing comes from BPM, the transport or the audio engine.
 
+**Amendment (2026-11-14, backlog 85): the line-width dial and the flicker are gone.** Every Top and Mid boundary line is
+a fixed 0.7 wide, the strips fixed at 0.6 opacity, and an edit flickers nothing: `bodyLineDials.ts`, `useStripFlicker.ts`
+and `stripFlicker.ts` are removed, and §1.2 and §1.4 below describe what was built and then taken out. The constants
+are in `gem/gemLines.ts`; [ROBOT_DESIGN.md](../ROBOT_DESIGN.md) has the current rule.
+
 ## Assumptions (correct these before the plan)
 
 1. **Phase 40 ships first, unchanged.** This spec consumes, and does not alter: `RobotGem`'s

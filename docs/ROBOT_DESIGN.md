@@ -10,7 +10,7 @@ and seed, not audio**: the geometry comes from `Robot.gemSeed`, the colour from
 `Robot.identityColor`. Audio reaches the backing, Mids and Top only through three continuous dials —
 the two lights, each Mid polygon's lit level, and the body scale — so an audio edit can brighten, dim
 or resize a robot but never change a count, a side, a line or a position there. The orbiters are the
-one exception: composition settings (not audio) drive how many are attached and their size/line/strip
+one exception: composition settings (not audio) drive how many are attached and their size
 ("Orbiters" below), and an attach/detach always animates — never a pop. Day/night lightness and
 battery dimming are the first two overlays, on the body. The note cloud is the third, drawn around the
 body and never on it: the robot's own notes, fed only by the engine's note events ("The note cloud"
@@ -128,8 +128,7 @@ robot keeps swimming.
 Robot Articulation (portamento, the attack and release shapes, and the bus filter's cutoff, resonance and type, plus
 the cutoff's `bus.frequency` LFO link; roadmap 50.1) reaches the body through no dial either: the list above is
 unchanged, and nothing under `src/components/robot/gem/` or in `RobotBody.tsx` reads `portamento`, `filterQ`,
-`filterType`, `attackCurve`, `releaseCurve` or `bus.frequency`, and `bodyLineDials` still reads only the three layer
-gain links. Attack and Release still feed the Lights and Body
+`filterType`, `attackCurve`, `releaseCurve` or `bus.frequency`; no boundary line reads a link or a setting at all ("Boundary lines", below). Attack and Release still feed the Lights and Body
 scale as before, through `bodyShapeFromAdsr`.
 
 The two sends (`Robot.reverbSend` / `Robot.delaySend`, the Reverb and Delay sliders; roadmap 50.2) reach the body
@@ -149,15 +148,22 @@ audio dials above.
 
 The four orbiter polygons are the one part of the body composition settings drive directly (Roadmap
 Phase 40, spec [ORBITING_POLYGONS.md](specs/ORBITING_POLYGONS.md)) — not audio, and never a pop.
-`src/components/robot/gem/orbiterDials.ts` maps four composition fields to four dials, clamped to
+`src/components/robot/gem/orbiterDials.ts` maps two composition fields to two dials, clamped to
 their `constants/index.ts` ranges:
 
 | Dial | Source | Rule |
 |---|---|---|
 | Count (1–4) | `rhythmicDensity` | <25 → 1, ≤50 → 2, ≤75 → 3, 76+ → 4 (`ORBITER_COUNT_BREAKS`) |
 | Size | `rhythmicMotifLength.value` (0–8) | 0.75× … 1.25× (`ORBITER_SIZE_MIN/MAX`), 0.5 s tween on edit |
-| Boundary-line width | `noteVariance.value` (0–8) | 0.3 … 1.1 (today's fixed Mid/Top 0.8 sits inside) |
-| Strip opacity | `pitchRepeat` (0–100) | 0.35 … 1.0 — a centre stroke in `palette.light`, never battery-dimmed |
+
+**Boundary lines.** Every boundary line is one fixed width, on every robot, at every setting, and nothing
+flickers on an edit (backlog 85; the widths and the flicker used to follow settings, and the changing size did not
+look good). The constants are in `src/components/robot/gem/gemLines.ts`, each the top of the range it had: Top and
+both Mids 0.7 (`BODY_LINE_WIDTH`, was 0.3 … 0.7 from the layer's gain-LFO depth), an orbiter 1.1
+(`ORBITER_LINE_WIDTH`, was 0.3 … 1.1 from Note Variance). The lit strip down a line, in `palette.light` and never
+battery-dimmed, is half its width (`STRIP_WIDTH_FRACTION`, a third before Crawford widened it): 0.6 opacity on the body (`BODY_STRIP_OPACITY`), 1 on an orbiter
+(`ORBITER_STRIP_OPACITY`, was 0.35 … 1 from Pitch Repeat). An edit to a Mid's layer gain still moves that Mid's lit
+level ("What audio drives"), and nothing else shows it.
 
 **Dock, don't orbit.** Each robot has a seeded corner order (`orbiterPlan(gemSeed)`, a stream
 independent of the geometry generator's own — `gem.fixture.json` is untouched). The first `count`

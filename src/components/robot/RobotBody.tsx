@@ -16,16 +16,14 @@ import { useUIStore } from '../../stores/uiStore';
 import { useLocaleStore } from '../../stores/localeStore';
 import { registerArcDecorator, deleteArcDecorator } from '../../animation/robotMotionRegistry';
 import { useActiveLocaleId } from '../../utils/localeHelpers';
-import { RobotGem, type RobotGemOrbiters, type RobotGemBodyLines, type RobotGemHalo } from './gem/RobotGem';
+import { RobotGem, type RobotGemOrbiters, type RobotGemHalo } from './gem/RobotGem';
 import { useOrbiterMotion } from './gem/useOrbiterMotion';
 import { useHaloMotion } from './gem/useHaloMotion';
-import { useStripFlicker, type StripLine, type FlickerTrigger } from './gem/useStripFlicker';
 import { getRobotGem } from './gem/polygon';
 import { gemPalette } from './gem/gemPalette';
 import { batteryFacetContrast } from './gem/gemShading';
 import { orbiterDials } from './gem/orbiterDials';
 import { orbiterPlan } from './gem/orbiterMotion';
-import { bodyLineDials, BODY_STRIP_OPACITY } from './gem/bodyLineDials';
 import { useNoteCloud } from './notes/useNoteCloud';
 import { noteColor } from './notes/noteRows';
 
@@ -68,15 +66,14 @@ const FALLBACK_IDENTITY = '#78cce2';
  * intensity, each Mid's lit level, and scale — computed in the memo below, which nothing
  * non-audio may enter (backlog item 22: the once/sec daylight tick must not recompute it).
  *
- * Phase 41 (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.5) adds the halo and a memo for the Top/Mid
- * line widths (the gain-LFO link depths). The halo's only input is its colour — the company colour
+ * Phase 41 (docs/specs/ROBOT_HALO_AND_LIT_LINES.md §1.5) adds the halo. Every boundary line is one fixed width
+ * (gemLines.ts, backlog 85), so there is no line memo and nothing flickers on an edit. The halo's only input is its colour — the company colour
  * (the one non-audio visual input, read with a narrow selector so a company rename never re-renders
  * the body), else the identity colour — and nothing audio sizes it. `useHaloMotion`'s `decorateArc`
  * is registered (world only) for the work loop's station exit/entry arcs (Phase 43), its only
  * caller (the density-driven orbiter attach/detach hop stopped decorating on 2026-10-06), so the
- * halo's waves show only as a robot exits or enters a station. `useStripFlicker` plays each line's
- * two-second flicker on its own trigger tuple. On cards (no `motion`) the orbiter and flicker hooks
- * are disabled — `enabled: false` returns before touching GSAP — and the halo never renders at all.
+ * halo's waves show only as a robot exits or enters a station. On cards (no `motion`) the orbiter hook
+ * is disabled — `enabled: false` returns before touching GSAP — and the halo never renders at all.
  */
 export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignoreScale, motion }: RobotBodyProps) {
   // Day/night from the active locale's local time (0..24, written once a second by
@@ -110,10 +107,8 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
       orbiterDials({
         rhythmicDensity: robot.rhythmicDensity,
         rhythmicMotifLength: robot.rhythmicMotifLength,
-        noteVariance: robot.noteVariance,
-        pitchRepeat: robot.pitchRepeat,
       }),
-    [robot.rhythmicDensity, robot.rhythmicMotifLength, robot.noteVariance, robot.pitchRepeat],
+    [robot.rhythmicDensity, robot.rhythmicMotifLength],
   );
   // Seeded layout — a Map hit after the first render of this seed, outside both memos.
   const plan = orbiterPlan(robot.gemSeed);
@@ -123,29 +118,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
   const localeId = useActiveLocaleId();
   const companyColor = useLocaleStore((s) => s.locales[localeId]?.companies?.find((c) => c.id === robot.companyId)?.color);
 
-  // Body line widths only — the gain-LFO link depths (spec §1.2). `lfoLinks` is replaced wholesale
-  // on edit, so the reference is the dependency.
-  const bodyLines = useMemo<RobotGemBodyLines>(
-    () => ({ ...bodyLineDials(robot.lfoLinks), stripOpacity: BODY_STRIP_OPACITY }),
-    [robot.lfoLinks],
-  );
-
-  // Flicker triggers only — each line's own tuple (spec §1.4, Task 13): a change in any of a
-  // line's values restarts that line's two-second flicker, and no other line's.
-  const flickerTriggers = useMemo<Record<StripLine, FlickerTrigger>>(() => {
-    const links = robot.lfoLinks;
-    const top = links?.['layer0.gain'];
-    const midLeft = links?.['layer1.gain'];
-    const midRight = links?.['layer2.gain'];
-    const layers = robot.audioAttributes.layers;
-    return {
-      top: [top?.depth, top?.lane],
-      midLeft: [midLeft?.depth, midLeft?.lane, layers?.[1]?.gain],
-      midRight: [midRight?.depth, midRight?.lane, layers?.[2]?.gain],
-      orbiters: [robot.noteVariance?.value, robot.pitchRepeat],
-    };
-  }, [robot.lfoLinks, robot.audioAttributes.layers, robot.noteVariance, robot.pitchRepeat]);
-
   // Seeded identity — a Map hit after the first render of this seed.
   const gem = getRobotGem(robot.gemSeed);
   const palette = gemPalette(gem, robot.identityColor ?? FALLBACK_IDENTITY, daylight, audio.midLit, batteryFacetContrast(dimOpacity));
@@ -154,8 +126,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
   const orbiters: RobotGemOrbiters = {
     count: composition.count,
     size: composition.size,
-    lineWidth: composition.lineWidth,
-    stripOpacity: composition.stripOpacity,
     cornerOrder: plan.cornerOrder,
     motion: motion !== undefined,
   };
@@ -199,15 +169,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
     enabled: motionEnabled,
   });
 
-  useStripFlicker({
-    root: gemRef,
-    robotId: robot.id,
-    context: motion ?? 'world',
-    gemSeed: robot.gemSeed,
-    triggers: flickerTriggers,
-    enabled: motionEnabled,
-  });
-
   // The note cloud (docs/specs/ROBOT_NOTE_CLOUD.md §1.3–§1.8), on the desk avatar alone: never in the world (§8.4,
   // Crawford 2026-11-13: it makes no sense there, by the lore or to the eye) and never on a card. Its colour is the
   // company's, else the identity hue's complement. It places every note at the peak strength (the hook's), and its
@@ -230,7 +191,6 @@ export const RobotBody = memo(function RobotBody({ robot, ignoreDaylight, ignore
       lightOpacity={lightOpacity}
       scale={ignoreScale ? 1 : audio.scale}
       orbiters={orbiters}
-      bodyLines={bodyLines}
       halo={halo}
     />
   );
