@@ -586,7 +586,8 @@ Built 2026-11-15 on `features/slider-layout-update`, not yet merged (Crawford op
 [control-layout.md](../intent/control-layout.md), spec [CONTENT_LAYOUT.md](../specs/CONTENT_LAYOUT.md), plan
 [CONTENT_LAYOUT.md](../tasks/CONTENT_LAYOUT.md), and Crawford's two sheets,
 [Layout - Params.csv](../reference/Layout%20-%20Params.csv) and [Layout - Robots.csv](../reference/Layout%20-%20Robots.csv).
-A layout pass with no behaviour change: no store action, audio call, schema range or saved value moved.
+A layout pass with no behaviour change: no store action, audio call, schema range or saved value moved. Crawford's look
+at three widths passed on 2026-11-15 (Fleet Params, then the robot, company and All Probes sub-tabs).
 
 ### Shipped
 
@@ -618,8 +619,6 @@ A layout pass with no behaviour change: no store action, audio call, schema rang
 
 ### Open
 
-- Crawford's look at phone, tablet and desktop widths over the robot sub-tabs, the oscillators and the filter (the
-  Robots checkpoint's look); the Fleet Params tabs passed theirs on 2026-11-15.
 - The three old composites, `AudioSettingSection`, `PingControlsCompositionSection` and `PingContourDrawer`, are
   rendered by no screen since the sub-tabs, only by their own tests: delete them, or keep them (Crawford's call).
 - Not placed in [plan.md](plan.md): it was built ahead of the sequence.

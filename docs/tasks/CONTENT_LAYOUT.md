@@ -560,9 +560,8 @@ selector change only). Every task's manual check is folded into the look below.
 
 ### Checkpoint: Robot sub-tabs — passed 2026-11-15 (the look folded into the Robots checkpoint's)
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (14,409 tests, 0 failed).
-- [ ] Look: a robot, a company and All Probes each show the six new sub-tabs; an edit on a company
-      still reaches every member once. **Folded into the Robots checkpoint's look below**, which covers
-      every robot sub-tab on all three screens.
+- [x] Look: a robot, a company and All Probes each show the six new sub-tabs; an edit on a company
+      still reaches every member once. Folded into the Robots checkpoint's look below, which passed.
 - [x] Reviewed with Crawford before Tasks 17 and 18 (2026-11-15: "Build 17 + 18, then 19", asked when Phase 5
       was requested with this checkpoint unticked).
 
@@ -631,16 +630,16 @@ selector change only). Every task's manual check is folded into the look below.
 - Mutants killed: Detune unfeatured, P2 given the layer heading, Interval moved into P2 (Task 17); Resonance featured,
   the link moved into P2 (Task 18).
 
-### Checkpoint: Robots — tests passed 2026-11-15; the look is outstanding
+### Checkpoint: Robots — passed 2026-11-15
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (359 files, 14,423 passed, 2 skipped,
       0 failed; lint's 4 pre-existing warnings; the build's usual chunk-size notice). The run also reported one
       Vitest `onTaskUpdate` RPC timeout, an unhandled error outside any test (backlog 66's startup-burst cause), not a
       failure.
 - [x] Mutation check: move Pitch Repeat Chance's row into Details and its order test goes red. Restore. (Seven cases
       red in `PingControlsDrawer.test.tsx`, the order test among them; restored.)
-- [ ] Look, phone, tablet and desktop: every robot sub-tab against §1.3, then the same on a company and
-      on All Probes. Nothing in the avatar column, the roster or the nav panel moved. **Outstanding:** no browser
-      pass this session; it is Crawford's.
+- [x] Look, phone, tablet and desktop: every robot sub-tab against §1.3, then the same on a company and
+      on All Probes. Nothing in the avatar column, the roster or the nav panel moved. (Crawford, 2026-11-15, after
+      Tasks 17–19: "ok, looks good".)
 - [x] Reviewed with Crawford before docs: waived (2026-11-15, Crawford asked for Tasks 17, 18 and 19 in one run).
 
 ---
@@ -681,15 +680,14 @@ labels are Automation Rate, Length and Range), and a code comment in `src/conten
 `fleet.quality`) still calls it "Audio Quality, Fleet Params' last tab". Dated specs, plans and archives keep the old
 names as history.
 
-### Checkpoint: Complete — built; Crawford's manual pass outstanding
+### Checkpoint: Complete — passed 2026-11-15
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the Robots checkpoint's run; Task
       19 changed docs only, and types and lint were re-run after it).
-- [ ] The eight success criteria of spec §7 are met: 1–7 by the tests, the featured walks and the docs read; **8 is
-      Crawford's manual pass**, below.
-- [x] Crawford's manual pass at three widths is done, or flagged here as outstanding. **Flagged outstanding**: the
-      robot, company and All Probes sub-tabs (the Robots checkpoint's look). Fleet Params passed its look on 2026-11-15.
-- [x] Ready for Crawford's PR, once that look passes. Open for him: delete or keep the three old composites
-      (roadmap 91 Open).
+- [x] The eight success criteria of spec §7 are met: 1–7 by the tests, the featured walks and the docs read; 8 by
+      Crawford's manual pass, below.
+- [x] Crawford's manual pass at three widths is done: Fleet Params on 2026-11-15 ("fleet params look good"), the
+      robot, company and All Probes sub-tabs the same day ("ok, looks good").
+- [x] Ready for Crawford's PR. Open for him: delete or keep the three old composites (roadmap 91 Open).
 
 ## Risks and Mitigations
 
