@@ -29,8 +29,9 @@ import {
   ATTACK_CURVE_SCHEMA,
   RELEASE_CURVE_SCHEMA,
   CHARACTER_PANEL_SCHEMA,
-  BUS_FILTER_PANEL_SCHEMA,
-  BUS_FILTER_ROW_PANEL_SCHEMA,
+  BUS_FILTER_P1_PANEL_SCHEMA,
+  BUS_FILTER_P2_PANEL_SCHEMA,
+  BUS_FILTER_P2_R1_PANEL_SCHEMA,
   BUS_CUTOFF_SCHEMA,
   BUS_RESONANCE_SCHEMA,
   BUS_FILTER_TYPE_SCHEMA,
@@ -624,6 +625,38 @@ describe('the Mix and Sends panel schemas', () => {
   });
 });
 
+// docs/specs/CONTENT_LAYOUT.md §1.4 (Task 18): the robot-wide featured set. Every schema this module exports, at any
+// depth (the bare schemas, the send table, each oscillator block's params and boxes), is walked, so a flag added or
+// dropped anywhere in the module shows up here.
+describe('the featured robot schemas (docs/specs/CONTENT_LAYOUT.md §1.4)', () => {
+  function featuredIds(root: unknown): Set<string> {
+    const found = new Set<string>();
+    const seen = new Set<unknown>();
+    const walk = (node: unknown) => {
+      if (node === null || typeof node !== 'object' || seen.has(node)) return;
+      seen.add(node);
+      const record = node as Record<string, unknown>;
+      if (record.featured === true && typeof record.id === 'string') found.add(record.id);
+      for (const value of Object.values(record)) walk(value);
+    };
+    walk(root);
+    return found;
+  }
+
+  const EXPECTED = [
+    'robotOptions.volume',
+    'robotOptions.layer0.gain', 'robotOptions.layer0.detune',
+    'robotOptions.layer1.gain', 'robotOptions.layer1.detune',
+    'robotOptions.layer2.gain', 'robotOptions.layer2.detune',
+    'robotOptions.busFilter.cutoff',
+  ];
+
+  it('are exactly the eight of §1.4', () => {
+    expect(EXPECTED).toHaveLength(8);
+    expect([...featuredIds({ ...robotOptionsConfigModule })].sort()).toEqual([...EXPECTED].sort());
+  });
+});
+
 describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 21 cleanup — the old accordion schema type itself is gone)', () => {
   it('are not exported by the module', () => {
     expect('VOLUME_ACCORDION_SCHEMA' in robotOptionsConfigModule).toBe(false);
@@ -678,7 +711,7 @@ describe('Robot Articulation schemas', () => {
     PORTAMENTO_SCHEMA, ATTACK_CURVE_SCHEMA, RELEASE_CURVE_SCHEMA,
     BUS_CUTOFF_SCHEMA, BUS_RESONANCE_SCHEMA, BUS_FILTER_TYPE_SCHEMA,
   ];
-  const PANEL_SCHEMAS = [BUS_FILTER_PANEL_SCHEMA, CHARACTER_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA];
+  const PANEL_SCHEMAS = [BUS_FILTER_P1_PANEL_SCHEMA, BUS_FILTER_P2_PANEL_SCHEMA, CHARACTER_PANEL_SCHEMA, BUS_FILTER_P2_R1_PANEL_SCHEMA];
 
   it('every schema is one of the closed-set ControlSchema variants', () => {
     [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].forEach((schema) => expect(CONTROL_SCHEMA_TYPES).toContain(schema.type));
@@ -768,11 +801,21 @@ describe('Robot Articulation schemas', () => {
       [BUS_CUTOFF_SCHEMA, BUS_RESONANCE_SCHEMA, BUS_FILTER_TYPE_SCHEMA].forEach((s) => expect(s.help?.human.trim(), s.id).toBeTruthy());
     });
 
-    it("the panel is headed by the Source filter concept's own heading", () => {
-      expect(BUS_FILTER_PANEL_SCHEMA.type).toBe('directionalPanel');
-      expect(BUS_FILTER_PANEL_SCHEMA.orientation).toBe('column');
-      expect(BUS_FILTER_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter'].human);
-      expect(BUS_FILTER_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.source.filter'].lore);
+    // docs/specs/CONTENT_LAYOUT.md §1.3 (control layout Task 18): two boxes, the heading on the first alone.
+    it("the first box, robotOptions.busFilter.p1, is a column headed by the Source filter concept's own heading", () => {
+      expect(BUS_FILTER_P1_PANEL_SCHEMA).toMatchObject({ id: 'robotOptions.busFilter.p1', type: 'directionalPanel', orientation: 'column' });
+      expect(BUS_FILTER_P1_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter'].human);
+      expect(BUS_FILTER_P1_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.source.filter'].lore);
+    });
+
+    it('the second box, robotOptions.busFilter.p2, is an unlabeled column', () => {
+      expect(BUS_FILTER_P2_PANEL_SCHEMA).toEqual({ id: 'robotOptions.busFilter.p2', type: 'directionalPanel', orientation: 'column' });
+    });
+
+    it('Cutoff is featured; Resonance and Type are not', () => {
+      expect(BUS_CUTOFF_SCHEMA.featured).toBe(true);
+      expect(BUS_RESONANCE_SCHEMA.featured).toBeUndefined();
+      expect(BUS_FILTER_TYPE_SCHEMA.featured).toBeUndefined();
     });
 
     it("the link rides the bus filter's cutoff target, which is a real robot LFO target", () => {
@@ -783,8 +826,8 @@ describe('Robot Articulation schemas', () => {
 
   describe('row panels', () => {
     it('are unlabeled responsive directionalPanels — pure layout', () => {
-      [BUS_FILTER_ROW_PANEL_SCHEMA].forEach((panel) => {
-        expect(panel).toMatchObject({ type: 'directionalPanel', orientation: 'responsive' });
+      [BUS_FILTER_P2_R1_PANEL_SCHEMA].forEach((panel) => {
+        expect(panel).toMatchObject({ id: 'robotOptions.busFilter.p2.r1', type: 'directionalPanel', orientation: 'responsive' });
         expect(panel.humanLabel).toBeUndefined();
         expect(panel.loreLabel).toBeUndefined();
       });

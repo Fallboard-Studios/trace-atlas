@@ -5,9 +5,11 @@ import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
+import { withFeaturedClass } from '@/components/ui/controls/activeClass';
 import {
-  BUS_FILTER_PANEL_SCHEMA,
-  BUS_FILTER_ROW_PANEL_SCHEMA,
+  BUS_FILTER_P1_PANEL_SCHEMA,
+  BUS_FILTER_P2_PANEL_SCHEMA,
+  BUS_FILTER_P2_R1_PANEL_SCHEMA,
   BUS_CUTOFF_SCHEMA,
   BUS_RESONANCE_SCHEMA,
   BUS_FILTER_TYPE_SCHEMA,
@@ -44,9 +46,13 @@ interface BusFilterDrawerProps {
 // No labels on the link: Cutoff's slider above it already names the field, and LfoLink draws no label row when it has none.
 const BUS_FILTER_LINK_SCHEMA: LfoLinkSchema = { id: 'robotOptions.busFilter.link', type: 'lfoLink' };
 
+/** Cutoff's cell, the wrapper around the slider and its label; featured (docs/specs/CONTENT_LAYOUT.md §1.4). */
+const CUTOFF_CELL = withFeaturedClass('bus-filter-drawer__cutoff', BUS_CUTOFF_SCHEMA);
+
 /**
- * The probe's bus filter, the Source section's fourth sub-tab (docs/specs/ROBOT_ARTICULATION.md §1.6):
- * Cutoff, the Cutoff's LFO link, then Resonance beside Type. Purely presentational, like the other
+ * The probe's bus filter, the Source section's fourth sub-tab (docs/specs/ROBOT_ARTICULATION.md §1.6), as two
+ * boxes (docs/specs/CONTENT_LAYOUT.md §1.3): Cutoff over its LFO link, then Resonance beside Type. The Filter
+ * heading sits on the first box alone (spec assumption 2). Purely presentational, like the other
  * drawers: no `robot` prop and no store access. RobotScreen wires `onChange` to applyBusFilter and
  * `onLfoLinkChange` to applyLayerLfoLink(…, 'bus.frequency', …), and the company screen to its broadcast
  * handlers. Each control reports only its own field, so the handlers need no latest-value ref.
@@ -58,13 +64,17 @@ function BusFilterDrawerInner({ value, onChange, onLfoLinkChange, heldOff, disab
 
   return (
     <div className="bus-filter-drawer" style={style}>
-      <DirectionalPanel schema={BUS_FILTER_PANEL_SCHEMA}>
-        <SliderLog schema={BUS_CUTOFF_SCHEMA} value={value.filterFreq} onChange={handleCutoffChange} disabled={disabled} />
+      <DirectionalPanel schema={BUS_FILTER_P1_PANEL_SCHEMA}>
+        <div className={CUTOFF_CELL}>
+          <SliderLog schema={BUS_CUTOFF_SCHEMA} value={value.filterFreq} onChange={handleCutoffChange} disabled={disabled} />
+        </div>
         <div className="bus-filter-drawer__link">
           <LfoLink schema={BUS_FILTER_LINK_SCHEMA} value={value.lfoLink} onChange={onLfoLinkChange} disabled={disabled} heldOff={heldOff} />
           {heldOff && <HeldOffNote />}
         </div>
-        <DirectionalPanel schema={BUS_FILTER_ROW_PANEL_SCHEMA}>
+      </DirectionalPanel>
+      <DirectionalPanel schema={BUS_FILTER_P2_PANEL_SCHEMA}>
+        <DirectionalPanel schema={BUS_FILTER_P2_R1_PANEL_SCHEMA}>
           <SliderLog schema={BUS_RESONANCE_SCHEMA} value={value.filterQ} onChange={handleResonanceChange} disabled={disabled} />
           <RadioButton schema={BUS_FILTER_TYPE_SCHEMA} value={value.filterType} onChange={handleTypeChange} disabled={disabled} />
         </DirectionalPanel>

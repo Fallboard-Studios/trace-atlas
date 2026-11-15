@@ -104,13 +104,73 @@ describe('BusFilterDrawer', () => {
       }
     });
 
-    it('sits inside one Filter panel, with no accordion wrapper and no repeated heading', () => {
-      const { container } = render(<BusFilterDrawer {...noop} value={makeValue()} heldOff={false} />);
-      expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
-      const panel = screen.getByText('Filter').closest('.sc-directional-panel');
-      expect(panel).not.toBeNull();
-      expect(panel!.contains(screen.getByRole('slider', { name: 'Cutoff' }))).toBe(true);
-      expect(panel!.contains(group('Type'))).toBe(true);
+    // docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 18): P1 Cutoff over its link; P2 Resonance
+    // beside Type. The Filter heading stays, on P1 alone (spec assumption 2); Cutoff is featured (§1.4).
+    describe('two boxes (docs/specs/CONTENT_LAYOUT.md §1.3, Task 18)', () => {
+      const box = (container: HTMLElement, id: string) => {
+        const el = container.querySelector(`[data-panel-id="${id}"]`);
+        if (!el) throw new Error(`no panel ${id}`);
+        return el as HTMLElement;
+      };
+      const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+      it('renders exactly two framed boxes, p1 then p2, stacked by its own root, and no accordion', () => {
+        const { container } = render(<BusFilterDrawer {...noop} value={makeValue()} heldOff={false} />);
+        expect(container.querySelectorAll('.sc-accordion')).toHaveLength(0);
+        const root = container.querySelector('.bus-filter-drawer') as HTMLElement;
+        const boxes = [...root.children];
+        expect(boxes.every((b) => b.classList.contains('sc-directional-panel-facade'))).toBe(true);
+        expect(boxes.map((b) => b.querySelector('.sc-directional-panel')?.getAttribute('data-panel-id'))).toEqual([
+          'robotOptions.busFilter.p1', 'robotOptions.busFilter.p2',
+        ]);
+        expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(2);
+      });
+
+      it('P1 holds Cutoff then its link, and neither Resonance nor Type', () => {
+        const { container } = render(<BusFilterDrawer {...noop} value={makeValue()} heldOff={false} />);
+        const p1 = box(container, 'robotOptions.busFilter.p1');
+        const cutoff = within(p1).getByRole('slider', { name: 'Cutoff' });
+        const link = p1.querySelector('.sc-lfo-link') as HTMLElement;
+        expect(link).not.toBeNull();
+        expect(before(cutoff, link)).toBe(true);
+        expect(within(p1).queryByRole('slider', { name: 'Resonance' })).toBeNull();
+        expect(within(p1).queryByRole('group', { name: 'Type' })).toBeNull();
+      });
+
+      it('P2 is one shared row, Resonance before Type, with no Cutoff and no link', () => {
+        const { container } = render(<BusFilterDrawer {...noop} value={makeValue()} heldOff={false} />);
+        const p2 = box(container, 'robotOptions.busFilter.p2');
+        const r1 = box(container, 'robotOptions.busFilter.p2.r1');
+        expect(p2.contains(r1)).toBe(true);
+        const resonance = within(r1).getByRole('slider', { name: 'Resonance' });
+        expect(before(resonance, within(r1).getByRole('group', { name: 'Type' }))).toBe(true);
+        expect(within(p2).queryByRole('slider', { name: 'Cutoff' })).toBeNull();
+        expect(p2.querySelector('.sc-lfo-link')).toBeNull();
+      });
+
+      it('the Filter heading is on the first box alone, shown once', () => {
+        const { container } = render(<BusFilterDrawer {...noop} value={makeValue()} heldOff={false} />);
+        const headingOf = (id: string) => box(container, id).querySelector(':scope > .sc-dual-label > .sc-dual-label__human')?.textContent ?? null;
+        expect(headingOf('robotOptions.busFilter.p1')).toBe(CONTENT['probe.source.filter'].human);
+        expect(headingOf('robotOptions.busFilter.p2')).toBeNull();
+        expect(screen.getAllByText(CONTENT['probe.source.filter'].human)).toHaveLength(1);
+      });
+
+      it("Cutoff's cell alone is featured — not its link, Resonance or Type", () => {
+        const { container } = render(<BusFilterDrawer {...noop} value={makeValue()} heldOff={false} />);
+        const featured = container.querySelectorAll('.sc-featured');
+        expect(featured).toHaveLength(1);
+        expect(featured[0].contains(screen.getByRole('slider', { name: 'Cutoff' }))).toBe(true);
+        expect(featured[0].querySelector('.sc-lfo-link')).toBeNull();
+        expect(featured[0].contains(screen.getByRole('slider', { name: 'Resonance' }))).toBe(false);
+        expect(featured[0].contains(group('Type'))).toBe(false);
+      });
+
+      it('a held-off note stays under its link, inside P1', () => {
+        const { container } = render(<BusFilterDrawer {...noop} value={makeValue({ lfoLink: { lane: 'b', depth: 40 } })} heldOff />);
+        expect(box(container, 'robotOptions.busFilter.p1').contains(screen.getByRole('note'))).toBe(true);
+        expect(box(container, 'robotOptions.busFilter.p2').querySelector('[role="note"]')).toBeNull();
+      });
     });
 
     it('puts Resonance and Type in one row on desktop, stacked on mobile/tablet', () => {

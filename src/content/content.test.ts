@@ -196,7 +196,7 @@ describe('help coverage — probe and company controls', () => {
     }
     expect(ids).not.toContain('robotOptions.contour.p1'); // a panel
     expect(ids).not.toContain('robotOptions.layer0.p1'); // a layer's first box
-    expect(ids).not.toContain('robotOptions.busFilter'); // the bus filter's panel
+    expect(ids).not.toContain('robotOptions.busFilter.p1'); // the bus filter's first box
     expect(ids).not.toContain('robotOptions.character.p1'); // an unlabeled panel
   });
 

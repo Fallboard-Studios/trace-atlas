@@ -384,17 +384,25 @@ export const CHARACTER_PANEL_SCHEMA: DirectionalPanelSchema = {
   orientation: 'column',
 };
 
-/** The Source filter panel: Cutoff, its LFO link, then Resonance beside Type. */
-export const BUS_FILTER_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.busFilter',
+// Source > Filter (docs/specs/CONTENT_LAYOUT.md §1.3): P1 Cutoff over its LFO link; P2 Resonance beside Type.
+/** The first box, headed by the Source filter concept (spec assumption 2: the heading sits on P1 alone). */
+export const BUS_FILTER_P1_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilter.p1',
   type: 'directionalPanel',
   ...labels('probe.source.filter'),
   orientation: 'column',
 };
 
-/** Resonance beside Type, unlabeled — pure layout. */
-export const BUS_FILTER_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.busFilterRow',
+/** The second box, unlabeled — pure layout. */
+export const BUS_FILTER_P2_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilter.p2',
+  type: 'directionalPanel',
+  orientation: 'column',
+};
+
+/** Resonance beside Type, P2's one row, unlabeled: side by side on desktop, stacked below it. */
+export const BUS_FILTER_P2_R1_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilter.p2.r1',
   type: 'directionalPanel',
   orientation: 'responsive',
 };
@@ -407,6 +415,7 @@ export const BUS_CUTOFF_SCHEMA: SliderLogSchema = {
   min: ROBOT_BUS_FILTER_FREQ_RANGE.min,
   max: ROBOT_BUS_FILTER_FREQ_RANGE.max,
   orientation: 'horizontal',
+  featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
 };
 
 /** The bus filter's Q (AudioAttributes.filterQ). */
