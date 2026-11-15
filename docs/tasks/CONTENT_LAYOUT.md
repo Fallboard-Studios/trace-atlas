@@ -255,15 +255,16 @@ task that moved them; the three Knee-beside-Decay cases were removed in Task 7 (
 the Compressor's boxes), and two wiring describes' `rowOf` helper now selects the param's box (Task 5, a
 selector change only). Every task's manual check is folded into the look below.
 
-### Checkpoint: Effect panels — tests and mutations passed 2026-11-15; look and review outstanding
+### Checkpoint: Effect panels — passed 2026-11-15 (with the Fleet Params look below)
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (14,352 tests, 0 failed; lint's 4
       pre-existing Scenery/gemShape warnings).
 - [x] Mutation check: swap two cells in the Phaser's `layout` and the order test goes red; drop one
       `featured` flag and its test goes red. Restore both. (Base Frequency and Rate swapped: three order
       tests red; the Chorus's flag dropped: its featured test red.)
-- [ ] Look, desktop and phone: all seventeen effect sub-tabs against §1.2. At 1024 px, the Phaser's
-      Rate beside Base Frequency keeps its toggle's size and no slider drops under three boxes.
-- [ ] Reviewed with Crawford before Phase 3.
+- [x] Look, desktop and phone: all seventeen effect sub-tabs against §1.2. At 1024 px, the Phaser's
+      Rate beside Base Frequency keeps its toggle's size and no slider drops under three boxes. (Crawford,
+      2026-11-15, after Phase 3: "fleet params look good"; the effects are Fleet Params' sub-tabs.)
+- [x] Reviewed with Crawford (2026-11-15, after Phase 3, with the Fleet Params look).
 
 ---
 
@@ -387,15 +388,14 @@ selector change only). Every task's manual check is folded into the look below.
   lane and two-row Pacing shapes were re-pinned in the task that moved them; no wiring, value, swell or
   re-render case was edited.
 
-### Checkpoint: Fleet Params — tests, build and mutation passed 2026-11-15; look and review outstanding
+### Checkpoint: Fleet Params — passed 2026-11-15 (next: Task 12)
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (14,374 tests, 0 failed; lint's 4
       pre-existing warnings; the build's usual chunk-size notice).
 - [x] Mutation check: put `quality` back as a top-level tab and the tab-order test goes red. Restore. (Seven
       cases red across `navActions.test.ts` and `FleetParamsScreen.test.tsx`; restored from git.)
-- [ ] Look, phone, tablet and desktop: all seven tabs and every sub-tab against §1.2; the breadcrumb
-      names World and its sub-tab. (Not done: no browser pass this session. The Effect panels look above is
-      outstanding too.)
-- [ ] Reviewed with Crawford before Phase 4, including the draft World intro.
+- [x] Look, phone, tablet and desktop: all seven tabs and every sub-tab against §1.2; the breadcrumb
+      names World and its sub-tab. (Crawford, 2026-11-15: "fleet params look good".)
+- [x] Reviewed with Crawford before Phase 4. The draft World intro stays as built until his copy pass.
 
 ---
 
