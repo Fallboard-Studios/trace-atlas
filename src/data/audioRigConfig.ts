@@ -412,12 +412,15 @@ export const DECAY_MODE_SCHEMA: RadioButtonSchema = {
 // ========================================
 
 export interface LfoBankLaneSchema {
-  panel: DirectionalPanelSchema;
-  /** Shape | Rate (over its Tempo Sync toggle) — a nested 'responsive' row, side by side on desktop,
-   *  stacked below (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1). Unlabeled: the lane panel's
-   *  own label is the only heading. */
+  /** The lane's first box, `audioRig.lfoBank.<lane>.p1`, wearing the lane's heading (docs/specs/CONTENT_LAYOUT.md
+   *  §1.2, assumption 2): Shape | Rate. */
+  p1: DirectionalPanelSchema;
+  /** The second box, `.p2`, unlabeled: Rate Drift | Depth Drift, and the drift held-off note. */
+  p2: DirectionalPanelSchema;
+  /** Shape | Rate (over its Tempo Sync toggle), P1's row 1 — a nested 'responsive' row, side by side on desktop,
+   *  stacked below (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1). Unlabeled: the lane's heading is the only one. */
   topRow: DirectionalPanelSchema;
-  /** Rate Drift | Depth Drift — the same nested 'responsive' row shape (§1.1). */
+  /** Rate Drift | Depth Drift, P2's row 1 — the same nested 'responsive' row shape (§1.1). */
   driftRow: DirectionalPanelSchema;
   shape: RadioButtonSchema;
   rate: SliderLinearSchema;
@@ -427,9 +430,10 @@ export interface LfoBankLaneSchema {
 
 function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
   return {
-    panel: { id: `audioRig.lfoBank.${lane}`, type: 'directionalPanel', ...labels(LFO_BANK_LANE_CONTENT[lane]), orientation: 'column' },
-    topRow: { id: `audioRig.lfoBank.${lane}.topRow`, type: 'directionalPanel', orientation: 'responsive' },
-    driftRow: { id: `audioRig.lfoBank.${lane}.driftRow`, type: 'directionalPanel', orientation: 'responsive' },
+    p1: { id: `audioRig.lfoBank.${lane}.p1`, type: 'directionalPanel', ...labels(LFO_BANK_LANE_CONTENT[lane]), orientation: 'column' },
+    p2: { id: `audioRig.lfoBank.${lane}.p2`, type: 'directionalPanel', orientation: 'column' },
+    topRow: { id: `audioRig.lfoBank.${lane}.p1.r1`, type: 'directionalPanel', orientation: 'responsive' },
+    driftRow: { id: `audioRig.lfoBank.${lane}.p2.r1`, type: 'directionalPanel', orientation: 'responsive' },
     shape: { id: `audioRig.lfoBank.${lane}.shape`, type: 'radio', ...labels('ui.lfo.shape'), options: options('ui.lfo.shape') },
     rate: {
       id: `audioRig.lfoBank.${lane}.rate`,
@@ -439,6 +443,7 @@ function lfoBankLaneSchema(lane: LfoLaneId): LfoBankLaneSchema {
       max: LFO_RATE_MAX,
       step: LFO_RATE_STEP,
       orientation: 'horizontal',
+      featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
     },
     rateDrift: {
       id: `audioRig.lfoBank.${lane}.rateDrift`,

@@ -594,13 +594,28 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
     expect(Object.keys(LFO_BANK_LANE_SCHEMAS).sort()).toEqual([...LFO_LANE_IDS].sort());
   });
 
-  it("every lane's panel is a directionalPanel with a unique id, labeled from its own fleet.lfoBank.lane<X> content entry", () => {
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 11): two column boxes per lane, the lane heading on the first alone.
+  it("every lane's first box, audioRig.lfoBank.<lane>.p1, is a column directionalPanel labeled from its own fleet.lfoBank.lane<X> entry", () => {
     const laneContent = { a: 'fleet.lfoBank.laneA', b: 'fleet.lfoBank.laneB', c: 'fleet.lfoBank.laneC', d: 'fleet.lfoBank.laneD' } as const;
     for (const lane of LFO_LANE_IDS) {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      expect(schema.panel, lane).toMatchObject({ type: 'directionalPanel' });
-      expect(schema.panel.humanLabel, lane).toBe(CONTENT[laneContent[lane]].human);
-      expect(schema.panel.loreLabel, lane).toBe(CONTENT[laneContent[lane]].lore);
+      expect(schema.p1, lane).toMatchObject({ id: `audioRig.lfoBank.${lane}.p1`, type: 'directionalPanel', orientation: 'column' });
+      expect(schema.p1.humanLabel, lane).toBe(CONTENT[laneContent[lane]].human);
+      expect(schema.p1.loreLabel, lane).toBe(CONTENT[laneContent[lane]].lore);
+    }
+  });
+
+  it("every lane's second box, audioRig.lfoBank.<lane>.p2, is an unlabeled column directionalPanel", () => {
+    for (const lane of LFO_LANE_IDS) {
+      expect(LFO_BANK_LANE_SCHEMAS[lane].p2, lane).toEqual({ id: `audioRig.lfoBank.${lane}.p2`, type: 'directionalPanel', orientation: 'column' });
+    }
+  });
+
+  it("every lane's Rate is featured, and none of its other controls is (docs/specs/CONTENT_LAYOUT.md §1.4)", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.rate.featured, lane).toBe(true);
+      for (const other of [schema.shape, schema.rateDrift, schema.depthDrift]) expect(other.featured, `${lane} ${other.id}`).toBeUndefined();
     }
   });
 
@@ -636,12 +651,13 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
 
   // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1: Shape | Rate (over its Tempo Sync toggle) share a
   // top row, Rate Drift | Depth Drift share a drift row — each a nested 'responsive' panel (side by side
-  // on desktop, stacked below), unlabeled, so the lane panel's own label is the only heading.
-  it("every lane's topRow and driftRow are unlabeled 'responsive' directionalPanels under the lane's own id", () => {
+  // on desktop, stacked below), unlabeled, so the lane's heading is the only one. Each is its box's row 1
+  // on the sheet scheme (docs/specs/CONTENT_LAYOUT.md §1.2).
+  it("every lane's topRow and driftRow are unlabeled 'responsive' directionalPanels, row 1 of P1 and of P2", () => {
     for (const lane of LFO_LANE_IDS) {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      expect(schema.topRow, `${lane}.topRow`).toEqual({ id: `audioRig.lfoBank.${lane}.topRow`, type: 'directionalPanel', orientation: 'responsive' });
-      expect(schema.driftRow, `${lane}.driftRow`).toEqual({ id: `audioRig.lfoBank.${lane}.driftRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect(schema.topRow, `${lane}.topRow`).toEqual({ id: `audioRig.lfoBank.${lane}.p1.r1`, type: 'directionalPanel', orientation: 'responsive' });
+      expect(schema.driftRow, `${lane}.driftRow`).toEqual({ id: `audioRig.lfoBank.${lane}.p2.r1`, type: 'directionalPanel', orientation: 'responsive' });
       expect('humanLabel' in schema.topRow, `${lane}.topRow label`).toBe(false);
       expect('loreLabel' in schema.driftRow, `${lane}.driftRow label`).toBe(false);
     }
@@ -655,13 +671,13 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
     }
   });
 
-  it('every id across all 4 lanes (7 schemas each: panel, shape, rate, rateDrift, depthDrift, topRow, driftRow) is unique', () => {
+  it('every id across all 4 lanes (8 schemas each: p1, p2, shape, rate, rateDrift, depthDrift, topRow, driftRow) is unique', () => {
     const allIds = LFO_LANE_IDS.flatMap((lane) => {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      return [schema.panel.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id, schema.topRow.id, schema.driftRow.id];
+      return [schema.p1.id, schema.p2.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id, schema.topRow.id, schema.driftRow.id];
     });
-    expect(allIds).toHaveLength(28);
-    expect(new Set(allIds).size).toBe(28);
+    expect(allIds).toHaveLength(32);
+    expect(new Set(allIds).size).toBe(32);
   });
 
   it('remains JSON-serializable', () => {
@@ -1225,5 +1241,37 @@ describe('HUMANIZE_SCHEMA (Robot Performance)', () => {
 
   it('remains JSON-serializable', () => {
     expect(JSON.parse(JSON.stringify(HUMANIZE_SCHEMA))).toEqual(HUMANIZE_SCHEMA);
+  });
+});
+
+// docs/specs/CONTENT_LAYOUT.md §1.4 (Task 11): the fleet-wide featured set. Every schema this module exports, at any
+// depth (the effects' params and boxes, the lanes, Pacing's and Settings' bare schemas), is walked, so a flag added or
+// dropped anywhere in the module shows up here.
+describe('the featured Fleet schemas (docs/specs/CONTENT_LAYOUT.md §1.4)', () => {
+  function featuredIds(root: unknown): Set<string> {
+    const found = new Set<string>();
+    const seen = new Set<unknown>();
+    const walk = (node: unknown) => {
+      if (node === null || typeof node !== 'object' || seen.has(node)) return;
+      seen.add(node);
+      const record = node as Record<string, unknown>;
+      if (record.featured === true && typeof record.id === 'string') found.add(record.id);
+      for (const value of Object.values(record)) walk(value);
+    };
+    walk(root);
+    return found;
+  }
+
+  const EXPECTED = [
+    'audioRig.bpm', 'audioRig.swellFrequency',
+    ...LFO_LANE_IDS.map((lane) => `audioRig.lfoBank.${lane}.rate`),
+    'eq3.low', 'eq3.mid', 'eq3.high', 'filterHPF.frequency', 'filterLPF.frequency',
+    'reverb.wet', 'delay.wet', 'distortion.wet', 'chebyshev.wet', 'bitCrusher.wet', 'autoWah.wet', 'phaser.wet',
+    'chorus.wet', 'tremolo.wet', 'vibrato.wet', 'frequencyShifter.wet', 'stereoWidener.width', 'limiter.threshold',
+  ];
+
+  it('are exactly the twenty-four of §1.4', () => {
+    expect(EXPECTED).toHaveLength(24);
+    expect([...featuredIds({ ...audioRigConfigModule })].sort()).toEqual([...EXPECTED].sort());
   });
 });
