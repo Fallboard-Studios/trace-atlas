@@ -539,7 +539,7 @@ export const fleet = {
     intro: {
       lore: 'Settings — tune your terminal’s processing load.',
       loreDescription: 'Meridia Power Group’s Perpetualish Battery Packs keep probes running, but your terminal has its own limits on how much it can process at once.',
-      humanDescription: 'Robot Load limits how many probes can play sound at the same time. Effects Load limits how many effects — like LFOs — can run at once. Lower these if the app stutters or sounds glitchy on your device.',
+      humanDescription: 'Voice Limit caps how many probes can play sound at the same time. Effects Limit caps how many effects — like LFOs — can run at once. Lower these if the app stutters or sounds glitchy on your device.',
     },
   },
   'fleet.quality.audioLoad': { human: 'Audio Load', lore: 'ACOUSTIC LOAD MANAGEMENT' },

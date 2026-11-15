@@ -8,8 +8,8 @@ entry under the next free number.
 
 ## Overview
 
-Nineteen tasks in five phases. Phase 1 is three independent foundations: the `featured` flag, the ten
-renames and the intro panels' removal. Phase 2 turns the effect panel's five hand-written branches into
+Nineteen tasks in five phases. Phase 1 is the independent foundations: the `featured` flag and the ten
+renames (the intro panels' removal was built and reversed: they stay). Phase 2 turns the effect panel's five hand-written branches into
 one walk over a layout table, then moves the seventeen effects to their new rows. Phase 3 builds the
 World tab and re-boxes Pacing, Settings and the lanes. Phase 4 gives every robot tab its sub-tabs and
 re-boxes Source. Phase 5 is docs. Every task leaves the app working, and no task changes what a control
@@ -34,13 +34,14 @@ does.
   sub-tab. This keeps every task at five source files or fewer.
 - **Stacked boxes are spaced by their component's own root wrapper** (a flex column with the gap the
   Fleet Params section uses), never by `DirectionalPanel.css` or `index.css`.
-- **Deviation from the spec's first draft:** removing the intros is a deletion, so it has no test
-  (CLAUDE.md); spec §5 was corrected to say so.
+- **The intro panels stay** (Crawford, 2026-11-15; Task 3). A tab's intro sits first in its panel,
+  above the sub-tab row, so a new tab needs an intro entry (World, Task 8), and an intro that describes
+  a section's layout is kept true as the layout moves (open question 2).
 
 ## Dependency Graph
 
 ```
-Task 1 (featured helper)      Task 2 (renames)      Task 3 (intros out)
+Task 1 (featured helper)      Task 2 (renames)      Task 3 (intros: reversed, they stay)
       │
       ├── Task 4 (effect layout as data, today's shape)
       │        ├── Task 5 (EQ & filters: boxes, link cells, headings)
@@ -112,34 +113,30 @@ and re-render tests stay unedited and green.
 
   **Estimated scope:** S
 
-- [x] **Task 3: Take the intro panels out of the views**
+- [x] **Task 3: ~~Take the intro panels out of the views~~ — reversed: the intros stay**
 
-  **Description:** Remove four `<IntroPanel>` renders (two in `FleetParamsScreen.tsx`, one each in
-  `RobotSectionTabs` and `RosterBoard.tsx`) with their now-unused constants and imports, and the tests
-  that pin those intros. `IntroPanel`, `intro()`, `introProps()` and all intro copy stay.
-  **Decision (Crawford, 2026-11-15):** `CompanyScreen.tsx` keeps its intro. Removing it left
-  `company.profile` with no consumer, so the content guard failed, and intro copy is never deleted.
+  Built 2026-11-15 (3f41e098: four of the five intros out; the company screen's kept, because removing
+  it orphaned `company.profile`), then reversed the same day. **Decision (Crawford, 2026-11-15):** all
+  five intros stay, for visual separation until a later pass changes them. The four sites and their
+  intro tests are restored exactly as they were before 3f41e098. Spec §1.6 records it.
 
-  **Proof:** Look — Fleet Params, a robot and the roster show no intro; a company and All Probes still
-  show theirs; desk and phone. No test: a deletion.
-
-  **Acceptance criteria:**
-  - [ ] None of the four views renders an intro; the company screen's is unchanged.
-  - [ ] `IntroPanel.tsx`, its tests and every `intro` field in `src/content/copy/` are unchanged.
-
-  **Verification:**
-  - [ ] The Look above, recorded in the commit.
-  - [ ] `npm test`, `npm run build:types`, `npm run lint` clean.
-
-  **Dependencies:** None.
+  **Proof:** the restored intro tests in `FleetParamsScreen.test.tsx`, `RobotScreen.test.tsx` and
+  `RosterBoard.test.tsx` pass unedited.
 
   **Files:** `FleetParamsScreen.tsx`, `RobotScreen.tsx`, `RosterBoard.tsx`, their tests
 
-  **Estimated scope:** S
+- [x] **Task 3a: The Settings intro names its sliders**
+
+  **Description:** The returning Settings intro (`fleet.quality`) said "Robot Load" and "Effects Load";
+  the sliders are Voice Limit and Effects Limit. Its sentence names them as they read (open question 2).
+
+  **Proof:** Read — the one-sentence diff. No test: copy only.
+
+  **Files:** `src/content/copy/fleet.ts`
 
 ### Checkpoint: Foundation
 - [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] The app looks as before except for the ten names and the missing intros.
+- [ ] The app looks as before except for the ten names and the Settings intro's two slider names.
 - [ ] Reviewed with Crawford before Phase 2.
 
 ---
