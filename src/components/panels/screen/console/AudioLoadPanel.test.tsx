@@ -61,6 +61,43 @@ describe('Audio Load panel', () => {
     expect(presetRadio('Light')).toBeTruthy();
   });
 
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 10): the box and its rows take the sheet's ids; the order stays as it was
+  // (assumption 5), and the Audio Load heading stays on the box (assumption 2).
+  describe('box and row ids on the sheet scheme (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+    const panel = (container: HTMLElement, id: string) => container.querySelector(`[data-panel-id="${id}"]`) as HTMLElement | null;
+    const contentOf = (el: Element) => [...el.querySelector(':scope > .sc-directional-panel__content')!.children] as HTMLElement[];
+
+    it('the box fleetParams.settings.p1 holds row 1, Preset then the readout, and row 2, Voice Limit then Effects Limit', () => {
+      const { container } = render(<AudioLoadPanel />);
+      const box = panel(container, 'fleetParams.settings.p1')!;
+      expect(box).not.toBeNull();
+      const rows = contentOf(box);
+      expect(rows.map((r) => r.getAttribute('data-panel-id'))).toEqual(['fleetParams.settings.p1.r1', 'fleetParams.settings.p1.r2']);
+
+      const [preset, readout] = contentOf(rows[0]);
+      expect(contentOf(rows[0])).toHaveLength(2);
+      expect(preset.contains(presetRadio('Light'))).toBe(true);
+      expect(readout.classList.contains('audio-load-panel__readout')).toBe(true);
+
+      const [voice, effects] = contentOf(rows[1]);
+      expect(contentOf(rows[1])).toHaveLength(2);
+      expect(voice.contains(robotSlider())).toBe(true);
+      expect(effects.contains(effectsSlider())).toBe(true);
+    });
+
+    it('keeps the Audio Load heading on the box, and no old audioRig.audioLoadPanel id remains', () => {
+      const { container } = render(<AudioLoadPanel />);
+      const box = panel(container, 'fleetParams.settings.p1')!;
+      expect(box.textContent).toContain(CONTENT['fleet.quality.audioLoad'].human);
+      expect(container.querySelector('[data-panel-id^="audioRig.audioLoadPanel"]')).toBeNull();
+    });
+
+    it('no cell is featured (Settings has no featured control, §1.4)', () => {
+      const { container } = render(<AudioLoadPanel />);
+      expect(container.querySelector('.sc-featured')).toBeNull();
+    });
+  });
+
   it('shows the store’s two dials as percents, with the matching preset selected when both agree', () => {
     useAudioStore.setState({ robotLoad: 0.2, effectsLoad: 0.2 });
     render(<AudioLoadPanel />);

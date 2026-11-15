@@ -628,9 +628,10 @@ export const AUDIO_EFFECTS_LOAD_SCHEMA: SliderLinearSchema = {
  *  'column' so those 2 rows always stack as 2 separate rows, on every tier (Crawford's own
  *  correction: this was 'responsive' too, which on desktop made the OUTER panel itself a row,
  *  putting the 2 nested row-panels side-by-side as columns instead of stacked — each nested row's
- *  own 'responsive' orientation already handles splitting its own 2 items on desktop). */
+ *  own 'responsive' orientation already handles splitting its own 2 items on desktop). The id is Settings' box on
+ *  the sheet scheme (docs/specs/CONTENT_LAYOUT.md §1.2), `fleetParams.settings.p1`. */
 export const AUDIO_LOAD_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'audioRig.audioLoadPanel',
+  id: 'fleetParams.settings.p1',
   type: 'directionalPanel',
   ...labels('fleet.quality.audioLoad'),
   orientation: 'column',

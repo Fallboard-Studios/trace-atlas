@@ -1150,13 +1150,13 @@ describe('AUDIO_EFFECTS_LOAD_SCHEMA', () => {
 });
 
 describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
-  it('is a column directionalPanel named Audio Load in the audioRig.* namespace — its own 2 nested rows always stack, on every tier (Crawford\'s own correction, was "responsive")', () => {
+  it('is a column directionalPanel named Audio Load, Settings\' box fleetParams.settings.p1 (docs/specs/CONTENT_LAYOUT.md §1.2) — its own 2 nested rows always stack, on every tier (Crawford\'s own correction, was "responsive")', () => {
     expect(AUDIO_LOAD_PANEL_SCHEMA).toMatchObject({
       type: 'directionalPanel',
       orientation: 'column',
       humanLabel: CONTENT['fleet.quality.audioLoad'].human,
     });
-    expect(AUDIO_LOAD_PANEL_SCHEMA.id).toMatch(/^audioRig\./);
+    expect(AUDIO_LOAD_PANEL_SCHEMA.id).toBe('fleetParams.settings.p1');
     expect(AUDIO_LOAD_PANEL_SCHEMA.loreLabel).toBeTruthy();
   });
 
