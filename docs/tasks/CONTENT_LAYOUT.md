@@ -613,7 +613,9 @@ and re-render tests stay unedited and green.
 ## Open Questions
 
 1. **Headings on multi-box sub-tabs.** **Answered (Crawford, 2026-11-15):** keep them all for now; a
-   multi-box sub-tab's heading sits on its first box. Tasks 5, 7, 11, 17, 18.
+   multi-box sub-tab's heading sits on its first box. Tasks 5, 7, 11, 17, 18. Composition's Rhythm,
+   Pitches and Articulation headings are not kept: they match no new box and go as Tasks 12 and 14
+   say (Crawford, 2026-11-15).
 2. **Renames in help text.** **Answered:** make the changes so there's no wrong info on screen. Task 2
    did the renames; Task 3a fixed the returning Settings intro; Tasks 8, 14 and 16 keep the intros true
    as tabs and sub-tabs move.
