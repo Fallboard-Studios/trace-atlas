@@ -558,13 +558,15 @@ selector change only). Every task's manual check is folded into the look below.
   that read Volume's swell flag beside the send flags now read the send flags only.
 - Full suite at Task 16: 14,409 passed, 0 failed; types and lint clean (lint's 4 known warnings).
 
-### Checkpoint: Robot sub-tabs — awaiting the look and Crawford's review
+### Checkpoint: Robot sub-tabs — passed 2026-11-15 (the look folded into the Robots checkpoint's)
 - [x] `npm run build:types`, `npm run lint`, `npm test` clean (14,409 tests, 0 failed).
 - [ ] Look: a robot, a company and All Probes each show the six new sub-tabs; an edit on a company
-      still reaches every member once.
-- [ ] Reviewed with Crawford before Tasks 17 and 18.
+      still reaches every member once. **Folded into the Robots checkpoint's look below**, which covers
+      every robot sub-tab on all three screens.
+- [x] Reviewed with Crawford before Tasks 17 and 18 (2026-11-15: "Build 17 + 18, then 19", asked when Phase 5
+      was requested with this checkpoint unticked).
 
-- [ ] **Task 17: Oscillators — three boxes**
+- [x] **Task 17: Oscillators — three boxes** (6cdd0bc4)
 
   **Description:** `SignatureArrayLayer` renders three boxes per §1.3: Type beside Gain over Gain's
   link; Detune over its link; Phase with Interval on a second row while the type is `pulse`. The layer
@@ -589,7 +591,7 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** M
 
-- [ ] **Task 18: Robot filter — two boxes**
+- [x] **Task 18: Robot filter — two boxes** (bc9c01b4)
 
   **Description:** `BusFilterDrawer` renders Cutoff over its link, then Resonance beside Type in a
   second box. The Filter heading stays, on the first box (spec assumption 2). Flag Cutoff. Add the
@@ -612,18 +614,40 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** S
 
-### Checkpoint: Robots
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Mutation check: move Pitch Repeat Chance's row into Details and its order test goes red. Restore.
+**As built (Tasks 17–18, 2026-11-15):**
+
+- **Oscillators (Task 17).** `SignatureArrayLayerBlock.panel` became `panels: { p1, p2, p3 }` (`robotOptions.<layer>.p1`
+  to `.p3`, the heading on `p1` only), `rows.typeGain`'s id became `.p1.r1`, and `rows.phaseInterval` went: Interval
+  is P3's second row of one. The `data-layer-key` div is now the root wrapper stacking the three boxes
+  (`var(--spacing-md)`); its old divider line between layers went, since the boxes separate them. The Gain and Detune
+  cell classes are built before the hooks: built inline in the JSX, they made the React-compiler lint report
+  "existing memoization could not be preserved" on the link handlers. The `linkRow` test helper now finds a link's row
+  inside its box (a selector-only change); `content.test.ts`'s "not a panel" id became `robotOptions.layer0.p1`.
+- **Filter (Task 18).** `BUS_FILTER_PANEL_SCHEMA` / `BUS_FILTER_ROW_PANEL_SCHEMA` became `BUS_FILTER_P1_PANEL_SCHEMA`,
+  `BUS_FILTER_P2_PANEL_SCHEMA` and `BUS_FILTER_P2_R1_PANEL_SCHEMA`. Cutoff had no cell of its own, so it gained one
+  (`.bus-filter-drawer__cutoff`) to carry `sc-featured`; Resonance and Type stay bare in their row.
+  `content.test.ts`'s filter id became `robotOptions.busFilter.p1`. The robot-wide featured test walks every
+  `robotOptionsConfig` export, as the fleet one does.
+- Mutants killed: Detune unfeatured, P2 given the layer heading, Interval moved into P2 (Task 17); Resonance featured,
+  the link moved into P2 (Task 18).
+
+### Checkpoint: Robots — tests passed 2026-11-15; the look is outstanding
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean (359 files, 14,423 passed, 2 skipped,
+      0 failed; lint's 4 pre-existing warnings; the build's usual chunk-size notice). The run also reported one
+      Vitest `onTaskUpdate` RPC timeout, an unhandled error outside any test (backlog 66's startup-burst cause), not a
+      failure.
+- [x] Mutation check: move Pitch Repeat Chance's row into Details and its order test goes red. Restore. (Seven cases
+      red in `PingControlsDrawer.test.tsx`, the order test among them; restored.)
 - [ ] Look, phone, tablet and desktop: every robot sub-tab against §1.3, then the same on a company and
-      on All Probes. Nothing in the avatar column, the roster or the nav panel moved.
-- [ ] Reviewed with Crawford before docs.
+      on All Probes. Nothing in the avatar column, the roster or the nav panel moved. **Outstanding:** no browser
+      pass this session; it is Crawford's.
+- [x] Reviewed with Crawford before docs: waived (2026-11-15, Crawford asked for Tasks 17, 18 and 19 in one run).
 
 ---
 
 ### Phase 5: Docs
 
-- [ ] **Task 19: Document the shipped layout**
+- [x] **Task 19: Document the shipped layout** (923ab1a4)
 
   **Description:** Update `docs/UI_SHELL.md`, `docs/COMPONENT_LIBRARY.md` and `docs/CONTENT_LAYER.md`
   where they name the eight tabs, the intro panels, a renamed label or the featured flag; add the
@@ -648,11 +672,24 @@ selector change only). Every task's manual check is folded into the look below.
 
   **Estimated scope:** S (docs only)
 
-### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] The eight success criteria of spec §7 are met.
-- [ ] Crawford's manual pass at three widths is done, or flagged here as outstanding.
-- [ ] Ready for Crawford's PR.
+**As built (Task 19, 2026-11-15):** the roadmap entry is [91](../todo/roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes)
+(the backlog's next free number is now 92). Beyond the three docs the task names, `AUDIO_SYSTEM.md` named the old
+labels as current UI in four places (Fleet Params → LFO Bank twice, the in-app "Decay Mode" copy, Fleet Params >
+Pacing) and `COMPONENT_LIBRARY.md`'s side-by-side note still put Phase beside Interval; all fixed. Left as found:
+`AUDIO_SYSTEM.md`'s "Three master controls — Intensity, Frequency, Duration" heading predates this pass (today's
+labels are Automation Rate, Length and Range), and a code comment in `src/content/copy/fleet.ts` (above
+`fleet.quality`) still calls it "Audio Quality, Fleet Params' last tab". Dated specs, plans and archives keep the old
+names as history.
+
+### Checkpoint: Complete — built; Crawford's manual pass outstanding
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (the Robots checkpoint's run; Task
+      19 changed docs only, and types and lint were re-run after it).
+- [ ] The eight success criteria of spec §7 are met: 1–7 by the tests, the featured walks and the docs read; **8 is
+      Crawford's manual pass**, below.
+- [x] Crawford's manual pass at three widths is done, or flagged here as outstanding. **Flagged outstanding**: the
+      robot, company and All Probes sub-tabs (the Robots checkpoint's look). Fleet Params passed its look on 2026-11-15.
+- [x] Ready for Crawford's PR, once that look passes. Open for him: delete or keep the three old composites
+      (roadmap 91 Open).
 
 ## Risks and Mitigations
 
