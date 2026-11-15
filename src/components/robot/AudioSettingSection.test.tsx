@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 // Same reasoning as AudioRigDrawer/SignatureArrayDrawer's own test files: the shared
 // vitest.setup.ts GSAP mock's timeline object has no kill() method, and a child's unmount
@@ -17,7 +17,7 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { AudioSettingSection, SendRow } from './AudioSettingSection';
+import { AudioSettingSection, LevelsMixSection, LevelsSendsSection, SendRow } from './AudioSettingSection';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { AUDIO_SETTING_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, ROBOT_SEND_SCHEMAS, DYNAMICS_SCHEMA } from '@/data/robotOptionsConfig';
 import { ROBOT_SENDS, type RobotSendField } from '@/data/robotSends';
@@ -71,6 +71,140 @@ function makeValue(overrides: Partial<{
     ...overrides,
   };
 }
+
+// docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 13): Levels splits into Mix and Sends, each its own
+// memoised component. AudioSettingSection shows both, Mix then Sends, until Task 16 gives each its sub-tab.
+describe('Levels split into Mix and Sends (control layout Task 13)', () => {
+  const DESKTOP = { mobile: false, tablet: false };
+  const TABLET = { mobile: false, tablet: true };
+  const MIX_PROPS = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, onDynamicsChange: () => {} };
+  const panel = (container: HTMLElement, id: string) => container.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
+  const orientationOf = (p: HTMLElement) => p.querySelector(':scope > .sc-directional-panel__content')!.getAttribute('data-orientation');
+  const boxes = (container: HTMLElement) => container.querySelectorAll('.sc-directional-panel-facade');
+  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const named = (key: keyof typeof CONTENT) => new RegExp(`^${CONTENT[key].human}`, 'i');
+  const sendSlider = (field: RobotSendField) =>
+    screen.getByRole('slider', { name: named(ROBOT_SENDS.find((s) => s.field === field)!.contentKey as keyof typeof CONTENT) });
+
+  describe('Mix', () => {
+    it('renders two boxes: P1 Volume, then Monitor Mode beside Dynamics; P2 Pan beside Auto', () => {
+      stubMatchMedia(DESKTOP);
+      const { container } = render(<LevelsMixSection value={makeValue({ panAuto: false })} {...MIX_PROPS} />);
+      expect(boxes(container)).toHaveLength(2);
+
+      const p1 = panel(container, 'robotOptions.mix.p1');
+      const r2 = panel(container, 'robotOptions.mix.p1.r2');
+      const volume = within(p1).getByRole('slider', { name: /volume/i });
+      const solo = within(r2).getByRole('radio', { name: 'Solo' });
+      const dynamics = within(r2).getByRole('slider', { name: named('probe.levels.dynamics') });
+      expect(p1.contains(r2)).toBe(true);
+      expect(r2.contains(volume)).toBe(false);
+      expect(before(volume, solo)).toBe(true);
+      expect(before(solo, dynamics)).toBe(true);
+
+      const p2 = panel(container, 'robotOptions.mix.p2');
+      const r1 = panel(container, 'robotOptions.mix.p2.r1');
+      expect(p2.contains(r1)).toBe(true);
+      expect(within(r1).getByRole('slider', { name: named('probe.pan') })).toBeTruthy();
+      expect(within(r1).getByRole('switch', { name: named('probe.pan.auto') })).toBeTruthy();
+      expect(p1.contains(r1)).toBe(false);
+      expect(before(p1, p2)).toBe(true);
+    });
+
+    it('Volume is the first control and its cell alone is featured', () => {
+      const { container } = render(<LevelsMixSection value={makeValue({ panAuto: false })} {...MIX_PROPS} />);
+      const volume = screen.getByRole('slider', { name: /volume/i });
+      expect(screen.getAllByRole('slider')[0]).toBe(volume);
+      const featured = container.querySelectorAll('.sc-featured');
+      expect(featured).toHaveLength(1);
+      expect(featured[0].contains(volume)).toBe(true);
+      expect(featured[0].contains(screen.getByRole('radio', { name: 'Solo' }))).toBe(false);
+    });
+
+    it('holds no send: Volume, Dynamics and Pan are its only sliders', () => {
+      render(<LevelsMixSection value={makeValue({ panAuto: false })} {...MIX_PROPS} />);
+      expect(screen.getAllByRole('slider')).toHaveLength(3);
+      for (const spec of ROBOT_SENDS) {
+        expect(screen.queryByRole('slider', { name: named(spec.contentKey as keyof typeof CONTENT) }), spec.field).toBeNull();
+      }
+    });
+
+    it.each([['desktop', 'row', DESKTOP], ['tablet', 'column', TABLET]] as const)(
+      'on %s, Monitor Mode and Dynamics are a %s; Pan and Auto stay a row',
+      (_tier, expected, state) => {
+        stubMatchMedia(state);
+        const { container } = render(<LevelsMixSection value={makeValue({ panAuto: false })} {...MIX_PROPS} />);
+        expect(orientationOf(panel(container, 'robotOptions.mix.p1.r2'))).toBe(expected);
+        expect(orientationOf(panel(container, 'robotOptions.mix.p2.r1'))).toBe('row');
+      },
+    );
+
+    it('the Pan readout (Auto on) sits in the same row as the slider did', () => {
+      const { container } = render(<LevelsMixSection value={makeValue({ panAuto: true })} livePan={0.1} {...MIX_PROPS} />);
+      expect(panel(container, 'robotOptions.mix.p2.r1').contains(screen.getByRole('status'))).toBe(true);
+    });
+
+    it('is a React.memo-wrapped component', () => {
+      expect((LevelsMixSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+  });
+
+  describe('Sends', () => {
+    it('renders one box: Reverb beside Delay, Grit beside Shimmer, then Double', () => {
+      stubMatchMedia(DESKTOP);
+      const { container } = render(<LevelsSendsSection value={makeValue()} onSendChange={() => {}} />);
+      expect(boxes(container)).toHaveLength(1);
+
+      const p1 = panel(container, 'robotOptions.sends.p1');
+      const r1 = panel(container, 'robotOptions.sends.p1.r1');
+      const r2 = panel(container, 'robotOptions.sends.p1.r2');
+      expect(p1.contains(r1) && p1.contains(r2)).toBe(true);
+      expect(r1.contains(sendSlider('reverbSend')) && r1.contains(sendSlider('delaySend'))).toBe(true);
+      expect(r2.contains(sendSlider('gritSend')) && r2.contains(sendSlider('shimmerSend'))).toBe(true);
+      const double = sendSlider('doubleSend');
+      expect(p1.contains(double)).toBe(true);
+      expect(r1.contains(double) || r2.contains(double)).toBe(false);
+
+      const order = ROBOT_SENDS.map((spec) => sendSlider(spec.field));
+      for (let i = 1; i < order.length; i++) expect(before(order[i - 1], order[i]), `send ${i}`).toBe(true);
+    });
+
+    it('holds the five sends and nothing else, none of them featured', () => {
+      const { container } = render(<LevelsSendsSection value={makeValue()} onSendChange={() => {}} />);
+      expect(screen.getAllByRole('slider')).toHaveLength(5);
+      expect(screen.queryByRole('radio')).toBeNull();
+      expect(screen.queryByRole('switch')).toBeNull();
+      expect(container.querySelector('.sc-featured')).toBeNull();
+    });
+
+    it.each([['desktop', 'row', DESKTOP], ['tablet', 'column', TABLET]] as const)('on %s, its two shared rows are a %s', (_tier, expected, state) => {
+      stubMatchMedia(state);
+      const { container } = render(<LevelsSendsSection value={makeValue()} onSendChange={() => {}} />);
+      expect(orientationOf(panel(container, 'robotOptions.sends.p1.r1'))).toBe(expected);
+      expect(orientationOf(panel(container, 'robotOptions.sends.p1.r2'))).toBe(expected);
+    });
+
+    it('the held-off note sits once at the foot of the box, after Double, and the held-off row is dimmed with its value kept', () => {
+      const { container } = render(<LevelsSendsSection value={makeValue({ gritSend: 0.6 })} onSendChange={() => {}} heldOffSends={swells('gritSend')} />);
+      const notes = screen.getAllByText(CONTENT['ui.heldOff'].human);
+      expect(notes).toHaveLength(1);
+      expect(panel(container, 'robotOptions.sends.p1').contains(notes[0])).toBe(true);
+      expect(before(sendSlider('doubleSend'), notes[0])).toBe(true);
+      expect(sendSlider('gritSend').getAttribute('data-disabled')).not.toBeNull();
+      expect(sendSlider('gritSend').getAttribute('aria-valuenow')).toBe('60');
+    });
+
+    it('is a React.memo-wrapped component', () => {
+      expect((LevelsSendsSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+    });
+  });
+
+  it('AudioSettingSection shows Mix then Sends: three boxes, the Mix boxes first', () => {
+    const { container } = render(<AudioSettingSection value={makeValue()} {...MIX_PROPS} {...LEVEL_NOOPS} />);
+    expect(boxes(container)).toHaveLength(3);
+    expect(before(panel(container, 'robotOptions.mix.p2'), panel(container, 'robotOptions.sends.p1'))).toBe(true);
+  });
+});
 
 describe('AudioSettingSection', () => {
   it('Audio Setting radio includes all 4 options and calls onAudioModeChange with the selected value', () => {
@@ -160,17 +294,8 @@ describe('AudioSettingSection', () => {
     });
   });
 
-  describe('Volume layout (was "always above its LFO"; the LFO is gone, the column stays)', () => {
-    it('the Audio Setting radio and Volume slider both render inside the settings-column panel', () => {
-      render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...LEVEL_NOOPS} />
-      );
-      // The settings-column panel (Audio Setting + Volume) is the innermost .sc-directional-panel
-      // containing the radio.
-      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
-      expect(settingsColumn.contains(screen.getByRole('slider', { name: /volume/i }))).toBe(true);
-    });
-
+  // The column layout this block pinned became Mix's two boxes (control layout Task 13, the describe at the top).
+  describe('Volume row', () => {
     it("the Volume row is not a flex container — 'audio-setting-section__row' adds display:flex, which shrinks a lone flex item (the slider) to its own content width instead of the row's full width, breaking useVoxelTrackBoxCount's self-observation (same pattern audio-rig-drawer__param-row / sc-lfo-target-group__row already avoid elsewhere by carrying no display rule at all)", () => {
       render(
         <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...LEVEL_NOOPS} />
@@ -178,29 +303,6 @@ describe('AudioSettingSection', () => {
       const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.audio-setting-section__volume-row')!;
       expect(volumeRow).not.toBeNull();
       expect(volumeRow.classList.contains('audio-setting-section__row')).toBe(false);
-    });
-
-    it('renders data-orientation="column" on the outer panel regardless of tier — Audio Setting then Volume, always stacked, never a side-by-side desktop split', () => {
-      for (const state of [{ mobile: true, tablet: true }, { mobile: false, tablet: false }]) {
-        stubMatchMedia(state);
-        const { unmount } = render(
-          <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...LEVEL_NOOPS} />
-        );
-        const outerContent = screen.getByRole('radio', { name: 'Solo' })
-          .closest('.sc-directional-panel')! // settings-column panel
-          .parentElement!; // VOLUME_ROW_PANEL_SCHEMA's own .sc-directional-panel__content
-        expect(outerContent.getAttribute('data-orientation')).toBe('column');
-        unmount();
-      }
-    });
-
-    it('the settings-column panel is always column-oriented too, regardless of tier — Audio Setting above Volume', () => {
-      stubMatchMedia({ mobile: false, tablet: false });
-      render(
-        <AudioSettingSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...LEVEL_NOOPS} />
-      );
-      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
-      expect(settingsColumn.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
     });
 
     it('the Volume row no longer carries LFO-group targeting (no sc-lfo-target-group__row, no isActive) — there is nothing left to target', () => {
@@ -449,10 +551,10 @@ describe('AudioSettingSection', () => {
       expect(onPanAutoChange).not.toHaveBeenCalled();
     });
 
-    it('the Pan row sits in the settings column, after Volume, as a row panel holding the slider and the toggle', () => {
-      render(<AudioSettingSection value={makeValue({ panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...LEVEL_NOOPS} />);
+    it('the Pan row sits in Mix, after Volume, as a row panel holding the slider and the toggle', () => {
+      const { container } = render(<AudioSettingSection value={makeValue({ panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...LEVEL_NOOPS} />);
 
-      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
+      const settingsColumn = container.querySelector('.audio-setting-section__mix')!;
       const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.audio-setting-section__volume-row')!;
       const panWrapper = panSlider().closest('.audio-setting-section__pan-slider')!;
       expect(panWrapper).not.toBeNull();
@@ -507,17 +609,14 @@ describe('AudioSettingSection', () => {
     const baseProps = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, ...LEVEL_NOOPS };
     const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-    it('renders Volume, Pan, Reverb, Delay in that order, all inside the settings column', () => {
+    it('renders Volume, Pan, Reverb, Delay in that order: Mix, then the sends', () => {
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...baseProps} />);
 
-      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
       const volume = screen.getByRole('slider', { name: /volume/i });
       const pan = screen.getByRole('slider', { name: new RegExp(`^${CONTENT['probe.pan'].human}`, 'i') });
       expect(before(volume, pan)).toBe(true);
       expect(before(pan, reverbSlider())).toBe(true);
       expect(before(reverbSlider(), delaySlider())).toBe(true);
-      expect(settingsColumn.contains(reverbSlider())).toBe(true);
-      expect(settingsColumn.contains(delaySlider())).toBe(true);
     });
 
     it('the rows sit after the Pan row panel, not inside it beside the Auto toggle', () => {
@@ -835,12 +934,13 @@ describe('AudioSettingSection', () => {
     const baseProps = { onAudioModeChange: () => {}, onVolumeChange: () => {}, ...PAN_NOOPS, ...LEVEL_NOOPS };
     const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
 
-    it('renders after Delay, inside the settings column', () => {
+    it('renders beside Monitor Mode, ahead of Pan and the sends (control layout Task 13)', () => {
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...baseProps} />);
 
-      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
-      expect(before(delaySlider(), dynamicsSlider())).toBe(true);
-      expect(settingsColumn.contains(dynamicsSlider())).toBe(true);
+      const row = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
+      expect(row.contains(dynamicsSlider())).toBe(true);
+      expect(before(dynamicsSlider(), screen.getByRole('slider', { name: new RegExp(`^${CONTENT['probe.pan'].human}`, 'i') }))).toBe(true);
+      expect(before(dynamicsSlider(), delaySlider())).toBe(true);
     });
 
     it('shows the stored 0-100 number as is, with a 0..100 range', () => {
@@ -977,22 +1077,20 @@ describe('AudioSettingSection', () => {
       { name: 'Double', field: 'doubleSend', key: 'probe.doubleSend', schema: ROBOT_SEND_SCHEMAS.doubleSend, wrapper: 'audio-setting-section__double-row' },
     ] as const;
 
-    it('renders Volume, Pan, Reverb, Delay, Grit, Shimmer, Double, Dynamics in that order, all inside the settings column', () => {
+    it('renders Volume, Dynamics, Pan, Reverb, Delay, Grit, Shimmer, Double in that order (control layout Task 13)', () => {
       render(<AudioSettingSection value={makeValue({ panAuto: false })} {...baseProps} />);
 
-      const settingsColumn = screen.getByRole('radio', { name: 'Solo' }).closest('.sc-directional-panel')!;
       const order = [
         screen.getByRole('slider', { name: /volume/i }),
+        screen.getByRole('slider', { name: new RegExp(`^${CONTENT['probe.levels.dynamics'].human}`, 'i') }),
         screen.getByRole('slider', { name: new RegExp(`^${CONTENT['probe.pan'].human}`, 'i') }),
         sliderFor('probe.reverbSend'),
         sliderFor('probe.delaySend'),
         sliderFor('probe.gritSend'),
         sliderFor('probe.shimmerSend'),
         sliderFor('probe.doubleSend'),
-        screen.getByRole('slider', { name: new RegExp(`^${CONTENT['probe.levels.dynamics'].human}`, 'i') }),
       ];
       for (let i = 1; i < order.length; i++) expect(before(order[i - 1], order[i]), `row ${i}`).toBe(true);
-      order.forEach((s) => expect(settingsColumn.contains(s)).toBe(true));
     });
 
     it('the three sliders are independent: different stored values show as different numbers', () => {
@@ -1399,12 +1497,11 @@ describe('AudioSettingSection', () => {
       expect(dynamicsSlider().getAttribute('data-disabled')).toBeNull();
     });
 
-    it('says why once, under the send rows and before Dynamics', () => {
+    it('says why once, under the send rows', () => {
       render(<AudioSettingSection value={makeValue()} {...baseProps} heldOffSends={held('gritSend', 'shimmerSend', 'doubleSend')} />);
       const notes = screen.getAllByText(HELD_OFF);
       expect(notes).toHaveLength(1);
       expect(!!(sendSlider('doubleSend').compareDocumentPosition(notes[0]) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
-      expect(!!(notes[0].compareDocumentPosition(dynamicsSlider()) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
     });
 
     it('dims any one send on its own (the Reverb, for the Reverb hold-off)', () => {

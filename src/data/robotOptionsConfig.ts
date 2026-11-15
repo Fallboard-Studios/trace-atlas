@@ -78,36 +78,15 @@ export const VOLUME_SCHEMA: SliderLinearSchema = {
   max: 100,
   step: 1,
   orientation: 'horizontal',
+  featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
 };
 
-/**
- * Wraps VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (below) — fixed 'column' at every tier (Audio
- * Setting, then Volume). The Volume LFO display that used to sit below the column is gone (the
- * `volume` LFO target was removed — docs/specs/LFO_LOAD_FIX.md assumption 9); the two-panel
- * nesting is kept so the section renders identically in its slot. Previously 'responsive' (desktop split into 2 side-by-side columns,
- * Audio Setting's own Auto/Mute/Solo/Highlight radio squeezed into the narrower half) — Crawford's
- * own correction, to bring this one layout in line with the others. Unlabeled — pure layout,
- * top-level inside AudioSettingSection's own root (no accordion wrapper — removed docs/tasks/
- * NAV_LAYOUT_REWRITE.md Task 18).
- */
-export const VOLUME_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.volumeRow',
-  type: 'directionalPanel',
-  orientation: 'column',
-};
-
-/**
- * Audio Setting + Volume, always stacked — nested inside VOLUME_ROW_PANEL_SCHEMA's own (now also
- * always-column) stack, ahead of the Lfo display. Fixed 'column' regardless of tier — kept as its
- * own schema/panel (rather than merging into VOLUME_ROW_PANEL_SCHEMA directly) since Audio Setting
- * + Volume is still a meaningful sub-grouping on its own, independent of the outer panel's own
- * orientation.
- */
-export const VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.volumeSettingsColumn',
-  type: 'directionalPanel',
-  orientation: 'column',
-};
+// Levels > Mix (docs/specs/CONTENT_LAYOUT.md §1.3): P1 Volume, then Monitor Mode beside Dynamics; P2 Pan beside Auto.
+// Unlabeled, pure layout: a top-level panel is a box, a nested one a shared row.
+export const MIX_P1_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.mix.p1', type: 'directionalPanel', orientation: 'column' };
+/** Monitor Mode beside Dynamics: side by side on desktop, stacked below it. */
+export const MIX_P1_R2_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.mix.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
+export const MIX_P2_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.mix.p2', type: 'directionalPanel', orientation: 'column' };
 
 /**
  * Display-only -100..100 in steps of 1, no unit and no L/R letters (docs/specs/ROBOT_PAN.md assumption
@@ -165,13 +144,23 @@ export const DYNAMICS_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
-/** The Pan slider and its Auto toggle side by side, unlabeled — pure layout, the third row of
- *  VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA. */
-export const PAN_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.panRow',
+/** The Pan slider and its Auto toggle, Mix's second box's one row (docs/specs/CONTENT_LAYOUT.md §1.3). A fixed 'row' on
+ *  every tier, not 'responsive': the toggle holds a 44 px box beside the growing slider (assumption 6). */
+export const MIX_P2_R1_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.mix.p2.r1',
   type: 'directionalPanel',
   orientation: 'row',
 };
+
+/**
+ * Levels > Sends (docs/specs/CONTENT_LAYOUT.md §1.3): one box of the five sends, Reverb beside Delay, Grit beside
+ * Shimmer, then Double, each row of two a 'responsive' panel (`robotOptions.sends.p1.r<n>`) and a row of one none.
+ */
+export const SENDS_P1_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.sends.p1', type: 'directionalPanel', orientation: 'column' };
+export const SENDS_LAYOUT: readonly (readonly RobotSendField[])[] = [['reverbSend', 'delaySend'], ['gritSend', 'shimmerSend'], ['doubleSend']];
+/** One per SENDS_LAYOUT row, undefined for a row of one. */
+export const SENDS_ROW_PANEL_SCHEMAS: readonly (DirectionalPanelSchema | undefined)[] = SENDS_LAYOUT.map((row, i) =>
+  row.length > 1 ? { id: `robotOptions.sends.p1.r${i + 1}`, type: 'directionalPanel', orientation: 'responsive' } : undefined);
 
 // ========================================
 // PING CONTROLS

@@ -4,7 +4,13 @@ import {
   VOLUME_SCHEMA,
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
-  PAN_ROW_PANEL_SCHEMA,
+  MIX_P1_PANEL_SCHEMA,
+  MIX_P1_R2_PANEL_SCHEMA,
+  MIX_P2_PANEL_SCHEMA,
+  MIX_P2_R1_PANEL_SCHEMA,
+  SENDS_P1_PANEL_SCHEMA,
+  SENDS_LAYOUT,
+  SENDS_ROW_PANEL_SCHEMAS,
   ROBOT_SEND_SCHEMAS,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
@@ -18,8 +24,6 @@ import {
   SUSTAIN_SCHEMA,
   RELEASE_SCHEMA,
   SIGNATURE_ARRAY_CONFIG,
-  VOLUME_ROW_PANEL_SCHEMA,
-  VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
   PING_CONTOUR_PANEL_SCHEMA,
   PORTAMENTO_SCHEMA,
   ATTACK_CURVE_SCHEMA,
@@ -188,20 +192,20 @@ describe('robotOptionsConfig', () => {
       expect(PAN_SCHEMA.humanLabel).not.toBe(PAN_AUTO_SCHEMA.humanLabel);
     });
 
-    it('PAN_ROW_PANEL_SCHEMA is an unlabeled row-orientation directionalPanel', () => {
-      expect(PAN_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'row' });
-      expect(PAN_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
-      expect(PAN_ROW_PANEL_SCHEMA.humanLabel).toBeUndefined();
+    it('MIX_P2_R1_PANEL_SCHEMA (the Pan row) is an unlabeled row-orientation directionalPanel', () => {
+      expect(MIX_P2_R1_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'row' });
+      expect(MIX_P2_R1_PANEL_SCHEMA.loreLabel).toBeUndefined();
+      expect(MIX_P2_R1_PANEL_SCHEMA.humanLabel).toBeUndefined();
     });
 
     it('the three Pan schemas carry unique robotOptions.* ids, none colliding with Volume', () => {
-      const ids = [PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id, PAN_ROW_PANEL_SCHEMA.id, VOLUME_SCHEMA.id, VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.id];
+      const ids = [PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id, MIX_P2_R1_PANEL_SCHEMA.id, VOLUME_SCHEMA.id, MIX_P1_PANEL_SCHEMA.id];
       ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
       expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('the Pan schemas are JSON-serializable', () => {
-      [PAN_SCHEMA, PAN_AUTO_SCHEMA, PAN_ROW_PANEL_SCHEMA].forEach((schema) => {
+      [PAN_SCHEMA, PAN_AUTO_SCHEMA, MIX_P2_R1_PANEL_SCHEMA].forEach((schema) => {
         expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
       });
     });
@@ -566,28 +570,30 @@ describe('ROBOT_OUTPUT_PANEL_SCHEMA no longer exists (Task 2 cleanup)', () => {
   });
 });
 
-describe('VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
-  it('VOLUME_ROW_PANEL_SCHEMA is a column-orientation directionalPanel, unlabeled — Volume always renders above its LFO, matching every other LFO layout (Crawford\'s own correction, was "responsive")', () => {
-    expect(VOLUME_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
-    expect(VOLUME_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
-    expect(VOLUME_ROW_PANEL_SCHEMA.humanLabel).toBeUndefined();
+// docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 13): Levels' Mix and Sends boxes and rows.
+describe('the Mix and Sends panel schemas', () => {
+  const MIX_AND_SENDS = [MIX_P1_PANEL_SCHEMA, MIX_P1_R2_PANEL_SCHEMA, MIX_P2_PANEL_SCHEMA, MIX_P2_R1_PANEL_SCHEMA, SENDS_P1_PANEL_SCHEMA];
+
+  it('are unlabeled directionalPanels with unique ids on the sheet scheme, JSON-serializable', () => {
+    expect(MIX_AND_SENDS.map((s) => s.id)).toEqual(['robotOptions.mix.p1', 'robotOptions.mix.p1.r2', 'robotOptions.mix.p2', 'robotOptions.mix.p2.r1', 'robotOptions.sends.p1']);
+    for (const schema of MIX_AND_SENDS) {
+      expect(schema.type).toBe('directionalPanel');
+      expect(schema.humanLabel, schema.id).toBeUndefined();
+      expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
+    }
   });
 
-  it('VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA is a column-orientation directionalPanel, unlabeled', () => {
-    expect(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
-    expect(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.loreLabel).toBeUndefined();
-    expect(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.humanLabel).toBeUndefined();
+  it('SENDS_LAYOUT places every send exactly once, in table order; a row of two has a responsive row schema and a row of one none', () => {
+    expect(SENDS_LAYOUT.flat()).toEqual([...ROBOT_SEND_FIELDS]);
+    expect(SENDS_ROW_PANEL_SCHEMAS.map((s) => s?.id)).toEqual(['robotOptions.sends.p1.r1', 'robotOptions.sends.p1.r2', undefined]);
+    SENDS_ROW_PANEL_SCHEMAS.forEach((s) => s && expect(s.orientation).toBe('responsive'));
   });
 
-  it('both ids are unique and in the robotOptions.* namespace', () => {
-    const ids = [VOLUME_ROW_PANEL_SCHEMA.id, VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.id];
-    ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
-    expect(new Set(ids).size).toBe(2);
-  });
-
-  it('both remain JSON-serializable', () => {
-    expect(() => JSON.stringify(VOLUME_ROW_PANEL_SCHEMA)).not.toThrow();
-    expect(() => JSON.stringify(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA)).not.toThrow();
+  it('Volume is featured; Monitor Mode, Pan, Auto, Dynamics and the sends are not', () => {
+    expect(VOLUME_SCHEMA.featured).toBe(true);
+    for (const schema of [AUDIO_SETTING_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, DYNAMICS_SCHEMA, ...SEND_SCHEMAS]) {
+      expect(schema.featured, schema.id).toBeUndefined();
+    }
   });
 });
 

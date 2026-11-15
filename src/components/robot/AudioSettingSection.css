@@ -1,7 +1,11 @@
-.audio-setting-section {
+/* A stack of boxes, spaced as Fleet Params stacks its own (docs/specs/CONTENT_LAYOUT.md assumption 3): Mix's two, and
+   Mix then Sends under the one Levels panel. */
+.audio-setting-section,
+.audio-setting-section__mix {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
+  min-width: 0;
 }
 
 .audio-setting-section__row {
