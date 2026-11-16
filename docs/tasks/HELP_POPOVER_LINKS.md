@@ -180,7 +180,7 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
 
 ### Phase 3: The links
 
-- [ ] **Task 4: `nav/helpLinks.ts` — the five sends' links and Grit's rule**
+- [x] **Task 4: `nav/helpLinks.ts` — the five sends' links and Grit's rule**
 
   **Description:** New `src/components/panels/screen/nav/helpLinks.ts` (spec §1.4, §4). A
   `Record<RobotSendField, …>` of destinations: Reverb → `timeSpace`/`reverb`, Delay → `timeSpace`/`delay`, Shimmer →
