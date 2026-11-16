@@ -15,7 +15,8 @@ questions; five guesses confirmed, two accepted on trial). Backlog
 [75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5. Planned in
 [tasks/NAVIGATION_CLOSE_AND_BACK.md](../tasks/NAVIGATION_CLOSE_AND_BACK.md). Gates 1 and 2 passed 2026-11-15
 (§5.4): the guard design stands, and the row is plain words in the plate with Back not naming its destination.
-Crawford accepted §7.2's defaults the same day.
+Crawford accepted §7.2's defaults the same day. **Built 2026-11-15** on `feature/navigation-close-and-back`, Parts A–D;
+Gate 3 kept the rail trial. §8 records what was built.
 
 **Who it is for:** the player moving between the deck, the Probes list, a robot, a company, All Probes and Fleet
 Params, on the desk shell and the phone shell.
@@ -487,3 +488,54 @@ Q1–Q6 were answered 2026-11-15: Crawford accepted each default as written.
 - **Q7. Does a world rebuild while the power is on happen anywhere?** Nothing in the powered-on app makes one today.
   If one is added later, A4 sends the player to the deck in the middle of a session; flagged so that is a decision,
   not a surprise.
+
+---
+
+## 8. As built
+
+Built 2026-11-15, Tasks 0–15 of the [plan](../tasks/NAVIGATION_CLOSE_AND_BACK.md), one commit each on
+`feature/navigation-close-and-back`. The user-facing description is [UI_SHELL.md](../UI_SHELL.md#navactionsts--selection-in-one-place).
+
+### 8.1 The gates
+
+- **Gate 1** (the browser check) passed with the probe at `docs/sketches/tools/browser-back-probe.html`: the guard
+  design (C1) stands and C4 was not built. The probe page is kept for Safari.
+- **Gate 2** (the sketch, `docs/sketches/navigation-close-and-back.html`) passed: the row is words, in the plate,
+  with a plain "Back" (B1, B2). The top band was turned down.
+- **Checkpoints B and C:** Crawford's hand runs of §5.3 (the trail on both shells, the row's look, and the browser,
+  power and address-bar runs in desktop Chrome, desktop Firefox and Chrome on the Pixel) all looked right. The known
+  hole (C3) did not show in the app, so the address helper was not built.
+- **Gate 3** (the rail's look): Crawford kept the trial. The 200 px fallback was not built.
+
+### 8.2 Defaults
+
+Every assumption in §7.1 held as written: A1–A5, B1–B3, C1–C3, D1. Q1–Q6 took their defaults (power off: leave the
+app; Forward: nothing; the sheet open: a normal step; Safari unchecked and parked; the copy Back and Close with no
+lore; the cap 50). Q7 stays open, with nothing to build.
+
+### 8.3 Built differently from §1–§4
+
+- **The store's surface** is `navTrail`, `setNavTrail(trail)` and `resetNav()`, not §4's provisional `popNavStop`.
+  Every rule about the trail lives in `navActions.ts`, which holds the private `stopKey` / `recordStep` helpers and
+  exports `NAV_TRAIL_MAX` (50).
+- **The deleted company** (§1.3, A5) is its own navAction, `closeDeletedCompany(companyId)`, which the delete path
+  calls in place of `selectBranch('probes')`. Beyond removing the company's stops, it merges two neighbouring stops for
+  one screen into the later, and drops a last stop that is the Probes list, so Back never shows the same screen twice
+  in a row.
+- **The browser's Back** has two guards §4 does not show, each pinned by a test a mutation kills: the store subscription reacts only
+  to a change of `navTrail` or `isPoweredOn` (the clock's timer writes would push without a user activation), and a
+  module flag around the press handler's `back()` stops the subscription pushing from inside a `popstate`. Power-on
+  with steps on the trail and no guard pushes one (the rocker is the gesture).
+- **Focus on the phone** (§1.5, B3) is `Header` running `useRescueLostFocus`, aimed at the menu toggle, triggered by
+  a screen closing and off while the nav sheet is open.
+- **Part D wrote RED tests**, where §5.1 said none. Two cases were new behaviour: pressing Probes on the Probes list
+  changes nothing, and no box is a disclosure. Both failed on the old code, the first because the press toggled the
+  list.
+- **On the phone**, Probes pressed on the Probes list inside the nav sheet is a pick like any box: it shuts the sheet
+  and changes nothing else.
+- **`NavBox`** lost its `expanded` prop: the "+ New Company" control passes `expanded` to a `Button`, not a `NavBox`.
+  Its `controls` and `accentStyle` props are now unused by any caller and were left in place.
+- **The removal order.** Once Task 14 stopped writing `expandedTopLevelBranch`, five test assertions on it failed in
+  other files. They were dropped in that task rather than Task 15, so every commit stays green.
+- **The Deck's "Welcome card"** that UI_SHELL.md described was already gone from the code: `ContentPane` renders
+  nothing on the Deck.

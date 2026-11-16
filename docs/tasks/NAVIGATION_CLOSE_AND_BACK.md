@@ -11,7 +11,8 @@ defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's chec
 built 2026-11-15; Checkpoint B's automated checks pass. Phase 3 (Tasks 10–12, the browser's Back) built 2026-11-15;
 Checkpoint C's automated checks pass. Phase 4 (Tasks 13–15, the rail) built 2026-11-15 on Crawford's go, before his
 Checkpoint B and C runs; Gate 3's automated checks pass. Crawford then reported his hand runs (Checkpoint B's trail
-and look, Checkpoint C's browser runs) and his Gate 3 look, and kept the trial (2026-11-15). Next: Task 16.
+and look, Checkpoint C's browser runs) and his Gate 3 look, and kept the trial (2026-11-15). Task 16 (the docs) done the same day. Next: Checkpoint Complete,
+then Crawford's PR, then Task 17 after the merge.
 
 ## Overview
 
@@ -344,7 +345,8 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 - [x] No component reads `navTrail` yet, and no screen looks different. (Only `navActions.ts`, `uiStore.ts`,
       `worldTransition.ts` and `CompanyCrudControls.tsx` name the trail's API. One visible change, by design: a world
       rebuild now lands on the deck, where it used to keep the branch open.)
-- [ ] Reviewed with Crawford before Phases 2 and 3.
+- [x] Reviewed with Crawford before Phases 2 and 3. (He went on to Phases 2 and 3; his "everything looks good" of
+      2026-11-15 covers the trail.)
 
 ---
 
@@ -684,7 +686,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 5: Docs
 
-- [ ] **Task 16: `UI_SHELL.md`, `ANIMATION_SYSTEM.md`, the spec — the docs read as the code is**
+- [x] **Task 16: `UI_SHELL.md`, `ANIMATION_SYSTEM.md`, the spec — the docs read as the code is**
 
   **Description:** `UI_SHELL.md`: the nav panel section (three plain boxes, one width), the `navActions.ts` list
   (`back`, `closeDeletedCompany`, the step rule; `pressBranchBox` gone), the content surface (the row; and the Deck's
@@ -696,12 +698,18 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every name the docs give exists in the shipped source, spot-checked one by one.
-  - [ ] No doc describes the entity list, the width tween or a route to the deck that is gone.
+  - [x] Every name the docs give exists in the shipped source, spot-checked one by one. (Among them `NavStop`,
+        `navTrail`, `setNavTrail`, `resetNav`, `NAV_TRAIL_MAX`, `back`, `closeDeletedCompany`, `ScreenExitRow`,
+        `nav.back` / `nav.close`, `useBrowserBack` in `ScreenViewport`, `useRescueLostFocus` in `Header`,
+        `mirrorWorldToUrl`, `mirrorLoadToUrl`, `--nav-panel-rest`, `--content-pane-background`, `data-dimmed`.)
+  - [x] No doc describes the entity list, the width tween or a route to the deck that is gone. (`UI_SHELL.md`:
+        the nav panel, the `navActions` list with the trail, `back`, `closeDeletedCompany` and the rebuild reset, new
+        sections on the row and on the browser's Back, the content surface without the Welcome card, the `uiStore`
+        table. `ANIMATION_SYSTEM.md`: the `nav-panel-width` row gone. The spec's §8 "As built".)
 
   **Verification:**
-  - [ ] Manual review against the final code.
-  - [ ] `npm run lint` clean.
+  - [x] Manual review against the final code.
+  - [x] `npm run lint` clean.
 
   **Dependencies:** Gate 3.
 

@@ -546,11 +546,10 @@ notes, the Task 36 runs"); with one cloud on screen those figures no longer appl
 
 ### Layout-rework timelines (Phase 45)
 
-Three families of UI timelines, all in `timelineMap`, none touching audio:
+Two families of UI timelines, all in `timelineMap`, none touching audio. (A third, `nav-panel-width`, tweened the rail's width while Probes listed its entities; it went with the list in backlog 75, and the rail now has one width, [UI_SHELL.md](UI_SHELL.md#the-nav-panel).)
 
 | Key | Owner | Lives | Killed by |
 |---|---|---|---|
-| `nav-panel-width` | `NavPanel` (`useNavPanelWidth`) | one 0.25 s tween of the `--nav-panel-expand` factor on `#screen-viewport`, as Probes opens or closes its entity list; `NavPanel.css` derives `--nav-panel-width` from it and `ContentPane`'s left edge reads the same variable | the next change, unmount (which also removes the property). The first value is set at once, and so is every change under reduced motion |
 | ``roster-move-${robotId}`` | `RosterBoard` (`useRosterGlide`) | one `ROSTER_GLIDE_DURATION` (0.45 s) `Flip` glide of the roster tiles after a Move pick: `Flip.getState` before the `assignRobotToCompany` write, `Flip.from` in a `useLayoutEffect` keyed on the row order | its own end, a second pick (the first is finished to its end first), unmount. Skipped under reduced motion (focus still follows the tile) |
 | ``section-tab-${instanceId}-${itemId}`` | `SectionTabs`, one per trigger | the `CabinetBox` pop of a tab | unmount (the same `CabinetBox` pop timeline every cabinet control registers) |
 
