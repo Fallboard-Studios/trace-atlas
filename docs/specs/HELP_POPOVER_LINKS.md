@@ -3,7 +3,7 @@
 > **Execution Commands**
 > - Type check: `npm run build:types` (`tsc --noEmit`)
 > - Lint: `npm run lint`
-> - Focused tests: `npx vitest run src/components/panels/screen/nav src/components/ui/controls/HelpPopover.test.tsx src/components/ui/controls/LfoLink.test.tsx src/components/panels/screen/console/AudioRigDrawer.test.tsx src/components/robot/LevelsSections.test.tsx src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/content/content.test.ts`
+> - Focused tests: `npx vitest run src/components/panels/screen/nav src/components/ui/controls/HelpPopover.test.tsx src/components/ui/controls/LfoLink.test.tsx src/components/panels/screen/console/AudioRigEffectPanel.test.tsx src/components/robot/LevelsSections.test.tsx src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/content/content.test.ts`
 > - Unit tests: `npm test`
 > - Build check: `npm run build`
 > - Dev server: `npm run dev`
@@ -13,7 +13,8 @@
 guesses confirmed, the link's words rewritten by Crawford). Backlog
 [77](../todo/backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5. Planned in
 [tasks/HELP_POPOVER_LINKS.md](../tasks/HELP_POPOVER_LINKS.md). Q1 and Q2 answered 2026-11-16: the lane link reaches
-`LfoLink` as a prop; focus lands on the open sub-tab.
+`LfoLink` as a prop; focus lands on the open sub-tab. **Built 2026-11-16** (Tasks 1–9; Gate 1 and Checkpoint 2
+passed, Crawford): §8 records what was built differently.
 
 **Who it is for:** the player reading a control's help who does not yet know the control feeds a shared effect, on the
 desk shell and the phone shell.
@@ -358,3 +359,50 @@ Answered 2026-11-16.
   The render sites turned out to be three drawers, not six files (§1.1).
 - **Q2. Focus on arrival (A3).** **Answered: the open sub-tab's trigger**, as written. The alternative was the sub-tab's
   panel (its first control), which skips the tabs but lands in the middle of a section.
+
+---
+
+## 8. As built (2026-11-16)
+
+Built as §1–§4 describe, with the plan's choices: A3's request is a module-level one-shot in `navActions.ts`
+(`takeArrivalFocus()`), A2's destinations a record in `nav/helpLinks.ts`, A4's name the entry `ui.lfoLane.settingsName`.
+The names in §4 held: `openFleetParamsAt`, `HelpLink`, `ControlHelp`, `colourRoomSubTab`, `openLfoLaneSettings`,
+`SEND_SCHEMAS_WITH_HELP_LINKS`. The RED tests found three things the spec and plan did not foresee:
+
+- **The arrival focus's ref is on the sub-tab row's own wrapper**, a `display: contents` `div`
+  (`.fleet-params-screen__sub-tabs`, one rule in `FleetParamsScreen.css`, so the layout is unchanged). On a jump to
+  another section the row mounts with its section, and a ref on the section's `div` is not yet attached when the child's
+  layout effect runs.
+- **Only the open section's row takes the request.** Radix keeps the section being left mounted for one more commit,
+  and its own open sub-tab can change with the store's (Delay to Reverb when `laneC` is stored); that row took the
+  request, focused its trigger, and left the DOM, dropping focus to `<body>`.
+- **A link press commits the close with `flushSync` before `go()`.** §1.2's "stops Radix handing focus back" was not
+  enough where the "?" stays mounted: Radix removes the content a commit after the close, so its focus trap was still
+  live when the arrived page focused itself and pulled focus back to the link, which then left the DOM. Where the "?"
+  leaves with its screen (every link today) it worked either way. The `onCloseAutoFocus` prevent is kept, and cleared
+  after, so a later Escape returns focus to the "?".
+
+Smaller differences:
+
+- **Every action's clean slate clears the arrival request**, so one set by a jump whose Fleet Params never mounted
+  cannot fire on a later Back onto Fleet Params (§1.5's "only a help jump moves focus").
+- **A send whose entry had no help would get no link** (no "?" to carry it); all five have help.
+- **The drawer's test is in `AudioRigEffectPanel.test.tsx`**, where the `LfoLink`s are tested; `AudioRigDrawer.test.tsx`
+  covers only the intensity drawer. The focused-tests command above is corrected.
+- **`ui.lfoLane.settingsName` sat in the content guard's `AWAITING_CONSUMER`** for one commit (Task 7 to Task 8); the
+  list is empty again.
+- **Task 4's test assumed the audio store loads at its defaults**; a parallel run saw a Bit Crusher Mix above 0, so its
+  cases now set the three Mixes first.
+- **Built on `docs/backlog-77-intent`** beside the intent, spec and plan, not on a separate `feature/` branch (§6;
+  Crawford, 2026-11-16: "the current branch is fine").
+
+Gates and runs:
+
+- **Gate 1** (the link's look): passed 2026-11-16, no change. Plain underlined text in the well's text colour, a 2 px
+  accent focus ring, and on the phone shell a 44 px invisible press layer (measured in headless Chrome at 320, 768 and
+  1280 px).
+- **§5.3's runs**, in headless Chrome over CDP on a fresh dev server, desk 1280 px and phone 375 px: 42 of 42. **The
+  lane run "on Fleet Params' Delay (lane Off)" cannot happen**: Delay has no lane picker (in Fleet Params only the EQ,
+  LPF and HPF carry LFO targets, `audioRigConfig.ts`), so it ran from EQ & Filters › LPF with its first link set Off:
+  Core LFO, and Back lands on LPF. The unit tests' Delay-to-LFOs cases call `openFleetParamsAt` directly and stand.
+  Reviewed with Crawford 2026-11-16.

@@ -346,13 +346,14 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
         Delay, focused and open)
   - [x] a held-off send's link works. (effects held off: Double's row dimmed, its link lands on Modulation › Chorus)
 - [x] Restart Vite after the last edit before any headless probe (a `?t=` copy of an edited module is a second store).
-- [ ] Reviewed with Crawford before docs.
+- [x] Reviewed with Crawford before docs. (2026-11-16: "everything looks good", the LPF substitution included)
 
 ---
 
 ### Phase 4: Docs
 
-- [ ] **Task 9: `COMPONENT_LIBRARY.md`, `UI_SHELL.md`, the spec's "As built"**
+- [x] **Task 9: `COMPONENT_LIBRARY.md`, `UI_SHELL.md`, the spec's "As built"** (written 2026-11-16; Crawford's read
+  is its proof)
 
   **Description:** `docs/COMPONENT_LIBRARY.md`: `HelpPopover`'s link (the `ControlHelp` type, the button, the press
   closing without handing focus back), `DualLabel`'s widened `help`, and `LfoLink`'s required `onOpenLane` and lane
@@ -363,12 +364,12 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
   **Proof:** Read — Crawford's review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every named type, function, file and selector matches the shipped source.
-  - [ ] The spec's status line and §7 record Q1 and Q2 as answered.
+  - [x] Every named type, function, file and selector matches the shipped source.
+  - [x] The spec's status line and §7 record Q1 and Q2 as answered.
 
   **Verification:**
-  - [ ] Manual review against the code.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] Manual review against the code (each name grepped in `src/`).
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Tasks 1–8.
 
@@ -377,10 +378,11 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
   **Estimated scope:** S (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every automated acceptance criterion is met; Gate 1 passed; Checkpoint 2's runs recorded (any not done flagged
-      here, never skipped).
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. (The suite and build at Checkpoint 2,
+      06587f67; no code has changed since, only docs; types and lint rerun after Task 9.)
+- [x] Every automated acceptance criterion is met; Gate 1 passed; Checkpoint 2's runs recorded (any not done flagged
+      here, never skipped). Flagged: the Delay lane run ran from LPF (Delay has no lane picker), spec §8.
+- [ ] Ready for Crawford's PR (after his read of Task 9's docs).
 
 ---
 
