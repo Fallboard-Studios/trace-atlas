@@ -409,7 +409,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one mount, two stylesheets)
 
-- [ ] **Task 9: `Header.tsx` — focus when the row unmounts**
+- [x] **Task 9: `Header.tsx` — focus when the row unmounts**
 
   **Description:** Close, or a Back that lands on the deck, removes the button that had focus. On the desk the rail's
   `useRescueLostFocus` should already move focus to the Deck box; this task adds the case that shows it. On the phone
@@ -421,14 +421,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   leaves the document as the tile becomes null leaves focus on the menu toggle.
 
   **Acceptance criteria:**
-  - [ ] Phone: after the focused row button unmounts, the menu toggle has focus; focus on a live element is left alone.
-  - [ ] Desk: with Close focused, pressing it leaves focus on the Deck box. If this case passes on today's code it is
-        kept as a pin and said so in the commit.
-  - [ ] After a Back to another open screen, focus is still on the Back button.
+  - [x] Phone: after the focused row button unmounts, the menu toggle has focus; focus on a live element is left alone.
+        (The trigger is whether a screen is open, the one flip that takes the row away, so Header re-renders only
+        then.)
+  - [x] Desk: with Close focused, pressing it leaves focus on the Deck box. If this case passes on today's code it is
+        kept as a pin and said so in the commit. (It passed on today's code, as did the desk's Back-to-the-deck and
+        Back-to-another-screen cases: three pins in `NavPanel.test.tsx`.)
+  - [x] After a Back to another open screen, focus is still on the Back button. (Both shells.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/Header.test.tsx src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/Header.test.tsx src/components/panels/screen/nav` passes. (RED
+        first: the phone's Close and Back-to-the-deck cases failed with focus on `<body>`; the live-element, sheet-open,
+        Back-to-another-screen and desk cases passed as guards. 347 pass, then `src/components/panels` and `tablet`,
+        1,969.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 8.
 

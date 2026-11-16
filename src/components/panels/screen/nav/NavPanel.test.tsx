@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
 
 import { NavPanel } from './NavPanel';
-import { goHome } from './navActions';
+import { goHome, selectBranch, selectEntity } from './navActions';
+import { ContentPane } from '../console/ContentPane';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
@@ -29,6 +30,8 @@ vi.mock('@/components/ui/controls/CabinetBox', () => ({
   ),
 }));
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
+// The plate's screen is not this file's concern; the Back / Close row above it is (backlog 75 Task 9).
+vi.mock('../console/ConsolePanel', () => ({ ConsolePanel: () => <div className="console-panel" /> }));
 
 const gsapLog = vi.hoisted(() => ({ calls: [] as { kind: 'set' | 'to'; vars: Record<string, unknown> }[] }));
 vi.mock('gsap', () => {
@@ -439,6 +442,51 @@ describe('NavPanel — focus survives the focused box leaving (desk)', () => {
 
     expect(document.activeElement).toBe(outside);
     outside.remove();
+  });
+});
+
+// docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 9 (spec §1.5): the Back / Close row in the plate is now the control a
+// press most often takes away. On the desk the rail's rescue already catches it; these pin that.
+describe('NavPanel — focus when the Back / Close row leaves (desk, backlog 75 Task 9)', () => {
+  const renderWithPlate = () =>
+    render(
+      <main id={SCREEN_VIEWPORT_ID}>
+        <NavPanel />
+        <ContentPane />
+      </main>,
+    );
+  const rowButton = (key: ContentKey) => screen.getByRole('button', { name: human(key) });
+  const press = (button: HTMLElement) => {
+    act(() => button.focus());
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
+  };
+
+  it('Close with focus on it lands focus on the Deck box', () => {
+    selectBranch('probes');
+    selectEntity({ robotId: 'r1' });
+    renderWithPlate();
+    press(rowButton('nav.close'));
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+    expect(document.activeElement).toBe(box('nav.home'));
+  });
+
+  it('a Back that lands on the deck lands focus on the Deck box', () => {
+    selectEntity({ robotId: 'r1' });
+    renderWithPlate();
+    press(rowButton('nav.back'));
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+    expect(document.activeElement).toBe(box('nav.home'));
+  });
+
+  it('a Back to another open screen leaves focus on the Back button', () => {
+    selectBranch('fleetParams');
+    selectBranch('probes');
+    renderWithPlate();
+    const backButton = rowButton('nav.back');
+    press(backButton);
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(document.activeElement).toBe(backButton);
   });
 });
 

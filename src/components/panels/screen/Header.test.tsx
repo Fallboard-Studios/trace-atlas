@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 import Header from './Header';
+import { ContentPane } from './console/ContentPane';
+import { selectBranch, selectEntity } from './nav/navActions';
 import { useUIStore } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { ACCENT_COLORS } from '@/constants/accentColors';
@@ -55,6 +57,10 @@ vi.mock('@/components/ui/controls/CabinetBox', () => ({
     </div>
   ),
 }));
+
+// The focus cases (backlog 75 Task 9) mount the real ContentPane for its Back / Close row; the screen under it is
+// not their concern.
+vi.mock('./console/ConsolePanel', () => ({ ConsolePanel: () => <div className="console-panel" /> }));
 
 // Local gsap mock (overrides vitest.setup.ts's shared one) — records every .to() call, so the test that
 // the nav-clearance slide is gone can see that nothing tweens the header's box, while still supporting
@@ -528,6 +534,85 @@ describe('Header', () => {
       act(() => useUIStore.setState({ activeHubTile: 'audioRig' }));
       expect(container.querySelector('.header__well .world-line')).toBeNull();
       expect(container.querySelector('.header__well [role="navigation"]')).not.toBeNull();
+    });
+  });
+
+  // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 9 (spec §1.5, §7.1 B3): Close, or a Back that lands on the deck,
+  // takes away the button that had focus. On the phone nothing else catches it, so the menu toggle takes it.
+  describe('phone shell: focus when the Back / Close row leaves (backlog 75 Task 9)', () => {
+    beforeEach(() => {
+      stubShell(false);
+      useUIStore.setState({ navTrail: [], allRobotsSelected: true, selectedCompanyId: null, allProbesSelected: false });
+    });
+
+    const menu = () => screen.getByRole('switch', { name: labels('nav.toggle').humanLabel });
+    const rowButton = (key: 'nav.back' | 'nav.close') => screen.getByRole('button', { name: labels(key).humanLabel });
+    const renderShell = () =>
+      render(
+        <>
+          <Header />
+          <ContentPane />
+        </>,
+      );
+    /** Press a row button the way a keyboard user does: it has focus, then it is activated. */
+    const press = (button: HTMLElement) => {
+      act(() => button.focus());
+      expect(document.activeElement).toBe(button);
+      fireEvent.click(button);
+    };
+
+    it('Close: the focused button leaves with the screen and the menu toggle takes focus', () => {
+      selectBranch('probes');
+      selectEntity({ robotId: 'r1' });
+      renderShell();
+      press(rowButton('nav.close'));
+      expect(useUIStore.getState().activeHubTile).toBeNull();
+      expect(document.activeElement).toBe(menu());
+    });
+
+    it('a Back that lands on the deck: the menu toggle takes focus', () => {
+      selectEntity({ robotId: 'r1' }); // from the deck, so Back goes to the deck
+      renderShell();
+      press(rowButton('nav.back'));
+      expect(useUIStore.getState().activeHubTile).toBeNull();
+      expect(document.activeElement).toBe(menu());
+    });
+
+    it('a Back to another open screen keeps the row, and focus stays on the Back button', () => {
+      selectBranch('probes');
+      selectEntity({ robotId: 'r1' });
+      renderShell();
+      const backButton = rowButton('nav.back');
+      press(backButton);
+      expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: null });
+      expect(backButton.isConnected).toBe(true);
+      expect(document.activeElement).toBe(backButton);
+    });
+
+    it('focus on a live element is left alone when the screen closes', () => {
+      selectEntity({ robotId: 'r1' });
+      renderShell();
+      const mute = screen.getByRole('switch', { name: /mute/i });
+      act(() => mute.focus());
+      act(() => useUIStore.setState({ activeHubTile: null, selectedRobotId: null }));
+      expect(document.activeElement).toBe(mute);
+    });
+
+    it('is off while the nav sheet is open: the sheet hands focus back itself', () => {
+      selectEntity({ robotId: 'r1' });
+      useUIStore.setState({ isNavPanelOpen: true });
+      renderShell();
+      act(() => rowButton('nav.close').focus());
+      act(() => useUIStore.setState({ activeHubTile: null, selectedRobotId: null }));
+      expect(document.activeElement).not.toBe(menu());
+    });
+
+    it('the desk shell has no menu, and Header leaves a lost focus to the rail', () => {
+      stubShell(true);
+      selectEntity({ robotId: 'r1' });
+      renderShell();
+      press(rowButton('nav.close'));
+      expect(document.activeElement).toBe(document.body);
     });
   });
 
