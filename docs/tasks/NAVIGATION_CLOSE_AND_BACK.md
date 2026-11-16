@@ -491,7 +491,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one hook, one handler)
 
-- [ ] **Task 11: `useBrowserBack.ts` — the guard entry**
+- [x] **Task 11: `useBrowserBack.ts` — the guard entry**
 
   **Description:** Inside the same effect, a `uiStore` subscription keeps one rule: while the power is on and the
   trail is not empty, the current history entry is a guard. When it is not, the hook pushes one entry with the
@@ -501,15 +501,23 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   marker and the current URL.
 
   **Acceptance criteria:**
-  - [ ] The first step from an empty trail pushes exactly one guard; later steps push none while `history.state`
+  - [x] The first step from an empty trail pushes exactly one guard; later steps push none while `history.state`
         carries the marker.
-  - [ ] The push keeps the existing `history.state` fields and the path, query and hash.
-  - [ ] With steps on the trail and a current entry that is not a guard (the known hole), the next step pushes one.
-  - [ ] No push happens from the `popstate` handler, with the power off, or with an empty trail.
+  - [x] The push keeps the existing `history.state` fields and the path, query and hash. (A state that is not an
+        object gives way to the marker alone.)
+  - [x] With steps on the trail and a current entry that is not a guard (the known hole), the next step pushes one.
+        (So does power-on with steps on the trail: the rocker is the gesture.)
+  - [x] No push happens from the `popstate` handler, with the power off, or with an empty trail. (The handler's own
+        `back()` changes the trail while the entry behind the guard is current, so the hook holds a flag around it;
+        the subscriber reacts only to a change of the trail or the power, so the clock's timer writes never push; a
+        throwing `pushState` is caught.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes. (RED first: the seven
+        push cases failed with no push; the six no-push cases passed as guards. Two of them were mutation-checked in
+        the task, since nothing pushed before it: the flag removed kills the `popstate` case, and the subscriber
+        reacting to every write kills the clock case. 23 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 10.
 
