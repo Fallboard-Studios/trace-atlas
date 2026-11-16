@@ -30,7 +30,7 @@ the item's own measure-first check runs, and the item archives if the check find
 ## Stage 5 — UX refinement
 
 - Backlog [75](backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width) **Close, back,
-  browser Back, the nav's width** — intent confirmed 2026-11-15; a sketch of the row, then the spec.
+  browser Back, the nav's width** — intent and spec written 2026-11-15; the spec awaits Crawford's read.
 - Backlog [76](backlog.md#76-fleet-params-and-the-edit-tabs-regroup-re-order-respace) **Tempo & Options, slider
   order, respacing** — Crawford brings the slider list when it is picked up.
 - Backlog [77](backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect) **A send's help links to its effect** —
