@@ -4,11 +4,10 @@ Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE
 [docs/intent/navigation-close-and-back.md](../intent/navigation-close-and-back.md). Backlog slot:
 [75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5.
 
-**Status:** plan written 2026-11-15 from the spec, before Crawford's answers to its §7.2 questions; every one is built
-on its default and listed under Open Questions below. Tasks 0 and 1 built 2026-11-15 on
-`feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Next: Gates 1 and 2,
-Crawford's: the probe at `/trace-atlas/docs/sketches/tools/browser-back-probe.html` in the three browsers, and the
-sketch at `/trace-atlas/docs/sketches/navigation-close-and-back.html`. Nothing in `src/` is built.
+**Status:** plan written 2026-11-15 from the spec. Tasks 0 and 1 built 2026-11-15 on
+`feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Gates 1 and 2 passed the same
+day: the guard design stands; the row is words, in the plate, with a plain "Back". Crawford accepted spec §7.2's
+defaults. Next: Phase 1.
 
 ## Overview
 
@@ -171,12 +170,14 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (one sketch page)
 
 ### Checkpoint: Gates 1 and 2 (stop and report)
-- [ ] Gate 1: the five checks pass in the three browsers, or the failure is recorded and the build stops for a
+- [x] Gate 1: the five checks pass in the three browsers, or the failure is recorded and the build stops for a
       re-plan on spec §7.1 C4. The results, and whether the known hole needs the ask-first address helper, are written
-      into the spec.
-- [ ] Gate 2: Crawford's answers are written into the spec (§1.5, §7.1 B1–B2, §7.2 Q5), and Tasks 7–8 are adjusted
-      if the row moves to the top band.
-- [ ] Crawford's answers to spec §7.2 Q1–Q3 and Q6, if he gives them here, are written into the spec and this plan.
+      into the spec. (Passed 2026-11-15. The address helper stays an ask-first, looked at again at Checkpoint C.)
+- [x] Gate 2: Crawford's answers are written into the spec (§1.5, §7.1 B1–B2, §7.2 Q5), and Tasks 7–8 are adjusted
+      if the row moves to the top band. (Words, the plate, a plain "Back", no lore label. The row stays in the plate,
+      so Tasks 7–8 stand as written.)
+- [x] Crawford's answers to spec §7.2 Q1–Q3 and Q6, if he gives them here, are written into the spec and this plan.
+      (All six defaults accepted.)
 
 ---
 
@@ -671,17 +672,14 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ## Open Questions
 
-Carried from spec §7.2. Each is built on its default until Crawford says otherwise.
+Carried from spec §7.2. Q1–Q6 answered 2026-11-15 (Crawford took each default; the copy came from Gate 2).
 
-1. **The browser's Back while the power is off.** **Open, default built** (Task 10): it leaves the app in one press.
-2. **The browser's Forward.** **Open, default built** (Task 10): it does nothing.
-3. **The browser's Back while the phone's nav sheet is open.** **Open, default built** (no task): a trail step like
-   any other. "Back only shuts the sheet" would be one more task in Phase 3.
-4. **Safari.** **Open**: not checked; the probe is kept and Task 17 parks the check.
-5. **The copy.** **Open until Gate 2**, then written into Task 7.
-6. **The cap.** **Open, default built** (Task 3): 50 stops.
+1. **The browser's Back while the power is off.** **Answered** (Task 10): it leaves the app in one press.
+2. **The browser's Forward.** **Answered** (Task 10): it does nothing.
+3. **The browser's Back while the phone's nav sheet is open.** **Answered** (no task): a trail step like any other.
+4. **Safari.** **Answered**: not checked; the probe is kept and Task 17 parks the check.
+5. **The copy.** **Answered at Gate 2**: Back and Close, no lore label (Task 7).
+6. **The cap.** **Answered** (Task 3): 50 stops.
 7. **A world rebuild while the power is on.** **Open, nothing to build**: none exists today.
 
-One more, raised by this plan: **does Crawford want to run Gate 1 himself on the Pixel**, or is desktop Chrome and
-Firefox enough to start Part A, with the Pixel checked at Checkpoint C? Default: all three at Gate 1, since a failure
-found later costs Phases 1 and 3.
+The plan's own question, whether Gate 1 needed the Pixel, is closed: Gate 1 passed.
