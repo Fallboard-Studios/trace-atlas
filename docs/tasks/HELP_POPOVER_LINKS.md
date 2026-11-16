@@ -418,7 +418,7 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
 | The arrival-focus one-shot is left set and fires on a later, unrelated Fleet Params render | Low | Set only after a real change (never on the no-op); taken in the first layout effect after it; Task 2's criterion that it is false after every other path. |
 | `useRescueLostFocus` (nav rail, phone toggle) moves focus after the sub-tab takes it | Low | It acts only when focus is on `<body>`; whichever layout effect runs first, the sub-tab ends with focus. Checkpoint 2's keyboard run on both shells confirms. |
 | Grit reads a Mix that a global LFO is moving in the engine, not the store | Low | Spec A5: the stored value, what the slider shows; recorded, not guarded. |
-| A sixth send or a renamed sub-tab leaves a link pointing nowhere | Low | The destinations are a `Record<RobotSendField, …>` typed with `SelectedFleetParamsEffect`, so either fails to compile. |
+| A sixth send or a renamed sub-tab leaves a link pointing nowhere | Low | The destinations are a `Record<RobotSendField, …>` typed with `SelectedFleetParamsEffect`, so either fails to compile. Not Grit's: its chain casts the Colour sub-tab ids, so a renamed or added one compiles; `helpLinks.test.ts` checks every Colour sub-tab has a stored Mix and opens alone (added at review, spec §8). |
 
 ## Open Questions
 

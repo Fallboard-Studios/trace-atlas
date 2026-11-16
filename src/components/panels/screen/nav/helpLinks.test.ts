@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SEND_SCHEMAS_WITH_HELP_LINKS, colourRoomSubTab, openLfoLaneSettings } from './helpLinks';
-import { back } from './navActions';
+import { FLEET_PARAMS_SUBSECTIONS, back } from './navActions';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { ROBOT_SEND_SCHEMAS } from '@/data/robotOptionsConfig';
@@ -132,6 +132,18 @@ describe('Grit: the first Color effect with its Mix up', () => {
     setColourMixes(0, 0, 0.01);
     expect(colourRoomSubTab(useAudioStore.getState().globalAudio)).toBe('bitCrusher');
     expect(colourRoomSubTab(DEFAULT_GLOBAL_AUDIO_SETTINGS)).toBe('distortion');
+  });
+
+  // The chain is Fleet Params' Colour sub-tab table, cast to the three effects' keys, so a renamed or added Colour
+  // sub-tab compiles: this case is what catches one with no stored Mix for Grit to read.
+  it.each(FLEET_PARAMS_SUBSECTIONS.colour.map((sub) => sub.id))('every Colour sub-tab has a stored Mix: %s alone up opens it', (id) => {
+    const blocks = DEFAULT_GLOBAL_AUDIO_SETTINGS as unknown as Record<string, { wet?: unknown } | undefined>;
+    expect(typeof blocks[id]?.wet).toBe('number');
+    const globalAudio = useAudioStore.getState().globalAudio;
+    useAudioStore.setState({ globalAudio: { ...globalAudio, [id]: { ...blocks[id], wet: 0.5 } } });
+    onRobotSends();
+    link('gritSend').go();
+    expect(ui()).toMatchObject({ fleetParamsSection: 'colour', fleetParamsSubsection: id });
   });
 
   it('the link keeps its words whatever the Mixes: always the Color room\'s name', () => {

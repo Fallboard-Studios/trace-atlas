@@ -393,6 +393,11 @@ Smaller differences:
   list is empty again.
 - **Task 4's test assumed the audio store loads at its defaults**; a parallel run saw a Bit Crusher Mix above 0, so its
   cases now set the three Mixes first.
+- **Grit's chain is not checked by the compiler.** `helpLinks.ts` casts Fleet Params' Colour sub-tab ids to the three
+  effects' keys, so a renamed or added Colour sub-tab compiles (the plan's risk row said it would not). The review
+  (2026-11-16) added a `helpLinks.test.ts` case: every Colour sub-tab has a numeric stored Mix, and its Mix alone up
+  opens it. A sub-tab with no block at all already crashed the all-at-0 cases; one whose block has no `wet` was
+  skipped silently, and only the new case catches it.
 - **Built on `docs/backlog-77-intent`** beside the intent, spec and plan, not on a separate `feature/` branch (§6;
   Crawford, 2026-11-16: "the current branch is fine").
 
