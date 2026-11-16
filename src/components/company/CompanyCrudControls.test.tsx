@@ -5,6 +5,7 @@ import { CompanyCreateForm, CompanyRenameDeleteForm } from './CompanyCrudControl
 import { useAttenuationStyleStore } from '@/stores/attenuationStyleStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
+import { selectBranch, selectEntity, back } from '@/components/panels/screen/nav/navActions';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { MAX_COMPANIES } from '@/constants';
 import { ACCENT_COLORS, ROBOT_IDENTITY_COLOR_NAMES } from '@/constants/accentColors';
@@ -479,6 +480,26 @@ describe('CompanyRenameDeleteForm (docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task
         expect(useUIStore.getState().allRobotsSelected).toBe(true);
         expect(useUIStore.getState().selectedCompanyId).toBeNull();
         expect(useUIStore.getState().activeHubTile).toBe('robots');
+      });
+
+      // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 5 (spec §1.3): the deleted company leaves the trail, so the
+      // next Back goes to the screen before the company, not to the Probes list again or to the empty company.
+      it('after confirming, Back goes to the screen before the company', () => {
+        useUIStore.setState(useUIStore.getInitialState(), true);
+        useLocaleStore.getState().addCompany(localeId, { id: 'c1', name: 'Iron Consortium', color: '#4f6d7a', robotIds: [] });
+        selectBranch('fleetParams');
+        selectBranch('probes');
+        selectEntity({ companyId: 'c1' });
+        render(<CompanyRenameDeleteForm />);
+
+        act(() => fireEvent.click(screen.getByRole('button', { name: /^delete\b/i })));
+        act(() => fireEvent.click(screen.getAllByRole('button', { name: /^delete$/i })[0]));
+
+        expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'robots', selectedCompanyId: null });
+        expect(useUIStore.getState().navTrail.some((stop) => stop.companyId === 'c1')).toBe(false);
+        act(() => back());
+        expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+        useUIStore.setState(useUIStore.getInitialState(), true);
       });
     });
   });

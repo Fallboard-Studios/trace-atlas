@@ -13,6 +13,7 @@ import {
   activeFleetParamsSubsection,
   NAV_TRAIL_MAX,
   back,
+  closeDeletedCompany,
   type NavBranch,
   type BreadcrumbState,
   type NavRoster,
@@ -657,6 +658,98 @@ describe('back()', () => {
     selectEntity({ robotId: 'r1' });
     back();
     expect(ui().isPoweredOn).toBe(true);
+  });
+});
+
+// docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 5 (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.3, §7.1 A5): a deleted
+// company leaves the trail, so Back never lands on a screen with nothing to show, nor shows one screen twice.
+describe('closeDeletedCompany', () => {
+  const trail = () => ui().navTrail;
+  const keys = () => trail().map((stop) => stop.robotId ?? stop.companyId ?? (stop.tile === null ? 'deck' : stop.tile === 'audioRig' ? 'fleet' : 'probes'));
+
+  it('Probes list -> company X, on X: shows the Probes list and leaves no stop naming X', () => {
+    selectBranch('probes');
+    selectEntity({ companyId: 'X' });
+    closeDeletedCompany('X');
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedCompanyId: null, selectedRobotId: null, allProbesSelected: false });
+    expectCompanyInvariant();
+    expect(trail().some((stop) => stop.companyId === 'X')).toBe(false);
+  });
+
+  it('records no step: the screen deleted is not added, and the trail never grows', () => {
+    selectEntity({ robotId: 'r1' });
+    selectEntity({ companyId: 'X' });
+    const before = trail().length;
+    closeDeletedCompany('X');
+    expect(trail().length).toBeLessThanOrEqual(before);
+    expect(keys()).toEqual(['deck', 'r1']);
+  });
+
+  it('removes every stop naming X, not only the last', () => {
+    selectEntity({ companyId: 'X' });
+    selectEntity({ robotId: 'r1' });
+    selectEntity({ companyId: 'X' });
+    closeDeletedCompany('X');
+    expect(keys()).toEqual(['deck', 'r1']);
+    back();
+    expect(ui().selectedRobotId).toBe('r1');
+    back();
+    expect(ui().activeHubTile).toBeNull();
+  });
+
+  it('two stops for one screen left side by side become one, the later with its tabs', () => {
+    selectEntity({ robotId: 'r1' });
+    useUIStore.setState({ selectedSection: 'melody' });
+    selectEntity({ companyId: 'X' });
+    selectEntity({ robotId: 'r1' });
+    useUIStore.setState({ selectedSection: 'envelope', selectedSubsection: 'envelopeContour' });
+    selectEntity({ companyId: 'X' });
+    closeDeletedCompany('X');
+    expect(keys()).toEqual(['deck', 'r1']);
+    expect(trail().at(-1)).toMatchObject({ section: 'envelope', subsection: 'envelopeContour' });
+  });
+
+  it('drops a last stop that is the Probes list, so the first Back does not show the list again', () => {
+    selectBranch('fleetParams');
+    selectBranch('probes');
+    selectEntity({ companyId: 'X' });
+    selectBranch('probes');
+    selectEntity({ companyId: 'X' });
+    closeDeletedCompany('X');
+    expect(keys()).toEqual(['deck', 'fleet']);
+    back();
+    expect(ui().activeHubTile).toBe('audioRig');
+  });
+
+  it('a Probes list stop further back stays: only the last one repeats the screen showing', () => {
+    selectBranch('probes');
+    selectEntity({ robotId: 'r1' });
+    selectEntity({ companyId: 'X' });
+    closeDeletedCompany('X');
+    expect(keys()).toEqual(['deck', 'probes', 'r1']);
+  });
+
+  it('keeps every other company, robot and Fleet Params stop', () => {
+    selectEntity({ companyId: 'Y' });
+    selectBranch('fleetParams');
+    selectEntity({ robotId: 'r1' });
+    selectEntity({ companyId: 'X' });
+    closeDeletedCompany('X');
+    expect(keys()).toEqual(['deck', 'Y', 'fleet', 'r1']);
+  });
+
+  it('with an empty trail, shows the Probes list and leaves the trail empty', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedCompanyId: 'X', allRobotsSelected: false });
+    closeDeletedCompany('X');
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedCompanyId: null });
+    expect(trail()).toEqual([]);
+  });
+
+  it('shuts the phone nav sheet, as every action does', () => {
+    selectEntity({ companyId: 'X' });
+    ui().setNavPanelOpen(true);
+    closeDeletedCompany('X');
+    expect(ui().isNavPanelOpen).toBe(false);
   });
 });
 

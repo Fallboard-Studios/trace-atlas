@@ -271,6 +271,25 @@ function restore(stop: NavStop): void {
   s.setExpandedTopLevelBranch(stopKey(stop) === 'probes' ? 'probes' : null);
 }
 
+/** A deleted company leaves the trail (spec §1.3, §7.1 A5), so Back never lands on a screen with nothing to show.
+ *  Every stop naming the company goes; two stops left side by side for one screen become the later one; a last stop
+ *  that is the Probes list goes too, since that is the screen this shows. Then the Probes list, with no step
+ *  recorded: the company's screen is gone, not left. The delete path calls this in place of selectBranch('probes'). */
+export function closeDeletedCompany(companyId: string): void {
+  const s = useUIStore.getState();
+  const kept: NavStop[] = [];
+  for (const stop of s.navTrail) {
+    if (stop.companyId === companyId) continue;
+    const last = kept.at(-1);
+    if (last && stopKey(last) === stopKey(stop)) kept[kept.length - 1] = stop;
+    else kept.push(stop);
+  }
+  while (kept.length > 0 && stopKey(kept[kept.length - 1]) === 'probes') kept.pop();
+  s.setNavTrail(kept);
+  cleanSlate();
+  open('probes');
+}
+
 /** Back (spec §1.3): the last stop on the trail, on the tabs it showed, taken off the trail; the deck when the trail
  *  is empty. Never a step itself. The screen row's Back and the browser's Back both call this. */
 export function back(): void {

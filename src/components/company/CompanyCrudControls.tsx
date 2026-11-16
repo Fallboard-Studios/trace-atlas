@@ -4,7 +4,7 @@ import { TextInput } from '@/components/ui/controls/TextInput';
 import { Button } from '@/components/ui/controls/Button';
 import { useLocaleStore } from '@/stores/localeStore';
 import { useUIStore } from '@/stores/uiStore';
-import { selectBranch } from '@/components/panels/screen/nav/navActions';
+import { closeDeletedCompany } from '@/components/panels/screen/nav/navActions';
 import { useActiveLocaleId } from '@/utils/localeHelpers';
 import { getScreenViewportDomNode } from '@/utils/helpers';
 import { generateCompanyName } from '@/systems/spawnSystem';
@@ -187,8 +187,9 @@ export function CompanyRenameDeleteForm() {
     if (!selectedCompany) return;
     useLocaleStore.getState().removeCompany(localeId, selectedCompany.id);
     // Back to the Probes page (the roster board), where the company's row is now gone (Crawford,
-    // 2026-10-11). The company's own screen no longer has anything to show.
-    selectBranch('probes');
+    // 2026-10-11). The company's own screen no longer has anything to show, so it leaves the trail too
+    // (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.3).
+    closeDeletedCompany(selectedCompany.id);
     setConfirmOpen(false);
   };
 

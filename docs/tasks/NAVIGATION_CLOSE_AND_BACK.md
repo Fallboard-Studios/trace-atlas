@@ -266,7 +266,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one action and a restore helper)
 
-- [ ] **Task 5: `navActions.ts`, `CompanyCrudControls.tsx` — a deleted company leaves the trail**
+- [x] **Task 5: `navActions.ts`, `CompanyCrudControls.tsx` — a deleted company leaves the trail**
 
   **Description:** `closeDeletedCompany(companyId)` as in Architecture Decisions. `handleConfirmDelete` calls it in
   place of `selectBranch('probes')`.
@@ -275,14 +275,17 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   `closeDeletedCompany('X')` shows the Probes list and leaves no stop naming X.
 
   **Acceptance criteria:**
-  - [ ] No stop names the deleted company, and the delete itself records no step.
-  - [ ] No two neighbouring stops name the same screen afterwards, and the last stop is not the Probes list.
-  - [ ] In `CompanyCrudControls.test.tsx`, confirming a delete shows the Probes list and a following `back()` shows
+  - [x] No stop names the deleted company, and the delete itself records no step.
+  - [x] No two neighbouring stops name the same screen afterwards, and the last stop is not the Probes list. (Of two
+        neighbours, the later is kept, with its tabs.)
+  - [x] In `CompanyCrudControls.test.tsx`, confirming a delete shows the Probes list and a following `back()` shows
         the screen before the company, not the Probes list again.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav src/components/company/CompanyCrudControls.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav src/components/company/CompanyCrudControls.test.tsx` passes.
+        (RED first: all 10 new cases failed, the component case on a company stop left on the trail; 605 pass after
+        across `nav/` and `company/`. The old "removeCompany, then selectAllRobots" order case still passes.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 4.
 
