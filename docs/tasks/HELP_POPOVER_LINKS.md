@@ -105,7 +105,7 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
 
   **Estimated scope:** S (one module and its test; the step helper is a move, not new logic)
 
-- [ ] **Task 2: arrival focus — the one-shot in `navActions.ts`, taken by Fleet Params' sub-tab row**
+- [x] **Task 2: arrival focus — the one-shot in `navActions.ts`, taken by Fleet Params' sub-tab row**
 
   **Description:** `openFleetParamsAt` sets a module-level arrival-focus flag after it changes the tabs (never on its
   no-op return). Export `takeArrivalFocus(): boolean`, which returns the flag and clears it. In

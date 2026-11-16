@@ -181,7 +181,21 @@ function entityKey(entity: NavEntity): string {
   return 'robotId' in entity ? `robot:${entity.robotId}` : `company:${entity.companyId}`;
 }
 
+/** A help jump's request that Fleet Params focus its open sub-tab (docs/specs/HELP_POPOVER_LINKS.md §1.5, A3): a
+ *  module-level one-shot, not a store field, so it re-renders nothing and needs no clearing write. Set by
+ *  openFleetParamsAt after it changes the tabs; cleared by every other action's clean slate, so a request never taken
+ *  cannot fire on a later, unrelated Fleet Params render. */
+let arrivalFocus = false;
+
+/** Fleet Params' sub-tab row asks this after the commit that mounts the open sub-tab: true once per help jump. */
+export function takeArrivalFocus(): boolean {
+  const requested = arrivalFocus;
+  arrivalFocus = false;
+  return requested;
+}
+
 function cleanSlate(): void {
+  arrivalFocus = false;
   const s = useUIStore.getState();
   s.setNavPanelOpen(false); // the phone sheet's open flag; the desk panel ignores it
   s.selectRobot(null); // also clears selectedSection / selectedSubsection
@@ -234,6 +248,7 @@ export function openFleetParamsAt(section: FleetParamsGroup, subsection: Selecte
   const next = useUIStore.getState();
   next.setFleetParamsSection(section); // also clears the sub-tab, so the section comes first
   next.setFleetParamsSubsection(subsection);
+  arrivalFocus = true;
 }
 
 /** The Deck: no tile, no entity. Close on the screen row (spec §1.3): a step like any other, so a
