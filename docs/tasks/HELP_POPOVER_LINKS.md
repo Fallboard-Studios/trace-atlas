@@ -33,12 +33,13 @@ last, and the records after the merge.
 - **Resolves spec A2: send destinations are a `Record<RobotSendField, …>` in `nav/helpLinks.ts`**, and the linked send
   schemas are built there once at module load from `ROBOT_SEND_SCHEMAS`. `robotSends.ts` and `robotOptionsConfig.ts`
   are untouched.
-- **Spec Q1, default taken: `LfoLink` imports `lfoLaneHelpLink` from `nav/helpLinks.ts`** and adds the link to its lane
-  schema inside the existing `useMemo`, with a `go` that reads the lane through the `latest` ref. Crawford can switch to
-  the prop-threading alternative before Task 8; nothing before it depends on the choice.
-- **Spec Q2, default taken: focus lands on the open sub-tab's trigger**
-  (`.section-tabs--sub [role="tab"][aria-selected="true"]`). Changing it to the panel's first control is a selector
-  change in Task 2.
+- **Resolves spec Q1 (Crawford, 2026-11-16: props): `LfoLink` takes a required `onOpenLane(lane)` prop** and stays free
+  of the nav layer. It adds the link to its lane schema inside the existing `useMemo`, with a `go` that calls
+  `onOpenLane` through the `latest` ref. Only three components render it (`AudioRigDrawer`, `BusFilterDrawer`,
+  `SignatureArrayDrawer`); each imports `openLfoLaneSettings` from `nav/helpLinks.ts` and passes it. A module function
+  is stable, so no memo breaks, and a required prop means a fourth render site fails `build:types` until it passes one.
+- **Resolves spec Q2 (Crawford, 2026-11-16: agreed): focus lands on the open sub-tab's trigger**
+  (`.section-tabs--sub [role="tab"][aria-selected="true"]`).
 - **Ordering.** The nav call and the focus come first: they carry the only trail change and the Radix risk, and they
   are testable alone. The popover's behaviour (Task 3) comes before the links; its look (Task 6, Gate 1) waits for the
   sends' real links (Tasks 4–5), so it is judged on the real screen, and comes before the lane slice (Tasks 7–8) so a
@@ -61,9 +62,9 @@ Task 5 (SendRow reads them)
          │
 Task 6 (the link's look — Gate 1)
          │
-Task 7 (helpLinks: the lane link + the "LFO" name)
+Task 7 (helpLinks: openLfoLaneSettings + the "LFO" name)
          │
-Task 8 (LfoLink's lane row carries it)
+Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
          │
                  │
           Task 9 (docs)
@@ -263,19 +264,18 @@ Task 8 (LfoLink's lane row carries it)
 - [ ] Crawford looks at a send's link in the well on the desk and the phone shell: its place under the lore, its weight
       against the description, the touch size. Any change is a Task 6 amendment before Task 7.
 
-- [ ] **Task 7: `nav/helpLinks.ts` — the lane link and the "LFO" name**
+- [ ] **Task 7: `nav/helpLinks.ts` — `openLfoLaneSettings` and the "LFO" name**
 
-  **Description:** Add `lfoLaneHelpLink(readLane: () => LfoLaneId | null): HelpLink` to `helpLinks.ts`: its `name` is
-  a new content entry whose `human` is "LFO" (spec A4; key pinned in the task, e.g. `ui.lfoLane.settings` in
-  `src/content/copy/ui.ts`), and its `go` reads the lane at the press and calls `openFleetParamsAt('lfoBank', …)` with
-  `laneA`–`laneD`, or `laneA` when the lane is `null`.
+  **Description:** Add `openLfoLaneSettings(lane: LfoLaneId | null): void` to `helpLinks.ts`: it calls
+  `openFleetParamsAt('lfoBank', …)` with `laneA`–`laneD`, or `laneA` when the lane is `null`. Add the link's name, a
+  new content entry whose `human` is "LFO" (spec A4), beside `ui.lfoLane` in `src/content/copy/ui.ts` (key pinned
+  here: `ui.lfoLane.settingsName`). No caller yet; Task 8 adds the three.
 
-  **Proof:** RED test — `helpLinks.test.ts`: `lfoLaneHelpLink` does not exist, so the cases fail first.
+  **Proof:** RED test — `helpLinks.test.ts`: `openLfoLaneSettings` does not exist, so the cases fail first.
 
   **Acceptance criteria:**
-  - [ ] With the lane `'c'`, `go()` opens LFOs › Accent LFO; with `null`, Core LFO.
-  - [ ] The lane is read at the press: a `readLane` whose answer changes after the link is built opens the new lane.
-  - [ ] The link's `name` is the new entry's `human`, and `fill('ui.help.link', …)` with it reads "View LFO settings".
+  - [ ] `openLfoLaneSettings('c')` opens LFOs › Accent LFO; `openLfoLaneSettings(null)` opens Core LFO; each is a step.
+  - [ ] `fill('ui.help.link', { name: labels('ui.lfoLane.settingsName').humanLabel })` reads "View LFO settings".
 
   **Verification:**
   - [ ] `npx vitest run src/components/panels/screen/nav/helpLinks.test.ts src/content/content.test.ts` passes.
@@ -288,32 +288,42 @@ Task 8 (LfoLink's lane row carries it)
 
   **Estimated scope:** S
 
-- [ ] **Task 8: `LfoLink.tsx` — the lane row carries the link**
+- [ ] **Task 8: `LfoLink.tsx` — a required `onOpenLane`; the three drawers pass `openLfoLaneSettings`**
 
-  **Description:** In `src/components/ui/controls/LfoLink.tsx`, the lane schema's `useMemo` adds
-  `help: { ...labels('ui.lfoLane').help, link: lfoLaneHelpLink(() => latest.current.value.lane) }` (spec Q1's default;
-  confirm with Crawford before starting). The memo keys stay `[schema.id, shell]`. The control's own label row
-  (`schema.help`) gets no link. Every place `LfoLink` renders (robot, company, Fleet Params' drawers,
-  `TempoSyncSlider`) gets it with no change of its own.
+  **Description:** `LfoLink` (`src/components/ui/controls/LfoLink.tsx`) gains a required prop
+  `onOpenLane: (lane: LfoLaneId | null) => void`, held in its `latest` ref with `value` and `onChange`. The lane
+  schema's `useMemo` adds `help: { ...labels('ui.lfoLane').help, link: { name, go } }`, `name` from
+  `ui.lfoLane.settingsName` and `go = () => latest.current.onOpenLane(latest.current.value.lane)`. The memo keys stay
+  `[schema.id, shell]`. The control's own label row (`schema.help`) gets no link. `AudioRigDrawer.tsx`,
+  `BusFilterDrawer.tsx` and `SignatureArrayDrawer.tsx` (both renders) import `openLfoLaneSettings` and pass it; the
+  prop being required, `build:types` fails until all four renders do. `LfoLink.test.tsx`'s existing renders gain the
+  prop through one shared test default.
 
   **Proof:** RED test — `LfoLink.test.tsx`: open the lane row's "?" and find "View LFO settings"; it fails first
-  because the lane schema carries no link.
+  because the lane schema carries no link. `AudioRigDrawer.test.tsx`: a press on a Fleet Params effect's lane link
+  lands on its lane; it fails first because the drawer passes nothing.
 
   **Acceptance criteria:**
-  - [ ] The lane row's popover has the link; with the lane `'b'` a press opens LFOs › Companion LFO; with Off, Core LFO.
-  - [ ] Rerendered with a new lane after mount, a press opens the new lane (the `latest` ref, not the mount value).
-  - [ ] The control's own "?" (when its schema has help) has no link.
-  - [ ] The lane schema is the same object across a rerender with a new value (the memo holds).
+  - [ ] The lane row's popover has the link; with the lane `'b'` a press calls `onOpenLane('b')`; with Off,
+        `onOpenLane(null)`; rerendered with a new lane after mount, a press passes the new lane.
+  - [ ] The control's own "?" (when its schema has help) has no link; the lane schema is the same object across a
+        rerender with a new value (the memo holds).
+  - [ ] In `AudioRigDrawer`, a lane link on lane C lands Fleet Params on LFOs › Accent LFO (asserted on `uiStore`).
+  - [ ] `build:types` passes with all four renders passing the prop; the existing LfoLink, BusFilterDrawer and
+        SignatureArrayDrawer cases stay green with only the added prop.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/ui/controls/LfoLink.test.tsx` passes.
+  - [ ] `npx vitest run src/components/ui/controls/LfoLink.test.tsx src/components/panels/screen/console/AudioRigDrawer.test.tsx src/components/robot/BusFilterDrawer.test.tsx src/components/robot/SignatureArrayDrawer.test.tsx` passes.
   - [ ] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 7.
 
-  **Files:** `src/components/ui/controls/LfoLink.tsx`, `src/components/ui/controls/LfoLink.test.tsx`
+  **Files:** `src/components/ui/controls/LfoLink.tsx`, `src/components/ui/controls/LfoLink.test.tsx`,
+  `src/components/panels/screen/console/AudioRigDrawer.tsx`, `src/components/panels/screen/console/AudioRigDrawer.test.tsx`,
+  `src/components/robot/BusFilterDrawer.tsx`, `src/components/robot/SignatureArrayDrawer.tsx`
 
-  **Estimated scope:** XS
+  **Estimated scope:** M (six files, one over the guideline: a required prop must land with every site that passes it,
+  or the type check fails between commits; the three drawer edits are one line each)
 
 ### Checkpoint 2: The links (stop and report)
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
@@ -336,8 +346,8 @@ Task 8 (LfoLink's lane row carries it)
 - [ ] **Task 9: `COMPONENT_LIBRARY.md`, `UI_SHELL.md`, the spec's "As built"**
 
   **Description:** `docs/COMPONENT_LIBRARY.md`: `HelpPopover`'s link (the `ControlHelp` type, the button, the press
-  closing without handing focus back), `DualLabel`'s widened `help`, and `LfoLink`'s lane link (the one primitive
-  importing from the nav layer, and why). `docs/UI_SHELL.md`'s navActions section: `openFleetParamsAt` as the one step
+  closing without handing focus back), `DualLabel`'s widened `help`, and `LfoLink`'s required `onOpenLane` and lane
+  link. `docs/UI_SHELL.md`'s navActions section: `openFleetParamsAt` as the one step
   recorded inside Fleet Params, the arrival focus, and `helpLinks.ts`. `docs/specs/HELP_POPOVER_LINKS.md`: a §8 "As
   built" (gate results, defaults taken, anything built differently). Spot-check every name against the shipped code.
 
@@ -393,7 +403,7 @@ Task 8 (LfoLink's lane row carries it)
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Radix's focus scope returns focus to the "?" after a zero-delay timer and steals it back from the sub-tab | Medium | Task 3's `onCloseAutoFocus` prevent; Task 3 asserts focus does not return to the "?", Task 2 asserts focus on the sub-tab, and Checkpoint 2's keyboard run checks the two together in a real browser. |
-| A link built per render breaks the `memo` boundaries of `HelpPopover`, `DualLabel` and the sliders | Medium | Send schemas are built at module load (Task 4's "same object" criterion); `LfoLink`'s link lives in its existing `useMemo` (Task 8's "same object across a rerender" criterion). |
+| A link built per render breaks the `memo` boundaries of `HelpPopover`, `DualLabel` and the sliders | Medium | Send schemas are built at module load (Task 4's "same object" criterion); `LfoLink`'s link lives in its existing `useMemo` and the drawers pass a module function (Task 8's "same object across a rerender" criterion). |
 | The arrival-focus one-shot is left set and fires on a later, unrelated Fleet Params render | Low | Set only after a real change (never on the no-op); taken in the first layout effect after it; Task 2's criterion that it is false after every other path. |
 | `useRescueLostFocus` (nav rail, phone toggle) moves focus after the sub-tab takes it | Low | It acts only when focus is on `<body>`; whichever layout effect runs first, the sub-tab ends with focus. Checkpoint 2's keyboard run on both shells confirms. |
 | Grit reads a Mix that a global LFO is moving in the engine, not the store | Low | Spec A5: the stored value, what the slider shows; recorded, not guarded. |
@@ -401,9 +411,9 @@ Task 8 (LfoLink's lane row carries it)
 
 ## Open Questions
 
-1. **Spec Q1: `LfoLink` imports its link builder from the nav layer.** **Open, default taken** (Architecture
-   Decisions): the import. Crawford confirms or picks the prop-threading alternative before Task 8.
-2. **Spec Q2: focus on arrival.** **Open, default taken**: the open sub-tab's trigger. A change is a selector in Task 2.
+1. **Spec Q1: how the lane link reaches `LfoLink`.** **Resolved** (Crawford, 2026-11-16): a required prop,
+   `onOpenLane`, passed by the three drawers (Task 8).
+2. **Spec Q2: focus on arrival.** **Resolved** (Crawford, 2026-11-16): the open sub-tab's trigger (Task 2).
 3. **Spec A3: where the arrival-focus request lives.** **Resolved** (Architecture Decisions): a module-level one-shot in
    `navActions.ts`.
 4. **Spec A2: where the send destinations live.** **Resolved**: a record in `nav/helpLinks.ts`.

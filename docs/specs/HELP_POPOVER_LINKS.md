@@ -3,7 +3,7 @@
 > **Execution Commands**
 > - Type check: `npm run build:types` (`tsc --noEmit`)
 > - Lint: `npm run lint`
-> - Focused tests: `npx vitest run src/components/panels/screen/nav src/components/ui/controls/HelpPopover.test.tsx src/components/ui/controls/LfoLink.test.tsx src/components/robot/LevelsSections.test.tsx src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/content/content.test.ts`
+> - Focused tests: `npx vitest run src/components/panels/screen/nav src/components/ui/controls/HelpPopover.test.tsx src/components/ui/controls/LfoLink.test.tsx src/components/panels/screen/console/AudioRigDrawer.test.tsx src/components/robot/LevelsSections.test.tsx src/components/panels/screen/screens/FleetParamsScreen.test.tsx src/content/content.test.ts`
 > - Unit tests: `npm test`
 > - Build check: `npm run build`
 > - Dev server: `npm run dev`
@@ -11,7 +11,9 @@
 **Status:** spec written 2026-11-16 from the confirmed intent
 [docs/intent/help-popover-links.md](../intent/help-popover-links.md) (`interview-me`, 2026-11-16, six questions; five
 guesses confirmed, the link's words rewritten by Crawford). Backlog
-[77](../todo/backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5. Not yet planned.
+[77](../todo/backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5. Planned in
+[tasks/HELP_POPOVER_LINKS.md](../tasks/HELP_POPOVER_LINKS.md). Q1 and Q2 answered 2026-11-16: the lane link reaches
+`LfoLink` as a prop; focus lands on the open sub-tab.
 
 **Who it is for:** the player reading a control's help who does not yet know the control feeds a shared effect, on the
 desk shell and the phone shell.
@@ -48,9 +50,10 @@ tab and sub-tab **as a step on the trail**, even when the player is already on F
   Probes screens (`CompanyOptionsSection.tsx`).
 - **The lane picker.** `LfoLink` (`src/components/ui/controls/LfoLink.tsx`) builds its lane row's schema inside
   itself, with `labels('ui.lfoLane')`, so the lane row's "?" shows `ui.lfoLane`'s help. Its lane is `value.lane`
-  (`'a'`–`'d'`, or `null` for Off). It renders in `RobotScreen.tsx`, `CompanyOptionsSection.tsx`, `AudioRigDrawer.tsx`
-  (Fleet Params), `BusFilterDrawer.tsx`, `SignatureArrayDrawer.tsx` and `TempoSyncSlider.tsx`. It already imports one
-  thing from the screen layer, `useShell`.
+  (`'a'`–`'d'`, or `null` for Off). Three components render it: `AudioRigDrawer.tsx` (Fleet Params' effects),
+  `BusFilterDrawer.tsx` and `SignatureArrayDrawer.tsx` (twice: a layer's gain and detune). The robot and company
+  screens reach it through the two robot drawers; `TempoSyncSlider` does not render it (the intent's list named every
+  file that mentions it).
 - **The Color Mixes.** `useAudioStore.getState().globalAudio.distortion.wet`, `.chebyshev.wet`, `.bitCrusher.wet`,
   each 0–1, default 0 (`src/types/globalAudio.ts`). The Color tab's sub-tabs run in chain order: `distortion`,
   `chebyshev`, `bitCrusher` (`FLEET_PARAMS_SUBSECTIONS.colour`, `navActions.ts`).
@@ -104,8 +107,10 @@ tab and sub-tab **as a step on the trail**, even when the player is already on F
   destinations keyed by `RobotSendField`, so a sixth send fails to compile until it has one; the Grit and lane
   resolvers; and the five send schemas with their links, built once at module load. `SendRow` reads its schema from
   there in place of `ROBOT_SEND_SCHEMAS`. The send table and the data configs stay free of navigation.
-- **The lane picker builds its own.** `LfoLink` adds the link to its lane schema inside its existing `useMemo`, with a
-  `go` that reads the lane through its `latest` ref, so the schema stays stable per control (A1, Q1).
+- **The lane picker is handed its navigation.** `LfoLink` takes a new required prop, `onOpenLane(lane)`, and adds the
+  link to its lane schema inside its existing `useMemo`: the name from content, and a `go` that calls `onOpenLane` with
+  the lane read through its `latest` ref, so the schema stays stable per control. The three drawers pass
+  `openLfoLaneSettings` from `helpLinks.ts`; being required, the prop cannot be left off a new render site (A1, Q1).
 - **A held-off send** (its room held dark by the Audio Load dial, the row dimmed) keeps its "?" and its link.
 
 ### 1.5 Arrival
@@ -141,8 +146,10 @@ src/content/copy/ui.ts                      # ui.help.link; the LFO link's name
 src/components/ui/controls/
 ├── HelpPopover.tsx / .css                  # the link button at the foot of the well
 ├── HelpPopover.test.tsx
-├── LfoLink.tsx                             # the lane row's link
+├── LfoLink.tsx                             # onOpenLane (required); the lane row's link
 └── LfoLink.test.tsx
+src/components/robot/BusFilterDrawer.tsx, SignatureArrayDrawer.tsx   # pass openLfoLaneSettings
+src/components/panels/screen/console/AudioRigDrawer.tsx / .test.tsx  # passes openLfoLaneSettings
 src/components/panels/screen/nav/
 ├── navActions.ts                           # openFleetParamsAt: a step even on Fleet Params; the arrival-focus request
 ├── navActions.test.ts
@@ -173,7 +180,8 @@ decision).
 - RED first for every behaviour, one commit per task, the suite green at each (Crawford's TDD rule).
 - Every navigation a link makes goes through `openFleetParamsAt` in `navActions.ts`. No component sets Fleet Params'
   tabs for a link itself.
-- `HelpPopover` and `DualLabel` import nothing from navigation or a store: a link is a value they are handed.
+- `HelpPopover`, `DualLabel` and `LfoLink` import nothing from navigation or a store: a link, or the lane's
+  navigation, is a value they are handed.
 - A link's schema is built once (module load, or the primitive's existing `useMemo`), so the `memo` boundaries hold.
 - The trail stays plain data. `HelpLink` holds a function and so never enters `uiStore`.
 - Words come from `src/content/`; the link's look reuses the popover's tokens, with a touch target no smaller than
@@ -276,9 +284,11 @@ their 0 default), so a test cannot pass by landing on a default.
   - without a link there is no button.
 - `LevelsSections.test.tsx`: each of the five send rows' "?" opens a popover with its link, by name; a press on
   Double's lands Fleet Params on Modulation › Chorus (asserted on the store).
-- `LfoLink.test.tsx`: the lane row's "?" has "View LFO settings"; with lane `'b'` a press opens Companion LFO; with the
-  lane Off it opens Core LFO; a lane change after mount is the one the press reads; the control's own label row (its
-  `schema.help`) gets no link.
+- `LfoLink.test.tsx`: the lane row's "?" has "View LFO settings"; with lane `'b'` a press calls `onOpenLane('b')`; with
+  the lane Off, `onOpenLane(null)`; a lane change after mount is the one the press passes; the control's own label row
+  (its `schema.help`) gets no link.
+- `AudioRigDrawer.test.tsx`: a Fleet Params effect's lane link on lane C lands on LFOs › Accent LFO.
+- `helpLinks.test.ts`, `openLfoLaneSettings`: `'c'` opens Accent LFO, `null` opens Core LFO.
 - `FleetParamsScreen.test.tsx`: after a help jump the open sub-tab's trigger has focus; after `back()`, a breadcrumb
   press or a tab press, focus does not move.
 
@@ -326,9 +336,8 @@ their 0 default), so a test cannot pass by landing on a default.
 
 ### 7.1 Assumptions (defaults the plan builds on)
 
-- **A1. `LfoLink` imports its link builder from the nav layer.** Its lane lives inside it, so the alternative is a new
-  prop passed by all six call sites and forwarded through `TempoSyncSlider`. It already imports `useShell` from the
-  screen layer; `HelpPopover` and `DualLabel` stay free of navigation either way.
+- **A1. `LfoLink` is handed the lane's navigation as a required prop** (Q1). It stays free of the nav layer like the
+  other primitives; the three drawers that render it import `openLfoLaneSettings` and pass it.
 - **A2. The send destinations live in `helpLinks.ts`**, a record keyed by `RobotSendField`, not as a column on
   `ROBOT_SENDS`. The record's type fails to compile for a sixth send, which is the table's own guarantee, and the send
   wiring table stays free of navigation.
@@ -343,7 +352,9 @@ their 0 default), so a test cannot pass by landing on a default.
 
 ### 7.2 Open questions
 
-- **Q1. A1's import.** Accept `LfoLink` importing one function from `nav/helpLinks.ts`, or thread a prop through its
-  six call sites? Default: the import.
-- **Q2. Focus on arrival (A3).** The open sub-tab's trigger is the default. The alternative is the sub-tab's panel
-  (its first control), which skips the tabs but lands in the middle of a section.
+Answered 2026-11-16.
+
+- **Q1. How the lane link reaches `LfoLink`.** **Answered: a prop** (Crawford), not an import from `nav/helpLinks.ts`.
+  The render sites turned out to be three drawers, not six files (§1.1).
+- **Q2. Focus on arrival (A3).** **Answered: the open sub-tab's trigger**, as written. The alternative was the sub-tab's
+  panel (its first control), which skips the tabs but lands in the middle of a section.
