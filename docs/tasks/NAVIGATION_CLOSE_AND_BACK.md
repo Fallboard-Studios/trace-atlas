@@ -347,7 +347,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 2: The row (Part B)
 
-- [ ] **Task 7: `ScreenExitRow.tsx`, `nav.ts` — Back and Close**
+- [x] **Task 7: `ScreenExitRow.tsx`, `nav.ts` — Back and Close**
 
   **Description:** A stateless component in `nav/`: two schema-driven `Button`s, Back calling `back()` and Close
   calling `goHome()`, labelled from two new entries, `nav.back` and `nav.close` (the wording Gate 2 gave). The markup
@@ -357,13 +357,16 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   the Probes list, pressing Back shows the Probes list; pressing Close shows the deck (both read from the store).
 
   **Acceptance criteria:**
-  - [ ] Back runs `back()` and Close runs `goHome()`, asserted on the store's state.
-  - [ ] Both buttons carry their content labels as accessible names; no display string is written in the component.
-  - [ ] `src/content/content.test.ts` passes with the two new entries.
+  - [x] Back runs `back()` and Close runs `goHome()`, asserted on the store's state.
+  - [x] Both buttons carry their content labels as accessible names; no display string is written in the component.
+        (Each face is the word alone, `face="single"`: no lore line.)
+  - [x] `src/content/content.test.ts` passes with the two new entries.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav src/content/content.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav src/content/content.test.ts` passes. (RED first: the suite
+        failed to load, no `./ScreenExitRow`. Two of the seven cases then failed on my own fixture, which started on
+        the deck and so had a deck stop I had not counted; the expectations were corrected, not the code. 416 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint A, Gate 2.
 

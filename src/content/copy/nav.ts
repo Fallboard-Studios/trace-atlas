@@ -8,9 +8,13 @@ import type { ContentEntry } from '../types';
  *  "All Probes" reads probe.all, robots and companies show their own names (data). Its one action,
  *  New Company, is the roster board's since Task 18 of docs/tasks/OFF_SCREEN_CONSOLE.md (`company.new`). The world line kept nav.status.*
  *  when it moved from NavStatusBlock to the meta box (MetaBox.tsx, Task 8): no separate field names
- *  exist to add. `nav.expand` / `nav.collapse` (the tree rows' +/- buttons) went with the tree (Task 9). */
+ *  exist to add. `nav.expand` / `nav.collapse` (the tree rows' +/- buttons) went with the tree (Task 9).
+ *  `nav.back` / `nav.close` are the row on every open screen (ScreenExitRow.tsx; docs/specs/NAVIGATION_CLOSE_AND_BACK.md
+ *  §1.8): plain words, no lore, and Back never names where it goes (Gate 2, 2026-11-15). */
 export const nav = {
   'nav.home': { human: 'Deck', lore: 'Monitor' },
+  'nav.back': { human: 'Back' },
+  'nav.close': { human: 'Close' },
   'nav.toggle': { human: 'Navigation' },
   'nav.breadcrumb': { human: 'Breadcrumb' },
   'nav.root': { human: 'Root' },
