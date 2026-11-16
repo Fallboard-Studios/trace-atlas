@@ -35,7 +35,6 @@ function twoStopsDeep(isPoweredOn = true) {
     isPoweredOn,
     activeHubTile: 'robots',
     selectedRobotId: 'r1',
-    expandedTopLevelBranch: null,
     navTrail: [stop(), stop({ tile: 'robots' })],
   });
 }
@@ -79,7 +78,7 @@ describe('useBrowserBack — a press (Task 10)', () => {
     press();
 
     expect(ui().navTrail).toEqual([stop()]);
-    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: null, expandedTopLevelBranch: 'probes' });
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: null });
     expect(historyForward).toHaveBeenCalledTimes(1);
     expect(historyBack).not.toHaveBeenCalled();
   });

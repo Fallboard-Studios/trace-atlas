@@ -4,9 +4,7 @@ import {
   selectEntity,
   goHome,
   breadcrumbTrail,
-  pressBranchBox,
   branchOfTile,
-  expandsInPlace,
   branchContent,
   FLEET_PARAMS_SUBSECTIONS,
   FLEET_PARAMS_GROUP_CONTENT,
@@ -32,7 +30,6 @@ const breadcrumbPath = (state: BreadcrumbState, roster: NavRoster) => breadcrumb
 function dirtyStore(overrides: Partial<UIStore> = {}) {
   useUIStore.setState({
     activeHubTile: 'robots',
-    expandedTopLevelBranch: 'probes',
     selectedRobotId: 'r1',
     selectedCompanyId: null,
     allRobotsSelected: true,
@@ -73,18 +70,11 @@ beforeEach(() => {
 
 describe('selectBranch', () => {
   it.each([
-    ['probes', 'robots', 'probes'],
-    ['fleetParams', 'audioRig', null],
-  ] as const)('%s opens the %s tile and expands %s in place', (branch, tile, expanded) => {
+    ['probes', 'robots'],
+    ['fleetParams', 'audioRig'],
+  ] as const)('%s opens the %s tile', (branch, tile) => {
     selectBranch(branch);
     expect(ui().activeHubTile).toBe(tile);
-    expect(ui().expandedTopLevelBranch).toBe(expanded);
-  });
-
-  it('a leaf (Fleet Params) collapses whichever branch was expanded', () => {
-    dirtyStore({ expandedTopLevelBranch: 'probes' });
-    selectBranch('fleetParams');
-    expect(ui().expandedTopLevelBranch).toBeNull();
   });
 
   // Crawford, 2026-10-09: picking a parent opens that branch's own page — the robot / company / All
@@ -100,7 +90,7 @@ describe('selectBranch', () => {
   );
 
   it('picking Probes while already on that robot still returns to the list', () => {
-    dirtyStore({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1' });
+    dirtyStore({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     selectBranch('probes');
     expect(ui().selectedRobotId).toBeNull();
     expect(ui().activeHubTile).toBe('robots');
@@ -117,11 +107,19 @@ describe('selectBranch', () => {
     expect(ui().allProbesSelected).toBe(false);
   });
 
-  it("'deck' is goHome: no tile, nothing expanded", () => {
+  it("'deck' is goHome: no tile", () => {
     dirtyStore();
     selectBranch('deck');
     expect(ui().activeHubTile).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBeNull();
+  });
+
+  // Backlog 75 Task 13: the panel's boxes call selectBranch, so a box pressed on its own page does nothing.
+  it.each(['probes', 'fleetParams', 'deck'] as const)('%s on its own page changes nothing, the trail included', (branch: NavBranch) => {
+    selectBranch(branch === 'deck' ? 'probes' : 'deck');
+    selectBranch(branch);
+    const before = { ...ui() };
+    selectBranch(branch);
+    expect({ ...ui() }).toEqual(before);
   });
 
   // The phone sheet flag is no longer left alone: a pick closes the sheet (Task 5, below).
@@ -133,13 +131,11 @@ describe('selectBranch', () => {
 });
 
 describe('selectEntity', () => {
-  // Crawford, 2026-10-10: an entity pick collapses the list, so the screen gets the panel's rest width.
-  it('a robot: opens Probes on it with the list collapsed, clearing the company, All Probes and any section', () => {
-    dirtyStore({ activeHubTile: 'audioRig', expandedTopLevelBranch: null, selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
+  it('a robot: opens Probes on it, clearing the company, All Probes and any section', () => {
+    dirtyStore({ activeHubTile: 'audioRig', selectedRobotId: null, selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
     selectEntity({ robotId: 'r2' });
     expect(ui()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: null,
       selectedRobotId: 'r2',
       selectedCompanyId: null,
       allProbesSelected: false,
@@ -149,12 +145,11 @@ describe('selectEntity', () => {
     expectCompanyInvariant();
   });
 
-  it("'all': opens Probes on All Probes with the list collapsed, clearing both ids", () => {
+  it("'all': opens Probes on All Probes, clearing both ids", () => {
     dirtyStore({ selectedRobotId: 'r1', selectedCompanyId: 'c1', allRobotsSelected: false });
     selectEntity('all');
     expect(ui()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: null,
       allProbesSelected: true,
       selectedRobotId: null,
       selectedCompanyId: null,
@@ -164,12 +159,11 @@ describe('selectEntity', () => {
   });
 
   // docs/tasks/OFF_SCREEN_CONSOLE.md Task 17 (Crawford, 2026-11-09): a company opens under Probes.
-  it('a company: opens Probes on it with the list collapsed, clearing the robot and All Probes', () => {
+  it('a company: opens Probes on it, clearing the robot and All Probes', () => {
     dirtyStore({ allProbesSelected: true });
     selectEntity({ companyId: 'c1' });
     expect(ui()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: null,
       selectedCompanyId: 'c1',
       selectedRobotId: null,
       allProbesSelected: false,
@@ -189,141 +183,16 @@ describe('selectEntity', () => {
 });
 
 describe('goHome', () => {
-  it('returns to the Deck with no entity, no section and nothing expanded', () => {
+  it('returns to the Deck with no entity and no section', () => {
     dirtyStore({ selectedCompanyId: 'c1', allRobotsSelected: false, allProbesSelected: true });
     goHome();
     expect(ui().activeHubTile).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBeNull();
     expectNoEntityAndNoSection();
-  });
-});
-
-// Crawford, 2026-10-09 ("back, then collapse"): the panel's parent box. On an entity it is
-// selectBranch — back to the branch's page, list open; on that page already, Probes toggles its list
-// in place. selectBranch itself never toggles.
-describe('pressBranchBox', () => {
-  /** On the Probes page with the list open and nothing selected. */
-  function onProbesPage(overrides: Partial<UIStore> = {}) {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', ...overrides });
-  }
-
-  it.each(['probes', 'fleetParams', 'deck'] as const)(
-    'from another branch, %s does what selectBranch does',
-    (branch: NavBranch) => {
-      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'robots' : 'audioRig', expandedTopLevelBranch: null });
-      pressBranchBox(branch);
-      const pressed = { ...ui() };
-      dirtyStore({ activeHubTile: branch === 'fleetParams' ? 'robots' : 'audioRig', expandedTopLevelBranch: null });
-      selectBranch(branch);
-      expect(pressed).toEqual({ ...ui() });
-    },
-  );
-
-  it('on a robot, goes back to the Probes page with the list still open', () => {
-    dirtyStore();
-    pressBranchBox('probes');
-    expect(ui().activeHubTile).toBe('robots');
-    expect(ui().expandedTopLevelBranch).toBe('probes');
-    expectNoEntityAndNoSection();
-  });
-
-  it('on All Probes, goes back to the Probes page with the list still open', () => {
-    onProbesPage({ allProbesSelected: true, selectedSection: 'volume' });
-    pressBranchBox('probes');
-    expect(ui().expandedTopLevelBranch).toBe('probes');
-    expectNoEntityAndNoSection();
-  });
-
-  it('on the Probes page, collapses the list and changes nothing else', () => {
-    onProbesPage({ isNavPanelOpen: true });
-    const before = { ...ui() };
-    pressBranchBox('probes');
-    expect({ ...ui() }).toEqual({ ...before, expandedTopLevelBranch: null });
-  });
-
-  it('on the Probes page with the list collapsed, opens it again', () => {
-    onProbesPage({ expandedTopLevelBranch: null });
-    pressBranchBox('probes');
-    expect(ui().expandedTopLevelBranch).toBe('probes');
-    expect(ui().activeHubTile).toBe('robots');
-  });
-
-  it('robot -> back -> collapse -> open, one press each', () => {
-    dirtyStore();
-    const trail: (string | null)[][] = [];
-    for (let i = 0; i < 3; i++) {
-      pressBranchBox('probes');
-      trail.push([ui().selectedRobotId, ui().expandedTopLevelBranch]);
-    }
-    expect(trail).toEqual([
-      [null, 'probes'],
-      [null, null],
-      [null, 'probes'],
-    ]);
-  });
-
-  // Crawford, 2026-10-10: a pick from the list collapses it; the parent box brings it back.
-  it.each<[string, Parameters<typeof selectEntity>[0]]>([
-    ['a robot', { robotId: 'r2' }],
-    ['All Probes', 'all'],
-    ['a company', { companyId: 'c1' }],
-  ])('list page -> pick %s (list collapses) -> the Probes box goes back to the page with the list open', (_case, entity) => {
-    onProbesPage();
-    selectEntity(entity);
-    expect(ui().expandedTopLevelBranch).toBeNull();
-    pressBranchBox('probes');
-    expect(ui().expandedTopLevelBranch).toBe('probes');
-    expectNoEntityAndNoSection();
-  });
-
-  it('with the list collapsed and a robot picked in the world, goes back and opens the list', () => {
-    onProbesPage({ expandedTopLevelBranch: null, selectedRobotId: 'r2' });
-    pressBranchBox('probes');
-    expect(ui().selectedRobotId).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBe('probes');
-  });
-
-  it('Probes: on a company, back to the Probes page; then collapse; then open', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
-    useUIStore.getState().selectCompany('c1');
-
-    pressBranchBox('probes');
-    expect(ui().selectedCompanyId).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBe('probes');
-    expectCompanyInvariant();
-
-    pressBranchBox('probes');
-    expect(ui().expandedTopLevelBranch).toBeNull();
-    expect(ui().activeHubTile).toBe('robots');
-
-    pressBranchBox('probes');
-    expect(ui().expandedTopLevelBranch).toBe('probes');
-  });
-
-  it('a leaf (fleetParams) never toggles: pressing it again is selectBranch', () => {
-    dirtyStore({ activeHubTile: 'audioRig', expandedTopLevelBranch: null, selectedRobotId: null });
-    pressBranchBox('fleetParams');
-    expect(ui().activeHubTile).toBe('audioRig');
-    expect(ui().expandedTopLevelBranch).toBeNull();
-    expectNoEntityAndNoSection();
-  });
-
-  it('the Deck pressed on the Deck stays home', () => {
-    pressBranchBox('deck');
-    expect(ui().activeHubTile).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBeNull();
-  });
-
-  it('selectBranch does not toggle: on the Probes page it keeps the list open', () => {
-    onProbesPage();
-    selectBranch('probes');
-    expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 });
 
 // Task 5 (spec §1.2): on the phone the panel is a sheet whose open flag is isNavPanelOpen, and picking
-// closes it. A pick is anything that moves the selection; a collapse in place is not one (pressBranchBox's
-// "changes nothing else" test above holds the flag open).
+// closes it.
 describe('a pick closes the phone nav sheet', () => {
   it.each(['probes', 'fleetParams', 'deck'] as const)('selectBranch(%s)', (branch: NavBranch) => {
     dirtyStore({ isNavPanelOpen: true });
@@ -340,16 +209,6 @@ describe('a pick closes the phone nav sheet', () => {
   it('goHome', () => {
     dirtyStore({ isNavPanelOpen: true });
     goHome();
-    expect(ui().isNavPanelOpen).toBe(false);
-  });
-
-  it('pressBranchBox from another branch, or back from an entity', () => {
-    dirtyStore({ isNavPanelOpen: true, activeHubTile: 'audioRig', expandedTopLevelBranch: null });
-    pressBranchBox('probes');
-    expect(ui().isNavPanelOpen).toBe(false);
-
-    dirtyStore({ isNavPanelOpen: true });
-    pressBranchBox('probes');
     expect(ui().isNavPanelOpen).toBe(false);
   });
 
@@ -519,9 +378,9 @@ describe('the trail: every navigation is a step', () => {
 // stop on the tabs it had, takes it off the trail, and is never a step itself.
 describe('back()', () => {
   const trail = () => ui().navTrail;
-  /** The deck, as the store holds it: no tile, nothing expanded, no entity, default tabs. */
+  /** The deck, as the store holds it: no tile, no entity, default tabs. */
   const DECK = {
-    activeHubTile: null, expandedTopLevelBranch: null,
+    activeHubTile: null,
     selectedRobotId: null, selectedCompanyId: null, allRobotsSelected: true, allProbesSelected: false,
     selectedSection: null, selectedSubsection: null,
     fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION, fleetParamsSubsection: null,
@@ -572,19 +431,19 @@ describe('back()', () => {
     expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume', selectedSubsection: 'mix' });
   });
 
-  it('the Probes list -> a robot -> back(): the list, open in the rail as the Probes box shows it', () => {
+  it('the Probes list -> a robot -> back(): the list', () => {
     selectBranch('probes');
     selectEntity({ robotId: 'r1' });
     back();
-    expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'robots' });
   });
 
-  it('a Back to an entity leaves the list collapsed, as an entity pick does', () => {
+  it('a robot -> the Probes list -> back(): the robot', () => {
     selectBranch('probes');
     selectEntity({ robotId: 'r1' });
-    selectBranch('probes'); // the list open again
+    selectBranch('probes');
     back();
-    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: 'r1', expandedTopLevelBranch: null });
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: 'r1' });
   });
 
   it('a Back clears what the screen it leaves had: no robot left over on the company it shows', () => {
@@ -671,7 +530,7 @@ describe('closeDeletedCompany', () => {
     selectBranch('probes');
     selectEntity({ companyId: 'X' });
     closeDeletedCompany('X');
-    expect(ui()).toMatchObject({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedCompanyId: null, selectedRobotId: null, allProbesSelected: false });
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedCompanyId: null, selectedRobotId: null, allProbesSelected: false });
     expectCompanyInvariant();
     expect(trail().some((stop) => stop.companyId === 'X')).toBe(false);
   });
@@ -753,8 +612,8 @@ describe('closeDeletedCompany', () => {
   });
 });
 
-// Task 4: the panel reads which box is popped, whether it widens and each box's label from here, so
-// the branch / tile / content tables exist once.
+// Task 4: the panel reads which box is popped and each box's label from here, so the branch / tile /
+// content tables exist once.
 describe('the parent-box tables the panel reads', () => {
   it.each([
     [null, 'deck'],
@@ -769,14 +628,6 @@ describe('the parent-box tables the panel reads', () => {
       selectBranch(branch);
       expect(branchOfTile(ui().activeHubTile)).toBe(branch);
     }
-  });
-
-  it('only Probes expands in place, the same branch selectBranch expands', () => {
-    for (const branch of ['deck', 'probes', 'fleetParams'] as const) {
-      selectBranch(branch);
-      expect(expandsInPlace(branch)).toBe(ui().expandedTopLevelBranch === branch);
-    }
-    expect(expandsInPlace('probes')).toBe(true);
   });
 
   it.each([
@@ -946,21 +797,19 @@ describe('breadcrumbTrail — each segment and the navActions call it goes to', 
     expect(trail()).toEqual([]);
   });
 
-  it('Root goes home: no tile, nothing expanded, no entity', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1', selectedSection: 'melody' });
+  it('Root goes home: no tile, no entity', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     go(0);
     expect(ui().activeHubTile).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBeNull();
     expect(ui().selectedRobotId).toBeNull();
   });
 
-  it("the branch goes to the branch's own page: entity and section cleared, Probes' list open", () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null, selectedRobotId: 'r1', selectedSection: 'melody' });
+  it("the branch goes to the branch's own page: entity and section cleared", () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     go(1);
     expect(ui().activeHubTile).toBe('robots');
     expect(ui().selectedRobotId).toBeNull();
     expect(ui().selectedSection).toBeNull();
-    expect(ui().expandedTopLevelBranch).toBe('probes');
   });
 
   it('the Fleet Params branch goes back to its default tab, staying on Fleet Params', () => {

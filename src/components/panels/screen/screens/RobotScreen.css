@@ -31,7 +31,7 @@
    The controls get first claim on 560 px and the column takes what is left, between 200 px and the
    sketch's 400 (Crawford, 2026-10-10: at 1024 px the controls' side-by-side rows were cramped, 196 px a
    half; now 251). The column reaches 400 px once the screen is 976 px wide, a window of about 1160 px
-   with the list collapsed (measured: 279 px at 1100, 400 at 1280). */
+   beside the 124 px rail (measured: 279 px at 1100, 400 at 1280). */
 .robot-screen--desk {
   display: grid;
   grid-template-columns: clamp(var(--avatar-column-min), calc(100% - var(--controls-column-reserve) - var(--spacing-lg)), var(--avatar-column-width)) minmax(0, 1fr);

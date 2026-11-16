@@ -169,7 +169,7 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
   });
 
   it('a bare branch: Root is the only button', () => {
-    setNav({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+    setNav({ activeHubTile: 'robots' });
     render(<NavBreadcrumb />);
     expect(buttons()).toEqual([ROOT]);
   });
@@ -182,13 +182,12 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
     expect(useUIStore.getState().selectedRobotId).toBeNull();
   });
 
-  it('the branch goes to its own page, Probes with its list open', () => {
+  it('the branch goes to its own page', () => {
     setNav({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
     render(<NavBreadcrumb />);
     fireEvent.click(screen.getByRole('button', { name: PROBES }));
     expect(useUIStore.getState().activeHubTile).toBe('robots');
     expect(useUIStore.getState().selectedRobotId).toBeNull();
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
   });
 
   it('Fleet Params goes back to its default tab', () => {

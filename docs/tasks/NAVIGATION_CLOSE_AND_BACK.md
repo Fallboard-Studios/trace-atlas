@@ -607,7 +607,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** M (three edited, three deleted, one comment)
 
-- [ ] **Task 14: `navActions.ts` — the list's actions go**
+- [x] **Task 14: `navActions.ts` — the list's actions go**
 
   **Description:** `pressBranchBox`, `expandsInPlace`, `probesHasEntity` if nothing else reads it, and `open()`'s
   `expand` argument are deleted; `selectBranch`, `selectEntity`, `goHome` and the restore helper stop writing
@@ -618,12 +618,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Read — deletion only. The type check proves no caller is left.
 
   **Acceptance criteria:**
-  - [ ] Nothing in `src/` imports `pressBranchBox` or `expandsInPlace`.
-  - [ ] Every remaining `navActions.test.ts` case passes, the trail's included.
+  - [x] Nothing in `src/` imports `pressBranchBox` or `expandsInPlace`. (`probesHasEntity` had no other reader and
+        went too.)
+  - [x] Every remaining `navActions.test.ts` case passes, the trail's included. (The deleted "selectBranch does not
+        toggle" pin is replaced by a `selectBranch` case: each box on its own page changes nothing, the trail
+        included.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (With nothing writing the field, five assertions on
+        it failed in other files, so they went in this task, not Task 15, to keep the commit green: `NavPanel.test.tsx`
+        and `useBrowserBack.test.tsx` (not in Task 15's list), and `NavBreadcrumb.test.tsx` and `Robot.test.tsx`
+        (in it). `Robot.test.tsx` lost its "leaves the nav list as it was" case, which checked only the field, and
+        `Robot.tsx`'s comment was corrected here. 1,415 pass across the nav folder, `src/components/robot`,
+        `uiStore.test.ts`, `worldTransition.test.ts` and `RosterTile.test.tsx`.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 13.
 

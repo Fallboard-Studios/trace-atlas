@@ -163,15 +163,15 @@ describe('NavPanel — three parent boxes (desk)', () => {
     expect(poppedOf(box('nav.home'))).not.toBe('true');
   });
 
-  it('clicking Deck goes home: no tile, nothing expanded, no entity', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1' });
+  it('clicking Deck goes home: no tile, no entity', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     renderPanel();
     fireEvent.click(box('nav.home'));
-    expect(useUIStore.getState()).toMatchObject({ activeHubTile: null, expandedTopLevelBranch: null, selectedRobotId: null });
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: null, selectedRobotId: null });
   });
 
   it('picking a parent clears the entity, Probes included (navActions, Crawford 2026-10-09)', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1' });
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     renderPanel();
     fireEvent.click(box('probe.root'));
     expect(useUIStore.getState().selectedRobotId).toBeNull();

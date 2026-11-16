@@ -76,28 +76,17 @@ describe('Robot click routing (Roadmap Phase 8)', () => {
   });
 
   // docs/tasks/LAYOUT_REWORK.md Task 4: opening Probes from the Deck goes through navActions like any
-  // other pick. Crawford, 2026-10-10: an entity pick collapses the list, so the robot opens with the
-  // nav panel at rest.
-  it('from the Deck, opens the robot through navActions, with the nav list collapsed', () => {
-    useUIStore.setState({ expandedTopLevelBranch: 'probes', allProbesSelected: true });
+  // other pick.
+  it('from the Deck, opens the robot through navActions', () => {
+    useUIStore.setState({ allProbesSelected: true });
     const { container } = renderRobot({ id: 'r1' });
     fireEvent.click(container.querySelector('.robot') as Element);
 
     expect(useUIStore.getState()).toMatchObject({
       activeHubTile: 'robots',
-      expandedTopLevelBranch: null,
       selectedRobotId: 'r1',
       allProbesSelected: false,
     });
-  });
-
-  it('with a tile open, leaves the nav list as it was (a halo, not a navigation)', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
-    const { container } = renderRobot({ id: 'r1' });
-    fireEvent.click(container.querySelector('.robot') as Element);
-
-    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
-    expect(useUIStore.getState().selectedRobotId).toBe('r1');
   });
 
   it('selects the robot but does not change the active tile when a tile is already open', () => {
@@ -119,15 +108,15 @@ describe('Robot click routing (Roadmap Phase 8)', () => {
     expect(useUIStore.getState().activeHubTile).toBe('robots');
   });
 
-  // Code review 2026-10-11 (spec §1.2): a pick from the world collapses the nav list like one from the list.
-  it('with the Probes list open, a world pick is a nav pick: it selects the robot and collapses the list', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+  // Code review 2026-10-11 (spec §1.2): a pick from the world is a nav pick like one from the roster.
+  it('on the Probes list, a world pick is a nav pick: it selects the robot, a step on the trail', () => {
+    useUIStore.setState({ activeHubTile: 'robots', navTrail: [] });
     const { container } = renderRobot({ id: 'r1' });
     fireEvent.click(container.querySelector('.robot') as Element);
 
     expect(useUIStore.getState().selectedRobotId).toBe('r1');
     expect(useUIStore.getState().activeHubTile).toBe('robots');
-    expect(useUIStore.getState().expandedTopLevelBranch).not.toBe('probes');
+    expect(useUIStore.getState().navTrail.map((stop) => stop.tile)).toEqual(['robots']);
   });
 });
 
