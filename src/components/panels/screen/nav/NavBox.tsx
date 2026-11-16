@@ -1,4 +1,4 @@
-import { useId, useState, type CSSProperties } from 'react';
+import { useId, useState } from 'react';
 
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
@@ -12,10 +12,6 @@ interface NavBoxProps {
   humanLabel: string;
   /** Where you are — the open branch: fully popped, `aria-current`. */
   current?: boolean;
-  /** The id of what the box controls. */
-  controls?: string;
-  /** The box's own accent scope (getRobotColorStyle for an entity); omitted, it inherits. */
-  accentStyle?: CSSProperties;
   onClick: () => void;
 }
 
@@ -27,7 +23,7 @@ interface NavBoxProps {
  * useId() for the reason Button's does: timelineMap is keyed globally, so two boxes with one id (a remount
  * overlapping its predecessor, a test rendering twice) would share a timeline.
  */
-export function NavBox({ id, loreLabel, humanLabel, current = false, controls, accentStyle, onClick }: NavBoxProps) {
+export function NavBox({ id, loreLabel, humanLabel, current = false, onClick }: NavBoxProps) {
   const instanceId = useId();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -38,10 +34,8 @@ export function NavBox({ id, loreLabel, humanLabel, current = false, controls, a
     <button
       type="button"
       className="nav-box"
-      style={accentStyle}
       aria-label={humanLabel}
       aria-current={current ? 'true' : undefined}
-      aria-controls={controls}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}

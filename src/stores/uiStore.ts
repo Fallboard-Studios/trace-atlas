@@ -128,7 +128,8 @@ export interface UIStore {
   /** Where the scene wash is in covering a world change — see SceneWash's own doc comment. */
   sceneWash: SceneWash;
   /** The trail: the screens before the current one, oldest first, empty on a fresh deck
-   *  (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2). Only navActions.ts changes it; power never does. */
+   *  (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2). navActions.ts writes every step and Back; resetNav
+   *  empties it on a new world; power never touches it. */
   navTrail: NavStop[];
   setActiveLocaleLocalTime: (t: number | null) => void;
   setPowerOn: () => void;
@@ -161,6 +162,24 @@ export interface UIStore {
  *  on World > Pacing (docs/specs/CONTENT_LAYOUT.md assumption 8; it was LFO Bank, LAYOUT_REWORK.md Task 15). */
 export const DEFAULT_FLEET_PARAMS_SECTION: FleetParamsGroup = 'world';
 
+/** The deck's nav state: where a fresh app starts and where a new world lands (resetNav). One list for both, so a new
+ *  nav field is given its deck value once. A function, so each caller gets its own trail array. */
+const deckNav = () =>
+  ({
+    selectedRobotId: null,
+    selectedCompanyId: null,
+    allRobotsSelected: true,
+    activeHubTile: null,
+    selectedSection: null,
+    selectedSubsection: null,
+    isNavPanelOpen: false,
+    fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+    fleetParamsSubsection: null,
+    allProbesSelected: false,
+    movePanelRobotId: null,
+    navTrail: [],
+  }) satisfies Partial<UIStore>;
+
 // ========================================
 // STORE
 // ========================================
@@ -169,19 +188,8 @@ export const useUIStore = create<UIStore>((set) => ({
   isPoweredOn: false,
   activeLocaleLocalTime: null,
   activeLocaleTemperature: null,
-  selectedRobotId: null,
-  selectedCompanyId: null,
-  allRobotsSelected: true,
-  activeHubTile: null,
-  selectedSection: null,
-  selectedSubsection: null,
-  isNavPanelOpen: false,
-  fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
-  fleetParamsSubsection: null,
-  allProbesSelected: false,
-  movePanelRobotId: null,
   sceneWash: 'clear',
-  navTrail: [],
+  ...deckNav(),
 
   setPowerOn: () => set({ isPoweredOn: true }),
   setPowerOff: () => set({ isPoweredOn: false }),
@@ -209,21 +217,7 @@ export const useUIStore = create<UIStore>((set) => ({
   closeMovePanel: () => set({ movePanelRobotId: null }),
   setSceneWash: (state) => set({ sceneWash: state }),
   setNavTrail: (trail) => set({ navTrail: trail }),
-  resetNav: () =>
-    set({
-      activeHubTile: null,
-      selectedRobotId: null,
-      selectedCompanyId: null,
-      allRobotsSelected: true,
-      allProbesSelected: false,
-      selectedSection: null,
-      selectedSubsection: null,
-      isNavPanelOpen: false,
-      fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
-      fleetParamsSubsection: null,
-      movePanelRobotId: null,
-      navTrail: [],
-    }),
+  resetNav: () => set(deckNav()),
 }));
 
 // ========================================
