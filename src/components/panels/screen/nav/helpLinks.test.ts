@@ -51,6 +51,9 @@ const link = (field: RobotSendField) => SEND_SCHEMAS_WITH_HELP_LINKS[field].help
 beforeEach(() => {
   useUIStore.setState(UI_INITIAL, true);
   useAudioStore.setState(AUDIO_INITIAL, true);
+  // The store as loaded is not always the defaults (a parallel run saw a Bit Crusher Mix above 0), so every case starts
+  // from the three Mixes at 0 and sets its own.
+  setColourMixes(0, 0, 0);
 });
 
 describe('SEND_SCHEMAS_WITH_HELP_LINKS', () => {
