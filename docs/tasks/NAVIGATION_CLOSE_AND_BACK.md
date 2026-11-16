@@ -5,7 +5,10 @@ Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE
 [75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5.
 
 **Status:** plan written 2026-11-15 from the spec, before Crawford's answers to its §7.2 questions; every one is built
-on its default and listed under Open Questions below. Nothing is built. Next: Task 0.
+on its default and listed under Open Questions below. Tasks 0 and 1 built 2026-11-15 on
+`feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Next: Gates 1 and 2,
+Crawford's: the probe at `/trace-atlas/docs/sketches/tools/browser-back-probe.html` in the three browsers, and the
+sketch at `/trace-atlas/docs/sketches/navigation-close-and-back.html`. Nothing in `src/` is built.
 
 ## Overview
 
@@ -109,7 +112,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 0: The two early gates
 
-- [ ] **Task 0: `docs/sketches/tools/browser-back-probe.html` — the probe for Gate 1**
+- [x] **Task 0: `docs/sketches/tools/browser-back-probe.html` — the probe for Gate 1**
 
   **Description:** One self-contained page with the guard design from spec §7.1 C1 and nothing of the app: a counter
   standing in for the trail, a "step" button (adds one, and pushes the guard on the first step from zero), the
@@ -123,13 +126,15 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   checks in desktop Chrome, desktop Firefox and Chrome on the Pixel.
 
   **Acceptance criteria:**
-  - [ ] The page runs with no build step and no import from `src/`.
-  - [ ] Each of the five checks can be run from the page's own buttons and read from its log.
-  - [ ] The toggle shows whether rewriting the landed entry closes the known hole.
+  - [x] The page runs with no build step and no import from `src/`.
+  - [x] Each of the five checks can be run from the page's own buttons and read from its log.
+  - [x] The toggle shows whether rewriting the landed entry closes the known hole.
 
   **Verification:**
-  - [ ] Opened once in desktop Chrome before handing over: the step button, the address button and the log work.
-  - [ ] `npm run lint` clean.
+  - [x] Opened once in desktop Chrome before handing over: the step button, the address button and the log work.
+        (Headless Chrome over CDP: three steps pushed one guard, three `history.back()` calls each stepped and
+        returned to the guard, a fourth on an empty trail left the page; no console errors.)
+  - [x] `npm run lint` clean. (ESLint covers `.ts`/`.tsx` only; neither page is linted.)
 
   **Dependencies:** None.
 
@@ -137,7 +142,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one standalone page)
 
-- [ ] **Task 1: `docs/sketches/navigation-close-and-back.html` — the sketch for Gate 2**
+- [x] **Task 1: `docs/sketches/navigation-close-and-back.html` — the sketch for Gate 2**
 
   **Description:** The row drawn on the desk and on the phone at 320 px, against the power corner at its real size
   (the rocker's variables from `src/index.css`), with the robot screen's sticky band under it on the phone. Toggles:
@@ -148,12 +153,16 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Look — Crawford names the look, the row's place and whether Back names where it goes.
 
   **Acceptance criteria:**
-  - [ ] Both shells are drawn, the phone at 320 px, with Close clear of the rocker in every toggle state.
-  - [ ] Every option spec §1.5 leaves to the sketch has a toggle.
+  - [x] Both shells are drawn, the phone at 320 px, with Close clear of the rocker in every toggle state. (In the
+        plate and on the desk's top band, yes. In the phone's top band at 320 px, no: the controls line needs 285 px
+        and has 225, and Close runs under the rocker. The page reads this out rather than hiding it; it is Gate 2's
+        evidence against that option, and the "band on desk, plate on phone" toggle is the alternative.)
+  - [x] Every option spec §1.5 leaves to the sketch has a toggle.
 
   **Verification:**
-  - [ ] Opened in a browser at desk width and at 320 px.
-  - [ ] `npm run lint` clean.
+  - [x] Opened in a browser at desk width and at 320 px. (Headless Chrome at 1500, 1300 and 320 px; no
+        horizontal page scroll at 320.)
+  - [x] `npm run lint` clean. (ESLint covers `.ts`/`.tsx` only.)
 
   **Dependencies:** None.
 
