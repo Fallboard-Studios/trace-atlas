@@ -459,7 +459,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 3: The browser's Back (Part C)
 
-- [ ] **Task 10: `useBrowserBack.ts` — a Back press runs `back()`**
+- [x] **Task 10: `useBrowserBack.ts` — a Back press runs `back()`**
 
   **Description:** The hook adds a `popstate` listener in an effect and removes it on unmount. The handler is spec
   §4's: a guard state does nothing; with the power off or the trail empty it calls `history.back()`; otherwise it
@@ -470,15 +470,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   trail, a dispatched non-guard `popstate` leaves a one-stop trail and one `history.forward()` call.
 
   **Acceptance criteria:**
-  - [ ] Power on, trail not empty: one press makes exactly one `back()` step and one `forward()` call.
-  - [ ] Trail empty: one `history.back()` call and no state change.
-  - [ ] Power off, trail not empty: one `history.back()` call and the trail unchanged (spec §7.2 Q1's default).
-  - [ ] A `popstate` carrying the guard marker changes nothing and calls nothing (spec §7.2 Q2's default).
-  - [ ] After unmount a `popstate` changes nothing.
+  - [x] Power on, trail not empty: one press makes exactly one `back()` step and one `forward()` call. (Also: a
+        one-stop trail steps to the deck and still calls `forward()`; five presses walk five stops, the sixth passes
+        on.)
+  - [x] Trail empty: one `history.back()` call and no state change.
+  - [x] Power off, trail not empty: one `history.back()` call and the trail unchanged (spec §7.2 Q1's default).
+  - [x] A `popstate` carrying the guard marker changes nothing and calls nothing (spec §7.2 Q2's default). (Another
+        `traceAtlasNav` value is not the guard.)
+  - [x] After unmount a `popstate` changes nothing.
+  - [x] A throwing `forward()` or `back()` is caught: nothing reaches the window's `error` event.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes. (RED first: the suite
+        failed to load, no `./useBrowserBack`. Then 10 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint A.
 
