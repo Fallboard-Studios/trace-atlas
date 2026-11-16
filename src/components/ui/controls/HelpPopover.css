@@ -96,3 +96,43 @@
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
+
+/* The link to the effect a control feeds (docs/specs/HELP_POPOVER_LINKS.md §1.2): plain underlined text at the foot of
+   the well, spaced from the description and lore as the lore block is from the description. No cabinetry: it reads as
+   a link, not a control. The well's own text colours, as the "?" uses them. */
+.sc-help__link {
+  position: relative;
+  display: block;
+  width: fit-content;
+  margin-top: var(--spacing-sm);
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary-fixed);
+  font: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.sc-help__link:hover {
+  color: var(--color-accent);
+}
+
+.sc-help__link:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The phone shell's touch floor, as the "?" keeps it: the text stays its size, and an invisible layer centred on it
+   takes the --touch-target-size of presses. */
+#screen-viewport[data-shell='phone'] .sc-help__link::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: var(--touch-target-size);
+  transform: translateY(-50%);
+}

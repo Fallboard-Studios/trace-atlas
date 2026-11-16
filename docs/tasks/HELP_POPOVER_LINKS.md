@@ -236,7 +236,7 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
 
   **Estimated scope:** XS
 
-- [ ] **Task 6: `HelpPopover.css` — the link's look**
+- [x] **Task 6: `HelpPopover.css` — the link's look**
 
   **Description:** Style `.sc-help__link` in `src/components/ui/controls/HelpPopover.css`: plain link text at the foot
   of the well, separated from the description and lore by the well's existing spacing, no cabinetry, the popover's
