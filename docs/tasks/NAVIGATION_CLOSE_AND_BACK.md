@@ -7,7 +7,8 @@ Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE
 **Status:** plan written 2026-11-15 from the spec. Tasks 0 and 1 built 2026-11-15 on
 `feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Gates 1 and 2 passed the same
 day: the guard design stands; the row is words, in the plate, with a plain "Back". Crawford accepted spec §7.2's
-defaults. Next: Phase 1.
+defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's checks pass. Next: Crawford's review at
+Checkpoint A, then Phases 2 and 3.
 
 ## Overview
 
@@ -329,10 +330,17 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (one action, one call site, one rewritten test)
 
 ### Checkpoint A: The trail
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; note any unrelated failure by name).
-- [ ] Mutation checks, each killed by a test: the same-screen check removed; the cap removed; the robot tabs restored
-      before the entity; `back()` recording a step; `resetNav()` leaving the trail.
-- [ ] No component reads `navTrail` yet, and no screen looks different.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; note any unrelated failure by name).
+      (2026-11-15, after Task 6: 14,464 pass, 0 fail, 2 skipped as before; lint's four warnings are older.)
+- [x] Mutation checks, each killed by a test: the same-screen check removed; the cap removed; the robot tabs restored
+      before the entity; `back()` recording a step; `resetNav()` leaving the trail. (Killed by 7, 2, 1, 6 and 6
+      cases. Three more, also killed: Fleet Params' sub-tab restored before its section (1); `closeDeletedCompany`
+      keeping a last Probes-list stop (2, the component case among them); its neighbour merge removed (1). The
+      robot-tabs order is caught only by a robot stop: `selectCompany` clears no tab, so the company and All Probes
+      restores pass under it.)
+- [x] No component reads `navTrail` yet, and no screen looks different. (Only `navActions.ts`, `uiStore.ts`,
+      `worldTransition.ts` and `CompanyCrudControls.tsx` name the trail's API. One visible change, by design: a world
+      rebuild now lands on the deck, where it used to keep the branch open.)
 - [ ] Reviewed with Crawford before Phases 2 and 3.
 
 ---
