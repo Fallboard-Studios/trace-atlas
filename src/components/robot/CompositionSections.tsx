@@ -65,6 +65,23 @@ const DETAILS_P1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1
 const DETAILS_P1_R1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1.r1', type: 'directionalPanel', orientation: 'responsive' };
 const DETAILS_P1_R2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
 
+/** Every Composition prop, both halves' together; each half picks its own (docs/specs/CONTENT_LAYOUT.md §1.3). */
+interface CompositionProps {
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents' | 'clickTrackActive'>;
+  /** The dev-only Click Track toggle renders only when this is given (the robot screen, and the company and All
+   *  Probes screens' broadcast, docs/tasks/ONE_MUSIC_CLOCK.md Task 10b) and DEV_TUNING is on. */
+  onClickTrackActiveChange?: (active: boolean) => void;
+  onDensityChange: (value: number) => void;
+  onMotifLengthChange: (value: number) => void;
+  onPitchRepeatChange: (value: number) => void;
+  onOctaveMinChange: (value: number) => void;
+  onOctaveMaxChange: (value: number) => void;
+  onNoteVarianceChange: (value: number) => void;
+  onRestsChange: (value: number) => void;
+  onAccentsChange: (value: number) => void;
+  disabled?: boolean;
+}
+
 type RhythmMelodyProps = Pick<
   CompositionProps,
   'onClickTrackActiveChange' | 'onDensityChange' | 'onMotifLengthChange' | 'onPitchRepeatChange' | 'onNoteVarianceChange' | 'disabled'
@@ -134,20 +151,3 @@ export const CompositionDetailsSection = memo(function CompositionDetailsSection
     </DirectionalPanel>
   );
 });
-
-/** Every Composition prop, both halves' together; each half picks its own (docs/specs/CONTENT_LAYOUT.md §1.3). */
-interface CompositionProps {
-  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents' | 'clickTrackActive'>;
-  /** The dev-only Click Track toggle renders only when this is given (the robot screen, and the company and All
-   *  Probes screens' broadcast, docs/tasks/ONE_MUSIC_CLOCK.md Task 10b) and DEV_TUNING is on. */
-  onClickTrackActiveChange?: (active: boolean) => void;
-  onDensityChange: (value: number) => void;
-  onMotifLengthChange: (value: number) => void;
-  onPitchRepeatChange: (value: number) => void;
-  onOctaveMinChange: (value: number) => void;
-  onOctaveMaxChange: (value: number) => void;
-  onNoteVarianceChange: (value: number) => void;
-  onRestsChange: (value: number) => void;
-  onAccentsChange: (value: number) => void;
-  disabled?: boolean;
-}

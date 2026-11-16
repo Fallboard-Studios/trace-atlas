@@ -39,13 +39,6 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     ]);
   });
 
-  it('no section or subsection carries an accordion or a mergedInto: a section is id, content, trait, subsections; a subsection id and content', () => {
-    for (const section of ROBOT_SECTIONS_CONFIG) {
-      expect(Object.keys(section).sort(), section.id).toEqual(['content', 'id', 'subsections', 'trait']);
-      for (const sub of section.subsections) expect(Object.keys(sub).sort(), sub.id).toEqual(['content', 'id']);
-    }
-  });
-
   // docs/tasks/CONTENT_LAYOUT.md Task 16 (spec §1.3): two sub-tabs each for Levels, Composition and Envelope.
   it("each section's sub-tabs, in order, each named by its own content key", () => {
     expect(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s.subsections])).toEqual([

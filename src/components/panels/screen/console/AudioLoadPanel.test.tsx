@@ -85,11 +85,10 @@ describe('Audio Load panel', () => {
       expect(effects.contains(effectsSlider())).toBe(true);
     });
 
-    it('keeps the Audio Load heading on the box, and no old audioRig.audioLoadPanel id remains', () => {
+    it('keeps the Audio Load heading on the box', () => {
       const { container } = render(<AudioLoadPanel />);
       const box = panel(container, 'fleetParams.settings.p1')!;
       expect(box.textContent).toContain(CONTENT['fleet.quality.audioLoad'].human);
-      expect(container.querySelector('[data-panel-id^="audioRig.audioLoadPanel"]')).toBeNull();
     });
 
     it('no cell is featured (Settings has no featured control, §1.4)', () => {

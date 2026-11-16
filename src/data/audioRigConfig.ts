@@ -18,7 +18,7 @@ import { LFO_BANK_LANE_CONTENT } from './lfoConfig';
 import type { ControlSchema, DirectionalPanelSchema, RadioButtonSchema, SliderCenteredZeroSchema, SliderLinearSchema, SliderLogSchema } from '@/types/controls';
 import type { GlobalLfoTargetId, LfoLaneId } from '@/types/lfo';
 import { LFO_LANE_IDS, LFO_RATE_MIN, LFO_RATE_MAX, LFO_RATE_STEP } from '@/types/lfo';
-import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ } from '@/types/globalAudio';
+import { DELAY_TIME_RANGE_SECONDS, DELAY_TIME_STEP_SECONDS, PEDAL_RATE_RANGE_HZ, PEDAL_RATE_STEP_HZ, type GlobalAudioSettings } from '@/types/globalAudio';
 import { formatDisplayValue } from '@/components/ui/controls/formatDisplayValue';
 import { fixedReadout } from '@/components/ui/controls/formatReadout';
 import { CONTENT, labels, options, fill, type ContentKey } from '@/content';
@@ -40,16 +40,23 @@ export interface AudioRigParamSchema {
   lfoTarget?: GlobalLfoTargetId;
 }
 
-/** One cell token in an effect's `layout`: a param's `field`, `'<field>.link'` for that param's LfoLink (a cell of
+/** A field of effect K's own settings (GlobalAudioSettings[K]); distributive, so the default K is every effect's fields. */
+type AudioRigField<K extends AudioRigEffectKey> = K extends AudioRigEffectKey ? Extract<keyof GlobalAudioSettings[K], string> : never;
+
+/** One cell token in effect K's `layout`: a param's `field`, `'<field>.link'` for that param's LfoLink (a cell of
  *  its own, so the slider's cell can be featured without wrapping the link), or `'decayMode'` for the Compressor's
- *  Decay radio (docs/specs/CONTENT_LAYOUT.md §1.2). */
-export type AudioRigCellToken = string;
+ *  Decay radio (docs/specs/CONTENT_LAYOUT.md §1.2). Typed per effect, so a misspelt field fails to compile; resolveCell
+ *  still checks at load that the field is one of the block's params and that a linked one has an LFO target. */
+export type AudioRigCellToken<K extends AudioRigEffectKey = AudioRigEffectKey> =
+  | AudioRigField<K>
+  | `${AudioRigField<K>}.link`
+  | 'decayMode';
 
 const LINK_SUFFIX = '.link';
 
 /** Panels > rows > cell tokens, read like the effect's row in docs/specs/CONTENT_LAYOUT.md §1.2. Each panel is one
  *  cabinetry box; a row of two or more cells is a nested 'responsive' panel, a row of one is the cell alone. */
-export type AudioRigLayout = readonly (readonly (readonly AudioRigCellToken[])[])[];
+export type AudioRigLayout<K extends AudioRigEffectKey = AudioRigEffectKey> = readonly (readonly (readonly AudioRigCellToken<K>[])[])[];
 
 /** A param that carries an LFO target, so it can have a link cell. */
 export type AudioRigLinkedParamSchema = AudioRigParamSchema & { lfoTarget: GlobalLfoTargetId };
@@ -87,9 +94,13 @@ export interface AudioRigEffectBlock {
 // HELPERS
 // ========================================
 
-type AudioRigEffectDef = Omit<AudioRigEffectBlock, 'boxes'>;
+/** An effect as written in AUDIO_RIG_CONFIG: its layout typed against its own key's fields (`key` alone fixes K). */
+interface AudioRigEffectDef<K extends AudioRigEffectKey> extends Omit<AudioRigEffectBlock, 'key' | 'layout' | 'boxes'> {
+  key: K;
+  layout: AudioRigLayout<NoInfer<K>>;
+}
 
-function resolveCell(def: AudioRigEffectDef, token: AudioRigCellToken): AudioRigCell {
+function resolveCell(def: Pick<AudioRigEffectBlock, 'key' | 'params'>, token: AudioRigCellToken): AudioRigCell {
   if (token === 'decayMode') return { kind: 'decayMode' };
   const isLink = token.endsWith(LINK_SUFFIX);
   const field = isLink ? token.slice(0, -LINK_SUFFIX.length) : token;
@@ -106,7 +117,7 @@ function isLinkedParam(param: AudioRigParamSchema): param is AudioRigLinkedParam
 
 /** Builds an effect block's box and row schemas from its `layout` (docs/specs/CONTENT_LAYOUT.md §1.2, §4): box
  *  `audioRig.<key>.p<n>`, shared row `audioRig.<key>.p<n>.r<m>`, the heading on P1 alone. */
-function effect(def: AudioRigEffectDef): AudioRigEffectBlock {
+function effect<K extends AudioRigEffectKey>(def: AudioRigEffectDef<K>): AudioRigEffectBlock {
   const boxes = def.layout.map((panel, p): AudioRigBox => {
     const id = `audioRig.${def.key}.p${p + 1}`;
     const heading = p === 0 ? labels(def.heading, { surface: 'heading' }) : {};
