@@ -47,13 +47,9 @@ export type RobotSubsection =
   | 'coaxialOscillator'
   | 'harmonicOscillator'
   | 'busFilter';
-/** Which of the 2 top-level branches is open in the nav panel (its entity list, for Probes). The tree's per-branch fields, which tracked which probe or company was peeked
- *  open, retired with the stacked scroll (docs/tasks/LAYOUT_REWORK.md Task 18). Bugfix: this
- *  field was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
- *  for a bare single-segment node id ('settings', 'fleetParams', 'probes', 'companies'), so every
- *  top-level node's own +/- button was a silent no-op and its children could never render, found
- *  live by Crawford after Checkpoint 3. Settings left the nav in docs/tasks/OFF_SCREEN_CONSOLE.md Task 14,
- *  Companies in Task 18. */
+/** The nav panel's two branch boxes beside the Deck, each opening a hub tile (navActions' branch tables).
+ *  Settings left the nav in docs/tasks/OFF_SCREEN_CONSOLE.md Task 14, Companies in Task 18. The field that
+ *  held which branch listed its entities went with the list (docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 15). */
 export type TopLevelBranch = 'fleetParams' | 'probes';
 /** The scene wash over the world (docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 12-13; Crawford's note 7): 'clear' at rest;
  *  'covering' while it fades in over a requested world change (systems/worldChange.ts); 'covered' when opaque, which runs
@@ -124,8 +120,6 @@ export interface UIStore {
   /** The open sub-tab inside that section — null reads as the section's first (navActions'
    *  activeFleetParamsSubsection). Every section has sub-tabs. */
   fleetParamsSubsection: SelectedFleetParamsEffect | null;
-  /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
-  expandedTopLevelBranch: TopLevelBranch | null;
   /** Whether the "All Probes" bulk-edit leaf is selected — see its own doc comment above. */
   allProbesSelected: boolean;
   /** Which roster tile's Move popover (desk) / sheet (phone) is open — null when none. One at a time:
@@ -151,7 +145,6 @@ export interface UIStore {
   /** Also resets fleetParamsSubsection to null: a sub-tab belongs to its section. */
   setFleetParamsSection: (s: FleetParamsGroup) => void;
   setFleetParamsSubsection: (s: SelectedFleetParamsEffect | null) => void;
-  setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
   setAllProbesSelected: (v: boolean) => void;
   openMovePanel: (robotId: string) => void;
   closeMovePanel: () => void;
@@ -185,7 +178,6 @@ export const useUIStore = create<UIStore>((set) => ({
   isNavPanelOpen: false,
   fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
   fleetParamsSubsection: null,
-  expandedTopLevelBranch: null,
   allProbesSelected: false,
   movePanelRobotId: null,
   sceneWash: 'clear',
@@ -212,7 +204,6 @@ export const useUIStore = create<UIStore>((set) => ({
   setNavPanelOpen: (open) => set({ isNavPanelOpen: open }),
   setFleetParamsSection: (s) => set({ fleetParamsSection: s, fleetParamsSubsection: null }),
   setFleetParamsSubsection: (s) => set({ fleetParamsSubsection: s }),
-  setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
   setAllProbesSelected: (v) => set({ allProbesSelected: v }),
   openMovePanel: (robotId) => set({ movePanelRobotId: robotId }),
   closeMovePanel: () => set({ movePanelRobotId: null }),
@@ -225,7 +216,6 @@ export const useUIStore = create<UIStore>((set) => ({
       selectedCompanyId: null,
       allRobotsSelected: true,
       allProbesSelected: false,
-      expandedTopLevelBranch: null,
       selectedSection: null,
       selectedSubsection: null,
       isNavPanelOpen: false,

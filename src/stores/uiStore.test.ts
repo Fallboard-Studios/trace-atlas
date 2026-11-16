@@ -236,7 +236,7 @@ describe('uiStore — the initial state is spec §1.10\'s table', () => {
   // §1.10's kept and new fields.
   const NAV_FIELDS = [
     'activeHubTile', 'selectedRobotId', 'selectedCompanyId', 'allRobotsSelected', 'allProbesSelected',
-    'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection',
+    'selectedSection', 'selectedSubsection',
     'isPoweredOn', 'isNavPanelOpen',
     'fleetParamsSection', 'fleetParamsSubsection', 'movePanelRobotId',
     // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 2: the trail of screens before the current one.
@@ -314,10 +314,10 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
   });
 
   it('touches no other nav field', () => {
-    useUIStore.setState({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'probes', selectedSection: 'source' });
+    useUIStore.setState({ activeHubTile: 'audioRig', selectedRobotId: 'r1', selectedSection: 'source' });
     useUIStore.getState().setFleetParamsSection('output');
     useUIStore.getState().setFleetParamsSubsection('limiter');
-    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'probes', selectedSection: 'source' });
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', selectedRobotId: 'r1', selectedSection: 'source' });
   });
 
   it('stays JSON-serialisable', () => {
@@ -325,29 +325,6 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
     useUIStore.getState().setFleetParamsSubsection('limiter');
     const { fleetParamsSection, fleetParamsSubsection } = useUIStore.getState();
     expect(JSON.parse(JSON.stringify({ fleetParamsSection, fleetParamsSubsection }))).toEqual({ fleetParamsSection: 'output', fleetParamsSubsection: 'limiter' });
-  });
-});
-
-describe('uiStore — expandedTopLevelBranch (bugfix: the 4 top-level tree nodes had no expansion state at all, so their +/- never worked)', () => {
-  beforeEach(() => {
-    useUIStore.setState(INITIAL_STATE, true);
-  });
-
-  it('defaults to null — nothing expanded', () => {
-    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
-  });
-
-  it('setExpandedTopLevelBranch sets one of the 4 top-level branches, replacing any other', () => {
-    useUIStore.getState().setExpandedTopLevelBranch('probes');
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('probes');
-    useUIStore.getState().setExpandedTopLevelBranch('fleetParams');
-    expect(useUIStore.getState().expandedTopLevelBranch).toBe('fleetParams');
-  });
-
-  it('setExpandedTopLevelBranch(null) collapses back to nothing expanded', () => {
-    useUIStore.getState().setExpandedTopLevelBranch('probes');
-    useUIStore.getState().setExpandedTopLevelBranch(null);
-    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
   });
 });
 
@@ -486,7 +463,7 @@ describe('uiStore — resetNav (a new world lands on the deck)', () => {
   function deepInAScreen() {
     useUIStore.setState({
       activeHubTile: 'robots', selectedRobotId: 'r2', selectedCompanyId: 'c1', allRobotsSelected: false,
-      allProbesSelected: true, expandedTopLevelBranch: 'probes', selectedSection: 'envelope',
+      allProbesSelected: true, selectedSection: 'envelope',
       selectedSubsection: 'envelopeContour', isNavPanelOpen: true, fleetParamsSection: 'output',
       fleetParamsSubsection: 'limiter', movePanelRobotId: 'r3', navTrail: [stop, stop, stop],
       isPoweredOn: true, sceneWash: 'uncovering', activeLocaleLocalTime: 9.5, activeLocaleTemperature: -45,
@@ -503,13 +480,13 @@ describe('uiStore — resetNav (a new world lands on the deck)', () => {
     const initial = useUIStore.getInitialState();
     expect(useUIStore.getState()).toMatchObject({
       activeHubTile: null, selectedRobotId: null, selectedCompanyId: null, allRobotsSelected: true,
-      allProbesSelected: false, expandedTopLevelBranch: null, selectedSection: null, selectedSubsection: null,
+      allProbesSelected: false, selectedSection: null, selectedSubsection: null,
       isNavPanelOpen: false, fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION, fleetParamsSubsection: null,
       movePanelRobotId: null, navTrail: [],
     });
     // The deck is where a fresh app starts: the same values as the initial state.
     for (const key of ['activeHubTile', 'selectedRobotId', 'selectedCompanyId', 'allRobotsSelected', 'allProbesSelected',
-      'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection', 'isNavPanelOpen', 'fleetParamsSection',
+      'selectedSection', 'selectedSubsection', 'isNavPanelOpen', 'fleetParamsSection',
       'fleetParamsSubsection', 'movePanelRobotId', 'navTrail'] as const) {
       expect(useUIStore.getState()[key], key).toStrictEqual(initial[key]);
     }

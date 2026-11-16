@@ -364,8 +364,7 @@ describe('worldTransition', () => {
       });
       retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
       expect(useUIStore.getState()).toMatchObject({
-        activeHubTile: null, selectedRobotId: null, selectedSection: null, selectedSubsection: null,
-        expandedTopLevelBranch: null, navTrail: [],
+        activeHubTile: null, selectedRobotId: null, selectedSection: null, selectedSubsection: null, navTrail: [],
       });
     });
 

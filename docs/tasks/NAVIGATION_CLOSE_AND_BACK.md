@@ -639,7 +639,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (deletions in two files)
 
-- [ ] **Task 15: `uiStore.ts` — `expandedTopLevelBranch` goes**
+- [x] **Task 15: `uiStore.ts` — `expandedTopLevelBranch` goes**
 
   **Description:** The field, its setter and its doc comment are deleted (the `TopLevelBranch` type stays: the branch
   tables use it). `resetNav()` stops writing it. The tests that set or read it are updated: `uiStore.test.ts` (the
@@ -649,12 +649,16 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Read — deletion only. The type check proves no reader is left.
 
   **Acceptance criteria:**
-  - [ ] `expandedTopLevelBranch` appears nowhere in `src/`.
-  - [ ] The four test files pass with no case weakened beyond dropping that field.
+  - [x] `expandedTopLevelBranch` appears nowhere in `src/`. (`TopLevelBranch`'s doc comment, which told the field's
+        story, now says what the type is.)
+  - [x] The four test files pass with no case weakened beyond dropping that field. (`Robot.test.tsx`,
+        `NavBreadcrumb.test.tsx` and `Robot.tsx`'s comment were done in Task 14, where the assertions began to fail.
+        `worldTransition.test.ts` also named the field and lost it here. In `uiStore.test.ts`'s Fleet Params "touches
+        no other nav field" case, the field gave way to `selectedRobotId`, so the case still checks three fields.)
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/uiStore.test.ts src/components/robot/Robot.test.tsx src/components/panels/screen/screens/RosterTile.test.tsx src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/uiStore.test.ts src/components/robot/Robot.test.tsx src/components/panels/screen/screens/RosterTile.test.tsx src/components/panels/screen/nav` passes. (With `worldTransition.test.ts`: 563 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 14.
 
