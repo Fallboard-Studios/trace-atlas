@@ -4,6 +4,7 @@ import ContentPane from '@/components/panels/screen/console/ContentPane';
 import { OffScreen } from '@/components/panels/screen/screens/OffScreen';
 import NavPanel from '@/components/panels/screen/nav/NavPanel';
 import NavBreadcrumb from '@/components/panels/screen/nav/NavBreadcrumb';
+import { useBrowserBack } from '@/components/panels/screen/nav/useBrowserBack';
 import { useShell } from '@/components/panels/screen/useShell';
 import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
 import './ScreenViewport.css';
@@ -16,6 +17,9 @@ function ScreenViewport({ isPoweredOn }: ScreenViewportProps) {
   // The shell, for stylesheets: `[data-shell='phone']` reads useShell(), the one switch, so no CSS
   // carries a media query of its own for it (docs/specs/LAYOUT_REWORK.md Assumption 1).
   const shell = useShell();
+  // The browser's Back walks the trail (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.6). Here, not in a powered-on
+  // child, so a press on the off screen reaches the handler and passes on.
+  useBrowserBack();
 
   return (
     <main id={SCREEN_VIEWPORT_ID} className="screen-viewport" data-shell={shell}>

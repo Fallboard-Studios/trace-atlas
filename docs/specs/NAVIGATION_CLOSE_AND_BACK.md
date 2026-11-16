@@ -13,8 +13,10 @@
 [docs/intent/navigation-close-and-back.md](../intent/navigation-close-and-back.md) (`interview-me`, 2026-11-15, seven
 questions; five guesses confirmed, two accepted on trial). Backlog
 [75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5. Planned in
-[tasks/NAVIGATION_CLOSE_AND_BACK.md](../tasks/NAVIGATION_CLOSE_AND_BACK.md). Not yet approved: §7.2's questions are
-Crawford's, and the plan builds on their defaults until he answers.
+[tasks/NAVIGATION_CLOSE_AND_BACK.md](../tasks/NAVIGATION_CLOSE_AND_BACK.md). Gates 1 and 2 passed 2026-11-15
+(§5.4): the guard design stands, and the row is plain words in the plate with Back not naming its destination.
+Crawford accepted §7.2's defaults the same day. **Built 2026-11-15** on `feature/navigation-close-and-back`, Parts A–D;
+Gate 3 kept the rail trial. §8 records what was built.
 
 **Who it is for:** the player moving between the deck, the Probes list, a robot, a company, All Probes and Fleet
 Params, on the desk shell and the phone shell.
@@ -114,12 +116,12 @@ The trail is plain data in `uiStore`; `navActions.ts` is the only module that ch
   row.
 - **The power corner.** `.content-pane` starts at `--top-bar-bottom` (`Header.css`), which is the lower of the header
   and `--power-corner-height`. A row at the top of the plate is therefore already below the corner on both shells,
-  and Close at its right end cannot run under the rocker. If the sketch moves the row up into the top band, it pads
-  its right end by `--power-corner-width`, as `.header__row` does.
+  and Close at its right end cannot run under the rocker.
 - Back calls `back()`; Close calls `goHome()`. Both labels come from `src/content/`.
-- **The look is the sketch's** (§5.4 Gate 2): glyph against word, whether Back names where it goes, the row's height,
-  and whether it sits in the plate or the top band. This spec fixes what the row does and where it is mounted, and
-  takes the look from the approved sketch.
+- **The look is the sketch's** (§5.4 Gate 2, passed 2026-11-15): the buttons are **words**, no glyphs; Back reads
+  just "Back" and never names where it goes; the row sits **in the plate**, above `ConsolePanel`, on both shells.
+  The top band was drawn and turned down: it is free on the desk, but on the phone at 320 px its controls line needs
+  285 px and has 225, and Close runs under the rocker.
 - **Focus.** After Back to another screen the row is still mounted, so focus stays on the button pressed. After Close,
   or a Back that lands on the deck, the row unmounts: on the desk the rail's `useRescueLostFocus` moves focus to the
   Deck box, as it does for any pick that removes its own button; on the phone the menu toggle takes it (§7.1 B3).
@@ -157,8 +159,10 @@ Two entries in `src/content/copy/nav.ts`, drafts for Crawford's copy pass:
 
 | Key | Human | Lore |
 |---|---|---|
-| `nav.back` | Back | to be written, or none |
-| `nav.close` | Close | to be written, or none |
+| `nav.back` | Back | none |
+| `nav.close` | Close | none |
+
+The Human words are Gate 2's. No lore label was asked for at the gate; a later copy pass may add one.
 
 ### 1.9 What does not change
 
@@ -396,9 +400,13 @@ function onPopState(event: PopStateEvent): void {
   5. in a tab opened straight on the app (nothing behind it), a press with the trail used up does nothing harmful,
      and the address shown afterwards is the live one.
   If any fails, the build stops: §7.1 C4 is the fallback, and it changes Part A's trail shape.
+  **Passed 2026-11-15** (Crawford, with the probe at `docs/sketches/tools/browser-back-probe.html`). The guard design
+  stands; C4 is not built. The known hole's fix (§7.1 C3) stays an ask-first, looked at again in the app at
+  Checkpoint C.
 - **Gate 2, before Part B: the sketch.** `docs/sketches/navigation-close-and-back.html` draws the row on the desk and
   the phone at 320 px, against the power corner, with the robot screen's band under it. Crawford names the look, the
-  row's place (plate or top band) and whether Back names where it goes.
+  row's place (plate or top band) and whether Back names where it goes. **Passed 2026-11-15:** words, the plate, and a
+  plain "Back" (§1.5, B1, B2).
 - **Gate 3, after Part D: Crawford's look.** §5.3's last run. He keeps the rail trial or calls the fallback.
 
 ### 5.5 Done when
@@ -434,10 +442,9 @@ function onPopState(event: PopStateEvent): void {
   player lands on the deck.
 - **A5. A deleted company's stops are removed at the delete**, by a navAction the delete path calls, so `back()`
   needs no roster lookup and `navActions.ts` gains no `localeStore` import.
-- **B1. The row is inside the plate, above `ConsolePanel`**, and costs each screen one row of height. Gate 2 may move
-  it into the top band.
-- **B2. The labels are the plain words** Back and Close, with Back not naming its destination. Gate 2 may change
-  both.
+- **B1. The row is inside the plate, above `ConsolePanel`**, and costs each screen one row of height (61 px in the
+  sketch). Confirmed at Gate 2.
+- **B2. The labels are the plain words** Back and Close, with Back not naming its destination. Confirmed at Gate 2.
 - **B3. On the phone, focus goes to the menu toggle** when the row unmounts. Backlog
   [61](../todo/backlog.md#61-accessibility-review) reviews it.
 - **C1. One guard entry.** The first step from an empty trail pushes one history entry marked as the guard, with the
@@ -466,17 +473,69 @@ function onPopState(event: PopStateEvent): void {
 
 ### 7.2 Open questions
 
-- **Q1. The browser's Back while the power is off.** Not asked in the interview. Default: **it leaves the app in one
-  press** and the trail is untouched, because the off screen is outside the nav, like the deck. The alternative
-  (step the hidden nav) makes presses that show nothing.
-- **Q2. The browser's Forward.** Default: **nothing**; there is no redo of a Back.
-- **Q3. The browser's Back while the phone's nav sheet is open.** Default: **a trail step like any other**, which
-  shuts the sheet as every action does, and on an empty trail leaves the app. The Android habit is that Back shuts
-  the sheet and does nothing else; that is a small addition if Crawford wants it.
-- **Q4. Safari.** No Mac or iPhone is to hand (plan.md, Parked), so Gate 1 cannot cover it. Default: ship on the
-  three browsers checked and add Safari to the parked Safari look.
-- **Q5. The copy.** Back and Close, and whether either has a lore label (§1.8).
-- **Q6. The cap** (A3): 50, or no cap.
+Q1–Q6 were answered 2026-11-15: Crawford accepted each default as written.
+
+- **Q1. The browser's Back while the power is off.** **Answered: it leaves the app in one press** and the trail is
+  untouched, because the off screen is outside the nav, like the deck. The alternative (step the hidden nav) makes
+  presses that show nothing.
+- **Q2. The browser's Forward.** **Answered: nothing**; there is no redo of a Back.
+- **Q3. The browser's Back while the phone's nav sheet is open.** **Answered: a trail step like any other**, which
+  shuts the sheet as every action does, and on an empty trail leaves the app.
+- **Q4. Safari.** No Mac or iPhone is to hand (plan.md, Parked), so Gate 1 did not cover it. **Answered: ship on the
+  three browsers checked** and add Safari to the parked Safari look.
+- **Q5. The copy.** **Answered at Gate 2:** Back and Close, no lore label (§1.8).
+- **Q6. The cap** (A3). **Answered: 50.**
 - **Q7. Does a world rebuild while the power is on happen anywhere?** Nothing in the powered-on app makes one today.
   If one is added later, A4 sends the player to the deck in the middle of a session; flagged so that is a decision,
   not a surprise.
+
+---
+
+## 8. As built
+
+Built 2026-11-15, Tasks 0–15 of the [plan](../tasks/NAVIGATION_CLOSE_AND_BACK.md), one commit each on
+`feature/navigation-close-and-back`. The user-facing description is [UI_SHELL.md](../UI_SHELL.md#navactionsts--selection-in-one-place).
+
+### 8.1 The gates
+
+- **Gate 1** (the browser check) passed with the probe at `docs/sketches/tools/browser-back-probe.html`: the guard
+  design (C1) stands and C4 was not built. The probe page is kept for Safari.
+- **Gate 2** (the sketch, `docs/sketches/navigation-close-and-back.html`) passed: the row is words, in the plate,
+  with a plain "Back" (B1, B2). The top band was turned down.
+- **Checkpoints B and C:** Crawford's hand runs of §5.3 (the trail on both shells, the row's look, and the browser,
+  power and address-bar runs in desktop Chrome, desktop Firefox and Chrome on the Pixel) all looked right. The known
+  hole (C3) did not show in the app, so the address helper was not built.
+- **Gate 3** (the rail's look): Crawford kept the trial. The 200 px fallback was not built.
+
+### 8.2 Defaults
+
+Every assumption in §7.1 held as written: A1–A5, B1–B3, C1–C3, D1. Q1–Q6 took their defaults (power off: leave the
+app; Forward: nothing; the sheet open: a normal step; Safari unchecked and parked; the copy Back and Close with no
+lore; the cap 50). Q7 stays open, with nothing to build.
+
+### 8.3 Built differently from §1–§4
+
+- **The store's surface** is `navTrail`, `setNavTrail(trail)` and `resetNav()`, not §4's provisional `popNavStop`.
+  Every rule about the trail lives in `navActions.ts`, which holds the private `stopKey` / `recordStep` helpers and
+  exports `NAV_TRAIL_MAX` (50).
+- **The deleted company** (§1.3, A5) is its own navAction, `closeDeletedCompany(companyId)`, which the delete path
+  calls in place of `selectBranch('probes')`. Beyond removing the company's stops, it merges two neighbouring stops for
+  one screen into the later, and drops a last stop that is the Probes list, so Back never shows the same screen twice
+  in a row.
+- **The browser's Back** has two guards §4 does not show, each pinned by a test a mutation kills: the store subscription reacts only
+  to a change of `navTrail` or `isPoweredOn` (the clock's timer writes would push without a user activation), and a
+  module flag around the press handler's `back()` stops the subscription pushing from inside a `popstate`. Power-on
+  with steps on the trail and no guard pushes one (the rocker is the gesture).
+- **Focus on the phone** (§1.5, B3) is `Header` running `useRescueLostFocus`, aimed at the menu toggle, triggered by
+  a screen closing and off while the nav sheet is open.
+- **Part D wrote RED tests**, where §5.1 said none. Two cases were new behaviour: pressing Probes on the Probes list
+  changes nothing, and no box is a disclosure. Both failed on the old code, the first because the press toggled the
+  list.
+- **On the phone**, Probes pressed on the Probes list inside the nav sheet is a pick like any box: it shuts the sheet
+  and changes nothing else.
+- **`NavBox`** lost its `expanded` prop: the "+ New Company" control passes `expanded` to a `Button`, not a `NavBox`.
+  Its `controls` and `accentStyle` props are now unused by any caller and were left in place.
+- **The removal order.** Once Task 14 stopped writing `expandedTopLevelBranch`, five test assertions on it failed in
+  other files. They were dropped in that task rather than Task 15, so every commit stays green.
+- **The Deck's "Welcome card"** that UI_SHELL.md described was already gone from the code: `ContentPane` renders
+  nothing on the Deck.

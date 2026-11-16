@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react';
 
 /**
  * Keeps keyboard focus on the page when the element that had it is taken away. A pick can unmount its own
- * button (the entity list collapses, a breadcrumb ancestor turns into the current segment, a deleted
- * company's form goes with its screen), and the browser then drops focus on <body>, so a keyboard user
+ * button (the Back / Close row leaves with the screen it sat on, a breadcrumb ancestor turns into the current
+ * segment, a deleted company's form goes with its screen), and the browser then drops focus on <body>, so a keyboard user
  * restarts from the top of the document (docs/specs/LAYOUT_REWORK.md §1.2).
  *
  * After each commit in which `trigger` changed, if the last element to take focus has left the document

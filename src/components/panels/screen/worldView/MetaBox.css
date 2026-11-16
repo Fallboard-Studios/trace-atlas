@@ -2,8 +2,8 @@
    glow-glass well. It started bottom-left, in the corner the content surface and its breadcrumb use on every
    other view; Crawford (2026-10-10) moved it to the top of the screen once the nav panel stopped taking the
    full height. It hangs from the header's own top (--header-top, Header.css), so the two read as one band,
-   and keeps the left of the content surface (ContentPane.css): right of the nav panel, which it follows as
-   the panel widens (--nav-panel-width is NavPanel.css's, declared on #screen-viewport). Positioned in
+   and keeps the left of the content surface (ContentPane.css): right of the nav panel
+   (--nav-panel-width is NavPanel.css's, declared on #screen-viewport). Positioned in
    .world-view (WorldView.css), which fills the screen. */
 .meta-box {
   position: absolute;

@@ -1,4 +1,5 @@
 import { ConsolePanel } from './ConsolePanel';
+import { ScreenExitRow } from '../nav/ScreenExitRow';
 import { useUIStore } from '@/stores/uiStore';
 import './ContentPane.css';
 
@@ -8,8 +9,10 @@ import './ContentPane.css';
  * activeHubTile === null is the Deck, the landing state (nothing picked in the nav yet): it renders
  * nothing, so the world stays bright and clickable — Robot.tsx's own click handler relies on nothing
  * blocking WorldView at this state. (The Welcome accordion and intro card that used to sit here were
- * removed.) Once a tile is active, it renders through the existing ConsolePanel/TILE_CONTENT
- * dispatch. The close control is NavPanel's "Deck" box (navActions.goHome).
+ * removed.) Once a tile is active, it renders the Back / Close row (ScreenExitRow,
+ * docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.5) and, under it, the existing ConsolePanel/TILE_CONTENT dispatch. The
+ * row is the screen's way out: Back to the screen before, Close to the deck. It sits outside ConsolePanel's
+ * scroller, so it stays put while the screen scrolls under it.
  */
 export function ContentPane() {
   const activeHubTile = useUIStore((s) => s.activeHubTile);
@@ -18,6 +21,7 @@ export function ContentPane() {
 
   return (
     <div className="content-pane">
+      <ScreenExitRow />
       <ConsolePanel />
     </div>
   );

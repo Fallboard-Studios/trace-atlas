@@ -3,6 +3,7 @@ import * as Popover from '@radix-ui/react-popover';
 
 import { useShell } from './useShell';
 import { PhoneMenu, PhoneWell } from './PhoneBar';
+import { useRescueLostFocus } from './nav/useRescueLostFocus';
 import { CabinetBox } from '@/components/ui/controls/CabinetBox';
 import { Toggle, CABINET_TOGGLE_BOX_SIZE } from '@/components/ui/controls/Toggle';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -40,6 +41,10 @@ const MASTER_VOLUME_SCHEMA: SliderLinearSchema = {
 
 /** The phone's volume box is named for what it opens. */
 const VOLUME_NAME = MASTER_VOLUME_SCHEMA.humanLabel;
+
+/** Where focus goes on the phone when the screen closes under it (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §7.1 B3):
+ *  the menu toggle (PhoneMenu), found by its role and its content-layer name. */
+const PHONE_FOCUS_RESCUE_TARGETS = [`[role="switch"][aria-label="${labels('nav.toggle').humanLabel}"]`] as const;
 
 /** One width for the volume slider, in the desk row and in the phone's pop-out (Header.css reads it
  *  as --header-volume-width). The voxel boxes follow the cabinet tier and a track never draws fewer
@@ -132,6 +137,13 @@ function Header() {
   const [roomForVolume, setRoomForVolume] = useState(false);
 
   const isPoweredOn = useUIStore((s) => s.isPoweredOn);
+  // Phone only (backlog 75 Task 9, spec §1.5): Close, or a Back that lands on the deck, unmounts the Back / Close row
+  // and the button that had focus with it. The desk's rail catches that (NavPanel's rescue, to the Deck box); on the
+  // phone nothing did, so focus fell to <body>. The trigger is whether a screen is open, the one change that takes the
+  // row away, so Header re-renders only on that flip. Off while the nav sheet is open: its dialog hands focus back.
+  const screenOpen = useUIStore((s) => s.activeHubTile !== null);
+  const isNavPanelOpen = useUIStore((s) => s.isNavPanelOpen);
+  useRescueLostFocus(shell === 'phone' && !isNavPanelOpen, headerRef, PHONE_FOCUS_RESCUE_TARGETS, String(screenOpen));
 
   const isMuted = useAudioStore((s) => s.isMuted);
   const volume = useAudioStore((s) => s.volume);

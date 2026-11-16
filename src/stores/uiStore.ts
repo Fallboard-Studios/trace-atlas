@@ -47,19 +47,32 @@ export type RobotSubsection =
   | 'coaxialOscillator'
   | 'harmonicOscillator'
   | 'busFilter';
-/** Which of the 2 top-level branches is open in the nav panel (its entity list, for Probes). The tree's per-branch fields, which tracked which probe or company was peeked
- *  open, retired with the stacked scroll (docs/tasks/LAYOUT_REWORK.md Task 18). Bugfix: this
- *  field was missing entirely through Tasks 1-18 — isExpanded/toggleExpand (useNavTree.ts) had no case
- *  for a bare single-segment node id ('settings', 'fleetParams', 'probes', 'companies'), so every
- *  top-level node's own +/- button was a silent no-op and its children could never render, found
- *  live by Crawford after Checkpoint 3. Settings left the nav in docs/tasks/OFF_SCREEN_CONSOLE.md Task 14,
- *  Companies in Task 18. */
+/** The nav panel's two branch boxes beside the Deck, each opening a hub tile (navActions' branch tables).
+ *  Settings left the nav in docs/tasks/OFF_SCREEN_CONSOLE.md Task 14, Companies in Task 18. The field that
+ *  held which branch listed its entities went with the list (docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 15). */
 export type TopLevelBranch = 'fleetParams' | 'probes';
 /** The scene wash over the world (docs/tasks/OFF_SCREEN_REVISIONS.md Tasks 12-13; Crawford's note 7): 'clear' at rest;
  *  'covering' while it fades in over a requested world change (systems/worldChange.ts); 'covered' when opaque, which runs
  *  the change; 'uncovering' while it fades out over the new world. Semantic state only: the wash's timelines
  *  (animation/sceneWash.ts) set 'covered' and 'clear' when they finish, and nothing else reads them. */
 export type SceneWash = 'clear' | 'covering' | 'covered' | 'uncovering';
+/** One screen on the trail, with the tabs it showed when the player left it (docs/specs/NAVIGATION_CLOSE_AND_BACK.md
+ *  §1.2, §4). Plain data: navActions.ts records a stop on each step and restores one on Back. A screen's identity is
+ *  the tile plus its entity; the four tab fields are only what Back gives it back. */
+export interface NavStop {
+  /** null = the deck. */
+  tile: HubTile | null;
+  robotId: string | null;
+  companyId: string | null;
+  /** The All Probes bulk-edit screen (allProbesSelected). */
+  allProbes: boolean;
+  /** The robot or company screen's tab and sub-tab (selectedSection, selectedSubsection). */
+  section: RobotSection | null;
+  subsection: RobotSubsection | null;
+  /** Fleet Params' tab and sub-tab (fleetParamsSection, fleetParamsSubsection). */
+  fleetSection: FleetParamsGroup;
+  fleetSubsection: SelectedFleetParamsEffect | null;
+}
 /** True when the nav tree's "All Probes" leaf is selected — the bulk-edit target covering
  *  every robot in the locale, distinct from bare "Probes" (the browse list), which also has
  *  selectedRobotId === null. Added in Task 19 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md): without this
@@ -107,8 +120,6 @@ export interface UIStore {
   /** The open sub-tab inside that section — null reads as the section's first (navActions'
    *  activeFleetParamsSubsection). Every section has sub-tabs. */
   fleetParamsSubsection: SelectedFleetParamsEffect | null;
-  /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
-  expandedTopLevelBranch: TopLevelBranch | null;
   /** Whether the "All Probes" bulk-edit leaf is selected — see its own doc comment above. */
   allProbesSelected: boolean;
   /** Which roster tile's Move popover (desk) / sheet (phone) is open — null when none. One at a time:
@@ -116,6 +127,10 @@ export interface UIStore {
   movePanelRobotId: string | null;
   /** Where the scene wash is in covering a world change — see SceneWash's own doc comment. */
   sceneWash: SceneWash;
+  /** The trail: the screens before the current one, oldest first, empty on a fresh deck
+   *  (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2). navActions.ts writes every step and Back; resetNav
+   *  empties it on a new world; power never touches it. */
+  navTrail: NavStop[];
   setActiveLocaleLocalTime: (t: number | null) => void;
   setPowerOn: () => void;
   setPowerOff: () => void;
@@ -131,16 +146,39 @@ export interface UIStore {
   /** Also resets fleetParamsSubsection to null: a sub-tab belongs to its section. */
   setFleetParamsSection: (s: FleetParamsGroup) => void;
   setFleetParamsSubsection: (s: SelectedFleetParamsEffect | null) => void;
-  setExpandedTopLevelBranch: (b: TopLevelBranch | null) => void;
   setAllProbesSelected: (v: boolean) => void;
   openMovePanel: (robotId: string) => void;
   closeMovePanel: () => void;
   setSceneWash: (state: SceneWash) => void;
+  /** Replaces the trail. Every rule about it (the step, the cap, Back) is navActions.ts's; the store only holds it. */
+  setNavTrail: (trail: NavStop[]) => void;
+  /** A new world lands on the deck (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.4): every nav field back to the deck's
+   *  value, the phone sheet and the Move panel shut, an empty trail, in one write. Power, the scene wash and the clock
+   *  readouts stay. worldTransition.ts calls it on a rebuild. */
+  resetNav: () => void;
 }
 
 /** The Fleet Params tab the screen opens on, and every nav pick returns to: World, so the screen opens
  *  on World > Pacing (docs/specs/CONTENT_LAYOUT.md assumption 8; it was LFO Bank, LAYOUT_REWORK.md Task 15). */
 export const DEFAULT_FLEET_PARAMS_SECTION: FleetParamsGroup = 'world';
+
+/** The deck's nav state: where a fresh app starts and where a new world lands (resetNav). One list for both, so a new
+ *  nav field is given its deck value once. A function, so each caller gets its own trail array. */
+const deckNav = () =>
+  ({
+    selectedRobotId: null,
+    selectedCompanyId: null,
+    allRobotsSelected: true,
+    activeHubTile: null,
+    selectedSection: null,
+    selectedSubsection: null,
+    isNavPanelOpen: false,
+    fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+    fleetParamsSubsection: null,
+    allProbesSelected: false,
+    movePanelRobotId: null,
+    navTrail: [],
+  }) satisfies Partial<UIStore>;
 
 // ========================================
 // STORE
@@ -150,19 +188,8 @@ export const useUIStore = create<UIStore>((set) => ({
   isPoweredOn: false,
   activeLocaleLocalTime: null,
   activeLocaleTemperature: null,
-  selectedRobotId: null,
-  selectedCompanyId: null,
-  allRobotsSelected: true,
-  activeHubTile: null,
-  selectedSection: null,
-  selectedSubsection: null,
-  isNavPanelOpen: false,
-  fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
-  fleetParamsSubsection: null,
-  expandedTopLevelBranch: null,
-  allProbesSelected: false,
-  movePanelRobotId: null,
   sceneWash: 'clear',
+  ...deckNav(),
 
   setPowerOn: () => set({ isPoweredOn: true }),
   setPowerOff: () => set({ isPoweredOn: false }),
@@ -185,11 +212,12 @@ export const useUIStore = create<UIStore>((set) => ({
   setNavPanelOpen: (open) => set({ isNavPanelOpen: open }),
   setFleetParamsSection: (s) => set({ fleetParamsSection: s, fleetParamsSubsection: null }),
   setFleetParamsSubsection: (s) => set({ fleetParamsSubsection: s }),
-  setExpandedTopLevelBranch: (b) => set({ expandedTopLevelBranch: b }),
   setAllProbesSelected: (v) => set({ allProbesSelected: v }),
   openMovePanel: (robotId) => set({ movePanelRobotId: robotId }),
   closeMovePanel: () => set({ movePanelRobotId: null }),
   setSceneWash: (state) => set({ sceneWash: state }),
+  setNavTrail: (trail) => set({ navTrail: trail }),
+  resetNav: () => set(deckNav()),
 }));
 
 // ========================================

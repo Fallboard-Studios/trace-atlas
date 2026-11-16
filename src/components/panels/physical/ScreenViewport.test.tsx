@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ScreenViewport from './ScreenViewport';
+import { selectEntity } from '@/components/panels/screen/nav/navActions';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type NavStop } from '@/stores/uiStore';
 
 // Child components pull in real Tone.js/AudioEngine and GSAP, both of which
 // throw in this jsdom test environment (no real AudioContext, and the
@@ -95,5 +97,102 @@ describe('ScreenViewport', () => {
     } finally {
       Object.defineProperty(window, 'matchMedia', { writable: true, configurable: true, value: realMatchMedia });
     }
+  });
+});
+
+/*
+ * docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 12 (spec §1.6): the browser's Back is wired here, in both power
+ * states, so a press on the off screen reaches the handler and passes on.
+ */
+describe('ScreenViewport — the browser Back', () => {
+  const deckStop: NavStop = {
+    tile: null,
+    robotId: null,
+    companyId: null,
+    allProbes: false,
+    section: null,
+    subsection: null,
+    fleetSection: DEFAULT_FLEET_PARAMS_SECTION,
+    fleetSubsection: null,
+  };
+  const press = () => window.dispatchEvent(new PopStateEvent('popstate', { state: null }));
+  let historyBack: ReturnType<typeof vi.spyOn>;
+  let historyForward: ReturnType<typeof vi.spyOn>;
+  let pushState: ReturnType<typeof vi.spyOn>;
+  const startUrl = window.location.href;
+
+  beforeEach(() => {
+    useUIStore.getState().resetNav();
+    window.history.replaceState(null, '', startUrl);
+    historyBack = vi.spyOn(window.history, 'back').mockImplementation(() => {});
+    historyForward = vi.spyOn(window.history, 'forward').mockImplementation(() => {});
+    pushState = vi.spyOn(window.history, 'pushState').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    useUIStore.setState({ isPoweredOn: false });
+    useUIStore.getState().resetNav();
+  });
+
+  it('powered on with a one-stop trail, a press empties the trail and returns to the guard', () => {
+    useUIStore.setState({ isPoweredOn: true, activeHubTile: 'robots', selectedRobotId: 'r1', navTrail: [deckStop] });
+    render(<ScreenViewport isPoweredOn={true} />);
+
+    press();
+
+    expect(useUIStore.getState().navTrail).toEqual([]);
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+    expect(historyForward).toHaveBeenCalledTimes(1);
+    expect(historyBack).not.toHaveBeenCalled();
+  });
+
+  it('powered off with steps on the trail, a press passes on and the trail stands', () => {
+    useUIStore.setState({ isPoweredOn: false, activeHubTile: 'robots', selectedRobotId: 'r1', navTrail: [deckStop, deckStop] });
+    const trail = useUIStore.getState().navTrail;
+    render(<ScreenViewport isPoweredOn={false} />);
+
+    press();
+
+    expect(historyBack).toHaveBeenCalledTimes(1);
+    expect(historyForward).not.toHaveBeenCalled();
+    expect(useUIStore.getState().navTrail).toBe(trail);
+  });
+
+  it('powered on, the first step pushes the guard', () => {
+    useUIStore.setState({ isPoweredOn: true });
+    render(<ScreenViewport isPoweredOn={true} />);
+
+    selectEntity({ robotId: 'r1' });
+
+    expect(pushState).toHaveBeenCalledTimes(1);
+  });
+
+  it('stays wired across a power cycle (one listener, not one per power state)', () => {
+    useUIStore.setState({ isPoweredOn: true, activeHubTile: 'robots', selectedRobotId: 'r1', navTrail: [deckStop] });
+    const { rerender } = render(<ScreenViewport isPoweredOn={true} />);
+    rerender(<ScreenViewport isPoweredOn={false} />);
+    rerender(<ScreenViewport isPoweredOn={true} />);
+
+    press();
+
+    expect(useUIStore.getState().navTrail).toEqual([]);
+    expect(historyForward).toHaveBeenCalledTimes(1);
+  });
+
+  it('unmounting removes the listener and the subscription', () => {
+    useUIStore.setState({ isPoweredOn: true, activeHubTile: 'robots', selectedRobotId: 'r1', navTrail: [deckStop] });
+    const trail = useUIStore.getState().navTrail;
+    const { unmount } = render(<ScreenViewport isPoweredOn={true} />);
+    unmount();
+
+    press();
+    expect(useUIStore.getState().navTrail).toBe(trail);
+    expect(historyForward).not.toHaveBeenCalled();
+    expect(historyBack).not.toHaveBeenCalled();
+
+    useUIStore.setState({ navTrail: [] });
+    selectEntity({ robotId: 'r2' });
+    expect(pushState).not.toHaveBeenCalled();
   });
 });

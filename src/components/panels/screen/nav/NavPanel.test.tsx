@@ -2,12 +2,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, act, fireEvent, within } from '@testing-library/react';
 
 import { NavPanel } from './NavPanel';
-import { goHome } from './navActions';
+import { goHome, selectBranch, selectEntity } from './navActions';
+import { ContentPane } from '../console/ContentPane';
 import { useUIStore } from '@/stores/uiStore';
 import { useLocaleStore } from '@/stores/localeStore';
 import { getActiveLocaleId } from '@/utils/localeHelpers';
 import { SCREEN_VIEWPORT_ID } from '@/utils/helpers';
-import { setTimeline, killTimeline } from '@/animation/timelineMap';
+import { setTimeline } from '@/animation/timelineMap';
 import { labels, type ContentKey } from '@/content';
 import type { HubTile } from '@/types/hub';
 import type { Robot } from '@/types/Robot';
@@ -16,9 +17,9 @@ import type { Locale } from '@/types/locale';
 
 /*
  * docs/tasks/LAYOUT_REWORK.md Task 4 (spec §1.2): one panel of three parent boxes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 14 took Settings
- * out, Task 18 Companies) that expands in place for Probes. CabinetBox is stubbed to expose `popped`; gsap is stubbed to record each
- * call and apply custom properties to their target at once, so the expand factor the width timeline
- * writes on #screen-viewport is readable from the DOM.
+ * out, Task 18 Companies), at one width with no entity list (docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 13). CabinetBox is stubbed
+ * to expose `popped`; gsap is stubbed to record each call and apply custom properties to their target at once, so a width written
+ * on #screen-viewport would be readable from the DOM.
  */
 
 vi.mock('@/components/ui/controls/CabinetBox', () => ({
@@ -29,6 +30,8 @@ vi.mock('@/components/ui/controls/CabinetBox', () => ({
   ),
 }));
 vi.mock('@/animation/timelineMap', () => ({ setTimeline: vi.fn(), killTimeline: vi.fn() }));
+// The plate's screen is not this file's concern; the Back / Close row above it is (backlog 75 Task 9).
+vi.mock('../console/ConsolePanel', () => ({ ConsolePanel: () => <div className="console-panel" /> }));
 
 const gsapLog = vi.hoisted(() => ({ calls: [] as { kind: 'set' | 'to'; vars: Record<string, unknown> }[] }));
 vi.mock('gsap', () => {
@@ -97,8 +100,6 @@ function renderPanel() {
 const nav = () => screen.getByRole('navigation', { name: human('nav.toggle') });
 const box = (key: ContentKey) => within(nav()).getByRole('button', { name: human(key) });
 const poppedOf = (button: HTMLElement) => within(button).getByTestId('cabinet-box').getAttribute('data-popped');
-const expandFactor = () => document.getElementById(SCREEN_VIEWPORT_ID)!.style.getPropertyValue('--nav-panel-expand');
-const entityList = () => nav().querySelector('.nav-entity-list');
 
 beforeEach(() => {
   useUIStore.setState(useUIStore.getInitialState(), true);
@@ -162,19 +163,68 @@ describe('NavPanel — three parent boxes (desk)', () => {
     expect(poppedOf(box('nav.home'))).not.toBe('true');
   });
 
-  it('clicking Deck goes home: no tile, nothing expanded, no entity', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1' });
+  it('clicking Deck goes home: no tile, no entity', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     renderPanel();
     fireEvent.click(box('nav.home'));
-    expect(useUIStore.getState()).toMatchObject({ activeHubTile: null, expandedTopLevelBranch: null, selectedRobotId: null });
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: null, selectedRobotId: null });
   });
 
   it('picking a parent clears the entity, Probes included (navActions, Crawford 2026-10-09)', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes', selectedRobotId: 'r1' });
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
     renderPanel();
     fireEvent.click(box('probe.root'));
     expect(useUIStore.getState().selectedRobotId).toBeNull();
     expect(useUIStore.getState().activeHubTile).toBe('robots');
+  });
+
+  // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 13 (spec §1.7): the rail has one width and no list, so every box
+  // is selectBranch, and the Probes box on the Probes list has nothing left to toggle.
+  it('pressing Probes on the Probes list changes nothing, the trail included', () => {
+    selectBranch('fleetParams');
+    selectBranch('probes');
+    renderPanel();
+    const before = useUIStore.getState();
+    expect(before.navTrail).toHaveLength(2);
+
+    fireEvent.click(box('probe.root'));
+    expect(useUIStore.getState()).toEqual(before);
+    fireEvent.click(box('probe.root'));
+    expect(useUIStore.getState()).toEqual(before);
+  });
+
+  it('pressing Probes from a robot screen shows the Probes list, one step on the trail', () => {
+    selectBranch('probes');
+    selectEntity({ robotId: 'r1' });
+    renderPanel();
+    const trailBefore = useUIStore.getState().navTrail.length;
+
+    fireEvent.click(box('probe.root'));
+
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: null, selectedCompanyId: null, allProbesSelected: false });
+    expect(useUIStore.getState().navTrail).toHaveLength(trailBefore + 1);
+  });
+
+  it.each([
+    [null, 'nav.home'],
+    ['audioRig', 'fleet.root'],
+    ['robots', 'probe.root'],
+  ] as [HubTile | null, ContentKey][])('on tile %s the rail lists only the three boxes, none of them a disclosure', (tile, key) => {
+    renderPanel();
+    if (tile !== null) fireEvent.click(box(key));
+    const buttons = within(nav()).getAllByRole('button');
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(BOX_ORDER.map(human));
+    for (const b of buttons) expect(b.hasAttribute('aria-expanded')).toBe(false);
+  });
+
+  it('no press, on any box and in any order, registers a timeline or writes a width on the viewport', () => {
+    renderPanel();
+    for (const key of ['probe.root', 'probe.root', 'fleet.root', 'probe.root', 'nav.home'] as ContentKey[]) fireEvent.click(box(key));
+    act(() => selectEntity({ robotId: 'r1' }));
+    act(() => goHome());
+    expect(setTimeline).not.toHaveBeenCalled();
+    expect(gsapLog.calls).toHaveLength(0);
+    expect(document.getElementById(SCREEN_VIEWPORT_ID)!.getAttribute('style')).toBeNull();
   });
 
   it('a resting box pops while hovered, focused or pressed, and returns to rest after; the active box stays popped', () => {
@@ -205,183 +255,12 @@ describe('NavPanel — three parent boxes (desk)', () => {
   });
 });
 
-describe('NavPanel — Probes expands in place (desk)', () => {
-  it.each([
-    ['probe.root', 'probe.all'],
-  ] as [ContentKey, ContentKey][])('selecting %s lists its entities under its own box, %s first, and sets the wide value', (key, firstEntity) => {
-    renderPanel();
-    expect(expandFactor()).toBe('0');
-
-    fireEvent.click(box(key));
-
-    const list = box(key).closest('li')!.querySelector<HTMLElement>('.nav-entity-list');
-    expect(list).not.toBeNull();
-    expect(within(list!).getAllByRole('button')[0].getAttribute('aria-label')).toBe(human(firstEntity));
-    expect(expandFactor()).toBe('1');
-  });
-
-  it.each(['nav.home', 'fleet.root'] as ContentKey[])('selecting %s lists nothing and returns to the rest value', (key) => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
-    renderPanel();
-    expect(expandFactor()).toBe('1');
-
-    fireEvent.click(box(key));
-
-    expect(entityList()).toBeNull();
-    expect(expandFactor()).toBe('0');
-  });
-
-  it('the list and the width follow expandedTopLevelBranch: the Probes tile with its list collapsed lists nothing, at rest', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: null });
-    renderPanel();
-    expect(entityList()).toBeNull();
-    expect(expandFactor()).toBe('0');
-    expect(poppedOf(box('probe.root'))).toBe('true');
-  });
-
-  it('a stale expanded field for another branch lists nothing', () => {
-    useUIStore.setState({ activeHubTile: 'audioRig', expandedTopLevelBranch: 'probes' });
-    renderPanel();
-    expect(entityList()).toBeNull();
-    expect(expandFactor()).toBe('0');
-  });
-
-  // Crawford, 2026-10-09: "back, then collapse".
-  it('clicking the open Probes box on its own page collapses the list to rest, and again reopens it', () => {
-    const key: ContentKey = 'probe.root';
-    renderPanel();
-    fireEvent.click(box(key));
-    expect(expandFactor()).toBe('1');
-
-    fireEvent.click(box(key));
-    expect(entityList()).toBeNull();
-    expect(expandFactor()).toBe('0');
-    expect(poppedOf(box(key))).toBe('true');
-    expect(setTimeline).toHaveBeenLastCalledWith('nav-panel-width', expect.anything());
-
-    fireEvent.click(box(key));
-    expect(box(key).closest('li')!.querySelector('.nav-entity-list')).not.toBeNull();
-    expect(expandFactor()).toBe('1');
-  });
-
-  // Crawford, 2026-10-10: picking a robot collapses the list, so the robot screen gets the rest width.
-  it('picking a robot collapses the list to the rest width; clicking Probes goes back to the page with the list open; the next click collapses', () => {
-    renderPanel();
-    fireEvent.click(box('probe.root'));
-    fireEvent.click(within(entityList() as HTMLElement).getByRole('button', { name: 'Tidal Wisp' }));
-    expect(useUIStore.getState().selectedRobotId).toBe('r1');
-    expect(entityList()).toBeNull();
-    expect(expandFactor()).toBe('0');
-    expect(poppedOf(box('probe.root'))).toBe('true');
-
-    fireEvent.click(box('probe.root'));
-    expect(useUIStore.getState().selectedRobotId).toBeNull();
-    expect(entityList()).not.toBeNull();
-    expect(expandFactor()).toBe('1');
-
-    fireEvent.click(box('probe.root'));
-    expect(entityList()).toBeNull();
-    expect(expandFactor()).toBe('0');
-  });
-
-  it('marks the open Probes box aria-expanded, and only that box', () => {
-    renderPanel();
-    expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
-    expect(box('fleet.root').getAttribute('aria-expanded')).toBeNull();
-    expect(box('nav.home').getAttribute('aria-expanded')).toBeNull();
-
-    fireEvent.click(box('probe.root'));
-    expect(box('probe.root').getAttribute('aria-expanded')).toBe('true');
-    expect(box('fleet.root').getAttribute('aria-expanded')).toBeNull();
-
-    fireEvent.click(box('probe.root'));
-    expect(box('probe.root').getAttribute('aria-expanded')).toBe('false');
-  });
-
-  it('mounting with a branch already open sets the wide value at once, without a tween', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
-    renderPanel();
-    expect(expandFactor()).toBe('1');
-    expect(gsapLog.calls.map((c) => c.kind)).toEqual(['set']);
-    expect(setTimeline).not.toHaveBeenCalled();
-  });
-
-  it('widening and narrowing each run the nav-panel-width timeline with a nonzero duration', () => {
-    renderPanel();
-    gsapLog.calls.length = 0;
-
-    fireEvent.click(box('probe.root'));
-    expect(setTimeline).toHaveBeenLastCalledWith('nav-panel-width', expect.anything());
-    expect(gsapLog.calls.at(-1)).toMatchObject({ kind: 'to', vars: { '--nav-panel-expand': 1 } });
-    expect(gsapLog.calls.at(-1)!.vars.duration).toBeGreaterThan(0);
-
-    fireEvent.click(box('fleet.root'));
-    expect(setTimeline).toHaveBeenCalledTimes(2);
-    expect(gsapLog.calls.at(-1)).toMatchObject({ kind: 'to', vars: { '--nav-panel-expand': 0 } });
-    expect(gsapLog.calls.at(-1)!.vars.duration).toBeGreaterThan(0);
-  });
-
-  it('kills the previous width timeline before starting the next', () => {
-    renderPanel();
-    fireEvent.click(box('probe.root'));
-    vi.mocked(killTimeline).mockClear();
-    fireEvent.click(box('fleet.root'));
-    expect(killTimeline).toHaveBeenCalledWith('nav-panel-width');
-    expect(vi.mocked(killTimeline).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(setTimeline).mock.invocationCallOrder.at(-1)!);
-  });
-
-  it('moving between two leaves (no width change) starts no timeline', () => {
-    useUIStore.setState({ activeHubTile: 'audioRig' });
-    renderPanel();
-    fireEvent.click(box('nav.home'));
-    expect(setTimeline).not.toHaveBeenCalled();
-  });
-
-  it('under reduced motion the width changes at once and no timeline runs', () => {
-    stubMatchMedia({ desk: true, reducedMotion: true });
-    renderPanel();
-    fireEvent.click(box('probe.root'));
-    expect(expandFactor()).toBe('1');
-    expect(setTimeline).not.toHaveBeenCalled();
-    expect(gsapLog.calls.every((c) => c.kind === 'set')).toBe(true);
-  });
-
-  it('unmounting kills the width timeline and takes the expand factor off the viewport', () => {
-    const viewport = document.body.appendChild(Object.assign(document.createElement('main'), { id: SCREEN_VIEWPORT_ID }));
-    const { unmount } = render(<NavPanel />, { container: viewport });
-    fireEvent.click(box('probe.root'));
-    expect(viewport.style.getPropertyValue('--nav-panel-expand')).toBe('1');
-    vi.mocked(killTimeline).mockClear();
-
-    unmount();
-
-    expect(killTimeline).toHaveBeenCalledWith('nav-panel-width');
-    expect(viewport.style.getPropertyValue('--nav-panel-expand')).toBe('');
-    viewport.remove();
-  });
-
-  it('renders and switches branches with no screen viewport in the document, writing nothing', () => {
-    render(<NavPanel />);
-    fireEvent.click(box('probe.root'));
-    expect(entityList()).not.toBeNull();
-    expect(gsapLog.calls).toHaveLength(0);
-    expect(setTimeline).not.toHaveBeenCalled();
-  });
-});
-
 describe('NavPanel — keyboard', () => {
-  it('every box and entity is a native button in reading order, none taken out of the tab sequence', () => {
-    useUIStore.setState({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+  it('every box is a native button in reading order, none taken out of the tab sequence', () => {
+    selectBranch('probes');
     renderPanel();
     const buttons = within(nav()).getAllByRole('button');
-    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
-      human('nav.home'),
-      human('fleet.root'),
-      human('probe.root'),
-      human('probe.all'),
-      'Tidal Wisp',
-      'Glass Drifter',
-    ]);
+    expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual(BOX_ORDER.map(human));
     for (const b of buttons) {
       expect(b.tagName).toBe('BUTTON');
       expect(b.getAttribute('type')).toBe('button');
@@ -391,37 +270,39 @@ describe('NavPanel — keyboard', () => {
   });
 });
 
-// Code review 2026-10-11: a pick collapses the list, which unmounts the very button that had focus; the
-// browser then drops focus on <body> and a keyboard user restarts from the top of the page.
-describe('NavPanel — focus survives the focused box leaving (desk)', () => {
-  const openProbes = () => {
-    renderPanel();
-    fireEvent.click(box('probe.root'));
-    return within(entityList() as HTMLElement).getByRole('button', { name: 'Tidal Wisp' });
+// Code review 2026-10-11: a pick can unmount the very button that had focus; the browser then drops focus on
+// <body> and a keyboard user restarts from the top of the page. Since the rail lost its entity list
+// (docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 13) the Back / Close row in the plate (Task 9, spec §1.5) is the only
+// focused control a pick takes away: it leaves with the last open screen.
+describe('NavPanel — focus survives the focused control leaving (desk)', () => {
+  const renderWithPlate = () =>
+    render(
+      <main id={SCREEN_VIEWPORT_ID}>
+        <NavPanel />
+        <ContentPane />
+      </main>,
+    );
+  const rowButton = (key: ContentKey) => screen.getByRole('button', { name: human(key) });
+  const press = (button: HTMLElement) => {
+    act(() => button.focus());
+    expect(document.activeElement).toBe(button);
+    fireEvent.click(button);
   };
 
-  it('picking the focused entity leaves focus on the open branch box', () => {
-    const tidal = openProbes();
-    act(() => tidal.focus());
-
-    fireEvent.click(tidal);
-
-    expect(entityList()).toBeNull();
-    expect(document.activeElement).toBe(box('probe.root'));
-  });
-
-  it('going home (a breadcrumb Root press) while an entity has focus lands on the Deck box', () => {
-    const tidal = openProbes();
-    act(() => tidal.focus());
+  it('going home (a breadcrumb Root press) while the Back button has focus lands on the Deck box', () => {
+    selectEntity({ robotId: 'r1' });
+    renderWithPlate();
+    act(() => rowButton('nav.back').focus());
 
     act(() => goHome());
 
-    expect(entityList()).toBeNull();
+    expect(screen.queryByRole('button', { name: human('nav.back') })).toBeNull();
     expect(document.activeElement).toBe(box('nav.home'));
   });
 
   it('leaves focus alone while the focused box is still there', () => {
-    openProbes();
+    selectBranch('probes');
+    renderWithPlate();
     act(() => box('probe.root').focus());
 
     fireEvent.click(box('probe.root'));
@@ -429,16 +310,44 @@ describe('NavPanel — focus survives the focused box leaving (desk)', () => {
     expect(document.activeElement).toBe(box('probe.root'));
   });
 
-  it('leaves focus alone when it was never in the panel', () => {
-    const tidal = openProbes();
+  it('leaves focus alone when it was never in the panel or the row', () => {
+    selectEntity({ robotId: 'r1' });
+    renderWithPlate();
     const outside = document.createElement('input');
     document.body.appendChild(outside);
     act(() => outside.focus());
 
-    fireEvent.click(tidal);
+    act(() => goHome());
 
     expect(document.activeElement).toBe(outside);
     outside.remove();
+  });
+
+  it('Close with focus on it lands focus on the Deck box', () => {
+    selectBranch('probes');
+    selectEntity({ robotId: 'r1' });
+    renderWithPlate();
+    press(rowButton('nav.close'));
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+    expect(document.activeElement).toBe(box('nav.home'));
+  });
+
+  it('a Back that lands on the deck lands focus on the Deck box', () => {
+    selectEntity({ robotId: 'r1' });
+    renderWithPlate();
+    press(rowButton('nav.back'));
+    expect(useUIStore.getState().activeHubTile).toBeNull();
+    expect(document.activeElement).toBe(box('nav.home'));
+  });
+
+  it('a Back to another open screen leaves focus on the Back button', () => {
+    selectBranch('fleetParams');
+    selectBranch('probes');
+    renderWithPlate();
+    const backButton = rowButton('nav.back');
+    press(backButton);
+    expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+    expect(document.activeElement).toBe(backButton);
   });
 });
 
@@ -491,11 +400,6 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     expect(viewport.contains(scrim())).toBe(true);
   });
 
-  it('opens with the open branch expanded in place, as the desk panel shows it', () => {
-    openSheet({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
-    expect(within(sheet()).getByRole('button', { name: 'Tidal Wisp' })).toBeTruthy();
-  });
-
   it.each([
     ['nav.home', null],
     ['fleet.root', 'audioRig'],
@@ -509,22 +413,19 @@ describe('NavPanel — the phone sheet (Task 5)', () => {
     expect(scrim()).toBeNull();
   });
 
-  it.each([
-    ['Tidal Wisp', { selectedRobotId: 'r1' }, 'robots', 'probes'],
-    [human('probe.all'), { allProbesSelected: true }, 'robots', 'probes'],
-  ] as const)('picking the entity %s selects it and closes the sheet', (name, selected, tile, branch) => {
-    openSheet({ activeHubTile: tile, expandedTopLevelBranch: branch });
-    fireEvent.click(within(sheet()).getByRole('button', { name }));
-    expect(useUIStore.getState()).toMatchObject({ ...selected, isNavPanelOpen: false });
-    expect(screen.queryByRole('dialog')).toBeNull();
-  });
+  // Task 13: the sheet holds the same three boxes and no list. Probes on the Probes list is a pick like any
+  // other box, so it shuts the sheet, and it moves nothing else.
+  it('pressing Probes on the Probes list shuts the sheet and changes nothing else', () => {
+    selectBranch('fleetParams');
+    selectBranch('probes');
+    openSheet();
+    const before = useUIStore.getState();
+    expect(within(nav()).getAllByRole('button')).toHaveLength(BOX_ORDER.length);
 
-  it('collapsing the open list in place is not a pick: the sheet stays open', () => {
-    openSheet({ activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
     fireEvent.click(box('probe.root'));
-    expect(useUIStore.getState().expandedTopLevelBranch).toBeNull();
-    expect(useUIStore.getState().isNavPanelOpen).toBe(true);
-    expect(entityList()).toBeNull();
+
+    expect(useUIStore.getState()).toEqual({ ...before, isNavPanelOpen: false });
+    expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('moves focus into the sheet on open', () => {

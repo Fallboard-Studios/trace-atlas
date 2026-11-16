@@ -327,7 +327,7 @@ describe('RosterTile — what it shows (battery)', () => {
 });
 
 describe('RosterTile — a click opens the robot', () => {
-  it('selects the robot through navActions: the robot screen, the Probes branch, the list collapsed', () => {
+  it('selects the robot through navActions: the robot screen, the Probes branch', () => {
     addRobots(makeRobot('r0', { name: 'Tidal Wisp' }));
     useUIStore.getState().setAllProbesSelected(true);
     renderTile('r0');
@@ -336,7 +336,6 @@ describe('RosterTile — a click opens the robot', () => {
     expect(s.selectedRobotId).toBe('r0');
     expect(s.allProbesSelected).toBe(false);
     expect(s.activeHubTile).toBe('robots');
-    expect(s.expandedTopLevelBranch).toBeNull();
   });
 
   it('is a native button, so Enter and Space need no handler of their own', () => {

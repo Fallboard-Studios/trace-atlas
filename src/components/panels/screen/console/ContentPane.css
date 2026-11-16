@@ -5,14 +5,19 @@
    the tab content's panel facade is a faint wash of its trait colour (DirectionalPanel.css), not opaque.
    The band it fills runs from the top bar's lower edge (Header.css's --top-bar-bottom: the slim header
    or the power corner, whichever reaches lower) down to the bottom of the screen. On the desk it sits
-   right of the nav panel: --nav-panel-width (NavPanel.css) is the width the panel tweens as Probes or
-   Companies open, so this edge moves with it. It stops above the bottom sleeve strip, which covers the
+   right of the nav panel: --nav-panel-width (NavPanel.css) is the panel's one width, so this edge never
+   moves. It stops above the bottom sleeve strip, which covers the
    screen's last 32 px (--spacing-2xl, PhoneBar.css). A --spacing-lg gutter on the left, right and
    bottom leaves the dimmed world showing around it, as the sketch draws the desk.
    position: absolute, not a grid row: see .screen-content's comment (ScreenViewport.css). Above
-   WorldView (z-index 0) and under the nav panel (2). */
+   WorldView (z-index 0) and under the nav panel (2).
+   Inside, a column (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.5, Task 8): the Back / Close row
+   (ScreenExitRow.css) at its natural height, then ConsolePanel filling the rest and scrolling inside itself, so the
+   row is pinned by structure, not by position: sticky. */
 .content-pane {
   position: absolute;
+  display: flex;
+  flex-direction: column;
   top: var(--top-bar-bottom);
   right: var(--spacing-lg);
   bottom: calc(var(--spacing-2xl) + var(--spacing-lg));

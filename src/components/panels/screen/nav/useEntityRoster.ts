@@ -17,9 +17,8 @@ function rosterEqual(a: readonly RosterEntry[], b: readonly RosterEntry[]): bool
 /**
  * The narrow roster slice the nav draws (spec §4's memo boundary): `updateRobot` replaces the robots
  * array on every battery tick and swell, so a plain selector would re-render its readers on each one.
- * The previous array is returned while id / name / colour are unchanged (useStableSelector). NavEntityList
- * draws the boxes from it (Task 4) and NavBreadcrumb its names (Task 8); it is a NavRoster's list as it
- * stands.
+ * The previous array is returned while id / name / colour are unchanged (useStableSelector). NavBreadcrumb
+ * draws its names from it (Task 8) and RosterBoard reads it too; it is a NavRoster's list as it stands.
  */
 export function useEntityRoster(key: 'robots' | 'companies'): RosterEntry[] {
   const localeId = useActiveLocaleId();

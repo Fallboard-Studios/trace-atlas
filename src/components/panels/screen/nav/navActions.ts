@@ -5,6 +5,7 @@ import {
   type TopLevelBranch,
   type FleetParamsGroup,
   type SelectedFleetParamsEffect,
+  type NavStop,
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
 import { ROBOT_SECTIONS_CONFIG, activeRobotSection } from '@/data/robotSubsectionConfig';
@@ -13,7 +14,7 @@ import { labels, type ContentKey } from '@/content';
 
 /**
  * Nav selection, in one place (docs/specs/LAYOUT_REWORK.md §1.2; docs/tasks/LAYOUT_REWORK.md Task 3):
- * the panel, its entity list, the breadcrumb, the roster and the company column all call these, and
+ * the panel, the breadcrumb, the roster and the company column all call these, and
  * no component derives a path itself. It replaced the old nav tree's select / goHome / selectedPath.
  *
  * Every action starts from a clean slate — no entity, no section on any branch (Fleet Params back on its
@@ -41,12 +42,6 @@ const TILE_CONTENT: Record<HubTile, ContentKey> = {
 export function branchOfTile(tile: HubTile | null): NavBranch {
   if (tile === null) return 'deck';
   return (Object.keys(BRANCH_TILE) as TopLevelBranch[]).find((branch) => BRANCH_TILE[branch] === tile)!;
-}
-
-/** Whether a branch lists its entities in place under its box — the panel widens for these. Probes alone:
- *  Fleet Params is a leaf, and Companies' list went with its box (docs/tasks/OFF_SCREEN_CONSOLE.md Task 18). */
-export function expandsInPlace(branch: NavBranch): branch is 'probes' {
-  return branch === 'probes';
 }
 
 /** A parent box's label: the Deck's own entry, else its tile's root concept (the breadcrumb's name). */
@@ -128,6 +123,58 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   output: 'fleet.output',
 };
 
+// ========================================
+// THE TRAIL (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2)
+// ========================================
+
+/** The most stops the trail holds; a step past it drops the oldest (spec §7.1 A3). */
+export const NAV_TRAIL_MAX = 50;
+
+/** A screen's identity, one string: `deck`, `probes`, `robot:<id>`, `company:<id>`, `all` or `fleetParams`.
+ *  Under Probes a robot wins over a company and a company over All Probes, as ProbesBranch routes. Fleet Params
+ *  ignores the entity fields: a robot clicked in the world there only moves the halo. Tabs are not identity. */
+function stopKey(stop: Pick<NavStop, 'tile' | 'robotId' | 'companyId' | 'allProbes'>): string {
+  if (stop.tile === null) return 'deck';
+  if (stop.tile === 'audioRig') return 'fleetParams';
+  if (stop.robotId !== null) return `robot:${stop.robotId}`;
+  if (stop.companyId !== null) return `company:${stop.companyId}`;
+  return stop.allProbes ? 'all' : 'probes';
+}
+
+/** The screen showing now, as stopKey names it. */
+function screenKey(s: UIStore): string {
+  return stopKey({ tile: s.activeHubTile, robotId: s.selectedRobotId, companyId: s.selectedCompanyId, allProbes: s.allProbesSelected });
+}
+
+/** The screen showing now, with its four tab fields, as a stop. */
+function currentStop(s: UIStore): NavStop {
+  return {
+    tile: s.activeHubTile,
+    robotId: s.selectedRobotId,
+    companyId: s.selectedCompanyId,
+    allProbes: s.allProbesSelected,
+    section: s.selectedSection,
+    subsection: s.selectedSubsection,
+    fleetSection: s.fleetParamsSection,
+    fleetSubsection: s.fleetParamsSubsection,
+  };
+}
+
+/** A step (spec §1.2): appends the screen being left, unless `destination` (a screenKey) is the screen showing.
+ *  Called first by selectBranch, selectEntity and goHome, before they change anything; never by Back. */
+function recordStep(destination: string): void {
+  const s = useUIStore.getState();
+  if (screenKey(s) === destination) return;
+  const trail = [...s.navTrail, currentStop(s)];
+  s.setNavTrail(trail.length > NAV_TRAIL_MAX ? trail.slice(trail.length - NAV_TRAIL_MAX) : trail);
+}
+
+/** The screenKey an entity pick opens. */
+function entityKey(entity: NavEntity): string {
+  if (entity === 'all') return 'all';
+  return 'robotId' in entity ? `robot:${entity.robotId}` : `company:${entity.companyId}`;
+}
+
 function cleanSlate(): void {
   const s = useUIStore.getState();
   s.setNavPanelOpen(false); // the phone sheet's open flag; the desk panel ignores it
@@ -137,61 +184,89 @@ function cleanSlate(): void {
   s.setFleetParamsSection(DEFAULT_FLEET_PARAMS_SECTION); // also clears the sub-tab
 }
 
-/** Opens a branch's tile with its entity list expanded in place (Probes) or collapsed. */
-function open(branch: TopLevelBranch, expand = expandsInPlace(branch)): void {
-  const s = useUIStore.getState();
-  s.setActiveHubTile(BRANCH_TILE[branch]);
-  s.setExpandedTopLevelBranch(expand ? branch : null);
+/** Opens a branch's tile. */
+function open(branch: TopLevelBranch): void {
+  useUIStore.getState().setActiveHubTile(BRANCH_TILE[branch]);
 }
 
-/** A parent box: that branch's own page, Probes expanded in place, a leaf collapsing
- *  whatever was. `'deck'` is goHome. */
+/** A parent box: that branch's own page. On that page already it changes nothing. `'deck'` is goHome. */
 export function selectBranch(branch: NavBranch): void {
   if (branch === 'deck') {
     goHome();
     return;
   }
+  recordStep(branch);
   cleanSlate();
   open(branch);
 }
 
-/** An entity under Probes (a robot, All Probes or a company): opens Probes on it, at no section, with the
- *  list collapsed (Crawford, 2026-10-10: "collapse the nav when a probe or company is selected"), so the
- *  entity's screen gets the panel's rest width. The parent box brings the list back (pressBranchBox). */
+/** An entity under Probes (a robot, All Probes or a company): opens Probes on it, at no section. */
 export function selectEntity(entity: NavEntity): void {
+  recordStep(entityKey(entity));
   cleanSlate();
   const s = useUIStore.getState();
   if (entity === 'all') s.setAllProbesSelected(true);
   else if ('robotId' in entity) s.selectRobot(entity.robotId);
   // A company opens under Probes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 17, Crawford, 2026-11-09).
   else s.selectCompany(entity.companyId);
-  open('probes', false);
+  open('probes');
 }
 
-/** Whether Probes is on an entity rather than its own page, as the breadcrumb reads it. */
-function probesHasEntity(s: UIStore): boolean {
-  return s.selectedRobotId !== null || s.selectedCompanyId !== null || s.allProbesSelected;
-}
-
-/** A parent box pressed in the panel (Crawford, 2026-10-09: "back, then collapse"). Anywhere but its
- *  own page it is selectBranch, so on an entity it goes back to the branch's page with the list open.
- *  On Probes' own page it toggles the list in place and changes nothing else. Other
- *  callers use selectBranch, which never toggles. */
-export function pressBranchBox(branch: NavBranch): void {
-  const s = useUIStore.getState();
-  if (expandsInPlace(branch) && branchOfTile(s.activeHubTile) === branch && !probesHasEntity(s)) {
-    s.setExpandedTopLevelBranch(s.expandedTopLevelBranch === branch ? null : branch);
-    return;
-  }
-  selectBranch(branch);
-}
-
-/** The Deck: no tile, nothing expanded, no entity. */
+/** The Deck: no tile, no entity. Close on the screen row (spec §1.3): a step like any other, so a
+ *  Back after it returns to the screen closed. */
 export function goHome(): void {
+  recordStep('deck');
   cleanSlate();
+  showDeck();
+}
+
+function showDeck(): void {
+  useUIStore.getState().setActiveHubTile(null);
+}
+
+/** Shows a stop after the clean slate. The order matters: selectRobot clears the robot tabs and
+ *  setFleetParamsSection clears its sub-tab, so the entity comes before its tabs and each section before its
+ *  sub-tab. */
+function restore(stop: NavStop): void {
   const s = useUIStore.getState();
-  s.setActiveHubTile(null);
-  s.setExpandedTopLevelBranch(null);
+  s.setActiveHubTile(stop.tile);
+  if (stop.robotId !== null) s.selectRobot(stop.robotId);
+  if (stop.companyId !== null) s.selectCompany(stop.companyId);
+  s.setAllProbesSelected(stop.allProbes);
+  s.setSelectedSection(stop.section);
+  s.setSelectedSubsection(stop.subsection);
+  s.setFleetParamsSection(stop.fleetSection);
+  s.setFleetParamsSubsection(stop.fleetSubsection);
+}
+
+/** A deleted company leaves the trail (spec §1.3, §7.1 A5), so Back never lands on a screen with nothing to show.
+ *  Every stop naming the company goes; two stops left side by side for one screen become the later one; a last stop
+ *  that is the Probes list goes too, since that is the screen this shows. Then the Probes list, with no step
+ *  recorded: the company's screen is gone, not left. The delete path calls this in place of selectBranch('probes'). */
+export function closeDeletedCompany(companyId: string): void {
+  const s = useUIStore.getState();
+  const kept: NavStop[] = [];
+  for (const stop of s.navTrail) {
+    if (stop.companyId === companyId) continue;
+    const last = kept.at(-1);
+    if (last && stopKey(last) === stopKey(stop)) kept[kept.length - 1] = stop;
+    else kept.push(stop);
+  }
+  while (kept.length > 0 && stopKey(kept[kept.length - 1]) === 'probes') kept.pop();
+  s.setNavTrail(kept);
+  cleanSlate();
+  open('probes');
+}
+
+/** Back (spec §1.3): the last stop on the trail, on the tabs it showed, taken off the trail; the deck when the trail
+ *  is empty. Never a step itself. The screen row's Back and the browser's Back both call this. */
+export function back(): void {
+  const s = useUIStore.getState();
+  const stop = s.navTrail.at(-1);
+  if (stop) s.setNavTrail(s.navTrail.slice(0, -1));
+  cleanSlate();
+  if (stop) restore(stop);
+  else showDeck();
 }
 
 // ========================================
@@ -254,8 +329,7 @@ export interface BreadcrumbSegment {
 
 /** Root / branch / entity / section — `[]` on the Deck. A section shows only under a Probes entity
  *  (a robot, a company, All Probes), or as Fleet Params' open tab and sub-tab (Root / Fleet Params /
- *  <section> / <sub-tab>). The branch goes back with selectBranch, which never toggles (pressBranchBox
- *  is the panel's own). */
+ *  <section> / <sub-tab>). The branch goes back with selectBranch, as the panel's box does. */
 export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): BreadcrumbSegment[] {
   const tile = state.activeHubTile;
   if (tile === null) return [];

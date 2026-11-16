@@ -446,12 +446,10 @@ export function retransmitWorld(input: RetransmitInput): void {
   const action = resolveRetransmitAction(input);
   if (action.mode === 'noop') return;
 
-  // A re-deal or re-derive in place keeps every robot and company id, so it keeps the selection too.
-  if (action.mode !== 'aspectsOnly' && action.mode !== 'loadingOnly') {
-    useUIStore.getState().selectRobot(null);
-    // Companies are regenerated with fresh ids on a reseed — a selected company's id would dangle.
-    useUIStore.getState().selectAllRobots();
-  }
+  // A new world lands on the deck with an empty trail (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.4): companies come
+  // back under fresh ids, so a selected company, or one on the trail, would dangle. A re-deal or re-derive in place
+  // keeps every robot and company id, so it keeps the screen and the trail too.
+  if (action.mode !== 'aspectsOnly' && action.mode !== 'loadingOnly') useUIStore.getState().resetNav();
   const oldAttenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState());
   if (!oldAttenuationStyle) return;
   const oldLocaleId = oldAttenuationStyle.currentLocaleId;

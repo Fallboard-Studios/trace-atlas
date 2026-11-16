@@ -113,8 +113,8 @@ export const Robot = memo(function Robot({ robotId }: RobotProps) {
   // present to block anything, this click reaches WorldView for free, no pointer-events
   // special-casing needed the way the old console--grid mechanism once provided.
   // From the Deck or the Probes tile it is a nav pick like any other (navActions): the robot's screen
-  // opens and the nav list collapses to the panel's rest width (spec §1.2). On any other tile it only
-  // moves the selection, which the halo shows.
+  // opens, a step on the trail (spec §1.2). On any other tile it only moves the selection, which the
+  // halo shows.
   const handleClick = () => {
     if (activeHubTile === null || activeHubTile === 'robots') selectEntity({ robotId: robot.id });
     else selectRobot(robot.id);

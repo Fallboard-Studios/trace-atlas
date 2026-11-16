@@ -4,8 +4,15 @@ Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE
 [docs/intent/navigation-close-and-back.md](../intent/navigation-close-and-back.md). Backlog slot:
 [75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5.
 
-**Status:** plan written 2026-11-15 from the spec, before Crawford's answers to its §7.2 questions; every one is built
-on its default and listed under Open Questions below. Nothing is built. Next: Task 0.
+**Status:** plan written 2026-11-15 from the spec. Tasks 0 and 1 built 2026-11-15 on
+`feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Gates 1 and 2 passed the same
+day: the guard design stands; the row is words, in the plate, with a plain "Back". Crawford accepted spec §7.2's
+defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's checks pass. Phase 2 (Tasks 7–9, the row)
+built 2026-11-15; Checkpoint B's automated checks pass. Phase 3 (Tasks 10–12, the browser's Back) built 2026-11-15;
+Checkpoint C's automated checks pass. Phase 4 (Tasks 13–15, the rail) built 2026-11-15 on Crawford's go, before his
+Checkpoint B and C runs; Gate 3's automated checks pass. Crawford then reported his hand runs (Checkpoint B's trail
+and look, Checkpoint C's browser runs) and his Gate 3 look, and kept the trial (2026-11-15). Task 16 (the docs) done the same day. Next: Checkpoint Complete,
+then Crawford's PR, then Task 17 after the merge.
 
 ## Overview
 
@@ -109,7 +116,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 0: The two early gates
 
-- [ ] **Task 0: `docs/sketches/tools/browser-back-probe.html` — the probe for Gate 1**
+- [x] **Task 0: `docs/sketches/tools/browser-back-probe.html` — the probe for Gate 1**
 
   **Description:** One self-contained page with the guard design from spec §7.1 C1 and nothing of the app: a counter
   standing in for the trail, a "step" button (adds one, and pushes the guard on the first step from zero), the
@@ -123,13 +130,15 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   checks in desktop Chrome, desktop Firefox and Chrome on the Pixel.
 
   **Acceptance criteria:**
-  - [ ] The page runs with no build step and no import from `src/`.
-  - [ ] Each of the five checks can be run from the page's own buttons and read from its log.
-  - [ ] The toggle shows whether rewriting the landed entry closes the known hole.
+  - [x] The page runs with no build step and no import from `src/`.
+  - [x] Each of the five checks can be run from the page's own buttons and read from its log.
+  - [x] The toggle shows whether rewriting the landed entry closes the known hole.
 
   **Verification:**
-  - [ ] Opened once in desktop Chrome before handing over: the step button, the address button and the log work.
-  - [ ] `npm run lint` clean.
+  - [x] Opened once in desktop Chrome before handing over: the step button, the address button and the log work.
+        (Headless Chrome over CDP: three steps pushed one guard, three `history.back()` calls each stepped and
+        returned to the guard, a fourth on an empty trail left the page; no console errors.)
+  - [x] `npm run lint` clean. (ESLint covers `.ts`/`.tsx` only; neither page is linted.)
 
   **Dependencies:** None.
 
@@ -137,7 +146,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one standalone page)
 
-- [ ] **Task 1: `docs/sketches/navigation-close-and-back.html` — the sketch for Gate 2**
+- [x] **Task 1: `docs/sketches/navigation-close-and-back.html` — the sketch for Gate 2**
 
   **Description:** The row drawn on the desk and on the phone at 320 px, against the power corner at its real size
   (the rocker's variables from `src/index.css`), with the robot screen's sticky band under it on the phone. Toggles:
@@ -148,12 +157,16 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Look — Crawford names the look, the row's place and whether Back names where it goes.
 
   **Acceptance criteria:**
-  - [ ] Both shells are drawn, the phone at 320 px, with Close clear of the rocker in every toggle state.
-  - [ ] Every option spec §1.5 leaves to the sketch has a toggle.
+  - [x] Both shells are drawn, the phone at 320 px, with Close clear of the rocker in every toggle state. (In the
+        plate and on the desk's top band, yes. In the phone's top band at 320 px, no: the controls line needs 285 px
+        and has 225, and Close runs under the rocker. The page reads this out rather than hiding it; it is Gate 2's
+        evidence against that option, and the "band on desk, plate on phone" toggle is the alternative.)
+  - [x] Every option spec §1.5 leaves to the sketch has a toggle.
 
   **Verification:**
-  - [ ] Opened in a browser at desk width and at 320 px.
-  - [ ] `npm run lint` clean.
+  - [x] Opened in a browser at desk width and at 320 px. (Headless Chrome at 1500, 1300 and 320 px; no
+        horizontal page scroll at 320.)
+  - [x] `npm run lint` clean. (ESLint covers `.ts`/`.tsx` only.)
 
   **Dependencies:** None.
 
@@ -162,18 +175,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (one sketch page)
 
 ### Checkpoint: Gates 1 and 2 (stop and report)
-- [ ] Gate 1: the five checks pass in the three browsers, or the failure is recorded and the build stops for a
+- [x] Gate 1: the five checks pass in the three browsers, or the failure is recorded and the build stops for a
       re-plan on spec §7.1 C4. The results, and whether the known hole needs the ask-first address helper, are written
-      into the spec.
-- [ ] Gate 2: Crawford's answers are written into the spec (§1.5, §7.1 B1–B2, §7.2 Q5), and Tasks 7–8 are adjusted
-      if the row moves to the top band.
-- [ ] Crawford's answers to spec §7.2 Q1–Q3 and Q6, if he gives them here, are written into the spec and this plan.
+      into the spec. (Passed 2026-11-15. The address helper stays an ask-first, looked at again at Checkpoint C.)
+- [x] Gate 2: Crawford's answers are written into the spec (§1.5, §7.1 B1–B2, §7.2 Q5), and Tasks 7–8 are adjusted
+      if the row moves to the top band. (Words, the plate, a plain "Back", no lore label. The row stays in the plate,
+      so Tasks 7–8 stand as written.)
+- [x] Crawford's answers to spec §7.2 Q1–Q3 and Q6, if he gives them here, are written into the spec and this plan.
+      (All six defaults accepted.)
 
 ---
 
 ### Phase 1: The trail (Part A)
 
-- [ ] **Task 2: `uiStore.ts` — `NavStop` and `navTrail`**
+- [x] **Task 2: `uiStore.ts` — `NavStop` and `navTrail`**
 
   **Description:** The `NavStop` interface (spec §4, eight fields), the field `navTrail: NavStop[]` (initially empty)
   and `setNavTrail(trail)`. No caller yet. `uiStore.test.ts`'s field table (`NAV_FIELDS`) gains `navTrail`, and its
@@ -183,13 +198,15 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   is unchanged by `setPowerOff` then `setPowerOn`.
 
   **Acceptance criteria:**
-  - [ ] `navTrail` starts as `[]` and holds exactly what `setNavTrail` was given.
-  - [ ] A trail of two stops survives `setPowerOff` and `setPowerOn` unchanged.
-  - [ ] The store's initial state still round-trips through JSON.
+  - [x] `navTrail` starts as `[]` and holds exactly what `setNavTrail` was given.
+  - [x] A trail of two stops survives `setPowerOff` and `setPowerOn` unchanged.
+  - [x] The store's initial state still round-trips through JSON.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/uiStore.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/uiStore.test.ts` passes. (RED first: 6 failures, the field table and the five
+        new cases; 66 pass after.)
+  - [x] `npm run build:types`, `npm run lint` clean. (Lint's four warnings are older, in `Scenery.tsx` and
+        `gemShape.tsx`.)
 
   **Dependencies:** Gate 1.
 
@@ -197,7 +214,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** XS (one field, one setter)
 
-- [ ] **Task 3: `navActions.ts` — every navigation records a step**
+- [x] **Task 3: `navActions.ts` — every navigation records a step**
 
   **Description:** The private `screenKey` and the recording helper (Architecture Decisions). `selectBranch`,
   `selectEntity` and `goHome` call it first, with their destination. The stop holds the screen and the four tab
@@ -208,16 +225,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   tabs.
 
   **Acceptance criteria:**
-  - [ ] Each of the three actions appends the screen being left, with its four tab fields.
-  - [ ] Going to the screen already showing appends nothing (Fleet Params pressed on Fleet Params, the same robot
+  - [x] Each of the three actions appends the screen being left, with its four tab fields.
+  - [x] Going to the screen already showing appends nothing (Fleet Params pressed on Fleet Params, the same robot
         picked twice), and still resets the tabs as today.
-  - [ ] The four tab setters append nothing.
-  - [ ] The 51st step drops the oldest stop.
-  - [ ] Every existing `navActions.test.ts` case passes unmodified.
+  - [x] The four tab setters append nothing.
+  - [x] The 51st step drops the oldest stop.
+  - [x] Every existing `navActions.test.ts` case passes unmodified. (No case changed. The `dirtyStore` helper now
+        also sets an empty trail: `pressBranchBox`'s "does what selectBranch does" cases dirty the store twice and
+        compare the whole state, so the second run started with the first run's stop.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (RED first: 11 of the 20 new cases failed; the
+        nine that passed are the "no step" guards, which Checkpoint A's same-screen mutation must kill. Also run:
+        `src/components/panels/screen`, `src/components/robot`, `src/components/company`, 3,128 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2.
 
@@ -225,7 +246,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one helper, three call sites, its tests)
 
-- [ ] **Task 4: `navActions.ts` — `back()`**
+- [x] **Task 4: `navActions.ts` — `back()`**
 
   **Description:** `back()` takes the last stop off the trail and shows it in the restore order above; with an empty
   trail it shows the deck. It never records a step, and it runs the clean slate, so it shuts the phone sheet.
@@ -234,14 +255,15 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   company on Envelope › Character.
 
   **Acceptance criteria:**
-  - [ ] deck → robot → `back()` shows the deck with an empty trail.
-  - [ ] Fleet Params on a non-default section and sub-tab → Probes → `back()` shows Fleet Params on both.
-  - [ ] robot → `goHome()` → `back()` shows the robot.
-  - [ ] `back()` appends nothing; on an empty trail it shows the deck; it sets `isNavPanelOpen` false.
+  - [x] deck → robot → `back()` shows the deck with an empty trail.
+  - [x] Fleet Params on a non-default section and sub-tab → Probes → `back()` shows Fleet Params on both.
+  - [x] robot → `goHome()` → `back()` shows the robot.
+  - [x] `back()` appends nothing; on an empty trail it shows the deck; it sets `isNavPanelOpen` false.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (RED first: all 15 new cases failed, `back` not a
+        function; 271 pass after.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 3.
 
@@ -249,7 +271,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one action and a restore helper)
 
-- [ ] **Task 5: `navActions.ts`, `CompanyCrudControls.tsx` — a deleted company leaves the trail**
+- [x] **Task 5: `navActions.ts`, `CompanyCrudControls.tsx` — a deleted company leaves the trail**
 
   **Description:** `closeDeletedCompany(companyId)` as in Architecture Decisions. `handleConfirmDelete` calls it in
   place of `selectBranch('probes')`.
@@ -258,14 +280,17 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   `closeDeletedCompany('X')` shows the Probes list and leaves no stop naming X.
 
   **Acceptance criteria:**
-  - [ ] No stop names the deleted company, and the delete itself records no step.
-  - [ ] No two neighbouring stops name the same screen afterwards, and the last stop is not the Probes list.
-  - [ ] In `CompanyCrudControls.test.tsx`, confirming a delete shows the Probes list and a following `back()` shows
+  - [x] No stop names the deleted company, and the delete itself records no step.
+  - [x] No two neighbouring stops name the same screen afterwards, and the last stop is not the Probes list. (Of two
+        neighbours, the later is kept, with its tabs.)
+  - [x] In `CompanyCrudControls.test.tsx`, confirming a delete shows the Probes list and a following `back()` shows
         the screen before the company, not the Probes list again.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav src/components/company/CompanyCrudControls.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav src/components/company/CompanyCrudControls.test.tsx` passes.
+        (RED first: all 10 new cases failed, the component case on a company stop left on the trail; 605 pass after
+        across `nav/` and `company/`. The old "removeCompany, then selectAllRobots" order case still passes.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 4.
 
@@ -274,7 +299,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one action, one call site)
 
-- [ ] **Task 6: `uiStore.ts`, `worldTransition.ts` — a world rebuild resets the nav**
+- [x] **Task 6: `uiStore.ts`, `worldTransition.ts` — a world rebuild resets the nav**
 
   **Description:** `resetNav()` sets the deck's state in one write: no tile, no robot, no company (`allRobotsSelected`
   true), All Probes off, the robot tabs null, Fleet Params on its default section with no sub-tab, nothing expanded,
@@ -287,17 +312,19 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   coordinates retransmit leaves the deck and an empty trail.
 
   **Acceptance criteria:**
-  - [ ] `resetNav()` leaves every nav field at the deck's value and `navTrail` empty; `isPoweredOn` and `sceneWash`
-        are unchanged.
-  - [ ] Every rebuilding mode of `retransmitWorld` resets the nav; `aspectsOnly`, `loadingOnly` and the no-op leave
+  - [x] `resetNav()` leaves every nav field at the deck's value and `navTrail` empty; `isPoweredOn` and `sceneWash`
+        are unchanged. (And the clock readouts; one write, one subscriber call.)
+  - [x] Every rebuilding mode of `retransmitWorld` resets the nav; `aspectsOnly`, `loadingOnly` and the no-op leave
         the screen and the trail as they were.
-  - [ ] The suites that mock `uiStore` with a fixed shape still load (`PowerRockerSwitch.test.tsx`,
+  - [x] The suites that mock `uiStore` with a fixed shape still load (`PowerRockerSwitch.test.tsx`,
         `PowerRockerSwitch.light.test.tsx`, `Tablet.test.tsx`, `SleeveContainer.test.tsx`, `powerController.test.ts`).
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/uiStore.test.ts src/systems/worldTransition.test.ts` passes, then the five mocking
-        suites named above.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/uiStore.test.ts src/systems/worldTransition.test.ts` passes, then the five mocking
+        suites named above. (RED first: 8 failed, the three `resetNav` cases, the rewritten case and the four
+        rebuild modes; the in-place and no-op cases passed as guards. 257 pass after, the five suites included.
+        `worldTransition.test.ts`'s `resetStores` helper now empties the trail too.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2. (Independent of Tasks 3–5.)
 
@@ -307,17 +334,25 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (one action, one call site, one rewritten test)
 
 ### Checkpoint A: The trail
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; note any unrelated failure by name).
-- [ ] Mutation checks, each killed by a test: the same-screen check removed; the cap removed; the robot tabs restored
-      before the entity; `back()` recording a step; `resetNav()` leaving the trail.
-- [ ] No component reads `navTrail` yet, and no screen looks different.
-- [ ] Reviewed with Crawford before Phases 2 and 3.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (full suite; note any unrelated failure by name).
+      (2026-11-15, after Task 6: 14,464 pass, 0 fail, 2 skipped as before; lint's four warnings are older.)
+- [x] Mutation checks, each killed by a test: the same-screen check removed; the cap removed; the robot tabs restored
+      before the entity; `back()` recording a step; `resetNav()` leaving the trail. (Killed by 7, 2, 1, 6 and 6
+      cases. Three more, also killed: Fleet Params' sub-tab restored before its section (1); `closeDeletedCompany`
+      keeping a last Probes-list stop (2, the component case among them); its neighbour merge removed (1). The
+      robot-tabs order is caught only by a robot stop: `selectCompany` clears no tab, so the company and All Probes
+      restores pass under it.)
+- [x] No component reads `navTrail` yet, and no screen looks different. (Only `navActions.ts`, `uiStore.ts`,
+      `worldTransition.ts` and `CompanyCrudControls.tsx` name the trail's API. One visible change, by design: a world
+      rebuild now lands on the deck, where it used to keep the branch open.)
+- [x] Reviewed with Crawford before Phases 2 and 3. (He went on to Phases 2 and 3; his "everything looks good" of
+      2026-11-15 covers the trail.)
 
 ---
 
 ### Phase 2: The row (Part B)
 
-- [ ] **Task 7: `ScreenExitRow.tsx`, `nav.ts` — Back and Close**
+- [x] **Task 7: `ScreenExitRow.tsx`, `nav.ts` — Back and Close**
 
   **Description:** A stateless component in `nav/`: two schema-driven `Button`s, Back calling `back()` and Close
   calling `goHome()`, labelled from two new entries, `nav.back` and `nav.close` (the wording Gate 2 gave). The markup
@@ -327,13 +362,16 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   the Probes list, pressing Back shows the Probes list; pressing Close shows the deck (both read from the store).
 
   **Acceptance criteria:**
-  - [ ] Back runs `back()` and Close runs `goHome()`, asserted on the store's state.
-  - [ ] Both buttons carry their content labels as accessible names; no display string is written in the component.
-  - [ ] `src/content/content.test.ts` passes with the two new entries.
+  - [x] Back runs `back()` and Close runs `goHome()`, asserted on the store's state.
+  - [x] Both buttons carry their content labels as accessible names; no display string is written in the component.
+        (Each face is the word alone, `face="single"`: no lore line.)
+  - [x] `src/content/content.test.ts` passes with the two new entries.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav src/content/content.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav src/content/content.test.ts` passes. (RED first: the suite
+        failed to load, no `./ScreenExitRow`. Two of the seven cases then failed on my own fixture, which started on
+        the deck and so had a deck stop I had not counted; the expectations were corrected, not the code. 416 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint A, Gate 2.
 
@@ -342,7 +380,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one small component, two content entries)
 
-- [ ] **Task 8: `ContentPane.tsx`, `ContentPane.css`, `ConsolePanel.css` — the row on every open screen**
+- [x] **Task 8: `ContentPane.tsx`, `ContentPane.css`, `ConsolePanel.css` — the row on every open screen**
 
   **Description:** `ContentPane` renders `ScreenExitRow` above `ConsolePanel`. The plate becomes a column: the row at
   its natural height, the console filling the rest and scrolling inside itself. `ContentPane.tsx`'s header comment,
@@ -353,15 +391,21 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   active and not on the deck. Then a Look for the stylesheet.
 
   **Acceptance criteria:**
-  - [ ] The row renders on the Probes list, a robot, a company, All Probes and Fleet Params, and not on the deck.
-  - [ ] The row is not inside `ConsolePanel`'s scroller.
-  - [ ] Look: at 320 px, 768 px and wide the row stays put while each screen scrolls, Close is clear of the rocker,
-        and the robot screen's phone band sits under the row.
+  - [x] The row renders on the Probes list, a robot, a company, All Probes and Fleet Params, and not on the deck.
+  - [x] The row is not inside `ConsolePanel`'s scroller.
+  - [x] Look: at 320 px, 768 px and wide the row stays put while each screen scrolls, Close is clear of the rocker,
+        and the robot screen's phone band sits under the row. (Headless Chrome over CDP, 320×640 and 768×1024
+        emulated, 1500×900: on every screen the row's top was the same before and after a 600 px scroll of the
+        console; the row starts below the power corner (phone 145 vs the corner's 128, desk 172 vs 159); the phone's
+        band stuck at 206, the row's bottom; no horizontal page scroll. The row costs 61 px, 65 px at the wide tier.
+        Crawford's own look is Checkpoint B's.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console` passes.
-  - [ ] The Look above in a live browser, recorded in the commit or flagged at Checkpoint B.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/console` passes. (RED first: 7 of the 8 new cases failed, no
+        row; the deck case passed as a guard. 417 pass; also `src/components/panels`, `tablet`, `robot`, `company`
+        and `App`, 3,182 pass.)
+  - [x] The Look above in a live browser, recorded in the commit or flagged at Checkpoint B.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 7.
 
@@ -370,7 +414,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one mount, two stylesheets)
 
-- [ ] **Task 9: `Header.tsx` — focus when the row unmounts**
+- [x] **Task 9: `Header.tsx` — focus when the row unmounts**
 
   **Description:** Close, or a Back that lands on the deck, removes the button that had focus. On the desk the rail's
   `useRescueLostFocus` should already move focus to the Deck box; this task adds the case that shows it. On the phone
@@ -382,14 +426,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   leaves the document as the tile becomes null leaves focus on the menu toggle.
 
   **Acceptance criteria:**
-  - [ ] Phone: after the focused row button unmounts, the menu toggle has focus; focus on a live element is left alone.
-  - [ ] Desk: with Close focused, pressing it leaves focus on the Deck box. If this case passes on today's code it is
-        kept as a pin and said so in the commit.
-  - [ ] After a Back to another open screen, focus is still on the Back button.
+  - [x] Phone: after the focused row button unmounts, the menu toggle has focus; focus on a live element is left alone.
+        (The trigger is whether a screen is open, the one flip that takes the row away, so Header re-renders only
+        then.)
+  - [x] Desk: with Close focused, pressing it leaves focus on the Deck box. If this case passes on today's code it is
+        kept as a pin and said so in the commit. (It passed on today's code, as did the desk's Back-to-the-deck and
+        Back-to-another-screen cases: three pins in `NavPanel.test.tsx`.)
+  - [x] After a Back to another open screen, focus is still on the Back button. (Both shells.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/Header.test.tsx src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/Header.test.tsx src/components/panels/screen/nav` passes. (RED
+        first: the phone's Close and Back-to-the-deck cases failed with focus on `<body>`; the live-element, sheet-open,
+        Back-to-another-screen and desk cases passed as guards. 347 pass, then `src/components/panels` and `tablet`,
+        1,969.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 8.
 
@@ -399,17 +449,21 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (one hook call, three cases)
 
 ### Checkpoint B: The row
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Mutation checks: Back wired to `goHome`; the row rendered on the deck; the phone rescue left on while the sheet
-      is open.
-- [ ] Spec §5.3's first run (the trail, by hand) done on both shells with the on-screen controls.
-- [ ] Crawford's look at the row against the sketch.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean. (2026-11-15, after Task 9: 14,488 pass, 0 fail, 2
+      skipped as before; lint's four warnings are older. `npm run build` clean too.)
+- [x] Mutation checks: Back wired to `goHome`; the row rendered on the deck; the phone rescue left on while the sheet
+      is open. (Killed by 5, 2 and 1 cases. Two more, also killed: the phone rescue's trigger frozen (2, the phone's
+      Close and Back-to-the-deck cases); the rail's rescue switched off (4, the two new desk pins and the two older
+      entity-focus cases), so the pins bite.)
+- [x] Spec §5.3's first run (the trail, by hand) done on both shells with the on-screen controls. (By Crawford,
+      reported 2026-11-15 after Gate 3: "everything looks good".)
+- [x] Crawford's look at the row against the sketch. (The same report.)
 
 ---
 
 ### Phase 3: The browser's Back (Part C)
 
-- [ ] **Task 10: `useBrowserBack.ts` — a Back press runs `back()`**
+- [x] **Task 10: `useBrowserBack.ts` — a Back press runs `back()`**
 
   **Description:** The hook adds a `popstate` listener in an effect and removes it on unmount. The handler is spec
   §4's: a guard state does nothing; with the power off or the trail empty it calls `history.back()`; otherwise it
@@ -420,15 +474,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   trail, a dispatched non-guard `popstate` leaves a one-stop trail and one `history.forward()` call.
 
   **Acceptance criteria:**
-  - [ ] Power on, trail not empty: one press makes exactly one `back()` step and one `forward()` call.
-  - [ ] Trail empty: one `history.back()` call and no state change.
-  - [ ] Power off, trail not empty: one `history.back()` call and the trail unchanged (spec §7.2 Q1's default).
-  - [ ] A `popstate` carrying the guard marker changes nothing and calls nothing (spec §7.2 Q2's default).
-  - [ ] After unmount a `popstate` changes nothing.
+  - [x] Power on, trail not empty: one press makes exactly one `back()` step and one `forward()` call. (Also: a
+        one-stop trail steps to the deck and still calls `forward()`; five presses walk five stops, the sixth passes
+        on.)
+  - [x] Trail empty: one `history.back()` call and no state change.
+  - [x] Power off, trail not empty: one `history.back()` call and the trail unchanged (spec §7.2 Q1's default).
+  - [x] A `popstate` carrying the guard marker changes nothing and calls nothing (spec §7.2 Q2's default). (Another
+        `traceAtlasNav` value is not the guard.)
+  - [x] After unmount a `popstate` changes nothing.
+  - [x] A throwing `forward()` or `back()` is caught: nothing reaches the window's `error` event.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes. (RED first: the suite
+        failed to load, no `./useBrowserBack`. Then 10 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoint A.
 
@@ -436,7 +495,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one hook, one handler)
 
-- [ ] **Task 11: `useBrowserBack.ts` — the guard entry**
+- [x] **Task 11: `useBrowserBack.ts` — the guard entry**
 
   **Description:** Inside the same effect, a `uiStore` subscription keeps one rule: while the power is on and the
   trail is not empty, the current history entry is a guard. When it is not, the hook pushes one entry with the
@@ -446,15 +505,23 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   marker and the current URL.
 
   **Acceptance criteria:**
-  - [ ] The first step from an empty trail pushes exactly one guard; later steps push none while `history.state`
+  - [x] The first step from an empty trail pushes exactly one guard; later steps push none while `history.state`
         carries the marker.
-  - [ ] The push keeps the existing `history.state` fields and the path, query and hash.
-  - [ ] With steps on the trail and a current entry that is not a guard (the known hole), the next step pushes one.
-  - [ ] No push happens from the `popstate` handler, with the power off, or with an empty trail.
+  - [x] The push keeps the existing `history.state` fields and the path, query and hash. (A state that is not an
+        object gives way to the marker alone.)
+  - [x] With steps on the trail and a current entry that is not a guard (the known hole), the next step pushes one.
+        (So does power-on with steps on the trail: the rocker is the gesture.)
+  - [x] No push happens from the `popstate` handler, with the power off, or with an empty trail. (The handler's own
+        `back()` changes the trail while the entry behind the guard is current, so the hook holds a flag around it;
+        the subscriber reacts only to a change of the trail or the power, so the clock's timer writes never push; a
+        throwing `pushState` is caught.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav/useBrowserBack.test.tsx` passes. (RED first: the seven
+        push cases failed with no push; the six no-push cases passed as guards. Two of them were mutation-checked in
+        the task, since nothing pushed before it: the flag removed kills the `popstate` case, and the subscriber
+        reacting to every write kills the clock case. 23 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 10.
 
@@ -462,7 +529,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one subscription)
 
-- [ ] **Task 12: `ScreenViewport.tsx` — the hook is mounted in both power states**
+- [x] **Task 12: `ScreenViewport.tsx` — the hook is mounted in both power states**
 
   **Description:** `ScreenViewport` calls `useBrowserBack()`. It is mounted whether the power is on or off, so a press
   on the off screen reaches the handler.
@@ -471,13 +538,17 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   on and a one-stop trail, a dispatched `popstate` empties the trail.
 
   **Acceptance criteria:**
-  - [ ] Powered on, a press steps the trail; powered off, it passes on and the trail stands.
-  - [ ] Unmounting the viewport removes the listener and the subscription.
-  - [ ] `Tablet.test.tsx`, which mocks `uiStore`, still loads.
+  - [x] Powered on, a press steps the trail; powered off, it passes on and the trail stands. (Also: the first step
+        pushes the guard, and the hook stays wired across a power cycle.)
+  - [x] Unmounting the viewport removes the listener and the subscription.
+  - [x] `Tablet.test.tsx`, which mocks `uiStore`, still loads. (It stubs `ScreenViewport` whole, so the hook never
+        runs there.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/physical src/components/tablet` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/physical src/components/tablet` passes. (RED first: the four wiring
+        cases failed, nothing listening; the unmount case passed as a guard. 17 pass; then `src/components/panels`
+        and `HelpPopover.test.tsx`, the other files that render the real viewport, 2,009.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 11.
 
@@ -486,19 +557,22 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** XS (one call, one case)
 
 ### Checkpoint C: The browser's Back (stop and report)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Mutation checks: the power check removed; `forward()` removed; the guard pushed on every step; the marker
-      check inverted.
-- [ ] Spec §5.3's browser, power and address-bar runs, by Crawford in a real browser, since only the real button
-      shows the browser's own rules: desktop Chrome, desktop Firefox, Chrome on the Pixel.
-- [ ] If the known hole shows in the app as it did on the probe, stop: the address helper is an ask-first (spec §3)
-      and gets its own task only on Crawford's yes.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. (2026-11-15, after Task 12: 14,516
+      pass, 0 fail, 2 skipped as before; lint's four warnings are older.)
+- [x] Mutation checks: the power check removed; `forward()` removed; the guard pushed on every step; the marker
+      check inverted. (Killed by 2, 6, 1 and 13 cases. Task 11 also killed two of its own: the press flag removed
+      (1, the no-push-from-`popstate` case) and the subscriber reacting to every store write (1, the clock case).)
+- [x] Spec §5.3's browser, power and address-bar runs, by Crawford in a real browser, since only the real button
+      shows the browser's own rules: desktop Chrome, desktop Firefox, Chrome on the Pixel. (Reported 2026-11-15 after
+      Gate 3: "everything looks good".)
+- [x] If the known hole shows in the app as it did on the probe, stop: the address helper is an ask-first (spec §3)
+      and gets its own task only on Crawford's yes. (It did not show: no address helper task.)
 
 ---
 
 ### Phase 4: The rail (Part D, on trial)
 
-- [ ] **Task 13: `NavPanel.tsx`, `NavPanel.css` — one width, no list**
+- [x] **Task 13: `NavPanel.tsx`, `NavPanel.css` — one width, no list**
 
   **Description:** `NavPanel` stops rendering `NavEntityList`, stops passing `expanded`, drops `useNavPanelWidth` with
   its GSAP and `timelineMap` imports, and calls `selectBranch` for every box. The rescue hook's trigger loses the
@@ -512,16 +586,23 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   changes no nav state (today it toggles the list). The rest is deletion: Read, and a Look.
 
   **Acceptance criteria:**
-  - [ ] The panel renders three boxes and no entity list on either shell; no box carries `aria-expanded`.
-  - [ ] Pressing Probes from a robot's screen shows the Probes list; pressing it there changes nothing.
-  - [ ] No `nav-panel-width` timeline is ever registered.
-  - [ ] Look: the rail is 124 px on every screen and the content's left edge never moves; the phone sheet shows three
-        boxes.
+  - [x] The panel renders three boxes and no entity list on either shell; no box carries `aria-expanded`. (`NavBox`
+        lost its `expanded` prop: `RosterBoard`'s "+ New Company" passes `expanded` to a `Button`, not a `NavBox`.)
+  - [x] Pressing Probes from a robot's screen shows the Probes list; pressing it there changes nothing. (On the phone
+        the press is a pick like any box: it shuts the sheet and changes nothing else.)
+  - [x] No `nav-panel-width` timeline is ever registered.
+  - [x] Look: the rail is 124 px on every screen and the content's left edge never moves; the phone sheet shows three
+        boxes. (Headless Chrome, 2026-11-15, powered on: deck, Probes, a robot, Fleet Params, Probes, Probes pressed on
+        itself, Back. At 1500 × 900 and 768 × 1024 the rail is 124 px and the content's left edge 156 px on all
+        seven; at 320 × 640 the sheet holds three boxes and no `aria-expanded` on all seven.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] The Look above, recorded in the commit or flagged at Gate 3.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (RED first: the press on the Probes list, the three
+        no-disclosure cases and the no-timeline case failed; the robot-screen case passed as a pin. 285 pass; then
+        `src/components/panels`, `src/components/tablet`, `src/components/robot`, 2,864. Mutation: the boxes back on
+        `pressBranchBox` is killed by 2.)
+  - [x] The Look above, recorded in the commit or flagged at Gate 3.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoints B and C.
 
@@ -530,7 +611,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** M (three edited, three deleted, one comment)
 
-- [ ] **Task 14: `navActions.ts` — the list's actions go**
+- [x] **Task 14: `navActions.ts` — the list's actions go**
 
   **Description:** `pressBranchBox`, `expandsInPlace`, `probesHasEntity` if nothing else reads it, and `open()`'s
   `expand` argument are deleted; `selectBranch`, `selectEntity`, `goHome` and the restore helper stop writing
@@ -541,12 +622,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Read — deletion only. The type check proves no caller is left.
 
   **Acceptance criteria:**
-  - [ ] Nothing in `src/` imports `pressBranchBox` or `expandsInPlace`.
-  - [ ] Every remaining `navActions.test.ts` case passes, the trail's included.
+  - [x] Nothing in `src/` imports `pressBranchBox` or `expandsInPlace`. (`probesHasEntity` had no other reader and
+        went too.)
+  - [x] Every remaining `navActions.test.ts` case passes, the trail's included. (The deleted "selectBranch does not
+        toggle" pin is replaced by a `selectBranch` case: each box on its own page changes nothing, the trail
+        included.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (With nothing writing the field, five assertions on
+        it failed in other files, so they went in this task, not Task 15, to keep the commit green: `NavPanel.test.tsx`
+        and `useBrowserBack.test.tsx` (not in Task 15's list), and `NavBreadcrumb.test.tsx` and `Robot.test.tsx`
+        (in it). `Robot.test.tsx` lost its "leaves the nav list as it was" case, which checked only the field, and
+        `Robot.tsx`'s comment was corrected here. 1,415 pass across the nav folder, `src/components/robot`,
+        `uiStore.test.ts`, `worldTransition.test.ts` and `RosterTile.test.tsx`.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 13.
 
@@ -554,7 +643,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (deletions in two files)
 
-- [ ] **Task 15: `uiStore.ts` — `expandedTopLevelBranch` goes**
+- [x] **Task 15: `uiStore.ts` — `expandedTopLevelBranch` goes**
 
   **Description:** The field, its setter and its doc comment are deleted (the `TopLevelBranch` type stays: the branch
   tables use it). `resetNav()` stops writing it. The tests that set or read it are updated: `uiStore.test.ts` (the
@@ -564,12 +653,16 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Read — deletion only. The type check proves no reader is left.
 
   **Acceptance criteria:**
-  - [ ] `expandedTopLevelBranch` appears nowhere in `src/`.
-  - [ ] The four test files pass with no case weakened beyond dropping that field.
+  - [x] `expandedTopLevelBranch` appears nowhere in `src/`. (`TopLevelBranch`'s doc comment, which told the field's
+        story, now says what the type is.)
+  - [x] The four test files pass with no case weakened beyond dropping that field. (`Robot.test.tsx`,
+        `NavBreadcrumb.test.tsx` and `Robot.tsx`'s comment were done in Task 14, where the assertions began to fail.
+        `worldTransition.test.ts` also named the field and lost it here. In `uiStore.test.ts`'s Fleet Params "touches
+        no other nav field" case, the field gave way to `selectedRobotId`, so the case still checks three fields.)
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/uiStore.test.ts src/components/robot/Robot.test.tsx src/components/panels/screen/screens/RosterTile.test.tsx src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/uiStore.test.ts src/components/robot/Robot.test.tsx src/components/panels/screen/screens/RosterTile.test.tsx src/components/panels/screen/nav` passes. (With `worldTransition.test.ts`: 563 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 14.
 
@@ -580,16 +673,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** M (six files, all small deletions)
 
 ### Gate 3: The rail (stop and report)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Spec §5.3's last run (the look) on both shells.
-- [ ] Crawford keeps the trial, or calls the fallback (the rail fixed at 200 px with the list kept). The fallback is
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. (2026-11-15, after Task 15: 14,468
+      pass, 0 fail, 2 skipped as before; the 48 fewer than Checkpoint C are the deleted list, toggle and width cases.
+      Lint's four warnings and the build's chunk-size warning are older.)
+- [x] Spec §5.3's last run (the look) on both shells. (Headless Chrome, after Task 15, the same seven screens as Task
+      13's look: the rail 124 px and the content's left edge 156 px at 1500 × 900 and 768 × 1024; the 320 × 640 sheet
+      holds three boxes, none with `aria-expanded`. Then Crawford's own look, 2026-11-15.)
+- [x] Crawford keeps the trial (2026-11-15), rather than call the fallback (the rail fixed at 200 px with the list kept). The fallback is
       Tasks 13–15 reverted and one new task, planned then; it is not built unasked.
 
 ---
 
 ### Phase 5: Docs
 
-- [ ] **Task 16: `UI_SHELL.md`, `ANIMATION_SYSTEM.md`, the spec — the docs read as the code is**
+- [x] **Task 16: `UI_SHELL.md`, `ANIMATION_SYSTEM.md`, the spec — the docs read as the code is**
 
   **Description:** `UI_SHELL.md`: the nav panel section (three plain boxes, one width), the `navActions.ts` list
   (`back`, `closeDeletedCompany`, the step rule; `pressBranchBox` gone), the content surface (the row; and the Deck's
@@ -601,12 +698,18 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Every name the docs give exists in the shipped source, spot-checked one by one.
-  - [ ] No doc describes the entity list, the width tween or a route to the deck that is gone.
+  - [x] Every name the docs give exists in the shipped source, spot-checked one by one. (Among them `NavStop`,
+        `navTrail`, `setNavTrail`, `resetNav`, `NAV_TRAIL_MAX`, `back`, `closeDeletedCompany`, `ScreenExitRow`,
+        `nav.back` / `nav.close`, `useBrowserBack` in `ScreenViewport`, `useRescueLostFocus` in `Header`,
+        `mirrorWorldToUrl`, `mirrorLoadToUrl`, `--nav-panel-rest`, `--content-pane-background`, `data-dimmed`.)
+  - [x] No doc describes the entity list, the width tween or a route to the deck that is gone. (`UI_SHELL.md`:
+        the nav panel, the `navActions` list with the trail, `back`, `closeDeletedCompany` and the rebuild reset, new
+        sections on the row and on the browser's Back, the content surface without the Welcome card, the `uiStore`
+        table. `ANIMATION_SYSTEM.md`: the `nav-panel-width` row gone. The spec's §8 "As built".)
 
   **Verification:**
-  - [ ] Manual review against the final code.
-  - [ ] `npm run lint` clean.
+  - [x] Manual review against the final code.
+  - [x] `npm run lint` clean.
 
   **Dependencies:** Gate 3.
 
@@ -615,10 +718,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (three docs)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every acceptance criterion above is met, and spec §5.5's list holds apart from the archive.
-- [ ] Any look or browser run not done in the session is named here, never skipped silently.
-- [ ] Ready for Crawford's review and PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. (The full run after Task 15:
+      14,468 pass, 0 fail, 2 skipped. Every commit since is docs only; lint re-run after Task 16, clean apart from
+      the four older warnings.)
+- [x] Every acceptance criterion above is met, and spec §5.5's list holds apart from the archive. (The archive is
+      Task 17's, after the merge.)
+- [x] Any look or browser run not done in the session is named here, never skipped silently. (Every §5.3 run was
+      done, by headless Chrome and by Crawford. Not done: Safari, spec §7.2 Q4, parked by Task 17.)
+- [x] Ready for Crawford's review and PR. (The branch is stacked on the unpushed `docs/backlog-75-intent`.)
+- [x] Five-axis review (2026-11-16): approved, no Critical or Required finding; three more mutations, each killed by
+      one test. Follow-ups made on Crawford's go: `resetNav` and the store's initial state read one `deckNav()`, so a
+      new nav field gets its deck value once; `NavBox` lost its unused `controls` and `accentStyle` props; four stale
+      comments corrected (`nav.ts`, `NavBox.css`, `RosterBoard.tsx`, the `navTrail` doc) and the row's extra 4 px
+      explained. Kept as is: `Header`'s phone rescue selector (role and content name), since `Toggle` takes no hook
+      and both sides read one content key. 4,000 pass across the touched suites; types and lint clean.
 
 ---
 
@@ -662,17 +775,14 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ## Open Questions
 
-Carried from spec §7.2. Each is built on its default until Crawford says otherwise.
+Carried from spec §7.2. Q1–Q6 answered 2026-11-15 (Crawford took each default; the copy came from Gate 2).
 
-1. **The browser's Back while the power is off.** **Open, default built** (Task 10): it leaves the app in one press.
-2. **The browser's Forward.** **Open, default built** (Task 10): it does nothing.
-3. **The browser's Back while the phone's nav sheet is open.** **Open, default built** (no task): a trail step like
-   any other. "Back only shuts the sheet" would be one more task in Phase 3.
-4. **Safari.** **Open**: not checked; the probe is kept and Task 17 parks the check.
-5. **The copy.** **Open until Gate 2**, then written into Task 7.
-6. **The cap.** **Open, default built** (Task 3): 50 stops.
+1. **The browser's Back while the power is off.** **Answered** (Task 10): it leaves the app in one press.
+2. **The browser's Forward.** **Answered** (Task 10): it does nothing.
+3. **The browser's Back while the phone's nav sheet is open.** **Answered** (no task): a trail step like any other.
+4. **Safari.** **Answered**: not checked; the probe is kept and Task 17 parks the check.
+5. **The copy.** **Answered at Gate 2**: Back and Close, no lore label (Task 7).
+6. **The cap.** **Answered** (Task 3): 50 stops.
 7. **A world rebuild while the power is on.** **Open, nothing to build**: none exists today.
 
-One more, raised by this plan: **does Crawford want to run Gate 1 himself on the Pixel**, or is desktop Chrome and
-Firefox enough to start Part A, with the Pixel checked at Checkpoint C? Default: all three at Gate 1, since a failure
-found later costs Phases 1 and 3.
+The plan's own question, whether Gate 1 needed the Pixel, is closed: Gate 1 passed.
