@@ -12,6 +12,7 @@ import {
   NAV_TRAIL_MAX,
   back,
   closeDeletedCompany,
+  openFleetParamsAt,
   type NavBranch,
   type BreadcrumbState,
   type NavRoster,
@@ -516,6 +517,136 @@ describe('back()', () => {
     useUIStore.setState({ isPoweredOn: true });
     selectEntity({ robotId: 'r1' });
     back();
+    expect(ui().isPoweredOn).toBe(true);
+  });
+});
+
+// docs/tasks/HELP_POPOVER_LINKS.md Task 1 (docs/specs/HELP_POPOVER_LINKS.md §1.3): a help link's jump opens Fleet Params
+// on a tab and sub-tab as a step, even from Fleet Params itself; showing that tab and sub-tab already, it does nothing.
+describe('openFleetParamsAt', () => {
+  const trail = () => ui().navTrail;
+  /** A robot on Levels > Sends, with a trail of one deck stop. */
+  function robotOnSends() {
+    selectEntity({ robotId: 'r1' });
+    ui().setSelectedSection('volume');
+    ui().setSelectedSubsection('sends');
+  }
+  /** Fleet Params on Time & Space > Delay, with a trail of one deck stop. */
+  function fleetOnDelay() {
+    selectBranch('fleetParams');
+    ui().setFleetParamsSection('timeSpace');
+    ui().setFleetParamsSubsection('delay');
+  }
+
+  it('from a robot on Levels > Sends: Fleet Params on the tab and sub-tab, no entity left', () => {
+    robotOnSends();
+    openFleetParamsAt('modulation', 'chorus');
+    expect(ui()).toMatchObject({
+      activeHubTile: 'audioRig',
+      fleetParamsSection: 'modulation',
+      fleetParamsSubsection: 'chorus',
+      selectedRobotId: null,
+      selectedSection: null,
+      selectedSubsection: null,
+    });
+    expectCompanyInvariant();
+  });
+
+  it('from a robot on Levels > Sends: the trail gains one stop, the robot on its tabs, and back() returns to it', () => {
+    robotOnSends();
+    const before = trail();
+    openFleetParamsAt('modulation', 'chorus');
+    expect(trail()).toHaveLength(before.length + 1);
+    expect(trail().slice(0, -1)).toStrictEqual(before);
+    expect(trail().at(-1)).toMatchObject({ tile: 'robots', robotId: 'r1', section: 'volume', subsection: 'sends' });
+    back();
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'volume', selectedSubsection: 'sends' });
+    expect(trail()).toStrictEqual(before);
+  });
+
+  it('from a company and from All Probes: each is the stop recorded', () => {
+    selectEntity({ companyId: 'c1' });
+    openFleetParamsAt('timeSpace', 'reverb');
+    expect(trail().at(-1)).toMatchObject({ tile: 'robots', companyId: 'c1', robotId: null });
+    selectEntity('all');
+    openFleetParamsAt('timeSpace', 'reverb');
+    expect(trail().at(-1)).toMatchObject({ tile: 'robots', allProbes: true });
+  });
+
+  it('from Fleet Params on Time & Space > Delay to LFOs > Accent LFO: one stop, Fleet Params on Delay', () => {
+    fleetOnDelay();
+    const before = trail();
+    openFleetParamsAt('lfoBank', 'laneC');
+    expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneC' });
+    expect(trail()).toHaveLength(before.length + 1);
+    expect(trail().at(-1)).toMatchObject({ tile: 'audioRig', fleetSection: 'timeSpace', fleetSubsection: 'delay' });
+  });
+
+  it('from Fleet Params on Delay, back() shows Delay', () => {
+    fleetOnDelay();
+    openFleetParamsAt('lfoBank', 'laneC');
+    back();
+    expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+  });
+
+  it('another sub-tab of the same tab is a step too', () => {
+    fleetOnDelay();
+    openFleetParamsAt('timeSpace', 'reverb');
+    expect(ui().fleetParamsSubsection).toBe('reverb');
+    expect(trail().at(-1)).toMatchObject({ tile: 'audioRig', fleetSection: 'timeSpace', fleetSubsection: 'delay' });
+  });
+
+  it('already on that tab and sub-tab: no stop, no state change', () => {
+    fleetOnDelay();
+    ui().setNavPanelOpen(true);
+    const before = { ...ui() };
+    openFleetParamsAt('timeSpace', 'delay');
+    expect({ ...ui() }).toEqual(before);
+  });
+
+  it('already showing that sub-tab as the tab\'s first with none stored: no stop, no state change', () => {
+    selectBranch('fleetParams');
+    ui().setFleetParamsSection('lfoBank'); // the sub-tab shown is Core LFO, laneA
+    const before = { ...ui() };
+    openFleetParamsAt('lfoBank', 'laneA');
+    expect({ ...ui() }).toEqual(before);
+  });
+
+  it('the same tab and sub-tab stored, but on another tile: a step to Fleet Params', () => {
+    robotOnSends();
+    useUIStore.setState({ fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' }); // stale, off-screen
+    const before = trail().length;
+    openFleetParamsAt('timeSpace', 'delay');
+    expect(ui().activeHubTile).toBe('audioRig');
+    expect(trail()).toHaveLength(before + 1);
+  });
+
+  it('shuts the phone nav sheet', () => {
+    robotOnSends();
+    ui().setNavPanelOpen(true);
+    openFleetParamsAt('modulation', 'chorus');
+    expect(ui().isNavPanelOpen).toBe(false);
+  });
+
+  it(`the trail cap holds: a step on a full trail keeps ${NAV_TRAIL_MAX} stops, dropping the oldest`, () => {
+    for (let i = 0; i <= NAV_TRAIL_MAX; i++) selectEntity({ robotId: `r${i}` });
+    expect(trail()).toHaveLength(NAV_TRAIL_MAX);
+    const second = trail()[1];
+    openFleetParamsAt('modulation', 'chorus');
+    expect(trail()).toHaveLength(NAV_TRAIL_MAX);
+    expect(trail()[0]).toStrictEqual(second);
+    expect(trail().at(-1)).toMatchObject({ robotId: `r${NAV_TRAIL_MAX}` });
+  });
+
+  it('a stop recorded by it is plain data', () => {
+    fleetOnDelay();
+    openFleetParamsAt('lfoBank', 'laneC');
+    expect(JSON.parse(JSON.stringify(trail()))).toStrictEqual(trail());
+  });
+
+  it('leaves power alone', () => {
+    useUIStore.setState({ isPoweredOn: true });
+    openFleetParamsAt('modulation', 'chorus');
     expect(ui().isPoweredOn).toBe(true);
   });
 });

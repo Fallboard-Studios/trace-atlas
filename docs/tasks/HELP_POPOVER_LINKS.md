@@ -76,7 +76,7 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
 
 ### Phase 1: The jump
 
-- [ ] **Task 1: `navActions.ts` — `openFleetParamsAt`, a step even on Fleet Params**
+- [x] **Task 1: `navActions.ts` — `openFleetParamsAt`, a step even on Fleet Params**
 
   **Description:** Add `openFleetParamsAt(section: FleetParamsGroup, subsection: SelectedFleetParamsEffect)` to
   `src/components/panels/screen/nav/navActions.ts` (spec §1.3, §4). It returns at once when `activeHubTile` is
