@@ -9,8 +9,10 @@ Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE
 day: the guard design stands; the row is words, in the plate, with a plain "Back". Crawford accepted spec §7.2's
 defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's checks pass. Phase 2 (Tasks 7–9, the row)
 built 2026-11-15; Checkpoint B's automated checks pass. Phase 3 (Tasks 10–12, the browser's Back) built 2026-11-15;
-Checkpoint C's automated checks pass. Next: Crawford's hand runs (Checkpoint B's trail and look, Checkpoint C's
-browser, power and address-bar runs in desktop Chrome, Firefox and the Pixel), then Phase 4 (Task 13).
+Checkpoint C's automated checks pass. Phase 4 (Tasks 13–15, the rail) built 2026-11-15 on Crawford's go, before his
+Checkpoint B and C runs; Gate 3's automated checks pass. Next: Crawford's hand runs (Checkpoint B's trail and look,
+Checkpoint C's browser, power and address-bar runs in desktop Chrome, Firefox and the Pixel) and Gate 3's look and
+call (keep the trial, or the fallback), then Task 16.
 
 ## Overview
 
@@ -669,8 +671,12 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** M (six files, all small deletions)
 
 ### Gate 3: The rail (stop and report)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Spec §5.3's last run (the look) on both shells.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. (2026-11-15, after Task 15: 14,468
+      pass, 0 fail, 2 skipped as before; the 48 fewer than Checkpoint C are the deleted list, toggle and width cases.
+      Lint's four warnings and the build's chunk-size warning are older.)
+- [ ] Spec §5.3's last run (the look) on both shells. (Headless Chrome, after Task 15, the same seven screens as Task
+      13's look: the rail 124 px and the content's left edge 156 px at 1500 × 900 and 768 × 1024; the 320 × 640 sheet
+      holds three boxes, none with `aria-expanded`. Crawford's own look is still to do.)
 - [ ] Crawford keeps the trial, or calls the fallback (the rail fixed at 200 px with the list kept). The fallback is
       Tasks 13–15 reverted and one new task, planned then; it is not built unasked.
 
