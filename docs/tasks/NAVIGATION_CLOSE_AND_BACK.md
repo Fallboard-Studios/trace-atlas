@@ -8,8 +8,9 @@ Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE
 `feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Gates 1 and 2 passed the same
 day: the guard design stands; the row is words, in the plate, with a plain "Back". Crawford accepted spec §7.2's
 defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's checks pass. Phase 2 (Tasks 7–9, the row)
-built 2026-11-15; Checkpoint B's automated checks pass. Next: Crawford's hand run and look at Checkpoint B, then
-Phase 3 (Task 10).
+built 2026-11-15; Checkpoint B's automated checks pass. Phase 3 (Tasks 10–12, the browser's Back) built 2026-11-15;
+Checkpoint C's automated checks pass. Next: Crawford's hand runs (Checkpoint B's trail and look, Checkpoint C's
+browser, power and address-bar runs in desktop Chrome, Firefox and the Pixel), then Phase 4 (Task 13).
 
 ## Overview
 
@@ -553,9 +554,11 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** XS (one call, one case)
 
 ### Checkpoint C: The browser's Back (stop and report)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Mutation checks: the power check removed; `forward()` removed; the guard pushed on every step; the marker
-      check inverted.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. (2026-11-15, after Task 12: 14,516
+      pass, 0 fail, 2 skipped as before; lint's four warnings are older.)
+- [x] Mutation checks: the power check removed; `forward()` removed; the guard pushed on every step; the marker
+      check inverted. (Killed by 2, 6, 1 and 13 cases. Task 11 also killed two of its own: the press flag removed
+      (1, the no-push-from-`popstate` case) and the subscriber reacting to every store write (1, the clock case).)
 - [ ] Spec §5.3's browser, power and address-bar runs, by Crawford in a real browser, since only the real button
       shows the browser's own rules: desktop Chrome, desktop Firefox, Chrome on the Pixel.
 - [ ] If the known hole shows in the app as it did on the probe, stop: the address helper is an ask-first (spec §3)
