@@ -1,0 +1,484 @@
+<!doctype html>
+<!-- Close and Back — the row, for Gate 2 of backlog 75 (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.5, §5.4, §7.1 B1–B2,
+     §7.2 Q5; docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 1). Built 2026-11-15 on feature/navigation-close-and-back,
+     before anything of Part B exists. Static HTML + a little JS; nothing here touches the app.
+
+     What it draws: one open screen on the desk shell and on the phone at 320 px and 375 px, with a row holding Back
+     (left) and Close (right). The row sits either at the top of the content plate, above the console's scroller
+     (spec §7.1 B1, the default), or up in the top band beside the header. The fixed panel switches the labels (glyph,
+     word, both), whether Back names where it goes, a stand-in lore line, the row's place and the screen. Each frame's
+     bar reads out what the row costs that screen in height, and whether Close is clear of the rocker.
+
+     Real sizes, copied from src/: the power corner is index.css's calc chain (the switch 55 px wide, 70 px from 40em);
+     --top-bar-bottom is Header.css's max(header-top + header height, corner height), with the header measured here as
+     Header.tsx measures it; the rail is 124 px (NavPanel.css's rest width, Part D's one width); the content plate is
+     ContentPane.css's insets; the console pads 16 px (ConsolePanel.css); the robot screen's phone band is
+     RobotScreen.css's (sticky at -16 px inside the scroller, gem 72 x 58); the header row gap is 12 px (Header.tsx).
+     The world, the tiles and the controls are hatched placeholders, not drawings. Names (Probe 07, Tern) and every
+     lore line are STAND-INS; copy lives in src/content/ when built.
+
+     Page rules (memory: sketch-toggles-sticky-bar): each frame is section.frame whose first child is the sticky div.bar
+     holding the h2 and that frame's own options; page-wide options live in the fixed panel, bottom-right. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Close and Back — the row (sketch)</title>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;700&family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --fs: 'Rajdhani', system-ui, sans-serif; --fc: 'Titillium Web', 'Rajdhani', system-ui, sans-serif;
+    --ac: #41ad9f; --ac2: #68cb97; --wire: #7c8893; --wire2: #4a545d; --call: #e8b84a; --bad: #e0705f;
+  }
+  body { font-family: var(--fs); background: var(--bg); color: var(--txt); margin: 0; padding: 24px 24px 220px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 0; }
+  h2 small { font-weight: 400; color: var(--mut); font-size: 12px; margin-left: 10px; font-family: var(--fc); }
+  p.note { font-size: 13px; color: var(--mut); max-width: 1100px; margin: 4px 0 12px; font-family: var(--fc); }
+  p.note b { color: var(--txt); }
+  .pending, .leans { border-radius: 6px; padding: 12px 16px; margin: 12px 0 18px; font-size: 13px; max-width: 1100px; font-family: var(--fc); }
+  .pending { background: #3a2a10; border: 1px solid #c88a2a; }
+  .pending b { color: #e8b84a; }
+  .leans { background: #1b2230; border: 1px solid #5a7fb0; }
+  .leans b { color: #9cc0f0; }
+  .pending ol, .leans ol, .leans ul { margin: 6px 0 0 18px; padding: 0; }
+  .pending li, .leans li { margin: 3px 0; }
+  code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; color: #c9d4de; }
+
+  .controls { display: flex; gap: 10px; align-items: center; font-size: 13px; margin: 10px 0; flex-wrap: wrap; font-family: var(--fc); }
+  .controls button { background: var(--surf); color: var(--txt); border: 1px solid #41ad9f; padding: 4px 12px; cursor: pointer; font-family: var(--fc); }
+  .controls button.on { background: #41ad9f; color: var(--bg); }
+  .controls .grp { display: inline-flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  .controls .lbl { color: var(--mut); margin-right: 2px; min-width: 92px; }
+  .fixedpanel { position: fixed; right: 16px; bottom: 16px; z-index: 50; background: #0b0f14; border: 1px solid #41ad9f; padding: 10px 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .7); max-width: 560px; font-family: var(--fc); }
+  .fixedpanel .ttl { font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: #68cb97; margin-bottom: 6px; }
+  .fixedpanel .controls { margin: 4px 0; }
+  @media (max-width: 700px) { .fixedpanel { left: 8px; right: 8px; bottom: 8px; max-width: none; } body { padding: 16px 16px 220px; } }
+  .fixedpanel.shut .controls { display: none; }
+  .fixedpanel.shut .ttl { margin: 0; }
+
+  /* ---------- frames: a sticky bar (heading + that frame's options + its readouts), then the drawings ---------- */
+  .frame { margin: 36px 0 0; }
+  .frame > .bar { position: sticky; top: 0; z-index: 20; background: var(--bg); padding: 8px 0 4px; border-bottom: 1px solid #333; box-shadow: 0 8px 16px rgba(18, 22, 26, .9); }
+  .frame > .bar .controls { margin: 6px 0 0; }
+  .readouts { display: flex; gap: 18px; flex-wrap: wrap; font-family: var(--fc); font-size: 12.5px; margin: 6px 0 2px; }
+  .readouts .ro { color: var(--mut); }
+  .readouts .ro b { color: var(--txt); font-weight: 600; }
+  .readouts .ok { color: var(--ac2); }
+  .readouts .no { color: var(--bad); }
+  .pair { display: flex; gap: 36px; align-items: flex-start; flex-wrap: wrap; margin-top: 16px; }
+  .cap { font-family: var(--fc); font-size: 12px; color: var(--mut); margin: 0 0 6px; }
+
+  /* ---------- the shells: the app's own variables, per shell ---------- */
+  .shell {
+    --spacing-sm: 8px; --spacing-md: 12px; --spacing-lg: 16px; --spacing-2xl: 32px;
+    --header-top: var(--spacing-md); --header-row-gap: 12px; --touch: 44px;
+    --power-switch-coefficient: 70; --power-corner-margin-width: 10;
+    --power-switch-height: calc(var(--power-switch-width) * 1.75);
+    --power-corner-margin: calc(var(--power-switch-width) * (var(--power-corner-margin-width) / var(--power-switch-coefficient)));
+    --power-corner-width: calc(var(--power-switch-width) + (var(--power-corner-margin) * 2));
+    --power-corner-height: calc(var(--power-switch-height) + (var(--power-corner-margin) * 2));
+    --top-bar-bottom: max(calc(var(--header-top) + var(--header-height, 0px)), var(--power-corner-height));
+    position: relative; overflow: hidden; background: #0b0f14; font-family: var(--fc); color: var(--txt); box-sizing: border-box;
+  }
+  .shell *, .shell *::before, .shell *::after { box-sizing: border-box; }
+  .shell.desk { --power-switch-width: 70px; --nav-panel-width: 124px; width: 1280px; height: 800px; }
+  .deskcase { width: 1298px; border: 9px solid #1e2126; border-radius: 6px; box-shadow: 0 0 0 1px #000; overflow: hidden; }
+  .shell.phone { --power-switch-width: 55px; height: 660px; }
+  .phonecase { border: 10px solid #1e2126; border-radius: 26px; overflow: hidden; box-shadow: 0 0 0 1px #000; }
+  /* each drawing is scaled to fit the page (the desk at most 75 %, a phone at most 100 %), so the page reads at 320 px */
+  .fit { overflow: hidden; }
+  .fit > .fitinner { transform-origin: 0 0; width: max-content; }
+
+  /* the world: hatched, dimmed under an open screen */
+  .world { position: absolute; inset: 0; background: repeating-linear-gradient(135deg, #16222b 0 14px, #1b2a35 14px 28px); filter: brightness(.5); }
+  /* the bottom sleeve strip: covers the screen's last 32 px */
+  .strip { position: absolute; left: 0; right: 0; bottom: 0; height: var(--spacing-2xl); background: #1e2126; border-top: 1px solid #0a0c0f; z-index: 6; display: flex; align-items: center; padding-left: 20px; font-size: 10px; letter-spacing: .3em; color: #6b7680; }
+
+  /* the power corner: index.css's sizes, the rocker inside */
+  .corner { position: absolute; top: 0; right: 0; width: var(--power-corner-width); height: var(--power-corner-height); background: #292b2e; border-radius: 0 0 0 6px; z-index: 7; display: flex; align-items: center; justify-content: center; box-shadow: -3px 3px 10px rgba(0, 0, 0, .5); }
+  .corner .rocker { width: var(--power-switch-width); height: var(--power-switch-height); border-radius: 4px; background: linear-gradient(#1b1d20, #2d3035); border: 1px solid #000; position: relative; }
+  .corner .rocker::before { content: ''; position: absolute; left: 25%; right: 25%; top: 14%; height: 16%; border-radius: 3px; background: var(--ac2); box-shadow: 0 0 8px var(--ac2); }
+  .corner .rocker::after { content: ''; position: absolute; left: 12%; right: 12%; top: 40%; bottom: 8%; border-radius: 3px; background: #24272b; box-shadow: inset 0 2px 0 #34383d; }
+
+  /* cabinet language: a face with text on it is the live surface, popped with two walls */
+  .cab { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; min-width: var(--touch); height: var(--touch); padding: 0 12px; white-space: nowrap; line-height: 1.05; flex: none; background: linear-gradient(135deg, #41ad9f, #68cb97); color: #0b0f14; font: 600 15px var(--fc); }
+  .cab::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; height: 4px; background: color-mix(in srgb, #41ad9f, white 28%); transform: skewX(-50deg); transform-origin: bottom left; }
+  .cab::after { content: ""; position: absolute; top: 0; bottom: 0; left: -4px; width: 4px; background: color-mix(in srgb, #41ad9f, black 32%); transform: skewY(-50deg); transform-origin: top right; }
+  .cab .lore { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; opacity: .7; }
+  .cab .g { font-size: 20px; line-height: 1; }
+  .cab.glyph { padding: 0; width: var(--touch); }
+  .cab.glyph .g { font-size: 24px; font-weight: 700; }
+  .cab.flat { background: #232a31; color: #aab4bd; }
+  .cab.flat::before, .cab.flat::after { background: #12161a; }
+
+  /* the desk rail (124 px, three boxes) */
+  .rail { position: absolute; top: var(--header-top); left: 0; width: var(--nav-panel-width); padding-left: var(--spacing-md); z-index: 2; }
+  .rail .plate { background: rgba(26, 26, 26, .75); padding: var(--spacing-sm); display: flex; flex-direction: column; gap: var(--spacing-sm); }
+  .rail .cab { width: 100%; padding: 0 4px; }
+
+  /* the header: desk = one row right-anchored beside the corner; phone = the well over the controls panel */
+  .hdr { position: absolute; top: var(--header-top); right: 0; z-index: 3; display: flex; justify-content: flex-end; }
+  .hdr .row { display: flex; align-items: center; gap: var(--header-row-gap); padding: var(--spacing-sm) calc(var(--power-corner-width) + var(--spacing-md)) var(--spacing-sm) var(--spacing-md); background: var(--bg); }
+  .hdr .vol { width: 220px; height: 26px; display: flex; gap: 3px; align-items: center; }
+  .hdr .vol i { flex: 1; height: 22px; background: #1b2128; }
+  .hdr .vol i.on { background: #41ad9f; }
+  .phone .hdr { left: 0; right: auto; flex-direction: column; align-items: flex-start; }
+  .phone .stack { display: flex; flex-direction: column; gap: var(--header-row-gap); width: fit-content; max-width: calc(var(--shell-w) - var(--power-corner-width) - 2 * var(--spacing-md)); margin-left: var(--spacing-md); }
+  .phone .well { min-height: var(--spacing-2xl); line-height: 30px; padding: 0 var(--spacing-sm); border: 1px solid #55bc9b; box-shadow: inset 1px 1px 0 rgba(0, 0, 0, .9), inset 0 0 8px #55bc9b; background: rgba(12, 16, 20, .55); color: #a8b2bb; font: 11px ui-monospace, Consolas, monospace; white-space: nowrap; overflow: hidden; }
+  .phone .stack .row { padding: var(--spacing-sm) var(--spacing-md); background: var(--bg); width: auto; }
+  .stack .row.overflow { outline: 2px solid var(--bad); outline-offset: -2px; }
+
+  /* the content plate (ContentPane.css): from the top bar's lower edge down to the strip, a column */
+  .pane { position: absolute; top: var(--top-bar-bottom); right: var(--spacing-lg); bottom: calc(var(--spacing-2xl) + var(--spacing-lg)); left: calc(var(--nav-panel-width) + var(--spacing-lg)); z-index: 1; border: 1px solid rgba(140, 190, 210, .14); background: rgba(12, 16, 20, .55); display: flex; flex-direction: column; }
+  .desk .pane { padding-bottom: var(--spacing-2xl); }
+  .phone .pane { left: 0; right: 0; bottom: var(--spacing-2xl); border-width: 1px 0; }
+
+  /* THE ROW: Back at the left, Close at the right */
+  .xrow { display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-md); flex: none; }
+  .pane > .xrow { padding: var(--spacing-sm) var(--spacing-lg) var(--spacing-sm) calc(var(--spacing-lg) + 4px); border-bottom: 1px solid rgba(140, 190, 210, .14); background: rgba(12, 16, 20, .6); }
+  .xrow.band { position: absolute; top: var(--header-top); left: calc(var(--nav-panel-width) + var(--spacing-lg)); right: calc(var(--hdr-w, 0px) + var(--spacing-md)); z-index: 3; padding: var(--spacing-sm) var(--spacing-sm) var(--spacing-sm) 4px; }
+  .xrow .mark { outline: 2px dashed var(--call); outline-offset: 5px; }
+  body.nocall .xrow .mark { outline: none; }
+
+  /* the console: ConsolePanel's scroller, padded 16 px; the screens are placeholders */
+  .console { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: var(--spacing-lg); scrollbar-width: thin; }
+  .ph { background: repeating-linear-gradient(135deg, #1a2027 0 8px, #1d242c 8px 16px); border: 1px dashed var(--wire2); color: #6b7680; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; display: flex; align-items: center; justify-content: center; text-align: center; }
+  .ttl { font: 700 22px var(--fs); letter-spacing: .04em; margin: 0 0 10px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 0 0 12px; }
+  .tabs span { padding: 5px 10px; border: 1px solid var(--wire2); font-size: 12px; color: #aab4bd; }
+  .tabs span.on { border-color: #55bc9b; color: var(--txt); box-shadow: inset 0 -2px 0 #55bc9b; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .grid .ph { height: 92px; }
+  .ctls { display: flex; flex-direction: column; gap: 12px; }
+  .ctls .ph { height: 54px; }
+  .cols { display: grid; grid-template-columns: 260px 1fr; gap: 18px; }
+  .cols .avatar { height: 220px; }
+  .phone .grid { grid-template-columns: 1fr 1fr; }
+  .rband { position: sticky; top: calc(-1 * var(--spacing-lg)); z-index: 2; display: flex; align-items: center; gap: var(--spacing-md); padding: var(--spacing-sm) 0; background: #141a20; border-bottom: 1px solid rgba(140, 190, 210, .14); margin-bottom: 12px; }
+  .rband .gem { width: 72px; height: 58px; flex: none; }
+  .rband .nm { font: 700 18px var(--fs); }
+  .rband .st { font: 11px ui-monospace, Consolas, monospace; color: #8d98a2; }
+
+  /* the desk breadcrumb, bottom-left of the plate */
+  .crumb { position: absolute; left: calc(var(--nav-panel-width) + var(--spacing-lg)); bottom: calc(var(--spacing-2xl) + var(--spacing-lg)); height: var(--spacing-2xl); z-index: 2; display: flex; align-items: center; padding: 0 var(--spacing-md); border: 1px solid #55bc9b; box-shadow: inset 0 0 8px #55bc9b; background: rgba(12, 16, 20, .55); font: 12px ui-monospace, Consolas, monospace; color: #a8b2bb; }
+
+  /* callouts */
+  .co { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--call); color: #1a1408; font: 700 11px/1 var(--fc); box-shadow: 0 0 0 2px #1a1408; position: absolute; z-index: 9; }
+  body.nocall .co { display: none; }
+  .legend { font-family: var(--fc); font-size: 13px; max-width: 1100px; margin: 14px 0 0; padding-left: 20px; }
+  .legend li { margin: 0 0 6px; }
+</style>
+</head>
+<body>
+
+<h1>Close and Back — the row</h1>
+<p class="note">Backlog 75, Gate 2. Every open screen gets a row with <b>Back</b> (the screen before, on the tabs it
+  showed) and <b>Close</b> (the deck). The spec fixes what the two do and that the row is on every open screen and never
+  on the deck; this page is for the look. The fixed panel (bottom right) switches every option; each frame's bar reads
+  out what the row costs that screen. Sizes are the app's own (see the comment at the top of the file); the screens'
+  contents are placeholders.</p>
+
+<div class="pending">
+  <b>Open for Gate 2 (Crawford's three answers):</b>
+  <ol>
+    <li><b>The look:</b> glyph, word, or both? And a lore line under each, or none (spec §7.2 Q5)?</li>
+    <li><b>The place:</b> at the top of the content plate (spec §7.1 B1, the default), or in the top band beside the
+      header? The panel also has the split: band on the desk, plate on the phone.</li>
+    <li><b>Does Back name where it goes</b> ("Back to Probes"), or is it plain (spec §7.1 B2's default)?</li>
+  </ol>
+</div>
+
+<div class="leans">
+  <b>What the readouts show, at a glance:</b>
+  <ul>
+    <li><b>Plate:</b> the row costs every screen one row (about 61 px), on both shells. It is below the power corner by
+      construction: the plate starts at <code>--top-bar-bottom</code>, the lower of the header and the corner.</li>
+    <li><b>Top band, desk:</b> free. With a screen open, the band between the rail and the header is empty (the meta box
+      shows only on the deck), so the row sits there and the plate keeps its whole height.</li>
+    <li><b>Top band, phone:</b> the band is full: the well over the ☰ / mute / ▾ panel, beside the corner. The two
+      buttons go into that panel's line, which then needs 285 px as glyphs and has 225 px at 320 (280 at 375): it
+      does not fit on either phone, and at 320 Close runs under the rocker. Hence the split option.</li>
+  </ul>
+</div>
+
+<div class="fixedpanel" id="panel">
+  <div class="ttl">Options (every frame) <button id="hidepanel" style="float:right;background:none;border:0;color:#68cb97;cursor:pointer;font:inherit">hide</button></div>
+  <div class="controls"><span class="lbl">Labels</span><span class="grp" data-opt="label">
+    <button data-v="glyph">Glyph</button><button data-v="word">Word</button><button data-v="both">Both</button></span></div>
+  <div class="controls"><span class="lbl">Back names</span><span class="grp" data-opt="names">
+    <button data-v="no">No: "Back"</button><button data-v="yes">Yes: "Back to Probes"</button></span></div>
+  <div class="controls"><span class="lbl">Lore line</span><span class="grp" data-opt="lore">
+    <button data-v="none">None</button><button data-v="stand">Stand-in</button></span></div>
+  <div class="controls"><span class="lbl">The row in</span><span class="grp" data-opt="place">
+    <button data-v="plate">The plate</button><button data-v="band">The top band</button><button data-v="split">Band on desk, plate on phone</button></span></div>
+  <div class="controls"><span class="lbl">Screen</span><span class="grp" data-opt="screen">
+    <button data-v="probes">Probes list</button><button data-v="robot">Robot</button><button data-v="company">Company</button><button data-v="all">All Probes</button><button data-v="fleet">Fleet Params</button></span></div>
+  <div class="controls"><span class="lbl">Callouts</span><span class="grp" data-opt="calls">
+    <button data-v="on">On</button><button data-v="off">Off</button></span></div>
+</div>
+
+<section class="frame" id="f-desk">
+  <div class="bar">
+    <h2>A · The desk <small>1280 × 800, drawn at 75 % (smaller on a narrow page); the rail at its one width (124 px, Part D)</small></h2>
+    <div class="controls"><button data-scroll="f-desk">Scroll the screen</button><span class="lbl" style="min-width:0">or scroll inside it: the row stays put</span></div>
+    <div class="readouts" id="r-desk"></div>
+  </div>
+  <div class="pair"><div class="fit" data-w="1298" data-h="818" data-max=".75"><div class="fitinner"><div class="deskcase"><div class="shell desk" id="s-desk"></div></div></div></div></div>
+</section>
+
+<section class="frame" id="f-phone">
+  <div class="bar">
+    <h2>B · The phone <small>320 px and 375 px wide, 660 high; on the robot screen the band sticks under the row</small></h2>
+    <div class="controls"><button data-scroll="f-phone">Scroll the screens</button><span class="lbl" style="min-width:0">or scroll inside them</span></div>
+    <div id="r-phone"></div>
+  </div>
+  <div class="pair">
+    <div><p class="cap">320 px</p><div class="fit" data-w="340" data-h="680" data-max="1"><div class="fitinner"><div class="phonecase"><div class="shell phone" id="s-p320" style="width:320px;--shell-w:320px"></div></div></div></div></div>
+    <div><p class="cap">375 px</p><div class="fit" data-w="395" data-h="680" data-max="1"><div class="fitinner"><div class="phonecase"><div class="shell phone" id="s-p375" style="width:375px;--shell-w:375px"></div></div></div></div></div>
+  </div>
+</section>
+
+<ol class="legend">
+  <li><b>1 · The power corner.</b> Hardware: the rocker at index.css's size. Close must never sit under it.</li>
+  <li><b>2 · Back.</b> Runs <code>back()</code>: the screen before, on the tabs it showed; the deck when the trail is empty.</li>
+  <li><b>3 · Close.</b> Runs <code>goHome()</code>: the deck, as a step, so a Back after it returns to the closed screen.</li>
+  <li><b>4 · The console's scroller.</b> The screen scrolls under the row; the row is outside the scroller, not sticky.</li>
+  <li><b>5 · The robot screen's phone band.</b> Sticky inside the scroller, so it stays under the row.</li>
+</ol>
+
+<script>
+(function () {
+  'use strict';
+
+  var state = { label: 'word', names: 'no', lore: 'none', place: 'plate', screen: 'robot', calls: 'on' };
+  try {
+    var saved = JSON.parse(localStorage.getItem('closeBackSketch') || '{}');
+    Object.keys(state).forEach(function (k) { if (saved[k]) state[k] = saved[k]; });
+  } catch (e) { /* no storage: defaults */ }
+
+  // Where Back goes from each screen, on the trail this page assumes (stand-in names).
+  var SCREENS = {
+    probes: { dest: 'Deck', crumb: 'Deck › Probes', trail: 'Deck → Probes' },
+    robot: { dest: 'Probes', crumb: 'Deck › Probes › Probe 07', trail: 'Deck → Probes → Probe 07' },
+    company: { dest: 'Probes', crumb: 'Deck › Probes › Tern', trail: 'Deck → Probes → Tern' },
+    all: { dest: 'Probes', crumb: 'Deck › Probes › All Probes', trail: 'Deck → Probes → All Probes' },
+    fleet: { dest: 'Probe 07', crumb: 'Deck › Fleet Params', trail: 'Probe 07 → Fleet Params' }
+  };
+
+  function backFace() {
+    var dest = SCREENS[state.screen].dest;
+    var named = state.names === 'yes';
+    var lore = state.lore === 'stand' ? '<span class="lore">Retrace</span>' : '';
+    if (state.label === 'glyph') {
+      return named ? '<span class="cab mark-b">' + lore + '<span><span class="g">‹</span> ' + dest + '</span></span>'
+        : '<span class="cab glyph mark-b">' + lore + '<span class="g">‹</span></span>';
+    }
+    var word = named ? 'Back to ' + dest : 'Back';
+    var text = state.label === 'both' ? '<span class="g">‹</span> ' + word : word;
+    return '<span class="cab mark-b">' + lore + '<span>' + text + '</span></span>';
+  }
+  function closeFace() {
+    var lore = state.lore === 'stand' ? '<span class="lore">Surface</span>' : '';
+    if (state.label === 'glyph') return '<span class="cab glyph mark-c">' + lore + '<span class="g">✕</span></span>';
+    var text = state.label === 'both' ? 'Close <span class="g">✕</span>' : 'Close';
+    return '<span class="cab mark-c">' + lore + '<span>' + text + '</span></span>';
+  }
+  function xrow(cls) {
+    return '<div class="xrow ' + cls + '">' + backFace() + closeFace() + '</div>';
+  }
+
+  function ph(text, style) { return '<div class="ph"' + (style ? ' style="' + style + '"' : '') + '>' + text + '</div>'; }
+  function ctls(n) { var s = ''; for (var i = 0; i < n; i++) s += ph('control'); return '<div class="ctls">' + s + '</div>'; }
+  function tabs(list) { return '<div class="tabs">' + list.map(function (t, i) { return '<span' + (i === 1 ? ' class="on"' : '') + '>' + t + '</span>'; }).join('') + '</div>'; }
+  function grid(n, word) { var s = ''; for (var i = 0; i < n; i++) s += ph(word + ' ' + (i + 1)); return '<div class="grid">' + s + '</div>'; }
+
+  function screenBody(isPhone) {
+    switch (state.screen) {
+      case 'probes':
+        return '<div class="ttl">Probes</div>' + grid(12, 'tile');
+      case 'robot':
+        if (isPhone) {
+          return '<div class="rband"><span class="co" style="left:58px;top:2px">5</span>' + ph('gem', 'width:72px;height:58px;flex:none') +
+            '<div><div class="nm">Probe 07</div><div class="st">Auto · Structural Inspection · Active · 82%</div></div></div>' +
+            tabs(['Voice', 'Envelope', 'Melody', 'Sends']) + ctls(9);
+        }
+        return '<div class="cols"><div>' + ph('avatar', 'height:220px') + '<div style="height:10px"></div>' + ph('wells', 'height:120px') + '</div><div>' +
+          '<div class="ttl">Probe 07</div>' + tabs(['Voice', 'Envelope', 'Melody', 'Sends', 'Character']) + ctls(9) + '</div></div>';
+      case 'company':
+        return '<div class="ttl">Tern</div>' + tabs(['Members', 'Envelope', 'Melody', 'Character']) + grid(4, 'member') + '<div style="height:12px"></div>' + ctls(6);
+      case 'all':
+        return '<div class="ttl">All Probes</div>' + tabs(['Envelope', 'Melody', 'Sends']) + ctls(9);
+      case 'fleet':
+        return '<div class="ttl">Fleet Params</div>' + tabs(['World', 'Modulation', 'Colour', 'Audio Quality']) + tabs(['Chorus', 'Phaser', 'Tremolo']) + ctls(9);
+    }
+    return '';
+  }
+
+  function placeFor(isPhone) {
+    if (state.place === 'split') return isPhone ? 'plate' : 'band';
+    return state.place;
+  }
+
+  function vox(n, on) { var s = ''; for (var i = 0; i < n; i++) s += '<i' + (i < on ? ' class="on"' : '') + '></i>'; return s; }
+
+  function drawDesk(el) {
+    var place = placeFor(false);
+    el.innerHTML =
+      '<div class="world"></div>' +
+      '<div class="rail"><div class="plate">' +
+        '<span class="cab flat"><span class="lore">Surface</span><span>Deck</span></span>' +
+        '<span class="cab flat"><span class="lore">Fleet</span><span>Fleet Params</span></span>' +
+        '<span class="cab' + (state.screen === 'fleet' ? ' flat' : '') + '"><span class="lore">Roster</span><span>Probes</span></span>' +
+      '</div></div>' +
+      '<div class="hdr"><div class="row"><span class="cab glyph"><span class="g">🔊</span></span><span class="vol">' + vox(10, 7) + '</span></div></div>' +
+      '<div class="corner"><span class="rocker"></span></div>' +
+      '<span class="co" style="right:calc(var(--power-corner-width) - 14px);top:4px">1</span>' +
+      (place === 'band' ? xrow('band') : '') +
+      '<div class="pane">' + (place === 'plate' ? xrow('') : '') +
+        '<div class="console">' + screenBody(false) + '</div>' +
+      '</div>' +
+      '<div class="crumb">' + SCREENS[state.screen].crumb + '</div>' +
+      '<div class="strip">THE STILL ECHO</div>';
+  }
+
+  function drawPhone(el) {
+    var place = placeFor(true);
+    var line = '<span class="cab glyph"><span class="g">☰</span></span><span class="cab glyph"><span class="g">🔊</span></span><span class="cab glyph"><span class="g">▾</span></span>';
+    if (place === 'band') line += backFace() + closeFace();
+    el.innerHTML =
+      '<div class="world"></div>' +
+      '<div class="hdr"><div class="stack"><div class="well">' + SCREENS[state.screen].crumb + '</div>' +
+        '<div class="row" style="display:flex;gap:var(--header-row-gap);align-items:center">' + line + '</div></div></div>' +
+      '<div class="corner"><span class="rocker"></span></div>' +
+      '<div class="pane">' + (place === 'plate' ? xrow('') : '') +
+        '<div class="console">' + screenBody(true) + '</div>' +
+      '</div>' +
+      '<div class="strip">THE STILL ECHO</div>';
+  }
+
+  // Header.tsx publishes the header's measured height (and its width, for the band); --top-bar-bottom reads it.
+  function measureHeader(el) {
+    var hdr = el.querySelector('.hdr');
+    el.style.setProperty('--header-height', hdr.offsetHeight + 'px');
+    el.style.setProperty('--hdr-w', hdr.offsetWidth + 'px');
+  }
+
+  function overlaps(a, b) {
+    var r = a.getBoundingClientRect();
+    var s = b.getBoundingClientRect();
+    return !(r.right <= s.left || r.left >= s.right || r.bottom <= s.top || r.top >= s.bottom);
+  }
+
+  function readout(el, name) {
+    var pane = el.querySelector('.pane');
+    var row = el.querySelector('.pane > .xrow');
+    var con = el.querySelector('.console');
+    var close = el.querySelector('.mark-c');
+    var corner = el.querySelector('.corner');
+    var parts = ['<span class="ro"><b>' + name + '</b></span>'];
+    if (row) {
+      var cost = row.offsetHeight;
+      parts.push('<span class="ro">row <b>' + cost + ' px</b> · the console keeps <b>' + con.offsetHeight + '</b> of <b>' + (pane.clientHeight) + ' px</b> (' + Math.round(100 * con.offsetHeight / pane.clientHeight) + '%)</span>');
+    } else {
+      parts.push('<span class="ro">row <b>0 px</b> of the plate · the console keeps all <b>' + con.offsetHeight + ' px</b></span>');
+    }
+    var stackRow = el.querySelector('.stack .row');
+    if (stackRow && stackRow.querySelector('.mark-c')) {
+      var stack = el.querySelector('.stack');
+      var room = parseFloat(getComputedStyle(stack).maxWidth);
+      var need = stackRow.scrollWidth;
+      var fits = need <= room;
+      stackRow.classList.toggle('overflow', !fits);
+      parts.push('<span class="ro ' + (fits ? 'ok' : 'no') + '">controls line needs <b>' + need + ' px</b>, has <b>' + Math.round(room) + ' px</b>: ' + (fits ? 'fits' : 'does not fit') + '</span>');
+    }
+    var clear = close && !overlaps(close, corner);
+    parts.push('<span class="ro ' + (clear ? 'ok' : 'no') + '">Close ' + (clear ? 'clear of the rocker ✔' : 'under the rocker ✖') + '</span>');
+    return parts.join('');
+  }
+
+  function fitAll() {
+    document.querySelectorAll('.fit').forEach(function (f) {
+      var w = Number(f.getAttribute('data-w'));
+      var h = Number(f.getAttribute('data-h'));
+      var avail = f.closest('.frame').clientWidth;
+      var s = Math.min(Number(f.getAttribute('data-max')), avail / w);
+      f.style.width = Math.floor(w * s) + 'px';
+      f.style.height = Math.floor(h * s) + 'px';
+      f.firstElementChild.style.transform = 'scale(' + s + ')';
+      f.querySelector('.shell').setAttribute('data-scale', String(s));
+    });
+  }
+
+  function addCallouts(el) {
+    var shell = el.getBoundingClientRect();
+    var scale = Number(el.getAttribute('data-scale')) || 1;
+    [['.mark-b', '2'], ['.mark-c', '3']].forEach(function (pair) {
+      var t = el.querySelector(pair[0]);
+      if (!t) return;
+      var r = t.getBoundingClientRect();
+      var co = document.createElement('span');
+      co.className = 'co';
+      co.textContent = pair[1];
+      co.style.left = ((r.left - shell.left) / scale - 10) + 'px';
+      co.style.top = ((r.top - shell.top) / scale - 14) + 'px';
+      el.appendChild(co);
+      t.classList.add('mark');
+    });
+    var con = el.querySelector('.console');
+    var rc = con.getBoundingClientRect();
+    var c4 = document.createElement('span');
+    c4.className = 'co';
+    c4.textContent = '4';
+    c4.style.left = ((rc.right - shell.left) / scale - 34) + 'px';
+    c4.style.top = ((rc.top - shell.top) / scale + 8) + 'px';
+    el.appendChild(c4);
+  }
+
+  function render() {
+    document.body.classList.toggle('nocall', state.calls === 'off');
+    document.querySelectorAll('#panel .grp').forEach(function (g) {
+      var opt = g.getAttribute('data-opt');
+      g.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b.getAttribute('data-v') === state[opt]); });
+    });
+    fitAll();
+    var desk = document.getElementById('s-desk');
+    drawDesk(desk);
+    measureHeader(desk);
+    var phones = ['s-p320', 's-p375'].map(function (id) { var el = document.getElementById(id); drawPhone(el); measureHeader(el); return el; });
+    addCallouts(desk);
+    phones.forEach(addCallouts);
+    document.getElementById('r-desk').innerHTML = readout(desk, 'Desk') + '<span class="ro">trail: ' + SCREENS[state.screen].trail + '</span>';
+    document.getElementById('r-phone').innerHTML =
+      '<div class="readouts">' + readout(phones[0], '320') + '</div><div class="readouts">' + readout(phones[1], '375') + '</div>';
+    try { localStorage.setItem('closeBackSketch', JSON.stringify(state)); } catch (e) { /* no storage */ }
+  }
+
+  document.querySelectorAll('#panel .grp').forEach(function (g) {
+    g.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button');
+      if (!b) return;
+      state[g.getAttribute('data-opt')] = b.getAttribute('data-v');
+      render();
+    });
+  });
+  document.getElementById('hidepanel').addEventListener('click', function () {
+    var shut = document.getElementById('panel').classList.toggle('shut');
+    this.textContent = shut ? 'show' : 'hide';
+  });
+  document.querySelectorAll('[data-scroll]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      document.getElementById(b.getAttribute('data-scroll')).querySelectorAll('.console').forEach(function (c) {
+        c.scrollTop = c.scrollTop > 0 ? 0 : 260;
+      });
+    });
+  });
+
+  render();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(render);
+  window.addEventListener('resize', render);
+})();
+</script>
+</body>
+</html>
