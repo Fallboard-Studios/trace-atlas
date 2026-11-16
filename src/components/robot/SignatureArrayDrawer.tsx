@@ -5,6 +5,7 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
+import { openLfoLaneSettings } from '@/components/panels/screen/nav/helpLinks';
 import { withFeaturedClass } from '@/components/ui/controls/activeClass';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import {
@@ -186,7 +187,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
           </div>
         </DirectionalPanel>
         <div className="signature-array-drawer__param">
-          <LfoLink schema={gainLinkSchema} value={gainLink} onChange={handleGainLinkChange} disabled={disabled} />
+          <LfoLink schema={gainLinkSchema} value={gainLink} onChange={handleGainLinkChange} disabled={disabled} onOpenLane={openLfoLaneSettings} />
         </div>
       </DirectionalPanel>
       <DirectionalPanel schema={block.panels.p2}>
@@ -200,7 +201,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
           />
         </div>
         <div className="signature-array-drawer__param">
-          <LfoLink schema={detuneLinkSchema} value={detuneLink} onChange={handleDetuneLinkChange} disabled={disabled} />
+          <LfoLink schema={detuneLinkSchema} value={detuneLink} onChange={handleDetuneLinkChange} disabled={disabled} onOpenLane={openLfoLaneSettings} />
         </div>
       </DirectionalPanel>
       <DirectionalPanel schema={block.panels.p3}>

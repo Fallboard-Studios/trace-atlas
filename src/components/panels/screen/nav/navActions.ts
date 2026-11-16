@@ -165,7 +165,13 @@ function currentStop(s: UIStore): NavStop {
 function recordStep(destination: string): void {
   const s = useUIStore.getState();
   if (screenKey(s) === destination) return;
-  const trail = [...s.navTrail, currentStop(s)];
+  appendStop(currentStop(s));
+}
+
+/** Appends a stop to the trail, dropping the oldest past NAV_TRAIL_MAX. The one place the cap lives. */
+function appendStop(stop: NavStop): void {
+  const s = useUIStore.getState();
+  const trail = [...s.navTrail, stop];
   s.setNavTrail(trail.length > NAV_TRAIL_MAX ? trail.slice(trail.length - NAV_TRAIL_MAX) : trail);
 }
 
@@ -175,7 +181,21 @@ function entityKey(entity: NavEntity): string {
   return 'robotId' in entity ? `robot:${entity.robotId}` : `company:${entity.companyId}`;
 }
 
+/** A help jump's request that Fleet Params focus its open sub-tab (docs/specs/HELP_POPOVER_LINKS.md §1.5, A3): a
+ *  module-level one-shot, not a store field, so it re-renders nothing and needs no clearing write. Set by
+ *  openFleetParamsAt after it changes the tabs; cleared by every other action's clean slate, so a request never taken
+ *  cannot fire on a later, unrelated Fleet Params render. */
+let arrivalFocus = false;
+
+/** Fleet Params' sub-tab row asks this after the commit that mounts the open sub-tab: true once per help jump. */
+export function takeArrivalFocus(): boolean {
+  const requested = arrivalFocus;
+  arrivalFocus = false;
+  return requested;
+}
+
 function cleanSlate(): void {
+  arrivalFocus = false;
   const s = useUIStore.getState();
   s.setNavPanelOpen(false); // the phone sheet's open flag; the desk panel ignores it
   s.selectRobot(null); // also clears selectedSection / selectedSubsection
@@ -210,6 +230,25 @@ export function selectEntity(entity: NavEntity): void {
   // A company opens under Probes (docs/tasks/OFF_SCREEN_CONSOLE.md Task 17, Crawford, 2026-11-09).
   else s.selectCompany(entity.companyId);
   open('probes');
+}
+
+/** A help link's jump (docs/specs/HELP_POPOVER_LINKS.md §1.3): Fleet Params on this tab and sub-tab, recorded as a
+ *  step even from Fleet Params itself (the one step inside it), so Back returns to the tab the link was pressed on.
+ *  Showing that tab and sub-tab already, it changes nothing. */
+export function openFleetParamsAt(section: FleetParamsGroup, subsection: SelectedFleetParamsEffect): void {
+  const s = useUIStore.getState();
+  const here =
+    s.activeHubTile === 'audioRig' &&
+    s.fleetParamsSection === section &&
+    activeFleetParamsSubsection(section, s.fleetParamsSubsection) === subsection;
+  if (here) return;
+  appendStop(currentStop(s)); // recordStep's append and cap, without its same-screen skip
+  cleanSlate();
+  open('fleetParams');
+  const next = useUIStore.getState();
+  next.setFleetParamsSection(section); // also clears the sub-tab, so the section comes first
+  next.setFleetParamsSubsection(subsection);
+  arrivalFocus = true;
 }
 
 /** The Deck: no tile, no entity. Close on the screen row (spec §1.3): a step like any other, so a

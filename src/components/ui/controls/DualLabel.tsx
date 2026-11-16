@@ -1,14 +1,15 @@
 import { memo } from 'react';
 import { HelpPopover } from './HelpPopover';
-import type { ContentHelp } from '@/content';
+import type { ControlHelp } from '@/types/controls';
 import './DualLabel.css';
 
 interface DualLabelProps {
   loreLabel?: string;
   humanLabel?: string;
-  /** The control's help (docs/specs/LAYOUT_REWORK.md §1.4): a "?" after the label opens it. Pass it
-   *  only from a label row that is not itself inside a button. */
-  help?: ContentHelp;
+  /** The control's help (docs/specs/LAYOUT_REWORK.md §1.4): a "?" after the label opens it, with the link a
+   *  screen added, if any (docs/specs/HELP_POPOVER_LINKS.md §1.2). Pass it only from a label row that is not
+   *  itself inside a button. */
+  help?: ControlHelp;
   /** A subtitle under the name (docs/tasks/OFF_SCREEN_CURRENT_AND_NEW_TRANSMISSION.md Task 6c: "select one"), the last
    *  line. Never drawn without a name to stand under. */
   hint?: string;

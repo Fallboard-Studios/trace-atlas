@@ -26,6 +26,12 @@ interface LfoLinkProps {
    * caller renders HeldOffNote beside it (the filter panels already do this for drift).
    */
   heldOff?: boolean;
+  /**
+   * The lane row's help link (docs/specs/HELP_POPOVER_LINKS.md §1.4): "View LFO settings" calls this with the lane the
+   * control holds at the press (null for Off; the stored lane even while held off). Required, so no render site can
+   * leave the link out; the drawers pass navigation's openLfoLaneSettings, and this primitive imports no navigation.
+   */
+  onOpenLane: (lane: LfoLinkValue['lane']) => void;
 }
 
 /** The depth strip's fixed length (docs/specs/LAYOUT_REWORK.md §1.4): short, so the lane row and the strip
@@ -53,25 +59,33 @@ const OFF_VALUE = 'off';
  * at a given depth. `LfoLinkValue` is a type-only reuse of the real engine's `LfoLink` (Phase 0) —
  * no import of src/engine/lfoEngine.ts or any Tone object, so this stays presentation-only.
  */
-function LfoLinkInner({ schema, value, onChange, disabled, heldOff }: LfoLinkProps) {
+function LfoLinkInner({ schema, value, onChange, disabled, heldOff, onOpenLane }: LfoLinkProps) {
   const shell = useShell();
+
+  // Stable per-field onChange handlers via the `latest` ref pattern (Lfo.tsx's own precedent) —
+  // written in an effect, not during render (mutating a ref mid-render is disallowed). The lane link reads
+  // onOpenLane and the lane through it too, so neither is a memo key below.
+  const latest = useRef({ value, onChange, onOpenLane });
+  useEffect(() => {
+    latest.current = { value, onChange, onOpenLane };
+  });
+
   // Memoized like every other primitive's internal schema (Lfo.tsx's own precedent) — keyed on
   // schema.id and the shell; every other input (LANE_OPTIONS, LFO_DEPTH_MIN/MAX) is a module-level constant.
-  const laneSchema: RadioButtonSchema = useMemo(
-    () => ({ id: `${schema.id}.lane`, type: 'radio', ...labels('ui.lfoLane'), options: LANE_OPTIONS[shell] }),
-    [schema.id, shell],
-  );
+  // The lane row's help carries the "View LFO settings" link (HELP_POPOVER_LINKS.md §1.4); the control's own
+  // label row (schema.help) and the Depth row get none.
+  const laneSchema: RadioButtonSchema = useMemo(() => {
+    const lane = labels('ui.lfoLane');
+    const link = {
+      name: labels('ui.lfoLane.settingsName').humanLabel,
+      go: () => latest.current.onOpenLane(latest.current.value.lane),
+    };
+    return { id: `${schema.id}.lane`, type: 'radio', ...lane, help: lane.help && { ...lane.help, link }, options: LANE_OPTIONS[shell] };
+  }, [schema.id, shell]);
   const depthSchema: SliderLinearSchema = useMemo(
     () => ({ id: `${schema.id}.depth`, type: 'sliderLinear', ...labels('ui.lfo.depth'), min: LFO_DEPTH_MIN, max: LFO_DEPTH_MAX, orientation: 'horizontal' }),
     [schema.id],
   );
-
-  // Stable per-field onChange handlers via the `latest` ref pattern (Lfo.tsx's own precedent) —
-  // written in an effect, not during render (mutating a ref mid-render is disallowed).
-  const latest = useRef({ value, onChange });
-  useEffect(() => {
-    latest.current = { value, onChange };
-  });
 
   const handleLaneChange = useCallback((next: string) => {
     const lane = next === OFF_VALUE ? null : (next as NonNullable<LfoLinkValue['lane']>);

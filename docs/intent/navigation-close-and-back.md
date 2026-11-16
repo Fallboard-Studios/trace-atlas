@@ -17,7 +17,7 @@ only leaves the app from the deck. The nav rail keeps one width, so the content'
 - **Why now.** The routes out exist, but none reads as a way out: the nav's Deck and Probes boxes read as "go somewhere
   else" and the breadcrumb as "where am I". On the phone they sit behind ☰, and the phone breadcrumb leaves Root out, so
   the deck is two presses away. The browser's Back leaves the app at once. Backlog
-  [77](../todo/backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect) (a jump from a send to its effect) needs a
+  [77](../todo/archive/backlog-archive.md#77-help-popovers-a-link-from-a-send-to-its-effect) (a jump from a send to its effect) needs a
   Back to return from.
 
 ### The trail

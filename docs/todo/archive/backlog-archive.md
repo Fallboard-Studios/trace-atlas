@@ -1722,7 +1722,7 @@ opens:
   Decide whether the width change stays.
 
 Constraints: the controls live inside ScreenViewport (the UI Shell guardrail), navigation state stays in `uiStore`, and
-the labels go in `src/content/`. Neighbour: backlog [77](../backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect)
+the labels go in `src/content/`. Neighbour: backlog [77](#77-help-popovers-a-link-from-a-send-to-its-effect)
 (a jump from a send to its effect is a navigation, so Back should return from it). Plan.md Stage 5.
 
 **Status (2026-11-15): intent confirmed** ([intent](../../intent/navigation-close-and-back.md)). One trail of screens:
@@ -1766,6 +1766,42 @@ Raised by Crawford on 2026-11-11 (items 1, 2 and 8 of his list), in this order:
 
 Steps 1 and 2 change layout and the breadcrumb's trail, and step 3 is style, so its proof is a look in the browser.
 Plan.md Stage 5.
+
+
+## 77. Help Popovers: A Link from a Send to Its Effect
+
+**Closed** 2026-11-16 (`docs/backlog-77-intent`: the intent, spec, plan and build, Tasks 1–9 and the review's one
+follow-up; archived on the same branch, ahead of its PR). What shipped: a help popover can carry one link, "View
+{name} settings" (`ControlHelp`'s optional `link` on a control's schema, so the help content entry stays words only).
+The five sends' help on the robot, company and All Probes screens links to the effect each feeds, on the table below;
+Grit opens the first Color sub-tab whose stored Mix is above 0, else Distortion. The LFO lane picker's help links to
+its lane on LFOs (lane Off opens Core LFO), from the robot drawers and from Fleet Params. A press closes the popover,
+records one step on backlog 75's trail even inside Fleet Params (`openFleetParamsAt`), and puts focus on the open
+sub-tab; Back returns. Gate 1 (the link's look) and spec §5.3's runs (42/42, desk and phone, headless Chrome) passed;
+the Delay lane run ran from LPF, since Delay has no lane picker. As built:
+[spec](../../specs/HELP_POPOVER_LINKS.md) §8; [COMPONENT_LIBRARY.md](../../COMPONENT_LIBRARY.md);
+[UI_SHELL.md](../../UI_SHELL.md). The original request follows.
+
+Raised by Crawford on 2026-11-11 (item 6 of his list). The robot, company and All Probes screens carry five sends
+(Levels › Sends since roadmap
+[91](../roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes)), and each one's help
+popover (`HelpPopover.tsx`, opened by DualLabel's "?") names the shared effect it feeds without linking to it. Add a
+link that opens Fleet Params at that effect. The table uses the names on screen (checked 2026-11-16): 91 renamed
+Colour to Color, and the Frequency Shifter's sub-tab has read Shifter since roadmap 50.6:
+
+| Send (`src/content/copy/probe.ts`) | Feeds | Fleet Params tab › sub-tab |
+| --- | --- | --- |
+| Reverb (`probe.reverbSend`) | Reverb | Time & Space › Reverb |
+| Delay (`probe.delaySend`) | Delay | Time & Space › Delay |
+| Grit (`probe.gritSend`) | the colour room (Distortion, Chebyshev, Bit Crusher) | Color (which sub-tab is open) |
+| Shimmer (`probe.shimmerSend`) | Frequency Shifter | Modulation › Shifter |
+| Double (`probe.doubleSend`) | Chorus | Modulation › Chorus |
+
+To work out: where the link's target is recorded (HelpPopover is one of the 13 shared primitives, and help text is a
+content entry, so it is either a new field on the help entry or on the control's schema); which of Color's three
+sub-tabs Grit opens; and how the player gets back to the robot (backlog
+[75](#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), closed: Back walks a trail of screens, so
+it returns from the jump as from any other step). Plan.md Stage 5.
 
 
 ## 79. Robots: Move in Time with Their Own Melody

@@ -1,5 +1,6 @@
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, act, fireEvent } from '@testing-library/react';
+import { render, screen, act, fireEvent, within } from '@testing-library/react';
 
 import { HelpPopover } from './HelpPopover';
 import { CONTENT, fill } from '@/content';
@@ -177,5 +178,101 @@ describe('HelpPopover', () => {
 
   it('is a React.memo-wrapped component', () => {
     expect((HelpPopover as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
+  });
+});
+
+// docs/tasks/HELP_POPOVER_LINKS.md Task 3 (docs/specs/HELP_POPOVER_LINKS.md §1.2): a help can carry a link, "View
+// {name} settings", whose press closes the popover without handing focus back to the "?", and runs the link's go().
+describe('HelpPopover — the link', () => {
+  const linkName = (name: string) => fill('ui.help.link', { name });
+  const withLink = (go: () => void) => ({ ...HELP, link: { name: 'Reverb', go } });
+
+  it('with a link, the open popover has one button named by ui.help.link, after the lore block', () => {
+    render(<HelpPopover help={withLink(() => {})} humanLabel="Tempo" loreLabel="Ping Rate" />);
+    fireEvent.click(trigger());
+    const dialog = screen.getByRole('dialog');
+    const buttons = within(dialog).getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]).toBe(within(dialog).getByRole('button', { name: linkName('Reverb') }));
+    expect(buttons[0].textContent).toBe(linkName('Reverb'));
+    expect(buttons[0].getAttribute('type')).toBe('button');
+    expect(dialog.lastElementChild).toBe(buttons[0]);
+  });
+
+  it('the link is there without a lore block too', () => {
+    render(<HelpPopover help={{ human: HELP.human, link: { name: 'Chorus', go: () => {} } }} humanLabel="Tempo" />);
+    fireEvent.click(trigger());
+    expect(within(screen.getByRole('dialog')).getByRole('button', { name: linkName('Chorus') })).toBeTruthy();
+  });
+
+  it('a press calls go exactly once and closes the popover', async () => {
+    const go = vi.fn();
+    render(<HelpPopover help={withLink(go)} humanLabel="Tempo" />);
+    act(() => trigger().focus());
+    fireEvent.click(trigger());
+    await tick();
+    fireEvent.click(screen.getByRole('button', { name: linkName('Reverb') }));
+    await tick();
+    expect(go).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  /** The page a jump lands on: it takes focus in a layout effect after the commit that mounts it, as Fleet Params'
+   *  sub-tab row does after a help jump. */
+  function Arrival() {
+    const ref = useRef<HTMLButtonElement>(null);
+    useLayoutEffect(() => ref.current?.focus(), []);
+    return <button type="button" ref={ref}>arrived</button>;
+  }
+  /** A screen with the popover whose link jumps to Arrival; `leaves` says whether the "?" goes with the screen. */
+  function Jump({ leaves }: { leaves: boolean }) {
+    const [jumped, setJumped] = useState(false);
+    const help = useMemo(() => withLink(() => setJumped(true)), []);
+    return (
+      <>
+        {!(jumped && leaves) && <HelpPopover help={help} humanLabel="Tempo" />}
+        {jumped && <Arrival />}
+      </>
+    );
+  }
+
+  it.each([
+    ['the "?" stays mounted', false],
+    ['the "?" leaves with its screen', true],
+  ])('after a press focus stays where the jump put it, never back on the "?" (%s)', async (_case, leaves) => {
+    render(<Jump leaves={leaves} />);
+    const button = trigger();
+    act(() => button.focus());
+    fireEvent.click(button);
+    await tick();
+    fireEvent.click(screen.getByRole('button', { name: linkName('Reverb') }));
+    await tick();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).not.toBe(button);
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'arrived' }));
+  });
+
+  it('after a link press, a later Escape close hands focus back to the "?" as usual', async () => {
+    render(<HelpPopover help={withLink(() => {})} humanLabel="Tempo" />);
+    const button = trigger();
+    act(() => button.focus());
+    fireEvent.click(button);
+    await tick();
+    fireEvent.click(screen.getByRole('button', { name: linkName('Reverb') }));
+    await tick();
+
+    act(() => button.focus());
+    fireEvent.click(button);
+    await tick();
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' });
+    await tick();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(button);
+  });
+
+  it('without a link the popover has no button', () => {
+    render(<HelpPopover help={HELP} humanLabel="Tempo" loreLabel="Ping Rate" />);
+    fireEvent.click(trigger());
+    expect(within(screen.getByRole('dialog')).queryAllByRole('button')).toHaveLength(0);
   });
 });

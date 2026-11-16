@@ -15,6 +15,12 @@
   min-width: 0;
 }
 
+/* The sub-tab row's wrapper, there only to hold the ref that focuses its open trigger after a help jump
+   (docs/specs/HELP_POPOVER_LINKS.md §1.5): no box of its own, so the row stays the section's flex item. */
+.fleet-params-screen__sub-tabs {
+  display: contents;
+}
+
 /* A sub-tab's stacked boxes (Pacing's), spaced as the section stacks its own
    (docs/specs/CONTENT_LAYOUT.md assumption 3). */
 .fleet-params-screen__boxes {

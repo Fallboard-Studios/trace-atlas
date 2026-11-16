@@ -4,7 +4,7 @@ import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 import { FleetParamsScreen } from './FleetParamsScreen';
 import { NavBreadcrumb } from '../nav/NavBreadcrumb';
-import { FLEET_PARAMS_SUBSECTIONS } from '../nav/navActions';
+import { FLEET_PARAMS_SUBSECTIONS, back, openFleetParamsAt, selectBranch, selectEntity, takeArrivalFocus } from '../nav/navActions';
 import { CONTENT, fill, labels, type ContentEntry } from '@/content';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
@@ -825,5 +825,106 @@ describe('FleetParamsScreen — the Output section gains Width (Global Pedals T1
     useUIStore.setState({ fleetParamsSection: 'output', fleetParamsSubsection: null });
     render(<FleetParamsScreen />);
     expect(tabNames(subRow('fleet.output'))).toEqual([human('fleet.compressor'), human('fleet.stereoWidener'), human('fleet.limiter')]);
+  });
+});
+
+// docs/tasks/HELP_POPOVER_LINKS.md Task 2 (docs/specs/HELP_POPOVER_LINKS.md §1.5): after a help jump the open sub-tab's
+// trigger has focus; nothing else moves focus.
+describe('FleetParamsScreen — arrival focus after a help jump', () => {
+  /** The screen as the app mounts it: only while Fleet Params is the open tile, beside a button outside it. */
+  function Host() {
+    const tile = useUIStore((s) => s.activeHubTile);
+    return (
+      <>
+        <button type="button">outside</button>
+        {tile === 'audioRig' && <FleetParamsScreen />}
+      </>
+    );
+  }
+  const outside = () => screen.getByRole('button', { name: 'outside' });
+  const tab = (name: string) => screen.getByRole('tab', { name });
+
+  beforeEach(() => {
+    takeArrivalFocus(); // a flag left by another file's jump
+  });
+
+  it('from a robot on Levels > Sends to Modulation > Chorus: the Chorus trigger has focus', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'volume', selectedSubsection: 'sends' });
+    render(<Host />);
+    outside().focus();
+    act(() => openFleetParamsAt('modulation', 'chorus'));
+    expect(document.activeElement).toBe(tab(human('fleet.chorus')));
+    expect(tab(human('fleet.chorus')).getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('from Fleet Params on Delay to LFOs > Accent LFO: the Accent LFO trigger has focus', () => {
+    useUIStore.setState({ fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+    render(<Host />);
+    outside().focus();
+    act(() => openFleetParamsAt('lfoBank', 'laneC'));
+    expect(document.activeElement).toBe(tab(laneTitle('c', 'desk')));
+  });
+
+  it('from Delay to Reverb, the sub-tab row staying mounted: the Reverb trigger has focus', () => {
+    useUIStore.setState({ fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+    render(<Host />);
+    outside().focus();
+    act(() => openFleetParamsAt('timeSpace', 'reverb'));
+    expect(document.activeElement).toBe(tab(human('fleet.reverb')));
+  });
+
+  it('the request is taken once: a later sub-tab change moves no focus', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    render(<Host />);
+    act(() => openFleetParamsAt('modulation', 'chorus'));
+    outside().focus();
+    act(() => useUIStore.getState().setFleetParamsSubsection('phaser'));
+    expect(document.activeElement).toBe(outside());
+    expect(takeArrivalFocus()).toBe(false);
+  });
+
+  it.each<[string, () => void]>([
+    ['a sub-tab press', () => pick(human('fleet.reverb'))],
+    ['setFleetParamsSection', () => act(() => useUIStore.getState().setFleetParamsSection('colour'))],
+    ['the no-op jump (already on Delay)', () => act(() => openFleetParamsAt('timeSpace', 'delay'))],
+  ])('%s on Fleet Params moves no focus', (_case, go) => {
+    useUIStore.setState({ fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+    render(<Host />);
+    outside().focus();
+    go();
+    expect(document.activeElement).toBe(outside());
+    expect(takeArrivalFocus()).toBe(false);
+  });
+
+  it("selectBranch('fleetParams') from a robot moves no focus", () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    render(<Host />);
+    outside().focus();
+    act(() => selectBranch('fleetParams'));
+    expect(screen.getByRole('tablist', { name: human('fleet.root') })).toBeTruthy();
+    expect(document.activeElement).toBe(outside());
+    expect(takeArrivalFocus()).toBe(false);
+  });
+
+  it('back() onto a Fleet Params stop moves no focus', () => {
+    useUIStore.setState({ fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+    render(<Host />);
+    act(() => selectEntity({ robotId: 'r1' }));
+    outside().focus();
+    act(() => back());
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+    expect(document.activeElement).toBe(outside());
+    expect(takeArrivalFocus()).toBe(false);
+  });
+
+  it('a jump never taken (no screen mounted) is cleared by the next navigation: back() onto Fleet Params moves no focus', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1' });
+    openFleetParamsAt('modulation', 'chorus'); // nothing rendered: the request is left set
+    selectEntity({ robotId: 'r2' });
+    render(<Host />);
+    outside().focus();
+    act(() => back());
+    expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'modulation' });
+    expect(document.activeElement).toBe(outside());
   });
 });

@@ -1,9 +1,9 @@
-import type { ComponentType, ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ComponentType, type ReactNode } from 'react';
 import { AudioLoadPanel } from '../console/AudioLoadPanel';
 import { AudioRigDrawer, AudioRigEffectPanel } from '../console/AudioRigDrawer';
 import { LfoBankLanePanel } from '../console/LfoBankLanePanel';
 import { useShell, type Shell } from '../useShell';
-import { FLEET_PARAMS_GROUP_CONTENT, FLEET_PARAMS_SUBSECTIONS, activeFleetParamsSubsection } from '../nav/navActions';
+import { FLEET_PARAMS_GROUP_CONTENT, FLEET_PARAMS_SUBSECTIONS, activeFleetParamsSubsection, takeArrivalFocus } from '../nav/navActions';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { withFeaturedClass } from '@/components/ui/controls/activeClass';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
@@ -144,18 +144,33 @@ const SUB_TAB_ITEMS = Object.fromEntries(
 ) as Record<Shell, Record<FleetParamsGroup, readonly SectionTabItem<SelectedFleetParamsEffect>[]>>;
 
 /** The sub-tab row, nested in its section's panel; it alone reads the stored sub-tab. Every section has
- *  one (docs/specs/CONTENT_LAYOUT.md §1.2: the single panels became World's sub-tabs). */
+ *  one (docs/specs/CONTENT_LAYOUT.md §1.2: the single panels became World's sub-tabs). After a help jump
+ *  (docs/specs/HELP_POPOVER_LINKS.md §1.5) it focuses its open trigger, in a layout effect after the commit that
+ *  mounts the sub-tab. The ref is on the row's own wrapper (a `display: contents` box, so the layout is unchanged):
+ *  a ref on a parent's element is not yet attached when a child's layout effect runs on mount. Nothing else moves
+ *  focus. */
 function SubTabs({ section }: { section: FleetParamsGroup }) {
   const shell = useShell();
   const stored = useUIStore((s) => s.fleetParamsSubsection);
+  const active = activeFleetParamsSubsection(section, stored)!;
+  const root = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    // A section being left stays mounted for a commit (Radix's Presence), and its open sub-tab can change with the
+    // store's: only the open section's row may take the request, or it focuses a trigger about to leave the DOM.
+    if (useUIStore.getState().fleetParamsSection !== section) return;
+    if (!takeArrivalFocus()) return;
+    root.current?.querySelector<HTMLElement>('.section-tabs--sub [role="tab"][aria-selected="true"]')?.focus();
+  }, [active, section]);
   return (
-    <SectionTabs
-      variant="sub"
-      label={labels(FLEET_PARAMS_GROUP_CONTENT[section]).humanLabel}
-      items={SUB_TAB_ITEMS[shell][section]}
-      value={activeFleetParamsSubsection(section, stored)!}
-      onValueChange={setSubsection}
-    />
+    <div ref={root} className="fleet-params-screen__sub-tabs">
+      <SectionTabs
+        variant="sub"
+        label={labels(FLEET_PARAMS_GROUP_CONTENT[section]).humanLabel}
+        items={SUB_TAB_ITEMS[shell][section]}
+        value={active}
+        onValueChange={setSubsection}
+      />
+    </div>
   );
 }
 

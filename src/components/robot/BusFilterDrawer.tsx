@@ -4,6 +4,7 @@ import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
+import { openLfoLaneSettings } from '@/components/panels/screen/nav/helpLinks';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
 import { withFeaturedClass } from '@/components/ui/controls/activeClass';
 import {
@@ -69,7 +70,7 @@ function BusFilterDrawerInner({ value, onChange, onLfoLinkChange, heldOff, disab
           <SliderLog schema={BUS_CUTOFF_SCHEMA} value={value.filterFreq} onChange={handleCutoffChange} disabled={disabled} />
         </div>
         <div className="bus-filter-drawer__link">
-          <LfoLink schema={BUS_FILTER_LINK_SCHEMA} value={value.lfoLink} onChange={onLfoLinkChange} disabled={disabled} heldOff={heldOff} />
+          <LfoLink schema={BUS_FILTER_LINK_SCHEMA} value={value.lfoLink} onChange={onLfoLinkChange} disabled={disabled} heldOff={heldOff} onOpenLane={openLfoLaneSettings} />
           {heldOff && <HeldOffNote />}
         </div>
       </DirectionalPanel>

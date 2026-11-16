@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
 // Same reasoning as AudioRigDrawer/SignatureArrayDrawer's own test files: the shared
@@ -21,6 +21,7 @@ import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { AUDIO_SETTING_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, ROBOT_SEND_SCHEMAS, DYNAMICS_SCHEMA } from '@/data/robotOptionsConfig';
 import { ROBOT_SENDS, type RobotSendField } from '@/data/robotSends';
 import { CONTENT, fill } from '@/content';
+import { useUIStore } from '@/stores/uiStore';
 import type { Robot } from '@/types/Robot';
 
 /** Stubs window.matchMedia so the mobile/tablet viewport tiers can be controlled — same shape
@@ -1374,6 +1375,50 @@ describe('Levels halves', () => {
       render(<LevelsSendsSection value={makeValue()} {...baseProps} heldOffSends={held()} />);
       expect(screen.queryByText(HELD_OFF)).toBeNull();
       for (const spec of ROBOT_SENDS) expect(sendSlider(spec.field).getAttribute('data-disabled'), spec.field).toBeNull();
+    });
+  });
+
+  // docs/tasks/HELP_POPOVER_LINKS.md Task 5 (docs/specs/HELP_POPOVER_LINKS.md §1.4): each send row's "?" carries a link to
+  // the effect the send feeds. The robot, company and All Probes screens all render this section.
+  describe('send help links (Help Popover Links T5)', () => {
+    const baseProps = { onSendChange: () => {} };
+    /** Spec §1.4's names: each send's link reads its destination's entry. */
+    const DESTINATION: Record<RobotSendField, keyof typeof CONTENT> = {
+      reverbSend: 'fleet.reverb',
+      delaySend: 'fleet.delay',
+      gritSend: 'fleet.colour',
+      shimmerSend: 'fleet.frequencyShifter',
+      doubleSend: 'fleet.chorus',
+    };
+    const helpOf = (field: RobotSendField) =>
+      screen.getByRole('button', { name: fill('ui.help', { name: CONTENT[ROBOT_SENDS.find((s) => s.field === field)!.contentKey].human }) });
+    const linkOf = (field: RobotSendField) =>
+      within(screen.getByRole('dialog')).getByRole('button', { name: fill('ui.help.link', { name: CONTENT[DESTINATION[field]].human }) });
+
+    beforeEach(() => {
+      useUIStore.setState(useUIStore.getInitialState(), true);
+      useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'volume', selectedSubsection: 'sends' });
+    });
+
+    it.each(ROBOT_SENDS.map((spec) => spec.field))('the %s row\'s "?" has its "View {name} settings" link', (field) => {
+      render(<LevelsSendsSection value={makeValue()} {...baseProps} />);
+      fireEvent.click(helpOf(field));
+      expect(linkOf(field).textContent).toBe(fill('ui.help.link', { name: CONTENT[DESTINATION[field]].human }));
+    });
+
+    it('a press on Double\'s link lands Fleet Params on Modulation > Chorus', () => {
+      render(<LevelsSendsSection value={makeValue()} {...baseProps} />);
+      fireEvent.click(helpOf('doubleSend'));
+      fireEvent.click(linkOf('doubleSend'));
+      expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'modulation', fleetParamsSubsection: 'chorus' });
+      expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('a held-off send row keeps its "?" and its link, and the link still works', () => {
+      render(<LevelsSendsSection value={makeValue({ gritSend: 0.6 })} {...baseProps} heldOffSends={swells('gritSend')} />);
+      fireEvent.click(helpOf('gritSend'));
+      fireEvent.click(linkOf('gritSend'));
+      expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'colour' });
     });
   });
 

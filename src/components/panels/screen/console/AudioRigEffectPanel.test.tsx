@@ -43,11 +43,13 @@ vi.mock('../../../../engine/lfoEngine', () => ({
 }));
 
 import { AudioRigEffectPanel } from './AudioRigDrawer';
+import { back } from '../nav/navActions';
 import type { AudioRigEffectKey } from '@/data/audioRigConfig';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { useAudioStore } from '@/stores/audioStore';
 import { AudioEngine } from '@/engine/AudioEngine';
-import { CONTENT } from '@/content';
+import { CONTENT, fill, labels } from '@/content';
+import { useUIStore } from '@/stores/uiStore';
 import { noteValueEquals, noteValueSeconds, type NoteDivision, type NoteModifier, type NoteValue } from '@/data/noteValues';
 import { allowedDelayNoteValues, allowedRateNoteValues } from '@/utils/tempoSync';
 import { formatNoteValue } from '@/utils/formatNoteValue';
@@ -651,6 +653,24 @@ describe('AudioRigEffectPanel', () => {
 
       expect(useAudioStore.getState().globalLfoLinks['eq3.mid'].depth).toBeGreaterThan(30);
       expect(useAudioStore.getState().globalLfoLinks['eq3.low']).toEqual({ lane: null, depth: 0 });
+    });
+
+    // docs/tasks/HELP_POPOVER_LINKS.md Task 8 (docs/specs/HELP_POPOVER_LINKS.md §1.4): the drawer hands its LfoLinks
+    // openLfoLaneSettings, so a lane row's help link opens that lane on the LFOs tab, as a step.
+    it("Mid's lane link on lane C lands Fleet Params on LFOs > Accent LFO, and Back returns to EQ", () => {
+      useUIStore.setState(useUIStore.getInitialState(), true);
+      useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'eqFilters', fleetParamsSubsection: 'eq3' });
+      useAudioStore.setState((s) => ({
+        globalLfoLinks: { ...s.globalLfoLinks, 'eq3.mid': { lane: 'c', depth: 65 } },
+      }));
+      render(<AudioRigEffectPanel effectKey="eq3" />);
+      fireEvent.click(within(rowOf('Mid')).getByRole('button', { name: fill('ui.help', { name: labels('ui.lfoLane').humanLabel! }) }));
+      const linkName = fill('ui.help.link', { name: labels('ui.lfoLane.settingsName').humanLabel });
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: linkName }));
+
+      expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneC' });
+      back();
+      expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'eqFilters', fleetParamsSubsection: 'eq3' });
     });
 
     it('every LfoLink renders enabled by default — no parent-effect enabled/disabled concept left to gate it', () => {
