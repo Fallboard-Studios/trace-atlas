@@ -6,15 +6,13 @@ import { CABINET_REST_POP } from '@/utils/cabinetGeometry';
 import './NavBox.css';
 
 interface NavBoxProps {
-  /** Unique within the panel (a branch, an entity id); keys the box's timeline. */
+  /** Unique within the panel (a branch); keys the box's timeline. */
   id: string;
   loreLabel?: string;
   humanLabel: string;
-  /** Where you are — the open branch or the selected entity: fully popped, `aria-current`. */
+  /** Where you are — the open branch: fully popped, `aria-current`. */
   current?: boolean;
-  /** A disclosure's open state (+ New Company): fully popped while open, `aria-expanded`. */
-  expanded?: boolean;
-  /** The id of what the disclosure opens. */
+  /** The id of what the box controls. */
   controls?: string;
   /** The box's own accent scope (getRobotColorStyle for an entity); omitted, it inherits. */
   accentStyle?: CSSProperties;
@@ -24,17 +22,17 @@ interface NavBoxProps {
 /**
  * One box in the nav panel (docs/specs/LAYOUT_REWORK.md §1.2): a native button over an animated
  * CabinetBox, engaged on hover / focus / press exactly as Button is (resting at CABINET_REST_POP).
- * What Button has no notion of is a box that stays out — the current branch or entity, or an open
- * disclosure — so out = act reads as "you are here" (the depth rule, spec §3). `timelineKey` carries
+ * What Button has no notion of is a box that stays out — the current branch — so out = act reads as
+ * "you are here" (the depth rule, spec §3). `timelineKey` carries
  * useId() for the reason Button's does: timelineMap is keyed globally, so two boxes with one id (a remount
  * overlapping its predecessor, a test rendering twice) would share a timeline.
  */
-export function NavBox({ id, loreLabel, humanLabel, current = false, expanded, controls, accentStyle, onClick }: NavBoxProps) {
+export function NavBox({ id, loreLabel, humanLabel, current = false, controls, accentStyle, onClick }: NavBoxProps) {
   const instanceId = useId();
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
   const [pressed, setPressed] = useState(false);
-  const popped = current || expanded || hovered || focused || pressed ? true : CABINET_REST_POP;
+  const popped = current || hovered || focused || pressed ? true : CABINET_REST_POP;
 
   return (
     <button
@@ -43,7 +41,6 @@ export function NavBox({ id, loreLabel, humanLabel, current = false, expanded, c
       style={accentStyle}
       aria-label={humanLabel}
       aria-current={current ? 'true' : undefined}
-      aria-expanded={expanded}
       aria-controls={controls}
       onClick={onClick}
       onMouseEnter={() => setHovered(true)}

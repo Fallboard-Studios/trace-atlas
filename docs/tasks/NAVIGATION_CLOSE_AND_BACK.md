@@ -568,7 +568,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 4: The rail (Part D, on trial)
 
-- [ ] **Task 13: `NavPanel.tsx`, `NavPanel.css` — one width, no list**
+- [x] **Task 13: `NavPanel.tsx`, `NavPanel.css` — one width, no list**
 
   **Description:** `NavPanel` stops rendering `NavEntityList`, stops passing `expanded`, drops `useNavPanelWidth` with
   its GSAP and `timelineMap` imports, and calls `selectBranch` for every box. The rescue hook's trigger loses the
@@ -582,16 +582,23 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   changes no nav state (today it toggles the list). The rest is deletion: Read, and a Look.
 
   **Acceptance criteria:**
-  - [ ] The panel renders three boxes and no entity list on either shell; no box carries `aria-expanded`.
-  - [ ] Pressing Probes from a robot's screen shows the Probes list; pressing it there changes nothing.
-  - [ ] No `nav-panel-width` timeline is ever registered.
-  - [ ] Look: the rail is 124 px on every screen and the content's left edge never moves; the phone sheet shows three
-        boxes.
+  - [x] The panel renders three boxes and no entity list on either shell; no box carries `aria-expanded`. (`NavBox`
+        lost its `expanded` prop: `RosterBoard`'s "+ New Company" passes `expanded` to a `Button`, not a `NavBox`.)
+  - [x] Pressing Probes from a robot's screen shows the Probes list; pressing it there changes nothing. (On the phone
+        the press is a pick like any box: it shuts the sheet and changes nothing else.)
+  - [x] No `nav-panel-width` timeline is ever registered.
+  - [x] Look: the rail is 124 px on every screen and the content's left edge never moves; the phone sheet shows three
+        boxes. (Headless Chrome, 2026-11-15, powered on: deck, Probes, a robot, Fleet Params, Probes, Probes pressed on
+        itself, Back. At 1500 × 900 and 768 × 1024 the rail is 124 px and the content's left edge 156 px on all
+        seven; at 320 × 640 the sheet holds three boxes and no `aria-expanded` on all seven.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] The Look above, recorded in the commit or flagged at Gate 3.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (RED first: the press on the Probes list, the three
+        no-disclosure cases and the no-timeline case failed; the robot-screen case passed as a pin. 285 pass; then
+        `src/components/panels`, `src/components/tablet`, `src/components/robot`, 2,864. Mutation: the boxes back on
+        `pressBranchBox` is killed by 2.)
+  - [x] The Look above, recorded in the commit or flagged at Gate 3.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Checkpoints B and C.
 
