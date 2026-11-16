@@ -241,7 +241,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one helper, three call sites, its tests)
 
-- [ ] **Task 4: `navActions.ts` — `back()`**
+- [x] **Task 4: `navActions.ts` — `back()`**
 
   **Description:** `back()` takes the last stop off the trail and shows it in the restore order above; with an empty
   trail it shows the deck. It never records a step, and it runs the clean slate, so it shuts the phone sheet.
@@ -250,14 +250,15 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   company on Envelope › Character.
 
   **Acceptance criteria:**
-  - [ ] deck → robot → `back()` shows the deck with an empty trail.
-  - [ ] Fleet Params on a non-default section and sub-tab → Probes → `back()` shows Fleet Params on both.
-  - [ ] robot → `goHome()` → `back()` shows the robot.
-  - [ ] `back()` appends nothing; on an empty trail it shows the deck; it sets `isNavPanelOpen` false.
+  - [x] deck → robot → `back()` shows the deck with an empty trail.
+  - [x] Fleet Params on a non-default section and sub-tab → Probes → `back()` shows Fleet Params on both.
+  - [x] robot → `goHome()` → `back()` shows the robot.
+  - [x] `back()` appends nothing; on an empty trail it shows the deck; it sets `isNavPanelOpen` false.
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (RED first: all 15 new cases failed, `back` not a
+        function; 271 pass after.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 3.
 

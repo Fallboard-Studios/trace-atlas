@@ -136,17 +136,20 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
 /** The most stops the trail holds; a step past it drops the oldest (spec §7.1 A3). */
 export const NAV_TRAIL_MAX = 50;
 
-type ScreenState = Pick<UIStore, 'activeHubTile' | 'selectedRobotId' | 'selectedCompanyId' | 'allProbesSelected'>;
-
 /** A screen's identity, one string: `deck`, `probes`, `robot:<id>`, `company:<id>`, `all` or `fleetParams`.
  *  Under Probes a robot wins over a company and a company over All Probes, as ProbesBranch routes. Fleet Params
  *  ignores the entity fields: a robot clicked in the world there only moves the halo. Tabs are not identity. */
-function screenKey(s: ScreenState): string {
-  if (s.activeHubTile === null) return 'deck';
-  if (s.activeHubTile === 'audioRig') return 'fleetParams';
-  if (s.selectedRobotId !== null) return `robot:${s.selectedRobotId}`;
-  if (s.selectedCompanyId !== null) return `company:${s.selectedCompanyId}`;
-  return s.allProbesSelected ? 'all' : 'probes';
+function stopKey(stop: Pick<NavStop, 'tile' | 'robotId' | 'companyId' | 'allProbes'>): string {
+  if (stop.tile === null) return 'deck';
+  if (stop.tile === 'audioRig') return 'fleetParams';
+  if (stop.robotId !== null) return `robot:${stop.robotId}`;
+  if (stop.companyId !== null) return `company:${stop.companyId}`;
+  return stop.allProbes ? 'all' : 'probes';
+}
+
+/** The screen showing now, as stopKey names it. */
+function screenKey(s: UIStore): string {
+  return stopKey({ tile: s.activeHubTile, robotId: s.selectedRobotId, companyId: s.selectedCompanyId, allProbes: s.allProbesSelected });
 }
 
 /** The screen showing now, with its four tab fields, as a stop. */
@@ -238,13 +241,45 @@ export function pressBranchBox(branch: NavBranch): void {
   selectBranch(branch);
 }
 
-/** The Deck: no tile, nothing expanded, no entity. */
+/** The Deck: no tile, nothing expanded, no entity. Close on the screen row (spec §1.3): a step like any other, so a
+ *  Back after it returns to the screen closed. */
 export function goHome(): void {
   recordStep('deck');
   cleanSlate();
+  showDeck();
+}
+
+function showDeck(): void {
   const s = useUIStore.getState();
   s.setActiveHubTile(null);
   s.setExpandedTopLevelBranch(null);
+}
+
+/** Shows a stop after the clean slate. The order matters: selectRobot clears the robot tabs and
+ *  setFleetParamsSection clears its sub-tab, so the entity comes before its tabs and each section before its
+ *  sub-tab. The Probes list comes back open in the rail, as selectBranch('probes') shows it; an entity, collapsed. */
+function restore(stop: NavStop): void {
+  const s = useUIStore.getState();
+  s.setActiveHubTile(stop.tile);
+  if (stop.robotId !== null) s.selectRobot(stop.robotId);
+  if (stop.companyId !== null) s.selectCompany(stop.companyId);
+  s.setAllProbesSelected(stop.allProbes);
+  s.setSelectedSection(stop.section);
+  s.setSelectedSubsection(stop.subsection);
+  s.setFleetParamsSection(stop.fleetSection);
+  s.setFleetParamsSubsection(stop.fleetSubsection);
+  s.setExpandedTopLevelBranch(stopKey(stop) === 'probes' ? 'probes' : null);
+}
+
+/** Back (spec §1.3): the last stop on the trail, on the tabs it showed, taken off the trail; the deck when the trail
+ *  is empty. Never a step itself. The screen row's Back and the browser's Back both call this. */
+export function back(): void {
+  const s = useUIStore.getState();
+  const stop = s.navTrail.at(-1);
+  if (stop) s.setNavTrail(s.navTrail.slice(0, -1));
+  cleanSlate();
+  if (stop) restore(stop);
+  else showDeck();
 }
 
 // ========================================

@@ -12,6 +12,7 @@ import {
   FLEET_PARAMS_GROUP_CONTENT,
   activeFleetParamsSubsection,
   NAV_TRAIL_MAX,
+  back,
   type NavBranch,
   type BreadcrumbState,
   type NavRoster,
@@ -510,6 +511,152 @@ describe('the trail: every navigation is a step', () => {
     useUIStore.setState({ selectedSection: 'source', selectedSubsection: 'busFilter' });
     selectBranch('fleetParams');
     expect(JSON.parse(JSON.stringify(trail()))).toStrictEqual(trail());
+  });
+});
+
+// docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 4 (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.3): Back shows the last
+// stop on the tabs it had, takes it off the trail, and is never a step itself.
+describe('back()', () => {
+  const trail = () => ui().navTrail;
+  /** The deck, as the store holds it: no tile, nothing expanded, no entity, default tabs. */
+  const DECK = {
+    activeHubTile: null, expandedTopLevelBranch: null,
+    selectedRobotId: null, selectedCompanyId: null, allRobotsSelected: true, allProbesSelected: false,
+    selectedSection: null, selectedSubsection: null,
+    fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION, fleetParamsSubsection: null,
+  };
+
+  it('a company on Envelope > Character -> a member robot -> back(): that company on Envelope > Character', () => {
+    selectEntity({ companyId: 'c1' });
+    useUIStore.setState({ selectedSection: 'envelope', selectedSubsection: 'envelopeCharacter' });
+    selectEntity({ robotId: 'r1' });
+    back();
+    expect(ui()).toMatchObject({
+      ...DECK, activeHubTile: 'robots',
+      selectedCompanyId: 'c1', allRobotsSelected: false,
+      selectedSection: 'envelope', selectedSubsection: 'envelopeCharacter',
+    });
+    expectCompanyInvariant();
+  });
+
+  it('deck -> robot -> back(): the deck, with an empty trail', () => {
+    selectEntity({ robotId: 'r1' });
+    back();
+    expect(ui()).toMatchObject(DECK);
+    expect(trail()).toEqual([]);
+  });
+
+  it('Fleet Params on Modulation > Chorus -> Probes -> back(): Fleet Params on both tabs', () => {
+    selectBranch('fleetParams');
+    ui().setFleetParamsSection('modulation');
+    ui().setFleetParamsSubsection('chorus');
+    selectBranch('probes');
+    back();
+    expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'audioRig', fleetParamsSection: 'modulation', fleetParamsSubsection: 'chorus' });
+  });
+
+  it('a robot on Source > Coaxial -> goHome() -> back(): the robot on its tabs (a Back after Close undoes it)', () => {
+    selectEntity({ robotId: 'r1' });
+    useUIStore.setState({ selectedSection: 'source', selectedSubsection: 'coaxialOscillator' });
+    goHome();
+    back();
+    expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'source', selectedSubsection: 'coaxialOscillator' });
+  });
+
+  it('All Probes on Levels -> a robot -> back(): All Probes on Levels', () => {
+    selectEntity('all');
+    useUIStore.setState({ selectedSection: 'volume', selectedSubsection: 'mix' });
+    selectEntity({ robotId: 'r1' });
+    back();
+    expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'robots', allProbesSelected: true, selectedSection: 'volume', selectedSubsection: 'mix' });
+  });
+
+  it('the Probes list -> a robot -> back(): the list, open in the rail as the Probes box shows it', () => {
+    selectBranch('probes');
+    selectEntity({ robotId: 'r1' });
+    back();
+    expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'robots', expandedTopLevelBranch: 'probes' });
+  });
+
+  it('a Back to an entity leaves the list collapsed, as an entity pick does', () => {
+    selectBranch('probes');
+    selectEntity({ robotId: 'r1' });
+    selectBranch('probes'); // the list open again
+    back();
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: 'r1', expandedTopLevelBranch: null });
+  });
+
+  it('a Back clears what the screen it leaves had: no robot left over on the company it shows', () => {
+    selectEntity({ companyId: 'c1' });
+    selectEntity({ robotId: 'r1' });
+    useUIStore.setState({ fleetParamsSection: 'output', fleetParamsSubsection: 'limiter' }); // stale, off-screen
+    back();
+    expect(ui()).toMatchObject({ ...DECK, activeHubTile: 'robots', selectedCompanyId: 'c1', allRobotsSelected: false });
+  });
+
+  it('appends nothing: each Back takes exactly one stop off', () => {
+    selectBranch('probes');
+    selectEntity({ companyId: 'c1' });
+    selectEntity({ robotId: 'r1' });
+    expect(trail()).toHaveLength(3);
+    back();
+    expect(trail()).toHaveLength(2);
+    back();
+    expect(trail()).toHaveLength(1);
+  });
+
+  it('a walk unwinds in reverse, one screen per Back, ending on the deck', () => {
+    selectBranch('fleetParams');
+    selectBranch('probes');
+    selectEntity({ companyId: 'c1' });
+    selectEntity({ robotId: 'r1' });
+    const shown: string[] = [];
+    for (let i = 0; i < 4; i++) {
+      back();
+      const s = ui();
+      shown.push(`${s.activeHubTile}/${s.selectedRobotId ?? s.selectedCompanyId ?? '-'}`);
+    }
+    expect(shown).toEqual(['robots/c1', 'robots/-', 'audioRig/-', 'null/-']);
+    expect(trail()).toEqual([]);
+  });
+
+  it('on an empty trail shows the deck, from any screen', () => {
+    useUIStore.setState({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'melody' });
+    back();
+    expect(ui()).toMatchObject(DECK);
+    expect(trail()).toEqual([]);
+  });
+
+  it('on an empty trail on the deck changes nothing', () => {
+    back();
+    expect(ui()).toMatchObject(DECK);
+    expect(trail()).toEqual([]);
+  });
+
+  it('shuts the phone nav sheet, as every action does', () => {
+    selectEntity({ robotId: 'r1' });
+    ui().setNavPanelOpen(true);
+    back();
+    expect(ui().isNavPanelOpen).toBe(false);
+
+    ui().setNavPanelOpen(true);
+    back(); // the empty-trail fallback too
+    expect(ui().isNavPanelOpen).toBe(false);
+  });
+
+  it('a Back then a new pick records the screen Back showed', () => {
+    selectEntity({ companyId: 'c1' });
+    selectEntity({ robotId: 'r1' });
+    back();
+    selectEntity({ robotId: 'r2' });
+    expect(trail().map((stop) => stop.companyId ?? stop.robotId ?? stop.tile)).toEqual([null, 'c1']);
+  });
+
+  it('leaves power alone', () => {
+    useUIStore.setState({ isPoweredOn: true });
+    selectEntity({ robotId: 'r1' });
+    back();
+    expect(ui().isPoweredOn).toBe(true);
   });
 });
 
