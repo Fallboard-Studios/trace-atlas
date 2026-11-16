@@ -290,7 +290,7 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
 
   **Estimated scope:** S
 
-- [ ] **Task 8: `LfoLink.tsx` — a required `onOpenLane`; the three drawers pass `openLfoLaneSettings`**
+- [x] **Task 8: `LfoLink.tsx` — a required `onOpenLane`; the three drawers pass `openLfoLaneSettings`**
 
   **Description:** `LfoLink` (`src/components/ui/controls/LfoLink.tsx`) gains a required prop
   `onOpenLane: (lane: LfoLaneId | null) => void`, held in its `latest` ref with `value` and `onChange`. The lane

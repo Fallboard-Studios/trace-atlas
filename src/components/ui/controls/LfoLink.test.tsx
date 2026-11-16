@@ -1,7 +1,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, within } from '@testing-library/react';
+
+// Spied, still delegating (LevelsSections.test.tsx's pattern): RadioButton and SliderLinear call it with their schema on
+// every render, so a test can tell which row re-rendered.
+vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/ui/controls/accessibleName')>();
+  return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
+});
 
 import { LfoLink, LFO_LINK_DEPTH_BOXES } from './LfoLink';
+import { resolveAccessibleName } from './accessibleName';
+import { fill, labels } from '@/content';
 import { LFO_DEPTH_MIN, LFO_DEPTH_MAX } from '@/types/lfo';
 import { CABINET_BOX_HEIGHT, CABINET_BREAKPOINT_MOBILE_MAX, CABINET_BREAKPOINT_TABLET_MAX, CABINET_VOXEL_GAP, type CabinetTier } from '@/utils/cabinetBreakpoints';
 import { computeVoxelTrackLength, computeVoxelTrackTrailingReserve } from '@/utils/voxelTrackMath';
@@ -17,6 +26,8 @@ vi.mock('@/components/panels/screen/useShell', async (importOriginal) => ({
 
 const schema: LfoLinkSchema = { id: 'layer0.gain', type: 'lfoLink', humanLabel: 'Gain' };
 const value: LfoLinkValue = { lane: null, depth: 30 };
+/** The required lane-link navigation (docs/tasks/HELP_POPOVER_LINKS.md Task 8), for every case not about the link. */
+const noOpenLane = () => {};
 
 /** SliderLinear's own box-fitting needs a ResizeObserver even while forced 'horizontal' —
  *  same controllable mock Lfo.test.tsx uses for its sibling SliderLinears. */
@@ -39,7 +50,7 @@ describe('LfoLink', () => {
   });
 
   it('renders the 5 lane options (Off, a-d) and one Depth slider', () => {
-    render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={value} onChange={() => {}} />);
     expect(screen.getByRole('radio', { name: 'Off' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Core LFO (A)' })).toBeTruthy();
     expect(screen.getByRole('radio', { name: 'Companion LFO (B)' })).toBeTruthy();
@@ -50,19 +61,19 @@ describe('LfoLink', () => {
   });
 
   it('shows Off selected and the stored depth when lane is null', () => {
-    render(<LfoLink schema={schema} value={{ lane: null, depth: 30 }} onChange={() => {}} />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: null, depth: 30 }} onChange={() => {}} />);
     expect(screen.getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('30');
   });
 
   it('shows the stored lane selected when lane is set', () => {
-    render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} />);
     expect(screen.getByRole('radio', { name: 'Companion LFO (B)' }).getAttribute('aria-checked')).toBe('true');
     expect(screen.getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('false');
   });
 
   it('the depth slider bounds match LFO_DEPTH_MIN/MAX from src/types/lfo.ts', () => {
-    render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={value} onChange={() => {}} />);
     const slider = screen.getByRole('slider');
     expect(slider.getAttribute('aria-valuemin')).toBe(String(LFO_DEPTH_MIN));
     expect(slider.getAttribute('aria-valuemax')).toBe(String(LFO_DEPTH_MAX));
@@ -70,21 +81,21 @@ describe('LfoLink', () => {
 
   it('fires onChange with the lane changed and depth preserved when a lane option is chosen', () => {
     const onChange = vi.fn();
-    render(<LfoLink schema={schema} value={{ lane: null, depth: 30 }} onChange={onChange} />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: null, depth: 30 }} onChange={onChange} />);
     fireEvent.click(screen.getByRole('radio', { name: 'Core LFO (A)' }));
     expect(onChange).toHaveBeenCalledWith({ lane: 'a', depth: 30 });
   });
 
   it('fires onChange with lane set to null when Off is chosen from a lit lane', () => {
     const onChange = vi.fn();
-    render(<LfoLink schema={schema} value={{ lane: 'c', depth: 50 }} onChange={onChange} />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'c', depth: 50 }} onChange={onChange} />);
     fireEvent.click(screen.getByRole('radio', { name: 'Off' }));
     expect(onChange).toHaveBeenCalledWith({ lane: null, depth: 50 });
   });
 
   it('fires onChange with the depth changed and lane preserved when the depth slider changes', () => {
     const onChange = vi.fn();
-    render(<LfoLink schema={schema} value={{ lane: 'a', depth: 30 }} onChange={onChange} />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'a', depth: 30 }} onChange={onChange} />);
     const slider = screen.getByRole('slider');
     slider.focus();
     fireEvent.keyDown(slider, { key: 'ArrowRight' });
@@ -92,45 +103,45 @@ describe('LfoLink', () => {
   });
 
   it('adds an isActive class to the root when a lane is set, omits it when off', () => {
-    const { container, rerender } = render(<LfoLink schema={schema} value={{ lane: 'a', depth: 30 }} onChange={() => {}} />);
+    const { container, rerender } = render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'a', depth: 30 }} onChange={() => {}} />);
     expect(container.querySelector('.sc-lfo-link.isActive')).toBeTruthy();
 
-    rerender(<LfoLink schema={schema} value={{ lane: null, depth: 30 }} onChange={() => {}} />);
+    rerender(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: null, depth: 30 }} onChange={() => {}} />);
     expect(container.querySelector('.sc-lfo-link.isActive')).toBeNull();
   });
 
   it('disables the lane radio group and the depth slider when disabled is true', () => {
-    render(<LfoLink schema={schema} value={value} onChange={() => {}} disabled />);
+    render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={value} onChange={() => {}} disabled />);
     expect(screen.getByRole('radio', { name: 'Off' }).getAttribute('data-disabled')).toBe('');
     expect(screen.getByRole('slider').getAttribute('data-disabled')).toBe('');
   });
 
   describe('heldOff (Audio Load Budget)', () => {
     it('shows Off selected and depth 0 regardless of the real stored value', () => {
-      render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
       expect(screen.getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
       expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('0');
     });
 
     it('shows the real stored value when heldOff is false, even while otherwise disabled', () => {
-      render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff={false} />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff={false} />);
       expect(screen.getByRole('radio', { name: 'Companion LFO (B)' }).getAttribute('aria-checked')).toBe('true');
       expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('40');
     });
 
     it('omits the isActive class even though the real lane is set', () => {
-      const { container } = render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
+      const { container } = render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
       expect(container.querySelector('.sc-lfo-link.isActive')).toBeNull();
     });
 
     it('renders no HeldOffNote of its own — the caller renders it', () => {
-      render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
       expect(screen.queryByRole('note')).toBeNull();
     });
 
     it('never mutates the value or calls onChange on its own — a later reconnect uses the real stored value', () => {
       const onChange = vi.fn();
-      render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={onChange} heldOff />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={onChange} heldOff />);
       expect(onChange).not.toHaveBeenCalled();
     });
   });
@@ -149,7 +160,7 @@ describe('LfoLink', () => {
     const PHONE = ['Off', 'A', 'B', 'C', 'D'];
 
     it('desk: Off, then each lane\'s full name with its letter, as both the visible text and the accessible name', () => {
-      render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={value} onChange={() => {}} />);
       const radios = screen.getAllByRole('radio');
       expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual(DESK);
       expect(radios.map((r) => r.textContent)).toEqual(DESK);
@@ -157,7 +168,7 @@ describe('LfoLink', () => {
 
     it('phone: Off, then the letters', () => {
       shell.current = 'phone';
-      render(<LfoLink schema={schema} value={value} onChange={() => {}} />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={value} onChange={() => {}} />);
       const radios = screen.getAllByRole('radio');
       expect(radios.map((r) => r.getAttribute('aria-label'))).toEqual(PHONE);
       expect(radios.map((r) => r.textContent)).toEqual(PHONE);
@@ -165,11 +176,11 @@ describe('LfoLink', () => {
 
     it('a shell change relabels the options, keeps the selection, and never calls onChange', () => {
       const onChange = vi.fn();
-      const { rerender } = render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={onChange} />);
+      const { rerender } = render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={onChange} />);
       expect(screen.getByRole('radio', { name: 'Companion LFO (B)' }).getAttribute('aria-checked')).toBe('true');
 
       shell.current = 'phone';
-      rerender(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={onChange} />);
+      rerender(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={onChange} />);
       expect(screen.getByRole('radio', { name: 'B' }).getAttribute('aria-checked')).toBe('true');
       expect(screen.queryByRole('radio', { name: 'Companion LFO (B)' })).toBeNull();
       expect(onChange).not.toHaveBeenCalled();
@@ -178,14 +189,14 @@ describe('LfoLink', () => {
     it('phone: picking a letter sets that lane and keeps the depth', () => {
       shell.current = 'phone';
       const onChange = vi.fn();
-      render(<LfoLink schema={schema} value={{ lane: null, depth: 30 }} onChange={onChange} />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: null, depth: 30 }} onChange={onChange} />);
       fireEvent.click(screen.getByRole('radio', { name: 'C' }));
       expect(onChange).toHaveBeenCalledWith({ lane: 'c', depth: 30 });
     });
 
     it('phone: heldOff still shows Off and depth 0', () => {
       shell.current = 'phone';
-      render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
+      render(<LfoLink onOpenLane={noOpenLane} schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} disabled heldOff />);
       expect(screen.getByRole('radio', { name: 'Off' }).getAttribute('aria-checked')).toBe('true');
       expect(screen.getByRole('slider').getAttribute('aria-valuenow')).toBe('0');
     });
@@ -199,7 +210,7 @@ describe('LfoLink', () => {
     const bare: LfoLinkSchema = { id: 'layer0.gain.link', type: 'lfoLink' };
 
     it('keeps two label rows, Lane then Depth, each with its own help "?" — an unlabeled link adds none', () => {
-      const { container } = render(<LfoLink schema={bare} value={value} onChange={() => {}} />);
+      const { container } = render(<LfoLink onOpenLane={noOpenLane} schema={bare} value={value} onChange={() => {}} />);
       const labelRows = [...container.querySelectorAll('.sc-dual-label')];
       expect(labelRows).toHaveLength(2);
       expect(labelRows[0].querySelector('.sc-dual-label__human')?.textContent).toBe('Lane');
@@ -208,7 +219,7 @@ describe('LfoLink', () => {
     });
 
     it('puts the lane radio group and the depth slider in one row, lane first', () => {
-      const { container } = render(<LfoLink schema={bare} value={value} onChange={() => {}} />);
+      const { container } = render(<LfoLink onOpenLane={noOpenLane} schema={bare} value={value} onChange={() => {}} />);
       const row = container.querySelector('.sc-lfo-link__row')!;
       const lane = screen.getByRole('group', { name: 'Lane' });
       const depth = screen.getByRole('slider');
@@ -218,7 +229,7 @@ describe('LfoLink', () => {
     });
 
     it('no longer switches orientation by tier: the row wraps instead, so there is no data-orientation', () => {
-      const { container } = render(<LfoLink schema={bare} value={value} onChange={() => {}} />);
+      const { container } = render(<LfoLink onOpenLane={noOpenLane} schema={bare} value={value} onChange={() => {}} />);
       expect(container.querySelector('[data-orientation="row"], [data-orientation="column"]')).toBeNull();
     });
 
@@ -282,7 +293,7 @@ describe('LfoLink', () => {
 
     it.each(TIERS)('%s (viewport %ipx): the row offers the depth slider exactly an 8-box track at the tier\'s box size', (tier, width) => {
       stubViewport(width);
-      const { container } = render(<LfoLink schema={bare} value={{ lane: 'a', depth: 55 }} onChange={() => {}} />);
+      const { container } = render(<LfoLink onOpenLane={noOpenLane} schema={bare} value={{ lane: 'a', depth: 55 }} onChange={() => {}} />);
       expect(LFO_LINK_DEPTH_BOXES).toBe(8);
       const row = container.querySelector<HTMLElement>('.sc-lfo-link__row')!;
       expect(row.style.getPropertyValue('--lfo-link-depth-length')).toBe(`${eightBoxLength(tier)}px`);
@@ -290,7 +301,7 @@ describe('LfoLink', () => {
 
     it.each(TIERS)('%s (viewport %ipx): given that length, the strip is 8 boxes, one cabinet box tall', (tier, width) => {
       stubViewport(width);
-      const { container } = render(<LfoLink schema={bare} value={{ lane: 'a', depth: 55 }} onChange={() => {}} />);
+      const { container } = render(<LfoLink onOpenLane={noOpenLane} schema={bare} value={{ lane: 'a', depth: 55 }} onChange={() => {}} />);
       fitDepth(container, eightBoxLength(tier));
       expect(container.querySelector('.sc-voxel-track')?.children).toHaveLength(LFO_LINK_DEPTH_BOXES);
       expect(container.querySelector<HTMLElement>('.sc-slider-linear__root')?.style.height).toBe(`${CABINET_BOX_HEIGHT[tier]}px`);
@@ -300,9 +311,85 @@ describe('LfoLink', () => {
     // strip (328 px at the mobile tier): the strip shrinks with its line and fits fewer boxes, never overflowing.
     it('on a line narrower than the 8-box length, the strip fits fewer boxes — 7 in the 288 px phone pane', () => {
       stubViewport(CABINET_BREAKPOINT_MOBILE_MAX);
-      const { container } = render(<LfoLink schema={bare} value={{ lane: 'a', depth: 55 }} onChange={() => {}} />);
+      const { container } = render(<LfoLink onOpenLane={noOpenLane} schema={bare} value={{ lane: 'a', depth: 55 }} onChange={() => {}} />);
       fitDepth(container, 288);
       expect(container.querySelector('.sc-voxel-track')?.children).toHaveLength(7);
+    });
+  });
+
+  // docs/tasks/HELP_POPOVER_LINKS.md Task 8 (docs/specs/HELP_POPOVER_LINKS.md §1.4): the lane row's "?" carries "View LFO
+  // settings", whose press hands the lane the control holds at that moment to onOpenLane.
+  describe('the lane row\'s help link', () => {
+    const LINK_NAME = fill('ui.help.link', { name: labels('ui.lfoLane.settingsName').humanLabel });
+    const helpFor = (name: string) => screen.getByRole('button', { name: fill('ui.help', { name }) });
+    const openLaneHelp = () => fireEvent.click(helpFor(labels('ui.lfoLane').humanLabel!));
+    const laneLink = () => within(screen.getByRole('dialog')).getByRole('button', { name: LINK_NAME });
+
+    it('the lane row\'s "?" has the "View LFO settings" link', () => {
+      render(<LfoLink schema={schema} value={value} onChange={() => {}} onOpenLane={() => {}} />);
+      openLaneHelp();
+      expect(laneLink().textContent).toBe(LINK_NAME);
+    });
+
+    it.each<[LfoLinkValue['lane'], string]>([
+      ['b', 'lane B'],
+      ['d', 'lane D'],
+      [null, 'Off'],
+    ])('with %s held (%s), a press calls onOpenLane with it, once', (lane) => {
+      const onOpenLane = vi.fn();
+      render(<LfoLink schema={schema} value={{ lane, depth: 40 }} onChange={() => {}} onOpenLane={onOpenLane} />);
+      openLaneHelp();
+      fireEvent.click(laneLink());
+      expect(onOpenLane).toHaveBeenCalledTimes(1);
+      expect(onOpenLane).toHaveBeenCalledWith(lane);
+    });
+
+    it('a lane changed after mount is the one the press passes', () => {
+      const onOpenLane = vi.fn();
+      const { rerender } = render(<LfoLink schema={schema} value={{ lane: 'a', depth: 40 }} onChange={() => {}} onOpenLane={onOpenLane} />);
+      rerender(<LfoLink schema={schema} value={{ lane: 'c', depth: 40 }} onChange={() => {}} onOpenLane={onOpenLane} />);
+      openLaneHelp();
+      fireEvent.click(laneLink());
+      expect(onOpenLane).toHaveBeenCalledWith('c');
+    });
+
+    it('an onOpenLane handed in after mount is the one the press calls', () => {
+      const first = vi.fn();
+      const second = vi.fn();
+      const { rerender } = render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} onOpenLane={first} />);
+      rerender(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} onOpenLane={second} />);
+      openLaneHelp();
+      fireEvent.click(laneLink());
+      expect(first).not.toHaveBeenCalled();
+      expect(second).toHaveBeenCalledWith('b');
+    });
+
+    it('held off, the press still passes the stored lane, not the Off it shows', () => {
+      const onOpenLane = vi.fn();
+      render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} onOpenLane={onOpenLane} heldOff />);
+      openLaneHelp();
+      fireEvent.click(laneLink());
+      expect(onOpenLane).toHaveBeenCalledWith('b');
+    });
+
+    it('the control\'s own "?" and the Depth row\'s get no link', () => {
+      const withHelp: LfoLinkSchema = { ...schema, help: { human: 'How much the lane moves the gain.' } };
+      render(<LfoLink schema={withHelp} value={value} onChange={() => {}} onOpenLane={() => {}} />);
+      for (const name of ['Gain', labels('ui.lfo.depth').humanLabel!]) {
+        fireEvent.click(helpFor(name));
+        expect(within(screen.getByRole('dialog')).queryAllByRole('button'), name).toHaveLength(0);
+        fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+      }
+    });
+
+    it('the lane schema is the same object across a rerender with a new value: the lane row does not re-render', () => {
+      const onOpenLane = vi.fn();
+      const { rerender } = render(<LfoLink schema={schema} value={{ lane: 'b', depth: 40 }} onChange={() => {}} onOpenLane={onOpenLane} />);
+      (resolveAccessibleName as ReturnType<typeof vi.fn>).mockClear();
+      rerender(<LfoLink schema={schema} value={{ lane: 'b', depth: 55 }} onChange={() => {}} onOpenLane={vi.fn()} />);
+      const rerenderedIds = (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([s]) => s.id as string);
+      expect(rerenderedIds).toContain(`${schema.id}.depth`);
+      expect(rerenderedIds).not.toContain(`${schema.id}.lane`);
     });
   });
 });

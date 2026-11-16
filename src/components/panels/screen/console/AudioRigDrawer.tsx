@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
+import { openLfoLaneSettings } from '../nav/helpLinks';
 import { useAudioStore } from '@/stores/audioStore';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
@@ -334,6 +335,7 @@ export function AudioRigEffectPanel({ effectKey }: AudioRigEffectPanelProps) {
             value={lfoLinkValueByField[field]}
             onChange={lfoLinkOnChange[field]}
             heldOff={filterLinksHeldOff}
+            onOpenLane={openLfoLaneSettings}
           />
           {filterLinksHeldOff && <HeldOffNote />}
         </div>

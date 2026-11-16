@@ -40,7 +40,7 @@ const CASES: [string, () => ReactElement][] = [
   ['CoordsInput', () => <CoordsInput schema={{ ...base, type: 'coordsInput' }} value={{ x: 0, y: 0 }} onChange={noop} />],
   ['Stepper', () => <Stepper schema={{ ...base, type: 'stepper', min: 0, max: 4 }} value={1} onChange={noop} />],
   ['StepperWithToggle', () => <StepperWithToggle schema={{ ...base, type: 'stepperToggle', min: 0, max: 4 }} value={{ active: true, value: 1 }} onChange={noop} />],
-  ['LfoLink', () => <LfoLink schema={{ ...base, type: 'lfoLink' }} value={{ lane: null, depth: 0 }} onChange={noop} />],
+  ['LfoLink', () => <LfoLink schema={{ ...base, type: 'lfoLink' }} value={{ lane: null, depth: 0 }} onChange={noop} onOpenLane={noop} />],
   ['DirectionalPanel', () => <DirectionalPanel schema={{ ...base, type: 'directionalPanel', orientation: 'column' }}><p>body</p></DirectionalPanel>],
 ];
 
@@ -62,7 +62,7 @@ describe('help on control labels', () => {
   });
 
   it("LfoLink's Lane and Depth rows carry their own content help", () => {
-    render(<LfoLink schema={{ id: 'test.link', type: 'lfoLink' }} value={{ lane: 'a', depth: 40 }} onChange={noop} />);
+    render(<LfoLink schema={{ id: 'test.link', type: 'lfoLink' }} value={{ lane: 'a', depth: 40 }} onChange={noop} onOpenLane={noop} />);
     expect(screen.getByRole('button', { name: fill('ui.help', { name: labels('ui.lfoLane').humanLabel }) })).toBeTruthy();
     expect(screen.getByRole('button', { name: fill('ui.help', { name: labels('ui.lfo.depth').humanLabel }) })).toBeTruthy();
   });
