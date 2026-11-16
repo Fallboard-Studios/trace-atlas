@@ -572,9 +572,10 @@ from a send to its effect is a navigation, so Back should return from it). Plan.
 Back, on screen and in the browser, returns to where the player was, on the tab it showed; Close always shows the deck;
 a tab switch is not a step; no leave warning; power is not a step, and a different world picked while off empties the
 trail. On trial: the rail fixed at 124 px with the entity list removed, and the row's place (Back left, Close right,
-pinned, clear of the power corner). [Spec](../specs/NAVIGATION_CLOSE_AND_BACK.md) written the same day, awaiting
-Crawford's read of its seven open questions. Its first gate is a browser check of how the Back button is wired; the
-sketch of the row is its second.
+pinned, clear of the power corner). [Spec](../specs/NAVIGATION_CLOSE_AND_BACK.md) and
+[plan](../tasks/NAVIGATION_CLOSE_AND_BACK.md) written the same day, awaiting Crawford's read; the spec's seven open
+questions are built on their defaults until he answers. The plan opens with two gates: a browser check of how the Back
+button is wired, and the sketch of the row.
 
 ### 76. Fleet Params and the Edit Tabs: Regroup, Re-order, Respace
 

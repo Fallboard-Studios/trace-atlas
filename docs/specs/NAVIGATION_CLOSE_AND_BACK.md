@@ -12,8 +12,9 @@
 **Status:** spec written 2026-11-15 from the confirmed intent
 [docs/intent/navigation-close-and-back.md](../intent/navigation-close-and-back.md) (`interview-me`, 2026-11-15, seven
 questions; five guesses confirmed, two accepted on trial). Backlog
-[75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5. Not yet
-planned and not yet approved: §7.2's questions are Crawford's.
+[75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5. Planned in
+[tasks/NAVIGATION_CLOSE_AND_BACK.md](../tasks/NAVIGATION_CLOSE_AND_BACK.md). Not yet approved: §7.2's questions are
+Crawford's, and the plan builds on their defaults until he answers.
 
 **Who it is for:** the player moving between the deck, the Probes list, a robot, a company, All Probes and Fleet
 Params, on the desk shell and the phone shell.
