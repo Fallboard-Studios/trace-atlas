@@ -566,8 +566,13 @@ opens:
 
 Constraints: the controls live inside ScreenViewport (the UI Shell guardrail), navigation state stays in `uiStore`, and
 the labels go in `src/content/`. Neighbour: backlog [77](#77-help-popovers-a-link-from-a-send-to-its-effect) (a jump
-from a send to its effect is a navigation, so Back should return from it). Needs an interview before a spec. Plan.md
-Stage 5.
+from a send to its effect is a navigation, so Back should return from it). Plan.md Stage 5.
+
+**Status (2026-11-15): intent confirmed** ([intent](../intent/navigation-close-and-back.md)). One trail of screens:
+Back, on screen and in the browser, returns to where the player was, on the tab it showed; Close always shows the deck;
+a tab switch is not a step; no leave warning; power is not a step, and a different world picked while off empties the
+trail. On trial: the rail fixed at 124 px with the entity list removed, and the row's place (Back left, Close right,
+pinned, clear of the power corner). Next: a sketch of the row, then the spec.
 
 ### 76. Fleet Params and the Edit Tabs: Regroup, Re-order, Respace
 
