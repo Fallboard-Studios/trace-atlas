@@ -475,6 +475,64 @@ describe('uiStore — navTrail (the screens before the current one)', () => {
   });
 });
 
+// docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 6 (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.4): a world rebuild resets
+// the whole nav, in one write: the deck, no entity, default tabs, nothing open, an empty trail.
+describe('uiStore — resetNav (a new world lands on the deck)', () => {
+  const stop: NavStop = {
+    tile: 'robots', robotId: 'r1', companyId: null, allProbes: false,
+    section: 'melody', subsection: 'rhythmMelody', fleetSection: 'world', fleetSubsection: null,
+  };
+  /** Every nav field away from the deck, and the fields resetNav must leave alone set to something to keep. */
+  function deepInAScreen() {
+    useUIStore.setState({
+      activeHubTile: 'robots', selectedRobotId: 'r2', selectedCompanyId: 'c1', allRobotsSelected: false,
+      allProbesSelected: true, expandedTopLevelBranch: 'probes', selectedSection: 'envelope',
+      selectedSubsection: 'envelopeContour', isNavPanelOpen: true, fleetParamsSection: 'output',
+      fleetParamsSubsection: 'limiter', movePanelRobotId: 'r3', navTrail: [stop, stop, stop],
+      isPoweredOn: true, sceneWash: 'uncovering', activeLocaleLocalTime: 9.5, activeLocaleTemperature: -45,
+    });
+  }
+
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('leaves every nav field at the deck\'s value and the trail empty', () => {
+    deepInAScreen();
+    useUIStore.getState().resetNav();
+    const initial = useUIStore.getInitialState();
+    expect(useUIStore.getState()).toMatchObject({
+      activeHubTile: null, selectedRobotId: null, selectedCompanyId: null, allRobotsSelected: true,
+      allProbesSelected: false, expandedTopLevelBranch: null, selectedSection: null, selectedSubsection: null,
+      isNavPanelOpen: false, fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION, fleetParamsSubsection: null,
+      movePanelRobotId: null, navTrail: [],
+    });
+    // The deck is where a fresh app starts: the same values as the initial state.
+    for (const key of ['activeHubTile', 'selectedRobotId', 'selectedCompanyId', 'allRobotsSelected', 'allProbesSelected',
+      'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection', 'isNavPanelOpen', 'fleetParamsSection',
+      'fleetParamsSubsection', 'movePanelRobotId', 'navTrail'] as const) {
+      expect(useUIStore.getState()[key], key).toStrictEqual(initial[key]);
+    }
+  });
+
+  it('leaves power, the scene wash and the clock readouts alone', () => {
+    deepInAScreen();
+    useUIStore.getState().resetNav();
+    expect(useUIStore.getState()).toMatchObject({
+      isPoweredOn: true, sceneWash: 'uncovering', activeLocaleLocalTime: 9.5, activeLocaleTemperature: -45,
+    });
+  });
+
+  it('is one write: a subscriber hears it once', () => {
+    deepInAScreen();
+    let heard = 0;
+    const unsubscribe = useUIStore.subscribe(() => { heard += 1; });
+    useUIStore.getState().resetNav();
+    unsubscribe();
+    expect(heard).toBe(1);
+  });
+});
+
 // docs/tasks/LAYOUT_REWORK.md Task 20 (spec §1.10): which roster tile's Move popover / sheet is open.
 describe('uiStore — movePanelRobotId (the open Move panel)', () => {
   beforeEach(() => {

@@ -158,6 +158,10 @@ export interface UIStore {
   setSceneWash: (state: SceneWash) => void;
   /** Replaces the trail. Every rule about it (the step, the cap, Back) is navActions.ts's; the store only holds it. */
   setNavTrail: (trail: NavStop[]) => void;
+  /** A new world lands on the deck (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.4): every nav field back to the deck's
+   *  value, the phone sheet and the Move panel shut, an empty trail, in one write. Power, the scene wash and the clock
+   *  readouts stay. worldTransition.ts calls it on a rebuild. */
+  resetNav: () => void;
 }
 
 /** The Fleet Params tab the screen opens on, and every nav pick returns to: World, so the screen opens
@@ -214,6 +218,22 @@ export const useUIStore = create<UIStore>((set) => ({
   closeMovePanel: () => set({ movePanelRobotId: null }),
   setSceneWash: (state) => set({ sceneWash: state }),
   setNavTrail: (trail) => set({ navTrail: trail }),
+  resetNav: () =>
+    set({
+      activeHubTile: null,
+      selectedRobotId: null,
+      selectedCompanyId: null,
+      allRobotsSelected: true,
+      allProbesSelected: false,
+      expandedTopLevelBranch: null,
+      selectedSection: null,
+      selectedSubsection: null,
+      isNavPanelOpen: false,
+      fleetParamsSection: DEFAULT_FLEET_PARAMS_SECTION,
+      fleetParamsSubsection: null,
+      movePanelRobotId: null,
+      navTrail: [],
+    }),
 }));
 
 // ========================================

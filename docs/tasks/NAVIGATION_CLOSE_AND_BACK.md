@@ -294,7 +294,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one action, one call site)
 
-- [ ] **Task 6: `uiStore.ts`, `worldTransition.ts` — a world rebuild resets the nav**
+- [x] **Task 6: `uiStore.ts`, `worldTransition.ts` — a world rebuild resets the nav**
 
   **Description:** `resetNav()` sets the deck's state in one write: no tile, no robot, no company (`allRobotsSelected`
   true), All Probes off, the robot tabs null, Fleet Params on its default section with no sub-tab, nothing expanded,
@@ -307,17 +307,19 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   coordinates retransmit leaves the deck and an empty trail.
 
   **Acceptance criteria:**
-  - [ ] `resetNav()` leaves every nav field at the deck's value and `navTrail` empty; `isPoweredOn` and `sceneWash`
-        are unchanged.
-  - [ ] Every rebuilding mode of `retransmitWorld` resets the nav; `aspectsOnly`, `loadingOnly` and the no-op leave
+  - [x] `resetNav()` leaves every nav field at the deck's value and `navTrail` empty; `isPoweredOn` and `sceneWash`
+        are unchanged. (And the clock readouts; one write, one subscriber call.)
+  - [x] Every rebuilding mode of `retransmitWorld` resets the nav; `aspectsOnly`, `loadingOnly` and the no-op leave
         the screen and the trail as they were.
-  - [ ] The suites that mock `uiStore` with a fixed shape still load (`PowerRockerSwitch.test.tsx`,
+  - [x] The suites that mock `uiStore` with a fixed shape still load (`PowerRockerSwitch.test.tsx`,
         `PowerRockerSwitch.light.test.tsx`, `Tablet.test.tsx`, `SleeveContainer.test.tsx`, `powerController.test.ts`).
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/uiStore.test.ts src/systems/worldTransition.test.ts` passes, then the five mocking
-        suites named above.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/uiStore.test.ts src/systems/worldTransition.test.ts` passes, then the five mocking
+        suites named above. (RED first: 8 failed, the three `resetNav` cases, the rewritten case and the four
+        rebuild modes; the in-place and no-op cases passed as guards. 257 pass after, the five suites included.
+        `worldTransition.test.ts`'s `resetStores` helper now empties the trail too.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2. (Independent of Tasks 3–5.)
 

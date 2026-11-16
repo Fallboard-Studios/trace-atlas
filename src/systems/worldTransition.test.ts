@@ -55,7 +55,7 @@ vi.mock('../data/bands/aspects', async (importOriginal) => {
 // ========================================
 import { useLocaleStore, DEFAULT_LOCALE, DEFAULT_LOCALE_ID } from '../stores/localeStore';
 import { useAttenuationStyleStore, selectCurrentAttenuationStyle, DEFAULT_PELAGOS } from '../stores/attenuationStyleStore';
-import { useUIStore } from '../stores/uiStore';
+import { useUIStore, type NavStop } from '../stores/uiStore';
 import { useAudioStore } from '../stores/audioStore';
 import { DEFAULT_LOADING, useLoadingStore } from '../stores/loadingStore';
 import type { AspectIdOf } from '../data/bands/aspects';
@@ -94,8 +94,15 @@ import type { Robot } from '../types/Robot';
 function resetStores() {
   useAttenuationStyleStore.setState({ attenuationStyles: [{ ...DEFAULT_PELAGOS }], currentAttenuationStyleId: DEFAULT_PELAGOS.id });
   useLocaleStore.setState({ locales: { [DEFAULT_LOCALE_ID]: { ...DEFAULT_LOCALE, robots: [], actors: [] } } });
-  useUIStore.setState({ selectedRobotId: null, activeHubTile: null, isPoweredOn: false });
+  useUIStore.setState({ selectedRobotId: null, activeHubTile: null, isPoweredOn: false, navTrail: [] });
 }
+
+/** A trail three screens deep (docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 6): the deck, the Probes list, a company. */
+const THREE_STOPS: readonly NavStop[] = [
+  { tile: null, robotId: null, companyId: null, allProbes: false, section: null, subsection: null, fleetSection: 'world', fleetSubsection: null },
+  { tile: 'robots', robotId: null, companyId: null, allProbes: false, section: null, subsection: null, fleetSection: 'world', fleetSubsection: null },
+  { tile: 'robots', robotId: null, companyId: 'c1', allProbes: false, section: 'envelope', subsection: null, fleetSection: 'world', fleetSubsection: null },
+];
 
 const makeRobot = (id: string): Robot => ({
   id,
@@ -348,11 +355,18 @@ describe('worldTransition', () => {
       expect(getSeededVal(actualMap, 'robot.audio.attack')).toBe(getSeededVal(independentMap, 'robot.audio.attack'));
     });
 
-    it('clears selectedRobotId but leaves activeHubTile untouched', () => {
-      useUIStore.setState({ selectedRobotId: 'some-robot', activeHubTile: 'audioRig' });
+    // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 6 (spec §1.4, §7.1 A4): a new world lands on the deck with an empty
+    // trail. It used to keep the branch open (activeHubTile untouched) and clear only the entity.
+    it('resets the nav: from an open robot screen with a three-stop trail, the deck and an empty trail', () => {
+      useUIStore.setState({
+        activeHubTile: 'robots', selectedRobotId: 'some-robot', selectedSection: 'melody', selectedSubsection: 'rhythmMelody',
+        navTrail: [THREE_STOPS[0], THREE_STOPS[1], THREE_STOPS[2]],
+      });
       retransmitWorld({ coordinates: { x: 1000, y: 2000 } });
-      expect(useUIStore.getState().selectedRobotId).toBeNull();
-      expect(useUIStore.getState().activeHubTile).toBe('audioRig');
+      expect(useUIStore.getState()).toMatchObject({
+        activeHubTile: null, selectedRobotId: null, selectedSection: null, selectedSubsection: null,
+        expandedTopLevelBranch: null, navTrail: [],
+      });
     });
 
     // Companies are regenerated with fresh ids on a reseed, so a previously selected company id
@@ -689,6 +703,33 @@ describe('worldTransition', () => {
       retransmitWorld({ attenuationStyleName: 'Vessport Null', coordinates: { x: 42, y: 42 } });
       const attenuationStyle = selectCurrentAttenuationStyle(useAttenuationStyleStore.getState())!;
       expect(useAudioStore.getState().bpm).toBe(generateAttenuationStyleBpm(attenuationStyle.id, attenuationStyle.name));
+    });
+  });
+
+  // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 6 (spec §1.4): every mode that rebuilds resets the nav, where it cleared
+  // the selection before. The in-place modes and the no-op are below, with the loading's own cases.
+  describe('retransmitWorld — a rebuild resets the nav', () => {
+    it.each<[string, Parameters<typeof retransmitWorld>[0]]>([
+      ['coordinates', { coordinates: { x: 1000, y: 2000 } }],
+      ['an Attenuation Style', { attenuationStyleName: 'Kryndara Prime' }],
+      ['both', { attenuationStyleName: 'Halcyon Drift', coordinates: { x: 300, y: 400 } }],
+      ['coordinates with a loading', { coordinates: { x: 700, y: 800 }, theme: 'float' }],
+    ])('%s: the deck, no entity, default tabs, an empty trail', (_case, input) => {
+      useUIStore.setState({
+        activeHubTile: 'audioRig', fleetParamsSection: 'output', fleetParamsSubsection: 'limiter', isNavPanelOpen: true,
+        navTrail: [...THREE_STOPS],
+      });
+      retransmitWorld(input);
+      expect(useUIStore.getState()).toMatchObject({
+        activeHubTile: null, selectedRobotId: null, selectedCompanyId: null, allRobotsSelected: true,
+        fleetParamsSection: 'world', fleetParamsSubsection: null, isNavPanelOpen: false, navTrail: [],
+      });
+    });
+
+    it('the no-op leaves the screen and the trail as they were', () => {
+      useUIStore.setState({ activeHubTile: 'robots', selectedCompanyId: 'c1', allRobotsSelected: false, navTrail: [...THREE_STOPS] });
+      retransmitWorld({});
+      expect(useUIStore.getState()).toMatchObject({ activeHubTile: 'robots', selectedCompanyId: 'c1', navTrail: THREE_STOPS });
     });
   });
 
@@ -1317,6 +1358,18 @@ describe('worldTransition', () => {
       retransmitWorld({ coordinates: { x: 500, y: 500 } });
       expect(useUIStore.getState().selectedRobotId).toBeNull();
       expect(useUIStore.getState().selectedCompanyId).toBeNull();
+    });
+
+    // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 6 (spec §1.4): the roster stands, so the screen and the trail do too.
+    it('aspects alone, and a theme, keep the screen and the trail', () => {
+      initializeLocale(DEFAULT_LOCALE_ID, { startSystems: false });
+      const { locale } = currentWorld();
+      const screen = { activeHubTile: 'robots' as const, selectedRobotId: locale.robots[2].id, selectedSection: 'melody' as const };
+      useUIStore.setState({ ...screen, navTrail: [...THREE_STOPS] });
+      retransmitWorld({ aspects: { envelope: ['held'] } });
+      expect(useUIStore.getState()).toMatchObject({ ...screen, navTrail: THREE_STOPS });
+      retransmitWorld({ theme: 'float' });
+      expect(useUIStore.getState()).toMatchObject({ ...screen, navTrail: THREE_STOPS });
     });
 
     it('a theme with aspects re-derives in place too: the global half moves into the new bands, the locale stands, the picks are dealt', () => {
