@@ -13,6 +13,9 @@ export const ui = {
   /** The "?" on a control's label (docs/specs/LAYOUT_REWORK.md §1.4): its accessible name, filled with
    *  the control's own name so every "?" on a screen is told apart; `human` when there is no name. */
   'ui.help': { human: 'Help', template: 'Help for {name}' },
+  /** A help popover's link to the effect its control feeds (docs/specs/HELP_POPOVER_LINKS.md §1.2): the button's
+   *  text and name, filled with the effect's own name ("View Reverb settings"). */
+  'ui.help.link': { human: 'View settings', template: 'View {name} settings' },
   /** A collapsible intro's expander (IntroPanel): the button's face, and — from `template` — its
    *  accessible name, filled with the intro's own name so two on one screen are told apart. */
   'ui.intro.more': { human: 'More ▾', template: 'More about {name}' },

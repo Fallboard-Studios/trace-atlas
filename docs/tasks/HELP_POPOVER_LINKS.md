@@ -134,15 +134,16 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
   **Estimated scope:** S (a flag, one layout effect, one test file)
 
 ### Checkpoint 1: The jump
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean (note any pre-existing unrelated failures by name).
-- [ ] `openFleetParamsAt` lands on its tab and sub-tab as a step, Back returns from it (including inside Fleet Params),
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean (note any pre-existing unrelated failures by name).
+      2026-11-16: 360 files, 14,491 passed, 2 skipped, none failed; lint 4 pre-existing warnings (Scenery, gemShape).
+- [x] `openFleetParamsAt` lands on its tab and sub-tab as a step, Back returns from it (including inside Fleet Params),
       and focus lands on the sub-tab, all without a caller in the UI yet.
 
 ---
 
 ### Phase 2: The popover
 
-- [ ] **Task 3: `HelpLink` and the link button in `HelpPopover`**
+- [x] **Task 3: `HelpLink` and the link button in `HelpPopover`**
 
   **Description:** In `src/types/controls.ts` add `HelpLink { name: string; go: () => void }` and
   `ControlHelp = ContentHelp & { link?: HelpLink }`, and widen the schema's `help` field (line 24) to `ControlHelp`.

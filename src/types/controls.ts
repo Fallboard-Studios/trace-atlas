@@ -13,6 +13,16 @@ import type { ContentHelp } from '@/content';
 // BASE
 // ========================================
 
+/** A help popover's way to the effect a control feeds (docs/specs/HELP_POPOVER_LINKS.md §1.2): the name the link
+ *  reads ("View {name} settings") and the navigation a press runs. Built by screen-side code; never stored. */
+export interface HelpLink {
+  name: string;
+  go: () => void;
+}
+
+/** A schema's help: the content entry's words, plus the link a screen added (§1.2). */
+export type ControlHelp = ContentHelp & { link?: HelpLink };
+
 export interface ControlSchemaBase {
   id: string;
   /** Both optional — a schema entry may supply neither, either, or both.
@@ -20,8 +30,8 @@ export interface ControlSchemaBase {
   loreLabel?: string;
   humanLabel?: string;
   /** The "?" on the control's label (docs/specs/LAYOUT_REWORK.md §1.4) — spread in by `labels()` from
-   *  the content entry's `help`; absent = no "?". */
-  help?: ContentHelp;
+   *  the content entry's `help`; absent = no "?". A screen may add a link to it (HELP_POPOVER_LINKS.md §1.2). */
+  help?: ControlHelp;
   /** The panel's lead control (docs/specs/CONTENT_LAYOUT.md §1.4): its cell wrapper wears
    *  `sc-featured` through `withFeaturedClass`. No stylesheet names the class yet; absent = not
    *  featured. */
