@@ -7,8 +7,9 @@ Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE
 **Status:** plan written 2026-11-15 from the spec. Tasks 0 and 1 built 2026-11-15 on
 `feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Gates 1 and 2 passed the same
 day: the guard design stands; the row is words, in the plate, with a plain "Back". Crawford accepted spec §7.2's
-defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's checks pass. Next: Crawford's review at
-Checkpoint A, then Phases 2 and 3.
+defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's checks pass. Phase 2 (Tasks 7–9, the row)
+built 2026-11-15; Checkpoint B's automated checks pass. Next: Crawford's hand run and look at Checkpoint B, then
+Phase 3 (Task 10).
 
 ## Overview
 
@@ -444,10 +445,14 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (one hook call, three cases)
 
 ### Checkpoint B: The row
-- [ ] `npm run build:types`, `npm run lint`, `npm test` clean.
-- [ ] Mutation checks: Back wired to `goHome`; the row rendered on the deck; the phone rescue left on while the sheet
-      is open.
-- [ ] Spec §5.3's first run (the trail, by hand) done on both shells with the on-screen controls.
+- [x] `npm run build:types`, `npm run lint`, `npm test` clean. (2026-11-15, after Task 9: 14,488 pass, 0 fail, 2
+      skipped as before; lint's four warnings are older. `npm run build` clean too.)
+- [x] Mutation checks: Back wired to `goHome`; the row rendered on the deck; the phone rescue left on while the sheet
+      is open. (Killed by 5, 2 and 1 cases. Two more, also killed: the phone rescue's trigger frozen (2, the phone's
+      Close and Back-to-the-deck cases); the rail's rescue switched off (4, the two new desk pins and the two older
+      entity-focus cases), so the pins bite.)
+- [ ] Spec §5.3's first run (the trail, by hand) done on both shells with the on-screen controls. (Not done in the
+      session: it is a hand run. The row was seen live only in headless Chrome, Task 8's look.)
 - [ ] Crawford's look at the row against the sketch.
 
 ---
