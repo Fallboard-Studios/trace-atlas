@@ -1,0 +1,423 @@
+<!doctype html>
+<!-- Browser Back probe — Gate 1 of backlog 75 (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §5.4, §7.1 C1–C3;
+     docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 0). Built 2026-11-15.
+
+     The guard design with nothing of the app: a counter stands in for uiStore.navTrail, and the popstate handler is
+     spec §4's, word for word in behaviour. The guard rule is Task 11's: while the power is on and the trail is not
+     empty, the current history entry is a guard; when it is not, one entry is pushed with the marker
+     { traceAtlasNav: 'guard' } merged into history.state and the URL unchanged, synchronously inside the click that
+     broke the rule. "Change the address" is a replaceState that edits ?load=, as mirrorWorldToUrl and mirrorLoadToUrl
+     do (both pass history.state through). The toggle "rewrite the entry on landing" tries the fix for §7.1 C3's known
+     hole: the live address is recorded, and the handler rewrites the entry it lands on to it.
+
+     The log lives in sessionStorage, so it survives leaving the page and coming back (Forward), and a reload; the
+     ticks live in localStorage, so each browser keeps its own. No build step and no import from src/: open it from
+     the dev server at /trace-atlas/docs/sketches/tools/browser-back-probe.html (npm run dev -- --host for the Pixel).
+     Kept after the gate, for a later browser or Safari (spec §7.2 Q4). -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Browser Back probe (Gate 1)</title>
+<style>
+  :root {
+    --bg: #12161a; --surf: #1a2027; --surf2: #141a20; --line: #2a323a; --txt: #e4e6ea; --mut: #98a2ab;
+    --ac: #41ad9f; --ac2: #68cb97; --warn: #e8b84a; --bad: #e0705f;
+    --f: system-ui, 'Segoe UI', Roboto, sans-serif; --mono: ui-monospace, Consolas, 'Roboto Mono', monospace;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 16px 16px 48px; background: var(--bg); color: var(--txt); font: 15px/1.4 var(--f); }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 22px 0 8px; letter-spacing: .06em; text-transform: uppercase; color: var(--ac2); }
+  p { margin: 6px 0; }
+  .mut { color: var(--mut); }
+  code { font-family: var(--mono); font-size: 13px; color: #c9d4de; overflow-wrap: anywhere; }
+
+  .status { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 12px 0; }
+  .well { background: rgba(0, 0, 0, .35); border: 1px solid var(--line); padding: 6px 10px; min-width: 0; }
+  .well .k { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--mut); }
+  .well .v { font: 600 18px var(--mono); overflow-wrap: anywhere; }
+  .well.addr { grid-column: 1 / -1; }
+  .well.addr .v { font-size: 13px; font-weight: 400; }
+  .v.yes { color: var(--ac2); }
+  .v.no { color: var(--warn); }
+
+  .buttons { display: flex; flex-wrap: wrap; gap: 8px; }
+  button { font: 600 15px var(--f); color: var(--txt); background: var(--surf); border: 1px solid var(--ac); padding: 0 14px; min-height: 44px; cursor: pointer; }
+  button.primary { background: var(--ac); color: #0b0f14; }
+  button.on { background: var(--ac2); color: #0b0f14; border-color: var(--ac2); }
+  button.quiet { border-color: var(--line); color: var(--mut); font-weight: 400; }
+
+  ol.checks { margin: 0; padding: 0; list-style: none; counter-reset: c; }
+  ol.checks > li { counter-increment: c; border: 1px solid var(--line); background: var(--surf2); padding: 10px 12px 10px 44px; margin: 0 0 8px; position: relative; }
+  ol.checks > li::before { content: counter(c); position: absolute; left: 12px; top: 10px; width: 22px; height: 22px; border-radius: 50%; background: var(--warn); color: #1a1408; font: 700 13px/22px var(--f); text-align: center; }
+  ol.checks b { display: block; }
+  ol.checks .how { margin: 4px 0; }
+  ol.checks .expect { color: var(--mut); margin: 4px 0 8px; }
+  .verdict { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .verdict button { min-height: 36px; font-size: 13px; }
+  .verdict button.pass.on { background: var(--ac2); border-color: var(--ac2); }
+  .verdict button.fail.on { background: var(--bad); border-color: var(--bad); color: #1a0a08; }
+
+  .log { font: 12.5px/1.45 var(--mono); background: #0b0f14; border: 1px solid var(--line); padding: 8px 10px; max-height: 420px; overflow: auto; }
+  .log div { white-space: pre-wrap; overflow-wrap: anywhere; border-bottom: 1px solid #161c22; padding: 2px 0; }
+  .log .t { color: #5f6a74; }
+  .log .run { color: #7c8893; }
+  .log .pop { color: var(--warn); }
+  .log .push { color: var(--ac2); }
+  .log .nav { color: #9cc0f0; }
+  .log .page { color: #d29cf0; }
+  .log .app { color: var(--txt); }
+  textarea { width: 100%; height: 160px; background: #0b0f14; color: var(--txt); border: 1px solid var(--line); font: 12px var(--mono); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Browser Back probe</h1>
+  <p class="mut">Gate 1 of backlog 75: does one guard history entry let the browser's own Back button walk an in-app
+    trail? Nothing of the app is on this page. Press the <b>browser's</b> Back (the toolbar button, Alt+←, or the
+    phone's back gesture), never a button on the page, for the checks.</p>
+
+  <div class="status">
+    <div class="well"><span class="k">This page's run</span><span class="v" id="s-run"></span></div>
+    <div class="well"><span class="k">Trail</span><span class="v" id="s-trail"></span></div>
+    <div class="well"><span class="k">Power</span><span class="v" id="s-power"></span></div>
+    <div class="well"><span class="k">On the guard?</span><span class="v" id="s-guard"></span></div>
+    <div class="well"><span class="k">history.length</span><span class="v" id="s-len"></span></div>
+    <div class="well addr"><span class="k">Address now · live address</span><span class="v" id="s-addr"></span></div>
+  </div>
+
+  <div class="buttons">
+    <button class="primary" id="b-step">Step (a navigation)</button>
+    <button id="b-back">On-screen Back</button>
+    <button id="b-addr">Change the address (?load=)</button>
+    <button id="b-power">Power: on</button>
+    <button id="b-rewrite">Rewrite the entry on landing: off</button>
+  </div>
+
+  <h2>The five checks</h2>
+  <p class="mut">For checks 1–4, open this page with a page behind it, so "leaving" has somewhere to go:
+    <button class="quiet" id="b-fresh">Open a fresh run with this one behind</button>
+    (the run behind shows <code>pageshow</code> in the log when you land on it). Ticks are kept per browser:
+    <b id="s-browser"></b>.</p>
+  <ol class="checks" id="checks"></ol>
+
+  <h2>Log <span class="mut" style="text-transform:none;letter-spacing:0">(newest first; kept for this tab)</span></h2>
+  <div class="buttons" style="margin-bottom:8px">
+    <button class="quiet" id="b-clear">Clear the log</button>
+    <button class="quiet" id="b-text">Show the log as text</button>
+    <button class="quiet" id="b-reset">Clear this browser's ticks</button>
+  </div>
+  <textarea id="logtext" hidden readonly></textarea>
+  <div class="log" id="log"></div>
+
+  <h2>What the handler does</h2>
+  <p class="mut">On <code>popstate</code>: a guard state does nothing. Otherwise (with the toggle on, first rewrite the
+    landed entry to the live address); with the power off or the trail empty, <code>history.back()</code>, which
+    leaves; else one step off the trail and <code>history.forward()</code>, back onto the guard. A step pushes the
+    guard only when the power is on, the trail is not empty and the current entry is not already a guard.</p>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var MARK = 'traceAtlasNav';
+  var CAP = 50;
+  var LOG_KEY = 'browserBackProbe.log';
+  var TICK_KEY = 'browserBackProbe.ticks';
+  var REWRITE_KEY = 'browserBackProbe.rewrite';
+
+  var run = Math.random().toString(36).slice(2, 6);
+  var trail = 0;
+  var powered = true;
+  var rewrite = readSession(REWRITE_KEY) === 'on';
+  var liveUrl = location.href;
+  var t0 = performance.now();
+
+  var CHECKS = [
+    {
+      id: 'five',
+      title: 'Five Back presses in a row each make one step',
+      how: 'Step five times (trail 5). Press the browser’s Back five times, one at a time.',
+      expect: 'The trail runs 5, 4, 3, 2, 1, 0; the run id never changes; the log shows five popstate → back() → forward() rounds and no press is skipped.'
+    },
+    {
+      id: 'fast',
+      title: 'Two fast presses do not leave while steps remain',
+      how: 'Step three times. Press the browser’s Back twice as fast as you can.',
+      expect: 'The trail is 1 and the run id is the same: the page was never left.'
+    },
+    {
+      id: 'used',
+      title: 'With the trail used up, one press leaves',
+      how: 'With a page behind, get the trail to 0 (presses or the on-screen Back). Press the browser’s Back once.',
+      expect: 'One press lands on the page behind (its run shows pageshow in the log).'
+    },
+    {
+      id: 'reload',
+      title: 'Reload on a guard entry, then one press leaves',
+      how: 'With a page behind, step once (on the guard: yes). Reload. Press the browser’s Back once.',
+      expect: 'After the reload the trail is 0 and on the guard is still yes; one press lands on the page behind.'
+    },
+    {
+      id: 'alone',
+      title: 'Nothing behind: a press with the trail used up does nothing harmful',
+      how: 'Copy this page’s address, open a new tab and paste it (nothing behind). Step once, then Change the address twice. Press the browser’s Back twice. Do it once with the rewrite toggle off; then open another new tab the same way, turn the toggle on before the first step, and do it again.',
+      expect: 'Still on the page, no error. The address shown afterwards is the live one (the last ?load=). Expected hole with the toggle off: an older address shows. A Step afterwards pushes a guard again and the next press steps.'
+    }
+  ];
+
+  // ---------- storage, every access guarded ----------
+  function readSession(k) { try { return sessionStorage.getItem(k); } catch (e) { return null; } }
+  function writeSession(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* no storage: the log stays on screen only */ } }
+  function readLocal(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function writeLocal(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* no storage */ } }
+
+  var memoryLog = [];
+  function loadLog() {
+    var raw = readSession(LOG_KEY);
+    if (!raw) return memoryLog;
+    try { return JSON.parse(raw); } catch (e) { return memoryLog; }
+  }
+  function saveLog(entries) { memoryLog = entries; writeSession(LOG_KEY, JSON.stringify(entries)); }
+
+  function shortAddr(href) {
+    try { var u = new URL(href); return u.pathname.split('/').pop() + u.search + u.hash; } catch (e) { return String(href); }
+  }
+  function clock() {
+    var d = new Date();
+    function p(n, w) { return String(n).padStart(w, '0'); }
+    return p(d.getHours(), 2) + ':' + p(d.getMinutes(), 2) + ':' + p(d.getSeconds(), 2) + '.' + p(d.getMilliseconds(), 3);
+  }
+
+  function log(kind, text) {
+    var entries = loadLog();
+    entries.unshift({
+      t: clock(),
+      ms: Math.round(performance.now() - t0),
+      run: run,
+      kind: kind,
+      text: text,
+      addr: shortAddr(location.href),
+      len: history.length
+    });
+    if (entries.length > 400) entries.length = 400;
+    saveLog(entries);
+    renderLog();
+  }
+
+  // ---------- the guard (Task 11's rule) ----------
+  function isGuard(state) { return !!state && typeof state === 'object' && state[MARK] === 'guard'; }
+
+  function ensureGuard(reason) {
+    if (!powered || trail === 0) return;
+    if (isGuard(history.state)) return;
+    var state = Object.assign({}, history.state || {});
+    state[MARK] = 'guard';
+    try {
+      history.pushState(state, '', location.href);
+      log('push', 'pushState(guard) — ' + reason);
+    } catch (e) {
+      log('push', 'pushState threw: ' + e);
+    }
+  }
+
+  // ---------- the handler (spec §4) ----------
+  function onPopState(event) {
+    log('pop', 'popstate state=' + JSON.stringify(event.state));
+    if (isGuard(event.state)) {
+      log('app', 'on the guard: nothing to do');
+      render();
+      return;
+    }
+    if (rewrite) {
+      try {
+        history.replaceState(event.state, '', liveUrl);
+        log('nav', 'replaceState(landed entry) → live address');
+      } catch (e) {
+        log('nav', 'replaceState threw: ' + e);
+      }
+    }
+    if (!powered || trail === 0) {
+      log('nav', 'history.back() — ' + (!powered ? 'power off' : 'trail empty') + ': pass the press on');
+      try { history.back(); } catch (e) { log('nav', 'history.back threw: ' + e); }
+      render();
+      return;
+    }
+    trail -= 1;
+    log('app', 'back(): trail ' + (trail + 1) + ' → ' + trail);
+    try { history.forward(); } catch (e) { log('nav', 'history.forward threw: ' + e); }
+    log('nav', 'history.forward()');
+    render();
+  }
+
+  // ---------- the buttons ----------
+  function on(id, fn) { document.getElementById(id).addEventListener('click', fn); }
+
+  on('b-step', function () {
+    trail = Math.min(trail + 1, CAP);
+    log('app', 'step: trail ' + (trail - 1) + ' → ' + trail);
+    ensureGuard('step');
+    render();
+  });
+  on('b-back', function () {
+    if (trail === 0) { log('app', 'on-screen Back: trail empty, shows the deck'); render(); return; }
+    trail -= 1;
+    log('app', 'on-screen Back: trail ' + (trail + 1) + ' → ' + trail + ' (no history call)');
+    render();
+  });
+  var loadN = 0;
+  on('b-addr', function () {
+    var u = new URL(location.href);
+    loadN = Number(u.searchParams.get('load') || '0') + 1;
+    u.searchParams.set('load', String(loadN));
+    try {
+      history.replaceState(history.state, '', u.toString());
+      liveUrl = location.href;
+      log('nav', 'replaceState(address) load=' + loadN + ' (a mirror writer)');
+    } catch (e) {
+      log('nav', 'replaceState threw: ' + e);
+    }
+    render();
+  });
+  on('b-power', function () {
+    powered = !powered;
+    log('app', 'power ' + (powered ? 'on' : 'off'));
+    ensureGuard('power on');
+    render();
+  });
+  on('b-rewrite', function () {
+    rewrite = !rewrite;
+    writeSession(REWRITE_KEY, rewrite ? 'on' : 'off');
+    log('app', 'rewrite the entry on landing: ' + (rewrite ? 'on' : 'off'));
+    render();
+  });
+  on('b-fresh', function () {
+    var u = new URL(location.href);
+    u.search = '';
+    u.searchParams.set('run', String(Date.now()));
+    log('page', 'opening a fresh run (this run stays behind)');
+    location.assign(u.toString());
+  });
+  on('b-clear', function () { saveLog([]); renderLog(); });
+  on('b-text', function () {
+    var ta = document.getElementById('logtext');
+    ta.hidden = !ta.hidden;
+    ta.value = loadLog().map(function (e) {
+      return e.t + ' +' + e.ms + 'ms [' + e.run + '] ' + e.kind + ' ' + e.text + ' @' + e.addr + ' len=' + e.len;
+    }).join('\n');
+    if (!ta.hidden) ta.select();
+  });
+  on('b-reset', function () { writeLocal(TICK_KEY, '{}'); renderChecks(); });
+
+  // ---------- rendering ----------
+  function setText(id, text, cls) {
+    var el = document.getElementById(id);
+    el.textContent = text;
+    if (cls !== undefined) el.className = 'v ' + cls;
+  }
+
+  function render() {
+    setText('s-run', run);
+    setText('s-trail', String(trail));
+    setText('s-power', powered ? 'on' : 'off', powered ? 'yes' : 'no');
+    var g = isGuard(history.state);
+    setText('s-guard', g ? 'yes' : 'no', g ? 'yes' : 'no');
+    setText('s-len', String(history.length));
+    var now = shortAddr(location.href);
+    var live = shortAddr(liveUrl);
+    setText('s-addr', now + (now === live ? '  ✔ live' : '  ✖ live is ' + live), now === live ? 'yes' : 'no');
+    document.getElementById('b-power').textContent = 'Power: ' + (powered ? 'on' : 'off');
+    document.getElementById('b-power').classList.toggle('on', !powered);
+    document.getElementById('b-rewrite').textContent = 'Rewrite the entry on landing: ' + (rewrite ? 'on' : 'off');
+    document.getElementById('b-rewrite').classList.toggle('on', rewrite);
+  }
+
+  function renderLog() {
+    var box = document.getElementById('log');
+    box.textContent = '';
+    loadLog().forEach(function (e) {
+      var row = document.createElement('div');
+      row.className = e.kind;
+      var t = document.createElement('span');
+      t.className = 't';
+      t.textContent = e.t + ' ';
+      var r = document.createElement('span');
+      r.className = 'run';
+      r.textContent = '[' + e.run + '] ';
+      row.appendChild(t);
+      row.appendChild(r);
+      row.appendChild(document.createTextNode(e.text + '  @' + e.addr + '  len=' + e.len));
+      box.appendChild(row);
+    });
+  }
+
+  function browserName() {
+    var ua = navigator.userAgent;
+    var mobile = /Android|iPhone|iPad/.test(ua);
+    var name = /Firefox\//.test(ua) ? 'Firefox' : /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'this browser';
+    return name + (mobile ? ' (phone)' : ' (desktop)');
+  }
+
+  function readTicks() {
+    try { return JSON.parse(readLocal(TICK_KEY) || '{}'); } catch (e) { return {}; }
+  }
+
+  function renderChecks() {
+    var ticks = readTicks();
+    var list = document.getElementById('checks');
+    list.textContent = '';
+    CHECKS.forEach(function (c) {
+      var li = document.createElement('li');
+      var b = document.createElement('b');
+      b.textContent = c.title;
+      var how = document.createElement('p');
+      how.className = 'how';
+      how.textContent = c.how;
+      var ex = document.createElement('p');
+      ex.className = 'expect';
+      ex.textContent = 'Expect: ' + c.expect;
+      var v = document.createElement('div');
+      v.className = 'verdict';
+      ['pass', 'fail'].forEach(function (word) {
+        var btn = document.createElement('button');
+        btn.className = word + (ticks[c.id] === word ? ' on' : '');
+        btn.textContent = word === 'pass' ? 'Passed' : 'Failed';
+        btn.addEventListener('click', function () {
+          var t = readTicks();
+          t[c.id] = t[c.id] === word ? undefined : word;
+          writeLocal(TICK_KEY, JSON.stringify(t));
+          log('app', 'check ' + (CHECKS.indexOf(c) + 1) + ' marked ' + (t[c.id] || 'unmarked') + ' in ' + browserName());
+          renderChecks();
+        });
+        v.appendChild(btn);
+      });
+      li.appendChild(b);
+      li.appendChild(how);
+      li.appendChild(ex);
+      li.appendChild(v);
+      list.appendChild(li);
+    });
+  }
+
+  // ---------- page lifecycle ----------
+  window.addEventListener('popstate', onPopState);
+  window.addEventListener('pageshow', function (e) {
+    log('page', 'pageshow' + (e.persisted ? ' (from the back/forward cache: trail kept)' : ''));
+    render();
+  });
+  window.addEventListener('pagehide', function (e) {
+    log('page', 'pagehide' + (e.persisted ? ' (into the back/forward cache)' : ''));
+  });
+
+  var navEntry = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+  log('page', 'load (' + (navEntry ? navEntry.type : 'unknown') + ') state=' + JSON.stringify(history.state));
+  document.getElementById('s-browser').textContent = browserName();
+  render();
+  renderChecks();
+})();
+</script>
+</body>
+</html>
