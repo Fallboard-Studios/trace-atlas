@@ -10,9 +10,8 @@ day: the guard design stands; the row is words, in the plate, with a plain "Back
 defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's checks pass. Phase 2 (Tasks 7–9, the row)
 built 2026-11-15; Checkpoint B's automated checks pass. Phase 3 (Tasks 10–12, the browser's Back) built 2026-11-15;
 Checkpoint C's automated checks pass. Phase 4 (Tasks 13–15, the rail) built 2026-11-15 on Crawford's go, before his
-Checkpoint B and C runs; Gate 3's automated checks pass. Next: Crawford's hand runs (Checkpoint B's trail and look,
-Checkpoint C's browser, power and address-bar runs in desktop Chrome, Firefox and the Pixel) and Gate 3's look and
-call (keep the trial, or the fallback), then Task 16.
+Checkpoint B and C runs; Gate 3's automated checks pass. Crawford then reported his hand runs (Checkpoint B's trail
+and look, Checkpoint C's browser runs) and his Gate 3 look, and kept the trial (2026-11-15). Next: Task 16.
 
 ## Overview
 
@@ -454,9 +453,9 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
       is open. (Killed by 5, 2 and 1 cases. Two more, also killed: the phone rescue's trigger frozen (2, the phone's
       Close and Back-to-the-deck cases); the rail's rescue switched off (4, the two new desk pins and the two older
       entity-focus cases), so the pins bite.)
-- [ ] Spec §5.3's first run (the trail, by hand) done on both shells with the on-screen controls. (Not done in the
-      session: it is a hand run. The row was seen live only in headless Chrome, Task 8's look.)
-- [ ] Crawford's look at the row against the sketch.
+- [x] Spec §5.3's first run (the trail, by hand) done on both shells with the on-screen controls. (By Crawford,
+      reported 2026-11-15 after Gate 3: "everything looks good".)
+- [x] Crawford's look at the row against the sketch. (The same report.)
 
 ---
 
@@ -561,10 +560,11 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 - [x] Mutation checks: the power check removed; `forward()` removed; the guard pushed on every step; the marker
       check inverted. (Killed by 2, 6, 1 and 13 cases. Task 11 also killed two of its own: the press flag removed
       (1, the no-push-from-`popstate` case) and the subscriber reacting to every store write (1, the clock case).)
-- [ ] Spec §5.3's browser, power and address-bar runs, by Crawford in a real browser, since only the real button
-      shows the browser's own rules: desktop Chrome, desktop Firefox, Chrome on the Pixel.
-- [ ] If the known hole shows in the app as it did on the probe, stop: the address helper is an ask-first (spec §3)
-      and gets its own task only on Crawford's yes.
+- [x] Spec §5.3's browser, power and address-bar runs, by Crawford in a real browser, since only the real button
+      shows the browser's own rules: desktop Chrome, desktop Firefox, Chrome on the Pixel. (Reported 2026-11-15 after
+      Gate 3: "everything looks good".)
+- [x] If the known hole shows in the app as it did on the probe, stop: the address helper is an ask-first (spec §3)
+      and gets its own task only on Crawford's yes. (It did not show: no address helper task.)
 
 ---
 
@@ -674,10 +674,10 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 - [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean. (2026-11-15, after Task 15: 14,468
       pass, 0 fail, 2 skipped as before; the 48 fewer than Checkpoint C are the deleted list, toggle and width cases.
       Lint's four warnings and the build's chunk-size warning are older.)
-- [ ] Spec §5.3's last run (the look) on both shells. (Headless Chrome, after Task 15, the same seven screens as Task
+- [x] Spec §5.3's last run (the look) on both shells. (Headless Chrome, after Task 15, the same seven screens as Task
       13's look: the rail 124 px and the content's left edge 156 px at 1500 × 900 and 768 × 1024; the 320 × 640 sheet
-      holds three boxes, none with `aria-expanded`. Crawford's own look is still to do.)
-- [ ] Crawford keeps the trial, or calls the fallback (the rail fixed at 200 px with the list kept). The fallback is
+      holds three boxes, none with `aria-expanded`. Then Crawford's own look, 2026-11-15.)
+- [x] Crawford keeps the trial (2026-11-15), rather than call the fallback (the rail fixed at 200 px with the list kept). The fallback is
       Tasks 13–15 reverted and one new task, planned then; it is not built unasked.
 
 ---
