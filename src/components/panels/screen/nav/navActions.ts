@@ -5,6 +5,7 @@ import {
   type TopLevelBranch,
   type FleetParamsGroup,
   type SelectedFleetParamsEffect,
+  type NavStop,
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
 import { ROBOT_SECTIONS_CONFIG, activeRobotSection } from '@/data/robotSubsectionConfig';
@@ -128,6 +129,55 @@ export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = 
   output: 'fleet.output',
 };
 
+// ========================================
+// THE TRAIL (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2)
+// ========================================
+
+/** The most stops the trail holds; a step past it drops the oldest (spec §7.1 A3). */
+export const NAV_TRAIL_MAX = 50;
+
+type ScreenState = Pick<UIStore, 'activeHubTile' | 'selectedRobotId' | 'selectedCompanyId' | 'allProbesSelected'>;
+
+/** A screen's identity, one string: `deck`, `probes`, `robot:<id>`, `company:<id>`, `all` or `fleetParams`.
+ *  Under Probes a robot wins over a company and a company over All Probes, as ProbesBranch routes. Fleet Params
+ *  ignores the entity fields: a robot clicked in the world there only moves the halo. Tabs are not identity. */
+function screenKey(s: ScreenState): string {
+  if (s.activeHubTile === null) return 'deck';
+  if (s.activeHubTile === 'audioRig') return 'fleetParams';
+  if (s.selectedRobotId !== null) return `robot:${s.selectedRobotId}`;
+  if (s.selectedCompanyId !== null) return `company:${s.selectedCompanyId}`;
+  return s.allProbesSelected ? 'all' : 'probes';
+}
+
+/** The screen showing now, with its four tab fields, as a stop. */
+function currentStop(s: UIStore): NavStop {
+  return {
+    tile: s.activeHubTile,
+    robotId: s.selectedRobotId,
+    companyId: s.selectedCompanyId,
+    allProbes: s.allProbesSelected,
+    section: s.selectedSection,
+    subsection: s.selectedSubsection,
+    fleetSection: s.fleetParamsSection,
+    fleetSubsection: s.fleetParamsSubsection,
+  };
+}
+
+/** A step (spec §1.2): appends the screen being left, unless `destination` (a screenKey) is the screen showing.
+ *  Called first by selectBranch, selectEntity and goHome, before they change anything; never by Back. */
+function recordStep(destination: string): void {
+  const s = useUIStore.getState();
+  if (screenKey(s) === destination) return;
+  const trail = [...s.navTrail, currentStop(s)];
+  s.setNavTrail(trail.length > NAV_TRAIL_MAX ? trail.slice(trail.length - NAV_TRAIL_MAX) : trail);
+}
+
+/** The screenKey an entity pick opens. */
+function entityKey(entity: NavEntity): string {
+  if (entity === 'all') return 'all';
+  return 'robotId' in entity ? `robot:${entity.robotId}` : `company:${entity.companyId}`;
+}
+
 function cleanSlate(): void {
   const s = useUIStore.getState();
   s.setNavPanelOpen(false); // the phone sheet's open flag; the desk panel ignores it
@@ -151,6 +201,7 @@ export function selectBranch(branch: NavBranch): void {
     goHome();
     return;
   }
+  recordStep(branch);
   cleanSlate();
   open(branch);
 }
@@ -159,6 +210,7 @@ export function selectBranch(branch: NavBranch): void {
  *  list collapsed (Crawford, 2026-10-10: "collapse the nav when a probe or company is selected"), so the
  *  entity's screen gets the panel's rest width. The parent box brings the list back (pressBranchBox). */
 export function selectEntity(entity: NavEntity): void {
+  recordStep(entityKey(entity));
   cleanSlate();
   const s = useUIStore.getState();
   if (entity === 'all') s.setAllProbesSelected(true);
@@ -188,6 +240,7 @@ export function pressBranchBox(branch: NavBranch): void {
 
 /** The Deck: no tile, nothing expanded, no entity. */
 export function goHome(): void {
+  recordStep('deck');
   cleanSlate();
   const s = useUIStore.getState();
   s.setActiveHubTile(null);

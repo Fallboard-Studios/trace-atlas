@@ -11,11 +11,12 @@ import {
   FLEET_PARAMS_SUBSECTIONS,
   FLEET_PARAMS_GROUP_CONTENT,
   activeFleetParamsSubsection,
+  NAV_TRAIL_MAX,
   type NavBranch,
   type BreadcrumbState,
   type NavRoster,
 } from './navActions';
-import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
+import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION, type UIStore, type FleetParamsGroup, type SelectedFleetParamsEffect, type NavStop } from '@/stores/uiStore';
 import { AUDIO_RIG_CONFIG, type AudioRigEffectKey } from '@/data/audioRigConfig';
 import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { CONTENT, labels } from '@/content';
@@ -38,6 +39,8 @@ function dirtyStore(overrides: Partial<UIStore> = {}) {
     selectedSubsection: 'coaxialOscillator',
     fleetParamsSection: 'output',
     fleetParamsSubsection: 'limiter',
+    // An empty trail, so a case that dirties the store twice compares like with like (the trail is Task 3's).
+    navTrail: [],
     ...overrides,
   });
 }
@@ -353,6 +356,160 @@ describe('a pick closes the phone nav sheet', () => {
     selectBranch('fleetParams');
     goHome();
     expect(ui().isNavPanelOpen).toBe(false);
+  });
+});
+
+// docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 3 (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2): every navigation
+// appends the screen being left, with its tabs; going to the screen already showing, or switching a tab, does not.
+describe('the trail: every navigation is a step', () => {
+  const trail = () => ui().navTrail;
+  const DECK_STOP: NavStop = {
+    tile: null, robotId: null, companyId: null, allProbes: false,
+    section: null, subsection: null, fleetSection: DEFAULT_FLEET_PARAMS_SECTION, fleetSubsection: null,
+  };
+  /** A stop on the Probes tile, at the default tabs unless overridden. */
+  const probesStop = (overrides: Partial<NavStop> = {}): NavStop => ({ ...DECK_STOP, tile: 'robots', ...overrides });
+
+  it('deck -> robot: the trail is one deck stop', () => {
+    selectEntity({ robotId: 'r1' });
+    expect(trail()).toStrictEqual([DECK_STOP]);
+  });
+
+  it('a company on Envelope > Character -> a member robot: the last stop names the company with both tabs', () => {
+    selectEntity({ companyId: 'c1' });
+    useUIStore.setState({ selectedSection: 'envelope', selectedSubsection: 'envelopeCharacter' });
+    selectEntity({ robotId: 'r1' });
+    expect(trail().at(-1)).toStrictEqual(probesStop({ companyId: 'c1', section: 'envelope', subsection: 'envelopeCharacter' }));
+  });
+
+  it('Fleet Params on Modulation > Chorus -> Probes: the stop keeps both Fleet Params tabs', () => {
+    selectBranch('fleetParams');
+    ui().setFleetParamsSection('modulation');
+    ui().setFleetParamsSubsection('chorus');
+    selectBranch('probes');
+    expect(trail().at(-1)).toStrictEqual({ ...DECK_STOP, tile: 'audioRig', fleetSection: 'modulation', fleetSubsection: 'chorus' });
+  });
+
+  it('a robot on Levels > Sends -> goHome: the stop names the robot with its tabs', () => {
+    selectEntity({ robotId: 'r1' });
+    useUIStore.setState({ selectedSection: 'volume', selectedSubsection: 'sends' });
+    goHome();
+    expect(trail().at(-1)).toStrictEqual(probesStop({ robotId: 'r1', section: 'volume', subsection: 'sends' }));
+  });
+
+  it('All Probes -> Fleet Params: the stop is All Probes', () => {
+    selectEntity('all');
+    selectBranch('fleetParams');
+    expect(trail().at(-1)).toStrictEqual(probesStop({ allProbes: true }));
+  });
+
+  it('a walk of five screens leaves the four before the current one, oldest first', () => {
+    selectBranch('probes');
+    selectEntity({ companyId: 'c1' });
+    selectEntity({ robotId: 'r1' });
+    selectBranch('fleetParams');
+    expect(trail()).toStrictEqual([DECK_STOP, probesStop(), probesStop({ companyId: 'c1' }), probesStop({ robotId: 'r1' })]);
+  });
+
+  it("selectBranch('deck') records one step, not two (it is goHome)", () => {
+    selectEntity({ robotId: 'r1' });
+    selectBranch('deck');
+    expect(trail()).toStrictEqual([DECK_STOP, probesStop({ robotId: 'r1' })]);
+  });
+
+  it('a robot -> the Probes list is a step: same tile, another screen', () => {
+    selectEntity({ robotId: 'r1' });
+    selectBranch('probes');
+    expect(trail().at(-1)).toStrictEqual(probesStop({ robotId: 'r1' }));
+  });
+
+  it('one robot -> another is a step', () => {
+    selectEntity({ robotId: 'r1' });
+    selectEntity({ robotId: 'r2' });
+    expect(trail().at(-1)).toStrictEqual(probesStop({ robotId: 'r1' }));
+  });
+
+  describe('going to the screen already showing appends nothing', () => {
+    it('Fleet Params pressed on Fleet Params: no step, and its tabs still reset as today', () => {
+      selectBranch('fleetParams');
+      ui().setFleetParamsSection('output');
+      ui().setFleetParamsSubsection('limiter');
+      const before = trail();
+      selectBranch('fleetParams');
+      expect(trail()).toBe(before);
+      expect(ui().fleetParamsSection).toBe(DEFAULT_FLEET_PARAMS_SECTION);
+      expect(ui().fleetParamsSubsection).toBeNull();
+    });
+
+    it('the same robot picked twice: no step, and its tabs still reset as today', () => {
+      selectEntity({ robotId: 'r1' });
+      useUIStore.setState({ selectedSection: 'envelope', selectedSubsection: 'envelopeContour' });
+      const before = trail();
+      selectEntity({ robotId: 'r1' });
+      expect(trail()).toBe(before);
+      expect(ui().selectedSection).toBeNull();
+      expect(ui().selectedSubsection).toBeNull();
+    });
+
+    it.each<[string, () => void]>([
+      ['the Probes list', () => selectBranch('probes')],
+      ['a company', () => selectEntity({ companyId: 'c1' })],
+      ['All Probes', () => selectEntity('all')],
+    ])('%s picked on itself: no step', (_case, go) => {
+      selectBranch('fleetParams');
+      go();
+      const before = trail();
+      go();
+      expect(trail()).toBe(before);
+    });
+
+    it('goHome on the deck, and the Deck box on the deck: no step', () => {
+      goHome();
+      selectBranch('deck');
+      expect(trail()).toEqual([]);
+    });
+
+    it('Fleet Params ignores the entity fields: with a robot haloed there, Fleet Params pressed again is no step', () => {
+      selectBranch('fleetParams');
+      ui().selectRobot('r1'); // Robot.tsx on Fleet Params: the halo moves, not the screen
+      const before = trail();
+      selectBranch('fleetParams');
+      expect(trail()).toBe(before);
+    });
+  });
+
+  it('the four tab setters append nothing', () => {
+    selectEntity({ robotId: 'r1' });
+    const before = trail();
+    ui().setSelectedSection('melody');
+    ui().setSelectedSubsection('rhythmMelody');
+    ui().setFleetParamsSection('colour');
+    ui().setFleetParamsSubsection('bitCrusher');
+    expect(trail()).toBe(before);
+  });
+
+  it(`holds at most ${NAV_TRAIL_MAX} stops: the 51st step drops the oldest`, () => {
+    expect(NAV_TRAIL_MAX).toBe(50);
+    // deck -> r0 -> r1 -> ... -> r50: 51 steps, the first leaving the deck.
+    for (let i = 0; i <= NAV_TRAIL_MAX; i++) selectEntity({ robotId: `r${i}` });
+    expect(trail()).toHaveLength(NAV_TRAIL_MAX);
+    expect(trail()[0]).toStrictEqual(probesStop({ robotId: 'r0' }));
+    expect(trail().at(-1)).toStrictEqual(probesStop({ robotId: `r${NAV_TRAIL_MAX - 1}` }));
+  });
+
+  it('a full trail stays full: one more step drops one stop, never more', () => {
+    for (let i = 0; i <= NAV_TRAIL_MAX; i++) selectEntity({ robotId: `r${i}` });
+    selectBranch('fleetParams');
+    expect(trail()).toHaveLength(NAV_TRAIL_MAX);
+    expect(trail()[0]).toStrictEqual(probesStop({ robotId: 'r1' }));
+    expect(trail().at(-1)).toStrictEqual(probesStop({ robotId: `r${NAV_TRAIL_MAX}` }));
+  });
+
+  it('a stop is plain data: the trail survives a JSON round trip', () => {
+    selectEntity({ companyId: 'c1' });
+    useUIStore.setState({ selectedSection: 'source', selectedSubsection: 'busFilter' });
+    selectBranch('fleetParams');
+    expect(JSON.parse(JSON.stringify(trail()))).toStrictEqual(trail());
   });
 });
 

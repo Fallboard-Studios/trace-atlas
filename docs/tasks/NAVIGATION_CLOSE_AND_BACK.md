@@ -209,7 +209,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** XS (one field, one setter)
 
-- [ ] **Task 3: `navActions.ts` — every navigation records a step**
+- [x] **Task 3: `navActions.ts` — every navigation records a step**
 
   **Description:** The private `screenKey` and the recording helper (Architecture Decisions). `selectBranch`,
   `selectEntity` and `goHome` call it first, with their destination. The stop holds the screen and the four tab
@@ -220,16 +220,20 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   tabs.
 
   **Acceptance criteria:**
-  - [ ] Each of the three actions appends the screen being left, with its four tab fields.
-  - [ ] Going to the screen already showing appends nothing (Fleet Params pressed on Fleet Params, the same robot
+  - [x] Each of the three actions appends the screen being left, with its four tab fields.
+  - [x] Going to the screen already showing appends nothing (Fleet Params pressed on Fleet Params, the same robot
         picked twice), and still resets the tabs as today.
-  - [ ] The four tab setters append nothing.
-  - [ ] The 51st step drops the oldest stop.
-  - [ ] Every existing `navActions.test.ts` case passes unmodified.
+  - [x] The four tab setters append nothing.
+  - [x] The 51st step drops the oldest stop.
+  - [x] Every existing `navActions.test.ts` case passes unmodified. (No case changed. The `dirtyStore` helper now
+        also sets an empty trail: `pressBranchBox`'s "does what selectBranch does" cases dirty the store twice and
+        compare the whole state, so the second run started with the first run's stop.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/nav` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/nav` passes. (RED first: 11 of the 20 new cases failed; the
+        nine that passed are the "no step" guards, which Checkpoint A's same-screen mutation must kill. Also run:
+        `src/components/panels/screen`, `src/components/robot`, `src/components/company`, 3,128 pass.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 2.
 
