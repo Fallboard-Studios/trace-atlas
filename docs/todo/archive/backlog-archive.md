@@ -1735,6 +1735,39 @@ questions are built on their defaults until he answers. The plan opens with two 
 button is wired, and the sketch of the row.
 
 
+## 76. Fleet Params and the Edit Tabs: Regroup, Re-order, Respace
+
+**Closed** 2026-11-16 (Crawford), by roadmap
+[91](../roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes), the control
+layout (merged PR #649, `features/slider-layout-update`), not by a branch of its own. Step 1 shipped as the **World**
+tab, the name in Crawford's layout sheet rather than "Tempo & Options": first in the row, with Pacing and Settings (the
+Audio Load Budget, formerly the Audio Quality tab) as its sub-tabs, so Fleet Params has seven tabs and every one has a
+sub-tab row. Step 2 shipped from Crawford's two layout sheets, on Fleet Params and on every robot, company and All
+Probes tab (sub-tabs, boxes and rows, featured controls, ten renames). The names changed on the way: on Fleet Params,
+Audio Quality became Settings (now World's second sub-tab), LFO Bank became LFOs and Colour became Color; the robot
+tabs gained sub-tabs, Levels (Mix, Sends), Composition (Rhythm & Melody, Details), Envelope (Contour, Character) and
+Source (Core, Companion and Accent Oscillator, then Filter). Step 3's spacing is that layout, which passed
+his look at three widths on 2026-11-15; its lore titles were outside 91 (the content pass), so they moved to backlog
+[62](../backlog.md#62-misc-review-items-a-bucket) as a dated bullet. The original request follows.
+
+Raised by Crawford on 2026-11-11 (items 1, 2 and 8 of his list), in this order:
+
+1. **Tempo & Options.** Fleet Params' Pacing and Audio Quality become the two sub-tabs (Pacing, then Audio Quality) of
+   one new section, "Tempo & Options". It is one section tab despite the ampersand, and it sits at the left edge of
+   the section row, where Pacing is now (Crawford, 2026-11-11). Today there are eight sections, in this order: Pacing,
+   LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output, Audio Quality (`FleetParamsScreen.tsx`; the
+   content keys in navActions' `FLEET_PARAMS_GROUP_CONTENT`). Pacing and Audio Quality are the two single-panel
+   sections, with no sub-tab row (`SINGLE_PANEL`, and their empty lists in `FLEET_PARAMS_SUBSECTIONS`), so after
+   this every section has a sub-tab row and there are seven.
+2. **Slider order and grouping in several tabs.** Several tabs; Crawford compiles the list when the item is picked
+   up.
+3. **Style, after 2.** The lore titles need work, and the sliders may need more spacing and design once they are
+   regrouped.
+
+Steps 1 and 2 change layout and the breadcrumb's trail, and step 3 is style, so its proof is a look in the browser.
+Plan.md Stage 5.
+
+
 ## 79. Robots: Move in Time with Their Own Melody
 
 **Closed** 2026-11-14 (`feature/note-cloud`, merged PR #637, and `feature/note-cloud-early-notes`, merged PR #640;
