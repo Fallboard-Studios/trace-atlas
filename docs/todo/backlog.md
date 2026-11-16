@@ -486,6 +486,11 @@ own commit, and the item archives when the list is empty.
   went (component review L12, [archive/component-fixes.md](archive/component-fixes.md)) because its test file renders
   it 38 times and is the main coverage of `SignatureArrayLayer`, which is in use. Removing it means re-pointing those
   tests at the layer (or at the screens) first. Crawford's call: do that, or keep the drawer as the tests' harness.
+- 2026-11-16 — The lore titles on the Fleet Params and robot tabs need work (Crawford, 2026-11-11, step 3 of backlog
+  [76](archive/backlog-archive.md#76-fleet-params-and-the-edit-tabs-regroup-re-order-respace)). Roadmap
+  [91](roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes) regrouped the tabs
+  but left lore names to the content pass (its intent's Out of scope), so they are rewritten here, in
+  `src/content/copy/`.
 
 ### 63. Style Fixes (a Bucket)
 
@@ -542,25 +547,6 @@ Since 60 the dock mutes a robot in `Docked` and `Undocking` (`isDockMuted`, `src
 overrides it, so today a robot cuts in and out on those state changes; the fade would smooth exactly that edge. Needs a
 short interview before a spec. Off the plan (this line said "Plan.md Stage 3" until 2026-11-14; it was taken off on
 2026-11-11).
-
-### 76. Fleet Params and the Edit Tabs: Regroup, Re-order, Respace
-
-Raised by Crawford on 2026-11-11 (items 1, 2 and 8 of his list), in this order:
-
-1. **Tempo & Options.** Fleet Params' Pacing and Audio Quality become the two sub-tabs (Pacing, then Audio Quality) of
-   one new section, "Tempo & Options". It is one section tab despite the ampersand, and it sits at the left edge of
-   the section row, where Pacing is now (Crawford, 2026-11-11). Today there are eight sections, in this order: Pacing,
-   LFO Bank, EQ & Filters, Time & Space, Colour, Modulation, Output, Audio Quality (`FleetParamsScreen.tsx`; the
-   content keys in navActions' `FLEET_PARAMS_GROUP_CONTENT`). Pacing and Audio Quality are the two single-panel
-   sections, with no sub-tab row (`SINGLE_PANEL`, and their empty lists in `FLEET_PARAMS_SUBSECTIONS`), so after
-   this every section has a sub-tab row and there are seven.
-2. **Slider order and grouping in several tabs.** Several tabs; Crawford compiles the list when the item is picked
-   up.
-3. **Style, after 2.** The lore titles need work, and the sliders may need more spacing and design once they are
-   regrouped.
-
-Steps 1 and 2 change layout and the breadcrumb's trail, and step 3 is style, so its proof is a look in the browser.
-Plan.md Stage 5.
 
 ### 77. Help Popovers: A Link from a Send to Its Effect
 

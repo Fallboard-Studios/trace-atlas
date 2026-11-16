@@ -29,8 +29,6 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 5 — UX refinement
 
-- Backlog [76](backlog.md#76-fleet-params-and-the-edit-tabs-regroup-re-order-respace) **Tempo & Options, slider
-  order, respacing** — Crawford brings the slider list when it is picked up.
 - Backlog [77](backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect) **A send's help links to its effect** —
   Back returns from the jump (backlog 75's trail, merged 2026-11-16, PR #651).
 - Roadmap [51](roadmap.md#51-guide-a-read-only-branch-that-teaches-the-whole-app) **The Guide** — large; likely one
