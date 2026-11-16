@@ -525,7 +525,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one subscription)
 
-- [ ] **Task 12: `ScreenViewport.tsx` — the hook is mounted in both power states**
+- [x] **Task 12: `ScreenViewport.tsx` — the hook is mounted in both power states**
 
   **Description:** `ScreenViewport` calls `useBrowserBack()`. It is mounted whether the power is on or off, so a press
   on the off screen reaches the handler.
@@ -534,13 +534,17 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   on and a one-stop trail, a dispatched `popstate` empties the trail.
 
   **Acceptance criteria:**
-  - [ ] Powered on, a press steps the trail; powered off, it passes on and the trail stands.
-  - [ ] Unmounting the viewport removes the listener and the subscription.
-  - [ ] `Tablet.test.tsx`, which mocks `uiStore`, still loads.
+  - [x] Powered on, a press steps the trail; powered off, it passes on and the trail stands. (Also: the first step
+        pushes the guard, and the hook stays wired across a power cycle.)
+  - [x] Unmounting the viewport removes the listener and the subscription.
+  - [x] `Tablet.test.tsx`, which mocks `uiStore`, still loads. (It stubs `ScreenViewport` whole, so the hook never
+        runs there.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/physical src/components/tablet` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/physical src/components/tablet` passes. (RED first: the four wiring
+        cases failed, nothing listening; the unmount case passed as a guard. 17 pass; then `src/components/panels`
+        and `HelpPopover.test.tsx`, the other files that render the real viewport, 2,009.)
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 11.
 
