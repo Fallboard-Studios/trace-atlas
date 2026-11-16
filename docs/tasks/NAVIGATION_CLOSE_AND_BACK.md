@@ -2,7 +2,7 @@
 
 Source spec: [docs/specs/NAVIGATION_CLOSE_AND_BACK.md](../specs/NAVIGATION_CLOSE_AND_BACK.md). Source intent:
 [docs/intent/navigation-close-and-back.md](../intent/navigation-close-and-back.md). Backlog slot:
-[75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5.
+[75](../todo/archive/backlog-archive.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5.
 
 **Status:** plan written 2026-11-15 from the spec. Tasks 0 and 1 built 2026-11-15 on
 `feature/navigation-close-and-back` (stacked on the unpushed `docs/backlog-75-intent`). Gates 1 and 2 passed the same
@@ -11,8 +11,8 @@ defaults. Phase 1 (Tasks 2–6, the trail) built 2026-11-15; Checkpoint A's chec
 built 2026-11-15; Checkpoint B's automated checks pass. Phase 3 (Tasks 10–12, the browser's Back) built 2026-11-15;
 Checkpoint C's automated checks pass. Phase 4 (Tasks 13–15, the rail) built 2026-11-15 on Crawford's go, before his
 Checkpoint B and C runs; Gate 3's automated checks pass. Crawford then reported his hand runs (Checkpoint B's trail
-and look, Checkpoint C's browser runs) and his Gate 3 look, and kept the trial (2026-11-15). Task 16 (the docs) done the same day. Next: Checkpoint Complete,
-then Crawford's PR, then Task 17 after the merge.
+and look, Checkpoint C's browser runs) and his Gate 3 look, and kept the trial (2026-11-15). Task 16 (the docs) done the same day. Merged 2026-11-16 as PRs #650 (intent, spec,
+plan) and #651 (the build); Task 17 archived backlog 75 the same day. **Complete.**
 
 ## Overview
 
@@ -737,7 +737,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 6: The records (after the merge)
 
-- [ ] **Task 17: `backlog.md`, `plan.md`, the archive — backlog 75 closed**
+- [x] **Task 17: `backlog.md`, `plan.md`, the archive — backlog 75 closed**
 
   **Description:** Backlog 75 moves whole to `docs/todo/archive/backlog-archive.md` under a "Closed" line naming the
   PR, with its links rebased; it leaves no stub, so every inbound link is repointed (backlog 77 links to it). Its
@@ -747,11 +747,13 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No link in `docs/` points at `backlog.md#75-`.
-  - [ ] plan.md's Stage 5 no longer lists 75.
+  - [x] No link in `docs/` points at `backlog.md#75-`. (Backlog 77, the intent, the spec and this plan now link to the
+        archive; plan.md's 77 line no longer waits on 75.)
+  - [x] plan.md's Stage 5 no longer lists 75. (Safari's Back check joined the Parked Safari line, with the probe page.)
 
   **Verification:**
-  - [ ] A search of `docs/` for `backlog.md#75-` finds nothing.
+  - [x] A search of `docs/` for `backlog.md#75-` finds nothing. (Done 2026-11-16 on `docs/archive-backlog-75`, after PRs
+        #650 and #651 merged.)
 
   **Dependencies:** The merge.
 

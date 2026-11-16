@@ -12,7 +12,7 @@
 **Status:** spec written 2026-11-15 from the confirmed intent
 [docs/intent/navigation-close-and-back.md](../intent/navigation-close-and-back.md) (`interview-me`, 2026-11-15, seven
 questions; five guesses confirmed, two accepted on trial). Backlog
-[75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5. Planned in
+[75](../todo/archive/backlog-archive.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5. Planned in
 [tasks/NAVIGATION_CLOSE_AND_BACK.md](../tasks/NAVIGATION_CLOSE_AND_BACK.md). Gates 1 and 2 passed 2026-11-15
 (§5.4): the guard design stands, and the row is plain words in the plate with Back not naming its destination.
 Crawford accepted §7.2's defaults the same day. **Built 2026-11-15** on `feature/navigation-close-and-back`, Parts A–D;
