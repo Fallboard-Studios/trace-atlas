@@ -262,10 +262,11 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
   **Estimated scope:** XS
 
 ### Gate 1: The link's look (stop and report)
-- [ ] Crawford looks at a send's link in the well on the desk and the phone shell: its place under the lore, its weight
+- [x] Crawford looks at a send's link in the well on the desk and the phone shell: its place under the lore, its weight
       against the description, the touch size. Any change is a Task 6 amendment before Task 7.
+      Passed 2026-11-16 (Crawford: "everything looks good"); no amendment.
 
-- [ ] **Task 7: `nav/helpLinks.ts` — `openLfoLaneSettings` and the "LFO" name**
+- [x] **Task 7: `nav/helpLinks.ts` — `openLfoLaneSettings` and the "LFO" name**
 
   **Description:** Add `openLfoLaneSettings(lane: LfoLaneId | null): void` to `helpLinks.ts`: it calls
   `openFleetParamsAt('lfoBank', …)` with `laneA`–`laneD`, or `laneA` when the lane is `null`. Add the link's name, a

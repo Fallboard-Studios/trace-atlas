@@ -5,6 +5,8 @@ import { useAudioStore } from '@/stores/audioStore';
 import { labels, type ContentKey } from '@/content';
 import type { GlobalAudioSettings } from '@/types/globalAudio';
 import type { SliderLinearSchema } from '@/types/controls';
+import type { LfoLaneId } from '@/types/lfo';
+import type { SelectedFleetParamsEffect } from '@/stores/uiStore';
 
 /**
  * Help links (docs/specs/HELP_POPOVER_LINKS.md §1.4): the screen-side code that adds a "View {name} settings" link to a
@@ -21,6 +23,15 @@ const COLOUR_CHAIN = FLEET_PARAMS_SUBSECTIONS.colour.map((sub) => sub.id as Colo
  *  none is, so the link always lands somewhere. Read at the press. */
 export function colourRoomSubTab(globalAudio: Pick<GlobalAudioSettings, ColourEffectKey>): ColourEffectKey {
   return COLOUR_CHAIN.find((key) => globalAudio[key].wet > 0) ?? COLOUR_CHAIN[0];
+}
+
+/** Fleet Params' LFOs sub-tab for each lane. */
+const LANE_SUB_TAB: Record<LfoLaneId, SelectedFleetParamsEffect> = { a: 'laneA', b: 'laneB', c: 'laneC', d: 'laneD' };
+
+/** The LFO lane picker's link (spec §1.4): the LFOs tab on the picked lane, Core LFO (lane A) when the lane is Off.
+ *  A module function, so the three drawers that hand it to LfoLink pass one stable value. */
+export function openLfoLaneSettings(lane: LfoLaneId | null): void {
+  openFleetParamsAt('lfoBank', LANE_SUB_TAB[lane ?? 'a']);
 }
 
 /** Where a send's link goes: the entry it is named from and the jump. Keyed by RobotSendField, so a sixth send fails

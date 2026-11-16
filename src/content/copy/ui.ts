@@ -75,6 +75,9 @@ export const ui = {
   },
   /** A lane option's desk-shell face on LfoLink's lane row: the lane's name, then its letter. */
   'ui.lfoLane.linkName': { human: 'Lane option', template: '{lane} ({short})' },
+  /** The lane row's help link's name, filled into ui.help.link: "View LFO settings" (docs/specs/HELP_POPOVER_LINKS.md
+   *  §1.6, A4). Singular, where the LFOs tab's own name (fleet.lfoBank) is plural. */
+  'ui.lfoLane.settingsName': { human: 'LFO' },
   /** The Free | Sync toggle on a lane's Rate and on Delay Time (docs/specs/FREE_SYNC_TOGGLE.md §1.9),
    *  read by TempoSyncToggle. Wording confirmed 2026-10-02. TWO label pairs, which are different things:
    *  the entry's own { human: 'Tempo Sync', lore: 'Anchoring' } is the toggle's LABEL (what the control

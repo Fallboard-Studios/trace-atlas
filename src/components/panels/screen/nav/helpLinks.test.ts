@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SEND_SCHEMAS_WITH_HELP_LINKS, colourRoomSubTab } from './helpLinks';
+import { SEND_SCHEMAS_WITH_HELP_LINKS, colourRoomSubTab, openLfoLaneSettings } from './helpLinks';
 import { back } from './navActions';
 import { useUIStore, type FleetParamsGroup, type SelectedFleetParamsEffect } from '@/stores/uiStore';
 import { useAudioStore } from '@/stores/audioStore';
 import { ROBOT_SEND_SCHEMAS } from '@/data/robotOptionsConfig';
 import { ROBOT_SEND_FIELDS, type RobotSendField } from '@/data/robotSends';
-import { CONTENT, type ContentKey } from '@/content';
+import { CONTENT, fill, labels, type ContentKey } from '@/content';
 import { DEFAULT_GLOBAL_AUDIO_SETTINGS } from '@/types/globalAudio';
+import type { LfoLaneId } from '@/types/lfo';
 
 /*
  * docs/tasks/HELP_POPOVER_LINKS.md Task 4 (docs/specs/HELP_POPOVER_LINKS.md §1.4): the five sends' help links, each
@@ -136,5 +137,47 @@ describe('Grit: the first Color effect with its Mix up', () => {
   it('the link keeps its words whatever the Mixes: always the Color room\'s name', () => {
     setColourMixes(0, 0.5, 0);
     expect(link('gritSend').name).toBe(CONTENT['fleet.colour'].human);
+  });
+});
+
+// docs/tasks/HELP_POPOVER_LINKS.md Task 7 (docs/specs/HELP_POPOVER_LINKS.md §1.4, §1.6): the LFO lane picker's link opens
+// the picked lane on the LFOs tab, Core LFO when the lane is Off, as a step.
+describe('openLfoLaneSettings', () => {
+  it.each<[LfoLaneId, SelectedFleetParamsEffect]>([
+    ['a', 'laneA'],
+    ['b', 'laneB'],
+    ['c', 'laneC'],
+    ['d', 'laneD'],
+  ])('lane %s opens LFOs > %s', (lane, subsection) => {
+    onRobotSends();
+    openLfoLaneSettings(lane);
+    expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: subsection });
+  });
+
+  it('lane Off (null) opens Core LFO, lane A', () => {
+    onRobotSends();
+    openLfoLaneSettings(null);
+    expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneA' });
+  });
+
+  it('is a step: back() returns to the screen it was pressed on', () => {
+    onRobotSends();
+    openLfoLaneSettings('c');
+    expect(ui().navTrail).toHaveLength(1);
+    back();
+    expect(ui()).toMatchObject({ activeHubTile: 'robots', selectedRobotId: 'r1', selectedSection: 'volume', selectedSubsection: 'sends' });
+  });
+
+  it('from Fleet Params on Delay (lane Off): Core LFO, and back() lands on Delay', () => {
+    useUIStore.setState({ activeHubTile: 'audioRig', fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+    openLfoLaneSettings(null);
+    expect(ui()).toMatchObject({ fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneA' });
+    back();
+    expect(ui()).toMatchObject({ activeHubTile: 'audioRig', fleetParamsSection: 'timeSpace', fleetParamsSubsection: 'delay' });
+  });
+
+  it('the link reads "View LFO settings": ui.help.link filled with the new LFO name', () => {
+    expect(CONTENT['ui.lfoLane.settingsName'].human).toBe('LFO');
+    expect(fill('ui.help.link', { name: labels('ui.lfoLane.settingsName').humanLabel })).toBe('View LFO settings');
   });
 });
