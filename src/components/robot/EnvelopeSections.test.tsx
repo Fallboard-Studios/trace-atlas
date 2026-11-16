@@ -11,7 +11,7 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { EnvelopeCharacterSection, EnvelopeContourSection } from './PingContourDrawer';
+import { EnvelopeCharacterSection, EnvelopeContourSection } from './EnvelopeSections';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import {
   ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA, PORTAMENTO_SCHEMA, ATTACK_CURVE_SCHEMA, RELEASE_CURVE_SCHEMA,

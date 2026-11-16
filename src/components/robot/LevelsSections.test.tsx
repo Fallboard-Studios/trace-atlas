@@ -16,7 +16,7 @@ vi.mock('@/components/ui/controls/accessibleName', async (importOriginal) => {
   return { ...actual, resolveAccessibleName: vi.fn(actual.resolveAccessibleName) };
 });
 
-import { LevelsMixSection, LevelsSendsSection, SendRow } from './AudioSettingSection';
+import { LevelsMixSection, LevelsSendsSection, SendRow } from './LevelsSections';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { AUDIO_SETTING_SCHEMA, VOLUME_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, ROBOT_SEND_SCHEMAS, DYNAMICS_SCHEMA } from '@/data/robotOptionsConfig';
 import { ROBOT_SENDS, type RobotSendField } from '@/data/robotSends';
@@ -287,13 +287,13 @@ describe('Levels halves', () => {
 
   // The column layout this block pinned became Mix's two boxes (control layout Task 13, the describe at the top).
   describe('Volume row', () => {
-    it("the Volume row is not a flex container — 'audio-setting-section__row' adds display:flex, which shrinks a lone flex item (the slider) to its own content width instead of the row's full width, breaking useVoxelTrackBoxCount's self-observation (same pattern audio-rig-drawer__param-row / sc-lfo-target-group__row already avoid elsewhere by carrying no display rule at all)", () => {
+    it("the Volume row is not a flex container — 'levels-sections__row' adds display:flex, which shrinks a lone flex item (the slider) to its own content width instead of the row's full width, breaking useVoxelTrackBoxCount's self-observation (same pattern audio-rig-drawer__param-row / sc-lfo-target-group__row already avoid elsewhere by carrying no display rule at all)", () => {
       render(
         <LevelsMixSection value={makeValue()} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...DYNAMICS_NOOP} />
       );
-      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.audio-setting-section__volume-row')!;
+      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.levels-sections__volume-row')!;
       expect(volumeRow).not.toBeNull();
-      expect(volumeRow.classList.contains('audio-setting-section__row')).toBe(false);
+      expect(volumeRow.classList.contains('levels-sections__row')).toBe(false);
     });
 
     it('the Volume row no longer carries LFO-group targeting (no sc-lfo-target-group__row, no isActive) — there is nothing left to target', () => {
@@ -512,9 +512,9 @@ describe('Levels halves', () => {
     it('the Pan row sits in Mix, after Volume, as a row panel holding the slider and the toggle', () => {
       const { container } = render(<LevelsMixSection value={makeValue({ panAuto: false })} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...DYNAMICS_NOOP} />);
 
-      const settingsColumn = container.querySelector('.audio-setting-section__mix')!;
-      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.audio-setting-section__volume-row')!;
-      const panWrapper = panSlider().closest('.audio-setting-section__pan-slider')!;
+      const settingsColumn = container.querySelector('.levels-sections__mix')!;
+      const volumeRow = screen.getByRole('slider', { name: /volume/i }).closest('.levels-sections__volume-row')!;
+      const panWrapper = panSlider().closest('.levels-sections__pan-slider')!;
       expect(panWrapper).not.toBeNull();
       expect(settingsColumn.contains(panWrapper)).toBe(true);
       expect(volumeRow.compareDocumentPosition(panWrapper) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -527,7 +527,7 @@ describe('Levels halves', () => {
 
     it('the readout is wrapped in the same pan-slider wrapper as the manual slider, so the row never changes shape on flip', () => {
       render(<LevelsMixSection value={makeValue({ panAuto: true })} livePan={0.1} onAudioModeChange={() => {}} onVolumeChange={() => {}} {...PAN_NOOPS} {...DYNAMICS_NOOP} />);
-      expect(screen.getByRole('status').closest('.audio-setting-section__pan-slider')).not.toBeNull();
+      expect(screen.getByRole('status').closest('.levels-sections__pan-slider')).not.toBeNull();
     });
 
     it('is still a React.memo section: a livePan change re-renders neither the Audio Setting radio nor the Volume slider', () => {
@@ -702,12 +702,12 @@ describe('Levels halves', () => {
     it('each slider sits in its own wrapper that is not the display:flex row (useVoxelTrackSlider needs a plain block box)', () => {
       render(<LevelsSendsSection value={makeValue()} {...baseProps} />);
 
-      const reverbWrapper = reverbSlider().closest('.audio-setting-section__reverb-row')!;
-      const delayWrapper = delaySlider().closest('.audio-setting-section__delay-row')!;
+      const reverbWrapper = reverbSlider().closest('.levels-sections__reverb-row')!;
+      const delayWrapper = delaySlider().closest('.levels-sections__delay-row')!;
       expect(reverbWrapper).not.toBeNull();
       expect(delayWrapper).not.toBeNull();
       expect(reverbWrapper).not.toBe(delayWrapper);
-      [reverbWrapper, delayWrapper].forEach((w) => expect(w.classList.contains('audio-setting-section__row')).toBe(false));
+      [reverbWrapper, delayWrapper].forEach((w) => expect(w.classList.contains('levels-sections__row')).toBe(false));
     });
 
     it('stays memo-stable: re-rendering with identical props re-renders none of the sliders', () => {
@@ -926,9 +926,9 @@ describe('Levels halves', () => {
     it('sits in its own wrapper that is not the display:flex row, and the stylesheet gives it no flex rule', () => {
       render(<LevelsMixSection value={makeValue()} {...baseProps} />);
 
-      const wrapper = dynamicsSlider().closest('.audio-setting-section__dynamics-row')!;
+      const wrapper = dynamicsSlider().closest('.levels-sections__dynamics-row')!;
       expect(wrapper).not.toBeNull();
-      expect(wrapper.classList.contains('audio-setting-section__row')).toBe(false);
+      expect(wrapper.classList.contains('levels-sections__row')).toBe(false);
     });
 
     it('stays memo-stable, and editing Dynamics re-renders only the Dynamics slider (not Delay, Reverb, Volume, Pan or the radio)', () => {
@@ -964,9 +964,9 @@ describe('Levels halves', () => {
     const rerenderedIds = () => (resolveAccessibleName as ReturnType<typeof vi.fn>).mock.calls.map(([schema]) => schema.id);
 
     const ROWS = [
-      { name: 'Grit', field: 'gritSend', key: 'probe.gritSend', schema: ROBOT_SEND_SCHEMAS.gritSend, wrapper: 'audio-setting-section__grit-row' },
-      { name: 'Shimmer', field: 'shimmerSend', key: 'probe.shimmerSend', schema: ROBOT_SEND_SCHEMAS.shimmerSend, wrapper: 'audio-setting-section__shimmer-row' },
-      { name: 'Double', field: 'doubleSend', key: 'probe.doubleSend', schema: ROBOT_SEND_SCHEMAS.doubleSend, wrapper: 'audio-setting-section__double-row' },
+      { name: 'Grit', field: 'gritSend', key: 'probe.gritSend', schema: ROBOT_SEND_SCHEMAS.gritSend, wrapper: 'levels-sections__grit-row' },
+      { name: 'Shimmer', field: 'shimmerSend', key: 'probe.shimmerSend', schema: ROBOT_SEND_SCHEMAS.shimmerSend, wrapper: 'levels-sections__shimmer-row' },
+      { name: 'Double', field: 'doubleSend', key: 'probe.doubleSend', schema: ROBOT_SEND_SCHEMAS.doubleSend, wrapper: 'levels-sections__double-row' },
     ] as const;
 
     it('the three sliders are independent: different stored values show as different numbers', () => {
@@ -1083,7 +1083,7 @@ describe('Levels halves', () => {
         render(<LevelsSendsSection value={makeValue()} {...baseProps} />);
         const w = sliderFor(key).closest(`.${wrapper}`)!;
         expect(w).not.toBeNull();
-        expect(w.classList.contains('audio-setting-section__row')).toBe(false);
+        expect(w.classList.contains('levels-sections__row')).toBe(false);
         expect(w.contains(sliderFor('probe.reverbSend'))).toBe(false);
       });
 
@@ -1148,11 +1148,11 @@ describe('Levels halves', () => {
     it('renders one row per ROBOT_SENDS entry, in table order, each in the wrapper its engine key names', () => {
       const { container } = render(<LevelsSendsSection value={makeValue({ panAuto: false })} onSendChange={vi.fn()} />);
 
-      const wrappers = ROBOT_SENDS.map((spec) => container.querySelector(`.audio-setting-section__${spec.engineKey}-row`));
+      const wrappers = ROBOT_SENDS.map((spec) => container.querySelector(`.levels-sections__${spec.engineKey}-row`));
       wrappers.forEach((w, i) => {
         expect(w, ROBOT_SENDS[i].field).not.toBeNull();
         expect(w!.contains(sliderOf(ROBOT_SENDS[i].field)), ROBOT_SENDS[i].field).toBe(true);
-        expect(w!.classList.contains('audio-setting-section__row')).toBe(false);
+        expect(w!.classList.contains('levels-sections__row')).toBe(false);
       });
       for (let i = 1; i < wrappers.length; i++) expect(before(wrappers[i - 1]!, wrappers[i]!), `row ${i}`).toBe(true);
       // The five sends: no row twice, none missing.

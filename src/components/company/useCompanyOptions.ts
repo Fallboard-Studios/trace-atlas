@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react';
-import type { AudioSettingValue } from '@/components/robot/AudioSettingSection';
-import type { PingControlsValue } from '@/components/robot/PingControlsDrawer';
+import type { AudioSettingValue } from '@/components/robot/LevelsSections';
+import type { PingControlsValue } from '@/components/robot/CompositionSections';
 import type { SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import type { BusFilterPatch, BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { useLocaleStore } from '@/stores/localeStore';

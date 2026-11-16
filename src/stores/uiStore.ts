@@ -41,7 +41,7 @@ export type RobotSubsection =
   | 'sends'
   | 'rhythmMelody'
   | 'details'
-  | 'pingContour'
+  | 'envelopeContour'
   | 'envelopeCharacter'
   | 'baselineOscillator'
   | 'coaxialOscillator'

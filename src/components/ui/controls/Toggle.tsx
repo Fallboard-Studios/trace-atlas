@@ -23,7 +23,7 @@ interface ToggleProps {
    *  docs/specs/archive/HEADER_HUB_CONSOLIDATION.md §1.4. */
   boxSize?: number;
   /** Optional facade content — an icon (Header's Mute, 🔇/🔊) or short text
-   *  (PingControlsDrawer's Click Track) rendered on CabinetBox's own front
+   *  (Composition > Rhythm & Melody's Click Track) rendered on CabinetBox's own front
    *  face, replacing the bare/textless box every other consumer still gets.
    *  When provided, the external DualLabel row is suppressed (the facade
    *  itself now carries the label — same "label lives on the facade, not
@@ -51,7 +51,7 @@ export const CABINET_TOGGLE_BOX_SIZE = 44;
  * Binary ON/OFF control wrapping @radix-ui/react-switch. Controlled — never
  * manages its own selection state. Renders through CabinetBox (roadmap
  * Phase 11.1.2) — bare and textless by default, or with facade content via
- * `children` (Header's Mute/PingControlsDrawer's Click Track) — fully popped
+ * `children` (Header's Mute/Composition > Rhythm & Melody's Click Track) — fully popped
  * is "on", CABINET_REST_POP's shallow 1px protrusion is "off" (a hint of its
  * accent color even at rest, in place of a dedicated border rule —
  * Crawford's own request, 2026-09-13; replaces true flatness, which "off"

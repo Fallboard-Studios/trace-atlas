@@ -39,34 +39,34 @@ vi.mock('@/components/panels/screen/useShell', async (importOriginal) => {
 // callbacks, so a wiring bug (wrong action, wrong argument) still shows here.
 // Levels, Composition and Envelope are two halves each since control layout Task 16, one in the DOM at a time; both
 // halves of a section share its stub id, and the second half's has a `data-half` to tell them apart.
-vi.mock('@/components/robot/AudioSettingSection', () => ({
+vi.mock('@/components/robot/LevelsSections', () => ({
   LevelsMixSection: memo((props: {
     value: { audioMode: string; masterVolume: number };
     onVolumeChange: (pct: number) => void;
     disabled?: boolean;
   }) => (
-    <div data-testid="audio-setting-section-stub" data-master-volume={props.value.masterVolume} data-disabled={props.disabled ? '' : undefined}>
+    <div data-testid="levels-stub" data-master-volume={props.value.masterVolume} data-disabled={props.disabled ? '' : undefined}>
       <button onClick={() => props.onVolumeChange(55)}>probe-volume</button>
     </div>
   )),
   LevelsSendsSection: memo((props: { disabled?: boolean }) => (
-    <div data-testid="audio-setting-section-stub" data-half="sends" data-disabled={props.disabled ? '' : undefined} />
+    <div data-testid="levels-stub" data-half="sends" data-disabled={props.disabled ? '' : undefined} />
   )),
 }));
-vi.mock('@/components/robot/PingControlsDrawer', () => ({
+vi.mock('@/components/robot/CompositionSections', () => ({
   CompositionRhythmMelodySection: memo((props: { value: { rhythmicDensity: number }; onDensityChange: (v: number) => void; disabled?: boolean }) => (
-    <div data-testid="ping-controls-composition-stub" data-density={props.value.rhythmicDensity} data-disabled={props.disabled ? '' : undefined}>
+    <div data-testid="composition-stub" data-density={props.value.rhythmicDensity} data-disabled={props.disabled ? '' : undefined}>
       <button onClick={() => props.onDensityChange(61)}>probe-density</button>
     </div>
   )),
   CompositionDetailsSection: memo((props: { disabled?: boolean }) => (
-    <div data-testid="ping-controls-composition-stub" data-half="details" data-disabled={props.disabled ? '' : undefined} />
+    <div data-testid="composition-stub" data-half="details" data-disabled={props.disabled ? '' : undefined} />
   )),
 }));
-vi.mock('@/components/robot/PingContourDrawer', () => ({
-  EnvelopeContourSection: memo((props: { disabled?: boolean }) => <div data-testid="ping-contour-drawer-stub" data-disabled={props.disabled ? '' : undefined} />),
+vi.mock('@/components/robot/EnvelopeSections', () => ({
+  EnvelopeContourSection: memo((props: { disabled?: boolean }) => <div data-testid="envelope-stub" data-disabled={props.disabled ? '' : undefined} />),
   EnvelopeCharacterSection: memo((props: { disabled?: boolean }) => (
-    <div data-testid="ping-contour-drawer-stub" data-half="character" data-disabled={props.disabled ? '' : undefined} />
+    <div data-testid="envelope-stub" data-half="character" data-disabled={props.disabled ? '' : undefined} />
   )),
 }));
 vi.mock('@/components/robot/SignatureArrayDrawer', () => ({
@@ -144,7 +144,7 @@ function seedFleet(rustMembers = 4) {
 const openCompany = (id: string) => useUIStore.getState().selectCompany(id);
 const openAll = () => useUIStore.getState().setAllProbesSelected(true);
 const pick = (name: string) => fireEvent.mouseDown(screen.getByRole('tab', { name }));
-const STUBS = ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2'];
+const STUBS = ['levels-stub', 'composition-stub', 'envelope-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2'];
 const mounted = () => STUBS.filter((id) => screen.queryByTestId(id));
 const tiles = (container: HTMLElement) => [...container.querySelectorAll('.company-screen__member')].map((el) => el.getAttribute('aria-label'));
 const column = (container: HTMLElement) => container.querySelector('.robot-screen__avatar-column');
@@ -385,9 +385,9 @@ describe('CompanyScreen', () => {
     });
 
     it.each<[string, string]>([
-      [LEVELS, 'audio-setting-section-stub'],
-      [COMPOSITION, 'ping-controls-composition-stub'],
-      [ENVELOPE, 'ping-contour-drawer-stub'],
+      [LEVELS, 'levels-stub'],
+      [COMPOSITION, 'composition-stub'],
+      [ENVELOPE, 'envelope-stub'],
     ])('picking %s mounts only its panel', (name, stub) => {
       openCompany(RUST.id);
       render(<CompanyScreen />);
@@ -407,9 +407,9 @@ describe('CompanyScreen', () => {
       openCompany(RUST.id);
       render(<CompanyScreen />);
       pick(LEVELS);
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-master-volume')).toBe('0.7');
+      expect(screen.getByTestId('levels-stub').getAttribute('data-master-volume')).toBe('0.7');
       pick(COMPOSITION);
-      expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-density')).toBe('42');
+      expect(screen.getByTestId('composition-stub').getAttribute('data-density')).toBe('42');
     });
 
     it('Changing Volume calls applyVolume once per member and records only masterVolume in lastEditedOptions', () => {
@@ -444,7 +444,7 @@ describe('CompanyScreen', () => {
       openCompany(RUST.id);
       const { container } = render(<CompanyScreen />);
       pick(LEVELS);
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBe('');
+      expect(screen.getByTestId('levels-stub').getAttribute('data-disabled')).toBe('');
       const section = container.querySelector('.robot-screen__section') as HTMLElement;
       expect(section.style.getPropertyValue('--color-accent-a')).toBe(getDisabledTraitColorStyle('output')['--color-accent-a' as never]);
     });
@@ -453,7 +453,7 @@ describe('CompanyScreen', () => {
       openCompany(RUST.id);
       const { container } = render(<CompanyScreen />);
       pick(LEVELS);
-      expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-disabled')).toBeNull();
+      expect(screen.getByTestId('levels-stub').getAttribute('data-disabled')).toBeNull();
       const section = container.querySelector('.robot-screen__section') as HTMLElement;
       expect(section.style.getPropertyValue('--color-accent-a')).toBe(getTraitColorStyle('output')['--color-accent-a' as never]);
     });
@@ -508,7 +508,7 @@ describe('CompanyScreen', () => {
       render(<CompanyScreen />);
       pick(ENVELOPE);
       act(() => shell.set('desk'));
-      expect(mounted()).toEqual(['ping-contour-drawer-stub']);
+      expect(mounted()).toEqual(['envelope-stub']);
     });
   });
 });

@@ -6,10 +6,10 @@ import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
 import { NoteCloudLayer } from '@/components/robot/notes/NoteCloudLayers';
-import { LevelsMixSection, LevelsSendsSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
+import { LevelsMixSection, LevelsSendsSection, type AudioSettingValue } from '@/components/robot/LevelsSections';
 import { useHeldOffSends } from '@/components/robot/useHeldOffSends';
-import { CompositionDetailsSection, CompositionRhythmMelodySection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
-import { EnvelopeCharacterSection, EnvelopeContourSection } from '@/components/robot/PingContourDrawer';
+import { CompositionDetailsSection, CompositionRhythmMelodySection, type PingControlsValue } from '@/components/robot/CompositionSections';
+import { EnvelopeCharacterSection, EnvelopeContourSection } from '@/components/robot/EnvelopeSections';
 import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { BusFilterDrawer, type BusFilterPatch, type BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
@@ -383,7 +383,7 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
             onOctaveMaxChange={handleOctaveMaxChange}
           />
         );
-      case 'pingContour':
+      case 'envelopeContour':
         return <EnvelopeContourSection value={robot.audioAttributes.adsr} onChange={handleAdsrChange} swelling={adsrSwelling} />;
       case 'envelopeCharacter':
         return (

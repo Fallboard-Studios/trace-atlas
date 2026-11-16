@@ -24,7 +24,7 @@ import {
   SUSTAIN_SCHEMA,
   RELEASE_SCHEMA,
   SIGNATURE_ARRAY_CONFIG,
-  PING_CONTOUR_PANEL_SCHEMA,
+  CONTOUR_PANEL_SCHEMA,
   PORTAMENTO_SCHEMA,
   ATTACK_CURVE_SCHEMA,
   RELEASE_CURVE_SCHEMA,
@@ -593,7 +593,7 @@ describe('SignatureArrayLayerBlock boxes and row (docs/specs/CONTENT_LAYOUT.md �
 // ========================================
 
 describe('ROBOT_OUTPUT_PANEL_SCHEMA no longer exists (Task 2 cleanup)', () => {
-  it('is not exported by the module — fully superseded by AudioSettingSection\'s own panels', () => {
+  it('is not exported by the module — fully superseded by the Levels sections\' own panels', () => {
     expect((robotOptionsConfigModule as Record<string, unknown>).ROBOT_OUTPUT_PANEL_SCHEMA).toBeUndefined();
   });
 });
@@ -666,15 +666,15 @@ describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/t
   });
 });
 
-describe('PING_CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () => {
+describe('CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () => {
   it('is a column-orientation directionalPanel — wraps 2 responsive sub-rows instead of 4 sliders directly (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4)', () => {
-    expect(PING_CONTOUR_PANEL_SCHEMA.type).toBe('directionalPanel');
-    expect(PING_CONTOUR_PANEL_SCHEMA.orientation).toBe('column');
+    expect(CONTOUR_PANEL_SCHEMA.type).toBe('directionalPanel');
+    expect(CONTOUR_PANEL_SCHEMA.orientation).toBe('column');
   });
 
   it('has the confirmed loreLabel/humanLabel', () => {
-    expect(PING_CONTOUR_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.envelope.contour'].lore);
-    expect(PING_CONTOUR_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.envelope.contour'].human);
+    expect(CONTOUR_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.envelope.contour'].lore);
+    expect(CONTOUR_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.envelope.contour'].human);
   });
 });
 
@@ -838,12 +838,12 @@ describe('Robot Articulation schemas', () => {
   it("Character's box is an unlabeled column on the sheet scheme, and Contour's box moved to it too", () => {
     expect(CHARACTER_PANEL_SCHEMA).toMatchObject({ id: 'robotOptions.character.p1', type: 'directionalPanel', orientation: 'column' });
     expect(CHARACTER_PANEL_SCHEMA.humanLabel).toBeUndefined();
-    expect(PING_CONTOUR_PANEL_SCHEMA.id).toBe('robotOptions.contour.p1');
+    expect(CONTOUR_PANEL_SCHEMA.id).toBe('robotOptions.contour.p1');
   });
 
   it('every schema carries a unique robotOptions.* id, none colliding with the existing Envelope or Source ids', () => {
     const ids = [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].map((s) => s.id);
-    const existing = [ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA, PING_CONTOUR_PANEL_SCHEMA].map((s) => s.id);
+    const existing = [ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA, CONTOUR_PANEL_SCHEMA].map((s) => s.id);
     ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
     expect(new Set([...ids, ...existing]).size).toBe(ids.length + existing.length);
   });

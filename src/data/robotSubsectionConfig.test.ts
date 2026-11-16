@@ -51,7 +51,7 @@ describe('ROBOT_SECTIONS_CONFIG', () => {
     expect(ROBOT_SECTIONS_CONFIG.map((s) => [s.id, s.subsections])).toEqual([
       ['volume', [{ id: 'mix', content: 'probe.levels.mix' }, { id: 'sends', content: 'probe.levels.sends' }]],
       ['melody', [{ id: 'rhythmMelody', content: 'probe.composition.rhythmMelody' }, { id: 'details', content: 'probe.composition.details' }]],
-      ['envelope', [{ id: 'pingContour', content: 'probe.envelope.contour' }, { id: 'envelopeCharacter', content: 'probe.envelope.character' }]],
+      ['envelope', [{ id: 'envelopeContour', content: 'probe.envelope.contour' }, { id: 'envelopeCharacter', content: 'probe.envelope.character' }]],
       ['source', ROBOT_SECTIONS_CONFIG[3].subsections],
     ]);
     expect(ROBOT_SECTIONS_CONFIG[3].subsections.map((s) => s.id)).toEqual([...SOURCE_OSCILLATOR_SUBSECTIONS, 'busFilter']);
@@ -122,16 +122,16 @@ describe('the robot screen tabs', () => {
     // Nothing stored: the section's first.
     ['volume', null, 'mix'],
     ['melody', null, 'rhythmMelody'],
-    ['envelope', null, 'pingContour'],
+    ['envelope', null, 'envelopeContour'],
     // The filter panel is Source's alone: a stored busFilter on any other section falls back to its first.
-    ['envelope', 'busFilter', 'pingContour'],
+    ['envelope', 'busFilter', 'envelopeContour'],
     ['melody', 'busFilter', 'rhythmMelody'],
     ['volume', 'busFilter', 'mix'],
     // Not this section's: its first, as SectionTabs falls back for a stale value.
     ['source', 'details', 'baselineOscillator'],
     ['volume', 'envelopeCharacter', 'mix'],
     ['melody', 'sends', 'rhythmMelody'],
-    ['envelope', 'baselineOscillator', 'pingContour'],
+    ['envelope', 'baselineOscillator', 'envelopeContour'],
   ])('on %s with %s stored, the panel shown is %s', (sectionId, stored, expected) => {
     expect(activeRobotSubsection(sectionId, stored)).toBe(expected);
   });

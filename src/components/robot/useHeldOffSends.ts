@@ -14,8 +14,8 @@ export function heldOffSends(effectsHeldOff: boolean, reverbHeldOff: boolean): R
 }
 
 /** `heldOffSends` from the store's flags, as a record that keeps its reference until a flag changes, so the memoised
- *  AudioSettingSection it is handed to does not re-render on an unrelated store write. The robot screen and the company
- *  screen both read it, which keeps AudioSettingSection itself store-free. */
+ *  LevelsSendsSection it is handed to does not re-render on an unrelated store write. The robot screen and the company
+ *  screen both read it, which keeps LevelsSendsSection itself store-free. */
 export function useHeldOffSends(): Readonly<Record<RobotSendField, boolean>> {
   const effectsHeldOff = useAudioStore((s) => s.effectsHeldOff);
   const reverbHeldOff = useAudioStore((s) => s.reverbHeldOff);

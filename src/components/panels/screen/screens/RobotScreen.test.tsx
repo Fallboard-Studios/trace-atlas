@@ -62,7 +62,7 @@ const levelsStub = vi.hoisted(() => {
 });
 // Each half shows only what it is given: the Mix stub has no send attribute and the Sends stub no Mix one, so a case
 // that reads a value from the wrong half fails rather than passing on the shared value object.
-vi.mock('@/components/robot/AudioSettingSection', () => ({
+vi.mock('@/components/robot/LevelsSections', () => ({
   LevelsMixSection: memo((props: {
     value: { audioMode: string; masterVolume: number; pan: number; panAuto: boolean; dynamics: number };
     onAudioModeChange: (mode: string) => void;
@@ -79,7 +79,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     });
     return (
       <div
-        data-testid="audio-setting-section-stub"
+        data-testid="levels-stub"
         data-half="mix"
         data-audio-mode={props.value.audioMode}
         data-master-volume={props.value.masterVolume}
@@ -111,7 +111,7 @@ vi.mock('@/components/robot/AudioSettingSection', () => ({
     levelsStub.record({ onSendChange: props.onSendChange });
     return (
       <div
-        data-testid="audio-setting-section-stub"
+        data-testid="levels-stub"
         data-half="sends"
         data-reverb-send={props.value.reverbSend}
         data-delay-send={props.value.delaySend}
@@ -153,7 +153,7 @@ const compositionStub = vi.hoisted(() => {
   };
   return stub;
 });
-vi.mock('@/components/robot/PingControlsDrawer', () => ({
+vi.mock('@/components/robot/CompositionSections', () => ({
   CompositionRhythmMelodySection: memo((props: {
     value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; clickTrackActive: boolean };
     onClickTrackActiveChange?: (active: boolean) => void;
@@ -165,7 +165,7 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
     compositionStub.record({ onDensityChange: props.onDensityChange });
     return (
       <div
-        data-testid="ping-controls-composition-stub"
+        data-testid="composition-stub"
         data-half="rhythmMelody"
         data-density={props.value.rhythmicDensity}
         data-pitch-repeat={props.value.pitchRepeat}
@@ -188,7 +188,7 @@ vi.mock('@/components/robot/PingControlsDrawer', () => ({
   }) => {
     compositionStub.record({ onRestsChange: props.onRestsChange, onAccentsChange: props.onAccentsChange });
     return (
-      <div data-testid="ping-controls-composition-stub" data-half="details" data-rests={props.value.rests} data-accents={props.value.accents}>
+      <div data-testid="composition-stub" data-half="details" data-rests={props.value.rests} data-accents={props.value.accents}>
         <button onClick={() => props.onOctaveMinChange(4)}>probe-octave-min</button>
         <button onClick={() => props.onOctaveMaxChange(6)}>probe-octave-max</button>
         <button onClick={() => props.onRestsChange(100)}>probe-rests</button>
@@ -214,11 +214,11 @@ const envelopeStub = vi.hoisted(() => {
   };
   return stub;
 });
-vi.mock('@/components/robot/PingContourDrawer', () => ({
+vi.mock('@/components/robot/EnvelopeSections', () => ({
   EnvelopeContourSection: memo((props: { value: { attack: number }; onChange: (next: unknown) => void }) => {
     envelopeStub.record({ onChange: props.onChange });
     return (
-      <div data-testid="ping-contour-drawer-stub" data-half="contour" data-attack={props.value.attack}>
+      <div data-testid="envelope-stub" data-half="contour" data-attack={props.value.attack}>
         <button onClick={() => props.onChange({ attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 })}>probe-adsr</button>
       </div>
     );
@@ -231,7 +231,7 @@ vi.mock('@/components/robot/PingContourDrawer', () => ({
   }) => {
     envelopeStub.record({ onChange: props.onChange, onPortamentoChange: props.onPortamentoChange });
     return (
-      <div data-testid="ping-contour-drawer-stub" data-half="character" data-portamento={props.portamento}>
+      <div data-testid="envelope-stub" data-half="character" data-portamento={props.portamento}>
         <button onClick={() => props.onChange({ ...props.value, attackCurve: 'bounce' })}>probe-attack-curve</button>
         <button onClick={() => props.onPortamentoChange(0.7)}>probe-portamento</button>
       </div>
@@ -428,7 +428,7 @@ const subRow = () => screen.getByRole('tablist', { name: SOURCE });
 const tabNames = (list: HTMLElement) => within(list).getAllByRole('tab').map((t) => t.textContent);
 const selectedTab = (list: HTMLElement) => within(list).getAllByRole('tab').find((t) => t.getAttribute('aria-selected') === 'true')!;
 const pick = (name: string) => fireEvent.mouseDown(screen.getByRole('tab', { name }));
-const STUBS = ['audio-setting-section-stub', 'ping-controls-composition-stub', 'ping-contour-drawer-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub'];
+const STUBS = ['levels-stub', 'composition-stub', 'envelope-stub', 'signature-array-layer-stub-0', 'signature-array-layer-stub-1', 'signature-array-layer-stub-2', 'bus-filter-drawer-stub'];
 /** Every section panel the screen can mount, by its stub's test id. */
 const mounted = () => STUBS.filter((id) => screen.queryByTestId(id));
 const column = (container: HTMLElement) => container.querySelector('.robot-screen__avatar-column');
@@ -565,7 +565,7 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
     for (const send of ['reverb', 'delay', 'grit', 'shimmer', 'double']) expect(screen.getByText(`probe-${send}-send`), send).toBeTruthy();
     expect(screen.queryByText('probe-volume')).toBeNull();
     expect(screen.queryByText('probe-pan')).toBeNull();
-    expect(screen.getAllByTestId('audio-setting-section-stub')).toHaveLength(1);
+    expect(screen.getAllByTestId('levels-stub')).toHaveLength(1);
   });
 
   it.each<[RobotSection, RobotSubsection, string, string]>([
@@ -579,9 +579,9 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
   });
 
   it.each<[string, string]>([
-    [LEVELS, 'audio-setting-section-stub'],
-    [COMPOSITION, 'ping-controls-composition-stub'],
-    [ENVELOPE, 'ping-contour-drawer-stub'],
+    [LEVELS, 'levels-stub'],
+    [COMPOSITION, 'composition-stub'],
+    [ENVELOPE, 'envelope-stub'],
   ])('picking %s writes the section, clears the sub-tab and mounts only its panel', (name, stub) => {
     selectRobot(makeRobot(), 'source', 'coaxialOscillator');
     render(<RobotScreen />);
@@ -597,7 +597,7 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
     render(<RobotScreen />);
     pick(LEVELS);
     pick(SENDS);
-    const stub = () => screen.getByTestId('audio-setting-section-stub');
+    const stub = () => screen.getByTestId('levels-stub');
     expect(stub().getAttribute('data-held-off-sends')).toBe('');
     act(() => useAudioStore.setState({ effectsHeldOff: true }));
     expect(stub().getAttribute('data-held-off-sends')).toBe('gritSend,shimmerSend,doubleSend');
@@ -622,8 +622,8 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
   });
 
   it.each<[RobotSection | null, RobotSubsection | null, string]>([
-    ['volume', 'coaxialOscillator', 'audio-setting-section-stub'],
-    ['melody', 'busFilter', 'ping-controls-composition-stub'],
+    ['volume', 'coaxialOscillator', 'levels-stub'],
+    ['melody', 'busFilter', 'composition-stub'],
     ['source', 'details', 'signature-array-layer-stub-0'],
     [null, 'harmonicOscillator', 'signature-array-layer-stub-2'],
   ])('a stored %s / %s shows %s, without a store write', (section, subsection, stub) => {
@@ -655,11 +655,11 @@ describe('RobotScreen — the section tabs (spec §1.3)', () => {
 });
 
 describe('RobotScreen — each section reaches the robot as before (moved from RobotOptionsTab)', () => {
-  describe('Levels (AudioSettingSection)', () => {
+  describe('Levels (LevelsMixSection, LevelsSendsSection)', () => {
     it("derives its value from the robot's audioMode / masterVolume", () => {
       selectRobot(makeRobot('r1', { audioMode: 'mute', masterVolume: 0.42 }), 'volume');
       render(<RobotScreen />);
-      const stub = screen.getByTestId('audio-setting-section-stub');
+      const stub = screen.getByTestId('levels-stub');
       expect(stub.getAttribute('data-audio-mode')).toBe('mute');
       expect(stub.getAttribute('data-master-volume')).toBe('0.42');
     });
@@ -691,7 +691,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it("derives reverbSend and delaySend from the robot's own fields", () => {
         selectRobot(makeRobot('r1', { reverbSend: 0.35, delaySend: 0.15 }), 'volume');
         render(<RobotScreen />);
-        const stub = screen.getByTestId('audio-setting-section-stub');
+        const stub = screen.getByTestId('levels-stub');
         expect(stub.getAttribute('data-reverb-send')).toBe('0.35');
         expect(stub.getAttribute('data-delay-send')).toBe('0.15');
       });
@@ -699,7 +699,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it('a fully dry robot (both sends 0) reaches the section as 0 and 0, not as a missing value', () => {
         selectRobot(makeRobot('r1', { reverbSend: 0, delaySend: 0 }), 'volume');
         render(<RobotScreen />);
-        const stub = screen.getByTestId('audio-setting-section-stub');
+        const stub = screen.getByTestId('levels-stub');
         expect(stub.getAttribute('data-reverb-send')).toBe('0');
         expect(stub.getAttribute('data-delay-send')).toBe('0');
       });
@@ -708,7 +708,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         selectRobot(makeRobot('r1', { reverbSend: 0.2, delaySend: 0.1 }), 'volume');
         render(<RobotScreen />);
         act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { reverbSend: 0.6 }));
-        const stub = screen.getByTestId('audio-setting-section-stub');
+        const stub = screen.getByTestId('levels-stub');
         expect(stub.getAttribute('data-reverb-send')).toBe('0.6');
         expect(stub.getAttribute('data-delay-send')).toBe('0.1');
       });
@@ -716,7 +716,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it('hands the section the one send handler and the flag record, and none of the old per-field props', () => {
         selectRobot(makeRobot('r1'), 'volume');
         render(<RobotScreen />);
-        const stub = screen.getByTestId('audio-setting-section-stub');
+        const stub = screen.getByTestId('levels-stub');
         expect(stub.getAttribute('data-has-send-handlers')).toBe('true');
         expect(stub.getAttribute('data-has-old-send-props')).toBe('false');
         expect(stub.getAttribute('data-reverb-swelling')).toBe('false');
@@ -801,7 +801,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         vi.spyOn(AudioEngine, 'updateRobotSends').mockImplementation(() => {});
         render(<RobotScreen />);
         fireEvent.click(screen.getByText('probe-reverb-send'));
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-reverb-send')).toBe('0.4');
+        expect(screen.getByTestId('levels-stub').getAttribute('data-reverb-send')).toBe('0.4');
       });
 
       it.each([
@@ -875,7 +875,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
           vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attribute) => id === 'r1' && attributes.includes(attribute));
         // The Volume flag is Mix's, on the other sub-tab since control layout Task 16; these read the two send flags.
         const flags = () => {
-          const stub = screen.getByTestId('audio-setting-section-stub');
+          const stub = screen.getByTestId('levels-stub');
           return {
             reverb: stub.getAttribute('data-reverb-swelling'),
             delay: stub.getAttribute('data-delay-swelling'),
@@ -1024,7 +1024,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         const swellingOnly = (...attributes: string[]) =>
           vi.spyOn(audioSwells, 'isRobotAttributeSwelling').mockImplementation((id, attribute) => id === 'r1' && attributes.includes(attribute));
         const flags = () => {
-          const stub = screen.getByTestId('audio-setting-section-stub');
+          const stub = screen.getByTestId('levels-stub');
           return Object.fromEntries(SEND_FLAGS.map((f) => [f, stub.getAttribute(`data-${f}-swelling`)]));
         };
         const onlyFlag = (on: string | null) => Object.fromEntries(SEND_FLAGS.map((f) => [f, String(f === on)]));
@@ -1136,7 +1136,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         { name: 'Shimmer', field: 'shimmerSend', attr: 'data-shimmer-send', button: 'probe-shimmer-send', engineKey: 'shimmer' },
         { name: 'Double', field: 'doubleSend', attr: 'data-double-send', button: 'probe-double-send', engineKey: 'double' },
       ] as const;
-      const stub = () => screen.getByTestId('audio-setting-section-stub');
+      const stub = () => screen.getByTestId('levels-stub');
       const storedR1 = () => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
 
       it("derives the three sends from the robot's own fields, each from its own field", () => {
@@ -1232,7 +1232,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
     // docs/specs/ROBOT_PAN.md §1.5 — Pan and its Auto toggle (docs/tasks/ROBOT_PAN.md Task 9).
     // docs/tasks/ROBOT_PERFORMANCE.md Task 9: the screen passes the robot's Dynamics (50 when absent) and wires one handler.
     describe('Dynamics (Robot Performance Task 9)', () => {
-      const stubDynamics = () => screen.getByTestId('audio-setting-section-stub').getAttribute('data-dynamics');
+      const stubDynamics = () => screen.getByTestId('levels-stub').getAttribute('data-dynamics');
 
       it("derives dynamics from the robot's own field", () => {
         selectRobot(makeRobot('r1', { dynamics: 72 }), 'volume');
@@ -1335,7 +1335,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it("derives pan and panAuto from the robot's own fields", () => {
         selectRobot(makeRobot('r1', { pan: -0.3, panAuto: false }), 'volume');
         render(<RobotScreen />);
-        const stub = screen.getByTestId('audio-setting-section-stub');
+        const stub = screen.getByTestId('levels-stub');
         expect(stub.getAttribute('data-pan')).toBe('-0.3');
         expect(stub.getAttribute('data-pan-auto')).toBe('false');
       });
@@ -1343,7 +1343,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it('a spawned robot (pan 0, Auto on) reaches the section as 0 and true', () => {
         selectRobot(makeRobot('r1', { pan: 0, panAuto: true }), 'volume');
         render(<RobotScreen />);
-        const stub = screen.getByTestId('audio-setting-section-stub');
+        const stub = screen.getByTestId('levels-stub');
         expect(stub.getAttribute('data-pan')).toBe('0');
         expect(stub.getAttribute('data-pan-auto')).toBe('true');
       });
@@ -1395,23 +1395,23 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it('livePan stays undefined until the engine writes a first readout', () => {
         selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
         render(<RobotScreen />);
-        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+        expect(screen.getByTestId('levels-stub').hasAttribute('data-live-pan')).toBe(false);
       });
 
       it('an Auto robot shows the engine readout: a setPan for it reaches the section as livePan', () => {
         selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
         render(<RobotScreen />);
         act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.3));
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.3');
+        expect(screen.getByTestId('levels-stub').getAttribute('data-live-pan')).toBe('0.3');
         act(() => useRobotPanReadoutStore.getState().setPan('r1', -0.45));
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('-0.45');
+        expect(screen.getByTestId('levels-stub').getAttribute('data-live-pan')).toBe('-0.45');
       });
 
       it('a readout that was already there when the screen mounts is shown straight away', () => {
         useRobotPanReadoutStore.getState().setPan('r1', 0.2);
         selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
         render(<RobotScreen />);
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.2');
+        expect(screen.getByTestId('levels-stub').getAttribute('data-live-pan')).toBe('0.2');
       });
 
       it('a readout of exactly 0 (dead centre) is passed through, not dropped as falsy', () => {
@@ -1419,7 +1419,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         render(<RobotScreen />);
         act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.25));
         act(() => useRobotPanReadoutStore.getState().setPan('r1', 0));
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0');
+        expect(screen.getByTestId('levels-stub').getAttribute('data-live-pan')).toBe('0');
       });
 
       it('another robot readout never reaches this robot section and does not re-render it', () => {
@@ -1428,14 +1428,14 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         const before = levelsStub.renders;
         act(() => useRobotPanReadoutStore.getState().setPan('r2', 0.4));
         expect(levelsStub.renders).toBe(before);
-        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+        expect(screen.getByTestId('levels-stub').hasAttribute('data-live-pan')).toBe(false);
       });
 
       it('a manual robot never receives livePan, even with a stale readout in the store', () => {
         useRobotPanReadoutStore.getState().setPan('r1', 0.4);
         selectRobot(makeRobot('r1', { panAuto: false, pan: 0.9 }), 'volume');
         render(<RobotScreen />);
-        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+        expect(screen.getByTestId('levels-stub').hasAttribute('data-live-pan')).toBe(false);
       });
 
       it('a manual robot readout write does not re-render the section or the screen at all', () => {
@@ -1458,13 +1458,13 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         selectRobot(makeRobot('r1', { panAuto: true }), 'volume');
         render(<RobotScreen />);
         act(() => useRobotPanReadoutStore.getState().setPan('r1', 0.3));
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.3');
+        expect(screen.getByTestId('levels-stub').getAttribute('data-live-pan')).toBe('0.3');
 
         act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { panAuto: false, pan: 0.3 }));
-        expect(screen.getByTestId('audio-setting-section-stub').hasAttribute('data-live-pan')).toBe(false);
+        expect(screen.getByTestId('levels-stub').hasAttribute('data-live-pan')).toBe(false);
 
         act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { panAuto: true }));
-        expect(screen.getByTestId('audio-setting-section-stub').getAttribute('data-live-pan')).toBe('0.3');
+        expect(screen.getByTestId('levels-stub').getAttribute('data-live-pan')).toBe('0.3');
       });
 
       it('an Auto readout write re-renders the Levels section once and nothing else on the screen', () => {
@@ -1495,11 +1495,11 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
     });
   });
 
-  describe('Composition (PingControlsCompositionSection)', () => {
+  describe('Composition (CompositionRhythmMelodySection, CompositionDetailsSection)', () => {
     it('derives its value from the robot', () => {
       selectRobot(makeRobot(), 'melody');
       render(<RobotScreen />);
-      const stub = screen.getByTestId('ping-controls-composition-stub');
+      const stub = screen.getByTestId('composition-stub');
       expect(stub.getAttribute('data-density')).toBe('42');
       expect(stub.getAttribute('data-pitch-repeat')).toBe('33');
     });
@@ -1526,12 +1526,12 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it("passes the robot's own flag, and false when the field is absent", () => {
         selectRobot(makeRobot('r1', { clickTrackActive: true }), 'melody');
         const on = render(<RobotScreen />);
-        expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-click-track')).toBe('true');
+        expect(screen.getByTestId('composition-stub').getAttribute('data-click-track')).toBe('true');
         on.unmount();
 
         selectRobot(makeRobot('r2'), 'melody');
         render(<RobotScreen />);
-        expect(screen.getByTestId('ping-controls-composition-stub').getAttribute('data-click-track')).toBe('false');
+        expect(screen.getByTestId('composition-stub').getAttribute('data-click-track')).toBe('false');
       });
 
       it('wires the flip to applyClickTrackActive with the robot and the new state, once, and regenerates nothing', () => {
@@ -1550,7 +1550,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
     // docs/tasks/ROBOT_PERFORMANCE.md Task 10: the screen passes the robot's Rests and Accents (0 when absent) and wires two handlers.
     describe('Rests and Accents (Robot Performance Task 10)', () => {
       const selectRobot = onSub('details');
-      const stub = () => screen.getByTestId('ping-controls-composition-stub');
+      const stub = () => screen.getByTestId('composition-stub');
 
       it("derives rests and accents from the robot's own fields", () => {
         selectRobot(makeRobot('r1', { rests: 35, accents: 80 }), 'melody');
@@ -1682,13 +1682,13 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
     });
   });
 
-  describe('Envelope (PingContourDrawer)', () => {
+  describe('Envelope (EnvelopeContourSection, EnvelopeCharacterSection)', () => {
     it("derives its value from audioAttributes.adsr and wires onChange to applyAdsr", () => {
       const robot = makeRobot();
       selectRobot(robot, 'envelope');
       const spy = vi.spyOn(robotOptionsActions, 'applyAdsr').mockImplementation(() => {});
       render(<RobotScreen />);
-      expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-attack')).toBe('0.01');
+      expect(screen.getByTestId('envelope-stub').getAttribute('data-attack')).toBe('0.01');
       fireEvent.click(screen.getByText('probe-adsr'));
       expect(spy).toHaveBeenCalledWith(robot, localeId, { attack: 0.9, decay: 0.1, sustain: 0.5, release: 0.2 });
     });
@@ -1710,12 +1710,12 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       it('passes the stored portamento to the drawer, and 0 for a robot that has none', () => {
         selectRobot(makeRobot('r1', { audioAttributes: { ...makeRobot().audioAttributes, portamento: 0.3 } }), 'envelope');
         const first = render(<RobotScreen />);
-        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0.3');
+        expect(screen.getByTestId('envelope-stub').getAttribute('data-portamento')).toBe('0.3');
         first.unmount();
         useLocaleStore.getState().setLocaleData(localeId, { robots: [], companies: [] } as unknown as Partial<Locale>);
         selectRobot(makeRobot('r2'), 'envelope');
         render(<RobotScreen />);
-        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('0');
+        expect(screen.getByTestId('envelope-stub').getAttribute('data-portamento')).toBe('0');
       });
 
       it('a Portamento edit calls applyPortamento with the robot, the locale and the seconds, and nothing else', () => {
@@ -1774,7 +1774,7 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
           useLocaleStore.getState().updateRobot(localeId, 'r1', { audioAttributes: { ...stored.audioAttributes, portamento: 1.2 } });
         });
         expect(envelopeStub.renders).toBeGreaterThan(before);
-        expect(screen.getByTestId('ping-contour-drawer-stub').getAttribute('data-portamento')).toBe('1.2');
+        expect(screen.getByTestId('envelope-stub').getAttribute('data-portamento')).toBe('1.2');
       });
     });
   });
@@ -2037,9 +2037,9 @@ describe('RobotScreen — colour', () => {
   });
 
   it.each<[RobotSection, Trait, string]>([
-    ['volume', 'output', 'audio-setting-section-stub'],
-    ['melody', 'composition', 'ping-controls-composition-stub'],
-    ['envelope', 'timeSpace', 'ping-contour-drawer-stub'],
+    ['volume', 'output', 'levels-stub'],
+    ['melody', 'composition', 'composition-stub'],
+    ['envelope', 'timeSpace', 'envelope-stub'],
     ['source', 'spectral', 'signature-array-layer-stub-0'],
   ])("%s's panel sits in its trait (%s), as its accordion coloured it", (section, trait, stub) => {
     selectRobot(makeRobot(), section);
@@ -2370,7 +2370,7 @@ describe('RobotScreen — the phone band (spec §1.4: small form only)', () => {
     expect(band(container)).toBeNull();
     act(() => shell.set('phone'));
     expect(band(container)).not.toBeNull();
-    expect(mounted()).toEqual(['ping-contour-drawer-stub']);
+    expect(mounted()).toEqual(['envelope-stub']);
   });
 });
 

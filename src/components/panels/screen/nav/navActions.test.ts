@@ -176,7 +176,7 @@ describe('selectEntity', () => {
 
   it('switching robot to robot resets the section (the next robot opens at its default)', () => {
     selectEntity({ robotId: 'r1' });
-    useUIStore.setState({ selectedSection: 'envelope', selectedSubsection: 'pingContour' });
+    useUIStore.setState({ selectedSection: 'envelope', selectedSubsection: 'envelopeContour' });
     selectEntity({ robotId: 'r2' });
     expect(ui().selectedSection).toBeNull();
     expect(ui().selectedSubsection).toBeNull();

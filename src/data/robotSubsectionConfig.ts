@@ -59,7 +59,7 @@ export const ROBOT_SECTIONS_CONFIG: RobotSectionEntry[] = [
   {
     id: 'envelope', content: 'probe.envelope', trait: 'timeSpace',
     subsections: [
-      { id: 'pingContour', content: 'probe.envelope.contour' },
+      { id: 'envelopeContour', content: 'probe.envelope.contour' },
       { id: 'envelopeCharacter', content: 'probe.envelope.character' },
     ],
   },

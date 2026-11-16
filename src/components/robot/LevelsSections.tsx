@@ -26,7 +26,7 @@ import { PAN_DISPLAY_SCALE, SEND_DISPLAY_SCALE } from '@/constants';
 import { roundToDecimals } from '@/utils/math';
 import type { Robot } from '@/types/Robot';
 
-import './AudioSettingSection.css';
+import './LevelsSections.css';
 
 export interface AudioSettingValue {
   audioMode: NonNullable<Robot['audioMode']>;
@@ -114,7 +114,7 @@ interface SendRowProps {
  */
 export const SendRow = memo(function SendRow({ spec, display, onSendChange, swelling, disabled, heldOff = false }: SendRowProps) {
   return (
-    <div className={withHeldOffClass(`audio-setting-section__${spec.engineKey}-row`, heldOff)}>
+    <div className={withHeldOffClass(`levels-sections__${spec.engineKey}-row`, heldOff)}>
       <SliderLinear
         schema={ROBOT_SEND_SCHEMAS[spec.field]}
         value={display}
@@ -127,7 +127,7 @@ export const SendRow = memo(function SendRow({ spec, display, onSendChange, swel
 });
 
 /** Volume's cell: the wrapper plus `sc-featured` (docs/specs/CONTENT_LAYOUT.md §1.4). */
-const VOLUME_CELL = withFeaturedClass('audio-setting-section__volume-row', VOLUME_SCHEMA);
+const VOLUME_CELL = withFeaturedClass('levels-sections__volume-row', VOLUME_SCHEMA);
 
 type LevelsMixProps = Pick<
   LevelsProps,
@@ -140,7 +140,7 @@ type LevelsMixProps = Pick<
  * robot screen and the company broadcast, like every Robot Options section.
  *
  * Every slider sits in a wrapper with no display rule: useVoxelTrackBoxCount measures its own wrapper and needs a plain
- * block box (a display:flex wrapper, 'audio-setting-section__row', shrinks a lone slider to its label's width; found
+ * block box (a display:flex wrapper, 'levels-sections__row', shrinks a lone slider to its label's width; found
  * live by Crawford). The radio's wrapper is that flex row.
  */
 export const LevelsMixSection = memo(function LevelsMixSection({
@@ -156,13 +156,13 @@ export const LevelsMixSection = memo(function LevelsMixSection({
   );
 
   return (
-    <div className="audio-setting-section__mix">
+    <div className="levels-sections__mix">
       <DirectionalPanel schema={MIX_P1_PANEL_SCHEMA}>
         <div className={VOLUME_CELL}>
           <SliderLinear schema={VOLUME_SCHEMA} value={value.masterVolume * 100} onChange={onVolumeChange} disabled={disabled} swelling={volumeSwelling} />
         </div>
         <DirectionalPanel schema={MIX_P1_R2_PANEL_SCHEMA}>
-          <div className="audio-setting-section__row">
+          <div className="levels-sections__row">
             <RadioButton
               schema={AUDIO_SETTING_SCHEMA}
               value={value.audioMode}
@@ -171,7 +171,7 @@ export const LevelsMixSection = memo(function LevelsMixSection({
             />
           </div>
           {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6). No `swelling`: Dynamics is not a swell attribute. */}
-          <div className="audio-setting-section__dynamics-row">
+          <div className="levels-sections__dynamics-row">
             <SliderLinear schema={DYNAMICS_SCHEMA} value={value.dynamics} onChange={onDynamicsChange} disabled={disabled} />
           </div>
         </DirectionalPanel>
@@ -182,7 +182,7 @@ export const LevelsMixSection = memo(function LevelsMixSection({
           cadence (docs/specs/ROBOT_PAN.md §1.5). */}
       <DirectionalPanel schema={MIX_P2_PANEL_SCHEMA}>
         <DirectionalPanel schema={MIX_P2_R1_PANEL_SCHEMA}>
-          <div className="audio-setting-section__pan-slider">
+          <div className="levels-sections__pan-slider">
             <SliderCenteredZero
               schema={PAN_SCHEMA}
               value={(value.panAuto ? (livePan ?? value.pan) : value.pan) * PAN_DISPLAY_SCALE}

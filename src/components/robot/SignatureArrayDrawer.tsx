@@ -272,7 +272,7 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
   // below need the CURRENT layers array to correctly preserve the other 2 layers' own values when
   // rebuilding it, but must not themselves destabilize whenever `layers` changes (i.e. on every
   // edit to ANY layer) — the same "stable callback, fresh value read at call time" ref pattern
-  // `RobotOptionsTab.tsx`/`PingContourDrawer.tsx`/`Lfo.tsx` already use. Because they're stable
+  // `RobotOptionsTab.tsx`/`EnvelopeSections.tsx`/`Lfo.tsx` already use. Because they're stable
   // regardless of which layer last changed, one shared triple of handlers serves all 3 layers,
   // keyed by `idx` at the call site rather than rebuilt per layer.
   const latestLayers = useRef(layers);

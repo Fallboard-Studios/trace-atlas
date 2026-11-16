@@ -598,7 +598,8 @@ at three widths passed on 2026-11-15 (Fleet Params, then the robot, company and 
   Composition (Rhythm & Melody, Details), Envelope (Contour, Character), Source (the three oscillators, then
   Filter). The section components split in two along the same lines, and the three old whole-tab composites
   (`AudioSettingSection`, `PingControlsCompositionSection`, `PingContourDrawer`) were deleted (Crawford, 2026-11-15),
-  their tests moved onto the halves.
+  their tests moved onto the halves, and their files renamed for what they now hold: `LevelsSections.tsx`,
+  `CompositionSections.tsx`, `EnvelopeSections.tsx`. Envelope's first sub-tab id is `envelopeContour`.
 - **Every sub-tab is boxes and rows** as the sheets lay them out: a box is a top-level `DirectionalPanel`, a shared
   row a nested `'responsive'` one, and ids follow the sheets (`<owner>.p<n>`, `<owner>.p<n>.r<m>`). An effect's
   layout is data (`AudioRigEffectBlock.layout`, one walk in `AudioRigEffectPanel` replacing five hand-written

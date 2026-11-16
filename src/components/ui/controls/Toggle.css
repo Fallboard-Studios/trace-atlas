@@ -40,8 +40,8 @@
    32×32px (or overridden boxSize) square Toggle.tsx computes into
    --cabinet-toggle-box-size — scoped to the --bare modifier class Toggle.tsx
    applies only when it has no facade content (children), so a
-   content-bearing instance (Header's Mute icon, PingControlsDrawer's Click
-   Track text) falls through to CabinetBox.css's own natural content-sized
+   content-bearing instance (Header's Mute icon, Composition > Rhythm &
+   Melody's Click Track text) falls through to CabinetBox.css's own natural content-sized
    front face instead — the same rule Button's own box already uses ("as
    wide as it needs to be" rather than a forced square). An explicit boxSize
    still keeps the --bare class even with children (Header's Mute needs an
@@ -64,7 +64,7 @@
   background: var(--color-accent-gradient);
 }
 
-/* Text/icon content (PingControlsDrawer's Click Track label, Header's Mute icon) sits on
+/* Text/icon content (Composition > Rhythm & Melody's Click Track label, Header's Mute icon) sits on
    CabinetBox's own --color-surface default when unchecked — no accent-gradient background, per
    the rule above — yet it still inherits --color-text-primary, which an ancestor's light robot/
    company color (traitColors.ts's getRobotColorStyle) can override to black. That override only

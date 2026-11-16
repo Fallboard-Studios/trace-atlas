@@ -9,7 +9,7 @@ vi.mock('@/constants', async (importOriginal) => {
   return { ...actual, get DEV_TUNING() { return mockDevTuning; } };
 });
 
-import { CompositionDetailsSection, CompositionRhythmMelodySection, type PingControlsValue } from './PingControlsDrawer';
+import { CompositionDetailsSection, CompositionRhythmMelodySection, type PingControlsValue } from './CompositionSections';
 import { CONTENT, fill } from '@/content';
 
 
@@ -28,7 +28,7 @@ function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValu
 }
 
 /** Stubs window.matchMedia for the viewport tiers ('640px' is the phone query; every other query reads `tablet`), the
- *  shape AudioSettingSection.test.tsx's stub has, since a 'responsive' row resolves through the same tier hooks. */
+ *  shape LevelsSections.test.tsx's stub has, since a 'responsive' row resolves through the same tier hooks. */
 function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
   Object.defineProperty(window, 'matchMedia', {
     writable: true,

@@ -167,17 +167,16 @@ export const SENDS_ROW_PANEL_SCHEMAS: readonly (DirectionalPanelSchema | undefin
 // ========================================
 
 /**
- * Testing-only toggle (see PingControlsDrawer.tsx's clickTrackActive value field and
+ * Testing-only toggle (see CompositionSections.tsx's clickTrackActive value field and
  * robotOptionsActions.ts's applyClickTrackActive) — overrides the robot's real melody with a
  * fixed 4-quarter-note downbeat pattern so tempo/BPM changes are easy to track by ear. Available
  * in both robot mode (RobotOptionsTab) and company/All broadcast mode (CompanyOptionsSection) —
- * broadcasting it puts every member's playback into click-track mode at once. Rendered first,
- * above Density, so it reads as a mode switch for the rest of the accordion rather than one
- * control among many. PingControlsDrawer.tsx only renders it behind `DEV_TUNING`, so it never
- * reaches a production build.
+ * broadcasting it puts every member's playback into click-track mode at once. Rendered as the last
+ * row of Composition > Rhythm & Melody (docs/specs/CONTENT_LAYOUT.md §1.3).
+ * CompositionSections.tsx only renders it behind `DEV_TUNING`, so it never reaches a production build.
  *
  * `humanLabel` feeds the toggle's accessible name (resolveAccessibleName) but is no longer shown
- * as external label text — PingControlsDrawer.tsx now passes "Click Track" directly as the
+ * as external label text — CompositionSections.tsx passes "Click Track" directly as the
  * Toggle's own facade content instead, which suppresses Toggle's external DualLabel entirely,
  * lore caption included. Its CALIBRATION PULSE lore (now in content) is kept for continuity/documentation but
  * no longer renders anywhere.
@@ -297,7 +296,7 @@ export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
  * topRow/bottomRow precedent in audioRigConfig.ts) instead of holding all 4 sliders directly. Envelope > Contour's one
  * box, keeping its heading (docs/specs/CONTENT_LAYOUT.md §1.3, assumption 2).
  */
-export const PING_CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
+export const CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.contour.p1',
   type: 'directionalPanel',
   ...labels('probe.envelope.contour'),
@@ -325,7 +324,7 @@ export const DECAY_SCHEMA: SliderLogSchema = {
 /**
  * Display-only 0-100%; the stored value is 0..1 (Robot.ts's ADSREnvelope.sustain). Unlike every
  * other schema in this file, the component consuming this one must convert pct/100 on write and
- * value*100 on read — see PingContourDrawer.tsx.
+ * value*100 on read — see EnvelopeSections.tsx.
  */
 export const SUSTAIN_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.sustain',

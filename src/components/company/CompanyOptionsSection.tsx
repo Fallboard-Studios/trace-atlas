@@ -1,8 +1,8 @@
 import { useCallback, type CSSProperties, type ReactNode } from 'react';
 import type { CompanyOptions } from './useCompanyOptions';
-import { LevelsMixSection, LevelsSendsSection } from '@/components/robot/AudioSettingSection';
-import { CompositionDetailsSection, CompositionRhythmMelodySection } from '@/components/robot/PingControlsDrawer';
-import { EnvelopeCharacterSection, EnvelopeContourSection } from '@/components/robot/PingContourDrawer';
+import { LevelsMixSection, LevelsSendsSection } from '@/components/robot/LevelsSections';
+import { CompositionDetailsSection, CompositionRhythmMelodySection } from '@/components/robot/CompositionSections';
+import { EnvelopeCharacterSection, EnvelopeContourSection } from '@/components/robot/EnvelopeSections';
 import { SignatureArrayLayer } from '@/components/robot/SignatureArrayDrawer';
 import { BusFilterDrawer } from '@/components/robot/BusFilterDrawer';
 import type { RobotSubsection } from '@/stores/uiStore';
@@ -104,7 +104,7 @@ export function useCompanySubsectionRenderer(options: CompanyOptions): (subsecti
             onOctaveMaxChange={options.onOctaveMaxChange}
           />
         );
-      case 'pingContour':
+      case 'envelopeContour':
         return (
           <EnvelopeContourSection value={options.adsrValue} disabled={disabled} onChange={options.onAdsrChange} swelling={options.adsrSwelling} />
         );

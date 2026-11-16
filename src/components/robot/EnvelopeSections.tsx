@@ -4,7 +4,7 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import {
-  PING_CONTOUR_PANEL_SCHEMA,
+  CONTOUR_PANEL_SCHEMA,
   ATTACK_SCHEMA,
   DECAY_SCHEMA,
   SUSTAIN_SCHEMA,
@@ -57,7 +57,7 @@ export const EnvelopeContourSection = memo(function EnvelopeContourSection({ val
   const handleSustainChange = useCallback((pct: number) => onChange({ ...latestAdsr.current, sustain: pct / 100 }), [onChange]);
 
   return (
-    <DirectionalPanel schema={PING_CONTOUR_PANEL_SCHEMA}>
+    <DirectionalPanel schema={CONTOUR_PANEL_SCHEMA}>
       <DirectionalPanel schema={TOP_ROW_SCHEMA}>
         <SliderLog schema={ATTACK_SCHEMA} value={adsr.attack} onChange={handleAttackChange} disabled={disabled} swelling={swelling?.attack} />
         <SliderLog schema={DECAY_SCHEMA} value={adsr.decay} onChange={handleDecayChange} disabled={disabled} swelling={swelling?.decay} />

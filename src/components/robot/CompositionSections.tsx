@@ -56,7 +56,7 @@ export interface PingControlsValue {
 // COMPOSITION (docs/specs/CONTENT_LAYOUT.md §1.3): two one-box halves, Rhythm & Melody and Details
 // ========================================
 // Panel schemas hoisted to module scope, same "schema is always a stable reference" convention
-// PingContourDrawer.tsx's own TOP_ROW_SCHEMA/BOTTOM_ROW_SCHEMA already establish. A top-level panel is the box; its
+// EnvelopeSections.tsx's own TOP_ROW_SCHEMA/BOTTOM_ROW_SCHEMA already establish. A top-level panel is the box; its
 // 'responsive' rows sit side by side on desktop and stack below it.
 const RHYTHM_MELODY_P1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1', type: 'directionalPanel', orientation: 'column' };
 const RHYTHM_MELODY_P1_R1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1.r1', type: 'directionalPanel', orientation: 'responsive' };

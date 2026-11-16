@@ -146,7 +146,7 @@ describe('uiStore — selectedSection (docs/specs/archive/NAV_LAYOUT_REWRITE.md 
   // setSelectedSection call), from two real, non-tree sites: RobotSelectionCard's browse-list
   // click and ConsolePanel's inline Back button. Without this reset, a section left open on a
   // previously-viewed robot (e.g. Volume) leaked onto the next robot picked from the browse list,
-  // showing its AudioSettingSection instead of RobotDisplaySection on first click. Fixed at the
+  // showing its Levels section instead of RobotDisplaySection on first click. Fixed at the
   // store level, not at each call site, so no future non-tree caller can reintroduce the same gap
   // — useNavTree.select() itself calls setSelectedSection right after selectRobot, which still
   // wins (last write), so tree-driven selection is unaffected.
@@ -358,8 +358,8 @@ describe('uiStore — selectedSubsection (docs/tasks/archive/NAV_PANEL_VIEWS_AND
   });
 
   it('setSelectedSubsection sets one of the 7 subsections', () => {
-    useUIStore.getState().setSelectedSubsection('pingContour');
-    expect(useUIStore.getState().selectedSubsection).toBe('pingContour');
+    useUIStore.getState().setSelectedSubsection('envelopeContour');
+    expect(useUIStore.getState().selectedSubsection).toBe('envelopeContour');
   });
 
   it('setSelectedSubsection(null) clears back to no subsection chosen', () => {
@@ -383,7 +383,7 @@ describe('uiStore — selectedSubsection (docs/tasks/archive/NAV_PANEL_VIEWS_AND
 
   it('selectRobot(null) (the Back button case) also resets selectedSubsection', () => {
     useUIStore.getState().selectRobot('robot-0-xyz');
-    useUIStore.getState().setSelectedSubsection('pingContour');
+    useUIStore.getState().setSelectedSubsection('envelopeContour');
     useUIStore.getState().selectRobot(null);
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
