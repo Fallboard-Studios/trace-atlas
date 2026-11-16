@@ -375,7 +375,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
   **Estimated scope:** S (one small component, two content entries)
 
-- [ ] **Task 8: `ContentPane.tsx`, `ContentPane.css`, `ConsolePanel.css` — the row on every open screen**
+- [x] **Task 8: `ContentPane.tsx`, `ContentPane.css`, `ConsolePanel.css` — the row on every open screen**
 
   **Description:** `ContentPane` renders `ScreenExitRow` above `ConsolePanel`. The plate becomes a column: the row at
   its natural height, the console filling the rest and scrolling inside itself. `ContentPane.tsx`'s header comment,
@@ -386,15 +386,21 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   active and not on the deck. Then a Look for the stylesheet.
 
   **Acceptance criteria:**
-  - [ ] The row renders on the Probes list, a robot, a company, All Probes and Fleet Params, and not on the deck.
-  - [ ] The row is not inside `ConsolePanel`'s scroller.
-  - [ ] Look: at 320 px, 768 px and wide the row stays put while each screen scrolls, Close is clear of the rocker,
-        and the robot screen's phone band sits under the row.
+  - [x] The row renders on the Probes list, a robot, a company, All Probes and Fleet Params, and not on the deck.
+  - [x] The row is not inside `ConsolePanel`'s scroller.
+  - [x] Look: at 320 px, 768 px and wide the row stays put while each screen scrolls, Close is clear of the rocker,
+        and the robot screen's phone band sits under the row. (Headless Chrome over CDP, 320×640 and 768×1024
+        emulated, 1500×900: on every screen the row's top was the same before and after a 600 px scroll of the
+        console; the row starts below the power corner (phone 145 vs the corner's 128, desk 172 vs 159); the phone's
+        band stuck at 206, the row's bottom; no horizontal page scroll. The row costs 61 px, 65 px at the wide tier.
+        Crawford's own look is Checkpoint B's.)
 
   **Verification:**
-  - [ ] `npx vitest run src/components/panels/screen/console` passes.
-  - [ ] The Look above in a live browser, recorded in the commit or flagged at Checkpoint B.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/components/panels/screen/console` passes. (RED first: 7 of the 8 new cases failed, no
+        row; the deck case passed as a guard. 417 pass; also `src/components/panels`, `tablet`, `robot`, `company`
+        and `App`, 3,182 pass.)
+  - [x] The Look above in a live browser, recorded in the commit or flagged at Checkpoint B.
+  - [x] `npm run build:types`, `npm run lint` clean.
 
   **Dependencies:** Task 7.
 

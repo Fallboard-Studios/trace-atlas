@@ -1,7 +1,9 @@
+/* Fills the content plate's column under the Back / Close row (ContentPane.css; backlog 75 Task 8): the rest of
+   the plate's height, never more, so its own scroller below does the scrolling and the row stays put. */
 .console-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1 1 auto;
   min-height: 0;
   color: var(--text-color, #e6eef0);
   padding: 0 var(--spacing-lg);
