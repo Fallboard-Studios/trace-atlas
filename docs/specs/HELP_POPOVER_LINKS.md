@@ -11,7 +11,8 @@
 **Status:** spec written 2026-11-16 from the confirmed intent
 [docs/intent/help-popover-links.md](../intent/help-popover-links.md) (`interview-me`, 2026-11-16, six questions; five
 guesses confirmed, the link's words rewritten by Crawford). Backlog
-[77](../todo/backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5. Planned in
+[77](../todo/archive/backlog-archive.md#77-help-popovers-a-link-from-a-send-to-its-effect) (closed and archived
+2026-11-16), plan.md Stage 5. Planned in
 [tasks/HELP_POPOVER_LINKS.md](../tasks/HELP_POPOVER_LINKS.md). Q1 and Q2 answered 2026-11-16: the lane link reaches
 `LfoLink` as a prop; focus lands on the open sub-tab. **Built 2026-11-16** (Tasks 1–9; Gate 1 and Checkpoint 2
 passed, Crawford): §8 records what was built differently.

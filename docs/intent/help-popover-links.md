@@ -2,7 +2,7 @@
 
 Confirmed via `interview-me` on 2026-11-16 (six questions; five guesses confirmed outright, one rewritten by Crawford:
 the link's words), ahead of a `spec-driven-development` pass. This is backlog
-[77](../todo/backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5.
+[77](../todo/archive/backlog-archive.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5.
 
 ## Outcome
 

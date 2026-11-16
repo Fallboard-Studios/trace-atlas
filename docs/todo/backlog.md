@@ -548,29 +548,6 @@ overrides it, so today a robot cuts in and out on those state changes; the fade 
 short interview before a spec. Off the plan (this line said "Plan.md Stage 3" until 2026-11-14; it was taken off on
 2026-11-11).
 
-### 77. Help Popovers: A Link from a Send to Its Effect
-
-Raised by Crawford on 2026-11-11 (item 6 of his list). The robot, company and All Probes screens carry five sends
-(Levels › Sends since roadmap
-[91](roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes)), and each one's help
-popover (`HelpPopover.tsx`, opened by DualLabel's "?") names the shared effect it feeds without linking to it. Add a
-link that opens Fleet Params at that effect. The table uses the names on screen (checked 2026-11-16): 91 renamed
-Colour to Color, and the Frequency Shifter's sub-tab has read Shifter since roadmap 50.6:
-
-| Send (`src/content/copy/probe.ts`) | Feeds | Fleet Params tab › sub-tab |
-| --- | --- | --- |
-| Reverb (`probe.reverbSend`) | Reverb | Time & Space › Reverb |
-| Delay (`probe.delaySend`) | Delay | Time & Space › Delay |
-| Grit (`probe.gritSend`) | the colour room (Distortion, Chebyshev, Bit Crusher) | Color (which sub-tab is open) |
-| Shimmer (`probe.shimmerSend`) | Frequency Shifter | Modulation › Shifter |
-| Double (`probe.doubleSend`) | Chorus | Modulation › Chorus |
-
-To work out: where the link's target is recorded (HelpPopover is one of the 13 shared primitives, and help text is a
-content entry, so it is either a new field on the help entry or on the control's schema); which of Color's three
-sub-tabs Grit opens; and how the player gets back to the robot (backlog
-[75](archive/backlog-archive.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), closed: Back
-walks a trail of screens, so it returns from the jump as from any other step). Plan.md Stage 5.
-
 ### 78. Off Screen: Make the Themes Obvious
 
 Raised by Crawford on 2026-11-11 (item 7 of his list): the off screen's styling and wording should make the themes more

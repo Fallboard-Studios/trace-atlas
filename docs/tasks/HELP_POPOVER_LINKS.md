@@ -2,7 +2,10 @@
 
 Source spec: [docs/specs/HELP_POPOVER_LINKS.md](../specs/HELP_POPOVER_LINKS.md). Source intent:
 [docs/intent/help-popover-links.md](../intent/help-popover-links.md). Backlog
-[77](../todo/backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5.
+[77](../todo/archive/backlog-archive.md#77-help-popovers-a-link-from-a-send-to-its-effect), plan.md Stage 5.
+
+**Status:** Tasks 1–10 done 2026-11-16 on `docs/backlog-77-intent`. Crawford read the docs and called it done the same
+day; Task 10 archived backlog 77 on this branch, ahead of the PR, not after the merge. **Complete.**
 
 ## Overview
 
@@ -382,13 +385,13 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
       06587f67; no code has changed since, only docs; types and lint rerun after Task 9.)
 - [x] Every automated acceptance criterion is met; Gate 1 passed; Checkpoint 2's runs recorded (any not done flagged
       here, never skipped). Flagged: the Delay lane run ran from LPF (Delay has no lane picker), spec §8.
-- [ ] Ready for Crawford's PR (after his read of Task 9's docs).
+- [x] Ready for Crawford's PR (after his read of Task 9's docs). (2026-11-16: read, "we're done".)
 
 ---
 
-### Phase 5: The records (after the merge)
+### Phase 5: The records
 
-- [ ] **Task 10: archive backlog 77**
+- [x] **Task 10: archive backlog 77** (done 2026-11-16 on this branch, before the PR, at Crawford's call)
 
   **Description:** On a docs branch after the feature PR merges: move entry 77 from `docs/todo/backlog.md` to
   `docs/todo/archive/backlog-archive.md` (no stub; rebase links that point at it), delete its plan.md Stage 5 line, and
@@ -397,12 +400,14 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
   **Proof:** Read — Crawford's review. No test file.
 
   **Acceptance criteria:**
-  - [ ] No live link to `backlog.md#77-…` remains; the archive entry says what shipped and links the spec.
+  - [x] No live link to `backlog.md#77-…` remains; the archive entry says what shipped and links the spec.
+        (The intent, the spec, this plan and backlog 75's intent now link to the archive; 75's archive entry links
+        within the archive; plan.md's Stage 5 drops the 77 line.)
 
   **Verification:**
-  - [ ] Grep `docs/` for `#77-help-popovers` and check each hit resolves.
+  - [x] Grep `docs/` for `#77-help-popovers` and check each hit resolves.
 
-  **Dependencies:** The feature PR merged.
+  **Dependencies:** The feature PR merged. (Crawford archived it ahead of the PR, 2026-11-16.)
 
   **Files:** `docs/todo/backlog.md`, `docs/todo/archive/backlog-archive.md`, `docs/todo/plan.md`,
   `docs/specs/HELP_POPOVER_LINKS.md`
