@@ -60,6 +60,23 @@ export type TopLevelBranch = 'fleetParams' | 'probes';
  *  the change; 'uncovering' while it fades out over the new world. Semantic state only: the wash's timelines
  *  (animation/sceneWash.ts) set 'covered' and 'clear' when they finish, and nothing else reads them. */
 export type SceneWash = 'clear' | 'covering' | 'covered' | 'uncovering';
+/** One screen on the trail, with the tabs it showed when the player left it (docs/specs/NAVIGATION_CLOSE_AND_BACK.md
+ *  §1.2, §4). Plain data: navActions.ts records a stop on each step and restores one on Back. A screen's identity is
+ *  the tile plus its entity; the four tab fields are only what Back gives it back. */
+export interface NavStop {
+  /** null = the deck. */
+  tile: HubTile | null;
+  robotId: string | null;
+  companyId: string | null;
+  /** The All Probes bulk-edit screen (allProbesSelected). */
+  allProbes: boolean;
+  /** The robot or company screen's tab and sub-tab (selectedSection, selectedSubsection). */
+  section: RobotSection | null;
+  subsection: RobotSubsection | null;
+  /** Fleet Params' tab and sub-tab (fleetParamsSection, fleetParamsSubsection). */
+  fleetSection: FleetParamsGroup;
+  fleetSubsection: SelectedFleetParamsEffect | null;
+}
 /** True when the nav tree's "All Probes" leaf is selected — the bulk-edit target covering
  *  every robot in the locale, distinct from bare "Probes" (the browse list), which also has
  *  selectedRobotId === null. Added in Task 19 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md): without this
@@ -116,6 +133,9 @@ export interface UIStore {
   movePanelRobotId: string | null;
   /** Where the scene wash is in covering a world change — see SceneWash's own doc comment. */
   sceneWash: SceneWash;
+  /** The trail: the screens before the current one, oldest first, empty on a fresh deck
+   *  (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2). Only navActions.ts changes it; power never does. */
+  navTrail: NavStop[];
   setActiveLocaleLocalTime: (t: number | null) => void;
   setPowerOn: () => void;
   setPowerOff: () => void;
@@ -136,6 +156,8 @@ export interface UIStore {
   openMovePanel: (robotId: string) => void;
   closeMovePanel: () => void;
   setSceneWash: (state: SceneWash) => void;
+  /** Replaces the trail. Every rule about it (the step, the cap, Back) is navActions.ts's; the store only holds it. */
+  setNavTrail: (trail: NavStop[]) => void;
 }
 
 /** The Fleet Params tab the screen opens on, and every nav pick returns to: World, so the screen opens
@@ -163,6 +185,7 @@ export const useUIStore = create<UIStore>((set) => ({
   allProbesSelected: false,
   movePanelRobotId: null,
   sceneWash: 'clear',
+  navTrail: [],
 
   setPowerOn: () => set({ isPoweredOn: true }),
   setPowerOff: () => set({ isPoweredOn: false }),
@@ -190,6 +213,7 @@ export const useUIStore = create<UIStore>((set) => ({
   openMovePanel: (robotId) => set({ movePanelRobotId: robotId }),
   closeMovePanel: () => set({ movePanelRobotId: null }),
   setSceneWash: (state) => set({ sceneWash: state }),
+  setNavTrail: (trail) => set({ navTrail: trail }),
 }));
 
 // ========================================

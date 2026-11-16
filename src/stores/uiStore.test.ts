@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { useUIStore, DEFAULT_FLEET_PARAMS_SECTION } from './uiStore';
+import type { NavStop } from './uiStore';
 
 const INITIAL_STATE = useUIStore.getState();
 
@@ -238,6 +239,8 @@ describe('uiStore — the initial state is spec §1.10\'s table', () => {
     'expandedTopLevelBranch', 'selectedSection', 'selectedSubsection',
     'isPoweredOn', 'isNavPanelOpen',
     'fleetParamsSection', 'fleetParamsSubsection', 'movePanelRobotId',
+    // docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 2: the trail of screens before the current one.
+    'navTrail',
   ];
   // Not navigation, so §1.10 does not list them; the layout rework leaves them as they are. The scene wash's state
   // joined at docs/tasks/OFF_SCREEN_REVISIONS.md Task 12.
@@ -414,6 +417,61 @@ describe('uiStore — allProbesSelected (which Probes content view is active, do
     useUIStore.getState().setAllProbesSelected(true);
     expect(useUIStore.getState().allRobotsSelected).toBe(false);
     expect(useUIStore.getState().allProbesSelected).toBe(true);
+  });
+});
+
+// docs/tasks/NAVIGATION_CLOSE_AND_BACK.md Task 2 (docs/specs/NAVIGATION_CLOSE_AND_BACK.md §1.2, §1.4): the trail.
+describe('uiStore — navTrail (the screens before the current one)', () => {
+  // Non-default tabs on both pairs, so a stop that lost a field would not pass by matching a default.
+  const companyStop: NavStop = {
+    tile: 'robots', robotId: null, companyId: 'company-0-abc', allProbes: false,
+    section: 'envelope', subsection: 'envelopeCharacter', fleetSection: 'world', fleetSubsection: null,
+  };
+  const fleetStop: NavStop = {
+    tile: 'audioRig', robotId: null, companyId: null, allProbes: false,
+    section: null, subsection: null, fleetSection: 'modulation', fleetSubsection: 'chorus',
+  };
+
+  beforeEach(() => {
+    useUIStore.setState(INITIAL_STATE, true);
+  });
+
+  it('starts empty: a fresh deck has no screen behind it', () => {
+    expect(useUIStore.getInitialState().navTrail).toEqual([]);
+    expect(useUIStore.getState().navTrail).toEqual([]);
+  });
+
+  it('setNavTrail replaces the trail with exactly what it was given', () => {
+    useUIStore.getState().setNavTrail([companyStop, fleetStop]);
+    expect(useUIStore.getState().navTrail).toStrictEqual([companyStop, fleetStop]);
+    useUIStore.getState().setNavTrail([fleetStop]);
+    expect(useUIStore.getState().navTrail).toStrictEqual([fleetStop]);
+    useUIStore.getState().setNavTrail([]);
+    expect(useUIStore.getState().navTrail).toEqual([]);
+  });
+
+  it('touches no other field', () => {
+    const before = useUIStore.getState();
+    useUIStore.getState().setNavTrail([companyStop]);
+    const { navTrail, ...rest } = useUIStore.getState();
+    const { navTrail: _beforeTrail, ...beforeRest } = before;
+    expect(navTrail).toStrictEqual([companyStop]);
+    expect(rest).toStrictEqual(beforeRest);
+  });
+
+  it('survives a power-off and power-on unchanged: power is not a step (spec §1.4)', () => {
+    useUIStore.getState().setPowerOn();
+    useUIStore.getState().setNavTrail([companyStop, fleetStop]);
+    useUIStore.getState().setPowerOff();
+    expect(useUIStore.getState().navTrail).toStrictEqual([companyStop, fleetStop]);
+    useUIStore.getState().setPowerOn();
+    expect(useUIStore.getState().navTrail).toStrictEqual([companyStop, fleetStop]);
+  });
+
+  it('a trail of stops is JSON-serialisable', () => {
+    useUIStore.getState().setNavTrail([companyStop, fleetStop]);
+    const { navTrail } = useUIStore.getState();
+    expect(JSON.parse(JSON.stringify(navTrail))).toStrictEqual(navTrail);
   });
 });
 

@@ -183,7 +183,7 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 
 ### Phase 1: The trail (Part A)
 
-- [ ] **Task 2: `uiStore.ts` — `NavStop` and `navTrail`**
+- [x] **Task 2: `uiStore.ts` — `NavStop` and `navTrail`**
 
   **Description:** The `NavStop` interface (spec §4, eight fields), the field `navTrail: NavStop[]` (initially empty)
   and `setNavTrail(trail)`. No caller yet. `uiStore.test.ts`'s field table (`NAV_FIELDS`) gains `navTrail`, and its
@@ -193,13 +193,15 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   is unchanged by `setPowerOff` then `setPowerOn`.
 
   **Acceptance criteria:**
-  - [ ] `navTrail` starts as `[]` and holds exactly what `setNavTrail` was given.
-  - [ ] A trail of two stops survives `setPowerOff` and `setPowerOn` unchanged.
-  - [ ] The store's initial state still round-trips through JSON.
+  - [x] `navTrail` starts as `[]` and holds exactly what `setNavTrail` was given.
+  - [x] A trail of two stops survives `setPowerOff` and `setPowerOn` unchanged.
+  - [x] The store's initial state still round-trips through JSON.
 
   **Verification:**
-  - [ ] `npx vitest run src/stores/uiStore.test.ts` passes.
-  - [ ] `npm run build:types`, `npm run lint` clean.
+  - [x] `npx vitest run src/stores/uiStore.test.ts` passes. (RED first: 6 failures, the field table and the five
+        new cases; 66 pass after.)
+  - [x] `npm run build:types`, `npm run lint` clean. (Lint's four warnings are older, in `Scenery.tsx` and
+        `gemShape.tsx`.)
 
   **Dependencies:** Gate 1.
 
