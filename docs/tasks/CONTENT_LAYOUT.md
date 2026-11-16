@@ -687,7 +687,13 @@ names as history.
       Crawford's manual pass, below.
 - [x] Crawford's manual pass at three widths is done: Fleet Params on 2026-11-15 ("fleet params look good"), the
       robot, company and All Probes sub-tabs the same day ("ok, looks good").
-- [x] Ready for Crawford's PR. Open for him: delete or keep the three old composites (roadmap 91 Open).
+- [x] Ready for Crawford's PR.
+
+**After the checkpoint (2026-11-15):** Crawford said delete the three composites. `AudioSettingSection`,
+`PingControlsCompositionSection` and `PingContourDrawer` are gone, with `PingContourDrawer.css` (its one rule was the
+composite's root) and the `.audio-setting-section` root selector; the halves' shared prop interfaces stay, private, as
+`LevelsProps` and `CompositionProps`. Their tests now render the halves. A deletion, so no RED test; the proof is the
+moved suites, types, lint and the full run.
 
 ## Risks and Mitigations
 

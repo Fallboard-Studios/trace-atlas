@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
@@ -10,9 +9,7 @@ vi.mock('@/constants', async (importOriginal) => {
   return { ...actual, get DEV_TUNING() { return mockDevTuning; } };
 });
 
-import {
-  CompositionDetailsSection, CompositionRhythmMelodySection, PingControlsCompositionSection, type PingControlsValue,
-} from './PingControlsDrawer';
+import { CompositionDetailsSection, CompositionRhythmMelodySection, type PingControlsValue } from './PingControlsDrawer';
 import { CONTENT, fill } from '@/content';
 
 
@@ -46,7 +43,7 @@ function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
 }
 
 // docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 14): Composition splits into Rhythm & Melody and
-// Details, each one box and its own memoised component. PingControlsCompositionSection shows both until Task 16.
+// Details, each one box and its own memoised component.
 describe('Composition split into Rhythm & Melody and Details (control layout Task 14)', () => {
   const DESKTOP = { mobile: false, tablet: false };
   const TABLET = { mobile: false, tablet: true };
@@ -150,18 +147,9 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
       expect((CompositionDetailsSection as unknown as { $$typeof: symbol }).$$typeof).toBe(Symbol.for('react.memo'));
     });
   });
-
-  it('PingControlsCompositionSection shows Rhythm & Melody then Details, two boxes and no heading', () => {
-    const { container } = render(
-      <PingControlsCompositionSection value={makeValue()} {...RHYTHM_HANDLERS} {...DETAILS_HANDLERS} onClickTrackActiveChange={() => {}} />,
-    );
-    expect(boxes(container)).toHaveLength(2);
-    expect(before(panel(container, 'robotOptions.rhythmMelody.p1'), panel(container, 'robotOptions.details.p1'))).toBe(true);
-    expect(before(screen.getByRole('switch', { name: /Click Track/i }), slider(/^rests/i))).toBe(true);
-  });
 });
 
-describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion', () => {
+describe('Composition halves (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion', () => {
   beforeEach(() => {
     mockDevTuning = true;
   });
@@ -172,72 +160,100 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
   ) {
     const value = makeValue(overrides);
     return render(
-      <PingControlsCompositionSection
+      <CompositionRhythmMelodySection
         value={value}
         onDensityChange={() => {}}
         onMotifLengthChange={() => {}}
         onPitchRepeatChange={() => {}}
-        onOctaveMinChange={() => {}}
-        onOctaveMaxChange={() => {}}
         onNoteVarianceChange={() => {}}
-        onRestsChange={() => {}}
-        onAccentsChange={() => {}}
         {...extra}
       />,
     );
   }
 
-  it('renders Density, Motif Length, Pitch Repeat, Note Variance, Octave Min, Octave Max — and no Click Track toggle without a Click Track handler', () => {
+  function renderDetails(overrides: Partial<PingControlsValue> = {}) {
+    return render(
+      <CompositionDetailsSection
+        value={makeValue(overrides)}
+        onOctaveMinChange={() => {}}
+        onOctaveMaxChange={() => {}}
+        onRestsChange={() => {}}
+        onAccentsChange={() => {}}
+      />,
+    );
+  }
+
+  it('renders Density, Motif Length, Pitch Repeat, Note Variance — and no Click Track toggle without a Click Track handler (Rhythm & Melody)', () => {
     renderSection();
 
     expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /phrase length/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /pitch repeat/i })).toBeTruthy();
     expect(screen.getByRole('slider', { name: /note variance/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /octave min/i })).toBeTruthy();
-    expect(screen.getByRole('slider', { name: /octave max/i })).toBeTruthy();
     expect(screen.queryByRole('switch', { name: /Click Track/i })).toBeNull();
   });
 
-  it('never renders a Reset Melody button — removed entirely (Deterministic Robot Melody Generation, Task 8)', () => {
+  it('renders Octave Min, Octave Max (Details)', () => {
+    renderDetails();
+
+    expect(screen.getByRole('slider', { name: /octave min/i })).toBeTruthy();
+    expect(screen.getByRole('slider', { name: /octave max/i })).toBeTruthy();
+  });
+
+  it('never renders a Reset Melody button — removed entirely (Deterministic Robot Melody Generation, Task 8) (Rhythm & Melody)', () => {
     renderSection();
     expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
   });
 
-  it('changing each field calls its own onChange with the raw number', () => {
+  it('never renders a Reset Melody button — removed entirely (Deterministic Robot Melody Generation, Task 8) (Details)', () => {
+    renderDetails();
+    expect(screen.queryByRole('button', { name: 'Reset Melody' })).toBeNull();
+  });
+
+  it('changing each field calls its own onChange with the raw number (Rhythm & Melody)', () => {
     const onDensityChange = vi.fn();
     const onMotifLengthChange = vi.fn();
     const onPitchRepeatChange = vi.fn();
-    const onOctaveMinChange = vi.fn();
-    const onOctaveMaxChange = vi.fn();
     const onNoteVarianceChange = vi.fn();
     render(
-      <PingControlsCompositionSection
+      <CompositionRhythmMelodySection
         value={makeValue({ rhythmicMotifLength: 4, pitchRepeat: 10 })}
         onDensityChange={onDensityChange}
         onMotifLengthChange={onMotifLengthChange}
         onPitchRepeatChange={onPitchRepeatChange}
-        onOctaveMinChange={onOctaveMinChange}
-        onOctaveMaxChange={onOctaveMaxChange}
         onNoteVarianceChange={onNoteVarianceChange}
-        onRestsChange={() => {}}
-        onAccentsChange={() => {}}
       />,
     );
 
     fireEvent.keyDown(screen.getByRole('slider', { name: /density/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /phrase length/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /pitch repeat/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave min/i }), { key: 'ArrowRight' });
-    fireEvent.keyDown(screen.getByRole('slider', { name: /octave max/i }), { key: 'ArrowRight' });
     fireEvent.keyDown(screen.getByRole('slider', { name: /note variance/i }), { key: 'ArrowRight' });
 
     expect(onDensityChange).toHaveBeenCalledWith(51);
     expect(onMotifLengthChange).toHaveBeenCalledWith(5);
     expect(onPitchRepeatChange).toHaveBeenCalledWith(11);
+    expect(onNoteVarianceChange).toHaveBeenCalled();
+  });
+
+  it('changing each field calls its own onChange with the raw number (Details)', () => {
+    const onOctaveMinChange = vi.fn();
+    const onOctaveMaxChange = vi.fn();
+    render(
+      <CompositionDetailsSection
+        value={makeValue({ rhythmicMotifLength: 4, pitchRepeat: 10 })}
+        onOctaveMinChange={onOctaveMinChange}
+        onOctaveMaxChange={onOctaveMaxChange}
+        onRestsChange={() => {}}
+        onAccentsChange={() => {}}
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('slider', { name: /octave min/i }), { key: 'ArrowRight' });
+    fireEvent.keyDown(screen.getByRole('slider', { name: /octave max/i }), { key: 'ArrowRight' });
+
     expect(onOctaveMinChange).toHaveBeenCalled();
     expect(onOctaveMaxChange).toHaveBeenCalled();
-    expect(onNoteVarianceChange).toHaveBeenCalled();
   });
 
   it('Pitch Repeat is disabled when rhythmicMotifLength is 0', () => {
@@ -289,7 +305,7 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
 
     it('leaves every slider live while the Click Track plays: an edit changes the melody heard once it is off', () => {
       renderSection({ clickTrackActive: true, rhythmicMotifLength: 4 }, { onClickTrackActiveChange: () => {} });
-      for (const name of [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i, /octave min/i, /octave max/i, /^rests/i, /^accents/i]) {
+      for (const name of [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i]) {
         expect(screen.getByRole('slider', { name }).getAttribute('data-disabled')).toBeNull();
       }
     });
@@ -306,39 +322,20 @@ describe('PingControlsCompositionSection (docs/reference/layout-updates.md) — 
       expect(screen.getByRole('slider', { name: /density/i })).toBeTruthy();
     });
   });
-
-  it('forwards an optional style to its own root', () => {
-    const { container } = render(
-      <PingControlsCompositionSection
-        value={makeValue()}
-        onDensityChange={() => {}}
-        onMotifLengthChange={() => {}}
-        onPitchRepeatChange={() => {}}
-        onOctaveMinChange={() => {}}
-        onOctaveMaxChange={() => {}}
-        onNoteVarianceChange={() => {}}
-        onRestsChange={() => {}}
-        onAccentsChange={() => {}}
-        style={{ '--color-accent-a': '#68cb97' } as CSSProperties}
-      />,
-    );
-    expect((container.firstElementChild as HTMLElement).style.getPropertyValue('--color-accent-a')).toBe('#68cb97');
-  });
 });
 
 // docs/specs/ROBOT_PERFORMANCE.md §1.6 (docs/tasks/ROBOT_PERFORMANCE.md Task 10) - the Articulation row: Rests and Accents,
 // a labelled responsive panel after the three composition rows. The plan placed it in the retired PHRASING panel of the
 // old combined drawer; the screens render this section, so that is where it lives (a deviation recorded in the plan).
-describe('PingControlsCompositionSection — Articulation row (Robot Performance Task 10)', () => {
+describe('CompositionDetailsSection — Articulation row (Robot Performance Task 10)', () => {
   const restsSlider = () => screen.getByRole('slider', { name: /^rests/i });
   const accentsSlider = () => screen.getByRole('slider', { name: /^accents/i });
   const handlers = () => ({
-    onDensityChange: vi.fn(), onMotifLengthChange: vi.fn(), onPitchRepeatChange: vi.fn(), onOctaveMinChange: vi.fn(),
-    onOctaveMaxChange: vi.fn(), onNoteVarianceChange: vi.fn(), onRestsChange: vi.fn(), onAccentsChange: vi.fn(),
+    onOctaveMinChange: vi.fn(), onOctaveMaxChange: vi.fn(), onRestsChange: vi.fn(), onAccentsChange: vi.fn(),
   });
   function renderRow(overrides: Partial<PingControlsValue> = {}, extra: { disabled?: boolean } & Partial<ReturnType<typeof handlers>> = {}) {
     const h = { ...handlers(), ...extra };
-    render(<PingControlsCompositionSection value={makeValue(overrides)} {...h} />);
+    render(<CompositionDetailsSection value={makeValue(overrides)} {...h} />);
     return h;
   }
   const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
@@ -356,8 +353,6 @@ describe('PingControlsCompositionSection — Articulation row (Robot Performance
     const panel = restsSlider().closest('[data-panel-id="robotOptions.details.p1.r1"]')!;
     expect(panel).not.toBeNull();
     expect(panel.contains(accentsSlider())).toBe(true);
-    expect(panel.contains(screen.getByRole('slider', { name: /density/i }))).toBe(false);
-    expect(panel.contains(screen.getByRole('slider', { name: /pitch repeat/i }))).toBe(false);
   });
 
   it('shows each stored 0-100 number as is, with a 0..100 range', () => {
@@ -372,12 +367,12 @@ describe('PingControlsCompositionSection — Articulation row (Robot Performance
   });
 
   it('reaches both ends of the travel: 0 shows 0 and 100 shows 100', () => {
-    const zero = render(<PingControlsCompositionSection value={makeValue({ rests: 0, accents: 0 })} {...handlers()} />);
+    const zero = render(<CompositionDetailsSection value={makeValue({ rests: 0, accents: 0 })} {...handlers()} />);
     expect(restsSlider().getAttribute('aria-valuenow')).toBe('0');
     expect(accentsSlider().getAttribute('aria-valuenow')).toBe('0');
     zero.unmount();
 
-    render(<PingControlsCompositionSection value={makeValue({ rests: 100, accents: 100 })} {...handlers()} />);
+    render(<CompositionDetailsSection value={makeValue({ rests: 100, accents: 100 })} {...handlers()} />);
     expect(restsSlider().getAttribute('aria-valuenow')).toBe('100');
     expect(accentsSlider().getAttribute('aria-valuenow')).toBe('100');
   });
@@ -430,7 +425,6 @@ describe('PingControlsCompositionSection — Articulation row (Robot Performance
 
     expect(restsSlider().getAttribute('data-disabled')).toBeNull();
     expect(accentsSlider().getAttribute('data-disabled')).toBeNull();
-    expect(screen.getByRole('slider', { name: /pitch repeat/i }).getAttribute('data-disabled')).toBe('');
   });
 
   it('carries a help button named for each slider', () => {

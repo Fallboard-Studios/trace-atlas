@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { memo, useCallback } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -58,7 +57,8 @@ export interface AudioSettingValue {
   dynamics: number;
 }
 
-interface AudioSettingSectionProps {
+/** Every Levels prop, both halves' together; each half picks its own (docs/specs/CONTENT_LAYOUT.md §1.3). */
+interface LevelsProps {
   value: AudioSettingValue;
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
@@ -87,12 +87,6 @@ interface AudioSettingSectionProps {
    *  kept, with one HeldOffNote under the send rows (useHeldOffSends; docs/specs/LIGHT_TIER_STANDING_COST.md §1.4).
    *  Absent means every send is live. */
   heldOffSends?: Readonly<Record<RobotSendField, boolean>>;
-  /** Optional inline style forwarded to this section's own root — trait-color scoping
-   *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
-   *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
-   *  Output, whether it's editing one robot or a company's bulk baseline. See
-   *  docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
-  style?: CSSProperties;
 }
 
 /** A stored 0..1 send as the slider's 0-100 number. Rounded to two places so the x100 leaves no float noise (0.29 would
@@ -136,7 +130,7 @@ export const SendRow = memo(function SendRow({ spec, display, onSendChange, swel
 const VOLUME_CELL = withFeaturedClass('audio-setting-section__volume-row', VOLUME_SCHEMA);
 
 type LevelsMixProps = Pick<
-  AudioSettingSectionProps,
+  LevelsProps,
   'onAudioModeChange' | 'onVolumeChange' | 'onPanChange' | 'onPanAutoChange' | 'onDynamicsChange' | 'livePan' | 'disabled' | 'volumeSwelling'
 > & { value: Pick<AudioSettingValue, 'audioMode' | 'masterVolume' | 'pan' | 'panAuto' | 'dynamics'> };
 
@@ -204,7 +198,7 @@ export const LevelsMixSection = memo(function LevelsMixSection({
   );
 });
 
-type LevelsSendsProps = Pick<AudioSettingSectionProps, 'onSendChange' | 'disabled' | 'sendSwelling' | 'heldOffSends'> & {
+type LevelsSendsProps = Pick<LevelsProps,'onSendChange' | 'disabled' | 'sendSwelling' | 'heldOffSends'> & {
   value: Pick<AudioSettingValue, RobotSendField>;
 };
 
@@ -240,34 +234,3 @@ export const LevelsSendsSection = memo(function LevelsSendsSection({
   );
 });
 
-/**
- * The Levels tab's two halves, Mix then Sends, under the one 'audioSettings' id both screens render
- * (docs/tasks/CONTENT_LAYOUT.md Task 13) until Task 16 gives each half its own sub-tab. The `style` is forwarded to
- * its root, for trait-colour scoping (docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5).
- */
-function AudioSettingSectionInner({
-  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDynamicsChange, livePan, disabled,
-  volumeSwelling, sendSwelling, heldOffSends, style,
-}: AudioSettingSectionProps) {
-  return (
-    <div className="audio-setting-section" style={style}>
-      <LevelsMixSection
-        value={value}
-        onAudioModeChange={onAudioModeChange}
-        onVolumeChange={onVolumeChange}
-        onPanChange={onPanChange}
-        onPanAutoChange={onPanAutoChange}
-        onDynamicsChange={onDynamicsChange}
-        livePan={livePan}
-        disabled={disabled}
-        volumeSwelling={volumeSwelling}
-      />
-      <LevelsSendsSection value={value} onSendChange={onSendChange} disabled={disabled} sendSwelling={sendSwelling} heldOffSends={heldOffSends} />
-    </div>
-  );
-}
-
-// React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)
-export const AudioSettingSection = memo(AudioSettingSectionInner);
-
-export default AudioSettingSection;

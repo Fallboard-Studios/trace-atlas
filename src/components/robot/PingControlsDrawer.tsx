@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { memo } from 'react';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { Toggle } from '@/components/ui/controls/Toggle';
@@ -67,7 +66,7 @@ const DETAILS_P1_R1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details
 const DETAILS_P1_R2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
 
 type RhythmMelodyProps = Pick<
-  PingControlsCompositionSectionProps,
+  CompositionProps,
   'onClickTrackActiveChange' | 'onDensityChange' | 'onMotifLengthChange' | 'onPitchRepeatChange' | 'onNoteVarianceChange' | 'disabled'
 > & { value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive'> };
 
@@ -109,7 +108,7 @@ export const CompositionRhythmMelodySection = memo(function CompositionRhythmMel
 });
 
 type DetailsProps = Pick<
-  PingControlsCompositionSectionProps,
+  CompositionProps,
   'onRestsChange' | 'onAccentsChange' | 'onOctaveMinChange' | 'onOctaveMaxChange' | 'disabled'
 > & { value: Pick<PingControlsValue, 'rests' | 'accents' | 'octaveRange'> };
 
@@ -136,7 +135,8 @@ export const CompositionDetailsSection = memo(function CompositionDetailsSection
   );
 });
 
-export interface PingControlsCompositionSectionProps {
+/** Every Composition prop, both halves' together; each half picks its own (docs/specs/CONTENT_LAYOUT.md §1.3). */
+interface CompositionProps {
   value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'octaveRange' | 'rests' | 'accents' | 'clickTrackActive'>;
   /** The dev-only Click Track toggle renders only when this is given (the robot screen, and the company and All
    *  Probes screens' broadcast, docs/tasks/ONE_MUSIC_CLOCK.md Task 10b) and DEV_TUNING is on. */
@@ -150,49 +150,4 @@ export interface PingControlsCompositionSectionProps {
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
   disabled?: boolean;
-  style?: CSSProperties;
 }
-
-/**
- * The Composition tab's two halves, Rhythm & Melody then Details, under the one 'rhythm' id both screens render
- * (docs/tasks/CONTENT_LAYOUT.md Task 14) until Task 16 gives each half its own sub-tab. The `style` is forwarded to
- * its root.
- */
-function PingControlsCompositionSectionInner({
-  value,
-  onClickTrackActiveChange,
-  onDensityChange,
-  onMotifLengthChange,
-  onPitchRepeatChange,
-  onOctaveMinChange,
-  onOctaveMaxChange,
-  onNoteVarianceChange,
-  onRestsChange,
-  onAccentsChange,
-  disabled,
-  style,
-}: PingControlsCompositionSectionProps) {
-  return (
-    <div style={style}>
-      <CompositionRhythmMelodySection
-        value={value}
-        onClickTrackActiveChange={onClickTrackActiveChange}
-        onDensityChange={onDensityChange}
-        onMotifLengthChange={onMotifLengthChange}
-        onPitchRepeatChange={onPitchRepeatChange}
-        onNoteVarianceChange={onNoteVarianceChange}
-        disabled={disabled}
-      />
-      <CompositionDetailsSection
-        value={value}
-        onRestsChange={onRestsChange}
-        onAccentsChange={onAccentsChange}
-        onOctaveMinChange={onOctaveMinChange}
-        onOctaveMaxChange={onOctaveMaxChange}
-        disabled={disabled}
-      />
-    </div>
-  );
-}
-
-export const PingControlsCompositionSection = memo(PingControlsCompositionSectionInner);

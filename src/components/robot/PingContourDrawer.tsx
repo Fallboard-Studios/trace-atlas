@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { memo, useCallback, useEffect, useRef } from 'react';
 import { SliderLog } from '@/components/ui/controls/SliderLog';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -18,8 +17,6 @@ import {
 import type { ADSREnvelope, EnvelopeCurveName } from '@/types/Robot';
 import type { DirectionalPanelSchema } from '@/types/controls';
 
-import './PingContourDrawer.css';
-
 // Hoisted to module scope (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3) — these don't
 // depend on any prop/state, so a plain module-level constant is the correct, minimal fix, matching
 // this codebase's established "schema is always a stable reference" convention. Contour's two shared rows
@@ -37,7 +34,9 @@ interface EnvelopeContourProps {
 
 /**
  * Envelope > Contour (docs/specs/CONTENT_LAYOUT.md §1.3): one box under its Contour heading, Attack beside Decay, then
- * Sustain beside Release.
+ * Sustain beside Release. Purely presentational, like Character: no `robot` prop, no store access; the robot screen and
+ * CompanyOptionsSection wire `onChange` through robotOptionsActions.applyAdsr, which calls
+ * AudioEngine.updateVoiceEnvelope (never reReserveVoice, so there is no audio dropout).
  *
  * Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): these handlers used to be built fresh,
  * unmemoized, on every render — so editing any ONE field changed `adsr`'s own reference, which re-executed this
@@ -106,42 +105,3 @@ export const EnvelopeCharacterSection = memo(function EnvelopeCharacterSection({
   );
 });
 
-interface PingContourDrawerProps {
-  value: ADSREnvelope;
-  onChange: (next: ADSREnvelope) => void;
-  /** Glide time between notes, seconds (AudioAttributes.portamento ?? 0). Row 3. */
-  portamento: number;
-  onPortamentoChange: (seconds: number) => void;
-  disabled?: boolean;
-  /** Optional inline style forwarded to this drawer's own root — trait-color scoping
-   *  (getTraitColorStyle('timeSpace'), Roadmap Phase 14), applied identically at both the
-   *  RobotOptionsTab and CompanyOptionsSection call sites — this drawer always renders in
-   *  Time/Space, whether it's editing one robot or a company's bulk baseline. See
-   *  docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
-  style?: CSSProperties;
-  /** Per-field swelling flags (audioSwells.ts's isRobotAttributeSwelling for 'adsr.attack' etc.),
-   *  forwarded straight to each of the 4 sliders' own `swelling` prop. Omitted fields default to
-   *  false (not swelling) — see useEasedControlValue.ts. */
-  swelling?: Partial<Record<keyof ADSREnvelope, boolean>>;
-}
-
-/**
- * The Envelope tab's two halves, Contour then Character, under the one 'pingContour' id both screens render
- * (docs/tasks/CONTENT_LAYOUT.md Task 15) until Task 16 gives each half its own sub-tab. Purely presentational — no
- * `robot` prop, no store access; the robot screen and CompanyOptionsSection derive `value` and wire `onChange` through
- * robotOptionsActions.applyAdsr themselves, which is what calls AudioEngine.updateVoiceEnvelope (never reReserveVoice,
- * so there's no audio dropout).
- */
-function PingContourDrawerInner({ value, onChange, portamento, onPortamentoChange, disabled, style, swelling }: PingContourDrawerProps) {
-  return (
-    <div className="ping-contour-drawer" style={style}>
-      <EnvelopeContourSection value={value} onChange={onChange} disabled={disabled} swelling={swelling} />
-      <EnvelopeCharacterSection value={value} onChange={onChange} portamento={portamento} onPortamentoChange={onPortamentoChange} disabled={disabled} />
-    </div>
-  );
-}
-
-// React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 3)
-export const PingContourDrawer = memo(PingContourDrawerInner);
-
-export default PingContourDrawer;

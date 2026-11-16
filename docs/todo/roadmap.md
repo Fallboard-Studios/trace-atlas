@@ -596,7 +596,9 @@ at three widths passed on 2026-11-15 (Fleet Params, then the robot, company and 
   World > Pacing. Every tab is a sub-tab row now, so `SINGLE_PANEL` went.
 - **Every robot tab has sub-tabs**, on the robot, company and All Probes screens alike: Levels (Mix, Sends),
   Composition (Rhythm & Melody, Details), Envelope (Contour, Character), Source (the three oscillators, then
-  Filter). The section components split in two along the same lines.
+  Filter). The section components split in two along the same lines, and the three old whole-tab composites
+  (`AudioSettingSection`, `PingControlsCompositionSection`, `PingContourDrawer`) were deleted (Crawford, 2026-11-15),
+  their tests moved onto the halves.
 - **Every sub-tab is boxes and rows** as the sheets lay them out: a box is a top-level `DirectionalPanel`, a shared
   row a nested `'responsive'` one, and ids follow the sheets (`<owner>.p<n>`, `<owner>.p<n>.r<m>`). An effect's
   layout is data (`AudioRigEffectBlock.layout`, one walk in `AudioRigEffectPanel` replacing five hand-written
@@ -619,7 +621,5 @@ at three widths passed on 2026-11-15 (Fleet Params, then the robot, company and 
 
 ### Open
 
-- The three old composites, `AudioSettingSection`, `PingControlsCompositionSection` and `PingContourDrawer`, are
-  rendered by no screen since the sub-tabs, only by their own tests: delete them, or keep them (Crawford's call).
 - Not placed in [plan.md](plan.md): it was built ahead of the sequence.
 
