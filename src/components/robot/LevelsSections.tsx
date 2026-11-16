@@ -18,9 +18,9 @@ import {
   SENDS_ROW_PANEL_SCHEMAS,
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
-  ROBOT_SEND_SCHEMAS,
   DYNAMICS_SCHEMA,
 } from '@/data/robotOptionsConfig';
+import { SEND_SCHEMAS_WITH_HELP_LINKS } from '@/components/panels/screen/nav/helpLinks';
 import { ROBOT_SEND_BY_FIELD, ROBOT_SEND_FIELDS, type RobotSendField, type RobotSendSpec } from '@/data/robotSends';
 import { PAN_DISPLAY_SCALE, SEND_DISPLAY_SCALE } from '@/constants';
 import { roundToDecimals } from '@/utils/math';
@@ -110,13 +110,14 @@ interface SendRowProps {
  * measures its own wrapper and needs a block box, the Volume row's reason; the class has no CSS rule of its own - a stable
  * hook only) around the row's slider. A memo'd child, so editing one send re-renders that row alone, as the five
  * hand-written rows did; the memo is what keeps the row's onChange closure stable (it is rebuilt only when a prop of this
- * row changes, when the slider re-renders anyway), so no useCallback. Exported for its memo test only.
+ * row changes, when the slider re-renders anyway), so no useCallback. Exported for its memo test only. Its schema is the
+ * send's with a help link to the effect it feeds (docs/specs/HELP_POPOVER_LINKS.md §1.4), built once in helpLinks.ts.
  */
 export const SendRow = memo(function SendRow({ spec, display, onSendChange, swelling, disabled, heldOff = false }: SendRowProps) {
   return (
     <div className={withHeldOffClass(`levels-sections__${spec.engineKey}-row`, heldOff)}>
       <SliderLinear
-        schema={ROBOT_SEND_SCHEMAS[spec.field]}
+        schema={SEND_SCHEMAS_WITH_HELP_LINKS[spec.field]}
         value={display}
         onChange={(pct) => onSendChange(spec.field, pct)}
         disabled={disabled || heldOff}

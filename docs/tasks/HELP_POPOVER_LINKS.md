@@ -210,7 +210,7 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
 
   **Estimated scope:** S
 
-- [ ] **Task 5: `LevelsSections.tsx` — `SendRow` reads the linked schema**
+- [x] **Task 5: `LevelsSections.tsx` — `SendRow` reads the linked schema**
 
   **Description:** `SendRow` in `src/components/robot/LevelsSections.tsx` passes
   `SEND_SCHEMAS_WITH_HELP_LINKS[spec.field]` to its `SliderLinear` in place of `ROBOT_SEND_SCHEMAS[spec.field]`. The
