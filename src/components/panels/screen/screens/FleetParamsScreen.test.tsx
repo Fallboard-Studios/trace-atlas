@@ -1,5 +1,5 @@
 import { Profiler } from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, act, within } from '@testing-library/react';
 
 import { FleetParamsScreen } from './FleetParamsScreen';
@@ -60,14 +60,13 @@ const AUDIO_INITIAL = useAudioStore.getState();
 
 const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
 const GROUPS: readonly [FleetParamsGroup, keyof typeof CONTENT, Trait][] = [
-  ['pacing', 'fleet.pacing', 'composition'],
+  ['world', 'fleet.world', 'composition'],
   ['lfoBank', 'fleet.lfoBank', 'timeSpace'],
   ['eqFilters', 'fleet.eqFilters', 'spectral'],
   ['timeSpace', 'fleet.timeSpace', 'timeSpace'],
   ['colour', 'fleet.colour', 'colour'],
   ['modulation', 'fleet.modulation', 'spectral'],
   ['output', 'fleet.output', 'output'],
-  ['quality', 'fleet.quality', 'seed'],
 ];
 const LANES: readonly LfoLaneId[] = ['a', 'b', 'c', 'd'];
 
@@ -80,8 +79,10 @@ const pick = (name: string) => fireEvent.mouseDown(screen.getByRole('tab', { nam
 const lanePanels = () => screen.queryAllByTestId('lfo-bank-lane-panel-stub');
 const effectPanels = () => screen.queryAllByTestId('audio-rig-effect-panel-stub');
 const audioLoadPanels = () => screen.queryAllByTestId('audio-load-panel-stub');
+/** Pacing's panel is the screen's own; the intensity drawer stub inside it marks it. */
+const pacingPanels = () => screen.queryAllByTestId('audio-rig-drawer-stub');
 /** Every panel the screen can mount, whatever its kind. */
-const mountedPanels = () => [...lanePanels(), ...effectPanels(), ...screen.queryAllByTestId('audio-rig-drawer-stub'), ...audioLoadPanels()];
+const mountedPanels = () => [...lanePanels(), ...effectPanels(), ...pacingPanels(), ...audioLoadPanels()];
 
 beforeEach(() => {
   shell.set('desk');
@@ -91,22 +92,25 @@ beforeEach(() => {
 });
 
 describe('FleetParamsScreen — the default view', () => {
-  it("opens on LFO Bank at lane A, with only lane A's panel in the DOM", () => {
+  // docs/specs/CONTENT_LAYOUT.md assumption 8: the screen opens on World > Pacing.
+  it("opens on World at Pacing, with only Pacing's panel in the DOM", () => {
     render(<FleetParamsScreen />);
-    expect(selectedTab(sectionRow()).textContent).toBe(human('fleet.lfoBank'));
-    expect(selectedTab(subRow('fleet.lfoBank')).textContent).toBe(laneTitle('a', 'desk'));
+    expect(selectedTab(sectionRow()).textContent).toBe(human('fleet.world'));
+    expect(selectedTab(subRow('fleet.world')).textContent).toBe(human('fleet.pacing'));
     expect(mountedPanels()).toHaveLength(1);
-    expect(lanePanels()[0].getAttribute('data-lane')).toBe('a');
-    expect(screen.queryByRole('slider')).toBeNull();
+    expect(pacingPanels()).toHaveLength(1);
+    expect(screen.getByRole('slider', { name: /tempo/i })).toBeTruthy();
   });
 
-  it('the section row is the eight groups in order, Colour then Modulation between Time & Space and Output, Audio Quality last, each trigger in its trait colour', () => {
+  it('the section row is the seven groups in order, World first, Colour then Modulation between Time & Space and Output, each trigger in its trait colour', () => {
     render(<FleetParamsScreen />);
     expect(tabNames(sectionRow())).toEqual(GROUPS.map(([, key]) => human(key)));
-    expect(tabNames(sectionRow())).toHaveLength(8);
+    expect(tabNames(sectionRow())).toHaveLength(7);
+    expect(tabNames(sectionRow()).indexOf(human('fleet.world'))).toBe(0);
     expect(tabNames(sectionRow()).indexOf(human('fleet.colour'))).toBe(4);
     expect(tabNames(sectionRow()).indexOf(human('fleet.modulation'))).toBe(5);
-    expect(tabNames(sectionRow()).indexOf(human('fleet.quality'))).toBe(7);
+    expect(tabNames(sectionRow())).not.toContain(human('fleet.pacing'));
+    expect(tabNames(sectionRow())).not.toContain(human('fleet.quality'));
     const tabs = within(sectionRow()).getAllByRole('tab');
     GROUPS.forEach(([, , trait], i) => {
       const expected = getTraitColorStyle(trait) as Record<string, string>;
@@ -116,6 +120,10 @@ describe('FleetParamsScreen — the default view', () => {
 });
 
 describe('FleetParamsScreen — lane titles follow the shell (spec §1.4)', () => {
+  beforeEach(() => {
+    useUIStore.setState({ fleetParamsSection: 'lfoBank' });
+  });
+
   it('desk: "Core LFO (LFO A)" … from laneTitle', () => {
     render(<FleetParamsScreen />);
     expect(tabNames(subRow('fleet.lfoBank'))).toEqual(LANES.map((lane) => laneTitle(lane, 'desk')));
@@ -146,7 +154,7 @@ describe('FleetParamsScreen — lane titles follow the shell (spec §1.4)', () =
 
 describe('FleetParamsScreen — switching tabs', () => {
   it('a section pick writes fleetParamsSection, opens its first sub-tab and unmounts the old panel', () => {
-    useUIStore.setState({ fleetParamsSubsection: 'laneC' });
+    useUIStore.setState({ fleetParamsSection: 'lfoBank', fleetParamsSubsection: 'laneC' });
     render(<FleetParamsScreen />);
     pick(human('fleet.eqFilters'));
     expect(useUIStore.getState().fleetParamsSection).toBe('eqFilters');
@@ -167,6 +175,7 @@ describe('FleetParamsScreen — switching tabs', () => {
   });
 
   it('a lane pick mounts that lane alone', () => {
+    useUIStore.setState({ fleetParamsSection: 'lfoBank' });
     render(<FleetParamsScreen />);
     pick(laneTitle('d', 'desk'));
     expect(useUIStore.getState().fleetParamsSubsection).toBe('laneD');
@@ -182,7 +191,11 @@ describe('FleetParamsScreen — switching tabs', () => {
     useUIStore.setState({ fleetParamsSection: group, fleetParamsSubsection: id });
     render(<FleetParamsScreen />);
     expect(mountedPanels()).toHaveLength(1);
-    if (group === 'lfoBank') {
+    if (id === 'pacing') {
+      expect(pacingPanels()).toHaveLength(1);
+    } else if (id === 'quality') {
+      expect(audioLoadPanels()).toHaveLength(1);
+    } else if (group === 'lfoBank') {
       expect(lanePanels()[0].getAttribute('data-lane')).toBe(id.slice(-1).toLowerCase());
     } else {
       expect(effectPanels()[0].getAttribute('data-effect-key')).toBe(id);
@@ -191,7 +204,7 @@ describe('FleetParamsScreen — switching tabs', () => {
 
   it('the sub-tab rows name each tab after its entry, in the table\'s order', () => {
     for (const [group, key] of GROUPS) {
-      if (group === 'pacing' || group === 'lfoBank' || group === 'quality') continue;
+      if (group === 'lfoBank') continue;
       useUIStore.setState({ fleetParamsSection: group, fleetParamsSubsection: null });
       const { unmount } = render(<FleetParamsScreen />);
       expect(tabNames(subRow(key))).toEqual(FLEET_PARAMS_SUBSECTIONS[group].map((sub) => labels(sub.content).humanLabel));
@@ -200,6 +213,7 @@ describe('FleetParamsScreen — switching tabs', () => {
   });
 
   it('leaving a group and coming back opens its first sub-tab again (a section pick resets the sub-tab)', () => {
+    useUIStore.setState({ fleetParamsSection: 'lfoBank' });
     render(<FleetParamsScreen />);
     pick(laneTitle('c', 'desk'));
     pick(human('fleet.output'));
@@ -223,39 +237,27 @@ describe('FleetParamsScreen — switching tabs', () => {
   });
 });
 
-describe('FleetParamsScreen — Pacing, one panel of five controls with no sub-tabs', () => {
+describe('FleetParamsScreen — World > Pacing, five controls (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
   beforeEach(() => {
-    useUIStore.setState({ fleetParamsSection: 'pacing' });
+    useUIStore.setState({ fleetParamsSection: 'world', fleetParamsSubsection: null });
   });
 
-  it('has no sub-tab row, and none of the other sections\' panels', () => {
+  it("World's sub-tab row is Pacing then Settings, Pacing open, and none of the other sections' panels", () => {
     render(<FleetParamsScreen />);
-    expect(screen.getAllByRole('tablist')).toHaveLength(1);
+    expect(tabNames(subRow('fleet.world'))).toEqual([human('fleet.pacing'), human('fleet.quality')]);
+    expect(selectedTab(subRow('fleet.world')).textContent).toBe(human('fleet.pacing'));
     expect(lanePanels()).toHaveLength(0);
     expect(effectPanels()).toHaveLength(0);
+    expect(audioLoadPanels()).toHaveLength(0);
   });
 
-  it('a stored sub-tab does not give Pacing a sub-tab row', () => {
-    useUIStore.setState({ fleetParamsSubsection: 'tempo' });
+  it.each<SelectedFleetParamsEffect>(['tempo', 'laneC', 'compressor'])('a sub-tab left from elsewhere (%s) opens Pacing, without a store write', (stale) => {
+    useUIStore.setState({ fleetParamsSubsection: stale });
     render(<FleetParamsScreen />);
-    expect(screen.getAllByRole('tablist')).toHaveLength(1);
+    expect(selectedTab(subRow('fleet.world')).textContent).toBe(human('fleet.pacing'));
     expect(screen.getByRole('slider', { name: /tempo/i })).toBeTruthy();
-  });
-
-  it('Tempo and Automation Rate share the top row; Automation Length and the intensity drawer the bottom one', () => {
-    render(<FleetParamsScreen />);
-    const tempo = screen.getByRole('slider', { name: /tempo/i });
-    const rate = screen.getByRole('slider', { name: /automation rate/i });
-    const length = screen.getByRole('slider', { name: /automation length/i });
-    const drawer = screen.getByTestId('audio-rig-drawer-stub');
-    const top = tempo.closest('.sc-directional-panel')!;
-    const bottom = length.closest('.sc-directional-panel')!;
-    expect(top).not.toBeNull();
-    expect(bottom).not.toBeNull();
-    expect(top).not.toBe(bottom);
-    expect(top.contains(rate)).toBe(true);
-    expect(bottom.contains(drawer)).toBe(true);
-    expect(top.compareDocumentPosition(bottom) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(mountedPanels()).toHaveLength(1);
+    expect(useUIStore.getState().fleetParamsSubsection).toBe(stale);
   });
 
   it('reads tempo, automation rate and automation length from audioStore', () => {
@@ -296,35 +298,128 @@ describe('FleetParamsScreen — Pacing, one panel of five controls with no sub-t
 });
 
 // docs/specs/ROBOT_PERFORMANCE.md §1.6 (docs/tasks/ROBOT_PERFORMANCE.md Task 13) — Humanize, the third control of the top row.
-// docs/tasks/OFF_SCREEN_CONSOLE.md Task 12 (spec §1.9): Audio Quality leaves Settings for Fleet Params' last tab.
-describe('FleetParamsScreen — Audio Quality, one panel with no sub-tabs', () => {
+// docs/specs/CONTENT_LAYOUT.md §1.2 (Task 9): Pacing is two boxes — P1: Tempo★ · Humanize; P2: Automation Rate★ ·
+// Automation Length | Automation Range. The intensity drawer (Automation Range) is stubbed in this file.
+describe('FleetParamsScreen — World > Pacing, two boxes (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+  const originalMatchMedia = Object.getOwnPropertyDescriptor(window, 'matchMedia');
+  function stubMatchMedia(state: { mobile: boolean; tablet: boolean }) {
+    Object.defineProperty(window, 'matchMedia', {
+      writable: true,
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes('639px') ? state.mobile : state.tablet,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    });
+  }
+
+  beforeEach(() => {
+    useUIStore.setState({ fleetParamsSection: 'world', fleetParamsSubsection: 'pacing' });
+  });
+  afterEach(() => {
+    if (originalMatchMedia) Object.defineProperty(window, 'matchMedia', originalMatchMedia);
+    else delete (window as unknown as { matchMedia?: unknown }).matchMedia;
+  });
+
+  const box = (container: HTMLElement, n: number) => container.querySelector(`[data-panel-id="fleetParams.pacing.p${n}"]`) as HTMLElement;
+  const contentOf = (panel: Element) => panel.querySelector(':scope > .sc-directional-panel__content')!;
+  const slider = (name: RegExp) => screen.getByRole('slider', { name });
+
+  it('renders exactly two boxes, P1 before P2', () => {
+    const { container } = render(<FleetParamsScreen />);
+    expect(box(container, 1)).not.toBeNull();
+    expect(box(container, 2)).not.toBeNull();
+    expect(box(container, 3)).toBeNull();
+    expect(box(container, 1).compareDocumentPosition(box(container, 2)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("P1 holds Tempo then Humanize, a row each, and Tempo's cell is featured", () => {
+    const { container } = render(<FleetParamsScreen />);
+    const rows = [...contentOf(box(container, 1)).children];
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0] as HTMLElement).getByRole('slider', { name: /tempo/i })).toBeTruthy();
+    expect(within(rows[1] as HTMLElement).getByRole('slider', { name: new RegExp('^' + human('fleet.pacing.humanize'), 'i') })).toBeTruthy();
+    expect(rows[0].classList.contains('sc-featured')).toBe(true);
+    expect(rows[1].classList.contains('sc-featured')).toBe(false);
+  });
+
+  it("P2 holds Automation Rate, featured, then one shared row: Automation Length beside Automation Range", () => {
+    const { container } = render(<FleetParamsScreen />);
+    const rows = [...contentOf(box(container, 2)).children];
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0] as HTMLElement).getByRole('slider', { name: /automation rate/i })).toBeTruthy();
+    expect(rows[0].classList.contains('sc-featured')).toBe(true);
+    expect(rows[1].getAttribute('data-panel-id')).toBe('fleetParams.pacing.p2.r2');
+    const cells = [...contentOf(rows[1]).children];
+    expect(cells).toHaveLength(2);
+    expect(within(cells[0] as HTMLElement).getByRole('slider', { name: /automation length/i })).toBeTruthy();
+    expect(cells[1].getAttribute('data-testid')).toBe('audio-rig-drawer-stub');
+  });
+
+  it('Tempo and Automation Rate are the only featured cells', () => {
+    const { container } = render(<FleetParamsScreen />);
+    const featured = [...container.querySelectorAll('.sc-featured')];
+    expect(featured).toHaveLength(2);
+    expect(featured[0].contains(slider(/tempo/i))).toBe(true);
+    expect(featured[1].contains(slider(/automation rate/i))).toBe(true);
+  });
+
+  it('the shared row is side by side (row) on desktop and stacks (column) on tablet and phone', () => {
+    const orientationOf = (container: HTMLElement) =>
+      container.querySelector('[data-panel-id="fleetParams.pacing.p2.r2"] > .sc-directional-panel__content')!.getAttribute('data-orientation');
+    stubMatchMedia({ mobile: false, tablet: false });
+    const desktop = render(<FleetParamsScreen />);
+    expect(orientationOf(desktop.container)).toBe('row');
+    desktop.unmount();
+    for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
+      stubMatchMedia(tier);
+      const { container, unmount } = render(<FleetParamsScreen />);
+      expect(orientationOf(container), JSON.stringify(tier)).toBe('column');
+      unmount();
+    }
+  });
+
+  it('no Pacing box carries a heading (none did): its content is its first child', () => {
+    const { container } = render(<FleetParamsScreen />);
+    for (const n of [1, 2]) {
+      expect(box(container, n).firstElementChild, `p${n}`).toBe(contentOf(box(container, n)));
+    }
+  });
+});
+
+// docs/tasks/OFF_SCREEN_CONSOLE.md Task 12 (spec §1.9): Audio Quality left Settings for Fleet Params' last
+// tab; docs/specs/CONTENT_LAYOUT.md §1.2 made it World's second sub-tab, Settings.
+describe("FleetParamsScreen — World > Settings, the Audio Load panel", () => {
   const crumb = () => screen.getByRole('navigation', { name: human('nav.breadcrumb') }).textContent;
 
-  it('picking the tab mounts the Audio Load panel alone, with no sub-tab row', () => {
+  it('picking the sub-tab writes it and mounts the Audio Load panel alone', () => {
     render(<FleetParamsScreen />);
     pick(human('fleet.quality'));
-    expect(useUIStore.getState().fleetParamsSection).toBe('quality');
-    expect(screen.getAllByRole('tablist')).toHaveLength(1);
+    expect(useUIStore.getState()).toMatchObject({ fleetParamsSection: 'world', fleetParamsSubsection: 'quality' });
     expect(mountedPanels()).toHaveLength(1);
     expect(audioLoadPanels()).toHaveLength(1);
   });
 
-  it('a stored sub-tab does not give it a sub-tab row or another panel', () => {
-    useUIStore.setState({ fleetParamsSection: 'quality', fleetParamsSubsection: 'compressor' });
+  it('leaving it, for Pacing or another tab, unmounts the panel', () => {
+    useUIStore.setState({ fleetParamsSection: 'world', fleetParamsSubsection: 'quality' });
     render(<FleetParamsScreen />);
-    expect(screen.getAllByRole('tablist')).toHaveLength(1);
-    expect(mountedPanels()).toHaveLength(1);
-    expect(audioLoadPanels()).toHaveLength(1);
-  });
-
-  it('leaving it unmounts the panel', () => {
-    useUIStore.setState({ fleetParamsSection: 'quality' });
-    render(<FleetParamsScreen />);
+    pick(human('fleet.pacing'));
+    expect(audioLoadPanels()).toHaveLength(0);
+    pick(human('fleet.quality'));
     pick(human('fleet.output'));
     expect(audioLoadPanels()).toHaveLength(0);
   });
 
-  it('the breadcrumb reads Root / Fleet Params / Audio Quality', () => {
+  it('a Settings sub-tab left over on another group opens that group\'s first', () => {
+    useUIStore.setState({ fleetParamsSection: 'output', fleetParamsSubsection: 'quality' });
+    render(<FleetParamsScreen />);
+    expect(audioLoadPanels()).toHaveLength(0);
+    expect(effectPanels().map((p) => p.getAttribute('data-effect-key'))).toEqual(['compressor']);
+  });
+
+  it('the breadcrumb reads Root / Fleet Params / World / Settings', () => {
     render(
       <>
         <FleetParamsScreen />
@@ -332,35 +427,16 @@ describe('FleetParamsScreen — Audio Quality, one panel with no sub-tabs', () =
       </>,
     );
     pick(human('fleet.quality'));
-    expect(crumb()).toBe([human('nav.root'), human('fleet.root'), human('fleet.quality')].join(' / '));
+    expect(crumb()).toBe([human('nav.root'), human('fleet.root'), human('fleet.world'), human('fleet.quality')].join(' / '));
   });
 });
 
 describe('FleetParamsScreen — Pacing: Humanize (Robot Performance Task 13)', () => {
   beforeEach(() => {
-    useUIStore.setState({ fleetParamsSection: 'pacing' });
+    useUIStore.setState({ fleetParamsSection: 'world' });
   });
 
   const humanizeSlider = () => screen.getByRole('slider', { name: new RegExp('^' + CONTENT['fleet.pacing.humanize'].human, 'i') });
-  const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
-
-  it('sits in the top row between Tempo and Automation Rate, in that order', () => {
-    render(<FleetParamsScreen />);
-    const tempo = screen.getByRole('slider', { name: /tempo/i });
-    const rate = screen.getByRole('slider', { name: /automation rate/i });
-    const top = tempo.closest('.sc-directional-panel')!;
-
-    expect(top.contains(humanizeSlider())).toBe(true);
-    expect(top.contains(rate)).toBe(true);
-    expect(before(tempo, humanizeSlider())).toBe(true);
-    expect(before(humanizeSlider(), rate)).toBe(true);
-  });
-
-  it('is not in the bottom row, beside Automation Length', () => {
-    render(<FleetParamsScreen />);
-    const bottom = screen.getByRole('slider', { name: /automation length/i }).closest('.sc-directional-panel')!;
-    expect(bottom.contains(humanizeSlider())).toBe(false);
-  });
 
   it('reads its value from audioStore, with a 0..20 range', () => {
     useAudioStore.setState({ humanize: 12 });
@@ -442,13 +518,38 @@ describe('FleetParamsScreen — trait colours', () => {
     expect(section.contains(mountedPanels()[0])).toBe(true);
   });
 
-  it.each(GROUPS.filter(([group]) => group !== 'pacing' && group !== 'quality'))("%s: every sub-tab trigger wears its section's trait (%s, %s)", (group, key, trait) => {
+  it.each(GROUPS)("%s: every sub-tab trigger wears its section's trait (%s, %s)", (group, key, trait) => {
     useUIStore.setState({ fleetParamsSection: group });
     render(<FleetParamsScreen />);
     const expected = getTraitColorStyle(trait) as Record<string, string>;
     for (const tab of within(subRow(key)).getAllByRole('tab')) {
       expect(tab.style.getPropertyValue('--color-accent'), tab.textContent ?? '').toBe(expected['--color-accent']);
     }
+  });
+
+  // docs/specs/CONTENT_LAYOUT.md assumption 7: inside World, Pacing's boxes keep Composition and Settings'
+  // box keeps Seed, the colours they wore as their own tabs.
+  /** The accent an element inherits: the nearest ancestor's own inline one. */
+  const inheritedAccent = (el: Element | null): string => {
+    for (let node = el as HTMLElement | null; node; node = node.parentElement) {
+      const value = node.style?.getPropertyValue('--color-accent-a');
+      if (value) return value;
+    }
+    return '';
+  };
+  const accent = (trait: Trait) => (getTraitColorStyle(trait) as Record<string, string>)['--color-accent-a'];
+
+  it("Pacing's panel sits in Composition", () => {
+    useUIStore.setState({ fleetParamsSection: 'world', fleetParamsSubsection: 'pacing' });
+    render(<FleetParamsScreen />);
+    expect(inheritedAccent(pacingPanels()[0])).toBe(accent('composition'));
+  });
+
+  it("Settings' panel sits in Seed, not World's Composition", () => {
+    useUIStore.setState({ fleetParamsSection: 'world', fleetParamsSubsection: 'quality' });
+    render(<FleetParamsScreen />);
+    expect(accent('seed')).not.toBe(accent('composition'));
+    expect(inheritedAccent(audioLoadPanels()[0])).toBe(accent('seed'));
   });
 });
 
@@ -487,10 +588,21 @@ describe('FleetParamsScreen — the intros, each an expander (spec §1.3)', () =
     expect(body.hidden).toBe(false);
   });
 
+  // World's sub-tabs were tabs with intros of their own; World's intro speaks for both now (§1.6).
+  it.each(['pacing', 'quality'] as const)("World > %s shows World's intro alone, not its sub-tab's own", (sub) => {
+    useUIStore.setState({ fleetParamsSection: 'world', fleetParamsSubsection: sub });
+    const { container } = render(<FleetParamsScreen />);
+    const section = container.querySelector('.fleet-params-screen__section') as HTMLElement;
+    expect(section.querySelectorAll('.sc-intro-panel')).toHaveLength(1);
+    expect(within(section).getByText(CONTENT['fleet.world'].intro!.lore)).toBeTruthy();
+    expect(within(section).queryByText(CONTENT['fleet.pacing'].intro!.lore)).toBeNull();
+    expect(within(section).queryByText(CONTENT['fleet.quality'].intro!.lore)).toBeNull();
+  });
+
   it('an expanded screen intro stays expanded across a tab switch; the new section\'s starts collapsed', () => {
     render(<FleetParamsScreen />);
     fireEvent.click(more('fleet.root'));
-    fireEvent.click(more('fleet.lfoBank'));
+    fireEvent.click(more('fleet.world'));
     pick(human('fleet.output'));
     expect(less('fleet.root').getAttribute('aria-expanded')).toBe('true');
     expect(more('fleet.output').getAttribute('aria-expanded')).toBe('false');
@@ -499,6 +611,7 @@ describe('FleetParamsScreen — the intros, each an expander (spec §1.3)', () =
 
 describe('FleetParamsScreen — re-render discipline', () => {
   it('a tempo change does not re-render the screen while Pacing is not the open section', () => {
+    useUIStore.setState({ fleetParamsSection: 'lfoBank' });
     let renders = 0;
     render(
       <Profiler id="fleet" onRender={() => renders++}>
@@ -525,6 +638,10 @@ describe('FleetParamsScreen — the breadcrumb names the open tab (Root / Fleet 
         <NavBreadcrumb />
       </>,
     );
+    expect(crumb()).toBe(path(human('fleet.world'), human('fleet.pacing')));
+    pick(human('fleet.quality'));
+    expect(crumb()).toBe(path(human('fleet.world'), human('fleet.quality')));
+    pick(human('fleet.lfoBank'));
     expect(crumb()).toBe(path(human('fleet.lfoBank'), human('fleet.lfoBank.laneA')));
     pick(laneTitle('b', 'desk'));
     expect(crumb()).toBe(path(human('fleet.lfoBank'), human('fleet.lfoBank.laneB')));
@@ -532,8 +649,8 @@ describe('FleetParamsScreen — the breadcrumb names the open tab (Root / Fleet 
     expect(crumb()).toBe(path(human('fleet.timeSpace'), human('fleet.reverb')));
     pick(human('fleet.delay'));
     expect(crumb()).toBe(path(human('fleet.timeSpace'), human('fleet.delay')));
-    pick(human('fleet.pacing'));
-    expect(crumb()).toBe(path(human('fleet.pacing')));
+    pick(human('fleet.world'));
+    expect(crumb()).toBe(path(human('fleet.world'), human('fleet.pacing')));
   });
 
   it('reads Modulation and its pedals: picking the tab, then Phaser', () => {
@@ -671,7 +788,8 @@ describe('FleetParamsScreen — the Modulation section (Global Modulation T10)',
     expect(tabNames(subRow('fleet.modulation'))).toHaveLength(6);
   });
 
-  it('the default section is still the LFO Bank, so Modulation is a tab you open, not the landing view', () => {
+  it('the default section is World, so Modulation is a tab you open, not the landing view', () => {
+    expect(useUIStore.getState().fleetParamsSection).toBe('world');
     expect(useUIStore.getState().fleetParamsSection).not.toBe('modulation');
   });
 });

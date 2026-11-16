@@ -29,7 +29,7 @@ never reused or renumbered when an item moves.
 **Numbering (Crawford, 2026-11-02): one counter across the three todo files.** From 58 on, a new roadmap phase or
 backlog item takes the next number after the highest in *either* file, so a number names one item wherever it is
 written (roadmap 58 and 59, backlog 60–63 were the first). The earlier overlap (roadmap and backlog each run from 1
-into the 50s) stays as it is: nothing is renumbered. The next free number is 91.
+into the 50s) stays as it is: nothing is renumbered. The next free number is 92.
 
 ## Open items
 
@@ -499,7 +499,8 @@ per item, dated; each becomes its own commit when the pass runs, and the item ar
 
 Raised by Crawford on 2026-11-05, during roadmap [58](roadmap.md#58-themes-and-aspects-refinement)'s families listen:
 a percentage is an arbitrary way to show the Accents slider. Picked from a pitch: a read-only strip under the slider
-(`PingControlsDrawer.tsx`'s Articulation panel), one cell per melody event, each marked cell showing its score mark
+(Composition > Details, `CompositionDetailsSection` in `CompositionSections.tsx`; the Articulation panel it named went
+in roadmap [91](roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes)), one cell per melody event, each marked cell showing its score mark
 (accent, marcato, tenuto, staccato, staccatissimo) and a bar for how long the note sounds (full, three quarters, half,
 a quarter), with ticks on the slider's track where the next marks unlock (34 and 67, `ACCENT_TIER_2` and
 `ACCENT_TIER_3`). It reads the marks `applyPerformanceMarks` already stamps on the robot's melody, so it shows what

@@ -1,8 +1,8 @@
 import { useCallback, type CSSProperties, type ReactNode } from 'react';
 import type { CompanyOptions } from './useCompanyOptions';
-import { AudioSettingSection } from '@/components/robot/AudioSettingSection';
-import { PingControlsCompositionSection } from '@/components/robot/PingControlsDrawer';
-import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
+import { LevelsMixSection, LevelsSendsSection } from '@/components/robot/LevelsSections';
+import { CompositionDetailsSection, CompositionRhythmMelodySection } from '@/components/robot/CompositionSections';
+import { EnvelopeCharacterSection, EnvelopeContourSection } from '@/components/robot/EnvelopeSections';
 import { SignatureArrayLayer } from '@/components/robot/SignatureArrayDrawer';
 import { BusFilterDrawer } from '@/components/robot/BusFilterDrawer';
 import type { RobotSubsection } from '@/stores/uiStore';
@@ -43,11 +43,11 @@ export function companyTraitStyle(trait: RobotOptionsTrait, active: boolean): CS
 }
 
 /**
- * The four section panels in "company mode" (Roadmap Phase 10; docs/tasks/LAYOUT_REWORK.md Task 23) —
- * the counterpart to the robot screen's own renderer. `AudioSettingSection`, `PingControlsCompositionSection`,
- * `PingContourDrawer` and `SignatureArrayLayer` get their values, swelling flags and handlers from
- * `useCompanyOptions` and their `disabled` from its `active`; all the logic is the hook's. CompanyScreen
- * mounts the result inside its SectionTabs, one section at a time.
+ * The four sections' sub-tab panels in "company mode" (Roadmap Phase 10; docs/tasks/LAYOUT_REWORK.md Task 23;
+ * docs/specs/CONTENT_LAYOUT.md §1.3) — the counterpart to the robot screen's own renderer. Each half (Mix, Sends,
+ * Rhythm & Melody, Details, Contour, Character), `SignatureArrayLayer` and `BusFilterDrawer` get their values,
+ * swelling flags and handlers from `useCompanyOptions` and their `disabled` from its `active`; all the logic is the
+ * hook's. CompanyScreen mounts the result inside its SectionTabs, one sub-tab at a time.
  *
  * Returns one function from a subsection id to its panel, memoized on `options` — which keeps its identity
  * through every edit that changes nothing in it, so an unrelated robot edit re-renders no panel (and each
@@ -56,49 +56,66 @@ export function companyTraitStyle(trait: RobotOptionsTrait, active: boolean): CS
 export function useCompanySubsectionRenderer(options: CompanyOptions): (subsectionId: RobotSubsection) => ReactNode {
   return useCallback((subsectionId: RobotSubsection): ReactNode => {
     const disabled = !options.active;
+    // One half per sub-tab (docs/specs/CONTENT_LAYOUT.md §1.3), each given the values and handlers it took as a section.
     switch (subsectionId) {
-      case 'audioSettings':
+      case 'mix':
         return (
-          <AudioSettingSection
+          <LevelsMixSection
             value={options.audioSettingValue}
             disabled={disabled}
             onAudioModeChange={options.onAudioModeChange}
             onVolumeChange={options.onVolumeChange}
             onPanChange={options.onPanChange}
             onPanAutoChange={options.onPanAutoChange}
-            onSendChange={options.onSendChange}
             onDynamicsChange={options.onDynamicsChange}
             volumeSwelling={options.volumeSwelling}
+          />
+        );
+      case 'sends':
+        return (
+          <LevelsSendsSection
+            value={options.audioSettingValue}
+            disabled={disabled}
+            onSendChange={options.onSendChange}
             sendSwelling={options.sendSwelling}
             heldOffSends={options.heldOffSends}
           />
         );
-      case 'rhythm':
-        // Rhythm/Pitches merged into one "Composition" panel, under the '.rhythm' id.
+      case 'rhythmMelody':
         return (
-          <PingControlsCompositionSection
+          <CompositionRhythmMelodySection
             value={options.pingControlsValue}
             disabled={disabled}
             onDensityChange={options.onDensityChange}
             onMotifLengthChange={options.onMotifLengthChange}
             onPitchRepeatChange={options.onPitchRepeatChange}
-            onOctaveMinChange={options.onOctaveMinChange}
-            onOctaveMaxChange={options.onOctaveMaxChange}
             onNoteVarianceChange={options.onNoteVarianceChange}
             onClickTrackActiveChange={options.onClickTrackActiveChange}
-            onRestsChange={options.onRestsChange}
-            onAccentsChange={options.onAccentsChange}
           />
         );
-      case 'pingContour':
+      case 'details':
         return (
-          <PingContourDrawer
+          <CompositionDetailsSection
+            value={options.pingControlsValue}
+            disabled={disabled}
+            onRestsChange={options.onRestsChange}
+            onAccentsChange={options.onAccentsChange}
+            onOctaveMinChange={options.onOctaveMinChange}
+            onOctaveMaxChange={options.onOctaveMaxChange}
+          />
+        );
+      case 'envelopeContour':
+        return (
+          <EnvelopeContourSection value={options.adsrValue} disabled={disabled} onChange={options.onAdsrChange} swelling={options.adsrSwelling} />
+        );
+      case 'envelopeCharacter':
+        return (
+          <EnvelopeCharacterSection
             value={options.adsrValue}
             disabled={disabled}
             onChange={options.onAdsrChange}
             portamento={options.portamentoValue}
             onPortamentoChange={options.onPortamentoChange}
-            swelling={options.adsrSwelling}
           />
         );
       case 'baselineOscillator':

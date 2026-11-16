@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react';
 import { memo, useCallback } from 'react';
 import { RadioButton } from '@/components/ui/controls/RadioButton';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -6,24 +5,28 @@ import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero'
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { HeldOffNote } from '@/components/ui/controls/HeldOffNote';
-import { withHeldOffClass } from '@/components/ui/controls/activeClass';
+import { withFeaturedClass, withHeldOffClass } from '@/components/ui/controls/activeClass';
 import {
   AUDIO_SETTING_SCHEMA,
   VOLUME_SCHEMA,
-  VOLUME_ROW_PANEL_SCHEMA,
-  VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
+  MIX_P1_PANEL_SCHEMA,
+  MIX_P1_R2_PANEL_SCHEMA,
+  MIX_P2_PANEL_SCHEMA,
+  MIX_P2_R1_PANEL_SCHEMA,
+  SENDS_P1_PANEL_SCHEMA,
+  SENDS_LAYOUT,
+  SENDS_ROW_PANEL_SCHEMAS,
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
-  PAN_ROW_PANEL_SCHEMA,
   ROBOT_SEND_SCHEMAS,
   DYNAMICS_SCHEMA,
 } from '@/data/robotOptionsConfig';
-import { ROBOT_SENDS, type RobotSendField, type RobotSendSpec } from '@/data/robotSends';
+import { ROBOT_SEND_BY_FIELD, ROBOT_SEND_FIELDS, type RobotSendField, type RobotSendSpec } from '@/data/robotSends';
 import { PAN_DISPLAY_SCALE, SEND_DISPLAY_SCALE } from '@/constants';
 import { roundToDecimals } from '@/utils/math';
 import type { Robot } from '@/types/Robot';
 
-import './AudioSettingSection.css';
+import './LevelsSections.css';
 
 export interface AudioSettingValue {
   audioMode: NonNullable<Robot['audioMode']>;
@@ -54,7 +57,8 @@ export interface AudioSettingValue {
   dynamics: number;
 }
 
-interface AudioSettingSectionProps {
+/** Every Levels prop, both halves' together; each half picks its own (docs/specs/CONTENT_LAYOUT.md §1.3). */
+interface LevelsProps {
   value: AudioSettingValue;
   onAudioModeChange: (mode: Robot['audioMode']) => void;
   onVolumeChange: (pct: number) => void;
@@ -83,12 +87,6 @@ interface AudioSettingSectionProps {
    *  kept, with one HeldOffNote under the send rows (useHeldOffSends; docs/specs/LIGHT_TIER_STANDING_COST.md §1.4).
    *  Absent means every send is live. */
   heldOffSends?: Readonly<Record<RobotSendField, boolean>>;
-  /** Optional inline style forwarded to this section's own root — trait-color scoping
-   *  (getTraitColorStyle('output'), Roadmap Phase 14), applied identically at both the
-   *  RobotOptionsTab and CompanyOptionsSection call sites — this section always renders in
-   *  Output, whether it's editing one robot or a company's bulk baseline. See
-   *  docs/specs/archive/COLOR_SCHEME_TRAIT_THEMING.md §1.5. */
-  style?: CSSProperties;
 }
 
 /** A stored 0..1 send as the slider's 0-100 number. Rounded to two places so the x100 leaves no float noise (0.29 would
@@ -116,7 +114,7 @@ interface SendRowProps {
  */
 export const SendRow = memo(function SendRow({ spec, display, onSendChange, swelling, disabled, heldOff = false }: SendRowProps) {
   return (
-    <div className={withHeldOffClass(`audio-setting-section__${spec.engineKey}-row`, heldOff)}>
+    <div className={withHeldOffClass(`levels-sections__${spec.engineKey}-row`, heldOff)}>
       <SliderLinear
         schema={ROBOT_SEND_SCHEMAS[spec.field]}
         value={display}
@@ -128,27 +126,26 @@ export const SendRow = memo(function SendRow({ spec, display, onSendChange, swel
   );
 });
 
+/** Volume's cell: the wrapper plus `sc-featured` (docs/specs/CONTENT_LAYOUT.md §1.4). */
+const VOLUME_CELL = withFeaturedClass('levels-sections__volume-row', VOLUME_SCHEMA);
+
+type LevelsMixProps = Pick<
+  LevelsProps,
+  'onAudioModeChange' | 'onVolumeChange' | 'onPanChange' | 'onPanAutoChange' | 'onDynamicsChange' | 'livePan' | 'disabled' | 'volumeSwelling'
+> & { value: Pick<AudioSettingValue, 'audioMode' | 'masterVolume' | 'pan' | 'panAuto' | 'dynamics'> };
+
 /**
- * Robot Options' editable Audio Setting + Volume block — extracted out of RobotDisplaySection
- * (Roadmap Phase 10) into its own presentational component so both the single-robot screen and
- * the company-broadcast panel can render the exact same controls, bound to different
- * value/onChange sources. No `robot` prop, no store access — a pure value/onChange component,
- * same contract every other refactored Robot Options section uses.
+ * Levels > Mix (docs/specs/CONTENT_LAYOUT.md §1.3): two boxes. P1 is Volume, then Monitor Mode beside Dynamics (a
+ * 'responsive' row); P2 is Pan beside its Auto toggle (a fixed row). A pure value/onChange component, shared by the
+ * robot screen and the company broadcast, like every Robot Options section.
  *
- * The Volume LFO display that used to sit below this column is gone — the `volume` LFO target
- * was removed outright (docs/specs/LFO_LOAD_FIX.md assumption 9 / §1.4, Crawford 2026-09-30:
- * "not as impactful as I had hoped"), along with the `volumeLfo`/`onVolumeLfoChange`/
- * `volumeLfoHeldOff` props, the `useLfoTargetGroup` targeting wiring (nothing left to target),
- * and the held-off note. The two-panel column layout is kept as-is so the section renders
- * identically in its own slot and nothing around it reflows.
- *
- * No accordion wrapper as of Task 18's own follow-up (docs/tasks/archive/NAV_LAYOUT_REWRITE.md —
- * this section is a probe's/company's own "Volume" tree leaf per spec §2's mapping table).
+ * Every slider sits in a wrapper with no display rule: useVoxelTrackBoxCount measures its own wrapper and needs a plain
+ * block box (a display:flex wrapper, 'levels-sections__row', shrinks a lone slider to its label's width; found
+ * live by Crawford). The radio's wrapper is that flex row.
  */
-function AudioSettingSectionInner({
-  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onSendChange, onDynamicsChange, livePan, disabled,
-  volumeSwelling, sendSwelling, heldOffSends, style,
-}: AudioSettingSectionProps) {
+export const LevelsMixSection = memo(function LevelsMixSection({
+  value, onAudioModeChange, onVolumeChange, onPanChange, onPanAutoChange, onDynamicsChange, livePan, disabled, volumeSwelling,
+}: LevelsMixProps) {
   // Bugfix, found live (docs/todo/backlog.md #27 follow-up, 2026-09-15): this used to be a fresh
   // inline closure built every render — so editing Volume changed `value`'s own reference,
   // re-executing this component, which then handed the already-memoized RadioButton a new
@@ -159,10 +156,13 @@ function AudioSettingSectionInner({
   );
 
   return (
-    <div className="audio-setting-section" style={style}>
-      <DirectionalPanel schema={VOLUME_ROW_PANEL_SCHEMA}>
-        <DirectionalPanel schema={VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA}>
-          <div className="audio-setting-section__row">
+    <div className="levels-sections__mix">
+      <DirectionalPanel schema={MIX_P1_PANEL_SCHEMA}>
+        <div className={VOLUME_CELL}>
+          <SliderLinear schema={VOLUME_SCHEMA} value={value.masterVolume * 100} onChange={onVolumeChange} disabled={disabled} swelling={volumeSwelling} />
+        </div>
+        <DirectionalPanel schema={MIX_P1_R2_PANEL_SCHEMA}>
+          <div className="levels-sections__row">
             <RadioButton
               schema={AUDIO_SETTING_SCHEMA}
               value={value.audioMode}
@@ -170,61 +170,67 @@ function AudioSettingSectionInner({
               disabled={disabled}
             />
           </div>
-          {/* No 'audio-setting-section__row' here, deliberately — that class is display:flex,
-              which shrinks a lone flex item (the slider) to its own content width instead of the
-              row's full width, breaking useVoxelTrackBoxCount's self-observation (the hook
-              assumes its own wrapper is "externally determined," i.e. a plain block box). Matches
-              audio-rig-drawer__param-row / signature-array-drawer__param elsewhere in the app,
-              both of which carry no display rule at all for the exact same reason. Found live by
-              Crawford: the slider's own box-count-fitting was locking onto its DualLabel's natural
-              text width instead of the row's real available width. The wrapper class below has no
-              CSS rule of its own — it exists only as a stable hook for tests and future styling. */}
-          <div className="audio-setting-section__volume-row">
-            <SliderLinear schema={VOLUME_SCHEMA} value={value.masterVolume * 100} onChange={onVolumeChange} disabled={disabled} swelling={volumeSwelling} />
-          </div>
-          {/* Pan: a row panel supplies the flex (slider grows, the toggle holds its own 44px box), so the
-              slider wrapper carries no display rule — same reason as the Volume row above. The slider is a
-              live readout while Auto is on (livePan, else the stored pan) and interactive while it is off.
-              No `swelling`: the readout arrives a few times a second and useEasedControlValue's 250ms
-              ease is the right smoothing for that cadence (docs/specs/ROBOT_PAN.md §1.5). */}
-          <DirectionalPanel schema={PAN_ROW_PANEL_SCHEMA}>
-            <div className="audio-setting-section__pan-slider">
-              <SliderCenteredZero
-                schema={PAN_SCHEMA}
-                value={(value.panAuto ? (livePan ?? value.pan) : value.pan) * PAN_DISPLAY_SCALE}
-                onChange={onPanChange}
-                readOnly={value.panAuto}
-                disabled={disabled}
-              />
-            </div>
-            <Toggle schema={PAN_AUTO_SCHEMA} value={value.panAuto} onChange={onPanAutoChange} disabled={disabled} />
-          </DirectionalPanel>
-          {/* The five sends (docs/specs/ROBOT_SENDS.md §1.6, ROBOT_EFFECT_SENDS.md §1.6), after Pan, one SendRow per
-              ROBOT_SENDS entry in table order (docs/specs/ROBOT_SEND_TABLE.md §1.4, assumption 2). */}
-          {ROBOT_SENDS.map((spec) => (
-            <SendRow
-              key={spec.field}
-              spec={spec}
-              display={toSendDisplay(value[spec.field])}
-              onSendChange={onSendChange}
-              swelling={sendSwelling?.[spec.field]}
-              disabled={disabled}
-              heldOff={heldOffSends?.[spec.field]}
-            />
-          ))}
-          {ROBOT_SENDS.some((spec) => heldOffSends?.[spec.field]) && <HeldOffNote />}
-          {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6): the last row, after the sends, in a wrapper with no display rule for
-              the Volume row's reason. No `swelling`: Dynamics is not a swell attribute. */}
-          <div className="audio-setting-section__dynamics-row">
+          {/* Dynamics (docs/specs/ROBOT_PERFORMANCE.md §1.6). No `swelling`: Dynamics is not a swell attribute. */}
+          <div className="levels-sections__dynamics-row">
             <SliderLinear schema={DYNAMICS_SCHEMA} value={value.dynamics} onChange={onDynamicsChange} disabled={disabled} />
           </div>
         </DirectionalPanel>
       </DirectionalPanel>
+      {/* Pan: the row panel supplies the flex (slider grows, the toggle holds its own 44px box). The slider is a live
+          readout while Auto is on (livePan, else the stored pan) and interactive while it is off. No `swelling`: the
+          readout arrives a few times a second and useEasedControlValue's 250ms ease is the right smoothing for that
+          cadence (docs/specs/ROBOT_PAN.md §1.5). */}
+      <DirectionalPanel schema={MIX_P2_PANEL_SCHEMA}>
+        <DirectionalPanel schema={MIX_P2_R1_PANEL_SCHEMA}>
+          <div className="levels-sections__pan-slider">
+            <SliderCenteredZero
+              schema={PAN_SCHEMA}
+              value={(value.panAuto ? (livePan ?? value.pan) : value.pan) * PAN_DISPLAY_SCALE}
+              onChange={onPanChange}
+              readOnly={value.panAuto}
+              disabled={disabled}
+            />
+          </div>
+          <Toggle schema={PAN_AUTO_SCHEMA} value={value.panAuto} onChange={onPanAutoChange} disabled={disabled} />
+        </DirectionalPanel>
+      </DirectionalPanel>
     </div>
   );
-}
+});
 
-// React.memo (docs/tasks/archive/ROBOT_OPTIONS_TAB_MEMOIZATION.md Task 1)
-export const AudioSettingSection = memo(AudioSettingSectionInner);
+type LevelsSendsProps = Pick<LevelsProps,'onSendChange' | 'disabled' | 'sendSwelling' | 'heldOffSends'> & {
+  value: Pick<AudioSettingValue, RobotSendField>;
+};
 
-export default AudioSettingSection;
+/**
+ * Levels > Sends (docs/specs/CONTENT_LAYOUT.md §1.3): one box of the five sends (docs/specs/ROBOT_SENDS.md §1.6,
+ * ROBOT_EFFECT_SENDS.md §1.6), laid out by SENDS_LAYOUT: Reverb beside Delay, Grit beside Shimmer, then Double. One
+ * SendRow per send; the held-off note, when any send's room is held dark, at the foot of the box.
+ */
+export const LevelsSendsSection = memo(function LevelsSendsSection({
+  value, onSendChange, disabled, sendSwelling, heldOffSends,
+}: LevelsSendsProps) {
+  const sendRow = (field: RobotSendField) => (
+    <SendRow
+      key={field}
+      spec={ROBOT_SEND_BY_FIELD[field]}
+      display={toSendDisplay(value[field])}
+      onSendChange={onSendChange}
+      swelling={sendSwelling?.[field]}
+      disabled={disabled}
+      heldOff={heldOffSends?.[field]}
+    />
+  );
+  return (
+    <DirectionalPanel schema={SENDS_P1_PANEL_SCHEMA}>
+      {SENDS_LAYOUT.map((row, i) => {
+        const rowSchema = SENDS_ROW_PANEL_SCHEMAS[i];
+        return rowSchema
+          ? <DirectionalPanel key={rowSchema.id} schema={rowSchema}>{row.map(sendRow)}</DirectionalPanel>
+          : row.map(sendRow);
+      })}
+      {ROBOT_SEND_FIELDS.some((field) => heldOffSends?.[field]) && <HeldOffNote />}
+    </DirectionalPanel>
+  );
+});
+

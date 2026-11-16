@@ -1,0 +1,8 @@
+/* A lane's two boxes (docs/specs/CONTENT_LAYOUT.md §1.2), stacked and spaced as the Fleet Params section stacks
+   its own (assumption 3). Layout only; the trait colour cascades from the section. */
+.lfo-bank-lane-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  min-width: 0;
+}

@@ -22,6 +22,10 @@ export interface ControlSchemaBase {
   /** The "?" on the control's label (docs/specs/LAYOUT_REWORK.md §1.4) — spread in by `labels()` from
    *  the content entry's `help`; absent = no "?". */
   help?: ContentHelp;
+  /** The panel's lead control (docs/specs/CONTENT_LAYOUT.md §1.4): its cell wrapper wears
+   *  `sc-featured` through `withFeaturedClass`. No stylesheet names the class yet; absent = not
+   *  featured. */
+  featured?: boolean;
 }
 
 // ========================================

@@ -43,6 +43,7 @@ vi.mock('../../../../engine/lfoEngine', () => ({
 }));
 
 import { AudioRigEffectPanel } from './AudioRigDrawer';
+import type { AudioRigEffectKey } from '@/data/audioRigConfig';
 import { resolveAccessibleName } from '@/components/ui/controls/accessibleName';
 import { useAudioStore } from '@/stores/audioStore';
 import { AudioEngine } from '@/engine/AudioEngine';
@@ -139,21 +140,22 @@ describe('AudioRigEffectPanel', () => {
       return screen.getByText('Delay').closest('.sc-directional-panel')!.querySelector(':scope > .sc-directional-panel__content')!;
     }
 
-    it('is one nested top-row panel followed by one direct param-row (Delay Amount), nothing else', () => {
+    // docs/specs/CONTENT_LAYOUT.md §1.2: Delay Amount first, then Delay Time beside Repeats.
+    it('is one direct param-row (Delay Amount) followed by one nested shared-row panel, nothing else', () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
       const content = delayContent();
       const children = [...content.children];
       expect(children).toHaveLength(2);
-      expect(children[0].matches('.sc-directional-panel')).toBe(true);
-      expect(children[1].matches('.audio-rig-drawer__param-row')).toBe(true);
-      expect(within(children[1] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
-      expect(children[0].contains(screen.getByRole('slider', { name: 'Delay Amount' }))).toBe(false);
+      expect(children[0].matches('.audio-rig-drawer__param-row')).toBe(true);
+      expect(children[1].matches('.sc-directional-panel')).toBe(true);
+      expect(within(children[0] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
+      expect(children[1].contains(screen.getByRole('slider', { name: 'Delay Amount' }))).toBe(false);
     });
 
-    it('the top row holds the Tempo Sync composition (Delay Time over its toggle) first, then Repeats, each in its own param-row', () => {
+    it('the shared row holds the Tempo Sync composition (Delay Time over its toggle) first, then Repeats, each in its own param-row', () => {
       render(<AudioRigEffectPanel effectKey="delay" />);
       const topRow = delayContent().querySelector(':scope > .sc-directional-panel')!;
-      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.delay.topRow');
+      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.delay.p1.r2');
       const rows = [...topRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
       expect(rows).toHaveLength(2);
       expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
@@ -195,20 +197,21 @@ describe('AudioRigEffectPanel', () => {
       return screen.getByText('Reverb').closest('.sc-directional-panel')!.querySelector(':scope > .sc-directional-panel__content')!;
     }
 
-    it('is one nested top-row panel followed by one direct param-row (Reverb Amount), nothing else', () => {
+    // docs/specs/CONTENT_LAYOUT.md §1.2: Reverb Amount first, then Reverb Length beside Pre-Delay.
+    it('is one direct param-row (Reverb Amount) followed by one nested shared-row panel, nothing else', () => {
       render(<AudioRigEffectPanel effectKey="reverb" />);
       const children = [...reverbContent().children];
       expect(children).toHaveLength(2);
-      expect(children[0].matches('.sc-directional-panel')).toBe(true);
-      expect(children[1].matches('.audio-rig-drawer__param-row')).toBe(true);
-      expect(within(children[1] as HTMLElement).getByRole('slider', { name: 'Reverb Amount' })).toBeTruthy();
-      expect(children[0].contains(screen.getByRole('slider', { name: 'Reverb Amount' }))).toBe(false);
+      expect(children[0].matches('.audio-rig-drawer__param-row')).toBe(true);
+      expect(children[1].matches('.sc-directional-panel')).toBe(true);
+      expect(within(children[0] as HTMLElement).getByRole('slider', { name: 'Reverb Amount' })).toBeTruthy();
+      expect(children[1].contains(screen.getByRole('slider', { name: 'Reverb Amount' }))).toBe(false);
     });
 
-    it('the top row holds Reverb Length then Pre-Delay, each in its own param-row, and keeps Length a log slider', () => {
+    it('the shared row holds Reverb Length then Pre-Delay, each in its own param-row, and keeps Length a log slider', () => {
       render(<AudioRigEffectPanel effectKey="reverb" />);
       const topRow = reverbContent().querySelector(':scope > .sc-directional-panel')!;
-      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.reverb.topRow');
+      expect(topRow.getAttribute('data-panel-id')).toBe('audioRig.reverb.p1.r2');
       const rows = [...topRow.querySelectorAll(':scope > .sc-directional-panel__content > .audio-rig-drawer__param-row')];
       expect(rows).toHaveLength(2);
       const length = within(rows[0] as HTMLElement).getByRole('slider', { name: 'Reverb Length' });
@@ -300,35 +303,223 @@ describe('AudioRigEffectPanel', () => {
       }
     });
 
-    it('stacks the bands/params as direct param-rows of the block, in config order, with no nested row panel', () => {
-      for (const [key, names] of CASES) {
-        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
-        const content = screen.getByRole('slider', { name: names[0] }).closest('.sc-directional-panel')!
-          .querySelector(':scope > .sc-directional-panel__content')!;
-        const rows = [...content.querySelectorAll(':scope > .audio-rig-drawer__param-row')];
-        expect(rows, key).toHaveLength(names.length);
-        rows.forEach((row, i) => {
-          expect(within(row as HTMLElement).getByRole('slider', { name: names[i] }), `${key} row ${i}`).toBeTruthy();
-        });
-        expect(content.querySelector(':scope > .sc-directional-panel'), key).toBeNull();
+    it("each link keeps the Lane radio before the Depth slider", () => {
+      for (const [key] of CASES) {
+        const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        for (const link of container.querySelectorAll('.sc-lfo-link')) {
+          const lane = within(link as HTMLElement).getByRole('radio', { name: 'Off' });
+          const depth = within(link as HTMLElement).getByRole('slider');
+          expect(lane.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING, `${key}: Lane before Depth`).toBeTruthy();
+        }
         unmount();
       }
     });
+  });
 
-    it("each row is the band's slider, then its LfoLink with the Lane radio before the Depth slider", () => {
-      for (const [key, names] of CASES) {
-        const { unmount } = render(<AudioRigEffectPanel effectKey={key} />);
-        for (const name of names) {
-          const slider = screen.getByRole('slider', { name });
-          const row = slider.closest('.audio-rig-drawer__param-row') as HTMLElement;
-          const link = row.querySelector('.sc-lfo-link') as HTMLElement;
-          expect(link, `${key} ${name} link`).toBeTruthy();
-          expect(slider.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING, `${key} ${name}: link after slider`).toBeTruthy();
-          const lane = within(link).getByRole('radio', { name: 'Off' });
-          const depth = within(link).getByRole('slider');
-          expect(lane.compareDocumentPosition(depth) & Node.DOCUMENT_POSITION_FOLLOWING, `${key} ${name}: Lane before Depth`).toBeTruthy();
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 5): one box per band or param, the slider on row 1 and its link on row 2,
+  // a cell each; the effect's heading on its first box alone (assumption 2); the bands and the Cutoffs featured (§1.4).
+  describe('EQ & Filters: a box per slider (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+    const CASES = [
+      { key: 'eq3', heading: '3-Band EQ', names: ['Bass', 'Mid', 'Treble'], featured: ['Bass', 'Mid', 'Treble'] },
+      { key: 'filterHPF', heading: 'High-Pass Filter', names: ['Cutoff', 'Resonance'], featured: ['Cutoff'] },
+      { key: 'filterLPF', heading: 'Low-Pass Filter', names: ['Cutoff', 'Resonance'], featured: ['Cutoff'] },
+    ] as const;
+    const boxesOf = (container: HTMLElement) =>
+      ([...container.querySelectorAll('[data-panel-id]')] as HTMLElement[]).filter((el) => /^audioRig\.\w+\.p\d+$/.test(el.dataset.panelId!));
+    const cellsOf = (box: HTMLElement) =>
+      [...box.querySelector(':scope > .sc-directional-panel__content')!.children] as HTMLElement[];
+
+    it.each(CASES)('$key renders one box per slider, p1 on, each its slider cell then its link cell', ({ key, names }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const boxes = boxesOf(container);
+      expect(boxes.map((b) => b.getAttribute('data-panel-id'))).toEqual(names.map((_, i) => `audioRig.${key}.p${i + 1}`));
+      boxes.forEach((box, i) => {
+        const cells = cellsOf(box);
+        expect(cells, `${key} p${i + 1}`).toHaveLength(2);
+        expect(within(cells[0]).getByRole('slider', { name: names[i] }), `${key} p${i + 1}`).toBeTruthy();
+        expect(cells[0].querySelector('.sc-lfo-link'), `${key} p${i + 1}`).toBeNull();
+        expect(cells[1].querySelector('.sc-lfo-link'), `${key} p${i + 1}`).not.toBeNull();
+        expect(within(cells[1]).getAllByRole('slider'), `${key} p${i + 1}: Depth alone`).toHaveLength(1);
+      });
+    });
+
+    it.each(CASES)('$key wears its heading on the first box alone, and every box is framed', ({ key, heading, names }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const boxes = boxesOf(container);
+      expect(screen.getAllByText(heading)).toHaveLength(1);
+      expect(within(boxes[0]).getByText(heading)).toBeTruthy();
+      for (const box of boxes.slice(1)) expect(within(box).queryByText(heading)).toBeNull();
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(names.length);
+    });
+
+    it.each(CASES)('$key: exactly its featured sliders\' cells carry sc-featured, never a link cell', ({ key, names, featured }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      for (const name of names) {
+        const cell = screen.getByRole('slider', { name }).closest('.audio-rig-drawer__param-row')!;
+        expect(cell.classList.contains('sc-featured'), name).toBe((featured as readonly string[]).includes(name));
+      }
+      expect(container.querySelectorAll('.sc-featured')).toHaveLength(featured.length);
+      for (const link of container.querySelectorAll('.sc-lfo-link')) expect(link.closest('.sc-featured')).toBeNull();
+    });
+
+    it.each(CASES.filter((c) => c.key !== 'eq3'))('$key: a held-off link keeps its note under it, in the link cell', ({ key }) => {
+      useAudioStore.setState({ filterLinksHeldOff: true });
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      for (const box of boxesOf(container)) {
+        const [sliderCell, linkCell] = cellsOf(box);
+        const link = linkCell.querySelector('.sc-lfo-link.sc-held-off')!;
+        expect(link).not.toBeNull();
+        const note = within(linkCell).getByText('Held off by Audio Load');
+        expect(link.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(within(sliderCell).queryByText('Held off by Audio Load')).toBeNull();
+      }
+    });
+  });
+
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 6): the ten single-box effects, each with its Mix, Amount, Return, Width or
+  // Ceiling first and featured (§1.4). Rows are listed by content key; a row of two is a nested 'responsive' panel.
+  describe('the ten single-box effects (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+    const SINGLE_BOX = [
+      { key: 'reverb', rows: [['fleet.reverb.amount'], ['fleet.reverb.length', 'fleet.reverb.preDelay']] },
+      { key: 'delay', rows: [['fleet.delay.amount'], ['fleet.delay.time', 'fleet.delay.repeats']] },
+      { key: 'distortion', rows: [['fleet.distortion.mix'], ['fleet.distortion.drive']] },
+      { key: 'chebyshev', rows: [['fleet.chebyshev.mix'], ['fleet.chebyshev.harmonics']] },
+      { key: 'bitCrusher', rows: [['fleet.bitCrusher.mix'], ['fleet.bitCrusher.bits']] },
+      { key: 'tremolo', rows: [['fleet.tremolo.mix'], ['fleet.tremolo.rate', 'fleet.tremolo.depth'], ['fleet.tremolo.spread']] },
+      { key: 'vibrato', rows: [['fleet.vibrato.mix'], ['fleet.vibrato.rate', 'fleet.vibrato.depth']] },
+      { key: 'frequencyShifter', rows: [['fleet.frequencyShifter.mix'], ['fleet.frequencyShifter.shift']] },
+      { key: 'stereoWidener', rows: [['fleet.stereoWidener.width']] },
+      { key: 'limiter', rows: [['fleet.limiter.ceiling']] },
+    ] as const satisfies ReadonlyArray<{ key: AudioRigEffectKey; rows: ReadonlyArray<ReadonlyArray<keyof typeof CONTENT>> }>;
+    const human = (key: keyof typeof CONTENT) => CONTENT[key].human;
+    const boxContent = (container: HTMLElement, key: string) =>
+      container.querySelector(`[data-panel-id="audioRig.${key}.p1"] > .sc-directional-panel__content`)!;
+
+    it.each(SINGLE_BOX)('$key is one box whose rows follow §1.2, a shared row its own responsive panel', ({ key, rows }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(1);
+      const children = [...boxContent(container, key).children] as HTMLElement[];
+      expect(children).toHaveLength(rows.length);
+      rows.forEach((row, r) => {
+        const child = children[r];
+        if (row.length === 1) {
+          expect(child.matches('.audio-rig-drawer__param-row'), `${key} r${r + 1}`).toBe(true);
+          expect(within(child).getByRole('slider', { name: human(row[0]) }), `${key} r${r + 1}`).toBeTruthy();
+        } else {
+          expect(child.getAttribute('data-panel-id'), `${key} r${r + 1}`).toBe(`audioRig.${key}.p1.r${r + 1}`);
+          const cells = [...child.querySelector(':scope > .sc-directional-panel__content')!.children] as HTMLElement[];
+          expect(cells, `${key} r${r + 1}`).toHaveLength(row.length);
+          row.forEach((name, c) => expect(within(cells[c]).getByRole('slider', { name: human(name) }), `${key} r${r + 1} c${c + 1}`).toBeTruthy());
         }
+      });
+    });
+
+    it.each(SINGLE_BOX)('$key: the first control\'s cell is featured, and no other cell is', ({ key, rows }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const lead = screen.getByRole('slider', { name: human(rows[0][0]) }).closest('.audio-rig-drawer__param-row')!;
+      expect(lead.classList.contains('sc-featured')).toBe(true);
+      expect(container.querySelectorAll('.sc-featured')).toHaveLength(1);
+    });
+
+    const SHARED = SINGLE_BOX.filter((e) => e.rows.some((row) => row.length > 1));
+    it.each(SHARED)('$key: a shared row is side by side (row) on desktop and stacks (column) on tablet and mobile', ({ key, rows }) => {
+      const r = rows.findIndex((row) => row.length > 1) + 1;
+      const orientationOf = (container: HTMLElement) =>
+        container.querySelector(`[data-panel-id="audioRig.${key}.p1.r${r}"] > .sc-directional-panel__content`)!.getAttribute('data-orientation');
+      stubMatchMedia({ mobile: false, tablet: false });
+      const desktop = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(orientationOf(desktop.container)).toBe('row');
+      desktop.unmount();
+      for (const tier of [{ mobile: false, tablet: true }, { mobile: true, tablet: true }]) {
+        stubMatchMedia(tier);
+        const { container, unmount } = render(<AudioRigEffectPanel effectKey={key} />);
+        expect(orientationOf(container), JSON.stringify(tier)).toBe('column');
         unmount();
+      }
+    });
+  });
+
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 7): Auto Wah, Phaser, Chorus and Compressor, two boxes each, the heading on the
+  // first (assumption 2); the three pedals' Mix or Return featured, the Compressor nothing. 'decay' is the Decay radio.
+  describe('the four two-box effects (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+    const TWO_BOX = [
+      {
+        key: 'autoWah', featured: 'fleet.autoWah.mix',
+        boxes: [
+          [['fleet.autoWah.mix'], ['fleet.autoWah.baseFrequency', 'fleet.autoWah.octaves']],
+          [['fleet.autoWah.sensitivity', 'fleet.autoWah.q'], ['fleet.autoWah.gain', 'fleet.autoWah.follower']],
+        ],
+      },
+      {
+        key: 'phaser', featured: 'fleet.phaser.mix',
+        boxes: [
+          [['fleet.phaser.mix'], ['fleet.phaser.baseFrequency', 'fleet.phaser.rate'], ['fleet.phaser.octaves']],
+          [['fleet.phaser.stages', 'fleet.phaser.q']],
+        ],
+      },
+      {
+        key: 'chorus', featured: 'fleet.chorus.mix',
+        boxes: [
+          [['fleet.chorus.mix'], ['fleet.chorus.rate', 'fleet.chorus.depth']],
+          [['fleet.chorus.delay', 'fleet.chorus.spread'], ['fleet.chorus.feedback']],
+        ],
+      },
+      {
+        key: 'compressor', featured: null,
+        boxes: [
+          [['fleet.compressor.threshold', 'fleet.compressor.ratio'], ['fleet.compressor.knee']],
+          [['fleet.compressor.attack', 'fleet.compressor.release'], ['decay']],
+        ],
+      },
+    ] as const satisfies ReadonlyArray<{
+      key: AudioRigEffectKey;
+      featured: keyof typeof CONTENT | null;
+      boxes: ReadonlyArray<ReadonlyArray<ReadonlyArray<keyof typeof CONTENT | 'decay'>>>;
+    }>;
+    const contentOf = (el: Element) => [...el.querySelector(':scope > .sc-directional-panel__content')!.children] as HTMLElement[];
+    function expectControl(cell: HTMLElement, name: keyof typeof CONTENT | 'decay', where: string) {
+      if (name === 'decay') expect(within(cell).getByRole('radio', { name: 'Natural Decay' }), where).toBeTruthy();
+      else expect(within(cell).getByRole('slider', { name: CONTENT[name].human }), where).toBeTruthy();
+    }
+
+    it.each(TWO_BOX)('$key renders two boxes whose rows follow §1.2, each shared row its own responsive panel', ({ key, boxes }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      expect(container.querySelectorAll('.sc-directional-panel-facade')).toHaveLength(2);
+      boxes.forEach((rows, b) => {
+        const box = container.querySelector(`[data-panel-id="audioRig.${key}.p${b + 1}"]`)!;
+        expect(box, `${key} p${b + 1}`).not.toBeNull();
+        const children = contentOf(box);
+        expect(children, `${key} p${b + 1}`).toHaveLength(rows.length);
+        rows.forEach((row, r) => {
+          const where = `${key} p${b + 1} r${r + 1}`;
+          if (row.length === 1) {
+            expect(children[r].matches('.audio-rig-drawer__param-row'), where).toBe(true);
+            expectControl(children[r], row[0], where);
+          } else {
+            expect(children[r].getAttribute('data-panel-id'), where).toBe(`audioRig.${key}.p${b + 1}.r${r + 1}`);
+            const cells = contentOf(children[r]);
+            expect(cells, where).toHaveLength(row.length);
+            row.forEach((name, c) => expectControl(cells[c], name, `${where} c${c + 1}`));
+          }
+        });
+      });
+    });
+
+    it.each(TWO_BOX)('$key wears its heading on the first box alone', ({ key }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const heading = CONTENT[`fleet.${key}`].human;
+      expect(screen.getAllByText(heading)).toHaveLength(1);
+      expect(within(container.querySelector(`[data-panel-id="audioRig.${key}.p1"]`) as HTMLElement).getByText(heading)).toBeTruthy();
+    });
+
+    it.each(TWO_BOX)('$key: exactly its Mix or Return cell is featured (the Compressor none)', ({ key, featured }) => {
+      const { container } = render(<AudioRigEffectPanel effectKey={key} />);
+      const marked = [...container.querySelectorAll('.sc-featured')];
+      if (featured === null) {
+        expect(marked).toHaveLength(0);
+      } else {
+        expect(marked).toHaveLength(1);
+        expect(within(marked[0] as HTMLElement).getByRole('slider', { name: CONTENT[featured].human })).toBeTruthy();
       }
     });
   });
@@ -394,8 +585,9 @@ describe('AudioRigEffectPanel', () => {
   });
 
   describe('inline LfoLink rows (Task 14, docs/tasks/LFO_BANK.md — replaces the old shared per-block target-group display)', () => {
+    /** The param's box: its slider cell, then its link cell (docs/specs/CONTENT_LAYOUT.md §1.2). */
     function rowOf(sliderName: string) {
-      return screen.getByRole('slider', { name: sliderName }).closest('.audio-rig-drawer__param-row') as HTMLElement;
+      return screen.getByRole('slider', { name: sliderName }).closest('.sc-directional-panel') as HTMLElement;
     }
 
     it('EQ renders a LfoLink row directly after each of its 3 param rows, never one shared display', () => {
@@ -469,8 +661,9 @@ describe('AudioRigEffectPanel', () => {
 
   describe('Audio Load: filterLinksHeldOff on inline LfoLinks (docs/tasks/LFO_BANK.md Task 3 behavior, Task 14 UI)', () => {
     const HELD_OFF = 'Held off by Audio Load';
+    /** The param's box: its slider cell, then its link cell (docs/specs/CONTENT_LAYOUT.md §1.2). */
     function rowOf(sliderName: string) {
-      return screen.getByRole('slider', { name: sliderName }).closest('.audio-rig-drawer__param-row') as HTMLElement;
+      return screen.getByRole('slider', { name: sliderName }).closest('.sc-directional-panel') as HTMLElement;
     }
     function depthSliderOf(row: HTMLElement) {
       return within(row).getByRole('slider', { name: 'Depth' });
@@ -599,28 +792,8 @@ describe('AudioRigEffectPanel', () => {
       expect(attackRow.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
     });
 
-    it('Knee and Decay Mode share a row too — same pairing treatment as Threshold+Ratio/Attack+Release (Crawford\'s own request)', () => {
-      render(<AudioRigEffectPanel effectKey="compressor" />);
-      const kneeRow = screen.getByRole('slider', { name: 'Knee' }).closest('.audio-rig-drawer__param-row')!;
-      const decayModeRow = screen.getByRole('radio', { name: 'Natural Decay' }).closest('.audio-rig-drawer__param-row')!;
-      expect(kneeRow).not.toBe(decayModeRow); // still 2 distinct param-rows, just sharing one DirectionalPanel now
-      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
-      expect(kneeDecayPanel.contains(decayModeRow)).toBe(true);
-    });
-
-    it('Knee and Decay Mode stack (column) on mobile/tablet', () => {
-      stubMatchMedia({ mobile: true, tablet: true });
-      render(<AudioRigEffectPanel effectKey="compressor" />);
-      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
-      expect(kneeDecayPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('column');
-    });
-
-    it('Knee and Decay Mode share a row (row) on desktop', () => {
-      stubMatchMedia({ mobile: false, tablet: false });
-      render(<AudioRigEffectPanel effectKey="compressor" />);
-      const kneeDecayPanel = screen.getByRole('slider', { name: 'Knee' }).closest('.sc-directional-panel')!;
-      expect(kneeDecayPanel.querySelector(':scope > .sc-directional-panel__content')?.getAttribute('data-orientation')).toBe('row');
-    });
+    // Knee and Decay no longer share a row: Knee closes the first box and Decay the second (docs/specs/CONTENT_LAYOUT.md
+    // §1.2), pinned by 'the four two-box effects' above.
   });
 
   describe('Decay radio button', () => {
@@ -661,7 +834,8 @@ describe('AudioRigEffectPanel', () => {
     it('lives inside the Compressor panel, under its other params — not a master row', () => {
       render(<AudioRigEffectPanel effectKey="compressor" />);
       const decayRadio = screen.getByRole('radio', { name: 'Natural Decay' });
-      const compressorPanel = screen.getByText('Compressor').closest('.sc-directional-panel');
+      // The Compressor's two boxes share one effect block; Decay is the last row of the second (CONTENT_LAYOUT.md §1.2).
+      const compressorPanel = screen.getByText('Compressor').closest('.audio-rig-drawer__effect-block');
       expect(compressorPanel?.contains(decayRadio)).toBe(true);
       expect(compressorPanel?.textContent).toContain('Threshold');
     });
@@ -1188,20 +1362,20 @@ describe('AudioRigEffectPanel', () => {
         expect(wet.closest('.sc-tempo-sync')).toBeNull();
       });
 
-      // Three param-rows in DOM order — the first two inside the nested top-row panel, Delay Amount a
-      // direct child of the block (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.3).
-      it('Delay Time\'s Tempo Sync composition sits inside its own param-row, first in DOM order, inside the top-row panel', () => {
+      // Three param-rows in DOM order — Delay Amount a direct child of the box, then the two inside the nested
+      // shared-row panel (docs/specs/CONTENT_LAYOUT.md §1.2).
+      it('Delay Time\'s Tempo Sync composition sits inside its own param-row, after Delay Amount, inside the shared-row panel', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
         const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
         expect(rows).toHaveLength(3);
-        expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
-        expect(within(rows[0] as HTMLElement).getByRole('slider', { name: 'Delay Time' })).toBeTruthy();
-        expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Repeats' })).toBeTruthy();
-        expect(within(rows[2] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
-        const topRow = container.querySelector('[data-panel-id="audioRig.delay.topRow"]')!;
-        expect(topRow.contains(rows[0])).toBe(true);
-        expect(topRow.contains(rows[1])).toBe(true);
-        expect(topRow.contains(rows[2])).toBe(false);
+        expect(within(rows[0] as HTMLElement).getByRole('slider', { name: 'Delay Amount' })).toBeTruthy();
+        expect(rows[1].querySelector('.sc-tempo-sync')).not.toBeNull();
+        expect(within(rows[1] as HTMLElement).getByRole('slider', { name: 'Delay Time' })).toBeTruthy();
+        expect(within(rows[2] as HTMLElement).getByRole('slider', { name: 'Repeats' })).toBeTruthy();
+        const sharedRow = container.querySelector('[data-panel-id="audioRig.delay.p1.r2"]')!;
+        expect(sharedRow.contains(rows[0])).toBe(false);
+        expect(sharedRow.contains(rows[1])).toBe(true);
+        expect(sharedRow.contains(rows[2])).toBe(true);
       });
 
       // The toggle sits in its own row UNDER Delay Time (Crawford, 2026-10-03), inside Delay Time's own
@@ -1210,9 +1384,9 @@ describe('AudioRigEffectPanel', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="delay" />);
         const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
         expect(rows).toHaveLength(3);
-        expect(rows[0].contains(tempoToggle())).toBe(true);
+        expect(rows[1].contains(tempoToggle())).toBe(true);
         expect(timeThumb().compareDocumentPosition(tempoToggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        expect(rows[1].querySelector('[role="switch"]')).toBeNull();
+        expect(rows[0].querySelector('[role="switch"]')).toBeNull();
         expect(rows[2].querySelector('[role="switch"]')).toBeNull();
       });
 
@@ -1551,24 +1725,28 @@ describe('AudioRigEffectPanel', () => {
         }
       });
 
-      it('Rate is the first row, the switch sits under it in the same row, and no other row has a switch', () => {
+      // DOM order (docs/specs/CONTENT_LAYOUT.md §1.2): Mix; Base Frequency beside Rate; Octaves; then Stages beside Resonance.
+      const RATE_CELL = 2;
+
+      it('Rate is the third cell (beside Base Frequency), the switch sits under it in the same cell, and no other cell has a switch', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="phaser" />);
         const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
         expect(rows).toHaveLength(6);
-        expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
-        expect(rows[0].contains(tempoToggle())).toBe(true);
+        expect(rows[RATE_CELL].querySelector('.sc-tempo-sync')).not.toBeNull();
+        expect(rows[RATE_CELL].contains(tempoToggle())).toBe(true);
         expect(rateThumb().compareDocumentPosition(tempoToggle()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-        for (let i = 1; i < rows.length; i++) expect(rows[i].querySelector('[role="switch"]'), `row ${i}`).toBeNull();
+        for (let i = 0; i < rows.length; i++) if (i !== RATE_CELL) expect(rows[i].querySelector('[role="switch"]'), `row ${i}`).toBeNull();
       });
 
-      it('the other rows follow in the block order: Octaves, Base Frequency, Stages, Resonance, Mix', () => {
+      it('the other cells follow in the layout order: Mix, Base Frequency, Octaves, Stages, Resonance', () => {
         const { container } = render(<AudioRigEffectPanel effectKey="phaser" />);
         const rows = [...container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row')];
         const names = rows.map((r) => within(r as HTMLElement).getAllByRole('slider')[0].getAttribute('aria-label') ?? within(r as HTMLElement).getAllByRole('slider')[0].getAttribute('aria-labelledby'));
         expect(names).toHaveLength(6);
-        const order = ['octaves', 'baseFrequency', 'stages', 'q', 'mix'] as const;
+        const others = rows.filter((_, i) => i !== RATE_CELL);
+        const order = ['mix', 'baseFrequency', 'octaves', 'stages', 'q'] as const;
         order.forEach((key, i) => {
-          expect(within(rows[i + 1] as HTMLElement).getByRole('slider', { name: CONTENT[`fleet.phaser.${key}`].human })).toBeTruthy();
+          expect(within(others[i] as HTMLElement).getByRole('slider', { name: CONTENT[`fleet.phaser.${key}`].human })).toBeTruthy();
         });
       });
 
@@ -1868,12 +2046,13 @@ describe('AudioRigEffectPanel', () => {
   // PEDAL_RATE_RANGE_HZ. Tested against the REAL store, as the Phaser's is, so a wrong key shows up as wrong state.
   describe.each([
     {
-      key: 'chorus', setter: 'setGlobalChorus', plain: ['delay', 'depth', 'spread', 'feedback', 'mix'],
+      key: 'chorus', setter: 'setGlobalChorus', cells: ['mix', 'rate', 'depth', 'delay', 'spread', 'feedback'],
       others: { delayTime: 6, depth: 0.4, spread: 120, feedback: 0.15, wet: 0.33 },
     },
-    { key: 'tremolo', setter: 'setGlobalTremolo', plain: ['depth', 'spread', 'mix'], others: { depth: 0.6, spread: 90, wet: 0.27 } },
-    { key: 'vibrato', setter: 'setGlobalVibrato', plain: ['depth', 'mix'], others: { depth: 0.2, wet: 0.31 } },
-  ] as const)('$key Rate Tempo Sync (Global Pedals T11)', ({ key, setter, plain, others }) => {
+    // In DOM order (docs/specs/CONTENT_LAYOUT.md §1.2): Mix or Return first, then Rate beside Depth.
+    { key: 'tremolo', setter: 'setGlobalTremolo', cells: ['mix', 'rate', 'depth', 'spread'], others: { depth: 0.6, spread: 90, wet: 0.27 } },
+    { key: 'vibrato', setter: 'setGlobalVibrato', cells: ['mix', 'rate', 'depth'], others: { depth: 0.2, wet: 0.31 } },
+  ] as const)('$key Rate Tempo Sync (Global Pedals T11)', ({ key, setter, cells, others }) => {
     const TOGGLE_NAME = CONTENT['ui.tempoSync'].human;
     const nv = (division: NoteDivision, modifier: NoteModifier = 'straight'): NoteValue => ({ division, modifier });
     const OTHER_SYNCED = (['phaser', 'chorus', 'tremolo', 'vibrato'] as const).filter((k) => k !== key);
@@ -1923,20 +2102,23 @@ describe('AudioRigEffectPanel', () => {
     });
 
     describe('layout', () => {
-      it('holds exactly one Tempo Sync slider+switch, on the Rate row, first; every other row is a plain slider', () => {
+      it('holds exactly one Tempo Sync slider+switch, on the Rate cell; every other cell is a plain slider, in layout order', () => {
         const { container } = render(<AudioRigEffectPanel effectKey={key} />);
         expect(container.querySelectorAll('.sc-tempo-sync')).toHaveLength(1);
         expect(screen.getAllByRole('switch', { name: TOGGLE_NAME })).toHaveLength(1);
-        expect(screen.getAllByRole('slider')).toHaveLength(1 + plain.length);
+        expect(screen.getAllByRole('slider')).toHaveLength(cells.length);
         const rows = container.querySelectorAll('.audio-rig-drawer__effect-block .sc-directional-panel__content > .audio-rig-drawer__param-row');
-        expect(rows).toHaveLength(1 + plain.length);
-        expect(rows[0].querySelector('.sc-tempo-sync')).not.toBeNull();
-        expect(rows[0].contains(rateThumb())).toBe(true);
-        expect(rows[0].contains(tempoToggle())).toBe(true);
-        plain.forEach((field, i) => {
-          const row = rows[i + 1] as HTMLElement;
-          expect(row.querySelector('[role="switch"]'), field).toBeNull();
-          expect(within(row).getByRole('slider', { name: CONTENT[`fleet.${key}.${field}` as keyof typeof CONTENT].human }), field).toBeTruthy();
+        expect(rows).toHaveLength(cells.length);
+        cells.forEach((field, i) => {
+          const row = rows[i] as HTMLElement;
+          if (field === 'rate') {
+            expect(row.querySelector('.sc-tempo-sync')).not.toBeNull();
+            expect(row.contains(rateThumb())).toBe(true);
+            expect(row.contains(tempoToggle())).toBe(true);
+          } else {
+            expect(row.querySelector('[role="switch"]'), field).toBeNull();
+            expect(within(row).getByRole('slider', { name: CONTENT[`fleet.${key}.${field}` as keyof typeof CONTENT].human }), field).toBeTruthy();
+          }
         });
       });
 

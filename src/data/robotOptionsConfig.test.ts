@@ -4,7 +4,13 @@ import {
   VOLUME_SCHEMA,
   PAN_SCHEMA,
   PAN_AUTO_SCHEMA,
-  PAN_ROW_PANEL_SCHEMA,
+  MIX_P1_PANEL_SCHEMA,
+  MIX_P1_R2_PANEL_SCHEMA,
+  MIX_P2_PANEL_SCHEMA,
+  MIX_P2_R1_PANEL_SCHEMA,
+  SENDS_P1_PANEL_SCHEMA,
+  SENDS_LAYOUT,
+  SENDS_ROW_PANEL_SCHEMAS,
   ROBOT_SEND_SCHEMAS,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
@@ -18,15 +24,14 @@ import {
   SUSTAIN_SCHEMA,
   RELEASE_SCHEMA,
   SIGNATURE_ARRAY_CONFIG,
-  VOLUME_ROW_PANEL_SCHEMA,
-  VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA,
-  PING_CONTOUR_PANEL_SCHEMA,
+  CONTOUR_PANEL_SCHEMA,
   PORTAMENTO_SCHEMA,
   ATTACK_CURVE_SCHEMA,
   RELEASE_CURVE_SCHEMA,
-  CURVE_ROW_PANEL_SCHEMA,
-  BUS_FILTER_PANEL_SCHEMA,
-  BUS_FILTER_ROW_PANEL_SCHEMA,
+  CHARACTER_PANEL_SCHEMA,
+  BUS_FILTER_P1_PANEL_SCHEMA,
+  BUS_FILTER_P2_PANEL_SCHEMA,
+  BUS_FILTER_P2_R1_PANEL_SCHEMA,
   BUS_CUTOFF_SCHEMA,
   BUS_RESONANCE_SCHEMA,
   BUS_FILTER_TYPE_SCHEMA,
@@ -34,7 +39,6 @@ import {
   DYNAMICS_SCHEMA,
   RESTS_SCHEMA,
   ACCENTS_SCHEMA,
-  ARTICULATION_PANEL_SCHEMA,
 } from './robotOptionsConfig';
 // Namespace import (not named) so Task 9's cleanup assertions below can check for the 3 old
 // accordion consts' absence at runtime, without a named import that would itself fail to compile
@@ -188,20 +192,20 @@ describe('robotOptionsConfig', () => {
       expect(PAN_SCHEMA.humanLabel).not.toBe(PAN_AUTO_SCHEMA.humanLabel);
     });
 
-    it('PAN_ROW_PANEL_SCHEMA is an unlabeled row-orientation directionalPanel', () => {
-      expect(PAN_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'row' });
-      expect(PAN_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
-      expect(PAN_ROW_PANEL_SCHEMA.humanLabel).toBeUndefined();
+    it('MIX_P2_R1_PANEL_SCHEMA (the Pan row) is an unlabeled row-orientation directionalPanel', () => {
+      expect(MIX_P2_R1_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'row' });
+      expect(MIX_P2_R1_PANEL_SCHEMA.loreLabel).toBeUndefined();
+      expect(MIX_P2_R1_PANEL_SCHEMA.humanLabel).toBeUndefined();
     });
 
     it('the three Pan schemas carry unique robotOptions.* ids, none colliding with Volume', () => {
-      const ids = [PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id, PAN_ROW_PANEL_SCHEMA.id, VOLUME_SCHEMA.id, VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.id];
+      const ids = [PAN_SCHEMA.id, PAN_AUTO_SCHEMA.id, MIX_P2_R1_PANEL_SCHEMA.id, VOLUME_SCHEMA.id, MIX_P1_PANEL_SCHEMA.id];
       ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
       expect(new Set(ids).size).toBe(ids.length);
     });
 
     it('the Pan schemas are JSON-serializable', () => {
-      [PAN_SCHEMA, PAN_AUTO_SCHEMA, PAN_ROW_PANEL_SCHEMA].forEach((schema) => {
+      [PAN_SCHEMA, PAN_AUTO_SCHEMA, MIX_P2_R1_PANEL_SCHEMA].forEach((schema) => {
         expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
       });
     });
@@ -531,23 +535,51 @@ describe('verticalHeight budget (roadmap 13 — "Vertical Slider Label Overflow"
   });
 });
 
-// docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4: Type | Gain share a top row, Phase | Interval share
-// the last row (only when Interval is shown) — each a nested 'responsive' panel, side by side on
-// desktop, stacked below, unlabeled.
-describe('SignatureArrayLayerBlock.rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4)', () => {
-  it("every layer's rows.typeGain and rows.phaseInterval are unlabeled 'responsive' directionalPanels under the layer's own id", () => {
+// docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 17): each oscillator is three boxes,
+// P1 (Type | Gain, then Gain's link), P2 (Detune, then its link), P3 (Phase, then Interval on a pulse layer).
+// Type | Gain is P1's one shared row, a nested 'responsive' panel, unlabeled.
+describe('SignatureArrayLayerBlock boxes and row (docs/specs/CONTENT_LAYOUT.md §1.3)', () => {
+  it("every layer's three boxes are column directionalPanels on the sheet scheme, robotOptions.<layer>.p1 to .p3", () => {
     for (const block of SIGNATURE_ARRAY_CONFIG) {
-      expect(block.rows.typeGain, `${block.key}.typeGain`).toEqual({ id: `robotOptions.${block.key}.typeGainRow`, type: 'directionalPanel', orientation: 'responsive' });
-      expect(block.rows.phaseInterval, `${block.key}.phaseInterval`).toEqual({ id: `robotOptions.${block.key}.phaseIntervalRow`, type: 'directionalPanel', orientation: 'responsive' });
-      expect('humanLabel' in block.rows.typeGain, `${block.key}.typeGain label`).toBe(false);
-      expect('loreLabel' in block.rows.phaseInterval, `${block.key}.phaseInterval label`).toBe(false);
+      expect([block.panels.p1, block.panels.p2, block.panels.p3].map((p) => p.id), block.key).toEqual([
+        `robotOptions.${block.key}.p1`, `robotOptions.${block.key}.p2`, `robotOptions.${block.key}.p3`,
+      ]);
+      for (const p of [block.panels.p1, block.panels.p2, block.panels.p3]) {
+        expect(p, p.id).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
+      }
     }
   });
 
-  it('row ids are unique across the three layers and distinct from the layer panel ids', () => {
-    const ids = SIGNATURE_ARRAY_CONFIG.flatMap((b) => [b.panel.id, b.rows.typeGain.id, b.rows.phaseInterval.id]);
-    expect(ids).toHaveLength(9);
-    expect(new Set(ids).size).toBe(9);
+  it("only P1 carries the layer's heading — its own labels reused verbatim; P2 and P3 are unlabeled", () => {
+    for (const block of SIGNATURE_ARRAY_CONFIG) {
+      expect(block.panels.p1.loreLabel, block.key).toBe(block.loreLabel);
+      expect(block.panels.p1.humanLabel, block.key).toBe(block.humanLabel);
+      expect('humanLabel' in block.panels.p2, `${block.key}.p2`).toBe(false);
+      expect('loreLabel' in block.panels.p3, `${block.key}.p3`).toBe(false);
+      expect('humanLabel' in block.panels.p3, `${block.key}.p3`).toBe(false);
+    }
+  });
+
+  it("every layer's rows.typeGain is an unlabeled 'responsive' directionalPanel, robotOptions.<layer>.p1.r1", () => {
+    for (const block of SIGNATURE_ARRAY_CONFIG) {
+      expect(block.rows.typeGain, block.key).toEqual({ id: `robotOptions.${block.key}.p1.r1`, type: 'directionalPanel', orientation: 'responsive' });
+    }
+  });
+
+  it('box and row ids are unique across the three layers', () => {
+    const ids = SIGNATURE_ARRAY_CONFIG.flatMap((b) => [b.panels.p1.id, b.panels.p2.id, b.panels.p3.id, b.rows.typeGain.id]);
+    expect(ids).toHaveLength(12);
+    expect(new Set(ids).size).toBe(12);
+  });
+
+  it('Gain and Detune are featured on every layer; Type, Phase and Interval are not', () => {
+    for (const block of SIGNATURE_ARRAY_CONFIG) {
+      const featured = block.params.filter((p) => p.schema.featured).map((p) => p.field);
+      expect(featured, block.key).toEqual(['gain', 'detune']);
+      for (const p of block.params.filter((q) => !featured.includes(q.field))) {
+        expect(p.schema.featured, `${block.key}.${p.field}`).toBeUndefined();
+      }
+    }
   });
 
   it('remains JSON-serializable', () => {
@@ -561,33 +593,67 @@ describe('SignatureArrayLayerBlock.rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDA
 // ========================================
 
 describe('ROBOT_OUTPUT_PANEL_SCHEMA no longer exists (Task 2 cleanup)', () => {
-  it('is not exported by the module — fully superseded by AudioSettingSection\'s own panels', () => {
+  it('is not exported by the module — fully superseded by the Levels sections\' own panels', () => {
     expect((robotOptionsConfigModule as Record<string, unknown>).ROBOT_OUTPUT_PANEL_SCHEMA).toBeUndefined();
   });
 });
 
-describe('VOLUME_ROW_PANEL_SCHEMA / VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.2)', () => {
-  it('VOLUME_ROW_PANEL_SCHEMA is a column-orientation directionalPanel, unlabeled — Volume always renders above its LFO, matching every other LFO layout (Crawford\'s own correction, was "responsive")', () => {
-    expect(VOLUME_ROW_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
-    expect(VOLUME_ROW_PANEL_SCHEMA.loreLabel).toBeUndefined();
-    expect(VOLUME_ROW_PANEL_SCHEMA.humanLabel).toBeUndefined();
+// docs/specs/CONTENT_LAYOUT.md §1.3 (docs/tasks/CONTENT_LAYOUT.md Task 13): Levels' Mix and Sends boxes and rows.
+describe('the Mix and Sends panel schemas', () => {
+  const MIX_AND_SENDS = [MIX_P1_PANEL_SCHEMA, MIX_P1_R2_PANEL_SCHEMA, MIX_P2_PANEL_SCHEMA, MIX_P2_R1_PANEL_SCHEMA, SENDS_P1_PANEL_SCHEMA];
+
+  it('are unlabeled directionalPanels with unique ids on the sheet scheme, JSON-serializable', () => {
+    expect(MIX_AND_SENDS.map((s) => s.id)).toEqual(['robotOptions.mix.p1', 'robotOptions.mix.p1.r2', 'robotOptions.mix.p2', 'robotOptions.mix.p2.r1', 'robotOptions.sends.p1']);
+    for (const schema of MIX_AND_SENDS) {
+      expect(schema.type).toBe('directionalPanel');
+      expect(schema.humanLabel, schema.id).toBeUndefined();
+      expect(JSON.parse(JSON.stringify(schema))).toEqual(schema);
+    }
   });
 
-  it('VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA is a column-orientation directionalPanel, unlabeled', () => {
-    expect(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
-    expect(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.loreLabel).toBeUndefined();
-    expect(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.humanLabel).toBeUndefined();
+  it('SENDS_LAYOUT places every send exactly once, in table order; a row of two has a responsive row schema and a row of one none', () => {
+    expect(SENDS_LAYOUT.flat()).toEqual([...ROBOT_SEND_FIELDS]);
+    expect(SENDS_ROW_PANEL_SCHEMAS.map((s) => s?.id)).toEqual(['robotOptions.sends.p1.r1', 'robotOptions.sends.p1.r2', undefined]);
+    SENDS_ROW_PANEL_SCHEMAS.forEach((s) => s && expect(s.orientation).toBe('responsive'));
   });
 
-  it('both ids are unique and in the robotOptions.* namespace', () => {
-    const ids = [VOLUME_ROW_PANEL_SCHEMA.id, VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA.id];
-    ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
-    expect(new Set(ids).size).toBe(2);
+  it('Volume is featured; Monitor Mode, Pan, Auto, Dynamics and the sends are not', () => {
+    expect(VOLUME_SCHEMA.featured).toBe(true);
+    for (const schema of [AUDIO_SETTING_SCHEMA, PAN_SCHEMA, PAN_AUTO_SCHEMA, DYNAMICS_SCHEMA, ...SEND_SCHEMAS]) {
+      expect(schema.featured, schema.id).toBeUndefined();
+    }
   });
+});
 
-  it('both remain JSON-serializable', () => {
-    expect(() => JSON.stringify(VOLUME_ROW_PANEL_SCHEMA)).not.toThrow();
-    expect(() => JSON.stringify(VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA)).not.toThrow();
+// docs/specs/CONTENT_LAYOUT.md §1.4 (Task 18): the robot-wide featured set. Every schema this module exports, at any
+// depth (the bare schemas, the send table, each oscillator block's params and boxes), is walked, so a flag added or
+// dropped anywhere in the module shows up here.
+describe('the featured robot schemas (docs/specs/CONTENT_LAYOUT.md §1.4)', () => {
+  function featuredIds(root: unknown): Set<string> {
+    const found = new Set<string>();
+    const seen = new Set<unknown>();
+    const walk = (node: unknown) => {
+      if (node === null || typeof node !== 'object' || seen.has(node)) return;
+      seen.add(node);
+      const record = node as Record<string, unknown>;
+      if (record.featured === true && typeof record.id === 'string') found.add(record.id);
+      for (const value of Object.values(record)) walk(value);
+    };
+    walk(root);
+    return found;
+  }
+
+  const EXPECTED = [
+    'robotOptions.volume',
+    'robotOptions.layer0.gain', 'robotOptions.layer0.detune',
+    'robotOptions.layer1.gain', 'robotOptions.layer1.detune',
+    'robotOptions.layer2.gain', 'robotOptions.layer2.detune',
+    'robotOptions.busFilter.cutoff',
+  ];
+
+  it('are exactly the eight of §1.4', () => {
+    expect(EXPECTED).toHaveLength(8);
+    expect([...featuredIds({ ...robotOptionsConfigModule })].sort()).toEqual([...EXPECTED].sort());
   });
 });
 
@@ -600,15 +666,15 @@ describe('VOLUME/MELODY/ENVELOPE/SOURCE_ACCORDION_SCHEMA no longer exist (docs/t
   });
 });
 
-describe('PING_CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () => {
+describe('CONTOUR_PANEL_SCHEMA (DirectionalPanel wiring, Tasks 3+9)', () => {
   it('is a column-orientation directionalPanel — wraps 2 responsive sub-rows instead of 4 sliders directly (docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4)', () => {
-    expect(PING_CONTOUR_PANEL_SCHEMA.type).toBe('directionalPanel');
-    expect(PING_CONTOUR_PANEL_SCHEMA.orientation).toBe('column');
+    expect(CONTOUR_PANEL_SCHEMA.type).toBe('directionalPanel');
+    expect(CONTOUR_PANEL_SCHEMA.orientation).toBe('column');
   });
 
   it('has the confirmed loreLabel/humanLabel', () => {
-    expect(PING_CONTOUR_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.envelope.contour'].lore);
-    expect(PING_CONTOUR_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.envelope.contour'].human);
+    expect(CONTOUR_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.envelope.contour'].lore);
+    expect(CONTOUR_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.envelope.contour'].human);
   });
 });
 
@@ -623,27 +689,6 @@ describe('PING_CONTROLS_ACCORDION_SCHEMA / PING_CONTOUR_ACCORDION_SCHEMA / SIGNA
 describe('RESET_MELODY_SCHEMA no longer exists (Deterministic Robot Melody Generation, Task 6)', () => {
   it('is not exported by the module — full determinism leaves nothing for a Reset Melody control to do', () => {
     expect('RESET_MELODY_SCHEMA' in robotOptionsConfigModule).toBe(false);
-  });
-});
-
-describe('SignatureArrayLayerBlock.panel (additive, Task 3)', () => {
-  it("every layer has a panel field, type directionalPanel, column orientation — it holds one stacked column of rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4; was 'row' with a single child, which did nothing)", () => {
-    for (const block of SIGNATURE_ARRAY_CONFIG) {
-      expect(block.panel, block.key).toMatchObject({ type: 'directionalPanel', orientation: 'column' });
-    }
-  });
-
-  it("every layer's panel loreLabel/humanLabel matches that layer's own loreLabel/humanLabel exactly — reused verbatim, never re-invented", () => {
-    for (const block of SIGNATURE_ARRAY_CONFIG) {
-      expect(block.panel.loreLabel, block.key).toBe(block.loreLabel);
-      expect(block.panel.humanLabel, block.key).toBe(block.humanLabel);
-    }
-  });
-
-  it('every layer panel has a unique id in the robotOptions.* namespace', () => {
-    const ids = SIGNATURE_ARRAY_CONFIG.map((b) => b.panel.id);
-    expect(new Set(ids).size).toBe(3);
-    for (const id of ids) expect(id).toMatch(/^robotOptions\./);
   });
 });
 
@@ -666,7 +711,7 @@ describe('Robot Articulation schemas', () => {
     PORTAMENTO_SCHEMA, ATTACK_CURVE_SCHEMA, RELEASE_CURVE_SCHEMA,
     BUS_CUTOFF_SCHEMA, BUS_RESONANCE_SCHEMA, BUS_FILTER_TYPE_SCHEMA,
   ];
-  const PANEL_SCHEMAS = [BUS_FILTER_PANEL_SCHEMA, CURVE_ROW_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA];
+  const PANEL_SCHEMAS = [BUS_FILTER_P1_PANEL_SCHEMA, BUS_FILTER_P2_PANEL_SCHEMA, CHARACTER_PANEL_SCHEMA, BUS_FILTER_P2_R1_PANEL_SCHEMA];
 
   it('every schema is one of the closed-set ControlSchema variants', () => {
     [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].forEach((schema) => expect(CONTROL_SCHEMA_TYPES).toContain(schema.type));
@@ -756,11 +801,21 @@ describe('Robot Articulation schemas', () => {
       [BUS_CUTOFF_SCHEMA, BUS_RESONANCE_SCHEMA, BUS_FILTER_TYPE_SCHEMA].forEach((s) => expect(s.help?.human.trim(), s.id).toBeTruthy());
     });
 
-    it("the panel is headed by the Source filter concept's own heading", () => {
-      expect(BUS_FILTER_PANEL_SCHEMA.type).toBe('directionalPanel');
-      expect(BUS_FILTER_PANEL_SCHEMA.orientation).toBe('column');
-      expect(BUS_FILTER_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter'].human);
-      expect(BUS_FILTER_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.source.filter'].lore);
+    // docs/specs/CONTENT_LAYOUT.md §1.3 (control layout Task 18): two boxes, the heading on the first alone.
+    it("the first box, robotOptions.busFilter.p1, is a column headed by the Source filter concept's own heading", () => {
+      expect(BUS_FILTER_P1_PANEL_SCHEMA).toMatchObject({ id: 'robotOptions.busFilter.p1', type: 'directionalPanel', orientation: 'column' });
+      expect(BUS_FILTER_P1_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.source.filter'].human);
+      expect(BUS_FILTER_P1_PANEL_SCHEMA.loreLabel).toBe(CONTENT['probe.source.filter'].lore);
+    });
+
+    it('the second box, robotOptions.busFilter.p2, is an unlabeled column', () => {
+      expect(BUS_FILTER_P2_PANEL_SCHEMA).toEqual({ id: 'robotOptions.busFilter.p2', type: 'directionalPanel', orientation: 'column' });
+    });
+
+    it('Cutoff is featured; Resonance and Type are not', () => {
+      expect(BUS_CUTOFF_SCHEMA.featured).toBe(true);
+      expect(BUS_RESONANCE_SCHEMA.featured).toBeUndefined();
+      expect(BUS_FILTER_TYPE_SCHEMA.featured).toBeUndefined();
     });
 
     it("the link rides the bus filter's cutoff target, which is a real robot LFO target", () => {
@@ -771,17 +826,24 @@ describe('Robot Articulation schemas', () => {
 
   describe('row panels', () => {
     it('are unlabeled responsive directionalPanels — pure layout', () => {
-      [CURVE_ROW_PANEL_SCHEMA, BUS_FILTER_ROW_PANEL_SCHEMA].forEach((panel) => {
-        expect(panel).toMatchObject({ type: 'directionalPanel', orientation: 'responsive' });
+      [BUS_FILTER_P2_R1_PANEL_SCHEMA].forEach((panel) => {
+        expect(panel).toMatchObject({ id: 'robotOptions.busFilter.p2.r1', type: 'directionalPanel', orientation: 'responsive' });
         expect(panel.humanLabel).toBeUndefined();
         expect(panel.loreLabel).toBeUndefined();
       });
     });
   });
 
+  // docs/specs/CONTENT_LAYOUT.md §1.3 (control layout Task 15): Character's box replaced the curve row.
+  it("Character's box is an unlabeled column on the sheet scheme, and Contour's box moved to it too", () => {
+    expect(CHARACTER_PANEL_SCHEMA).toMatchObject({ id: 'robotOptions.character.p1', type: 'directionalPanel', orientation: 'column' });
+    expect(CHARACTER_PANEL_SCHEMA.humanLabel).toBeUndefined();
+    expect(CONTOUR_PANEL_SCHEMA.id).toBe('robotOptions.contour.p1');
+  });
+
   it('every schema carries a unique robotOptions.* id, none colliding with the existing Envelope or Source ids', () => {
     const ids = [...VALUE_SCHEMAS, ...PANEL_SCHEMAS].map((s) => s.id);
-    const existing = [ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA, PING_CONTOUR_PANEL_SCHEMA].map((s) => s.id);
+    const existing = [ATTACK_SCHEMA, DECAY_SCHEMA, SUSTAIN_SCHEMA, RELEASE_SCHEMA, CONTOUR_PANEL_SCHEMA].map((s) => s.id);
     ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
     expect(new Set([...ids, ...existing]).size).toBe(ids.length + existing.length);
   });
@@ -852,7 +914,7 @@ describe.each([
 
 describe('Robot Performance schemas — shared', () => {
   it('the three ids are unique robotOptions.* ids that collide with no other top-level schema', () => {
-    const ids = [DYNAMICS_SCHEMA.id, RESTS_SCHEMA.id, ACCENTS_SCHEMA.id, ARTICULATION_PANEL_SCHEMA.id];
+    const ids = [DYNAMICS_SCHEMA.id, RESTS_SCHEMA.id, ACCENTS_SCHEMA.id];
     ids.forEach((id) => expect(id).toMatch(/^robotOptions\./));
     const others = ALL_TOP_LEVEL_SCHEMAS.map((s) => s.id);
     expect(new Set([...ids, ...others]).size).toBe(ids.length + others.length);
@@ -862,18 +924,6 @@ describe('Robot Performance schemas — shared', () => {
     const sliders = [DYNAMICS_SCHEMA, RESTS_SCHEMA, ACCENTS_SCHEMA];
     expect(new Set(sliders.map((s) => s.humanLabel)).size).toBe(3);
     expect(new Set(sliders.map((s) => s.help?.human)).size).toBe(3);
-  });
-
-  it('Dynamics shares its human word with the Levels nav row yet differs in lore, so the duplicate-concept guard holds', () => {
-    // The naming clash is flagged in docs/specs/ROBOT_PERFORMANCE.md §7 — one content key to rename.
-    expect(CONTENT['probe.levels.dynamics'].lore).not.toBe(CONTENT['probe.dynamics'].lore);
-  });
-
-  it('ARTICULATION_PANEL_SCHEMA is a responsive directionalPanel headed from probe.composition.articulation', () => {
-    expect(ARTICULATION_PANEL_SCHEMA.type).toBe('directionalPanel');
-    expect(ARTICULATION_PANEL_SCHEMA.orientation).toBe('responsive');
-    expect(ARTICULATION_PANEL_SCHEMA.humanLabel).toBe(CONTENT['probe.composition.articulation'].human);
-    expect(JSON.parse(JSON.stringify(ARTICULATION_PANEL_SCHEMA))).toEqual(ARTICULATION_PANEL_SCHEMA);
   });
 
   it('the Levels intro names Dynamics and the Composition intro names Rests and Accents, so the sentences the user reads cover the new rows', () => {

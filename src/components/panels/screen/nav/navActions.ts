@@ -7,7 +7,7 @@ import {
   type SelectedFleetParamsEffect,
 } from '@/stores/uiStore';
 import type { HubTile } from '@/types/hub';
-import { ROBOT_SECTIONS_CONFIG, activeRobotSection, sectionTabContent } from '@/data/robotSubsectionConfig';
+import { ROBOT_SECTIONS_CONFIG, activeRobotSection } from '@/data/robotSubsectionConfig';
 import { LFO_BANK_LANE_CONTENT } from '@/data/lfoConfig';
 import { labels, type ContentKey } from '@/content';
 
@@ -60,11 +60,14 @@ export interface FleetParamsSubTab {
   content: ContentKey;
 }
 
-/** Each Fleet Params section's sub-tabs, in the sketch's order (Task 15). Pacing and Audio Quality have none: Pacing's four
- *  leaves are one panel of two rows. The screen and the breadcrumb both read this, so they name the
- *  same tab. */
+/** Each Fleet Params section's sub-tabs, in the sketch's order (Task 15). Every section has a sub-tab row:
+ *  World's are Pacing and Settings (docs/specs/CONTENT_LAYOUT.md §1.2), each named from its panel's own
+ *  entry. The screen and the breadcrumb both read this, so they name the same tab. */
 export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetParamsSubTab[]> = {
-  pacing: [],
+  world: [
+    { id: 'pacing', content: 'fleet.pacing' },
+    { id: 'quality', content: 'fleet.quality' },
+  ],
   lfoBank: [
     { id: 'laneA', content: LFO_BANK_LANE_CONTENT.a },
     { id: 'laneB', content: LFO_BANK_LANE_CONTENT.b },
@@ -102,12 +105,11 @@ export const FLEET_PARAMS_SUBSECTIONS: Record<FleetParamsGroup, readonly FleetPa
     { id: 'stereoWidener', content: 'fleet.stereoWidener' },
     { id: 'limiter', content: 'fleet.limiter' },
   ],
-  // Audio Quality is one panel, as Pacing is (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12).
-  quality: [],
 };
 
 /** The sub-tab a section shows: the stored one when it is this section's, else the section's first
- *  (null, or one left from another section — SectionTabs' own stale-value rule), and none on Pacing. */
+ *  (null, or one left from another section — SectionTabs' own stale-value rule). Null only for a
+ *  section with no sub-tabs, which none is today. */
 export function activeFleetParamsSubsection(
   section: FleetParamsGroup,
   stored: SelectedFleetParamsEffect | null,
@@ -117,14 +119,13 @@ export function activeFleetParamsSubsection(
 }
 
 export const FLEET_PARAMS_GROUP_CONTENT: Record<FleetParamsGroup, ContentKey> = {
-  pacing: 'fleet.pacing',
+  world: 'fleet.world',
   lfoBank: 'fleet.lfoBank',
   eqFilters: 'fleet.eqFilters',
   timeSpace: 'fleet.timeSpace',
   colour: 'fleet.colour',
   modulation: 'fleet.modulation',
   output: 'fleet.output',
-  quality: 'fleet.quality',
 };
 
 function cleanSlate(): void {
@@ -244,8 +245,8 @@ function openEntity(state: BreadcrumbState, roster: NavRoster): { label: string;
 }
 
 /** One breadcrumb segment: its name and, for Root, the branch, the entity and a Fleet Params section
- *  with a sub-tab after it, the call that goes there (Tasks 8, 15). A robot section, a Fleet Params
- *  sub-tab, Pacing or Audio Quality has none: it is only ever the current view. */
+ *  with a sub-tab after it, the call that goes there (Tasks 8, 15). A robot section or a Fleet Params
+ *  sub-tab has none: it is only ever the current view. */
 export interface BreadcrumbSegment {
   label: string;
   go?: () => void;
@@ -266,7 +267,7 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
 
   if (tile === 'audioRig') {
     // Always a tab open (Task 15). The section is an ancestor, going to its first sub-tab, only when a
-    // sub-tab follows it; Pacing has none, so it is the current view.
+    // sub-tab follows it (every section has one today); a section with none would be the current view.
     const section = state.fleetParamsSection;
     const sub = FLEET_PARAMS_SUBSECTIONS[section].find((s) => s.id === activeFleetParamsSubsection(section, state.fleetParamsSubsection));
     const label = name(FLEET_PARAMS_GROUP_CONTENT[section]);
@@ -285,6 +286,6 @@ export function breadcrumbTrail(state: BreadcrumbState, roster: NavRoster): Brea
   // A robot's screen is tabs (Task 16), and so are a company's and All Probes' (Task 23: the same
   // SectionTabs), so one is always open: Source when none is stored.
   const section = ROBOT_SECTIONS_CONFIG.find((s) => s.id === activeRobotSection(state.selectedSection));
-  if (section) trail.push({ label: name(sectionTabContent(section)) });
+  if (section) trail.push({ label: name(section.content) });
   return trail;
 }

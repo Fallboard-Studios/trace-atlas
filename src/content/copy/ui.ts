@@ -68,7 +68,7 @@ export const ui = {
       c: { human: 'Accent LFO', lore: 'Impulse Signature', short: 'C' },
       d: { human: 'Overtone LFO', lore: 'Canopy Signature', short: 'D' },
     },
-    help: { human: 'Which of the four shared LFO Bank lanes moves this dial — an automatic hand turning it back and forth. Every dial on the same lane moves together; Off leaves this one alone.' },
+    help: { human: 'Which of the four shared LFO lanes moves this dial — an automatic hand turning it back and forth. Every dial on the same lane moves together; Off leaves this one alone.' },
   },
   /** A lane option's desk-shell face on LfoLink's lane row: the lane's name, then its letter. */
   'ui.lfoLane.linkName': { human: 'Lane option', template: '{lane} ({short})' },

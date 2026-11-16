@@ -1,8 +1,8 @@
 # Slider Values
 
 Every slider-controlled attribute in the Global Audio Rig view (`AudioRigDrawer.tsx`) and the
-Robot Detail view (`RobotScreen.tsx` — `AudioSettingSection`, `PingControlsDrawer`,
-`PingContourDrawer`, `SignatureArrayDrawer`). Sources: `src/data/audioRigConfig.ts`,
+Robot Detail view (`RobotScreen.tsx` — `AudioSettingSection.tsx`, `PingControlsDrawer.tsx`,
+`PingContourDrawer.tsx`, `SignatureArrayDrawer.tsx`, `BusFilterDrawer.tsx`). Sources: `src/data/audioRigConfig.ts`,
 `src/data/robotOptionsConfig.ts`, `src/components/ui/controls/LfoLink.tsx` for the schema/UI
 columns; `src/data/globalAudioSeedRanges.ts`, `src/data/bands/classic.ts` (the Classic bands),
 `src/utils/globalAudioSeed.ts`, `src/systems/spawnSystem.ts`, `src/utils/bpmSeed.ts` for the

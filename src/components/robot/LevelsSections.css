@@ -1,10 +1,12 @@
-.audio-setting-section {
+/* Mix's two boxes, stacked and spaced as Fleet Params stacks its own (docs/specs/CONTENT_LAYOUT.md assumption 3). */
+.levels-sections__mix {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: var(--spacing-md);
+  min-width: 0;
 }
 
-.audio-setting-section__row {
+.levels-sections__row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -14,8 +16,8 @@
 /* The Pan slider's wrapper inside the Pan row panel: grows to the row's width beside the Auto toggle and
    may shrink below its content (min-width: 0). Deliberately NOT display:flex — useVoxelTrackSlider
    measures its own wrapper and needs a plain block box (see the Volume row's comment in
-   AudioSettingSection.tsx). */
-.audio-setting-section__pan-slider {
+   LevelsSections.tsx). */
+.levels-sections__pan-slider {
   flex: 1 1 0;
   min-width: 0;
 }

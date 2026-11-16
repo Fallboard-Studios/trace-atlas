@@ -21,6 +21,21 @@ export const fleet = {
     },
   },
 
+  // ---------------------------------------------------------------- World
+  // The tab holding Pacing and Settings as sub-tabs (docs/specs/CONTENT_LAYOUT.md §1.2). No lore name
+  // yet (assumption 10); the intro is a draft from Pacing's and Settings' own, awaiting the copy pass.
+  'fleet.world': {
+    human: 'World',
+    intro: {
+      lore: 'World — the mesh’s clock, and your terminal’s limits.',
+      loreDescription: 'Every probe keeps time together while the network surges and settles on its own, and your terminal has its own limits on how much of the fleet it can process at once.',
+      humanDescription: '<ul>'
+        + '<li><strong>Pacing</strong>: the tempo every probe plays to, how far off the grid their notes may land, and the automatic swells that nudge the fleet’s effects on their own — how often, how long and how far.</li>'
+        + '<li><strong>Settings</strong>: how many probes and effects your device runs at once. Lower them if the app stutters or sounds glitchy.</li>'
+        + '</ul>',
+    },
+  },
+
   // ---------------------------------------------------------------- Pacing
   'fleet.pacing': {
     human: 'Pacing',
@@ -84,7 +99,7 @@ export const fleet = {
         + '<li><strong>High-Pass Filter</strong>: cuts the deep, thumping bass and lets bright, high sounds through — like a small phone speaker.</li>'
         + '<li><strong>Low-Pass Filter</strong>: cuts the harsh high pitches and lets deep, low sounds through smoothly — like a thick blanket over the sound.</li>'
         + '</ul>'
-        + '<p>Each of these sliders can link to one of the 4 shared LFO Bank lanes — an invisible hand that turns the slider’s knob back and forth automatically. The picker and Depth control sit right below the slider; Depth sets how far the hand turns. How fast it turns belongs to the lane itself, tuned once in the LFO Bank panel and shared by every slider linked to it.</p>',
+        + '<p>Each of these sliders can link to one of the 4 shared LFO lanes — an invisible hand that turns the slider’s knob back and forth automatically. The picker and Depth control sit right below the slider; Depth sets how far the hand turns. How fast it turns belongs to the lane itself, tuned once in the LFOs panel and shared by every slider linked to it.</p>',
     },
   },
   'fleet.eq': { human: '3-Band EQ', lore: 'Trace Metrics', heading: 'SPECTRAL FREQUENCY EQUALIZER' },
@@ -140,10 +155,10 @@ export const fleet = {
   // fleet.drift.environmental entries' exact copy — one shared Rate/Depth Drift pair reused by all 4
   // lanes, not per-lane-distinct text.
   'fleet.lfoBank': {
-    human: 'LFO Bank',
+    human: 'LFOs',
     lore: 'Phase Locking',
     intro: {
-      lore: 'LFO Bank — four shared signatures driving every linked dial.',
+      lore: 'LFOs — four shared signatures driving every linked dial.',
       loreDescription: 'Meridia Comms Group’s Undersea Mesh Network runs four independent oscillators at all times; any dial across the fleet can lock onto one and ride its signature.',
       humanDescription: '<p>Four shared LFOs (Low Frequency Oscillators) run continuously. Any dial elsewhere in Fleet Params or on a probe can link to one of them — or none — and ride its motion at its own depth; several dials linked to the same lane move together.</p>'
         + '<p>Each lane below has its own Shape and Rate, plus a Rate Drift/Depth Drift pair: Rate Drift makes the lane’s own speed wander over time, Depth Drift makes how far it swings wander instead.</p>',
@@ -226,10 +241,10 @@ export const fleet = {
   // Placeholders for Crawford's copy pass (spec assumption 14): the "degraded transmission" frame carries
   // the lore, and the lore words are the ones the grid (docs/reference/GLOBAL_CHAIN_GRID.md) already lists.
   'fleet.colour': {
-    human: 'Colour',
+    human: 'Color',
     lore: 'Signal Wear',
     intro: {
-      lore: 'Colour — what the long way home does to a signal.',
+      lore: 'Color — what the long way home does to a signal.',
       loreDescription: 'A signal that crosses Meridia Comms Group’s Undersea Mesh Network arrives a little worn. Every fleet carries some wear of its own, and the network lets you turn it up or wipe it clean.',
       humanDescription: '<ul>'
         + '<li><strong>Distortion</strong>: pushes the sound until it overdrives, adding warmth, fuzz and grit.</li>'
@@ -474,7 +489,7 @@ export const fleet = {
         + '<li><strong>Attack Time</strong>: how quickly the compressor reacts once a sound crosses the threshold.</li>'
         + '<li><strong>Release Time</strong>: how quickly the compressor lets go once the sound drops back below the threshold.</li>'
         + '<li><strong>Knee</strong>: how gradually the compressor eases into effect, rather than snapping on abruptly.</li>'
-        + '<li><strong>Decay Mode</strong>: Natural Decay runs Reverb’s and Delay’s echoes through the Compressor along with the original sound, evening everything out together. Controlled Decay sends the echoes around it, so they ring out uncompressed with only Width and the Limiter above them.</li>'
+        + '<li><strong>Decay</strong>: Natural Decay runs Reverb’s and Delay’s echoes through the Compressor along with the original sound, evening everything out together. Controlled Decay sends the echoes around it, so they ring out uncompressed with only Width and the Limiter above them.</li>'
         + '</ul>'
         + '<p><strong>Width</strong>: how wide the whole fleet sounds between the left and right speakers, echoes included. 0.5 is the sound as recorded; 0 folds it to mono; 1 pushes it out to the sides.</p>'
         + '<p><strong>Limiter</strong>: a hard ceiling that keeps the loudest sounds from ever going too loud. <strong>Ceiling</strong> sets the maximum volume nothing is allowed to pass.</p>',
@@ -511,7 +526,7 @@ export const fleet = {
     help: { human: 'How gradually the compressor eases in around the threshold. 0 snaps on at once; higher values blend it in softly.' },
   },
   'fleet.output.decayMode': {
-    human: 'Decay Mode',
+    human: 'Decay',
     lore: 'Decay Protocol',
     options: {
       natural: { human: 'Natural Decay', lore: 'Dissipation' },
@@ -532,14 +547,15 @@ export const fleet = {
     unit: 'dB',
     help: { human: 'The loudest the fleet is ever allowed to get. Anything that would go past it is held down to it.' },
   },
-  // Audio Quality, Fleet Params' last tab (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12): moved verbatim from Settings.
+  // Settings, World's second sub-tab (docs/specs/CONTENT_LAYOUT.md §1.2): the Audio Load Budget. It was the Audio Quality
+  // tab, moved verbatim from the old Settings screen (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12).
   'fleet.quality': {
-    human: 'Audio Quality',
+    human: 'Settings',
     lore: 'Trace Capacity',
     intro: {
-      lore: 'Audio Quality — tune your terminal’s processing load.',
+      lore: 'Settings — tune your terminal’s processing load.',
       loreDescription: 'Meridia Power Group’s Perpetualish Battery Packs keep probes running, but your terminal has its own limits on how much it can process at once.',
-      humanDescription: 'Robot Load limits how many probes can play sound at the same time. Effects Load limits how many effects — like LFOs — can run at once. Lower these if the app stutters or sounds glitchy on your device.',
+      humanDescription: 'Voice Limit caps how many probes can play sound at the same time. Effects Limit caps how many effects — like LFOs — can run at once. Lower these if the app stutters or sounds glitchy on your device.',
     },
   },
   'fleet.quality.audioLoad': { human: 'Audio Load', lore: 'ACOUSTIC LOAD MANAGEMENT' },

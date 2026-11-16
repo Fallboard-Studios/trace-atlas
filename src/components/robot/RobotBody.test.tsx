@@ -476,17 +476,17 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
     describe('boundary lines are one fixed width (backlog 85)', () => {
       const lineEls = (c: HTMLElement) => [...c.querySelectorAll('.gem__lines, .gem__strip')].map((el) => [el.getAttribute('d'), el.getAttribute('stroke-width'), el.getAttribute('opacity')]);
 
-      it('Top and both Mids are 0.7 wide with no lfoLinks, and still 0.7 with a gain link at depth 100', () => {
+      it('Top and both Mids are 0.8 wide with no lfoLinks, and still 0.8 with a gain link at depth 100', () => {
         for (const robot of [makeRobot(), makeRobot({ lfoLinks: links({ 'layer1.gain': { lane: 'b', depth: 100 } }) })]) {
           const { container } = draw(robot);
           expect(lineWidth(container, '.gem__mid--left')).toBe(String(BODY_LINE_WIDTH));
-          expect(lineWidth(container, '.gem__mid--right')).toBe('0.7');
-          expect(lineWidth(container, '.gem__top')).toBe('0.7');
+          expect(lineWidth(container, '.gem__mid--right')).toBe('0.8');
+          expect(lineWidth(container, '.gem__top')).toBe('0.8');
           cleanup();
         }
       });
 
-      it('every orbiter is 1.1 wide whatever Note Variance is', () => {
+      it('every orbiter is 1 wide whatever Note Variance is', () => {
         for (const value of [0, 8]) {
           const { container } = draw(makeRobot({ noteVariance: { active: true, value } }));
           const lines = [...container.querySelectorAll('.gem__orbiter .gem__lines')];
@@ -496,7 +496,7 @@ describe('RobotBody — composes RobotGem (Phase 39, Task 7)', () => {
         }
       });
 
-      it('body strips are at BODY_STRIP_OPACITY (0.6) and orbiter strips at ORBITER_STRIP_OPACITY (1), regardless of gains, depth or Pitch Repeat', () => {
+      it('body strips are at BODY_STRIP_OPACITY (0.6) and orbiter strips at ORBITER_STRIP_OPACITY (0.8), regardless of gains, depth or Pitch Repeat', () => {
         const { container } = draw(withLayers([1, 0, 1], { pitchRepeat: 0, lfoLinks: links({ 'layer0.gain': { lane: 'a', depth: 100 } }) }));
         ['.gem__top', '.gem__mid--left', '.gem__mid--right'].forEach((sel) => {
           expect(container.querySelector(`${sel} .gem__strip`)!.getAttribute('opacity')).toBe(String(BODY_STRIP_OPACITY));

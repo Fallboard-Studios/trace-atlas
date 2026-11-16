@@ -7,9 +7,12 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+/* An effect's boxes stack in number order, spaced as the Fleet Params section spaces its stacked boxes
+   (docs/specs/CONTENT_LAYOUT.md assumption 3). */
 .audio-rig-drawer__effect-block {
   display: flex;
   flex-direction: column;
+  gap: var(--spacing-md);
 }
 
 .audio-rig-drawer__effect-header {

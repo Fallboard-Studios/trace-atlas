@@ -146,7 +146,7 @@ describe('uiStore — selectedSection (docs/specs/archive/NAV_LAYOUT_REWRITE.md 
   // setSelectedSection call), from two real, non-tree sites: RobotSelectionCard's browse-list
   // click and ConsolePanel's inline Back button. Without this reset, a section left open on a
   // previously-viewed robot (e.g. Volume) leaked onto the next robot picked from the browse list,
-  // showing its AudioSettingSection instead of RobotDisplaySection on first click. Fixed at the
+  // showing its Levels section instead of RobotDisplaySection on first click. Fixed at the
   // store level, not at each call site, so no future non-tree caller can reintroduce the same gap
   // — useNavTree.select() itself calls setSelectedSection right after selectRobot, which still
   // wins (last write), so tree-driven selection is unaffected.
@@ -262,16 +262,16 @@ describe('uiStore — fleetParamsSection / fleetParamsSubsection (the Fleet Para
     useUIStore.setState(INITIAL_STATE, true);
   });
 
-  it('defaults to LFO Bank at no sub-tab — the screen reads null as the group\'s first, lane A', () => {
-    expect(DEFAULT_FLEET_PARAMS_SECTION).toBe('lfoBank');
+  it('defaults to World at no sub-tab — the screen reads null as the group\'s first, Pacing', () => {
+    expect(DEFAULT_FLEET_PARAMS_SECTION).toBe('world');
     expect(useUIStore.getState().fleetParamsSection).toBe(DEFAULT_FLEET_PARAMS_SECTION);
     expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
 
   it('setFleetParamsSubsection round-trips a sub-tab and leaves the section alone', () => {
-    useUIStore.getState().setFleetParamsSubsection('laneC');
-    expect(useUIStore.getState().fleetParamsSubsection).toBe('laneC');
-    expect(useUIStore.getState().fleetParamsSection).toBe('lfoBank');
+    useUIStore.getState().setFleetParamsSubsection('quality');
+    expect(useUIStore.getState().fleetParamsSubsection).toBe('quality');
+    expect(useUIStore.getState().fleetParamsSection).toBe('world');
     useUIStore.getState().setFleetParamsSubsection(null);
     expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
   });
@@ -358,21 +358,21 @@ describe('uiStore — selectedSubsection (docs/tasks/archive/NAV_PANEL_VIEWS_AND
   });
 
   it('setSelectedSubsection sets one of the 7 subsections', () => {
-    useUIStore.getState().setSelectedSubsection('pingContour');
-    expect(useUIStore.getState().selectedSubsection).toBe('pingContour');
+    useUIStore.getState().setSelectedSubsection('envelopeContour');
+    expect(useUIStore.getState().selectedSubsection).toBe('envelopeContour');
   });
 
   it('setSelectedSubsection(null) clears back to no subsection chosen', () => {
-    useUIStore.getState().setSelectedSubsection('rhythm');
+    useUIStore.getState().setSelectedSubsection('rhythmMelody');
     useUIStore.getState().setSelectedSubsection(null);
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });
 
   it('is independent of selectedSection', () => {
     useUIStore.getState().setSelectedSection('melody');
-    useUIStore.getState().setSelectedSubsection('frequency');
+    useUIStore.getState().setSelectedSubsection('busFilter');
     expect(useUIStore.getState().selectedSection).toBe('melody');
-    expect(useUIStore.getState().selectedSubsection).toBe('frequency');
+    expect(useUIStore.getState().selectedSubsection).toBe('busFilter');
   });
 
   it('selectRobot(id) resets selectedSubsection to null — mirrors the existing selectedSection reset so a stale subsection never leaks onto the next robot', () => {
@@ -383,7 +383,7 @@ describe('uiStore — selectedSubsection (docs/tasks/archive/NAV_PANEL_VIEWS_AND
 
   it('selectRobot(null) (the Back button case) also resets selectedSubsection', () => {
     useUIStore.getState().selectRobot('robot-0-xyz');
-    useUIStore.getState().setSelectedSubsection('pingContour');
+    useUIStore.getState().setSelectedSubsection('envelopeContour');
     useUIStore.getState().selectRobot(null);
     expect(useUIStore.getState().selectedSubsection).toBeNull();
   });

@@ -152,10 +152,10 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
     expect(screen.getByText(LANE_B).tagName).toBe('SPAN');
   });
 
-  it('Fleet Params / Pacing: Pacing has no sub-tab, so it is the current view, as text', () => {
-    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'pacing' });
+  it('Fleet Params / World / Pacing: World is a button, Pacing the current view, as text', () => {
+    setNav({ activeHubTile: 'audioRig', fleetParamsSection: 'world' });
     render(<NavBreadcrumb />);
-    expect(buttons()).toEqual([ROOT, FLEET]);
+    expect(buttons()).toEqual([ROOT, FLEET, CONTENT['fleet.world'].human]);
     expect(screen.getByText(CONTENT['fleet.pacing'].human).tagName).toBe('SPAN');
   });
 
@@ -196,9 +196,9 @@ describe('NavBreadcrumb — every ancestor is a button that calls navActions; th
     render(<NavBreadcrumb />);
     fireEvent.click(screen.getByRole('button', { name: FLEET }));
     expect(useUIStore.getState().activeHubTile).toBe('audioRig');
-    expect(useUIStore.getState().fleetParamsSection).toBe('lfoBank');
+    expect(useUIStore.getState().fleetParamsSection).toBe('world');
     expect(useUIStore.getState().fleetParamsSubsection).toBeNull();
-    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${LFO_BANK} / ${CONTENT['fleet.lfoBank.laneA'].human}`);
+    expect(crumb().textContent).toBe(`${ROOT} / ${FLEET} / ${CONTENT['fleet.world'].human} / ${CONTENT['fleet.pacing'].human}`);
   });
 
   // Task 16: the robot screen always has a tab open (Source when none is stored), so going back to the

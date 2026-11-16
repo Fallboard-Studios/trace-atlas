@@ -1,10 +1,11 @@
-import type { ComponentType } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 import { AudioLoadPanel } from '../console/AudioLoadPanel';
 import { AudioRigDrawer, AudioRigEffectPanel } from '../console/AudioRigDrawer';
 import { LfoBankLanePanel } from '../console/LfoBankLanePanel';
 import { useShell, type Shell } from '../useShell';
 import { FLEET_PARAMS_GROUP_CONTENT, FLEET_PARAMS_SUBSECTIONS, activeFleetParamsSubsection } from '../nav/navActions';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
+import { withFeaturedClass } from '@/components/ui/controls/activeClass';
 import { IntroPanel } from '@/components/ui/controls/IntroPanel';
 import { SectionTabs, type SectionTabItem } from '@/components/ui/controls/SectionTabs';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
@@ -20,36 +21,45 @@ import type { LfoLaneId } from '@/types/lfo';
 import type { Trait } from '@/types/traits';
 import './FleetParamsScreen.css';
 
-/** The eight sections in the sketch's order (Colour, Global Colour T9, then Modulation, Global Modulation T10,
+/** The seven sections in the sketch's order (Colour, Global Colour T9, then Modulation, Global Modulation T10,
  *  sit on the chain side of Output), each in the trait its group accordion wore. Modulation wears Spectral:
- *  no new trait (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 11). Audio Quality, last, came from Settings
- *  in Settings' own trait, Seed (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12). */
+ *  no new trait (docs/specs/GLOBAL_MODULATION_COLOUR.md assumption 11). World, first, wears Pacing's
+ *  Composition (docs/specs/CONTENT_LAYOUT.md assumption 7). */
 const SECTIONS: readonly (readonly [FleetParamsGroup, Trait])[] = [
-  ['pacing', 'composition'],
+  ['world', 'composition'],
   ['lfoBank', 'timeSpace'],
   ['eqFilters', 'spectral'],
   ['timeSpace', 'timeSpace'],
   ['colour', 'colour'],
   ['modulation', 'spectral'],
   ['output', 'output'],
-  ['quality', 'seed'],
 ];
 const SECTION_TRAIT = Object.fromEntries(SECTIONS) as Record<FleetParamsGroup, Trait>;
 
 /** LFO Bank's four sub-tabs are the store's lanes. */
 const LANE_OF: Partial<Record<SelectedFleetParamsEffect, LfoLaneId>> = { laneA: 'a', laneB: 'b', laneC: 'c', laneD: 'd' };
 
+/** Settings' panel keeps Seed, the trait it wore as the Audio Quality tab, so its box keeps its colour
+ *  inside World (docs/specs/CONTENT_LAYOUT.md assumption 7). Its trigger wears World's, as every sub-tab
+ *  trigger wears its section's. */
+const SETTINGS_TRAIT_STYLE = getTraitColorStyle('seed');
+
 // The screen's intro, in Fleet Params' own colour (the nav box's), and each section's own at the top of
 // its panel — every one an expander (IntroPanel `collapsible`; Crawford, 2026-10-10, spec §1.3).
 const INTRO = introProps('fleet.root');
 const INTRO_NAME = labels('fleet.root').humanLabel;
 
-/** Pacing's five leaves as two rows (docs/specs/archive/AUTOMATION_FREQUENCY_DURATION_SPLIT.md): Tempo, Humanize
- *  (docs/specs/ROBOT_PERFORMANCE.md §1.6) and Automation Rate across the top, Automation Length beside the
- *  intensity drawer below. 'responsive' rows, side by side on desktop and stacked below it, as the
- *  Compressor rows. */
-const PACING_TOP_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.topRow', type: 'directionalPanel', orientation: 'responsive' };
-const PACING_BOTTOM_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.bottomRow', type: 'directionalPanel', orientation: 'responsive' };
+/** Pacing's five leaves as two boxes (docs/specs/CONTENT_LAYOUT.md §1.2): P1 Tempo over Humanize
+ *  (docs/specs/ROBOT_PERFORMANCE.md §1.6); P2 Automation Rate over Automation Length beside the intensity drawer
+ *  (Automation Range), that pair a 'responsive' row, side by side on desktop and stacked below it. No heading:
+ *  Pacing's boxes never had one. Tempo and Automation Rate are featured (§1.4, on their schemas). */
+const PACING_P1_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.p1', type: 'directionalPanel', orientation: 'column' };
+const PACING_P2_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.p2', type: 'directionalPanel', orientation: 'column' };
+const PACING_P2_R2_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.pacing.p2.r2', type: 'directionalPanel', orientation: 'responsive' };
+const TEMPO_CELL = withFeaturedClass('audio-rig-drawer__param-row', BPM_SCHEMA);
+const HUMANIZE_CELL = withFeaturedClass('audio-rig-drawer__param-row', HUMANIZE_SCHEMA);
+const RATE_CELL = withFeaturedClass('audio-rig-drawer__param-row', SWELL_FREQUENCY_SCHEMA);
+const LENGTH_CELL = withFeaturedClass('audio-rig-drawer__param-row', SWELL_DURATION_SCHEMA);
 
 // Module-level, so each is one stable function (the sliders are React.memo'd), and each reads the
 // store's action at call time.
@@ -69,31 +79,50 @@ function PacingPanel() {
   const swellFrequency = useAudioStore((s) => s.swellFrequency);
   const swellDuration = useAudioStore((s) => s.swellDuration);
   return (
-    <>
-      <DirectionalPanel schema={PACING_TOP_ROW_SCHEMA}>
-        <div className="audio-rig-drawer__param-row">
+    <div className="fleet-params-screen__boxes">
+      <DirectionalPanel schema={PACING_P1_SCHEMA}>
+        <div className={TEMPO_CELL}>
           <SliderLinear schema={BPM_SCHEMA} value={bpm} onChange={setBPM} />
         </div>
-        <div className="audio-rig-drawer__param-row">
+        <div className={HUMANIZE_CELL}>
           <SliderLinear schema={HUMANIZE_SCHEMA} value={humanize} onChange={setHumanize} />
         </div>
-        <div className="audio-rig-drawer__param-row">
+      </DirectionalPanel>
+      <DirectionalPanel schema={PACING_P2_SCHEMA}>
+        <div className={RATE_CELL}>
           <SliderLog schema={SWELL_FREQUENCY_SCHEMA} value={swellFrequency} onChange={setSwellFrequency} />
         </div>
+        <DirectionalPanel schema={PACING_P2_R2_SCHEMA}>
+          <div className={LENGTH_CELL}>
+            <SliderLinear schema={SWELL_DURATION_SCHEMA} value={swellDuration} onChange={setSwellDuration} />
+          </div>
+          <AudioRigDrawer />
+        </DirectionalPanel>
       </DirectionalPanel>
-      <DirectionalPanel schema={PACING_BOTTOM_ROW_SCHEMA}>
-        <div className="audio-rig-drawer__param-row">
-          <SliderLinear schema={SWELL_DURATION_SCHEMA} value={swellDuration} onChange={setSwellDuration} />
-        </div>
-        <AudioRigDrawer />
-      </DirectionalPanel>
-    </>
+    </div>
   );
 }
 
-/** The sections that are one panel, with no sub-tab row: Pacing, and Audio Quality (docs/tasks/OFF_SCREEN_CONSOLE.md
- *  Task 12). FLEET_PARAMS_SUBSECTIONS lists no sub-tabs for them; every other section is a sub-tab row. */
-const SINGLE_PANEL: Partial<Record<FleetParamsGroup, ComponentType>> = { pacing: PacingPanel, quality: AudioLoadPanel };
+/** Settings' Audio Load panel, in Seed (SETTINGS_TRAIT_STYLE). */
+function SettingsPanel() {
+  return (
+    <div style={SETTINGS_TRAIT_STYLE}>
+      <AudioLoadPanel />
+    </div>
+  );
+}
+
+/** World's two sub-tabs, each its own hand-composed panel (docs/specs/CONTENT_LAYOUT.md §1.2). */
+const WORLD_PANEL: Partial<Record<SelectedFleetParamsEffect, ComponentType>> = { pacing: PacingPanel, quality: SettingsPanel };
+
+/** A sub-tab's panel: World's own, a lane, or an effect. */
+function renderSubTab(id: SelectedFleetParamsEffect): () => ReactNode {
+  const World = WORLD_PANEL[id];
+  if (World) return () => <World />;
+  const lane = LANE_OF[id];
+  if (lane) return () => <LfoBankLanePanel lane={lane} />;
+  return () => <AudioRigEffectPanel effectKey={id as AudioRigEffectKey} />;
+}
 
 /** A section's sub-tab items for one shell — built once per shell at load, so SectionTabs' memo holds.
  *  A lane's tab reads laneTitle(); every other sub-tab its panel's entry. */
@@ -105,18 +134,17 @@ function subTabItems(section: FleetParamsGroup, shell: Shell): readonly SectionT
       content,
       trait: SECTION_TRAIT[section],
       label: lane ? laneTitle(lane, shell) : undefined,
-      render: lane ? () => <LfoBankLanePanel lane={lane} /> : () => <AudioRigEffectPanel effectKey={id as AudioRigEffectKey} />,
+      render: renderSubTab(id),
     };
   });
 }
 
-const SUB_TABBED = SECTIONS.map(([section]) => section).filter((section) => !SINGLE_PANEL[section]);
 const SUB_TAB_ITEMS = Object.fromEntries(
-  (['desk', 'phone'] as const).map((shell) => [shell, Object.fromEntries(SUB_TABBED.map((section) => [section, subTabItems(section, shell)]))]),
-) as Record<Shell, Partial<Record<FleetParamsGroup, readonly SectionTabItem<SelectedFleetParamsEffect>[]>>>;
+  (['desk', 'phone'] as const).map((shell) => [shell, Object.fromEntries(SECTIONS.map(([section]) => [section, subTabItems(section, shell)]))]),
+) as Record<Shell, Record<FleetParamsGroup, readonly SectionTabItem<SelectedFleetParamsEffect>[]>>;
 
-/** The sub-tab row, nested in its section's panel; it alone reads the stored sub-tab. Rendered only for a section
- *  that is no single panel, so its items are always built. */
+/** The sub-tab row, nested in its section's panel; it alone reads the stored sub-tab. Every section has
+ *  one (docs/specs/CONTENT_LAYOUT.md §1.2: the single panels became World's sub-tabs). */
 function SubTabs({ section }: { section: FleetParamsGroup }) {
   const shell = useShell();
   const stored = useUIStore((s) => s.fleetParamsSubsection);
@@ -124,26 +152,21 @@ function SubTabs({ section }: { section: FleetParamsGroup }) {
     <SectionTabs
       variant="sub"
       label={labels(FLEET_PARAMS_GROUP_CONTENT[section]).humanLabel}
-      items={SUB_TAB_ITEMS[shell][section]!}
+      items={SUB_TAB_ITEMS[shell][section]}
       value={activeFleetParamsSubsection(section, stored)!}
       onValueChange={setSubsection}
     />
   );
 }
 
-/** A section's body: its one panel (SINGLE_PANEL), else the sub-tab row. */
-function SectionBody({ section }: { section: FleetParamsGroup }) {
-  const Panel = SINGLE_PANEL[section];
-  return Panel ? <Panel /> : <SubTabs section={section} />;
-}
-
-/** One section's panel, in its group's trait so the panels inside keep the colour they had. */
+/** One section's panel, in its group's trait so the panels inside keep the colour they had: its intro,
+ *  then its sub-tab row. */
 function SectionPanel({ section }: { section: FleetParamsGroup }) {
   const key = FLEET_PARAMS_GROUP_CONTENT[section];
   return (
     <div className="fleet-params-screen__section" style={getTraitColorStyle(SECTION_TRAIT[section])}>
       <IntroPanel {...introProps(key)} name={labels(key).humanLabel} trait={SECTION_TRAIT[section]} collapsible />
-      <SectionBody section={section} />
+      <SubTabs section={section} />
     </div>
   );
 }
@@ -157,9 +180,10 @@ const SECTION_ITEMS: readonly SectionTabItem<FleetParamsGroup>[] = SECTIONS.map(
 const SECTIONS_LABEL = labels('fleet.root').humanLabel;
 
 /**
- * Fleet Params (docs/specs/LAYOUT_REWORK.md §1.3–§1.4; docs/tasks/LAYOUT_REWORK.md Task 15): the
- * screen's intro, then the eight sections as tabs — Pacing, LFO Bank, EQ & Filters, Time & Space,
- * Colour, Modulation, Output, Audio Quality — with a nested sub-tab row for the four lanes and the effect leaves. One section and one
+ * Fleet Params (docs/specs/LAYOUT_REWORK.md §1.3–§1.4; docs/tasks/LAYOUT_REWORK.md Task 15;
+ * docs/specs/CONTENT_LAYOUT.md §1.2): the screen's intro, then the seven sections as tabs — World, LFOs,
+ * EQ & Filters, Time & Space, Color, Modulation, Output — each with a nested sub-tab row: World's Pacing
+ * and Settings, the four lanes, and the effect leaves. One section and one
  * sub-tab are in the DOM at a time (SectionTabs, no forceMount), which carries roadmap 17.2.2's
  * lazy-mount forward. The open tab is `fleetParamsSection` / `fleetParamsSubsection` in uiStore, read
  * by the breadcrumb through navActions' same table. The panels are the existing ones, unchanged. Each

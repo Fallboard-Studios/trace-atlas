@@ -11,15 +11,16 @@ import type { DirectionalPanelSchema } from '@/types/controls';
 import './AudioLoadPanel.css';
 
 // 2 nested rows (docs/reference/layout-updates.md — "Audio Profiles accordion"): Preset paired
-// with its own live description, Robot Load paired with Effects Load below it. Nested (not
-// top-level), same pattern AudioRigDrawer.tsx's own COMPRESSOR_TOP_ROW_SCHEMA/
-// COMPRESSOR_BOTTOM_ROW_SCHEMA use inside the compressor's own top-level panel.
-const AUDIO_LOAD_PRESET_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.audioLoadPanel.presetRow', type: 'directionalPanel', orientation: 'responsive' };
-const AUDIO_LOAD_SLIDERS_ROW_SCHEMA: DirectionalPanelSchema = { id: 'audioRig.audioLoadPanel.slidersRow', type: 'directionalPanel', orientation: 'responsive' };
+// with its own live description, Voice Limit paired with Effects Limit below it. Nested (not
+// top-level) 'responsive' rows inside the one box, with the sheet's ids (docs/specs/CONTENT_LAYOUT.md
+// §1.2: `fleetParams.settings.p1.r1`, `.r2`); the order is today's, Preset first (assumption 5).
+const AUDIO_LOAD_PRESET_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.settings.p1.r1', type: 'directionalPanel', orientation: 'responsive' };
+const AUDIO_LOAD_SLIDERS_ROW_SCHEMA: DirectionalPanelSchema = { id: 'fleetParams.settings.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
 
 /**
- * The Audio Load control (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5) — rendered as Fleet Params' Audio Quality
- * tab (FleetParamsScreen.tsx, docs/tasks/OFF_SCREEN_CONSOLE.md Task 12; Settings' first tab before that, from
+ * The Audio Load control (docs/specs/archive/AUDIO_LOAD_BUDGET.md §4.5) — rendered as Fleet Params' World > Settings
+ * sub-tab (FleetParamsScreen.tsx, docs/specs/CONTENT_LAYOUT.md §1.2; the Audio Quality tab from
+ * docs/tasks/OFF_SCREEN_CONSOLE.md Task 12; Settings' first tab before that, from
  * docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 13 until Settings left the nav). Previously sat inside
  * AudioRigDrawer's Transport & Composition accordion, next to a Tempo slider that itself relocated
  * to Settings -> Tempo (Task 12) — both moved out once "Quality"/"Tempo" became real tree leaves.

@@ -42,6 +42,16 @@ function findBlock(key: (typeof EFFECT_KEYS)[number]) {
   return block;
 }
 
+/** The effect's first box, which wears its heading (docs/specs/CONTENT_LAYOUT.md assumption 2). */
+function headingBox(block: (typeof AUDIO_RIG_CONFIG)[number]) {
+  return block.boxes[0].schema;
+}
+
+/** Every box and shared-row panel id an effect renders. */
+function boxIds(block: (typeof AUDIO_RIG_CONFIG)[number]): string[] {
+  return block.boxes.flatMap((box) => [box.schema.id, ...box.rows.flatMap((row) => (row.schema ? [row.schema.id] : []))]);
+}
+
 function findParam(key: (typeof EFFECT_KEYS)[number], field: string) {
   const param = findBlock(key).params.find((p) => p.field === field);
   if (!param) throw new Error(`no param "${field}" on block "${key}"`);
@@ -55,7 +65,7 @@ describe('AUDIO_RIG_CONFIG', () => {
 
   it('every block has its own panel schema — no separate accordion field (removed, DirectionalPanel wiring Task 2) or enabled toggle schema (removed; a slider-only off state)', () => {
     for (const block of AUDIO_RIG_CONFIG) {
-      expect(block.panel).toMatchObject({ id: `audioRig.${block.key}`, type: 'directionalPanel' });
+      expect(headingBox(block)).toMatchObject({ id: `audioRig.${block.key}.p1`, type: 'directionalPanel' });
       expect('accordion' in block).toBe(false);
       expect('enabledSchema' in block).toBe(false);
     }
@@ -273,8 +283,8 @@ describe('AUDIO_RIG_CONFIG', () => {
     });
 
     it.each(COLOUR_BLOCKS)('$key panel reads its heading from $heading', ({ key, heading }) => {
-      expect(findBlock(key).panel.loreLabel).toBe(CONTENT[heading].heading);
-      expect(findBlock(key).panel.humanLabel).toBe(CONTENT[heading].human);
+      expect(headingBox(findBlock(key)).loreLabel).toBe(CONTENT[heading].heading);
+      expect(headingBox(findBlock(key)).humanLabel).toBe(CONTENT[heading].human);
     });
 
     it('Drive is a linear slider, 0 to 1, step 0.01, with no unit', () => {
@@ -354,8 +364,8 @@ describe('AUDIO_RIG_CONFIG', () => {
     });
 
     it.each(MODULATION_BLOCKS)('$key panel reads its heading from $heading', ({ key, heading }) => {
-      expect(findBlock(key).panel.loreLabel).toBe(CONTENT[heading].heading);
-      expect(findBlock(key).panel.humanLabel).toBe(CONTENT[heading].human);
+      expect(headingBox(findBlock(key)).loreLabel).toBe(CONTENT[heading].heading);
+      expect(headingBox(findBlock(key)).humanLabel).toBe(CONTENT[heading].human);
     });
 
     it('every pedal slider spans exactly its field\'s full seed range, as the kind the range says (log fields log, the rest linear with the seed step)', () => {
@@ -421,7 +431,7 @@ describe('AUDIO_RIG_CONFIG', () => {
     });
 
     it('every schema id in the rig config is unique, the thirteen new ones included', () => {
-      const ids = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+      const ids = AUDIO_RIG_CONFIG.flatMap((b) => [...boxIds(b), ...b.params.map((p) => p.schema.id)]);
       expect(new Set(ids).size).toBe(ids.length);
       expect(ids).toContain('autoWah.baseFrequency');
       expect(ids).toContain('phaser.stages');
@@ -478,8 +488,8 @@ describe('AUDIO_RIG_CONFIG', () => {
     });
 
     it.each(PEDAL_BLOCKS)('$key panel reads its heading from $heading, in a column', ({ key, heading }) => {
-      expect(findBlock(key).panel).toMatchObject({
-        id: `audioRig.${key}`, type: 'directionalPanel', orientation: 'column',
+      expect(headingBox(findBlock(key))).toMatchObject({
+        id: `audioRig.${key}.p1`, type: 'directionalPanel', orientation: 'column',
         loreLabel: CONTENT[heading].heading, humanLabel: CONTENT[heading].human,
       });
     });
@@ -549,7 +559,7 @@ describe('AUDIO_RIG_CONFIG', () => {
     });
 
     it('every schema id in the rig config is still unique, the sixteen new ones included', () => {
-      const ids = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+      const ids = AUDIO_RIG_CONFIG.flatMap((b) => [...boxIds(b), ...b.params.map((p) => p.schema.id)]);
       expect(new Set(ids).size).toBe(ids.length);
       for (const { key, param } of pedalParams()) expect(ids).toContain(`${key}.${param.field}`);
     });
@@ -584,13 +594,28 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
     expect(Object.keys(LFO_BANK_LANE_SCHEMAS).sort()).toEqual([...LFO_LANE_IDS].sort());
   });
 
-  it("every lane's panel is a directionalPanel with a unique id, labeled from its own fleet.lfoBank.lane<X> content entry", () => {
+  // docs/specs/CONTENT_LAYOUT.md §1.2 (Task 11): two column boxes per lane, the lane heading on the first alone.
+  it("every lane's first box, audioRig.lfoBank.<lane>.p1, is a column directionalPanel labeled from its own fleet.lfoBank.lane<X> entry", () => {
     const laneContent = { a: 'fleet.lfoBank.laneA', b: 'fleet.lfoBank.laneB', c: 'fleet.lfoBank.laneC', d: 'fleet.lfoBank.laneD' } as const;
     for (const lane of LFO_LANE_IDS) {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      expect(schema.panel, lane).toMatchObject({ type: 'directionalPanel' });
-      expect(schema.panel.humanLabel, lane).toBe(CONTENT[laneContent[lane]].human);
-      expect(schema.panel.loreLabel, lane).toBe(CONTENT[laneContent[lane]].lore);
+      expect(schema.p1, lane).toMatchObject({ id: `audioRig.lfoBank.${lane}.p1`, type: 'directionalPanel', orientation: 'column' });
+      expect(schema.p1.humanLabel, lane).toBe(CONTENT[laneContent[lane]].human);
+      expect(schema.p1.loreLabel, lane).toBe(CONTENT[laneContent[lane]].lore);
+    }
+  });
+
+  it("every lane's second box, audioRig.lfoBank.<lane>.p2, is an unlabeled column directionalPanel", () => {
+    for (const lane of LFO_LANE_IDS) {
+      expect(LFO_BANK_LANE_SCHEMAS[lane].p2, lane).toEqual({ id: `audioRig.lfoBank.${lane}.p2`, type: 'directionalPanel', orientation: 'column' });
+    }
+  });
+
+  it("every lane's Rate is featured, and none of its other controls is (docs/specs/CONTENT_LAYOUT.md §1.4)", () => {
+    for (const lane of LFO_LANE_IDS) {
+      const schema = LFO_BANK_LANE_SCHEMAS[lane];
+      expect(schema.rate.featured, lane).toBe(true);
+      for (const other of [schema.shape, schema.rateDrift, schema.depthDrift]) expect(other.featured, `${lane} ${other.id}`).toBeUndefined();
     }
   });
 
@@ -626,12 +651,13 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
 
   // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.1: Shape | Rate (over its Tempo Sync toggle) share a
   // top row, Rate Drift | Depth Drift share a drift row — each a nested 'responsive' panel (side by side
-  // on desktop, stacked below), unlabeled, so the lane panel's own label is the only heading.
-  it("every lane's topRow and driftRow are unlabeled 'responsive' directionalPanels under the lane's own id", () => {
+  // on desktop, stacked below), unlabeled, so the lane's heading is the only one. Each is its box's row 1
+  // on the sheet scheme (docs/specs/CONTENT_LAYOUT.md §1.2).
+  it("every lane's topRow and driftRow are unlabeled 'responsive' directionalPanels, row 1 of P1 and of P2", () => {
     for (const lane of LFO_LANE_IDS) {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      expect(schema.topRow, `${lane}.topRow`).toEqual({ id: `audioRig.lfoBank.${lane}.topRow`, type: 'directionalPanel', orientation: 'responsive' });
-      expect(schema.driftRow, `${lane}.driftRow`).toEqual({ id: `audioRig.lfoBank.${lane}.driftRow`, type: 'directionalPanel', orientation: 'responsive' });
+      expect(schema.topRow, `${lane}.topRow`).toEqual({ id: `audioRig.lfoBank.${lane}.p1.r1`, type: 'directionalPanel', orientation: 'responsive' });
+      expect(schema.driftRow, `${lane}.driftRow`).toEqual({ id: `audioRig.lfoBank.${lane}.p2.r1`, type: 'directionalPanel', orientation: 'responsive' });
       expect('humanLabel' in schema.topRow, `${lane}.topRow label`).toBe(false);
       expect('loreLabel' in schema.driftRow, `${lane}.driftRow label`).toBe(false);
     }
@@ -645,13 +671,13 @@ describe('LFO_BANK_LANE_SCHEMAS (docs/specs/LFO_BANK.md Task 15)', () => {
     }
   });
 
-  it('every id across all 4 lanes (7 schemas each: panel, shape, rate, rateDrift, depthDrift, topRow, driftRow) is unique', () => {
+  it('every id across all 4 lanes (8 schemas each: p1, p2, shape, rate, rateDrift, depthDrift, topRow, driftRow) is unique', () => {
     const allIds = LFO_LANE_IDS.flatMap((lane) => {
       const schema = LFO_BANK_LANE_SCHEMAS[lane];
-      return [schema.panel.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id, schema.topRow.id, schema.driftRow.id];
+      return [schema.p1.id, schema.p2.id, schema.shape.id, schema.rate.id, schema.rateDrift.id, schema.depthDrift.id, schema.topRow.id, schema.driftRow.id];
     });
-    expect(allIds).toHaveLength(28);
-    expect(new Set(allIds).size).toBe(28);
+    expect(allIds).toHaveLength(32);
+    expect(new Set(allIds).size).toBe(32);
   });
 
   it('remains JSON-serializable', () => {
@@ -682,7 +708,7 @@ describe('PING_VARIANCE_AUTOMATION_SCHEMA', () => {
 
   it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — it is a bare, Rig-wide meta-setting, not an effect param', () => {
     const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
-      b.panel.id,
+      ...boxIds(b),
       ...b.params.map((p) => p.schema.id),
     ]);
     expect(allConfigSchemaIds).not.toContain(PING_VARIANCE_AUTOMATION_SCHEMA.id);
@@ -717,7 +743,7 @@ describe('SWELL_FREQUENCY_SCHEMA (docs/specs/archive/AUTOMATION_FREQUENCY_DURATI
 
   it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — a bare, Rig-wide meta-setting', () => {
     const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
-      b.panel.id,
+      ...boxIds(b),
       ...b.params.map((p) => p.schema.id),
     ]);
     expect(allConfigSchemaIds).not.toContain(SWELL_FREQUENCY_SCHEMA.id);
@@ -763,7 +789,7 @@ describe('SWELL_DURATION_SCHEMA (docs/specs/archive/AUTOMATION_FREQUENCY_DURATIO
 
   it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — a bare, Rig-wide meta-setting', () => {
     const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
-      b.panel.id,
+      ...boxIds(b),
       ...b.params.map((p) => p.schema.id),
     ]);
     expect(allConfigSchemaIds).not.toContain(SWELL_DURATION_SCHEMA.id);
@@ -798,7 +824,7 @@ describe('BPM_SCHEMA (docs/specs/archive/BPM_CONTROL.md §1.4-§1.5)', () => {
 
   it('is not part of AUDIO_RIG_CONFIG\'s per-effect array — it is a bare, Rig-wide meta-setting, not an effect param', () => {
     const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [
-      b.panel.id,
+      ...boxIds(b),
       ...b.params.map((p) => p.schema.id),
     ]);
     expect(allConfigSchemaIds).not.toContain(BPM_SCHEMA.id);
@@ -934,30 +960,109 @@ const EXPECTED_BLOCK_LABELS: Record<(typeof EFFECT_KEYS)[number], { loreLabel?: 
   limiter: labels('fleet.limiter', { surface: 'heading' }),
 };
 
-describe('AudioRigEffectBlock.panel (DirectionalPanel wiring, Tasks 1-2)', () => {
-  it('every block has a panel field, type directionalPanel, id audioRig.<key>', () => {
-    for (const block of AUDIO_RIG_CONFIG) {
-      expect(block.panel, block.key).toMatchObject({ id: `audioRig.${block.key}`, type: 'directionalPanel' });
-    }
-  });
-
-  it("every panel's loreLabel/humanLabel is byte-identical to its pre-Task-2 accordion's text — verbatim preservation across the type swap", () => {
-    for (const block of AUDIO_RIG_CONFIG) {
-      expect(block.panel.loreLabel, block.key).toBe(EXPECTED_BLOCK_LABELS[block.key].loreLabel);
-      expect(block.panel.humanLabel, block.key).toBe(EXPECTED_BLOCK_LABELS[block.key].humanLabel);
-    }
-  });
-
-  it('every block panel is column-orientation — eq3/filterLPF/filterHPF stack their bands/params since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.2 (they were the only row panels)', () => {
-    for (const block of AUDIO_RIG_CONFIG) {
-      expect(block.panel.orientation, block.key).toBe('column');
-    }
-  });
-
-  it('no longer has an accordion field — superseded by panel (Task 2 cleanup)', () => {
+// The box id, heading labels and column orientation are pinned by 'AudioRigEffectBlock.layout and boxes' below
+// (docs/specs/CONTENT_LAYOUT.md §1.2 replaced the single `panel` field with `boxes`, its first box the heading).
+describe('AudioRigEffectBlock (DirectionalPanel wiring, Tasks 1-2)', () => {
+  it('no longer has an accordion or a single panel field — superseded by boxes', () => {
     for (const block of AUDIO_RIG_CONFIG) {
       expect('accordion' in block, block.key).toBe(false);
+      expect('panel' in block, block.key).toBe(false);
     }
+  });
+});
+
+// Control layout (docs/specs/CONTENT_LAYOUT.md §1.2, Task 4): an effect's layout is data, panels > rows > cell
+// tokens, and its box and row schemas are built from it once at module load.
+describe('AudioRigEffectBlock.layout and boxes (docs/specs/CONTENT_LAYOUT.md §1.2)', () => {
+  const tokensOf = (block: (typeof AUDIO_RIG_CONFIG)[number]): string[] => block.layout.flat(2);
+  const cellToken = (cell: (typeof AUDIO_RIG_CONFIG)[number]['boxes'][number]['rows'][number]['cells'][number]): string =>
+    cell.kind === 'param' ? cell.param.field : cell.kind === 'link' ? `${cell.param.field}.link` : cell.kind;
+
+  it.each(EFFECT_KEYS)('%s: every param appears exactly once in its layout, every LFO target\'s link once, and nothing else but Decay', (key) => {
+    const block = findBlock(key);
+    const expected = [
+      ...block.params.map((p) => p.field),
+      ...block.params.filter((p) => p.lfoTarget !== undefined).map((p) => `${p.field}.link`),
+      ...(key === 'compressor' ? ['decayMode'] : []),
+    ];
+    expect([...tokensOf(block)].sort()).toEqual(expected.sort());
+  });
+
+  it('each link is the row right under its own slider\'s row, in the same box', () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      for (const panel of block.layout) {
+        panel.forEach((row, r) => {
+          for (const token of row.filter((t) => t.endsWith('.link'))) {
+            expect(panel[r - 1], `${block.key} ${token}`).toContain(token.slice(0, -'.link'.length));
+          }
+        });
+      }
+    }
+  });
+
+  it("Decay sits once in the Compressor's layout and in no other effect's", () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      expect(tokensOf(block).filter((t) => t === 'decayMode'), block.key).toHaveLength(block.key === 'compressor' ? 1 : 0);
+    }
+  });
+
+  it('no layout has an empty panel or an empty row', () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      expect(block.layout.length, block.key).toBeGreaterThan(0);
+      for (const panel of block.layout) {
+        expect(panel.length, block.key).toBeGreaterThan(0);
+        for (const row of panel) expect(row.length, block.key).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it('builds one column box per layout panel, id audioRig.<key>.p<n>, the heading on the first box alone', () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      expect(block.boxes, block.key).toHaveLength(block.layout.length);
+      block.boxes.forEach((box, i) => {
+        expect(box.schema, block.key).toMatchObject({ id: `audioRig.${block.key}.p${i + 1}`, type: 'directionalPanel', orientation: 'column' });
+        if (i === 0) {
+          expect(box.schema.humanLabel, block.key).toBe(EXPECTED_BLOCK_LABELS[block.key].humanLabel);
+          expect(box.schema.loreLabel, block.key).toBe(EXPECTED_BLOCK_LABELS[block.key].loreLabel);
+        } else {
+          expect(box.schema.humanLabel, `${block.key} p${i + 1}`).toBeUndefined();
+          expect(box.schema.loreLabel, `${block.key} p${i + 1}`).toBeUndefined();
+        }
+      });
+    }
+  });
+
+  it("a row of two or more cells is an unlabelled 'responsive' panel audioRig.<key>.p<n>.r<m>; a row of one has none", () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      block.boxes.forEach((box, p) => {
+        box.rows.forEach((row, r) => {
+          const where = `${block.key} p${p + 1} r${r + 1}`;
+          if (row.cells.length > 1) {
+            expect(row.schema, where).toEqual({ id: `audioRig.${block.key}.p${p + 1}.r${r + 1}`, type: 'directionalPanel', orientation: 'responsive' });
+          } else {
+            expect(row.schema, where).toBeUndefined();
+          }
+        });
+      });
+    }
+  });
+
+  it("each built row holds its layout row's cells in order, every param and link cell the block's own param object", () => {
+    for (const block of AUDIO_RIG_CONFIG) {
+      expect(block.boxes.map((box) => box.rows.map((row) => row.cells.map(cellToken))), block.key).toEqual(block.layout);
+      for (const box of block.boxes) {
+        for (const row of box.rows) {
+          for (const cell of row.cells) {
+            if (cell.kind !== 'decayMode') expect(block.params, block.key).toContain(cell.param);
+          }
+        }
+      }
+    }
+  });
+
+  it('every box and row id is unique across the Rig', () => {
+    const ids = AUDIO_RIG_CONFIG.flatMap((b) => b.boxes.flatMap((box) => [box.schema.id, ...box.rows.flatMap((row) => (row.schema ? [row.schema.id] : []))]));
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });
 
@@ -1061,20 +1166,20 @@ describe('AUDIO_EFFECTS_LOAD_SCHEMA', () => {
 });
 
 describe('AUDIO_LOAD_PANEL_SCHEMA', () => {
-  it('is a column directionalPanel named Audio Load in the audioRig.* namespace — its own 2 nested rows always stack, on every tier (Crawford\'s own correction, was "responsive")', () => {
+  it('is a column directionalPanel named Audio Load, Settings\' box fleetParams.settings.p1 (docs/specs/CONTENT_LAYOUT.md §1.2) — its own 2 nested rows always stack, on every tier (Crawford\'s own correction, was "responsive")', () => {
     expect(AUDIO_LOAD_PANEL_SCHEMA).toMatchObject({
       type: 'directionalPanel',
       orientation: 'column',
       humanLabel: CONTENT['fleet.quality.audioLoad'].human,
     });
-    expect(AUDIO_LOAD_PANEL_SCHEMA.id).toMatch(/^audioRig\./);
+    expect(AUDIO_LOAD_PANEL_SCHEMA.id).toBe('fleetParams.settings.p1');
     expect(AUDIO_LOAD_PANEL_SCHEMA.loreLabel).toBeTruthy();
   });
 
   it('gives all four schemas distinct ids, none of which is part of AUDIO_RIG_CONFIG (bare Rig-wide meta-settings, like Tempo)', () => {
     const ids = [AUDIO_LOAD_PRESET_SCHEMA.id, AUDIO_ROBOT_LOAD_SCHEMA.id, AUDIO_EFFECTS_LOAD_SCHEMA.id, AUDIO_LOAD_PANEL_SCHEMA.id];
     expect(new Set(ids).size).toBe(4);
-    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [...boxIds(b), ...b.params.map((p) => p.schema.id)]);
     for (const id of ids) expect(allConfigSchemaIds).not.toContain(id);
   });
 
@@ -1093,7 +1198,7 @@ describe('audioRigConfig reads its copy from src/content (docs/specs/CONTENT_LAY
     expect(BPM_SCHEMA.unit).toBe(CONTENT['fleet.pacing.tempo'].unit);
     expect(AUDIO_ROBOT_LOAD_SCHEMA.humanLabel).toBe(CONTENT['fleet.quality.robotLoad'].human);
     const lpf = AUDIO_RIG_CONFIG.find((b) => b.key === 'filterLPF')!;
-    expect(lpf.panel.loreLabel).toBe(CONTENT['fleet.lpf'].heading);
+    expect(headingBox(lpf).loreLabel).toBe(CONTENT['fleet.lpf'].heading);
     expect(lpf.params[0].schema.loreLabel).toBe(CONTENT['fleet.lpf.cutoff'].lore);
     expect((lpf.params[0].schema as { unit?: string }).unit).toBe(CONTENT['fleet.lpf.cutoff'].unit);
   });
@@ -1126,7 +1231,7 @@ describe('HUMANIZE_SCHEMA (Robot Performance)', () => {
   });
 
   it('is a bare Pacing meta-setting: it never joins AUDIO_RIG_CONFIG\'s per-effect array', () => {
-    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [b.panel.id, ...b.params.map((p) => p.schema.id)]);
+    const allConfigSchemaIds = AUDIO_RIG_CONFIG.flatMap((b) => [...boxIds(b), ...b.params.map((p) => p.schema.id)]);
     expect(allConfigSchemaIds).not.toContain(HUMANIZE_SCHEMA.id);
   });
 
@@ -1136,5 +1241,37 @@ describe('HUMANIZE_SCHEMA (Robot Performance)', () => {
 
   it('remains JSON-serializable', () => {
     expect(JSON.parse(JSON.stringify(HUMANIZE_SCHEMA))).toEqual(HUMANIZE_SCHEMA);
+  });
+});
+
+// docs/specs/CONTENT_LAYOUT.md §1.4 (Task 11): the fleet-wide featured set. Every schema this module exports, at any
+// depth (the effects' params and boxes, the lanes, Pacing's and Settings' bare schemas), is walked, so a flag added or
+// dropped anywhere in the module shows up here.
+describe('the featured Fleet schemas (docs/specs/CONTENT_LAYOUT.md §1.4)', () => {
+  function featuredIds(root: unknown): Set<string> {
+    const found = new Set<string>();
+    const seen = new Set<unknown>();
+    const walk = (node: unknown) => {
+      if (node === null || typeof node !== 'object' || seen.has(node)) return;
+      seen.add(node);
+      const record = node as Record<string, unknown>;
+      if (record.featured === true && typeof record.id === 'string') found.add(record.id);
+      for (const value of Object.values(record)) walk(value);
+    };
+    walk(root);
+    return found;
+  }
+
+  const EXPECTED = [
+    'audioRig.bpm', 'audioRig.swellFrequency',
+    ...LFO_LANE_IDS.map((lane) => `audioRig.lfoBank.${lane}.rate`),
+    'eq3.low', 'eq3.mid', 'eq3.high', 'filterHPF.frequency', 'filterLPF.frequency',
+    'reverb.wet', 'delay.wet', 'distortion.wet', 'chebyshev.wet', 'bitCrusher.wet', 'autoWah.wet', 'phaser.wet',
+    'chorus.wet', 'tremolo.wet', 'vibrato.wet', 'frequencyShifter.wet', 'stereoWidener.width', 'limiter.threshold',
+  ];
+
+  it('are exactly the twenty-four of §1.4', () => {
+    expect(EXPECTED).toHaveLength(24);
+    expect([...featuredIds({ ...audioRigConfigModule })].sort()).toEqual([...EXPECTED].sort());
   });
 });

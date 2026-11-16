@@ -22,7 +22,7 @@
  * ConsolePanel's `Record<HubTile, ...>` exhaustiveness guarantee intact.
  *
  * `settings` removed by docs/tasks/OFF_SCREEN_CONSOLE.md Task 14: the off screen makes, loads, saves and
- * shares a world, and Audio Quality is Fleet Params' last tab.
+ * shares a world, and its Audio Quality tab went to Fleet Params (World > Settings since docs/specs/CONTENT_LAYOUT.md §1.2).
  *
  * `companies` removed by docs/tasks/OFF_SCREEN_CONSOLE.md Task 18: the Companies box left the nav, and a
  * company's screen opens under `robots` (Probes) from the roster board.

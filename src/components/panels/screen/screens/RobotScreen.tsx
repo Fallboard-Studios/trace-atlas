@@ -6,10 +6,10 @@ import { RobotBody } from '@/components/robot/RobotBody';
 import { getRobotGem } from '@/components/robot/gem/polygon';
 import { gemMotionViewBox } from '@/components/robot/gem/orbiterMotion';
 import { NoteCloudLayer } from '@/components/robot/notes/NoteCloudLayers';
-import { AudioSettingSection, type AudioSettingValue } from '@/components/robot/AudioSettingSection';
+import { LevelsMixSection, LevelsSendsSection, type AudioSettingValue } from '@/components/robot/LevelsSections';
 import { useHeldOffSends } from '@/components/robot/useHeldOffSends';
-import { PingControlsCompositionSection, type PingControlsValue } from '@/components/robot/PingControlsDrawer';
-import { PingContourDrawer } from '@/components/robot/PingContourDrawer';
+import { CompositionDetailsSection, CompositionRhythmMelodySection, type PingControlsValue } from '@/components/robot/CompositionSections';
+import { EnvelopeCharacterSection, EnvelopeContourSection } from '@/components/robot/EnvelopeSections';
 import { SignatureArrayLayer, type SignatureArrayValue } from '@/components/robot/SignatureArrayDrawer';
 import { BusFilterDrawer, type BusFilterPatch, type BusFilterValue } from '@/components/robot/BusFilterDrawer';
 import { DualLabel } from '@/components/ui/controls/DualLabel';
@@ -31,7 +31,7 @@ import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import { resolveBusFilterCutoff, resolveBusFilterQ, resolveBusFilterType } from '@/engine/audioEngine/busFilter';
 import {
   ROBOT_SECTIONS_CONFIG, SOURCE_OSCILLATOR_SUBSECTIONS,
-  activeRobotSection, activeRobotSubsection, sectionSubTabs, sectionTabContent,
+  activeRobotSection, activeRobotSubsection,
   type RobotOptionsTrait,
 } from '@/data/robotSubsectionConfig';
 import {
@@ -82,8 +82,8 @@ const setSubsection = (sub: RobotSubsection) => useUIStore.getState().setSelecte
  * RobotOptionsTab and RobotDisplaySection: on the desk shell a fixed avatar column (the gem in the avatar
  * render context, the name, the read-only meta as wells in two columns, the battery and the company
  * radio) beside the controls; on the phone shell the column's small band, sticky above the controls.
- * The controls are SectionTabs over ROBOT_SECTIONS_CONFIG, Source with a sub-tab per oscillator; one
- * section and one panel are in the DOM at a time. The open tab is `selectedSection` /
+ * The controls are SectionTabs over ROBOT_SECTIONS_CONFIG, each section with its sub-tab row
+ * (docs/specs/CONTENT_LAYOUT.md §1.3); one section and one sub-tab are in the DOM at a time. The open tab is `selectedSection` /
  * `selectedSubsection`, resolved by robotSubsectionConfig's helpers (Source, Core Oscillator, when
  * none is stored), which the breadcrumb reads too.
  */
@@ -133,44 +133,41 @@ interface RobotSectionTabsProps {
   traitStyle?: (trait: RobotOptionsTrait) => CSSProperties;
 }
 
-/** The section row, and Source's sub-tab row nested in its panel. Each section's panel sits in its trait,
- *  the colour its accordion gave it, and opens with the section's intro as an expander (Crawford,
- *  2026-10-10, spec §1.3) — above Source's sub-tabs, so it stays while the oscillator changes. Shared with
- *  the company screen, which hands its own accessible name, renderer and trait colours. */
+/** The section row, and each section's sub-tab row nested in its panel (docs/specs/CONTENT_LAYOUT.md §1.3). Each
+ *  section's panel sits in its trait, the colour its accordion gave it, and opens with the section's intro as an
+ *  expander (Crawford, 2026-10-10) — above the sub-tabs, so it stays while the sub-tab changes. Shared with the
+ *  company screen, which hands its own accessible name, renderer and trait colours. */
 export function RobotSectionTabs({ label, renderSubsection, traitStyle = fullTraitStyle }: RobotSectionTabsProps) {
   const storedSection = useUIStore((s) => s.selectedSection);
   const storedSubsection = useUIStore((s) => s.selectedSubsection);
 
   const items = useMemo<readonly SectionTabItem<RobotSection>[]>(() => ROBOT_SECTIONS_CONFIG.map((entry) => {
-    const subTabs = sectionSubTabs(entry);
     const open = activeRobotSubsection(entry.id, storedSubsection);
-    const subItems: readonly SectionTabItem<RobotSubsection>[] = subTabs.map((sub) => ({
+    const subItems: readonly SectionTabItem<RobotSubsection>[] = entry.subsections.map((sub) => ({
       id: sub.id,
-      content: sub.accordion ?? sub.content,
+      content: sub.content,
       trait: entry.trait,
       render: () => renderSubsection(sub.id),
     }));
     return {
       id: entry.id,
-      content: sectionTabContent(entry),
+      content: entry.content,
       trait: entry.trait,
       render: () => (
         <div className="robot-screen__section" style={traitStyle(entry.trait)}>
           <IntroPanel
-            {...introProps(sectionTabContent(entry))}
-            name={labels(sectionTabContent(entry)).humanLabel}
+            {...introProps(entry.content)}
+            name={labels(entry.content).humanLabel}
             trait={entry.trait}
             collapsible
           />
-          {subTabs.length > 0 ? (
-            <SectionTabs
-              variant="sub"
-              label={labels(sectionTabContent(entry)).humanLabel}
-              items={subItems}
-              value={open}
-              onValueChange={setSubsection}
-            />
-          ) : renderSubsection(open)}
+          <SectionTabs
+            variant="sub"
+            label={labels(entry.content).humanLabel}
+            items={subItems}
+            value={open}
+            onValueChange={setSubsection}
+          />
         </div>
       ),
     };
@@ -180,18 +177,24 @@ export function RobotSectionTabs({ label, renderSubsection, traitStyle = fullTra
 }
 
 /**
- * The Levels section with the Pan slider's live readout (docs/specs/ROBOT_PAN.md §1.4). The readout
+ * Levels > Mix with the Pan slider's live readout (docs/specs/ROBOT_PAN.md §1.4). The readout
  * subscription lives in this memoised child, not in useRobotSubsectionRenderer: that hook runs in
  * RobotScreenPanel, so subscribing there would re-render the whole screen (avatar column, tabs) on every
- * readout write. Here a write re-renders only this wrapper and, through it, the one section. The selector
- * returns undefined for a manual robot, so a manual robot's section never re-renders on anyone's tick.
+ * readout write. Here a write re-renders only this wrapper and, through it, the one half. The selector
+ * returns undefined for a manual robot, so a manual robot's Mix never re-renders on anyone's tick.
  */
-const RobotAudioSettingSection = memo(function RobotAudioSettingSection({
+const RobotLevelsMixSection = memo(function RobotLevelsMixSection({
   robotId, ...props
-}: ComponentProps<typeof AudioSettingSection> & { robotId: string }) {
+}: ComponentProps<typeof LevelsMixSection> & { robotId: string }) {
   const livePan = useRobotPanReadoutStore((s) => (props.value.panAuto ? s.pan[robotId] : undefined));
+  return <LevelsMixSection {...props} livePan={livePan} />;
+});
+
+/** Levels > Sends with the sends the Audio Load dial holds dark (useHeldOffSends), subscribed here so a hold-off
+ *  change re-renders this half alone. */
+const RobotLevelsSendsSection = memo(function RobotLevelsSendsSection(props: ComponentProps<typeof LevelsSendsSection>) {
   const heldOffSends = useHeldOffSends();
-  return <AudioSettingSection {...props} livePan={livePan} heldOffSends={heldOffSends} />;
+  return <LevelsSendsSection {...props} heldOffSends={heldOffSends} />;
 });
 
 /**
@@ -341,47 +344,54 @@ function useRobotSubsectionRenderer(robot: Robot, localeId: string) {
   );
 
   return useCallback((subsectionId: RobotSubsection): ReactNode => {
+    // One half per sub-tab (docs/specs/CONTENT_LAYOUT.md §1.3). Both halves of a tab take the one memoised value
+    // object and the same handlers they took when they were one section.
     switch (subsectionId) {
-      case 'audioSettings':
+      case 'mix':
         return (
-          <RobotAudioSettingSection
+          <RobotLevelsMixSection
             robotId={robot.id}
             value={audioSettingValue}
             onAudioModeChange={handleAudioModeChange}
             onVolumeChange={handleVolumeChange}
             onPanChange={handlePanChange}
             onPanAutoChange={handlePanAutoChange}
-            onSendChange={handleSendChange}
             onDynamicsChange={handleDynamicsChange}
             volumeSwelling={volumeSwelling}
-            sendSwelling={sendSwelling}
           />
         );
-      case 'rhythm':
-        // Rhythm and Pitches are one Composition panel (docs/reference/layout-updates.md). Its Note
-        // Variance scroll anchor served the nav tree's "Pitches" row, which is gone.
+      case 'sends':
+        return <RobotLevelsSendsSection value={audioSettingValue} onSendChange={handleSendChange} sendSwelling={sendSwelling} />;
+      case 'rhythmMelody':
         return (
-          <PingControlsCompositionSection
+          <CompositionRhythmMelodySection
             value={pingControlsValue}
             onClickTrackActiveChange={handleClickTrackActiveChange}
             onDensityChange={handleDensityChange}
             onMotifLengthChange={handleMotifLengthChange}
             onPitchRepeatChange={handlePitchRepeatChange}
-            onOctaveMinChange={handleOctaveMinChange}
-            onOctaveMaxChange={handleOctaveMaxChange}
             onNoteVarianceChange={handleNoteVarianceChange}
-            onRestsChange={handleRestsChange}
-            onAccentsChange={handleAccentsChange}
           />
         );
-      case 'pingContour':
+      case 'details':
         return (
-          <PingContourDrawer
+          <CompositionDetailsSection
+            value={pingControlsValue}
+            onRestsChange={handleRestsChange}
+            onAccentsChange={handleAccentsChange}
+            onOctaveMinChange={handleOctaveMinChange}
+            onOctaveMaxChange={handleOctaveMaxChange}
+          />
+        );
+      case 'envelopeContour':
+        return <EnvelopeContourSection value={robot.audioAttributes.adsr} onChange={handleAdsrChange} swelling={adsrSwelling} />;
+      case 'envelopeCharacter':
+        return (
+          <EnvelopeCharacterSection
             value={robot.audioAttributes.adsr}
             onChange={handleAdsrChange}
             portamento={portamento}
             onPortamentoChange={handlePortamentoChange}
-            swelling={adsrSwelling}
           />
         );
       case 'baselineOscillator':

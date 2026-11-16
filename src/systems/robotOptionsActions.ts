@@ -91,7 +91,7 @@ export function applyPanAuto(robot: Robot, localeId: string, auto: boolean): voi
 }
 
 // ========================================
-// PING CONTROLS (PingControlsDrawer.tsx today)
+// PING CONTROLS (CompositionSections.tsx today)
 // ========================================
 
 export function applyDensity(robot: Robot, localeId: string, density: number): void {
@@ -145,8 +145,8 @@ export function applyClickTrackActive(robot: Robot, localeId: string, active: bo
   AudioEngine.registerRobotMelody(robot.id, melody);
 }
 
-// Keeps min <= max at all times — the same guard PingControlsDrawer's two independent
-// SliderLinears have always needed (no minStepsBetweenThumbs dual-thumb-slider enforcement
+// Keeps min <= max at all times — the same guard Composition > Details' two independent
+// octave SliderLinears have always needed (no minStepsBetweenThumbs dual-thumb-slider enforcement
 // here). Octave range is one of the five melody-formula inputs (Roadmap Phase 31), so both
 // functions now regenerate the melody with the UPDATED range, matching applyDensity's shape —
 // this closes a pre-existing gap: octave-range edits never touched melody before this phase.
@@ -165,7 +165,7 @@ export function applyOctaveMax(robot: Robot, localeId: string, value: number): v
 }
 
 // ========================================
-// PING CONTOUR (PingContourDrawer.tsx today)
+// PING CONTOUR (EnvelopeSections.tsx today)
 // ========================================
 
 /** Ping Contour edits the robot's one shared audioAttributes.adsr. Always calls

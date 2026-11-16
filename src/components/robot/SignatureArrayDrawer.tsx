@@ -5,6 +5,7 @@ import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { SliderCenteredZero } from '@/components/ui/controls/SliderCenteredZero';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
 import { LfoLink } from '@/components/ui/controls/LfoLink';
+import { withFeaturedClass } from '@/components/ui/controls/activeClass';
 import { DEFAULT_LFO_LINK } from '@/data/lfoConfig';
 import {
   SIGNATURE_ARRAY_CONFIG,
@@ -48,6 +49,9 @@ interface SignatureArrayDrawerProps {
   style?: CSSProperties;
 }
 
+/** A control's cell: the wrapper that holds the control and its label. */
+const PARAM_CELL = 'signature-array-drawer__param';
+
 function paramValue(layer: OscillatorLayer, field: SignatureArrayParamSchema['field']): number {
   switch (field) {
     case 'gain': return layer.gain;
@@ -74,9 +78,9 @@ export interface SignatureArrayLayerProps {
 }
 
 /**
- * One layer's own Type radio beside Gain, then Gain's inline `LfoLink` row, Detune, Detune's
- * `LfoLink` row, and Phase (beside Interval on a pulse layer) — docs/specs/
- * POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4. The per-field `LfoLink` is docs/specs/LFO_BANK.md
+ * One layer as three boxes (docs/specs/CONTENT_LAYOUT.md §1.3): its own Type radio beside Gain, then
+ * Gain's inline `LfoLink` row; Detune, then Detune's `LfoLink` row; Phase, then Interval on a pulse
+ * layer. The per-field `LfoLink` is docs/specs/LFO_BANK.md
  * section 1.5, assumption 10 — it replaced the shared `Lfo`/`LfoTargetGroup` display: a target no
  * longer owns a shape/rate of its own, it links to one of the 4 world lanes at a depth, so the
  * select-then-edit indirection no longer earns its own state machine. Phase and Interval carry no
@@ -124,6 +128,10 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
   // Interval/pulseWidth is no longer an LFO target (docs/specs/LFO_LOAD_FIX.md assumption 9) —
   // it renders as its own plain row, never paired with an LfoLink.
   const pulseWidthParam = block.params.find((p) => p.field === 'pulseWidth')!;
+  // Gain's and Detune's cells carry the featured class (docs/specs/CONTENT_LAYOUT.md §1.4). Built here,
+  // before the hooks below read these params, so the compiler sees no later use of them.
+  const gainCell = withFeaturedClass(PARAM_CELL, gainParam.schema);
+  const detuneCell = withFeaturedClass(PARAM_CELL, detuneParam.schema);
 
   const gainTarget = gainParam.lfoTarget!;
   const detuneTarget = detuneParam.lfoTarget!;
@@ -149,26 +157,15 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
   const handleGainLinkChange = useCallback((v: LfoLinkValue) => onLfoFieldChange(idx, gainTarget, v), [idx, gainTarget, onLfoFieldChange]);
   const handleDetuneLinkChange = useCallback((v: LfoLinkValue) => onLfoFieldChange(idx, detuneTarget, v), [idx, detuneTarget, onLfoFieldChange]);
 
-  // Phase is rendered in one of two places (beside Interval, or alone) — one element, placed once.
-  const phaseSlider = (
-    <div className="signature-array-drawer__param">
-      <SliderLinear
-        schema={phaseParam.schema as SliderLinearSchema}
-        value={paramValue(layer, 'phase')}
-        onChange={handlePhaseChange}
-        disabled={disabled}
-      />
-    </div>
-  );
-
-  // Row layout (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4): Type | Gain share a nested
-  // 'responsive' top row; Gain's Lane | Depth link is the full-width row under it (not inside Gain's
-  // half — assumption 3); then Detune, then Detune's link; then Phase | Interval as a nested row while
-  // Interval is shown, or Phase alone with no nested panel. Every slider is horizontal (config), so no
-  // verticalHeight is forwarded. Each control keeps its own __param wrapper.
+  // Three boxes (docs/specs/CONTENT_LAYOUT.md §1.3), stacked by the layer div: P1 is Type | Gain as a
+  // nested 'responsive' row, then Gain's Lane | Depth link as the full-width row under it (not inside
+  // Gain's half); P2 is Detune, then its link; P3 is Phase, then Interval as a second row while it is
+  // shown. Only P1 carries the layer's heading (spec assumption 2). Every slider is horizontal (config),
+  // so no verticalHeight is forwarded. Each control keeps its own __param cell; Gain's and Detune's are
+  // featured (§1.4).
   return (
-    <DirectionalPanel schema={block.panel}>
-      <div className="signature-array-drawer__layer" data-layer-key={block.key}>
+    <div className="signature-array-drawer__layer" data-layer-key={block.key}>
+      <DirectionalPanel schema={block.panels.p1}>
         <DirectionalPanel schema={block.rows.typeGain}>
           <div className="signature-array-drawer__param">
             <RadioButton
@@ -178,7 +175,7 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
               disabled={disabled}
             />
           </div>
-          <div className="signature-array-drawer__param">
+          <div className={gainCell}>
             <SliderLinear
               schema={gainParam.schema as SliderLinearSchema}
               value={paramValue(layer, 'gain')}
@@ -191,7 +188,9 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
         <div className="signature-array-drawer__param">
           <LfoLink schema={gainLinkSchema} value={gainLink} onChange={handleGainLinkChange} disabled={disabled} />
         </div>
-        <div className="signature-array-drawer__param">
+      </DirectionalPanel>
+      <DirectionalPanel schema={block.panels.p2}>
+        <div className={detuneCell}>
           <SliderCenteredZero
             schema={detuneParam.schema as SliderCenteredZeroSchema}
             value={paramValue(layer, 'detune')}
@@ -203,23 +202,28 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
         <div className="signature-array-drawer__param">
           <LfoLink schema={detuneLinkSchema} value={detuneLink} onChange={handleDetuneLinkChange} disabled={disabled} />
         </div>
-        {showPulseWidth ? (
-          <DirectionalPanel schema={block.rows.phaseInterval}>
-            {phaseSlider}
-            <div className="signature-array-drawer__param signature-array-drawer__interval">
-              <SliderLinear
-                schema={pulseWidthParam.schema as SliderLinearSchema}
-                value={paramValue(layer, 'pulseWidth')}
-                onChange={handlePulseWidthChange}
-                disabled={disabled}
-              />
-            </div>
-          </DirectionalPanel>
-        ) : (
-          phaseSlider
+      </DirectionalPanel>
+      <DirectionalPanel schema={block.panels.p3}>
+        <div className="signature-array-drawer__param">
+          <SliderLinear
+            schema={phaseParam.schema as SliderLinearSchema}
+            value={paramValue(layer, 'phase')}
+            onChange={handlePhaseChange}
+            disabled={disabled}
+          />
+        </div>
+        {showPulseWidth && (
+          <div className="signature-array-drawer__param signature-array-drawer__interval">
+            <SliderLinear
+              schema={pulseWidthParam.schema as SliderLinearSchema}
+              value={paramValue(layer, 'pulseWidth')}
+              onChange={handlePulseWidthChange}
+              disabled={disabled}
+            />
+          </div>
         )}
-      </div>
-    </DirectionalPanel>
+      </DirectionalPanel>
+    </div>
   );
 }
 
@@ -231,8 +235,8 @@ function SignatureArrayLayerInner({ block, idx, layer, lfoLinks, disabled, swell
 export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
 
 /**
- * 3 DirectionalPanels, one per fixed layer slot (Baseline/Coaxial/Harmonic) —
- * docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
+ * One `SignatureArrayLayer` (three boxes, docs/specs/CONTENT_LAYOUT.md §1.3) per fixed layer slot
+ * (Baseline/Coaxial/Harmonic) — docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md Task 8. No accordion wrapper as of Task
  * 17 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) — this drawer's content is now a probe's own "Source" tree
  * leaf, and the tree node itself carries that label, so there's no accordion header left to show
  * it on. Robot Drift (`RobotDriftPanel`) is gone entirely as of docs/tasks/LFO_BANK.md Task 15 —
@@ -248,9 +252,9 @@ export const SignatureArrayLayer = memo(SignatureArrayLayerInner);
  * filterAudibleLayers) without discarding its Type/Detune/Phase/Interval configuration — there's
  * no separate Active toggle.
  *
- * Each layer's own `signature-array-drawer__layer` `data-layer-key` div is wrapped *around* by
- * its DirectionalPanel, not replaced by it — DirectionalPanel's props are locked to
- * `{ schema, children }` (no prop passthrough) and can't carry `data-layer-key` itself.
+ * Each layer's own `signature-array-drawer__layer` `data-layer-key` div wraps *around* its three
+ * DirectionalPanels and stacks them — DirectionalPanel's props are locked to `{ schema, children }`
+ * (no prop passthrough) and can't carry `data-layer-key` itself.
  *
  * Each layer's Gain/Detune render their own inline `LfoLink` directly beneath their own slider
  * (docs/specs/LFO_BANK.md section 1.5) — replacing the old shared `LfoTargetGroup` display (one
@@ -268,7 +272,7 @@ function SignatureArrayDrawerInner({ value, onContinuousChange, onStructuralChan
   // below need the CURRENT layers array to correctly preserve the other 2 layers' own values when
   // rebuilding it, but must not themselves destabilize whenever `layers` changes (i.e. on every
   // edit to ANY layer) — the same "stable callback, fresh value read at call time" ref pattern
-  // `RobotOptionsTab.tsx`/`PingContourDrawer.tsx`/`Lfo.tsx` already use. Because they're stable
+  // `RobotOptionsTab.tsx`/`EnvelopeSections.tsx`/`Lfo.tsx` already use. Because they're stable
   // regardless of which layer last changed, one shared triple of handlers serves all 3 layers,
   // keyed by `idx` at the call site rather than rebuilt per layer.
   const latestLayers = useRef(layers);

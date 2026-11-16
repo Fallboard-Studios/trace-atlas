@@ -78,36 +78,15 @@ export const VOLUME_SCHEMA: SliderLinearSchema = {
   max: 100,
   step: 1,
   orientation: 'horizontal',
+  featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
 };
 
-/**
- * Wraps VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA (below) — fixed 'column' at every tier (Audio
- * Setting, then Volume). The Volume LFO display that used to sit below the column is gone (the
- * `volume` LFO target was removed — docs/specs/LFO_LOAD_FIX.md assumption 9); the two-panel
- * nesting is kept so the section renders identically in its slot. Previously 'responsive' (desktop split into 2 side-by-side columns,
- * Audio Setting's own Auto/Mute/Solo/Highlight radio squeezed into the narrower half) — Crawford's
- * own correction, to bring this one layout in line with the others. Unlabeled — pure layout,
- * top-level inside AudioSettingSection's own root (no accordion wrapper — removed docs/tasks/
- * NAV_LAYOUT_REWRITE.md Task 18).
- */
-export const VOLUME_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.volumeRow',
-  type: 'directionalPanel',
-  orientation: 'column',
-};
-
-/**
- * Audio Setting + Volume, always stacked — nested inside VOLUME_ROW_PANEL_SCHEMA's own (now also
- * always-column) stack, ahead of the Lfo display. Fixed 'column' regardless of tier — kept as its
- * own schema/panel (rather than merging into VOLUME_ROW_PANEL_SCHEMA directly) since Audio Setting
- * + Volume is still a meaningful sub-grouping on its own, independent of the outer panel's own
- * orientation.
- */
-export const VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.volumeSettingsColumn',
-  type: 'directionalPanel',
-  orientation: 'column',
-};
+// Levels > Mix (docs/specs/CONTENT_LAYOUT.md §1.3): P1 Volume, then Monitor Mode beside Dynamics; P2 Pan beside Auto.
+// Unlabeled, pure layout: a top-level panel is a box, a nested one a shared row.
+export const MIX_P1_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.mix.p1', type: 'directionalPanel', orientation: 'column' };
+/** Monitor Mode beside Dynamics: side by side on desktop, stacked below it. */
+export const MIX_P1_R2_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.mix.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
+export const MIX_P2_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.mix.p2', type: 'directionalPanel', orientation: 'column' };
 
 /**
  * Display-only -100..100 in steps of 1, no unit and no L/R letters (docs/specs/ROBOT_PAN.md assumption
@@ -165,40 +144,39 @@ export const DYNAMICS_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
-/** The Pan slider and its Auto toggle side by side, unlabeled — pure layout, the third row of
- *  VOLUME_SETTINGS_COLUMN_PANEL_SCHEMA. */
-export const PAN_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.panRow',
+/** The Pan slider and its Auto toggle, Mix's second box's one row (docs/specs/CONTENT_LAYOUT.md §1.3). A fixed 'row' on
+ *  every tier, not 'responsive': the toggle holds a 44 px box beside the growing slider (assumption 6). */
+export const MIX_P2_R1_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.mix.p2.r1',
   type: 'directionalPanel',
   orientation: 'row',
 };
+
+/**
+ * Levels > Sends (docs/specs/CONTENT_LAYOUT.md §1.3): one box of the five sends, Reverb beside Delay, Grit beside
+ * Shimmer, then Double, each row of two a 'responsive' panel (`robotOptions.sends.p1.r<n>`) and a row of one none.
+ */
+export const SENDS_P1_PANEL_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.sends.p1', type: 'directionalPanel', orientation: 'column' };
+export const SENDS_LAYOUT: readonly (readonly RobotSendField[])[] = [['reverbSend', 'delaySend'], ['gritSend', 'shimmerSend'], ['doubleSend']];
+/** One per SENDS_LAYOUT row, undefined for a row of one. */
+export const SENDS_ROW_PANEL_SCHEMAS: readonly (DirectionalPanelSchema | undefined)[] = SENDS_LAYOUT.map((row, i) =>
+  row.length > 1 ? { id: `robotOptions.sends.p1.r${i + 1}`, type: 'directionalPanel', orientation: 'responsive' } : undefined);
 
 // ========================================
 // PING CONTROLS
 // ========================================
 
-/** Rests and Accents (docs/specs/ROBOT_PERFORMANCE.md §1.6) — the one labelled panel of the Composition section
- *  (PingControlsCompositionSection), under its three plain rows. 'responsive': one row each on mobile, side by side
- *  on desktop. */
-export const ARTICULATION_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.articulation',
-  type: 'directionalPanel',
-  ...labels('probe.composition.articulation', { surface: 'heading' }),
-  orientation: 'responsive',
-};
-
 /**
- * Testing-only toggle (see PingControlsDrawer.tsx's clickTrackActive value field and
+ * Testing-only toggle (see CompositionSections.tsx's clickTrackActive value field and
  * robotOptionsActions.ts's applyClickTrackActive) — overrides the robot's real melody with a
  * fixed 4-quarter-note downbeat pattern so tempo/BPM changes are easy to track by ear. Available
  * in both robot mode (RobotOptionsTab) and company/All broadcast mode (CompanyOptionsSection) —
- * broadcasting it puts every member's playback into click-track mode at once. Rendered first,
- * above Density, so it reads as a mode switch for the rest of the accordion rather than one
- * control among many. PingControlsDrawer.tsx only renders it behind `DEV_TUNING`, so it never
- * reaches a production build.
+ * broadcasting it puts every member's playback into click-track mode at once. Rendered as the last
+ * row of Composition > Rhythm & Melody (docs/specs/CONTENT_LAYOUT.md §1.3).
+ * CompositionSections.tsx only renders it behind `DEV_TUNING`, so it never reaches a production build.
  *
  * `humanLabel` feeds the toggle's accessible name (resolveAccessibleName) but is no longer shown
- * as external label text — PingControlsDrawer.tsx now passes "Click Track" directly as the
+ * as external label text — CompositionSections.tsx passes "Click Track" directly as the
  * Toggle's own facade content instead, which suppresses Toggle's external DualLabel entirely,
  * lore caption included. Its CALIBRATION PULSE lore (now in content) is kept for continuity/documentation but
  * no longer renders anywhere.
@@ -314,11 +292,11 @@ export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
  * "Ping Contour" accordion-typed schema (removed, Task 9; its own successor accordion, Envelope,
  * was itself removed docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 16). Fixed 'column' (was 'row') as of
  * docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — wraps 2 responsive sub-rows
- * (Attack+Decay, Sustain+Release — inline in PingContourDrawer.tsx, matching Compressor's own
- * topRow/bottomRow precedent in audioRigConfig.ts) instead of holding all 4 sliders directly.
+ * (Attack+Decay, Sustain+Release — `.p1.r1` and `.p1.r2`, inline in EnvelopeSections.tsx) instead of holding all 4
+ * sliders directly. Envelope > Contour's one box, keeping its heading (docs/specs/CONTENT_LAYOUT.md §1.3, assumption 2).
  */
-export const PING_CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.pingContour',
+export const CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.contour.p1',
   type: 'directionalPanel',
   ...labels('probe.envelope.contour'),
   orientation: 'column',
@@ -345,7 +323,7 @@ export const DECAY_SCHEMA: SliderLogSchema = {
 /**
  * Display-only 0-100%; the stored value is 0..1 (Robot.ts's ADSREnvelope.sustain). Unlike every
  * other schema in this file, the component consuming this one must convert pct/100 on write and
- * value*100 on read — see PingContourDrawer.tsx.
+ * value*100 on read — see EnvelopeSections.tsx.
  */
 export const SUSTAIN_SCHEMA: SliderLinearSchema = {
   id: 'robotOptions.sustain',
@@ -396,24 +374,33 @@ export const RELEASE_CURVE_SCHEMA: RadioButtonSchema = {
   options: options('probe.envelope.releaseShape'),
 };
 
-/** Attack Shape beside Release Shape, unlabeled — pure layout, the Envelope drawer's fourth row. */
-export const CURVE_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.curveRow',
+/** Envelope > Character's one box (docs/specs/CONTENT_LAYOUT.md §1.3): Portamento, Attack Shape, Release Shape, one per
+ *  row. Unlabeled: Character has no heading of its own. */
+export const CHARACTER_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.character.p1',
   type: 'directionalPanel',
-  orientation: 'responsive',
+  orientation: 'column',
 };
 
-/** The Source filter panel: Cutoff, its LFO link, then Resonance beside Type. */
-export const BUS_FILTER_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.busFilter',
+// Source > Filter (docs/specs/CONTENT_LAYOUT.md §1.3): P1 Cutoff over its LFO link; P2 Resonance beside Type.
+/** The first box, headed by the Source filter concept (spec assumption 2: the heading sits on P1 alone). */
+export const BUS_FILTER_P1_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilter.p1',
   type: 'directionalPanel',
   ...labels('probe.source.filter'),
   orientation: 'column',
 };
 
-/** Resonance beside Type, unlabeled — pure layout. */
-export const BUS_FILTER_ROW_PANEL_SCHEMA: DirectionalPanelSchema = {
-  id: 'robotOptions.busFilterRow',
+/** The second box, unlabeled — pure layout. */
+export const BUS_FILTER_P2_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilter.p2',
+  type: 'directionalPanel',
+  orientation: 'column',
+};
+
+/** Resonance beside Type, P2's one row, unlabeled: side by side on desktop, stacked below it. */
+export const BUS_FILTER_P2_R1_PANEL_SCHEMA: DirectionalPanelSchema = {
+  id: 'robotOptions.busFilter.p2.r1',
   type: 'directionalPanel',
   orientation: 'responsive',
 };
@@ -426,6 +413,7 @@ export const BUS_CUTOFF_SCHEMA: SliderLogSchema = {
   min: ROBOT_BUS_FILTER_FREQ_RANGE.min,
   max: ROBOT_BUS_FILTER_FREQ_RANGE.max,
   orientation: 'horizontal',
+  featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
 };
 
 /** The bus filter's Q (AudioAttributes.filterQ). */
@@ -476,15 +464,13 @@ export interface SignatureArrayLayerBlock {
   /** The layer's own name — content's probe.source.<layer> human/lore (Core Oscillator, …). */
   humanLabel: string;
   loreLabel?: string;
-  /** DirectionalPanel wiring (docs/tasks/archive/DIRECTIONAL_PANEL_WIRING.md) — this layer's own panel.
-   *  Reuses this block's own humanLabel/loreLabel verbatim (Baseline/Coaxial/Harmonic already had
-   *  exactly the right per-layer label; no new copy). */
-  panel: DirectionalPanelSchema;
-  /** The layer's two paired rows (docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4): Type | Gain
-   *  on top, Phase | Interval last (rendered only while Interval is shown). Nested 'responsive'
-   *  panels — side by side on desktop, stacked below — unlabeled: the layer panel's own label is
-   *  the only heading. */
-  rows: { typeGain: DirectionalPanelSchema; phaseInterval: DirectionalPanelSchema };
+  /** The layer's three boxes (docs/specs/CONTENT_LAYOUT.md §1.3): P1 Type | Gain over Gain's link, P2
+   *  Detune over its link, P3 Phase (then Interval on a pulse layer). Only P1 carries a heading, this
+   *  block's own humanLabel/loreLabel verbatim (spec assumption 2); P2 and P3 are unlabeled. */
+  panels: { p1: DirectionalPanelSchema; p2: DirectionalPanelSchema; p3: DirectionalPanelSchema };
+  /** P1's one shared row, Type | Gain: a nested 'responsive' panel — side by side on desktop, stacked
+   *  below — unlabeled. */
+  rows: { typeGain: DirectionalPanelSchema };
   params: SignatureArrayParamSchema[];
 }
 
@@ -511,13 +497,16 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
     key,
     humanLabel,
     loreLabel,
-    // 'column': the panel holds one stacked column of rows (it was 'row' with a single child, which
-    // did nothing). Sliders are horizontal since docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4
-    // (they were vertical at 256px); no verticalHeight, since nothing here is vertical.
-    panel: { id: `robotOptions.${key}.panel`, type: 'directionalPanel', ...labels(c.root), orientation: 'column' },
+    // 'column': each box holds one stacked column of rows. Sliders are horizontal since
+    // docs/specs/POST_SYNC_TOGGLE_LAYOUT_UPDATE.md §1.4 (they were vertical at 256px); no
+    // verticalHeight, since nothing here is vertical.
+    panels: {
+      p1: { id: `robotOptions.${key}.p1`, type: 'directionalPanel', ...labels(c.root), orientation: 'column' },
+      p2: { id: `robotOptions.${key}.p2`, type: 'directionalPanel', orientation: 'column' },
+      p3: { id: `robotOptions.${key}.p3`, type: 'directionalPanel', orientation: 'column' },
+    },
     rows: {
-      typeGain: { id: `robotOptions.${key}.typeGainRow`, type: 'directionalPanel', orientation: 'responsive' },
-      phaseInterval: { id: `robotOptions.${key}.phaseIntervalRow`, type: 'directionalPanel', orientation: 'responsive' },
+      typeGain: { id: `robotOptions.${key}.p1.r1`, type: 'directionalPanel', orientation: 'responsive' },
     },
     params: [
       {
@@ -534,6 +523,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
           id: `robotOptions.${key}.gain`, type: 'sliderLinear',
           ...labels(c.gain),
           min: 0, max: 2, step: 0.01, orientation: 'horizontal',
+          featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
         } satisfies SliderLinearSchema,
         lfoTarget: gainTarget,
       },
@@ -543,6 +533,7 @@ function makeLayerBlock(key: SignatureArrayLayerKey): SignatureArrayLayerBlock {
           id: `robotOptions.${key}.detune`, type: 'sliderCenteredZero',
           ...labels(c.detune),
           min: -50, max: 50, orientation: 'horizontal',
+          featured: true, // docs/specs/CONTENT_LAYOUT.md §1.4
         } satisfies SliderCenteredZeroSchema,
         lfoTarget: detuneTarget,
       },

@@ -10,15 +10,15 @@ import type { AudioRigEffectKey } from '@/data/audioRigConfig';
  *  the implicit "All Probes" bulk-edit target) — docs/specs/archive/NAV_LAYOUT_REWRITE.md
  *  §1.3. null when a category/entity node itself is selected, no section chosen. */
 export type RobotSection = 'volume' | 'melody' | 'envelope' | 'source';
-/** Fleet Params' 8 mid-level groups (`lfoBank` added by docs/tasks/LFO_BANK.md Task 15,
- *  positioned right after `pacing`, replacing the former `fleetDrift` group entirely — not a
- *  rename, a different control; `colour` added by docs/tasks/GLOBAL_COLOUR.md Task 9, between
- *  `timeSpace` and `output`, the chain order; `modulation` added by docs/tasks/GLOBAL_MODULATION_COLOUR.md
- *  Task 10, between `colour` and `output`; `quality`, Audio Quality, moved from Settings by
- *  docs/tasks/OFF_SCREEN_CONSOLE.md Task 12, last) — the key of Fleet Params' section tabs
- *  (fleetParamsSection) and of the per-section tables in navActions.ts. There is no per-group
- *  expand-toggle state (docs/specs/archive/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3). */
-export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'colour' | 'modulation' | 'output' | 'quality';
+/** Fleet Params' 7 mid-level groups (`lfoBank` added by docs/tasks/LFO_BANK.md Task 15,
+ *  replacing the former `fleetDrift` group entirely — not a rename, a different control; `colour`
+ *  added by docs/tasks/GLOBAL_COLOUR.md Task 9, between `timeSpace` and `output`, the chain order;
+ *  `modulation` added by docs/tasks/GLOBAL_MODULATION_COLOUR.md Task 10, between `colour` and
+ *  `output`; `world` first, holding the former `pacing` and `quality` groups as its two sub-tabs,
+ *  docs/specs/CONTENT_LAYOUT.md §1.2) — the key of Fleet Params' section tabs (fleetParamsSection)
+ *  and of the per-section tables in navActions.ts. There is no per-group expand-toggle state
+ *  (docs/specs/archive/NAV_UNDERLINE_LINK_AND_AUTO_EXPAND.md §1.3). */
+export type FleetParamsGroup = 'world' | 'lfoBank' | 'eqFilters' | 'timeSpace' | 'colour' | 'modulation' | 'output';
 /** A Fleet Params sub-tab — fleetParamsSubsection's type (docs/specs/LAYOUT_REWORK.md §1.10). Added in
  *  Task 14 (docs/tasks/archive/NAV_LAYOUT_REWRITE.md) for the tree's effect leaf, a field that retired with the
  *  stacked scroll (LAYOUT_REWORK.md Task 18): Fleet Params' 5 groups
@@ -29,17 +29,20 @@ export type FleetParamsGroup = 'pacing' | 'lfoBank' | 'eqFilters' | 'timeSpace' 
  *  'laneA'-'laneD' are LFO Bank's own 4 children, one per world lane (docs/tasks/LFO_BANK.md
  *  Task 15 — replaces the former 'globalDrift'/'robotDrift' pair entirely). Unlike the other
  *  groups' leaves, none of these are a real AudioRigEffectPanel/AudioRigEffectKey, so each
- *  needs its own synthetic member here. */
-export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects' | 'swellFrequency' | 'swellDuration' | 'laneA' | 'laneB' | 'laneC' | 'laneD';
+ *  needs its own synthetic member here. 'pacing' and 'quality' are World's two sub-tabs
+ *  (docs/specs/CONTENT_LAYOUT.md §1.2). */
+export type SelectedFleetParamsEffect = AudioRigEffectKey | 'tempo' | 'automaticEffects' | 'swellFrequency' | 'swellDuration' | 'laneA' | 'laneB' | 'laneC' | 'laneD' | 'pacing' | 'quality';
 /** The 4th tree level under a robot's/company's RobotSection — docs/specs/archive/NAV_PANEL_VIEWS_AND_CONTENT.md
  *  §1.3/§1.4. Flat union rather than nested per-section, because a subsection is always read
  *  alongside its already-known parent RobotSection — no ambiguity from flattening (no subsection
  *  name collides across sections). Shared by robots and companies, same as RobotSection itself. */
 export type RobotSubsection =
-  | 'audioSettings'
-  | 'rhythm'
-  | 'frequency'
-  | 'pingContour'
+  | 'mix'
+  | 'sends'
+  | 'rhythmMelody'
+  | 'details'
+  | 'envelopeContour'
+  | 'envelopeCharacter'
   | 'baselineOscillator'
   | 'coaxialOscillator'
   | 'harmonicOscillator'
@@ -102,7 +105,7 @@ export interface UIStore {
    *  screen is tabs, so there is no "no section" state. */
   fleetParamsSection: FleetParamsGroup;
   /** The open sub-tab inside that section — null reads as the section's first (navActions'
-   *  activeFleetParamsSubsection). Pacing has no sub-tabs. */
+   *  activeFleetParamsSubsection). Every section has sub-tabs. */
   fleetParamsSubsection: SelectedFleetParamsEffect | null;
   /** Which top-level branch is expanded — see TopLevelBranch's own doc comment. */
   expandedTopLevelBranch: TopLevelBranch | null;
@@ -135,9 +138,9 @@ export interface UIStore {
   setSceneWash: (state: SceneWash) => void;
 }
 
-/** The Fleet Params tab the screen opens on, and every nav pick returns to (docs/tasks/LAYOUT_REWORK.md
- *  Task 15: the sketch's approved frame opens on LFO Bank). */
-export const DEFAULT_FLEET_PARAMS_SECTION: FleetParamsGroup = 'lfoBank';
+/** The Fleet Params tab the screen opens on, and every nav pick returns to: World, so the screen opens
+ *  on World > Pacing (docs/specs/CONTENT_LAYOUT.md assumption 8; it was LFO Bank, LAYOUT_REWORK.md Task 15). */
+export const DEFAULT_FLEET_PARAMS_SECTION: FleetParamsGroup = 'world';
 
 // ========================================
 // STORE
