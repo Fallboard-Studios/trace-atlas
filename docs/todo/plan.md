@@ -29,12 +29,10 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 5 — UX refinement
 
-- Backlog [75](backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width) **Close, back,
-  browser Back, the nav's width** — intent, spec and plan written 2026-11-15, awaiting Crawford's read; the build starts at the plan's two gates.
 - Backlog [76](backlog.md#76-fleet-params-and-the-edit-tabs-regroup-re-order-respace) **Tempo & Options, slider
   order, respacing** — Crawford brings the slider list when it is picked up.
 - Backlog [77](backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect) **A send's help links to its effect** —
-  after 75, so Back returns from the jump.
+  Back returns from the jump (backlog 75's trail, merged 2026-11-16, PR #651).
 - Roadmap [51](roadmap.md#51-guide-a-read-only-branch-that-teaches-the-whole-app) **The Guide** — large; likely one
   tabbed window that shows everything.
 - Backlog [61](backlog.md#61-accessibility-review) **Accessibility review** — interview the checklist, then run it.
@@ -81,7 +79,9 @@ the item's own measure-first check runs, and the item archives if the check find
   G2b, spun off at its Gate A; 67's Gate B passed without it (2026-11-10), so it waits on a need.
 - Backlog [42](backlog.md#42-audio-does-a-long-pause-on-ios-safari-come-back-measure-first) **Does a long pause on iOS
   Safari come back?** — together with roadmap [53](roadmap.md#53-per-mover-compositor-layers)'s Safari look (spec §5.3's
-  manual list); both wait on a Mac or iPhone being to hand, so neither sits in a stage.
+  manual list) and backlog [75](archive/backlog-archive.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width)'s
+  browser Back check (its spec §7.2 Q4, run with `docs/sketches/tools/browser-back-probe.html`); all three wait on a
+  Mac or iPhone being to hand, so none sits in a stage.
 - Backlog [34](backlog.md#34-audio-upgrade-tone-once-the-leak-fix-is-latest-then-delete-the-patch) **The Tone
   upgrade** — waits for a Tone with the leak fix to be npm's `latest`; it then deletes `tonePatches.ts`.
 - Decisions, not work, left on four stubs: roadmap [43](roadmap.md#43-robot-jobs-and-charging-stations) (parks below

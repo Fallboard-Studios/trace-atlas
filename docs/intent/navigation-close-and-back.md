@@ -2,7 +2,7 @@
 
 Confirmed via `interview-me` on 2026-11-15 (seven questions; five guesses confirmed outright, two accepted on trial and
 marked so below), ahead of a sketch and then a `spec-driven-development` pass. This is backlog
-[75](../todo/backlog.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5.
+[75](../todo/archive/backlog-archive.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), plan.md Stage 5.
 
 ## Outcome
 

@@ -1689,6 +1689,52 @@ backlog [45](../backlog.md#45-off-screen-crawfords-three-preset-links). B12–B1
 its own branch from `main` after 60 merges. Plan.md Stage 3.
 
 
+## 75. Navigation: Close, Back, the Browser's Back Button, and the Nav's Width
+
+**Closed** 2026-11-16 (merged PR #650, `docs/backlog-75-intent`, the intent, spec and plan; and PR #651,
+`feature/navigation-close-and-back`, Tasks 0–16 and the review follow-ups). What shipped: a trail of screens in
+`uiStore` (`navTrail`, capped at 50), recorded by every navAction and walked by `back()`, which restores each screen on
+the tabs it showed; a Back / Close row at the top of the content plate on every open screen (plain words, Back never
+names where it goes); the browser's Back button walking the same trail through one guard history entry while the
+power is on, and leaving the app with the power off or the trail empty; a deleted company taken off the trail; and a
+world rebuild landing on the deck with an empty trail. No leave warning. The rail trial was kept at Gate 3: three
+plain boxes at 124 px, with no entity list and no width tween. Safari was not checked; its Back check waits with the
+other Safari checks in plan.md's Parked list. As built: [spec](../../specs/NAVIGATION_CLOSE_AND_BACK.md) §8;
+[UI_SHELL.md](../../UI_SHELL.md). The original request follows.
+
+Raised by Crawford on 2026-11-11 (items 3, 4, 5 and 9 of his list). Four asks about how a player leaves a screen,
+recorded together because one history model could answer the first three, and the fourth is what moves when the list
+opens:
+
+- **Close.** Every open view gets a control that closes it and shows the deck. Today the only ways to the deck are
+  NavPanel's "Deck" box (`navActions.goHome`, named as the close control in `ContentPane.tsx`'s header) and the
+  breadcrumb's root (`NavBreadcrumb.tsx`).
+- **Back to the Probes list.** One press from a robot's screen, All Probes or a company's screen back to the Probes
+  list. Today `selectEntity` collapses the list when an entity opens (Crawford, 2026-10-10: "collapse the nav when a
+  probe or company is selected"), and only the Probes parent box brings it back (`pressBranchBox`).
+- **The browser's Back button.** Nothing in `src/` pushes a history entry: the address bar is only rewritten in place
+  with `replaceState` (`sessionShareUtils.ts` after a world link loads, `audioBudgetSystem.ts` for `?load=` and the
+  effects load). So Back leaves the app at once, along with any unsaved changes to the world. Options to weigh: push an
+  entry per navigation so Back walks the app's own trail (it must keep the `replaceState` writes intact), a leave
+  warning while the world has unsaved changes, or both. Open: what Back does on the deck and on the off screen.
+- **The nav's width.** The desk rail tweens from rest (124 px) to wide (200 px) while Probes lists its entities
+  (`NavPanel.css`, `--nav-panel-expand`, tweened in `NavPanel.tsx`), which moves ContentPane's left edge with it.
+  Decide whether the width change stays.
+
+Constraints: the controls live inside ScreenViewport (the UI Shell guardrail), navigation state stays in `uiStore`, and
+the labels go in `src/content/`. Neighbour: backlog [77](../backlog.md#77-help-popovers-a-link-from-a-send-to-its-effect)
+(a jump from a send to its effect is a navigation, so Back should return from it). Plan.md Stage 5.
+
+**Status (2026-11-15): intent confirmed** ([intent](../../intent/navigation-close-and-back.md)). One trail of screens:
+Back, on screen and in the browser, returns to where the player was, on the tab it showed; Close always shows the deck;
+a tab switch is not a step; no leave warning; power is not a step, and a different world picked while off empties the
+trail. On trial: the rail fixed at 124 px with the entity list removed, and the row's place (Back left, Close right,
+pinned, clear of the power corner). [Spec](../../specs/NAVIGATION_CLOSE_AND_BACK.md) and
+[plan](../../tasks/NAVIGATION_CLOSE_AND_BACK.md) written the same day, awaiting Crawford's read; the spec's seven open
+questions are built on their defaults until he answers. The plan opens with two gates: a browser check of how the Back
+button is wired, and the sketch of the row.
+
+
 ## 79. Robots: Move in Time with Their Own Melody
 
 **Closed** 2026-11-14 (`feature/note-cloud`, merged PR #637, and `feature/note-cloud-early-notes`, merged PR #640;
