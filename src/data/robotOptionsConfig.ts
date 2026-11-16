@@ -292,9 +292,8 @@ export const NOTE_VARIANCE_SCHEMA: SliderLinearSchema = {
  * "Ping Contour" accordion-typed schema (removed, Task 9; its own successor accordion, Envelope,
  * was itself removed docs/tasks/archive/NAV_LAYOUT_REWRITE.md Task 16). Fixed 'column' (was 'row') as of
  * docs/specs/archive/ROBOT_OPTIONS_RESPONSIVE_LAYOUT.md §1.4 — wraps 2 responsive sub-rows
- * (Attack+Decay, Sustain+Release — inline in PingContourDrawer.tsx, matching Compressor's own
- * topRow/bottomRow precedent in audioRigConfig.ts) instead of holding all 4 sliders directly. Envelope > Contour's one
- * box, keeping its heading (docs/specs/CONTENT_LAYOUT.md §1.3, assumption 2).
+ * (Attack+Decay, Sustain+Release — `.p1.r1` and `.p1.r2`, inline in EnvelopeSections.tsx) instead of holding all 4
+ * sliders directly. Envelope > Contour's one box, keeping its heading (docs/specs/CONTENT_LAYOUT.md §1.3, assumption 2).
  */
 export const CONTOUR_PANEL_SCHEMA: DirectionalPanelSchema = {
   id: 'robotOptions.contour.p1',

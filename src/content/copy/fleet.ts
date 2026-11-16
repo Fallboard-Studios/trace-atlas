@@ -547,7 +547,8 @@ export const fleet = {
     unit: 'dB',
     help: { human: 'The loudest the fleet is ever allowed to get. Anything that would go past it is held down to it.' },
   },
-  // Audio Quality, Fleet Params' last tab (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12): moved verbatim from Settings.
+  // Settings, World's second sub-tab (docs/specs/CONTENT_LAYOUT.md §1.2): the Audio Load Budget. It was the Audio Quality
+  // tab, moved verbatim from the old Settings screen (docs/tasks/OFF_SCREEN_CONSOLE.md Task 12).
   'fleet.quality': {
     human: 'Settings',
     lore: 'Trace Capacity',
