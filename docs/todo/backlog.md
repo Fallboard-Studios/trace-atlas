@@ -550,20 +550,23 @@ short interview before a spec. Off the plan (this line said "Plan.md Stage 3" un
 
 ### 77. Help Popovers: A Link from a Send to Its Effect
 
-Raised by Crawford on 2026-11-11 (item 6 of his list). The robot and company screens carry five sends, and each one's
-help popover (`HelpPopover.tsx`, opened by DualLabel's "?") names the shared effect it feeds without linking to it.
-Add a link that opens Fleet Params at that effect:
+Raised by Crawford on 2026-11-11 (item 6 of his list). The robot, company and All Probes screens carry five sends
+(Levels › Sends since roadmap
+[91](roadmap.md#91-control-layout-tabs-sub-tabs-boxes-and-rows-for-fleet-params-and-the-probes)), and each one's help
+popover (`HelpPopover.tsx`, opened by DualLabel's "?") names the shared effect it feeds without linking to it. Add a
+link that opens Fleet Params at that effect. The table uses the names on screen (checked 2026-11-16): 91 renamed
+Colour to Color, and the Frequency Shifter's sub-tab has read Shifter since roadmap 50.6:
 
-| Send (`src/content/copy/probe.ts`) | Feeds | Fleet Params section › sub-tab |
+| Send (`src/content/copy/probe.ts`) | Feeds | Fleet Params tab › sub-tab |
 | --- | --- | --- |
 | Reverb (`probe.reverbSend`) | Reverb | Time & Space › Reverb |
 | Delay (`probe.delaySend`) | Delay | Time & Space › Delay |
-| Grit (`probe.gritSend`) | the Colour room (Distortion, Chebyshev, Bit Crusher) | Colour (which sub-tab is open) |
-| Shimmer (`probe.shimmerSend`) | Frequency Shifter | Modulation › Frequency Shifter |
+| Grit (`probe.gritSend`) | the colour room (Distortion, Chebyshev, Bit Crusher) | Color (which sub-tab is open) |
+| Shimmer (`probe.shimmerSend`) | Frequency Shifter | Modulation › Shifter |
 | Double (`probe.doubleSend`) | Chorus | Modulation › Chorus |
 
 To work out: where the link's target is recorded (HelpPopover is one of the 13 shared primitives, and help text is a
-content entry, so it is either a new field on the help entry or on the control's schema); which of Colour's three
+content entry, so it is either a new field on the help entry or on the control's schema); which of Color's three
 sub-tabs Grit opens; and how the player gets back to the robot (backlog
 [75](archive/backlog-archive.md#75-navigation-close-back-the-browsers-back-button-and-the-navs-width), closed: Back
 walks a trail of screens, so it returns from the jump as from any other step). Plan.md Stage 5.

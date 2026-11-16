@@ -1743,7 +1743,10 @@ layout (merged PR #649, `features/slider-layout-update`), not by a branch of its
 tab, the name in Crawford's layout sheet rather than "Tempo & Options": first in the row, with Pacing and Settings (the
 Audio Load Budget, formerly the Audio Quality tab) as its sub-tabs, so Fleet Params has seven tabs and every one has a
 sub-tab row. Step 2 shipped from Crawford's two layout sheets, on Fleet Params and on every robot, company and All
-Probes tab (sub-tabs, boxes and rows, featured controls, ten renames). Step 3's spacing is that layout, which passed
+Probes tab (sub-tabs, boxes and rows, featured controls, ten renames). The names changed on the way: on Fleet Params,
+Audio Quality became Settings (now World's second sub-tab), LFO Bank became LFOs and Colour became Color; the robot
+tabs gained sub-tabs, Levels (Mix, Sends), Composition (Rhythm & Melody, Details), Envelope (Contour, Character) and
+Source (Core, Companion and Accent Oscillator, then Filter). Step 3's spacing is that layout, which passed
 his look at three widths on 2026-11-15; its lore titles were outside 91 (the content pass), so they moved to backlog
 [62](../backlog.md#62-misc-review-items-a-bucket) as a dated bullet. The original request follows.
 
