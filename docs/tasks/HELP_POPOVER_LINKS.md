@@ -328,17 +328,24 @@ Task 8 (LfoLink's required onOpenLane; the three drawers pass it)
   or the type check fails between commits; the three drawer edits are one line each)
 
 ### Checkpoint 2: The links (stop and report)
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
-- [ ] Spec §5.3's runs, desk and phone shell, recorded here:
-  - [ ] each send's link from a robot, a company and All Probes lands on its tab and sub-tab, and Back returns to
-        Levels › Sends;
-  - [ ] Grit: all Mixes 0 → Distortion; Chebyshev's Mix up → Chebyshev;
-  - [ ] the lane link from a robot (lane B) → Companion LFO → Back; from Fleet Params' Delay (lane Off) → Core LFO →
-        Back lands on Delay;
-  - [ ] keyboard: open a "?", Tab to the link, Enter: focus is on the sub-tab and the arrow keys move across the
-        sub-tabs;
-  - [ ] a held-off send's link works.
-- [ ] Restart Vite after the last edit before any headless probe (a `?t=` copy of an edited module is a second store).
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` clean.
+      2026-11-16: 361 files, 14,558 passed, 2 skipped, none failed; lint 4 pre-existing warnings; build clean (its
+      warnings are the existing dynamic-import notes and the chunk size).
+- [x] Spec §5.3's runs, desk and phone shell, recorded here. 2026-11-16, headless Chrome over CDP
+      (`scripts/perf/cdp-lib.mjs`) on a fresh dev server, desk 1280 px and phone 375 px (`data-shell` checked), real
+      clicks on the "?", the link and the screen's Back button, real key events for the keyboard run: 42/42 passed.
+  - [x] each send's link from a robot, a company and All Probes lands on its tab and sub-tab, and Back returns to
+        Levels › Sends; (15 per shell)
+  - [x] Grit: all Mixes 0 → Distortion; Chebyshev's Mix up → Chebyshev;
+  - [x] the lane link from a robot (lane B) → Companion LFO → Back; from Fleet Params' Delay (lane Off) → Core LFO →
+        Back lands on Delay; **Delay has no lane picker** (only the EQ and the two filters carry LFO targets in Fleet
+        Params, `audioRigConfig.ts`), so this ran from EQ & Filters › LPF, its first link set Off: Core LFO, and Back
+        lands on LPF. The robot run went from Source › Bus Filter and Back returned there;
+  - [x] keyboard: open a "?", Tab to the link, Enter: focus is on the sub-tab and the arrow keys move across the
+        sub-tabs; (Enter on Reverb's "?", one Tab reaches the link, Enter: focus on the Reverb sub-tab; ArrowRight:
+        Delay, focused and open)
+  - [x] a held-off send's link works. (effects held off: Double's row dimmed, its link lands on Modulation › Chorus)
+- [x] Restart Vite after the last edit before any headless probe (a `?t=` copy of an edited module is a second store).
 - [ ] Reviewed with Crawford before docs.
 
 ---
