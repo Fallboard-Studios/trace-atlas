@@ -718,10 +718,14 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
   **Estimated scope:** S (three docs)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] Every acceptance criterion above is met, and spec §5.5's list holds apart from the archive.
-- [ ] Any look or browser run not done in the session is named here, never skipped silently.
-- [ ] Ready for Crawford's review and PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean. (The full run after Task 15:
+      14,468 pass, 0 fail, 2 skipped. Every commit since is docs only; lint re-run after Task 16, clean apart from
+      the four older warnings.)
+- [x] Every acceptance criterion above is met, and spec §5.5's list holds apart from the archive. (The archive is
+      Task 17's, after the merge.)
+- [x] Any look or browser run not done in the session is named here, never skipped silently. (Every §5.3 run was
+      done, by headless Chrome and by Crawford. Not done: Safari, spec §7.2 Q4, parked by Task 17.)
+- [x] Ready for Crawford's review and PR. (The branch is stacked on the unpushed `docs/backlog-75-intent`.)
 
 ---
 
