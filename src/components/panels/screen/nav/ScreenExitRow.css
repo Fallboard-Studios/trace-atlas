@@ -2,7 +2,9 @@
    docs/sketches/navigation-close-and-back.html, passed at Gate 2): Back at the left, Close at the right, at its natural
    height and never shrunk by the console under it. It sits at the top of the content plate (ContentPane), outside
    ConsolePanel's scroller, so it stays put while the screen scrolls. The plate starts at --top-bar-bottom, below the
-   power corner, so Close at the right end clears the rocker by construction. The padding is the sketch's. The band
+   power corner, so Close at the right end clears the rocker by construction. The padding is the sketch's; its extra
+   4 px on the left is room for Back's left wall, which the cabinet draws outside the face (the sketch's wall is 4 px,
+   the app's up to CABINET_POP_DISTANCE, 2 px), so the wall never touches the plate's edge. The band
    carries the plate's own wash once more, a shade darker than the plate, with the plate's border under it. */
 .screen-exit-row {
   display: flex;

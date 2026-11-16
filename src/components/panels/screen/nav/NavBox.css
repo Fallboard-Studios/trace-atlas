@@ -1,4 +1,4 @@
-/* A nav box fills its column (the panel, or the entity list under a parent box); the button stays the
+/* A nav box fills the panel's column; the button stays the
    whole hit area, the CabinetBox inside it only draws — Button.css's split, full width instead of
    fit-content, the way NavCabinetRow.css widened its own box. */
 .nav-box {

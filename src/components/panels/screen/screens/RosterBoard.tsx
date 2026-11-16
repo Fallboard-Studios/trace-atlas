@@ -28,7 +28,7 @@ const INTRO = introProps('probe.root');
 const INTRO_NAME = CONTENT['probe.root'].human;
 const BOARD_STYLE = getTraitColorStyle('output');
 /** The sketch draws All Probes in the Deck's colour (the whole fleet), + New Company and Freelance in the
- *  companies trait — as the nav's entity list does. */
+ *  companies trait. */
 const ALL_PROBES_ACCENT = getTraitColorStyle('header');
 const COMPANY_TRAIT_ACCENT = getTraitColorStyle('company');
 const FREELANCE = CONTENT['company.assign'].options.freelance.human;

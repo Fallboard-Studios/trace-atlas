@@ -726,6 +726,12 @@ exercise code, not text"). Per Crawford's rule, every new RED test is mutation-c
 - [x] Any look or browser run not done in the session is named here, never skipped silently. (Every §5.3 run was
       done, by headless Chrome and by Crawford. Not done: Safari, spec §7.2 Q4, parked by Task 17.)
 - [x] Ready for Crawford's review and PR. (The branch is stacked on the unpushed `docs/backlog-75-intent`.)
+- [x] Five-axis review (2026-11-16): approved, no Critical or Required finding; three more mutations, each killed by
+      one test. Follow-ups made on Crawford's go: `resetNav` and the store's initial state read one `deckNav()`, so a
+      new nav field gets its deck value once; `NavBox` lost its unused `controls` and `accentStyle` props; four stale
+      comments corrected (`nav.ts`, `NavBox.css`, `RosterBoard.tsx`, the `navTrail` doc) and the row's extra 4 px
+      explained. Kept as is: `Header`'s phone rescue selector (role and content name), since `Toggle` takes no hook
+      and both sides read one content key. 4,000 pass across the touched suites; types and lint clean.
 
 ---
 
