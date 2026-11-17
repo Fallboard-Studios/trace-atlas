@@ -7,7 +7,9 @@ Source spec: [docs/specs/MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md). Source 
 **Status:** plan written 2026-11-17; Crawford asked for Phase 1 the same day. Phase 1 built on `feature/melody-journey`
 (Tasks 1–7, ab4c5bbc..8ca7100e). Checkpoint A's suite, mutation checks and path lengths done (Results); its review
 with Crawford is next. Phase 2 built the same day (Tasks 8–9, 5fb21a7b, 4d088fb0); Checkpoint B's suite and probe
-done (Results), its review with Crawford next, then Task 10.
+done (Results), its review with Crawford next, then Task 10. Phase 3 built the same day (Tasks 10–14, 842b28fb,
+7d00e5b8, bae04ac3, cce717bf, 92461adc); Checkpoint C's suite and mutation checks done (Results); its browser look and
+review with Crawford next, then Task 15.
 
 ## Overview
 
@@ -467,8 +469,8 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Estimated scope:** M
 
 ### Checkpoint C: the engine
-- [ ] `npm test` clean (full suite).
-- [ ] Mutation checks, each killed: the measure passed to `journeyPosition` (14), the Company fallback to Own (12),
+- [x] `npm test` clean (full suite).
+- [x] Mutation checks, each killed: the measure passed to `journeyPosition` (14), the Company fallback to Own (12),
       the octave-range turn-back (10), the kept positions (14).
 - [ ] In the browser, with a robot's `development` set from the console through the store: its notes change from
       measure to measure and return to the home melody.
@@ -816,6 +818,37 @@ fast-refresh warnings.
 robot's `docking` and `melody` from the locale store once a second for 240 s after power-on: 12 robots, 19 Recalled →
 Docked landings (every robot landed at least once; seven landed twice), 0 melody changes, and each robot's last
 melody equal to its first.
+
+### Checkpoint C (2026-11-17)
+
+**Tasks.** Task 10 842b28fb, Task 11 7d00e5b8, Task 12 bae04ac3, Task 13 cce717bf, Task 14 92461adc.
+
+**Suite.** `npm test`: 14,656 passed, 2 skipped, 0 failed: Checkpoint B's 14,602 and 54 new (Task 10 12, Task 11 9,
+Task 12 17, Task 13 5, Task 14 11). `build:types` clean; `lint` clean apart from the four standing fast-refresh
+warnings.
+
+**Mutation checks.** All killed.
+
+| Mutant | Task | Failed |
+|---|---|---|
+| The octave-range turn-back removed (the forward step always wins) | 10 | 4 |
+| The own-note fallback removed (the back step always wins) | 10 | 2 |
+| Company with no `companyId` keys on the company, not Own | 12 | 1 |
+| A re-registration updates in place instead of moving to the end | 13 | 1 |
+| The measure passed to `journeyPosition` one late | 14 | 7 |
+| One kept position, not four | 14 | 1 |
+| The floor dropped from the kept key (an Attack edit plays a stale build) | 14 | 1 |
+
+**Readings the plan did not cover (Phase 3).**
+
+- `stepInPalette` gives each pitch class the first spelling the palette uses for it; the B-to-C boundary carries the
+  octave (Task 10).
+- Every step now reads the locale store once, Humanize or not; the robots' journeys, the Humanize seeds, the cut
+  release and the pitch step's range share that read. The one existing test changed is the Humanize read count: at
+  0 ms it pinned no read, it now pins one (Task 14).
+- The motif accent on a developed melody is kept by home event id; at position 0 the registered entries play as before,
+  accent by start step (Task 14).
+- **In the browser:** not yet run.
 
 ## Risks and Mitigations
 
