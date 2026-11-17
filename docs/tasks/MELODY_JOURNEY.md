@@ -1268,7 +1268,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** S (docs only)
 
-- [ ] **Task 22: `COMPANIES.md`, `SESSION_STORAGE.md`, the data grid, and the spec's As built**
+- [x] **Task 22: `COMPANIES.md`, `SESSION_STORAGE.md`, the data grid, and the spec's As built**
 
   **Description:** `COMPANIES.md`: a member's inherited bounds, the seeded Journey, the broadcast.
   `SESSION_STORAGE.md`: the three override fields. `reference/ROBOT_DATA_GRID.md`: the two band rows. The spec gains
@@ -1279,8 +1279,8 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Each doc matches the shipped source; the spec's §9 records every number as shipped.
-  - [ ] The CLAUDE.md line is changed only on Crawford's word.
+  - [x] Each doc matches the shipped source; the spec's §9 records every number as shipped.
+  - [x] The CLAUDE.md line is changed only on Crawford's word.
 
   **Verification:** each name spot-checked against the code; links and anchors checked.
 
@@ -1782,7 +1782,8 @@ The revision's (Phases 6 to 9):
    theme's; `pitchLocked` stays in place; a phone listen is enough.
 2. Spec §7.1's assumptions. **Open by design:** they stand at their defaults until Gates A and C, where Crawford
    moves them by ear.
-3. CLAUDE.md's `ROBOT_LIFECYCLE.md` line names pitch drift. **Open** — Crawford's word, at Task 22.
+3. CLAUDE.md's `ROBOT_LIFECYCLE.md` line names pitch drift. **Resolved** (Crawford, 2026-11-17, at Task 22): drop
+   the two words; nothing else in CLAUDE.md changes.
 4. Spec §7.3's assumptions (B1 to B15). **Open by design:** they stand at their first cuts until Gates A and C.
 5. Gate B's harness. **Open** — Crawford's word, before Checkpoint I: mend the step harness (`npm run perf` stops at
    a nav button it can no longer find), or accept the audio-thread A/B (`npm run perf:audio`) as the gate.

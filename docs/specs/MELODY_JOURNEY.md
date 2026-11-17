@@ -26,6 +26,8 @@ of the build stands and what is replaced. The task file follows as its Phases 6 
 time of 16, so robots on one journey move in lock step; max intensity is a robot's one bound. §1.1, §1.3, §1.9,
 §1.10, §2, §4, §5 and §7.3 are touched; the task file adds Task 38 and revises Tasks 29 to 35.
 
+**Built 2026-11-17**, every phase; what shipped, every number and what the gates have (not yet) moved is §9, As built.
+
 **Where the claims come from.** Two sources, marked where it matters:
 
 - **(code)** read in the repo while writing this spec.
@@ -655,8 +657,100 @@ Phases 1 to 5 of the plan were built on `feature/melody-journey` before the revi
 
 **New:** the calm limit handed to the journey; the journey's one max time (§7.4).
 
-**Not yet done either way:** the reference docs (the plan's Tasks 21 and 22). They are written once, against the
-revised build.
+**The reference docs** (the plan's Tasks 21 and 22) were written once, against the revised build (§9).
 
 **The plan:** [docs/tasks/MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md), Phases 6 to 9 (Tasks 24 to 37), revised
 2026-11-17.
+
+---
+
+## 9. As built
+
+Built 2026-11-17 on `feature/melody-journey`, unpushed, for Crawford's PR: the plan's ten phases, Tasks 1 to 38
+(Tasks 1 to 20 the first build, 24 to 38 the revision, 21 and 22 the docs; Task 23, the archive, follows the merge).
+Each task's commit, suite and mutation run is in the plan's Results, Checkpoints A to I. The reference docs:
+[MELODY_SYSTEM.md](../MELODY_SYSTEM.md#the-melody-journey-roadmap-92) (the journey, the changes, the settings),
+[AUDIO_SYSTEM.md](../AUDIO_SYSTEM.md#note-resolution-pipeline) (the engine's read),
+[ROBOT_LIFECYCLE.md](../ROBOT_LIFECYCLE.md) (no drift), [COMPANIES.md](../COMPANIES.md) (a company as a section, the
+broadcast), [SESSION_STORAGE.md](../SESSION_STORAGE.md) (the save and the link) and
+[reference/ROBOT_DATA_GRID.md](../reference/ROBOT_DATA_GRID.md) (the rows and the band).
+
+### 9.1 What the gates moved
+
+**Nothing yet.** None of Crawford's gates has been run, so every number below is the first cut this spec gave it:
+
+- **Gate A** (his ear, the journey by hand): not run. A first Gate A on the walk was never recorded; Phases 5 and 9
+  were built on his word without it.
+- **Gate B** (profile): open on his call (the plan's Open Questions 5). `npm run perf` stops at a nav button it can no
+  longer find; an `npm run perf:audio` A/B stood in on the walk's build (Checkpoint E: steady play equal on `main` and
+  the branch, the warm-up noisy on both) and has not been run on the pairs.
+- **Gate C** (his ear, a full seeded world, desktop and phone): not run.
+- **Checkpoint G's browser look** (a drop on a bar line, a company turning together): not run.
+
+### 9.2 Every number as shipped
+
+| What | Value | Where |
+|---|---|---|
+| Home odds | `JOURNEY_HOME_ODDS` 0.5 × \|p\| | `src/constants/index.ts` |
+| Least move of a pair | `JOURNEY_MIN_MOVE` 0.125 of max intensity | same |
+| Time lean | `JOURNEY_TIME_LEAN` 0.5 | same |
+| Drop odds | `JOURNEY_DROP_ODDS` 0.3, on moves of `JOURNEY_DROP_MIN_MOVE` 0.5 or more | same |
+| Top of max intensity | `JOURNEY_INTENSITY_MAX` 16 | same |
+| Every journey's max time | `JOURNEY_TIME_MAX` 16 measures; pairs 2 to 16, even, a drop 1 | same |
+| Absent settings | `DEFAULT_JOURNEY_MAX_INTENSITY` 0, `DEFAULT_JOURNEY` `'own'` | same |
+| The band | `'robot.journeyMaxIntensity': { min: 1, max: 16, lit: 0.7 }`, a Melody family key; no theme or aspect column names it | `src/data/bands/classic.ts` |
+| The floor | `ceil(ATTACK_REACH_SHARE` (0.5) `× attack ÷ a sixteenth at the top of the bpm band)`, never under 1 | `developmentFloor` |
+| A direction | up when the `${compositionSeed}:development` draw is under 0.5 | `melodyDevelopment.ts` |
+| Positions kept per robot | `DEVELOPED_KEPT` 4 | `src/engine/AudioEngine.ts` |
+| Link keys | `ji` (max intensity), `jy` (Journey); `dv` ignored | `worldDiffCodec.ts` |
+| The changes | A1 to A11 of §7.1 as written; B1 to B10 and B15 of §7.3 as written | `melodyDevelopment.ts`, `melodyJourney.ts` |
+
+**Measured** (the plan's Results; throwaway probes, not committed):
+
+- **The journey's shape at max intensity 16** (Checkpoint F, 400 keys × 2,000 pairs at a max time of 16): 16.0 % of
+  pairs are drops and 22.3 % head home; a pair takes 7.37 measures on average; a robot is home every 32.9 measures
+  (median 26, 90th percentile 62); a quarter of drops land home; the biggest drop is 31 changes (+16 to −15).
+- **The draw** (Checkpoint I, the 121 sim worlds, 1,452 robots): 533 of the 745 robots that are not members load
+  above 0 (71.5 % against a `lit` of 0.7); 206 of the 288 seeded companies move within 100 measures and 82 stay home.
+- **The busy side** (Checkpoint A): half the fleet, 729 of 1,452 robots, has no split and no fill, so its busy side is
+  shifts from the first change; the attack floor is most of it (1,009 robots have a floor of 2 or more). At a max
+  intensity of 16 the top of most journeys is pitch movement on the home rhythm (B15).
+
+### 9.3 Deviations from the plan, and readings it did not cover
+
+The full list, task by task, is in the plan's Results ("Readings the plan did not cover", per checkpoint). The ones
+that change what a reader of this spec would expect:
+
+- **Max time left the robot** (§7.4, Task 38): one max time of 16 for every journey. The pure pieces keep max time as
+  an argument; `robotJourney` hands back `JOURNEY_TIME_MAX`.
+- **The engine's read draws lazily.** `journeyPosition` draws turning measures one pair at a time as a read needs
+  them, memoised per key and max time, each pair drawing one share past itself to see a drop; a read at measure 10,000
+  draws about 1,400 shares. The calm limit is read on every step, not cached on the registration.
+- **Every step reads the locale store once,** Humanize or not (one existing test's read count went from 0 to 1).
+- **A lit robot is never 0:** `seedJourneyMaxIntensity` floors it at 1 when a band reaches below 1.
+- **The restore** keeps a finite check on max intensity (it also drops an Infinity, which the store would clamp to
+  16) and none on Journey, which the store already drops when it is not a setting.
+- **Old keys.** A `development` in a save and a `dv` in a link, from the branch's first build, are ignored; a case for
+  each stays.
+- **The rounding.** A share's intensity can scale to 0 without heading home (under 1/32 at max intensity 16, under a
+  half at 1), so a small max intensity visits home more often than the home odds alone say; a time share whose half
+  lands on .5 rounds up.
+- **The changes.** An odd `T` subdivides at `floor(T / 2)`, never under the floor; a note a change adds carries a
+  placeholder note name (the longest not over its `sixteenths`) and its source's slot and octave.
+- **Copy.** Max Intensity and Journey (lore: Drift Reach, Drift Formation, with Solo, Convoy and Fleet Drift) are
+  stand-ins for backlog 62's content pass.
+- **CLAUDE.md** (Crawford's word, 2026-11-17, at Task 22): "pitch drift" left its reference line for
+  `ROBOT_LIFECYCLE.md`. No guardrail changed.
+
+### 9.4 Success criteria (§5.5)
+
+| # | Met by |
+|---|---|
+| 1 | `AudioEngine.test.ts`, "from one registration, every measure plays its own position: busier, calmer and home all heard"; `melodyJourney.test.ts`, "is 0 at measure 0 for any key and bounds" and "plays each pair intensity on its turning measure" |
+| 2 | `AudioEngine.test.ts`, "a robot at a max intensity of 0, or with no bounds at all, plays its home melody at every measure" |
+| 3 | `AudioEngine.test.ts`, "members of one Company journey at different max intensities arrive on the same turning measures, each at its own depth"; `melodyJourney.test.ts`, "every turning measure is even but the one before a drop"; `spawnSystem.families.test.ts` over the 121 worlds |
+| 4 | `melodyJourney.test.ts`, "plays a pair with a time of 1 on the very next measure" and the worked example (measures 15 and 16) |
+| 5 | `melodyJourney.test.ts`, the worked example for a calm limit of 4, and "plays a pair intensity on its turning measure and on no earlier measure of that pair" |
+| 6 | By construction (§1.2: a pure function of the home melody, the settings, the seed, the attack, the world key and the measure): "gives the same positions whichever order the measures are read in"; the save and link round trips (`sessionDiff.test.ts`, `worldDiffCodec.test.ts`). Not heard after a reload: Gate C |
+| 7 | `robotSystems.test.ts`, "a Recalled robot landing on Docked keeps the same melody array and registers no melody" and the two-dock-cycle case; Checkpoint B's headless probe (19 landings, 0 melody changes) |
+| 8 | The plan's Checkpoint Complete |

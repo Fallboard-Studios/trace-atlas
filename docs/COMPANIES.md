@@ -36,8 +36,9 @@ Freelance robot is always an original: the 30 % roll that once let any robot cop
 
 - **A member inherits** (`spawnRobot(localeId, { …, founderIndex })`, which reads the founder from the store at that
   index): `audioAttributes` (the voice), `octaveRange`, `rhythmicDensity`, `rhythmicMotifLength`, `noteVariance`,
-  `pitchRepeat`, `dynamics`, `rests`, `accents`, `lfoLinks` and the five sends (`reverbSend`, `delaySend`,
-  `gritSend`, `shimmerSend`, `doubleSend`), so a section sits in one space.
+  `pitchRepeat`, `journeyMaxIntensity` (the melody journey's bound, since roadmap 92), `dynamics`, `rests`, `accents`,
+  `lfoLinks` and the five sends (`reverbSend`, `delaySend`, `gritSend`, `shimmerSend`, `doubleSend`), so a section
+  sits in one space.
 - **A member keeps its own** id, name, identity colour, gem, `compositionSeed`, master volume (drawn as an original's,
   over the inherited register), pan (Auto at centre, as every robot starts), battery size and start state. Its own
   composition seed gives it its own notes; its own battery and start mean a company lines up now and then and parts
@@ -47,6 +48,15 @@ Freelance robot is always an original: the 30 % roll that once let any robot cop
   a member, whose density and motif are its founder's, plays the founder's onsets and note lengths exactly; with the
   same Rests and Accents (inherited too) it rests and accents with it. Nothing about the family is in the melody
   recipe.
+- **The melody journey: a company develops as a section** (roadmap 92, [MELODY_SYSTEM.md](MELODY_SYSTEM.md#the-melody-journey-roadmap-92)).
+  `spawnInitialCompanies` puts every robot of a seeded company, the founder included, on Journey **Company**
+  (`journey: 'company'`, written with its `companyId`; the roster baseline does the same), so the whole company
+  travels one journey, keyed on the company's id. Every journey has one max time, so the members turn on the same
+  measures, and with the founder's max intensity they travel to the same depth; with the founder's rhythm they split,
+  tie and fill the same notes on the same measures, each with its own neighbour notes. Freelancers spawn on **Own**.
+  A founder that draws a max intensity of 0 (three in ten, the band's `lit` of 0.7) keeps its whole company at home:
+  over the 121 grid worlds 206 of the 288 seeded companies move within 100 measures and 82 stay home
+  ([docs/tasks/MELODY_JOURNEY.md](tasks/MELODY_JOURNEY.md), Checkpoint I).
 - **The lineage.** A member carries `lineage: { founderIndex }` (`Robot.lineage`, `src/types/Robot.ts`); founders and
   freelancers carry none. Only the deal reads it (below). It is set at spawn, never edited, never shown and never
   diffed into a session (regenerated from the seed), and a robot moved by hand into another company keeps it.
@@ -58,8 +68,10 @@ Over the 121 grid worlds, 4 to 7 robots a world are members (mean 5.84; 5.95 on 
 voices. The Robot Load cap of the Audio Load Budget stays first come, first served, so at a low cap a company may
 sound as part of a section.
 
-**Joining a rhythm by hand.** Membership and rhythm are separate things. Moving a robot into a company changes nothing
-it plays (broadcast-not-link, below). Setting a robot's Density and Motif Length so they make a company's shape makes
+**Joining a rhythm by hand.** Membership and rhythm are separate things. Moving a robot into a company changes none of
+its settings (broadcast-not-link, below). The one thing a move changes is the journey of a robot whose Journey is
+Company: it travels its new company's journey from the next note, as if it had always been on it, and as Own when it
+is made Freelance. Setting a robot's Density and Motif Length so they make a company's shape makes
 it play that company's rhythm, family or not, and changing them takes it out again; a company-wide Density or Motif
 Length broadcast puts every member on one shape, so on one rhythm. The same holds by chance: in one world any two
 robots that draw the same shape play together, and before families 66 % of robots already shared a rhythm with
@@ -109,7 +121,7 @@ Every field the company has never been edited for falls back live to `firstMembe
 
 ## Editing Semantics: Broadcast, Not Link
 
-A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applySend` (any of the five sends, by field), `applyPortamento`, `applyBusFilter`, `applyDensity`, `applyPitchRepeat`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyDynamics`, `applyRests`, `applyAccents`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfoLink` (there is no Volume LFO action any more) — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
+A company-scoped edit is a one-time broadcast, not a live binding. Changing a field on the company screen calls the matching function from `src/systems/robotOptionsActions.ts` — `applyAudioMode`, `applyVolume`, `applyPan`, `applyPanAuto`, `applySend` (any of the five sends, by field), `applyPortamento`, `applyBusFilter`, `applyDensity`, `applyPitchRepeat`, `applyMotifLength`, `applyNoteVariance`, `applyOctaveMin`, `applyOctaveMax`, `applyClickTrackActive`, `applyDynamics`, `applyRests`, `applyAccents`, `applyJourneyMaxIntensity`, `applyJourney`, `applyAdsr`, `applyLayersContinuous`, `applyLayersStructural`, `applyLayerLfoLink` (there is no Volume LFO action any more) — once per current member robot. These are the exact same functions the robot screen calls once for a single robot; nothing about what an edit *does* differs between the two call sites, only how many robots it's called for. Skipping the matching `AudioEngine`/`lfoEngine`/`regenerateMelody` call a company-wide edit would otherwise miss would reproduce the exact stale-cache bug Roadmap Phase 9's post-launch fixes already found and fixed for the single-robot case.
 
 Only the one field that was changed propagates into `lastEditedOptions` — never the company's entire resolved snapshot. A user editing a single member robot's value afterward (even from that robot's own screen) changes only that robot; the company's `lastEditedOptions` and every other member robot are untouched. There is no ongoing link between a robot and its company's settings after the broadcast — reassigning a robot to a different company, or leaving it in the same one, doesn't retroactively apply anything.
 
@@ -157,6 +169,26 @@ Broadcast-not-link applies as everywhere else, so members disagree until a slide
 - A member with none of the fields reads as `50` / `0` / `0`, and a recorded `0` is a real value, not a missing one.
 
 Broadcast-not-link applies as everywhere else: a member edited afterwards on its own screen keeps its own value, and the snapshot is not rewritten.
+
+### Max Intensity and Journey (the melody journey, roadmap 92, docs/specs/MELODY_JOURNEY.md §1.9)
+
+`CompanyOptionsSnapshot` carries `journeyMaxIntensity` (0…16) and `journey` (`'own' | 'company' | 'fleet'`), as on
+`Robot`. `resolveCompanyOptions` falls back to the first member's own value, then to the default (`0` and `'own'`:
+home, travelling alone). The company and All Probes screens show them on Composition > Rhythm & Melody's third row,
+through the same `CompositionRhythmMelodySection` the robot screen renders: Max Intensity beside Journey, Journey
+dimmed while Max Intensity is 0. Their handlers, `onJourneyMaxIntensityChange` and `onJourneyChange`, live in
+`useCompanyOptions`.
+
+- **Moving either** calls `applyJourneyMaxIntensity` / `applyJourney` once per member with the value and records
+  exactly that one key in the snapshot. Each action writes its field alone: no melody is regenerated and no engine
+  call is made, since the engine reads the stored robot on every note.
+- **Fleet on All Probes** puts every robot on one journey; **Company** on a company's screen puts its members on
+  their company's. Each robot still travels to its own max intensity.
+- **The deal.** Max intensity is a Melody family field: a robot dealt a Melody aspect re-derives it with the other
+  four, at its deal index (a member's founder's), so a dealt family keeps one bound. No aspect column names it yet,
+  so it stays the theme's draw. Journey is not dealt.
+
+Broadcast-not-link applies as everywhere else.
 
 ## Company Membership
 

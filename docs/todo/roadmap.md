@@ -644,8 +644,8 @@ time pairs, bounded by each robot's max intensity and by one max time of 16 meas
 per measure are worked out from it (revised 2026-11-17, in place of a Development slider of changes per measure; max
 time left the robot the same day). A Journey setting (Own, Company, Fleet) lets a company or the whole fleet travel
 together, in lock step.
-Docking pitch drift, today's only change over time, goes: it ignores the Note Variance set, is wiped by any
-composition edit, and happens while the robot is silent.
+Docking pitch drift, until then the only change over time, went: it ignored the Note Variance set, was wiped by any
+composition edit, and happened while the robot was silent.
 
 The melody of any measure is worked out from the home melody, the two settings and the measure, so it replays and
 nothing new is saved but the settings.
@@ -658,11 +658,18 @@ edit; the editor is out of this piece (Crawford, 2026-11-17) and needs its own i
 
 ### Open
 
-- Plan [MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md) (2026-11-17, 23 tasks in six phases), waiting on Crawford's
-  approval. Nothing built.
-- The spec's four questions are answered (its §7.2, 2026-11-17): at least one note in a bar, the development band
-  stays the theme's, `pitchLocked` stays in place, a phone listen is enough. Its assumptions (§7.1) stand until he
-  moves them by ear at the plan's Gates A and C.
+- **Built 2026-11-17** on `feature/melody-journey`, unpushed, for Crawford's PR: the plan
+  [MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md)'s ten phases (Tasks 1 to 20, the first build; 24 to 38, the
+  revision to pairs and to one max time; 21 and 22, the docs). What shipped, with every number, is the spec's §9, As
+  built ([MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md#9-as-built)); the reference docs are
+  [MELODY_SYSTEM.md](../MELODY_SYSTEM.md#the-melody-journey-roadmap-92) and those it links.
+- **Open before the PR, all Crawford's:** Gate A and Gate C (his ear: one robot through a drop and a slow return, a
+  company on one journey, then a full seeded world on desktop and phone), Gate B (accept the `npm run perf:audio` A/B
+  or mend `npm run perf` first), and Checkpoint G's browser look. Until then every number (the journey's odds and
+  leans, the band `{ min: 1, max: 16, lit: 0.7 }`, the one max time of 16) is a first cut.
+- The spec's four questions are answered (its §7.2, 2026-11-17): at least one note in a bar, the band stays the
+  theme's, `pitchLocked` stays in place, a phone listen is enough.
+- After the merge: the plan's Task 23 moves this entry to the archive.
 - It changes every world's sound, so it lands before backlog
   [45](backlog.md#45-off-screen-crawfords-three-preset-links).
 
