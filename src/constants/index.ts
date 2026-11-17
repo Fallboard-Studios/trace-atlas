@@ -234,9 +234,10 @@ export const BATTERY_FULL_THRESHOLD = 100;
  *  cut, A12, Crawford's to move at Gate A). */
 export const JOURNEY_SWING_MIN = 2;
 export const JOURNEY_SWING_MAX = 8;
-/** Development, in changes per measure (§1.9): the slider's range and its stop (A13, Gate A's to move). */
+/** Development, in changes per measure (§1.9): the slider's range and its stop (A13, Gate A's to move). The top was 2
+ *  in the spec; Crawford raised it to 8 on 2026-11-17. */
 export const DEVELOPMENT_MIN = 0;
-export const DEVELOPMENT_MAX = 2;
+export const DEVELOPMENT_MAX = 8;
 export const DEVELOPMENT_STEP = 0.125;
 /** What an absent `Robot.development` and `Robot.journey` read as (§1.9): no development, travelling alone, so a robot
  *  built by hand plays its home melody. */

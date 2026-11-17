@@ -200,7 +200,7 @@ describe('Rhythm & Melody: the Development and Journey row (melody journey Task 
     renderRow({ development: 1.375, journey: 'company' });
     expect(development().getAttribute('aria-valuenow')).toBe('1.375');
     expect(development().getAttribute('aria-valuemin')).toBe('0');
-    expect(development().getAttribute('aria-valuemax')).toBe('2');
+    expect(development().getAttribute('aria-valuemax')).toBe('8');
     expect(journeyOption('Company').getAttribute('aria-checked')).toBe('true');
     expect(journeyOption('Own').getAttribute('aria-checked')).toBe('false');
   });

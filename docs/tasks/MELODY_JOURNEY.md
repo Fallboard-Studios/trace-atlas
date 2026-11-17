@@ -953,6 +953,11 @@ or to have the step harness fixed first (its nav labels, backlog 31's tooling).
 - Success criterion 3 is met over the 121 worlds by `spawnSystem.families.test.ts` (every developing company's members
   play the same starts and lengths at each of 100 measures).
 
+**After Checkpoint E (2026-11-17), on Crawford's word:** the Development slider's top is 8 changes a measure, not 2
+(`DEVELOPMENT_MAX`; the store's clamp and the slider read it). The spawn band is unchanged (0.125 to 1). Above about 2,
+a measure can carry the walk past a turning point, so the bars heard skip positions, home among them; the engine's
+cache keeps positions, not rates, so it needs no change. For the spec's §8.
+
 **Gate C:** not yet run (Crawford's ear, desktop and phone).
 
 ## Risks and Mitigations

@@ -592,7 +592,7 @@ describe('robotOptionsActions', () => {
       applyDevelopment(robot, localeId, 0.3);
       expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].development).toBe(0.25);
       applyDevelopment(robot, localeId, 9);
-      expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].development).toBe(2);
+      expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].development).toBe(8);
     });
 
     it('applyJourney writes each of the three settings', () => {

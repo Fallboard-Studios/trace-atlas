@@ -302,19 +302,19 @@ describe('localeStore', () => {
         expect(stored().development).toBe(0.5);
       });
 
-      it('clamps development to 0-2: 5 is stored as 2, -1 as 0, Infinity as 2', () => {
+      it('clamps development to 0-8: 12 is stored as 8, -1 as 0, Infinity as 8', () => {
         useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-        update({ development: 5 });
-        expect(stored().development).toBe(2);
+        update({ development: 12 });
+        expect(stored().development).toBe(8);
         update({ development: -1 });
         expect(stored().development).toBe(0);
         update({ development: Infinity });
-        expect(stored().development).toBe(2);
+        expect(stored().development).toBe(8);
       });
 
       it('passes the bounds and an in-range stop through', () => {
         useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-        for (const v of [0, 0.125, 1.375, 2]) {
+        for (const v of [0, 0.125, 1.375, 2, 5.625, 8]) {
           update({ development: v });
           expect(stored().development).toBe(v);
         }
