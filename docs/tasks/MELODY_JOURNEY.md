@@ -13,7 +13,13 @@ review with Crawford next, then Task 15. Phase 4 built the same day (Tasks 15–
 Checkpoint D's suite done (Results); Gate A, Crawford's ear, next. Phase 5 built 2026-11-17 on Crawford's word (Tasks
 18–20, f0e17661, 2ea953e5, b0bc81e6, 65adbb2a), with Gate A's numbers not recorded, so the plan's defaults stand;
 Checkpoint E's suite, build and mutation checks done; Gate B run as a substitute (the step harness is broken, Results);
-Gate C, Crawford's ear, next.
+Gate C was next.
+
+**Revised 2026-11-17, after Checkpoint E:** Crawford changed what a journey is (the intent and the spec, both revised
+that day): a list of intensity and time pairs bounded by two settings, in place of the walk and the Development
+slider. Phases 6 to 9 below (Tasks 24 to 37) rebuild the journey, the engine's read of it, the settings and the
+seeding on top of what Phases 1 to 5 built; the docs move to Phase 10 and keep their task numbers (21 to 23). Not
+started: the plan waits for Crawford's approval, and **Task 24 is next**.
 
 ## Overview
 
@@ -22,7 +28,13 @@ The build is 23 tasks in six phases. Phase 1 is the two pure modules, the walk (
 changes (`src/engine/melodyDevelopment.ts`), with no caller. Phase 2 removes docking pitch drift, so the home melody
 holds still. Phase 3 makes the engine play the melody of each note's own measure. Phase 4 puts the two settings on the
 robot, company and All Probes screens, and ends at Gate A, Crawford's first listen. Phase 5 seeds and saves the
-settings and ends at the profile and the world listen. Phase 6 is the docs.
+settings and ends at the profile and the world listen. The docs were Phase 6 and are now Phase 10.
+
+**The revision adds 14 tasks in four phases** (spec §8 says what of Phases 1 to 5 stands). Phase 6 builds the new
+journey as three pure pieces beside the walk, with no caller: the shares, a robot's pairs, and the position inside a
+list of pairs. Phase 7 puts the two bounds on the robot and swaps the engine onto the pairs; the walk goes. Phase 8
+swaps the Development slider for Max Intensity and Max Time on the robot, company and All Probes screens, and ends at
+Gate A. Phase 9 seeds and saves the bounds, deletes `development`, and ends at Gates B and C.
 
 ## Architecture Decisions
 
@@ -52,6 +64,30 @@ settings and ends at the profile and the world listen. Phase 6 is the docs.
 - **The sweep over the 121 worlds lives in its own test file** (`melodyDevelopment.worlds.test.ts`), so it runs in
   parallel with the unit file, as the `spawnSystem.even*` files do.
 
+**The revision's decisions (Phases 6 to 9):**
+
+- **Add, swap, then delete.** `Robot.development` is read in 24 files under `src/`, so it cannot be renamed in one
+  small task. The two bounds are added beside it, each layer is swapped onto them, and `development` is deleted last
+  (Tasks 32, 36 and 37). Types hold after every task.
+- **Between Task 28 and Phase 9 every robot plays its home melody unless a bound is set by hand.** The engine reads
+  the bounds from Task 28, and nothing seeds them until Task 34. This is the quiet world Gate A wants, as it was the
+  first time.
+- **The journey is three pure pieces, tested apart.** The shares are checked as properties over long runs; the
+  position inside a list of pairs is checked literally, on pairs written by hand (the spec's worked example); a
+  robot's scaling of the shares sits between them.
+- **The shares' tests read the constants.** Every odd and lean is Crawford's to move at Gate A, so an expected share
+  is worked out from `JOURNEY_HOME_ODDS` and its neighbours in the test, not written as a number.
+- **Every pair takes four draws**, used or not, so pair i reads the same draws whatever the pairs before it did.
+- **Turning measures depend on the key and max time alone**, not on max intensity or the calm limit, so that pair is
+  the memo's key. Intensities are scaled when read.
+- **The calm limit is read from the registered home melody** in `entriesOnStep`, where the engine already holds it. It
+  is not stored and not a setting.
+- **`developMelody` and the engine's cache are untouched.** The cache is keyed on the position, so a drop of many
+  changes is one rebuild, as a single change is.
+- **Gate B is run again.** A drop can move a robot up to 31 changes in one measure (from +16 to a calm limit of 15),
+  and the first Gate B measured the walk.
+- **The docs keep their task numbers** (21 to 23) and run last, so nothing that names "Task 22" moves.
+
 ## Dependency Graph
 
 ```
@@ -78,11 +114,40 @@ Task 1 (the walk)            Task 2 (lengths, floor, event fields)
                   Tasks 21, 22 (docs) → Task 23 (archive, after the merge)
 ```
 
+The revision, built on the above (Tasks 21 to 23 now follow Task 37):
+
+```
+Task 24 (the shares)        Task 25 (the position in a list of pairs)
+     │                              │
+     └──────► Task 26 (a robot's pairs, the calm limit; needs 24)
+                                    │
+Task 27 (the two bounds on the robot, the store)
+     │                              │
+     └──────► Task 28 (the engine plays the pairs, the walk goes; needs 25, 26, 27)
+                                    │
+              Task 29 (content, schemas, applies; needs 27) → Task 30 (robot screen) → Task 31 (company, All Probes)
+                                    │
+                  Task 32 (the Development slider's leftovers go; needs 31)
+                                    │
+                                 Gate A
+                                    │
+              Task 33 (bands, draws) → Task 34 (spawn, baseline, deal) → Task 35 (saves, links)
+                                    │
+              Task 36 (development's band and draw go; needs 34) → Task 37 (the field goes; needs 35, 36)
+                                    │
+                             Gate B, Gate C
+                                    │
+              Tasks 21, 22 (docs) → Task 23 (archive, after the merge)
+```
+
 ## Task List
 
 Every task names its **Proof**. RED test: a test that imports or renders the code and fails first. Read: a human
 review, for a docs-only or deletion task. Look: what to see in the browser. Every task ends with
 `npm run build:types` and `npm run lint` clean; it is not repeated under each one.
+
+Tasks 1, 12 and 15 to 20 were built as written below and are revised by Phases 6 to 9: the walk, `robotJourney`'s
+rate, and everything that carries `development`. Their text is left as the record of what was built.
 
 ### Phase 1: The walk and the changes
 
@@ -567,8 +632,9 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 - [ ] **Gate A.** Every robot still spawns at Development 0, so the world sounds as it did. Crawford sets one robot
       to 1 and solos it, then a company to one rate on Company, then the fleet on Fleet. His to move here, each
       recorded in the spec before Phase 5: the order rules of §1.5 and §1.6 (A1 to A6), the swing (A12, against the
-      path lengths in Results), and the slider's stops (A13).
-- [ ] Stop. Phase 5 starts on his word.
+      path lengths in Results), and the slider's stops (A13). **Never recorded, and overtaken by the revision:** the
+      listen is Checkpoint H's, on the new journey. The order rules (A1 to A6) are still his to move there.
+- [x] Stop. Phase 5 starts on his word. (Given 2026-11-17.)
 
 ---
 
@@ -662,18 +728,476 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
       no long task to the baseline table in [PERFORMANCE.md](../PERFORMANCE.md). A miss stops the build here, with
       the numbers and options. **Not run as written:** against `main`'s build the harness stops before its first
       measured step, at a nav button it can no longer find ("Settings"); a substitute A/B is in Results, for Crawford
-      to accept or not.
+      to accept or not. **Overtaken by the revision:** the gate is run again at Checkpoint I, on the new journey.
 - [ ] **Gate C (Crawford's ear).** A full seeded world, on desktop and on the phone. His to move: the band (A14).
+      **Overtaken by the revision:** moved to Checkpoint I.
+- [x] Stop. In place of the docs, Crawford revised the journey (2026-11-17); Phase 6 follows.
+
+---
+
+### Phase 6: The journey of pairs
+
+- [ ] **Task 24: `melodyJourney.ts` — the journey's shares**
+
+  **Description:** New pure `journeyShares(key, count)`: the first `count` pairs of a key's journey as shares,
+  `{ intensity, time, drop }`, by the four rows of spec §1.3's table. An `alea` over the key, four draws per pair in
+  the order home roll, intensity, time, drop roll, all four taken whatever the pair uses. Pairs are drawn as needed
+  and memoised per key, as the walk's turning points are. The five constants (`JOURNEY_HOME_ODDS` 0.5,
+  `JOURNEY_MIN_MOVE` 0.125, `JOURNEY_TIME_LEAN` 0.5, `JOURNEY_DROP_ODDS` 0.3, `JOURNEY_DROP_MIN_MOVE` 0.5) go in
+  `src/constants/index.ts`. Built beside the walk, which the engine still reads. No caller yet.
+
+  **Proof:** RED test — `src/engine/melodyJourney.test.ts`: the rules below over 5,000 pairs of several keys, each
+  expected share worked out from the constants.
+
+  **Acceptance criteria:**
+  - [ ] The same key gives the same shares whichever count is asked for first; a different key gives different ones.
+  - [ ] Every intensity share is from −1 to 1 and every time share from 0 to 1.
+  - [ ] No pair's intensity share is within `JOURNEY_MIN_MOVE` of the one before it (the first counts from 0), and
+        pairs both stay on a side and cross home.
+  - [ ] A pair heads home only from at least `JOURNEY_MIN_MOVE` away. Of the pairs that start 0.9 or more from home,
+        the share heading home is `JOURNEY_HOME_ODDS × 0.95` within five points; of those that start within 0.25,
+        it is under `JOURNEY_HOME_ODDS × 0.25`.
+  - [ ] Every time share lies between `JOURNEY_TIME_LEAN × (1 − |v|)` and that plus `1 − JOURNEY_TIME_LEAN`.
+  - [ ] The first pair is never a drop, no drop follows a drop, and no drop moves less than `JOURNEY_DROP_MIN_MOVE`.
+        Of the pairs that could be a drop, the share that are is `JOURNEY_DROP_ODDS` within five points.
+
+  **Verification:** `npx vitest run src/engine/melodyJourney.test.ts` passes.
+
+  **Dependencies:** None.
+
+  **Files:** `src/engine/melodyJourney.ts`, `src/engine/melodyJourney.test.ts`, `src/constants/index.ts`
+
+  **Estimated scope:** S
+
+- [ ] **Task 25: `melodyJourney.ts` — the position inside a list of pairs**
+
+  **Description:** New pure `positionInPairs(pairs, measure)`. `pairs` are a robot's own, `{ intensity, time }` in
+  whole changes and whole measures; the first starts at home on measure 0. In a pair that runs from `a` on measure
+  `s` to `b` on measure `s + T`, measure `s + k` plays `a + sign(b − a) × floor(|b − a| × k ÷ T)` (spec §1.3). A
+  measure past the last pair handed in plays the last intensity. No caller yet.
+
+  **Proof:** RED test — `src/engine/melodyJourney.test.ts`: the worked example and the rules below, on pairs written
+  by hand.
+
+  **Acceptance criteria:**
+  - [ ] The worked example of spec §1.3, both columns, literally, at every measure from 0 to 32.
+  - [ ] Position 0 at measure 0, at a negative or non-finite measure, and everywhere on an empty list.
+  - [ ] A pair's intensity is played on its turning measure and on no earlier measure of that pair.
+  - [ ] Inside a pair the position never moves away from the pair's intensity.
+  - [ ] A pair with a time of 1 plays its intensity on the very next measure; a pair that does not move holds.
+
+  **Verification:** `npx vitest run src/engine/melodyJourney.test.ts` passes.
+
+  **Dependencies:** None.
+
+  **Files:** `src/engine/melodyJourney.ts`, `src/engine/melodyJourney.test.ts`
+
+  **Estimated scope:** S
+
+- [ ] **Task 26: `melodyJourney.ts`, `melodyDevelopment.ts` — a robot's pairs, and its calm limit**
+
+  **Description:** `calmLimit(home)` in `melodyDevelopment.ts`: the home notes less one, never below 0, which is how
+  many calm changes `calmer` can make. `JourneyBounds` (`maxIntensity`, `maxTime`, `calmLimit`) and a pure
+  `robotPairs(shares, bounds)` in `melodyJourney.ts`, by spec §1.3's "A robot's pairs": the intensity share times max
+  intensity, rounded to the nearest whole change the same way on both sides of home, and never below the calm limit;
+  the time share times max time, rounded to the nearest even number, never under 2; a drop's time is 1, and the pair
+  before a drop is one measure shorter. No caller yet.
+
+  **Proof:** RED test — `src/engine/melodyJourney.test.ts` (the scaling) and `src/engine/melodyDevelopment.test.ts`
+  (the calm limit).
+
+  **Acceptance criteria:**
+  - [ ] Intensity: at 16, shares 0.5 and −0.5 give +8 and −8; at 1, shares 0.4, 0.6 and −0.6 give 0, +1 and −1.
+  - [ ] A calm intensity past the calm limit is brought in to it (share −0.75 at 16 with a limit of 4 gives −4); a
+        busy intensity is never brought in.
+  - [ ] Time: at 16, shares 0, 0.1, 0.5 and 1 give 2, 2, 8 and 16; at 2, every share gives 2. Every time is even,
+        except a drop's and that of the pair before a drop.
+  - [ ] A drop's time is 1 and the pair before it is one shorter (16 becomes 15, 2 becomes 1), so the times through
+        any drop sum to an even number.
+  - [ ] Shares that scale to Crawford's example give `[[16, 15], [-8, 1], [0, 16]]`.
+  - [ ] `calmLimit` is 2 for three notes and 0 for one note and for none; `developMelody` at minus the limit has one
+        note, and one change past it is the same melody.
+
+  **Verification:** `npx vitest run src/engine/melodyJourney.test.ts src/engine/melodyDevelopment.test.ts` passes.
+
+  **Dependencies:** Task 24.
+
+  **Files:** `src/engine/melodyJourney.ts`, `src/engine/melodyJourney.test.ts`, `src/engine/melodyDevelopment.ts`,
+  `src/engine/melodyDevelopment.test.ts`
+
+  **Estimated scope:** S
+
+### Checkpoint F: the pure journey
+- [ ] `npm test` clean (full suite).
+- [ ] Mutation checks, each killed: the home roll ignored; the least move ignored; the time lean left out; a drop
+      allowed after a drop; `positionInPairs` rounding in place of flooring (a robot arrives early); the calm limit
+      not applied; the pair before a drop not shortened.
+- [ ] The journey's shape, measured once over long runs with a throwaway probe (not committed) and written under
+      Results: at bounds of 16 and 16, the share of pairs that are drops, the share that head home, the mean time of
+      a pair, and the mean measures between two visits home. Gate A's numbers are read against these.
+- [ ] Reviewed with Crawford before Phase 7.
+
+---
+
+### Phase 7: The engine reads the pairs
+
+- [ ] **Task 27: `Robot.ts`, `localeStore.ts` — the two bounds**
+
+  **Description:** `Robot.journeyMaxIntensity?: number` and `Robot.journeyMaxTime?: number` (spec §1.9). Constants
+  `JOURNEY_INTENSITY_MAX` 16, `JOURNEY_TIME_MIN` 2, `JOURNEY_TIME_MAX` 16, `JOURNEY_TIME_STEP` 2,
+  `DEFAULT_JOURNEY_MAX_INTENSITY` 0 and `DEFAULT_JOURNEY_MAX_TIME` 8. `localeStore.updateRobot` normalises both as it
+  does `development`: max intensity to a whole number from 0 to 16, max time to an even number from 2 to 16, a `NaN`
+  dropped. `Robot.development` stays until Task 37.
+
+  **Proof:** RED test — `src/stores/localeStore.test.ts`: the normalisation.
+
+  **Acceptance criteria:**
+  - [ ] Max intensity: 7.4 is stored as 7, 20 as 16, −1 as 0, `Infinity` as 16.
+  - [ ] Max time: 5 is stored as 6, 1 as 2, 40 as 16, and every stored value is even.
+  - [ ] A `NaN` in either is dropped, keeping the stored value and the rest of the update.
+
+  **Verification:** `npx vitest run src/stores/localeStore.test.ts` passes.
+
+  **Dependencies:** None.
+
+  **Files:** `src/types/Robot.ts`, `src/constants/index.ts`, `src/stores/localeStore.ts`,
+  `src/stores/localeStore.test.ts`
+
+  **Estimated scope:** S
+
+- [ ] **Task 28: `melodyJourney.ts`, `AudioEngine.ts` — the engine plays the pairs; the walk goes**
+
+  **Description:** `journeyPosition(key, bounds, measure)` replaces the rate form: 0 at a max intensity of 0 and at
+  measure 0, else `positionInPairs` over the robot's pairs. The shares are memoised per key and the turning measures
+  per key and max time, found by binary search as the walk's counts are, so a read at measure 10,000 does not walk
+  there. `robotJourney` hands back `maxIntensity` and `maxTime` in place of `rate`, each absent field read as its
+  default. `entriesOnStep` hands `journeyPosition` the calm limit of the registered melody. The walk (`walkFor`,
+  `extendTo`, `walkAt`), `JOURNEY_SWING_MIN` and `JOURNEY_SWING_MAX` are deleted with their tests. The family case in
+  `spawnSystem.families.test.ts` that reads `journey.rate` is moved onto bounds set by hand; Task 34 puts it back on
+  seeded ones. From here the Development slider does nothing, and every robot plays its home melody until a bound is
+  set.
+
+  **Proof:** RED test — `src/engine/melodyJourney.test.ts` (`journeyPosition` on bounds, `robotJourney`'s bounds) and
+  `src/engine/AudioEngine.test.ts` (the per-measure read on a robot with bounds).
+
+  **Acceptance criteria:**
+  - [ ] Position is 0 at measure 0 for any key and bounds, and at every measure at a max intensity of 0 or with no
+        bounds at all.
+  - [ ] Over 2,000 measures of several keys, at bounds (16, 16), (16, 2), (1, 16) and (5, 8) and calm limits 0, 3 and
+        15: no position is past max intensity or below the calm limit, and every turning measure is even but the one
+        before a drop.
+  - [ ] Reads in any order of measures give the same positions.
+  - [ ] Two robots on one key with one max time and different max intensities turn on the same measures; with
+        different max times they do not.
+  - [ ] `stepNotes` at two measures with different positions returns each measure's own events; a bound edited in the
+        store is read on the next note with no engine call; a Click Track robot still plays the click track.
+  - [ ] The developed melody is rebuilt once per new position, not per sixteenth (the existing call-count case, on
+        bounds), and `developMelody` is never asked for a position below the calm limit.
+
+  **Verification:** `npx vitest run src/engine/melodyJourney.test.ts src/engine/AudioEngine.test.ts src/systems/spawnSystem.families.test.ts`
+  passes; so does every file that mocks or imports `melodyJourney` (`grep -rln "melodyJourney" src`), and the full
+  suite, before the commit.
+
+  **Dependencies:** Tasks 25, 26, 27.
+
+  **Files:** `src/engine/melodyJourney.ts`, `src/engine/melodyJourney.test.ts`, `src/engine/AudioEngine.ts`,
+  `src/engine/AudioEngine.test.ts`, `src/systems/spawnSystem.families.test.ts`, `src/constants/index.ts`
+
+  **Estimated scope:** M
+
+### Checkpoint G: the engine on pairs
+- [ ] `npm test` clean (full suite).
+- [ ] Mutation checks, each killed: the calm limit not handed to the journey; the turning measures memoised without
+      max time (two max times share them); `robotJourney` ignoring the stored max time; a max intensity of 0 still
+      walking the pairs.
+- [ ] Look: in the browser, a robot's two bounds set through the store and the robot soloed. Its notes change by the
+      measure, a drop is heard on a bar line, and it comes home.
+- [ ] Reviewed with Crawford before Phase 8.
+
+---
+
+### Phase 8: The two bounds, by hand
+
+- [ ] **Task 29: content, schemas and the two applies**
+
+  **Description:** Content entries `probe.composition.journeyMaxIntensity` and `probe.composition.journeyMaxTime`,
+  as stand-ins marked the way the file's other stand-ins are. `JOURNEY_MAX_INTENSITY_SCHEMA` (a `SliderLinearSchema`,
+  0 to 16, step 1) and `JOURNEY_MAX_TIME_SCHEMA` (2 to 16, step 2) in `robotOptionsConfig.ts`, reading Task 27's
+  constants. `applyJourneyMaxIntensity` and `applyJourneyMaxTime` in `robotOptionsActions.ts` write the field and
+  nothing else. The Development entry, schema and apply stay until Task 32.
+
+  **Proof:** RED test — `src/systems/robotOptionsActions.test.ts`: each apply writes its field, and neither
+  regenerates the melody nor calls the engine.
+
+  **Acceptance criteria:**
+  - [ ] Both applies write the store and make no `AudioEngine` and no `regenerateMelody` call.
+  - [ ] The stored melody is the same array after either.
+  - [ ] `src/content/content.test.ts` passes with the new entries.
+
+  **Verification:** `npx vitest run src/systems/robotOptionsActions.test.ts src/content/content.test.ts` passes.
+
+  **Dependencies:** Task 27.
+
+  **Files:** `src/content/copy/probe.ts`, `src/data/robotOptionsConfig.ts`, `src/systems/robotOptionsActions.ts`,
+  `src/systems/robotOptionsActions.test.ts`
+
+  **Estimated scope:** S
+
+- [ ] **Task 30: `CompositionSections.tsx`, `RobotScreen.tsx` — rows 3 and 4 on the robot screen**
+
+  **Description:** In `CompositionRhythmMelodySection`, row 3 becomes Max Intensity beside Max Time, and Journey moves
+  to a fourth row of its own (a fourth row schema beside the three in the file; spec §1.10). `PingControlsValue`
+  gains both bounds. Max Time and Journey are disabled while Max Intensity is 0, their values kept. The Development
+  slider is no longer rendered. Its prop and value stay in the section's types, optional, and the two new handlers
+  are optional too, until Task 31 changes the last caller. `RobotScreen` passes the values and handlers.
+
+  **Proof:** RED test — `src/components/robot/CompositionSections.test.tsx` (the rows, the dimming, the handlers) and
+  `src/components/panels/screen/screens/RobotScreen.test.tsx` (an edit reaches the store).
+
+  **Acceptance criteria:**
+  - [ ] Both sliders render with their content labels; a change calls its handler with the new value.
+  - [ ] Max Time and Journey are disabled at a Max Intensity of 0 and enabled above it, showing the stored values
+        either way.
+  - [ ] On the robot screen, moving Max Intensity writes `robot.journeyMaxIntensity`, moving Max Time writes
+        `robot.journeyMaxTime`, and choosing Fleet still writes `robot.journey`.
+  - [ ] No Development slider renders.
+  - [ ] Look: the two rows at phone width and desktop; no control changes size as values change; Journey alone on
+        its row (spec B14, Crawford's eye).
+
+  **Verification:** `npx vitest run src/components/robot/CompositionSections.test.tsx src/components/panels/screen/screens/RobotScreen.test.tsx`
+  passes; the Look recorded in the commit.
+
+  **Dependencies:** Task 29.
+
+  **Files:** `src/components/robot/CompositionSections.tsx`, `src/components/robot/CompositionSections.test.tsx`,
+  `src/components/panels/screen/screens/RobotScreen.tsx`,
+  `src/components/panels/screen/screens/RobotScreen.test.tsx`
+
+  **Estimated scope:** M
+
+- [ ] **Task 31: the company and All Probes broadcast**
+
+  **Description:** `CompanyOptionsSnapshot` swaps `development` for the two bounds; `companyOptions.ts` resolves them
+  from the first member, else the defaults; `useCompanyOptions` broadcasts each to every member through its apply;
+  `CompanyOptionsSection` passes them to the section. The section's two handlers become required, and its Development
+  prop and value go. All Probes uses the same hook.
+
+  **Proof:** RED test — `src/components/company/useCompanyOptions.test.ts`: a company edit of each bound writes every
+  member.
+
+  **Acceptance criteria:**
+  - [ ] A company's Max Intensity edit writes every member's `journeyMaxIntensity` and the company's snapshot; the
+        same for Max Time.
+  - [ ] The All Probes screen's edit reaches every robot.
+  - [ ] A member edited on its own afterwards keeps its own value (broadcast, not link).
+  - [ ] Journey's broadcast is as it was (its existing tests, unmodified).
+
+  **Verification:** `npx vitest run src/components/company/useCompanyOptions.test.ts src/systems/companyOptions.test.ts src/components/company/CompanyOptionsSection.test.tsx src/components/panels/screen/screens/CompanyScreen.test.tsx src/components/robot/CompositionSections.test.tsx`
+  passes.
+
+  **Dependencies:** Task 30.
+
+  **Files:** `src/types/Company.ts`, `src/systems/companyOptions.ts`, `src/components/company/useCompanyOptions.ts`,
+  `src/components/company/useCompanyOptions.test.ts`, `src/components/company/CompanyOptionsSection.tsx`,
+  `src/components/company/CompanyOptionsSection.test.tsx`, `src/components/robot/CompositionSections.tsx`
+
+  **Estimated scope:** M
+
+- [ ] **Task 32: the Development slider's leftovers go**
+
+  **Description:** Deletion only. `applyDevelopment`, `DEVELOPMENT_SCHEMA` and the content entry
+  `probe.composition.development`, each re-checked for a caller before it is deleted, with the tests that exercised
+  them. `Robot.development` and its seeding stay until Phase 9.
+
+  **Proof:** Read — a deletion. No new test.
+
+  **Acceptance criteria:**
+  - [ ] Nothing imports any of the three.
+  - [ ] `npm test`, `npm run build:types` and `npm run lint` pass, `src/content/content.test.ts` among them.
+
+  **Verification:** the full suite; the three names searched for in `src/` by hand before the commit.
+
+  **Dependencies:** Task 31.
+
+  **Files:** `src/systems/robotOptionsActions.ts`, `src/systems/robotOptionsActions.test.ts`,
+  `src/data/robotOptionsConfig.ts`, `src/content/copy/probe.ts`
+
+  **Estimated scope:** XS (deletion only)
+
+### Checkpoint H: Gate A, Crawford's ear
+- [ ] `npm test` clean (full suite).
+- [ ] **Gate A.** Every robot still loads at a max intensity of 0, so the world plays its home melodies. Crawford
+      sets one robot to 16 and 16 and solos it through a drop and a slow return home; then a low max intensity; then
+      a company on Company with one max time; then the fleet on Fleet. His to move here, each recorded in the spec
+      before Phase 9: the journey's odds and leans (spec §7.3, B1 to B10, against the shape in Results), whether the
+      busy top being pitch movement is right (B15), the row layout (B14), and the order rules of §1.5 and §1.6 (A1 to
+      A6), which the first Gate A never recorded.
+- [ ] Stop. Phase 9 starts on his word.
+
+---
+
+### Phase 9: Seeding and saving the bounds
+
+- [ ] **Task 33: the two bands and their draws**
+
+  **Description:** `'robot.journeyMaxIntensity'` (`{ min: 1, max: 16, lit: 0.7 }`) and `'robot.journeyMaxTime'`
+  (`{ min: 2, max: 16 }`), or Gate A's numbers, join the band keys (`bandKeys.ts`), Classic's column and the Melody
+  family's keys (`MELODY_BAND_KEYS`, `aspects.ts`); no aspect or theme column names either. Two pure seeders in
+  `robotFieldDerivation.ts`: `seedJourneyMaxIntensity(litRoll, t, band)`, 0 outside the lit share and otherwise a
+  whole number in the band, each a full share, floored as `seedDevelopment` is; and `seedJourneyMaxTime(t, band)`, an
+  even number in the band, each a full share. `deriveMelodyFields` draws them at `'robot.journeyMaxIntensity.lit'`,
+  `'robot.journeyMaxIntensity'` and `'robot.journeyMaxTime'`. `MelodyFields`, `currentMelodyBands` and
+  `RobotAudioBaseline` carry them. `development` is still drawn until Task 36, and the bounds stay out of the deal's
+  field table until Task 34 writes them at spawn, as Task 18 held `development` out.
+
+  **Proof:** RED test — `src/systems/robotFieldDerivation.test.ts`: the two draws.
+
+  **Acceptance criteria:**
+  - [ ] Over 12,000 spawn indices the share of max intensities above 0 is the band's `lit` within a point; every
+        value above 0 is a whole number in the band, and each of them takes its even share within a point.
+  - [ ] A `lit` of 0 gives every robot 0. A robot at 0 still draws a max time.
+  - [ ] Every max time is an even number in its band, each taking its even share within a point.
+  - [ ] The same index gives the same values, and the five older Melody fields draw exactly what they drew (their
+        existing tests, unmodified).
+  - [ ] `resolveBands.test.ts`'s rows for a band against its slider's range, and for the Melody keys no aspect names,
+        hold for both new bands.
+
+  **Verification:** `npx vitest run src/systems/robotFieldDerivation.test.ts src/data/bands/classic.test.ts src/data/bands/resolveBands.test.ts`
+  passes.
+
+  **Dependencies:** Task 27; Gate A.
+
+  **Files:** `src/data/bands/bandKeys.ts`, `src/data/bands/classic.ts`, `src/data/bands/aspects.ts`,
+  `src/systems/robotFieldDerivation.ts`, `src/systems/robotFieldDerivation.test.ts`,
+  `src/data/bands/resolveBands.test.ts`
+
+  **Estimated scope:** M
+
+- [ ] **Task 34: spawn, the baseline and the deal**
+
+  **Description:** `spawnRobot` writes the two bounds (an original's own draws, with the alea fallback its neighbours
+  have; a member's from its founder) and stops writing `development`. `generateRobotRosterBaseline` mirrors it. The
+  bounds join the deal's `TOP_LEVEL_FIELDS` with no push, and `development`'s row goes. The seeded Journey
+  (`'company'` for a seeded company's robots, `'own'` for the rest) is untouched.
+
+  **Proof:** RED test — `src/systems/spawnSystem.test.ts` and `src/systems/spawnSystem.families.test.ts`: the fields
+  at spawn; `src/systems/aspectDeal.widened.test.ts`: the re-derive.
+
+  **Acceptance criteria:**
+  - [ ] A member's two bounds are its founder's, over the 121 worlds.
+  - [ ] A spawned roster equals its baseline in all three settings, over the 121 worlds.
+  - [ ] Over the 121 worlds, the share of robots that are not members and load above 0 is the band's `lit` within
+        five points.
+  - [ ] Over the 121 worlds, the members of a company share one journey key and the same bounds, and their developed
+        melodies have the same starts and lengths at every measure of a 100-measure run (spec success criterion 3).
+  - [ ] A theme whose column moves either band re-derives each robot's value in place, with no melody regeneration
+        and no engine call.
+
+  **Verification:** `npx vitest run src/systems/spawnSystem.test.ts src/systems/spawnSystem.families.test.ts src/systems/aspectDeal.test.ts src/systems/aspectDeal.widened.test.ts`
+  passes.
+
+  **Dependencies:** Tasks 28, 33.
+
+  **Files:** `src/systems/spawnSystem.ts`, `src/systems/spawnSystem.test.ts`,
+  `src/systems/spawnSystem.families.test.ts`, `src/systems/aspectDeal.ts`, `src/systems/aspectDeal.widened.test.ts`
+
+  **Estimated scope:** M
+
+- [ ] **Task 35: saves and links**
+
+  **Description:** `RobotAudioOverrideDiff` swaps `development` for the two bounds. `sessionDiff.ts` diffs each
+  against the baseline and applies it, with the finite-number check `development` has before the store sees it
+  (`buildRobotUpdates`). `worldDiffCodec.ts` drops `dv` and gives the bounds two short keys, `ji` and `jt` if the
+  task finds them unused. Journey's `jy` is untouched.
+
+  **Proof:** RED test — `src/utils/sessionDiff.test.ts` and `src/utils/worldDiffCodec.test.ts`: the round trips.
+
+  **Acceptance criteria:**
+  - [ ] An untouched robot has neither key in a save.
+  - [ ] Save, edit, wipe and load brings back all three settings on a robot, and a company-wide edit on every member.
+  - [ ] A world link round-trips all three.
+  - [ ] A bound that is not a finite number, in a save or a link, is dropped on its own, and the robot keeps its
+        seeded value.
+
+  **Verification:** `npx vitest run src/utils/sessionDiff.test.ts src/utils/worldDiffCodec.test.ts src/utils/seedBaseline.test.ts src/utils/sessionShareUtils.test.ts`
+  passes.
+
+  **Dependencies:** Task 34.
+
+  **Files:** `src/types/session.ts`, `src/utils/sessionDiff.ts`, `src/utils/sessionDiff.test.ts`,
+  `src/utils/worldDiffCodec.ts`, `src/utils/worldDiffCodec.test.ts`
+
+  **Estimated scope:** M
+
+- [ ] **Task 36: `development`'s band and draw go**
+
+  **Description:** Deletion only. `'robot.development'` leaves the band keys, Classic's column and
+  `MELODY_BAND_KEYS`; `seedDevelopment` and the two `development` draws leave `robotFieldDerivation.ts`, with the
+  field on `MelodyFields`, `currentMelodyBands` and `RobotAudioBaseline`; their tests and `resolveBands.test.ts`'s
+  rows for the band go with them. Each is re-checked for a reader first.
+
+  **Proof:** Read — a deletion. No new test. The other Melody fields' draw tests pass unmodified: each draw has its
+  own dataId, so taking two out moves none of the rest.
+
+  **Acceptance criteria:**
+  - [ ] Nothing reads the band, the seeder or the baseline's `development`.
+  - [ ] The other Melody fields, the two bounds among them, draw exactly what they drew.
+
+  **Verification:** `npx vitest run src/systems/robotFieldDerivation.test.ts src/data/bands/classic.test.ts src/data/bands/resolveBands.test.ts src/systems/spawnSystem.test.ts src/systems/aspectDeal.widened.test.ts`
+  passes.
+
+  **Dependencies:** Task 34.
+
+  **Files:** `src/data/bands/bandKeys.ts`, `src/data/bands/classic.ts`, `src/data/bands/aspects.ts`,
+  `src/systems/robotFieldDerivation.ts`, `src/systems/robotFieldDerivation.test.ts`,
+  `src/data/bands/resolveBands.test.ts`
+
+  **Estimated scope:** S (deletion only)
+
+- [ ] **Task 37: `Robot.development` goes**
+
+  **Description:** Deletion only. The field on `Robot`; `DEVELOPMENT_MIN`, `DEVELOPMENT_MAX`, `DEVELOPMENT_STEP` and
+  `DEFAULT_DEVELOPMENT`; the store's snap and clamp for it and their tests; and any fixture that still sets it. The
+  changes keep their names (`melodyDevelopment.ts`, `developMelody`, `developmentFloor`, the `:development` draw
+  stream): they are the development, not the old setting.
+
+  **Proof:** Read — a deletion. No new test.
+
+  **Acceptance criteria:**
+  - [ ] No robot, snapshot, diff, band or constant carries `development`; what is left of the word in `src/` is the
+        changes module and its callers.
+  - [ ] `npm test`, `npm run build:types`, `npm run lint` and `npm run build` pass.
+
+  **Verification:** the full suite and the build; `development` searched for in `src/` by hand before the commit, and
+  what remains listed in the commit message.
+
+  **Dependencies:** Tasks 35, 36.
+
+  **Files:** `src/types/Robot.ts`, `src/constants/index.ts`, `src/stores/localeStore.ts`,
+  `src/stores/localeStore.test.ts`, and any test fixture the search finds
+
+  **Estimated scope:** S (deletion only)
+
+### Checkpoint I: Gates B and C
+- [ ] `npm test`, `npm run build` clean.
+- [ ] Mutation checks, each killed: the lit share ignored (33), a max time off the even grid (33), a member drawing
+      its own bounds (34), each bound left out of the deal's table (34), each diff key and each link key (35).
+- [ ] **Gate B (profile).** Run again, on the new journey, same session, `main` against the branch, one at a time.
+      With the step harness if it has been mended, else the audio-thread A/B that stood in at Checkpoint E, this
+      time on a world whose robots are set to 16 and 2 so drops come often. Which one is Crawford's call (Open
+      Questions). A miss stops the build here, with the numbers and options.
+- [ ] **Gate C (Crawford's ear).** A full seeded world, on desktop and on the phone. His to move: the two bands and
+      the share at home.
 - [ ] Stop. The docs start on his word.
 
 ---
 
-### Phase 6: Docs
+### Phase 10: Docs
 
 - [ ] **Task 21: `MELODY_SYSTEM.md`, `AUDIO_SYSTEM.md`, `ROBOT_LIFECYCLE.md`**
 
-  **Description:** `MELODY_SYSTEM.md`: the home melody, a section for the journey and the changes, the two new event
-  fields, and the docking re-roll's text out. `AUDIO_SYSTEM.md`: the note resolution pipeline's per-measure read,
+  **Description:** `MELODY_SYSTEM.md`: the home melody, a section for the journey (the pairs, the shares, the drop,
+  the calm limit) and the changes, the two new event fields, and the docking re-roll's text out. `AUDIO_SYSTEM.md`: the note resolution pipeline's per-measure read,
   `sixteenths` and `pitchStep`. `ROBOT_LIFECYCLE.md`: pitch drift, the dock-cycle count and the snapshot's three
   fields out. Every name checked against the shipped source, not this plan.
 
@@ -685,7 +1209,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Verification:** each name spot-checked against the code; links and anchors checked.
 
-  **Dependencies:** Checkpoint E.
+  **Dependencies:** Checkpoint I.
 
   **Files:** `docs/MELODY_SYSTEM.md`, `docs/AUDIO_SYSTEM.md`, `docs/ROBOT_LIFECYCLE.md`
 
@@ -693,15 +1217,16 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
 - [ ] **Task 22: `COMPANIES.md`, `SESSION_STORAGE.md`, the data grid, and the spec's As built**
 
-  **Description:** `COMPANIES.md`: a member's inherited rate, the seeded Journey, the broadcast. `SESSION_STORAGE.md`:
-  the two override fields. `reference/ROBOT_DATA_GRID.md`: the band row. The spec gains §8, As built: what Gates A
-  and C moved, and any deviation from this plan. Roadmap 92's entry is brought up to date. **Ask first:** CLAUDE.md's
+  **Description:** `COMPANIES.md`: a member's inherited bounds, the seeded Journey, the broadcast.
+  `SESSION_STORAGE.md`: the three override fields. `reference/ROBOT_DATA_GRID.md`: the two band rows. The spec gains
+  §9, As built: what Gates A and C moved, and any deviation from this plan (its §8 is the revision against the
+  build). Roadmap 92's entry is brought up to date. **Ask first:** CLAUDE.md's
   reference line for `ROBOT_LIFECYCLE.md` lists "pitch drift"; the one-word fix is Crawford's to approve.
 
   **Proof:** Read — human review. No test file.
 
   **Acceptance criteria:**
-  - [ ] Each doc matches the shipped source; the spec's §8 records every number as shipped.
+  - [ ] Each doc matches the shipped source; the spec's §9 records every number as shipped.
   - [ ] The CLAUDE.md line is changed only on Crawford's word.
 
   **Verification:** each name spot-checked against the code; links and anchors checked.
@@ -715,7 +1240,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
 ### Checkpoint: Complete
 - [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] The spec's six success criteria (§5.5) each met, by a named test or a gate.
+- [ ] The spec's eight success criteria (§5.5) each met, by a named test or a gate.
 - [ ] Any browser check not done in the session is flagged here, not skipped.
 - [ ] Ready for Crawford's PR.
 
@@ -974,6 +1499,19 @@ cache keeps positions, not rates, so it needs no change. For the spec's §8.
 | An edit swaps a robot's melody mid-bar. | Low | Notes are separate triggers, as a Density edit already shows; nothing is scheduled twice. |
 | The sweep over 121 worlds slows the suite. | Low | Its own file, so it runs in parallel; its time is recorded in Task 7's commit. |
 
+The revision's (Phases 6 to 9):
+
+| Risk | Impact | Mitigation |
+|---|---|---|
+| The engine swap (Task 28) changes what plays in a way its tests miss. | High | The position is built and tested pure first (Tasks 24 to 26); Task 28's engine cases are the existing per-measure block moved onto bounds, with the oracle read through the same pure functions. |
+| A new call on a mocked module breaks test files Task 28 does not name. | High | Task 28 runs every file that mocks or imports `melodyJourney`, and the full suite, before its commit. |
+| A drop rebuilds a robot's melody up to 31 changes away in one measure, and a company drops together. | Medium | The cache makes it one rebuild per robot per measure, as any change is; Gate B is run again, on a world set to drop often. |
+| The odds and leans read well and sound wrong. | Medium | Gate A comes before anything is seeded; every number is a constant the shares' tests read, so moving one needs no test rewritten. |
+| A share test fails on a number moved at Gate A because its tolerance was fitted to the first cut. | Medium | Expected shares are worked out from the constants (Architecture Decisions); the tolerances are five points over 5,000 pairs. |
+| A layer is swapped while another still reads `development`, and a robot's setting is lost between tasks. | Medium | Add, swap, delete: `development` stays stored and seeded until Tasks 34 to 37, and each deletion re-checks for a reader first. |
+| A robot with a small bound, or a short melody, holds through most of its journey. | Low | By design (spec B5). Checkpoint F's shape and Gate A show how it sounds; the bands are his to move at Gate C. |
+| Journey alone on a fourth row reads as wasted space. | Low | Task 30's Look, and Gate A (spec B14). |
+
 ## Open Questions
 
 1. Spec §7.2's four questions. **Resolved** (Crawford, 2026-11-17): at least one note in a bar; the band stays the
@@ -981,3 +1519,7 @@ cache keeps positions, not rates, so it needs no change. For the spec's §8.
 2. Spec §7.1's assumptions. **Open by design:** they stand at their defaults until Gates A and C, where Crawford
    moves them by ear.
 3. CLAUDE.md's `ROBOT_LIFECYCLE.md` line names pitch drift. **Open** — Crawford's word, at Task 22.
+4. Spec §7.3's assumptions (B1 to B15). **Open by design:** they stand at their first cuts until Gates A and C.
+5. Gate B's harness. **Open** — Crawford's word, before Checkpoint I: mend the step harness (`npm run perf` stops at
+   a nav button it can no longer find), or accept the audio-thread A/B (`npm run perf:audio`) as the gate.
+6. The link's two new keys. **For Task 35:** `ji` and `jt` if nothing else in the codec uses them.

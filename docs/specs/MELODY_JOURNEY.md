@@ -20,8 +20,7 @@ reads a robot's settings when it plays, in place of carrying them at registratio
 **Revised 2026-11-17, after Phases 1 to 5 were built**, to follow the revised intent: a journey is a list of
 intensity and time pairs bounded by two settings, in place of a walk travelled at a set rate. §1.3, §1.9, §1.10, §5
 and §7 are rewritten; §1.2, §1.5 to §1.8, §2 and §4 are touched where they named the walk or the rate. §8 says what
-of the build stands and what is replaced. The task file does not yet follow; it is revised on Crawford's word, after
-he has read §7.3.
+of the build stands and what is replaced. The task file follows as its Phases 6 to 9 (revised the same day).
 
 **Where the claims come from.** Two sources, marked where it matters:
 
@@ -631,4 +630,8 @@ Phases 1 to 5 of the plan were built on `feature/melody-journey` before the revi
 
 **New:** the calm limit handed to the journey; the fourth row.
 
-**Not yet done either way:** Phase 6, the reference docs. It is written once, against the revised build.
+**Not yet done either way:** the reference docs (the plan's Tasks 21 and 22). They are written once, against the
+revised build.
+
+**The plan:** [docs/tasks/MELODY_JOURNEY.md](../tasks/MELODY_JOURNEY.md), Phases 6 to 9 (Tasks 24 to 37), revised
+2026-11-17.
