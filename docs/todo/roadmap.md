@@ -639,12 +639,14 @@ in conversation that day and the next. Intent [melody-journey.md](../intent/melo
 
 The melody a robot spawns with becomes its home melody. From there it gets busier, comes home, gets calmer and comes
 home again, on a seeded journey read from the music clock: longer notes split into the note and a neighbour, the
-silence fills, and on the calm side notes tie into the note before them. A Development slider sets the changes per
-measure (0 to 2), and a Journey setting (Own, Company, Fleet) lets a company or the whole fleet travel together.
+silence fills, and on the calm side notes tie into the note before them. A journey is a seeded list of intensity and
+time pairs, bounded by two settings, max intensity and max time; the changes per measure are worked out from it
+(revised 2026-11-17, in place of a Development slider of changes per measure). A Journey setting (Own, Company,
+Fleet) lets a company or the whole fleet travel together.
 Docking pitch drift, today's only change over time, goes: it ignores the Note Variance set, is wiped by any
 composition edit, and happens while the robot is silent.
 
-The melody of any measure is worked out from the home melody, the two settings and the measure, so it replays and
+The melody of any measure is worked out from the home melody, the three settings and the measure, so it replays and
 nothing new is saved but the settings.
 
 It is the first built piece of roadmap

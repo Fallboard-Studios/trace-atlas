@@ -1,4 +1,4 @@
-# Phase Spec: The Melody Journey — a home melody, and a seeded walk that makes it busier and calmer
+# Phase Spec: The Melody Journey — a home melody, and a seeded journey that makes it busier and calmer
 
 > **Execution Commands**
 > - Type check: `npm run build:types` (`tsc --noEmit`)
@@ -17,27 +17,35 @@ reads a robot's settings when it plays, in place of carrying them at registratio
 [92](../todo/roadmap.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer), next in
 [plan.md](../todo/plan.md).
 
+**Revised 2026-11-17, after Phases 1 to 5 were built**, to follow the revised intent: a journey is a list of
+intensity and time pairs bounded by two settings, in place of a walk travelled at a set rate. §1.3, §1.9, §1.10, §5
+and §7 are rewritten; §1.2, §1.5 to §1.8, §2 and §4 are touched where they named the walk or the rate. §8 says what
+of the build stands and what is replaced. The task file does not yet follow; it is revised on Crawford's word, after
+he has read §7.3.
+
 **Where the claims come from.** Two sources, marked where it matters:
 
 - **(code)** read in the repo while writing this spec.
 - **(arithmetic)** worked by hand in the session from constants in the code. Not measured.
 
-Every number this spec introduces (the rate band, the journey's swing, the slider's stops) is a first cut for
-Crawford's ear at Gate A (§5.4), not a decision.
+Every number this spec introduces that the intent does not give (the journey's odds and leans, the max time band) is
+a first cut for Crawford's ear at Gate A (§5.4), not a decision.
 
 ---
 
 ## 0. Scope check
 
-One capability: a melody that develops on a seeded journey. Its parts (the walk, the changes, the engine's read, the
-two settings, the removal of drift) cannot be heard or verified apart, so there is no capability map. The home melody
+One capability: a melody that develops on a seeded journey. Its parts (the journey, the changes, the engine's read, the
+three settings, the removal of drift) cannot be heard or verified apart, so there is no capability map. The home melody
 editor is a second capability and is out (§3).
 
 ---
 
 ## 1. Overview & Claude Explanation
 
-### 1.1 Today
+### 1.1 Before this piece
+
+(As `main` has it. On the branch, Phases 1 to 5 have already changed what this section describes; §8.)
 
 - **A melody is one bar, generated once.** `composeRobotMelody` (`src/engine/regenerateMelody.ts`) builds 16
   sixteenth-note steps of `MelodyEvent`s from the robot's `compositionSeed`, its composition settings and its world.
@@ -59,8 +67,13 @@ Terms, used the same way from here on:
 - **Home melody:** the melody `composeRobotMelody` makes. `Robot.melody` holds it, and only it.
 - **Change:** one small edit to a melody. "Step" stays the word for a sixteenth slot (`startStep`).
 - **Position:** how many changes a robot is from home. Positive is busier, negative is calmer, 0 is home.
-- **Journey:** a seeded walk that gives a position for a count of changes.
-- **Rate:** changes per measure.
+- **Journey:** a seeded list of pairs that gives a position for a measure.
+- **Pair:** an intensity and a time.
+- **Intensity:** the position a pair heads for.
+- **Time:** how many measures a pair takes to get there.
+- **Drop:** a pair with a time of one measure.
+- **Turning measure:** the measure that plays a pair's intensity.
+- **Bounds:** a robot's max intensity and max time (§1.9).
 
 ### 1.2 The shape of it
 
@@ -68,20 +81,20 @@ Three pure functions, one on top of the other:
 
 | Function | Question | Reads |
 |---|---|---|
-| `journeyPosition(key, rate, measure)` | How many changes from home is this journey at this measure? | the journey's key, the rate, the measure |
+| `journeyPosition(key, bounds, measure)` | How many changes from home is this robot at this measure? | the journey's key, the robot's bounds and calm limit, the measure |
 | `developMelody(home, position, options)` | What is the home melody at that position? | the home melody, the position, the robot's own draws |
 | the engine's read | Which events does this robot play on this step of this measure? | the two above |
 
-The melody a robot plays in a measure is worked out from its home melody, its rate, its journey and the measure.
-Nothing is remembered, nothing is written to the store as the music moves, and nothing new is saved except the two
+The melody a robot plays in a measure is worked out from its home melody, its bounds, its journey and the measure.
+Nothing is remembered, nothing is written to the store as the music moves, and nothing new is saved except the three
 settings (§1.9).
 
 ### 1.3 The journey
 
-- **A walk in changes.** A journey is a list of turning points on alternating sides of home, each a seeded distance
-  from it: for example +5, −3, +8, −4. The walk moves one change at a time towards the current turning point, then
-  towards the next. Each crossing passes through 0, so the home melody keeps coming back.
-- **Its key decides who shares it.** The walk is an `alea` over one string:
+- **A list of pairs.** A journey is a seeded list of pairs, each an intensity and a time. The melody heads for the
+  pair's intensity and is there after the pair's time. Each pair starts where the one before it ended; the first
+  starts at home, on measure 0.
+- **Its key decides who shares it.** The journey is an `alea` over one string:
 
   | Journey setting | Key | Who travels together |
   |---|---|---|
@@ -91,17 +104,57 @@ settings (§1.9).
 
   `worldKey` is `melodyWorldKey(localeId)`, the locale's coordinates, as the rhythm stream uses, so a world reloaded
   from a save or a link travels the same journeys (code).
-- **Where a robot is.** The count of changes made by a measure is `floor(rate × measure)`. The robot's position is the
-  walk at that count. Measure 0 is position 0: every world starts at home.
-- **The turning points.** Each distance is an even draw of a whole number from `JOURNEY_SWING_MIN` to
-  `JOURNEY_SWING_MAX` (first cut: 2 to 8). The side of the first turning point is one draw; the sides alternate from
-  there.
-- **Two robots on one journey at one rate are at the same position on every measure.** At different rates they travel
-  the same shape at different speeds, and are not in step.
-- **A robot with less range than the journey asks for holds at its limit** on the calm side (§1.6). The busy side has
-  no limit (§1.5, shifts).
-- **No history.** A rate or journey edit re-reads the walk as if the new setting had held from measure 0, the rule the
-  chord settings follow.
+- **Drawn as shares, scaled by each robot.** The stream gives each pair as an intensity share `v`, from −1 to 1, and a
+  time share `u`, from 0 to 1, and says whether the pair is a drop. Each robot scales the shares by its own bounds
+  (below). So one journey is one shape, however deep or long a robot travels it.
+- **The draws.** Four draws per pair, taken whether the pair uses them or not, so pair i always reads draws 4i to
+  4i + 3: the home roll, the intensity, the time, the drop roll. `p` is the intensity share of the pair before, 0
+  before the first.
+
+  | Step | Rule | First cut |
+  |---|---|---|
+  | Home | The pair heads home (`v` = 0) when the home roll is under `JOURNEY_HOME_ODDS × \|p\|`, and `p` is at least `JOURNEY_MIN_MOVE` from home. | `JOURNEY_HOME_ODDS` 0.5: from max intensity, half the time |
+  | Intensity | Otherwise `v` is an even draw over −1 to 1, less the stretch within `JOURNEY_MIN_MOVE` of `p`. A pair always moves, and may stay on its side or cross home. | `JOURNEY_MIN_MOVE` 0.125: 2 changes at a max intensity of 16 |
+  | Time | `u = JOURNEY_TIME_LEAN × (1 − \|v\|) + (1 − JOURNEY_TIME_LEAN) × the time draw`. | `JOURNEY_TIME_LEAN` 0.5: a pair heading home takes the top half of the time, a pair heading for max intensity the bottom half |
+  | Drop | The pair is a drop when the drop roll is under `JOURNEY_DROP_ODDS`, its move `\|v − p\|` is at least `JOURNEY_DROP_MIN_MOVE`, it is not the first pair, and the pair before it is not a drop. | `JOURNEY_DROP_ODDS` 0.3; `JOURNEY_DROP_MIN_MOVE` 0.5: 8 changes at 16 |
+
+- **A long time over a small change needs no rule of its own.** A small move near home draws the top of the time,
+  from the Time row.
+- **A robot's pairs.** With max intensity `N`, max time `M` and calm limit `C` (the robot's calm changes: its home
+  notes less one, §1.6):
+  - **Intensity:** `v × N`, rounded to the nearest whole change, and never below `−C`.
+  - **Time:** `u × M`, rounded to the nearest even number of measures, and never under 2.
+  - **A drop** has a time of 1, and the pair before a drop is one measure shorter.
+- **Turning measures.** A pair's turning measure is the sum of the times up to and including its own. Every turning
+  measure is even, so it is a chord change (`paletteForMeasure` moves on every second measure, code). The one
+  exception is a pair before a drop: it turns on the odd measure, and the drop lands on the chord change after it.
+- **Where a robot is.** In a pair that runs from intensity `a` on measure `s` to intensity `b` on measure `s + T`,
+  measure `s + k` plays `a + sign(b − a) × floor(|b − a| × k ÷ T)`. The floor means the robot reaches `b` on the
+  turning measure and not before. Measure 0 is position 0: every world starts at home.
+- **Worked example** (arithmetic). Crawford's example, `[[16, 15], [-8, 1], [0, 16]]`, for a robot with eight or more
+  calm changes and for one with four, whose second pair is brought in to −4:
+
+  | Measure | Calm limit 8 or more | Calm limit 4 |
+  |---|---|---|
+  | 0 | 0 | 0 |
+  | 1 to 14 | +1 to +14 | +1 to +14 |
+  | 15 | +16 | +16 |
+  | 16 (the drop) | −8 | −4 |
+  | 18 | −7 | −4 |
+  | 20 | −6 | −3 |
+  | 24 | −4 | −2 |
+  | 28 | −2 | −1 |
+  | 32 | 0 | 0 |
+
+- **Robots on one journey with one max time turn on the same measures**, each to its own depth. With different max
+  times they travel the same shape at different lengths, and are not in step.
+- **A robot with less range than the journey asks for** is brought in on the calm side before its changes are worked
+  out (the calm limit, above). The busy side has no limit (§1.5, shifts).
+- **A low bound can hold a robot still.** Two pairs in a row can scale to one intensity when max intensity is small,
+  or when both are brought in to the calm limit. The robot then plays one melody through the second pair. The rule
+  that a pair always moves is a rule of the journey's shares, not of every robot's scaling of them.
+- **No history.** An edit to a bound or to Journey re-reads the journey as if the new setting had held from measure 0,
+  the rule the chord settings follow.
 
 ### 1.4 Lengths and neighbours
 
@@ -146,7 +199,7 @@ The changes come in four phases, each running until it has nothing left to do:
    threshold in use), a change adds one note of that length at the end of the longest gap (the earliest, on a tie),
    one palette step from the note it leads into. The gap after the last note leads into the bar's first note.
 4. **Shift.** A change moves one note one palette step. The notes are visited in start order, round and round. This
-   phase never runs out, so the busy side has no limit; the journey's swing is what bounds it.
+   phase never runs out, so the busy side has no limit; the robot's max intensity is what bounds it.
 
 **What a change never does.** It never moves a home note's start, never makes two notes overlap, and never puts a note
 outside the bar. Before the shift phase, every home note still sounds on its own slot.
@@ -171,25 +224,26 @@ A negative position applies that many calm changes to the home melody.
   silence between the two is covered.
 - **The order.** The candidates are every home note except the bar's first, sorted by length, then by start, and
   visited from alternating ends, as the busy side visits its own.
-- **The floor is one note:** the bar's first, at its home start. A position below the floor plays the floor. So a
-  three-note melody has two calm changes, and holds there while the journey goes further out.
+- **The floor is one note:** the bar's first, at its home start. So a three-note melody has two calm changes: its
+  **calm limit** is 2. The journey never asks a robot for more (§1.3), and `developMelody` handed a position below the
+  floor still plays the floor.
 
 ### 1.7 The engine plays the measure's melody
 
 - **The contract.** A robot's events on a step are the events of its melody *for that step's measure*:
-  `developMelody(home, journeyPosition(key, rate, at.measure), options)`. `stepNotes(at, time)` reads it for
+  `developMelody(home, journeyPosition(key, bounds, at.measure), options)`. `stepNotes(at, time)` reads it for
   `at.measure`, so the trigger and the early announcement agree by construction, as they do for the chord (code,
   §1.1).
 - **Registration carries the home melody only, as now.** The engine reads the robot's settings when it plays: a pure
-  `robotJourney(robot, worldKey, bpmTop)` turns the stored robot into the journey's key, the rate, the floor and the
-  seed. `stepNotes` already reads the stored robot on the tick (its release, its Humanize seed; code), so this is no
+  `robotJourney(robot, worldKey, bpmTop)` turns the stored robot into the journey's key, the two bounds, the floor and
+  the seed. The calm limit comes from the registered home melody. `stepNotes` already reads the stored robot on the tick (its release, its Humanize seed; code), so this is no
   new kind of read. A settings edit, a company move, a loaded save and the deal therefore need no engine call: the
   next note reads what the store holds. (The spec first had registration carry a descriptor; the plan dropped it,
   because every site that moves a robot between companies would have had to re-register it.)
 - **Nothing is rebuilt per sixteenth.** A robot's developed melody is rebuilt only when its position or its inputs
-  change (a position moves at most twice a measure), and the last few positions are kept, since the trigger and the
-  early announcement read two measures either side of a bar line. A robot at rate 0 plays its home melody's own
-  events.
+  change (a measure has one position), and the last few positions are kept, since the trigger and the early
+  announcement read two measures either side of a bar line. A robot at a max intensity of 0, or at position 0, plays
+  its home melody's own events.
 - **The pitch step.** After `paletteForMeasure(at.measure)` gives the eight names, an event with a `pitchStep` is
   resolved as §1.4 describes. A neighbour that would leave the robot's `octaveRange` goes the other way instead.
 - **The motif accent** is decided on the home melody, as now (the earliest home event of each repeat window, code),
@@ -208,46 +262,61 @@ A negative position applies that many calm changes to the home melody.
   seed alone, so a composition edit changes the home melody and not the directions.
 - **So a family develops as a section.** Members share their founder's rhythm (code,
   [MELODY_SYSTEM.md](../MELODY_SYSTEM.md), the rhythm stream), and which note a change picks depends on lengths and
-  starts only. Members on one journey at one rate split the same notes on the same measures, each with its own
-  neighbour notes.
+  starts only. Members on one journey with the same bounds split the same notes on the same measures, each with its
+  own neighbour notes.
 - **The floor.** The attack rail (`audibleDensityBand`, `src/systems/robotFieldDerivation.ts`) exists because a slow
   attack on short notes never climbs (code). Development obeys the same arithmetic: no change makes a note shorter
   than `ceil(ATTACK_REACH_SHARE × attack ÷ one sixteenth at the top of the theme's bpm band)` sixteenths, and never
   shorter than one. Under Classic (100 BPM at the top, a sixteenth of 0.15 s), attacks up to 0.3 s give a floor of
   1 and a 1.14 s attack gives 4, a quarter note (arithmetic).
 
-### 1.9 The two settings
+### 1.9 The three settings
 
 | Field | Values | At spawn | A company member |
 |---|---|---|---|
-| `Robot.development?: number` | changes per measure, 0 to 2 in steps of 0.125 | an even draw in the `'robot.development'` band, 0 for the share the band's `lit` leaves out | its founder's |
+| `Robot.journeyMaxIntensity?: number` | whole changes, 0 to 16 | 0 for the share the band's `lit` leaves out; for the rest, an even draw of a whole number in the `'robot.journeyMaxIntensity'` band | its founder's |
+| `Robot.journeyMaxTime?: number` | even measures, 2 to 16 | an even draw over the even numbers in the `'robot.journeyMaxTime'` band | its founder's |
 | `Robot.journey?: 'own' \| 'company' \| 'fleet'` | which journey it travels | `'company'` for a robot spawned into a company, `'own'` for a freelancer | `'company'` |
 
-- **Absent reads as 0 and `'own'`**, so a robot built by hand in a test plays its home melody.
-- **The band.** `'robot.development': { min: 0.125, max: 1, lit: 0.7 }` in `src/data/bands/classic.ts`, a first cut:
-  seven robots in ten develop, between one change every eight measures and one a measure. It joins the Melody family
-  (`MELODY_BAND_KEYS`), so the deal re-derives it with the other four; no aspect column names it in this piece.
+- **`Robot.development` goes**, with everything that carried it (§8).
+- **The top of max intensity is 16** (`JOURNEY_INTENSITY_MAX`): the sixteen notes a measure can hold. Max time runs
+  from `JOURNEY_TIME_MIN` 2 to `JOURNEY_TIME_MAX` 16 in steps of `JOURNEY_TIME_STEP` 2.
+- **Absent reads as 0, 8 and `'own'`**, so a robot built by hand in a test plays its home melody.
+- **The bands,** in `src/data/bands/classic.ts`:
+  - `'robot.journeyMaxIntensity': { min: 1, max: 16, lit: 0.7 }`. Three robots in ten load at 0 and play their home
+    melody; the rest draw evenly from 1 to 16.
+  - `'robot.journeyMaxTime': { min: 2, max: 16 }`, a first cut. Every robot draws one, a robot at 0 included, so
+    raising its max intensity by hand finds a seeded time waiting.
+  - Both join the Melody family (`MELODY_BAND_KEYS`), so the deal re-derives them with the other four; no aspect
+    column names either in this piece.
 - **On Company with no company, a robot travels as Own.** The setting is kept, and takes effect if the robot is put in
   a company.
-- **Edits.** `applyDevelopment` and `applyJourney` (`src/systems/robotOptionsActions.ts`) write the field and nothing
-  else, as `applyDynamics` does (code): no regeneration and no engine call. The home melody is untouched, and the
-  engine reads the new value on the next note (§1.7). The same holds for a move between companies and an Attack edit.
-- **Broadcast.** Both join `CompanyOptionsSnapshot`, so the company and All Probes screens set them for every member
-  (broadcast, not link, as every other setting).
-- **Saved.** Both join `RobotAudioOverrideDiff` and the world link's codec, diffed against the seeded baseline like
-  `pitchRepeat`. The home melody is still not saved.
+- **Edits.** `applyJourneyMaxIntensity`, `applyJourneyMaxTime` and `applyJourney`
+  (`src/systems/robotOptionsActions.ts`) write the field and nothing else, as `applyDynamics` does (code): no
+  regeneration and no engine call. The home melody is untouched, and the engine reads the new value on the next note
+  (§1.7). The same holds for a move between companies and an Attack edit.
+- **The store normalises both bounds:** max intensity to a whole number from 0 to 16, max time to an even number from
+  2 to 16, a `NaN` dropped (`localeStore.updateRobot`, as it snaps, clamps and drops `development` today, code). A
+  restore keeps its own check that each is a finite number before the store sees it (`buildRobotUpdates`,
+  `src/utils/sessionDiff.ts`, code).
+- **Broadcast.** All three join `CompanyOptionsSnapshot`, so the company and All Probes screens set them for every
+  member (broadcast, not link, as every other setting).
+- **Saved.** All three join `RobotAudioOverrideDiff` and the world link's codec, diffed against the seeded baseline
+  like `pitchRepeat`. The link's `dv` key goes; the bounds take two new keys (`ji` and `jt`, if the plan finds them
+  free). The home melody is still not saved.
 
 ### 1.10 The controls
 
-Composition > Rhythm & Melody gains a third row (`CompositionRhythmMelodySection`,
-`src/components/robot/CompositionSections.tsx`):
+Composition > Rhythm & Melody (`CompositionRhythmMelodySection`, `src/components/robot/CompositionSections.tsx`) has
+a third row today: Development beside Journey (code). It becomes two rows:
 
-- **Development**, a `SliderLinear`, 0 to 2 in steps of 0.125.
-- **Journey**, a `'radio'` control with three options: Own, Company, Fleet.
-- **Journey is dimmed while Development is 0**, its value kept: it does nothing there.
-- Every label, option and help text is a content entry (`probe.composition.development`,
-  `probe.composition.journey`), read through `labels()` and `options()`. The copy is a stand-in, marked as the other
-  stand-ins are, for backlog [62](../todo/backlog.md#62-misc-review-items-a-bucket)'s content pass.
+- **Row 3: Max Intensity beside Max Time.** Both `SliderLinear`: 0 to 16 in steps of 1, and 2 to 16 in steps of 2.
+- **Row 4: Journey**, the `'radio'` control with three options, Own, Company, Fleet, as built.
+- **Max Time and Journey are dimmed while Max Intensity is 0**, their values kept: they do nothing there.
+- Every label, option and help text is a content entry (`probe.composition.journeyMaxIntensity`,
+  `probe.composition.journeyMaxTime`, `probe.composition.journey`), read through `labels()` and `options()`.
+  `probe.composition.development` goes. The copy is a stand-in, marked as the other stand-ins are, for backlog
+  [62](../todo/backlog.md#62-misc-review-items-a-bucket)'s content pass.
 
 ### 1.11 What goes
 
@@ -271,8 +340,8 @@ Docking pitch drift, and what only it used (code, each to be re-checked by the p
 ```text
 src/
 ├── engine/
-│   ├── melodyJourney.ts          (new)  the walk: journeyKey, journeyPosition, robotJourney
-│   ├── melodyDevelopment.ts      (new)  the changes: developMelody, the floor
+│   ├── melodyJourney.ts          (new)  the journey: journeyKey, the pairs, journeyPosition, robotJourney
+│   ├── melodyDevelopment.ts      (new)  the changes: developMelody, the floor, the calm limit
 │   ├── melodyGenerator.ts               reRollMelodyPitches and its helpers go
 │   ├── harmonySystem.ts                 the palette step resolver
 │   ├── regenerateMelody.ts              melodyWorldKey shares the world key with the journey
@@ -281,21 +350,21 @@ src/
 │   ├── robotSystems.ts                  the drift goes
 │   ├── dockCycles.ts             (deleted)
 │   ├── lifecycleSim.ts                  the snapshot's three fields go
-│   ├── robotFieldDerivation.ts          deriveMelodyFields draws development
-│   ├── spawnSystem.ts                   the two fields at spawn, a member's from its founder
-│   ├── aspectDeal.ts                    development in the Melody family's re-derive
-│   ├── robotOptionsActions.ts           applyDevelopment, applyJourney
-│   └── companyOptions.ts                the two fields in the snapshot
-├── stores/localeStore.ts                normalise the two fields
+│   ├── robotFieldDerivation.ts          deriveMelodyFields draws the two bounds
+│   ├── spawnSystem.ts                   the three fields at spawn, a member's bounds from its founder
+│   ├── aspectDeal.ts                    the two bounds in the Melody family's re-derive
+│   ├── robotOptionsActions.ts           applyJourneyMaxIntensity, applyJourneyMaxTime, applyJourney
+│   └── companyOptions.ts                the three fields in the snapshot
+├── stores/localeStore.ts                normalise the three fields
 ├── types/                               Robot.ts, Company.ts, session.ts
 ├── data/
 │   ├── bands/                           bandKeys.ts, classic.ts, aspects.ts
-│   └── robotOptionsConfig.ts            DEVELOPMENT_SCHEMA, JOURNEY_SCHEMA
-├── content/copy/probe.ts                the two entries and the three options
+│   └── robotOptionsConfig.ts            the two bounds' schemas, JOURNEY_SCHEMA
+├── content/copy/probe.ts                the three entries and the three options
 ├── utils/                               sessionDiff.ts, worldDiffCodec.ts
-├── constants/index.ts                   the range, the swing; DOCKED_PITCH_DRIFT_RATIO goes
+├── constants/index.ts                   the bounds' ranges, the journey's odds; DOCKED_PITCH_DRIFT_RATIO goes
 └── components/
-    ├── robot/CompositionSections.tsx    the third row
+    ├── robot/CompositionSections.tsx    the third and fourth rows
     ├── company/useCompanyOptions.ts     the broadcast
     └── panels/screen/screens/RobotScreen.tsx
 
@@ -303,7 +372,8 @@ docs/   MELODY_SYSTEM.md, ROBOT_LIFECYCLE.md, AUDIO_SYSTEM.md, COMPANIES.md, SES
         reference/ROBOT_DATA_GRID.md (at the end of the build)
 ```
 
-The list is the files a robot setting touches today, read off `pitchRepeat`'s (code). The plan confirms it.
+The list is the files a robot setting touches, read off `pitchRepeat`'s and, since Phase 5, off `development`'s own
+(code: 24 files under `src/` name it, tests apart). The plan confirms it.
 
 ---
 
@@ -311,7 +381,7 @@ The list is the files a robot setting touches today, read off `pitchRepeat`'s (c
 
 **Always**
 
-- The melody of a measure is a pure function of the home melody, the two settings, the robot's seed and attack, the
+- The melody of a measure is a pure function of the home melody, the three settings, the robot's seed and attack, the
   world key and the measure. No module state decides a note.
 - `Robot.melody` is the home melody and nothing else. The store is not written as a melody develops.
 - Melodies store note indices and steps, never a pitch string.
@@ -338,6 +408,8 @@ The list is the files a robot setting touches today, read off `pitchRepeat`'s (c
   [90](../todo/roadmap.md#90-the-score-editable-chords-a-clock-with-two-rulers-hand-edited-parts), backlog
   [65](../todo/backlog.md#65-robot-a-melody-strip-under-the-accents-slider-and-later-editing-the-notes)).
 - A part with its own length, time signatures, editable chords, the pace ruler (roadmap 90).
+- A journey written by hand, and a journey tied to the chord progressions. The list of pairs is the form either would
+  take; this piece only seeds it.
 - Melody aspects that move the development band (§7.2).
 - Saving a developed melody, or a history of them (roadmap
   [32](../todo/roadmap.md#32-robot-melody-history--configuration-scrubber)).
@@ -349,9 +421,17 @@ The list is the files a robot setting touches today, read off `pitchRepeat`'s (c
 The two new modules are pure and take everything they read as arguments, as `composeRobotMelody` does.
 
 ```typescript
-/** How many changes from home `key`'s journey is at `measure`, travelling at `rate` changes a measure. Pure. */
-export function journeyPosition(key: string, rate: number, measure: number): number {
-  return walkAt(key, Math.floor(rate * measure));
+/** A robot's reach on a journey: its two bounds, and how many calm changes its home melody has. */
+export interface JourneyBounds {
+  maxIntensity: number;
+  maxTime: number;
+  calmLimit: number;
+}
+
+/** How many changes from home a robot with `bounds` is on `key`'s journey at `measure`. Pure. */
+export function journeyPosition(key: string, bounds: JourneyBounds, measure: number): number {
+  if (!(bounds.maxIntensity > 0) || !(measure > 0)) return 0;
+  return positionInPairs(pairsFor(key, bounds), measure);
 }
 
 /** The home melody at `position`: that many busy changes above 0, calm changes below it, home at 0. Pure. */
@@ -373,13 +453,27 @@ export function developMelody(home: MelodyEvent[], position: number, options: De
 Vitest, colocated. Tests import and run the code they check; none reads source, CSS or doc text. Tasks that only
 delete, or only change docs or copy, get no test (CLAUDE.md).
 
-### 5.1 The walk
+### 5.1 The journey
 
-- The same key, rate and measure give the same position; a different key gives a different walk.
-- Position 0 at measure 0, for any key and rate, and at every measure when the rate is 0.
-- Consecutive counts differ by exactly one change.
-- Two keys that differ only in scope (`own`, a company id, `fleet`) give different walks; two robots with one key
-  and one rate agree at every measure of a long run.
+The position inside a list of pairs is its own pure function (`positionInPairs`), so it is tested on pairs written
+by hand, apart from the draws.
+
+- The worked example of §1.3, literally, both columns.
+- A pair's intensity is played on its turning measure and on no measure of the pair before it.
+- Inside a pair the position never moves away from the pair's intensity.
+- The same key gives the same shares; keys that differ only in scope (`own`, a company id, `fleet`) give different
+  ones.
+- Position 0 at measure 0 for any key and bounds, and at every measure at a max intensity of 0.
+- Over a long run of several keys, at several bounds:
+  - No position is past max intensity, or below the calm limit.
+  - No pair's time is over max time.
+  - Every turning measure is even, except a pair before a drop, which turns on the odd measure before the drop's.
+  - The first pair is not a drop, and no drop follows a drop.
+  - No pair's intensity share is within `JOURNEY_MIN_MOVE` of the one before it.
+  - Pairs both stay on a side and cross home.
+  - The leans, as comparisons and not exact counts: pairs heading near home take more time on average than pairs
+    heading far out, and a pair starting near max intensity heads home far more often than one starting near home.
+- Two robots on one key with one max time and different max intensities turn on the same measures.
 
 ### 5.2 The changes
 
@@ -401,31 +495,41 @@ to well past the last fill:
 - A `pitchStep` resolves to the next pitch class of the measure's palette, carries the octave across B to C, and
   turns back at the edge of `octaveRange`.
 - A `sixteenths` length sounds for that many sixteenths at the live tempo.
-- A robot at rate 0 plays its home melody at every measure.
-- Family members on Company at one rate have the same starts and lengths at every measure of a run.
-- Spawn: a member's `development` is its founder's; a member's `journey` is `'company'`, a freelancer's `'own'`.
-- A save, edit, wipe and load brings back both settings; so does a world link.
+- A robot at a max intensity of 0 plays its home melody at every measure.
+- A robot is never read at a position below its calm limit.
+- Family members on Company with the same bounds have the same starts and lengths at every measure of a run.
+- Spawn: a robot whose lit roll falls outside the band's `lit` has a max intensity of 0; every other robot has a whole
+  number in the band, each a full share. Max time is an even number in its band.
+- Spawn: a member's two bounds are its founder's; a member's `journey` is `'company'`, a freelancer's `'own'`.
+- A save, edit, wipe and load brings back all three settings; so does a world link.
 - The lifecycle's replay still matches the live tick, measure by measure, without the drift.
 - Each new gate is mutation-checked: break the code, see a test fail.
 
 ### 5.4 Gates
 
-- **Gate A (Crawford's ear).** After the walk, the changes and the engine's read are in, with the two settings
-  editable but before the band is tuned: he listens to one robot going busier and calmer, then a company on one
-  journey. The numbers of §1.3 and §1.9 and the order rules of §1.5 and §1.6 are his to move here.
+- **Gate A (Crawford's ear).** After the new journey and the three settings are in by hand: he listens to one robot
+  at a high max intensity through a drop and a slow return home, then a company on one journey. The numbers of §1.3
+  and §1.9 and the order rules of §1.5 and §1.6 are his to move here. (The first Gate A, on the walk, was never
+  recorded.)
 - **Gate B (profile).** `npm run perf` before and after, same session: the developed read adds no long task to the
-  baseline table in [PERFORMANCE.md](../PERFORMANCE.md).
-- **Gate C (Crawford's ear).** A full world on the seeded band, on desktop and on the phone.
+  baseline table in [PERFORMANCE.md](../PERFORMANCE.md). On the walk's build the step harness did not run and a
+  `npm run perf:audio` A/B stood in for it; whether that stands is Crawford's call, still open (the task file's
+  Checkpoint E). The new journey can move a robot many changes in one measure, so the gate is run again on it.
+- **Gate C (Crawford's ear).** A full world on the seeded bands, on desktop and on the phone.
 
 ### 5.5 Success criteria
 
-1. A robot with Development above 0 plays its home melody at measure 0, busier and calmer versions of it as its
-   journey moves, and its home melody again at each crossing.
-2. A robot at 0 sounds exactly as it does today.
-3. A company on one journey at one rate changes on the same measures.
-4. The same world, settings and measure always give the same notes, after a reload, a link or a power cycle.
-5. No melody changes at a docking.
-6. `npm test`, `npm run lint`, `npm run build:types` and `npm run build` pass.
+1. A robot with a max intensity above 0 plays its home melody at measure 0, then busier and calmer versions of it as
+   its journey moves, and its home melody again on the turning measure of each pair that heads home.
+2. A robot at a max intensity of 0 plays its home melody on every measure.
+3. A company on one journey with one max time turns on the same measures, and every turning measure but the one before
+   a drop is a chord change.
+4. A drop is heard as one: the measure before it plays the intensity it left, and the drop's measure plays the new one
+   from its first beat.
+5. A robot reaches its calm limit on a turning measure, not before.
+6. The same world, settings and measure always give the same notes, after a reload, a link or a power cycle.
+7. No melody changes at a docking.
+8. `npm test`, `npm run lint`, `npm run build:types` and `npm run build` pass.
 
 ---
 
@@ -457,11 +561,11 @@ Crawford decided the shape (the intent). These are the corners he did not descri
 | A9 | A neighbour that would leave the octave range goes the other way. | §1.7 |
 | A10 | New notes carry no rest, mark or accent; a home note keeps its own. Pitch Repeat's locked copies are treated like any other note. | §1.7 |
 | A11 | Neighbour notes may leave a Note Variance set. That is the development. | §1.5 |
-| A12 | The turning points alternate sides, 2 to 8 changes from home. | §1.3 |
-| A13 | The slider stops every 0.125, so the slowest moving rate is one change every eight measures. | §1.9 |
-| A14 | The band: 70 % of robots develop, from 0.125 to 1. | §1.9 |
+| A12 | ~~The turning points alternate sides, 2 to 8 changes from home.~~ Replaced by the revision (§7.3). | §1.3 |
+| A13 | ~~The slider stops every 0.125, so the slowest moving rate is one change every eight measures.~~ Replaced (§7.3). | §1.9 |
+| A14 | ~~The band: 70 % of robots develop, from 0.125 to 1.~~ Replaced: the 70 % is now Crawford's, on max intensity (§1.9). | §1.9 |
 | A15 | A robot on Company with no company travels as Own. | §1.9 |
-| A16 | Journey is dimmed while Development is 0. | §1.10 |
+| A16 | Journey is dimmed while Max Intensity is 0, and so is Max Time. | §1.10 |
 | A17 | The Company key is `Company.id`. A seeded company's id is seeded (`generateCompanyId`); a hand-made one's is a `generateUUID` (`CompanyCrudControls.tsx`). **Checked by the plan (code):** a save and a world link both carry a hand-made company whole, id included (`SessionPayload.userCreatedCompanies`, the codec's `u`), so its journey comes back with it. | §1.3 |
 
 ### 7.2 Questions, answered by Crawford on 2026-11-17
@@ -475,3 +579,56 @@ Crawford decided the shape (the intent). These are the corners he did not descri
    resist. It is the natural hook if a later piece wants development to keep locked copies in step with their base
    note (A10 treats them like any other note for now).
 4. **The phone.** A listen is enough (Gate C).
+
+### 7.3 What the revision of 2026-11-17 filled in
+
+Crawford decided the pairs, the two bounds and their ranges, the drop and where it lands, the even measures, the
+calm limit, the shares, the leans' direction, the home odds at max, and the 30 % at home (the intent). These are the
+corners he did not describe. Each stands unless he changes it, and every number is his to move at Gate A.
+
+| # | Assumption | Where |
+|---|---|---|
+| B1 | His two time leans are read as being about the intensity a pair heads for: a pair heading far out takes less time, a pair heading near or to home takes more. | §1.3, Time |
+| B2 | "The closer it is to max, the more likely it is to land on 0" is read as: where the journey is when the next pair is drawn. The odds rise in a straight line from 0 at home to a half at max. | §1.3, Home |
+| B3 | The time lean is half of the time share; the other half is the draw. | §1.3, Time |
+| B4 | A pair always moves at least an eighth of max intensity in the shares. This is "a journey does not hold still". | §1.3, Intensity |
+| B5 | A robot can still hold through a pair when its own bound is small or its calm limit brings two pairs to one place. | §1.3 |
+| B6 | A drop goes either way, to calmer or to busier, and may land home. His example drops to calmer. | §1.3, Drop |
+| B7 | Only a big move can be a drop (half of max intensity or more, in the shares), three times in ten. | §1.3, Drop |
+| B8 | A drop never follows a drop, and the first pair is never one: each needs a pair before it to take its measure from. | §1.3, Drop |
+| B9 | "Long times without a large change, occasionally" gets no rule of its own; the time lean gives it. | §1.3 |
+| B10 | Inside a pair the changes are spread by a floor, so a robot leaves a turning measure late and arrives exactly, never early. | §1.3 |
+| B11 | The fields are `journeyMaxIntensity` and `journeyMaxTime`; the labels Max Intensity and Max Time are stand-in copy. | §1.9, §1.10 |
+| B12 | Max time is seeded evenly across its whole range, 2 to 16, and absent it reads as 8. He gave the range of the slider, not of the seed. | §1.9 |
+| B13 | A robot at a max intensity of 0 still draws a max time. | §1.9 |
+| B14 | The two sliders share row 3 and Journey takes a row of its own. | §1.10 |
+| B15 | The busy side is not brought in as the calm side is: past its splits and fills a robot shifts notes, so at a max intensity of 16 the top of every robot's journey is pitch movement on a full rhythm (the task file's Checkpoint A: the longest busy path before the shifts is 15, and half the fleet has none). | §1.3, §1.5 |
+
+---
+
+## 8. The revision against the build
+
+Phases 1 to 5 of the plan were built on `feature/melody-journey` before the revision (the task file's Results).
+
+**Stands, untouched by the revision** (code):
+
+- The changes: `src/engine/melodyDevelopment.ts`, with its sweep over the 121 worlds.
+- The event's two fields (`sixteenths`, `pitchStep`), the palette step, and the engine's read of a measure's melody
+  with its per-robot cache (`entriesOnStep`, `src/engine/AudioEngine.ts`). The cache is keyed on the position, so it
+  does not care how the position was reached.
+- The removal of docking pitch drift.
+- `Robot.journey`, its three scopes and their keys (`journeyKey`), its radio control, its broadcast, its place in
+  the save and the link (`jy`), and its seeding (`'company'` for a seeded company's robots, `'own'` for the rest).
+
+**Replaced:**
+
+- The walk in `src/engine/melodyJourney.ts` (`walkFor`, `extendTo`, `walkAt`, and `journeyPosition`'s rate), with
+  `JOURNEY_SWING_MIN` and `JOURNEY_SWING_MAX`. `robotJourney` hands back the bounds in place of the rate.
+- `Robot.development` and everything that carries it: the `DEVELOPMENT_*` constants, `seedDevelopment` and the
+  `'robot.development'` band, the store's snap and clamp, `applyDevelopment`, `DEVELOPMENT_SCHEMA`, the content
+  entry, the slider in row 3, the snapshot field and its broadcast, the save diff, the link's `dv`, and the deal's
+  `TOP_LEVEL_FIELDS` row. Two fields take its place at each of those sites.
+
+**New:** the calm limit handed to the journey; the fourth row.
+
+**Not yet done either way:** Phase 6, the reference docs. It is written once, against the revised build.
