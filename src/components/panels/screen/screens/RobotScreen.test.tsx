@@ -155,13 +155,12 @@ const compositionStub = vi.hoisted(() => {
 });
 vi.mock('@/components/robot/CompositionSections', () => ({
   CompositionRhythmMelodySection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; clickTrackActive: boolean; development?: number; journeyMaxIntensity?: number; journey?: string };
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; clickTrackActive: boolean; journeyMaxIntensity?: number; journey?: string };
     onClickTrackActiveChange?: (active: boolean) => void;
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
-    onDevelopmentChange?: (v: number) => void;
     onJourneyMaxIntensityChange?: (v: number) => void;
     onJourneyChange?: (v: 'own' | 'company' | 'fleet') => void;
   }) => {
@@ -173,11 +172,9 @@ vi.mock('@/components/robot/CompositionSections', () => ({
         data-density={props.value.rhythmicDensity}
         data-pitch-repeat={props.value.pitchRepeat}
         data-click-track={String(props.value.clickTrackActive)}
-        data-development={String(props.value.development)}
         data-journey-max-intensity={String(props.value.journeyMaxIntensity)}
         data-journey={String(props.value.journey)}
       >
-        {props.onDevelopmentChange && <button onClick={() => props.onDevelopmentChange!(0.75)}>probe-development</button>}
         {props.onJourneyMaxIntensityChange && <button onClick={() => props.onJourneyMaxIntensityChange!(11)}>probe-journey-max-intensity</button>}
         {props.onJourneyChange && <button onClick={() => props.onJourneyChange!('fleet')}>probe-journey</button>}
         {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
@@ -1548,13 +1545,6 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
         render(<RobotScreen />);
         expect(stubAttr('data-journey-max-intensity')).toBe('0');
         expect(stubAttr('data-journey')).toBe('own');
-      });
-
-      it('passes neither the development value nor its handler, even for a robot that carries one', () => {
-        selectRobot(makeRobot('r1', { development: 1.25 }), 'melody');
-        render(<RobotScreen />);
-        expect(stubAttr('data-development')).toBe('undefined');
-        expect(screen.queryByText('probe-development')).toBeNull();
       });
 
       it('moving Max Intensity writes robot.journeyMaxIntensity, and regenerates nothing', () => {

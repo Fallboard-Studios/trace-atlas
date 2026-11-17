@@ -4791,7 +4791,7 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Tasks 19 and 34)',
   };
   const robotsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
-  it('an original writes its own Melody draw as its max intensity, writes no development, and travels on Own', () => {
+  it('an original writes its own Melody draw as its max intensity, and travels on Own', () => {
     const localeId = freshLocale({ x: 31, y: -17 });
     for (let i = 0; i < 12; i++) spawnRobot(localeId);
     const noiseMap = getLocaleNoiseMap(localeId, 31, -17);
@@ -4799,7 +4799,6 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Tasks 19 and 34)',
     robots.forEach((robot, i) => {
       const drawn = deriveMelodyFields(noiseMap, i, CLASSIC, robot.audioAttributes.adsr.attack).journeyMaxIntensity;
       expect(robot.journeyMaxIntensity, robot.id).toBe(drawn);
-      expect(robot.development, robot.id).toBeUndefined();
       expect(robot.journey, robot.id).toBe('own');
     });
     // Precondition: the plot holds robots on both sides of the lit share.
@@ -4820,7 +4819,6 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Tasks 19 and 34)',
     // Precondition: the member's own draw would give something else.
     expect(deriveMelodyFields(noiseMap, 1, CLASSIC, member.audioAttributes.adsr.attack).journeyMaxIntensity).not.toBe(handValue);
     expect(member.journeyMaxIntensity).toBe(handValue);
-    expect(member.development).toBeUndefined();
     expect(member.journey).toBe('own');
   });
 
@@ -4846,7 +4844,6 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Tasks 19 and 34)',
     expect(added).toHaveLength(40);
     for (const robot of added) {
       expect(robot.journey, robot.id).toBe('own');
-      expect(robot.development, robot.id).toBeUndefined();
       const m = robot.journeyMaxIntensity!;
       if (m === 0) continue;
       expect(Number.isInteger(m), `${robot.id} ${m}`).toBe(true);

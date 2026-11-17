@@ -332,15 +332,9 @@ export interface Robot {
    */
   accents?: number;
   /**
-   * The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): how fast the melody develops, in changes per measure, 0 to
-   * 2 in steps of 0.125. Read by the engine when it plays (robotJourney), so an edit never regenerates the home melody.
-   * Absent = 0 (DEFAULT_DEVELOPMENT, the home melody always).
-   */
-  development?: number;
-  /**
-   * The melody journey (§1.9): how far from home the journey may head, in whole changes, 0 to 16
-   * (JOURNEY_INTENSITY_MAX). 0 = the home melody always. Read by the engine when it plays. Absent = 0
-   * (DEFAULT_JOURNEY_MAX_INTENSITY).
+   * The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): how far from home the journey may head, in whole changes,
+   * 0 to 16 (JOURNEY_INTENSITY_MAX). 0 = the home melody always. Read by the engine when it plays (robotJourney), so
+   * an edit never regenerates the home melody. Absent = 0 (DEFAULT_JOURNEY_MAX_INTENSITY).
    */
   journeyMaxIntensity?: number;
   /**

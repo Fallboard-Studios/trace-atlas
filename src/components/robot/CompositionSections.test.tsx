@@ -196,18 +196,6 @@ describe('Rhythm & Melody: the Max Intensity and Journey row (melody journey Tas
     expect(!!(noteVariance.compareDocumentPosition(maxIntensity()) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
-  // A stray development and its handler (an old caller's) ride in untyped, since neither is a prop any more (Task 31).
-  const withDevelopment = (development: number, journeyMaxIntensity: number) => ({
-    value: { ...makeValue({ journeyMaxIntensity }), development },
-    onDevelopmentChange: vi.fn(),
-  });
-
-  it('renders no Development slider, even handed a development value and its handler', () => {
-    renderRow({}, withDevelopment(1.5, 5));
-    expect(screen.queryByRole('slider', { name: /development/i })).toBeNull();
-    expect(screen.getAllByRole('slider')).toHaveLength(5);
-  });
-
   it('shows the stored values: Max Intensity 11 on a 0 to 16 slider, Journey Company', () => {
     renderRow({ journeyMaxIntensity: 11, journey: 'company' });
     expect(maxIntensity().getAttribute('aria-valuenow')).toBe('11');
@@ -244,14 +232,6 @@ describe('Rhythm & Melody: the Max Intensity and Journey row (melody journey Tas
     expect(maxIntensity().getAttribute('data-disabled')).toBeNull();
     fireEvent.click(journeyOption('Own'));
     expect(onJourneyChange).not.toHaveBeenCalled();
-  });
-
-  it('Journey ignores a stored development: dimmed at Max Intensity 0 with Development 2, live at 1 with Development 0', () => {
-    const dimmed = renderRow({}, withDevelopment(2, 0));
-    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBe('');
-    dimmed.unmount();
-    renderRow({}, withDevelopment(0, 1));
-    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBeNull();
   });
 
   it.each([1, 16])('Journey is enabled at Max Intensity %i', (journeyMaxIntensity) => {

@@ -230,14 +230,7 @@ export const BATTERY_FULL_THRESHOLD = 100;
 // ========================================
 // THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
 // ========================================
-/** Development, in changes per measure (§1.9): the slider's range and its stop (A13, Gate A's to move). The top was 2
- *  in the spec; Crawford raised it to 8 on 2026-11-17. */
-export const DEVELOPMENT_MIN = 0;
-export const DEVELOPMENT_MAX = 8;
-export const DEVELOPMENT_STEP = 0.125;
-/** What an absent `Robot.development` and `Robot.journey` read as (§1.9): no development, travelling alone, so a robot
- *  built by hand plays its home melody. */
-export const DEFAULT_DEVELOPMENT = 0;
+/** What an absent `Robot.journey` reads as (§1.9): travelling alone. */
 export const DEFAULT_JOURNEY = 'own';
 /** The journey's shares (§1.3's table; B2-B7, first cuts, Crawford's to move at Gate A). A pair heads home when its
  *  home roll is under HOME_ODDS × how far out it starts, and only from MIN_MOVE out; otherwise it moves at least

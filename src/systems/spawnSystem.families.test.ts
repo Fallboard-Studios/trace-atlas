@@ -257,11 +257,10 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
       expect(members).toBeGreaterThan(100); // precondition
     });
 
-    it('a spawned roster equals its baseline in both settings, and no robot is written a development', () => {
+    it('a spawned roster equals its baseline in both settings', () => {
       for (const { key, x, y, robots } of WORLDS) {
         const baselines = generateRobotRosterBaseline(simNoiseMap(x, y), robots.length);
         expect(robots.map((r) => [r.journeyMaxIntensity, r.journey]), key).toEqual(baselines.map((b) => [b.journeyMaxIntensity, b.journey]));
-        for (const robot of robots) expect(robot.development, `${key} ${robot.id}`).toBeUndefined();
       }
     });
 

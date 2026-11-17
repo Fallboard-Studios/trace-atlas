@@ -288,45 +288,11 @@ describe('localeStore', () => {
       });
     });
 
-    // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 12).
-    describe('development and journey normalisation', () => {
+    // The melody journey's setting (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 12).
+    describe('journey normalisation', () => {
       const stored = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
       const update = (updates: Record<string, unknown>) =>
         useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', updates as never);
-
-      it('snaps development to the nearest 0.125: 0.3 is stored as 0.25, 0.44 as 0.5', () => {
-        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-        update({ development: 0.3 });
-        expect(stored().development).toBe(0.25);
-        update({ development: 0.44 });
-        expect(stored().development).toBe(0.5);
-      });
-
-      it('clamps development to 0-8: 12 is stored as 8, -1 as 0, Infinity as 8', () => {
-        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-        update({ development: 12 });
-        expect(stored().development).toBe(8);
-        update({ development: -1 });
-        expect(stored().development).toBe(0);
-        update({ development: Infinity });
-        expect(stored().development).toBe(8);
-      });
-
-      it('passes the bounds and an in-range stop through', () => {
-        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-        for (const v of [0, 0.125, 1.375, 2, 5.625, 8]) {
-          update({ development: v });
-          expect(stored().development).toBe(v);
-        }
-      });
-
-      it('drops a NaN development, keeping the stored value and the rest of the update', () => {
-        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
-        update({ development: 0.75 });
-        update({ development: NaN, masterVolume: 0.4 });
-        expect(stored().development).toBe(0.75);
-        expect(stored().masterVolume).toBe(0.4);
-      });
 
       it('stores each known journey', () => {
         useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
@@ -346,10 +312,9 @@ describe('localeStore', () => {
         expect(stored().journey).toBe('fleet');
       });
 
-      it('keeps both fields absent on a robot updated without them', () => {
+      it('keeps the field absent on a robot updated without it', () => {
         useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
         update({ masterVolume: 0.4 });
-        expect('development' in stored()).toBe(false);
         expect('journey' in stored()).toBe(false);
       });
     });

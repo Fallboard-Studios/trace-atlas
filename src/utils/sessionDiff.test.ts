@@ -240,12 +240,6 @@ describe('computeRobotAudioOverrideDiff', () => {
       expect('journeyMaxIntensity' in diff).toBe(false);
       expect('journey' in diff).toBe(false);
     });
-
-    it('a development left on a robot is no longer saved', () => {
-      const baseline = makeBaseline();
-      const diff = computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { development: 1.75 }), baseline);
-      expect(diff).toEqual({});
-    });
   });
 
   describe('pan (Robot Pan T11)', () => {
@@ -1789,7 +1783,7 @@ describe('applySessionPayload', () => {
       applySessionPayload(old);
 
       expect(stored(robot.id).rhythmicDensity).toBe(3);
-      expect(stored(robot.id).development).toBeUndefined();
+      expect('development' in stored(robot.id)).toBe(false);
       expect(stored(robot.id).journeyMaxIntensity).toBe(robot.journeyMaxIntensity);
     });
 

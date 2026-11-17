@@ -91,7 +91,6 @@ vi.mock('@/components/robot/CompositionSections', () => ({
     onPitchRepeatChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
     onClickTrackActiveChange?: (active: boolean) => void;
-    onDevelopmentChange?: (v: number) => void;
     onJourneyMaxIntensityChange?: (v: number) => void;
     onJourneyChange?: (v: 'own' | 'company' | 'fleet') => void;
     disabled?: boolean;
@@ -112,7 +111,6 @@ vi.mock('@/components/robot/CompositionSections', () => ({
         <button onClick={() => props.onPitchRepeatChange(90)}>probe-pitch-repeat</button>
         <button onClick={() => props.onNoteVarianceChange(33)}>probe-note-variance</button>
         {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
-        {props.onDevelopmentChange && <button onClick={() => props.onDevelopmentChange!(1.25)}>probe-development</button>}
         {props.onJourneyMaxIntensityChange && <button onClick={() => props.onJourneyMaxIntensityChange!(12)}>probe-journey-max-intensity</button>}
         {props.onJourneyChange && <button onClick={() => props.onJourneyChange!('fleet')}>probe-journey</button>}
       </div>
@@ -554,12 +552,6 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       click('probe-journey-max-intensity');
       expect(ids(spy)).toEqual(['r1', 'r2']);
       expect(screen.getByTestId('composition-rhythm-melody-stub').getAttribute('data-journey-max-intensity')).toBe('12');
-    });
-
-    it('Composition: the section passes no Development handler', () => {
-      twoMembers();
-      render(<Sections target="c1" ids={['rhythmMelody', 'details']} />);
-      expect(screen.queryByText('probe-development')).toBeNull();
     });
 
     // docs/tasks/ONE_MUSIC_CLOCK.md Task 10b: the dev-only Click Track on the company and All Probes screens.

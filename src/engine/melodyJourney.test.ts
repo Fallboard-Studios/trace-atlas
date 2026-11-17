@@ -578,11 +578,6 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
     }
   });
 
-  it('a stored development moves neither bound', () => {
-    const j = robotJourney(robot({ development: 2 }) as never, WORLD, BPM_TOP);
-    expect([j.maxIntensity, j.maxTime]).toEqual([0, 16]);
-  });
-
   it('the seed is the composition seed', () => {
     expect(robotJourney(robot({ compositionSeed: 0.8125 }) as never, WORLD, BPM_TOP).seed).toBe(0.8125);
   });

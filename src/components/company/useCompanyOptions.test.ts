@@ -1445,12 +1445,6 @@ describe('useCompanyOptions', () => {
         const { result } = renderHook(() => useCompanyOptions('c1'));
         expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(12);
       });
-
-      it('carries no development, even for a first member that has one', () => {
-        twoDistinctMembers({ development: 1.5 });
-        const { result } = renderHook(() => useCompanyOptions('c1'));
-        expect(result.current.options.pingControlsValue).not.toHaveProperty('development');
-      });
     });
 
     it('a Max Intensity edit writes every member max intensity and records { journeyMaxIntensity } alone', () => {
@@ -1473,14 +1467,6 @@ describe('useCompanyOptions', () => {
       expect(member('r2').journeyMaxIntensity).toBe(0);
       expect(snapshot()).toEqual({ journeyMaxIntensity: 0 });
       expect(result.current.options.pingControlsValue.journeyMaxIntensity).toBe(0);
-    });
-
-    it('leaves every member development as it was', () => {
-      twoDistinctMembers({ development: 0.5 });
-      const { result } = renderHook(() => useCompanyOptions('c1'));
-      act(() => result.current.options.onJourneyMaxIntensityChange(4));
-      expect(member('r1').development).toBe(0.5);
-      expect(member('r2').development).toBeUndefined();
     });
 
     it('a Journey edit writes every member journey and records { journey } alone', () => {
@@ -1556,12 +1542,6 @@ describe('useCompanyOptions', () => {
       act(() => result.current.options.onJourneyMaxIntensityChange(1));
       expect(result.current.options.onJourneyMaxIntensityChange).toBe(first.onJourneyMaxIntensityChange);
       expect(result.current.options.onJourneyChange).toBe(first.onJourneyChange);
-    });
-
-    it('offers no Development handler', () => {
-      twoDistinctMembers();
-      const { result } = renderHook(() => useCompanyOptions('c1'));
-      expect(result.current.options).not.toHaveProperty('onDevelopmentChange');
     });
   });
 
