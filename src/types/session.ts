@@ -3,7 +3,7 @@
  * shapes. A saved session is a diff on top of a freshly regenerated world, never a full snapshot:
  * see docs/specs/SESSION_STORAGE.md §1.2 for exactly which fields are (and are not) persisted.
  */
-import type { ADSREnvelope, RobotFilterType } from './Robot';
+import type { ADSREnvelope, JourneySetting, RobotFilterType } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
 import type { Company } from './Company';
 import type { GlobalAudioSettings } from './globalAudio';
@@ -32,6 +32,10 @@ export interface RobotAudioOverrideDiff {
   rhythmicMotifLength?: { active: boolean; value: number };
   noteVariance?: { active: boolean; value: number };
   pitchRepeat?: number;
+  /** As Robot.development and Robot.journey (docs/specs/MELODY_JOURNEY.md §1.9): diffed against the seeded baseline
+   *  like pitchRepeat. A 0 is a real value (the robot set to its home melody). */
+  development?: number;
+  journey?: JourneySetting;
   /** As Robot.dynamics / rests / accents (docs/specs/ROBOT_PERFORMANCE.md §1.7), 0-100 integers. */
   dynamics?: number;
   rests?: number;

@@ -35,7 +35,7 @@ import { loadingOf } from '../data/bands/loadingIdentity';
 import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { deepEqual, roundToDecimals } from './math';
-import { SEND_MIN, SEND_MAX } from '../constants';
+import { JOURNEY_SETTINGS, SEND_MIN, SEND_MAX } from '../constants';
 import { quantizeGlobalAudioForCapture, roundLfoBankForCapture } from './sessionCapture';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
@@ -260,6 +260,10 @@ export function computeRobotAudioOverrideDiff(live: Robot, baseline: RobotAudioB
   if (!deepEqual(live.rhythmicMotifLength, baseline.rhythmicMotifLength)) diff.rhythmicMotifLength = live.rhythmicMotifLength;
   if (!deepEqual(live.noteVariance, baseline.noteVariance)) diff.noteVariance = live.noteVariance;
   if (!deepEqual(live.pitchRepeat, baseline.pitchRepeat)) diff.pitchRepeat = live.pitchRepeat;
+  // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): both diff like pitchRepeat; a robot carrying neither writes
+  // no key.
+  if (live.development !== undefined && live.development !== baseline.development) diff.development = live.development;
+  if (live.journey !== undefined && live.journey !== baseline.journey) diff.journey = live.journey;
   // Robot Performance (docs/specs/ROBOT_PERFORMANCE.md §1.7): the three fields diff like pitchRepeat, key by key. A live
   // robot that carries no value for one writes no key (never an undefined-valued one), as the articulation fields do.
   if (live.dynamics !== undefined && !deepEqual(live.dynamics, baseline.dynamics)) diff.dynamics = live.dynamics;
@@ -400,6 +404,11 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.rhythmicMotifLength !== undefined) updates.rhythmicMotifLength = diff.rhythmicMotifLength;
   if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
+  // The melody journey: a finite development and a listed journey, or the key is ignored whole (a payload is untrusted
+  // here); updateRobot snaps and clamps the development. Neither needs the regenerateMelody below: the engine reads both
+  // from the store as it plays.
+  if (typeof diff.development === 'number' && Number.isFinite(diff.development)) updates.development = diff.development;
+  if (diff.journey !== undefined && (JOURNEY_SETTINGS as readonly unknown[]).includes(diff.journey)) updates.journey = diff.journey;
   // Robot Performance: a finite number or the key is ignored whole, key by key (a payload is untrusted here). updateRobot
   // clamps the value; regenerateMelody below re-stamps rests / accents from the stored robot.
   for (const field of ['dynamics', 'rests', 'accents'] as const) {
