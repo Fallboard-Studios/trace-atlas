@@ -253,6 +253,12 @@ function busier(home: MelodyEvent[], steps: number, options: DevelopmentOptions)
 // THE MELODY AT A POSITION
 // ========================================
 
+/** How many calm changes `calmer` can make on `home` (§1.3, §1.6): its notes less one, never below 0. A robot's
+ *  journey is brought in to minus this on the calm side, so it reaches its floor on a turning measure. Pure. */
+export function calmLimit(home: readonly MelodyEvent[]): number {
+  return Math.max(0, home.length - 1);
+}
+
 /** The home melody at `position` (§1.5, §1.6): that many busy changes above 0, calm changes below it, home itself at
  *  0. Change k+1 is always one change on top of change k. Pure. */
 export function developMelody(home: MelodyEvent[], position: number, options: DevelopmentOptions): MelodyEvent[] {

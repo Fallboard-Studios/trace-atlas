@@ -3,7 +3,7 @@
 // ========================================
 import { describe, it, expect } from 'vitest';
 import alea from 'alea';
-import { developMelody, developmentFloor, eventSixteenths } from './melodyDevelopment';
+import { calmLimit, developMelody, developmentFloor, eventSixteenths } from './melodyDevelopment';
 import type { MelodyEvent, NoteDuration } from '../types/Robot';
 
 // ========================================
@@ -140,6 +140,24 @@ describe('developMelody: home and the calm side (spec §1.6)', () => {
     for (let p = -1; p >= -3; p--) {
       for (const e of developMelody(home, p, OPTS)) expect(home.some((h) => h.id === e.id && h.startStep === e.startStep)).toBe(true);
     }
+  });
+});
+
+// How many calm changes a robot can make (spec §1.3, "A robot's pairs"; roadmap 92 Task 26).
+describe('calmLimit (spec §1.3, §1.6)', () => {
+  it('is the home notes less one: 2 for three notes, 0 for one and for none', () => {
+    expect(calmLimit([ev(1, '4n'), ev(6, '8n'), ev(9, '4n')])).toBe(2);
+    expect(calmLimit([ev(5, '4n')])).toBe(0);
+    expect(calmLimit([])).toBe(0);
+  });
+
+  it('is where the calm side floors: one note at minus the limit, and one change past it the same melody', () => {
+    const home = [ev(1, '4n'), ev(6, '8n'), ev(9, '4n'), ev(13, '16n')];
+    const limit = calmLimit(home);
+    const atLimit = developMelody(home, -limit, OPTS);
+    expect(atLimit).toHaveLength(1);
+    expect(developMelody(home, -limit + 1, OPTS)).toHaveLength(2);
+    expect(developMelody(home, -limit - 1, OPTS)).toEqual(atLimit);
   });
 });
 

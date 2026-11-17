@@ -179,6 +179,32 @@ export interface JourneyPair {
   time: number;
 }
 
+/** What a robot scales its journey's shares by (§1.3): its two bounds and its calm limit (calmLimit, from its home
+ *  melody). */
+export interface JourneyBounds {
+  maxIntensity: number;
+  maxTime: number;
+  calmLimit: number;
+}
+
+/**
+ * A robot's own pairs from its journey's shares (§1.3, "A robot's pairs"). Intensity: the share times max intensity,
+ * rounded to the nearest whole change the same way on both sides of home, and never below minus the calm limit (the
+ * busy side is not brought in). Time: the share times max time, rounded to the nearest even number of measures, never
+ * under 2. A drop's time is 1, and the pair before a drop is one measure shorter, so the times through a drop sum to
+ * an even number. A drop is seen only in the shares handed in: a caller reading pair i hands in share i + 1. Pure.
+ */
+export function robotPairs(shares: readonly JourneyShare[], bounds: JourneyBounds): JourneyPair[] {
+  return shares.map((share, i) => {
+    const scaled = share.intensity * bounds.maxIntensity;
+    const intensity = Math.max(-bounds.calmLimit, Math.sign(scaled) * Math.round(Math.abs(scaled)));
+    let time = share.drop ? 1 : Math.max(2, 2 * Math.round((share.time * bounds.maxTime) / 2));
+    if (shares[i + 1]?.drop) time -= 1;
+    // `intensity === 0` is true of −0 as well: hand back a plain 0.
+    return { intensity: intensity === 0 ? 0 : intensity, time };
+  });
+}
+
 /**
  * How many changes from home a robot is at `measure`, on its own pairs (§1.3, "Where a robot is"). The first pair
  * starts at home on measure 0. In a pair from `a` on measure `s` to `b` on `s + T`, measure `s + k` plays

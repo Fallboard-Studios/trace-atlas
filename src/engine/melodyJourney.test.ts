@@ -2,8 +2,16 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
-import { journeyKey, journeyPosition, journeyShares, positionInPairs, robotJourney, worldKeyOf } from './melodyJourney';
-import type { JourneyPair, JourneyShare } from './melodyJourney';
+import {
+  journeyKey,
+  journeyPosition,
+  journeyShares,
+  positionInPairs,
+  robotJourney,
+  robotPairs,
+  worldKeyOf,
+} from './melodyJourney';
+import type { JourneyBounds, JourneyPair, JourneyShare } from './melodyJourney';
 import { developmentFloor } from './melodyDevelopment';
 import {
   JOURNEY_DROP_MIN_MOVE,
@@ -375,6 +383,86 @@ describe('positionInPairs (spec §1.3)', () => {
     const list = pairs([[3, 4], [3, 6], [0, 2]]);
     for (let m = 4; m <= 10; m++) expect(positionInPairs(list, m)).toBe(3);
     expect(positionInPairs(list, 11)).toBe(2);
+  });
+});
+
+// A robot's scaling of the shares by its own bounds (spec §1.3, "A robot's pairs"; roadmap 92 Task 26).
+describe('robotPairs (spec §1.3)', () => {
+  const share = (intensity: number, time = 0.5, drop = false): JourneyShare => ({ intensity, time, drop });
+  const bounds = (maxIntensity: number, maxTime = 16, limit = 99): JourneyBounds => ({
+    maxIntensity,
+    maxTime,
+    calmLimit: limit,
+  });
+  const intensities = (shares: JourneyShare[], b: JourneyBounds) => robotPairs(shares, b).map((p) => p.intensity);
+  const times = (shares: JourneyShare[], b: JourneyBounds) => robotPairs(shares, b).map((p) => p.time);
+
+  it('scales intensity to the nearest whole change: at 16, 0.5 and -0.5 give 8 and -8', () => {
+    expect(intensities([share(0.5), share(-0.5)], bounds(16))).toEqual([8, -8]);
+  });
+
+  it('rounds the same way on both sides of home: at 1, 0.4, 0.6 and -0.6 give 0, 1 and -1; at 3, 0.5 and -0.5 give 2 and -2', () => {
+    expect(intensities([share(0.4), share(0.6), share(-0.6)], bounds(1))).toEqual([0, 1, -1]);
+    expect(intensities([share(0.5), share(-0.5)], bounds(3))).toEqual([2, -2]);
+    expect(intensities([share(0.5), share(-0.5)], bounds(1))).toEqual([1, -1]);
+  });
+
+  it('gives a plain 0 for every pair at a max intensity of 0, and for a calm pair at a calm limit of 0', () => {
+    expect(intensities([share(0.9), share(-0.7), share(0)], bounds(0))).toEqual([0, 0, 0]);
+    expect(intensities([share(-0.7), share(0.5)], bounds(16, 16, 0))).toEqual([0, 8]);
+  });
+
+  it('brings a calm intensity past the calm limit in to it, and never brings a busy one in', () => {
+    expect(intensities([share(-0.75)], bounds(16, 16, 4))).toEqual([-4]);
+    expect(intensities([share(-0.25)], bounds(16, 16, 4))).toEqual([-4]);
+    expect(intensities([share(-0.125)], bounds(16, 16, 4))).toEqual([-2]);
+    expect(intensities([share(0.75)], bounds(16, 16, 4))).toEqual([12]);
+    expect(intensities([share(1)], bounds(16, 16, 0))).toEqual([16]);
+  });
+
+  it('scales time to the nearest even number of measures, never under 2: at 16, 0, 0.1, 0.5 and 1 give 2, 2, 8 and 16', () => {
+    const shares = [share(0.2, 0), share(0.4, 0.1), share(0.6, 0.5), share(0.8, 1)];
+    expect(times(shares, bounds(16, 16))).toEqual([2, 2, 8, 16]);
+  });
+
+  it('gives a time of 2 for every share at a max time of 2', () => {
+    const shares = [share(0.2, 0), share(0.4, 0.1), share(0.6, 0.5), share(0.8, 1)];
+    expect(times(shares, bounds(16, 2))).toEqual([2, 2, 2, 2]);
+  });
+
+  it('gives a drop a time of 1 and the pair before it one less: 16 becomes 15, 2 becomes 1', () => {
+    expect(times([share(1, 1), share(-0.5, 0.7, true), share(0, 0.3)], bounds(16, 16))).toEqual([15, 1, 4]);
+    expect(times([share(1, 1), share(-0.5, 0.7, true)], bounds(16, 2))).toEqual([1, 1]);
+  });
+
+  it('gives Crawford example from shares that scale to it: [[16, 15], [-8, 1], [0, 16]]', () => {
+    const pairs = robotPairs([share(1, 1), share(-0.5, 0.25, true), share(0, 1)], bounds(16, 16, 8));
+    expect(pairs.map((p) => [p.intensity, p.time])).toEqual([
+      [16, 15],
+      [-8, 1],
+      [0, 16],
+    ]);
+  });
+
+  it('over long runs at several bounds: within the bounds, times even but at drops, and even through every drop', () => {
+    const cases: JourneyBounds[] = [bounds(16, 16, 15), bounds(16, 2, 3), bounds(1, 16, 0), bounds(5, 8, 3), bounds(16, 6, 0)];
+    const misses: string[] = [];
+    for (const key of [OWN, 'x:journey', 'y:journey']) {
+      const shares = journeyShares(key, 2000);
+      for (const b of cases) {
+        const pairs = robotPairs(shares, b);
+        pairs.forEach((pair, i) => {
+          const where = `${key} ${JSON.stringify(b)} pair ${i}`;
+          if (pair.intensity > b.maxIntensity || pair.intensity < -b.calmLimit) misses.push(`${where}: intensity`);
+          if (pair.time > b.maxTime || pair.time < 1) misses.push(`${where}: time`);
+          const beforeDrop = shares[i + 1]?.drop === true;
+          if (shares[i].drop && pair.time !== 1) misses.push(`${where}: drop time`);
+          if (!shares[i].drop && !beforeDrop && pair.time % 2 !== 0) misses.push(`${where}: odd time`);
+          if (beforeDrop && (pair.time + pairs[i + 1].time) % 2 !== 0) misses.push(`${where}: odd through a drop`);
+        });
+      }
+    }
+    expect(misses).toEqual([]);
   });
 });
 
