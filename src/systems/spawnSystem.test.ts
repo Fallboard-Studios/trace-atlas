@@ -4779,8 +4779,8 @@ describe('spawnSystem', () => {
   });
 });
 
-// docs/tasks/MELODY_JOURNEY.md Task 19 (spec §1.9): the two settings at spawn.
-describe('spawnRobot: the melody journey settings (roadmap 92 Task 19)', () => {
+// docs/tasks/MELODY_JOURNEY.md Tasks 19 and 34 (spec §1.9): the two settings at spawn, max intensity and Journey.
+describe('spawnRobot: the melody journey settings (roadmap 92 Tasks 19 and 34)', () => {
   let locales = 0;
   const freshLocale = (coordinates: { x: number; y: number }) => {
     const localeId = `journey-t19-${locales++}`;
@@ -4791,44 +4791,50 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Task 19)', () => {
   };
   const robotsOf = (localeId: string) => useLocaleStore.getState().getLocaleById(localeId)!.robots;
 
-  it('an original writes its own Melody draw as its development, and travels on Own', () => {
+  it('an original writes its own Melody draw as its max intensity, writes no development, and travels on Own', () => {
     const localeId = freshLocale({ x: 31, y: -17 });
     for (let i = 0; i < 12; i++) spawnRobot(localeId);
     const noiseMap = getLocaleNoiseMap(localeId, 31, -17);
     const robots = robotsOf(localeId);
     robots.forEach((robot, i) => {
-      const drawn = deriveMelodyFields(noiseMap, i, CLASSIC, robot.audioAttributes.adsr.attack).development;
-      expect(robot.development, robot.id).toBe(drawn);
+      const drawn = deriveMelodyFields(noiseMap, i, CLASSIC, robot.audioAttributes.adsr.attack).journeyMaxIntensity;
+      expect(robot.journeyMaxIntensity, robot.id).toBe(drawn);
+      expect(robot.development, robot.id).toBeUndefined();
       expect(robot.journey, robot.id).toBe('own');
     });
     // Precondition: the plot holds robots on both sides of the lit share.
-    expect(robots.some((r) => r.development! > 0)).toBe(true);
-    expect(robots.some((r) => r.development === 0)).toBe(true);
+    expect(robots.some((r) => r.journeyMaxIntensity! > 0)).toBe(true);
+    expect(robots.some((r) => r.journeyMaxIntensity === 0)).toBe(true);
   });
 
-  it('a member takes its founder\'s development, even one no draw gives, and travels on Own until its company is made', () => {
+  it('a member takes its founder\'s max intensity, even one its own draw does not give, and travels on Own until its company is made', () => {
     const localeId = freshLocale({ x: 31, y: -17 });
     spawnRobot(localeId);
     const [founder] = robotsOf(localeId);
-    useLocaleStore.getState().updateRobot(localeId, founder.id, { development: 1.875 });
+    const noiseMap = getLocaleNoiseMap(localeId, 31, -17);
+    const handValue = founder.journeyMaxIntensity === 13 ? 14 : 13;
+    useLocaleStore.getState().updateRobot(localeId, founder.id, { journeyMaxIntensity: handValue });
     spawnRobot(localeId, { founderIndex: 0 });
     const member = robotsOf(localeId)[1];
     expect(member.lineage).toEqual({ founderIndex: 0 });
-    expect(member.development).toBe(1.875);
+    // Precondition: the member's own draw would give something else.
+    expect(deriveMelodyFields(noiseMap, 1, CLASSIC, member.audioAttributes.adsr.attack).journeyMaxIntensity).not.toBe(handValue);
+    expect(member.journeyMaxIntensity).toBe(handValue);
+    expect(member.development).toBeUndefined();
     expect(member.journey).toBe('own');
   });
 
-  it('a founder with no development stored hands on 0', () => {
+  it('a founder with no max intensity stored hands on 0', () => {
     const localeId = freshLocale({ x: 31, y: -17 });
     spawnRobot(localeId);
     const [founder] = robotsOf(localeId);
-    const { development: _development, ...bare } = founder;
+    const { journeyMaxIntensity: _journeyMaxIntensity, ...bare } = founder;
     useLocaleStore.getState().setLocaleData(localeId, { robots: [bare] });
     spawnRobot(localeId, { founderIndex: 0 });
-    expect(robotsOf(localeId)[1].development).toBe(0);
+    expect(robotsOf(localeId)[1].journeyMaxIntensity).toBe(0);
   });
 
-  it('with no locale (no noise map), the alea fallback lands on 0 or a stop of the band, both turning up, every robot on Own', () => {
+  it('with no locale (no noise map), the alea fallback lands on 0 or a whole number of the band, both turning up, every robot on Own', () => {
     const added: Robot[] = [];
     const realAddRobot = useLocaleStore.getState().addRobot;
     useLocaleStore.setState({ addRobot: (_localeId, robot) => { added.push(robot); } });
@@ -4840,14 +4846,15 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Task 19)', () => {
     expect(added).toHaveLength(40);
     for (const robot of added) {
       expect(robot.journey, robot.id).toBe('own');
-      const d = robot.development!;
-      if (d === 0) continue;
-      expect(Number.isInteger(d / 0.125), `${robot.id} ${d}`).toBe(true);
-      expect(d).toBeGreaterThanOrEqual(0.125);
-      expect(d).toBeLessThanOrEqual(1);
+      expect(robot.development, robot.id).toBeUndefined();
+      const m = robot.journeyMaxIntensity!;
+      if (m === 0) continue;
+      expect(Number.isInteger(m), `${robot.id} ${m}`).toBe(true);
+      expect(m).toBeGreaterThanOrEqual(1);
+      expect(m).toBeLessThanOrEqual(16);
     }
-    expect(added.some((r) => r.development === 0)).toBe(true);
-    expect(added.some((r) => r.development! > 0)).toBe(true);
+    expect(added.some((r) => r.journeyMaxIntensity === 0)).toBe(true);
+    expect(added.some((r) => r.journeyMaxIntensity! > 0)).toBe(true);
   });
 
   it('spawnInitialCompanies puts every robot of a seeded company on Company, founder included, and leaves every freelancer on Own', () => {
@@ -4862,7 +4869,7 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Task 19)', () => {
     expect(robots.some((r) => r.companyId === undefined)).toBe(true); // precondition: a freelancer
   });
 
-  it('generateRobotRosterBaseline mirrors both: a member\'s development is its founder\'s, and every index of a seeded company is on Company', () => {
+  it('generateRobotRosterBaseline mirrors both: a member\'s max intensity is its founder\'s, and every index of a seeded company is on Company', () => {
     const noiseMap = createNoise2D(alea('journey-t19-baseline'));
     const membership = generateCompanyMembership(noiseMap, 12);
     const inCompany = new Set(membership.flat());
@@ -4873,7 +4880,7 @@ describe('spawnRobot: the melody journey settings (roadmap 92 Task 19)', () => {
     baselines.forEach((baseline, i) => {
       expect(baseline.journey, `robot ${i}`).toBe(inCompany.has(i) ? 'company' : 'own');
       const founder = founders.get(i);
-      if (founder !== undefined) expect(baseline.development, `robot ${i}`).toBe(baselines[founder].development);
+      if (founder !== undefined) expect(baseline.journeyMaxIntensity, `robot ${i}`).toBe(baselines[founder].journeyMaxIntensity);
     });
   });
 });

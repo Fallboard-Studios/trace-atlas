@@ -170,14 +170,14 @@ describe('rederiveLoading: every widened robot key is compared and pushed (theme
     expect(result.dropped).toEqual([]);
   });
 
-  // docs/tasks/MELODY_JOURNEY.md Task 19 (spec §1.9): a robot's development needs no push, so the write is all: no
+  // docs/tasks/MELODY_JOURNEY.md Task 34 (spec §1.9): a robot's max intensity needs no push, so the write is all: no
   // engine call, no melody regenerated.
-  it('robot.development: the field alone, re-derived in place, no engine call and no melody regenerated', () => {
-    const result = changeTheme({ 'robot.development': { min: 1.5, max: 2, lit: 1 } });
-    expectFieldAlone(result, (r) => r.development, (_, f) => ({ development: f.development }));
+  it('robot.journeyMaxIntensity: the field alone, re-derived in place, no engine call and no melody regenerated', () => {
+    const result = changeTheme({ 'robot.journeyMaxIntensity': { min: 14, max: 16, lit: 1 } });
+    expectFieldAlone(result, (r) => r.journeyMaxIntensity, (_, f) => ({ journeyMaxIntensity: f.journeyMaxIntensity }));
     for (const spy of Object.values(result.spies)) expect(spy).not.toHaveBeenCalled();
     result.after.forEach((robot, i) => expect(robot.melody, robot.id).toBe(result.before[i].melody));
-    for (const robot of result.after) expect(robot.development, robot.id).toBeGreaterThanOrEqual(1.5);
+    for (const robot of result.after) expect(robot.journeyMaxIntensity, robot.id).toBeGreaterThanOrEqual(14);
     expect(result.dropped).toEqual([]);
   });
 

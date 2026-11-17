@@ -90,8 +90,9 @@ function deriveFamilyFields(
 ): DealtFields {
   switch (family) {
     case 'melody': {
-      // Held out until spawn writes it (docs/tasks/MELODY_JOURNEY.md Task 34).
-      const { journeyMaxIntensity: _journeyMaxIntensity, ...fields } = deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
+      // Spawn no longer writes development (docs/tasks/MELODY_JOURNEY.md Task 34), so the deal does not either; its
+      // draw goes at Task 36.
+      const { development: _development, ...fields } = deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
       return fields;
     }
     case 'envelope': {
@@ -291,16 +292,16 @@ export function applyAspectDeal(localeId: string): void {
  * rederiveLoading writes it live as the Volume edit does (updateRobotMasterVolume, no rebuild), unless a Voice push
  * rebuilds the voice, which reserves it at the robot's volume (reReserveVoice); and the five sends. The four after
  * `pitchRepeat` and the master volume joined at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, so a theme column may
- * name them; T7b refiles the Performance fields under their own family. `development` (docs/specs/MELODY_JOURNEY.md
- * §1.9), the Melody family's fifth, needs no push: a store write is all, as for the journey's hand edits
- * (applyJourneyMaxIntensity), which write their field and nothing else.
+ * name them; T7b refiles the Performance fields under their own family. `journeyMaxIntensity`
+ * (docs/specs/MELODY_JOURNEY.md §1.9), the Melody family's journey bound, needs no push: a store write is all, as for
+ * its hand edit (applyJourneyMaxIntensity), which writes its field and nothing else.
  */
 const TOP_LEVEL_FIELDS = [
   ['rhythmicDensity', 'melody'],
   ['rhythmicMotifLength', 'melody'],
   ['noteVariance', 'melody'],
   ['pitchRepeat', 'melody'],
-  ['development', null],
+  ['journeyMaxIntensity', null],
   ['rests', 'performance'],
   ['accents', 'performance'],
   ['octaveRange', 'melody'],

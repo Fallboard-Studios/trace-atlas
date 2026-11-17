@@ -23,7 +23,7 @@ import type { Company } from '../types/Company';
 import {
   DEV_TUNING, MAX_ROBOTS, INITIAL_ACTIVE_ROBOTS_MIN, INITIAL_ACTIVE_ROBOTS_MAX,
   INITIAL_COMPANIES_MIN, INITIAL_COMPANIES_MAX, COMPANY_SIZE_MIN, COMPANY_SIZE_MAX, FREELANCERS_MIN,
-  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, DEFAULT_DEVELOPMENT,
+  BATTERY_SIZE_MIN, BATTERY_SIZE_MAX, DEFAULT_JOURNEY_MAX_INTENSITY,
 } from '../constants';
 import { recordByField, robotSendLevels, type RobotSendField } from '../data/robotSends';
 import { getBand } from '../data/bands/loadingContext';
@@ -48,7 +48,7 @@ import {
   derivePortamento,
   deriveSendFields,
   deriveVoiceFields,
-  seedDevelopment,
+  seedJourneyMaxIntensity,
   seedToggleValue,
 } from './robotFieldDerivation';
 import { getLocaleNoiseMap } from '../utils/noiseMaps';
@@ -590,7 +590,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
   let spawnRhythmicMotifLength: ToggleValue;
   let spawnNoteVariance: ToggleValue;
   let spawnPitchRepeat: number;
-  let spawnDevelopment: number;
+  let spawnJourneyMaxIntensity: number;
   let spawnDynamics: number;
   let spawnRests: number;
   let spawnAccents: number;
@@ -609,7 +609,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     spawnRhythmicMotifLength = founder.rhythmicMotifLength ?? DEFAULT_RHYTHMIC_MOTIF_LENGTH;
     spawnNoteVariance = founder.noteVariance ?? DEFAULT_NOTE_VARIANCE;
     spawnPitchRepeat = founder.pitchRepeat ?? DEFAULT_PITCH_REPEAT;
-    spawnDevelopment = founder.development ?? DEFAULT_DEVELOPMENT;
+    spawnJourneyMaxIntensity = founder.journeyMaxIntensity ?? DEFAULT_JOURNEY_MAX_INTENSITY;
     spawnDynamics = founder.dynamics ?? DEFAULT_DYNAMICS;
     spawnRests = founder.rests ?? DEFAULT_RESTS;
     spawnAccents = founder.accents ?? DEFAULT_ACCENTS;
@@ -634,7 +634,7 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
         rhythmicMotifLength: spawnRhythmicMotifLength,
         noteVariance: spawnNoteVariance,
         pitchRepeat: spawnPitchRepeat,
-        development: spawnDevelopment,
+        journeyMaxIntensity: spawnJourneyMaxIntensity,
       } = deriveMelodyFields(noiseMap, spawnCount, melodyBands, audioAttributes.adsr.attack));
     } else {
       const density = audibleDensityBand(melodyBands['robot.rhythmicDensity'], audioAttributes.adsr.attack, melodyBands.bpm);
@@ -643,10 +643,10 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
       spawnNoteVariance = seedToggleValue(alea(`${localeId}:${spawnCount}:nvActive`)(), melodyBands['robot.noteVariance']);
       const repeat = melodyBands['robot.pitchRepeat'];
       spawnPitchRepeat = Math.round(repeat.min + alea(`${localeId}:${spawnCount}:pitchRepeat`)() * (repeat.max - repeat.min));
-      spawnDevelopment = seedDevelopment(
-        alea(`${localeId}:${spawnCount}:developmentLit`)(),
-        alea(`${localeId}:${spawnCount}:development`)(),
-        melodyBands['robot.development'],
+      spawnJourneyMaxIntensity = seedJourneyMaxIntensity(
+        alea(`${localeId}:${spawnCount}:journeyMaxIntensityLit`)(),
+        alea(`${localeId}:${spawnCount}:journeyMaxIntensity`)(),
+        melodyBands['robot.journeyMaxIntensity'],
       );
     }
 
@@ -707,9 +707,9 @@ export function spawnRobot(localeId: string, options?: { docking?: DockingState;
     rhythmicMotifLength: spawnRhythmicMotifLength,
     noteVariance: spawnNoteVariance,
     pitchRepeat: spawnPitchRepeat,
-    // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): the rate seeded, a member's its founder's; every robot
-    // spawns on its own journey, and spawnInitialCompanies moves a seeded company's robots onto theirs.
-    development: spawnDevelopment,
+    // The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): max intensity seeded, a member's its founder's; every
+    // robot spawns on its own journey, and spawnInitialCompanies moves a seeded company's robots onto theirs.
+    journeyMaxIntensity: spawnJourneyMaxIntensity,
     journey: 'own',
     dynamics: spawnDynamics,
     rests: spawnRests,
