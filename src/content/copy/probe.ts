@@ -284,6 +284,11 @@ export const probe = {
     lore: 'Payload Drift',
     help: { human: 'How fast this probe’s melody wanders away from its home tune and back: busier, with notes split and gaps filled, then calmer, with notes tied together, always passing home in between. The number is how many changes it makes per measure; 0 always plays the home tune.' },
   },
+  'probe.composition.journeyMaxIntensity': {
+    human: 'Max Intensity',
+    lore: 'Drift Reach',
+    help: { human: 'How far this probe’s melody may wander from its home tune: busier, with notes split and gaps filled, or calmer, with notes tied together. It travels there and back on its journey, sometimes dropping straight back on a bar line. The number is how many changes from home it may go; 0 always plays the home tune.' },
+  },
   'probe.composition.journey': {
     human: 'Journey',
     lore: 'Drift Formation',

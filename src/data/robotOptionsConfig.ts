@@ -53,6 +53,7 @@ import {
   DEVELOPMENT_MIN,
   DEVELOPMENT_MAX,
   DEVELOPMENT_STEP,
+  JOURNEY_INTENSITY_MAX,
 } from '@/constants';
 
 // ========================================
@@ -290,7 +291,21 @@ export const DEVELOPMENT_SCHEMA: SliderLinearSchema = {
   orientation: 'horizontal',
 };
 
-/** Whose journey the melody travels (Robot.journey): Own, Company or Fleet. Inert while Development is 0. */
+/**
+ * The bound on a robot's journey (docs/specs/MELODY_JOURNEY.md §1.9, §1.10): how many changes from home it may travel,
+ * busier or calmer (Robot.journeyMaxIntensity), in whole changes; 0 always plays the home melody.
+ */
+export const JOURNEY_MAX_INTENSITY_SCHEMA: SliderLinearSchema = {
+  id: 'robotOptions.journeyMaxIntensity',
+  type: 'sliderLinear',
+  ...labels('probe.composition.journeyMaxIntensity'),
+  min: 0,
+  max: JOURNEY_INTENSITY_MAX,
+  step: 1,
+  orientation: 'horizontal',
+};
+
+/** Whose journey the melody travels (Robot.journey): Own, Company or Fleet. Inert while Max Intensity is 0. */
 export const JOURNEY_SCHEMA: RadioButtonSchema = {
   id: 'robotOptions.journey',
   type: 'radio',

@@ -5,7 +5,7 @@ import {
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
   applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyPortamento, applyBusFilter,
-  applySend, applySendValue, applyDevelopment, applyJourney,
+  applySend, applySendValue, applyDevelopment, applyJourney, applyJourneyMaxIntensity,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -556,10 +556,12 @@ describe('robotOptionsActions', () => {
 
   // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 15): read by the engine when
   // it plays, so each apply writes its field and nothing else.
-  describe('applyDevelopment and applyJourney', () => {
+  describe('applyDevelopment, applyJourney and applyJourneyMaxIntensity', () => {
     const cases = [
       { name: 'applyDevelopment', apply: (r: Robot) => applyDevelopment(r, localeId, 0.625), field: 'development', value: 0.625 },
       { name: 'applyJourney', apply: (r: Robot) => applyJourney(r, localeId, 'fleet'), field: 'journey', value: 'fleet' },
+      // Roadmap 92 Task 29: max intensity, the bound that replaces Development (spec §1.9).
+      { name: 'applyJourneyMaxIntensity', apply: (r: Robot) => applyJourneyMaxIntensity(r, localeId, 11), field: 'journeyMaxIntensity', value: 11 },
     ] as const;
 
     it.each(cases)('$name writes its field to the store and touches neither the melody nor any engine method', ({ apply, field, value }) => {
@@ -593,6 +595,22 @@ describe('robotOptionsActions', () => {
       expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].development).toBe(0.25);
       applyDevelopment(robot, localeId, 9);
       expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].development).toBe(8);
+    });
+
+    it('applyJourneyMaxIntensity stores the store-normalised value: whole, from 0 to 16', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      const stored = () => useLocaleStore.getState().getLocaleById(localeId)?.robots[0].journeyMaxIntensity;
+      applyJourneyMaxIntensity(robot, localeId, 16);
+      expect(stored()).toBe(16);
+      applyJourneyMaxIntensity(robot, localeId, 0);
+      expect(stored()).toBe(0);
+      applyJourneyMaxIntensity(robot, localeId, 7.4);
+      expect(stored()).toBe(7);
+      applyJourneyMaxIntensity(robot, localeId, 20);
+      expect(stored()).toBe(16);
+      applyJourneyMaxIntensity(robot, localeId, -1);
+      expect(stored()).toBe(0);
     });
 
     it('applyJourney writes each of the three settings', () => {

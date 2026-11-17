@@ -117,6 +117,11 @@ export function applyDevelopment(robot: Robot, localeId: string, value: number):
   useLocaleStore.getState().updateRobot(localeId, robot.id, { development: value });
 }
 
+// Max intensity (§1.9): the bound on the robot's journey, read on the same path. The store owns the clamp and the stop.
+export function applyJourneyMaxIntensity(robot: Robot, localeId: string, value: number): void {
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { journeyMaxIntensity: value });
+}
+
 export function applyJourney(robot: Robot, localeId: string, value: JourneySetting): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, { journey: value });
 }
