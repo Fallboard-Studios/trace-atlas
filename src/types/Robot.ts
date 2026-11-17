@@ -142,6 +142,18 @@ export interface MelodyEvent {
   rest?: number;
   /** Accents: the articulation mark. Present only on a marked event; absent otherwise, never 'none'. */
   mark?: ArticulationMark;
+  /**
+   * The melody journey (docs/specs/MELODY_JOURNEY.md §1.4): the event's length in sixteenths, a whole number from 1 to
+   * 16, for a length a split or a tie makes that has no note name (3, 5, 6, 7...). Present, it is the length; absent,
+   * `length` is. Written only on a developed event, never on a home event (`Robot.melody`).
+   */
+  sixteenths?: number;
+  /**
+   * The melody journey (§1.4): a signed whole number of steps through the measure's palette, in pitch order, from this
+   * event's own slot and octave; the engine resolves it when the note plays. Index data, never a pitch. Written only
+   * on a developed event, never on a home event.
+   */
+  pitchStep?: number;
 }
 
 /** See `Robot.lineage`. */
