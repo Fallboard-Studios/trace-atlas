@@ -277,6 +277,23 @@ export const probe = {
     lore: 'Ping Variance',
     help: { human: 'How many different notes the melody leans on, out of the eight it can choose from. Low values keep it circling a few notes; 8 uses all of them. 0 picks every note at random.' },
   },
+  // The melody journey (docs/specs/MELODY_JOURNEY.md §1.10). Stand-in copy, human and lore, until backlog 62's content
+  // pass.
+  'probe.composition.development': {
+    human: 'Development',
+    lore: 'Payload Drift',
+    help: { human: 'How fast this probe’s melody wanders away from its home tune and back: busier, with notes split and gaps filled, then calmer, with notes tied together, always passing home in between. The number is how many changes it makes per measure; 0 always plays the home tune.' },
+  },
+  'probe.composition.journey': {
+    human: 'Journey',
+    lore: 'Drift Formation',
+    options: {
+      own: { human: 'Own', lore: 'Solo Drift' },
+      company: { human: 'Company', lore: 'Convoy Drift' },
+      fleet: { human: 'Fleet', lore: 'Fleet Drift' },
+    },
+    help: { human: 'Who this probe’s melody wanders with. Own takes its own path; Company follows the same path as every member set to Company, so they get busier and calmer together; Fleet follows one path shared by every probe set to Fleet. A probe with no company on Company takes its own path. It does nothing while Development is 0.' },
+  },
 
   // ---------------------------------------------------------------- Envelope
   'probe.envelope': {

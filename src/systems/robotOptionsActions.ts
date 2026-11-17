@@ -20,7 +20,7 @@ import { timeArg } from '@/utils/timeArg';
 import { engineKeyOf, type RobotSendField } from '@/data/robotSends';
 import { buildClickTrackMelody } from '@/engine/clickTrack';
 import type { StepperWithToggleValue } from '@/components/ui/controls/StepperWithToggle';
-import type { Robot, ADSREnvelope, AudioAttributes } from '@/types/Robot';
+import type { Robot, ADSREnvelope, AudioAttributes, JourneySetting } from '@/types/Robot';
 import type { OscillatorLayer } from '@/types/layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from '@/types/lfo';
 
@@ -109,6 +109,16 @@ export function applyPitchRepeat(robot: Robot, localeId: string, value: number):
 // events, so they regenerate on applyPitchRepeat's shape (the new value spread in, since `robot` is the stale prop).
 export function applyDynamics(robot: Robot, localeId: string, value: number): void {
   useLocaleStore.getState().updateRobot(localeId, robot.id, { dynamics: value });
+}
+
+// The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): the engine reads both settings from the store when a note
+// plays (robotJourney), so each writes its field only, as Dynamics does: the home melody is untouched, no engine call.
+export function applyDevelopment(robot: Robot, localeId: string, value: number): void {
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { development: value });
+}
+
+export function applyJourney(robot: Robot, localeId: string, value: JourneySetting): void {
+  useLocaleStore.getState().updateRobot(localeId, robot.id, { journey: value });
 }
 
 export function applyRests(robot: Robot, localeId: string, value: number): void {

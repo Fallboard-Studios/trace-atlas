@@ -480,7 +480,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
 ### Phase 4: The two settings, by hand
 
-- [ ] **Task 15: content, schemas and the two applies**
+- [x] **Task 15: content, schemas and the two applies**
 
   **Description:** Content entries `probe.composition.development` and `probe.composition.journey` (with its three
   options and help text), as stand-ins marked the way the file's other stand-ins are. `DEVELOPMENT_SCHEMA` (a

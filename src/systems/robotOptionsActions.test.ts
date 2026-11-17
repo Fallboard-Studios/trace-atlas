@@ -5,7 +5,7 @@ import {
   applyDensity, applyMotifLength, applyNoteVariance, applyOctaveMin, applyOctaveMax,
   applyAdsr, applyLayersContinuous, applyLayersStructural, applyLayerLfoLink, applyClickTrackActive,
   applyPitchRepeat, applyDynamics, applyRests, applyAccents, applyPortamento, applyBusFilter,
-  applySend, applySendValue,
+  applySend, applySendValue, applyDevelopment, applyJourney,
 } from './robotOptionsActions';
 // Namespace import so a removed export can be asserted absent at runtime (same pattern
 // robotOptionsConfig.test.ts uses for its own removed schemas).
@@ -551,6 +551,57 @@ describe('robotOptionsActions', () => {
       applyDynamics(robot, localeId, 140);
 
       expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].dynamics).toBe(100);
+    });
+  });
+
+  // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 15): read by the engine when
+  // it plays, so each apply writes its field and nothing else.
+  describe('applyDevelopment and applyJourney', () => {
+    const cases = [
+      { name: 'applyDevelopment', apply: (r: Robot) => applyDevelopment(r, localeId, 0.625), field: 'development', value: 0.625 },
+      { name: 'applyJourney', apply: (r: Robot) => applyJourney(r, localeId, 'fleet'), field: 'journey', value: 'fleet' },
+    ] as const;
+
+    it.each(cases)('$name writes its field to the store and touches neither the melody nor any engine method', ({ apply, field, value }) => {
+      const melody = [{ id: 'h1', startStep: 1, length: '8n', noteIndex: 0, octave: 3 }] as MelodyEvent[];
+      const robot = makeRobot({ melody });
+      useLocaleStore.getState().addRobot(localeId, robot);
+      stubMelodyPipeline();
+      const updateSpy = vi.spyOn(useLocaleStore.getState(), 'updateRobot');
+      const genSpy = vi.spyOn(melodyGen, 'generateMelodyForRobot');
+      const engineSpies = (Object.keys(AudioEngine) as (keyof typeof AudioEngine)[])
+        .filter((key) => typeof AudioEngine[key] === 'function' && key !== 'registerRobotMelody' && key !== 'unregisterRobotMelody')
+        .map((key) => vi.spyOn(AudioEngine, key as never));
+      const registerSpy = vi.spyOn(AudioEngine, 'registerRobotMelody');
+
+      apply(robot);
+
+      expect(updateSpy).toHaveBeenCalledTimes(1);
+      expect(updateSpy).toHaveBeenCalledWith(localeId, robot.id, { [field]: value });
+      const stored = useLocaleStore.getState().getLocaleById(localeId)?.robots[0];
+      expect(stored?.[field]).toBe(value);
+      expect(stored?.melody).toBe(melody); // the same array: no regeneration
+      expect(genSpy).not.toHaveBeenCalled();
+      expect(registerSpy).not.toHaveBeenCalled();
+      for (const spy of engineSpies) expect(spy).not.toHaveBeenCalled();
+    });
+
+    it('applyDevelopment stores the store-snapped value (the store owns the clamp and the stop)', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      applyDevelopment(robot, localeId, 0.3);
+      expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].development).toBe(0.25);
+      applyDevelopment(robot, localeId, 9);
+      expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].development).toBe(2);
+    });
+
+    it('applyJourney writes each of the three settings', () => {
+      const robot = makeRobot();
+      useLocaleStore.getState().addRobot(localeId, robot);
+      for (const journey of ['company', 'own', 'fleet'] as const) {
+        applyJourney(robot, localeId, journey);
+        expect(useLocaleStore.getState().getLocaleById(localeId)?.robots[0].journey).toBe(journey);
+      }
     });
   });
 
