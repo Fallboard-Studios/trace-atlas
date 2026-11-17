@@ -247,11 +247,23 @@ describe('journeyShares (spec §1.3)', () => {
     expect(Math.abs(home - JOURNEY_HOME_ODDS * 0.95)).toBeLessThan(0.05);
   });
 
+  // Only pairs that could head home (from JOURNEY_MIN_MOVE out) are counted: a pair at home never heads home, so
+  // counting those would hide flat odds (Checkpoint F's mutant 1b).
   it('heads home from within 0.25 of home at under JOURNEY_HOME_ODDS x 0.25', () => {
-    const near = allPairs().filter(({ before }) => Math.abs(startOf(before)) < 0.25);
-    expect(near.length).toBeGreaterThan(500);
+    const near = allPairs().filter(({ before }) => {
+      const from = Math.abs(startOf(before));
+      return from >= JOURNEY_MIN_MOVE && from < 0.25;
+    });
+    expect(near.length).toBeGreaterThan(200);
     const home = near.filter(({ share }) => share.intensity === 0).length / near.length;
     expect(home).toBeLessThan(JOURNEY_HOME_ODDS * 0.25);
+  });
+
+  it('heads home from halfway out at JOURNEY_HOME_ODDS x 0.5, within five points: the odds rise in a straight line', () => {
+    const mid = allPairs().filter(({ before }) => Math.abs(Math.abs(startOf(before)) - 0.5) <= 0.05);
+    expect(mid.length).toBeGreaterThan(500);
+    const home = mid.filter(({ share }) => share.intensity === 0).length / mid.length;
+    expect(Math.abs(home - JOURNEY_HOME_ODDS * 0.5)).toBeLessThan(0.05);
   });
 
   it('leans each time share on how far out its pair heads: from JOURNEY_TIME_LEAN x (1 - |v|), over 1 - JOURNEY_TIME_LEAN', () => {
