@@ -1292,10 +1292,13 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Estimated scope:** S (docs only)
 
 ### Checkpoint: Complete
-- [ ] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean.
-- [ ] The spec's eight success criteria (§5.5) each met, by a named test or a gate.
-- [ ] Any browser check not done in the session is flagged here, not skipped.
-- [ ] Ready for Crawford's PR.
+- [x] `npm run build:types`, `npm run lint`, `npm test`, `npm run build` all clean (Results: one vitest worker
+      timeout, no test failed).
+- [x] The spec's eight success criteria (§5.5) each met, by a named test or a gate (spec §9.4; 6 is by construction
+      and tests, its hearing after a reload is Gate C's).
+- [x] Any browser check not done in the session is flagged here, not skipped: **Checkpoint G's look, Gate A, Gate B
+      and Gate C are not done** (Results, Checkpoint Complete).
+- [ ] Ready for Crawford's PR: once he has run, or waived, the open gates.
 
 - [ ] **Task 23: archive, after the merge**
 
@@ -1748,6 +1751,26 @@ measure (spec success criterion 3).
 else the audio-thread A/B on a world set to max intensity 16 (Open Questions 5, Crawford's call). Gate C: a full
 seeded world on desktop and phone, Crawford's ear (the band, the share at home, the one max time). Checkpoint G's
 browser look and Gate A also remain open.
+
+### Checkpoint Complete (2026-11-17)
+
+**Tasks.** Task 21 59d43056, Task 22 cb2aae71, built on Crawford's word ("implement phase 10") with the gates of
+Checkpoints G, H and I still open; spec §9 says so. Task 21 also brought `BEAT_CLOCK.md`'s list of what measures count
+and `PROCEDURAL_GENERATION.md`'s two drift-draw mentions up to date, so no living reference doc says a melody changes
+at a docking. Task 22 wrote two override fields and one band row where the task said three and two: max time left the
+robot (spec §7.4), and Journey is not banded. CLAUDE.md's "pitch drift" went on Crawford's answer at Task 22.
+
+**Checks** at cb2aae71 (docs only since Checkpoint I's 9a8d11f4): `build:types` clean; `lint` 0 errors, the four
+standing fast-refresh warnings; `npm run build` clean apart from the standing chunk-size notice; `npm test` 364 files,
+14,766 passed, 2 skipped, 0 failed (276 s), with one vitest worker error, `Timeout calling "onTaskUpdate"` (backlog
+66's main-process swamp, as at Checkpoint G), which makes the run exit 1.
+
+**Not done in any session, flagged:** Checkpoint G's browser look (a drop heard on a bar line, a company turning
+together), Gate A (his ear), Gate B (his call on the harness, then the A/B at max intensity 16) and Gate C (his ear,
+desktop and phone). Every number stands at its first cut until he moves it.
+
+**Left as they are:** `docs/ideas/the-score.md` (roadmap 90's idea) and two items in `backlog.md` still describe docking pitch drift as current; they are idea and backlog text, outside
+Phase 10's files.
 
 ## Risks and Mitigations
 
