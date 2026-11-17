@@ -25,7 +25,8 @@ built the same day on Crawford's word (Tasks 24–26, 659f5f56, 840f9b01, 54cb4a
 
 **Revised again 2026-11-17, after Phase 7:** Crawford took max time off the robot (spec §7.4): every journey has one
 max time of 16, so robots on one journey move in lock step. Task 38 (Phase 7) takes the built field out; Tasks 29 to
-35 below are revised to carry max intensity alone. **Task 38 is next**, then Checkpoint G's look and review.
+35 below are revised to carry max intensity alone. Task 38 built the same day (c670c221; Results, Checkpoint G);
+Checkpoint G's browser look and review with Crawford are next, then Task 29 (Phase 8).
 
 ## Overview
 
@@ -916,7 +917,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** M
 
-- [ ] **Task 38: max time leaves the robot** (added 2026-11-17, spec §7.4)
+- [x] **Task 38: max time leaves the robot** (added 2026-11-17, spec §7.4)
 
   **Description:** Crawford's change after Phase 7: robots on one journey move in lock step. `robotJourney` hands back
   `JOURNEY_TIME_MAX` (16) as `maxTime` for every robot, whatever the robot carries. `Robot.journeyMaxTime`, its
@@ -937,8 +938,9 @@ rate, and everything that carries `development`. Their text is left as the recor
         at every measure of a run.
   - [ ] Two robots on one Company journey with different max intensities, one of them carrying a stray
         `journeyMaxTime`, change melody only on the same measures in the engine.
-  - [ ] Nothing in `src/` names `journeyMaxTime`, `JOURNEY_TIME_MIN`, `JOURNEY_TIME_STEP` or
-        `DEFAULT_JOURNEY_MAX_TIME` (searched by hand before the commit).
+  - [ ] Nothing in `src/` names `JOURNEY_TIME_MIN`, `JOURNEY_TIME_STEP` or `DEFAULT_JOURNEY_MAX_TIME`, and
+        `journeyMaxTime` only in the test fixtures that stand for an old save's leftover (searched by hand before the
+        commit).
 
   **Verification:** `npx vitest run src/engine/melodyJourney.test.ts src/engine/AudioEngine.test.ts src/stores/localeStore.test.ts src/systems/spawnSystem.families.test.ts`
   passes, and the full suite before the commit.
@@ -956,7 +958,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 - [x] Mutation checks, each killed: the calm limit not handed to the journey; the turning measures memoised without
       max time (two max times share them); `robotJourney` ignoring the stored max time; a max intensity of 0 still
       walking the pairs. (The first three killed; the fourth is equivalent and survives, Results.)
-- [ ] After Task 38: `npm test` clean, and the mutant of `robotJourney` reading a stored max time again killed.
+- [x] After Task 38: `npm test` clean, and the mutant of `robotJourney` reading a stored max time again killed.
 - [ ] Look: in the browser, a robot's max intensity set through the store and the robot soloed. Its notes change by
       the measure, a drop is heard on a bar line, and it comes home. Then two members of one company set to different
       max intensities: they turn on the same bar lines.
@@ -1631,7 +1633,22 @@ reads the next pair at its first (`k = 0`, the same intensity). Neither is a gap
   measures a pair), not 10,000 (Task 28).
 - The family case reads a table of four hand-set bounds, (16, 16), (5, 8), (1, 2) and (9, 4), one per company in
   turn; its "one rate" assertion went with the rate, and its precondition now counts companies whose rhythm moves
-  (Task 28).
+  (Task 28). Task 38 cut the table to max intensities alone, 16, 5, 1 and 9.
+
+**Task 38 (added after the checkpoint's first pass, spec §7.4).** c670c221. Suite: 364 files, 14,762 passed, 2
+skipped, 0 failed, no worker error (274 s); types and lint clean. Three mutants, against the same three files (607
+tests), all killed:
+
+| Mutant | Failed |
+|---|---|
+| `robotJourney` reads a stored max time again (a leftover in an old save) | 3 |
+| The engine uses 8, the old default, in place of the journey's max time | 6 |
+| `robotJourney` hands back 8 | 5 |
+
+Two rows of the first pass's table no longer exist as written: `robotJourney` ignoring the stored max time is now the
+behaviour, and its opposite is the first row above. The memo-key mutant stays meaningful: the pure pieces still take
+any max time, and the case that reads one key at six max times kills it. `journeyMaxTime` is still named in `src/`
+by two test fixtures that stand for an old save's leftover; nothing else carries it.
 
 ## Risks and Mitigations
 
