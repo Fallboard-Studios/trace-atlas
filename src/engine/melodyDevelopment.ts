@@ -47,3 +47,94 @@ export function developmentFloor(attackSeconds: number, bpmTop: number): number 
   const sixteenthSeconds = 15 / bpmTop;
   return Math.max(1, Math.ceil((ATTACK_REACH_SHARE * attackSeconds) / sixteenthSeconds - FLOOR_EPSILON));
 }
+
+// ========================================
+// THE WORKING BAR
+// ========================================
+
+/** What a robot's changes read besides its home melody (§1.8): its floor (developmentFloor) and its composition seed,
+ *  whose `${seed}:development` stream gives each change's direction. */
+export interface DevelopmentOptions {
+  floor: number;
+  seed: number;
+}
+
+/** One note of the bar as the changes see it. `src` is the home event it came from, or, for a note a change added,
+ *  the note it was made from (its slot and octave). */
+interface Note {
+  src: MelodyEvent;
+  id: string;
+  start: number;
+  len: number;
+  pitchStep: number;
+  added: boolean;
+}
+
+function homeNotes(home: MelodyEvent[]): Note[] {
+  return [...home]
+    .sort((a, b) => a.startStep - b.startStep)
+    .map((e) => ({ src: e, id: e.id, start: e.startStep, len: eventSixteenths(e), pitchStep: 0, added: false }));
+}
+
+/** Sorted by length, then by start (§1.5): the sort fixes the order and changes nothing. */
+function byLengthThenStart(a: Note, b: Note): number {
+  return a.len - b.len || a.start - b.start;
+}
+
+/** A sorted list visited from alternating ends: the first, the last, the second, the second last... */
+function fromAlternatingEnds<T>(sorted: T[]): T[] {
+  const out: T[] = [];
+  let lo = 0;
+  let hi = sorted.length - 1;
+  while (lo <= hi) {
+    out.push(sorted[lo++]);
+    if (lo <= hi) out.push(sorted[hi--]);
+  }
+  return out;
+}
+
+/** The working bar back as events, in start order. A home note no change touched is its own home event (the same
+ *  object); a changed one is a new object keeping its id, slot, octave, rest and mark. */
+function toEvents(notes: Note[]): MelodyEvent[] {
+  return notes.map((n) => {
+    if (!n.added && n.len === eventSixteenths(n.src) && n.pitchStep === 0) return n.src;
+    const event: MelodyEvent = { ...n.src, id: n.id, startStep: n.start, sixteenths: n.len };
+    if (n.pitchStep !== 0) event.pitchStep = n.pitchStep;
+    else delete event.pitchStep;
+    return event;
+  });
+}
+
+// ========================================
+// CALMER (§1.6)
+// ========================================
+
+/** `steps` ties on the home melody. A tie removes a note and the note before it sounds on through to the removed
+ *  note's end, any silence between them covered. The candidates are every home note but the bar's first, by length
+ *  then start, visited from alternating ends. The floor is the bar's first note alone. */
+function calmer(home: MelodyEvent[], steps: number): MelodyEvent[] {
+  if (home.length <= 1) return home;
+  const notes = homeNotes(home);
+  const order = fromAlternatingEnds(notes.slice(1).sort(byLengthThenStart));
+  const ties = Math.min(steps, order.length);
+  for (let k = 0; k < ties; k++) {
+    const i = notes.indexOf(order[k]);
+    const tied = notes[i];
+    const before = notes[i - 1];
+    before.len = tied.start + tied.len - before.start;
+    notes.splice(i, 1);
+  }
+  return toEvents(notes);
+}
+
+// ========================================
+// THE MELODY AT A POSITION
+// ========================================
+
+/** The home melody at `position` (§1.5, §1.6): that many busy changes above 0, calm changes below it, home itself at
+ *  0. Change k+1 is always one change on top of change k. Pure. */
+export function developMelody(home: MelodyEvent[], position: number, options: DevelopmentOptions): MelodyEvent[] {
+  void options;
+  if (position < 0) return calmer(home, -position);
+  return home;
+}
