@@ -2,9 +2,18 @@
 // IMPORTS
 // ========================================
 import { describe, it, expect, vi } from 'vitest';
-import { journeyKey, journeyPosition, robotJourney, worldKeyOf } from './melodyJourney';
+import { journeyKey, journeyPosition, journeyShares, robotJourney, worldKeyOf } from './melodyJourney';
+import type { JourneyShare } from './melodyJourney';
 import { developmentFloor } from './melodyDevelopment';
-import { JOURNEY_SWING_MAX, JOURNEY_SWING_MIN } from '../constants';
+import {
+  JOURNEY_DROP_MIN_MOVE,
+  JOURNEY_DROP_ODDS,
+  JOURNEY_HOME_ODDS,
+  JOURNEY_MIN_MOVE,
+  JOURNEY_SWING_MAX,
+  JOURNEY_SWING_MIN,
+  JOURNEY_TIME_LEAN,
+} from '../constants';
 
 // ========================================
 // HELPERS
@@ -148,6 +157,128 @@ describe('journeyPosition (spec §1.3)', () => {
     for (let m = 0; m < 2000; m++) {
       expect(journeyPosition(fleet, 0.375, m)).toBe(journeyPosition(journeyKey(WORLD, { kind: 'fleet' }), 0.375, m));
     }
+  });
+});
+
+// The journey as shares (spec §1.3's table; roadmap 92 Task 24). Every expected share is worked out from the
+// constants, which are Crawford's to move at Gate A.
+describe('journeyShares (spec §1.3)', () => {
+  const SHARE_KEYS = [
+    OWN,
+    journeyKey(WORLD, { kind: 'company', companyId: 'co-7' }),
+    journeyKey(WORLD, { kind: 'fleet' }),
+    journeyKey('0:0', { kind: 'own', compositionSeed: 0.8125 }),
+  ];
+  const EPS = 1e-9;
+
+  /** Every pair of every key, each with the intensity share of the pair before it (0 before the first). */
+  function allPairs(): { share: JourneyShare; before: JourneyShare | undefined; index: number }[] {
+    return SHARE_KEYS.flatMap((key) => {
+      const shares = journeyShares(key, RUN);
+      return shares.map((share, index) => ({ share, before: shares[index - 1], index }));
+    });
+  }
+  const startOf = (before: JourneyShare | undefined) => before?.intensity ?? 0;
+
+  it('hands back as many pairs as asked for', () => {
+    expect(journeyShares(OWN, 0)).toEqual([]);
+    expect(journeyShares(OWN, 7)).toHaveLength(7);
+    expect(journeyShares(OWN, RUN)).toHaveLength(RUN);
+  });
+
+  it('gives the same shares for the same key whichever count is asked for first', async () => {
+    const long = journeyShares('order:journey', 600);
+    vi.resetModules();
+    const fresh = await import('./melodyJourney');
+    const short = fresh.journeyShares('order:journey', 5);
+    expect(fresh.journeyShares('order:journey', 600)).toEqual(long);
+    expect(short).toEqual(long.slice(0, 5));
+  });
+
+  it('gives different shares for keys that differ only in scope', () => {
+    const [own, company, fleet] = SHARE_KEYS.map((k) => JSON.stringify(journeyShares(k, 50)));
+    expect(new Set([own, company, fleet]).size).toBe(3);
+  });
+
+  it('keeps every intensity share from -1 to 1 and every time share from 0 to 1', () => {
+    const outside = allPairs().filter(
+      ({ share }) => share.intensity < -1 || share.intensity > 1 || share.time < 0 || share.time > 1,
+    );
+    expect(outside).toEqual([]);
+  });
+
+  it('never draws a pair within JOURNEY_MIN_MOVE of the one before it, the first counted from home', () => {
+    const close = allPairs().filter(
+      ({ share, before }) => Math.abs(share.intensity - startOf(before)) < JOURNEY_MIN_MOVE - EPS,
+    );
+    expect(close).toEqual([]);
+  });
+
+  it('both stays on a side and crosses home', () => {
+    let stays = 0;
+    let crosses = 0;
+    for (const { share, before } of allPairs()) {
+      const product = share.intensity * startOf(before);
+      if (product > 0) stays++;
+      if (product < 0) crosses++;
+    }
+    expect(stays).toBeGreaterThan(RUN / 10);
+    expect(crosses).toBeGreaterThan(RUN / 10);
+  });
+
+  it('heads home only from at least JOURNEY_MIN_MOVE away', () => {
+    for (const { share, before } of allPairs()) {
+      if (share.intensity === 0) expect(Math.abs(startOf(before))).toBeGreaterThanOrEqual(JOURNEY_MIN_MOVE);
+    }
+  });
+
+  it('heads home from near max intensity at JOURNEY_HOME_ODDS x 0.95, within five points', () => {
+    const far = allPairs().filter(({ before }) => Math.abs(startOf(before)) >= 0.9);
+    expect(far.length).toBeGreaterThan(500);
+    const home = far.filter(({ share }) => share.intensity === 0).length / far.length;
+    expect(Math.abs(home - JOURNEY_HOME_ODDS * 0.95)).toBeLessThan(0.05);
+  });
+
+  it('heads home from within 0.25 of home at under JOURNEY_HOME_ODDS x 0.25', () => {
+    const near = allPairs().filter(({ before }) => Math.abs(startOf(before)) < 0.25);
+    expect(near.length).toBeGreaterThan(500);
+    const home = near.filter(({ share }) => share.intensity === 0).length / near.length;
+    expect(home).toBeLessThan(JOURNEY_HOME_ODDS * 0.25);
+  });
+
+  it('leans each time share on how far out its pair heads: from JOURNEY_TIME_LEAN x (1 - |v|), over 1 - JOURNEY_TIME_LEAN', () => {
+    let below = 0;
+    let above = 0;
+    const outside: JourneyShare[] = [];
+    for (const { share } of allPairs()) {
+      const least = JOURNEY_TIME_LEAN * (1 - Math.abs(share.intensity));
+      if (share.time < least - EPS || share.time > least + (1 - JOURNEY_TIME_LEAN) + EPS) outside.push(share);
+      if (share.time < least + (1 - JOURNEY_TIME_LEAN) / 2) below++;
+      else above++;
+    }
+    expect(outside).toEqual([]);
+    // The draw half spreads over its whole stretch, not stuck at one end.
+    expect(below).toBeGreaterThan(RUN);
+    expect(above).toBeGreaterThan(RUN);
+  });
+
+  it('never makes the first pair a drop, a drop after a drop, or a drop of a move under JOURNEY_DROP_MIN_MOVE', () => {
+    for (const { share, before, index } of allPairs()) {
+      if (!share.drop) continue;
+      expect(index).toBeGreaterThan(0);
+      expect(before?.drop).toBe(false);
+      expect(Math.abs(share.intensity - startOf(before))).toBeGreaterThanOrEqual(JOURNEY_DROP_MIN_MOVE);
+    }
+  });
+
+  it('makes JOURNEY_DROP_ODDS of the pairs that could be a drop one, within five points', () => {
+    const could = allPairs().filter(
+      ({ share, before, index }) =>
+        index > 0 && !before?.drop && Math.abs(share.intensity - startOf(before)) >= JOURNEY_DROP_MIN_MOVE,
+    );
+    expect(could.length).toBeGreaterThan(1000);
+    const drops = could.filter(({ share }) => share.drop).length / could.length;
+    expect(Math.abs(drops - JOURNEY_DROP_ODDS)).toBeLessThan(0.05);
   });
 });
 

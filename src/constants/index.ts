@@ -243,6 +243,15 @@ export const DEVELOPMENT_STEP = 0.125;
  *  built by hand plays its home melody. */
 export const DEFAULT_DEVELOPMENT = 0;
 export const DEFAULT_JOURNEY = 'own';
+/** The journey's shares (§1.3's table; B2-B7, first cuts, Crawford's to move at Gate A). A pair heads home when its
+ *  home roll is under HOME_ODDS × how far out it starts, and only from MIN_MOVE out; otherwise it moves at least
+ *  MIN_MOVE. TIME_LEAN is the share of a pair's time set by how far out it heads (near home = longer), the rest drawn.
+ *  A pair is a drop DROP_ODDS of the time when it moves DROP_MIN_MOVE or more. All in shares of the robot's bounds. */
+export const JOURNEY_HOME_ODDS = 0.5;
+export const JOURNEY_MIN_MOVE = 0.125;
+export const JOURNEY_TIME_LEAN = 0.5;
+export const JOURNEY_DROP_ODDS = 0.3;
+export const JOURNEY_DROP_MIN_MOVE = 0.5;
 /** The journey settings `Robot.journey` takes (§1.9): who a robot travels with. */
 export const JOURNEY_SETTINGS = ['own', 'company', 'fleet'] as const;
 

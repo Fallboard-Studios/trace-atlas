@@ -5,7 +5,17 @@
 // changes from home, the walk moving one change per count towards the current one, then the next. Pure: the walk is a
 // function of its key, and the memo below only saves redrawing it.
 import alea from 'alea';
-import { DEFAULT_DEVELOPMENT, DEFAULT_JOURNEY, JOURNEY_SWING_MAX, JOURNEY_SWING_MIN } from '../constants';
+import {
+  DEFAULT_DEVELOPMENT,
+  DEFAULT_JOURNEY,
+  JOURNEY_DROP_MIN_MOVE,
+  JOURNEY_DROP_ODDS,
+  JOURNEY_HOME_ODDS,
+  JOURNEY_MIN_MOVE,
+  JOURNEY_SWING_MAX,
+  JOURNEY_SWING_MIN,
+  JOURNEY_TIME_LEAN,
+} from '../constants';
 import { developmentFloor, type DevelopmentOptions } from './melodyDevelopment';
 import type { Robot } from '../types/Robot';
 
@@ -97,6 +107,65 @@ function walkAt(key: string, count: number): number {
  *  `floor(rate × measure)`. 0 at measure 0 and at rate 0, so every world starts at home. Pure. */
 export function journeyPosition(key: string, rate: number, measure: number): number {
   return walkAt(key, Math.floor(rate * measure));
+}
+
+// ========================================
+// THE SHARES (§1.3)
+// ========================================
+// The revised journey: a list of pairs, each an intensity and a time, drawn as shares that each robot scales by its
+// own bounds. Built beside the walk above, which the engine still reads until roadmap 92 Task 28.
+
+/** One pair of a journey as drawn: `intensity` from −1 to 1 (a share of max intensity, signed: + busier, − calmer),
+ *  `time` from 0 to 1 (a share of max time), and whether it is a drop (it lands in one measure, §1.3). */
+export interface JourneyShare {
+  intensity: number;
+  time: number;
+  drop: boolean;
+}
+
+const sharesByKey = new Map<string, { rand: () => number; list: JourneyShare[] }>();
+
+/** The pair after `before` (undefined for the first), by §1.3's table. Takes four draws whatever it uses, so pair i
+ *  always reads draws 4i to 4i + 3. */
+function drawShare(rand: () => number, before: JourneyShare | undefined): JourneyShare {
+  const homeRoll = rand();
+  const intensityDraw = rand();
+  const timeDraw = rand();
+  const dropRoll = rand();
+  const p = before?.intensity ?? 0;
+
+  let intensity: number;
+  if (Math.abs(p) >= JOURNEY_MIN_MOVE && homeRoll < JOURNEY_HOME_ODDS * Math.abs(p)) {
+    intensity = 0;
+  } else {
+    // An even draw over −1 to 1 less the stretch within the least move of p.
+    const lo = Math.max(-1, p - JOURNEY_MIN_MOVE);
+    const hi = Math.min(1, p + JOURNEY_MIN_MOVE);
+    const x = -1 + intensityDraw * (2 - (hi - lo));
+    intensity = x < lo ? x : x + (hi - lo);
+  }
+
+  const time = JOURNEY_TIME_LEAN * (1 - Math.abs(intensity)) + (1 - JOURNEY_TIME_LEAN) * timeDraw;
+  const drop =
+    before !== undefined &&
+    !before.drop &&
+    dropRoll < JOURNEY_DROP_ODDS &&
+    Math.abs(intensity - p) >= JOURNEY_DROP_MIN_MOVE;
+  return { intensity, time, drop };
+}
+
+/** The first `count` pairs of `key`'s journey, as shares (§1.3). Drawn as far as asked and memoised per key, so the
+ *  same key gives the same pairs whichever count is asked for first. Pure. */
+export function journeyShares(key: string, count: number): JourneyShare[] {
+  let shares = sharesByKey.get(key);
+  if (!shares) {
+    shares = { rand: alea(key), list: [] };
+    sharesByKey.set(key, shares);
+  }
+  while (shares.list.length < count) {
+    shares.list.push(drawShare(shares.rand, shares.list[shares.list.length - 1]));
+  }
+  return shares.list.slice(0, count);
 }
 
 // ========================================
