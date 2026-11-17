@@ -532,7 +532,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** M
 
-- [ ] **Task 17: the company and All Probes broadcast**
+- [x] **Task 17: the company and All Probes broadcast**
 
   **Description:** `CompanyOptionsSnapshot` gains `development` and `journey`; `companyOptions.ts` resolves them from
   the first member as it does `pitchRepeat`; `useCompanyOptions` broadcasts each to every member through the two

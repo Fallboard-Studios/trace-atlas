@@ -91,6 +91,8 @@ vi.mock('@/components/robot/CompositionSections', () => ({
     onPitchRepeatChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
     onClickTrackActiveChange?: (active: boolean) => void;
+    onDevelopmentChange?: (v: number) => void;
+    onJourneyChange?: (v: 'own' | 'company' | 'fleet') => void;
     disabled?: boolean;
   }) => {
     renderCounts.composition();
@@ -108,6 +110,8 @@ vi.mock('@/components/robot/CompositionSections', () => ({
         <button onClick={() => props.onPitchRepeatChange(90)}>probe-pitch-repeat</button>
         <button onClick={() => props.onNoteVarianceChange(33)}>probe-note-variance</button>
         {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
+        {props.onDevelopmentChange && <button onClick={() => props.onDevelopmentChange!(1.25)}>probe-development</button>}
+        {props.onJourneyChange && <button onClick={() => props.onJourneyChange!('fleet')}>probe-journey</button>}
       </div>
     );
   }),
@@ -520,6 +524,20 @@ describe('CompanyOptionsSection: the four section panels in company mode', () =>
       render(<Sections target="c1" ids={['rhythmMelody', 'details']} />);
       click(probe);
       expect(ids(spy)).toEqual(['r1', 'r2']);
+    });
+
+    // The melody journey's row (roadmap 92 Task 17): the section passes both handlers on the company screens too.
+    it.each([
+      ['probe-development', 'applyDevelopment', 1.25, { development: 1.25 }],
+      ['probe-journey', 'applyJourney', 'fleet', { journey: 'fleet' }],
+    ] as const)('Composition: %s calls %s once per member with the value, and is recorded', (probe, action, value, recorded) => {
+      twoMembers();
+      const spy = vi.spyOn(robotOptionsActions, action).mockImplementation(() => {});
+      render(<Sections target="c1" ids={['rhythmMelody', 'details']} />);
+      click(probe);
+      expect(ids(spy)).toEqual(['r1', 'r2']);
+      expect(spy.mock.calls.map((c) => c[2])).toEqual([value, value]);
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toEqual(recorded);
     });
 
     // docs/tasks/ONE_MUSIC_CLOCK.md Task 10b: the dev-only Click Track on the company and All Probes screens.

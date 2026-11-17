@@ -3,7 +3,7 @@
  * Options field be broadcast across a group of robots at once, without becoming a live source
  * of truth any member robot re-reads from later. See docs/specs/archive/COMPANIES.md.
  */
-import type { Robot, ADSREnvelope, RobotFilterType } from './Robot';
+import type { Robot, ADSREnvelope, RobotFilterType, JourneySetting } from './Robot';
 import type { OscillatorLayer } from './layeredAudio';
 import type { RobotLfoTargetId, LfoLink } from './lfo';
 
@@ -47,6 +47,9 @@ export interface CompanyOptionsSnapshot {
   dynamics?: number;
   rests?: number;
   accents?: number;
+  /** The melody journey (docs/specs/MELODY_JOURNEY.md §1.9): as Robot.development and Robot.journey. */
+  development?: number;
+  journey?: JourneySetting;
 }
 
 export interface Company {

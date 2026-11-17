@@ -23,9 +23,14 @@ function makeValue(overrides: Partial<PingControlsValue> = {}): PingControlsValu
     accents: 0,
     octaveRange: [3, 5],
     clickTrackActive: false,
+    development: 0,
+    journey: 'own',
     ...overrides,
   };
 }
+
+/** The melody journey row's two handlers, required since roadmap 92 Task 17. */
+const JOURNEY_HANDLERS = { onDevelopmentChange: () => {}, onJourneyChange: () => {} };
 
 /** Stubs window.matchMedia for the viewport tiers ('640px' is the phone query; every other query reads `tablet`), the
  *  shape LevelsSections.test.tsx's stub has, since a 'responsive' row resolves through the same tier hooks. */
@@ -52,7 +57,7 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
   const boxes = (container: HTMLElement) => container.querySelectorAll('.sc-directional-panel-facade');
   const before = (a: Element, b: Element) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
   const slider = (name: RegExp) => screen.getByRole('slider', { name });
-  const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {} };
+  const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {}, ...JOURNEY_HANDLERS };
   const DETAILS_HANDLERS = { onRestsChange: () => {}, onAccentsChange: () => {}, onOctaveMinChange: () => {}, onOctaveMaxChange: () => {} };
 
   beforeEach(() => {
@@ -60,7 +65,8 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
   });
 
   describe('Rhythm & Melody', () => {
-    it('is one box: Note Density beside Phrase Length, then Pitch Repeat Chance beside Note Variance', () => {
+    // The third row, Development beside Journey, since the melody journey (roadmap 92 Tasks 16, 17).
+    it('is one box: Note Density beside Phrase Length, then Pitch Repeat Chance beside Note Variance, then Development', () => {
       stubMatchMedia(DESKTOP);
       const { container } = render(<CompositionRhythmMelodySection value={makeValue()} {...RHYTHM_HANDLERS} />);
       expect(boxes(container)).toHaveLength(1);
@@ -71,9 +77,9 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
       expect(p1.contains(r1) && p1.contains(r2)).toBe(true);
       expect(r1.contains(slider(/density/i)) && r1.contains(slider(/phrase length/i))).toBe(true);
       expect(r2.contains(slider(/pitch repeat/i)) && r2.contains(slider(/note variance/i))).toBe(true);
-      const order = [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i].map(slider);
+      const order = [/density/i, /phrase length/i, /pitch repeat/i, /note variance/i, /development/i].map(slider);
       for (let i = 1; i < order.length; i++) expect(before(order[i - 1], order[i]), `slider ${i}`).toBe(true);
-      expect(screen.getAllByRole('slider')).toHaveLength(4);
+      expect(screen.getAllByRole('slider')).toHaveLength(5);
     });
 
     it.each([['desktop', 'row', DESKTOP], ['tablet', 'column', TABLET]] as const)('on %s, both rows are a %s', (_tier, expected, state) => {
@@ -150,7 +156,7 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
 });
 
 // The melody journey's row (docs/specs/MELODY_JOURNEY.md §1.10; roadmap 92 Task 16): Development beside Journey, the
-// third row of Rhythm & Melody, rendered when its two handlers are given.
+// third row of Rhythm & Melody.
 describe('Rhythm & Melody: the Development and Journey row (melody journey Task 16)', () => {
   const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {} };
   const panel = (container: HTMLElement, id: string) => container.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
@@ -233,18 +239,6 @@ describe('Rhythm & Melody: the Development and Journey row (melody journey Task 
     for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBe('');
   });
 
-  it('is absent without its two handlers: four sliders and no Journey', () => {
-    render(<CompositionRhythmMelodySection value={makeValue({ development: 1, journey: 'own' })} {...RHYTHM_HANDLERS} />);
-    expect(screen.getAllByRole('slider')).toHaveLength(4);
-    expect(screen.queryByRole('radio', { name: 'Fleet' })).toBeNull();
-  });
-
-  it('reads an absent development as 0 and an absent journey as Own', () => {
-    renderRow({ development: undefined, journey: undefined });
-    expect(development().getAttribute('aria-valuenow')).toBe('0');
-    expect(journeyOption('Own').getAttribute('aria-checked')).toBe('true');
-    expect(journeyOption('Own').getAttribute('data-disabled')).toBe('');
-  });
 });
 
 describe('Composition halves (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion', () => {
@@ -264,6 +258,7 @@ describe('Composition halves (docs/reference/layout-updates.md) — merges Rhyth
         onMotifLengthChange={() => {}}
         onPitchRepeatChange={() => {}}
         onNoteVarianceChange={() => {}}
+        {...JOURNEY_HANDLERS}
         {...extra}
       />,
     );
@@ -320,6 +315,7 @@ describe('Composition halves (docs/reference/layout-updates.md) — merges Rhyth
         onMotifLengthChange={onMotifLengthChange}
         onPitchRepeatChange={onPitchRepeatChange}
         onNoteVarianceChange={onNoteVarianceChange}
+        {...JOURNEY_HANDLERS}
       />,
     );
 

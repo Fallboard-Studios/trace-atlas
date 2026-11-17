@@ -1410,6 +1410,124 @@ describe('useCompanyOptions', () => {
     });
   });
 
+  // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 17): broadcast, not link,
+  // through the real applies (each writes its field only, so nothing reaches the engine).
+  describe('Development and Journey (melody journey Task 17)', () => {
+    const member = (id: string) => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === id)!;
+    const snapshot = () => useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions;
+
+    describe('the value', () => {
+      it('is the first member own development and journey, until an edit is recorded', () => {
+        twoDistinctMembers({ development: 0.375, journey: 'fleet' });
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.pingControlsValue.development).toBe(0.375);
+        expect(result.current.options.pingControlsValue.journey).toBe('fleet');
+      });
+
+      it('is 0 and own for a first member with neither field', () => {
+        twoDistinctMembers();
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.pingControlsValue.development).toBe(0);
+        expect(result.current.options.pingControlsValue.journey).toBe('own');
+      });
+
+      it('is 0 and own with no members', () => {
+        addCompany('c1', []);
+        const { result } = renderHook(() => useCompanyOptions('c1'));
+        expect(result.current.options.active).toBe(false);
+        expect(result.current.options.pingControlsValue.development).toBe(0);
+        expect(result.current.options.pingControlsValue.journey).toBe('own');
+      });
+    });
+
+    it('a Development edit writes every member development and records { development } alone', () => {
+      twoDistinctMembers({ development: 0.25 });
+      const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onDevelopmentChange(1.5));
+      expect(member('r1').development).toBe(1.5);
+      expect(member('r2').development).toBe(1.5);
+      expect(snapshot()).toEqual({ development: 1.5 });
+      expect(result.current.options.pingControlsValue.development).toBe(1.5);
+      expect(engine).not.toHaveBeenCalled();
+    });
+
+    it('a Journey edit writes every member journey and records { journey } alone', () => {
+      twoDistinctMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onJourneyChange('company'));
+      expect(member('r1').journey).toBe('company');
+      expect(member('r2').journey).toBe('company');
+      expect(snapshot()).toEqual({ journey: 'company' });
+      expect(result.current.options.pingControlsValue.journey).toBe('company');
+    });
+
+    it('each edit goes through its apply once per member', () => {
+      twoDistinctMembers();
+      const development = vi.spyOn(robotOptionsActions, 'applyDevelopment');
+      const journey = vi.spyOn(robotOptionsActions, 'applyJourney');
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onDevelopmentChange(0.5));
+      act(() => result.current.options.onJourneyChange('fleet'));
+      expect(development.mock.calls.map((c) => [c[0].id, c[2]])).toEqual([['r1', 0.5], ['r2', 0.5]]);
+      expect(journey.mock.calls.map((c) => [c[0].id, c[2]])).toEqual([['r1', 'fleet'], ['r2', 'fleet']]);
+    });
+
+    it('a robot outside the company is untouched', () => {
+      twoDistinctMembers();
+      addRobot(makeRobot({ id: 'r3', companyId: undefined, development: 0.125 }));
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onDevelopmentChange(2));
+      act(() => result.current.options.onJourneyChange('fleet'));
+      expect(member('r3').development).toBe(0.125);
+      expect(member('r3').journey).toBeUndefined();
+    });
+
+    it('broadcast, not link: a member edited on its own afterwards keeps its own value', () => {
+      twoDistinctMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      act(() => result.current.options.onDevelopmentChange(1));
+      act(() => result.current.options.onJourneyChange('company'));
+      act(() => {
+        robotOptionsActions.applyDevelopment(member('r2'), localeId, 0.25);
+        robotOptionsActions.applyJourney(member('r2'), localeId, 'own');
+      });
+      expect(member('r2').development).toBe(0.25);
+      expect(member('r2').journey).toBe('own');
+      expect(member('r1').development).toBe(1);
+      expect(member('r1').journey).toBe('company');
+      expect(snapshot()).toEqual({ development: 1, journey: 'company' });
+    });
+
+    it('All Probes: an edit reaches every robot, Freelance included, and records in allRobotsLastEditedOptions', () => {
+      addRobot(makeRobot({ id: 'r1', companyId: 'c1' }));
+      addRobot(makeRobot({ id: 'r2', companyId: 'c2' }));
+      addRobot(makeRobot({ id: 'r3', companyId: undefined }));
+      addCompany('c1', ['r1']);
+      addCompany('c2', ['r2']);
+      const { result } = renderHook(() => useCompanyOptions('all'));
+      act(() => result.current.options.onDevelopmentChange(0.875));
+      act(() => result.current.options.onJourneyChange('fleet'));
+      for (const id of ['r1', 'r2', 'r3']) {
+        expect(member(id).development).toBe(0.875);
+        expect(member(id).journey).toBe('fleet');
+      }
+      const all = useLocaleStore.getState().getLocaleById(localeId)?.allRobotsLastEditedOptions;
+      expect(all?.development).toBe(0.875);
+      expect(all?.journey).toBe('fleet');
+      expect(useLocaleStore.getState().getCompanyById(localeId, 'c1')?.lastEditedOptions).toBeUndefined();
+    });
+
+    it('the two handlers keep their identity across an edit', () => {
+      twoDistinctMembers();
+      const { result } = renderHook(() => useCompanyOptions('c1'));
+      const first = result.current.options;
+      act(() => result.current.options.onDevelopmentChange(1));
+      expect(result.current.options.onDevelopmentChange).toBe(first.onDevelopmentChange);
+      expect(result.current.options.onJourneyChange).toBe(first.onJourneyChange);
+    });
+  });
+
   describe('Envelope: the diff-one-field rule', () => {
     it('editing Attack broadcasts only attack — each member keeps its own Decay / Sustain / Release', () => {
       twoDistinctMembers();
