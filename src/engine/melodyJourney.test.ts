@@ -14,36 +14,18 @@ import {
 import type { JourneyBounds, JourneyPair, JourneyShare } from './melodyJourney';
 import { developmentFloor } from './melodyDevelopment';
 import {
+  DEFAULT_JOURNEY_MAX_INTENSITY,
+  DEFAULT_JOURNEY_MAX_TIME,
   JOURNEY_DROP_MIN_MOVE,
   JOURNEY_DROP_ODDS,
   JOURNEY_HOME_ODDS,
   JOURNEY_MIN_MOVE,
-  JOURNEY_SWING_MAX,
-  JOURNEY_SWING_MIN,
   JOURNEY_TIME_LEAN,
 } from '../constants';
 
 // ========================================
 // HELPERS
 // ========================================
-const RUN = 5000;
-
-/** The walk at counts 0..RUN, read at rate 1 so the count is the measure. */
-function walk(key: string, count = RUN): number[] {
-  return Array.from({ length: count + 1 }, (_, m) => journeyPosition(key, 1, m));
-}
-
-/** The turning points: every place the walk changes direction, as values. */
-function turningPoints(positions: number[]): number[] {
-  const turns: number[] = [];
-  for (let i = 1; i < positions.length - 1; i++) {
-    const before = positions[i] - positions[i - 1];
-    const after = positions[i + 1] - positions[i];
-    if (Math.sign(before) !== Math.sign(after)) turns.push(positions[i]);
-  }
-  return turns;
-}
-
 const WORLD = '21:-188';
 const OWN = journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 });
 
@@ -57,114 +39,160 @@ describe('journeyKey (spec §1.3)', () => {
     expect(journeyKey(WORLD, { kind: 'fleet' })).toBe('21:-188:fleet:journey');
   });
 
-  it('gives three different keys, and three different walks, for one world', () => {
+  it('gives three different keys, and three different journeys, for one world', () => {
     const keys = [
       journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }),
       journeyKey(WORLD, { kind: 'company', companyId: 'co-7' }),
       journeyKey(WORLD, { kind: 'fleet' }),
     ];
     expect(new Set(keys).size).toBe(3);
-    const walks = keys.map((k) => walk(k, 300).join(','));
-    expect(new Set(walks).size).toBe(3);
+    const journeys = keys.map((k) => JSON.stringify(journeyShares(k, 40)));
+    expect(new Set(journeys).size).toBe(3);
   });
 
-  it('gives one key, so one walk, to any two robots on Fleet in one world, and another in another world', () => {
+  it('gives one key, so one journey, to any two robots on Fleet in one world, and another in another world', () => {
     expect(journeyKey(WORLD, { kind: 'fleet' })).toBe(journeyKey(WORLD, { kind: 'fleet' }));
     expect(journeyKey('0:0', { kind: 'fleet' })).not.toBe(journeyKey(WORLD, { kind: 'fleet' }));
   });
 });
 
+// The engine's read of a robot's journey (spec §1.3, §1.7; roadmap 92 Task 28): a key, two bounds and a calm limit
+// give a position at any measure. The oracle is the three pure pieces of Tasks 24 to 26, read over enough shares.
 describe('journeyPosition (spec §1.3)', () => {
-  it('is 0 at measure 0 for any key and rate', () => {
-    for (const rate of [0, 0.125, 1, 2]) {
-      for (const key of [OWN, 'a', 'b:journey', '']) expect(journeyPosition(key, rate, 0)).toBe(0);
+  const RUN = 2000;
+  const KEYS = [OWN, 'x:journey', 'y:journey', journeyKey(WORLD, { kind: 'fleet' })];
+  const bounds = (maxIntensity: number, maxTime: number, calmLimit: number): JourneyBounds => ({
+    maxIntensity,
+    maxTime,
+    calmLimit,
+  });
+  /** Every bound and calm limit the acceptance names. */
+  const CASES: JourneyBounds[] = [];
+  for (const [n, t] of [[16, 16], [16, 2], [1, 16], [5, 8]]) {
+    for (const c of [0, 3, 15]) CASES.push(bounds(n, t, c));
+  }
+  /** A robot's pairs over enough shares to cover `measures` (every time is at least 1, and a pair reads the share
+   *  after it to see a drop). */
+  const pairsOf = (key: string, b: JourneyBounds, measures = RUN): JourneyPair[] =>
+    robotPairs(journeyShares(key, measures + 2), b);
+  /** The turning measures: the running sum of the pairs' times, up to `measures`. */
+  const turningMeasures = (pairs: JourneyPair[], measures = RUN): number[] => {
+    const out: number[] = [];
+    let at = 0;
+    for (const p of pairs) {
+      at += p.time;
+      if (at > measures) break;
+      out.push(at);
+    }
+    return out;
+  };
+  const positions = (key: string, b: JourneyBounds, measures = RUN) =>
+    Array.from({ length: measures + 1 }, (_, m) => journeyPosition(key, b, m));
+
+  it('is 0 at measure 0 for any key and bounds', () => {
+    for (const b of CASES) for (const key of [...KEYS, 'a', '']) expect(journeyPosition(key, b, 0)).toBe(0);
+  });
+
+  it('is 0 at every measure at a max intensity of 0, whatever the max time and calm limit', () => {
+    for (const key of KEYS) {
+      for (const b of [bounds(0, 16, 15), bounds(0, 2, 0), bounds(0, 8, 3)]) {
+        for (let m = 0; m <= 500; m++) expect(journeyPosition(key, b, m)).toBe(0);
+      }
     }
   });
 
-  it('is 0 at every measure when the rate is 0', () => {
-    for (let m = 0; m < 500; m++) expect(journeyPosition(OWN, 0, m)).toBe(0);
+  it('is 0 at a negative or non-finite measure', () => {
+    const b = bounds(16, 16, 15);
+    for (const m of [-1, -5, Number.NaN, Infinity, -Infinity]) expect(journeyPosition(OWN, b, m)).toBe(0);
   });
 
-  it('is 0 for a negative or non-finite count', () => {
-    expect(journeyPosition(OWN, 1, -5)).toBe(0);
-    expect(journeyPosition(OWN, Number.NaN, 12)).toBe(0);
-    expect(journeyPosition(OWN, 1, Number.NaN)).toBe(0);
+  it('is the position inside the robot pairs at every measure of a long run, for every key and bounds', () => {
+    const misses: string[] = [];
+    for (const key of KEYS) {
+      for (const b of CASES) {
+        const pairs = pairsOf(key, b);
+        for (let m = 0; m <= RUN; m++) {
+          const want = positionInPairs(pairs, m);
+          if (journeyPosition(key, b, m) !== want) misses.push(`${key} ${JSON.stringify(b)} m${m}`);
+        }
+      }
+    }
+    expect(misses.slice(0, 5)).toEqual([]);
   });
 
-  it('gives the same position for the same key, rate and measure', () => {
-    const first = walk(OWN, 1000);
-    expect(walk(OWN, 1000)).toEqual(first);
-  });
-
-  it('gives a different walk for a different key', () => {
-    expect(walk('one:journey', 300)).not.toEqual(walk('two:journey', 300));
-  });
-
-  it('reads the walk at floor(rate x measure)', () => {
-    for (let m = 0; m < 400; m++) {
-      expect(journeyPosition(OWN, 0.5, m)).toBe(journeyPosition(OWN, 1, Math.floor(m / 2)));
-      expect(journeyPosition(OWN, 2, m)).toBe(journeyPosition(OWN, 1, 2 * m));
-      expect(journeyPosition(OWN, 0.125, m)).toBe(journeyPosition(OWN, 1, Math.floor(m / 8)));
+  it('never passes max intensity or the calm limit, and heads both ways where both are open', () => {
+    for (const key of KEYS) {
+      for (const b of CASES) {
+        const all = positions(key, b);
+        expect(Math.max(...all), `${key} ${JSON.stringify(b)}`).toBeLessThanOrEqual(b.maxIntensity);
+        expect(Math.min(...all), `${key} ${JSON.stringify(b)}`).toBeGreaterThanOrEqual(-b.calmLimit);
+        expect(all.some((p) => p > 0), `${key} ${JSON.stringify(b)} busy`).toBe(true);
+        if (b.calmLimit > 0) expect(all.some((p) => p < 0), `${key} ${JSON.stringify(b)} calm`).toBe(true);
+      }
     }
   });
 
-  it('moves by exactly one change between consecutive counts, over 5,000 counts', () => {
-    const positions = walk(OWN);
-    for (let i = 1; i < positions.length; i++) expect(Math.abs(positions[i] - positions[i - 1])).toBe(1);
+  it('plays each pair intensity on its turning measure; every turning measure is even but the one before a drop', () => {
+    const misses: string[] = [];
+    let drops = 0;
+    for (const key of KEYS) {
+      const shares = journeyShares(key, RUN + 2);
+      for (const b of CASES) {
+        const pairs = pairsOf(key, b);
+        turningMeasures(pairs).forEach((at, i) => {
+          const where = `${key} ${JSON.stringify(b)} pair ${i} at ${at}`;
+          if (journeyPosition(key, b, at) !== pairs[i].intensity) misses.push(`${where}: not there`);
+          const beforeDrop = shares[i + 1].drop;
+          if (beforeDrop) drops++;
+          if (beforeDrop ? at % 2 !== 1 : at % 2 !== 0) misses.push(`${where}: ${beforeDrop ? 'even before a drop' : 'odd'}`);
+        });
+      }
+    }
+    expect(misses.slice(0, 5)).toEqual([]);
+    expect(drops).toBeGreaterThan(100); // precondition: the odd case is exercised
   });
 
-  it('never passes the swing either side, visits both sides, and returns to 0 between them', () => {
-    const positions = walk(OWN);
-    expect(Math.max(...positions)).toBeLessThanOrEqual(JOURNEY_SWING_MAX);
-    expect(Math.min(...positions)).toBeGreaterThanOrEqual(-JOURNEY_SWING_MAX);
-    expect(positions.some((p) => p > 0)).toBe(true);
-    expect(positions.some((p) => p < 0)).toBe(true);
-    let lastSide = 0;
-    for (let i = 0; i < positions.length; i++) {
-      const side = Math.sign(positions[i]);
-      if (side !== 0 && lastSide !== 0 && side !== lastSide) expect(positions[i - 1]).toBe(0);
-      if (side !== 0) lastSide = side;
+  it('gives the same positions whichever order the measures are read in', async () => {
+    const b = bounds(16, 6, 3);
+    const inOrder = positions('order:journey', b, 600);
+    vi.resetModules();
+    const fresh = await import('./melodyJourney');
+    const backwards: number[] = [];
+    for (let m = 600; m >= 0; m--) backwards[m] = fresh.journeyPosition('order:journey', b, m);
+    expect(backwards).toEqual(inOrder);
+    vi.resetModules();
+    const jumping = await import('./melodyJourney');
+    for (const m of [600, 3, 451, 0, 99, 600, 17]) expect(jumping.journeyPosition('order:journey', b, m)).toBe(inOrder[m]);
+  });
+
+  it('reads one key at several max times in turn, each its own: no max time borrows another turning measures', () => {
+    const key = 'times:journey';
+    for (const t of [16, 2, 8, 16, 4, 2]) {
+      const b = bounds(16, t, 15);
+      const pairs = pairsOf(key, b, 400);
+      for (let m = 0; m <= 400; m++) expect(journeyPosition(key, b, m), `max time ${t} m${m}`).toBe(positionInPairs(pairs, m));
     }
   });
 
-  it('turns on alternating sides, each turning point a whole swing from home', () => {
-    for (const key of [OWN, 'x:journey', 'y:journey', 'z:journey']) {
-      const turns = turningPoints(walk(key, 2000));
-      expect(turns.length).toBeGreaterThan(50);
-      turns.forEach((t, i) => {
-        expect(Math.abs(t)).toBeGreaterThanOrEqual(JOURNEY_SWING_MIN);
-        expect(Math.abs(t)).toBeLessThanOrEqual(JOURNEY_SWING_MAX);
-        if (i > 0) expect(Math.sign(t)).toBe(-Math.sign(turns[i - 1]));
+  it('two robots on one key with one max time turn on the same measures whatever their max intensity; with different max times they do not', () => {
+    for (const key of KEYS) {
+      const deep = bounds(16, 8, 15);
+      const shallow = bounds(5, 8, 3);
+      const long = bounds(16, 16, 15);
+      const turns = turningMeasures(pairsOf(key, deep));
+      expect(turningMeasures(pairsOf(key, shallow))).toEqual(turns);
+      expect(turningMeasures(pairsOf(key, long))).not.toEqual(turns);
+      // Each arrives at its own depth on those measures.
+      pairsOf(key, shallow).slice(0, turns.length).forEach((pair, i) => {
+        expect(journeyPosition(key, shallow, turns[i])).toBe(pair.intensity);
       });
     }
   });
 
-  it('draws every swing from MIN to MAX, and starts on either side across keys', () => {
-    const sizes = new Set<number>();
-    const firstSides = new Set<number>();
-    for (let k = 0; k < 40; k++) {
-      const positions = walk(`world-${k}:journey`, 400);
-      turningPoints(positions).forEach((t) => sizes.add(Math.abs(t)));
-      firstSides.add(Math.sign(positions[1]));
-    }
-    for (let d = JOURNEY_SWING_MIN; d <= JOURNEY_SWING_MAX; d++) expect(sizes.has(d)).toBe(true);
-    expect([...firstSides].sort()).toEqual([-1, 1]);
-  });
-
-  it('gives the same walk whichever order the counts are asked in', async () => {
-    const inOrder = walk('order:journey', 600);
-    vi.resetModules();
-    const fresh = await import('./melodyJourney');
-    const backwards: number[] = [];
-    for (let m = 600; m >= 0; m--) backwards[m] = fresh.journeyPosition('order:journey', 1, m);
-    expect(backwards).toEqual(inOrder);
-  });
-
-  it('agrees for two robots with one key and one rate at every measure of a long run', () => {
-    const fleet = journeyKey(WORLD, { kind: 'fleet' });
-    for (let m = 0; m < 2000; m++) {
-      expect(journeyPosition(fleet, 0.375, m)).toBe(journeyPosition(journeyKey(WORLD, { kind: 'fleet' }), 0.375, m));
-    }
+  it('reads measure 10,000 straight off, and as the run up to it would', () => {
+    const b = bounds(16, 16, 15);
+    const far = journeyPosition('far:journey', b, 10_000);
+    expect(far).toBe(positionInPairs(robotPairs(journeyShares('far:journey', 10_002), b), 10_000));
   });
 });
 
@@ -178,6 +206,7 @@ describe('journeyShares (spec §1.3)', () => {
     journeyKey('0:0', { kind: 'own', compositionSeed: 0.8125 }),
   ];
   const EPS = 1e-9;
+  const RUN = 5000;
 
   /** Every pair of every key, each with the intensity share of the pair before it (0 before the first). */
   function allPairs(): { share: JourneyShare; before: JourneyShare | undefined; index: number }[] {
@@ -525,15 +554,26 @@ describe('robotJourney (spec §1.7, §1.9)', () => {
     expect(keyOf({ journey: 'company' })).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
   });
 
-  it('a robot with neither field reads as rate 0 on its Own key', () => {
+  it('a robot with none of the fields reads as the default bounds (0 and 8) on its Own key', () => {
     const j = robotJourney(robot() as never, WORLD, BPM_TOP);
-    expect(j.rate).toBe(0);
+    expect(j.maxIntensity).toBe(DEFAULT_JOURNEY_MAX_INTENSITY);
+    expect(j.maxTime).toBe(DEFAULT_JOURNEY_MAX_TIME);
+    expect([j.maxIntensity, j.maxTime]).toEqual([0, 8]);
     expect(j.key).toBe(journeyKey(WORLD, { kind: 'own', compositionSeed: 0.4375 }));
   });
 
-  it('the rate is the stored development', () => {
-    expect(robotJourney(robot({ development: 0.625 }) as never, WORLD, BPM_TOP).rate).toBe(0.625);
-    expect(robotJourney(robot({ development: 2 }) as never, WORLD, BPM_TOP).rate).toBe(2);
+  it('the bounds are the stored ones, each read alone', () => {
+    const both = robotJourney(robot({ journeyMaxIntensity: 11, journeyMaxTime: 4 }) as never, WORLD, BPM_TOP);
+    expect([both.maxIntensity, both.maxTime]).toEqual([11, 4]);
+    const intensityOnly = robotJourney(robot({ journeyMaxIntensity: 3 }) as never, WORLD, BPM_TOP);
+    expect([intensityOnly.maxIntensity, intensityOnly.maxTime]).toEqual([3, DEFAULT_JOURNEY_MAX_TIME]);
+    const timeOnly = robotJourney(robot({ journeyMaxTime: 14 }) as never, WORLD, BPM_TOP);
+    expect([timeOnly.maxIntensity, timeOnly.maxTime]).toEqual([DEFAULT_JOURNEY_MAX_INTENSITY, 14]);
+  });
+
+  it('a stored development moves neither bound', () => {
+    const j = robotJourney(robot({ development: 2 }) as never, WORLD, BPM_TOP);
+    expect([j.maxIntensity, j.maxTime]).toEqual([0, 8]);
   });
 
   it('the seed is the composition seed', () => {

@@ -21,7 +21,7 @@ import { readContextSeconds } from './nativeContext';
 import { DEFAULT_DYNAMICS } from './melodyGenerator';
 import { resolveArticulation } from './articulation';
 import { journeyPosition, robotJourney, worldKeyOf } from './melodyJourney';
-import { developMelody } from './melodyDevelopment';
+import { calmLimit, developMelody } from './melodyDevelopment';
 import { getBand } from '../data/bands/loadingContext';
 
 import { getRef } from '../utils/refs';
@@ -864,7 +864,8 @@ function humanizeOffsetFor(position: number, roster: readonly Robot[]): (robotId
 
 /**
  * One robot's entries on `at.step`, from its melody for `at.measure` (melody journey §1.7): the stored robot's journey
- * (robotJourney) gives the position, and developMelody the events there. The developed events by step are kept per
+ * (robotJourney: its key and two bounds) and the registered melody's calm limit give the position, and developMelody
+ * the events there. The developed events by step are kept per
  * robot for the last DEVELOPED_KEPT positions and rebuilt only when the position or an input (the floor, the seed)
  * changes. A robot the store does not hold, a Click Track robot, and a robot at position 0 play what is registered.
  * The accent stays on the home event that had it (by id); a note a change adds is never accented.
@@ -879,7 +880,8 @@ function entriesOnStep(
 ): MelodyEventEntry[] | undefined {
   if (registered.clickTrack || !robot) return registered.byStep.get(at.step);
   const journey = robotJourney(robot, worldKey, bpmTop);
-  const position = journeyPosition(journey.key, journey.rate, at.measure);
+  const bounds = { maxIntensity: journey.maxIntensity, maxTime: journey.maxTime, calmLimit: calmLimit(registered.melody) };
+  const position = journeyPosition(journey.key, bounds, at.measure);
   if (position === 0) return registered.byStep.get(at.step);
   const kept = `${position}:${journey.floor}:${journey.seed}`;
   let byStep = registered.developed.get(kept);

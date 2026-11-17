@@ -10,7 +10,7 @@ import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { SIM_SEED_COORDS, simNoiseMap } from './lifecycleSim';
 import { getBand } from '../data/bands/loadingContext';
 import { journeyPosition, robotJourney } from '../engine/melodyJourney';
-import { developMelody, eventSixteenths } from '../engine/melodyDevelopment';
+import { calmLimit, developMelody, eventSixteenths } from '../engine/melodyDevelopment';
 import {
   generateBatterySize,
   generateCompanyMembership,
@@ -233,10 +233,14 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
     /** Each member's starts and lengths, measure by measure, as the engine plays them. */
     const rhythmByMeasure = (robot: Robot, worldKey: string) => {
       const journey = robotJourney(robot, worldKey, bpmTop);
+      const bounds = { maxIntensity: journey.maxIntensity, maxTime: journey.maxTime, calmLimit: calmLimit(robot.melody) };
       return Array.from({ length: MEASURES }, (_, measure) =>
-        developMelody(robot.melody, journeyPosition(journey.key, journey.rate, measure), journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
+        developMelody(robot.melody, journeyPosition(journey.key, bounds, measure), journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
       );
     };
+    /** Bounds set by hand, one pair per company (Task 28): nothing seeds them until Task 34, which puts this case back
+     *  on the seeded ones. */
+    const HAND_BOUNDS: Array<[number, number]> = [[16, 16], [5, 8], [1, 2], [9, 4]];
 
     it('every robot of a seeded company, founder included, is on Company; every freelancer on Own', () => {
       for (const { key, robots, companies } of WORLDS) {
@@ -261,22 +265,27 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
       }
     });
 
-    it('the members of a company share one journey key and one rate, and play the same starts and lengths at every measure of a 100-measure run', () => {
-      let developing = 0;
+    it('the members of a company share one journey key, and on one pair of bounds play the same starts and lengths at every measure of a 100-measure run', () => {
+      let companiesSeen = 0;
+      let moved = 0;
       for (const { key, robots, companies } of WORLDS) {
-        for (const company of companies) {
-          const members = company.robotIds.map((id) => robots.find((r) => r.id === id)!);
+        companies.forEach((company, c) => {
+          const [maxIntensity, maxTime] = HAND_BOUNDS[(companiesSeen + c) % HAND_BOUNDS.length];
+          const members = company.robotIds.map((id) => ({
+            ...robots.find((r) => r.id === id)!,
+            journeyMaxIntensity: maxIntensity,
+            journeyMaxTime: maxTime,
+          }));
           const journeys = members.map((robot) => robotJourney(robot, key, bpmTop));
           expect(new Set(journeys.map((j) => j.key)).size, `${key} ${company.id} key`).toBe(1);
-          expect(new Set(journeys.map((j) => j.rate)).size, `${key} ${company.id} rate`).toBe(1);
-          if (journeys[0].rate === 0) continue;
-          developing++;
           const [first, ...rest] = members.map((robot) => rhythmByMeasure(robot, key));
           for (const other of rest) expect(other, `${key} ${company.id}`).toEqual(first);
-        }
+          if (first.some((rhythm) => rhythm !== first[0])) moved++;
+        });
+        companiesSeen += companies.length;
       }
-      // Precondition: most companies develop (the band's lit share), so the run is not all home melodies.
-      expect(developing).toBeGreaterThan(100);
+      // Precondition: the run is not all home melodies.
+      expect(moved).toBeGreaterThan(100);
     });
   });
 
