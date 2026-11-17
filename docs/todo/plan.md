@@ -21,7 +21,9 @@ the item's own measure-first check runs, and the item archives if the check find
 
 ## Stage 3 — Audio refinement
 
-- Empty: its two items, backlog 82 and 83, merged 2026-11-12 (PR #635, one music clock). Stage 4 is next.
+- Roadmap [92](roadmap.md#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer)
+  **The melody journey** — next (Crawford, 2026-11-17); spec written, his read of its assumptions first. A robot's
+  melody gets busier and calmer on a seeded journey; docking pitch drift goes.
 
 ## Stage 4 — Visual refinement
 

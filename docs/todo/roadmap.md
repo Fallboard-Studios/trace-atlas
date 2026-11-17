@@ -579,6 +579,10 @@ and its pace ruler changes what backlog [86](backlog.md#86-world-move-the-whole-
 - Its order against the nav and views layout redo. Crawford's lean: this first, because it informs that redesign.
   Claude's lean: the design and the sketches first, the editors built onto the new layout.
 - Not yet placed in [plan.md](plan.md).
+- **Note 2026-11-17:** how a part develops over time was taken out as roadmap
+  [92](#92-the-melody-journey-a-home-melody-and-a-seeded-walk-that-makes-it-busier-and-calmer) (the melody journey),
+  built first. It keeps the one-bar part and removes docking drift; "an edited note reuses `pitchLocked`" (the leans
+  above) needs a second look, since the drift that flag resisted is gone.
 
 ## 91. Control Layout: Tabs, Sub-tabs, Boxes and Rows for Fleet Params and the Probes
 
@@ -623,4 +627,36 @@ at three widths passed on 2026-11-15 (Fleet Params, then the robot, company and 
 ### Open
 
 - Not placed in [plan.md](plan.md): it was built ahead of the sequence.
+
+## 92. The Melody Journey: A Home Melody, and a Seeded Walk That Makes It Busier and Calmer
+
+Raised by Crawford on 2026-11-16 as an overhaul of how robot melodies are created and develop over time, and settled
+in conversation that day and the next. Intent [melody-journey.md](../intent/melody-journey.md), spec
+[MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md) (written 2026-11-17, not yet approved). Next in
+[plan.md](plan.md#stage-3--audio-refinement), before launch.
+
+### About
+
+The melody a robot spawns with becomes its home melody. From there it gets busier, comes home, gets calmer and comes
+home again, on a seeded journey read from the music clock: longer notes split into the note and a neighbour, the
+silence fills, and on the calm side notes tie into the note before them. A Development slider sets the changes per
+measure (0 to 2), and a Journey setting (Own, Company, Fleet) lets a company or the whole fleet travel together.
+Docking pitch drift, today's only change over time, goes: it ignores the Note Variance set, is wiped by any
+composition edit, and happens while the robot is silent.
+
+The melody of any measure is worked out from the home melody, the two settings and the measure, so it replays and
+nothing new is saved but the settings.
+
+It is the first built piece of roadmap
+[90](#90-the-score-editable-chords-a-clock-with-two-rulers-hand-edited-parts)'s part layer. The home melody is what
+90's hand-edited parts and backlog
+[65](backlog.md#65-robot-a-melody-strip-under-the-accents-slider-and-later-editing-the-notes)'s note editing would
+edit; the editor is out of this piece (Crawford, 2026-11-17) and needs its own interview.
+
+### Open
+
+- The spec's assumptions (its §7.1) wait on Crawford's read, and its four questions (§7.2) on his answers: the calm
+  floor, whether a Melody aspect moves the development band, whether `pitchLocked` goes, and the phone check.
+- It changes every world's sound, so it lands before backlog
+  [45](backlog.md#45-off-screen-crawfords-three-preset-links).
 
