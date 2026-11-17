@@ -230,6 +230,18 @@ export const BATTERY_FULL_THRESHOLD = 100;
 /** Fraction of a robot's melody events whose pitch (noteIndex only) re-rolls each time it lands on Docked. */
 export const DOCKED_PITCH_DRIFT_RATIO = 0.25;
 
+// ========================================
+// THE MELODY JOURNEY (docs/specs/MELODY_JOURNEY.md)
+// ========================================
+/** A journey's turning points sit a whole number of changes from home, drawn evenly from MIN to MAX (§1.3; a first
+ *  cut, A12, Crawford's to move at Gate A). */
+export const JOURNEY_SWING_MIN = 2;
+export const JOURNEY_SWING_MAX = 8;
+/** Development, in changes per measure (§1.9): the slider's range and its stop (A13, Gate A's to move). */
+export const DEVELOPMENT_MIN = 0;
+export const DEVELOPMENT_MAX = 2;
+export const DEVELOPMENT_STEP = 0.125;
+
 /**
  * Whether background-depth buildings host work sites (jobHosts.ts's isWorkSiteEligible). True
  * since Phase 43 J4 (Task 34) landed the back robot row; false puts the world back to midground
