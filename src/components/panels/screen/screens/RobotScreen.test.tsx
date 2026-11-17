@@ -155,12 +155,14 @@ const compositionStub = vi.hoisted(() => {
 });
 vi.mock('@/components/robot/CompositionSections', () => ({
   CompositionRhythmMelodySection: memo((props: {
-    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; clickTrackActive: boolean };
+    value: { rhythmicDensity: number; rhythmicMotifLength: number; pitchRepeat: number; noteVariance: number; clickTrackActive: boolean; development?: number; journey?: string };
     onClickTrackActiveChange?: (active: boolean) => void;
     onDensityChange: (v: number) => void;
     onMotifLengthChange: (v: number) => void;
     onPitchRepeatChange: (v: number) => void;
     onNoteVarianceChange: (v: number) => void;
+    onDevelopmentChange?: (v: number) => void;
+    onJourneyChange?: (v: 'own' | 'company' | 'fleet') => void;
   }) => {
     compositionStub.record({ onDensityChange: props.onDensityChange });
     return (
@@ -170,7 +172,11 @@ vi.mock('@/components/robot/CompositionSections', () => ({
         data-density={props.value.rhythmicDensity}
         data-pitch-repeat={props.value.pitchRepeat}
         data-click-track={String(props.value.clickTrackActive)}
+        data-development={String(props.value.development)}
+        data-journey={String(props.value.journey)}
       >
+        {props.onDevelopmentChange && <button onClick={() => props.onDevelopmentChange!(0.75)}>probe-development</button>}
+        {props.onJourneyChange && <button onClick={() => props.onJourneyChange!('fleet')}>probe-journey</button>}
         {props.onClickTrackActiveChange && <button onClick={() => props.onClickTrackActiveChange!(true)}>probe-click-track</button>}
         <button onClick={() => props.onDensityChange(77)}>probe-density</button>
         <button onClick={() => props.onMotifLengthChange(6)}>probe-motif-length</button>
@@ -1519,6 +1525,63 @@ describe('RobotScreen — each section reaches the robot as before (moved from R
       render(<RobotScreen />);
       fireEvent.click(screen.getByText(button));
       expect(spy).toHaveBeenCalledWith(robot, localeId, value);
+    });
+
+    // The melody journey's two settings (docs/specs/MELODY_JOURNEY.md §1.9, §1.10; roadmap 92 Task 16).
+    describe('Development and Journey', () => {
+      const stubAttr = (name: string) => screen.getByTestId('composition-stub').getAttribute(name);
+      const stored = () => useLocaleStore.getState().locales[localeId].robots.find((r) => r.id === 'r1')!;
+
+      it("passes the robot's own development and journey", () => {
+        selectRobot(makeRobot('r1', { development: 1.25, journey: 'company' }), 'melody');
+        render(<RobotScreen />);
+        expect(stubAttr('data-development')).toBe('1.25');
+        expect(stubAttr('data-journey')).toBe('company');
+      });
+
+      it('passes 0 and own for a robot with neither field', () => {
+        selectRobot(makeRobot('r1'), 'melody');
+        render(<RobotScreen />);
+        expect(stubAttr('data-development')).toBe('0');
+        expect(stubAttr('data-journey')).toBe('own');
+      });
+
+      it('moving Development writes robot.development, and regenerates nothing', () => {
+        selectRobot(makeRobot('r1', { development: 0 }), 'melody');
+        const melodyBefore = stored().melody;
+        const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-development'));
+        expect(stored().development).toBe(0.75);
+        expect(stored().melody).toBe(melodyBefore);
+        expect(engine).not.toHaveBeenCalled();
+        expect(stubAttr('data-development')).toBe('0.75');
+      });
+
+      it('choosing Fleet writes robot.journey, and regenerates nothing', () => {
+        selectRobot(makeRobot('r1', { development: 1, journey: 'own' }), 'melody');
+        const engine = vi.spyOn(AudioEngine, 'registerRobotMelody');
+        render(<RobotScreen />);
+        fireEvent.click(screen.getByText('probe-journey'));
+        expect(stored().journey).toBe('fleet');
+        expect(engine).not.toHaveBeenCalled();
+        expect(stubAttr('data-journey')).toBe('fleet');
+      });
+
+      it('each handler calls its own apply with the latest robot', () => {
+        selectRobot(makeRobot('r1', { development: 0.5 }), 'melody');
+        const development = vi.spyOn(robotOptionsActions, 'applyDevelopment').mockImplementation(() => {});
+        const journey = vi.spyOn(robotOptionsActions, 'applyJourney').mockImplementation(() => {});
+        render(<RobotScreen />);
+        act(() => useLocaleStore.getState().updateRobot(localeId, 'r1', { pitchRepeat: 12 }));
+        fireEvent.click(screen.getByText('probe-development'));
+        fireEvent.click(screen.getByText('probe-journey'));
+        expect(development).toHaveBeenCalledTimes(1);
+        expect(development.mock.calls[0][0]).toMatchObject({ id: 'r1', pitchRepeat: 12 });
+        expect(development.mock.calls[0].slice(1)).toEqual([localeId, 0.75]);
+        expect(journey).toHaveBeenCalledTimes(1);
+        expect(journey.mock.calls[0].slice(1)).toEqual([localeId, 'fleet']);
+      });
     });
 
     // The dev-only Click Track, back on the robot screen (one music clock, Task 10a).

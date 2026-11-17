@@ -149,6 +149,104 @@ describe('Composition split into Rhythm & Melody and Details (control layout Tas
   });
 });
 
+// The melody journey's row (docs/specs/MELODY_JOURNEY.md §1.10; roadmap 92 Task 16): Development beside Journey, the
+// third row of Rhythm & Melody, rendered when its two handlers are given.
+describe('Rhythm & Melody: the Development and Journey row (melody journey Task 16)', () => {
+  const RHYTHM_HANDLERS = { onDensityChange: () => {}, onMotifLengthChange: () => {}, onPitchRepeatChange: () => {}, onNoteVarianceChange: () => {} };
+  const panel = (container: HTMLElement, id: string) => container.querySelector(`[data-panel-id="${id}"]`) as HTMLElement;
+  const development = () => screen.getByRole('slider', { name: new RegExp(CONTENT['probe.composition.development'].human, 'i') });
+  const journeyOption = (name: string) => screen.getByRole('radio', { name });
+  const OPTIONS = ['Own', 'Company', 'Fleet'];
+
+  function renderRow(overrides: Partial<PingControlsValue> = {}, extra: Record<string, unknown> = {}) {
+    const onDevelopmentChange = vi.fn();
+    const onJourneyChange = vi.fn();
+    const result = render(
+      <CompositionRhythmMelodySection
+        value={makeValue({ development: 0.5, journey: 'own', ...overrides })}
+        {...RHYTHM_HANDLERS}
+        onDevelopmentChange={onDevelopmentChange}
+        onJourneyChange={onJourneyChange}
+        {...extra}
+      />,
+    );
+    return { ...result, onDevelopmentChange, onJourneyChange };
+  }
+
+  beforeEach(() => {
+    mockDevTuning = true;
+    stubMatchMedia({ mobile: false, tablet: false });
+  });
+
+  it('renders Development beside Journey in a third row, after Pitch Repeat and Note Variance, with their content labels', () => {
+    const { container } = renderRow();
+    const r3 = panel(container, 'robotOptions.rhythmMelody.p1.r3');
+    expect(r3).toBeTruthy();
+    expect(panel(container, 'robotOptions.rhythmMelody.p1').contains(r3)).toBe(true);
+    expect(r3.contains(development())).toBe(true);
+    expect(screen.getByRole('group', { name: new RegExp(CONTENT['probe.composition.journey'].human, 'i') })).toBeTruthy();
+    for (const name of OPTIONS) expect(r3.contains(journeyOption(name))).toBe(true);
+    const noteVariance = screen.getByRole('slider', { name: /note variance/i });
+    expect(!!(noteVariance.compareDocumentPosition(development()) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+  });
+
+  it('shows the stored values: Development 1.375, Journey Company', () => {
+    renderRow({ development: 1.375, journey: 'company' });
+    expect(development().getAttribute('aria-valuenow')).toBe('1.375');
+    expect(development().getAttribute('aria-valuemin')).toBe('0');
+    expect(development().getAttribute('aria-valuemax')).toBe('2');
+    expect(journeyOption('Company').getAttribute('aria-checked')).toBe('true');
+    expect(journeyOption('Own').getAttribute('aria-checked')).toBe('false');
+  });
+
+  it('a Development step calls onDevelopmentChange with the next stop (0.5 to 0.625), and nothing else', () => {
+    const { onDevelopmentChange, onJourneyChange } = renderRow({ development: 0.5 });
+    fireEvent.keyDown(development(), { key: 'ArrowRight' });
+    expect(onDevelopmentChange).toHaveBeenCalledWith(0.625);
+    expect(onJourneyChange).not.toHaveBeenCalled();
+  });
+
+  it('choosing Fleet calls onJourneyChange with fleet, and nothing else', () => {
+    const { onDevelopmentChange, onJourneyChange } = renderRow({ journey: 'own' });
+    fireEvent.click(journeyOption('Fleet'));
+    expect(onJourneyChange).toHaveBeenCalledWith('fleet');
+    expect(onDevelopmentChange).not.toHaveBeenCalled();
+  });
+
+  it('Journey is disabled at Development 0, its stored value still shown, and calls nothing', () => {
+    const { onJourneyChange } = renderRow({ development: 0, journey: 'fleet' });
+    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBe('');
+    expect(journeyOption('Fleet').getAttribute('aria-checked')).toBe('true');
+    expect(development().getAttribute('data-disabled')).toBeNull();
+    fireEvent.click(journeyOption('Own'));
+    expect(onJourneyChange).not.toHaveBeenCalled();
+  });
+
+  it('Journey is enabled at the first stop above 0', () => {
+    renderRow({ development: 0.125 });
+    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBeNull();
+  });
+
+  it('a section disabled disables both', () => {
+    renderRow({ development: 1 }, { disabled: true });
+    expect(development().getAttribute('data-disabled')).toBe('');
+    for (const name of OPTIONS) expect(journeyOption(name).getAttribute('data-disabled')).toBe('');
+  });
+
+  it('is absent without its two handlers: four sliders and no Journey', () => {
+    render(<CompositionRhythmMelodySection value={makeValue({ development: 1, journey: 'own' })} {...RHYTHM_HANDLERS} />);
+    expect(screen.getAllByRole('slider')).toHaveLength(4);
+    expect(screen.queryByRole('radio', { name: 'Fleet' })).toBeNull();
+  });
+
+  it('reads an absent development as 0 and an absent journey as Own', () => {
+    renderRow({ development: undefined, journey: undefined });
+    expect(development().getAttribute('aria-valuenow')).toBe('0');
+    expect(journeyOption('Own').getAttribute('aria-checked')).toBe('true');
+    expect(journeyOption('Own').getAttribute('data-disabled')).toBe('');
+  });
+});
+
 describe('Composition halves (docs/reference/layout-updates.md) — merges Rhythm/Pitches into one accordion', () => {
   beforeEach(() => {
     mockDevTuning = true;

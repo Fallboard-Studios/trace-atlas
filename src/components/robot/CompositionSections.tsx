@@ -2,7 +2,10 @@ import { memo } from 'react';
 import { SliderLinear } from '@/components/ui/controls/SliderLinear';
 import { Toggle } from '@/components/ui/controls/Toggle';
 import { DirectionalPanel } from '@/components/ui/controls/DirectionalPanel';
+import { RadioButton } from '@/components/ui/controls/RadioButton';
 import {
+  DEVELOPMENT_SCHEMA,
+  JOURNEY_SCHEMA,
   CLICK_TRACK_SCHEMA,
   DENSITY_SCHEMA,
   MOTIF_LENGTH_SCHEMA,
@@ -13,8 +16,9 @@ import {
   RESTS_SCHEMA,
   ACCENTS_SCHEMA,
 } from '@/data/robotOptionsConfig';
-import { DEV_TUNING } from '@/constants';
+import { DEFAULT_DEVELOPMENT, DEFAULT_JOURNEY, DEV_TUNING } from '@/constants';
 import type { DirectionalPanelSchema } from '@/types/controls';
+import type { JourneySetting } from '@/types/Robot';
 
 import { CONTENT } from '@/content';
 
@@ -50,6 +54,13 @@ export interface PingControlsValue {
    * production build can never set this true.
    */
   clickTrackActive: boolean;
+  /**
+   * The melody journey (docs/specs/MELODY_JOURNEY.md §1.9, §1.10): changes per measure, 0-2 in 0.125 stops, and whose
+   * journey it travels. Read by the engine when it plays, so neither regenerates the melody. Optional until the company
+   * screens pass them (roadmap 92 Task 17); absent reads as 0 and 'own'.
+   */
+  development?: number;
+  journey?: JourneySetting;
 }
 
 // ========================================
@@ -61,6 +72,7 @@ export interface PingControlsValue {
 const RHYTHM_MELODY_P1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1', type: 'directionalPanel', orientation: 'column' };
 const RHYTHM_MELODY_P1_R1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1.r1', type: 'directionalPanel', orientation: 'responsive' };
 const RHYTHM_MELODY_P1_R2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
+const RHYTHM_MELODY_P1_R3_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.rhythmMelody.p1.r3', type: 'directionalPanel', orientation: 'responsive' };
 const DETAILS_P1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1', type: 'directionalPanel', orientation: 'column' };
 const DETAILS_P1_R1_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1.r1', type: 'directionalPanel', orientation: 'responsive' };
 const DETAILS_P1_R2_SCHEMA: DirectionalPanelSchema = { id: 'robotOptions.details.p1.r2', type: 'directionalPanel', orientation: 'responsive' };
@@ -79,28 +91,39 @@ interface CompositionProps {
   onNoteVarianceChange: (value: number) => void;
   onRestsChange: (value: number) => void;
   onAccentsChange: (value: number) => void;
+  /** The melody journey's row renders when both are given (optional until roadmap 92 Task 17). */
+  onDevelopmentChange?: (value: number) => void;
+  onJourneyChange?: (value: JourneySetting) => void;
   disabled?: boolean;
 }
 
 type RhythmMelodyProps = Pick<
   CompositionProps,
-  'onClickTrackActiveChange' | 'onDensityChange' | 'onMotifLengthChange' | 'onPitchRepeatChange' | 'onNoteVarianceChange' | 'disabled'
-> & { value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive'> };
+  | 'onClickTrackActiveChange' | 'onDensityChange' | 'onMotifLengthChange' | 'onPitchRepeatChange' | 'onNoteVarianceChange'
+  | 'onDevelopmentChange' | 'onJourneyChange' | 'disabled'
+> & {
+  value: Pick<PingControlsValue, 'rhythmicDensity' | 'rhythmicMotifLength' | 'pitchRepeat' | 'noteVariance' | 'clickTrackActive' | 'development' | 'journey'>;
+};
 
 /**
  * Composition > Rhythm & Melody (docs/specs/CONTENT_LAYOUT.md §1.3): one box, Note Density beside Phrase Length, then
- * Pitch Repeat Chance beside Note Variance, then the dev-only Click Track as its last row when the caller passes
+ * Pitch Repeat Chance beside Note Variance, then Development beside Journey (docs/specs/MELODY_JOURNEY.md §1.10) when
+ * the caller passes both of their handlers, then the dev-only Click Track as its last row when the caller passes
  * `onClickTrackActiveChange` (the robot, company and All Probes screens; docs/tasks/ONE_MUSIC_CLOCK.md Tasks 10a and 10b,
  * so the downbeat can be heard). The sliders stay live while it plays: the engine registers the click pattern in place
  * of any melody while the flag is on (`AudioEngine.registerRobotMelody`), so an edit changes the stored melody heard
  * once it is off.
  */
 export const CompositionRhythmMelodySection = memo(function CompositionRhythmMelodySection({
-  value, onClickTrackActiveChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange, onNoteVarianceChange, disabled,
+  value, onClickTrackActiveChange, onDensityChange, onMotifLengthChange, onPitchRepeatChange, onNoteVarianceChange,
+  onDevelopmentChange, onJourneyChange, disabled,
 }: RhythmMelodyProps) {
   // Pitch Repeat still needs a tiled motif to lock cells within — no cell concept exists when
   // Motif Length is off (docs/specs/archive/PITCH_REPEAT.md) — unrelated to the removed Click Track gate.
   const pitchRepeatDisabled = disabled || value.rhythmicMotifLength === 0;
+  const development = value.development ?? DEFAULT_DEVELOPMENT;
+  // Journey does nothing while Development is 0: dimmed, its value kept (§1.10).
+  const journeyDisabled = disabled || development === 0;
   return (
     <DirectionalPanel schema={RHYTHM_MELODY_P1_SCHEMA}>
       <DirectionalPanel schema={RHYTHM_MELODY_P1_R1_SCHEMA}>
@@ -115,6 +138,17 @@ export const CompositionRhythmMelodySection = memo(function CompositionRhythmMel
           <SliderLinear schema={NOTE_VARIANCE_SCHEMA} value={value.noteVariance} onChange={onNoteVarianceChange} disabled={disabled} />
         </div>
       </DirectionalPanel>
+      {onDevelopmentChange && onJourneyChange && (
+        <DirectionalPanel schema={RHYTHM_MELODY_P1_R3_SCHEMA}>
+          <SliderLinear schema={DEVELOPMENT_SCHEMA} value={development} onChange={onDevelopmentChange} disabled={disabled} />
+          <RadioButton
+            schema={JOURNEY_SCHEMA}
+            value={value.journey ?? DEFAULT_JOURNEY}
+            onChange={onJourneyChange as (value: string) => void}
+            disabled={journeyDisabled}
+          />
+        </DirectionalPanel>
+      )}
       {DEV_TUNING && onClickTrackActiveChange && (
         <Toggle schema={CLICK_TRACK_SCHEMA} value={value.clickTrackActive} onChange={onClickTrackActiveChange} disabled={disabled}>
           {CONTENT['probe.composition.clickTrack'].human}

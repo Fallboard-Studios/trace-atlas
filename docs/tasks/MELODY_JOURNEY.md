@@ -504,7 +504,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** S
 
-- [ ] **Task 16: `CompositionSections.tsx`, `RobotScreen.tsx` — the third row on the robot screen**
+- [x] **Task 16: `CompositionSections.tsx`, `RobotScreen.tsx` — the third row on the robot screen**
 
   **Description:** `CompositionRhythmMelodySection` gains a third row: Development beside Journey (spec §1.10).
   `PingControlsValue` gains both. Journey is disabled while Development is 0, its value kept. The row renders when
