@@ -35,7 +35,7 @@ import { loadingOf } from '../data/bands/loadingIdentity';
 import type { SyncedRate } from './tempoSync';
 import { getLocaleNoiseMap } from './noiseMaps';
 import { deepEqual, roundToDecimals } from './math';
-import { JOURNEY_SETTINGS, SEND_MIN, SEND_MAX } from '../constants';
+import { SEND_MIN, SEND_MAX } from '../constants';
 import { quantizeGlobalAudioForCapture, roundLfoBankForCapture } from './sessionCapture';
 import { retransmitWorld } from '../systems/worldTransition';
 import { regenerateMelody } from '../engine/regenerateMelody';
@@ -404,11 +404,11 @@ function buildRobotUpdates(robot: Robot, diff: RobotAudioOverrideDiff): Partial<
   if (diff.rhythmicMotifLength !== undefined) updates.rhythmicMotifLength = diff.rhythmicMotifLength;
   if (diff.noteVariance !== undefined) updates.noteVariance = diff.noteVariance;
   if (diff.pitchRepeat !== undefined) updates.pitchRepeat = diff.pitchRepeat;
-  // The melody journey: a finite development and a listed journey, or the key is ignored whole (a payload is untrusted
-  // here); updateRobot snaps and clamps the development. Neither needs the regenerateMelody below: the engine reads both
-  // from the store as it plays.
+  // The melody journey: a finite development, or the key is ignored whole (a payload is untrusted here; updateRobot
+  // snaps and clamps a number but would store a string). A journey goes to updateRobot as it is, which drops one that is
+  // not a setting. Neither needs the regenerateMelody below: the engine reads both from the store as it plays.
   if (typeof diff.development === 'number' && Number.isFinite(diff.development)) updates.development = diff.development;
-  if (diff.journey !== undefined && (JOURNEY_SETTINGS as readonly unknown[]).includes(diff.journey)) updates.journey = diff.journey;
+  if (diff.journey !== undefined) updates.journey = diff.journey;
   // Robot Performance: a finite number or the key is ignored whole, key by key (a payload is untrusted here). updateRobot
   // clamps the value; regenerateMelody below re-stamps rests / accents from the stored robot.
   for (const field of ['dynamics', 'rests', 'accents'] as const) {
