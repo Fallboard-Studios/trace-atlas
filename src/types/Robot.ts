@@ -338,6 +338,17 @@ export interface Robot {
    */
   development?: number;
   /**
+   * The melody journey (§1.9): how far from home the journey may head, in whole changes, 0 to 16
+   * (JOURNEY_INTENSITY_MAX). 0 = the home melody always. Read by the engine when it plays. Absent = 0
+   * (DEFAULT_JOURNEY_MAX_INTENSITY).
+   */
+  journeyMaxIntensity?: number;
+  /**
+   * The melody journey (§1.9): the longest a pair of the journey takes, in even measures, 2 to 16
+   * (JOURNEY_TIME_MIN to JOURNEY_TIME_MAX, step JOURNEY_TIME_STEP). Absent = 8 (DEFAULT_JOURNEY_MAX_TIME).
+   */
+  journeyMaxTime?: number;
+  /**
    * The melody journey (§1.9): whose journey the robot travels: its own, its company's, or the fleet's. On Company
    * with no company it travels as Own. Absent = 'own' (DEFAULT_JOURNEY).
    */

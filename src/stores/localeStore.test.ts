@@ -354,6 +354,88 @@ describe('localeStore', () => {
       });
     });
 
+    // The journey's two bounds (docs/specs/MELODY_JOURNEY.md §1.9; roadmap 92 Task 27).
+    describe('journey bounds normalisation', () => {
+      const stored = () => useLocaleStore.getState().locales[DEFAULT_LOCALE_ID].robots[0];
+      const update = (updates: Record<string, unknown>) =>
+        useLocaleStore.getState().updateRobot(DEFAULT_LOCALE_ID, 'r1', updates as never);
+
+      it('rounds max intensity to a whole number and clamps it to 0-16: 7.4 as 7, 20 as 16, -1 as 0, Infinity as 16', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ journeyMaxIntensity: 7.4 });
+        expect(stored().journeyMaxIntensity).toBe(7);
+        update({ journeyMaxIntensity: 7.6 });
+        expect(stored().journeyMaxIntensity).toBe(8);
+        update({ journeyMaxIntensity: 20 });
+        expect(stored().journeyMaxIntensity).toBe(16);
+        update({ journeyMaxIntensity: -1 });
+        expect(stored().journeyMaxIntensity).toBe(0);
+        update({ journeyMaxIntensity: Infinity });
+        expect(stored().journeyMaxIntensity).toBe(16);
+        update({ journeyMaxIntensity: -Infinity });
+        expect(stored().journeyMaxIntensity).toBe(0);
+      });
+
+      it('passes every whole max intensity from 0 to 16 through', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (let v = 0; v <= 16; v++) {
+          update({ journeyMaxIntensity: v });
+          expect(stored().journeyMaxIntensity).toBe(v);
+        }
+      });
+
+      it('rounds max time to an even number and clamps it to 2-16: 5 as 6, 1 as 2, 40 as 16, Infinity as 16', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ journeyMaxTime: 5 });
+        expect(stored().journeyMaxTime).toBe(6);
+        update({ journeyMaxTime: 1 });
+        expect(stored().journeyMaxTime).toBe(2);
+        update({ journeyMaxTime: 40 });
+        expect(stored().journeyMaxTime).toBe(16);
+        update({ journeyMaxTime: Infinity });
+        expect(stored().journeyMaxTime).toBe(16);
+        update({ journeyMaxTime: -3 });
+        expect(stored().journeyMaxTime).toBe(2);
+      });
+
+      it('stores an even max time for every input from 0 to 20 in steps of 0.25', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (let v = 0; v <= 20; v += 0.25) {
+          update({ journeyMaxTime: v });
+          const time = stored().journeyMaxTime as number;
+          expect(time % 2).toBe(0);
+          expect(time).toBeGreaterThanOrEqual(2);
+          expect(time).toBeLessThanOrEqual(16);
+        }
+      });
+
+      it('passes every even max time from 2 to 16 through', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        for (let v = 2; v <= 16; v += 2) {
+          update({ journeyMaxTime: v });
+          expect(stored().journeyMaxTime).toBe(v);
+        }
+      });
+
+      it('drops a NaN in either bound, keeping the stored value and the rest of the update', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ journeyMaxIntensity: 9, journeyMaxTime: 10 });
+        update({ journeyMaxIntensity: NaN, masterVolume: 0.4 });
+        expect(stored().journeyMaxIntensity).toBe(9);
+        expect(stored().masterVolume).toBe(0.4);
+        update({ journeyMaxTime: NaN, masterVolume: 0.6 });
+        expect(stored().journeyMaxTime).toBe(10);
+        expect(stored().masterVolume).toBe(0.6);
+      });
+
+      it('keeps both bounds absent on a robot updated without them', () => {
+        useLocaleStore.getState().addRobot(DEFAULT_LOCALE_ID, makeRobot('r1'));
+        update({ masterVolume: 0.4 });
+        expect('journeyMaxIntensity' in stored()).toBe(false);
+        expect('journeyMaxTime' in stored()).toBe(false);
+      });
+    });
+
     describe('performance clamping (dynamics, rests, accents: 0-100 integers, docs/specs/ROBOT_PERFORMANCE.md §1.1)', () => {
       const PERFORMANCE_KEYS = ['dynamics', 'rests', 'accents'] as const;
       const stored = (key: (typeof PERFORMANCE_KEYS)[number]) =>
