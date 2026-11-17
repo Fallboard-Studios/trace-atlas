@@ -185,8 +185,9 @@ export function positionInPairs(pairs: readonly JourneyPair[], measure: number):
  *  depend on the key and max time alone (never on max intensity or the calm limit), so that pair is the memo's key. */
 const turnsByKeyAndTime = new Map<string, number[]>();
 
-/** The index of the pair `measure` falls in (the first whose turning measure is after it), drawing as needed. */
-function pairAt(key: string, maxTime: number, measure: number): number {
+/** The index of the pair `measure` falls in (the first whose turning measure is after it), drawing as needed, and the
+ *  turning measures it was found in. */
+function pairAt(key: string, maxTime: number, measure: number): { i: number; ends: readonly number[] } {
   const memoKey = `${maxTime}|${key}`;
   let ends = turnsByKeyAndTime.get(memoKey);
   if (!ends) {
@@ -207,7 +208,7 @@ function pairAt(key: string, maxTime: number, measure: number): number {
     if (ends[mid] <= measure) lo = mid + 1;
     else hi = mid;
   }
-  return lo;
+  return { i: lo, ends };
 }
 
 /**
@@ -217,8 +218,7 @@ function pairAt(key: string, maxTime: number, measure: number): number {
  */
 export function journeyPosition(key: string, bounds: JourneyBounds, measure: number): number {
   if (!(bounds.maxIntensity > 0) || !Number.isFinite(measure) || measure <= 0) return 0;
-  const i = pairAt(key, bounds.maxTime, measure);
-  const ends = turnsByKeyAndTime.get(`${bounds.maxTime}|${key}`)!;
+  const { i, ends } = pairAt(key, bounds.maxTime, measure);
   const shares = sharesOf(key, i + 1);
   const start = i === 0 ? 0 : ends[i - 1];
   const from = i === 0 ? 0 : pairIntensity(shares[i - 1], bounds);
