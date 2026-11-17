@@ -6,7 +6,8 @@ Source spec: [docs/specs/MELODY_JOURNEY.md](../specs/MELODY_JOURNEY.md). Source 
 
 **Status:** plan written 2026-11-17; Crawford asked for Phase 1 the same day. Phase 1 built on `feature/melody-journey`
 (Tasks 1–7, ab4c5bbc..8ca7100e). Checkpoint A's suite, mutation checks and path lengths done (Results); its review
-with Crawford is next, then Task 8.
+with Crawford is next. Phase 2 built the same day (Tasks 8–9, 5fb21a7b, 4d088fb0); Checkpoint B's suite and probe
+done (Results), its review with Crawford next, then Task 10.
 
 ## Overview
 
@@ -270,7 +271,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
 ### Phase 2: Docking pitch drift goes
 
-- [ ] **Task 8: `robotSystems.ts` — a docking no longer changes a melody**
+- [x] **Task 8: `robotSystems.ts` — a docking no longer changes a melody**
 
   **Description:** Remove the drift block from `stepRobotLifecycle`; `melody`, `dockCycleCount` and `noteVariance`
   from `RobotLifecycleSnapshot`; `landOnDocked`'s `driftedMelody` parameter, its `melody` write and its
@@ -283,10 +284,10 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   `melody` array and makes no `registerRobotMelody` call.
 
   **Acceptance criteria:**
-  - [ ] The RED test passes; no melody changes at any docking transition.
-  - [ ] The replay still matches the live tick measure by measure (the existing parity tests, with only the removed
+  - [x] The RED test passes; no melody changes at any docking transition.
+  - [x] The replay still matches the live tick measure by measure (the existing parity tests, with only the removed
         fields and parameter edited out).
-  - [ ] Before committing, run every test file that mocks `./dockCycles`, `robotSystems` or `lifecycleSim`
+  - [x] Before committing, run every test file that mocks `./dockCycles`, `robotSystems` or `lifecycleSim`
         (`grep -rln` for each), not only the two named here.
 
   **Verification:** `npx vitest run src/systems/robotSystems.test.ts src/systems/lifecycleSim.test.ts src/systems/workLoop.integration.test.ts src/systems/worldTransition.test.ts`
@@ -299,7 +300,7 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
 
   **Estimated scope:** M
 
-- [ ] **Task 9: `melodyGenerator.ts` — the re-roll and what only it used are deleted**
+- [x] **Task 9: `melodyGenerator.ts` — the re-roll and what only it used are deleted**
 
   **Description:** Delete `reRollMelodyPitches`, `pickWeightedIndex` and `pickRandomIndices` (each confirmed by grep
   to have no caller left), their tests, and `DOCKED_PITCH_DRIFT_RATIO`. `MelodyEvent.pitchLocked` and the code that
@@ -308,8 +309,8 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Proof:** Read — a deletion. The type check and lint show nothing dangles.
 
   **Acceptance criteria:**
-  - [ ] The three functions and the constant are gone, with no reference left in `src/`.
-  - [ ] `generateMelodyForRobot` is untouched, and its tests pass unmodified.
+  - [x] The three functions and the constant are gone, with no reference left in `src/`.
+  - [x] `generateMelodyForRobot` is untouched, and its tests pass unmodified.
 
   **Verification:** `npx vitest run src/engine/melodyGenerator.test.ts src/engine/regenerateMelody.test.ts` passes.
 
@@ -320,8 +321,9 @@ review, for a docs-only or deletion task. Look: what to see in the browser. Ever
   **Estimated scope:** S
 
 ### Checkpoint B: drift gone
-- [ ] `npm test` clean (full suite).
-- [ ] In the browser: a robot's melody is the same before and after a dock cycle (the note cloud, or a Solo by ear).
+- [x] `npm test` clean (full suite).
+- [x] In the browser: a robot's melody is the same before and after a dock cycle (the note cloud, or a Solo by ear).
+      Read from the store by a headless probe (Results); a listen is his at the review.
 - [ ] Reviewed with Crawford before Phase 3.
 
 ---
@@ -800,6 +802,20 @@ melodies through `composeRobotMelody` from the roster baselines, floors from eac
 - The sweep mirrors `generateCompositionSeed`'s draw (`'robot.compositionSeed'`, even, 0 to 1), which spawnSystem does
   not export. Its floor check counts only notes a change shortened or added: a tie lengthens a home note, which may
   stay under the floor.
+
+### Checkpoint B (2026-11-17)
+
+**Tasks.** Task 8 5fb21a7b, Task 9 4d088fb0. A grep of `src/` finds no `dockCycles`, `dockCycleCount`,
+`driftedMelody`, `reRollMelodyPitches`, `pickWeightedIndex`, `pickRandomIndices` or `DOCKED_PITCH_DRIFT_RATIO`.
+
+**Suite.** `npm test`: 14,602 passed, 2 skipped, 0 failed. Checkpoint A's 14,629 less 27 net: Task 8 net 11 (the drift
+tests out, its two RED tests in), Task 9 the 16 re-roll and pick tests. `build:types` clean; `lint` clean apart from the four standing
+fast-refresh warnings.
+
+**In the browser.** A throwaway headless probe (not committed) on the dev server, world `charlie:200:-30`, read every
+robot's `docking` and `melody` from the locale store once a second for 240 s after power-on: 12 robots, 19 Recalled →
+Docked landings (every robot landed at least once; seven landed twice), 0 melody changes, and each robot's last
+melody equal to its first.
 
 ## Risks and Mitigations
 
