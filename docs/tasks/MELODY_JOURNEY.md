@@ -25,8 +25,10 @@ built the same day on Crawford's word (Tasks 24–26, 659f5f56, 840f9b01, 54cb4a
 
 **Revised again 2026-11-17, after Phase 7:** Crawford took max time off the robot (spec §7.4): every journey has one
 max time of 16, so robots on one journey move in lock step. Task 38 (Phase 7) takes the built field out; Tasks 29 to
-35 below are revised to carry max intensity alone. Task 38 built the same day (c670c221; Results, Checkpoint G);
-Checkpoint G's browser look and review with Crawford are next, then Task 29 (Phase 8).
+35 below are revised to carry max intensity alone. Task 38 built the same day (c670c221; Results, Checkpoint G).
+Phase 8 built the same day on Crawford's word (Tasks 29–32, 4b0504b1, f85c7e41, 2f39079c, c71db96e), with
+Checkpoint G's browser look and review still open; Checkpoint H's suite done (Results). Gate A, Crawford's ear, is
+next.
 
 ## Overview
 
@@ -968,7 +970,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
 ### Phase 8: Max intensity, by hand
 
-- [ ] **Task 29: content, schema and the apply**
+- [x] **Task 29: content, schema and the apply**
 
   **Description:** Content entry `probe.composition.journeyMaxIntensity`, a stand-in marked the way the file's other
   stand-ins are. `JOURNEY_MAX_INTENSITY_SCHEMA` (a `SliderLinearSchema`, 0 to 16, step 1) in `robotOptionsConfig.ts`,
@@ -992,7 +994,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** S
 
-- [ ] **Task 30: `CompositionSections.tsx`, `RobotScreen.tsx` — row 3 on the robot screen**
+- [x] **Task 30: `CompositionSections.tsx`, `RobotScreen.tsx` — row 3 on the robot screen**
 
   **Description:** In `CompositionRhythmMelodySection`, Max Intensity takes Development's place on row 3, beside
   Journey (spec §1.10, C1). `PingControlsValue` gains max intensity. Journey is disabled while Max Intensity is 0, its
@@ -1023,7 +1025,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** M
 
-- [ ] **Task 31: the company and All Probes broadcast**
+- [x] **Task 31: the company and All Probes broadcast**
 
   **Description:** `CompanyOptionsSnapshot` swaps `development` for max intensity; `companyOptions.ts` resolves it
   from the first member, else the default; `useCompanyOptions` broadcasts it to every member through its apply;
@@ -1050,7 +1052,7 @@ rate, and everything that carries `development`. Their text is left as the recor
 
   **Estimated scope:** M
 
-- [ ] **Task 32: the Development slider's leftovers go**
+- [x] **Task 32: the Development slider's leftovers go**
 
   **Description:** Deletion only. `applyDevelopment`, `DEVELOPMENT_SCHEMA` and the content entry
   `probe.composition.development`, each re-checked for a caller before it is deleted, with the tests that exercised
@@ -1072,7 +1074,7 @@ rate, and everything that carries `development`. Their text is left as the recor
   **Estimated scope:** XS (deletion only)
 
 ### Checkpoint H: Gate A, Crawford's ear
-- [ ] `npm test` clean (full suite).
+- [x] `npm test` clean (full suite).
 - [ ] **Gate A.** Every robot still loads at a max intensity of 0, so the world plays its home melodies. Crawford
       sets one robot to 16 and solos it through a drop and a slow return home; then a low max intensity; then a
       company on Company at mixed max intensities, in lock step; then the fleet on Fleet. His to move here, each
@@ -1649,6 +1651,44 @@ Two rows of the first pass's table no longer exist as written: `robotJourney` ig
 behaviour, and its opposite is the first row above. The memo-key mutant stays meaningful: the pure pieces still take
 any max time, and the case that reads one key at six max times kills it. `journeyMaxTime` is still named in `src/`
 by two test fixtures that stand for an old save's leftover; nothing else carries it.
+
+### Checkpoint H (2026-11-17)
+
+**Tasks.** Task 29 4b0504b1, Task 30 f85c7e41, Task 31 2f39079c, Task 32 c71db96e. Built with Checkpoint G's browser
+look and review still open (Crawford asked for Phase 8 directly). Every robot still loads at a max intensity of 0:
+nothing seeds it until Task 34.
+
+**Suite.** `npm test` at c71db96e: 364 files, 14,774 passed, 2 skipped, 0 failed (260 s), no worker error.
+`build:types` clean; `lint` clean apart from the four standing fast-refresh warnings.
+
+**Mutation checks.** Each killed:
+
+| Mutant | Failed |
+|---|---|
+| Journey dimmed on `development` again, not max intensity (Task 30) | 2 |
+| The company resolver ignoring the first member's max intensity (Task 31) | 2 |
+| A company Max Intensity edit not recorded in the snapshot (Task 31) | 5 |
+
+**Look (Task 30).** Headless Chrome on a dev server, the robot screen's Rhythm & Melody, max intensity 0, 1, 9, 16 and
+0 on Fleet set through the store. Phone (390 wide): row 3 a column, the slider's box 290 × 105 and Journey's
+290 × 142.5 at every value. Desktop (1440 wide): a row, both 360 × 121 at every value. Journey's radios disabled at 0
+only; five sliders in the box. Crawford's eye on the row (C1) is part of Gate A.
+
+**Readings the plan did not cover (Phase 8).**
+
+- Between Tasks 30 and 31 (one commit), the company and All Probes screens showed Journey alone on row 3, dimmed: the
+  section rendered Max Intensity only when its handler was given, and only the robot screen gave it. Task 31 made the
+  handler required and the slider unconditional (Task 30).
+- RobotScreen stopped passing Development in Task 30, not Task 31: the section no longer rendered it, so the value and
+  handler were dead there (Task 30).
+- Journey's help text names Max Intensity in place of Development (Task 30, copy only).
+- An old company snapshot (`lastEditedOptions`) that carries `development` loads with the key in place; nothing reads
+  it, since the type no longer names it (Task 31).
+- `useCompanyOptions.test.ts`'s mixed Journey cases (the apply-per-member, outside-the-company, broadcast-not-link, All
+  Probes and handler-identity cases) swapped their Development half for Max Intensity; the pure Journey case is
+  unmodified (Task 31).
+- The `DEVELOPMENT_*` constants stay: the store's normalisation of `development`, its band test and its seeder read
+  them until Tasks 36 and 37 (Task 32).
 
 ## Risks and Mitigations
 
