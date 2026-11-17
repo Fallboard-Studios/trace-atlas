@@ -170,6 +170,17 @@ describe('rederiveLoading: every widened robot key is compared and pushed (theme
     expect(result.dropped).toEqual([]);
   });
 
+  // docs/tasks/MELODY_JOURNEY.md Task 19 (spec §1.9): the engine reads a robot's development as it plays, so the write
+  // is all, as the Development edit (applyDevelopment): no engine call, no melody regenerated.
+  it('robot.development: the field alone, re-derived in place, no engine call and no melody regenerated', () => {
+    const result = changeTheme({ 'robot.development': { min: 1.5, max: 2, lit: 1 } });
+    expectFieldAlone(result, (r) => r.development, (_, f) => ({ development: f.development }));
+    for (const spy of Object.values(result.spies)) expect(spy).not.toHaveBeenCalled();
+    result.after.forEach((robot, i) => expect(robot.melody, robot.id).toBe(result.before[i].melody));
+    for (const robot of result.after) expect(robot.development, robot.id).toBeGreaterThanOrEqual(1.5);
+    expect(result.dropped).toEqual([]);
+  });
+
   it('robot.accents: the field and the melody it bakes in, regenerated once per moved robot, as the Accents edit', () => {
     const result = changeTheme({ 'robot.accents': { min: 95, max: 100 } });
     const moved = expectFieldAlone(result, (r) => r.accents, (_, f) => ({ accents: f.accents, melody: f.melody }));

@@ -89,11 +89,8 @@ function deriveFamilyFields(
   priorLanes: PriorLanes,
 ): DealtFields {
   switch (family) {
-    case 'melody': {
-      // Held out until spawn writes it (docs/tasks/MELODY_JOURNEY.md Task 19).
-      const { development: _development, ...fields } = deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
-      return fields;
-    }
+    case 'melody':
+      return deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
     case 'envelope': {
       const adsr = deriveEnvelopeFields(noiseMap, spawnIndex, bands);
       return {
@@ -291,13 +288,16 @@ export function applyAspectDeal(localeId: string): void {
  * rederiveLoading writes it live as the Volume edit does (updateRobotMasterVolume, no rebuild), unless a Voice push
  * rebuilds the voice, which reserves it at the robot's volume (reReserveVoice); and the five sends. The four after
  * `pitchRepeat` and the master volume joined at docs/tasks/THEME_AND_ASPECTS_REFINEMENT.md T6, so a theme column may
- * name them; T7b refiles the Performance fields under their own family.
+ * name them; T7b refiles the Performance fields under their own family. `development` (docs/specs/MELODY_JOURNEY.md
+ * §1.9), the Melody family's fifth, needs no push: the engine reads it from the store as it plays, as the Development
+ * edit (applyDevelopment) writes it and nothing else.
  */
 const TOP_LEVEL_FIELDS = [
   ['rhythmicDensity', 'melody'],
   ['rhythmicMotifLength', 'melody'],
   ['noteVariance', 'melody'],
   ['pitchRepeat', 'melody'],
+  ['development', null],
   ['rests', 'performance'],
   ['accents', 'performance'],
   ['octaveRange', 'melody'],

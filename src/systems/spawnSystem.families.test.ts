@@ -8,6 +8,9 @@ import { AudioEngine } from '../engine/AudioEngine';
 import { ROBOT_SEND_FIELDS } from '../data/robotSends';
 import { getSeededVal, getUniformSeededVal } from '../utils/getSeededVal';
 import { SIM_SEED_COORDS, simNoiseMap } from './lifecycleSim';
+import { getBand } from '../data/bands/loadingContext';
+import { journeyPosition, robotJourney } from '../engine/melodyJourney';
+import { developMelody, eventSixteenths } from '../engine/melodyDevelopment';
 import {
   generateBatterySize,
   generateCompanyMembership,
@@ -214,6 +217,66 @@ describe('a seeded company is a family at spawn (Company Families Task 5)', () =
       withEngineStubbed(() => spawnRobot(localeId, { founderIndex: 5 }));
       const [robot] = useLocaleStore.getState().getLocaleById(localeId)!.robots;
       expect(robot.lineage).toBeUndefined();
+    });
+  });
+
+  // docs/tasks/MELODY_JOURNEY.md Task 19 (spec §1.8, §1.9, success criterion 3): a family develops as a section.
+  describe('the melody journey over the grid (roadmap 92 Task 19)', () => {
+    const MEASURES = 100;
+    const bpmTop = getBand('bpm').max;
+    const WORLDS = SIM_SEED_COORDS.map(({ x, y }) => {
+      const { localeId } = spawnWorld(x, y);
+      spawnInitialCompanies(localeId);
+      const { robots, companies } = useLocaleStore.getState().getLocaleById(localeId)!;
+      return { key: `${x}:${y}`, x, y, robots, companies };
+    });
+    /** Each member's starts and lengths, measure by measure, as the engine plays them. */
+    const rhythmByMeasure = (robot: Robot, worldKey: string) => {
+      const journey = robotJourney(robot, worldKey, bpmTop);
+      return Array.from({ length: MEASURES }, (_, measure) =>
+        developMelody(robot.melody, journeyPosition(journey.key, journey.rate, measure), journey).map((e) => `${e.startStep}:${eventSixteenths(e)}`).join(' '),
+      );
+    };
+
+    it('every robot of a seeded company, founder included, is on Company; every freelancer on Own', () => {
+      for (const { key, robots, companies } of WORLDS) {
+        const members = new Set(companies.flatMap((c) => c.robotIds));
+        for (const robot of robots) expect(robot.journey, `${key} ${robot.id}`).toBe(members.has(robot.id) ? 'company' : 'own');
+      }
+    });
+
+    it('a member\'s development is its founder\'s', () => {
+      for (const { key, robots } of WORLDS) {
+        for (const robot of robots) {
+          if (!robot.lineage) continue;
+          expect(robot.development, `${key} ${robot.id}`).toBe(robots[robot.lineage.founderIndex].development);
+        }
+      }
+    });
+
+    it('a spawned roster equals its baseline in both fields', () => {
+      for (const { key, x, y, robots } of WORLDS) {
+        const baselines = generateRobotRosterBaseline(simNoiseMap(x, y), robots.length);
+        expect(robots.map((r) => [r.development, r.journey]), key).toEqual(baselines.map((b) => [b.development, b.journey]));
+      }
+    });
+
+    it('the members of a company share one journey key and one rate, and play the same starts and lengths at every measure of a 100-measure run', () => {
+      let developing = 0;
+      for (const { key, robots, companies } of WORLDS) {
+        for (const company of companies) {
+          const members = company.robotIds.map((id) => robots.find((r) => r.id === id)!);
+          const journeys = members.map((robot) => robotJourney(robot, key, bpmTop));
+          expect(new Set(journeys.map((j) => j.key)).size, `${key} ${company.id} key`).toBe(1);
+          expect(new Set(journeys.map((j) => j.rate)).size, `${key} ${company.id} rate`).toBe(1);
+          if (journeys[0].rate === 0) continue;
+          developing++;
+          const [first, ...rest] = members.map((robot) => rhythmByMeasure(robot, key));
+          for (const other of rest) expect(other, `${key} ${company.id}`).toEqual(first);
+        }
+      }
+      // Precondition: most companies develop (the band's lit share), so the run is not all home melodies.
+      expect(developing).toBeGreaterThan(100);
     });
   });
 
