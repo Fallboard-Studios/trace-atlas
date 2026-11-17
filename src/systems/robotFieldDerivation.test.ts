@@ -241,87 +241,6 @@ describe('deriveMelodyFields — even draws (Even Seeded Draws T5)', () => {
   });
 });
 
-describe('deriveMelodyFields — development (docs/tasks/MELODY_JOURNEY.md Task 18)', () => {
-  // 12,000 spawn indices (1,000 worlds of 12), so a share is held to one point at more than two standard deviations.
-  const DEVELOPMENT_SLOTS = Array.from({ length: 1000 }, (_, i) => createNoise2D(alea(`development:${i}`))).flatMap((noiseMap) =>
-    Array.from({ length: ROBOTS_PER_WORLD }, (_, offset) => ({ noiseMap, offset })),
-  );
-  const developmentUnder = (band: { min: number; max: number; lit: number }) =>
-    DEVELOPMENT_SLOTS.map(({ noiseMap, offset }) =>
-      deriveMelodyFields(noiseMap, offset, { ...CLASSIC, 'robot.development': band }, ENVELOPE_ATTACK_MIN_SECONDS).development,
-    );
-  const CLASSIC_DEVELOPMENT = DEVELOPMENT_SLOTS.map(
-    ({ noiseMap, offset }) => deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS).development,
-  );
-
-  it('Classic seeds seven robots in ten developing, from one change in eight measures to one a measure', () => {
-    expect(CLASSIC['robot.development']).toStrictEqual({ min: 0.125, max: 1, lit: 0.7 });
-  });
-
-  it('the share above 0 is the band lit share, within a point', () => {
-    const lit = CLASSIC_DEVELOPMENT.filter((d) => d > 0).length / CLASSIC_DEVELOPMENT.length;
-    expect(lit).toBeGreaterThanOrEqual(0.69);
-    expect(lit).toBeLessThanOrEqual(0.71);
-  });
-
-  it('every value above 0 is on the 0.125 grid inside the band, and every stop of the band is drawn', () => {
-    const developing = CLASSIC_DEVELOPMENT.filter((d) => d > 0);
-    for (const d of developing) {
-      expect(Number.isInteger(d / 0.125), `${d} on the grid`).toBe(true);
-      expect(d).toBeGreaterThanOrEqual(0.125);
-      expect(d).toBeLessThanOrEqual(1);
-    }
-    expect(new Set(developing)).toEqual(new Set([0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1]));
-  });
-
-  it('each stop of the band takes a full share: 10-15 % of the developing robots each, the ends included', () => {
-    const developing = CLASSIC_DEVELOPMENT.filter((d) => d > 0);
-    for (let stop = 1; stop <= 8; stop++) {
-      const share = developing.filter((d) => d === stop * 0.125).length / developing.length;
-      expect(share, `${stop * 0.125}`).toBeGreaterThanOrEqual(0.1);
-      expect(share, `${stop * 0.125}`).toBeLessThanOrEqual(0.15);
-    }
-  });
-
-  it('a robot outside the lit share is exactly 0', () => {
-    expect(CLASSIC_DEVELOPMENT.filter((d) => d !== 0 && d < 0.125)).toEqual([]);
-    expect(CLASSIC_DEVELOPMENT).toContain(0);
-  });
-
-  it('a lit share of 0 gives every robot 0; a lit share of 1 gives every robot a stop of the band', () => {
-    expect(new Set(developmentUnder({ min: 0.125, max: 1, lit: 0 }))).toEqual(new Set([0]));
-    const all = developmentUnder({ min: 0.5, max: 0.75, lit: 1 });
-    expect(new Set(all)).toEqual(new Set([0.5, 0.625, 0.75]));
-  });
-
-  it('a band whose edges are off the grid draws only the stops inside it', () => {
-    expect(new Set(developmentUnder({ min: 0.3, max: 0.6, lit: 1 }))).toEqual(new Set([0.375, 0.5]));
-  });
-
-  it('the lit roll and the value are the even draws at their own dataIds and the robot offset', () => {
-    for (const { noiseMap, offset } of DEVELOPMENT_SLOTS.slice(0, 120)) {
-      const lit = getUniformSeededVal(noiseMap, 'robot.development.lit', offset, 0, 1) < 0.7;
-      const stop = 1 + Math.min(7, Math.floor(getUniformSeededVal(noiseMap, 'robot.development', offset, 0, 1) * 8));
-      const { development } = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS);
-      expect(development).toBe(lit ? stop * 0.125 : 0);
-    }
-  });
-
-  it('the same index gives the same value', () => {
-    const { noiseMap, offset } = DEVELOPMENT_SLOTS[5];
-    const first = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS).development;
-    expect(deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS).development).toBe(first);
-  });
-
-  it('the attack does not move it: development reads no tempo and no attack', () => {
-    for (const { noiseMap, offset } of DEVELOPMENT_SLOTS.slice(0, 120)) {
-      expect(deriveMelodyFields(noiseMap, offset, CLASSIC, 1.14).development).toBe(
-        deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS).development,
-      );
-    }
-  });
-});
-
 describe('deriveMelodyFields — max intensity (docs/tasks/MELODY_JOURNEY.md Task 33)', () => {
   // 12,000 spawn indices (1,000 worlds of 12), so a share is held to one point at more than two standard deviations.
   const INTENSITY_SLOTS = Array.from({ length: 1000 }, (_, i) => createNoise2D(alea(`journeyMaxIntensity:${i}`))).flatMap((noiseMap) =>
@@ -399,7 +318,7 @@ describe('deriveMelodyFields — max intensity (docs/tasks/MELODY_JOURNEY.md Tas
     }
   });
 
-  it('the band moves only max intensity: the five older Melody fields draw what they drew under any band', () => {
+  it('the band moves only max intensity: the other Melody fields draw what they drew under any band', () => {
     for (const { noiseMap, offset } of INTENSITY_SLOTS.slice(0, 120)) {
       const { journeyMaxIntensity: _a, ...classic } = deriveMelodyFields(noiseMap, offset, CLASSIC, ENVELOPE_ATTACK_MIN_SECONDS);
       const { journeyMaxIntensity: _b, ...moved } = deriveMelodyFields(

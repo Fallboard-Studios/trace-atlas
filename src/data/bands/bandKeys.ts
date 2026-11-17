@@ -87,7 +87,6 @@ export const ROBOT_LIT_KEYS = [
   'robot.lfoGainDepth',
   'robot.lfoDetuneDepth',
   'robot.lfoBusDepth',
-  'robot.development',
   'robot.journeyMaxIntensity',
 ] as const;
 

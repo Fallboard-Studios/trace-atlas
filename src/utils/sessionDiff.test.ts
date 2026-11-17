@@ -241,8 +241,8 @@ describe('computeRobotAudioOverrideDiff', () => {
       expect('journey' in diff).toBe(false);
     });
 
-    it('a development left on a robot is no longer saved, whatever the baseline holds', () => {
-      const baseline = makeBaseline({ development: 0.5 });
+    it('a development left on a robot is no longer saved', () => {
+      const baseline = makeBaseline();
       const diff = computeRobotAudioOverrideDiff(makeLiveRobot(baseline, { development: 1.75 }), baseline);
       expect(diff).toEqual({});
     });

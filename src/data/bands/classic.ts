@@ -200,11 +200,6 @@ export const CLASSIC: BandTable = {
   'robot.lfoGainDepth': { min: 1, max: 60, lit: 0.25 },
   'robot.lfoDetuneDepth': { min: 1, max: 10, lit: 0.25 },
   'robot.lfoBusDepth': { min: 1, max: 40, lit: 0.135 },
-  // The melody journey's rate, changes per measure (docs/specs/MELODY_JOURNEY.md §1.9, assumption A14, a first cut for
-  // Gate C): `lit` is the share of robots that develop, drawn even, so seven in ten; each lit robot takes a stop of the
-  // 0.125 grid inside the band, from one change every eight measures to one a measure. Every other robot is exactly 0
-  // and plays its home melody. A company member takes its founder's.
-  'robot.development': { min: 0.125, max: 1, lit: 0.7 },
   // The melody journey's max intensity (docs/specs/MELODY_JOURNEY.md §1.9, §7.3, a first cut for Gate C): `lit` is the
   // share of robots on a journey, drawn even, so seven in ten; each lit robot takes a whole number inside the band, each
   // a full share. Every other robot is exactly 0 and plays its home melody. A company member takes its founder's.

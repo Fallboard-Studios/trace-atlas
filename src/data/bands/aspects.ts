@@ -50,15 +50,14 @@ export type FamilyPicks = { [F in AspectFamilyId]?: AspectIdOf<F>[] };
 // FAMILIES
 // ========================================
 
-/** The Melody keys (docs/specs/OFF_SCREEN.md, the first family; kept by the refinement's sheets), the melody journey's
- *  rate and max intensity last (docs/specs/MELODY_JOURNEY.md §1.9): the deal re-derives them with the other four, though
- *  no option's column names them yet. */
+/** The five Melody keys (docs/specs/OFF_SCREEN.md, the first family; kept by the refinement's sheets), the melody
+ *  journey's max intensity last (docs/specs/MELODY_JOURNEY.md §1.9): the deal re-derives it with the other four, though
+ *  no option's column names it yet. */
 const MELODY_BAND_KEYS = [
   'robot.rhythmicDensity',
   'robot.noteVariance',
   'robot.rhythmicMotifLength',
   'robot.pitchRepeat',
-  'robot.development',
   'robot.journeyMaxIntensity',
 ] as const;
 export type MelodyBandKey = (typeof MELODY_BAND_KEYS)[number];

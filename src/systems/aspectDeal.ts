@@ -89,12 +89,8 @@ function deriveFamilyFields(
   priorLanes: PriorLanes,
 ): DealtFields {
   switch (family) {
-    case 'melody': {
-      // Spawn no longer writes development (docs/tasks/MELODY_JOURNEY.md Task 34), so the deal does not either; its
-      // draw goes at Task 36.
-      const { development: _development, ...fields } = deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
-      return fields;
-    }
+    case 'melody':
+      return deriveMelodyFields(noiseMap, spawnIndex, bands, robot.audioAttributes.adsr.attack);
     case 'envelope': {
       const adsr = deriveEnvelopeFields(noiseMap, spawnIndex, bands);
       return {
